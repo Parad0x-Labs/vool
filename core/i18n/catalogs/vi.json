@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "Không thể đọc một thông tin xác thực đã lưu. Nhập lại trong cài đặt để tiếp tục.",
     "fault.evidence_corruption.action": "Kiểm tra sổ thực thi của lượt này với luồng sự kiện của thời gian chạy.",
     "fault.evidence_corruption.message": "Các bản ghi hậu thuẫn cho câu trả lời này không qua được kiểm tra nhất quán, hãy coi câu trả lời là chưa xác minh.",
-    "fault.evm_pocket_custody_unavailable.action": "Đăng ký tài khoản chỉ-xem hoặc kết nối trình ký EVM ngoài (EIP-1193); giữ khóa EVM trong tiến trình bị cấm.",
-    "fault.evm_pocket_custody_unavailable.message": "Khóa EVM không thể giữ trên thiết bị này: dùng chế độ chỉ-xem hoặc trình ký ví ngoài. Chưa tạo gì.",
+    "fault.evm_pocket_custody_unavailable.action": "VOOL Wallet cũ niêm phong một seed Solana duy nhất. Trên mạng EVM, hãy dùng ví Crypto Pilot được niêm phong trên thiết bị này, một tài khoản chỉ-xem, hoặc một ví EVM bên ngoài (EIP-1193) tự giữ khóa của nó.",
+    "fault.evm_pocket_custody_unavailable.message": "VOOL Wallet chỉ giữ khóa Solana, nên không thể tạo hay khôi phục trên mạng EVM. Chưa tạo gì. Với mạng đó, hãy tạo ví Crypto Pilot, thêm tài khoản ở chế độ chỉ-xem, hoặc kết nối ví EVM của riêng bạn.",
     "fault.integrity_verification_failure.action": "Coi chuỗi biên lai bị ảnh hưởng là đã xâm phạm; kiểm tra trước khi tin các mục của nó.",
     "fault.integrity_verification_failure.message": "Một bản ghi không qua được kiểm tra chống giả mạo. Không có gì được chấp nhận lặng lẽ.",
     "fault.permission_denied.action": "Kiểm tra chính sách quyền hoặc cài đặt phê duyệt chi phối hành động này.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm."
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }

@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "לא ניתן היה לקרוא פרטי גישה שמורים. הזינו אותם מחדש בהגדרות כדי להמשיך.",
     "fault.evidence_corruption.action": "חקרו את פנקס ההפעלה של תור זה מול זרם האירועים של סביבת הריצה.",
     "fault.evidence_corruption.message": "הרשומות התומכות בתשובה זו לא עברו בדיקת עקביות, ולכן יש לראות את התשובה כלא מאומתת.",
-    "fault.evm_pocket_custody_unavailable.action": "רשמו את החשבון לצפייה בלבד או חברו חותם EVM חיצוני (EIP-1193); משמורת EVM בתוך התהליך אסורה.",
-    "fault.evm_pocket_custody_unavailable.message": "אי אפשר להחזיק מפתחות EVM במכשיר זה: השתמשו בצפייה-בלבד או בחותם ארנק חיצוני. לא נוצר דבר.",
+    "fault.evm_pocket_custody_unavailable.action": "ה-VOOL Wallet הישן חותם זרע Solana אחד. ברשת EVM, השתמשו בארנק Crypto Pilot שנחתם במכשיר הזה, בחשבון לצפייה בלבד, או בארנק EVM חיצוני (EIP-1193) ששומר את המפתח שלו בעצמו.",
+    "fault.evm_pocket_custody_unavailable.message": "VOOL Wallet מחזיק רק מפתח Solana, ולכן אי אפשר ליצור או לשחזר אותו ברשת EVM. לא נוצר דבר. עבור הרשת הזו, צרו ארנק Crypto Pilot, הוסיפו את החשבון לצפייה בלבד, או חברו ארנק EVM משלכם.",
     "fault.integrity_verification_failure.action": "התייחסו לשרשרת הקבלות שנפגעה כפרוצה; חקרו לפני שתסמכו על רשומותיה.",
     "fault.integrity_verification_failure.message": "רשומה לא עברה את בדיקת ההוכחה מפני חבלה. שום דבר לא התקבל בשקט.",
     "fault.permission_denied.action": "בדקו את מדיניות ההרשאות או הגדרות האישור המנחות פעולה זו.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "מעגל השחר",
     "toybox.skin_dawn-circuit_description": "חלום פיקסלים של שערי ירח, ענני סרט ושותפים קטנים ומלאי הבעה."
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }

@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "Un identifiant stocké n'a pas pu être lu. Saisissez-le à nouveau dans les réglages pour continuer.",
     "fault.evidence_corruption.action": "Inspectez le registre d'exécution de ce tour face au flux d'événements du runtime.",
     "fault.evidence_corruption.message": "Les enregistrements à l'appui de cette réponse ont échoué à un contrôle de cohérence, traitez donc la réponse comme non vérifiée.",
-    "fault.evm_pocket_custody_unavailable.action": "Enregistrez le compte en lecture seule ou connectez un signataire EVM externe (EIP-1193) ; la garde EVM en processus est interdite.",
-    "fault.evm_pocket_custody_unavailable.message": "Les clés EVM ne peuvent pas être gardées sur cet appareil : utilisez la lecture seule ou un signataire de portefeuille externe. Rien n'a été créé.",
+    "fault.evm_pocket_custody_unavailable.action": "L'ancien VOOL Wallet scelle une seule graine Solana. Sur un réseau EVM, utilisez un portefeuille Crypto Pilot scellé sur cet appareil, un compte en lecture seule ou un portefeuille EVM externe (EIP-1193) qui garde sa propre clé.",
+    "fault.evm_pocket_custody_unavailable.message": "Un VOOL Wallet ne détient qu'une clé Solana, il ne peut donc pas être créé ni restauré sur un réseau EVM. Rien n'a été créé. Pour ce réseau, créez un portefeuille Crypto Pilot, ajoutez le compte en lecture seule ou connectez votre propre portefeuille EVM.",
     "fault.integrity_verification_failure.action": "Traitez la chaîne de reçus concernée comme compromise ; investiguez avant de lui faire confiance.",
     "fault.integrity_verification_failure.message": "Un enregistrement a échoué à son contrôle anti-falsification. Rien n'a été accepté en silence.",
     "fault.permission_denied.action": "Vérifiez la politique de permissions ou les réglages d'approbation qui régissent cette action.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Circuit de l'aube",
     "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs."
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }

@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "저장된 자격 증명을 읽을 수 없었습니다. 계속하려면 설정에서 다시 입력하세요.",
     "fault.evidence_corruption.action": "이 턴의 실행 장부를 런타임의 사건 흐름과 대조해 조사하세요.",
     "fault.evidence_corruption.message": "이 답변을 뒷받침하는 기록들이 일관성 검사를 통과하지 못했으므로, 답변을 검증되지 않은 것으로 여기세요.",
-    "fault.evm_pocket_custody_unavailable.action": "계정을 보기 전용으로 등록하거나 외부 EVM 서명자(EIP-1193)를 연결하세요; 프로세스 안 EVM 보관은 금지됩니다.",
-    "fault.evm_pocket_custody_unavailable.message": "EVM 키는 이 기기에 보관할 수 없습니다: 보기 전용 또는 외부 지갑 서명자를 사용하세요. 아무 것도 생성되지 않았습니다.",
+    "fault.evm_pocket_custody_unavailable.action": "예전 VOOL Wallet은 Solana 시드 하나를 봉인합니다. EVM 네트워크에서는 이 기기에서 봉인된 Crypto Pilot 지갑, 보기 전용 계정, 또는 자체 키를 직접 보관하는 외부 EVM 지갑(EIP-1193)을 사용하세요.",
+    "fault.evm_pocket_custody_unavailable.message": "VOOL Wallet은 Solana 키만 보관하므로 EVM 네트워크에서는 만들거나 복원할 수 없습니다. 아무 것도 만들어지지 않았습니다. 그 네트워크에서는 Crypto Pilot 지갑을 만들거나, 계정을 보기 전용으로 추가하거나, 자신의 EVM 지갑을 연결하세요.",
     "fault.integrity_verification_failure.action": "영향을 받은 영수증 사슬을 침해된 것으로 다루세요; 항목을 믿기 전에 조사하세요.",
     "fault.integrity_verification_failure.message": "한 기록이 변조 방지 검사를 통과하지 못했습니다. 조용히 받아들여진 것은 없습니다.",
     "fault.permission_denied.action": "이 행동을 다스리는 권한 정책이나 승인 설정을 확인하세요.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "새벽 회로",
     "toybox.skin_dawn-circuit_description": "달문과 리본 구름, 표정 풍부한 작은 친구들이 있는 픽셀 꿈."
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_unlock_throttled.action corrected; fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_unlock_throttled.action corrected; fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }

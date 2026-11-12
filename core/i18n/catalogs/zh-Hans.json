@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "无法读取已存储的凭据。请在设置中重新输入以继续。",
     "fault.evidence_corruption.action": "将此回合的执行账目与运行时事件流进行比对调查。",
     "fault.evidence_corruption.message": "支撑此回答的记录未通过一致性检查，请将该回答视为未经核实。",
-    "fault.evm_pocket_custody_unavailable.action": "以仅观察方式注册账户，或连接外部 EVM 签名者（EIP-1193）；进程内 EVM 保管是被禁止的。",
-    "fault.evm_pocket_custody_unavailable.message": "此设备不能保管 EVM 密钥：请使用仅观察模式或外部钱包签名者。未创建任何内容。",
+    "fault.evm_pocket_custody_unavailable.action": "较旧的 VOOL Wallet 只封存一个 Solana 种子。在 EVM 网络上，请使用在本设备上封存的 Crypto Pilot 钱包、仅观察账户，或自行保管密钥的外部 EVM 钱包（EIP-1193）。",
+    "fault.evm_pocket_custody_unavailable.message": "VOOL Wallet 只保存 Solana 密钥，因此不能在 EVM 网络上创建或恢复。没有创建任何内容。在该网络上，请创建 Crypto Pilot 钱包、以仅观察方式添加账户，或连接你自己的 EVM 钱包。",
     "fault.integrity_verification_failure.action": "将受影响的收据链视为已受侵害；在信任其条目之前先调查。",
     "fault.integrity_verification_failure.message": "一条记录未通过防篡改检查。没有任何内容被默默接受。",
     "fault.permission_denied.action": "检查管辖此操作的权限策略或批准设置。",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "拂晓回路",
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。"
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }

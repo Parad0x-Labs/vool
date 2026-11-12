@@ -7,7 +7,7 @@ messages and next steps below are exactly what the app shows.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `1265bcad21fb730f5c55c29c4fbe9608f5b62646eed2e2dc21a60735d52570f3`
+- **Catalog digest:** `51f048b82009b55258f8b61bcca8484aec6cb1286345adb831d9ad5b601f8fb3`
 - **Fault count:** 58
 
 Each code is stable and never reused for a different meaning. Every code has its own
@@ -53,7 +53,7 @@ VOOL: check which version showed it, or report it with the code as written.
 
 | Code | Title | Severity | What may already have happened |
 |---|---|---|---|
-| [`evm_pocket_custody_unavailable`](#evm-pocket-custody-unavailable) | EVM keys not held on this device | low | Nothing was sent, signed or changed |
+| [`evm_pocket_custody_unavailable`](#evm-pocket-custody-unavailable) | VOOL Wallet is Solana only | low | Nothing was sent, signed or changed |
 | [`permission_denied`](#permission-denied) | Permission denied | medium | Nothing was sent, signed or changed |
 | [`wallet_acknowledgement_required`](#wallet-acknowledgement-required) | Acknowledgement required | low | Nothing was sent, signed or changed |
 | [`wallet_amount_invalid`](#wallet-amount-invalid) | Amount not exact for this coin | low | Nothing was sent, signed or changed |
@@ -152,11 +152,11 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 ### evm_pocket_custody_unavailable
 
-**EVM keys not held on this device**
+**VOOL Wallet is Solana only**
 
-- **What happened:** EVM keys cannot be held on this device: use watch-only or an external wallet signer. Nothing was created.
+- **What happened:** A VOOL Wallet holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For that network, create a Crypto Pilot wallet, add the account watch-only, or connect your own EVM wallet.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Register the account watch-only or connect an external EVM signer (EIP-1193); in-process EVM custody does not exist in this build.
+- **What to do next:** The older VOOL Wallet seals one Solana seed. On an EVM network, use a Crypto Pilot wallet sealed on this device, a watch-only account, or an external EVM wallet (EIP-1193) that keeps its own key.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** low · **Category:** policy
 

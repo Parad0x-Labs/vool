@@ -36,7 +36,7 @@
     },
     {
       "key": "fault.evm_pocket_custody_unavailable.message",
-      "english": "EVM keys cannot be held on this device: use watch-only or an external wallet signer. Nothing was created.",
+      "english": "A VOOL Wallet holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For that network, create a Crypto Pilot wallet, add the account watch-only, or connect your own EVM wallet.",
       "parameters": [],
       "context": "Shown when the failure classified as 'evm_pocket_custody_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },

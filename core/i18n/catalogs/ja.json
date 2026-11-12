@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "保存された資格情報を読み込めませんでした。続行するには設定で再入力してください。",
     "fault.evidence_corruption.action": "このターンの実行台帳を、ランタイムのイベントストリームと突き合わせて調査してください。",
     "fault.evidence_corruption.message": "この回答を裏付ける記録が整合性検査に合格しませんでした。回答は未検証と扱ってください。",
-    "fault.evm_pocket_custody_unavailable.action": "アカウントを読み取り専用で登録するか、外部EVM署名者（EIP-1193）を接続してください。プロセス内でのEVM保管は禁止です。",
-    "fault.evm_pocket_custody_unavailable.message": "EVMキーはこの端末で保持できません：閲覧専用または外部ウォレット署名者を使用してください。何も作成されていません。",
+    "fault.evm_pocket_custody_unavailable.action": "旧来のVOOL Walletは1つのSolanaシードを封印します。EVMネットワークでは、このデバイスで封印されたCrypto Pilotウォレット、閲覧専用アカウント、または自分の鍵を自分で保持する外部EVMウォレット（EIP-1193）を使ってください。",
+    "fault.evm_pocket_custody_unavailable.message": "VOOL WalletはSolanaの鍵しか保持できないため、EVMネットワークでは作成も復元もできません。何も作成されていません。そのネットワークでは、Crypto Pilotウォレットを作成するか、アカウントを閲覧専用で追加するか、ご自身のEVMウォレットを接続してください。",
     "fault.integrity_verification_failure.action": "対象のレシート連鎖は侵害されたものとして扱ってください。信用する前に調査してください。",
     "fault.integrity_verification_failure.message": "ある記録が改ざん検査に合格しませんでした。黙って受け入れられたものはありません。",
     "fault.permission_denied.action": "この操作を管理する権限ポリシーまたは承認設定を確認してください。",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "暁の回路",
     "toybox.skin_dawn-circuit_description": "月の門、リボン雲、表情豊かな小さな仲間たちのピクセルの夢。"
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }

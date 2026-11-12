@@ -490,8 +490,8 @@
     "fault.credential_failure.message": "Nie udało się odczytać zapisanego klucza. Wpisz go ponownie w ustawieniach, aby kontynuować.",
     "fault.evidence_corruption.action": "Zbadaj księgę wykonania tej tury wobec strumienia zdarzeń środowiska.",
     "fault.evidence_corruption.message": "Zapisy wspierające tę odpowiedź nie przeszły sprawdzenia spójności, więc traktuj odpowiedź jako niezweryfikowaną.",
-    "fault.evm_pocket_custody_unavailable.action": "Zarejestruj konto tylko do podglądu albo podłącz zewnętrznego podpisującego EVM (EIP-1193); wewnętrzne ścieżki EVM są niedozwolone.",
-    "fault.evm_pocket_custody_unavailable.message": "Klucze EVM nie mogą być przechowywane na tym urządzeniu: użyj trybu podglądu lub zewnętrznego podpisującego. Nic nie utworzono.",
+    "fault.evm_pocket_custody_unavailable.action": "Starszy VOOL Wallet pieczętuje jedno ziarno Solany. W sieci EVM użyj portfela Crypto Pilot zapieczętowanego na tym urządzeniu, konta tylko do podglądu albo zewnętrznego portfela EVM (EIP-1193), który sam przechowuje swój klucz.",
+    "fault.evm_pocket_custody_unavailable.message": "VOOL Wallet przechowuje tylko klucz Solany, więc nie da się go utworzyć ani przywrócić w sieci EVM. Nic nie utworzono. W tej sieci utwórz portfel Crypto Pilot, dodaj konto tylko do podglądu albo połącz własny portfel EVM.",
     "fault.integrity_verification_failure.action": "Traktuj dotknięty łańcuch pokwitowań jako skompromitowany; zbadaj, zanim mu zaufasz.",
     "fault.integrity_verification_failure.message": "Zapis nie przeszedł sprawdzenia nienaruszalności. Nic nie zostało po cichu zaakceptowane.",
     "fault.permission_denied.action": "Sprawdź politykę uprawnień albo ustawienia zgód rządzące tym działaniem.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Obwód świtu",
     "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami."
   },
-  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
+  "source_catalog_sha256": "472db1f97580ce5d595324a2444929f520a0817ae1cf8185b7919afeb8045541",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review; evm_pocket_custody_unavailable scoped to the VOOL Wallet"
   }
 }
