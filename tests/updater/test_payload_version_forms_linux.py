@@ -12,7 +12,7 @@ from core.updater.download import StagedDownloader
 from core.updater.health import HealthResult
 from core.updater.manifest import parse_and_verify_manifest
 from core.updater.migrations import MigrationCatalog
-from core.updater.platforms import BundleVerification, LINUX_BUNDLE_X64
+from core.updater.platforms import LINUX_BUNDLE_X64, BundleVerification
 from core.updater.transaction import InProcessHelper, Step, UpdateFlow
 from core.updater.trust import TrustedPublishers
 from core.updater.work import WorkCoordinator

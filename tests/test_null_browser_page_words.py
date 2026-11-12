@@ -21,7 +21,6 @@ import re
 from core.null_browser_page import render_null_browser_html
 from tests.chat_page_js_harness import DOM, run_node, script_blocks
 
-
 # ---- every string is keyed and the fallback equals the catalog ------------------------------
 
 _ATTR_KEYS = ("data-i18n", "data-i18n-title", "data-i18n-placeholder", "data-i18n-aria-label")
