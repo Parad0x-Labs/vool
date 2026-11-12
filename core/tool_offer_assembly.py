@@ -593,7 +593,10 @@ def _audience_ok(skills: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
 
 
 def _people_safe(
-    selected: tuple[Any, ...], user_text: str, by_class_only: frozenset[str] = frozenset()
+    selected: tuple[Any, ...],
+    user_text: str,
+    by_class_only: frozenset[str] = frozenset(),
+    session_intents: frozenset[str] = frozenset(),
 ) -> tuple[Any, ...]:
     """The selected native skills minus VOOL's own developer skills (``audience: developer``),
     unless the developer setting is on or the turn is about a developer's own work: its words
@@ -617,7 +620,7 @@ def _people_safe(
     from core.tool_demand_signals import resolve_demand_signals
 
     demands = resolve_demand_signals(user_text)
-    intents = frozenset(demands.explicit_intents)
+    intents = frozenset(demands.explicit_intents) | frozenset(session_intents)
     families = frozenset(demands.required_families)
     return tuple(
         contract for contract in selected
@@ -739,12 +742,19 @@ def skill_guidance_for(
     if user_slots < budget and (str(task_class or "").strip() or str(user_text or "").strip()):
         from core.native_skill_library import guidance_for_selection, select_native_skills
 
+        session_intents: tuple[str, ...] = ()
+        with contextlib.suppress(Exception):
+            from core.database_work_state import active_database_work_intents
+
+            session_intents = tuple(active_database_work_intents(source_context))
         selection = select_native_skills(
-            task_class=str(task_class or ""), user_text=str(user_text or ""), limit=budget - user_slots
+            task_class=str(task_class or ""), user_text=str(user_text or ""), limit=budget - user_slots,
+            session_intents=session_intents,
         )
         native_text, native_provenance, _native_permitted = guidance_for_selection(
             _people_safe(
-                selection.selected, str(user_text or ""), getattr(selection, "by_class_only", frozenset())
+                selection.selected, str(user_text or ""), getattr(selection, "by_class_only", frozenset()),
+                frozenset(session_intents),
             ),
             task_chars=remaining if user_slots else task_chars,
             doctrine_chars=doctrine_chars,

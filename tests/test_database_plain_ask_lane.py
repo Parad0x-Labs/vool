@@ -210,3 +210,28 @@ def test_the_clean_loop_leaves_database_questions_to_the_database_tools(world, t
     assert take("has Tomas given everything back").reason == "database_work"
     # the owner's files stay the clean loop's even inside a database chat
     assert take("find the invoice file on my desktop").reason != "database_work"
+
+
+def test_a_follow_up_with_no_database_word_still_gets_the_skill_and_the_real_names(world, tmp_path, monkeypatch) -> None:
+    """Run16b: "has Tomas given everything back" asked inside a database chat was offered the tools
+    but not the database skill, so the model never saw the real names and picked another tool."""
+    import sqlite3
+
+    from core.execution_truth import KIND_TOOL, record_execution
+    from core.plugin_tools import plugin_scratch_dir
+    from core.tool_offer_assembly import skill_guidance_for
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    root = plugin_scratch_dir("vool-database") / "databases"
+    root.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(root / "library.sqlite")
+    c.executescript("create table loans(id integer primary key, member text, returned int);")
+    c.commit(); c.close()
+    text = "has Tomas given everything back"
+    context = {"session_id": "s-db-9", "runtime_session_id": "s-db-9"}
+    assert "loans(id, member, returned)" not in skill_guidance_for(text, source_context=dict(context)).text
+    record_execution(session_id="s-db-9", turn_key="t1", kind=KIND_TOOL, name="vool-database.query", ok=True)
+    guidance = skill_guidance_for(text, source_context=dict(context))
+    assert "loans(id, member, returned)" in guidance.text
+    other = skill_guidance_for(text, source_context={"session_id": "s-other", "runtime_session_id": "s-other"})
+    assert "loans(id, member, returned)" not in other.text

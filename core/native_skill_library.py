@@ -51,7 +51,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 RISK_CLASSES = ("read_only", "workspace_write", "elevated")
 
@@ -1676,6 +1676,7 @@ def select_native_skills(
     limit: int = DEFAULT_MAX_SELECTED,
     doctrine_limit: int = DEFAULT_MAX_DOCTRINE,
     library: LibraryLoad | None = None,
+    session_intents: Iterable[str] = (),
 ) -> SkillSelection:
     """The selection decision for one turn. Pure function of the turn + disk config.
 
@@ -1712,7 +1713,12 @@ def select_native_skills(
 
     cleaned_class = str(task_class or "").strip().lower()
     demands = resolve_demand_signals(str(user_text or ""))
-    explicit_intents = frozenset(demands.explicit_intents)
+    # ``session_intents``: tools the chat has already seated (a follow-up inside a database chat
+    # carries no database word of its own, "has Tomas given everything back"); they count as
+    # demand so the skill and its catalog of real names ride along with the follow-up.
+    explicit_intents = frozenset(demands.explicit_intents) | frozenset(
+        str(name) for name in session_intents or ()
+    )
     required_families = frozenset(demands.required_families)
 
     disabled = _read_disabled_ids()
