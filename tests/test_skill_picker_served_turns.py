@@ -136,7 +136,10 @@ def test_served_everyday_turn_binds_no_task_skill_and_no_lens(developer_rig) -> 
     [
         "explain how vaccines work in simple terms",
         "write a polite note to my landlord, the boiler has been broken all week",
-        "open example.com and tell me what it says",
+        # Was "open example.com and tell me what it says": on the v0.8 line a named address with
+        # web lookups off is answered by the URL lane in plain words and never reaches the model,
+        # so it could not prove an absence here. A developer word in an everyday ask can.
+        "help me plan my kid's birthday party, I want a fun feature like a treasure hunt",
     ],
 )
 def test_served_everyday_turn_of_a_person_binds_no_developer_skill(person_rig, text) -> None:

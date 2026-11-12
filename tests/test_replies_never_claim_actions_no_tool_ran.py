@@ -277,8 +277,12 @@ def _served(request: str, model_text: str, session: str) -> tuple[str, _Provider
 def test_served_turn_with_no_mail_account_does_not_show_a_made_up_inbox_check() -> None:
     fake = "Nothing new has come in today.\n- Checked your inbox for today's mail.\n- Zero unread emails."
     served, script = _served("has anything landed in my email today?", fake, "sess-claims-mail")
-    assert script.manifests, "the drive never reached the provider seam"
     assert "Checked your inbox" not in served and "Zero unread" not in served, served[:400]
+    if not script.manifests:
+        # The v0.8 line answers an email ask with no mailbox connected before any model runs
+        # (its email lane), so no inbox check can be made up at all; it must say so plainly.
+        assert "No mailbox is connected yet" in served, served[:400]
+        return
     assert "No email account is connected yet" in served, served[:400]
 
 
