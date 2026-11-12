@@ -436,7 +436,7 @@ def test_help_turn_uses_deterministic_fast_path_when_no_cached_answer(make_agent
     )
 
     assert result["response_class"] == "utility_answer"
-    assert "wired on this runtime" in result["response"].lower()
+    assert "here's what i can do on this computer" in result["response"].lower()
     agent.memory_router.resolve.assert_not_called()
     assert result["model_execution"]["used_model"] is False
 

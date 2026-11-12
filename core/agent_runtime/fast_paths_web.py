@@ -27,6 +27,17 @@ import re
 from typing import Any
 
 _URL_RE = re.compile(r"\bhttps?://[^\s<>`\"']+", re.IGNORECASE)
+#: A bare web address after a read verb ("whats on example.org", "go to example.org and summarize
+#: it"): read as https://<address>. Only a real domain shape with a known top-level domain counts,
+#: so "open report.md" or "read notes.txt" never becomes a web fetch (0.7.8 sweep block 2).
+_BARE_DOMAIN_RE = re.compile(
+    r"\b(?:open|read|go\s+to|visit|browse|summari[sz]e|fetch|load|check|what'?s\s+on|whats\s+on|what\s+is\s+on)\s+"
+    r"(?:the\s+)?(?:(?:web\s*)?(?:site|page|website)\s+)?"
+    r"(?P<dom>(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*"
+    r"\.(?:com|org|net|io|dev|ai|co|app|info|edu|gov|eu|uk|de|fr|es|it|nl|lt|lv|ee|fi|se|no|dk|pl|ch|at|be|pt|ie|us|ca|au|nz|jp|me|tv|news|wiki)"
+    r"(?:/[^\s<>`\"']*)?)(?=[\s,.;:!?)]|$)",
+    re.IGNORECASE,
+)
 
 # A read verb needs an OWNER. In "write a bash script that uses `curl` to fetch `http://example.com`"
 # the user's imperative is `write` and its object is `a bash script`; the `fetch` lives in a relative
@@ -96,8 +107,13 @@ def url_read_request(text: str) -> dict[str, Any] | None:
     if not raw:
         return None
     match = _URL_RE.search(raw)
+    bare_url = ""
     if match is None:
-        return None
+        bare = _BARE_DOMAIN_RE.search(raw)
+        if bare is None:
+            return None
+        match = bare
+        bare_url = "https://" + bare.group("dom").rstrip(".,;:!?)")
     # An address the user SHOWED is not an address the user ASKED FOR. Checked first, because it is
     # the only gate here that does not depend on the message containing a prohibition.
     #
@@ -151,9 +167,9 @@ def url_read_request(text: str) -> dict[str, Any] | None:
     padded = f" {' '.join(raw.split()).lower()} "
     if any(marker in padded for marker in _DOWNLOAD_MARKERS):
         return None
-    if not any(marker in padded for marker in _READ_MARKERS):
+    if not bare_url and not any(marker in padded for marker in _READ_MARKERS):
         return None
-    url = match.group(0).rstrip(".,;:!?)\u201d\u2019")
+    url = bare_url or match.group(0).rstrip(".,;:!?)\u201d\u2019")
     return {"url": url}
 
 

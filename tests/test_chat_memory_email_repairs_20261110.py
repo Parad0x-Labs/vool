@@ -999,3 +999,23 @@ def test_a_question_about_the_persons_own_data_is_never_a_world_ambiguity(questi
     from core.entity_ambiguity import single_plain_know_question
 
     assert not single_plain_know_question(question)
+
+
+@pytest.mark.parametrize(
+    "said,url",
+    [("whats on python.org", "https://python.org"), ("go to wikipedia.org and summarize it", "https://wikipedia.org"),
+     ("open the website lrt.lt", "https://lrt.lt"), ("can you read www.gov.uk/browse for me", "https://www.gov.uk/browse")],
+)
+def test_a_bare_web_address_after_a_read_verb_is_read(said, url):
+    from core.agent_runtime.fast_paths_web import url_read_request
+
+    assert url_read_request(said) == {"url": url}
+
+
+@pytest.mark.parametrize(
+    "said", ["open budget.csv", "read house-notes.md", "my site is mysite.com", "write a script to open github.com"],
+)
+def test_files_and_mentions_are_not_web_reads(said):
+    from core.agent_runtime.fast_paths_web import url_read_request
+
+    assert url_read_request(said) is None

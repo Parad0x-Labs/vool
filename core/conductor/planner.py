@@ -2628,6 +2628,25 @@ def plan_conductor_turn(
 
     if mailbox_retrieval_intents(original):
         return None
+    # A web address to read, or an explicit web lookup, belongs to the URL-read lane and the web
+    # tools: split into sub-asks, "open https://example.com and tell me what the page says" was
+    # answered by a model writing the page from memory and then refused by the grounding gate,
+    # with web.fetch never called (0.7.8 sweep block 2, 2026-11-12).
+    try:
+        from core.agent_runtime.fast_paths_web import url_read_request
+        from core.tool_demand_signals import resolve_demand_signals
+
+        from core.retrieval_constraints import analyze_retrieval_constraints
+
+        # Only a web ask the person did not forbid: "Do NOT search the web for this" names the
+        # web too, and that turn is still the conductor's to split.
+        web_forbidden = analyze_retrieval_constraints(original).forbids_external_retrieval
+        if not web_forbidden and (
+            url_read_request(original) or "web" in resolve_demand_signals(original).required_families
+        ):
+            return None
+    except Exception:
+        pass
 
     try:
         raw = ask_model(conductor_system_prompt(), original)

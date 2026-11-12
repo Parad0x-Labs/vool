@@ -263,12 +263,21 @@ def execute_web_tool(
                 lines.append(f"- Uncertainty: {research_result.uncertainty_reason}")
             elif research_result.stop_reason:
                 lines.append(f"- Stop reason: {research_result.stop_reason}")
+            # With nothing found, the person sees a plain sentence, never a bare header (0.7.8 sweep
+            # block 2: "check wikipedia: what year was the eifel tower completed" showed only
+            # 'Adaptive web research for "Eiffel Tower completion year":').
+            user_lines = (
+                list(lines)
+                if observation_hits
+                else [f"I searched the web for “{query}” and found no usable pages, so I can't answer from a source. "
+                      "Try different words, or ask me to answer from what I already know."]
+            )
             return ToolIntentExecution(
                 handled=True,
                 ok=bool(observation_hits),
                 status="executed" if observation_hits else "no_results",
-                response_text="\n".join(lines),
-                user_safe_response_text="\n".join(lines),
+                response_text="\n".join(lines if observation_hits else user_lines + lines[1:]),
+                user_safe_response_text="\n".join(user_lines),
                 mode="tool_executed" if observation_hits else "tool_failed",
                 tool_name=intent,
                 details={

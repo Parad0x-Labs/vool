@@ -414,7 +414,12 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             r"|\b(?:according\s+to|per|as\s+per)\s+(?:the\s+)?wikipedia\b"
             r"|\bwikipedia(?:'s)?\s+(?:says?|said|states?|lists?|claims?|article|page|entry)\b"
             r"|\bwhat\s+(?:does|did)\s+(?:the\s+)?wikipedia\s+(?:say|list|state)\b"
-            r"|\b(?:on|from|in)\s+wikipedia\b",
+            r"|\b(?:on|from|in)\s+wikipedia\b"
+            # "look it up: …", "look this up", "check online", "search online": an explicit ask to
+            # go and find out (0.7.8 sweep block 2: "look it up: what year did the berlin wall
+            # fall" made no tool call).
+            r"|(?:^|[.!?:]\s*|\b(?:please|pls|can\s+you|could\s+you|would\s+you|go\s+and|just)\s+)look\s+(?:it|this|that)\s+up\b"
+            r"|(?:^|[.!?:]\s*|\b(?:please|pls|can\s+you|could\s+you|would\s+you|go\s+and|just)\s+)(?:check|search|look)\s+(?:it\s+)?(?:up\s+)?online\b",
             re.I,
         ),
     ),
