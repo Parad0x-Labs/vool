@@ -247,8 +247,9 @@ _RENAME_EVENT_RE = re.compile(
 # "with:", "note:", into my notes, note to self).
 _STORE_NOTE_RE = re.compile(
     r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b"
-    # "keep a note for me: the code is 5523" keeps a note; "keep the note short" is about writing one.
-    r"|\bkeep\s+(?:a\s+)?(?:quick\s+|short\s+|little\s+)?note\b(?!-)"
+    # "keep a note for me: the code is 5523" is a keep-family ask, owned by _KEEP_NOTE_RE in _NoteSaveRecognizer
+    # below, behind the ask gate that keeps statements and questions about keeping a note ("I keep a note that
+    # my insurance renews in May", "why should I keep a note that nobody reads?") from saving one.
     # "save this: buy zucchini", "save this one: ..." -- the words after the colon are the note (audit N6). A statement
     # about the owner after the colon ("save this: my bike rack is spot 12") is a fact to remember, not a note.
     r"|^\W*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:save|keep|jot\s+down)\s+(?:this|that)(?:\s+one)?(?:\s+for\s+me)?\s*:(?!\d)\s*"
