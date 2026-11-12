@@ -27,12 +27,6 @@ curl http://localhost:11434/api/tags
 
 If that returns nothing, the runtime is not up.
 
-## The OpenRouter connection does not come back to the app
-
-The callback page hands control to VOOL through a `vool://` link. If the browser does
-nothing, VOOL is not installed or not running. Start VOOL and connect again from
-**Settings → Models & Providers**.
-
 ## Responses are slow
 
 Usually model size against available memory. See

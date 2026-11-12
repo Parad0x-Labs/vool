@@ -1,5 +1,5 @@
 ---
-description: How to connect OpenRouter to VOOL so one API key reaches many cloud AI models, and what the authorization page does.
+description: How to connect OpenRouter to VOOL so one API key reaches many cloud AI models.
 ---
 
 # Connect OpenRouter
@@ -9,20 +9,9 @@ OpenRouter account.
 
 ## Connect
 
-{% hint style="warning" %}
-One-click **Connect** / **Disconnect** for OpenRouter is planned for 0.8, not released yet.
-{% endhint %}
-
-In 0.7.7: create a key in your OpenRouter account, paste it under **Settings → API Keys** and press **Save key**.
-It is stored in the macOS Keychain (on Linux and Windows, in an encrypted vault in your profile).
-
-## What the callback page will do (planned for 0.8, not released yet)
-
-The callback page is a relay and nothing more. It passes
-the authorization code and state to the desktop app and then clears them from the URL.
-
-It never receives the PKCE verifier, never exchanges the code for a key, never stores a
-key, and carries no analytics or third-party scripts.
+Create a key in your OpenRouter account, paste it under **Settings → API Keys** and press
+**Save key**. VOOL checks the key with OpenRouter once, then keeps it in an encrypted file on
+this computer (see [Security model](../trust/security.md#keys)).
 
 ## Billing and attribution
 

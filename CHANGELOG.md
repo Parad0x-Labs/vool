@@ -21,7 +21,7 @@ die instead of answering.
 - **A free model you picked runs without a spending reservation.** Picking an OpenRouter
   ":free" model could fail with the runtime's own "free pins need no reservation" notice — a
   clearance mistaken for a block. The verdict now travels with the turn: free stays free, and a
-  model that is not actually free is still refused, with the honest reason.
+  model that is not actually free is still refused, with the real reason.
 - **Routing stops re-trying what it already refused.** The lane picker no longer puts a model
   the authorship gate will refuse at the front of the queue — the same two-lane failure that
   repeated on every turn of a chat is gone. A cloud key the provider rejects (HTTP 401) is

@@ -21,7 +21,7 @@ narrow what the English authority decided.
 
 ## Activity
 
-The activity view is the honest history of what VOOL did: tool calls with their inputs and
+The activity view is the full history of what VOOL did: tool calls with their inputs and
 results, approvals you granted or refused, and payments with their receipts. A turn that was
 stopped by a guard shows the stop and the guard — a refusal is a recorded event, not an
 absence.

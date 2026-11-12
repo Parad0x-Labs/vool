@@ -21,4 +21,7 @@ that claim against.
 | `result` | What it returned |
 | `time` | When it ran |
 
-Receipts are stored with the workspace and stay on your machine.
+Receipts are kept in VOOL's runtime home on this computer (see
+[Configuration](../reference/configuration.md)), not in your project folders. A receipt leaves
+your machine only inside a bug report that you preview and choose to send (see
+[Bug reporting and privacy](../trust/bug-reporting.md)).

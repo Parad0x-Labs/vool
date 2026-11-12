@@ -52,7 +52,7 @@ Every run, the setup and the weak spots are published: [memory benchmarks](https
   be read back after the fact.
 
 {% hint style="warning" %}
-VOOL 0.7.5-beta is out for Apple Silicon Macs, Intel Macs and Linux x86_64. The Mac apps
+VOOL is in beta for Apple Silicon Macs, Intel Macs and Linux x86_64. The Mac apps
 are not notarized yet, so macOS asks you to confirm the first time you open one; the
 [Install](getting-started/install.md#first-open-on-a-mac) page shows how. See
 [Release status](trust/release-status.md) before installing.
