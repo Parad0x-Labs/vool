@@ -986,9 +986,26 @@ _VALUE_TOKEN_RE = re.compile(
 #: statement. Whether a retraction-with-no-replacement-value or a correction
 #: is decided by the value conflict law, not by the marker itself.
 _RETRACTION_MARKER_RE = re.compile(
-    r"\b(?:(?:scratch|scrap)\s+that|never\s+mind|pretend\s+(?:i|we)\s+never\s+said|"
+    r"\b(?:(?:scratch|scrap|strike)\s+that|never\s+mind|pretend\s+(?:i|we)\s+never\s+said|"
     r"forget\s+(?:that|the|it|what\s+(?:i|we)\s+said)|disregard(?:\s+that)?|"
     r"ignore\s+(?:that|it|this|what\s+(?:i|we)\s+(?:said|told\s+you))|"
+    # un-saying one's own words by naming the saying ("forget I said that",
+    # "forget I ever mentioned the dentist") or the last message ("ignore my
+    # last message"): speech verbs, so the directive law below applies
+    r"forget\s+(?:i|we)\s+(?:ever\s+|even\s+|just\s+)?"
+    r"(?:said|mentioned|told\s+you|asked|wrote|typed|brought\s+(?:it|that|this)\s+up)|"
+    r"(?:ignore|forget)\s+(?:my|the)\s+(?:last|previous|prior|earlier)\s+"
+    r"(?:message|msg|text|reply|answer|comment|note|line|bit|part|one)|"
+    # taking one's own words back ("I take that back", "let me take back
+    # what I said about ..."): see _take_back_is_live for the speaker law
+    r"(?:take|taking)\s+(?:that|it)\s+back|"
+    r"(?:take|taking)\s+back\s+(?:what|everything|all)\s+(?:(?:that|of\s+what)\s+)?"
+    r"(?:i|we)\s+(?:just\s+|had\s+|have\s+|ever\s+)?"
+    r"(?:said|told\s+you|wrote|typed|mentioned|stated|claimed)|"
+    r"(?:take|taking)\s+back\s+my\s+(?:last\s+|previous\s+|earlier\s+|prior\s+)?"
+    r"(?:words?|statement|comment|remark|message|msg|answer|claim)|"
+    r"(?:take|taking)\s+back\s+that|"
+    r"(?:i|we)\s+misspoke|"
     r"cancel\s+(?:that|it)|on\s+second\s+thought|retract(?:ion|ions|ed|s)?|"
     r"withdraw(?:n|s|ing)?|undo(?:ne|ne)?|"
     # removal requests for pasted/quoted material: "take that paste down"
@@ -1250,12 +1267,168 @@ def _cancel_is_service_request(text: str, end: int) -> bool:
     return bool(_CANCEL_SERVICE_BENEFACTIVE_RE.match(tail))
 
 
+#: "Taking back" and "I misspoke" un-say the SPEAKER's own words, so unlike
+#: the speech verbs above they are never handed to the listener ("you
+#: should take that back" asks the listener to un-say THEIR words). Live
+#: when the speaker performs them: a first-person subject in the present
+#: ("I take that back", "ok I totally take it back", "I'm taking that
+#: back"), a first-person intention or permission frame ("let me take back
+#: what I said", "I want to take that back", "can I take that back"), or -
+#: for the forms that name the speaker's own speech ("take back what I
+#: said", "take back my last message") - a bare imperative. A coordinating
+#: conjunction opens a new clause for this test ("I said Friday but I take
+#: that back"). Anything else before the verb is a report or a description
+#: ("he told me to take that back", "they say I take it back too often").
+#: "take it back" also names returning a thing to a shop, so it is live only
+#: in the present performative and never before a destination or a time
+#: ("I'll take it back tomorrow", "I'm taking that back to the store").
+_TAKE_BACK_ADVERBS = frozenset({
+    "hereby", "totally", "completely", "fully", "really", "honestly",
+    "officially", "formally", "definitely", "absolutely", "kinda", "kind",
+    "sort", "of", "now", "then", "just", "do", "also", "actually", "simply",
+    "gotta", "hafta",
+})
+_TAKE_BACK_SUBJECTS = frozenset({"i", "we"})
+_TAKE_BACK_PROGRESSIVE_SUBJECTS = (("i'm",), ("im",), ("i", "am"), ("we're",), ("we", "are"))
+_TAKE_BACK_INTENT_FRAMES = (
+    ("want", "to"), ("wanna",), ("need", "to"), ("have", "to"), ("got", "to"),
+    ("gotta",), ("must",), ("would", "like", "to"), ("should",), ("will",),
+    ("am", "going", "to"), ("are", "going", "to"), ("am", "gonna"), ("are", "gonna"),
+    ("can",), ("could",), ("may",),
+)
+_TAKE_BACK_CONTRACTED_INTENT = (
+    ("i'd", "like", "to"), ("id", "like", "to"), ("we'd", "like", "to"),
+    ("i'll",), ("ill",), ("we'll",), ("i'm", "going", "to"), ("im", "going", "to"),
+    ("i'm", "gonna"), ("im", "gonna"), ("we're", "going", "to"), ("we're", "gonna"),
+    ("let", "me"), ("lemme",), ("let", "us"), ("allow", "me", "to"),
+    ("can", "i"), ("could", "i"), ("may", "i"), ("can", "we"),
+)
+_TAKE_BACK_CLAUSE_CONJUNCTIONS = frozenset({"but", "and", "so", "yet", "though", "tho", "although"})
+#: A conditional or habitual frame before the clause ("if it breaks, I take
+#: it back") describes a routine, not a performance.
+_TAKE_BACK_SUBORDINATORS = frozenset({
+    "if", "when", "whenever", "unless", "once", "after", "before", "every", "each",
+    "whether", "because", "since",
+})
+#: After "take that/it back", a destination, a companion or a time names an
+#: errand ("take it back to the store", "taking that back tomorrow"); the
+#: next clause or a pointer at what is taken back keeps it a performance
+#: ("I take that back, ...", "I take it back about the dentist").
+_TAKE_BACK_ERRAND_OPENERS = frozenset({
+    "to", "into", "onto", "at", "in", "for", "with", "by", "over", "out",
+    "off", "from", "home", "inside", "upstairs", "downstairs", "there", "here",
+})
+_TAKE_BACK_TIME_WORDS = frozenset({
+    "tomorrow", "today", "tonight", "later", "soon", "next", "weekend", "week",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+    "sunday", "morning", "afternoon", "evening", "asap",
+})
+
+
+def _strip_discourse(words: list[str]) -> list[str]:
+    index = 0
+    while index < len(words):
+        if words[index] in _RETRACTION_DISCOURSE_WORDS:
+            index += 1
+            continue
+        opener = next((phrase for phrase in _RETRACTION_DISCOURSE_PHRASES
+                       if tuple(words[index:index + len(phrase)]) == phrase), None)
+        if opener is None:
+            break
+        index += len(opener)
+    return words[index:]
+
+
+def _strip_frame(words: list[str], frames) -> list[str] | None:
+    for frame in sorted(frames, key=len, reverse=True):
+        if tuple(words[:len(frame)]) == frame:
+            return words[len(frame):]
+    return None
+
+
+def _first_person_frame(words: list[str], *, progressive: bool, intent: bool) -> bool:
+    """Whether *words* (the clause before the verb, discourse words stripped)
+    are a first-person performative frame (see the grammar above)."""
+    rest = _strip_frame(words, _TAKE_BACK_CONTRACTED_INTENT) if intent else None
+    if rest is None:
+        if progressive:
+            rest = _strip_frame(words, _TAKE_BACK_PROGRESSIVE_SUBJECTS)
+        elif words and words[0] in _TAKE_BACK_SUBJECTS:
+            rest = words[1:]
+            while rest and rest[0] in _TAKE_BACK_ADVERBS:
+                rest = rest[1:]
+            if intent:
+                after = _strip_frame(rest, _TAKE_BACK_INTENT_FRAMES)
+                rest = rest if after is None else after
+        if rest is None:
+            return False
+    return all(word in _TAKE_BACK_ADVERBS or word in _RETRACTION_DISCOURSE_WORDS for word in rest)
+
+
+def _clause_openings(words: list[str]) -> list[list[str]]:
+    """The clause's words, and the words after each coordinating conjunction
+    in it, with leading discourse words stripped."""
+    openings = [_strip_discourse(words)]
+    openings += [_strip_discourse(words[i + 1:]) for i, word in enumerate(words)
+                 if word in _TAKE_BACK_CLAUSE_CONJUNCTIONS]
+    return openings
+
+
+def _sentence_is_subordinate(text: str, start: int) -> bool:
+    """Whether the sentence holding a marker opens with a conditional or
+    habitual subordinator ("If it breaks, I take it back")."""
+    head = str(text or "")[:start]
+    sentence = re.split(r"[.!?\n]\s*", head)[-1]
+    first = re.findall(r"[A-Za-z'’]+", sentence.lower())[:1]
+    return bool(first) and first[0] in _TAKE_BACK_SUBORDINATORS
+
+
+def _take_back_is_live(text: str, match: re.Match[str], words: list[str]) -> bool:
+    """The speaker law for "take ... back" and "I misspoke" (see above)."""
+    marker = " ".join(match.group(0).lower().split())
+    if _sentence_is_subordinate(text, match.start()):
+        return False
+    openings = _clause_openings(words)
+    if "misspoke" in marker.split():
+        # the marker carries its own subject: nothing but discourse words or
+        # a conjunction may come before it in its clause
+        return any(not opening for opening in openings)
+    verb, *rest = marker.split()
+    progressive = verb == "taking"
+    names_own_speech = rest[:1] == ["back"] and rest[1:2] != ["that"]
+    if rest[:2] == ["back", "that"] and not _scratch_that_points_back(text, match.end()):
+        return False
+    pronoun_form = rest[-1:] == ["back"]  # "take that back" / "take it back"
+    if pronoun_form:
+        tail = _retraction_tail_words(text, match.end())
+        if tail and (tail[0] in _TAKE_BACK_ERRAND_OPENERS
+                     or any(word in _TAKE_BACK_TIME_WORDS for word in tail[:3])):
+            return False
+    takes_it = rest[:1] == ["it"]
+    if takes_it and progressive:
+        # "I'm taking it back" is the errand of returning a thing
+        return False
+    for opening in openings:
+        if not opening:
+            # a bare imperative un-says the speaker's words only when it
+            # names them ("take back what I said"); "take that back!" asks
+            # the listener to un-say theirs
+            if names_own_speech and not progressive:
+                return True
+            continue
+        if _first_person_frame(opening, progressive=progressive,
+                               intent=not progressive and not takes_it):
+            return True
+    return False
+
+
 def retraction_marker_is_live(text: str, match: re.Match[str]) -> bool:
     """Whether one closed-class retraction match actually withdraws speech
     (see the grammar above): never when negated; for the speech verbs only
     as a directive to the listener; for "scratch that" only as a directive
-    whose "that" points back at what was said; and never for a cancel that
-    asks the listener to perform a service for the speaker."""
+    whose "that" points back at what was said; for "take ... back" and "I
+    misspoke" only when the speaker performs them; and never for a cancel
+    that asks the listener to perform a service for the speaker."""
     prefix = _retraction_clause_prefix(text, match.start())
     if _RETRACTION_NEGATION_TAIL_RE.search(prefix):
         return False
@@ -1263,12 +1436,16 @@ def retraction_marker_is_live(text: str, match: re.Match[str]) -> bool:
     words = [w.replace("’", "'") for w in re.findall(r"[A-Za-z'’]+", prefix.lower())]
     if _RETRACTION_DIRECTIVE_VERB_RE.match(marker):
         return _retraction_prefix_is_directive(words)
-    if marker.startswith(("scratch", "scrap")):
+    if marker.startswith(("scratch", "scrap", "strike")):
         return (_retraction_prefix_is_directive(words)
                 and _scratch_that_points_back(text, match.end()))
     if marker.startswith("cancel"):
         return not (_retraction_prefix_is_directive(words)
                     and _cancel_is_service_request(text, match.end()))
+    marker_words = marker.split()
+    if "misspoke" in marker_words or (
+            marker_words[0] in {"take", "taking"} and "back" in marker_words):
+        return _take_back_is_live(text, match, words)
     return True
 
 
@@ -1294,8 +1471,17 @@ _RETRACTION_ACT_WORDS = frozenset({
     "scratch", "scrap", "never", "mind", "pretend", "forget", "disregard", "ignore",
     "cancel", "second", "thought", "retract", "retraction", "retracted",
     "withdraw", "withdrawn", "withdrawing", "undo", "undone", "take", "pull",
-    "tear", "down", "remove",
+    "tear", "down", "remove", "strike",
 })
+
+
+#: Markers that name the speaker's own SAYING ("take back what I said",
+#: "forget I ever mentioned", "ignore my last message", "I misspoke"): every
+#: word of them is act vocabulary; what is taken back follows the marker.
+_SPEECH_NAMING_MARKER_RE = re.compile(
+    r"^(?:(?:take|taking)\s.*\bback\b|(?:i|we)\s+misspoke|forget\s+(?:i|we)\b|"
+    r"(?:ignore|forget)\s+(?:my|the)\s+(?:last|previous|prior|earlier)\b)",
+    re.IGNORECASE)
 
 
 def _retraction_act_words(text: str) -> frozenset[str]:
@@ -1305,8 +1491,12 @@ def _retraction_act_words(text: str) -> frozenset[str]:
     words: set[str] = set()
     for match in _RETRACTION_MARKER_RE.finditer(body):
         if retraction_marker_is_live(body, match):
-            words.update(_stem(token.lower()) for token in _TOKEN_RE.findall(match.group(0)))
-    return frozenset(words & _RETRACTION_ACT_WORDS)
+            tokens = {_stem(token.lower()) for token in _TOKEN_RE.findall(match.group(0))}
+            if _SPEECH_NAMING_MARKER_RE.match(match.group(0)):
+                words.update(tokens)
+            else:
+                words.update(tokens & _RETRACTION_ACT_WORDS)
+    return frozenset(words)
 
 
 _CORRECTION_MARKER_RE = re.compile(
