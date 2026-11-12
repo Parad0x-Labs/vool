@@ -172,6 +172,12 @@ class EncryptedStore:
         check_id(session)
         self._db.execute("DELETE FROM records WHERE owner=? AND kind IN ('inbox','outbox')", (session,))
 
+    def checkpoint(self):
+        """Copy committed pages into the database and empty the write-ahead log now, so
+        removed records do not linger in the -wal file until the store closes."""
+        demand(not self._closed and not self._transaction, "STORE_UNAVAILABLE")
+        self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+
     def close(self):
         if self._closed:
             return

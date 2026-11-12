@@ -798,6 +798,11 @@ class DropHome:
             revocation.complete(operation, self.home)
             self.db.execute("UPDATE drops SET status=? WHERE sid=?", (state, sid))
             self.db.commit()
+            # Both databases run in WAL mode: the erased note, task, inbox copy and session
+            # state stay readable in their -wal files until a checkpoint. Empty them now.
+            with contextlib.suppress(sqlite3.Error, DropError):
+                self.client.checkpoint()
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
         except Exception as exc:
             # Keep both independently persisted barriers pending. Do not call
             # cleanup failure a successful deletion or re-enable a reader.

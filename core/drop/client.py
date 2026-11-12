@@ -226,6 +226,10 @@ class DropClient:
             self._store.remove_session_queues(session)
         self._store.transaction(run)
 
+    def checkpoint(self):
+        self._ready()
+        self._store.checkpoint()
+
     def close(self):
         if self._closed:
             return

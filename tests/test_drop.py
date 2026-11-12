@@ -534,3 +534,21 @@ def test_a_full_receive_queue_holds_frames_without_stopping_the_poll(pair):
     held = len(a.relay.messages(b.fingerprint))
     assert held >= 1  # left in the folder, never consumed unread
     assert b.poll().count("held") == held
+
+
+def test_a_deleted_note_does_not_linger_in_the_database_journals(pair, tmp_path):
+    import secrets
+
+    a, b, sid, _ = pair
+    note = "Lingering-" + secrets.token_hex(8)
+    selected = tmp_path / "f.bin"
+    selected.write_bytes(os.urandom(200))
+    a.send_packet(sid, note, selected)
+    b.poll()
+    assert b.show(sid)["note"] == note
+    b.delete(sid)
+    # While the home is still open (the app keeps it open for the whole request).
+    leftovers = [p.name for p in b.root.rglob("*") if p.is_file() and note.encode() in p.read_bytes()]
+    assert leftovers == []
+    for journal in (b.root / "drops.db-wal", b.root / "crypto" / "sessions" / "drop.sqlite-wal"):
+        assert not journal.exists() or journal.stat().st_size == 0, journal.name
