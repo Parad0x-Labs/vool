@@ -47,6 +47,15 @@ VOOL can't recognise names or private facts typed in ordinary sentences, so read
 Fault evidence in reports carries **typed codes only** — never internal context or cause
 chains.
 
+Each removed value is replaced by a marker. An email, a person, a home folder, an IP address,
+a phone number, a wallet address, your computer's name or a detail from your profile keeps one
+numbered marker throughout the report, such as `[EMAIL_1]` and `[EMAIL_2]` for two different
+addresses, so the report still reads clearly.
+Every removed key, password, PIN, card or bank number shows as `[SECRET_REMOVED]`, never
+numbered. The list that links a marker to the real value is kept only in VOOL's memory while
+you work on the report, so an edit keeps the same markers. It is never saved or sent, and it
+is forgotten when you delete the report, after an hour unused, or when VOOL restarts.
+
 ## What VOOL never does
 
 * No automatic external reporting of any kind.

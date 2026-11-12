@@ -1,9 +1,9 @@
 """The uncertified-local-model refusal must say WHERE certification lives.
 
 A user told to "run the local model tool certification for that model" has no way to find it:
-the only surface that runs it is Settings > Models & Providers > Local models > Certify
-(core/vool_settings_page.py; README.md points owners there the same way). The refusal keeps
-every phrase it always had and now names that path with the words the Settings page shows.
+the only surface that runs it is Settings > Models & Providers > Local models > Use this model
+(core/vool_settings_page.py; the button was called Certify before v0.8). The refusal keeps
+every phrase it always had and names that path with the words the Settings page shows.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pytest
 
 from core import local_model_presence
 
-SETTINGS_CERTIFY_PATH = "Settings → Models & Providers → Local models → Certify"
+SETTINGS_CERTIFY_PATH = "Settings → Models & Providers → Local models → Use this model"
 
 
 @pytest.fixture

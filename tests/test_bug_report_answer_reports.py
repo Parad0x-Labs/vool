@@ -110,7 +110,8 @@ def test_whole_answer_report_is_scrubbed_and_leaves_the_question_out():
     assert "5000 EUR" in body and "The limit is 3000, not 5000." in body
     for leaked in ("612 34567", "bank@example.com", "4111 1111 1111 1111", "4433", "What is the limit"):
         assert leaked not in body
-    assert "[redacted-phone]" in body and "[redacted-email]" in body
+    # A report speaks the aliased vocabulary: each removed contact keeps its family's marker.
+    assert "[PHONE_1]" in body and "[EMAIL_1]" in body
     # A public tracker must not notify a stranger named in the answer.
     assert "@octocat" not in body and "@​octocat" in body
 
@@ -121,8 +122,9 @@ def test_question_is_quoted_only_when_the_user_opts_in_and_is_scrubbed_too():
     assert status == 200, data
     body = _preview(data["report_id"])["issue"]["body"]
     assert "The user's question (included by the user)" in body
-    assert "What is the limit on card [redacted-card-number]?" in body
-    assert "PIN is [redacted]" in body and "4433" not in body
+    # Card numbers and PINs are secrets: the one uniform, never-numbered marker.
+    assert "What is the limit on card [SECRET_REMOVED]?" in body
+    assert "PIN is [SECRET_REMOVED]" in body and "4433" not in body and "4111" not in body
 
 
 def test_selected_text_must_come_from_that_answer():

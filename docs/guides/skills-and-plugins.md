@@ -43,8 +43,7 @@ How a skill from Browse is added depends on who made it:
   computer that the file is the exact one it shipped with and reads it for risky
   instructions, then shows you the result. No key is needed and nothing is sent anywhere.
   If the file does not match, VOOL refuses it and says so. A scan with **Eyebrow** stays
-  available as an optional extra when you have a key. Planned for VOOL 0.7.8, not released
-  yet; in VOOL 0.7.7 every Browse skill needs an Eyebrow scan.
+  available as an optional extra when you have a key.
 * **Skills from other makers** (other publishers, or a GitHub link you paste): VOOL first
   scans the skill with **Eyebrow**, a security checker. That scan needs an Eyebrow key, which
   you add under **Settings → API Keys**. Without a key, the skill's page says so and offers

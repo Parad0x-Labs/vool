@@ -12,13 +12,16 @@
 
 * [Local and cloud](concepts/local-and-cloud.md)
 * [Workspaces](concepts/workspaces.md)
+* [Chats and attachments](concepts/chats-and-attachments.md)
 * [Memory](concepts/memory.md)
 * [Tools](concepts/tools.md)
+* [Permissions](concepts/permissions.md)
 * [Receipts](concepts/receipts.md)
 
 ## Guides
 
 * [Run a local model](guides/local-models.md)
+* [Provider keys](guides/provider-keys.md)
 * [Connect OpenRouter](guides/openrouter.md)
 * [Code with VOOL](guides/coding.md)
 * [Skills and plugins](guides/skills-and-plugins.md)
@@ -27,11 +30,15 @@
 * [Skill tools and limits](guides/skill-tools-and-limits.md)
 * [Writing a plugin](guides/plugin-authoring.md)
 * [Add-on security](guides/addon-security.md)
+* [Notifications and model offers](guides/notifications.md)
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
+* [Pay for web resources (x402)](guides/paid-resources.md)
+* [Private invoices with Zcash](guides/zcash-invoices.md)
 * [Contacts](guides/contacts.md)
 * [Lend a job](guides/lend-a-job.md)
 * [X drafts, ratings and results](guides/x-social.md)
+* [X integration](guides/x-integration.md)
 
 ## Reference
 
@@ -56,4 +63,5 @@
 
 * [FAQ](help/faq.md)
 * [Troubleshooting](help/troubleshooting.md)
+* [Backup and recovery](help/backup-and-recovery.md)
 * [Changelog](help/changelog.md)

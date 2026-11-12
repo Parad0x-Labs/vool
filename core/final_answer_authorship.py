@@ -313,7 +313,7 @@ class AuthorshipDecision:
             )
         remedy = (
             "What would make this answerable: run the local model tool certification for that "
-            "model (Settings → Models & Providers → Local models → Certify), pick a certified "
+            "model (Settings → Models & Providers → Local models → Use this model), pick a certified "
             "model, or ask something this runtime can look up, compute or read for you."
         )
         if (not attempted and self.reason not in (REASON_CLOUD_ESCALATION_NOT_PERMITTED, REASON_AUTHOR_UNRESOLVED)
@@ -408,7 +408,7 @@ def _plain_refusal_remedy(author: str) -> str:
         return ("To fix it, start your local model app (such as Ollama), or pick a cloud model in the "
                 "model selector.")
     return ("To fix it, pick a ready model in the model selector, or run the check on this one in "
-            "Settings → Models & Providers → Local models → Certify.")
+            "Settings → Models & Providers → Local models → Use this model.")
 
 
 def no_model_notice_text(locale: str = "") -> str:

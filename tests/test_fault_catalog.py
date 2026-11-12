@@ -146,6 +146,7 @@ def test_the_catalog_exports_machine_readably_and_stably():
     for entry in payload["faults"]:
         assert set(entry) == {
             "code",
+            "title",
             "category",
             "severity",
             "retry",
@@ -155,13 +156,32 @@ def test_the_catalog_exports_machine_readably_and_stably():
             "authority",
             "security_relevant",
             "effect",
+            "doc_anchor",
         }
         # The export must be re-readable as data: no nested objects, no Nones.
         assert all(isinstance(value, (str, bool, int)) for value in entry.values())
+        # The public contract's human label and documentation anchor are never blank,
+        # and the anchor is the code in the docs site's heading-id form (pinned to the
+        # builder's slugify by test_doc_anchor_matches_the_site_builder_slugify).
+        assert entry["title"].strip()
+        assert entry["doc_anchor"] == entry["code"].replace("_", "-")
     assert catalog_digest() == catalog_digest(), "the catalog digest must be stable in-process"
     assert len(catalog_digest()) == 64
     # Round trip: the export is the machine-readable contract.
     assert json.loads(raw) == payload
+
+
+def test_doc_anchor_matches_the_site_builder_slugify():
+    """The runtime's doc_anchor rule and the docs site builder's heading-id slugify must
+    produce the same anchor for every code, or a link to the code's section in the
+    error reference points at nothing."""
+    from core.faults.catalog import all_codes, doc_anchor
+    from tools.docs.build_docs import slugify
+
+    for code in all_codes():
+        assert doc_anchor(code) == slugify(code), (
+            f"{code}: doc_anchor {doc_anchor(code)!r} != site heading id {slugify(code)!r}"
+        )
 
 
 def test_the_schema_version_travels_with_every_code():

@@ -29,9 +29,10 @@ Change settings in the app under **Settings**. The ones that decide what VOOL ma
 * **Model** — the active model, which decides whether a turn is LOCAL or CLOUD.
 * **Workspace** — the project folder a chat works in; see [Workspaces](../concepts/workspaces.md)
   for the other folders VOOL can reach.
-* **Operating mode** — Manual asks before every change; Auto lets everyday edits and
-  commands run, while deleting, overwriting, installing, spending and changing settings
-  still ask. See [Tools](../concepts/tools.md).
+* **Operating mode** — picked in the menu next to the message box, not here. Manual asks
+  before every change; Auto lets everyday edits and commands run, while deleting,
+  overwriting, installing, spending and changing settings still ask. See
+  [Permissions](../concepts/permissions.md).
 * **Web access and crypto** — both stay off until you turn them on.
 
 VOOL has no product telemetry setting because it sends no product telemetry.

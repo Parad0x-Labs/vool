@@ -74,7 +74,7 @@ def _is_conversation_kind(name: str) -> bool:
     return any(kind in lowered for kind in _CONVERSATION_KINDS)
 
 
-def capture_logs(log_sources, *, summary=None) -> tuple[LogExcerpt, ...]:
+def capture_logs(log_sources, *, summary=None, aliases=None) -> tuple[LogExcerpt, ...]:
     """Bound, redact and shape-filter log sources. Refuses conversation-kind sources.
 
     When ``summary`` is given, the per-line redaction counts are absorbed into it so the
@@ -103,7 +103,7 @@ def capture_logs(log_sources, *, summary=None) -> tuple[LogExcerpt, ...]:
         dropped_shapes = 0
         truncated = False
         for raw_line in lines[-MAX_LOG_LINES_PER_SOURCE:]:
-            sanitized, safe_shape = sanitize_log_line(raw_line, summary=summary)
+            sanitized, safe_shape = sanitize_log_line(raw_line, summary=summary, aliases=aliases)
             if not safe_shape:
                 dropped_shapes += 1
                 continue
@@ -127,15 +127,15 @@ def capture_logs(log_sources, *, summary=None) -> tuple[LogExcerpt, ...]:
     return tuple(excerpts)
 
 
-def validate_repro_steps(steps, *, summary=None) -> list[str]:
+def validate_repro_steps(steps, *, summary=None, aliases=None) -> list[str]:
     values = [str(s) for s in (steps or [])]
     if len(values) > MAX_REPRO_STEPS:
         raise CaptureRefusedError(f"too many repro steps: {len(values)} > {MAX_REPRO_STEPS}")
     if summary is None:
-        return [sanitize_prose(step, max_chars=MAX_REPRO_STEP_CHARS) for step in values]
+        return [sanitize_prose(step, max_chars=MAX_REPRO_STEP_CHARS, aliases=aliases) for step in values]
     steps_out: list[str] = []
     for step in values:
-        sanitized, step_summary = _redact(step)
+        sanitized, step_summary = _redact(step, aliases=aliases)
         for rule, count in step_summary.rule_counts.items():
             summary.rule_counts[rule] = summary.rule_counts.get(rule, 0) + count
         summary.total_replacements += step_summary.total_replacements

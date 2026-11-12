@@ -107,6 +107,22 @@ def test_the_docs_site_builds_and_passes_the_publish_gate(tmp_path: Path) -> Non
     assert index, "empty search index"
     error_pages = list(out.rglob("ERROR_BOOK*.html")) or list((out / "ERROR_BOOK").glob("*.html"))
     assert error_pages, "the generated error reference did not publish"
+    # Every error code is searchable as written: its section heading rides the index as an
+    # anchor (the body text is capped at 1400 characters), so a result opens the section.
+    from core.faults.catalog import all_codes, doc_anchor
+
+    book = next(e for e in index if e.get("u", "").endswith("/ERROR_BOOK/"))
+    anchors = {slug: label for slug, label in book.get("a", [])}
+    for code in all_codes():
+        assert anchors.get(doc_anchor(code)) == code, f"{code} is not searchable as written"
+    assert book["b"].startswith("VOOL Error Book Every error"), (
+        "the heading link marker (#) leaked into the search snippet"
+    )
+    book_html = (out / "ERROR_BOOK" / "index.html").read_text(encoding="utf-8")
+    assert 'id="wallet-pin-invalid"' in book_html
+    assert '<a class="toc-l3" href="#wallet-pin-invalid">wallet_pin_invalid</a>' in book_html, (
+        "the page outline must show an error code as written, underscores kept"
+    )
     # The public concept pages that share their names with personal-file ignore rules
     # must publish and be reachable through the generated search index.
     for concept in ("memory", "tools"):
@@ -186,3 +202,15 @@ def test_generated_references_match_their_registries() -> None:
     assert (DOCS / "ERROR_BOOK.md").read_text(encoding="utf-8") == build_error_book_markdown()
     handoff_on_disk = json.loads((REPO / "config" / "localization-handoff.json").read_text(encoding="utf-8"))
     assert handoff_on_disk == build_handoff()
+
+
+def test_heading_labels_keep_an_error_code_as_written() -> None:
+    """The outline and the search index show headings as plain words: emphasis and code
+    markers go, an underscore inside a word (an error code) stays."""
+    sys.path.insert(0, str(REPO))
+    from tools.docs.build_docs import heading_label
+
+    assert heading_label("wallet_pin_invalid") == "wallet_pin_invalid"
+    assert heading_label("`wallet_pin_invalid`") == "wallet_pin_invalid"
+    assert heading_label("**Bold** and _emphasis_") == "Bold and emphasis"
+    assert heading_label("Keys <small>new</small>") == "Keys new"

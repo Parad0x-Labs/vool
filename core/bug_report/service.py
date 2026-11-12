@@ -15,7 +15,11 @@ Invariants enforced HERE, not at the callers:
 """
 from __future__ import annotations
 
+import json
+import threading
+import time
 import uuid
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +35,7 @@ from core.bug_report.fingerprint import compute_fingerprint
 from core.bug_report.github_adapter import default_credential_lookup, submit_to_github
 from core.bug_report.preview import attachment_plans, build_preview
 from core.bug_report.receipts import ReceiptStore
+from core.bug_report.redaction import AliasScope
 from core.bug_report.schema import (
     ANSWER_REASONS,
     SCHEMA_VERSION,
@@ -54,6 +59,49 @@ from core.runtime_paths import data_path
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+# --- an open report's alias scope: process memory only -------------------------------------
+# While a draft is open for editing, its AliasScope stays in THIS process's memory so an edit
+# gives a value the report already named the SAME marker: the editor re-sends every field it
+# shows, and without the scope an unchanged email would come back as a new number, one
+# person reading as two. The scope holds identity values only (secrets never enter it), is
+# never written to disk, exported or logged, and is dropped when the draft is deleted, after
+# an idle hour, or when newer open drafts push it out. After a restart an edit continues the
+# numbering above the draft's markers instead: at worst a new number, never a wrong match.
+_OPEN_SCOPES: OrderedDict[tuple[str, str], tuple[float, AliasScope]] = OrderedDict()
+_OPEN_SCOPES_LOCK = threading.Lock()
+_OPEN_SCOPES_MAX = 16
+_OPEN_SCOPE_IDLE_SECONDS = 3600.0
+
+
+def _remember_scope(key: tuple[str, str], scope: AliasScope) -> None:
+    with _OPEN_SCOPES_LOCK:
+        _OPEN_SCOPES[key] = (time.monotonic(), scope)
+        _OPEN_SCOPES.move_to_end(key)
+        while len(_OPEN_SCOPES) > _OPEN_SCOPES_MAX:
+            _OPEN_SCOPES.popitem(last=False)
+
+
+def _open_scope(key: tuple[str, str]) -> AliasScope | None:
+    with _OPEN_SCOPES_LOCK:
+        entry = _OPEN_SCOPES.get(key)
+        if entry is None:
+            return None
+        if time.monotonic() - entry[0] > _OPEN_SCOPE_IDLE_SECONDS:
+            del _OPEN_SCOPES[key]
+            return None
+        return entry[1]
+
+
+def _forget_scope(key: tuple[str, str]) -> None:
+    with _OPEN_SCOPES_LOCK:
+        _OPEN_SCOPES.pop(key, None)
+
+
+def forget_open_scopes_for_tests() -> None:
+    with _OPEN_SCOPES_LOCK:
+        _OPEN_SCOPES.clear()
 
 
 class BugReportService:
@@ -101,18 +149,22 @@ class BugReportService:
         environment = capture_environment(self.project_root)
         machine, health = _machine_and_health(models)
         total_summary = RedactionSummary()
-        clean_expected, _expected_summary = _prose(expected, summary=total_summary)
-        clean_actual, _actual_summary = _prose(actual, summary=total_summary)
-        clean_title, _title_summary = _prose(title, max_chars=160, summary=total_summary)
-        clean_category, _cat_summary = _prose(category, max_chars=64, summary=total_summary)
-        clean_steps = validate_repro_steps(repro_steps, summary=total_summary)
-        error = parse_stack(error_text, summary=total_summary)
+        # One alias scope for the WHOLE report: the same email/path/person keeps one
+        # readable marker across every field, and the scope dies with this build --
+        # the value-to-marker map is never stored, exported or logged.
+        scope = AliasScope()
+        clean_expected, _expected_summary = _prose(expected, summary=total_summary, aliases=scope)
+        clean_actual, _actual_summary = _prose(actual, summary=total_summary, aliases=scope)
+        clean_title, _title_summary = _prose(title, max_chars=160, summary=total_summary, aliases=scope)
+        clean_category, _cat_summary = _prose(category, max_chars=64, summary=total_summary, aliases=scope)
+        clean_steps = validate_repro_steps(repro_steps, summary=total_summary, aliases=scope)
+        error = parse_stack(error_text, summary=total_summary, aliases=scope)
         components = InvolvedComponents(
             lanes=tuple(require_identifier(x, field="lane") for x in lanes),
             tools=tuple(require_identifier(x, field="tool") for x in tools),
             models=tuple(require_identifier(x, field="model") for x in models),
         )
-        logs = capture_logs(log_sources, summary=total_summary)
+        logs = capture_logs(log_sources, summary=total_summary, aliases=scope)
         try:
             flags_snapshot = {name: bool(state) for name, state in runtime_flags.flag_state().items()}
         except Exception:
@@ -148,7 +200,11 @@ class BugReportService:
         )
         draft = draft.with_updates(attachments=attachment_plans(draft))
         self.store.save(draft)
+        _remember_scope(self._scope_key(draft.report_id), scope)
         return draft
+
+    def _scope_key(self, report_id: str) -> tuple[str, str]:
+        return (str(self.store.root.resolve()), str(report_id))
 
     def create_answer_draft(
         self,
@@ -194,13 +250,14 @@ class BugReportService:
         source = "selection" if selected else "whole_answer"
 
         total_summary = RedactionSummary()
-        clean_excerpt, _s = _prose(selected or answer_text, max_chars=MAX_EXCERPT_CHARS, summary=total_summary)
+        scope = AliasScope()  # one report, one alias namespace; never stored
+        clean_excerpt, _s = _prose(selected or answer_text, max_chars=MAX_EXCERPT_CHARS, summary=total_summary, aliases=scope)
         clean_question = ""
         if include_question and question.strip():
-            clean_question, _s = _prose(question, max_chars=MAX_QUESTION_CHARS, summary=total_summary)
-        clean_wrong, _s = _prose(what_was_wrong, summary=total_summary)
-        clean_should, _s = _prose(should_have_said, summary=total_summary)
-        clean_title, _s = _prose(title, max_chars=160, summary=total_summary)
+            clean_question, _s = _prose(question, max_chars=MAX_QUESTION_CHARS, summary=total_summary, aliases=scope)
+        clean_wrong, _s = _prose(what_was_wrong, summary=total_summary, aliases=scope)
+        clean_should, _s = _prose(should_have_said, summary=total_summary, aliases=scope)
+        clean_title, _s = _prose(title, max_chars=160, summary=total_summary, aliases=scope)
 
         receipt = build_receipt(session_id, request_id) if include_receipt else None
         models = (receipt.model,) if receipt is not None and receipt.model != "unknown" else ()
@@ -250,6 +307,7 @@ class BugReportService:
         draft = draft.with_updates(fingerprint=_fingerprint_of(draft))
         draft = draft.with_updates(attachments=attachment_plans(draft))
         self.store.save(draft)
+        _remember_scope(self._scope_key(draft.report_id), scope)
         return draft
 
     # -- stage 5: local draft access ------------------------------------------------
@@ -274,24 +332,33 @@ class BugReportService:
             rule_counts=dict(draft.redaction_summary.rule_counts),
             total_replacements=draft.redaction_summary.total_replacements,
         )
+        # The draft's own open scope gives every value it already named the same marker. If
+        # this process no longer holds it (a restart, an idle hour), continue the numbering
+        # above every marker the draft stores: an edited field must never mint [EMAIL_1] when
+        # [EMAIL_1] already means a different address in a field the edit keeps.
+        scope = _open_scope(self._scope_key(report_id)) or AliasScope().continue_after(
+            (json.dumps(draft.to_dict(), ensure_ascii=False, default=str),)
+        )
         changes: dict = {"consent": None}
         if expected is not None:
-            changes["expected"], _expected_summary = _prose(expected, summary=summary)
+            changes["expected"], _expected_summary = _prose(expected, summary=summary, aliases=scope)
         if actual is not None:
-            changes["actual"], _actual_summary = _prose(actual, summary=summary)
+            changes["actual"], _actual_summary = _prose(actual, summary=summary, aliases=scope)
         if title is not None:
-            changes["title"], _title_summary = _prose(title, max_chars=160, summary=summary)
+            changes["title"], _title_summary = _prose(title, max_chars=160, summary=summary, aliases=scope)
         if repro_steps is not None:
-            changes["repro_steps"] = tuple(validate_repro_steps(repro_steps, summary=summary))
+            changes["repro_steps"] = tuple(validate_repro_steps(repro_steps, summary=summary, aliases=scope))
         updated = draft.with_updates(**changes)
         changes["fingerprint"] = _fingerprint_of(updated)
         changes["redaction_summary"] = summary
         final = draft.with_updates(**changes)
         final = final.with_updates(attachments=attachment_plans(final))
         self.store.save(final)
+        _remember_scope(self._scope_key(report_id), scope)
         return final
 
     def delete_draft(self, report_id: str) -> bool:
+        _forget_scope(self._scope_key(report_id))
         return self.store.delete(report_id)
 
     def list_reports(self) -> list[dict]:
@@ -660,12 +727,18 @@ class BugReportService:
         }
 
 
-def _prose(text: str, *, max_chars: int = MAX_PROSE_CHARS, summary: RedactionSummary | None = None) -> tuple[str, RedactionSummary]:
+def _prose(
+    text: str,
+    *,
+    max_chars: int = MAX_PROSE_CHARS,
+    summary: RedactionSummary | None = None,
+    aliases: AliasScope | None = None,
+) -> tuple[str, RedactionSummary]:
     from core.bug_report.redaction import redact_text
     from core.bug_report.scanner import mask_local_identifiers
 
-    sanitized, text_summary = redact_text(str(text or ""))
-    sanitized, local_hits = mask_local_identifiers(sanitized)
+    sanitized, text_summary = redact_text(str(text or ""), aliases=aliases)
+    sanitized, local_hits = mask_local_identifiers(sanitized, aliases=aliases)
     if local_hits:
         text_summary.rule_counts["local_identity"] = text_summary.rule_counts.get("local_identity", 0) + local_hits
         text_summary.total_replacements += local_hits
