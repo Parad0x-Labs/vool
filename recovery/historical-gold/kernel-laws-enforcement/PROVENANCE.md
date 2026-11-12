@@ -14,5 +14,5 @@ Vault copy is PRESERVATION only — NOT imported or registered by the runtime (g
 ## Added 2026-11-12: round 019 (single semantic ownership)
 
 - **Source:** exp/skill-system-pass1 @ a4d07699 and exp/toolbelt-ninja-pass4 @ 93ec937c (identical files in both).
-- patches/core/kernel/repl.py.diff: the branch's change to the kernel REPL from origin/main 9541b617. About 86 of its lines, the round 019 ownership laws (a formatting wrapper is demoted to a format order; a covering obligation coordinates and never co-authors its covered siblings), are not on the line.
-- Added tests: tests/test_round019_sabotage.py, tests/test_round019_semantic_ownership.py (not on the line).
+- patches/core/kernel/repl.py.diff: the branch's change to the kernel REPL from origin/main 9541b617. About 86 of its lines, the FIRST version of the round 019 ownership laws (a formatting wrapper is demoted to a format order; a covering obligation coordinates and never co-authors its covered siblings), are not on the line in these words. The line carries the rewritten round 019 r2 instead: rules R1-R3 in core/kernel/repl.py, tests/test_round019_r2_semantic_ownership.py (every case of this version, A to G, and ten more, H to Q) and tests/test_round019_r2_sabotage.py. This round 019 copy is kept for history only, not as a gap.
+- Added tests: tests/test_round019_sabotage.py, tests/test_round019_semantic_ownership.py (the first versions, superseded by the r2 files on the line).

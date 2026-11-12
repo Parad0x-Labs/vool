@@ -6,7 +6,7 @@
   "families": {
     "kernel-laws-enforcement": {
       "source": "dangling commits 32c7740f (+ e288f48a, 819cd464) in OX-VOOL/code; also on-disk at-risk-recovery-20260829/vool-engine-kernel",
-      "path": "core/kernel/* (wasm_sandbox, broker, compartments, counterfactual, plugin_contract, plugin_lifecycle, envelope, flow, boundary, continuation, stability, composition, council_flow); added 2026-11-12: round 019 single semantic ownership (patches/core/kernel/repl.py.diff + 2 tests)",
+      "path": "core/kernel/* (wasm_sandbox, broker, compartments, counterfactual, plugin_contract, plugin_lifecycle, envelope, flow, boundary, continuation, stability, composition, council_flow); added 2026-11-12: round 019 first version (patches/core/kernel/repl.py.diff + 2 tests), superseded by the round 019 r2 now on the line",
       "maturity": "SUBSTANTIAL + TESTED (dedicated test_kernel_* + compiled vool_plugin.wasm fixture)",
       "hist_wired": "experimental lab only (never on the served path)",
       "hist_tested": "yes",
