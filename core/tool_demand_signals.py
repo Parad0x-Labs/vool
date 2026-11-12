@@ -2229,12 +2229,44 @@ _LIVE_TIME_ANCHOR = (
     r"|\btomorrow\b|\btonight\b|\bnext\s+week\b|\bthis\s+(?:week|weekend|morning|afternoon|evening)\b"
     r"|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}\b)"
 )
+# The wording law (tests/test_wording_seats_need_an_ask_and_the_owners_own_object.py) keeps a set
+# of sentences quiet that read like these asks. The notes and calendar sources below seat the same
+# operator tools as the law, so its quiet sentences must not widen the offer through this door
+# either: on the card chain 11 of them were offered the calendar or notes tools here (2026-11-12).
+#   - "free to" / "anything to" is permission or an infinitive ("am I free to quit my job", "have I
+#     got anything to declare at customs?"), unless a time word follows ("am I free to meet on
+#     Friday?");
+#   - a day that is free of something is a price or an entry ("is Sunday free parking in London?"):
+#     the day-free idiom ends there or goes on with a time word, as in the law's availability seat;
+#   - the calendar's app, settings or notes are not the owner's time ("check my calendar app, it
+#     crashes on launch");
+#   - an event noun used attributively ("add a call to action to my blog post for tomorrow") is
+#     not a booking: the law's own list (_EVENT_ATTRIBUTIVE_VETO), read as a positive match;
+#   - a question about what the assistant has seen ("have you seen my calendar notes from the
+#     course?") is not an ask on the owner's notes or calendar.
+_LIVE_TIME_LATER = r"[^.!?]{0,40}?" + _LIVE_TIME_ANCHOR
+_LIVE_DAY_FREE_ENDS = (
+    r"(?=\s*(?:[?!,.]|$|\b(?:on|at|for|or|and|in|still|now|then|today|tonight|tomorrow|this|next"
+    r"|morning|afternoon|evening)\b))"
+)
+_LIVE_CALENDAR_THING_TAIL = r"(?!\s+(?:app|apps|application|account|settings?|sync|widget|notes?)\b)"
+_LIVE_EVENT_ATTRIBUTIVE_RE = re.compile(
+    r"\b(?:appointments?|meetings?|events?|calls?|syncs?)" + _EVENT_ATTRIBUTIVE_VETO.replace("(?!", "(?=", 1),
+    re.IGNORECASE,
+)
+_LIVE_ABOUT_THE_ASSISTANT_RE = re.compile(
+    r"^\s*(?:(?:hey|hi|so|ok|okay|alright|and|but|also)[\s,!-]+)*"
+    r"(?:have|did)\s+(?:you|u)\s+(?:ever\s+|already\s+)?"
+    r"(?:seen|see|heard|hear|read|watched|watch|noticed|notice)\b",
+    re.IGNORECASE,
+)
 _LIVE_CALENDAR_READ_RE = re.compile(
-    r"\b(?:my|our)\s+(?:calendar|diary|schedule|agenda)\b"
-    r"|\b(?:have|got)\s+(?:i|we)\s+(?:got\s+)?anything\b|\b(?:i|we)\s+(?:have|got)\s+anything\s+on\b"
+    r"\b(?:my|our)\s+(?:calendar|diary|schedule|agenda)\b" + _LIVE_CALENDAR_THING_TAIL +
+    r"|\b(?:have|got)\s+(?:i|we)\s+(?:got\s+)?anything\b(?:(?!\s+to\b)|\s+to\b" + _LIVE_TIME_LATER + r")"
+    r"|\b(?:i|we)\s+(?:have|got)\s+anything\s+on\b"
     r"|\bis\s+(?:" + _LIVE_TIME_ANCHOR[3:-1] + r")(?:\s+(?:morning|afternoon|evening))?\s+"
-    r"(?:clear|free|open|busy|available)\b"
-    r"|\bam\s+i\s+(?:free|busy|around|available)\b",
+    r"(?:clear|free|open|busy|available)\b" + _LIVE_DAY_FREE_ENDS +
+    r"|\bam\s+i\s+(?:free|busy|around|available)\b(?:(?!\s+to\b)|\s+to\b" + _LIVE_TIME_LATER + r")",
     re.IGNORECASE,
 )
 _LIVE_CALENDAR_WRITE_RE = re.compile(
@@ -2316,12 +2348,21 @@ def owner_live_sources(text: str) -> tuple[str, ...]:
         if not part or not _LIVE_ASK_HEAD_RE.match(part) or _LIVE_ADVICE_VETO_RE.search(part):
             continue
         owner = _LIVE_OWNER_RE.search(part) is not None
+        # The notes and the calendar follow the wording law (see _LIVE_CALENDAR_READ_RE).
+        about_the_assistant = _LIVE_ABOUT_THE_ASSISTANT_RE.match(part) is not None
         found: list[str] = []
-        if owner and (_LIVE_NOTES_SAVE_RE.search(part) or _LIVE_NOTES_READ_RE.search(part)):
+        if owner and not about_the_assistant and (
+            _LIVE_NOTES_SAVE_RE.search(part) or _LIVE_NOTES_READ_RE.search(part)
+        ):
             found.append("notes")
-        if _LIVE_CALENDAR_READ_RE.search(part) or (
-            (owner or re.match(r"\s*(?:pencil|reschedule)\b", part, re.IGNORECASE))
-            and _LIVE_CALENDAR_WRITE_RE.search(part) and not _LIVE_FILES_RE.search(part)
+        if not about_the_assistant and (
+            _LIVE_CALENDAR_READ_RE.search(part)
+            or (
+                (owner or re.match(r"\s*(?:pencil|reschedule)\b", part, re.IGNORECASE))
+                and _LIVE_CALENDAR_WRITE_RE.search(part)
+                and not _LIVE_FILES_RE.search(part)
+                and not _LIVE_EVENT_ATTRIBUTIVE_RE.search(part)
+            )
         ):
             found.append("calendar")
         if (
