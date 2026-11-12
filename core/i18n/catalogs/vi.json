@@ -2965,6 +2965,7 @@
     "settings.local_models.suggest.cloud": "Dùng mô hình đám mây",
     "settings.local_models.suggest.newer": "Có một mô hình mới hơn hợp với máy tính này:",
     "settings.local_models.suggest.download_bigger": "Tải mô hình lớn hơn, {model} ({gb} GB): thông minh hơn nhưng chậm hơn",
+    "settings.local_models.suggest.download_faster": "Tải mô hình nhanh hơn, {model} ({gb} GB): trả lời nhanh hơn nhưng dùng nhiều bộ nhớ hơn",
     "settings.local_models.suggest.picked_gpu": "Được chọn cho card đồ họa {gb} GB của máy tính này.",
     "settings.local_models.suggest.picked_memory": "Được chọn cho {gb} GB bộ nhớ của máy tính này.",
     "settings.local_models.suggest.update_ollama": "Cập nhật Ollama để dùng {model} mới hơn.",
@@ -3311,7 +3312,7 @@
     "settings.switch.on": "Bật",
     "settings.switch.off": "Tắt"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "7f6bff19db6caedaa329b3b9f8c45de6fdfefb756bd443e66e9718b333a0d2c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

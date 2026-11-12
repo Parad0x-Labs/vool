@@ -126,6 +126,11 @@ def recommended_local_model(
             "model_name": suggestion.deep,
             "download_gb": download_gb_for(suggestion.deep, suggestion.machine_kind),
         }
+    if suggestion.fast:
+        result["faster"] = {
+            "model_name": suggestion.fast,
+            "download_gb": download_gb_for(suggestion.fast, suggestion.machine_kind),
+        }
     if suggestion.ollama_update_unlocks:
         result["ollama_update_unlocks"] = suggestion.ollama_update_unlocks
     return result

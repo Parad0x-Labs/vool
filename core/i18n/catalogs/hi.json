@@ -2965,6 +2965,7 @@
     "settings.local_models.suggest.cloud": "इसके बजाय क्लाउड मॉडल इस्तेमाल करें",
     "settings.local_models.suggest.newer": "इस कंप्यूटर पर एक नया मॉडल चल सकता है:",
     "settings.local_models.suggest.download_bigger": "बड़ा मॉडल डाउनलोड करें, {model} ({gb} GB): ज़्यादा समझदार, पर धीमा",
+    "settings.local_models.suggest.download_faster": "तेज़ मॉडल डाउनलोड करें, {model} ({gb} GB): जल्दी जवाब, पर ज़्यादा मेमोरी लेता है",
     "settings.local_models.suggest.picked_gpu": "इस कंप्यूटर के {gb} GB ग्राफ़िक्स कार्ड के लिए चुना गया।",
     "settings.local_models.suggest.picked_memory": "इस कंप्यूटर की {gb} GB मेमोरी के लिए चुना गया।",
     "settings.local_models.suggest.update_ollama": "नया {model} पाने के लिए Ollama अपडेट करें।",
@@ -3311,7 +3312,7 @@
     "settings.switch.on": "चालू",
     "settings.switch.off": "बंद"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "7f6bff19db6caedaa329b3b9f8c45de6fdfefb756bd443e66e9718b333a0d2c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

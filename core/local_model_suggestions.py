@@ -19,6 +19,20 @@ How a pick is made:
     (qwen3:8b at 5.2 GB already part-offloaded on an 8 GB card with 5.9 GB free, ~47 s a turn).
   * Free disk always caps the pick: a download that cannot land is not a suggestion.
 
+The faster model (Qwen3-30B-A3B-Instruct-2507, Ollama `qwen3:30b-instruct`) is a mixture of experts
+that computes 3.3B of its 30.5B weights per token. On a 24 GB M4 this architecture decoded at ~30 tok/s
+at an 8K window (measured 2026-11-12 on qwen3:30b-a3b, the same architecture at the same Q4_K_M
+quantisation), where a dense model has to stream all of its weights for every token. It is offered
+next to the daily model, not in its place: the daily model scores higher on tool use (Qwen3.5-9B
+BFCL-V4 66.1 / TAU2 79.1 against the 30B's own card, BFCL-v3 65.1 / TAU2-Retail 57.0), and the 30B
+needs room beside VOOL's helper model (~2.3 GiB at its 16K window) and its recall model. Ollama loads
+a model next to others only when it fits in 80% of the GPU memory still free, and unloads an idle
+model otherwise (server/sched.go). The 30B takes ~18.2 GiB at 8K. macOS gives the GPU only part of a
+Mac's memory: on the 24 GB M4, 16.7 GiB of the 30B fit, and the published figures for a 32 GB Mac
+are about 21 to 24 GB, so on either the helper could not stay loaded beside the 30B and turns would
+reload one of them. So it is offered from 36 GB of Mac memory and on graphics cards with 22 GB or
+more, never on a computer without a usable GPU (no CPU speed measured).
+
 The small helper model (tiny_fast) stays qwen3:0.6b: Qwen3.5-0.8B is about twice the download and
 scores about the same on tool calls (BFCL-V4 25.3 on Qwen's card vs 23.9 for Qwen3-0.6B on the BFCL
 board), so swapping it would cost every machine a download for no measured gain.
@@ -125,6 +139,13 @@ SUGGESTED_MODELS: dict[str, SuggestedModel] = {
             tool_evidence="TAU3 67.2, MCPMark 37.0, MCP-Atlas 62.8 (Qwen card).",
         ),
         SuggestedModel(
+            tag="qwen3:30b-instruct", download_gb=19.0, gguf_download_gb=18.6, parameter_count="30B",
+            architecture="moe", active_parameter_count="3.3B", license_name="Apache-2.0",
+            license_reference="https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507",
+            library_url="https://ollama.com/library/qwen3", previous_generation="qwen3:30b-instruct",
+            tool_evidence="BFCL-v3 65.1, TAU2-Retail 57.0 (Qwen card); non-thinking only; ~30 tok/s at an 8K window on a 24 GB M4.",
+        ),
+        SuggestedModel(
             tag="qwen3.8:27b", download_gb=18.0, gguf_download_gb=17.7, parameter_count="27B", architecture="dense",
             active_parameter_count="", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.8-27B",
@@ -141,6 +162,7 @@ PREVIOUS_GENERATION_DOWNLOAD_GB: dict[str, float] = {
     "qwen3:4b": 2.5,
     "qwen3:8b": 5.2,
     "qwen3:30b": 19.0,
+    "qwen3:30b-instruct": 19.0,
     "qwen3:32b": 20.0,
 }
 
@@ -189,6 +211,19 @@ _NVIDIA_DEEP: tuple[tuple[float, str], ...] = (
     (6.0, "qwen3.5:9b"),
 )
 
+# "Faster" (Settings offers it next to the daily model): the 30B mixture of experts, only where it
+# can stay loaded beside VOOL's helper model (see the module docstring). "" means no faster pick.
+_APPLE_FAST: tuple[tuple[float, str], ...] = (
+    (44.0, ""),  # the daily qwen3.6:35b is already a 3B-active mixture of experts
+    (34.0, "qwen3:30b-instruct"),  # 36 GB Macs; 32 GB is too tight (module docstring)
+    (0.0, ""),
+)
+_NVIDIA_FAST: tuple[tuple[float, str], ...] = (
+    (22.0, "qwen3:30b-instruct"),
+    (0.0, ""),
+)
+_CPU_FAST: tuple[tuple[float, str], ...] = ((0.0, ""),)
+
 #: Room kept free on the model disk beyond the download itself.
 _DISK_MARGIN_GB = 4.0
 
@@ -202,6 +237,9 @@ class LocalModelSuggestion:
     sized_by_gb: float
     #: Set when the local Ollama is older than 0.40 and the qwen3 fallback was picked.
     ollama_update_unlocks: str = ""
+    #: The faster model Settings offers next to the daily one ("" when none fits this computer).
+    #: An offer only: it is not part of the bundle, so `models` leaves it out.
+    fast: str = ""
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -217,6 +255,7 @@ class LocalModelSuggestion:
             "daily": self.daily,
             "deep": self.deep,
             "tiny": self.tiny,
+            "fast": self.fast,
             "machine_kind": self.machine_kind,
             "sized_by_gb": round(self.sized_by_gb, 1),
             "ollama_update_unlocks": self.ollama_update_unlocks,
@@ -314,21 +353,24 @@ def suggest_local_models(
     free_disk_gb: float | None = None,
     ollama_version: str = "",
 ) -> LocalModelSuggestion:
-    """The daily, bigger-jobs and helper models this machine should get."""
+    """The daily, bigger-jobs and helper models this machine should get, and its faster offer."""
     kind = machine_kind(probe)
     if kind == "apple":
         sized_by = _as_float(_probe_value(probe, "ram_gb"))
-        daily_ladder, deep_ladder = _APPLE_DAILY, _APPLE_DEEP
+        daily_ladder, deep_ladder, fast_ladder = _APPLE_DAILY, _APPLE_DEEP, _APPLE_FAST
     elif kind == "nvidia":
         sized_by = _as_float(_probe_value(probe, "vram_gb"))
-        daily_ladder, deep_ladder = _NVIDIA_DAILY, _NVIDIA_DEEP
+        daily_ladder, deep_ladder, fast_ladder = _NVIDIA_DAILY, _NVIDIA_DEEP, _NVIDIA_FAST
     else:
         sized_by = _as_float(_probe_value(probe, "ram_gb"))
-        daily_ladder, deep_ladder = _CPU_DAILY, _CPU_DEEP
+        daily_ladder, deep_ladder, fast_ladder = _CPU_DAILY, _CPU_DEEP, _CPU_FAST
     daily = _step_down_for_disk(daily_ladder, _pick(daily_ladder, sized_by), free_disk_gb)
     deep = _pick(deep_ladder, sized_by)
     if deep and (deep == daily or not _fits_disk(deep, free_disk_gb)):
         deep = ""
+    fast = _pick(fast_ladder, sized_by)
+    if fast and (fast in {daily, deep} or not _fits_disk(fast, free_disk_gb)):
+        fast = ""
     unlocks = ""
     if ollama_too_old(ollama_version):
         unlocks = daily
@@ -336,6 +378,8 @@ def suggest_local_models(
         deep = SUGGESTED_MODELS[deep].previous_generation if deep else ""
         if deep == daily:
             deep = ""
+        # qwen3:30b-instruct is a qwen3 tag already, so an older Ollama pulls the same model.
+        fast = SUGGESTED_MODELS[fast].previous_generation if fast else ""
     return LocalModelSuggestion(
         daily=daily,
         deep=deep,
@@ -343,6 +387,7 @@ def suggest_local_models(
         machine_kind=kind,
         sized_by_gb=sized_by,
         ollama_update_unlocks=unlocks,
+        fast=fast,
     )
 
 

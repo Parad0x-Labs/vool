@@ -2965,6 +2965,7 @@
     "settings.local_models.suggest.cloud": "Naudoti debesies modelį",
     "settings.local_models.suggest.newer": "Šiam kompiuteriui tinka naujesnis modelis:",
     "settings.local_models.suggest.download_bigger": "Atsisiųsti didesnį modelį, {model} ({gb} GB): protingesnis, bet lėtesnis",
+    "settings.local_models.suggest.download_faster": "Atsisiųsti greitesnį modelį, {model} ({gb} GB): greitesni atsakymai, bet naudoja daugiau atminties",
     "settings.local_models.suggest.picked_gpu": "Parinkta šio kompiuterio {gb} GB vaizdo plokštei.",
     "settings.local_models.suggest.picked_memory": "Parinkta šio kompiuterio {gb} GB atminčiai.",
     "settings.local_models.suggest.update_ollama": "Atnaujinkite Ollama, kad gautumėte naujesnį {model}.",
@@ -3311,7 +3312,7 @@
     "settings.switch.on": "Įjungta",
     "settings.switch.off": "Išjungta"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "7f6bff19db6caedaa329b3b9f8c45de6fdfefb756bd443e66e9718b333a0d2c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

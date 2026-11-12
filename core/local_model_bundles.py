@@ -98,6 +98,11 @@ MODEL_STORAGE_GB: dict[str, float] = {
     "qwen3.6:35b": 24.0,
     "qwen3.6:35b-a3b": 24.0,
     "qwen3.8:27b": 18.0,
+    # The faster offer: Qwen3-30B-A3B-Instruct-2507 at Q4_K_M, 18.56 GB of layers in Ollama's
+    # registry (listed as 19GB). Without an entry the name-based guess read it as 22.5 GB, so
+    # the load gate asked for 24 GB free and could never admit it below a 32 GB machine.
+    "qwen3:30b-instruct": 19.0,
+    "qwen3:30b-a3b-instruct-2507-q4_k_m": 19.0,
     "qwen3:1.7b": 1.4,
     "qwen3:32b": 20.0,
     "deepseek-r1:8b": 5.2,
@@ -215,6 +220,25 @@ MODEL_METADATA: dict[str, dict[str, Any]] = {
         "tokens_per_second": 37.2,
         "quantization": "local-measured",
         "notes": "Measured fast local no-think default when installed.",
+    },
+    **{
+        tag: {
+            "family": "qwen3",
+            "license_name": "Apache-2.0",
+            "license_reference": "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507",
+            "parameter_count": "30B",
+            "active_parameter_count": "3.3B",
+            "architecture": "moe",
+            "bundle_role": "general",
+            "eagle3_draft_eligible": False,
+            # Qwen ships the 2507 instruct release as non-thinking only (its card: "supports only
+            # non-thinking mode"), so it is the no-think daily candidate the autopilot already
+            # knows how to rank, and it never needs a reasoning budget.
+            "thinking_disabled": True,
+            "max_context": 262144,
+            "notes": "Faster local model offered next to the daily one where it fits (Settings).",
+        }
+        for tag in ("qwen3:30b-instruct", "qwen3:30b-a3b-instruct-2507-q4_k_m")
     },
     "qwen3.5:35b-a3b": {
         "family": "qwen3.5",

@@ -4281,13 +4281,20 @@ function widgetLocalModels(stack) {
         line.appendChild(b);
       }
     }
-    /* The bigger model is offered only once the daily one is on this computer: one download at a
-       time, the one that answers first. */
+    /* The bigger and the faster models are offered only once the daily one is on this computer:
+       one download at a time, the one that answers first. */
     const big = rec && rec.bigger;
     if (big && big.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === big.model_name) && (!pull || pull.failed)) {
       const b = el('button', 'btn', LM('suggest.download_bigger', 'Download a bigger model, {model} ({gb} GB): smarter, but slower', { model: big.model_name, gb: big.download_gb }));
       b.type = 'button'; b.disabled = !!busy;
       b.addEventListener('click', () => startPull(big));
+      line.appendChild(b);
+    }
+    const fast = rec && rec.faster;
+    if (fast && fast.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === fast.model_name) && (!pull || pull.failed)) {
+      const b = el('button', 'btn', LM('suggest.download_faster', 'Download a faster model, {model} ({gb} GB): quicker answers, uses more memory', { model: fast.model_name, gb: fast.download_gb }));
+      b.type = 'button'; b.disabled = !!busy;
+      b.addEventListener('click', () => startPull(fast));
       line.appendChild(b);
     }
     if (!anyReady) {
@@ -4351,10 +4358,11 @@ function widgetLocalModels(stack) {
     const anyReady = models.some(m => m.readiness === 'ready');
     const rec = data.recommended;
     const recMissing = !!(rec && rec.model_name && !models.some(x => x.model_name === rec.model_name));
-    /* Once the suggested daily model is on this computer, the bigger-jobs model is the next offer. */
+    /* Once the suggested daily model is on this computer, the bigger-jobs and faster models are the next offers. */
     const bigMissing = !recMissing && !!(rec && rec.bigger && rec.bigger.model_name && !models.some(x => x.model_name === rec.bigger.model_name));
+    const fastMissing = !recMissing && !!(rec && rec.faster && rec.faster.model_name && !models.some(x => x.model_name === rec.faster.model_name));
     if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models, anyReady && !(outcome && outcome.kind !== 'ready')));
-    else if (anyReady && (recMissing || bigMissing)) body.appendChild(ways(models, true));
+    else if (anyReady && (recMissing || bigMissing || fastMissing)) body.appendChild(ways(models, true));
     body.appendChild(el('div', 'subtle', LM('footer', 'VOOL checks a model on this computer before it answers with it. The check never leaves your computer.')));
   };
   body.appendChild(el('div', 'empty', LM('reading', 'Looking for models on this computer…')));

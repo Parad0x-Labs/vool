@@ -230,3 +230,48 @@ def test_the_download_size_shown_is_the_one_this_computer_gets() -> None:
     assert (mac["model_name"], mac["download_gb"]) == ("qwen3.5:4b", 4.0)
     old = recommended_local_model(probe=_cpu(15.6), free_disk_gb=200.0, ollama_version="0.21.2")
     assert (old["model_name"], old["download_gb"]) == ("qwen3:4b", 2.5)
+
+
+@pytest.mark.parametrize(
+    ("probe", "fast"),
+    [
+        (_apple(16.0), ""),
+        # 24 GB Mac: the 30B (~18.2 GiB at 8K, 16.7 GiB of it on the GPU when measured there)
+        # cannot stay loaded beside VOOL's helper model, so it is not offered.
+        (_apple(24.0), ""),
+        # 32 GB Mac: macOS gives the GPU about 21 to 24 GB, which leaves too little beside the
+        # 30B for the helper and recall models.
+        (_apple(32.0), ""),
+        (_apple(36.0), "qwen3:30b-instruct"),
+        # From 44 GB the daily model is already a 3B-active mixture of experts.
+        (_apple(48.0), ""),
+        (_nvidia(16.0), ""),
+        (_nvidia(24.0), "qwen3:30b-instruct"),
+        (_cpu(64.0), ""),
+    ],
+)
+def test_the_faster_model_is_offered_only_where_it_can_stay_loaded(probe: dict[str, object], fast: str) -> None:
+    pick = suggest_local_models(probe, free_disk_gb=500.0, ollama_version="0.40.3")
+    assert pick.fast == fast
+    assert pick.to_dict()["fast"] == fast
+    # An offer only: the bundle a computer is set up with never carries it.
+    assert "qwen3:30b-instruct" not in pick.models
+
+
+def test_the_faster_offer_needs_room_on_the_disk_and_survives_an_older_ollama() -> None:
+    assert suggest_local_models(_apple(36.0), free_disk_gb=20.0, ollama_version="0.40.3").fast == ""
+    assert suggest_local_models(_apple(36.0), free_disk_gb=500.0, ollama_version="0.21.2").fast == "qwen3:30b-instruct"
+    entry = SUGGESTED_MODELS["qwen3:30b-instruct"]
+    assert (entry.architecture, entry.active_parameter_count) == ("moe", "3.3B")
+    assert entry.license_reference == "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507"
+
+
+def test_settings_receives_the_faster_offer_with_this_computers_download_size() -> None:
+    from core.local_model_readiness import recommended_local_model
+
+    mac = recommended_local_model(probe=_apple(36.0), free_disk_gb=500.0, ollama_version="0.40.3")
+    assert mac["faster"] == {"model_name": "qwen3:30b-instruct", "download_gb": 19.0}
+    card = recommended_local_model(probe=_nvidia(24.0), free_disk_gb=500.0, ollama_version="0.40.3")
+    assert card["faster"] == {"model_name": "qwen3:30b-instruct", "download_gb": 18.6}
+    for small_mac in (_apple(24.0), _apple(32.0)):
+        assert "faster" not in recommended_local_model(probe=small_mac, free_disk_gb=500.0, ollama_version="0.40.3")

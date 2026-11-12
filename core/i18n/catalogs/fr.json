@@ -2965,6 +2965,7 @@
     "settings.local_models.suggest.cloud": "Utiliser plutôt un modèle cloud",
     "settings.local_models.suggest.newer": "Un modèle plus récent convient à cet ordinateur :",
     "settings.local_models.suggest.download_bigger": "Télécharger un modèle plus grand, {model} ({gb} Go) : plus intelligent, mais plus lent",
+    "settings.local_models.suggest.download_faster": "Télécharger un modèle plus rapide, {model} ({gb} Go) : réponses plus rapides, mais plus de mémoire utilisée",
     "settings.local_models.suggest.picked_gpu": "Choisi pour la carte graphique de {gb} Go de cet ordinateur.",
     "settings.local_models.suggest.picked_memory": "Choisi pour les {gb} Go de mémoire de cet ordinateur.",
     "settings.local_models.suggest.update_ollama": "Mettez Ollama à jour pour obtenir le modèle plus récent {model}.",
@@ -3311,7 +3312,7 @@
     "settings.switch.on": "Activé",
     "settings.switch.off": "Désactivé"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "7f6bff19db6caedaa329b3b9f8c45de6fdfefb756bd443e66e9718b333a0d2c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

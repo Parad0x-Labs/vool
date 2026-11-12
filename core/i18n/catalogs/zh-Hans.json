@@ -2965,6 +2965,7 @@
     "settings.local_models.suggest.cloud": "改用云端模型",
     "settings.local_models.suggest.newer": "有更新的模型适合这台电脑:",
     "settings.local_models.suggest.download_bigger": "下载更大的模型 {model}（{gb} GB）：更聪明，但更慢",
+    "settings.local_models.suggest.download_faster": "下载更快的模型 {model}（{gb} GB）：回答更快，但占用更多内存",
     "settings.local_models.suggest.picked_gpu": "按这台电脑的 {gb} GB 显卡挑选。",
     "settings.local_models.suggest.picked_memory": "按这台电脑的 {gb} GB 内存挑选。",
     "settings.local_models.suggest.update_ollama": "更新 Ollama 即可使用更新的 {model}。",
@@ -3311,7 +3312,7 @@
     "settings.switch.on": "开启",
     "settings.switch.off": "关闭"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "7f6bff19db6caedaa329b3b9f8c45de6fdfefb756bd443e66e9718b333a0d2c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

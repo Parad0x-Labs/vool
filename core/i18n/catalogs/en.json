@@ -2965,6 +2965,7 @@
     "settings.local_models.suggest.cloud": "Use a cloud model instead",
     "settings.local_models.suggest.newer": "A newer model fits this computer:",
     "settings.local_models.suggest.download_bigger": "Download a bigger model, {model} ({gb} GB): smarter, but slower",
+    "settings.local_models.suggest.download_faster": "Download a faster model, {model} ({gb} GB): quicker answers, uses more memory",
     "settings.local_models.suggest.picked_gpu": "Picked for this computer’s {gb} GB graphics card.",
     "settings.local_models.suggest.picked_memory": "Picked for this computer’s {gb} GB of memory.",
     "settings.local_models.suggest.update_ollama": "Update Ollama to get the newer {model}.",
