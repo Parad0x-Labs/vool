@@ -16,7 +16,10 @@
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
    shares a distinctive word with the name of one of the owner's files, or, checked last, it is a
    question about something the owner's documents hold: `tools.document_matches`), and not a
-   live/online question, which the online lanes own.
+   live/online question, which the online lanes own. No skill keeps it: the person names no skill
+   VOOL has ("use the project archaeology skill") and the ask picks no skill the person added (made
+   by them, or added from Browse, the Skill Codex, a file or an MCP server). Those turns keep the
+   normal lane, the only one that reads skills; VOOL's built-in skills picked by words alone do not.
 5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on (default ON) the owner's own cloud model
    (resolved last: it is the only costly check).
 """
@@ -516,6 +519,32 @@ def _memory_lane_owns(text: str) -> bool:
         # The memory lane cannot be asked: the turn keeps the old pipeline, which owns these commands.
         return True
     return memory_command_owns_turn(text)
+def skill_keeps_turn(text: str, source_context: Mapping[str, Any] | None) -> str:
+    """Why a skill keeps this turn in the normal lane, the only lane that reads skills, or "".
+
+    ``named_skill_turn``: the person names a skill VOOL has, built-in or added ("Use the project
+    archaeology skill for the file history"). ``added_skill_turn``: the ask picks, by its words, a
+    skill the person added (made by them, or added from Browse, the Skill Codex, a file or an MCP
+    server). This loop's brain never sees skills, so taking either turn would pass over the skill.
+    A built-in skill picked by words alone does not count: the loop keeps those file asks. Checked
+    after the cheap gates and before the brain; an error leaves the decision as it was.
+    """
+    context = dict(source_context or {})
+    try:
+        from core.tool_offer_assembly import named_skill_for
+
+        if named_skill_for(text, source_context=context):
+            return "named_skill_turn"
+    except Exception:
+        pass
+    try:
+        from core.tool_offer_assembly import added_skill_for
+
+        if added_skill_for(text, source_context=context):
+            return "added_skill_turn"
+    except Exception:
+        pass
+    return ""
 
 
 def decide(
@@ -567,6 +596,9 @@ def decide(
         by_documents = document_match is not None and bool(document_match(text))
         if not by_documents:
             return RouteDecision(False, "not_about_own_files")
+    kept = skill_keeps_turn(text, source_context)
+    if kept:
+        return RouteDecision(False, kept)
     brain = resolve_brain() if resolve_brain is not None else None
     if brain is None:
         return RouteDecision(False, "brain_not_local")
@@ -592,5 +624,6 @@ __all__ = [
     "is_write",
     "names_owner_file",
     "note_clean_turn",
+    "skill_keeps_turn",
     "skill_owns_turn",
 ]

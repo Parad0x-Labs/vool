@@ -282,6 +282,32 @@ def _picture_asset(item: dict, prefix: str) -> bool:
             and isinstance(size, int) and not isinstance(size, bool) and 0 < size <= _PICTURE_MAX_BYTES)
 
 
+def _vool_tool_list(row: dict, front: dict) -> tuple[tuple[str, ...], str]:
+    """A skill's ``allowed-tools``: (the names, "") when VOOL can list it, else ((), why not).
+
+    Only VOOL's own skills repository writes its lists in VOOL's tool names, so only its lists are
+    read, and only when every name is a tool this VOOL has. Any other repository's list was written
+    for another host and stays refused: it is never mapped or trusted as VOOL names. A list read
+    here grants nothing; on the turns the skill is used it only narrows what VOOL already offers
+    (core.skill_origin), and every call still goes through the person's approvals.
+    """
+    if not is_own(row):
+        return (), 'This skill declares a host-specific tool list that needs a VOOL mapping.'
+    tools = front.get('allowed-tools') or front.get('allowed_tools')
+    if not isinstance(tools, list) or not all(isinstance(t, str) and t.strip() == t and t for t in tools):
+        return (), 'This skill’s tool list is not a plain list of VOOL tool names.'
+    try:
+        from core.runtime_tool_contracts import runtime_tool_contract_map
+
+        known = set(runtime_tool_contract_map())
+    except Exception:
+        return (), 'VOOL could not check the tool names this skill lists.'
+    unknown = [t for t in tools if t not in known]
+    if unknown:
+        return (), 'This skill names tools this VOOL does not have: ' + ', '.join(unknown[:12]) + '.'
+    return tuple(dict.fromkeys(tools)), ''
+
+
 def inspect_source(source: dict, path: str, read_file) -> dict:
     """One compatibility law for public discovery and release-time catalogue snapshots."""
     from core.plugin_skills import _FRONTMATTER_RE, _MAX_BODY_CHARS
@@ -311,8 +337,11 @@ def inspect_source(source: dict, path: str, read_file) -> dict:
         reasons.append('The skill has no usable description for matching it to tasks.')
     if match and len(match.group(2).strip()) > _MAX_BODY_CHARS:
         reasons.append('This skill is larger than VOOL’s instruction limit. It needs adaptation; VOOL will not silently cut it short.')
+    tools: tuple[str, ...] = ()
     if front.get('allowed-tools') or front.get('allowed_tools'):
-        reasons.append('This skill declares a host-specific tool list that needs a VOOL mapping.')
+        tools, refused = _vool_tool_list(row, front)
+        if refused:
+            reasons.append(refused)
     from core.skill_tools import content_problem, reserved_name_reason, typed_keys_problem
     typed = typed_keys_problem(front)
     if typed:
@@ -357,11 +386,13 @@ def inspect_source(source: dict, path: str, read_file) -> dict:
         reasons.append('A supported permissive licence has not been established for this skill.')
     # Other-host declarations are shown, never transformed into grants or install commands.
     requirements = front.get('metadata') or front.get('required_environment_variables') or {}
+    uses = ('Uses these VOOL tools on the turns it is picked: ' + ', '.join(tools) + '. It grants nothing: '
+            'each call goes through your usual approvals, and a tool that is off stays off.') if tools else ''
     row.update(name=front.get('name') if isinstance(front.get('name'),str) else row['name'],
                description=front.get('description')[:1200] if isinstance(front.get('description'),str) else row['description'],
                skill_name=front.get('name') if isinstance(front.get('name'),str) else row['skill_name'],
                license=licence_id, license_path=licence_path, sha256=hashlib.sha256(content).hexdigest(),
                license_sha256=hashlib.sha256(licence).hexdigest(), discovery_only=False,
                import_ready=not reasons, compatibility=' '.join(reasons) if reasons else 'Standalone instruction format supported. Required external tools/accounts are not installed or verified.',
-               requirements=json.dumps(requirements,ensure_ascii=False,default=str)[:2000] if requirements else 'Uses the existing model and permitted tools. No executable dependencies are installed.')
+               requirements=json.dumps(requirements,ensure_ascii=False,default=str)[:2000] if requirements else (uses or 'Uses the existing model and permitted tools. No executable dependencies are installed.'))
     return {'ok':True,'entry':row,'reasons':reasons}

@@ -135,7 +135,7 @@ names, and refused where it cannot:
 | --- | --- |
 | Zip share (`import this skill`, `skill.import`) | Accepted. Turning it on runs the same validator as a local install. |
 | Local install (`skill.install`, `vool-community try`) | Accepted when every name is a real VOOL tool; otherwise refused with the names it does not know. |
-| Import from a GitHub repository (Browse) | Not import-ready: *This skill declares a host-specific tool list that needs a VOOL mapping.* GitHub skills are written for other hosts, so their tool names are never trusted as VOOL names. Share it as a zip instead. |
+| Import from a GitHub repository (Browse) | From any repository but VOOL's own skills repository: not import-ready (*This skill declares a host-specific tool list that needs a VOOL mapping.*). Those skills are written for other hosts, so their tool names are never trusted as VOOL names. Share it as a zip instead. VOOL's own skills repository writes VOOL tool names, so its skills are import-ready when every name is a tool this VOOL has (otherwise: *This skill names tools this VOOL does not have: ...*); their lists only narrow, as for any import. |
 | Upload to the shared library (Skill Codex) | The automatic checks run VOOL's validator on SKILL.md, so `allowed-tools` with real names passes, the same as `vool-community lint`. What is refused is the package manifest (`.codex-plugin/plugin.json`) asking for tools, permissions or credential bindings, which `vool-community init` never writes. Uploading is not open to every author yet. |
 
 ## The tools a skill may name

@@ -213,3 +213,57 @@ def test_expired_or_changed_public_cache_cannot_supply_source(rig, monkeypatch):
     github._remember(identity, 'b2xk', -1)
     assert github.source_bytes('example/skills', REF, 'SKILL.md') == SKILL
     assert len(calls) == 2
+
+
+# VOOL's own skills repository writes its allowed-tools in VOOL's own tool names, so Browse lists
+# those skills when every name is a tool this VOOL has. The list only narrows what VOOL offers
+# (core.skill_origin: a discover- add-on is an import), and every call still goes through the
+# person's approvals. Before this, all 21 of VOOL's own tool skills were refused as "host-specific".
+OWN = 'Parad0x-Labs/vool-skills'
+
+
+def _with_tools(content, tools: bytes):
+    content['skill'] = SKILL.replace(b'description:', b'allowed-tools: ' + tools + b'\ndescription:')
+
+
+def test_vool_own_skill_naming_real_vool_tools_is_import_ready(source, rig):
+    calls, tree, content = source
+    _with_tools(content, b'[email.read, operator.show_note]')
+    row = github.inspect(OWN, REF, 'skills/example/SKILL.md')['entry']
+    assert row['import_ready'], row['compatibility']
+    assert row['publisher'] == 'VOOL' and row['ecosystem'] == 'VOOL'
+    assert 'email.read, operator.show_note' in row['requirements']
+    assert 'grants nothing' in row['requirements']
+    assert not rig[2], 'inspecting is not scanning'
+
+
+@pytest.mark.parametrize('tools, why', [
+    (b'[email.read, workspace.writefile]', 'does not have: workspace.writefile.'),
+    (b'[Read, Bash]', 'does not have: Read, Bash.'),
+    (b'email.read', 'not a plain list'),
+    (b'[email.read, [operator.show_note]]', 'not a plain list'),
+])
+def test_vool_own_skill_naming_a_tool_vool_lacks_never_reaches_scanner(source, rig, tools, why):
+    calls, tree, content = source
+    _with_tools(content, tools)
+    row = github.inspect(OWN, REF, 'skills/example/SKILL.md')['entry']
+    assert not row['import_ready']
+    assert why in row['compatibility']
+    with pytest.raises(plugin_scanners.AddonError, match='compatibility'):
+        addon_store.prepare(row['id'], approved=True)
+    assert not rig[2]
+
+
+@pytest.mark.parametrize('repo', ['example/skills', 'parad0x-labs-fan/vool-skills', 'Parad0x-Labs/vool-skills-fork'])
+def test_real_vool_tool_names_from_any_other_repository_stay_refused(source, rig, repo):
+    """The names being real VOOL tools proves nothing about who wrote them: only VOOL's own
+    repository is read as VOOL names."""
+    calls, tree, content = source
+    _with_tools(content, b'[email.read, operator.show_note]')
+    row = github.inspect(repo, REF, 'skills/example/SKILL.md')['entry']
+    assert not row['import_ready']
+    assert 'host-specific tool list' in row['compatibility']
+    assert 'email.read' not in row['requirements']
+    with pytest.raises(plugin_scanners.AddonError, match='compatibility'):
+        addon_store.prepare(row['id'], approved=True)
+    assert not rig[2]

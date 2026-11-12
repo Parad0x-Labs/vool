@@ -162,7 +162,7 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
         warnings = frontmatter_warnings(source.read_text(encoding="utf-8"))
     except (OSError, UnicodeError):
         warnings = []
-    for line in warnings + trigger_and_name_warnings(skill):
+    for line in warnings + trigger_and_name_warnings(skill) + browse_block_warnings(skill):
         print(line)
 
     failures = {"pick": 0, "not-pick": 0}
@@ -361,6 +361,48 @@ def trigger_and_name_warnings(skill: Any) -> list[str]:
                      f'installed skill uses them (for example "where is my {alone[0]}?"); '
                      "keep them out of your --not-pick asks or choose a more specific name")
     return lines
+
+
+#: Where a skill added from Browse lives, for measuring its block as a turn would carry it: an add-on's
+#: plugin id ("discover-github-" and 24 hex characters) in a plugins folder outside this checkout.
+_BROWSE_PLUGIN_ID = "discover-github-" + "0" * 24
+_BROWSE_PLUGINS = Path("/nonexistent-vool-profile/addons/plugins")
+
+
+def browse_block_warnings(skill: Any) -> list[str]:
+    """Warnings, never failures: a skill that could not be added whole if it were shared in Browse.
+
+    A skill added from Browse reaches a turn as one block or not at all (core.tool_offer_assembly
+    render_complete_block): its instructions plus a header, a source line and a closing line, about
+    390 characters for an add-on. The person's own skills and VOOL's built-in skills are added
+    first, and Browse skills share what is left. A skill that names tools is used on turns that
+    offer tools, which have room for MAX_TOOL_LANE_SKILL_CHARS in all; every other turn has
+    MAX_SKILL_CHARS. `try` itself installs the skill as the person's own, so without this line a
+    skill that passes here could still never be used once added from Browse.
+    """
+
+    from types import SimpleNamespace
+
+    from core.tool_offer_assembly import MAX_SKILL_CHARS, MAX_TOOL_LANE_SKILL_CHARS, _fenced
+
+    body = str(getattr(skill, "body", "") or "").strip()
+    name = str(getattr(skill, "name", "") or "").strip()
+    if not body or not name:
+        return []
+    shared = SimpleNamespace(name=name, plugin_id=_BROWSE_PLUGIN_ID, body=body,
+                             path=str(_BROWSE_PLUGINS / _BROWSE_PLUGIN_ID / "skills" / name / "SKILL.md"))
+    block = len(_fenced(shared, body))
+    fence = block - len(body)
+    if getattr(skill, "allowed_tools", None) and block > MAX_TOOL_LANE_SKILL_CHARS:
+        return [f"warn added from Browse, this skill reaches a turn as one block of {block:,} characters "
+                f"or not at all; a turn with tools has room for {MAX_TOOL_LANE_SKILL_CHARS:,} in all, so "
+                f"it would never be used there: keep the instructions to at most {MAX_TOOL_LANE_SKILL_CHARS - fence:,} "
+                "characters (less leaves room for other skills)"]
+    if block > MAX_SKILL_CHARS:
+        return [f"warn added from Browse, this skill reaches a turn as one block of {block:,} characters "
+                f"or not at all; a turn has room for {MAX_SKILL_CHARS:,} in all, so it would never be used: "
+                f"keep the instructions to at most {MAX_SKILL_CHARS - fence:,} characters"]
+    return []
 
 
 def _finding(report: dict) -> str:

@@ -3,13 +3,13 @@
 Add-ons keeps browsing, inspection and installation separate. A scan describes particular bytes;
 it is not a safety guarantee, publisher endorsement, runtime permission or wallet approval.
 
-Browse lists VOOL's own skills first, including 51 text-only VOOL skills bundled with the app,
-then the reviewed catalogue add-ons. Skill Codex lists VOOL team skills first, above editor's
+Browse lists VOOL's own skills first, including 75 VOOL skills bundled with the app (22 of them
+use VOOL tools, which only narrow what VOOL already offers), then the reviewed catalogue add-ons. Skill Codex lists VOOL team skills first, above editor's
 picks and featured skills.
 
 ## Skills made by VOOL: the local check
 
-The 51 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and
+The 75 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and
 reviewed when VOOL is released. For these, **Add this skill** runs VOOL's local check only: no key,
 no scan allowance and no network request.
 
