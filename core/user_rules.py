@@ -683,7 +683,11 @@ def add_rule(
     for existing in _rules_for_scope(clean_scope, ref):
         if not existing.is_exception and existing.text.lower() == body.lower():
             return RuleChange("duplicate", f"That's already rule {existing.rule_no} ({existing.scope_label()}). Nothing changed.", (existing,))
-    terms = extract_terms(body)
+    # Imported instructions guide the model; they are not the person's own word bans. Instruction
+    # files name code and files in quotes and backticks ("Run `pytest`", "keep `plan.txt` current"),
+    # and reading those as banned words masked a file's name in the very answer that opened it and
+    # refused every commit that mentions it. A word ban is something the person asks for here.
+    terms = () if _import else extract_terms(body)
     targets = _targets_for(body)
     now = _utcnow()
     rule_id = "rule-" + uuid.uuid4().hex[:12]

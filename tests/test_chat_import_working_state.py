@@ -94,6 +94,30 @@ def test_project_rules_files_disabled_tools_drafts_and_paused_tasks_are_reversib
                       for path in root.rglob('*') if path.is_file()}
 
 
+def test_imported_instructions_that_name_files_ban_no_words(app, tmp_path):
+    """Instruction files name code and files in backticks. Saved as RULES they guide the model; they
+    are not the person's own word bans. Measured in the running app: an imported "Read `notes.txt`"
+    masked the file's name in the very answer that opened it ("File [blocked word]")."""
+    from core.user_rules import git_outbound_refusal, mask_reply_terms
+
+    root, _secret = _workspace(tmp_path)
+    (root / 'AGENTS.md').write_text('Run `pytest` before a release and keep `plan.txt` current.\n')
+    source = [_conversation('harbor-files', 'Harbor files', [
+        ('human', 'Keep the plan current.', '2026-01-01T09:00:00Z'),
+        ('assistant', 'The plan is current.', '2026-01-01T09:00:01Z')])]
+    preview = _upload_and_preview(app, _export_zip(source))
+    reviewed = _review(app, preview, root, instructions='Continue with `plan.txt` and flag `gone.txt`.')
+    run = _move(app, preview, reviewed, instructions=True)
+    sid = run['first_session_id']
+    project_id = load_chat_namespace(sid).project_id
+    rules = active_rules(chat_id=sid, project_id=project_id)
+    assert any('pytest' in rule.text for rule in rules) and any('gone.txt' in rule.text for rule in rules)
+    reply = 'File plan.txt: run pytest first, then look for gone.txt.'
+    assert mask_reply_terms(reply, chat_id=sid, project_id=project_id) == (reply, [])
+    assert git_outbound_refusal(root, 'commit', message='Update plan.txt after pytest',
+                                chat_id=sid, project_id=project_id) is None
+
+
 def test_private_context_cannot_write_memories_or_rules(app, tmp_path):
     root, _secret = _workspace(tmp_path)
     preview = _upload_and_preview(app, _export_zip(EXPORT))
