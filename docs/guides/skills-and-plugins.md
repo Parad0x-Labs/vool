@@ -31,15 +31,17 @@ Two rules hold for both sources:
 
 ## Finding skills
 
-Skills & Plugins lists VOOL's own skills first. **Browse** comes with 51 ready VOOL
-skills. They are text-only: each one is a set of instructions, bundled with the app, so
-Browse lists them without a lookup online. VOOL skills that use VOOL tools are listed in
-the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you
-enable it.
+Skills & Plugins lists VOOL's own skills first. **Browse** comes with 75 ready VOOL
+skills. Each one is a set of instructions, bundled with the app, so Browse lists them
+without a lookup online. 22 of them use VOOL tools (your email, notes, files, PDFs, wallet and
+more) on the turns they are picked: a skill's tools only narrow what VOOL already offers for
+your request, a tool that is off stays off, and every call asks as it always does. Its
+**Source & technical details** list the tools it uses. The **Skill Codex** tab lists VOOL team
+skills first. Review a skill before you enable it.
 
 How a skill from Browse is added depends on who made it:
 
-* **Skills made by VOOL** (the 51 above): press **Add this skill**. VOOL checks on your
+* **Skills made by VOOL** (the 75 above): press **Add this skill**. VOOL checks on your
   computer that the file is the exact one it shipped with and reads it for risky
   instructions, then shows you the result. No key is needed and nothing is sent anywhere.
   If the file does not match, VOOL refuses it and says so. A scan with **Eyebrow** stays

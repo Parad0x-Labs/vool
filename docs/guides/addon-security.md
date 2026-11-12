@@ -1,12 +1,12 @@
 # Discover skills and Eyebrow checks
 
-The Skills & Plugins page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists VOOL's own skills first, including 51 text-only VOOL skills bundled with the app, then the reviewed catalogue add-ons, and can look up a public GitHub repository at a pinned revision. Skill Codex lists VOOL team skills first, above editor's picks and featured skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
+The Skills & Plugins page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists VOOL's own skills first, including 75 VOOL skills bundled with the app (22 of them use VOOL tools, which only narrow what VOOL already offers), then the reviewed catalogue add-ons, and can look up a public GitHub repository at a pinned revision. Skill Codex lists VOOL team skills first, above editor's picks and featured skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
 
 ## Skills made by VOOL: the local check
 
 Planned for VOOL 0.7.8, not released yet. In VOOL 0.7.7 every Browse skill uses the Eyebrow steps below.
 
-The 51 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and reviewed when VOOL is released. For these, **Add this skill** runs VOOL's local check only: no Eyebrow key, no scan allowance and no network request.
+The 75 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and reviewed when VOOL is released. For these, **Add this skill** runs VOOL's local check only: no Eyebrow key, no scan allowance and no network request.
 
 1. VOOL reads the skill and licence from the app's own copy and refuses them unless their SHA-256 matches the pin (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
 2. VOOL's local check reads the skill for risky instructions and shows the result. A clean result can be added with **Add and turn on**; anything it flags needs your separate, explicit OK for that exact version. **Reject** discards it.

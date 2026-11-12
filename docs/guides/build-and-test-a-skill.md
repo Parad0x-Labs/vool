@@ -470,6 +470,18 @@ What this means for authors:
   no other skill has picks the skill on its own (the last rule above). With a skill named
   `meeting-actions`, "when is my next meeting?" picks it.
 
+**A picked skill is added whole or not at all.** Its instructions go in as one block with a
+header, a source line and a closing line, and a block that does not fit in the room left is
+left out and named as left out, never cut short (code: `render_complete_block` in
+`core/tool_offer_assembly.py`). The person's own skills go in first, then VOOL's built-in skills,
+then skills added from Browse or other packs, each from what is left. A turn that offers tools
+has room for 4,200 characters of skill guidance in all; other turns have 7,800. For a skill
+added from Browse the header, source line and closing line take about 390 characters, so a
+Browse skill that names tools must keep its instructions to about 3,800 characters to be used
+at all on those turns, and less leaves room for the person's own and built-in skills. `try`
+installs the skill as the person's own, so it picks it either way; when the skill would not fit
+as a Browse block it says so in a `warn added from Browse ...` line with the exact limit.
+
 ## 7. Update it
 
 Change `SKILL.md`, then lint again (section 2) and install again:
@@ -510,7 +522,8 @@ the one that cannot:
 * **Zip share** and **local install** (`skill.install`, `try`): accepted when every name is a
   real VOOL tool.
 * **Import from a GitHub repository** (Browse): not import-ready (*This skill declares a
-  host-specific tool list that needs a VOOL mapping.*). Share it as a zip instead. On this route
+  host-specific tool list that needs a VOOL mapping.*), except from VOOL's own skills repository,
+  whose skills are written with VOOL tool names. Share it as a zip instead. On this route
   the skill folder may carry pictures in `assets/` (PNG, JPEG, WebP or SVG, at most 1 MB each);
   they are not installed. Any other extra file makes the skill not import-ready.
 * **Upload to Skill Codex**: the automatic checks run the same validator as `lint`, so real tool
