@@ -265,7 +265,9 @@ _LANDLOCK_WORKS: dict[str, bool] = {}
 _LANDLOCK_CHECKED_AT: dict[str, float] = {}
 
 
-def _landlock_command(argv: Sequence[str], *, scratch: str, extra_read: Sequence[str], cpu_seconds: int) -> list[str]:
+def _landlock_command(
+    argv: Sequence[str], *, scratch: str, extra_read: Sequence[str], cpu_seconds: int, status_fd: int | None = None
+) -> list[str]:
     return _landlock.command(
         argv,
         scratch=scratch,
@@ -274,7 +276,20 @@ def _landlock_command(argv: Sequence[str], *, scratch: str, extra_read: Sequence
         address_space=SUBPROCESS_MAX_ADDRESS_SPACE_BYTES,
         file_size=MAX_SCRATCH_BYTES,
         open_files=SUBPROCESS_MAX_OPEN_FILES,
+        status_fd=status_fd,
     )
+
+
+def _launcher_status(descriptor: int) -> bytes:
+    """What the launcher wrote on its status pipe: its refusal, or nothing once the decoder was
+    exec'd. Read after the decoder exited, when no process holds the write end any more."""
+    try:
+        os.set_blocking(descriptor, False)
+        return os.read(descriptor, 4096)
+    except OSError:  # BlockingIOError included: nothing was written
+        return b""
+    finally:
+        os.close(descriptor)
 
 
 def _landlock_works() -> bool:
@@ -592,6 +607,18 @@ def _kill_group(process: subprocess.Popen) -> None:
         process.wait(timeout=10)
 
 
+#: How long output a finished decoder left in its pipes may take to be read before whatever it
+#: started and left holding those pipes is ended.
+_LEFTOVER_GRACE_SECONDS = 1.0
+
+
+def _signal_group(process: subprocess.Popen) -> None:
+    """SIGKILL the decoder's process group without reaping the decoder. Linux only, and only while
+    the decoder is an unreaped zombie, so the group id cannot belong to anything else."""
+    with contextlib.suppress(OSError):
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+
+
 def _supervise(
     process: subprocess.Popen,
     *,
@@ -627,12 +654,25 @@ def _supervise(
     overflowed = 0
     quota_blown = False
     next_quota_check = time.monotonic() + SCRATCH_POLL_SECONDS
+    exited_at: float | None = None
+    leftovers_ended = False
     try:
         while True:
             pipes_open = bool(selector.get_map())
             if not pipes_open and _exited(process):
                 break  # the job is over: nothing left to read, nothing left running
             now = time.monotonic()
+            if (pipes_open and not leftovers_ended and platform.system() == "Linux" and process.returncode is None
+                    and _exited(process)):
+                # The decoder is gone (a zombie, not reaped: its group id still names only what it
+                # started), but something it started still holds its output open. The job ended with
+                # the decoder: what it left behind is ended once what it wrote has been read, rather
+                # than keeping the read waiting to its deadline (independent review F3, 2026-11-12).
+                if exited_at is None:
+                    exited_at = now
+                elif now - exited_at >= _LEFTOVER_GRACE_SECONDS:
+                    _signal_group(process)
+                    leftovers_ended = True
             if now >= deadline:
                 _kill_group(process)
                 raise ReaderFailed(
@@ -720,6 +760,7 @@ def run_confined(
     # entry silently grants nothing, which shows up as the decoder dying on SIGSEGV before `main`
     # rather than as a permission error. Measured 2026-09-03 on the compiled OCR helper.
     backend = confinement_backend()
+    status_read = status_write = -1
     if platform.system() == "Linux":
         # Exec the decoder by its real path: a virtualenv's interpreter is a link that sits outside
         # every tree the sandbox can see, while its target is a system or bundled interpreter.
@@ -728,7 +769,11 @@ def run_confined(
         cpu_seconds = min(SUBPROCESS_CPU_SECONDS, timeout)
         if backend == "landlock":
             # The launcher sets the same ceilings `_limited_argv` sets, itself, then execs the decoder.
-            command = _landlock_command([real, *argv[1:]], scratch=scratch_path, extra_read=scope, cpu_seconds=cpu_seconds)
+            # It reports a refusal on a pipe of its own that closes at that exec, so nothing the
+            # decoder prints or exits with can pass for the launcher's word.
+            status_read, status_write = os.pipe()
+            command = _landlock_command([real, *argv[1:]], scratch=scratch_path, extra_read=scope,
+                                        cpu_seconds=cpu_seconds, status_fd=status_write)
         else:
             limited = _limited_argv([real, *argv[1:]], cpu_seconds=cpu_seconds)
             command = [*_bwrap_prefix(scratch=scratch_path, extra_read=scope), *limited]
@@ -754,10 +799,17 @@ def run_confined(
             env=env,
             cwd=scratch_path,
             start_new_session=True,  # its own process group, so the whole tree can be killed
+            pass_fds=(status_write,) if status_write >= 0 else (),
         )
     except OSError as exc:
+        if status_read >= 0:
+            os.close(status_read)
         raise ReaderFailed(f"The {fmt or 'file'} decoder could not be started ({exc}).", code="decoder_start_failed", fmt=fmt) from exc
+    finally:
+        if status_write >= 0:
+            os.close(status_write)  # the launcher holds the only other copy
 
+    launcher_said = b""
     deadline = time.monotonic() + timeout
     try:
         stdout, stderr = _supervise(process, deadline=deadline, max_stdout=max_stdout, max_stderr=max_stderr, fmt=fmt, budget=budget)
@@ -782,11 +834,13 @@ def run_confined(
             if stream is not None:
                 with contextlib.suppress(OSError):
                     stream.close()
+        if status_read >= 0:
+            launcher_said = _launcher_status(status_read)
 
-    if (backend == "landlock" and process.returncode == _landlock.LAUNCH_FAILED
-            and _landlock.MARKER.encode() in stderr):
+    if backend == "landlock" and launcher_said.startswith(_landlock.MARKER.encode()):
         # The launcher refused to start the decoder: a sandbox step failed after the start check had
-        # passed. Nothing ran. Checked again on the next read rather than trusted.
+        # passed. Nothing ran. Checked again on the next read rather than trusted. Only the status
+        # pipe says so: a decoder that prints the same words and exits 125 is a decoder that failed.
         _LANDLOCK_WORKS.clear()
         raise ReaderFailed(
             f"The {fmt or 'file'} decoder could not be started inside its sandbox; the file was not read.",

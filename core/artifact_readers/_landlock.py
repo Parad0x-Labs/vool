@@ -11,10 +11,11 @@ It runs by path as its own fresh interpreter::
 
 ``subprocess.Popen`` forks and execs it at once, so no Python runs between fork and exec in the
 threaded server (the same reason ``_sandbox._limited_argv`` uses a shell). In this order, and
-refusing to run the decoder at all (exit 125) if any step fails, it:
+refusing to run the decoder at all (exit 125, the reason on the status pipe) if any step fails, it:
 
 1. sets the decoder's ceilings: CPU seconds, address space, file size, open files, no core file;
-2. closes every inherited descriptor above stderr;
+2. closes every inherited descriptor above stderr but the server's status pipe, which it marks
+   close-on-exec: a refusal is written there, and the decoder never holds it;
 3. when started with any capability (root), empties every capability set and the bounding set,
    and locks them empty across exec;
 4. sets no_new_privs (a set-user-ID program gains nothing) and a parent-death SIGKILL;
@@ -58,7 +59,10 @@ from collections.abc import Sequence
 #: Landlock's oldest ABI this sandbox accepts. ABI 3 (Linux 6.2) is the first that covers
 #: truncation; Ubuntu 24.04's 6.8 kernel has ABI 4.
 MIN_ABI = 3
-#: The launcher's own exit status when it refused to start the decoder, with MARKER on stderr.
+#: The launcher's own exit status when it refused to start the decoder. The reason, after MARKER,
+#: goes to stderr for the log and to the server's private status descriptor, which is the only
+#: place the server believes it: the decoder can print anything and exit with any status, but
+#: that descriptor is closed when the decoder is exec'd (independent review F1, 2026-11-12).
 LAUNCH_FAILED = 125
 MARKER = "vool-landlock:"
 #: The launcher itself: this file, run by path.
@@ -419,8 +423,12 @@ def command(
     address_space: int,
     file_size: int,
     open_files: int,
+    status_fd: int | None = None,
 ) -> list[str]:
-    """The argv that runs `argv` (an absolute, resolved decoder path first) inside this sandbox."""
+    """The argv that runs `argv` (an absolute, resolved decoder path first) inside this sandbox.
+
+    ``status_fd`` is the write end of a pipe the caller passes to the child (``pass_fds``): the
+    launcher writes its refusal there, and the descriptor closes when the decoder is exec'd."""
     policy = {
         "parent": os.getpid(),
         "scratch": scratch,
@@ -428,6 +436,8 @@ def command(
         "limits": {"cpu": int(cpu_seconds), "as": int(address_space), "fsize": int(file_size),
                    "nofile": int(open_files)},
     }
+    if status_fd is not None:
+        policy["status"] = int(status_fd)
     return [sys.executable, "-I", "-S", LAUNCHER, json.dumps(policy), *argv]
 
 
@@ -436,6 +446,19 @@ def command(
 
 class _Refused(Exception):
     """A step of the launch failed; the decoder must not run."""
+
+
+#: The server's status descriptor, once the policy names one (see ``command``).
+_STATUS_FD: list[int] = []
+
+
+def _close_inherited(*, keep: int | None) -> None:
+    """Close every descriptor above stderr except the status one, which the exec closes later."""
+    if keep is None:
+        os.closerange(3, 1 << 16)
+        return
+    os.closerange(3, keep)
+    os.closerange(keep + 1, 1 << 16)
 
 
 def _limit(resource_module, which: int, value: int) -> None:
@@ -578,6 +601,11 @@ def launch(arguments: Sequence[str]) -> int:
     import socket  # noqa: F401
 
     policy = json.loads(arguments[0])
+    status = policy.get("status")
+    if status is not None and int(status) > 2:
+        # Kept open through every step below, closed by the exec: the decoder never holds it.
+        os.set_inheritable(int(status), False)
+        _STATUS_FD.append(int(status))
     decoder = [str(part) for part in arguments[1:]]
     machine = _machine()
     if platform.system() != "Linux" or machine not in _NR:
@@ -586,7 +614,7 @@ def launch(arguments: Sequence[str]) -> int:
     if abi < MIN_ABI:
         raise _Refused(f"Landlock ABI {abi} is below {MIN_ABI}")
     _set_limits(policy["limits"])
-    os.closerange(3, 1 << 16)
+    _close_inherited(keep=_STATUS_FD[0] if _STATUS_FD else None)
     _drop_capabilities(_NR[machine])
     _prctl(_PR_SET_NO_NEW_PRIVS, 1)
     _prctl(_PR_SET_PDEATHSIG, 9)
@@ -604,8 +632,10 @@ def main() -> int:
         return launch(sys.argv[1:])
     except (_Refused, OSError, ValueError, KeyError, TypeError) as exc:
         detail = f"{type(exc).__name__}: {exc}" if not isinstance(exc, _Refused) else str(exc)
-        with contextlib.suppress(OSError):
-            os.write(2, f"{MARKER} the decoder was not started: {detail}\n".encode("utf-8", "replace"))
+        message = f"{MARKER} the decoder was not started: {detail}\n".encode("utf-8", "replace")
+        for descriptor in (2, *_STATUS_FD):
+            with contextlib.suppress(OSError):
+                os.write(descriptor, message)
         return LAUNCH_FAILED
 
 

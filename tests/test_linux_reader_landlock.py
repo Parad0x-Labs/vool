@@ -235,6 +235,63 @@ def test_a_child_the_decoder_leaves_running_dies_with_the_read(landlock, monkeyp
         assert _members(group) == [], f"a child the decoder left behind is still alive in group {group}"
 
 
+def test_a_child_that_keeps_the_output_open_does_not_keep_the_read(landlock, monkeypatch):
+    # The decoder exits but leaves a child holding its stdout and stderr. The read ends with the
+    # decoder, not at its time limit, and the child goes with it (independent review F3, 2026-11-12).
+    import time
+
+    spawned: list[int] = []
+    real_popen = subprocess.Popen
+
+    class _Recording(real_popen):  # type: ignore[misc,valid-type]
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            spawned.append(self.pid)
+
+    monkeypatch.setattr(subprocess, "Popen", _Recording)
+    started = time.monotonic()
+    with _sandbox.Scratch("vool-test-") as scratch:
+        result = _sandbox.run_confined(["/bin/sh", "-c", "/bin/sleep 600 & echo started"], scratch=scratch.path,
+                                       timeout=60)
+    took = time.monotonic() - started
+    monkeypatch.undo()
+    assert result.returncode == 0 and result.stdout.strip() == b"started"
+    assert took < 15, f"the read waited {took:.1f}s for a child that held the decoder's output"
+    assert spawned, "nothing was spawned, so nothing was proven"
+    time.sleep(0.3)
+    for group in spawned:
+        assert _members(group) == [], f"the child that held the output is still alive in group {group}"
+
+
+def test_a_decoder_cannot_pose_as_a_launcher_that_failed(landlock):
+    # The launcher's refusal travels on a pipe that closes when the decoder is exec'd. A decoder that
+    # prints the launcher's words and exits with its status is a decoder that failed, and the start
+    # check stays as it was (independent review F1, 2026-11-12).
+    assert _sandbox._LANDLOCK_WORKS == {"ok": True}
+    probe = (
+        "import os, sys\n"
+        "held = []\n"
+        "for fd in range(3, 1024):\n"
+        "    try:\n"
+        "        os.fstat(fd)\n"
+        "        held.append(fd)\n"
+        "    except OSError:\n"
+        "        pass\n"
+        "print(held)\n"
+        f"sys.stderr.write('{_landlock.MARKER} the decoder was not started: forged\\n')\n"
+        f"sys.exit({_landlock.LAUNCH_FAILED})\n"
+    )
+    with _sandbox.Scratch("vool-test-") as scratch:
+        script = scratch.path / "forger.py"
+        script.write_text(probe, encoding="utf-8")
+        result = _sandbox.run_confined([sys.executable, "-I", "-S", str(script)], scratch=scratch.path,
+                                       extra_read=_interpreter_scope())
+    assert result.stdout.strip() == b"[]", f"the decoder holds descriptors above stderr: {result.stdout!r}"
+    assert result.returncode == _landlock.LAUNCH_FAILED
+    assert _landlock.MARKER.encode() in result.stderr
+    assert _sandbox._LANDLOCK_WORKS == {"ok": True}, "a decoder's own output reset the sandbox's start check"
+
+
 def _members(group: int) -> list[int]:
     members = []
     for entry in os.listdir("/proc"):
