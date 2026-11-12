@@ -114,7 +114,8 @@ def test_every_settings_pointer_names_a_group_row_or_real_control() -> None:
     # Real controls deeper inside groups that directions legitimately name. Each is proven
     # present in the page source so this set cannot quietly rot.
     page_src = (CORE / "vool_settings_page.py").read_text(encoding="utf-8")
-    controls = {"Save key", "X", "UsePod", "UsePod spending"}
+    # UsePod is out of core in 0.8 (owner decision, 2026-11-12): its panel and spending row are gone.
+    controls = {"Save key", "X"}
     for control in controls:
         assert control in page_src, f"curated control {control!r} no longer exists on the page"
     groups_ok = titles | rows | controls

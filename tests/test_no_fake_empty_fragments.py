@@ -272,7 +272,8 @@ def test_addon_store_real_empty_catalogue_shows_the_empty_state() -> None:
 await load();
 render('');
 const text = document.getElementById('pluginsBody').textContent;
-out({ empty: text.includes('No skills match that search'),
+// The store opens on "Ready to add"; a real empty catalogue says nothing there matches.
+out({ empty: text.includes('No compatible skills match'),
       error: text.includes('Could not read the add-on catalogue'),
       loaded: !!data });
 """,

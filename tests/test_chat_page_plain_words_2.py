@@ -258,11 +258,11 @@ def test_the_pdf_export_status_is_one_keyed_sentence() -> None:
     assert not _writes_to_console(body), "the PDF export refusal went to the console"
 
 
-def test_the_balance_blocker_carries_no_status_or_code() -> None:
-    body = _fn("function usepodBalanceBlocker(", "async function checkUsePodSpending")
-    assert "' (HTTP '" not in body and "balance.error_code ?" not in body
-    assert not _writes_to_console(body), "the balance status went to the console"
-    assert "pageT('usepod.unavailable', 'UsePod did not confirm your balance')" in body
+def test_the_retired_usepod_balance_blocker_is_gone() -> None:
+    # UsePod is out of core in 0.8 (owner decision, 2026-11-12): the chat page carries no UsePod
+    # balance or spending check at all, so it can show no status or code from one.
+    assert "function usepodBalanceBlocker(" not in SCRIPT
+    assert "async function checkUsePodSpending" not in SCRIPT
 
 
 def test_the_dictation_availability_note_is_keyed() -> None:

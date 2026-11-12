@@ -192,8 +192,9 @@ def test_permission_and_price_gate_strings_resolve_in_the_served_lt_bundle() -> 
     assert msgs["permissions.allow_chat"] == "Leisti darbo aplankos keitimus šiame pokalbyje"
     assert "{resources}" in msgs["permissions.meta_line"]
     # Payment review: scope sentence keeps the exact terms (chat/model/24h) in translation.
-    assert "šis pokalbis, šis modelis, 24 valandas" in msgs["pay.scope_usepod"]
-    assert "<b>tik kainą</b>" in msgs["pay.scope_usepod"], "html keys carry their markup"
+    # (UsePod is out of core in 0.8, so its scope sentence is gone; the standard one keeps the terms.)
+    assert "šiam pokalbiui galioja 24 valandas tik šiam modeliui" in msgs["pay.scope_standard"]
+    assert "<b>Vykdyti be atskirų patvirtinimų.</b>" in msgs["bypass.modal_warning"], "html keys carry their markup"
     # Update states resolve; the chip's phase keys are the updater's own codes.
     assert msgs["update.downloading_pct"] == "Atsiunčiama {percent}%"
 
