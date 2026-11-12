@@ -403,6 +403,8 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/money/rules": "money contract lane read feed (rules)",
     "http:POST:/api/money/grants/revoke": "money contract lane operator action (grant revocation)",
     "http:POST:/api/money/reconcile": "money contract lane operator action (reconcile)",
+    "http:GET:/api/disclosure/*": "cloud disclosure lane read feed family (pending preview, settings, projects, local models, comparison job; loopback-only)",
+    "http:POST:/api/disclosure/*": "cloud disclosure lane operator surface family (preview decision, local retry, settings, source rules, comparisons; loopback, host and origin gated)",
 }
 
 # frozen prose demand-routing families + REPL chrome are EXTERNAL by rule in

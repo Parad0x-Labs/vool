@@ -11,6 +11,7 @@ from typing import Literal
 
 import requests
 
+from core.disclosure.direct import received_headers, request_options
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
@@ -366,7 +367,10 @@ class FactExtractor:
             },
         }
         try:
+            _disclosure_endpoint = f"{self._ollama_url}/api/chat"
             permit = seal_direct_provider_invocation(
+                destination_url=_disclosure_endpoint,
+                privacy_class='persistent-memory',
                 provider_id="ollama:fact-extractor",
                 model_id=self._model,
                 operation="fact_extraction",
@@ -387,11 +391,13 @@ class FactExtractor:
                 max_output_tokens=512,
                 header_names=("Content-Type",),
             )
+            _disclosure_body = permit.consume()
             response = requests.post(
-                f"{self._ollama_url}/api/chat",
-                json=permit.consume(),
+                _disclosure_endpoint,
+                **request_options(_disclosure_body, _disclosure_endpoint),
                 timeout=30.0,
             )
+            received_headers(_disclosure_body)
             response.raise_for_status()
             data = response.json()
         except Exception:

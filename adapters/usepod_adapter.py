@@ -362,6 +362,8 @@ class _Plan:
     permit: Any
     liability: ProviderLiability | None = None
     reservation: MonetaryReservation | None = None
+    disclosure_wire: Any = None
+    disclosure_binding: Any = None
 
 
 def _usage_int(usage: dict[str, Any], *keys: str) -> int | None:
@@ -545,6 +547,25 @@ class UsePodAdapter(OpenAICompatibleAdapter):
             )
         except UsePodTransportError as exc:
             raise UsePodDispatchRefusedError(exc.code) from None
+        from core.disclosure.network import UsePodConsent, route_fingerprint
+        from core.disclosure.wire import encode_ascii_body, prepare, request_context
+
+        disclosure_context = request_context(request, provider=self.manifest.provider_id, cloud=True)
+        disclosure_context["request_format"] = protocol.value
+        disclosure_context["network_consent"] = UsePodConsent(
+            origin, model_id, route_fingerprint(state, model_id))
+        disclosure_wire = prepare(
+            envelope.payload(), url=envelope.origin + envelope.path_template, request=request,
+            context=disclosure_context, encoder=encode_ascii_body)
+        # Rebuild through the existing seal so its path, output ceiling and
+        # monetary binding all describe the owner-reviewed body. No reservation
+        # has been made at this point.
+        envelope = seal_request_envelope(
+            payload=disclosure_wire, transport_mode=mode, protocol=protocol, origin=origin,
+            model_id=model_id, route_approval_id=approval.approval_id,
+            control_headers=approval.request_headers(), operation_id=envelope.operation_id)
+        if envelope.body != disclosure_wire.wire_body:
+            raise UsePodDispatchRefusedError("disclosure_bytes_differ_from_envelope")
         input_bound = pricing.input_token_upper_bound(envelope.body, has_non_text_parts=False)
         assert input_bound is not None
         max_charge = pricing.charge_upper_bound_microunits(
@@ -578,6 +599,7 @@ class UsePodAdapter(OpenAICompatibleAdapter):
             max_charge_atomic=max_charge,
             liability_basis=basis,
             permit=None,
+            disclosure_wire=disclosure_wire,
         )
 
     def _reserve_prepaid(self, plan: _Plan) -> None:
@@ -648,6 +670,14 @@ class UsePodAdapter(OpenAICompatibleAdapter):
         )
 
     def _consume_permit(self, plan: _Plan) -> None:
+        if plan.disclosure_wire is None:
+            raise UsePodDispatchRefusedError("disclosure_replay_unverified")
+        if plan.disclosure_wire is not None:
+            reviewed = plan.disclosure_wire.consume_wire(plan.envelope.origin + plan.envelope.path_template)
+            if reviewed != plan.envelope.body:
+                raise UsePodDispatchRefusedError("disclosure_bytes_differ_from_envelope")
+            from core.disclosure.usepod_replay import ReplayBinding
+            plan.disclosure_binding = ReplayBinding.capture(plan.disclosure_wire, plan.envelope)
         consumed = plan.permit.consume()
         if payload_hash(consumed) != payload_hash(plan.envelope.payload()):
             raise UsePodDispatchRefusedError("sealed_payload_differs_from_envelope")
@@ -856,6 +886,8 @@ class UsePodAdapter(OpenAICompatibleAdapter):
             # when the refusal was revocation, expiry or the freeze, and a claim conflict means
             # another invocation owns this dispatch -- releasing "it" would cancel the winner.
             self._claim_money(plan, executor="usepod_prepaid_transport")
+            from core.disclosure.usepod_replay import ReplayCheckedTransport
+            transport = ReplayCheckedTransport(transport, plan.disclosure_binding)
             try:
                 response = transport.post_envelope(plan.envelope, origin=plan.origin, token=plan.credential.token, read_timeout_seconds=timeout)
             except UsePodTransportError as exc:
@@ -883,7 +915,8 @@ class UsePodAdapter(OpenAICompatibleAdapter):
         # Accountless x402: the quote request is the first transmission of these bytes.
         self._seal(request, plan, operation=operation)
         self._consume_permit(plan)
-        client = UsePodX402Client(transport=transport)
+        from core.disclosure.usepod_replay import ReplayCheckedTransport
+        client = UsePodX402Client(transport=ReplayCheckedTransport(transport, plan.disclosure_binding))
         # Which assets may pay, and the local bound for each, come from the operator's x402 consents for
         # this model and route: USDC under the route's price ceiling, SOL only under a lamport consent.
         from core.usepod.money_law import x402_payment_bounds
@@ -1050,6 +1083,7 @@ class UsePodAdapter(OpenAICompatibleAdapter):
         return {
             "provider_name": str(self.manifest.provider_name),
             "model_name": str(self.manifest.model_name),
+            "disclosure_replay": plan.disclosure_binding.public_record() if plan.disclosure_binding is not None else None,
             "approval": {
                 "approval_id": approval.approval_id,
                 "bound_approval_id": approval.bound_approval_id,
@@ -1079,15 +1113,23 @@ class UsePodAdapter(OpenAICompatibleAdapter):
         waiting). The transport resends the recorded bytes and proof once; the answer is judged against the route approval
         bound at dispatch, the provider receipt settles the liability and the chain confirmation follows. The conversation
         that asked has ended, so the answer comes back to the owner; tool calls in it are counted, never executed."""
-        from core.usepod.transport import _envelope_from_record
+        from core.disclosure.usepod_replay import ReplayBinding, ReplayCheckedTransport
+        from core.usepod.transport import X402OperationJournal, _envelope_from_record
 
-        client = UsePodX402Client(transport=self._http_transport())
-        record = client.journal.resume_record(operation_id)
+        journal = X402OperationJournal()
+        record = journal.resume_record(operation_id)
+        try:
+            if record is None:
+                raise ValueError("missing recovery record")
+            context = json.loads(record["context_json"] or "{}")
+            envelope = _envelope_from_record(json.loads(record["envelope_json"]))
+            binding = ReplayBinding.from_record(context.get("disclosure_replay"))
+            binding.verify(envelope)
+        except (RuntimeError, ValueError, TypeError, KeyError):
+            raise UsePodDispatchRefusedError("disclosure_replay_unverified") from None
         timeout = float(self.manifest.runtime_config.get("timeout_seconds") or 180)
+        client = UsePodX402Client(transport=ReplayCheckedTransport(self._http_transport(), binding), journal=journal)
         exchange = client.resume(operation_id, read_timeout_seconds=timeout)
-        assert record is not None  # resume() refuses an operation without its record before anything is sent
-        context = json.loads(record["context_json"] or "{}")
-        envelope = _envelope_from_record(json.loads(record["envelope_json"]))
         plan = _Plan(
             mode=descriptor.TransportMode.X402,
             protocol=descriptor.WireProtocol(envelope.protocol),
@@ -1183,6 +1225,10 @@ class UsePodAdapter(OpenAICompatibleAdapter):
             raise RuntimeError("model_call_cancelled")
         plan = self._prepare(request, force_json=force_json, stream=False)
         response, exchange = self._dispatch(request, plan, operation="structured" if force_json else "chat")
+        if plan.disclosure_wire is not None:
+            from core.disclosure.wire import note_sent
+
+            note_sent(plan.disclosure_wire.preview_id)
         route = self._route_gate(request, plan, response, exchange)
         data: dict[str, Any] | None = None
         try:
@@ -1235,6 +1281,10 @@ class UsePodAdapter(OpenAICompatibleAdapter):
     def _stream_openai_compatible(self, request: ModelRequest):
         plan = self._prepare(request, force_json=False, stream=True)
         response, exchange = self._dispatch(request, plan, operation="stream")
+        if plan.disclosure_wire is not None:
+            from core.disclosure.wire import note_sent
+
+            note_sent(plan.disclosure_wire.preview_id)
         route = self._route_gate(request, plan, response, exchange)
         return self._stream_chunks(request, plan, response, route, exchange)
 

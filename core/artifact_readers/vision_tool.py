@@ -29,6 +29,7 @@ import platform
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -233,7 +234,16 @@ def _binary_path() -> Path:
     return tools_dir() / f"{TOOL_NAME}-{TOOL_VERSION}-{_source_digest()}"
 
 
+_BUILD_LOCK = threading.Lock()
+
+
 def ensure_tool() -> Path:
+    # Concurrent first uploads share one compiler and one atomic publication.
+    with _BUILD_LOCK:
+        return _ensure_tool()
+
+
+def _ensure_tool() -> Path:
     """The compiled helper, built once and cached by the hash of the source above."""
     if not toolchain_available():
         message, remediation = toolchain_unavailable_words()

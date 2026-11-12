@@ -1128,6 +1128,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/disclosure/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/disclosure/*",
+      "note": "cloud disclosure lane read feed family (pending preview, settings, projects, local models, comparison job; loopback-only)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/discovery": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/discovery",
@@ -2311,6 +2318,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/disclosure/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/disclosure/*",
+      "note": "cloud disclosure lane operator surface family (preview decision, local retry, settings, source rules, comparisons; loopback, host and origin gated)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/discovery/refresh": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/discovery/refresh",
@@ -3364,7 +3378,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 322,
+    "EXTERNAL_TRANSPORT_ONLY": 324,
     "GENERATED_ADAPTER": 149,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

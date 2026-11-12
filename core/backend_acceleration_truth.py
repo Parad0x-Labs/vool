@@ -6,6 +6,7 @@ from typing import Any
 
 import requests
 
+from core.disclosure.direct import metadata_options, received_headers, request_options
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
@@ -192,7 +193,8 @@ def _probe_llamacpp_generation(*, base_url: str, model: str, timeout_seconds: fl
     if not clean_model:
         return {"ok": False, "status": "missing_model"}
     try:
-        models_response = requests.get(f"{clean_base}/models", timeout=timeout_seconds)
+        _disclosure_metadata_url = f"{clean_base}/models"
+        models_response = requests.get(_disclosure_metadata_url, **metadata_options(_disclosure_metadata_url), timeout=timeout_seconds)
         models_response.raise_for_status()
         payload = {
             "model": clean_model,
@@ -201,7 +203,11 @@ def _probe_llamacpp_generation(*, base_url: str, model: str, timeout_seconds: fl
             "max_tokens": 1,
             "stream": False,
         }
+        _disclosure_endpoint = f"{clean_base}/chat/completions"
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
+            control_only=True,
+            privacy_class='public',
             provider_id="llamacpp:acceleration-probe",
             model_id=clean_model,
             operation="generation_probe",
@@ -210,11 +216,13 @@ def _probe_llamacpp_generation(*, base_url: str, model: str, timeout_seconds: fl
             max_output_tokens=1,
             header_names=("Content-Type",),
         )
+        _disclosure_body = permit.consume()
         response = requests.post(
-            f"{clean_base}/chat/completions",
-            json=permit.consume(),
+            _disclosure_endpoint,
+            **request_options(_disclosure_body, _disclosure_endpoint),
             timeout=max(timeout_seconds, 8.0),
         )
+        received_headers(_disclosure_body)
         response.raise_for_status()
         payload = response.json()
         return {

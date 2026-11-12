@@ -11,6 +11,7 @@ from typing import Any
 
 from core.agent_runtime.orchestrator import redact_tool_arguments
 from core.context_scope import ContextAccessPolicy
+from core.disclosure.direct import received_headers, request_options
 from core.mode_permission_policy import PENDING_BATCH_CALLS_KEY
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
@@ -353,7 +354,9 @@ def build_ollama_generate_fn(
                 model_tag=model_tag,
                 num_predict=num_predict,
             )
+            _disclosure_endpoint = f"{base_url}/api/chat"
             permit = seal_direct_provider_invocation(
+                destination_url=_disclosure_endpoint,
                 provider_id="ollama:builder",
                 model_id=model_tag,
                 operation="builder_generation",
@@ -374,11 +377,13 @@ def build_ollama_generate_fn(
             from core.local_model_admission import local_model_slot
 
             with local_model_slot(provider_id="ollama:builder"):
+                _disclosure_body = permit.consume()
                 response = requests.post(
-                    f"{base_url}/api/chat",
-                    json=permit.consume(),
+                    _disclosure_endpoint,
+                    **request_options(_disclosure_body, _disclosure_endpoint),
                     timeout=timeout,
                 )
+                received_headers(_disclosure_body)
                 response.raise_for_status()
                 payload = dict(response.json() or {})
         except Exception as exc:

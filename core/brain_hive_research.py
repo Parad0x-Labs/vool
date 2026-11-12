@@ -17,6 +17,7 @@ from core.brain_hive_artifacts import (
     list_artifact_manifests,
     load_artifact_manifest_payload,
 )
+from core.disclosure.direct import metadata_options, received_headers, request_options
 from core.hardware_tier import recommended_ollama_model
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
@@ -377,7 +378,9 @@ def _derive_questions_via_model(
             "temperature": 0.7,
             "max_tokens": 400,
         }
+        _disclosure_endpoint = f"{base_url}/v1/chat/completions"
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
             provider_id="ollama:brain-hive-research",
             model_id=model,
             operation="research_question_generation",
@@ -391,11 +394,13 @@ def _derive_questions_via_model(
             max_output_tokens=400,
             header_names=("Content-Type",),
         )
+        _disclosure_body = permit.consume()
         resp = requests.post(
-            f"{base_url}/v1/chat/completions",
-            json=permit.consume(),
+            _disclosure_endpoint,
+            **request_options(_disclosure_body, _disclosure_endpoint),
             timeout=30,
         )
+        received_headers(_disclosure_body)
         resp.raise_for_status()
         text = resp.json()["choices"][0]["message"]["content"].strip()
         lines = [
@@ -425,7 +430,8 @@ def _ollama_base_url() -> str:
 
     url = ollama_base_url()
     try:
-        requests.get(f"{url}/api/tags", timeout=2)
+        _disclosure_metadata_url = f"{url}/api/tags"
+        requests.get(_disclosure_metadata_url, **metadata_options(_disclosure_metadata_url), timeout=2)
         return url
     except Exception:
         return ""

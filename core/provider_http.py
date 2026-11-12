@@ -7,6 +7,7 @@ the runtime. No request data is placed in argv, environment or temporary files.
 from __future__ import annotations
 
 import base64
+import hashlib
 import ipaddress
 import json
 import os
@@ -58,10 +59,10 @@ class _RefuseLoopbackRedirect(urllib.request.HTTPRedirectHandler):
         raise urllib.error.HTTPError(req.full_url, code, "loopback provider redirect refused", headers, fp)
 
 
-def urlopen(request, *, timeout):
-    """Loopback means a direct local socket, with no ambient proxy or redirects."""
+def urlopen(request, *, timeout, no_redirects=False, no_proxy=False):
+    """Local provider calls use direct sockets; reviewed calls refuse redirects."""
     url = getattr(request, "full_url", request)
-    if is_loopback_url(url):
+    if is_loopback_url(url) or no_proxy:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _RefuseLoopbackRedirect())
         return opener.open(request, timeout=timeout)
     route = _private_route()
@@ -69,10 +70,13 @@ def urlopen(request, *, timeout):
         if route.uses_socks:
             from core import private_web
 
-            opener = urllib.request.build_opener(
-                urllib.request.ProxyHandler({}), *private_web.socks_http_handlers(route, isolation="vool")
-            )
-            return opener.open(request, timeout=timeout)
+            handlers = [urllib.request.ProxyHandler({}), *private_web.socks_http_handlers(route, isolation="vool")]
+            if no_redirects:
+                # A reviewed request is the approved bytes to the approved host: no redirect, on any route.
+                handlers.append(_RefuseLoopbackRedirect())
+            return urllib.request.build_opener(*handlers).open(request, timeout=timeout)
+    if no_redirects:
+        return urllib.request.build_opener(_RefuseLoopbackRedirect()).open(request, timeout=timeout)
     return urllib.request.urlopen(request, timeout=timeout)
 
 
@@ -271,6 +275,22 @@ class _Response(_requests.Response):
 
 
 def _request(method, url, **options):
+    from core.disclosure.wire import DisclosureRefused, WirePayload
+
+    payload = options.get("json")
+    preview_id = ""
+    if isinstance(payload, WirePayload):
+        wire = payload.consume_wire(url)
+        preview_id = payload.preview_id
+        options.pop("json")
+        options["_disclosure_body_b64"] = base64.b64encode(wire).decode("ascii")
+        options["_disclosure_sha256"] = hashlib.sha256(wire).hexdigest()
+        options["_disclosure_no_proxy"] = payload.cloud_destination is False
+        options["headers"] = {**dict(options.get("headers") or {}), "Content-Type": "application/json"}
+        # A reviewed destination cannot redirect the body to an unreviewed one.
+        options["allow_redirects"] = False
+    elif not is_loopback_url(url) and isinstance(payload, dict) and ("messages" in payload or "prompt" in payload):
+        raise DisclosureRefused("Cloud model requests must pass the disclosure boundary.")
     streaming = bool(options.pop("stream", False))
     # ``cancel_check``: a callable the transfer polls while it waits; when it returns true the
     # worker is ended and ProviderCallCancelled is raised. A check that raises ends the call too.
@@ -280,6 +300,12 @@ def _request(method, url, **options):
         header = owner.receive()
         if header.get("type") != "response":
             raise exceptions.ConnectionError("provider worker did not return response headers")
+        if preview_id:
+            from core.disclosure.wire import note_sent
+
+            note_sent(preview_id)
+        if isinstance(payload, WirePayload) and 300 <= header.get("status", 0) < 400:
+            raise exceptions.TooManyRedirects("reviewed provider redirect refused")
         response = _Response(owner, header)
         if not streaming:
             _ = response.content
@@ -323,9 +349,17 @@ def _worker():
         timer.daemon = True
         timer.start()
         options = invocation["options"]
+        if "_disclosure_body_b64" in options:
+            body = base64.b64decode(options.pop("_disclosure_body_b64"), validate=True)
+            if hashlib.sha256(body).hexdigest() != options.pop("_disclosure_sha256"):
+                raise ValueError("provider body changed after preview")
+            options["data"] = body
         if isinstance(options.get("timeout"), list):
             options["timeout"] = tuple(options["timeout"])
-        loopback = is_loopback_url(invocation["url"])
+        direct_local = options.pop("_disclosure_no_proxy", False) is True
+        loopback = is_loopback_url(invocation["url"]) or direct_local
+        # Private web stays the authority for every non-loopback socket: the parent decided the
+        # route before this worker existed, and a local-model destination still takes it.
         private_route = invocation.get("private_route")
         if private_route:
             _worker_use_private_route(private_route)

@@ -64,6 +64,7 @@ threads by the same mechanism, which is why Activity had the truth all along.
 from __future__ import annotations
 
 import contextlib
+import math
 import threading
 import uuid
 from collections import OrderedDict
@@ -198,6 +199,39 @@ def _ledger(source_context: dict[str, Any] | None) -> _TurnLedger | None:
     if ledger is not None:
         _COUNTS.move_to_end(ledger_id)
     return ledger
+
+
+def provider_call_id_for_model(model_call_id: str, provider_id: str) -> str:
+    """Bind a physical invocation, refusing an ambiguous retry history."""
+    if not isinstance(model_call_id, str) or not model_call_id or not isinstance(provider_id, str):
+        return ""
+    with _LOCK:
+        matches = [call for ledger in _COUNTS.values() for call in ledger.calls
+                   if call.model_call_id == model_call_id and call.provider_id == provider_id]
+        active = [call for call in matches if call.outcome == "attempted"]
+        candidates = active if active else matches
+        return candidates[0].call_id if len(candidates) == 1 else ""
+
+
+def provider_call_metrics(call_id: str) -> dict[str, Any] | None:
+    """Read only one exact invocation's recorded numeric display evidence."""
+    if not isinstance(call_id, str) or not call_id:
+        return None
+    with _LOCK:
+        matches = [call for ledger in _COUNTS.values() for call in ledger.calls if call.call_id == call_id]
+        if len(matches) != 1:
+            return None
+        call = matches[0]
+        details = dict(call.usage_details or {})
+        amount = details.get('amount')
+        currency = details.get('currency')
+        exact = (details.get('cost_state') == 'exact' and currency in {'USD', 'USDC'}
+                 and type(amount) in {int, float} and math.isfinite(amount) and amount >= 0)
+        return {"state": call.outcome, "prompt_tokens": details.get("input_tokens"),
+                "output_tokens": details.get("output_tokens"),
+                "billed_amount": amount if exact else None,
+                "billed_currency": currency if exact else None,
+                "billed_usd": amount if exact and currency == 'USD' else None}
 
 
 def record_provider_call(
@@ -753,6 +787,8 @@ __all__ = [
     "ProviderCallAlreadyTerminalizedError",
     "begin_turn",
     "fail_pending_provider_calls",
+    "provider_call_id_for_model",
+    "provider_call_metrics",
     "record_presentation_selection",
     "record_provider_call",
     "record_provider_call_outcome",

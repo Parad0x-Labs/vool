@@ -244,6 +244,8 @@ function mount(rec, holder, bubble){
   holder.appendChild(card);
   if (bubble) {
     bubble.dataset.councilRun = rec.runId;
+    bubble.dataset.chatId = rec.chatId;
+    bubble.dataset.requestId = rec.runId;
     bubble.setAttribute('data-council-run', rec.runId);
   }
   rec.sig = '';   // a fresh body must be filled, never assumed current

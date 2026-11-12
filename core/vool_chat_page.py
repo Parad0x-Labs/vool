@@ -2592,6 +2592,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // This page handles the chat's typed "a turn is already running" refusal (it reroutes the
     // message into the chat's queue), so it asks for it; a caller that does not ask waits its turn.
     on_busy: 'refuse',
+    // This page shows a cloud preview while its turn waits (the disclosure dialog), so it asks to
+    // wait; any caller that does not ask is told at once that a preview needs review here.
+    disclosure_review: 'wait',
     mode: owner.mode,
     autonomy: (owner.mode === 'auto' || owner.mode === 'bypass_permissions') ? 'auto' : '',
     approval_token: owner.approvalToken,
@@ -5257,6 +5260,7 @@ function mountAnswerReport(host, chatId, requestId) {
   const actions = host.querySelector('.msg-actions');
   if (!actions) return;
   host.dataset.requestId = requestId; host.dataset.chatId = chatId;
+  if(window.VoolDisclosure)window.VoolDisclosure.mount(host,chatId,requestId);
   const report = document.createElement('button');
   report.type = 'button'; report.className = 'vi msg-act msg-report'; report.dataset.ico = 'report';
   report.textContent = pageT('msg.report', 'Report');
@@ -9332,7 +9336,7 @@ async function runTurn(text, queueItemId, opts) {
     // Resolve the owning chat's pin before the paid gate and carry it into the request inputs.
     // Local Only must override queued or trial models without a later page-state lookup.
     const chatModel = modelForChat(chatId);
-    const selectedModel = isNoCloudModel(chatModel) ? chatModel : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
+    const selectedModel = opts.disclosureRetry ? opts.disclosureRetry.model : isNoCloudModel(chatModel) ? chatModel : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
     // A try-once grant serving THIS turn reports "sticky" (a concrete id that degrades to
     // auto if unresolvable), never "pin" — it is not the operator's pin and must not
     // inherit the pin's hard-refusal semantics.
@@ -9369,7 +9373,10 @@ async function runTurn(text, queueItemId, opts) {
       // The outer handler shows the failure or cancellation and frees Send.
       throw e;
     }
-    if (sendRequiresPaidAck && !opts.priceWait && !paidPinAcked(String(selectedModel), chatId)) {
+    // A disclosure retry carries a one-use server capability bound to a verified free local
+    // model. The server validates it before routing and denies cloud fallback. A stale picker
+    // cache must not turn this local choice into a request for paid-cloud approval.
+    if (sendRequiresPaidAck && !opts.disclosureRetry && !opts.priceWait && !paidPinAcked(String(selectedModel), chatId)) {
       // The typed gate makes this decision informed (real rates, catalog freshness); the bare
       // confirm remains the fallback so an unmounted fragment can never brick sending.
       const ok = window.VoolPriceGate
@@ -9389,7 +9396,7 @@ async function runTurn(text, queueItemId, opts) {
       signal: run.aborter.signal,
       // Every field of this body is read from the RUN's chat -- transcript, mode, autonomy,
       // approval grant, bypass grant -- never from the composer's current display.
-      body: JSON.stringify(buildTurnRequestBody(run, selectedModel, modelSelection)),
+      body: JSON.stringify({...buildTurnRequestBody(run, selectedModel, modelSelection), ...(opts.disclosureRetry ? {disclosure_local_retry:opts.disclosureRetry.token, workspace:opts.disclosureRetry.workspace} : {})}),
     });
     run.responseReceived = true;
     // The trial's one turn is now genuinely sent: retire the grant so the NEXT turn
@@ -9759,6 +9766,21 @@ async function chatSlotBusyOnServer(chatId) {
     return !!(res && res.turn_active);
   } catch (e) { return false; }
 }
+
+window.VoolDisclosureActiveChat = () => displayedChat;
+window.VoolDisclosureLocalRetry = async function(retry) {
+  const deadline=Date.now()+30000;
+  while(isChatBusy(retry.session_id) && Date.now()<deadline) await new Promise(resolve=>setTimeout(resolve,100));
+  if(isChatBusy(retry.session_id)) throw new Error(pageT('disclosure.retry_busy','The previous turn is still closing. Try again shortly.'));
+  const attachments=retry.attachments.map(id=>{
+    const record=(retry.attachment_meta||[]).find(item=>item.id===id);
+    if(!record)throw new Error(pageT('disclosure.expired','This request changed or expired. Prepare the task again.'));
+    return attachmentMeta(record);
+  });
+  await runTurn(retry.question, null, {chatId:retry.session_id,
+    attachments,
+    disclosureRetry:retry, queuedModel:retry.model});
+};
 
 async function send() {
   // Refused BEFORE the draft is read or cleared: a disabled textarea is the visible half,
@@ -14779,6 +14801,7 @@ const VoolConnection = (function () {
 })();
 
 window.VoolPageActions = Object.freeze({
+  isLocalOnly: () => isNoCloudModel(modelForChat(displayedChat)),
   newChat: () => newChat(),
   togglePanel: () => togglePanel(),
   openPanel: () => openPanel(),
@@ -14789,6 +14812,7 @@ window.VoolPageActions = Object.freeze({
   openModelMenu: () => { const btn = document.getElementById('modelBtn'); if (btn) btn.click(); },
   openModeMenu: () => { const btn = document.getElementById('modeBtn'); if (btn) btn.click(); },
   openCouncil: () => { if (typeof openCouncil === 'function') openCouncil(); },
+  closeCouncil: () => { if (typeof closeCouncil === 'function') closeCouncil(); },
   openPlugins: () => { if (typeof openPlugins === 'function') openPlugins(); },
   openSkills: () => { if (typeof openSkills === 'function') openSkills(); },
   openFiles: () => { if (typeof openFiles === 'function') openFiles(); },
@@ -15000,6 +15024,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.contacts_fragment import render_contacts_fragment
     from core.council_chat_card_fragment import render_council_card_fragment
     from core.council_fragment import render_council_fragment
+    from core.disclosure_fragment import render_disclosure_fragment
     from core.goal_progress_fragment import render_goal_progress_fragment
     from core.model_radar_fragment import render_model_radar_fragment
     from core.my_things_fragment import render_my_things_fragment
@@ -15020,6 +15045,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_price_safety_fragment(),
         render_notification_fragment(),
         render_goal_progress_fragment(),
+        render_disclosure_fragment(),
         render_model_radar_fragment(),
         render_settings_extras_fragment(),
         render_companion_drawer_fragment(),

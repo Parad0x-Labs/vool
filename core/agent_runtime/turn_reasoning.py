@@ -677,7 +677,11 @@ def execute_grounded_turn(
                 classification=classification,
             ),
         )
-    if is_chat_surface:
+    from core.request_trust import turn_is_owner_authored
+
+    # A generated agent brief is work for its selected model, not an owner
+    # recall query. Normal retrieval below still uses its canonical namespace.
+    if is_chat_surface and turn_is_owner_authored(source_context):
         from core.bootstrap_context import canonical_runtime_transcript
         from core.context_retrieval import (
             capsule_exact_response,

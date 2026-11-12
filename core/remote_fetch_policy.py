@@ -153,6 +153,15 @@ def remote_turn_active() -> bool:
     return turn_is_remote(_SCOPE_CONTEXT.get())
 
 
+def current_remote_fetch_context() -> dict[str, Any]:
+    """Read the server-bound turn identity at a final disclosure boundary.
+
+    This grants nothing: callers may only tighten an existing turn or label
+    its outbound request. Runtime worker pools propagate this scope.
+    """
+    return dict(_SCOPE_CONTEXT.get() or {})
+
+
 def _utcnow_iso() -> str:
     from datetime import datetime, timezone
 

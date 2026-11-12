@@ -20,8 +20,10 @@ unchanged.
 from __future__ import annotations
 
 import json
+import socket
 import urllib.error
 import urllib.request
+from contextlib import suppress
 from typing import Any
 
 from core.council import containment
@@ -266,6 +268,21 @@ def model_identity_from_event(block: dict[str, Any]) -> tuple[str | None, str]:
     return (None, "requested") if requested else (None, "unknown")
 
 
+def _interrupt_seat_stream(response: Any) -> None:
+    # HTTPResponse.close waits for its buffered reader's lock. A seat waiting
+    # for disclosure can hold that lock until the operator makes a decision.
+    # Interrupt this connection first so the reader releases it. The existing
+    # containment authority has already cancelled the server's live turn.
+    sock = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+    if isinstance(sock, socket.socket):
+        with suppress(OSError):
+            sock.shutdown(socket.SHUT_RDWR)
+        # The reader owns response.close through its context manager. Closing
+        # it concurrently would race HTTPResponse's EOF cleanup.
+        return
+    response.close()
+
+
 def live_seat_turn_factory(base_url: str, dispatch_capability: str = ""):
     """Builds the orchestrator's SeatTurnFn bound to this server's own address.
 
@@ -300,6 +317,7 @@ def live_seat_turn_factory(base_url: str, dispatch_capability: str = ""):
             "session_id": seat_session_id(run_id, seat),
             "turn_id": f"{run_id}-r{round_no}-{seat.seat_id}",
             "mode": "plan",
+            "turn_author": "agent",
             "autonomy": "",
         }
         seat_headers = {"Content-Type": "application/json"}
@@ -319,7 +337,7 @@ def live_seat_turn_factory(base_url: str, dispatch_capability: str = ""):
         def _close_stream() -> None:
             response = holder.get("response")
             if response is not None:
-                response.close()
+                _interrupt_seat_stream(response)
 
         inflight_token = containment.register_inflight(
             run_id,
@@ -365,6 +383,12 @@ def live_seat_turn_factory(base_url: str, dispatch_capability: str = ""):
                 ) from exc
             raise
         holder["response"] = response_cm
+        if containment.run_is_fenced(run_id):
+            _interrupt_seat_stream(response_cm)
+            response_cm.close()
+            raise SeatCancelledError(
+                f"council run {run_id} was stopped before its stream opened"
+            )
         with response_cm as response:
             for raw_line in response:
                 line = raw_line.decode("utf-8", "replace").strip()

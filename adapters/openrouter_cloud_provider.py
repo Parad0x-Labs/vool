@@ -189,6 +189,8 @@ class OpenRouterCloudProvider(CloudProviderAdapter):
         )
         request_headers = self._request_headers()
         permit = seal_provider_invocation(
+            destination_url=f"{self.base_url}/chat/completions",
+            cloud_destination=True,
             request=request,
             provider_id=self.provider_id,
             model_id=request.model_id,

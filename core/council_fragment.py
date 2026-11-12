@@ -204,6 +204,7 @@ function doConvene(root){
   var actions = window.VoolPageActions;
   var displayed = actions && actions.displayedChat ? actions.displayedChat() : '';
   if (displayed) body.chat_session = String(displayed);
+  body.local_only = Boolean(actions && actions.isLocalOnly && actions.isLocalOnly());
   if (errorEl) errorEl.textContent = '';
   fetch('/api/council/convene', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -216,6 +217,7 @@ function doConvene(root){
       if (window.VoolCouncilCard && displayed) {
         try { window.VoolCouncilCard.adopt(String(displayed), activeRun); } catch (err) {}
       }
+      if (actions && actions.closeCouncil) actions.closeCouncil();
       var statusEl = root.querySelector('#vccStatus');
       if (statusEl) statusEl.innerHTML = '<div class="vcc-round"><b>RUN ' + esc(activeRun) +
         ' \u00b7 CONVENED</b><div class="vcc-seat-line">dispatching round 1 \u2014 blind: every seat gathers its own evidence\u2026</div></div>';

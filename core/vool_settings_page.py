@@ -409,6 +409,11 @@ def _settings_groups() -> list[dict]:
                     keywords="manual auto bypass mode approval per chat composer",
                 ),
                 _row(
+                    id="cloud_disclosure", label="Before files go to cloud", kind="custom", widget="cloud_disclosure",
+                    help="Review outgoing requests and choose which project sources cloud models may see.",
+                    keywords="cloud privacy preview disclosure files folders project rules personal details",
+                ),
+                _row(
                     id="privacy_disclosure",
                     label="Privacy & data, as it stands",
                     kind="custom",
@@ -2021,6 +2026,11 @@ function renderWidget(row, host) {
   if (w === 'companion_pet') return widgetCompanionPet(stack);
   if (w === 'advanced_links') return widgetAdvancedLinks(stack);
   if (w === 'extras_memory') return widgetExtras(stack, 'memory');
+  if (w === 'cloud_disclosure') {
+    const host=el('div');host.dataset.disclosureSettings='1';stack.appendChild(host);
+    if(window.VoolDisclosureSettings)window.VoolDisclosureSettings.mount(host);
+    return;
+  }
   if (w === 'extras_privacy') return widgetExtras(stack, 'privacy');
   if (w === 'extras_toolbelt') return widgetExtras(stack, 'toolbelt');
   if (w === 'bundle_export') return widgetBundleExport(stack);
@@ -6858,6 +6868,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.chat_import_settings_fragment import render_chat_import_settings_fragment
+    from core.disclosure.settings_fragment import render_settings_fragment
     from core.my_things_fragment import render_my_things_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.provider_key_guide import provider_key_guide
@@ -6870,7 +6881,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace(
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
-        "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
+        "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_my_things_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)

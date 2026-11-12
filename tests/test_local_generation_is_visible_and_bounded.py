@@ -130,7 +130,7 @@ def test_every_generation_in_a_build_is_counted(captured) -> None:
 def test_a_build_with_no_context_still_generates(captured) -> None:
     """Telemetry is never allowed to be the reason a build fails."""
 
-    generate = build_ollama_generate_fn(base_url="http://x", model_tag="qwen3:8b")
+    generate = build_ollama_generate_fn(base_url="http://127.0.0.1:9", model_tag="qwen3:8b")
     with mock.patch("requests.post", return_value=_Response("hello")):
         assert generate("write a file") == "hello"
     assert captured == []
@@ -138,7 +138,7 @@ def test_a_build_with_no_context_still_generates(captured) -> None:
 
 def test_an_emitter_that_raises_does_not_break_the_build() -> None:
     generate = build_ollama_generate_fn(
-        base_url="http://x", model_tag="qwen3:8b", source_context={"surface": "api"}
+        base_url="http://127.0.0.1:9", model_tag="qwen3:8b", source_context={"surface": "api"}
     )
     with mock.patch(
         "core.agent_runtime.builder.controller.emit_runtime_event",
@@ -155,7 +155,7 @@ def test_an_emitter_that_raises_does_not_break_the_build() -> None:
 def test_the_budget_stops_the_build_instead_of_running_65_more_calls(captured) -> None:
     budget = BuilderGenerationBudget(total_seconds=10.0)
     generate = build_ollama_generate_fn(
-        base_url="http://x", model_tag="qwen3:8b",
+        base_url="http://127.0.0.1:9", model_tag="qwen3:8b",
         source_context={"surface": "api"}, budget=budget,
     )
     with mock.patch("requests.post", return_value=_Response("x")):

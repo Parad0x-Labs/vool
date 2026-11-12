@@ -14,11 +14,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import urllib.error
-import urllib.request
 from collections import OrderedDict
 from contextvars import ContextVar
 
+from core.disclosure import urllib_transport as urllib
 from core.ollama_endpoint import ollama_base_url
 from core.provider_invocation_gateway import seal_direct_provider_invocation
 from core.secret_redaction import redact_secrets
@@ -129,7 +128,10 @@ def _call_ollama(model: str, messages: list[dict], timeout: int = 60) -> str:
         },
     }
     invocation_context = dict(_SUMMARY_CONTEXT.get() or {})
+    _disclosure_endpoint = f"{ollama_base_url()}/api/chat"
     permit = seal_direct_provider_invocation(
+        destination_url=_disclosure_endpoint,
+        privacy_class='persistent-memory',
         provider_id="ollama:conversation-summarizer",
         model_id=model,
         operation="summary",
@@ -157,7 +159,7 @@ def _call_ollama(model: str, messages: list[dict], timeout: int = 60) -> str:
     )
     req = urllib.request.Request(
         f"{ollama_base_url()}/api/chat",
-        data=json.dumps(permit.consume()).encode(),
+        data=permit.consume(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )

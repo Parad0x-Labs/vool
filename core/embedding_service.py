@@ -23,12 +23,11 @@ import math
 import re
 import threading
 import time
-import urllib.error
-import urllib.request
 from collections.abc import Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+from core.disclosure import urllib_transport as urllib
 from core.ollama_endpoint import ollama_base_url
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
@@ -162,7 +161,10 @@ def _ollama_embed_batch(texts: list[str], model: str, timeout: int = 15) -> list
         "\x00".join(texts).encode("utf-8")
     ).hexdigest()
     try:
+        _disclosure_endpoint = f"{ollama_base_url()}/api/embed"
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
+            privacy_class='persistent-memory',
             provider_id="ollama:embedding",
             model_id=model,
             operation="embedding",
@@ -174,7 +176,7 @@ def _ollama_embed_batch(texts: list[str], model: str, timeout: int = 15) -> list
         return None
     req = urllib.request.Request(
         f"{ollama_base_url()}/api/embed",
-        data=json.dumps(permit.consume()).encode(),
+        data=permit.consume(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )

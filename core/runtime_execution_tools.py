@@ -6989,6 +6989,9 @@ def _read_file(arguments: dict[str, Any], *, workspace_root: Path) -> RuntimeExe
         if verbatim
         else f"File `{_relative_path(target, workspace_root=workspace_root)}`:\n" + rendered_body
     ) + tail_note
+    from core.disclosure.sources import register as register_disclosure_source
+
+    register_disclosure_source(response_text, kind="folder", source=str(target.resolve()))
     return RuntimeExecutionResult(
         handled=True,
         ok=True,

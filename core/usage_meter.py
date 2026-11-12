@@ -81,6 +81,16 @@ CREATE TABLE IF NOT EXISTS token_usage (
 );
 CREATE INDEX IF NOT EXISTS idx_token_usage_ts    ON token_usage(created_ts);
 CREATE INDEX IF NOT EXISTS idx_token_usage_class ON token_usage(cost_class);
+CREATE TABLE IF NOT EXISTS model_call_timing (
+    model_call_id TEXT PRIMARY KEY,
+    usage_entry_id TEXT,
+    provider_id TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    created_ts REAL NOT NULL,
+    first_token_ms REAL,
+    total_ms REAL,
+    state TEXT NOT NULL
+);
 """
 
 
@@ -199,6 +209,7 @@ def _record_usage_once(
     output_tokens_reported: bool = True,
     cached_prompt_tokens: int | None = None,
     cache_write_prompt_tokens: int | None = None,
+    usage_entry_id: str = "",
 ) -> bool:
     """Record one served response's token usage. Fail-soft: returns True on success, False on
     any error (never raises), so a metering write cannot abort a chat turn. A row is skipped
@@ -229,7 +240,10 @@ def _record_usage_once(
             except (TypeError, ValueError):
                 ua = None
         if pt == 0 and ot == 0 and not (ua and ua > 0):
-            return False
+            # A named physical call may report a genuine zero. Keep that fact
+            # distinct from a response that supplied no measurable usage.
+            if not usage_entry_id or not (ua is not None or prompt_tokens_reported or output_tokens_reported):
+                return False
         cached: int | None = None
         if isinstance(cached_prompt_tokens, int) and not isinstance(cached_prompt_tokens, bool):
             cached = min(max(0, cached_prompt_tokens), pt) if pt else max(0, cached_prompt_tokens)
@@ -252,7 +266,7 @@ def _record_usage_once(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid.uuid4()),
+                    usage_entry_id or str(uuid.uuid4()),
                     datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
                     ts,
                     str(provider_id or ""),
@@ -297,6 +311,7 @@ def record_usage(
     output_tokens_reported: bool = True,
     cached_prompt_tokens: int | None = None,
     cache_write_prompt_tokens: int | None = None,
+    usage_entry_id: str = "",
 ) -> bool:
     """Record usage without letting transient SQLite contention abort a chat turn."""
     for attempt in range(_BUSY_RETRIES):
@@ -313,6 +328,7 @@ def record_usage(
                 output_tokens_reported=output_tokens_reported,
                 cached_prompt_tokens=cached_prompt_tokens,
                 cache_write_prompt_tokens=cache_write_prompt_tokens,
+                usage_entry_id=usage_entry_id,
             )
         except sqlite3.OperationalError as exc:
             is_busy = any(word in str(exc).lower() for word in ("busy", "locked"))
@@ -740,3 +756,66 @@ __all__ = [
 
 if __name__ == "__main__":  # pragma: no cover - manual CLI report
     print(format_report())
+
+
+def record_call_timing(*, model_call_id: str, usage_entry_id: str | None, provider_id: str,
+                       model_id: str, first_token_ms: float | None, total_ms: float | None,
+                       state: str) -> None:
+    """Content-free per-call timings, with an additive migration for existing homes."""
+    import math
+
+    from storage.db import get_connection
+    values = (first_token_ms, total_ms)
+    if any(v is not None and (not math.isfinite(v) or v < 0) for v in values):
+        raise ValueError("invalid model call timing")
+    conn = get_connection()
+    try:
+        _ensure_schema(conn)
+        conn.execute("INSERT INTO model_call_timing VALUES (?,?,?,?,?,?,?,?)",
+                     (model_call_id, usage_entry_id, provider_id, model_id, _now_ts(), first_token_ms, total_ms, state))
+        conn.execute("DELETE FROM model_call_timing WHERE created_ts < ?", (_now_ts() - _keep_seconds(),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def measured_call(model_call_id: str) -> dict[str, Any] | None:
+    """Read this call's ledger rows; absent provider values stay unknown."""
+    from storage.db import get_connection
+    conn = get_connection()
+    try:
+        _ensure_schema(conn)
+        row = conn.execute("""SELECT c.first_token_ms,c.total_ms,c.state,u.prompt_tokens,u.output_tokens,
+            u.usd_actual,u.prompt_tokens_reported,u.output_tokens_reported
+            FROM model_call_timing c LEFT JOIN token_usage u ON u.entry_id=c.usage_entry_id
+            WHERE c.model_call_id=?""", (model_call_id,)).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    return {"first_token_ms": row[0], "total_ms": row[1], "state": row[2],
+            "prompt_tokens": row[3] if row[6] else None, "output_tokens": row[4] if row[7] else None,
+            "billed_usd": row[5]}
+
+
+def measured_usage_entry(entry_id: str) -> dict[str, Any] | None:
+    """Read an explicitly known usage row when its separate timing record failed.
+
+    The caller must supply the ID it actually recorded. This never guesses a
+    provider/model association or invents timings or an execution outcome.
+    """
+    from storage.db import get_connection
+
+    conn = get_connection()
+    try:
+        _ensure_schema(conn)
+        row = conn.execute("""SELECT prompt_tokens,output_tokens,usd_actual,
+            prompt_tokens_reported,output_tokens_reported FROM token_usage
+            WHERE entry_id=?""", (entry_id,)).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    return {"first_token_ms": None, "total_ms": None, "state": "timing_unrecorded",
+            "prompt_tokens": row[0] if row[3] else None, "output_tokens": row[1] if row[4] else None,
+            "billed_usd": row[2]}

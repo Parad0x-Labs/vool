@@ -114,3 +114,17 @@ def project_messages_for_destination(
         projected = project_for_destination([(message, meta)], destination_class=destination_class)
         out.extend(projected)
     return out
+
+
+def project_project_sources(messages: list[dict[str, Any]], *, project_id: str, rules: dict, catalog: Any) -> tuple[list[dict[str, Any]], int, bool]:
+    """Apply owner-confirmed source restrictions at the canonical cloud gate.
+
+    No rules preserves existing behavior. With rules, missing provenance stays
+    local. This is additional narrowing, never an exposure-class grant.
+    """
+    if not rules.get("rules"):
+        return messages, 0, False
+    from core.disclosure.sources import project_messages
+
+    narrowed = project_messages_for_destination(messages, destination_class="cloud_provider")
+    return project_messages(narrowed, project_id=project_id, rules=rules, catalog=catalog)
