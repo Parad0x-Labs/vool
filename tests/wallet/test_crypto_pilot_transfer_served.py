@@ -237,6 +237,10 @@ def test_a_transfer_whose_send_answer_was_lost_survives_a_daemon_restart_and_is_
     shows the transfer in flight, sends nothing, and settles it from the chain once the chain answers."""
     daemon, chain, _provider = served
     wallet = _ready_pilot_wallet(daemon, "Restart proof")
+    # The first wallet on a network stays its Main (owner decision, 2026-11-12), and this module's daemon already
+    # made one; the person makes this one Main with its own PIN, so the chat payment comes from it.
+    status, moved = _door(daemon, "/api/wallet/wallets/main", {"wallet_id": wallet["wallet_id"], "credential": PIN})
+    assert status == 200 and moved.get("ok") is True, moved
     session = "transfer-served-2"
     chain.send_mode = "accept_then_500"
     chain.status_mode = "none"
