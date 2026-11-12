@@ -68,10 +68,18 @@ Choose **Custom (OpenAI-compatible)** to use your own server or another compatib
 
 To change the address, save the custom key again with the new base URL.
 
+## X (Twitter)
+
+X needs several keys, so it has its own guided setup in this pane: next to **X (Twitter)**, press
+**Connect X**. It checks the keys with one read and, for your account keys, shows which X account
+they belong to before anything is saved. Saved X keys are listed under **X (Twitter)** in **Your
+keys**. VOOL posts or acts on X only after you approve each action. See
+[X integration](x-integration.md) for the features, limits and approvals.
+
 ## Your keys
 
-Saved keys are listed by group (model providers, web search, blockchain data, market data), each
-with **Test** and **Remove**. Market data keys have **Remove** only, because they were checked
+Saved keys are listed by group (model providers, web search, blockchain data, X, market data),
+each with **Test** and **Remove**. Market data keys have **Remove** only, because they were checked
 when saved.
 
 * **Test** sends one check to that provider. A key it accepts shows a green light, and a key it
