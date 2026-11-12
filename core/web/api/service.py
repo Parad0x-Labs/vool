@@ -4339,7 +4339,6 @@ def _prepend_workspace_notice_after(notice: str, model: str, stream: Iterable[by
     frames -- passes through byte for byte.
     """
     import datetime as _dt
-    import json as _json
 
     from core.web.api.runtime import ollama_stream_chunk, task_event_line
 
@@ -8315,6 +8314,7 @@ def _dispatch_post_inner(
                 runtime,
             )
         bound_project_id = context_namespace.project_id
+        words_status = ""
         # A chat that names the person's own project folder in words gets bound to it here, so
         # this turn and every later one work in that folder instead of the empty default
         # workspace. Owner-local turns only; a remote channel turn never binds. Binding follows
@@ -8334,6 +8334,7 @@ def _dispatch_post_inner(
             except Exception:
                 words_binding = None
             if isinstance(words_binding, dict):
+                words_status = str(words_binding.get("status") or "")
                 if words_binding.get("bound"):
                     bound_project_id = str(words_binding.get("project_id") or "").strip()
                 notice = str(words_binding.get("notice") or "").strip()
@@ -8344,7 +8345,15 @@ def _dispatch_post_inner(
             if bound_project_id and not requested_workspace
             else ""
         )
-        if not requested_workspace and not bound_project_id and owner_local:
+        if (
+            not requested_workspace
+            and not bound_project_id
+            and owner_local
+            # The words resolver above decides first. When it refused a folder or found several,
+            # its plain notice stands and nothing is bound; only when it saw no work ask, or found
+            # no folder, may a registered project or an exactly-named project folder bind here.
+            and words_status in {"", "no_ask", "none"}
+        ):
             # A chat bound to no project that NAMES one ("plan.py in the garden planner project")
             # is bound to it here, so this turn and every follow-up work in that folder. Measured
             # on 1cbf433: the turn ran in the default workspace and answered "There is no file at
@@ -8359,6 +8368,9 @@ def _dispatch_post_inner(
             if named:
                 bound_project_id = str(named["project_id"])
                 project_workspace = str(named["root"])
+                if words_status == "none":
+                    # The resolver's "couldn't find a folder" line would now be wrong.
+                    _WORKSPACE_WORDS_NOTICE.set(f"I'm working in your {named['name']} folder now.")
         effective_workspace = requested_workspace or project_workspace or default_workspace
         workspace_binding = (
             "explicit"

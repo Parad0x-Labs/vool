@@ -99,6 +99,15 @@ _STANDARD_FOLDERS = frozenset({
 })
 
 
+def _folder_refused(folder: str, home: str) -> bool:
+    from core.workspace_from_words import folder_refusal_kind
+
+    try:
+        return bool(folder_refusal_kind(folder, home))
+    except Exception:
+        return True
+
+
 def _folder_candidates(name: str, home: str) -> list[str]:
     wanted = _compact(name)
     if wanted in _STANDARD_FOLDERS:
@@ -113,6 +122,11 @@ def _folder_candidates(name: str, home: str) -> list[str]:
                         continue
                     if _compact(entry.name) == wanted:
                         real = os.path.realpath(entry.path)
+                        # A folder named for passwords, keys or a wallet (or one of the computer's
+                        # own folders) never becomes a project by being named: the words resolver's
+                        # own guard (core.workspace_from_words) decides it for both binders.
+                        if _folder_refused(real, home):
+                            continue
                         if real not in found:
                             found.append(real)
         except OSError:

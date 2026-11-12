@@ -403,9 +403,7 @@ def _ask_shaped(left_words: list[str], gerund: bool) -> bool:
         index += 1
     if index != count:
         return False
-    if gerund and not opener:
-        return False
-    return True
+    return not (gerund and not opener)
 
 
 def _licensed_work_verbs(segment: str) -> list[tuple[int, int]]:
@@ -449,7 +447,7 @@ def _phrase_is_licensed(
         head = segment[:effective_start]
         if any(pattern.search(head) for pattern in _PREP_HEAD_RES):
             return True
-        for verb_start, verb_end in licensed_verb_spans:
+        for _verb_start, verb_end in licensed_verb_spans:
             if verb_end <= effective_start and _OBJECT_GAP_RE.match(
                 segment[verb_end:effective_start]
             ):
@@ -628,6 +626,21 @@ def _folder_refusal_kind(home_real: Path, folder_path: Path, folder_name: str) -
     return ""
 
 
+def folder_refusal_kind(folder: str | Path, home: str | Path) -> str:
+    """Why a real folder may never become the chat's project, or "" when it may.
+
+    The same guard the words resolver applies ("secret" for a folder whose name or any path
+    part names passwords, keys, a wallet and the like; "standard" for one of the computer's
+    own folders such as Downloads; "container" for a folder that holds projects), for other
+    binders that find a folder by name (core.named_project_binding)."""
+    try:
+        home_real = _real_home(home)
+        folder_path = Path(str(folder or "")).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return "secret"
+    return _folder_refusal_kind(home_real, folder_path, folder_path.name)
+
+
 def _refusal_notice(kind: str, display: str) -> str:
     """One plain sentence, never a path, never a raw refusal reason."""
     if kind == "secret":
@@ -693,7 +706,7 @@ class _PointerTiers:
     out: the "in <x>" of such a clause is a location of that object, not a second name.
     """
 
-    __slots__ = ("tiers", "any_pointer_phrase", "any_ask_verb")
+    __slots__ = ("any_ask_verb", "any_pointer_phrase", "tiers")
 
     def __init__(self) -> None:
         self.tiers: list[list[tuple[str, list[str]]]] = [[], [], [], []]
@@ -776,7 +789,7 @@ def resolve_folder_from_words(words: str, home: str | Path) -> FolderWordsResolu
     # Refusals speak before any search, in tier order; an unlicensed phrase never
     # refuses anything (a make-verb complement is not an ask about that folder).
     for tier in pointers.tiers:
-        for phrase, _variants_ in tier:
+        for phrase, _variant_names in tier:
             kind = _phrase_refusal_kind(phrase)
             if kind:
                 return FolderWordsResolution(
