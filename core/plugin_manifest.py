@@ -42,7 +42,7 @@ HANDLER = _object({"kind": {"enum": ["subprocess", "mcp"]}, "entry": _text(), "a
 TOOL = _object({"intent": _text(), "description": {**_text(2000), "minLength": 12}, "handler": HANDLER, "input_schema": {"type": "object"}, "side_effect_class": _text(), "approval_requirement": _text(), "permission_actions": {"type": "array", "items": _text(100)}, "claim": {"type": "object"}, "mutation": {"type": "object"}, "trust": _object({"side_effect_class": _text(), "permission_actions": {"type": "array", "items": _text(100)}}, ("side_effect_class", "permission_actions"))}, ("intent", "description", "handler", "input_schema"))
 PROVIDER = _object({"base_url": _text(2000), "auth_placement": {"enum": ["header", "path"]}, "credential_slot": {**_text(80), "pattern": IDENTITY}, "auth_path": _text(500), "model_list_path": _text(500), "pricing_source": _text(2000), "api_path": _text(500), "x402": {"type": "boolean"}}, ("base_url", "auth_placement", "credential_slot", "model_list_path", "pricing_source"))
 SCANNER = _object({"base_url": _text(2000), "credential_slot": {**_text(80), "pattern": IDENTITY}, "test_path": _text(500), "scan_path": _text(500), "input_template": {"type": "object"}, "response_schema": {"type": "object"}, "response_map": {"type": "object", "additionalProperties": _text(200)}}, ("base_url", "credential_slot", "test_path", "scan_path", "input_template", "response_schema", "response_map"))
-VOOL = _object({"id": {**_text(80), "pattern": IDENTITY}, "version": {**_text(100), "pattern": SEMVER}, "name": _text(120), "publisher": _text(120), "description": _text(2000), "homepage": _text(2000), "license": _text(100), "kind": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"enum": ["tools", "model_provider", "scanner"]}}, "tools": {"type": "array", "maxItems": 128, "items": TOOL}, "mcpServers": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": SERVER}, "network": {"type": "array", "maxItems": 32, "items": _text(253)}, "credentials": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": CREDENTIAL}, "model_provider": PROVIDER, "scanner": SCANNER}, ("id", "version", "name", "publisher", "description", "homepage", "license", "kind", "network", "credentials"))
+VOOL = _object({"id": {**_text(80), "pattern": IDENTITY}, "version": {**_text(100), "pattern": SEMVER}, "name": _text(120), "publisher": _text(120), "description": _text(2000), "homepage": _text(2000), "license": _text(100), "kind": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"enum": ["tools", "model_provider", "scanner"]}}, "tools": {"type": "array", "maxItems": 128, "items": TOOL}, "mcpServers": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": SERVER}, "network": {"type": "array", "maxItems": 32, "items": _text(253)}, "credentials": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": CREDENTIAL}, "model_provider": PROVIDER, "scanner": SCANNER, "paid_services": {"type": "array", "maxItems": 8, "items": _text(2000)}}, ("id", "version", "name", "publisher", "description", "homepage", "license", "kind", "network", "credentials"))
 LEGACY_PROVENANCE = _object({"origin": {"type": "string"}, "staged_by": {"type": "string"}})
 MANIFEST_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "title": "Plugin package manifest", "type": "object", "required": ["name"], "properties": {"name": _text(200), "version": {"type": "string"}, "vool": {"oneOf": [VOOL, LEGACY_PROVENANCE]}}}
 
@@ -149,6 +149,27 @@ def _flags(value):
             _flags(item)
 
 
+def paid_services(extension: dict, hosts) -> list[str]:
+    """The services a plugin may ask VOOL to pay for it, as https origins inside its own listed websites.
+
+    A declaration, never authority: the plugin holds no key, signs nothing and approves nothing. VOOL pays only from
+    the Skills & plugins wallet, only after the owner ticked this plugin, only inside the limits the owner set for it
+    (``core.wallet.addon_wallet``), and only on the owner's own turn at this computer."""
+    listed = extension.get("paid_services") or []
+    if listed and "tools" not in extension.get("kind", []):
+        raise ValueError("Only a plugin with tools can ask VOOL to pay a service for it. It was not installed.")
+    origins: list[str] = []
+    for entry in listed:
+        parsed = https_url(entry, hosts)
+        if parsed.query or parsed.path not in ("", "/"):
+            raise ValueError("This plugin lists the services it pays in a way VOOL doesn't accept. Ask its maker to fix it.")
+        origin = f"https://{parsed.hostname}"
+        if origin in origins:
+            raise ValueError("This plugin lists the services it pays in a way VOOL doesn't accept. Ask its maker to fix it.")
+        origins.append(origin)
+    return origins
+
+
 def validate_manifest(raw: dict, *, root: Path) -> dict:
     errors = validate_schema(raw, MANIFEST_SCHEMA)
     if errors:
@@ -224,6 +245,7 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
                 permission_wall(tool["trust"]["permission_actions"])
                 if tool["trust"]["side_effect_class"] in PAID:
                     raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
+    paid_services(extension, hosts)
     for kind in ("model_provider", "scanner"):
         block = extension.get(kind)
         if (kind in extension["kind"]) != (block is not None):

@@ -17,7 +17,8 @@ Separation, enforced where the money moves:
 * A payment happens only on the owner's own turn at this computer (``agent_pay.agent_for_turn``): a phone or remote
   turn, or a turn a team helper wrote, pays nothing from here.
 
-Which plugins want to pay comes from the plugin system (:func:`register_source`); a skill that is only instructions
+Which plugins want to pay comes from the plugin system: every installed, switched-on plugin whose manifest lists
+``paid_services`` (``core.plugin_payments``), plus any :func:`register_source`; a skill that is only instructions
 runs no code and pays nothing on its own.
 """
 from __future__ import annotations
@@ -39,7 +40,15 @@ KIND_PLUGIN = "plugin"
 KIND_SKILL = "skill"
 
 _SLUG = re.compile(r"[^a-z0-9_.\-]+")
-_SOURCES: list[Callable[[], list[dict[str, Any]]]] = []
+
+
+def _installed_plugins() -> list[dict[str, Any]]:
+    from core.plugin_payments import requesters_from_plugins
+
+    return requesters_from_plugins()
+
+
+_SOURCES: list[Callable[[], list[dict[str, Any]]]] = [_installed_plugins]
 _SOURCES_LOCK = threading.Lock()
 
 

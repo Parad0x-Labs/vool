@@ -95,6 +95,17 @@ are forbidden. Remote and phone turns cannot invoke executable plugins. Output s
 untrusted data. An x402 declaration never approves payment: VOOL's existing owner-controlled
 wallet, caps, approval and receipts still govern any retained monetary flow.
 
+### Paid services
+
+A tools plugin may list up to eight `paid_services` in its `vool` block: `https://` origins on
+websites it already lists under `network`, with no path or query. A tool of that plugin may then
+end its result with `"observation": {"paid_fetch": {"url": "https://..."}}`. The plugin never
+pays: VOOL fetches that address itself and pays the service's x402 request only from the
+Skills & plugins wallet, only after the owner ticked this plugin in Settings, only inside the
+limits the owner set for it (per payment, per day or other period, payments per period, end
+date), and only on the owner's own turn at this computer. Anything else pays nothing and the
+tool's text says so. What the service delivers comes back as the tool's text, still untrusted.
+
 ## Test and publish
 
 Use VOOL's actual parser, then exercise install, decline, enable, invoke, disable, update and

@@ -771,6 +771,11 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                         package_dependencies=dependency_copies, call=call,
                     )
                 call.check()
+            # A tool's ask to fetch a paid address is VOOL's to carry out, never the plugin's: the Skills & plugins
+            # wallet pays inside the allowance the owner ticked for this plugin, or nothing is paid.
+            from core import plugin_payments
+
+            result = plugin_payments.settle(plugin_id, reviewed.vool, result, context)
             return replace(result, text=safe_data(result.text), error=safe_data(result.error),
                            resolved_target=safe_data(result.resolved_target),
                            observation={**safe_data(result.observation), "trust": "untrusted_external",
