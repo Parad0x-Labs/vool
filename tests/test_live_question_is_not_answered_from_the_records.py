@@ -42,7 +42,7 @@ WEATHER = "what's the weather in Paris today?"
 WEATHER_REPLY = "It is 18 C and sunny in Paris right now."
 RECORDS_QUESTION = "How many tonnes does the yard currently hold according to my notes?"
 RECORDS_REPLY = "Your notes say the yard currently holds 12,400 tonnes."
-CURRENT_INFORMATION_LEAD = "I can't publish an answer to this: it needed current information"
+CURRENT_INFORMATION_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
 
 
 class OfflineOpenRouterDaemon(OpenRouterCompatibleDaemon):

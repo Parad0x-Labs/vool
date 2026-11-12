@@ -20,7 +20,7 @@ from core.memory_grounding import memory_record_rows, question_names_someone_in_
 from tests.test_question_date_time_leg_20261002 import _hash_backend
 
 RECORDS_LEAD = "That is not mentioned in the records I have from our conversations"
-LIVE_LEAD = "I can't publish an answer to this: it needed current information"
+LIVE_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
 TIM = ("<retrieved_context>\n- user said (stated 2024-01-07): Session date: 7 January, 2024\n"
        "Tim: Great news - I'm finally in the study abroad program I applied for! Next month, I'm off to Ireland.\n"
        "</retrieved_context>")
