@@ -56,7 +56,7 @@ KNOWN_DIRECT_EGRESS: dict[str, tuple[int, str]] = {
     "core/craft_upgrade.py": (3, "unreviewed"),
     "core/embedding_service.py": (2, "unreviewed"),
     "core/fact_extractor.py": (2, "unreviewed"),
-    "core/intent_arbiter.py": (6, "unreviewed"),
+    "core/intent_arbiter.py": (8, "verified: four sites, each an import plus a call, all to the local Ollama endpoint from _ollama_chat_url (loopback is not enforced): the model listing GET, and three chat posts each sealed by seal_direct_provider_invocation first -- arbitrate, the follow-up arbiter (2026-11-12) and the prewarm"),
     "core/kernel/repl.py": (1, "unreviewed"),
     "core/llm_eval/procedural_runner.py": (1, "unreviewed"),
     "core/local_media_render.py": (1, "unreviewed"),

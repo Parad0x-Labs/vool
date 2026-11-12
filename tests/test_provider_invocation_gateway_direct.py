@@ -164,6 +164,12 @@ _SEALED_CALL_SITES = (
     ),
     _CallSite(
         "core/intent_arbiter.py",
+        "arbitrate_followup",
+        "seal_direct_provider_invocation(",
+        "requests.post(",
+    ),
+    _CallSite(
+        "core/intent_arbiter.py",
         "prewarm_async._warm",
         "seal_direct_provider_invocation(",
         "requests.post(",
