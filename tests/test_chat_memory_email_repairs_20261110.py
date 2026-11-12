@@ -896,3 +896,22 @@ def test_a_reply_whose_listed_intents_all_ran_is_left_alone(monkeypatch):
     authorship = _gate_with(monkeypatch, ["vool-database.migrate.preview"], ["vool-database.migrate.preview"])
     reply = "Here is the preview of the change.\n- vool-database.migrate.preview"
     assert authorship._unrun_listed_intents(reply, {"session_id": "s"}) is None
+
+
+# --- sweep block 1b (2026-11-12) ---------------------------------------------------------------
+
+
+def test_a_load_waits_for_unloaded_memory_to_come_back(monkeypatch):
+    from types import SimpleNamespace
+
+    import core.resource_governor as governor
+
+    readings = iter([2.1, 2.1, 3.0, 9.5])  # before, right after the unload, settling, settled
+    monkeypatch.setattr(governor, "_local_ollama_base", lambda _b=None: "http://127.0.0.1:11434")
+    monkeypatch.setattr(governor.sr, "snapshot", lambda **_k: SimpleNamespace(available_ram_gb=next(readings)))
+    monkeypatch.setattr(governor, "resident_models", lambda **_k: [{"name": "qwen3:4b"}, {"name": "gpt-oss:20b"}])
+    monkeypatch.setattr(governor, "estimated_model_gb", lambda _n, **_k: 5.5)
+    monkeypatch.setattr(governor, "_unload_models", lambda names, **_k: list(names))
+    monkeypatch.setattr(governor.time, "sleep", lambda _s: None)
+    decision = governor.plan_model_load("qwen3:8b")
+    assert decision.ok and decision.usable_after_gb == 9.5

@@ -21,6 +21,7 @@ import contextlib
 import json
 import os
 import signal
+import time
 import urllib.request
 from dataclasses import dataclass, field
 
@@ -280,6 +281,10 @@ def reclaim_model(model_name: str) -> bool:
     return bool(_unload_models([str(model_name or "").strip()]))
 
 
+#: How long a load waits for unloaded models' memory to come back before refusing.
+_RECLAIM_SETTLE_SECONDS = 8.0
+
+
 def plan_model_load(model_name: str, *, base_url: str | None = None) -> GovernorDecision:
     """Gate a chat-model load the way renders are gated: fit, reclaim, or refuse — never a freeze.
 
@@ -318,6 +323,14 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
                 "unloaded " + ", ".join(freed) + " to make room (each reloads on its next use)"
             )
             snap = sr.snapshot(force=True, **target_options)
+            # The OS gives an unloaded model's memory back over a few seconds, not at once.
+            # Measured on the 0.7.8 sweep (2026-11-12, block 1b): the certified qwen3:8b was refused
+            # for low memory right after the idle models were unloaded to make room for it. Wait,
+            # bounded, for the freed memory to show before deciding.
+            deadline = time.monotonic() + _RECLAIM_SETTLE_SECONDS
+            while snap.available_ram_gb < need + _LOAD_SAFETY_FLOOR_GB and time.monotonic() < deadline:
+                time.sleep(0.5)
+                snap = sr.snapshot(force=True, **target_options)
     decision.usable_after_gb = snap.available_ram_gb
     decision.ok = snap.available_ram_gb >= need + _LOAD_SAFETY_FLOOR_GB
     return decision
