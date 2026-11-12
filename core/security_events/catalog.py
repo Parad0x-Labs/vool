@@ -169,7 +169,7 @@ _WALLET_SEC_SPECS: tuple[SecSpec, ...] = (
     SecSpec(sec_code=SEC_WALLET_RECOVERY_REFUSED, fault_code="wallet_recovery_refused", severity="high", resource_class="wallet_key",
             source="core.wallet.pilot_custody", summary="A wallet recovery proof did not fit the wallet (a backup for another address, a malformed or inconsistent key, or a stale device challenge) and was refused before any write."),
     SecSpec(sec_code=SEC_WALLET_EXPORT_UNAVAILABLE, fault_code="wallet_export_unavailable", severity="high", resource_class="wallet_key",
-            source="core.wallet.custody", summary="A private-key export was asked of a wallet that holds no exportable key here (watch-only, not a VOOL Wallet on this machine, a Crypto Pilot whose backup was shown once, or a key that does not fit the chosen wallet app); nothing was revealed."),
+            source="core.wallet.custody", summary="A private-key export was asked of a wallet that holds no exportable key here (watch-only, not a legacy pocket sealed on this machine, a Crypto Pilot whose backup was shown once, a legacy pocket from an earlier version that must be restored first, or a key that does not fit the chosen wallet app); nothing was revealed."),
     SecSpec(sec_code=SEC_WALLET_EXPORT_PIN_NOT_ACCEPTED, fault_code="wallet_export_pin_not_accepted", severity="high", resource_class="wallet_key",
             source="core.wallet.custody", summary="A private-key export request carried a PIN, password or passphrase and was refused before the credential was consulted; export unlocks only by device authentication."),
 )
