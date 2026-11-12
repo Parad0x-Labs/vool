@@ -85,11 +85,27 @@ _ONLINE_RE = re.compile(
 )
 _TOPIC_RE = re.compile(
     r"\b(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|"
-    r"videos?|movies?|music|songs?|notes?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
-    r"tickets?|flights?|boarding|bookings?|reservations?|itinerar(?:y|ies)|meetings?|minutes|reports?|insurance|lease|rent|"
+    r"videos?|movies?|music|songs?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
+    r"tickets?|flights?|boarding|bookings?|reservations?|itinerar(?:y|ies)|meetings?|reports?|insurance|lease|rent|"
     r"contracts?|payslips?|warrant(?:y|ies)|appointments?|recipes?|disk|drive|storage|space|ram|memory|cpu|processor|specs?|"
     r"screen|monitors?|resolution|process(?:es)?|running|background|services?|logs?|errors?|slow|sluggish|junk|temp|"
     r"privacy|private|left\s+(?:this|my)\s+(?:computer|mac|laptop|machine)|sent\s+to\s+the\s+cloud)\b",
+    re.I,
+)
+# "minutes" is not a topic: "meetings?" already covers meeting minutes, and a bare "minutes" admitted
+# "15 minutes a day" (skills thread, 2026-11-12). Notes are not a topic either, see is_notes_ask.
+# The person's notes ("check my notes", "find my note about the plumber") belong to the notes tools,
+# which this loop does not have: it answered from files and the claim gate then said "I haven't
+# looked through your notes". A notes FILE ("my notes.md", "the notes on my desktop") stays a file.
+_NOTES_RE = re.compile(
+    r"\b(?:my|our)\s+notes?\b|\bnotes?\s+app\b|\bapple\s+notes\b|"
+    r"\b(?:a|any|the)\s+notes?\s+(?:about|on|for|that|i|where|with|mentioning)\b|"
+    r"\b(?:in|through|search|check|find|look\s+in)\s+(?:my\s+|the\s+)?notes\b(?!\s*\.)",
+    re.I,
+)
+_NOTES_FILE_RE = re.compile(
+    r"\bnotes?\s*\.\w|\bnotes?\s+(?:file|folder|doc|document|pdf|txt)s?\b|"
+    r"\b(?:files?|folders?|desktop|downloads|documents\s+folder|pdfs?)\b|\.(?:md|txt|pdf|docx?|rtf)\b",
     re.I,
 )
 # The machine itself counts only when it is the owner's: "my laptop", "this mac", not "mac or windows".
@@ -310,6 +326,12 @@ def is_online_ask(text: str) -> bool:
     return bool(_ONLINE_RE.search(value)) and not is_privacy_ask(value)
 
 
+def is_notes_ask(text: str) -> bool:
+    """An ask about the person's notes, for the notes tools; a notes file stays a file ask."""
+    value = str(text or "")
+    return bool(_NOTES_RE.search(value)) and not _NOTES_FILE_RE.search(value)
+
+
 def asks_about_own_files_or_computer(text: str) -> bool:
     value = str(text or "")
     if _SELF_RE.search(value):
@@ -416,6 +438,8 @@ def decide(
         return RouteDecision(False, blocked)
     if is_online_ask(text):
         return RouteDecision(False, "online_ask")
+    if is_notes_ask(text):
+        return RouteDecision(False, "notes_ask")
     by_documents = False
     if not (
         asks_about_own_files_or_computer(text)
@@ -444,6 +468,7 @@ __all__ = [
     "changes_enabled",
     "decide",
     "flag_on",
+    "is_notes_ask",
     "is_online_ask",
     "is_privacy_ask",
     "is_question",

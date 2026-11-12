@@ -122,6 +122,53 @@ def test_route_leaves_online_and_unrelated_asks_alone():
 @pytest.mark.parametrize(
     "ask",
     [
+        "check my notes, did I write anything about the dentist?",
+        "search my notes for the dentist",
+        "find my note about the plumber",
+        "is there a note about the boiler service?",
+        "look in my Apple Notes for the wifi code",
+        "did i put the gate code in the notes app",
+    ],
+)
+def test_route_sends_the_persons_notes_to_the_notes_tools(ask):
+    """The loop's tools are file-only: it answered notes asks from files and the claim gate then said
+    "I haven't looked through your notes" (skills thread on c9a7f426, 2026-11-12). Also as a follow-up."""
+    route.note_clean_turn("sess-notes")
+    for session_id in ("", "sess-notes"):
+        decision = route.decide(ask, source_context=OWNER, session_id=session_id, resolve_brain=_local_brain, env=ON)
+        assert (decision.admit, decision.reason) == (False, "notes_ask"), (ask, session_id)
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "what's in my notes.md on the desktop?",
+        "open the notes file in Documents",
+        "read the notes on my desktop",
+        "what did i write in the flat viewing notes?",
+    ],
+)
+def test_route_keeps_a_notes_file_as_a_file_ask(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert decision.admit, (ask, decision.reason)
+
+
+@pytest.mark.parametrize(
+    "ask", ["I want to practise Spanish 15 minutes a day, any tips?", "how many minutes are in a week?"]
+)
+def test_route_does_not_take_minutes_as_a_files_topic(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert (decision.admit, decision.reason) == (False, "not_about_own_files"), ask
+
+
+def test_route_still_reads_meeting_minutes_as_a_files_ask():
+    assert route.decide("what did the meeting minutes say about the budget?", source_context=OWNER,
+                        resolve_brain=_local_brain, env=ON).admit
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
         "stick an empty folder called Invoices on my desktop would you",
         "make me a shopping list file on the desktop: milk, bread",
         "can you move the cat photo from Pictures to my Desktop?",
