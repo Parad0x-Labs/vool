@@ -570,7 +570,7 @@
     "fault.wallet_quote_mismatch.message": "批准与预览过的转账不再匹配，因此没有签名或发送任何内容。请从新的预览重新开始。",
     "fault.wallet_quote_unavailable.action": "未知的链数据绝不会被当作零处理；请检查该行的端点及其身份证明。",
     "fault.wallet_quote_unavailable.message": "网络没有为此转账的余额或费用给出完整答复，因此没有准备批准，也没有发送任何内容。请稍等片刻再试。",
-    "fault.wallet_recipient_refused.action": "已拒绝：低于最低租金的新 Solana 账户、可执行或不在曲线上的账户、错误的 EIP-681 地址或已知合约收款方。",
+    "fault.wallet_recipient_refused.action": "已拒绝：低于最低租金的新 Solana 账户、可执行或不在曲线上的账户、错误的 EIP-55 校验和、零地址、预编译合约和系统合约。",
     "fault.wallet_recipient_refused.message": "该收款方无法在此网络上安全接收此转账，因此没有准备任何内容。请核对接收地址后重试。",
     "fault.wallet_recovery_refused.action": "恢复只从能解出该钱包自身密钥的备份（双向验证）重新封存已存在的钱包。",
     "fault.wallet_recovery_refused.message": "该恢复证明与此钱包不符，因此没有更改任何内容：存储的密钥必须是 VOOL 针对此确切地址显示的备份，且保持显示时的格式。请核对后重试，或使用其他选项。",

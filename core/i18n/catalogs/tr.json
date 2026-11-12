@@ -570,7 +570,7 @@
     "fault.wallet_quote_mismatch.message": "Onay artık önizlenen transferle uyuşmuyor, bu yüzden hiçbir şey imzalanmadı veya gönderilmedi. Yeni bir önizlemeden başlayın.",
     "fault.wallet_quote_unavailable.action": "Bilinmeyen zincir verisi asla sıfır sayılmaz; satırın ucunu ve kimlik kanıtını kontrol edin.",
     "fault.wallet_quote_unavailable.message": "Ağ bu transferin bakiyesi veya ücreti için eksiksiz yanıt vermedi, bu yüzden onay hazırlanmadı ve hiçbir şey gönderilmedi. Birazdan tekrar deneyin.",
-    "fault.wallet_recipient_refused.action": "Reddedildi: kiraminimumunun altında yeni Solana hesabı, yürütülebilir ya da eğri dışı hesap, bozuk EIP-681 adresi veya bilinen bir sözleşme alıcısı.",
+    "fault.wallet_recipient_refused.action": "Reddedildi: kiraminimumunun altında yeni Solana hesabı, yürütülebilir ya da eğri dışı hesap, bozuk EIP-55 sağlama toplamı, sıfır adresi, önceden derlenmiş sözleşmeler ve sistem sözleşmeleri.",
     "fault.wallet_recipient_refused.message": "O alıcı bu transferi bu ağda güvenle alamaz, bu yüzden hiçbir şey hazırlanmadı. Adresi kontrol edin ve tekrar deneyin.",
     "fault.wallet_recovery_refused.action": "Kurtarma, yalnızca cüzdanın kendi anahtarına çözülen bir yedekten (iki yönüyle) var olan bir cüzdanı yeniden mühürler.",
     "fault.wallet_recovery_refused.message": "O kurtarma kanıtı bu cüzdana uymuyor, bu yüzden hiçbir şey değişmedi: kayıtlı anahtar, VOOL'un tam bu adres için gösterdiği yedek, gösterildiği biçimde olmalı. Kontrol edip tekrar deneyin ya da diğer seçenekleri kullanın.",

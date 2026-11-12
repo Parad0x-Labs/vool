@@ -570,7 +570,7 @@
     "fault.wallet_quote_mismatch.message": "L'approbation ne correspond plus au transfert qui avait été prévisualisé, donc rien n'a été signé ni envoyé. Repartez d'un aperçu frais.",
     "fault.wallet_quote_unavailable.action": "Les données inconnues de chaîne ne sont jamais traitées comme zéro ; vérifiez le point final de la ligne et sa preuve d'identité.",
     "fault.wallet_quote_unavailable.message": "Le réseau n'a pas donné de réponse complète pour le solde ou les frais de ce transfert, donc aucune approbation n'a été préparée et rien n'a été envoyé. Réessayez dans un instant.",
-    "fault.wallet_recipient_refused.action": "Refusé : un nouveau compte Solana sous le loyer minimum, un compte exécutable ou hors courbe, une mauvaise adresse EIP-681 ou un destinataire contrat connu.",
+    "fault.wallet_recipient_refused.action": "Refusé : un nouveau compte Solana sous le loyer minimum, un compte exécutable ou hors courbe, une mauvaise somme de contrôle EIP-55, l'adresse zéro, les précompilés et les contrats système.",
     "fault.wallet_recipient_refused.message": "Ce destinataire ne peut pas recevoir ce transfert en sécurité sur ce réseau, donc rien n'a été préparé. Vérifiez l'adresse, puis réessayez.",
     "fault.wallet_recovery_refused.action": "La récupération rescelle un portefeuille existant uniquement depuis une sauvegarde qui décode vers la clé propre de ce portefeuille (dans les deux sens).",
     "fault.wallet_recovery_refused.message": "Cette preuve de récupération ne correspond pas à ce portefeuille, donc rien n'a été changé : la clé enregistrée doit être la sauvegarde que VOOL a montrée pour cette adresse exacte, au format où elle a été montrée. Vérifiez et réessayez, ou utilisez les autres options.",
