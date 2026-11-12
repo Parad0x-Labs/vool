@@ -758,7 +758,9 @@ def handle_make_directory(
         destructive=False,
         user_approved=bool(intent.approval_requested),
     )
-    if gate.requires_user_approval and not intent.approval_requested:
+    # The gate never asks approval for a non-destructive folder, so the handler does: a pending folder is
+    # created only by a request that approves it, whatever else carries its id.
+    if not intent.approval_requested:
         return OperatorActionResult(
             ok=False,
             status="approval_required",
@@ -777,8 +779,15 @@ def handle_make_directory(
         )
     scope = json.loads(str(pending.get("scope_json") or "{}"))
     previewed = str(scope.get("target_path") or "")
+    # Re-resolved from the place and name the preview asked about, the same words the preview resolved: the stored
+    # path is the real (link-followed) place, whose own folder names need not be Desktop, Downloads or Documents.
+    asked = (
+        f"~/{scope['root']}/{scope['name']}"
+        if isinstance(scope.get("root"), str) and isinstance(scope.get("name"), str) and scope["root"] and scope["name"]
+        else previewed
+    )
     try:
-        resolved = resolve_machine_directory_fn(previewed, write=True)
+        resolved = resolve_machine_directory_fn(asked, write=True)
     except ValueError as exc:
         return OperatorActionResult(
             ok=False,

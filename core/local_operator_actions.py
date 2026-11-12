@@ -331,12 +331,18 @@ def _folder_target(place: str, name: str) -> Path:
     if re.search(r"[/\\\x00]", clean_name) or clean_name in {".", ".."} or clean_name.startswith("."):
         raise ValueError(f"I won't use \"{name}\" as a folder name: it is not a plain folder name.")
     home = Path.home().resolve()
-    target = home / root / clean_name
-    norm = os.path.normpath(str(target))
-    root_prefix = str(home / root) + os.sep
-    if not norm.startswith(root_prefix):
-        raise ValueError(f"I can only set a folder up inside your own Desktop, Downloads, or Documents, not \"{name}\".")
-    resolved = Path(norm)
+    outside = f"I can only set a folder up inside your own Desktop, Downloads, or Documents, not \"{name}\"."
+    # Every check reads the real place: a Desktop that is a link elsewhere (into this runtime's own state, or
+    # anywhere outside the home) is followed first, and both the root and the folder must stay in the home.
+    root_dir = (home / root).resolve()
+    if root_dir == home or not str(root_dir).startswith(str(home) + os.sep):
+        raise ValueError(outside)
+    unresolved = root_dir / clean_name
+    if unresolved.is_symlink():
+        raise ValueError(f"I won't use \"{name}\": something with that name is already there and points elsewhere.")
+    resolved = unresolved.resolve()
+    if resolved.parent != root_dir or not str(resolved).startswith(str(root_dir) + os.sep):
+        raise ValueError(outside)
     if _path_is_denied(resolved):
         raise ValueError(f"I won't create folders at \"{_home_label(resolved)}\": that path is on this computer's denied list.")
     from core import runtime_paths

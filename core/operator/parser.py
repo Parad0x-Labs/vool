@@ -581,12 +581,14 @@ _APPROVAL_WORDS_RE = re.compile(
 )
 _APPROVE_WORD_RE = re.compile(r"\bapprove\b", re.IGNORECASE)
 _APPROVAL_ID_RE = re.compile(
-    r"\b(?:approve|cleanup|clean|schedule|calendar|meeting|move|archive)\s+([0-9a-f]{8}-[0-9a-f-]{27,})\b",
+    r"\b(?:approve|cleanup|clean|schedule|calendar|meeting|move|archive|folder)\s+([0-9a-f]{8}-[0-9a-f-]{27,})\b",
     re.IGNORECASE,
 )
 _MOVE_WORD_RE = re.compile(r"\b(?:move|relocate|archive)\b", re.IGNORECASE)
 # The folder noun, as the approval arm's action word: "approve folder <id>" approves, "don't approve folder <id>" does not.
 _FOLDER_NOUN_RE = re.compile(r"\bfolder\b", re.IGNORECASE)
+# The kind word of the folder preview's own approval line ('approve folder <id>'), right before the id.
+_FOLDER_BEFORE_ID_RE = re.compile(r"\bfolder\s+(?=[0-9a-f]{8}-[0-9a-f-]{27,}\b)", re.IGNORECASE)
 # "move the cat photo from Pictures to my Desktop": a file the owner names or describes, between two of their own
 # folders. The handler finds the one file (core.local_operator_actions.resolve_everyday_move) and previews the move.
 EVERYDAY_MOVE_RE = re.compile(
@@ -881,17 +883,18 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
         )
 
     everyday_folder = _everyday_make_folder(text)
+    # The approval the folder preview itself offers is 'approve folder <id>'. Read as words, "approve folder"
+    # names a folder called "approve" and the approve word is masked as that value, so the approval is read on
+    # the line with the kind word before the id dropped: "approve <id>" approves, "don't approve <id>" does not.
+    folder_approval_text = _FOLDER_BEFORE_ID_RE.sub("", text) if action_id else text
     if everyday_folder is not None or (
-        # The approval the folder preview itself offers ('Reply with: approve folder <id>') named no
-        # kind here, so it parsed as no operator action -- the same id-shaped arm the move and
-        # cleanup branches have, gated the same way on `_says_approve`.
-        action_id and "folder" in lowered and _says_approve(text)
+        action_id and "folder" in lowered and _says_approve(folder_approval_text)
     ):
         return OperatorActionIntent(
             kind="make_directory",
             target_label=(everyday_folder or {}).get("name"),
             destination_path=(everyday_folder or {}).get("place"),
-            approval_requested=_approval_requested(text, action=_FOLDER_NOUN_RE),
+            approval_requested=_approval_requested(folder_approval_text, action=_FOLDER_NOUN_RE),
             action_id=action_id,
             raw_text=text,
         )
