@@ -2335,6 +2335,25 @@ def _capture_object_is_a_set_or_picture(verb: str, text: str) -> bool:
     return set_save_request(text) is not None or picture_edit_request(text)
 
 
+#: The answer to a forget a team agent's brief carries: the brief is not the owner speaking, and a forget cannot be
+#: undone, so an agent never erases what the owner saved (as it never takes back a standing instruction).
+AGENT_TURN_FORGET_REFUSED = (
+    "This chat belongs to a team agent, so nothing was forgotten. "
+    "Ask me in your own chat and I'll forget it there."
+)
+
+
+def _agent_turn_forget_refusal(user_text, *, session_id, source_context):
+    """A forget in a team agent's turn, refused before any erasure starts. Recorded as this turn's forget outcome
+    (not started), so the reply stands as the executor's own and claims nothing was removed."""
+    parsed = _FORGET_RE.match(user_text)
+    return _forget_outcomes.record(
+        AGENT_TURN_FORGET_REFUSED, request=user_text, session=session_id or "", source_context=source_context,
+        argument=parsed.group(1) if parsed else user_text, status="not_started",
+        stores={"agent_turn": {"status": "refused"}},
+    )
+
+
 def _forget_start_failure(user_text, *, session_id, source_context, started):
     reply = ("Forget could not be verified as fully applied: independent revocation authority is unavailable. Please retry the forget."
              if started else
@@ -2361,6 +2380,11 @@ def _preadmit_forget_turn(user_text, *, session_id, source_context):
     live_text = intake_request_text(user_text)
     if not requires_forget_outcome({}, user_input=live_text, source_context=source_context):
         return False, None
+    from core.request_trust import turn_speaks_for_owner
+
+    if not turn_speaks_for_owner(source_context, str(session_id or "")):
+        # A team agent's brief erases nothing of the owner's: refused before any barrier or erasure begins.
+        return True, _agent_turn_forget_refusal(user_text, session_id=session_id, source_context=source_context)
     owner = dict(request=user_text, session=session_id, source_context=source_context)
     if _forget_outcomes.admission(**owner) is not None:
         return True, None
@@ -2517,6 +2541,12 @@ def maybe_handle_memory_command(
     parsed_forget = _FORGET_RE.match(text)
     forget_arguments = _forget_command_arguments(text)
     if parsed_forget:
+        from core.request_trust import turn_speaks_for_owner
+
+        if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            # A team agent's brief erases nothing of the owner's (core.request_trust.turn_speaks_for_owner).
+            barrier_chat = str(getattr(access_policy, "chat_id", None) or session_id or (source_context or {}).get("chat_id") or "")
+            return True, _agent_turn_forget_refusal(text, session_id=barrier_chat, source_context=source_context)
         from pathlib import Path
 
         from core.memory import revocation
