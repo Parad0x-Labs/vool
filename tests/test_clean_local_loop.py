@@ -101,6 +101,11 @@ def test_route_needs_a_local_brain():
         ({**OWNER, "_trusted_project_id": "proj-1"}, "project_owns_turn"),
         ({**OWNER, "planned_subturn": True}, "planned_subturn"),
         ({"surface": "channel", "_owner_local": False}, "not_owner_local"),
+        # A turn that carries files belongs to the lanes that read them: the loop's brain sees only
+        # the words, so the attached notes were never read (clean loop ON, reader rig m1-text).
+        ({**OWNER, "attachment_turn_id": "req:abc", "external_evidence": [{"kind": "text", "attachment_id": "a1"}]},
+         "attachment_turn"),
+        ({**OWNER, "external_evidence": [{"kind": "image", "reference": "attachment:a2"}]}, "attachment_turn"),
     ],
 )
 def test_route_leaves_turns_something_else_owns(context, reason):

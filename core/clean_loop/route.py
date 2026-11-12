@@ -370,6 +370,22 @@ def _is_follow_up(text: str, session_id: str) -> bool:
     return seen is not None and time.monotonic() - seen < _FOLLOW_UP_TTL_S
 
 
+def _carries_attachments(source_context: Mapping[str, Any]) -> bool:
+    """A turn that carries files (the chat's attachments, a channel's media) belongs to the lanes
+    that read them: this loop's brain sees only the words and its own tools, so "what token is in
+    the attached notes?" was answered from the owner's disk with the file itself never read. When
+    the evidence cannot be counted, a turn that names any is treated as carrying it."""
+    if str(source_context.get("attachment_turn_id") or "").strip():
+        return True
+    evidence = source_context.get("external_evidence")
+    try:
+        from core.agent_runtime.request_authority import bounded_evidence
+
+        return bool(bounded_evidence(evidence).recognized)
+    except Exception:
+        return bool(evidence)
+
+
 def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) -> str:
     if source_context.get("planned_subturn"):
         return "planned_subturn"
@@ -377,6 +393,8 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
         return "resumed_turn"
     if str(source_context.get("_trusted_project_id") or "").strip():
         return "project_owns_turn"
+    if _carries_attachments(source_context):
+        return "attachment_turn"
     try:
         from core.private_chat import turn_is_private
 
