@@ -1667,6 +1667,15 @@ def _execute_tool_intent_impl(
             # reason it did not run. Measured served 2026-10-19: `false && touch x` and a refused
             # `bash -c` both ended on "I wasn't able to turn that into a completed action".
             execution.user_safe_response_text = str(runtime_execution.response_text or "")
+        if intent == "pdf.extract_text" and str(runtime_execution.status) == "no_text_layer":
+            from core.pdf_tools import ocr_available
+
+            if not ocr_available():
+                # Off macOS a scan is where the turn ends: there is no recogniser to hand it to, and
+                # the tool's own sentence says so in plain words. Measured on the real Linux chat
+                # (V-043, 2026-11-12): without this the turn ended on the generic "I wasn't able to
+                # turn that into a completed action". On macOS the model's next step is pdf.ocr.
+                execution.user_safe_response_text = str(runtime_execution.response_text or "")
         _maybe_store_tool_receipt(
             execution,
             receipt_key=receipt_key,

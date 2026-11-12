@@ -153,6 +153,22 @@ def _run_helper(helper: str, args: list[str], *, timeout: float) -> dict[str, An
         return {"status": "error", "reason": "PDF helper returned no JSON"}
 
 
+def ocr_available() -> bool:
+    """Whether this computer has a text recogniser for scanned pages: macOS only.
+
+    Recognition runs on Apple's Vision framework. Everywhere else there is none, so ``pdf.ocr`` is
+    not offered to the model there, and nothing tells it to call that tool (ledger V-043). Before
+    this, a Linux chat offered it, the model or the PDF fast path called it, and the reply quoted
+    the macOS helper's Python import error.
+    """
+    import platform
+
+    return platform.system() == "Darwin"
+
+
+NO_OCR_REASON = "reading text from scanned pages is not available on this computer yet"
+
+
 def _resolve(path: str) -> tuple[Path | None, dict[str, Any] | None]:
     candidate = Path(str(path or "").strip()).expanduser()
     if not str(candidate):
@@ -240,6 +256,9 @@ def extract_text(
         assembled["status"] = "no_text_layer"
         assembled["reason"] = (
             "this PDF carries no text layer, so it is almost certainly scanned - run pdf.ocr on it"
+            if ocr_available()
+            # Never name a tool this computer does not offer: the model would try to call it.
+            else f"this PDF carries no text layer, so it is almost certainly scanned; {NO_OCR_REASON}"
         )
     return assembled
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from core.cloud_tool_call_contract import build_cloud_tool_definitions
 from core.execution.capabilities import runtime_tool_specs
@@ -61,7 +62,21 @@ def _shape_arguments(shape: str, workspace_root: str) -> dict[str, Any]:
     return {}
 
 
-def build_snapshot(*, web: bool = True, browser: bool = True) -> dict[str, Any]:
+# The operating systems the surface is pinned for, as `platform.system()` names them, each with
+# its own golden. The surface differs by OS: `pdf.ocr` is offered on macOS only (ledger V-043).
+PLATFORMS = ("Darwin", "Linux")
+
+
+def golden_path(system: str) -> Path:
+    """The golden for one OS. macOS keeps the original name: it is the full surface."""
+
+    here = Path(__file__).resolve().parent
+    if system == "Darwin":
+        return here / "tool_surface_golden.json"
+    return here / f"tool_surface_golden.{system.lower()}.json"
+
+
+def build_snapshot(*, web: bool = True, browser: bool = True, system: str | None = None) -> dict[str, Any]:
     """Capture the tool surface at an explicitly declared policy, as JSON-comparable data.
 
     The policy is passed in rather than inherited, and that is not tidiness. Measured on
@@ -75,14 +90,26 @@ def build_snapshot(*, web: bool = True, browser: bool = True) -> dict[str, Any]:
     A golden built on whichever configuration happened to be in effect would freeze an
     accident. Declaring it means a diff says "the tool surface changed", not "the harness ran
     in a different order this time".
+
+    ``system`` pins the operating system the same way (``"Darwin"``, ``"Linux"``), so both
+    goldens are checked on every machine. None takes the host's.
     """
 
-    specs = list(
-        runtime_tool_specs(
-            allow_web_fallback_fn=lambda: bool(web),
-            allow_browser_fallback_fn=lambda: bool(browser),
+    if system is None:
+        specs = list(
+            runtime_tool_specs(
+                allow_web_fallback_fn=lambda: bool(web),
+                allow_browser_fallback_fn=lambda: bool(browser),
+            )
         )
-    )
+    else:
+        with mock.patch("platform.system", return_value=system):
+            specs = list(
+                runtime_tool_specs(
+                    allow_web_fallback_fn=lambda: bool(web),
+                    allow_browser_fallback_fn=lambda: bool(browser),
+                )
+            )
     definitions = build_cloud_tool_definitions(specs)
     native_by_intent = {item.intent: item for item in definitions}
 

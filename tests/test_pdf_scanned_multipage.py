@@ -31,6 +31,13 @@ def _helper_reply(pages: list[str]) -> dict:
     return {"status": "ok", "pages_total": len(pages), "pages_read": len(pages), "page_text": pages}
 
 
+@pytest.fixture(autouse=True)
+def _macos_recogniser(monkeypatch):
+    # These drive the macOS route, where Vision can read a scan and pdf.ocr is offered. The
+    # off-macOS answer has its own test below.
+    monkeypatch.setattr(pdf_tools, "ocr_available", lambda: True)
+
+
 @pytest.fixture
 def scan(tmp_path):
     target = tmp_path / "scan.pdf"
@@ -82,6 +89,23 @@ def test_the_model_is_told_to_run_ocr_on_a_two_page_scan(scan) -> None:
     assert result.status == "no_text_layer"
     assert "pdf.ocr" in result.response_text
     assert "[page 2]" not in result.response_text
+
+
+def test_off_macos_a_scan_never_names_the_tool_this_computer_lacks(scan, monkeypatch) -> None:
+    """V-043: off macOS pdf.ocr is not offered, so the result the model reads must not send it
+    there. It still says the PDF is scanned, not blank, and why its text cannot be read."""
+
+    monkeypatch.setattr(pdf_tools, "ocr_available", lambda: False)
+    with mock.patch.object(pdf_tools, "_run_helper", return_value=_helper_reply(["", ""])):
+        result = execute_runtime_tool(
+            "pdf.extract_text", {"path": str(scan)}, source_context={"surface": "api"}
+        )
+
+    assert result is not None and not result.ok
+    assert result.status == "no_text_layer"
+    assert "pdf.ocr" not in result.response_text
+    assert "scanned" in result.response_text
+    assert "not available on this computer" in result.response_text
 
 
 _MAKE_BLANK_PAGES = r'''

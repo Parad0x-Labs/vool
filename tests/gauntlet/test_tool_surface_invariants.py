@@ -11,11 +11,13 @@ and that is exactly the shape of a quiet permission widening: `side_effect_class
 The two xfails below are live defects captured deliberately. They are the reason this harness
 exists: they were found by building it, not by the 5,246 tests that were already green.
 
-When the tool surface legitimately changes, regenerate with:
+The surface differs by operating system (`pdf.ocr` is macOS only), so there is one golden per OS
+and every machine checks all of them, with the OS pinned. When the tool surface legitimately
+changes, regenerate them all with:
 
     .venv/bin/python -c "import json; from tests.gauntlet.tool_surface_snapshot import \\
-      build_snapshot; json.dump(build_snapshot(), open('tests/gauntlet/tool_surface_golden.json','w'), \\
-      indent=2, sort_keys=True)"
+      PLATFORMS, build_snapshot, golden_path; [json.dump(build_snapshot(system=s), \\
+      open(golden_path(s),'w'), indent=2, sort_keys=True) for s in PLATFORMS]"
 
 and review the diff. A widened permission or a dropped intent must not pass review unremarked.
 """
@@ -29,11 +31,9 @@ import pytest
 
 from core.cloud_tool_call_contract import build_cloud_tool_definitions
 from core.execution.capabilities import runtime_tool_specs
-from tests.gauntlet.tool_surface_snapshot import ARGUMENT_SHAPES, build_snapshot
+from tests.gauntlet.tool_surface_snapshot import ARGUMENT_SHAPES, PLATFORMS, build_snapshot, golden_path
 
 pytestmark = [pytest.mark.gauntlet, pytest.mark.safety]
-
-GOLDEN_PATH = Path(__file__).resolve().parent / "tool_surface_golden.json"
 
 
 def _shipped_specs() -> list[dict[str, Any]]:
@@ -53,14 +53,47 @@ def _shipped_specs() -> list[dict[str, Any]]:
     )
 
 
-@pytest.fixture(scope="module")
-def golden() -> dict[str, Any]:
-    return json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+@pytest.fixture(scope="module", params=PLATFORMS)
+def system(request: pytest.FixtureRequest) -> str:
+    return str(request.param)
 
 
 @pytest.fixture(scope="module")
-def live() -> dict[str, Any]:
-    return build_snapshot()
+def golden(system: str) -> dict[str, Any]:
+    return json.loads(golden_path(system).read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def live(system: str) -> dict[str, Any]:
+    return build_snapshot(system=system)
+
+
+def test_the_host_surface_is_the_pinned_surface_for_its_os() -> None:
+    """The pin is the real gate: unpinned, this machine offers exactly its own OS's surface.
+
+    Without this, a pin that patched something the catalog no longer reads would keep both
+    goldens green while the host offered a third surface.
+    """
+
+    import platform
+
+    host = platform.system()
+    if host not in PLATFORMS:
+        pytest.skip(f"no golden for {host}")
+    assert build_snapshot() == build_snapshot(system=host)
+
+
+def test_pdf_ocr_is_offered_on_macos_only() -> None:
+    """V-043: off macOS there is no recogniser, so the model is not handed pdf.ocr, and the
+    text-layer tool's description does not send it there."""
+
+    mac = build_snapshot(system="Darwin")
+    linux = build_snapshot(system="Linux")
+    assert "pdf.ocr" in mac["intents"]
+    assert "pdf.ocr" not in linux["intents"]
+    assert "pdf.ocr" in mac["tools"]["pdf.extract_text"]["description"]
+    assert "pdf.ocr" not in linux["tools"]["pdf.extract_text"]["description"]
+    assert sorted(set(mac["intents"]) - set(linux["intents"])) == ["pdf.ocr"]
 
 
 def test_the_snapshot_ignores_the_ambient_policy_cache() -> None:
