@@ -17,6 +17,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from apps.vool_agent import VoolAgent
 from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
@@ -79,6 +81,7 @@ class RetryTurnIdentityTests(unittest.TestCase):
             result = self.agent.run_once(_INCIDENT_TEXT, source_context=dict(_SOURCE_CONTEXT))
         return echoed_session_identity(self.agent, result)
 
+    @pytest.mark.usefixtures("enable_web")
     def test_first_attempt_has_real_matching_origin_and_trigger_turn_ids(self) -> None:
         sid = self._submit_incident()
         gen1 = latest_runtime_attempt(sid)
@@ -89,6 +92,7 @@ class RetryTurnIdentityTests(unittest.TestCase):
         # A real UUID-shaped dialogue turn id, not a placeholder.
         self.assertRegex(gen1["origin_user_turn_id"], r"^[0-9a-f-]{36}$")
 
+    @pytest.mark.usefixtures("enable_web")
     def test_retry_keeps_origin_turn_and_mints_a_new_trigger_turn(self) -> None:
         sid = self._submit_incident()
         gen1 = latest_runtime_attempt(sid)
@@ -122,6 +126,7 @@ class RetryTurnIdentityTests(unittest.TestCase):
         self.assertNotEqual(gen2["trigger_user_turn_id"], gen1["trigger_user_turn_id"])
         self.assertTrue(str(gen2.get("trigger_user_turn_id") or "").strip())
 
+    @pytest.mark.usefixtures("enable_web")
     def test_sabotage_dropping_turn_wiring_leaves_origin_turn_empty(self) -> None:
         """Mutation: remove the origin/trigger wiring (return "" from the carrier this repair
         added) -- the production-path assertion above must turn red without it."""

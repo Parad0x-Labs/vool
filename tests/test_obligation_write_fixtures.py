@@ -183,6 +183,7 @@ def test_read_recorded_obligation_reports_a_row_that_genuinely_exists() -> None:
     assert obligation["request_text"] == "what is the price of polkadot"
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_driver_observes_a_real_write_from_the_known_writing_lane(make_agent) -> None:
     """The DRIVE half, proven end to end against a REAL, currently-working production write.
 

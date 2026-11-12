@@ -119,6 +119,16 @@ _TRAVEL_DELIVERY_RE = re.compile(
     r"(?:[^.!?;\n]{0,100}\b(?:bring|fetch|carry|deliver|check)\b)?",
     re.IGNORECASE,
 )
+# "go to example.net and give me the gist" goes to a web address, not a place: a URL or a domain right
+# after the travel verb is a page to open (0.7.8 sweep block 2c answered it "this runtime has no
+# body or verified travel capability").
+_WEB_DESTINATION_RE = re.compile(
+    r"^\s*(?:(?:please|now|just)\s+)*(?:go|head|navigate|jump|come)\s+(?:over\s+|back\s+)?(?:to|onto)\s+"
+    r"(?:the\s+)?(?:(?:web\s*)?(?:site|page|website)\s+)?"
+    r"(?:https?://|www\.|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|dev|ai|co|app|info|edu|gov|eu|uk|de|fr|es|it"
+    r"|nl|lt|lv|ee|fi|se|no|dk|pl|ch|at|be|pt|ie|us|ca|au|nz|jp|me|tv|news|wiki)\b)",
+    re.IGNORECASE,
+)
 _VEHICLE_ACTION_RE = re.compile(
     r"\b(?:drive|park|steer|move)\b[^.!?;\n]{0,70}"
     r"\b(?:car|vehicle|truck|motorcycle|bike|bicycle|it)\b",
@@ -314,7 +324,7 @@ def unavailable_action_report(text: str) -> ActionAvailabilityReport | None:
             kind=UnavailableActionKind.PHYSICAL_EMBODIMENT,
             reason="this runtime has no physical body or actuator in the user's environment",
         )
-    if _TRAVEL_DELIVERY_RE.search(request):
+    if _TRAVEL_DELIVERY_RE.search(request) and not _WEB_DESTINATION_RE.search(request):
         return ActionAvailabilityReport(
             request=request,
             kind=UnavailableActionKind.OUTBOUND_TRAVEL,

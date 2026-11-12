@@ -54,7 +54,8 @@ def test_build_caps_entries(tmp_path) -> None:
 
 def test_build_empty_folder_guides_not_hallucinate(tmp_path) -> None:
     bound = build_folder_overview(str(tmp_path), project_bound=True)
-    assert "empty" in bound.lower() and str(tmp_path) in bound
+    # The folder is named as the person knows it, never by its full storage path (0.7.8 sweep block 3).
+    assert "empty" in bound.lower() and f"`{tmp_path.name}`" in bound and str(tmp_path.parent) not in bound
     unbound = build_folder_overview(str(tmp_path), project_bound=False)
     assert "+ Project" in unbound or "path" in unbound.lower()
 

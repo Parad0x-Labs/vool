@@ -52,6 +52,56 @@ _REJECTED_BEFORE_INFERENCE = {
 }
 
 
+#: How long a rejected key (AUTH) benches its model. Auth is deterministic: the same key against
+#: the same gateway cannot start working because minutes passed. Measured 2026-11-03 (build
+#: 8af687ca, two served chats): two ``:free`` OpenRouter lanes failed with ``auth`` on EVERY turn
+#: of every chat — each turn re-paid the same refused handshake before reaching a working model,
+#: and the traces filled with failures that carried no information the second time they happened.
+#: Advisory only: a cooldown never removes the last candidate (a pinned or sole route still gets
+#: its attempt — the user may have just fixed the key), and nothing here persists across processes.
+AUTH_FAILURE_COOLDOWN_S = 600.0
+_AUTH_FAILURE_COOLDOWN: dict[str, float] = {}
+
+
+def _auth_cooldown_key(provider_id: str, model_id: str) -> str:
+    return f"{str(provider_id or '').strip()}|{str(model_id or '').strip()}"
+
+
+def _note_auth_failure(provider_id: str, model_id: str, *, now: float | None = None) -> None:
+    key = _auth_cooldown_key(provider_id, model_id)
+    if not key.strip("|"):
+        return
+    _AUTH_FAILURE_COOLDOWN[key] = (
+        time.monotonic() if now is None else float(now)
+    ) + AUTH_FAILURE_COOLDOWN_S
+
+
+def _filter_auth_cooldown(candidates: tuple[Any, ...]) -> tuple[Any, ...]:
+    """Drop candidates whose key is under an active auth cooldown, never the last one.
+
+    A sole or pinned candidate is always attempted: the cooldown is an advisory bench for
+    candidates that have alternatives, not a verdict that the key is broken forever.
+    """
+    if not candidates:
+        return candidates
+    now = time.monotonic()
+    kept = tuple(
+        model
+        for model in candidates
+        if _AUTH_FAILURE_COOLDOWN.get(
+            _auth_cooldown_key(
+                str(getattr(model, "provider_id", "") or ""),
+                str(getattr(model, "model_id", "") or ""),
+            ),
+            0.0,
+        )
+        <= now
+    )
+    if not kept:
+        return candidates
+    return kept
+
+
 @dataclass(frozen=True)
 class CloudBrokerResult:
     used_cloud: bool
@@ -297,6 +347,7 @@ class CloudModelBroker:
                 for model in candidates
                 if model.pricing_state != PricingState.PAID or model.model_id == authorized_model_id
             )
+        candidates = _filter_auth_cooldown(candidates)
         if not candidates:
             return CloudBrokerResult(
                 False,
@@ -618,6 +669,10 @@ class CloudModelBroker:
                 except Exception as exc:
                     error = provider.classify_provider_error(exc)
                     errors.append(error.kind.value)
+                    if error.kind == ProviderErrorKind.AUTH:
+                        # A rejected key is deterministic; bench this model so later turns and
+                        # later candidates in this turn do not re-pay the same refused handshake.
+                        _note_auth_failure(fresh.provider_id, fresh.model_id)
                     if error.kind not in _REJECTED_BEFORE_INFERENCE:
                         disclosed_to_a_model = True
                     if not validator_detail_recorded:

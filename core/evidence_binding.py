@@ -270,7 +270,7 @@ def compose_grounded_report(notes: Sequence[Any] | None, *, limit: int = 3) -> s
 
     if not rendered:
         return ""
-    lead = "Here is what the sources returned for this turn:"
+    lead = "What the pages said:"
     return lead + "\n\n" + "\n\n".join(f"- {item}" for item in rendered)
 
 

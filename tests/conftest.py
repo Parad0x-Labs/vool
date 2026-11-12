@@ -893,6 +893,27 @@ def _fresh_web_engine_memory():
         pass
 
 
+@pytest.fixture(autouse=True)
+def _fresh_cloud_auth_cooldown():
+    """`core.cloud_broker` keeps a process-global auth cooldown (a rejected key benches its
+    model for later candidates and later turns — the point of the bench). Tests that simulate
+    auth failures must not bench a model for the tests that follow them: a scripted provider
+    serves responses positionally, and a benched first model shifts every later script."""
+    try:
+        from core.cloud_broker import _AUTH_FAILURE_COOLDOWN
+
+        _AUTH_FAILURE_COOLDOWN.clear()
+    except Exception:
+        pass
+    yield
+    try:
+        from core.cloud_broker import _AUTH_FAILURE_COOLDOWN
+
+        _AUTH_FAILURE_COOLDOWN.clear()
+    except Exception:
+        pass
+
+
 # These modules exercise mocked providers or an owned HTTP fixture, never a real model load.
 # Their transport assertions must not depend on live host RAM or resident user models.
 _MOCK_PROVIDER_RESOURCE_MODULES = {

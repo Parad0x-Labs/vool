@@ -4,53 +4,53 @@
   <img src="docs/assets/vool-flag-banner.png" alt="VOOL flag — your machine, your agent" width="100%" />
 </p>
 
-<p align="center"><strong>Your machine. Your models. An agent that gets things done.</strong></p>
+<p align="center"><strong>The open-source agent that remembers more, spends less, and runs on your machine.</strong></p>
 
 <p align="center">
   <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.5_beta-eee8d5" alt="Version 0.7.5 beta" /></a> <a href="https://github.com/Parad0x-Labs/vool/stargazers"><img src="https://img.shields.io/github/stars/Parad0x-Labs/vool?label=stars&color=eee8d5" alt="GitHub stars" /></a><br />
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.8_beta-eee8d5" alt="Version 0.7.7 beta" /></a> <a href="https://github.com/Parad0x-Labs/vool/stargazers"><img src="https://img.shields.io/github/stars/Parad0x-Labs/vool?label=stars&color=eee8d5" alt="GitHub stars" /></a><br />
   <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Fapps.json" alt="App installer downloads across all versions" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Fmacos-arm64.json" alt="macOS Apple silicon app downloads across all versions" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Fmacos-intel.json" alt="macOS Intel app downloads across all versions" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Flinux.json" alt="Linux app downloads across all versions" /></a>
 </p>
 
-**VOOL is a local-first personal agent from Parad0x Labs.** It connects conversation to action: read a project, edit files, run tests, research the web, and carry useful context into the next session.
+**VOOL is a local-first personal agent from Parad0x Labs.** It reads your projects, edits files, runs tests, researches the web, and remembers what matters for next time. Free, MIT-licensed, no account. Start on a local model with no cloud key, or bring your own provider.
 
-Start with a local model and no VOOL account or cloud API key. Connect your own cloud provider when you want more model choice. Your workspace, memory, and action history stay under your control.
+## Beats OpenClaw and Hermes on memory
 
-**[Get started](#install) · [Documentation](docs/README.md) · [Explore the code](docs/REPO_MAP.md) · [Community](https://discord.gg/V9NkjP3Fzz)**
+Same 150 never-used [LoCoMo](https://github.com/snap-research/locomo) questions. Same model answering for all three agents. Same GPT-4o grader.
+
+| | **VOOL** | OpenClaw | Hermes |
+| --- | --- | --- | --- |
+| **Right answers** | **82.7%** (124 / 150) | 71.3% (107) | 62.7% (94) |
+| Tokens per question | **9.6k** | 51.8k | 33.5k |
+| Cost per question | **$0.0033** | $0.0100 | $0.0046 |
+| Median answer time | **11.2 s** | 15.6 s | 16.2 s |
+
+- **+11 points over OpenClaw, +20 over Hermes,** and the fewest confidently wrong answers (18 vs 31 and 35). Not luck: p = 0.005 and p < 0.001 on matched questions.
+- **5.4x fewer tokens than OpenClaw, 3.5x fewer than Hermes.** A third of OpenClaw's cost per answer.
+- **In the app today.** The memory shipped in VOOL 0.7 scored 123 / 150 on the same questions, level with the build above.
+- **Every run is public,** including the round where VOOL's lead was too small to count. [**See the proof**](docs/benchmarks/v0.7-memory-locomo.md)
 
 ## Why VOOL
 
-### A conversation that can do the work
+- **It does the work.** Reads, plans, calls tools, checks results, and keeps going: code, files, commands, documents and the web. [Tools and permissions](docs/concepts/tools.md)
+- **It remembers.** Facts and decisions carry across sessions, stored as readable files you can inspect and forget on demand. [How memory works](docs/concepts/memory.md)
+- **Your models.** Local models through Ollama and supported runtimes, offline after setup, or a cloud model with your own key. [Local and cloud](docs/concepts/local-and-cloud.md)
+- **Proof, not promises.** Every tool call is recorded with what was asked, what ran and what came back; signed receipts verify offline. [Receipts](docs/concepts/receipts.md)
+- **You stay in charge.** Workspace scopes, approval modes and spending limits decide what the agent may do. [Spending limits](docs/guides/spending-limits.md)
 
-VOOL can read, plan, call tools, inspect results, and continue. Give it a repository to investigate, a file to produce, or a research question to work through. The runtime connects the model to tools for code, files, commands, documents, and the web.
-
-### Memory beyond one chat
-
-Keep useful facts and decisions across sessions. Local memory, context management, and retrieval help the agent pick up where you left off. You can inspect and manage what it remembers. [How memory works →](docs/concepts/memory.md) · [Memory benchmarks →](#memory-benchmarks)
-
-### Your choice of models
-
-Run local inference through Ollama or supported local runtimes, or connect a cloud model with your own credentials. Installation profiles adapt the local setup to your hardware. Cloud use is optional; provider charges apply when you enable it. [Local and cloud →](docs/concepts/local-and-cloud.md)
-
-### Results you can inspect
-
-Tool activity records what was requested, what executed, and what came back. Signed honesty receipts add tamper-evident records you can verify offline. You can inspect the work behind an answer—not just read its summary. [Receipts →](docs/concepts/receipts.md)
-
-### Useful access, with boundaries
-
-Workspace scopes and operating modes control what the agent can do. Choose how everyday actions are approved; sensitive operations retain their permission checks. Extend the runtime with plugins and MCP connections, with explicit control over the environment passed to external tools. [Tools and permissions →](docs/concepts/tools.md)
+**[Get started](#install) · [Documentation](docs/README.md) · [Benchmarks](docs/benchmarks/README.md) · [Explore the code](docs/REPO_MAP.md) · [Community](https://discord.gg/V9NkjP3Fzz)**
 
 ## Install
 
-**Current version: 0.7.5-beta.** Download the app for your computer from the [v0.7.5-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta), or install from source with the bootstrap script below.
+**Current version: 0.7.8-beta.** Download the app for your computer from the [v0.7.8-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.8-beta), or install from source with the bootstrap script below.
 
 ### Downloads
 
 | Your computer | Download |
 | --- | --- |
-| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.5-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/VOOL-0.7.5-beta-macos-arm64.dmg) |
-| **Mac with an Intel chip** | [`VOOL-0.7.5-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/VOOL-0.7.5-beta-macos-x86_64.dmg) |
-| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.5-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/vool-0.7.5-beta-linux-x86_64.tar.gz) |
+| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.8-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.8-beta/VOOL-0.7.8-beta-macos-arm64.dmg) |
+| **Mac with an Intel chip** | [`VOOL-0.7.8-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.8-beta/VOOL-0.7.8-beta-macos-x86_64.dmg) |
+| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.8-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.8-beta/vool-0.7.8-beta-linux-x86_64.tar.gz) |
 
 Each download has a SHA-256 checksum on the release page. Check it before you open the file ([how](docs/getting-started/install.md#verify-a-download)). Not sure which Mac you have? Open the Apple menu and choose **About This Mac**: "Apple M…" means Apple Silicon, "Intel" means Intel. The macOS app needs macOS 14 Sonoma or newer.
 
@@ -64,7 +64,7 @@ Each download has a SHA-256 checksum on the release page. Check it before you op
 
 **Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine.
 
-From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
+From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac: download 0.7.8 and install it over your current version. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 
 | Platform | Getting started |
 | --- | --- |
@@ -80,8 +80,8 @@ For model choices, system requirements, checksums, and troubleshooting, see the 
 Download the bootstrap script, then run it:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh --ref v0.7.5-beta
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.8-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.8-beta
 ```
 
 ### From source: Windows PowerShell
@@ -99,9 +99,9 @@ The installer prepares the Python environment, checks your hardware, sets up the
 The default profile is selected from your hardware. To choose explicitly:
 
 ```bash
-bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.8-beta --install-profile local-only
 # Or use the larger local model profile:
-bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.8-beta --install-profile local-max
 ```
 
 Windows accepts `-InstallProfile local-only` or `-InstallProfile local-max`.
@@ -156,7 +156,7 @@ A signature verifies the signed record's integrity; it is not a guarantee that e
 
 ## Memory benchmarks
 
-On 150 never-used [LoCoMo](https://github.com/snap-research/locomo) questions, with the same model answering for every system and GPT-4o grading, VOOL's memory answered 124 right against OpenClaw's 107 and Hermes's 94, while sending 3.5 to 5.4 times fewer tokens per question. Every run is published, including the round where VOOL's lead was too small to count and the full-set run where pasting the whole chat into the prompt did better on ordinary questions: [memory benchmarks](docs/benchmarks/README.md).
+The full write-up has every round, the setup, the spend and the weak spots: VOOL is slowest to ingest a conversation (it embeds every turn on your machine), and multi-hop questions that join facts from several sessions are hard for every agent tested. [Memory benchmarks](docs/benchmarks/README.md).
 
 <img src="docs/benchmarks/charts/head-to-head-rounds.svg" alt="LoCoMo questions answered right, VOOL vs OpenClaw vs Hermes: official 150, 124 vs 107 vs 94; round 3 of 130, 102 vs 93 vs 95; pilot of 200, 163 vs 142 vs 139" width="100%" />
 

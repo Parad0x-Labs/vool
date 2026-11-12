@@ -1337,6 +1337,115 @@ def _r3_open_turn_execution(
         raise
 
 
+def _conductor_conversation_context(
+    session_id: str,
+    *,
+    source_context: dict[str, object] | None,
+) -> str:
+    """This chat's recent turns, scope-checked, for conductor nodes' briefings.
+
+    Conductor nodes answer from the message and its typed facts alone; a follow-up that refers to
+    the previous turn ("why cant you?" after a refusal) was therefore unanswerable by construction
+    (measured 2026-11-03, build 8af687ca). This gathers the same turns the tiered loader's
+    dialogue layer would inject -- same store, same scope gate, same forget-law revocation check,
+    same per-turn cap -- so the node sees what the ordinary lane sees, and nothing more. Empty on
+    every refusal path: no active chat namespace, no readable store, an error anywhere.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        return ""
+    try:
+        from core.memory.entries import resolve_memory_access_policy
+
+        scope_policy = resolve_memory_access_policy(chat_id=clean_session)
+        if scope_policy.namespace_state != "active":
+            return ""
+    except Exception:
+        return ""
+    try:
+        from core.context_retrieval import (
+            revoked_tokens_for_chat,
+            text_carries_revoked_token,
+        )
+        from storage.dialogue_memory import recent_dialogue_turns
+
+        revoked = revoked_tokens_for_chat(clean_session)
+        lines: list[str] = []
+        for turn in recent_dialogue_turns(clean_session, limit=6, speaker_roles=None):
+            role = str(turn.get("speaker_role") or "user").strip().lower() or "user"
+            content = str(
+                turn.get("normalized_input")
+                or turn.get("raw_input")
+                or turn.get("reconstructed_input")
+                or ""
+            ).strip()
+            if not content or text_carries_revoked_token(content, revoked):
+                continue
+            lines.append(f"{'user' if role == 'user' else 'assistant'}: {content[:260]}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+_CALENDAR_QUESTION_RE = None
+
+
+def _no_calendar_reply(text: str) -> str | None:
+    """A question about the person's own schedule with no calendar connected gets the plain truth.
+
+    0.7.8 sweep block 3 (2026-11-12): with no calendar connected the model answered "No meetings"
+    and "No events found" -- a look that never happened. None when a calendar is connected (the
+    calendar lanes answer) or the text is not a schedule question."""
+    import re as _re
+
+    global _CALENDAR_QUESTION_RE
+    if _CALENDAR_QUESTION_RE is None:
+        _CALENDAR_QUESTION_RE = _re.compile(
+            r"^\s*(?:(?:what|when|which|where|how\s+many|do|does|did|am|is|are|have|any|anything)\b[^?]{0,60}?)?"
+            r"\b(?:my\s+)?(?:meetings?|appointments?|events?|calendar|schedule|agenda|plans?|booked|busy|free\s+(?:on|at|tomorrow|today|this|next))\b"
+            r"[^?]{0,60}?(?:\?|$)",
+            _re.IGNORECASE,
+        )
+    clean = " ".join(str(text or "").split())
+    personal = _re.search(r"\b(?:my|i|i'm|am\s+i|do\s+i|have\s+i|me)\b", clean, _re.IGNORECASE)
+    if not clean or len(clean.split()) > 16 or not personal or not _CALENDAR_QUESTION_RE.match(clean):
+        return None
+    if _re.search(r"\b(?:schedule|book|add|create|move|cancel|set)\s+(?:a|an|the|my)\b", clean, _re.IGNORECASE):
+        return None  # an order to change the calendar goes to its own lane and approval
+    try:
+        import os as _os
+
+        from core.operator.calendar_agenda import selected_sources
+
+        if selected_sources() or str(_os.environ.get("VOOL_CALENDAR_PROVIDER") or "").strip():
+            return None
+    except Exception:
+        return None
+    return ("No calendar is connected yet, so I can't see your meetings or events. Choose a calendar in "
+            "Settings under Calendars, then ask again.")
+
+
+def _no_mailbox_reply(text: str) -> str | None:
+    """A mail question with no mailbox connected gets the plain truth and the way to connect one.
+
+    0.7.8 sweep block 3 (2026-11-12): with no mailbox connected the model answered "Checking email
+    inbox…" and "No new mail yet" -- actions that never ran. None when a mailbox is connected (the
+    email tools answer) or the text is not a mail question."""
+    try:
+        from core.tool_demand_signals import mailbox_retrieval_intents
+
+        if not mailbox_retrieval_intents(text):
+            return None
+        from core.email_accounts import configured_accounts
+
+        if any(bool(getattr(record, "read", False)) for record in dict(configured_accounts() or {}).values()):
+            return None
+    except Exception:
+        return None
+    return ("No mailbox is connected yet, so I can't read your email. Add one under Settings > Email accounts "
+            "(your address and an app password), then ask again.")
+
+
 class VoolAgent(
     RuntimeCheckpointSupportMixin,
     VoolBookRuntimeMixin,
@@ -2630,6 +2739,32 @@ class VoolAgent(
                         record_user_turn=False,
                     )
 
+        # A short follow-up that repeats the chat's last task for a new object ("meadow?" after a
+        # translation) or redoes it with a change ("one friend can't come, redo it") carries that
+        # task in its text from here on, so no lane or model reads it on its own
+        # (core.agent_runtime.task_continuation; 0.7.8 sweep blocks 1c/1e).
+        with contextlib.suppress(Exception):
+            from core.agent_runtime.task_continuation import (
+                compose_continuation,
+                compose_retry,
+                last_task_request,
+                last_user_request,
+            )
+
+            # A bare retry ("Try again, I fixed permissions") redoes the last request, whatever it
+            # asked; otherwise a follow-up carries the last task.
+            _carried = compose_retry(effective_input, last_user_request(session_id)) or compose_continuation(
+                effective_input, last_task_request(session_id)
+            )
+            if _carried:
+                effective_input = _carried
+                interpreted = adapt_user_input(
+                    effective_input,
+                    session_id=session_id,
+                    turn_id=turn_request.turn_id,
+                    record_user_turn=False,
+                )
+
         # Currency identity is stable local knowledge; currency VALUE is an observation.  Enforce
         # that boundary before the conductor, planner, or model can turn an unavailable rate into
         # plausible prose.  The same seam resolves a terse "local only" follow-up against the
@@ -2814,6 +2949,71 @@ class VoolAgent(
         # is served instead. No surface list: the eligibility gate is structural (ONE KNOW
         # demand, no attachments), which already excludes read/act verbs and multi-part
         # turns, and surfaces are caller-supplied strings a gate must not enumerate.
+        # A question about the owner's own fact that neither saved memory nor this chat holds is
+        # answered from their OTHER chats and projects, with where it was found -- or plainly not
+        # found -- before any probe or model that sees only this chat can answer "not in the
+        # provided context" or invent a value (core.agent_runtime.cross_chat_recall).
+        if not browser_turn:
+            from core.agent_runtime.cross_chat_recall import (
+                LANE_ID as _CROSS_CHAT_LANE,
+            )
+            from core.agent_runtime.cross_chat_recall import (
+                accept_pending_offer,
+                cross_chat_recall,
+            )
+
+            accepted = accept_pending_offer(effective_input, session_id=session_id)
+            if accepted:
+                # "yes" to "Want me to remember it?": the ordinary remember path saves exactly the
+                # quoted statement, with its scope, revocation and secret checks.
+                from core.persistent_memory import maybe_handle_memory_command
+
+                handled, saved_reply = maybe_handle_memory_command(
+                    accepted, session_id=session_id, source_context=runtime_source_context,
+                )
+                if handled:
+                    saved_result = self._fast_path_result(
+                        session_id=session_id, user_input=effective_input, response=saved_reply,
+                        confidence=1.0, source_context=runtime_source_context, reason=_CROSS_CHAT_LANE,
+                    )
+                    return _guard_final_result(saved_result)
+            from core.agent_runtime.previous_reply_count import LANE_ID as _COUNT_LANE
+            from core.agent_runtime.previous_reply_count import previous_reply_count, previous_result_arithmetic
+
+            counted = previous_reply_count(effective_input, session_id=session_id) or previous_result_arithmetic(
+                effective_input, session_id=session_id
+            )
+            if counted is None:
+                counted = _no_mailbox_reply(effective_input) or _no_calendar_reply(effective_input)
+            if counted is None:
+                # A document ask in a chat bound to a project reads the project's own files first.
+                from core.agent_runtime.project_documents import project_document_answer
+
+                counted = project_document_answer(
+                    effective_input, session_id=session_id, source_context=runtime_source_context
+                )
+            if counted is not None:
+                count_result = self._fast_path_result(
+                    session_id=session_id, user_input=effective_input, response=counted,
+                    confidence=1.0, source_context=runtime_source_context, reason=_COUNT_LANE,
+                )
+                count_result.update({"route": _COUNT_LANE, "route_skips": ["model", "web", "tool_loop"],
+                                     "fast_path_hit": True})
+                return _guard_final_result(count_result)
+            cross_recall = cross_chat_recall(effective_input, session_id=session_id, source_context=runtime_source_context)
+            if cross_recall is not None:
+                recall_result = self._fast_path_result(
+                    session_id=session_id,
+                    user_input=effective_input,
+                    response=cross_recall.response,
+                    confidence=0.95 if cross_recall.found else 0.9,
+                    source_context=runtime_source_context,
+                    reason=_CROSS_CHAT_LANE,
+                )
+                recall_result.update({"route": _CROSS_CHAT_LANE, "recall_found": cross_recall.found,
+                                      "route_skips": ["model", "web", "tool_loop"], "fast_path_hit": True})
+                return _guard_final_result(recall_result)
+
         ambiguity_result = None if browser_turn else self._maybe_clarify_ambiguous_entity(
             effective_input=effective_input,
             session_id=session_id,
@@ -3577,6 +3777,22 @@ class VoolAgent(
 
         if turn_has_provider_search(source_context):
             # Live prices and weather are the pinned cloud model's to look up with its own search.
+            return None
+        from core.auto_local_only_mode import turn_selected_offline
+
+        if turn_selected_offline(source_context):
+            # The operator chose Offline for this chat: this lane's whole job is a public fetch
+            # the door will refuse, so it does not run and the front door serves the plain
+            # Offline refusal instead. A machine kept fully local still runs the lane so the
+            # door records its genuine pre-dispatch denial (the first-run denial demo reads it).
+            return None
+        from core.remote_fetch_policy import effective_web_available, local_only_active
+
+        if not local_only_active(source_context) and not effective_web_available(source_context):
+            # Web lookups are switched off: nothing goes online until the person opts in, live
+            # weather and prices included (owner decision 2026-11-12). The front door answers a
+            # whole live-data turn with the plain switch sentence; this keeps the lane from
+            # fetching for any turn that reaches it another way.
             return None
         if dict((source_context or {}).get("raw_output_contract") or {}).get(
             "structured_labels"
@@ -5592,6 +5808,9 @@ class VoolAgent(
                     effective_input=effective_input,
                     source_context=turn_context,
                 ),
+                conversation_context=_conductor_conversation_context(
+                    session_id, source_context=turn_context
+                ),
             )
             if plan is None:
                 # M3 slice 3: the conductor's decline is typed (the planner refused
@@ -6263,6 +6482,36 @@ class VoolAgent(
                 )
             except Exception:
                 prior_events = []
+            # The chat itself settles the referent: an elliptical continuation ("and harbor?",
+            # "what about the second one") or a question about something the person already
+            # talked about in this chat ("what day is piano" after "my piano lesson moved to
+            # Thursday") is answered from the conversation, never asked back as a world
+            # ambiguity. Measured on the 0.7.8 sweep (2026-11-12, block 1c): both got clarifiers.
+            if prior_events:
+                import re as _re
+
+                from core.chat_housekeeping import query_terms as _terms
+
+                if _re.match(r"\s*(?:and|or|plus|also|but|so|then|what\s+about|how\s+about)\b", question, _re.IGNORECASE):
+                    return None
+                asked = set(_terms(question))
+                # A chat about the person's own data (a database, table, sheet, file) answers its
+                # names from that data: "who wrote Ulysses" in a library-database chat got a
+                # world-entity clarifier (database run 8, 2026-11-12).
+                _store_re = _re.compile(
+                    r"\b(?:databases?|db|tables?|spreadsheets?|sheets?|csv|records?|rows?|columns?)\b", _re.IGNORECASE
+                )
+                if any(
+                    _store_re.search(" ".join(str((_e or {}).get(k) or "") for k in ("user", "assistant")))
+                    for _e in prior_events if isinstance(_e, dict)
+                ):
+                    return None
+                for _event in prior_events:
+                    _said = " ".join(
+                        str((_event or {}).get(key) or "") for key in ("user", "assistant", "content", "text")
+                    ) if isinstance(_event, dict) else str(_event or "")
+                    if asked & set(_terms(_said)):
+                        return None
             from core.local_compute_budget import local_compute_seconds
             from core.provider_call_deadline import bind_provider_deadline
 

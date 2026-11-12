@@ -199,9 +199,8 @@ def _gpu_driver_compat_capability(probe: Any) -> dict[str, Any]:
 
 
 _WEB_OPT_IN_REASON = (
-    "Live web lookup is off by default. Turn it on in Settings > Privacy & Permissions > Web lookups; "
-    "on the command line, VOOL_ENABLE_WEB=1 does the same when not local-only. "
-    "In local-only the no-egress guarantee overrides the opt-in, so neither turns it on."
+    "Web lookups are off by default. Turn them on in Settings > Privacy & Permissions > Web lookups. "
+    "While a chat is set to stay on this computer, nothing goes online even with them on."
 )
 
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+# One home for the wording: the texts live in `core.remote_fetch_policy`.
+from core.remote_fetch_policy import web_unavailable_reason as web_unavailable_text
 from core.turn_contract import LaneProposal
 
 
@@ -33,10 +35,7 @@ def disabled_live_info_result(
     user_input: str,
     source_context: dict[str, object] | None,
 ) -> dict[str, Any]:
-    disabled_response = (
-        "Live web lookup is disabled on this runtime, so I can't verify current prices, "
-        "weather, or latest-news requests honestly."
-    )
+    disabled_response = web_unavailable_text(source_context)
     _reason, confidence = _route_metadata(agent, source_context, 0.82)
     result = agent._fast_path_result(
         session_id=session_id,

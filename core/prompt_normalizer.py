@@ -1321,7 +1321,7 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
             f"The active workspace folder is named `{folder_name}`. Its full path is deliberately "
             "not included here; call `workspace.identity` if you need it."
         )
-    from core.auto_local_only_mode import is_auto_selection, turn_is_local_only
+    from core.auto_local_only_mode import is_auto_selection, turn_is_local_only, turn_is_offline
 
     requested_model = str(context.get("requested_model") or "").strip()
     if requested_model and not is_auto_selection(requested_model):
@@ -1330,16 +1330,26 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
             "The runtime enforces that selection; if asked which model is selected, state this value "
             "and never claim the selection is invisible."
         )
-    if turn_is_local_only(context):
+    if turn_is_offline(context):
+        # Offline closes the public network as well, so the model must not promise a lookup the
+        # egress door will refuse.
+        facts.append(
+            "This turn is running Offline: nothing may leave this computer. Cloud AI/model calls, "
+            "web search, browsing and every other online lookup are unavailable. Local files, "
+            "memory and local tools remain available. If the request needs current information "
+            "from the internet, say plainly that this chat is Offline and that choosing "
+            "Computer + web or Local first in the model menu lets VOOL look it up."
+        )
+    elif turn_is_local_only(context):
         # The model has to know the exact ceiling it is under. Local Only is a provider policy, not
         # a tool policy: claiming web/search is unavailable here caused models to invent a refusal
         # even while the deterministic tool planner was allowed to build the lookup.
         facts.append(
-            "This turn is running in Local Only mode: cloud AI/model calls are unavailable, "
+            "This turn is running in Computer + web mode: cloud AI/model calls are unavailable, "
             "including cloud verifier, planner and model fallbacks. Deterministic tools remain "
             "available under their own policies, including web search, retrieval, browser, "
             "filesystem and local API tools. Never claim web search is unavailable merely because "
-            "Local Only is enabled."
+            "this chat runs on this computer."
         )
     binding = str(context.get("workspace_binding") or "").strip().lower()
     project_id = str(context.get("project_id") or "").strip()

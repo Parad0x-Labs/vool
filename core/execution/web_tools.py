@@ -39,6 +39,30 @@ def execute_web_tool(
     tool_observation_fn: Callable[..., dict[str, Any]],
     audit_log_fn: Callable[..., Any],
 ) -> ToolIntentExecution:
+    from core.remote_fetch_policy import local_only_active, web_unavailable_reason
+
+    if local_only_active(source_context):
+        # An Offline chat (or a machine kept fully local): the fetch door would refuse every
+        # request, so the tool does not pretend to search. Measured 2026-11-12 on the Mac: with
+        # Web lookups on, an Offline chat ran web.research, every fetch was refused, and the user
+        # saw only the tool's header line and "Search failed" -- never that the chat is Offline.
+        from core.auto_local_only_mode import turn_selected_offline
+        from core.remote_fetch_policy import OFFLINE_LOOKUP_TEXT
+
+        reason = (
+            OFFLINE_LOOKUP_TEXT if turn_selected_offline(source_context)
+            else web_unavailable_reason(source_context)
+        )
+        return ToolIntentExecution(
+            handled=True,
+            ok=False,
+            status="disabled",
+            response_text=reason,
+            user_safe_response_text=reason,
+            mode="tool_failed",
+            tool_name=intent,
+            details={"offline": True},
+        )
     if not allow_web_fallback_fn():
         return unsupported_execution_for_intent_fn(intent, status="disabled")
 
@@ -263,12 +287,21 @@ def execute_web_tool(
                 lines.append(f"- Uncertainty: {research_result.uncertainty_reason}")
             elif research_result.stop_reason:
                 lines.append(f"- Stop reason: {research_result.stop_reason}")
+            # With nothing found, the person sees a plain sentence, never a bare header (0.7.8 sweep
+            # block 2: "check wikipedia: what year was the eifel tower completed" showed only
+            # 'Adaptive web research for "Eiffel Tower completion year":').
+            user_lines = (
+                list(lines)
+                if observation_hits
+                else [f"I searched the web for “{query}” and found no usable pages, so I can't answer from a source. "
+                      "Try different words, or ask me to answer from what I already know."]
+            )
             return ToolIntentExecution(
                 handled=True,
                 ok=bool(observation_hits),
                 status="executed" if observation_hits else "no_results",
-                response_text="\n".join(lines),
-                user_safe_response_text="\n".join(lines),
+                response_text="\n".join(lines if observation_hits else user_lines + lines[1:]),
+                user_safe_response_text="\n".join(user_lines),
                 mode="tool_executed" if observation_hits else "tool_failed",
                 tool_name=intent,
                 details={

@@ -458,8 +458,6 @@ def _selected_model_block_cause(block_reason: str, *, model_was_attempted: bool)
         "spend_cap_exceeded",
     }:
         return "running it would exceed your spend cap"
-    if code == "device_monthly_spend_cap_exceeded":
-        return "this phone has reached its monthly cloud limit; raise it for this phone in VOOL Settings on your computer"
     if code == "cloud_policy_unreadable":
         return "its saved cloud policy could not be read; repair it in Settings before trying again"
     if code == "daily_call_cap_exceeded":
@@ -637,12 +635,12 @@ def _single_candidate_failure_hint(model_execution: Any) -> str:
             "selector to Auto so the turn can route to whatever is actually available."
         )
     # Some other reason left only one candidate attempted despite a larger ranked pool. Still must
-    # not claim singularity, but without inventing a more specific story than the evidence supports,
-    # and in the person's words: which model didn't reply, and what to do (the selector/provider
-    # wording read as engineering text to someone who just pressed Use this model).
-    from core.final_answer_authorship import author_refusal_text
-
-    return author_refusal_text(reason="", author=attempted[0], attempted=(attempted[0],))
+    # not claim singularity, but without inventing a more specific story than the evidence supports.
+    return (
+        f"`{name}` failed and did not return a usable reply. Other candidates were ranked for this "
+        "turn but were not tried. Retry, or switch the model selector to Auto so the turn can fall "
+        "back to another provider."
+    )
 
 
 #: Word-bounded status markers. A bare substring "401" matched the PRICE 1401000 in

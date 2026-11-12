@@ -14,7 +14,7 @@ from core.execution.constants import (
     machine_diagnostics_intent,
     machine_file_search_intent,
     machine_kind_listing_covers_turn,
-    machine_kind_listing_intent,
+    machine_kind_listing_ask,
     machine_live_load_intent,
 )
 from core.operator.parser import parse_operator_action_intent
@@ -55,7 +55,7 @@ def test_background_services_are_listed():
     ("anything new in my downloads from today?", "", "Downloads", 1.0, ""),
 ])
 def test_things_i_made_and_lost_are_listed(said, kind, place, days, name):
-    listing = machine_kind_listing_intent(said)
+    listing = machine_kind_listing_ask(said)
     assert listing is not None
     assert (listing.kind, listing.place, listing.max_age_days, listing.name_contains) == (kind, place, days, name)
     assert machine_kind_listing_covers_turn(said)
@@ -68,7 +68,7 @@ def test_things_i_made_and_lost_are_listed(said, kind, place, days, name):
     "i took some screenshots last week i think",
 ])
 def test_saying_i_made_something_is_not_a_listing(said):
-    assert machine_kind_listing_intent(said) is None
+    assert machine_kind_listing_ask(said) is None
 
 
 def test_a_second_ask_keeps_the_turn_on_the_planner():

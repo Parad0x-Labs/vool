@@ -148,6 +148,7 @@ _UNFINISHED_ENUMERATION = "unfinished_enumeration"
 _DANGLING_TAIL = "dangling_tail"
 _FEWER_ITEMS_THAN_ANNOUNCED = "fewer_items_than_announced"
 _TABLE_CUT_MID_ROW = "table_cut_mid_row"
+_PLAN_NOT_CARRIED_OUT = "plan_not_carried_out"
 
 # Reasons that mean there is no answer at all, as opposed to a partial one. The distinction decides
 # what the final backstop may do: replacing text costs the user nothing when the text carries
@@ -162,6 +163,7 @@ _REASON_DESCRIPTIONS = {
     _DANGLING_TAIL: "the last sentence ends mid-clause",
     _FEWER_ITEMS_THAN_ANNOUNCED: "fewer items were listed than the answer said it would list",
     _TABLE_CUT_MID_ROW: "the table stops part-way through a row",
+    _PLAN_NOT_CARRIED_OUT: "it only says what I would do next, and I did not do it",
 }
 
 
@@ -310,6 +312,74 @@ def _table_truncation_reasons(text: str) -> list[str]:
     return []
 
 
+
+#: A reply that announces VOOL's OWN next actions ("I'll open the link...", "Let me navigate to...",
+#: "First, I'll search...") and stops there. Measured 2026-11-11 (browser round 6, case 5): qwen3:8b
+#: published "I'll open the link... Step 1: Navigate to..." as the final answer without clicking
+#: anything, and it showed "Record verified". Instructions written FOR the person ("Step 1: open
+#: Settings") are an answer and are never matched: only the first person promising to act is.
+_ANNOUNCED_ACTION_RE = re.compile(
+    r"^\s*(?:(?:sure|okay|ok|alright|great|got\s+it)[,!.]?\s+)?(?:(?:first|now|next)[,]?\s+)?"
+    r"(?:i'?ll|i\s+will|let\s+me|let'?s|let\s+us|we'?ll|i'?m\s+going\s+to|i\s+am\s+going\s+to|i\s+need\s+to|"
+    r"i'?m\s+about\s+to)\s+"
+    r"(?:now\s+|first\s+|quickly\s+|go\s+(?:ahead\s+and\s+)?|help\s+(?:you\s+)?)?"
+    r"(?:open|navigate|go\s+to|click|search|look\s+(?:up|for|at)|check|visit|browse|read|fetch|scroll|find|"
+    r"follow|load|access|pull\s+up|start\s+by|begin\s+by|head\s+to|try|connect|inspect|list|query|run|count|"
+    r"adjust|recalculate|recompute|redo|rework|update|calculate|compute|work\s+(?:that|it|this)\s+out)\b",
+    re.IGNORECASE,
+)
+_PLAN_STEP_RE = re.compile(
+    r"^\s*(?:(?:step\s*\d+|\d+[.)]|[-*•])\s*:?\s*)?(?:then|next|after\s+that|finally|first)?[,\s]*"
+    r"(?:i'?ll\s+|i\s+will\s+|let\s+me\s+)?"
+    r"(?:open|navigate|go\s+to|click|search|look|check|visit|browse|read|fetch|scroll|find|follow|load|access|"
+    r"locate|extract|identify|return|report|summari[sz]e|compile|gather)\b",
+    re.IGNORECASE,
+)
+
+
+#: Sentences that carry nothing either way: an acknowledgement or a "hold on" ("I'm on it,
+#: baby!", "Just give me a sec...", "Hang tight."). Battery v10 (2026-11-11, installed build):
+#: "I'm on it, baby! Let me fetch the Wikipedia page ... Just give me a sec..." -- no lookup ran
+#: -- passed as an answer because the acknowledgement stood in front of the announced step.
+_FILLER_PHRASE = (
+    r"(?:(?:hey|hi|hello)(?:\s+there)?|sure(?:\s+thing)?|okay|ok|alright|great|got\s+it|you\s+got\s+it|"
+    r"(?:i'?m\s+)?on\s+it|no\s+problem|absolutely|of\s+course|(?:just\s+)?(?:give|gimme)\s+me\s+a\s+(?:sec|second|moment|minute)|"
+    r"(?:one|just\s+a)\s+(?:sec|second|moment|minute)|hang\s+tight|hold\s+on|stay\s+tuned|be\s+right\s+back|"
+    r"let'?s\s+(?:check|see|find\s+out|take\s+a\s+look)(?:\s+(?:that|it|this))?(?:\s+out)?)"
+)
+_FILLER_SENTENCE_RE = re.compile(
+    rf"{_FILLER_PHRASE}(?:[,\s]+{_FILLER_PHRASE})*(?:[,\s]+[a-z]+){{0,2}}?\s*[!.…]*",
+    re.IGNORECASE,
+)
+
+
+#: Asking leave to do the announced step is part of the plan, not an answer: database run 3
+#: (2026-11-12, installed-line source) replied "Let's connect to your database and list the
+#: tables. Would you like me to proceed?" five times while no tool ran.
+_PERMISSION_ASK_RE = re.compile(
+    r"(?:would\s+you\s+like\s+me\s+to|do\s+you\s+want\s+me\s+to|shall\s+i|should\s+i)\s+"
+    r"(?:proceed|go\s+ahead|continue|do\s+(?:that|it|this|so)|start|begin|run\s+it)"
+    r"(?:\s+with\s+(?:that|it|this))?\s*[?.!]*",
+    re.IGNORECASE,
+)
+
+
+def _only_a_plan(text: str) -> bool:
+    sentences = [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?…])\s+)", str(text or "")) if part.strip()]
+    substantive = [part for part in sentences if not _FILLER_SENTENCE_RE.fullmatch(part)]
+    # A short acknowledgement before the announcement carries no answer either ("Got it — we're
+    # one more. Let me adjust that." -- 0.7.8 sweep block 1c, no number ever came).
+    while (len(substantive) > 1 and not _ANNOUNCED_ACTION_RE.match(substantive[0])
+           and len(substantive[0].split()) <= 6 and not re.search(r"\d", substantive[0])):
+        substantive = substantive[1:]
+    if not substantive or not _ANNOUNCED_ACTION_RE.match(substantive[0]):
+        return False
+    planned = sum(
+        1 for part in substantive
+        if _ANNOUNCED_ACTION_RE.match(part) or _PLAN_STEP_RE.match(part) or _PERMISSION_ASK_RE.fullmatch(part)
+    )
+    return planned * 3 >= len(substantive) * 2
+
 def inspect_answer_completeness(text: str, *, question: str | None = None) -> AnswerCompleteness:
     """Whether `text` has the shape of an answer that was cut off before it finished.
 
@@ -349,6 +419,8 @@ def inspect_answer_completeness(text: str, *, question: str | None = None) -> An
         )
 
     reasons.extend(_table_truncation_reasons(text))
+    if _only_a_plan(text):
+        reasons.append(_PLAN_NOT_CARRIED_OUT)
 
     announced = _announced_item_count(text)
     if announced and markers and len(markers) < announced:

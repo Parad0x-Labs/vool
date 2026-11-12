@@ -9,7 +9,7 @@ VOOL is one platform:
 ## Canonical Entry Points
 
 - `python -m apps.vool_api_server`: local API and runtime surface
-- `python -m apps.vool_agent --interactive`: direct local agent shell
+- `python -m apps.vool_agent --input "<message>"`: one direct local agent turn
 - `python -m apps.vool_chat`: simple local chat surface
 - `python -m apps.vool_cli ...`: operator and maintenance commands
 ### Retained research service entrypoints

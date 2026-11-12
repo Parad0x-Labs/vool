@@ -50,22 +50,22 @@ def test_probe_report_prefers_bundle_local_stack_on_24gb_mps_host_with_required_
     assert report["recommended_install_profile_display_id"] == "ollama-only (local-only)"
     assert report["local_multi_llm_fit"] == "pressure_sensitive"
     assert report["capacity_bucket"] == "C"
-    assert report["machine"]["ollama_model"] == "qwen3:8b"
+    assert report["machine"]["ollama_model"] == "qwen3.5:9b"
     assert report["machine"]["selected_tier"] == "capacity-C"
-    assert report["machine"]["param_billions"] == 8.0
-    assert report["machine"]["recommended_bundle_models"] == ["qwen3:0.6b", "qwen3:8b", "qwen3:14b"]
+    assert report["machine"]["param_billions"] == 9.0
+    assert report["machine"]["recommended_bundle_models"] == ["qwen3:0.6b", "qwen3.5:9b"]
     local_only = next(item for item in report["stacks"] if item["stack_id"] == "local_only")
     assert local_only["install_profile_id"] == "local-only"
     assert local_only["install_profile_display_id"] == "ollama-only (local-only)"
     assert local_only["recommended"] is True
     assert local_only["bundle_id"] == "triple_bucket_c_no_gpu"
-    assert local_only["primary_model"] == "qwen3:8b"
+    assert local_only["primary_model"] == "qwen3.5:9b"
     recommendation = report["install_recommendation"]
     assert recommendation["recommended_default_profile"] == "local-only"
     assert recommendation["recommended_optional_profile"] == "local-max"
-    assert recommendation["primary_local_model"] == "qwen3:8b"
+    assert recommendation["primary_local_model"] == "qwen3.5:9b"
     assert recommendation["recommended_bundle_id"] == "triple_bucket_c_no_gpu"
-    assert recommendation["recommended_bundle_models"] == ["qwen3:0.6b", "qwen3:8b", "qwen3:14b"]
+    assert recommendation["recommended_bundle_models"] == ["qwen3:0.6b", "qwen3.5:9b"]
     assert recommendation["secondary_local_model"] == "qwen2.5:14b-gguf"
     assert recommendation["secondary_local_supported"] is True
     dual = next(item for item in report["stacks"] if item["stack_id"] == "local_plus_llamacpp")
@@ -218,7 +218,7 @@ def test_render_probe_report_surfaces_installed_models_and_recommendation() -> N
     rendered = render_probe_report(report)
     assert "recommended install profile" in rendered.lower()
     assert "recommended stack" in rendered.lower()
-    assert "gemma3:4b" in rendered
+    assert "qwen3.5:4b" in rendered
     assert "ollama-only (local-only)" in rendered
     assert "local_plus_llamacpp" in rendered
     assert "local_plus_remote_openai_compatible" not in rendered
@@ -334,16 +334,16 @@ def test_probe_report_surfaces_accelerator_warning_and_model_pull_plan() -> None
         )
 
     # 8GB RAM/legacy-CUDA host is capacity bucket A, whose no-GPU bundle is the always-3-tier
-    # (tiny_fast/daily_accelerated/deep_overnight) bundle - so all 3 models are recommended,
-    # not a single "gemma3:4b" (that was the pre-3-tier-bundle-redesign behavior).
+    # (tiny_fast/daily_accelerated/deep_overnight) bundle - so all 3 models are recommended:
+    # the helper, the daily qwen3.5:2b and the bigger-jobs qwen3.5:4b (core.local_model_suggestions).
     assert report["machine"]["accelerator"] == "cpu"
     assert report["machine"]["accelerator_status"] == "legacy_cuda_cpu_recommended"
-    assert report["local_model_plan"]["recommended_models"] == ["qwen3:0.6b", "qwen3:4b", "gemma3:4b"]
-    assert report["local_model_plan"]["missing_recommended_models"] == ["qwen3:0.6b", "qwen3:4b", "gemma3:4b"]
+    assert report["local_model_plan"]["recommended_models"] == ["qwen3:0.6b", "qwen3.5:2b", "qwen3.5:4b"]
+    assert report["local_model_plan"]["missing_recommended_models"] == ["qwen3:0.6b", "qwen3.5:2b", "qwen3.5:4b"]
     assert report["local_model_plan"]["pull_commands"] == [
         "ollama pull qwen3:0.6b",
-        "ollama pull qwen3:4b",
-        "ollama pull gemma3:4b",
+        "ollama pull qwen3.5:2b",
+        "ollama pull qwen3.5:4b",
     ]
     assert report["local_model_plan"]["status"] == "needs_setup"
     assert report["stacks"][0]["status"] == "needs_setup"
@@ -351,8 +351,8 @@ def test_probe_report_surfaces_accelerator_warning_and_model_pull_plan() -> None
     rendered = render_probe_report(report)
 
     assert "accelerator status: legacy_cuda_cpu_recommended" in rendered
-    assert "missing recommended models: qwen3:0.6b, qwen3:4b, gemma3:4b" in rendered
-    assert "ollama pull gemma3:4b" in rendered
+    assert "missing recommended models: qwen3:0.6b, qwen3.5:2b, qwen3.5:4b" in rendered
+    assert "ollama pull qwen3.5:4b" in rendered
 
 
 def _fake_capability_truth_for(model_names: list[str]) -> tuple[ProviderCapabilityTruth, ...]:
@@ -532,12 +532,12 @@ def test_probe_report_blocks_pull_plan_when_safe_disk_floor_is_not_met() -> None
     # Bucket A's always-3-tier bundle means more total download size than the old
     # single-model recommendation, so the safe-disk-floor gap is larger too.
     assert report["local_model_plan"]["status"] == "needs_space"
-    assert report["local_model_plan"]["minimum_space_to_free_gb"] == 4.5
+    assert report["local_model_plan"]["minimum_space_to_free_gb"] == 5.8
     assert report["stacks"][0]["status"] == "needs_space"
 
     rendered = render_probe_report(report)
 
-    assert "disk action: free at least 4.5 GB before pulling" in rendered
+    assert "disk action: free at least 5.8 GB before pulling" in rendered
     assert "target volume is below the safe disk floor" in rendered
 
 

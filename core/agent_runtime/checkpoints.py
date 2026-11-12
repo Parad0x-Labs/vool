@@ -224,12 +224,24 @@ def update_runtime_checkpoint_context(
     checkpoint_id = runtime_checkpoint_id(source_context)
     if not checkpoint_id:
         return
-    update_runtime_checkpoint_fn(
-        checkpoint_id,
-        task_id=task_id,
-        task_class=task_class,
-        source_context=dict(source_context or {}),
-    )
+    from core.runtime_continuity import CheckpointTransitionRefused
+
+    try:
+        update_runtime_checkpoint_fn(
+            checkpoint_id,
+            task_id=task_id,
+            task_class=task_class,
+            source_context=dict(source_context or {}),
+        )
+    except CheckpointTransitionRefused as exc:
+        # The durable record refused this write (its context carries text an erasure covers);
+        # the row stays as it was, exactly as the finalize path already treats the same refusal.
+        # Raising here killed the whole turn: measured on the 0.7.8 sweep (2026-11-12), a chat
+        # deleted with the same opening question made the next chat's second turn fail as
+        # FAILED_PROVIDER with no answer.
+        import logging
+
+        logging.getLogger(__name__).warning("runtime checkpoint context update refused: %s", exc)
 
 
 def finalize_runtime_checkpoint(

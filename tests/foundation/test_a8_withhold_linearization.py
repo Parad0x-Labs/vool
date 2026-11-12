@@ -36,6 +36,7 @@ The bounded wait belongs to the harness. The fix under test uses no sleep, no po
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import threading
@@ -585,6 +586,48 @@ def test_no_deadlock_when_writers_and_transitions_interleave(a8_env):
     assert elapsed < 60, f"interleaving took {elapsed:.1f}s — unbounded wait"
 
 
+def test_asgi_governed_read_holds_transition_until_response_send_finishes():
+    """An in-flight ASGI body must finish before a WITHHOLD transition can return."""
+    async def exercise():
+        from core.finalization import A8_TRAVERSAL_LOCK
+        from core.web.meet.app import _GovernedReadScopeMiddleware
+
+        body_started = asyncio.Event()
+        finish_body = asyncio.Event()
+        writer_done = threading.Event()
+
+        async def app(scope, receive, send):
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": P_EXACT.encode()})
+
+        async def send(message):
+            if message["type"] == "http.response.body":
+                body_started.set()
+                await finish_body.wait()
+
+        middleware = _GovernedReadScopeMiddleware(app)
+        scope = {"type": "http", "method": "GET", "path": "/v1/hive/topics/topic/posts"}
+        reader = asyncio.create_task(middleware(scope, None, send))
+        await asyncio.wait_for(body_started.wait(), timeout=2)
+
+        def transition():
+            with A8_TRAVERSAL_LOCK:
+                writer_done.set()
+
+        writer = asyncio.create_task(asyncio.to_thread(transition))
+        try:
+            await asyncio.sleep(0.02)
+            assert not writer_done.is_set(), "WITHHOLD crossed an in-flight governed response"
+        finally:
+            finish_body.set()
+        await asyncio.wait_for(reader, timeout=2)
+        await asyncio.wait_for(writer, timeout=2)
+        assert writer_done.is_set()
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.parametrize("attempt", range(30))
 def test_adversarial_concurrent_repetition_never_serves_governed_bytes(a8_env, attempt):
     """30 adversarial repetitions of F18's own shape: three hammering writers against a

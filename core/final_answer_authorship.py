@@ -75,6 +75,7 @@ that was actually served rather than a call that was merely attempted.
 from __future__ import annotations
 
 import contextlib
+import json
 import re
 import threading
 from collections import OrderedDict
@@ -88,10 +89,7 @@ from core.enum_compat import StrEnum
 #: withheld, and it is how this transform recognises its own output and stays a fixed point --
 #: finalization admits identical duplicates, so gating already-gated bytes must return them
 #: byte-identically.
-UNCERTIFIED_AUTHOR_NOTICE_LEAD = "I couldn\u2019t answer this one."
-#: How the refusal began before 0.7.7 (engineering words; still in people's saved chats). Recognised,
-#: never emitted.
-LEGACY_AUTHOR_REFUSAL_LEAD = "I can't publish this answer:"
+UNCERTIFIED_AUTHOR_NOTICE_LEAD = "I can't publish this answer:"
 
 #: The first sentence of the refusal for the case where nothing at all can write a reply (no
 #: local model runs and no other author was tried): the first answer most new users ever get, so
@@ -115,7 +113,7 @@ NO_MODEL_NOTICE_DETAIL = (
 NO_MODEL_NOTICE_DETAIL_KEY = "chat.no_model.reply_detail"
 #: How the same refusal began before 0.7.2 (still in people's saved chats). Recognised by the chat
 #: page only, so those replies get the same button; the lead above already covers it server-side.
-LEGACY_NO_MODEL_NOTICE_LEAD = f"{LEGACY_AUTHOR_REFUSAL_LEAD} no AI model is connected and ready yet"
+LEGACY_NO_MODEL_NOTICE_LEAD = f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} no AI model is connected and ready yet"
 
 #: How many turns' decisions are kept. Same order of magnitude as the model-call ledger's own
 #: bound; a decision is only read once, by the finalization of the turn that made it.
@@ -231,7 +229,12 @@ class AuthorshipDecision:
             "detail": str(self.detail),
         }
 
-    def refusal_text(self, *, attempted_failed: tuple[str, ...] | list[str] | None = None) -> str:
+    def refusal_text(
+        self,
+        *,
+        attempted_failed: tuple[str, ...] | list[str] | None = None,
+        grounded_steps: int = 0,
+    ) -> str:
         """What ships instead of the model's bytes. Names the model, the role and the cause.
 
         ``attempted_failed`` carries the certified authors this turn DID call and that failed
@@ -240,10 +243,74 @@ class AuthorshipDecision:
         permitted"); with them it reports what actually happened -- measured live 2026-09-08,
         the refusal claimed no certified model was tried while two free-cloud authors had been
         called and had failed, which sent the operator to debug routing that worked.
+
+        ``grounded_steps`` is the count of runtime-minted support rows this turn holds (the same
+        rows the publication gate adjudicates against). Measured 2026-11-03 (build 8af687ca,
+        served chats): "go fetch from online researches..." ran web.research 3-of-3 steps, the
+        synthesis model failed, the grounded summary replaced it — and the refusal STILL said
+        "nothing this turn retrieved, computed or observed backs it", contradicting the turn's
+        own trace on the wire. The sentence is now evidence-aware: with grounded rows it names
+        what actually happened — evidence WAS collected and kept; what was missing is a
+        certified writer.
         """
 
         attempted = tuple(str(name).strip() for name in (attempted_failed or ()) if str(name).strip())
-        author = self.selected_model or self.requested_model or ""
+        author = self.selected_model or self.requested_model or "the model that wrote it"
+        # "so it was not asked to write this answer", not "the call was never made": the turn's
+        # routing step can run on that same model, and its completed call sits in the receipt
+        # (run-modes test 2026-11-11: 1331 in / 32 out on qwen2.5:7b under a reply that said the
+        # call was never made). The writing call is the one that was withheld.
+        if self.reason == REASON_AUTHOR_UNRESOLVED:
+            cause = (
+                "this runtime could not resolve which configured model wrote it, so there is no "
+                "identity to hold the answer to."
+            )
+        elif self.reason == REASON_BLOCKED_BEFORE_GENERATION:
+            if attempted:
+                tried = ", ".join(f"`{name}`" for name in attempted)
+                cause = (
+                    f"`{author}` is not certified to author on this runtime, so it was not asked "
+                    f"to write this answer; the certified model{'s' if len(attempted) > 1 else ''} this "
+                    f"turn did call ({tried}) each failed before producing a usable answer."
+                )
+            else:
+                cause = (
+                    f"`{author}` is not certified to author on this runtime, so it was not asked to "
+                    "write this answer, and no certified model was available and permitted to write it "
+                    "instead."
+                )
+        elif self.reason == REASON_UNCERTIFIED_AUTHOR:
+            cause = (
+                f"`{author}` has no certification run on this runtime, so it is not certified to "
+                "take the final-answer role."
+            )
+        elif self.reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
+            cause = (
+                f"`{author}` has no certification run on this runtime, and this turn is in Local "
+                "Only, so no configured cloud model may be reached to write it instead."
+            )
+        elif self.reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
+            cause = (
+                f"`{author}` has no certification run on this runtime. A configured cloud model "
+                "could write it, but cloud escalation is not enabled for this runtime."
+            )
+        elif attempted:
+            tried = ", ".join(f"`{name}`" for name in attempted)
+            cause = (
+                f"`{author}` has no certification run on this runtime; the certified model"
+                f"{'s' if len(attempted) > 1 else ''} this turn did call ({tried}) each failed "
+                "before producing a usable answer."
+            )
+        else:
+            cause = (
+                f"`{author}` has no certification run on this runtime, and no certified model was "
+                "available to write it instead."
+            )
+        remedy = (
+            "What would make this answerable: run the local model tool certification for that "
+            "model (Settings → Models & Providers → Local models → Certify), pick a certified "
+            "model, or ask something this runtime can look up, compute or read for you."
+        )
         if (not attempted and self.reason not in (REASON_CLOUD_ESCALATION_NOT_PERMITTED, REASON_AUTHOR_UNRESOLVED)
                 and _local_author_not_running(author)):
             # Nothing can write a reply at all: this is the first answer most new users ever get,
@@ -251,154 +318,70 @@ class AuthorshipDecision:
             # forward. No model id, no engine words: the chat page puts a Set up button under it
             # and folds the last paragraph -- the cause -- behind "details".
             return no_model_notice_text()
-        return author_refusal_text(
-            reason=self.reason,
-            author=author,
-            attempted=attempted,
-            author_not_running=_local_author_not_running(author),
+        if _local_author_not_running(author):
+            # Certifying a model that is not running cannot help; name the fix that can.
+            remedy = (
+                f"What would make this answerable: no local model is running on this computer, so "
+                f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
+                "Setup under \u201cWhere should it think?\u201d, or start a local model."
+            )
+        evidence_sentence = (
+            f"This turn did collect grounded evidence ({grounded_steps} step"
+            f"{'s' if grounded_steps != 1 else ''} succeeded) and it is kept in the turn's "
+            "records — what was missing is a certified model to write the answer from it."
+            if grounded_steps > 0
+            else "nothing this turn retrieved, computed or observed backs it, so the answer "
+            "would rest on the writing model alone."
+        )
+        # Plain words first, the runtime's own terms last (private-web test 2026-11-11: the person
+        # saw "`ollama-local:qwen2.5:7b` is not certified to author on this runtime" as the
+        # reply). The last paragraph is the cause; the chat page folds it behind "details".
+        return (
+            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {_plain_refusal_sentence(self.reason, author, attempted)}\n\n"
+            f"{_plain_refusal_remedy(author)}\n\n"
+            f"Details: {evidence_sentence} {cause} {remedy}"
         )
 
 
-#: The refusal a person reads when the answer is held back. Plain words in the turn's app language:
-#: no "certified", no runtime or role words, model names without their provider prefix. The cause
-#: picks one sentence; when models were called and failed, they are what the person is told about,
-#: never the unchecked model the ranked loop reached after them (GLM audit R2, Oct 27: 97 refusals
-#: blamed `qwen2.5:7b` after `qwen3:8b` had failed).
-AUTHOR_REFUSAL_LEAD = UNCERTIFIED_AUTHOR_NOTICE_LEAD
-AUTHOR_REFUSAL_LEAD_KEY = "chat.author_refusal.lead"
-_AUTHOR_REFUSAL_TEXTS: dict[str, tuple[str, str]] = {
-    "failed": (
-        "chat.author_refusal.failed",
-        "{models} didn\u2019t reply properly this time. Please ask again in a moment. If it keeps "
-        "happening, pick another model in Settings \u2192 Models & Providers.",
-    ),
-    "not_ready": (
-        "chat.author_refusal.not_ready",
-        "{model} isn\u2019t ready to answer for VOOL yet. Open Settings \u2192 Models & Providers "
-        "\u2192 Local models and press Use this model, or pick a model marked Ready.",
-    ),
-    "not_ready_local_only": (
-        "chat.author_refusal.not_ready_local_only",
-        "{model} isn\u2019t ready to answer for VOOL yet, and This computer only is on, so a cloud "
-        "model can\u2019t answer instead. Open Settings \u2192 Models & Providers \u2192 Local models "
-        "and press Use this model, or pick a model marked Ready.",
-    ),
-    "not_ready_no_cloud": (
-        "chat.author_refusal.not_ready_no_cloud",
-        "{model} isn\u2019t ready to answer for VOOL yet, and cloud models are turned off. Open "
-        "Settings \u2192 Models & Providers \u2192 Local models and press Use this model, or "
-        "turn on a cloud model.",
-    ),
-    "checking": (
-        "chat.author_refusal.checking",
-        "VOOL is still getting {model} ready. On this computer that can take a few minutes. "
-        "Please ask again shortly.",
-    ),
-    "unresolved": (
-        "chat.author_refusal.unresolved",
-        "VOOL couldn\u2019t tell which model wrote the reply, so it held it back. Please ask again.",
-    ),
-    "not_running": (
-        "chat.author_refusal.not_running",
-        "No model on this computer is running right now. Open your model app (such as Ollama), "
-        "or pick a cloud model in the model menu.",
-    ),
-}
+def _short_model_name(model: str) -> str:
+    name = str(model or "").strip()
+    return name.split(":", 1)[1] if name.startswith(("ollama-local:", "ollama:")) else name
 
 
-def _plain_model_name(model_id: str) -> str:
-    """`ollama-local:qwen3:8b` -> `qwen3:8b`, `openrouter:x/y` -> `x/y`; a bare tag stays as is."""
-    text = str(model_id or "").strip()
-    provider, sep, rest = text.partition(":")
-    if not (sep and rest):
-        return text
-    cloud = _cloud_provider_ids()
-    # A tag such as `deepseek-r1:8b` must stay whole, so a provider variant (`openrouter-byok`)
-    # only counts when what follows is a catalog model id (`vendor/model`, `model:free`).
-    if provider.endswith("-local") or provider in cloud or (
-        provider.split("-", 1)[0] in cloud and ("/" in rest or ":" in rest)
-    ):
-        return rest
-    return text
-
-
-def _cloud_provider_ids() -> frozenset[str]:
-    try:
-        from core.cloud_providers import PROVIDERS
-
-        return frozenset(PROVIDERS)
-    except Exception:
-        return frozenset()
-
-
-def author_refusal_text(
-    *, reason: str, author: str, attempted: tuple[str, ...] = (), author_not_running: bool = False, locale: str = ""
-) -> str:
-    from core.i18n.turn_locale import turn_text
-
-    def say(kind: str, **fields: str) -> str:
-        key, english = _AUTHOR_REFUSAL_TEXTS[kind]
-        return turn_text(key, english, locale, **fields)
-
-    model = _plain_model_name(author) or "This model"
+def _plain_refusal_sentence(reason: str, author: str, attempted: tuple[str, ...]) -> str:
+    """Why no answer, in words the person can act on: no ids, no engine terms."""
     if reason == REASON_AUTHOR_UNRESOLVED:
-        cause = say("unresolved")
-    elif attempted:
-        names = ", ".join(dict.fromkeys(_plain_model_name(name) for name in attempted))
-        cause = say("failed", models=names)
-    elif (checking := _local_model_being_checked()):
-        # A model is being made ready right now (boot's own check, or the Use this model button).
-        # Telling the person to press the button again, mid-check, was the fresh-eyes test's
-        # "chat is blocked with no progress shown" (Oct 29).
-        cause = say("checking", model=checking)
-    elif reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
-        cause = say("not_ready_local_only", model=model)
+        return "I couldn't tell which model wrote this answer, so I won't show it."
+    who = _short_model_name(author)
+    named = f"the model chosen to write answers here ({who})" if who and "model that wrote" not in who else (
+        "the model chosen to write answers here")
+    if reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
+        tail = ", and this chat stays on this computer, so no cloud model can answer instead."
     elif reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
-        cause = say("not_ready_no_cloud", model=model)
+        tail = ". A cloud model could answer, but cloud models are switched off."
+    elif attempted:
+        # A checked model WAS tried and failed (run 11a: qwen3:8b ran out of time, then the ladder
+        # reached an unchecked qwen3:4b). Lead with what happened to the checked one: naming the
+        # unchecked fallback first read as if VOOL had chosen it to write the answer.
+        tried = ", ".join(_short_model_name(model) for model in attempted if model)
+        return (
+            f"The checked model ({tried}) couldn't finish this answer, and the other models here "
+            "haven't passed VOOL's answer check yet."
+            if len(attempted) == 1
+            else f"The checked models ({tried}) couldn't finish this answer, and the other models here "
+            "haven't passed VOOL's answer check yet."
+        )
     else:
-        cause = say("not_ready", model=model)
-    if author_not_running and reason != REASON_AUTHOR_UNRESOLVED:
-        cause = (cause + " " + say("not_running")) if attempted else say("not_running")
-    lead = turn_text(AUTHOR_REFUSAL_LEAD_KEY, AUTHOR_REFUSAL_LEAD, locale)
-    return f"{lead} {cause}"
+        tail = ", and no model that has passed it is available right now."
+    return f"{named} hasn't passed VOOL's answer check yet{tail}"
 
 
-def _local_model_being_checked() -> str:
-    """The local model whose readiness check is running now, or ``""``."""
-    try:
-        from core.local_model_policy import manifest_is_local
-        from core.local_model_tool_certification import certification_applies, certification_status
-        from core.model_registry import ModelRegistry
-
-        for manifest in ModelRegistry().list_manifests(enabled_only=True):
-            if manifest_is_local(manifest) and certification_applies(manifest):
-                if str(certification_status(manifest).get("state") or "") == "probing":
-                    return str(manifest.model_name)
-    except Exception:
-        pass
-    return ""
-
-
-_AUTHOR_REFUSAL_LEADS: tuple[str, ...] | None = None
-
-
-def author_refusal_leads() -> tuple[str, ...]:
-    """The refusal lead in English and in every shipped catalog, plus the pre-0.7.7 lead."""
-    global _AUTHOR_REFUSAL_LEADS
-    if _AUTHOR_REFUSAL_LEADS is None:
-        leads = [AUTHOR_REFUSAL_LEAD, LEGACY_AUTHOR_REFUSAL_LEAD]
-        try:
-            from core.i18n.catalog import catalog_for
-            from core.i18n.locales import ui_catalog_tags
-
-            for tag in ui_catalog_tags():
-                text = str(catalog_for(tag).text(AUTHOR_REFUSAL_LEAD_KEY) or "").strip()
-                if text and text != AUTHOR_REFUSAL_LEAD_KEY and text not in leads:
-                    leads.append(text)
-        except Exception:
-            pass
-        _AUTHOR_REFUSAL_LEADS = tuple(leads)
-    return _AUTHOR_REFUSAL_LEADS
+def _plain_refusal_remedy(author: str) -> str:
+    if _local_author_not_running(author):
+        return ("To fix it, start your local model app (such as Ollama), or pick a cloud model in the "
+                "model selector.")
+    return ("To fix it, pick a ready model in the model selector, or run the check on this one in "
+            "Settings → Models & Providers → Local models → Certify.")
 
 
 def no_model_notice_text(locale: str = "") -> str:
@@ -436,10 +419,10 @@ def no_model_notice_leads() -> tuple[str, ...]:
 def is_authorship_refusal_text(text: str) -> bool:
     """Whether ``text`` already carries a refusal this module shipped (either lead family)."""
     body = str(text or "")
-    if UNCERTIFIED_AUTHOR_NOTICE_LEAD in body or LEGACY_AUTHOR_REFUSAL_LEAD in body:
+    if UNCERTIFIED_AUTHOR_NOTICE_LEAD in body:
         return True
     stripped = body.lstrip()
-    return any(stripped.startswith(lead) for lead in (*author_refusal_leads(), *no_model_notice_leads()))
+    return any(stripped.startswith(lead) for lead in no_model_notice_leads())
 
 
 def _local_author_not_running(author: str) -> bool:
@@ -868,6 +851,10 @@ def unready_local_model_names(manifests: Any) -> frozenset[str]:
     return frozenset(unready - ready)
 
 
+#: How long a turn waits for the boot model check before refusing an unchecked writer.
+_BOOT_CHECK_WAIT_SECONDS = 300.0
+
+
 def precall_author_verdict(
     *,
     manifest: Any,
@@ -911,6 +898,29 @@ def precall_author_verdict(
     )
     if decision.eligible:
         return decision
+    # The boot check may be certifying a writer right now (a fresh profile's first minutes). Wait
+    # for it, bounded, before refusing: the caller then tries its next candidate, which by then may
+    # be the newly checked model. Refusing first was measured on the 0.7.8 sweep.
+    try:
+        from core.local_model_readiness import boot_readiness_check_running, wait_for_boot_readiness_check
+
+        if boot_readiness_check_running():
+            import logging
+
+            logging.getLogger(__name__).info("final-answer author: waiting for the boot model check before refusing")
+            wait_for_boot_readiness_check(_BOOT_CHECK_WAIT_SECONDS)
+            decision = decide_final_answer_author(
+                request_text=request_text,
+                author_role=role,
+                requested_manifest=manifest,
+                requested_model=str(getattr(manifest, "provider_id", "") or ""),
+                allow_escalation=False,
+                db_path=db_path,
+            )
+            if decision.eligible:
+                return decision
+    except Exception:
+        pass
     return AuthorshipDecision(
         eligible=False,
         author_role=FINAL_ANSWER_ROLE,
@@ -1231,7 +1241,11 @@ def record_runtime_support(
     bytes the runtime had every right to compose.
 
     Raise-only like the fields it writes: a later call may add rows and support,
-    never remove them, and the decision is untouched.
+    never remove them, and the decision is untouched. Add-only is enforced here
+    row by row (documented behaviour, previously implemented as replace — a second
+    lane's rows silently erased the first lane's): each new row whose exact content
+    is not already recorded is appended, so two lanes on one turn both keep their
+    minted rows.
     """
 
     try:
@@ -1246,9 +1260,23 @@ def record_runtime_support(
         with _LOCK:
             record = _record_for_unlocked(identity)
             if record is None:
+                # No record, no minting — the pinned raise-only contract (a support row alone
+                # does not create an authorship question). Real turns always have a record by
+                # the time the tool loop runs: the classification/planner calls before it are
+                # journalled by core.turn_model_call_ledger, which creates the record.
                 return False
+            existing = tuple(
+                dict(row) for row in getattr(record, "support_rows", ()) or () if isinstance(row, dict)
+            )
+            seen = {json.dumps(row, sort_keys=True, default=str) for row in existing}
+            merged = list(existing)
+            for row in rows:
+                key = json.dumps(row, sort_keys=True, default=str)
+                if key not in seen:
+                    merged.append(row)
+                    seen.add(key)
             record.supported_by_runtime = True
-            record.support_rows = rows
+            record.support_rows = tuple(merged)
             text = str(request_text or "").strip()
             if text and not record.request_text:
                 record.request_text = text
@@ -1392,7 +1420,11 @@ def gate_authored_content(content: str, *, turn_id: str = "") -> tuple[str, dict
         return text, payload
     payload["publication"] = "refused"
     payload["withheld_characters"] = len(text)
-    return record.decision.refusal_text(attempted_failed=record.attempted_failed), payload
+    payload["grounded_support_rows"] = len(record.support_rows or ())
+    return record.decision.refusal_text(
+        attempted_failed=record.attempted_failed,
+        grounded_steps=len(record.support_rows or ()),
+    ), payload
 
 
 # ---- execution claims ------------------------------------------------------------------------
@@ -1521,6 +1553,84 @@ def _turn_executed_anything(turn_id: str, source_context: Any) -> bool:
     return False
 
 
+_LISTED_INTENT_LINE_RE = re.compile(r"^[\s>*_\-\u2022\d.)]*`?(?P<name>[a-z0-9][\w-]*(?:\.[\w-]+)+)`?\s*[.:;,]?\s*$", re.IGNORECASE)
+_CHANGING_INTENT_RE = re.compile(
+    r"(?:^|[._-])(?:apply|write|delete|remove|drop|insert|update|create|send|reply|move|rename|execute|run|migrate\.apply)$",
+    re.IGNORECASE,
+)
+_COMPLETION_CLAIM_RE = re.compile(
+    r"\b(?:has|have)\s+(?:now\s+)?(?:been\s+)?(?:successfully\s+)?(?:added|created|deleted|removed|updated|applied|"
+    r"inserted|dropped|renamed|moved|sent|saved|changed|migrated)\b|\bi\s+(?:have\s+|'ve\s+)?(?:successfully\s+)?"
+    r"(?:added|created|deleted|removed|updated|applied|inserted|dropped|renamed|migrated)\b|\bsuccessfully\s+(?:added|created|"
+    r"deleted|removed|updated|applied|migrated)\b",
+    re.IGNORECASE,
+)
+_ACTION_LEAD_RE = re.compile(
+    r"^\s*(?:i(?:'ve|\s+have)?\s+|i'?m\s+|now\s+)?(?:adding|added|applying|applied|creating|created|deleting|deleted|"
+    r"removing|removed|updating|updated|inserting|inserted|dropping|dropped|sending|sent|writing|wrote|renaming|renamed|"
+    r"moving|moved|changing|changed)\b",
+    re.IGNORECASE,
+)
+
+
+def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str, Any]] | None:
+    """A reply that lists the runtime's own intents as if they ran, when some never ran this turn.
+
+    Measured 2026-11-12 (database run 5): "Adding the 'email' column to the 'customers' table" over
+    "- vool-database.migrate.preview / - vool-database.migrate.apply" -- only the preview ran and the
+    table was unchanged. The per-turn ledger names every intent that executed; a listed intent that
+    is not in it is removed, and a lead sentence that announces a change none of the executed
+    intents could make is replaced by the plain truth. None when there is nothing to correct."""
+    try:
+        from core.turn_model_call_ledger import turn_call_accounting
+
+        executed = {str(t).strip().lower() for t in (turn_call_accounting(source_context).get("tools") or [])}
+    except Exception:
+        return None
+    variants = _runtime_tool_names()
+    if not variants:
+        return None
+    lines = text.split("\n")
+    unrun: list[str] = []
+    removed: set[int] = set()
+    # A reply that says a change was MADE when only reads or previews ran this turn. Measured on
+    # database run 7 (2026-11-12): "The column 'email' has been successfully added" after only
+    # vool-database.migrate.preview ran; the table was unchanged.
+    changing_ran_any = any(_CHANGING_INTENT_RE.search(i) for i in executed)
+    if executed and not changing_ran_any:
+        claimed = [i for i, line in enumerate(lines) if _COMPLETION_CLAIM_RE.search(line)]
+        if claimed:
+            for index in claimed:
+                lines[index] = "This change has not been made: only a preview ran, nothing was applied."
+            body = "\n".join(dict.fromkeys(lines)).strip()
+            return body, {"execution_claims": ["completion_claim"], "publication": "unrun_completion_claim_corrected"}
+    for index, line in enumerate(lines):
+        match = _LISTED_INTENT_LINE_RE.match(line)
+        if not match:
+            continue
+        intent = _claimed_intent(match.group("name"), variants)
+        if intent and intent.lower() not in executed:
+            unrun.append(intent)
+            removed.add(index)
+    if not unrun:
+        return None
+    changing_unrun = [i for i in unrun if _CHANGING_INTENT_RE.search(i)]
+    changing_ran = any(_CHANGING_INTENT_RE.search(i) for i in executed)
+    kept: list[str] = []
+    for index, line in enumerate(lines):
+        if index in removed:
+            continue
+        if changing_unrun and not changing_ran and _ACTION_LEAD_RE.match(line):
+            kept.append("This change has not been made.")
+            continue
+        kept.append(line)
+    body = "\n".join(kept).strip()
+    named = ", ".join(f"`{i}`" for i in dict.fromkeys(unrun))
+    notice = f"{EXECUTION_CLAIM_NOTICE_LEAD} {named}, which did not run in this turn."
+    payload = {"execution_claims": list(dict.fromkeys(unrun)), "publication": "unrun_listed_intents_removed"}
+    return (f"{body}\n\n{notice}" if body else notice), payload
+
+
 def gate_execution_claims(
     content: str, *, turn_id: str = "", source_context: Any = None
 ) -> tuple[str, dict[str, Any]]:
@@ -1557,6 +1667,9 @@ def gate_execution_claims(
         return text, {"publication": "stood_down:not_model_authored"}
     claims = execution_claims(text)
     if not claims:
+        listed = _unrun_listed_intents(text, source_context)
+        if listed is not None:
+            return listed
         return text, {"publication": "stood_down:no_execution_claims"}
     request_text = str(getattr(record, "request_text", "") or "") or str(
         getattr(lifecycle, "request_text", "") or ""
@@ -1568,6 +1681,9 @@ def gate_execution_claims(
     except Exception:
         pass
     if _turn_executed_anything(turn_id, source_context):
+        listed = _unrun_listed_intents(text, source_context)
+        if listed is not None:
+            return listed
         return text, {"execution_claims": [c[2] for c in claims], "publication": "execution_evidence_present"}
     lines = text.split("\n")
     removed = set()
@@ -1636,9 +1752,6 @@ __all__ = [
     "invalidate_author_certification",
     "is_authorship_refusal_text",
     "no_model_notice_leads",
-    "author_refusal_leads",
-    "author_refusal_text",
-    "AUTHOR_REFUSAL_LEAD",
     "no_model_notice_text",
     "record_authorship_decision",
     "record_runtime_support",

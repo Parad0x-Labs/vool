@@ -403,7 +403,33 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "web.search",
         "web",
         re.compile(
-            r"\b(?:search|google|look\s+up|find)\b[^.?!]{0,60}?\b(?:web|online|internet|google|bing|duckduckgo)\b", re.I
+            r"\b(?:search|google|look\s+up|find)\b[^.?!]{0,60}?\b(?:web|online|internet|google|bing|duckduckgo|wikipedia)\b"
+            # A named page with no URL: "open the Wikipedia page for the Daugava river and tell me
+            # how long it is" seated nothing (battery v9, installed build) and the model, with no
+            # tool, produced no usable answer. The search finds the page; the fetch reads it.
+            r"|\b(?:open|read|check|visit|go\s+to|pull\s+up)\b[^.?!]{0,30}?\b(?:wikipedia|website|web\s*page|web\s*site)\b"
+            # An answer asked for FROM a named web source is that source's content, not stable
+            # knowledge: "according to wikipedia, when was the eiffel tower finished?" was answered
+            # DIRECT with no lookup (run-modes test, 2026-11-11). "what is wikipedia?" stays out.
+            r"|\b(?:according\s+to|per|as\s+per)\s+(?:the\s+)?wikipedia\b"
+            r"|\bwikipedia(?:'s)?\s+(?:says?|said|states?|lists?|claims?|article|page|entry)\b"
+            r"|\bwhat\s+(?:does|did)\s+(?:the\s+)?wikipedia\s+(?:say|list|state)\b"
+            r"|\b(?:on|from|in)\s+wikipedia\b"
+            # "wikipedia: what year did the titanic sink", "wiki: capital of mongolia" (a source
+            # label leading the question) and "check wiki for ...", "what does the wiki say about
+            # ..." -- "wiki" as people shorten Wikipedia (0.7.8 sweep block 2c: the first went to
+            # memory recall, the second to background-task status). "what's a wiki" and "set up a
+            # wiki for my team" name no source to read from and stay out.
+            r"|^\s*wiki(?:pedia)?\s*:\s*\S"
+            r"|\b(?:check|search|open|read|look\s+(?:it\s+)?up\s+(?:on|in))\s+(?:the\s+)?wiki\b(?!\s+(?:page\s+)?(?:for\s+)?(?:my|our|the\s+team|team))"
+            r"|\b(?:on|from|in|per|according\s+to)\s+(?:the\s+)?wiki\b(?!\s*(?:page\s+)?(?:for|of)\s+(?:my|our))"
+            r"|\bwhat\s+(?:does|did)\s+(?:the\s+)?wiki(?:pedia)?\s+(?:say|list|state)\b"
+            # "look it up: …", "look this up", "check online", "search online": an explicit ask to
+            # go and find out (0.7.8 sweep block 2: "look it up: what year did the berlin wall
+            # fall" made no tool call).
+            r"|(?:^|[.!?:]\s*|\b(?:please|pls|can\s+you|could\s+you|would\s+you|go\s+and|just)\s+)look\s+(?:it|this|that)\s+up\b"
+            r"|(?:^|[.!?:]\s*|\b(?:please|pls|can\s+you|could\s+you|would\s+you|go\s+and|just)\s+)(?:check|search|look)\s+(?:it\s+)?(?:up\s+)?online\b",
+            re.I,
         ),
     ),
     ("web.fetch", "web", re.compile(r"\b(?:fetch|open|load|check)\b[^.?!]{0,40}?https?://", re.I)),
@@ -890,6 +916,22 @@ _MAILBOX_ANCHOR_RE = re.compile(
     r"|\b(?:did|does|do|has|have|had|will|would)\s+(?:[\w@&'.-]+\s+){1,5}?e-?mail\s+(?:me|us)\b"
     rf"|\b{_MAIL_ITEM}\b[^.?!]{{0,60}}?\b(?:sent|forwarded|wrote|replied)\s+(?:(?:it|that|this|them)\s+)?"
     r"(?:(?:over|back)\s+)?(?:to\s+)?(?:me|us)\b"
+    # Received-framing: "check the last 5 Kucoin emails i have received" — the mail noun and
+    # RECEIVED within one clause, no possessive needed. Measured 2026-11-05/06 (operator's
+    # live tests): this exact phrasing failed to seat email.read and the model answered a
+    # capability denial instead of reading the inbox.
+    rf"|\b{_MAIL_ITEM}\b[^.?!]{{0,60}}?\breceived\b"
+    # "did paysera send me anything?", "has my bank written to me?", "did I get anything from X?":
+    # a sender asked about by name with no mail noun at all. Measured 2026-11-11 on the installed
+    # build: "did paysera send me anything?" reached a model with no tool and failed. Bounded
+    # objects only (anything / something / a message / mail): "did mom send me money" stays out.
+    r"|\b(?:did|has|have)\s+(?!i\b|you\b|we\b)[\w@&'.-]+(?:\s+[\w@&'.-]+){0,3}?\s+(?:send|sent|write|written|wrote)\s+(?:to\s+)?(?:me|us)\b"
+    r"(?:\s+(?:anything|something|an?\s+(?:message|note|letter|update|reply)|mail|e-?mails?|back))?\s*(?:\?|$|\b(?:this|today|yesterday|recently|lately|since))"
+    r"|\bdid\s+(?:i|we)\s+(?:get|receive)\s+(?:anything|something|any(?:thing)?\s+(?:mail|e-?mails?|messages?)|mail|an?\s+(?:message|e-?mail|reply))\s+from\b"
+    # A received message picked out by recency: "reply to the latest kucoin email saying thanks",
+    # "answer kucoin's last email". Measured 2026-11-11 (battery v9, installed build): no read was
+    # seated, so the model asked the owner for KuCoin's address instead of reading the mail.
+    rf"|\b(?:the|[\w-]+['\u2019]s)\s+(?:latest|last|newest|most\s+recent)\s+(?:(?!{_NOT_MAIL_CONTENT}\b)[\w@&'.-]+\s+){{0,3}}?{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
     rf"|^\s*(?:please\s+)?[a-z]+(?:\s+(?:up|out|through|over))?\s+(?:the\s+)?(?:inbox|mailbox|e-?mails?|mail)\b"
     rf"(?!\s+{_NOT_MAIL_CONTENT}\b)",
     re.IGNORECASE,
@@ -905,11 +947,30 @@ _FIRST_PERSON_REPORT_RE = re.compile(
     r"am\s+looking|are\s+looking|was\s+wondering|were\s+wondering|wonder)\b)[a-z]+\b",
     re.IGNORECASE,
 )
+#: Sender-first framing, CASE-SENSITIVE: "Kucoin emails with deposit notification" — a
+#: capitalised NAME before the mail noun. The big anchor compiles case-insensitively, so a
+#: capitalised-name requirement inside it would match "an email" — this pattern lives alone
+#: so the capital letter actually means a name. Measured 2026-11-06: the operator's morning
+#: ask failed to seat because the recognizer only knew sender-AFTER-noun ("emails from
+#: Kucoin"). The instruction-authority gates in mailbox_retrieval_intents still decide first.
+_SENDER_FIRST_ANCHOR_RE = re.compile(
+    rf"\b[A-Z][\w'-]+\s+{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
+    # A possessive sender with up to two words before the mail noun: "Show me Ana's last email",
+    # "Reply to Ana's dinner email". Measured 2026-11-10 on 0.7.8: neither seated email.read, so the
+    # reply was drafted without ever reading Ana's message (to an invented address). Possessive
+    # only: "Write Ana a nice email" is a compose request and stays out.
+    rf"|\b[A-Z][\w-]*['\u2019]s\s+(?:[a-z][\w-]*\s+){{1,2}}?{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
+)
+
+
 _REQUEST_FRAME_RE = re.compile(r"\?|\b(?:please|can\s+you|could\s+you|would\s+you|will\s+you)\b", re.IGNORECASE)
 _SENTENCE_BREAK_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
 
 #: What a request about received mail seats: the read tool. The family fill seats the rest.
 MAILBOX_RETRIEVAL_INTENTS: tuple[str, ...] = ("email.read",)
+
+
+_STATES_AN_ADDRESS_RE = re.compile(r"\s*(?:address\s+)?(?:is|was|=|:)\s+(?:now\s+)?[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.IGNORECASE)
 
 
 def mailbox_retrieval_intents(text: str) -> tuple[str, ...]:
@@ -940,9 +1001,15 @@ def mailbox_retrieval_intents(text: str) -> tuple[str, ...]:
     for sentence in _SENTENCE_BREAK_RE.split(eligible):
         anchor = _MAILBOX_ANCHOR_RE.search(sentence)
         if anchor is None:
-            continue
+            sender_first = _SENDER_FIRST_ANCHOR_RE.search(sentence)
+            if sender_first is None:
+                continue
+            anchor = sender_first
         example = _EXAMPLE_FRAME_RE.search(sentence)
         if example is not None and example.start() < anchor.start():
+            continue
+        # "my email is ada@example.test": the person states their address; nothing asks to read mail.
+        if _STATES_AN_ADDRESS_RE.match(sentence[anchor.end():]):
             continue
         if _FIRST_PERSON_REPORT_RE.match(sentence) and not _REQUEST_FRAME_RE.search(sentence):
             continue
@@ -1072,6 +1139,33 @@ _DELIVERY_ORDER_RE = re.compile(
     r"\b(?:give|send|hand)\s+(?:it|this|that|them|the\s+\w+)\s+(?:over\s+|back\s+)?(?:to\s+me\s+)?(?:as|in)\b"
     r"|\bas\s+an?\s+(?:downloadable\s+)?file\b|\b(?:export|save|put)\s+(?:it|this|that|them)\s+(?:as|to|in(?:to)?)\b",
     re.I,
+)
+
+
+#: A short follow-up that is nothing but a format order: "pdf please", "make it a pdf", "word
+#: version?", "as excel". Measured 2026-11-11 on the installed build: after a packing list,
+#: "pdf please" was answered "Would you like me to generate it now?" while "give me that in pdf"
+#: delivered the file -- the reply asked instead of doing what was asked.
+_ELLIPTICAL_FORMAT_ORDER_RE = re.compile(
+    r"^\s*(?:(?:ok(?:ay)?|now|and|also|then)\s*[,]?\s*)?(?:(?:please|pls|plz)\s+)?"
+    r"(?:(?:make|turn|put|convert|save|export|send|give\s+me)\s+(?:it|that|this|them|those)\s+(?:in(?:to)?|as|to)?\s*)?"
+    r"(?:(?:a|an|as|in)\s+)?(?:\.)?(pdf|docx?|word(?:\s+doc(?:ument)?)?|excel|xlsx|csv|markdown|md|pptx|powerpoint|zip)"
+    r"(?:\s+(?:version|file|copy|format|doc(?:ument)?))?\s*(?:,?\s*(?:please|pls|plz|too|instead|thanks))?\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+
+#: An edit of the last answer that orders the file again: "add sunscreen and a torch and make the pdf
+#: again", "pls add sunscreen + torch, new pdf", "update it with ... and give me the pdf again". The
+#: format order rides on the edit, so neither the elliptical order above nor the "as a PDF" shape saw
+#: it, and the model claimed a file nothing made (0.7.8 sweep block 3, PDF-EDIT-01 p1-p3).
+_FILE_AGAIN_ORDER_RE = re.compile(
+    r"\b(?:(?:make|give\s+me|send\s+me|send|export|redo|regenerate|re-?make|create|generate|do)\s+"
+    r"(?:me\s+)?(?:the|a|an|another|that|this)\s+(?:new\s+|fresh\s+|updated\s+)?"
+    r"(?:pdf|docx?|word\s+(?:doc|document|file)|xlsx|excel\s+file|csv|pptx)\b(?:\s+(?:file|version|copy))?\s+(?:again|too)\b"
+    r"|(?:^|[,;+&]|\band\b)\s*(?:a\s+|an\s+)?(?:new|fresh|updated)\s+(?:pdf|docx?|xlsx|csv|pptx)\b(?:\s+(?:file|version|copy))?\s*(?:pls|please)?\s*[.!]?\s*$"
+    r"|\b(?:make|give\s+me|send\s+me|export|create|generate)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:new|fresh|updated)\s+(?:pdf|docx?|xlsx|csv|pptx)\b)",
+    re.IGNORECASE,
 )
 
 
@@ -1276,7 +1370,11 @@ def resolve_demand_signals(text: str) -> DemandSignals:
 
     # Share the reader with front-door ownership: an anaphoric artifact order
     # must seat file.deliver too, not only classify as a file after seating.
-    if _separate_file_execution_clause(cleaned):
+    if (
+        _separate_file_execution_clause(cleaned)
+        or _ELLIPTICAL_FORMAT_ORDER_RE.match(cleaned)
+        or _FILE_AGAIN_ORDER_RE.search(cleaned)
+    ):
         _note("file.deliver", "file")
 
     # A save/store request whose object is a saved contact ("save Alex Chen as a contact",

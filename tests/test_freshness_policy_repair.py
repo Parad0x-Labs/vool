@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.attempt_retry import evaluate_subtask_freshness, plan_retry_generation
 from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
@@ -125,6 +127,7 @@ class ExecuteAttemptRetryFreshnessIntegrationTests(unittest.TestCase):
         configure_runtime_continuity_db_path(None)
         self._tmp.cleanup()
 
+    @pytest.mark.usefixtures("enable_web")
     def test_stale_market_result_is_refreshed_on_retry(self) -> None:
         from core.agent_runtime.attempt_retry import execute_attempt_retry
         from core.live_quote_contract import LiveQuoteResult

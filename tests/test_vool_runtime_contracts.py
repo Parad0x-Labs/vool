@@ -941,7 +941,7 @@ def test_generic_capability_inventory_prompt_uses_grounded_fast_path(make_agent)
     lowered = result["response"].lower()
     assert result["response_class"] == ResponseClass.UTILITY_ANSWER.value
     assert result["model_execution"]["used_model"] is False
-    assert "wired on this runtime" in lowered
+    assert "here's what i can do on this computer" in lowered
     assert "read and write files inside the active workspace" in lowered
     assert "not a full autonomous build/debug/test loop" in lowered
 

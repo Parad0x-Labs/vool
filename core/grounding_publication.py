@@ -88,8 +88,7 @@ UNSUPPORTED_WORK_NOTICE_LEAD = "Withheld from this answer:"
 
 #: What ships when the bound evidence supports nothing in the answer. Never the model's bytes.
 _REFUSAL_LEAD = (
-    "I can't publish an answer to this: it needed current information, and nothing in what "
-    "this turn actually retrieved supports the answer that was written."
+    "I looked this up, but what I found doesn't back the answer I wrote, so I'm not sending it."
 )
 
 #: The same refusal for a turn whose only support was this chat's own records: the answer was checked against what
@@ -120,8 +119,16 @@ _RE_PRESENTATION_OF_WITHHELD_LEAD = (
 #: Every lead `typed_refusal` can ship. A refusal is the runtime SAYING IT DECLINED; it is not
 #: answer content, and it names the request verbatim so the reader knows which ask was declined.
 #: That echo is right for a reader and wrong for a later prompt -- see `is_typed_refusal_text`.
+#: The lead this refusal carried before 2026-11-12. Transcripts written then still hold it, and a
+#: refusal is recognised as one wherever it was written.
+_LEGACY_REFUSAL_LEAD = (
+    "I can't publish an answer to this: it needed current information, and nothing in what "
+    "this turn actually retrieved supports the answer that was written."
+)
+
 _ALL_REFUSAL_LEADS = (
     _REFUSAL_LEAD,
+    _LEGACY_REFUSAL_LEAD,
     _RE_PRESENTATION_REFUSAL_LEAD,
     _RE_PRESENTATION_OF_WITHHELD_LEAD,
 )
@@ -147,26 +154,21 @@ def is_typed_refusal_text(text: str) -> bool:
     attestation, destroying the actionable reason the operator was refused for.
     """
     from core.agent_runtime.builder.pinned_generation import PINNED_BUILD_REFUSAL_LEAD
-    from core.final_answer_authorship import author_refusal_leads, no_model_notice_leads
+    from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD, no_model_notice_leads
 
     body = str(text or "").lstrip()
-    leads = (*_ALL_REFUSAL_LEADS, *author_refusal_leads(), *no_model_notice_leads(), PINNED_BUILD_REFUSAL_LEAD)
+    leads = (*_ALL_REFUSAL_LEADS, UNCERTIFIED_AUTHOR_NOTICE_LEAD, *no_model_notice_leads(), PINNED_BUILD_REFUSAL_LEAD)
     return any(body.startswith(lead) for lead in leads)
 
 
 _STAGE_EXPLANATION = {
-    STAGE_RETRIEVED: (
-        "The retrieval for this turn returned no usable rows, so there was nothing for the "
-        "answer to be built from."
-    ),
+    # Plain words for the person (0.7.8 sweep block 2c flagged the engineering wording here).
+    STAGE_RETRIEVED: "The search came back with nothing I could use.",
     STAGE_BOUND: (
-        "This turn retrieved sources, but they never reached the model call that wrote the "
-        "answer -- so the text is memory, not a reading of those sources. A retrieval receipt "
-        "records that a search ran; it cannot record that anything found was used."
+        "The pages I found never reached the step that wrote the answer, so it came from memory, "
+        "not from them."
     ),
-    STAGE_SUPPORTED: (
-        "The sources this turn retrieved do not support the statements that were written."
-    ),
+    STAGE_SUPPORTED: "The pages I found don't state it.",
 }
 
 
@@ -721,17 +723,44 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
         # and the reformatted bytes restated only what that answer had withheld.
         lead = _RE_PRESENTATION_REFUSAL_LEAD
         return lead if not subject else f'{lead} (request: "{subject[:160]}")'
+    if (
+        failed_stage == STAGE_RETRIEVED
+        and not lifecycle.retrieved_source_count
+        and not lifecycle.retrieved_notes
+        and not lifecycle.bound_notes
+        and not lifecycle.typed_observations
+        and not _records_only_support(lifecycle)
+    ):
+        # Nothing was retrieved because this turn cannot reach the web (the Web lookups switch, an
+        # Offline chat, a computer kept fully local): that is the reason, in the run-mode authority's
+        # words, not "nothing retrieved supports the answer" (0.7.8 sweep block 2c: a price, a URL
+        # read and "what does the guardian homepage show right now" with Web lookups off).
+        try:
+            from core.remote_fetch_policy import effective_web_available, lookup_unavailable_reason
+
+            if not effective_web_available():
+                return lookup_unavailable_reason()
+        except Exception:
+            pass
     if _records_only_support(lifecycle):
         if any(_records_absence_row(row) for row in lifecycle.memory_records):
             from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
 
             return RECORDS_WITHDRAWAL_NOTICE
         return _RECORDS_REFUSAL_LEAD if not subject else f'{_RECORDS_REFUSAL_LEAD} (request: "{subject[:160]}")'
-    parts = [_REFUSAL_LEAD if not subject else f'{_REFUSAL_LEAD} (request: "{subject[:160]}")']
+    parts = [_REFUSAL_LEAD]
     explanation = _STAGE_EXPLANATION.get(failed_stage or "")
     if explanation:
-        parts.append(explanation)
-    report = compose_grounded_report(list(lifecycle.bound_notes))
+        parts[0] = f"{parts[0]} {explanation}"
+    # What the pages did say, briefly: two sources, a few lines each -- the person can open them.
+    brief = []
+    for note in list(lifecycle.bound_notes)[:2]:
+        if isinstance(note, dict):
+            row = dict(note)
+            text = " ".join(str(row.get("summary") or "").split())
+            row["summary"] = text if len(text) <= 280 else text[:277].rsplit(" ", 1)[0] + " …"
+            brief.append(row)
+    report = compose_grounded_report(brief, limit=2)
     if report:
         parts.append(report)
     return "\n\n".join(parts)

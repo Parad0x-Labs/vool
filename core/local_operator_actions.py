@@ -1582,9 +1582,27 @@ def _handle_move_calendar_event(
     )
 
 
+def _host_timezone_name() -> str:
+    """This computer's IANA time zone ("Europe/Vilnius"), or "" when it cannot be read.
+
+    A person who never set a time zone means the clock on their computer: "remind me tomorrow at
+    10am" was scheduled for 10:00 UTC on the 0.7.8 sweep (block 3), two hours off on a +02:00 Mac."""
+    import os
+
+    configured = str(os.environ.get("TZ") or "").strip().lstrip(":")
+    if "/" in configured:
+        return configured
+    try:
+        target = os.path.realpath("/etc/localtime")
+    except OSError:
+        return ""
+    marker = "zoneinfo/"
+    return target.split(marker, 1)[1] if marker in target else ""
+
+
 def _scheduling_now():
     from core.user_preferences import load_user_timezone
-    return CLOCK.now_for_timezone(load_user_timezone() or 'UTC')
+    return CLOCK.now_for_timezone(load_user_timezone() or _host_timezone_name() or 'UTC')
 
 
 def _parse_when(text: str):

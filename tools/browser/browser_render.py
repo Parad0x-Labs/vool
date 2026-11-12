@@ -222,6 +222,33 @@ class BrowserProfileUnavailableError(RuntimeError):
 _TEST_ONLY_BROWSER_NO_SANDBOX_ENV = "VOOL_TEST_BROWSER_NO_SANDBOX"
 
 
+def _proxy_flags_from_environment() -> list[str]:
+    """The process's own proxy, handed to the browser, so it leaves the machine the same way.
+
+    Every Python fetch VOOL makes honours HTTPS_PROXY / ALL_PROXY / NO_PROXY; a Chromium-family
+    browser does not read them (on macOS it follows the system settings), so a proxy or fence set
+    for VOOL's process did not cover its browser. Measured 2026-11-12 on the Mac: a served test
+    fenced every lookup behind a dead proxy and the browser search engine still returned a real
+    weather.com snippet. Empty when no proxy is set, so an ordinary run is unchanged.
+    """
+    proxy = ""
+    for name in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy"):
+        proxy = str(os.environ.get(name) or "").strip()
+        if proxy:
+            break
+    if not proxy:
+        return []
+    bypass = str(os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").strip()
+    items = [item.strip() for item in bypass.split(",") if item.strip()]
+    if "*" in items:
+        # Python reads NO_PROXY=* as "never use the proxy"; the browser does the same.
+        return []
+    flags = [f"--proxy-server={proxy}"]
+    if items:
+        flags.append("--proxy-bypass-list=" + ";".join(items))  # Chromium's list is ';'-separated
+    return flags
+
+
 def _chrome_argv(
     binary: str,
     url: str,
@@ -290,6 +317,7 @@ def _chrome_argv(
             "profile."
         ) from exc
     argv.append(f"--user-data-dir={profile_dir}")
+    argv += _proxy_flags_from_environment()
     if screenshot_path:
         argv += ["--window-size=1280,2400", f"--screenshot={screenshot_path}"]
     argv += ["--dump-dom", url]

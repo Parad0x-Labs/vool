@@ -122,8 +122,8 @@ def render_clarification(verdict: AmbiguityVerdict, question: str) -> str:
     lead = verdict.clarification or "That name can refer to more than one place or thing."
     names = ", ".join(verdict.referents)
     if names:
-        return f"{lead} Did you mean: {names}? (asked: {asked!r})"
-    return f"{lead} (asked: {asked!r})"
+        return f"{lead} Did you mean {names}? (You asked: “{asked}”)"
+    return f"{lead} (You asked: “{asked}”)"
 
 
 #: The three states the adjudication can end in. UNRESOLVED is a state of its own —
@@ -186,22 +186,24 @@ def render_unresolved_clarification(question: str, *, attempts: int) -> str:
     is the one resolution the runtime can still reach on its own.
     """
 
+    # Plain words only (acceptance 2026-11-11): the reply used to say "a single well-known
+    # answer (tried 2x)" and echo "(asked: '...')" -- the runtime's own bookkeeping, which the
+    # person cannot act on. The attempt count stays in the recorded adjudication state.
     asked = " ".join(str(question or "").strip().split())
-    if int(attempts) > 0:
-        lead = (
-            f"I couldn't complete my check for whether this question has a single "
-            f"well-known answer (tried {int(attempts)}x)"
-        )
-    else:
-        lead = (
-            "I couldn't run my check for whether this question has a single "
-            "well-known answer"
-        )
     return (
-        f"{lead}, so I'd rather confirm than guess. "
-        f"If you meant one specific place, person or thing, tell me which — or "
-        f"rephrase with a detail that pins it down. (asked: {asked!r})"
+        f"I couldn't {'complete' if int(attempts) > 0 else 'run'} my check on which one you mean, "
+        "so I'd rather ask than guess. "
+        "Which place, person or thing do you mean? A full name or a detail such as the country "
+        f"helps. (You asked: “{asked}”)"
     )
+
+
+_OWN_DATA_STORE_RE = re.compile(
+    r"\b(?:in|from|of|on|inside)\s+(?:my|our|the|this|that)\s+(?:[\w-]+\s+){0,3}?"
+    r"(?:tables?|tabels?|databases?|databse|db|spreadsheets?|sheets?|csv|files?|folders?|notes?|lists?|records?|"
+    r"inbox|calendar|contacts|documents?|docs?|workbook)\b",
+    re.IGNORECASE,
+)
 
 
 def single_plain_know_question(
@@ -235,6 +237,43 @@ def single_plain_know_question(
     from core.runtime_lane_truth import runtime_lane_question
 
     if runtime_lane_question(message):
+        return False
+    # A question about the person's OWN mail names a sender, not an entity to adjudicate: the
+    # mailbox holds the answer. Measured 2026-11-10 on 0.7.8 c684e66d with a connected account:
+    # "What did KuCoin email me about?" was answered "Are you referring to the cryptocurrency
+    # exchange KuCoin or a person named KuCoin?" and email.read never ran. Same recognizer that
+    # seats the read.
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    if mailbox_retrieval_intents(message):
+        return False
+    # A question that names the person's own data -- a table, database, sheet, file, folder,
+    # notes or list -- is answered from that data, never adjudicated against the world: the
+    # probe's referents are model-made, and "who lives in Oslo in the customers table?" was asked
+    # back as "Did you mean Olaf, Elin?", names that are not in the data (database run 6,
+    # 2026-11-12). Same for any ask a tool family is seated for.
+    if _OWN_DATA_STORE_RE.search(message):
+        return False
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        if resolve_demand_signals(message).required_families:
+            return False
+    except Exception:
+        pass
+    # A question about the speaker's OWN facts is answered from their memory, never adjudicated
+    # against the world: measured 2026-11-10 on 0.7.8 (patched build, real chat surface), after
+    # "Remember that my favourite bakery is Kepykla Holy", a new chat asked "Which bakery is my
+    # favourite?" and was answered "Did you mean: Bakery A, Bakery B, Bakery C?" -- invented
+    # referents, memory never read. Same detector both planners consult for recall questions.
+    from core.agent_runtime.cross_chat_recall import as_question
+    from core.agent_runtime.turn_planner import recall_question_needs_no_planner
+
+    if recall_question_needs_no_planner(as_question(message)):
+        return False
+    # "what bike do I have", "which hotel am I staying at": the referent is the speaker's own, so
+    # there is nothing in the world to disambiguate (measured: "Did you mean: bike?").
+    if re.search(r"\b(?:do|did|have|had|am|was|will)\s+i\b|\bi(?:'m|'ve)\b", message, re.IGNORECASE):
         return False
     try:
         from core.agent_runtime.answer_coverage import demand_units

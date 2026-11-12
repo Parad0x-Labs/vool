@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.live_data_plan import SubtaskLifecycle, build_live_data_plan, evaluate_approval_policy
 from core.agent_runtime.live_data_runner import run_live_data_plan
 from core.live_quote_contract import LiveQuoteResult
@@ -74,6 +76,7 @@ def _run_benchmark_mocked():
     return plan, outcomes
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_all_seven_subtasks_succeed_with_structured_results() -> None:
     _plan, outcomes = _run_benchmark_mocked()
     assert len(outcomes) == 7
@@ -88,6 +91,7 @@ def test_outcomes_preserve_plan_order() -> None:
     assert [o.subtask.subtask_id for o in outcomes] == [t.subtask_id for t in plan.subtasks]
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_failed_city_and_a_failed_asset_do_not_erase_the_others() -> None:
     """Partial-failure isolation, both toolsets at once: warsaw's weather fetch and silver's
     market fetch both fail; the other five subtasks must still succeed with real results."""
@@ -127,6 +131,7 @@ def test_a_failed_city_and_a_failed_asset_do_not_erase_the_others() -> None:
     assert by_entity["Warsaw"].state is SubtaskLifecycle.FAILED
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_subtask_requiring_approval_is_not_executed_and_is_preserved_not_dropped() -> None:
     """The exact mixed-plan requirement: an approval-required subtask must be represented, not
     silently discarded, while its automatically-executable siblings still run."""
@@ -157,6 +162,7 @@ def test_a_subtask_requiring_approval_is_not_executed_and_is_preserved_not_dropp
     assert all(o.ok for o in others)
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_sabotage_a_pool_level_exception_does_not_lose_completed_outcomes() -> None:
     """If the thread pool itself raises (not an individual fetch), the sequential fallback must
     still recover every subtask rather than losing the whole plan to one infrastructure fault."""

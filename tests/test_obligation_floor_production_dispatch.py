@@ -116,6 +116,7 @@ def _dispatch(agent, source_context: dict | None = None):
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers", "model_seams")
 def test_the_product_seam_ships_the_dependent_value(agent):
     """The whole repair, end to end, through the method the product calls.
@@ -179,6 +180,7 @@ def test_the_seam_refuses_a_result_that_escaped_its_prerequisite_closure(agent):
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers", "model_seams")
 def test_a_fully_served_turn_is_not_refused_by_any_of_the_above(agent):
     """NEGATIVE CONTROL for both. The integrity path is not simply always on."""
@@ -211,6 +213,7 @@ def _with_states(plan, states: dict[str, NodeLifecycle], **kwargs):
     return outcomes
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers", "model_seams")
 def test_an_unfulfilled_turn_ships_but_does_not_claim_fulfilment(agent):
     """P9. A truthful partial result is worth having; it may not carry a complete turn's weight."""

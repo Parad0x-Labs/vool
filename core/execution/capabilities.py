@@ -79,10 +79,7 @@ def runtime_capability_ledger(
             "supported": web_enabled,
             "support_level": "supported" if web_enabled else "unsupported",
             "availability_state": "ready" if web_enabled else "unavailable",
-            "unsupported_reason": (
-                "Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups. "
-                "(Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
-            ),
+            "unsupported_reason": _web_unsupported_reason(),
             "intents": web_intents,
             "public_tag": "web.live_lookup",
         },
@@ -815,3 +812,19 @@ def _operator_argument_schema(tool_id: str) -> dict[str, str]:
             "duration_minutes": "integer optional",
         }
     return {}
+
+
+def _web_unsupported_reason() -> str:
+    """Why web lookup is unavailable, for THIS turn. An Offline chat (or a machine kept fully
+    local) gets its own words: measured 2026-11-12 on the Mac, an Offline chat told the user to
+    switch Web lookups on and to set an environment variable, which would not have helped."""
+    try:
+        from core.remote_fetch_policy import local_only_active, web_unavailable_reason
+
+        if local_only_active():
+            return web_unavailable_reason()
+    except Exception:
+        pass
+    # Chat words only: the 0.7.8 sweep (2026-11-12) flagged the environment-variable hint here
+    # as engineering text in a chat reply.
+    return "Web lookups are off. You can turn them on in Settings, Privacy & Permissions."

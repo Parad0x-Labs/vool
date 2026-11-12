@@ -11,6 +11,8 @@ from __future__ import annotations
 import time
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.live_data_plan import build_live_data_plan
 from core.agent_runtime.live_data_runner import (
     concurrency_report,
@@ -58,6 +60,7 @@ def _mocks():
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_benchmark_produces_overlapping_running_intervals() -> None:
     plan = build_live_data_plan(BENCHMARK, plan_id="plan-1", attempt_id="attempt-1")
     with _mocks()[0], _mocks()[1], _mocks()[2]:
@@ -69,6 +72,7 @@ def test_the_benchmark_produces_overlapping_running_intervals() -> None:
     assert report.proves_concurrency is True
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_every_subtask_has_queued_started_completed_and_duration() -> None:
     plan = build_live_data_plan(BENCHMARK, plan_id="plan-1", attempt_id="attempt-1")
     with _mocks()[0], _mocks()[1], _mocks()[2]:

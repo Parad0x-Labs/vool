@@ -655,7 +655,10 @@ def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> bool:
         return True
     if result.unique:
         hit = hits[0]
-        line = "Found it: " + _chat_label(hit["title"], project_name=hit["project_name"], archived=hit["archived"], current=hit["is_current_chat"])
+        # Say WHERE it was found: "in your chat X" / "in this chat" (0.7.8 sweep block 1c: "Found it:
+        # <title>" did not say the find came from another of the person's chats).
+        where = "in this chat" if hit["is_current_chat"] else "in your chat"
+        line = f"Found it {where}: " + _chat_label(hit["title"], project_name=hit["project_name"], archived=hit["archived"], current=hit["is_current_chat"])
         when = _when(hit["snippet_ts"] or hit["updated_at"])
         if when:
             line += f", {when}"

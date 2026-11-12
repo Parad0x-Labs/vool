@@ -1701,7 +1701,7 @@ def _machine_find_folder(
 
     # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
     # breadth-first spent the budget on system and app folders before it reached the user's own.
-    home = os.path.expanduser("~")
+    home = str(Path.home())
     if os.path.isdir(home):
         # The drive that holds the home folder is searched through the home folder only. Audit
         # 2026-10-27: "check my Invoices folder" walked / to depth 6 (system and app folders, every
@@ -1733,6 +1733,10 @@ def _machine_find_folder(
                         or entry.path == home_library
                         or lowered_name.endswith(_APP_LIBRARY_SUFFIXES)
                     ):
+                        continue
+                    if lowered_name.startswith(".") and not wants_hidden:
+                        # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
+                        # or walked unless the person names a dot-folder themselves.
                         continue
                     if lowered_name.startswith(".") and not wants_hidden:
                         # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
@@ -4591,6 +4595,22 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
         )
     truncated = len(body) > max_bytes
     text = body[:max_bytes].decode("utf-8", errors="replace")
+    # A web page is read as its words, never its markup: the raw HTML (doctype, meta tags, CSS
+    # links) was shown to the person as the page's content and fed to models as tokens (0.7.8 sweep
+    # block 2c, FR-WEB-URL-01: "summarize https://www.iana.org/help/example-domains" printed
+    # `<!doctype html> <html> <head> ...`). Other content types pass through unchanged.
+    page_title = ""
+    if "html" in content_type.lower() or text.lstrip()[:15].lower().startswith(("<!doctype html", "<html")):
+        from html import unescape as _unescape_html
+
+        from core.demo_source import _html_to_text
+
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", text)
+        if title_match:
+            page_title = " ".join(_unescape_html(title_match.group(1)).split())
+        text = _html_to_text(text)
+        if page_title and not text.startswith(page_title):
+            text = f"{page_title}\n\n{text}"
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -5409,6 +5429,21 @@ def _sibling_projects_to_hide(target: Path, *, workspace_root: Path) -> set[str]
     return hidden
 
 
+#: File kinds a listing can be narrowed to, by extension.
+_LISTING_KIND_SUFFIXES: dict[str, tuple[str, ...]] = {
+    "image": (".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".raw", ".dng"),
+    "video": (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"),
+    "audio": (".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"),
+    "pdf": (".pdf",),
+    "document": (".pdf", ".doc", ".docx", ".txt", ".md", ".rtf", ".pages", ".odt"),
+    "spreadsheet": (".xlsx", ".xls", ".csv", ".numbers", ".ods"),
+}
+_LISTING_KIND_LABELS = {
+    "image": "Pictures", "video": "Videos", "audio": "Audio files", "pdf": "PDFs",
+    "document": "Documents", "spreadsheet": "Spreadsheets",
+}
+
+
 def _list_machine_directory(
     arguments: dict[str, Any], *, workspace_root: Path
 ) -> RuntimeExecutionResult:
@@ -5492,11 +5527,28 @@ def _list_machine_directory(
     # Measured on the deployed build 2026-07-30. A list that silently stops is a wrong answer, not
     # a short one.
     matched: list[dict[str, Any]] = []
-    for child in sorted(target.iterdir(), key=lambda item: item.name.lower()):
-        if child.name.startswith(".") or child.name in hidden_names:
-            continue
-        if directories_only and not child.is_dir():
-            continue
+    # "the latest 10 pics in my Downloads": a kind of file and newest first. The listing used to be
+    # every entry by name, so a person asking for their recent photos got folders and installers.
+    kind = str(arguments.get("kind") or "").strip().lower()
+    kind_suffixes = _LISTING_KIND_SUFFIXES.get(kind, ())
+    newest_first = bool(arguments.get("newest_first", False))
+    children = [
+        child for child in target.iterdir()
+        if not child.name.startswith(".") and child.name not in hidden_names
+        and not (directories_only and not child.is_dir())
+        and not (kind_suffixes and (child.is_dir() or not child.name.lower().endswith(kind_suffixes)))
+    ]
+    if newest_first:
+        def _mtime(item: Path) -> float:
+            try:
+                return item.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        children.sort(key=_mtime, reverse=True)
+    else:
+        children.sort(key=lambda item: item.name.lower())
+    for child in children:
         matched.append(
             {
                 "name": child.name,
@@ -5508,6 +5560,8 @@ def _list_machine_directory(
     dropped = len(matched) - len(entries)
     if not entries:
         noun = "folders" if directories_only else "entries"
+        if kind_suffixes:
+            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
         return RuntimeExecutionResult(
             handled=True,
             ok=True,
@@ -5533,6 +5587,8 @@ def _list_machine_directory(
             },
         )
     label = "Visible folders" if directories_only else "Visible entries"
+    if kind_suffixes:
+        label = f"{_LISTING_KIND_LABELS.get(kind, 'Files')}{', newest first,' if newest_first else ''}"
     if bool(arguments.get("count_only", False)):
         # "how many files are in ~/Downloads" was answered with the first thirty filenames and a
         # bare "-...", so the number it asked for was nowhere in the reply and could not be
@@ -5896,9 +5952,9 @@ def _machine_chip_name() -> str:
 def _inspect_machine_specs() -> RuntimeExecutionResult:
     probe = probe_machine()
     recommendation_summary = install_recommendation_machine_summary(probe=probe)
-    # Last-resort default if the summary carries no model: qwen2.5:7b fits 7-8GB GPUs and CPU,
-    # so the emergency default is not the oversized qwen3:8b (partial-offloads on 6-10GB VRAM).
-    recommended_model = str(recommendation_summary.get("ollama_model") or "").strip() or "qwen2.5:7b"
+    # Last-resort default if the summary carries no model: qwen3.5:4b fits a 6 GB card whole and
+    # answers on a CPU, so the emergency default never part-offloads on 6-10GB VRAM.
+    recommended_model = str(recommendation_summary.get("ollama_model") or "").strip() or "qwen3.5:4b"
     recommended_bundle_models = tuple(
         str(item).strip()
         for item in recommendation_summary.get("recommended_bundle_models") or ()
@@ -8153,6 +8209,9 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
         return "\n".join(lines)
 
     sections = [
+        # The skills VOOL ships with are listed too: "what skills do you have?" answered only
+        # "26 skill(s)." because this section was missing (0.7.8 sweep block 2, 2026-11-12).
+        _section("Built into VOOL", list(result.get("native_skills") or []), show_path=False),
         _section("For this chat", list(result.get("chat_skills") or []), show_path=False),
         _section("For this project", list(result.get("project_skills") or []), show_path=False),
         _section("In the workspace", list(result.get("workspace_skills") or [])),
@@ -8167,7 +8226,9 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             f"No skills found. I scanned {scanned or 'no workspace (none is bound to this chat)'}, "
             "the staging area, and the installed plugins tree for SKILL.md files."
         )
-    return _skill_result("skill.list", result, response=body or f"{total} skill(s).")
+    if total and body:
+        body = f"I have {total} skill{'' if total == 1 else 's'}:\n\n" + body
+    return _skill_result("skill.list", result, response=body or f"I have {total} skill{'' if total == 1 else 's'}.")
 
 
 def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:

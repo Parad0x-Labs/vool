@@ -235,6 +235,47 @@ function answer_result(v){ return v && typeof v === 'object' ? v.result : null; 
 // ---- settings section ------------------------------------------------------------------------
 var sec = null, statusEl = null, msgEl = null, lastStatus = null;
 function setMsg(text, isErr){ if (!msgEl) return; msgEl.textContent = text || ''; msgEl.className = 'vw-msg' + (isErr ? ' err' : ''); }
+// A wallet-wide setting that loosens what can be paid (Mainnet, a payment channel or a pay-per-answer service on, the fee
+// threshold) needs the wallet PIN or password, as raising a cap does (a Touch ID wallet asks on this Mac instead). When the
+// door asks for it, one box under the message line takes it, the request goes again with it, and the box clears either way.
+var pendingProof = null;
+function postOwnerProved(path, body, anchor){
+  return postJson(path, body).then(function(res){
+    var fault = res && res.data && res.data.fault;
+    var at = anchor || msgEl;
+    if (res.ok || !fault || !fault.context || fault.context.reason !== 'credential_required' || !at || !at.parentNode) return res;
+    var word = (res.data.error === 'wallet_password_invalid') ? 'password' : 'PIN';
+    // a second ask while one box is open closes the first as cancelled, so its control is not left waiting
+    if (pendingProof) pendingProof();
+    var box = el('div', 'vw-form'); box.id = 'vwOwnerProof';
+    var named = ' of ' + (fault.context.wallet_label || 'your first wallet');
+    var label = el('label', null, 'This change needs the ' + word + named); label.setAttribute('for', 'vwOwnerProofSecret'); box.appendChild(label);
+    var input = el('input', 'vw-pin'); input.type = 'password'; input.id = 'vwOwnerProofSecret'; input.autocomplete = 'off';
+    input.setAttribute('aria-label', 'wallet ' + word); if (word === 'PIN') input.inputMode = 'numeric'; box.appendChild(input);
+    var ok = el('button', 'vw-btn', 'Confirm'); ok.type = 'button'; ok.id = 'vwOwnerProofOk'; box.appendChild(ok);
+    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button'; cancel.id = 'vwOwnerProofCancel'; box.appendChild(cancel);
+    at.parentNode.insertBefore(box, at.nextSibling);
+    input.focus();
+    return new Promise(function(resolve){
+      var settled = false;
+      function done(result){
+        if (settled) return; settled = true; pendingProof = null;
+        input.value = ''; box.remove();
+        var e = result && result.data && result.data.error;
+        if (e === 'wallet_pin_invalid' || e === 'wallet_password_invalid' || e === 'wallet_unlock_throttled') result.data.message = (e === 'wallet_unlock_throttled' ? 'Too many wrong tries: the wallet is locked for a while.' : 'That ' + word + ' was not right.') + ' Nothing was changed.';
+        resolve(result);
+      }
+      pendingProof = function(){ done({ ok: false, status: 0, data: { message: 'Nothing was changed.' } }); };
+      input.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); ok.click(); } });
+      cancel.addEventListener('click', function(){ done({ ok: false, status: 0, data: { message: 'Nothing was changed.' } }); });
+      ok.addEventListener('click', function(){
+        var again = {}; Object.keys(body || {}).forEach(function(k){ again[k] = body[k]; }); again.credential = input.value;
+        ok.disabled = true;
+        postJson(path, again).then(done).catch(function(){ done({ ok: false, status: 0, data: { message: 'The request did not complete.' } }); });
+      });
+    });
+  });
+}
 var CHAIN_LABELS = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'eip155:46630': 'Robinhood Chain Testnet', 'eip155:4663': 'Robinhood Chain', 'eip155:8453': 'Base', 'eip155:1': 'Ethereum', 'eip155:56': 'BNB Smart Chain', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'Solana Devnet', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'Solana' };
 function chainLabel(caip2){ return CHAIN_LABELS[caip2] || caip2; }
 var MODE_LABELS = { watch_only: 'watch-only (observe and propose; cannot sign; on mainnet, receive and view only)', pocket_sealed: 'VOOL Wallet (key sealed on this device, approved by you at payment)', external_signer: 'external wallet (signing stays in your wallet; on mainnet, receive and view only)' };
@@ -425,7 +466,7 @@ function dnaFeeControls(st, fees){
     var v = String(input.value || '').trim();
     if (!/^\d+$/.test(v) || parseInt(v, 10) < 1) { setMsg('The threshold is a whole number of atomic units, at least 1.', true); return; }
     save.disabled = true;
-    postJson('/api/wallet/dna-fees/policy', { asset: asset.value, collect_min_atomic: parseInt(v, 10) }).then(function(res){
+    postOwnerProved('/api/wallet/dna-fees/policy', { asset: asset.value, collect_min_atomic: parseInt(v, 10) }).then(function(res){
       save.disabled = false;
       if (!res.ok) { setMsg((res.data && (res.data.message || res.data.error)) || 'Threshold not saved.', true); return; }
       var s = (res.data && res.data.saved) || {};
@@ -459,9 +500,19 @@ function limitsControls(st){
   var perTx = field('vwLimitPerTx', 'Per transaction', lim.per_tx_minor);
   var daily = field('vwLimitDaily', 'Per day', lim.daily_minor);
   var perDest = field('vwLimitPerDest', 'Per destination per day', lim.per_destination_daily_minor);
+  // Raising a cap asks for the wallet's own PIN or password (a Touch ID wallet asks on this Mac instead); lowering never does.
+  var secretWord = st.approval_method === 'password' ? 'password' : 'PIN';
+  var secret = null;
+  if (st.approval_method === 'pin' || st.approval_method === 'password') {
+    var secretLabel = el('label', null, 'Wallet ' + secretWord + ' (needed only to raise a cap)'); secretLabel.setAttribute('for', 'vwLimitSecret'); box.appendChild(secretLabel);
+    secret = el('input', 'vw-pin'); secret.type = 'password'; secret.id = 'vwLimitSecret'; secret.autocomplete = 'off';
+    secret.setAttribute('aria-label', 'wallet ' + secretWord + ', needed only to raise a cap'); if (secretWord === 'PIN') secret.inputMode = 'numeric';
+    box.appendChild(secret);
+  }
   var save = el('button', 'vw-btn', 'Save spending caps'); save.id = 'vwLimitsSave'; save.type = 'button';
   save.addEventListener('click', function(){
     var body = { wallet_id: st.wallet_id, asset: (asset.value || 'SOL').trim().toUpperCase() };
+    if (secret && secret.value) body.credential = secret.value;
     var bad = false;
     [['per_tx_minor', perTx], ['daily_minor', daily], ['per_destination_daily_minor', perDest]].forEach(function(f){
       var v = String(f[1].value || '').trim(); if (v === '') return;
@@ -470,11 +521,12 @@ function limitsControls(st){
     if (bad) { setMsg('Caps are whole numbers of minor units.', true); return; }
     save.disabled = true;
     postJson('/api/wallet/limits', body).then(function(res){
-      save.disabled = false;
+      save.disabled = false; if (secret) secret.value = '';
+      if (!res.ok && res.data && res.data.fault && res.data.fault.context && res.data.fault.context.reason === 'credential_required') { setMsg('Raising a cap needs your wallet ' + secretWord + '. Type it above and save again.', true); return; }
       if (!res.ok) { setMsg((res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.remediation) || res.data.error)) || 'Caps not saved.', true); return; }
       setMsg('Spending caps saved.');
       renderStatus();
-    }).catch(function(){ save.disabled = false; setMsg('The caps request did not complete.', true); });
+    }).catch(function(){ save.disabled = false; if (secret) secret.value = ''; setMsg('The caps request did not complete.', true); });
   });
   box.appendChild(save);
   return box;
@@ -782,7 +834,7 @@ function channelControls(cp){
     row.appendChild(el('div', 'vw-cx-env', facts));
     toggle.addEventListener('change', function(){
       var wanted = toggle.checked; toggle.disabled = true;
-      postJson('/api/wallet/channels', { channel: c.channel_id, on: wanted }).then(function(res){
+      postOwnerProved('/api/wallet/channels', { channel: c.channel_id, on: wanted }, msg).then(function(res){
         toggle.disabled = false;
         if (!res.ok) { toggle.checked = !wanted; cxMsg(msg, faultMessage(res, 'The payment channel was not changed.'), true); return; }
         var saved = (res.data && res.data.channel) || {};
@@ -821,7 +873,7 @@ function paidAiControls(cp){
       row.appendChild(remove);
       toggle.addEventListener('change', function(){
         var wanted = toggle.checked; toggle.disabled = true;
-        postJson('/api/wallet/ai-endpoints', { action: 'set_on', id: r.id, on: wanted }).then(function(res){
+        postOwnerProved('/api/wallet/ai-endpoints', { action: 'set_on', id: r.id, on: wanted }, msg).then(function(res){
           toggle.disabled = false;
           if (!res.ok) { toggle.checked = !wanted; cxMsg(msg, faultMessage(res, 'The service was not changed.'), true); return; }
           draw(res.data.ai_endpoints); cxMsg(msg, r.label + (wanted ? ' is on.' : ' is off: nothing is asked or paid there.'));
@@ -850,7 +902,7 @@ function paidAiControls(cp){
   form.appendChild(add);
   add.addEventListener('click', function(){
     add.disabled = true;
-    postJson('/api/wallet/ai-endpoints', { action: 'add', label: name.value, base_url: url.value, model: model.value, max_price: max.value }).then(function(res){
+    postOwnerProved('/api/wallet/ai-endpoints', { action: 'add', label: name.value, base_url: url.value, model: model.value, max_price: max.value }, msg).then(function(res){
       add.disabled = false;
       if (!res.ok) { cxMsg(msg, faultMessage(res, 'The service was not added.'), true); return; }
       name.value = ''; url.value = ''; model.value = ''; max.value = '';
@@ -1129,7 +1181,7 @@ function devOptions(cp, inactiveEmpty){
     radio.addEventListener('change', function(){
       if (!radio.checked) return;
       cxMsg(msg, 'Switching to ' + choice.label + '…');
-      postJson('/api/wallet/environment', { environment: choice.value }).then(function(res){
+      postOwnerProved('/api/wallet/environment', { environment: choice.value }, msg).then(function(res){
         if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not changed.'), true); renderCrypto(); return; }
         renderCrypto();
       }).catch(function(){ cxMsg(msg, 'The request did not complete.', true); renderCrypto(); });

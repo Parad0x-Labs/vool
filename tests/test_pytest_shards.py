@@ -4,7 +4,9 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+from ops.pytest_manifest import _ManifestPlugin
 from ops.pytest_shards import (
     GATE_ENV_VAR,
     REQUIRED_EXECUTED_FILES,
@@ -148,9 +150,28 @@ def test_tracked_collection_gap_catches_a_deleted_or_omitted_suite() -> None:
     tracked = ("tests/test_a.py", "Beta2_Website/tests/test_beta.py")
 
     assert collection_manifest_gaps(tracked, tracked) == ()
+    assert collection_manifest_gaps(
+        ("tests/test_a.py",), tracked, skipped_targets=("Beta2_Website/tests/test_beta.py",)
+    ) == ()
     assert collection_manifest_gaps(("tests/test_a.py",), tracked) == (
         "Beta2_Website/tests/test_beta.py",
     )
+
+
+def test_manifest_records_module_level_skips_explicitly(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    test_file = repo_root / "tests" / "test_optional.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text("", encoding="utf-8")
+    output = tmp_path / "manifest.json"
+    plugin = _ManifestPlugin(repo_root=repo_root, output_path=output)
+
+    plugin.pytest_collectreport(SimpleNamespace(outcome="skipped", fspath=test_file))
+    plugin.pytest_collection_finish(SimpleNamespace(items=[]))
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["targets"] == []
+    assert payload["skipped_targets"] == ["tests/test_optional.py"]
 
 
 def test_repository_tracked_scope_includes_test_kit_and_excludes_legacy_script() -> None:

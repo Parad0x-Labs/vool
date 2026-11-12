@@ -303,6 +303,7 @@ def _drive_conductor_mixed_turn(session_id: str) -> tuple[dict, dict, _ProviderS
     return result, context, script
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_conductor_binds_its_retrieved_evidence_with_demand_and_source_identity(weather_fetchers):
     """Invariant 1 + 2, conductor side. The two live readings the plan retrieved must
     exist as a BOUND evidence set whose rows carry the values they observed, the source
@@ -335,6 +336,7 @@ def test_conductor_binds_its_retrieved_evidence_with_demand_and_source_identity(
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_conductor_mixed_turn_withholds_the_fabricated_line_and_keeps_the_readings(
     weather_fetchers,
 ):

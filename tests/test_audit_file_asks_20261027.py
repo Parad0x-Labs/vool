@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from core.execution.constants import machine_described_file_intent, machine_kind_listing_intent
+from core.execution.constants import machine_described_file_intent, machine_kind_listing_ask
 from core.request_trust import OWNER_LOCAL_KEY
 from core.tool_demand_signals import owner_file_demand
 
@@ -99,9 +99,9 @@ def test_described_files_are_found_by_every_word(home, monkeypatch):
 
 
 def test_photos_saved_to_downloads_in_the_last_few_days_is_a_listing():
-    listing = machine_kind_listing_intent("did i save any photos to downloads recently? like last few days")
+    listing = machine_kind_listing_ask("did i save any photos to downloads recently? like last few days")
     assert listing is not None and (listing.kind, listing.place, listing.max_age_days) == ("image", "Downloads", 3.0)
-    assert machine_kind_listing_intent("did i save photos to downloads and send them to bob") is None
+    assert machine_kind_listing_ask("did i save photos to downloads and send them to bob") is None
 
 
 def test_a_photo_listing_with_no_folder_also_looks_in_pictures():

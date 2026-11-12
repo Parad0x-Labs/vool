@@ -3211,7 +3211,10 @@ def _approval_effect_summary(actions: tuple[PermissionAction, ...]) -> str:
 
 def _affected_resources(arguments: dict[str, Any]) -> list[str]:
     resources: list[str] = []
-    for key in ("path", "paths", "cwd", "resource", "url", "recipient", "channel", "target"):
+    # "to"/"cc"/"bcc": an email send or reply names WHO receives it. Measured 2026-11-10 on 0.7.8:
+    # the Manual-mode card for email.send said "Affects: No specific path reported" while the
+    # model had addressed it to an invented address -- the one fact the person needed was absent.
+    for key in ("path", "paths", "cwd", "resource", "url", "recipient", "to", "cc", "bcc", "sender", "channel", "target"):
         value = arguments.get(key)
         if isinstance(value, list):
             resources.extend(str(item) for item in value[:12] if str(item).strip())
@@ -3252,7 +3255,68 @@ def _affected_resources_display(
     return displayed
 
 
+def _email_preview(intent: str, arguments: dict[str, Any]) -> str:
+    """What an email send/reply will put on the wire, shown on its approval card before it runs."""
+
+    def _joined(value: Any) -> str:
+        if isinstance(value, (list, tuple)):
+            return ", ".join(str(item) for item in value if str(item or "").strip())
+        return str(value or "").strip()
+
+    lines = [f"To: {_joined(arguments.get('to')) or '(no recipient)'}"]
+    for key, label in (("cc", "Cc"), ("bcc", "Bcc")):
+        if _joined(arguments.get(key)):
+            lines.append(f"{label}: {_joined(arguments.get(key))}")
+    lines.append(f"From account: {str(arguments.get('account') or '').strip() or 'default'}")
+    lines.append(f"Subject: {str(arguments.get('subject') or '').strip()}")
+    body = str(arguments.get("body") or "").strip()
+    if len(body) > 1500:
+        body = body[:1500] + f" ...[{len(body) - 1500} more characters]"
+    return "\n".join(lines) + "\n\n" + body
+
+
+def _draft_send_preview_arguments(arguments: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """The stored draft's recipient, subject, body and account, for the draft.send card; {} when unknown."""
+    try:
+        from core.email_drafts import get_draft
+
+        context = source_context if isinstance(source_context, dict) else {}
+        session_id = str(context.get("runtime_session_id") or context.get("session_id") or "").strip()
+        draft_id = str(arguments.get("draft_id") or "").strip()
+        result = get_draft(draft_id, session_id=session_id, latest=not draft_id)
+        draft = dict(result.draft or {}) if result.ok else {}
+    except Exception:
+        return {}
+    if not draft:
+        return {}
+    return {
+        "to": draft.get("to") or "",
+        "subject": draft.get("subject") or "",
+        "body": draft.get("body") or "",
+        "account": draft.get("account_resolved") or "",
+    }
+
+
+def _email_read_preview(arguments: dict[str, Any]) -> str:
+    """Which mail a read will open, so the person can deny a read aimed at the wrong sender."""
+    bits = [f"Folder: {str(arguments.get('folder') or 'INBOX').strip()}"]
+    for key, label in (("sender", "From"), ("from", "From"), ("subject", "Subject"), ("since", "Since"),
+                       ("before", "Before"), ("message_id", "Message")):
+        value = str(arguments.get(key) or "").strip()
+        if value:
+            bits.append(f"{label}: {value}")
+    if arguments.get("unseen_only"):
+        bits.append("Unread only")
+    if str(arguments.get("account") or "").strip():
+        bits.append(f"Account: {str(arguments.get('account')).strip()}")
+    return "\n".join(bits)
+
+
 def _edit_preview(intent: str, arguments: dict[str, Any], source_context: dict[str, Any]) -> str:
+    if intent in {"email.send", "email.reply", "email.draft.send"}:
+        return _email_preview(intent, arguments)
+    if intent in {"email.read", "email.open"}:
+        return _email_read_preview(arguments)
     if intent not in {"workspace.write_file", "workspace.replace_in_file", "machine.write_file"}:
         return ""
     raw_path = str(arguments.get("path") or "").strip()
@@ -3672,6 +3736,12 @@ def _new_approval_request(
             display_intent, display_arguments = inner_intent, arguments["arguments"]
             # The diff the operator reviews is of the file the TASK writer replaces.
             display_context = _step_execution_context(source_context, arguments) or source_context
+    if display_intent == "email.draft.send":
+        # The draft id is all the call carries; the card shows what the DRAFT will send. Measured
+        # 2026-11-11 (battery v11, installed build): "reply to the latest kucoin email saying
+        # thanks" reached the draft.send card as "Affects: No specific path reported", with no
+        # recipient, subject or body to check before allowing it.
+        display_arguments = {**display_arguments, **_draft_send_preview_arguments(display_arguments, display_context)}
     # A command is approved by reading it: the card names the exact line that will run, whole,
     # never just the tool that runs it.
     command_line = ""
@@ -3696,7 +3766,11 @@ def _new_approval_request(
         "scope_options": scope_options,
         "one_time": True,
         "edit_batch": edit_batch,
-        "diff_preview": _edit_preview(display_intent, display_arguments, display_context) if edit_batch else "",
+        "diff_preview": (
+            _edit_preview(display_intent, display_arguments, display_context)
+            if edit_batch or display_intent in {"email.send", "email.reply", "email.draft.send", "email.read", "email.open"}
+            else ""
+        ),
         "expires_at": time.time() + 86400,
         # What the "allow all planned changes" button would actually cover, named file by file, so
         # the operator approves a visible list rather than a count.

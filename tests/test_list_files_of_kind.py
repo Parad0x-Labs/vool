@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from core.execution.constants import machine_kind_listing_covers_turn, machine_kind_listing_intent
+from core.execution.constants import machine_kind_listing_covers_turn, machine_kind_listing_ask
 
 REPORTED = (
     "Find me all the pictures in the Downloads folder on my Mac, up to two days old and fetch me the "
@@ -30,7 +30,7 @@ REPORTED = (
     ("give me the photos from my downloads folder, 5 days old at most", ("image", "Downloads", 5.0)),
 ])
 def test_the_sentence_asks_for_a_kind_in_a_folder(text, expected):
-    assert machine_kind_listing_intent(text)[:3] == expected
+    assert machine_kind_listing_ask(text)[:3] == expected
 
 
 NOT_A_KIND_LISTING = [
@@ -44,7 +44,7 @@ NOT_A_KIND_LISTING = [
 
 @pytest.mark.parametrize("text", NOT_A_KIND_LISTING)
 def test_not_a_kind_listing(text):
-    assert machine_kind_listing_intent(text) is None
+    assert machine_kind_listing_ask(text) is None
 
 
 @pytest.mark.parametrize(("text", "whole"), [

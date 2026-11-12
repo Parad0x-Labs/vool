@@ -81,7 +81,7 @@ var SCHEMA = null;          // fetched from GET /api/commands/schema (typed argu
 var DEV_KEY = 'vool.palette.developer_commands';
 function devCommandsOn(){ try { return window.localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } }
 function setDevCommands(on){ try { if (on) window.localStorage.setItem(DEV_KEY, '1'); else window.localStorage.removeItem(DEV_KEY); } catch (e) {} }
-var IS_MAC = /Mac|iPhone|iPad/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+var IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || '');
 var MOD = IS_MAC ? '\u2318' : 'Ctrl+';
 function pageActions(){ return window.VoolPageActions || null; }
 function fetchJson(url, opts){

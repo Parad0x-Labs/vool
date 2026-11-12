@@ -113,6 +113,82 @@ _ASKS_FOR_THE_WEB_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The tools whose whole result is machine DRIVE numbers (per-drive free/total/percent, the
+# machine_diagnostics.disk_usage rows). Measured on the benchmark run 2026-10-30: "how big is the
+# holiday photos zip" was answered by a cloud model that had been handed "24.7 GB free of
+# 460.4 GB, 94.6% used" alongside the file question -- numbers about the whole computer, which the
+# person never asked for, from outside the folder the ask was about. A model may still reach for
+# them when a size question has no size tool to answer it; the refusal below is what keeps the
+# machine's own drive state private to the machine unless the ask is ABOUT the drives.
+_MACHINE_DRIVE_STAT_INTENTS = frozenset(
+    {
+        "machine.disk_usage",
+        "operator.inspect_disk_usage",
+    }
+)
+
+
+# An ask about ONE thing on the computer, whatever the thing is called: "how much space does <X> take (up)",
+# a file name with its extension ("report.pdf", not "4.5 GB"), or "the/my/this ... folder|file". "On my
+# computer" then says where that thing lives, not that the drives are asked about.
+_NAMES_ONE_THING_RE = re.compile(
+    r"\bhow\s+much\s+(?:space|room|storage|disk)\b[^?!\n]{0,80}?\b(?:take|takes|taking|took|use|uses|using|occupy|occupies|fill|fills)\b"
+    r"|\b[\w-]*[A-Za-z][\w-]*\.[A-Za-z][A-Za-z0-9]{0,4}\b"
+    r"|\b(?:the|my|this|that|our)\s+(?:[\w-]+\s+){0,4}?(?:folder|directory|file)\b",
+    re.IGNORECASE,
+)
+
+
+def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
+    """Refuse a model-initiated drive-stats read for an ask that is not about the drives.
+
+    Returns a ToolIntentExecution (mode="refused", plain words, no numbers) when ``intent`` is a
+    drive-stats tool and the turn's own ask is not a disk/storage/free-space question, else None so
+    the call proceeds normally. ``machine_diagnostics_intent`` is the same authority that routes
+    deterministic disk asks, so a genuine "how much space is left" turn still reads the drives --
+    only the UNASKED-FOR numbers are held back. The classifier demands question SHAPE, so a
+    storage ask phrased as a noun phrase ("free space on my computer") would fall through it and
+    then be refused here -- wrongly. The allow-rule therefore also honours the phrase tables the
+    classifier itself is built on: a STRONG storage phrase ("disk space", "drive space"), or a
+    space-family cue alongside this-host anchoring (a storage device, a data unit, the
+    computer/machine itself), is an ask about the drives whatever shape the sentence takes. A
+    size-of-a-thing ask ("how much space does the taxes folder take") names a THING, not this
+    host, and stays refused. The refusal text is what the model receives as the tool result, so
+    it is written to be safe if the model repeats it to the person verbatim.
+    """
+    from core.execution.constants import (
+        _DISK_SPACE_CUE_RE,
+        _DISK_STRONG_RE,
+        _STORAGE_HOST_ANCHOR_RE,
+        machine_diagnostics_intent,
+    )
+    from core.execution.models import ToolIntentExecution
+
+    if intent not in _MACHINE_DRIVE_STAT_INTENTS:
+        return None
+    text = str(effective_input or "")
+    if machine_diagnostics_intent(text) == "machine.disk_usage":
+        return None
+    if _DISK_STRONG_RE.search(text):
+        return None
+    if (_DISK_SPACE_CUE_RE.search(text) and _STORAGE_HOST_ANCHOR_RE.search(text)
+            and not _NAMES_ONE_THING_RE.search(text)):
+        return None
+    message = (
+        "That reading is about the whole computer's drives, and this question wasn't about "
+        "them, so those numbers are left out. Answer from what the question is actually about."
+    )
+    return ToolIntentExecution(
+        handled=True,
+        ok=False,
+        status="drive_stats_not_asked_for",
+        mode="refused",
+        tool_name=intent,
+        response_text=message,
+        user_safe_response_text=message,
+        details={"executed": False, "reason": "drive_stats_not_asked_for"},
+    )
+
 
 def _semantic_payload_signature(payload: Any) -> str:
     """The identity of a tool call for the duplicate guard: intent + arguments, transport stripped.
@@ -1258,6 +1334,9 @@ class ResearchToolLoopFacadeMixin:
         # stored with a paused request's checkpoint must never reopen that request's scope here.
         from core.tool_offer_state import TURN_SCOPE_KEY
 
+        # This request's own words, server-owned, for gates that must tell what the PERSON wrote
+        # from what the model proposed (core.email_argument_guard grounds recipients on it).
+        loop_source_context["_turn_user_text"] = str(effective_input or "")
         current_scope = str((source_context or {}).get(TURN_SCOPE_KEY) or "")
         if current_scope:
             loop_source_context[TURN_SCOPE_KEY] = current_scope
@@ -1834,7 +1913,10 @@ class ResearchToolLoopFacadeMixin:
                     status="running",
                 )
 
-            execution = self._execute_tool_intent(
+            # The privacy gate runs BEFORE dispatch, on the ask's own words: a drive-stats read a
+            # model reaches for on a turn that never asked about the drives is refused with plain
+            # words, so the machine's numbers neither run nor ride the conversation back out.
+            execution = _drive_stats_privacy_refusal(tool_name, effective_input) or self._execute_tool_intent(
                 tool_payload,
                 task_id=task.task_id,
                 session_id=session_id,
@@ -2051,7 +2133,11 @@ class ResearchToolLoopFacadeMixin:
                     source_context=loop_source_context,
                 ):
                     break
-                member_execution = self._execute_tool_intent(
+                # Same privacy gate as the head call: a batch member reading drive stats on a
+                # non-drive ask is refused before dispatch, identically.
+                member_execution = _drive_stats_privacy_refusal(
+                    member_intent, effective_input
+                ) or self._execute_tool_intent(
                     member_payload,
                     task_id=task.task_id,
                     session_id=session_id,
@@ -2503,6 +2589,28 @@ class ResearchToolLoopFacadeMixin:
         # run. Stripping the stream id buffers the synthesis; the validated final
         # message is streamed by the transport afterwards, and the live status card
         # keeps progress visible via the separate task-event channel.
+        # PRIVACY CEILING (measured 2026-11-06, operator's live session): once an email tool
+        # has executed, the turn's context carries PRIVATE MAILBOX CONTENT. From this point the
+        # turn must not route any model call to a remote provider — the synthesis and every
+        # later round stay on local models, or the turn refuses honestly with the grounded rows
+        # shown locally. The stamp is server-authored (`private_content_touch`, in
+        # RESERVED_TRUST_KEYS) and the plan mint turns it into a local-only ceiling.
+        # ORDERING LAW: this stamp runs BEFORE synthesis_context is derived from
+        # loop_source_context — the first deployment had it after the snapshot and the
+        # synthesis never saw the stamp (the leak the operator measured persisted).
+        try:
+            if any(
+                str(step.get("tool_name") or "").startswith("email.")
+                and step.get("ok") is not False
+                for step in executed_steps
+                if isinstance(step, dict)
+            ):
+                loop_source_context = {
+                    **(loop_source_context or {}),
+                    "private_content_touch": "email",
+                }
+        except Exception:
+            pass
         synthesis_context = {key: value for key, value in loop_source_context.items() if key != "runtime_event_stream_id"}
         # M3/M2: BIND what this loop retrieved into the call that is about to write the answer.
         #
@@ -2577,6 +2685,35 @@ class ResearchToolLoopFacadeMixin:
                 elif not any(_manifest_text in str(item.get("content") or "") for item in _history):
                     _history.append({"role": "user", "content": _manifest_text})
                 synthesis_context["conversation_history"] = _history[-12:]
+        # Runtime-minted support rows for THIS loop's successful steps, recorded BEFORE the
+        # synthesis branch — measured 2026-11-03 (build 8af687ca, served chats): "go fetch from
+        # online researches..." ran web.research 3-of-3 steps, the synthesis model failed, the
+        # grounded summary replaced the empty synthesis — and the publication gate refused the
+        # turn anyway ("nothing this turn retrieved...") because only the renders_final branch
+        # recorded its rows; the model-synthesis path recorded nothing, so the gate read the
+        # turn as empty-handed. Same closure the builder lane received (see
+        # test_builder_summary_publication_repair): one support row per executed step, raise-only,
+        # claiming no author. The renders_final branch's own recording below is unchanged in
+        # kind; record_runtime_support is add-only row by row, so the two cannot erase each other.
+        try:
+            from core.final_answer_authorship import record_runtime_support
+
+            record_runtime_support(
+                loop_source_context,
+                support_rows=[
+                    {
+                        "summary": str(step.get("summary") or step.get("response_text") or ""),
+                        "intent": str(step.get("tool_name") or ""),
+                        "source": "tool_loop_executed_steps",
+                        "observation": step.get("observation") if isinstance(step.get("observation"), dict) else {},
+                    }
+                    for step in executed_steps
+                    if str(step.get("summary") or step.get("response_text") or "").strip()
+                ],
+                request_text=str(effective_input or ""),
+            )
+        except Exception:
+            pass
         # A tool that DECLARES its result is the answer (`renders_final_answer`, e.g. the coding
         # assistant's evidence report) is published as the grounded tool result; a model is never
         # asked to narrate evidence it did not produce, and no authorship gate has to judge prose.

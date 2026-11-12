@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 from core.hardware_tier import MachineProbe, select_qwen_tier
+from core.local_model_suggestions import download_gb
 from core.runtime_provider_defaults import _profile_allows_aux_local_providers, default_runtime_model_tag
 
 
@@ -100,22 +101,22 @@ def test_local_only_denied_when_cached_probe_rejected_the_gpu(tmp_path) -> None:
 
 
 def test_default_model_tag_on_7_8gb_gpu_fits_and_is_not_oversized() -> None:
-    # Public-tester risk guard: a 6-8GB card must resolve to qwen2.5:7b (fits, fast),
-    # never qwen3:8b (partial CPU offload -> multi-second calls that effectively fail).
+    # Public-tester risk guard: a 6-8GB card must resolve to qwen3.5:4b (fits the card whole),
+    # never an 8-9B (qwen3:8b part-offloaded here: multi-second calls that effectively fail).
     for vram in (6.0, 7.0, 8.0):
         with mock.patch(
             "core.runtime_provider_defaults.probe_machine", return_value=_gpu_probe(vram)
         ), mock.patch("core.runtime_provider_defaults._default_free_disk_gb", return_value=200.0):
             tag = default_runtime_model_tag(env={})
-        assert tag == "qwen2.5:7b", f"{vram}GB GPU resolved to {tag!r}, expected qwen2.5:7b"
-        assert "qwen3" not in tag
+        assert tag == "qwen3.5:4b", f"{vram}GB GPU resolved to {tag!r}, expected qwen3.5:4b"
+        assert download_gb(tag) < vram
 
 
 def test_select_qwen_tier_caps_small_gpu_below_the_10gb_step_up() -> None:
-    # The VRAM tier ladder must keep 6-9GB cards on the 7b tier and only step up at 10GB+,
+    # The VRAM tier ladder must keep 6-9GB cards on the 4b tier and only step up at 10GB+,
     # so the oversized-model regression can't sneak back in via the tier fallback path.
     for vram in (6.0, 7.0, 8.0, 9.0):
         tier = select_qwen_tier(_gpu_probe(vram))
-        assert tier.ollama_tag == "qwen2.5:7b", f"{vram}GB -> {tier.ollama_tag}"
+        assert tier.ollama_tag == "qwen3.5:4b", f"{vram}GB -> {tier.ollama_tag}"
         assert tier.min_vram_gb <= vram
-    assert select_qwen_tier(_gpu_probe(10.0)).ollama_tag == "qwen2.5:14b"
+    assert select_qwen_tier(_gpu_probe(10.0)).ollama_tag == "qwen3.5:9b"

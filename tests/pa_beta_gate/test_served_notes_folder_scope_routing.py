@@ -158,6 +158,7 @@ _EFFECT_FAMILY = [
 @pytest.mark.parametrize(
     ("case", "text", "note_id", "field", "expected"), _EFFECT_FAMILY, ids=[row[0] for row in _EFFECT_FAMILY]
 )
+@pytest.mark.usefixtures("enable_web")
 def test_folder_scoped_notes_family_reaches_notes_with_its_effect(scoped, case, text, note_id, field, expected):
     workspace, notes = scoped
     result = _served(text, workspace)
@@ -220,5 +221,9 @@ def test_workspace_questions_keep_the_workspace_lanes(scoped, case, text, route)
     result = _served(text, workspace)
     answer = str(result.get("response") or "")
     assert result.get("route") == route, (case, result.get("route"), answer[:160])
-    assert str(workspace) in answer, f"{case}: answered from the bound workspace"
+    # The reply names the bound folder as the person knows it (its name, never its storage path,
+    # 0.7.8 sweep block 3) and reads its real files.
+    assert workspace.name in answer, f"{case}: answered from the bound workspace"
+    if case != "control-which-folder":  # "which folder am I in?" is answered with the full path, as asked
+        assert str(workspace.parent) not in answer, f"{case}: the folder is named, not its storage path"
     assert notes.scripts == [], f"{case}: never reaches the Notes bridge"

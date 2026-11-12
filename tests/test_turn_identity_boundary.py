@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 import core.agent_runtime.agent as agent_mod
 from core.runtime_continuity import _stable_source_context
 from core.turn_contract import (
@@ -357,6 +359,7 @@ def _incident_mocks():
     return stack
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_answering_attempt_is_found_on_every_surface():
     """THE MEASUREMENT that bounded R1b, now inverted by R1c.
 

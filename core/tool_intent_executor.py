@@ -1137,6 +1137,42 @@ def _execute_tool_intent_impl(
             },
         )
 
+    # Email arguments are checked HERE, ahead of every approval card: a placeholder account the
+    # person never configured is dropped (the default account serves, and the card shows it), and a
+    # recipient address nothing in the chat grounds is refused before anything is drafted or sent.
+    # See core.email_argument_guard for the measured defect.
+    if intent.startswith("email."):
+        from core.email_argument_guard import guard_email_arguments
+
+        email_verdict = guard_email_arguments(
+            intent,
+            arguments,
+            source_context=source_context,
+            user_text=str((source_context or {}).get("_turn_user_text") or ""),
+        )
+        if email_verdict.refused:
+            return ToolIntentExecution(
+                handled=True,
+                ok=False,
+                status=email_verdict.status,
+                response_text=email_verdict.message,
+                user_safe_response_text=email_verdict.message,
+                mode="tool_failed",
+                tool_name=intent,
+                details={
+                    "controller_enforced": True,
+                    "executed": False,
+                    "observation": _tool_observation(
+                        intent=intent,
+                        tool_surface="email",
+                        ok=False,
+                        status=email_verdict.status,
+                        response_preview=email_verdict.message,
+                    ),
+                },
+            )
+        arguments = dict(email_verdict.arguments)
+
     # "Do not run tests" is not "do not act". It withdraws execution and leaves the writes the same
     # sentence asked for standing, so it is enforced HERE -- one gate, after the turn policy and
     # before dispatch -- rather than by each lane deciding for itself what the words meant. The
@@ -1537,6 +1573,44 @@ def _execute_tool_intent_impl(
                     else False
                 ),
             )
+        # BOUNDED ACCOUNT-NAME RECOVERY (measured 2026-11-05/06, operator's live sessions):
+        # the model repeatedly promoted a SENDER or a made-up name into `account=...`
+        # ('Kucoin', 'primary', 'user@example.com') and the needs_credentials refusal ended the
+        # turn — three times across two sessions — when the DEFAULT account the recognizer
+        # seated the ask for could serve it directly. One bounded retry without the `account`
+        # argument (the default account) turns the hallucinated-name failure into the read the
+        # person asked for. Only for email reads that failed on the account name, only once.
+        if (
+            not runtime_execution.ok
+            and str(runtime_execution.status or "") == "needs_credentials"
+            and str(intent) == "email.read"
+            and isinstance(arguments, dict)
+            and str(arguments.get("account") or "").strip()
+        ):
+            retry_arguments = {k: v for k, v in arguments.items() if k != "account"}
+            try:
+                retry_execution = execute_authorized_runtime_tool(
+                    intent,
+                    retry_arguments,
+                    source_context=source_context,
+                    trusted_local_only=trusted_local_only,
+                    permission_decision=permission,
+                )
+            except Exception:
+                retry_execution = None
+            if retry_execution is not None and bool(getattr(retry_execution, "ok", False)):
+                runtime_execution = retry_execution
+                runtime_details = dict(runtime_execution.details or {})
+                runtime_details.setdefault(
+                    "observation",
+                    _tool_observation(
+                        intent=intent,
+                        tool_surface="runtime_execution",
+                        ok=runtime_execution.ok,
+                        status=runtime_execution.status,
+                        response_preview=str(runtime_execution.response_text or "")[:280],
+                    ),
+                )
         runtime_details = dict(runtime_execution.details or {})
         runtime_details.setdefault(
             "observation",

@@ -78,18 +78,27 @@ def _memory_reader(function: Any = None, *, owner_keys: bool = False) -> Any:
         bound = parameters.bind_partial(*args, **kwargs).arguments
         policy = bound.get("access_policy")
         chat_id = str(bound.get("chat_id") or bound.get("session_id") or getattr(policy, "chat_id", "") or "") or None
-        result = function(*args, **kwargs)
-        if owner_keys:
-            selected = {sid: row for sid, row in result.items() if _authorized_reader_payload(row, chat_id=sid)}
-            return selected if all(_authorized_reader_payload(row, chat_id=sid) for sid, row in selected.items()) else {}
-        if isinstance(result, list):
-            result = [item for item in result if _authorized_reader_payload(item, chat_id=chat_id)]
-        if _authorized_reader_payload(result, chat_id=chat_id):
-            return result
-        return "" if isinstance(result, str) else {} if isinstance(result, dict) else []
+        from core.memory.revocation import one_check_snapshot
+
+        # The reader and its output check share ONE read of the revocation authority (taken on
+        # first use): reading it per row made a long chat list answer in minutes, not ms.
+        with one_check_snapshot():
+            result = function(*args, **kwargs)
+            return _checked_reader_result(result, owner_keys=owner_keys, chat_id=chat_id)
 
     _MEMORY_READERS[function.__name__] = guarded
     return guarded
+
+
+def _checked_reader_result(result: Any, *, owner_keys: bool, chat_id: str | None) -> Any:
+    if owner_keys:
+        selected = {sid: row for sid, row in result.items() if _authorized_reader_payload(row, chat_id=sid)}
+        return selected if all(_authorized_reader_payload(row, chat_id=sid) for sid, row in selected.items()) else {}
+    if isinstance(result, list):
+        result = [item for item in result if _authorized_reader_payload(item, chat_id=chat_id)]
+    if _authorized_reader_payload(result, chat_id=chat_id):
+        return result
+    return "" if isinstance(result, str) else {} if isinstance(result, dict) else []
 
 
 def _current_request_lineage() -> str:
@@ -327,6 +336,31 @@ def _text_is_erased(text: str) -> bool:
         if hmac.compare_digest(candidate, digest):
             return True
     return False
+
+
+def _text_erased_at(text: str) -> str | None:
+    """When this exact text was last erased ("" when the tombstone has no time); None if never.
+
+    A fact the owner forgot and then said AGAIN is theirs again from that moment: callers that
+    quote what was said compare this with when it was said (cross-chat recall, battery v9)."""
+    normalized = _erasure_digest_text(text)
+    if not normalized:
+        return None
+    latest: str | None = None
+    for row in _load_jsonl(memory_entries_path()):
+        if str(row.get("status") or "") != _ERASED_STATUS:
+            continue
+        salt = str(row.get("erasure_salt") or "")
+        digest = str(row.get("erasure_digest") or "")
+        if not salt or not digest:
+            continue
+        candidate = hashlib.sha256(f"{salt}:{normalized}".encode()).hexdigest()
+        if hmac.compare_digest(candidate, digest):
+            when = str(row.get("erased_at") or "")
+            if not when:
+                return ""
+            latest = when if latest is None or when > latest else latest
+    return latest
 
 
 def _row_is_active_memory(row: dict[str, Any]) -> bool:
@@ -1312,8 +1346,58 @@ def list_conversation_sessions(*, limit: int = 60) -> list[dict[str, Any]]:
             entry["updated_at"] = overlay["updated_at"]
         entry["turn_count"] = own_turns + int(overlay["user_message_count"] or overlay["message_count"])
         entry["imported"] = True
+    _overlay_interrupted_turns(by_session, namespaces=namespaces, meta=meta)
     sessions = sorted(by_session.values(), key=lambda item: str(item.get("updated_at") or ""), reverse=True)
     return sessions[: max(1, int(limit))]
+
+
+def _overlay_interrupted_turns(
+    by_session: dict[str, dict[str, Any]], *, namespaces: dict[str, Any], meta: dict[str, Any]
+) -> None:
+    """A chat whose reply was cut off by VOOL stopping keeps its question and says so.
+
+    The conversation log records a turn only when its reply is finalized, so a chat whose FIRST
+    reply was cut off came back as an empty "New chat" with nothing saying what was asked. The
+    runtime's own interrupted-turn record supplies the question (the title, when the chat has no
+    other) and the `interrupted` flag the chat page renders; a user-set title always wins, and
+    forgotten words never reach the list."""
+    try:
+        from core.memory.revocation import authorize_payload
+        from core.runtime_continuity import interrupted_chat_requests
+
+        interrupted = interrupted_chat_requests()
+    except Exception:
+        return
+    for sid, info in interrupted.items():
+        namespace = namespaces.get(sid)
+        if namespace is not None and namespace.lifecycle_state == "deleted":
+            continue
+        preview = " ".join(str(info.get("request_preview") or "").split())
+        if preview and not authorize_payload(preview, chat_id=sid):
+            preview = ""
+        entry = by_session.get(sid)
+        if entry is None:
+            if not preview:
+                continue
+            override = meta.get(sid) or {}
+            entry = by_session[sid] = {
+                "session_id": sid,
+                "title": str(override.get("title") or "").strip() or preview[:80],
+                "created_at": str(info.get("updated_at") or ""),
+                "updated_at": str(info.get("updated_at") or ""),
+                "turn_count": 0,
+                "archived": bool(override.get("archived")),
+                "project_id": str(override.get("project_id") or (namespace.project_id if namespace is not None else "") or ""),
+                "emoji": str(override.get("emoji") or ""),
+                "color": str(override.get("color") or ""),
+            }
+        elif str(info.get("updated_at") or "") < str(entry.get("updated_at") or ""):
+            continue  # a later turn finished after the cut-off one
+        custom = str((meta.get(sid) or {}).get("title") or "").strip()
+        if preview and not custom and str(entry.get("title") or "").strip() in {"", "New chat"}:
+            entry["title"] = preview[:80]
+        entry["interrupted"] = True
+        entry["interrupted_request"] = preview
 
 
 @_memory_reader
@@ -2107,16 +2191,39 @@ def forget_structured_memory(
     summary_error: Exception | None = None
     with _MEMORY_ENTRY_LOCK:
         rows = _load_erasure_rows(memory_entries_path())
-        target_ids = [
-            str(row.get("record_id") or "").strip()
-            for row in rows
-            if str(row.get("record_id") or "").strip()
-            and (
-                carries(row_payload(row, structural_fields=ROW_IDENTITIES), clean_token)
-                or (subject_key and str(row.get("fact_key") or "").strip().lower() == subject_key)
-            )
-            and _memory_erasure_row_owned(row, policy)
-        ]
+
+        def _selected(needle: str) -> list[str]:
+            return [
+                str(row.get("record_id") or "").strip()
+                for row in rows
+                if str(row.get("record_id") or "").strip()
+                and (
+                    carries(row_payload(row, structural_fields=ROW_IDENTITIES), needle)
+                    or (subject_key and str(row.get("fact_key") or "").strip().lower() == subject_key)
+                )
+                and _memory_erasure_row_owned(row, policy)
+            ]
+
+        target_ids = _selected(clean_token)
+        # A subject said with its article ("Forget what I told you about the MOT") selects no row
+        # by its literal words; inside one chat that is answered by the subject WITHDRAWAL, which
+        # hides the subject from every reader of THIS chat. A profile-scope row is read from every
+        # chat of the owner, so a withdrawal in one chat cannot cover it: measured 2026-11-10 on
+        # 0.7.8 through the chat page, "Forget what I told you about the MOT" in a second chat
+        # answered "Nothing was removed" and a third chat still recalled "my car's MOT inspection
+        # is due on 22 January". Such rows are ERASED by the bare subject (article dropped, never a
+        # possessive); chat-scope rows keep the withdrawal contract unchanged.
+        bare_token = re.sub(r"^(?:the|a|an)\s+", "", clean_token, count=1).strip()
+        if not target_ids and bare_token != clean_token and len(bare_token) >= 3:
+            profile_ids = {
+                str(row.get("record_id") or "").strip()
+                for row in rows
+                if str(row.get("scope") or "").strip().lower() == "user_profile"
+            }
+            bare_ids = [record_id for record_id in _selected(bare_token) if record_id in profile_ids]
+            if bare_ids:
+                target_ids = bare_ids
+                clean_token = bare_token
         erased_texts = _erase_rows_locked(target_ids)
         if erased_texts:
             retained = _load_erasure_rows(memory_entries_path())

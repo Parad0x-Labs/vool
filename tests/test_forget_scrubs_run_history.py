@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from core.memory.copies import FORGET_LIST_NOTE
 from tests.test_forget_context_pages_r6 import admit
 from tests.test_forgetting_is_applied_or_never_claimed_20261007 import _forget_command as command
 from tests.test_memory_forget_served_p0 import _reply_text, served  # served: the daemon fixture
@@ -164,7 +165,7 @@ def test_forget_of_a_number_erases_that_number_and_not_a_longer_one(isolated_pag
 
     handled, reply = command(isolated_pages, chat, "forget the code 12")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     live = [row.get("text") for row in map(json.loads, memory_entries_path().read_text().splitlines())
             if row.get("status") != "erased"]
     assert live == ["the meeting is in room 312"], live
@@ -449,7 +450,7 @@ def test_numbers_inside_a_longer_number_date_or_time_are_not_the_forgotten_numbe
 
     handled, reply = command(isolated_pages, chat, "forget 12")
 
-    assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
+    assert handled and reply == "Forget applied. Removed 2 memory entries." + " " + FORGET_LIST_NOTE, reply
     live = sorted(row.get("text") for row in map(json.loads, memory_entries_path().read_text().splitlines())
                   if row.get("status") != "erased")
     assert live == sorted(kept), live
@@ -485,6 +486,14 @@ def test_served_forget_leaves_no_forgotten_words_in_the_runtime_database(served)
     and its write-ahead log hold no byte of the forgotten words after "Forget applied", while the daemon
     still runs, and the words the person did not forget are still there."""
     daemon, home = served["daemon"], served["home"]
+    # The model's rhyme names the bakery, as a rhyme about it would: the forgotten words then sit in
+    # the finalized answer too. (The run used to reach that column only through an ambiguity
+    # clarifier that echoed the request; with the chat's own statement in hand the clarifier now
+    # stands aside and the model answers, so the answer itself has to carry the name.)
+    from tests.test_memory_forget_served_p0 import MODEL
+
+    plain_rhyme = served["provider"].table[MODEL]
+    served["provider"].table[MODEL] = "A short rhyme: at Flourstone Bakehouse the ovens glow, and warm loaves go."
     session = "forget-run-history"
     answers = {}
     for message in (
@@ -494,6 +503,7 @@ def test_served_forget_leaves_no_forgotten_words_in_the_runtime_database(served)
     ):
         answers[message] = _reply_text(daemon.chat(message, session_id=session, mode="auto")).strip()
         assert answers[message]
+    served["provider"].table[MODEL] = plain_rhyme   # later turns get the ordinary rhyme again
     # The person pins their question, the answer, and something else (the pin panel's own door).
     rhyme_request = "Tell me a short rhyme about the Flourstone Bakehouse."
     _pin(daemon, session, "user", rhyme_request)

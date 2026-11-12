@@ -284,3 +284,105 @@ class TestUpdateFeedFollowsTheBundleNotTheProcess:
         exe = self._bundle(tmp_path, "arm64")
         monkeypatch.setattr(platforms.sys, "executable", str(exe))
         assert platform_key("darwin", "x86_64") == "macos-x64"
+
+
+class TestLaunchServicesRegistration:
+    """A rename-swap puts a NEW bundle under the Dock's tile; LaunchServices must re-learn it.
+
+    Measured 2026-11-04 (operator report, build 0.7.7 after a 0.7.6→0.7.7 update): after the
+    swap the Dock showed a blank paper icon and the process read as "Python" — the tile pointed
+    at the hidden prior folder and the direct-exec relaunch never re-registered. Registration
+    runs after EVERY successful swap and restore, is best-effort (its failure never fails the
+    update), and is skipped for a path that is not a bundle."""
+
+    @staticmethod
+    def _bundle(tmp_path: Path) -> Path:
+        bundle = tmp_path / "VOOL.app"
+        (bundle / "Contents" / "MacOS").mkdir(parents=True)
+        (bundle / "Contents" / "Info.plist").write_text(
+            "<?xml version='1.0'?><plist version='1.0'><dict></dict></plist>", encoding="utf-8"
+        )
+        return bundle
+
+    @staticmethod
+    def _staged_sibling(tmp_path: Path, target: Path) -> Path:
+        staged = target.parent / "VOOL-staged.app"
+        (staged / "Contents" / "MacOS").mkdir(parents=True)
+        (staged / "Contents" / "Info.plist").write_text(
+            "<?xml version='1.0'?><plist version='1.0'><dict></dict></plist>", encoding="utf-8"
+        )
+        return staged
+
+    def test_successful_swap_reregisters_the_bundle(self, tmp_path):
+        target = self._bundle(tmp_path)
+        staged = self._staged_sibling(tmp_path, target)
+        commands: list[list[str]] = []
+
+        def run(cmd: list[str]) -> Completed:
+            commands.append(cmd)
+            return Completed(0)
+
+        installer = MacOSBundleInstaller(run=run)
+        outcome = installer.atomic_swap(staged, target, txid="tx-ls-1")
+        assert outcome.ok
+        ls_calls = [cmd for cmd in commands if "lsregister" in str(cmd)]
+        assert ls_calls, "the swapped bundle must be re-registered with LaunchServices"
+        assert str(target) in ls_calls[0] and "-f" in ls_calls[0]
+
+    def test_failed_swap_registers_nothing(self, tmp_path):
+        commands: list[list[str]] = []
+
+        def run(cmd: list[str]) -> Completed:
+            commands.append(cmd)
+            return Completed(0)
+
+        installer = MacOSBundleInstaller(run=run)
+        outcome = installer.atomic_swap(tmp_path / "missing-staged.app", self._bundle(tmp_path), txid="tx-ls-2")
+        assert not outcome.ok
+        assert not [cmd for cmd in commands if "lsregister" in str(cmd)]
+
+    def test_registration_failure_never_fails_the_swap(self, tmp_path):
+        target = self._bundle(tmp_path)
+        staged = self._staged_sibling(tmp_path, target)
+
+        def run(cmd: list[str]) -> Completed:
+            if "lsregister" in str(cmd):
+                return Completed(1, err="no such service")
+            return Completed(0)
+
+        installer = MacOSBundleInstaller(run=run)
+        outcome = installer.atomic_swap(staged, target, txid="tx-ls-3")
+        assert outcome.ok, "lsregister failing is best-effort; the swap itself succeeded"
+
+    def test_restore_prior_reregisters_the_restored_bundle(self, tmp_path):
+        target = self._bundle(tmp_path)
+        prior = target.parent / ".VOOL.app.prior-tx"
+        (prior / "Contents" / "MacOS").mkdir(parents=True)
+        (prior / "Contents" / "Info.plist").write_text(
+            "<?xml version='1.0'?><plist version='1.0'><dict></dict></plist>", encoding="utf-8"
+        )
+        commands: list[list[str]] = []
+
+        def run(cmd: list[str]) -> Completed:
+            commands.append(cmd)
+            return Completed(0)
+
+        installer = MacOSBundleInstaller(run=run)
+        outcome = installer.restore_prior(target, prior, txid="tx-ls-4")
+        assert outcome.ok
+        assert [cmd for cmd in commands if "lsregister" in str(cmd)], (
+            "a rolled-back bundle is also new at this path and must be re-registered"
+        )
+
+    def test_non_bundle_path_is_skipped(self, tmp_path):
+        plain = tmp_path / "not-a-bundle"
+        plain.mkdir()
+        commands: list[list[str]] = []
+
+        def run(cmd: list[str]) -> Completed:
+            commands.append(cmd)
+            return Completed(0)
+
+        installer = MacOSBundleInstaller(run=run)
+        assert installer.register_with_launch_services(plain) is False
+        assert not [cmd for cmd in commands if "lsregister" in str(cmd)]

@@ -25,7 +25,7 @@ from core.execution.constants import (
     machine_file_search_intent,
     machine_folder_search_intent,
     machine_host_state_intent,
-    machine_kind_listing_intent,
+    machine_kind_listing_ask,
     machine_path_listing_intent,
 )
 from core.retrieval_constraints import analyze_retrieval_constraints
@@ -68,12 +68,12 @@ def _claim_find_file(text: str) -> IntentClaim | None:
     if got:
         return IntentClaim(FAMILY_FIND_FILE, got[1][0])
     # "the pictures in my Downloads" finds files too, by kind instead of by name.
-    listing = machine_kind_listing_intent(text)
+    listing = machine_kind_listing_ask(text)
     return IntentClaim(FAMILY_FIND_FILE, listing.place or "Desktop, Downloads, Documents") if listing else None
 
 
 def _claim_find_folder(text: str) -> IntentClaim | None:
-    if machine_file_search_intent(text) is not None or machine_kind_listing_intent(text) is not None:
+    if machine_file_search_intent(text) is not None or machine_kind_listing_ask(text) is not None:
         return None  # "a picture in the Downloads folder named day4" names a FILE; the folder is where it is
     got = machine_folder_search_intent(text)
     return IntentClaim(FAMILY_FIND_FOLDER, got[1]) if got else None
@@ -89,7 +89,7 @@ def _claim_list_directory(text: str) -> IntentClaim | None:
     explicit = machine_path_listing_intent(text)
     if explicit:
         return IntentClaim(FAMILY_LIST_DIRECTORY, explicit)
-    if machine_kind_listing_intent(text) is not None:
+    if machine_kind_listing_ask(text) is not None:
         return None  # "the pictures in my Downloads" is find_file's (by kind), not the whole listing
     # Mirrors the directory-listing combo in looks_like_supported_machine_read_request: a known
     # user directory + a listing verb phrase.

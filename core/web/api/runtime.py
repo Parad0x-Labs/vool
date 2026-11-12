@@ -582,6 +582,11 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
     )
     from core.provider_http import urlopen
 
+    # A model is several files (weights, a vision projector, small metadata), each reported with its
+    # own digest and its own completed/total. The percent is over every file seen so far and never
+    # goes back, so the person does not watch "78%, 51%, 94%" as Ollama moves from file to file.
+    layers: dict[str, tuple[float, float]] = {}
+    shown = 0
     with urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
         for raw_line in response:
             line = raw_line.decode("utf-8", errors="replace").strip()
@@ -600,7 +605,11 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
             completed = event.get("completed")
             percent = None
             if isinstance(total, (int, float)) and isinstance(completed, (int, float)) and total > 0:
-                percent = int(completed / total * 100)
+                layers[str(event.get("digest") or "")] = (float(completed), float(total))
+                done = sum(item[0] for item in layers.values())
+                size = sum(item[1] for item in layers.values())
+                shown = max(shown, int(done / size * 100))
+                percent = shown
             progress.update(status="pulling", percent=percent, detail=str(event.get("status") or ""))
 
 
@@ -722,10 +731,19 @@ def ready_a_local_model_on_boot(
         return
     if not local_models_enabled(env=env) or not _automatic_ollama_access_allowed(env):
         return
+    from core.local_model_readiness import mark_boot_readiness_check
+
+    mark_boot_readiness_check(True)
     try:
-        from core.final_answer_authorship import author_certification
+        _ready_a_local_model_on_boot(registry, primary_model=primary_model, env=env)
+    finally:
+        mark_boot_readiness_check(False)
+
+
+def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str, env: dict[str, str]) -> None:
+    try:
         from core.local_model_policy import manifest_is_local
-        from core.local_model_readiness import RECOMMENDED_LOCAL_MODELS, ready_local_models
+        from core.local_model_readiness import READY, boot_adoptable_tags, ready_local_models
 
         def _local_manifests() -> list[Any]:
             return [
@@ -735,13 +753,41 @@ def ready_a_local_model_on_boot(
             ]
 
         manifests = _local_manifests()
-        if not any(author_certification(m).certified for m in manifests):
-            # Nothing registered can answer yet. A recommended model that is installed but was
-            # never registered (an upgrade that pulled qwen3:8b beside the old qwen2.5:7b primary)
-            # is registered the way Use this model does it, BEFORE any check, so the recommended
-            # model is checked first instead of after a doomed check of the old one (minutes each
-            # on a CPU-only computer). Only the recommended tags: boot never adopts an arbitrary
-            # installed model.
+
+        def _ready_now() -> bool:
+            from core.local_model_tool_certification import certification_status
+
+            for manifest in _local_manifests():
+                try:
+                    if str((certification_status(manifest) or {}).get("state") or "").lower() == "verified":
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        def _fits(manifest: Any) -> bool:
+            # The most this machine may give one model: total memory less the share kept for
+            # the person. A model bigger than that can only swap-freeze the computer.
+            from core import system_resources
+            from core.resource_governor import _LOAD_SAFETY_FLOOR_GB, estimated_model_gb
+
+            need = float(estimated_model_gb(str(manifest.model_name or "")) or 0.0)
+            if need <= 0:
+                return True
+            snap = system_resources.snapshot()
+            ceiling = float(snap.total_ram_gb) - float(getattr(snap, "reserve_gb", 0.0) or 0.0)
+            return need + _LOAD_SAFETY_FLOOR_GB <= ceiling
+
+        rows = ready_local_models(manifests, primary_model=primary_model, ready_now=_ready_now, fits=_fits)
+        # Adopting other installed models is off when the setup said so in so many words.
+        adoption_allowed = str(
+            env.get("VOOL_REGISTER_INSTALLED_OLLAMA_MODELS") or os.environ.get("VOOL_REGISTER_INSTALLED_OLLAMA_MODELS") or ""
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        if adoption_allowed and not _ready_now() and not any(row["readiness"] == READY for row in rows):
+            # None of the registered models could answer (or none was checkable). A suggested
+            # model that is installed but was never registered (an upgrade that pulled qwen3:8b or
+            # qwen3.5:9b beside the old qwen2.5:7b primary) is registered the way Use this model
+            # does it, and checked. Only the suggested tags: boot never adopts an arbitrary model.
             from core.runtime_provider_defaults import register_installed_local_model
 
             registered = {str(m.model_name).strip().lower() for m in manifests}
@@ -749,11 +795,16 @@ def ready_a_local_model_on_boot(
                 str(item.name).strip().lower(): str(item.name).strip()
                 for item in installed_ollama_model_inventory(env=env, base_url=ollama_base_url(env), timeout_seconds=2.0)
             }
-            for tag, _ram_gb, _size_gb in RECOMMENDED_LOCAL_MODELS:
+            added = []
+            for tag in boot_adoptable_tags():
                 if tag in installed and tag not in registered:
-                    register_installed_local_model(registry, model_tag=installed[tag])
-            manifests = _local_manifests()
-        rows = ready_local_models(manifests, primary_model=primary_model)
+                    manifest = register_installed_local_model(registry, model_tag=installed[tag])
+                    if manifest is not None:
+                        added.append(manifest)
+            if added:
+                rows += ready_local_models(
+                    added, primary_model=added[0].model_name, ready_now=_ready_now, fits=_fits
+                )
         for row in rows:
             logger.info("Local model readiness on boot: %s is %s", row["model"], row["readiness"])
     except Exception as exc:  # pragma: no cover - boot must never fail on this
@@ -1079,6 +1130,15 @@ def bootstrap_runtime_services(
             configured_model_tag,
             runtime_model_tag,
         )
+    if not selection_pinned:
+        certified_tag = _certified_author_instead_of(runtime_model_tag)
+        if certified_tag and certified_tag != runtime_model_tag:
+            logger.info(
+                "Daily primary aligned with the certified local author: %s -> %s",
+                runtime_model_tag,
+                certified_tag,
+            )
+            runtime_model_tag = certified_tag
     runtime_parameter_size = parameter_size_for_model(runtime_model_tag)
     # Background, never inline: a first-run pull downloads gigabytes, and bootstrap runs BEFORE the
     # API server binds its port. The window that opens on first run must reach a server that reports
@@ -1127,45 +1187,30 @@ def bootstrap_runtime_services(
     )
     for warning in model_registry.startup_warnings():
         logger.warning("Model warning: %s", warning)
-    def _run_provider_prewarm(*, inline: bool = False) -> None:
+    def _run_provider_prewarm() -> None:
         # Warming loads the model into memory, so it cannot start until the model is on disk.
         model_pull.wait(timeout=_MODEL_PULL_WAIT_SECONDS)
-        if inline:
-            # Bootstrap itself is waiting: the check (minutes on a CPU) gets its own thread.
-            log_prewarm_results(
-                model_registry,
-                model_tag=runtime_model_tag,
-                runtime_home=runtime_home,
-                requested_profile=requested_profile,
-            )
-            threading.Thread(
-                target=ready_a_local_model_on_boot,
-                args=(model_registry,),
-                kwargs={"primary_model": runtime_model_tag, "env": provider_env},
-                name="vool-local-model-readiness",
-                daemon=True,
-            ).start()
-            return
-        # Already off the boot path: ready a model FIRST, then warm the one turns will use. Warming
-        # the boot primary first loaded qwen2.5:7b for 15 minutes on a fresh profile while every
-        # turn went to the qwen3:8b the check had just made ready (fresh daemon, Oct 29): two
-        # models resident on a computer that may hold one.
-        ready_a_local_model_on_boot(model_registry, primary_model=runtime_model_tag, env=provider_env)
-        from core.local_model_readiness import model_in_use
-
         log_prewarm_results(
             model_registry,
-            model_tag=model_in_use(runtime_model_tag) or runtime_model_tag,
+            model_tag=runtime_model_tag,
             runtime_home=runtime_home,
             requested_profile=requested_profile,
         )
+        # Its own thread: a check can take minutes and must never hold bootstrap or prewarm.
+        threading.Thread(
+            target=ready_a_local_model_on_boot,
+            args=(model_registry,),
+            kwargs={"primary_model": runtime_model_tag, "env": provider_env},
+            name="vool-local-model-readiness",
+            daemon=True,
+        ).start()
 
     # Provider prewarm loads models into memory and can take minutes. When run_prewarm is False the
     # API server defers it (binding the port first) and runs this closure on a background thread, so
     # 11435/healthz is reachable immediately instead of refusing connections during warmup.
     deferred_prewarm: Callable[[], None] | None = None
     if run_prewarm:
-        _run_provider_prewarm(inline=True)
+        _run_provider_prewarm()
     else:
         deferred_prewarm = _run_provider_prewarm
         logger.info("Provider prewarm deferred; binding the API port first and warming in the background.")
@@ -1243,6 +1288,48 @@ def bootstrap_runtime_services(
         model_pull=model_pull,
     )
 
+
+
+def _certified_author_instead_of(model_tag: str) -> str:
+    """The certified local author to run as the daily primary, when ``model_tag`` cannot author.
+
+    Measured 2026-11-11 on the installed 0.7.8 build (24 GiB Mac): the boot primary was
+    qwen2.5:7b, which is not certified to write final answers, so every answer was handed to the
+    certified qwen3:8b -- while qwen2.5:7b stayed prewarmed for 15 minutes and was reloaded on lane
+    fallbacks. Ollama could not keep both resident and evicted the author: 9 qwen3:8b reloads in
+    one hour of ordinary chat, turns of 35-180 s. A primary that can never author only costs
+    memory; the certified model the runtime already hands every answer to is the one to keep warm.
+    Unknown certification state keeps the configured tag (never guesses)."""
+    try:
+        from core.local_model_tool_certification import certification_history
+
+        latest: dict[str, str] = {}
+        for run in certification_history(limit=200):
+            name = str(run.get("model_name") or "").strip()
+            if name and name not in latest:
+                latest[name] = str(run.get("state") or "").strip().lower()
+        verified = [name for name, state in latest.items() if state == "verified"]
+        if not verified or latest.get(str(model_tag or "").strip()) == "verified":
+            return ""
+        # Only a model this machine still HAS: certification history outlives a removed model, and
+        # a history row for a model Ollama no longer lists must never become the boot primary.
+        from core.local_ollama_inventory import installed_ollama_model_names
+
+        installed = {str(name).strip() for name in installed_ollama_model_names()}
+        verified = [name for name in verified if name in installed]
+        if not verified:
+            return ""
+        # The smallest verified author: it is the one most likely to stay resident beside the
+        # small helper models (a verified 27B is RAM-gated on a 24 GiB machine whenever it is busy).
+        def _size(name: str) -> float:
+            import re as _re
+
+            match = _re.search(r"(\d+(?:\.\d+)?)", str(parameter_size_for_model(name) or ""))
+            return float(match.group(1)) if match else 1e9
+
+        return sorted(verified, key=_size)[0]
+    except Exception:
+        return ""
 
 def _profile_fast_default_model(
     *,
@@ -3779,16 +3866,26 @@ def _stream_agent_with_events_inner(
     def worker() -> None:
         def _body() -> None:
             queue_status = "failed"
+            delivered = False
             try:
                 agent_runner = run_agent_provider or run_agent
                 result = agent_runner(runtime, user_text, session_id=session_id, source_context=stream_context)
                 queue_status = "completed"
                 event_queue.put(("result", result))
+                delivered = True
             except Exception as exc:
                 # Make it chat-safe HERE, where the exception object still exists, so the class name
                 # (the genuinely useful, safe part) survives while paths and credentials do not.
                 event_queue.put(("error", safe_error_text(exc)))
+                delivered = True
             finally:
+                # The streaming side waits on this queue with no timeout: a turn that ends WITHOUT
+                # putting a result or an error (a BaseException out of the turn) left the chat page
+                # on "…" until the person gave up. Measured on the 0.7.8 sweep (2026-11-12, blocks 1
+                # and 1c): FAILED_PROVIDER on the server, nothing ever reached the page. Whatever
+                # ended the turn, the stream always gets its terminal.
+                if not delivered:
+                    event_queue.put(("error", "This turn stopped before it finished."))
                 _finish_consumed_queue_item(queue_status)
                 # The turn is genuinely over -- completed, failed or cancelled. This is the ONLY place
                 # the live-turn entry is released, so it can neither leak nor disappear early. Its

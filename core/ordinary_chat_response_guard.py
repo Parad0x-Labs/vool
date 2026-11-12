@@ -1151,6 +1151,33 @@ def _max_items(policy: dict[str, Any]) -> int | None:
     return value if value > 0 else None
 
 
+#: A follow-up that names the previous turn's content as its object: "how many bytes long is
+#: that text?", "reverse the string above", "translate the previous answer". Measured 2026-11-12
+#: (plugins run): after a plugin returned a text, that bytes question was replaced by "I couldn't
+#: produce a normal chat response" because the correct answer quoted the text back. The
+#: contamination this guard exists for (an unrelated later turn answering with an old code) has
+#: no such pointer.
+_PREVIOUS_TURN_POINTER_RE = re.compile(
+    r"\b(?:that|this|those|these|the\s+same|the\s+(?:above|previous|prior|last|earlier))\s+"
+    r"(?:\w+\s+)?(?:text|string|output|answer|result|reply|response|message|value|code|word|words|line|lines|"
+    r"sentence|phrase|list|number|name|id|token)\b"
+    r"|\b(?:the\s+)?(?:text|string|output|answer|result|reply|response|message|value|code)\s+(?:above|you\s+(?:just\s+)?"
+    r"(?:gave|wrote|returned|said|printed|showed))\b"
+    # Repeat-the-task follow-ups (plugins run 5, 2026-11-12): "now do the same for X", "same for
+    # X", "again for X", "and for X?", "repeat that for X" -- the previous turn's task is the
+    # object, so its output may come back with the new input.
+    r"|\b(?:do|try|run|repeat)\s+(?:the\s+same|it|that|this)(?:\s+again)?\s+(?:for|with|on)\b"
+    r"|\b(?:the\s+)?same\s+(?:thing\s+|again\s+)?(?:for|with|on)\b"
+    r"|\bagain\s+(?:for|with|on)\b"
+    r"|^\s*(?:now\s+|ok(?:ay)?[,\s]+|and\s+)?(?:what\s+about|how\s+about|and\s+for|and\s+with|now\s+for)\b",
+    re.IGNORECASE,
+)
+
+
+def _points_back_at_previous_turn(normalized_user_text: str) -> bool:
+    return bool(_PREVIOUS_TURN_POINTER_RE.search(str(normalized_user_text or "")))
+
+
 def _prior_literal_contamination(
     text: str, policy: dict[str, Any], current_user_text: str
 ) -> OrdinaryChatOutputCheck | None:
@@ -1196,7 +1223,7 @@ def _prior_literal_contamination(
                 reasons=("forgotten_memory_literal",),
                 signal_groups=("forgotten_memory",),
             )
-    if prior_hashes and not explicit_memory_recall:
+    if prior_hashes and not explicit_memory_recall and not _points_back_at_previous_turn(normalized_user_text):
         for value in rendered_values:
             digest = _literal_hash(value)
             if digest in prior_hashes and digest not in current_hashes:
@@ -1446,7 +1473,7 @@ def remove_unrequested_prior_turn_literals(
         for value in list(policy.get("prior_turn_literal_hashes") or [])
         if str(value).strip()
     }
-    if not prior_literal_hashes:
+    if not prior_literal_hashes or _points_back_at_previous_turn(" ".join(str(current_user_text or "").lower().split())):
         return str(text or "").strip()
     current_literal_hashes = {
         _literal_hash(value)

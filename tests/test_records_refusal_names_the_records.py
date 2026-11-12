@@ -21,7 +21,7 @@ JAMES = (
     "</retrieved_context>"
 )
 RECORDS_LEAD = "That is not mentioned in the records I have from our conversations"
-LIVE_LEAD = "I can't publish an answer to this: it needed current information"
+LIVE_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
 
 
 def _verdict(answer, *, records=JAMES, notes=()):

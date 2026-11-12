@@ -183,9 +183,10 @@ def test_help_capabilities_text_comes_from_ledger_and_marks_unsupported_truthful
     ):
         text = agent._help_capabilities_text()
 
-    assert "Wired on this runtime:" in text
+    # Plain headings (0.7.8 sweep block 2: the old ones and a "BYOK" line reached the person).
+    assert "Here's what I can do on this computer:" in text and "BYOK" not in text
     assert "run live web search and fetch pages" in text
-    assert "Partially supported on this runtime:" in text
+    assert "Partly working here:" in text
     assert "bounded local build/edit/run/inspect loops" in text
     assert "telegram or discord bot scaffolds" in text.lower()
     assert "not a full autonomous research -> build -> debug -> test loop" in text
@@ -220,7 +221,8 @@ def test_disabled_web_search_reports_unsupported_capability_honestly() -> None:
     assert result.handled is True
     assert result.ok is False
     assert result.status == "disabled"
-    assert "web lookup is opt-in; enable with vool_enable_web=1" in result.response_text.lower()
+    assert "web lookups are off. you can turn them on in settings, privacy & permissions" in result.response_text.lower()
+    assert "vool_enable_web" not in result.response_text.lower()
     assert result.user_safe_response_text == result.response_text
 
 

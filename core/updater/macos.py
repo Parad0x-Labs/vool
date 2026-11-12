@@ -29,9 +29,12 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from core.updater import relaunch_health
 from core.updater.platforms import BundleVerification, SwapOutcome
 
 logger = logging.getLogger("vool.updater.macos")
+
+_SCRIPT_WAIT_MARGIN_SECONDS = 15
 
 CommandRunner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 
@@ -161,7 +164,34 @@ class MacOSBundleInstaller:
             except OSError as undo_exc:
                 logger.error("swap undo ALSO failed: %s (prior kept at %s)", undo_exc, prior)
             return SwapOutcome(False, detail=f"could not move the new app into place: {exc}")
+        self.register_with_launch_services(target)
         return SwapOutcome(True, prior_path=prior)
+
+    def register_with_launch_services(self, app_path: Path) -> bool:
+        """Re-register the bundle at this path with LaunchServices, best-effort.
+
+        Measured 2026-11-04 (operator report, build 0.7.7 after a 0.7.6→0.7.7 update): the
+        rename-swap puts a NEW bundle under the Dock's tile — the tile's inode is now the hidden
+        `.VOOL.app.prior-*` folder — and the relaunch execs the bundle's shell-script main
+        directly, which never re-registers. The Dock then shows a blank paper icon and the
+        process reads as "Python" until LaunchServices learns the new bundle. `lsregister -f`
+        re-reads the bundle's plist (icon, display name) so the Dock tile follows the app the
+        person actually updated to. Best-effort by contract: a missing binary, a nonzero exit or
+        a timeout NEVER fails the update that just swapped successfully.
+        """
+        app = Path(app_path)
+        if not (app / "Contents/Info.plist").exists():
+            return False
+        try:
+            completed = self._run([
+                "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+                "LaunchServices.framework/Support/lsregister",
+                "-f",
+                str(app),
+            ])
+        except Exception:
+            return False
+        return int(getattr(completed, "returncode", 1) or 0) == 0
 
     def restore_prior(self, target_app: Path, prior_path: Path, *, txid: str) -> SwapOutcome:
         target = Path(target_app)
@@ -179,6 +209,7 @@ class MacOSBundleInstaller:
             return SwapOutcome(False, detail=f"could not restore the previous app: {exc}")
         if displaced.exists():
             shutil.rmtree(displaced, ignore_errors=True)
+        self.register_with_launch_services(target)
         return SwapOutcome(True, prior_path=prior)
 
     def prune_priors(self, target_app: Path, *, keep: int = 2) -> list[Path]:
@@ -217,16 +248,24 @@ def _pid_has_exited(pid: int) -> bool:
         return False
 
 
+def _process_command(pid: int) -> str | None:
+    """The full command line of one pid, or None when it is not running.
+
+    `-ww` keeps ps from clipping `args` to $COLUMNS (procps honours it even when the output is a pipe),
+    so an install path longer than a terminal line is still seen in full."""
+    process = subprocess.run(['ps', '-ww', '-p', str(pid), '-o', 'args='], capture_output=True,
+                             text=True, timeout=5, check=False)
+    return None if process.returncode else process.stdout.strip()
+
+
 def _pid_belongs_to_app(pid: int, app_path: Path) -> bool:
     """Inspect this recorded PID only; a reused number is never ownership proof."""
     if pid <= 1:
         return False
     root = Path(app_path).resolve()
-    process = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], capture_output=True,
-                             text=True, timeout=5, check=False)
-    if process.returncode:
+    command = _process_command(pid)
+    if command is None:
         return False
-    command = process.stdout.strip()
     native = root / 'Contents/MacOS/VOOL'
     shell = root / 'Contents/Resources/launcher.sh'
     if command.startswith(str(native)) or any(command.startswith(prefix + str(shell))
@@ -266,6 +305,8 @@ class MacProcessHelper:
         self.app_path = Path(app_path) if app_path else None
         self.relaunch_cmd = list(relaunch_cmd) if relaunch_cmd else []
         self.poll_interval = poll_interval
+        self._launch_process: subprocess.Popen | None = None
+        self._launch_prior_pid = 0
 
     def _read_pid(self) -> int:
         if self.pid_file is None or not self.pid_file.exists():
@@ -280,6 +321,14 @@ class MacProcessHelper:
         import os
         import signal
 
+        # A version this helper relaunched that has not taken the pidfile yet is still ours to stop:
+        # left running, it finishes starting after a rollback and takes the seat and the data back.
+        launched = self._launch_process
+        if launched is not None and launched.poll() is None and launched.pid != os.getpid():
+            try:
+                os.killpg(launched.pid, signal.SIGTERM)  # its own session (start_new_session)
+            except (ProcessLookupError, PermissionError) as exc:
+                logger.warning("helper shutdown could not signal launched pid %s: %s", launched.pid, exc)
         pid = self._read_pid()
         if pid <= 0 or pid == os.getpid():
             return
@@ -288,15 +337,19 @@ class MacProcessHelper:
         except (ProcessLookupError, PermissionError) as exc:
             logger.warning("helper shutdown could not signal pid %s: %s", pid, exc)
 
+    def _stopped(self) -> bool:
+        launched = self._launch_process
+        return _pid_has_exited(self._read_pid()) and (launched is None or launched.poll() is not None)
+
     def wait_until_stopped(self, *, timeout: float) -> bool:
         import time
 
         deadline = time.monotonic() + max(0.0, float(timeout))
         while time.monotonic() < deadline:
-            if _pid_has_exited(self._read_pid()):
+            if self._stopped():
                 return True
             time.sleep(self.poll_interval)
-        return _pid_has_exited(self._read_pid())
+        return self._stopped()
 
     def relaunch(self, app_path: Path) -> bool:
         command = self.relaunch_cmd or ["open", "-n", str(app_path)]
@@ -309,11 +362,36 @@ class MacProcessHelper:
                          "VOOL_PROJECT_ROOT", "VOOL_EXPECTED_COMMIT", "VOOL_RUNTIME_MODE",
                          "VOOL_OWNED_BY_WINDOW_PID", "VOOL_NATIVE_PARENT_PID"):
                 launch_env.pop(name, None)
-            subprocess.Popen(command, env=launch_env, start_new_session=True, close_fds=True)
+            # The health wait observes THIS launch when the command execs the app
+            # directly (a launcher script's exec keeps this pid); the pid whose
+            # replacement marks the new process as actually up is captured first.
+            # The `open -n` handoff is NOT recorded: it returns while the app is
+            # still starting, so its exit would masquerade as the app's.
+            self._launch_process = None
+            if self.relaunch_cmd:
+                self._launch_prior_pid = self._read_pid()
+                self._launch_process = subprocess.Popen(
+                    command, env=launch_env, start_new_session=True, close_fds=True
+                )
+            else:
+                subprocess.Popen(command, env=launch_env, start_new_session=True, close_fds=True)
             return True
         except OSError as exc:
             logger.error("helper relaunch failed: %s", exc)
             return False
+
+    def observe_relaunch(self) -> str:
+        """Fair-start evidence for the last relaunch: 'exited' = the relaunched process
+        itself concluded (it ran), 'up' = a new process has taken the app's pidfile seat,
+        'starting' = spawned but not yet observed up, 'unknown' = this helper launched
+        nothing observable (a supervisor owns the restart)."""
+        process = self._launch_process
+        if process is None:
+            return "unknown"
+        if process.poll() is not None:
+            return "exited"
+        pid = self._read_pid()
+        return "up" if pid > 0 and pid != self._launch_prior_pid else "starting"
 
 
 class ExternalScriptHelper:
@@ -351,6 +429,8 @@ class ExternalScriptHelper:
         self._txid = ""
         self._staged = Path()
         self.process: subprocess.Popen | None = None
+        self._launch_process: subprocess.Popen | None = None
+        self._launch_prior_pid = 0
 
     def prepare(self, *, txid: str, staged_bundle: Path) -> None:
         """The flow hands over the transaction id + extracted bundle before shutdown."""
@@ -377,7 +457,10 @@ class ExternalScriptHelper:
             "--txid",
             str(self._txid),
             "--wait-seconds",
-            "60",
+            # The script gives up just before the flow does (relaunch_health.STOP_BOUND_SECONDS):
+            # an app closing slowly ends as a clean "did not exit in time" before any rollback, and
+            # the rollback also stops the script (stop_swap_script) in case it is still waiting.
+            str(int(relaunch_health.STOP_BOUND_SECONDS) - _SCRIPT_WAIT_MARGIN_SECONDS),
             "--result",
             str(self.result_path),
         ]
@@ -412,37 +495,122 @@ class ExternalScriptHelper:
             time.sleep(self.poll_interval)
         return _pid_has_exited(self._pid())
 
+    def stop_swap_script(self, *, timeout: float = 10.0) -> bool:
+        """Stop the swap script if it is still running (still waiting for the app to close), so it
+        cannot swap after the flow has decided to roll back. True once it is gone."""
+        process = self.process
+        if process is None or process.poll() is not None:
+            return True
+        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+            os.killpg(process.pid, signal.SIGTERM)  # its own session (start_new_session)
+        try:
+            process.wait(timeout=max(0.0, float(timeout)))
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(process.pid, signal.SIGKILL)
+            try:
+                process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                return False
+        return True
+
     def stop_running_app(self, *, timeout: float = 10.0) -> bool:
         """Stop whoever CURRENTLY occupies the app seat (fresh pidfile read), without
         running the swap script. Rollback needs exactly this: shutdown_app() here
         would run the FULL external swap (it is the swap vehicle, not a stop), which
         during rollback re-swaps the just-restored prior for the rejected bundle —
         measured in the final-p1 journey."""
+        # A version this helper relaunched that has not taken the pidfile yet is stopped too (as in
+        # MacProcessHelper.shutdown_app): left running it finishes starting behind a restore.
+        launched = self._launch_process
+        if launched is not None and launched.poll() is None and launched.pid != os.getpid():
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(launched.pid, signal.SIGTERM)  # its own session (start_new_session)
         pid = self._pid()
         if pid <= 0 or pid == os.getpid():
-            return True
-        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
-            os.kill(pid, signal.SIGTERM)
+            pid = 0
+        # The swap script starts the new version in its own process group and exits; that version
+        # may not have written the pidfile yet. Its processes are found by group and stopped too.
+        started_by_script = self._script_group_app_pids()
+        pids = sorted({pid, *started_by_script} - {0, os.getpid()})
+        for each in pids:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.kill(each, signal.SIGTERM)
+
+        def stopped() -> bool:
+            return all(_pid_has_exited(each) for each in pids) and (launched is None or launched.poll() is not None)
+
         import time
 
         deadline = time.monotonic() + max(0.0, float(timeout))
         while time.monotonic() < deadline:
-            if _pid_has_exited(pid):
+            if stopped():
                 return True
             time.sleep(self.poll_interval)
-        return _pid_has_exited(pid)
+        if stopped():
+            return True
+        # An app that ignores the request to quit is ended, but only a process proven to be this app.
+        for each in pids:
+            if not _pid_has_exited(each) and _pid_belongs_to_app(each, self.app_path):
+                with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                    os.kill(each, signal.SIGKILL)
+        if launched is not None and launched.poll() is None:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(launched.pid, signal.SIGKILL)
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if stopped():
+                return True
+            time.sleep(self.poll_interval)
+        return stopped()
+
+    def _script_group_app_pids(self) -> list[int]:
+        """Processes still in the swap script's process group that are this app (never a reused number)."""
+        process = self.process
+        if process is None:
+            return []
+        try:
+            listing = subprocess.run(["ps", "-axo", "pid=,pgid="], capture_output=True, text=True,
+                                     timeout=5, check=False)
+        except (OSError, subprocess.SubprocessError):
+            return []
+        members = []
+        for line in listing.stdout.splitlines():
+            fields = line.split()
+            if len(fields) == 2 and fields[1] == str(process.pid) and fields[0].isdigit():
+                members.append(int(fields[0]))
+        return [each for each in members if each != process.pid and _pid_belongs_to_app(each, self.app_path)]
 
     def relaunch(self, app_path: Path) -> bool:
         # In the success path the SCRIPT relaunches (--relaunch-cmd) and the flow
         # never calls this. This is the ROLLBACK path's relauncher: bring the
         # previous version back up from this process (the daemon), detached.
         try:
-            command = shlex.split(self.relaunch_cmd) if self.relaunch_cmd else ["open", "-n", str(app_path)]
-            subprocess.Popen(command, start_new_session=True, close_fds=True)
+            direct = bool(self.relaunch_cmd)
+            command = shlex.split(self.relaunch_cmd) if direct else ["open", "-n", str(app_path)]
+            # Observed by the health wait only when the command execs the app
+            # directly; the `open -n` handoff returns while the app still starts,
+            # so its exit would masquerade as the app's.
+            self._launch_process = None
+            if direct:
+                self._launch_prior_pid = self._pid()
+                self._launch_process = subprocess.Popen(command, start_new_session=True, close_fds=True)
+            else:
+                subprocess.Popen(command, start_new_session=True, close_fds=True)
             return True
         except OSError as exc:
             logger.error("external helper relaunch failed: %s", exc)
             return False
+
+    def observe_relaunch(self) -> str:
+        """Same contract as MacProcessHelper.observe_relaunch, on this helper's pid source."""
+        process = self._launch_process
+        if process is None:
+            return "unknown"
+        if process.poll() is not None:
+            return "exited"
+        pid = self._pid()
+        return "up" if pid > 0 and pid != self._launch_prior_pid else "starting"
 
     def wait_for_result(self, *, timeout: float) -> tuple[bool, str]:
         """Poll the helper's result receipt (bounded)."""

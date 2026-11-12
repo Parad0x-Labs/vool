@@ -27,6 +27,17 @@ import re
 from typing import Any
 
 _URL_RE = re.compile(r"\bhttps?://[^\s<>`\"']+", re.IGNORECASE)
+#: A bare web address after a read verb ("whats on example.org", "go to example.org and summarize
+#: it"): read as https://<address>. Only a real domain shape with a known top-level domain counts,
+#: so "open report.md" or "read notes.txt" never becomes a web fetch (0.7.8 sweep block 2).
+_BARE_DOMAIN_RE = re.compile(
+    r"\b(?:open|read|go\s+to|visit|browse|summari[sz]e|fetch|load|check|what'?s\s+on|whats\s+on|what\s+is\s+on)\s+"
+    r"(?:the\s+)?(?:(?:web\s*)?(?:site|page|website)\s+)?"
+    r"(?P<dom>(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*"
+    r"\.(?:com|org|net|io|dev|ai|co|app|info|edu|gov|eu|uk|de|fr|es|it|nl|lt|lv|ee|fi|se|no|dk|pl|ch|at|be|pt|ie|us|ca|au|nz|jp|me|tv|news|wiki)"
+    r"(?:/[^\s<>`\"']*)?)(?=[\s,.;:!?)]|$)",
+    re.IGNORECASE,
+)
 
 # A read verb needs an OWNER. In "write a bash script that uses `curl` to fetch `http://example.com`"
 # the user's imperative is `write` and its object is `a bash script`; the `fetch` lives in a relative
@@ -68,6 +79,17 @@ _DOWNLOAD_MARKERS = (
 
 _MAX_TEXT_CHARS = 20_000
 
+# Asks for the page DIGESTED rather than read out: a summary, the gist, an explanation. The fetched
+# page is then the evidence a model writes the answer from; printing the page itself was not an
+# answer (0.7.8 sweep block 2c, FR-WEB-URL-01 p1/p3).
+_DIGEST_RE = re.compile(
+    r"\b(?:summar(?:y|ise|ize|ising|izing)|sum\s+(?:it|this|that)\s+up|gist|tl;?\s*dr|explain(?:s|ed)?|"
+    r"main\s+(?:points?|idea)|key\s+(?:points?|takeaways?)|takeaways?|overview|in\s+(?:one|a\s+few|two|three|\d+)\s+"
+    r"(?:lines?|sentences?|words|bullets?)|what(?:'s|\s+is)\s+(?:it|this|that|the\s+page)\s+about|briefly|in\s+short)\b",
+    re.IGNORECASE,
+)
+_DIGEST_PAGE_CHARS = 12_000
+
 
 # Regions whose contents the user is DISPLAYING -- a pasted log line, a code comment, a JSON
 # payload, a quoted sentence. Anything inside one is data under discussion, never a destination for
@@ -96,8 +118,13 @@ def url_read_request(text: str) -> dict[str, Any] | None:
     if not raw:
         return None
     match = _URL_RE.search(raw)
+    bare_url = ""
     if match is None:
-        return None
+        bare = _BARE_DOMAIN_RE.search(raw)
+        if bare is None:
+            return None
+        match = bare
+        bare_url = "https://" + bare.group("dom").rstrip(".,;:!?)")
     # An address the user SHOWED is not an address the user ASKED FOR. Checked first, because it is
     # the only gate here that does not depend on the message containing a prohibition.
     #
@@ -151,9 +178,9 @@ def url_read_request(text: str) -> dict[str, Any] | None:
     padded = f" {' '.join(raw.split()).lower()} "
     if any(marker in padded for marker in _DOWNLOAD_MARKERS):
         return None
-    if not any(marker in padded for marker in _READ_MARKERS):
+    if not bare_url and not any(marker in padded for marker in _READ_MARKERS):
         return None
-    url = match.group(0).rstrip(".,;:!?)\u201d\u2019")
+    url = bare_url or match.group(0).rstrip(".,;:!?)\u201d\u2019")
     return {"url": url}
 
 
@@ -172,20 +199,36 @@ def _render(execution: Any, *, url: str) -> str:
     return f"{header}\n\n{text}".rstrip()
 
 
-def _failure_text(status: str, *, reason: str, url: str) -> str:
+def _failure_text(status: str, *, reason: str, url: str, source_context: dict[str, Any] | None = None) -> str:
     """Each barrier keeps its own words, for the same reason the PDF statuses do."""
-    if status == "disabled_by_policy":
-        return (
-            f"Web access is switched off on this runtime, so I did not open `{url}`. "
-            f"That is a policy setting, not a problem with the page."
-        )
+    shown = url.split("://", 1)[-1].rstrip("/")
+    if status in {"disabled_by_policy", "unsupported", "unavailable"} or "web lookups are off" in reason.lower():
+        # The run-mode authority names the cause (Web lookups switch, Offline chat, or a computer
+        # kept fully local) in the same words as every other web-off reply, and the address is
+        # shown without code marks (0.7.8 sweep block 2c, WEB-READ-01 p2: "I could not fetch
+        # example.org`: Web fetch is disabled by runtime web policy..").
+        from core.remote_fetch_policy import OFFLINE_TEXT, WEB_OFF_TEXT, web_unavailable_reason
+
+        cause = web_unavailable_reason(source_context)
+        if cause == WEB_OFF_TEXT:
+            return (f"Web lookups are off, so I didn't open {shown}. "
+                    "You can turn them on in Settings, Privacy & Permissions.")
+        if cause == OFFLINE_TEXT:
+            return (f"This chat is Offline, so I didn't open {shown}. Choosing Computer + web or Local "
+                    "first in the model menu allows web lookups for this chat.")
+        return f"VOOL is set to keep everything on this computer, so I didn't open {shown}."
     if status == "captcha":
-        return f"`{url}` served a bot check rather than the page, so there is nothing I can read there."
+        return f"{shown} served a bot check rather than the page, so there is nothing I can read there."
     if status == "login_wall":
-        return f"`{url}` is behind a login, so the page never loaded for me."
+        return f"{shown} is behind a login, so the page never loaded for me."
     if status == "missing_dependency":
-        return f"I cannot fetch web pages on this runtime: {reason or status}."
-    return f"I could not fetch `{url}`: {reason or status}."
+        return f"I can't open web pages on this computer right now: {str(reason or status).rstrip('.')}."
+    cause = " ".join(str(reason or status).split()).rstrip(".")
+    # The tool's own sentence names the address in code marks ("Web fetch for `X` failed: ..."); the
+    # reply already names it, so only the cause is kept.
+    cause = re.sub(r"^Web fetch (?:for|did not open)\s+`[^`]*`\s*(?:failed\s*)?:?\s*", "", cause).replace("`", "")
+    cause = re.sub(r"^with\s+", "", cause) or status
+    return f"I couldn't open {shown}: {cause}."
 
 
 def maybe_handle_url_read(
@@ -194,6 +237,7 @@ def maybe_handle_url_read(
     *,
     session_id: str,
     source_context: dict[str, Any] | None,
+    interpretation: Any = None,
 ) -> dict[str, Any] | None:
     """Fetch the URL the message names. None when it names none, so dispatch continues as today."""
     from core.vool_browser.live_chat import refuse_if_off
@@ -213,8 +257,23 @@ def maybe_handle_url_read(
     if execution is None:
         return None
 
+    # The fetch is this turn's evidence: record it where the grounding gate reads tool results.
+    # Measured 2026-11-11 (private-web test): "Open https://check.torproject.org/api/ip and tell me
+    # exactly what it says" fetched the page, then was withheld as "The retrieval for this turn
+    # returned no usable rows" -- this path called the tool directly, so no execution record
+    # existed for the gate to harvest. The tool loop records every call the same way.
+    try:
+        from core.tool_intent_executor import _record_execution
+
+        _record_execution(
+            execution, session_id=session_id, intent="web.fetch", arguments={"url": url},
+            source_context=source_context,
+        )
+    except Exception:
+        pass
     status = str(getattr(execution, "status", "") or "")
     ok = bool(getattr(execution, "ok", False))
+
     details = dict(getattr(execution, "details", {}) or {})
     # `web.fetch` puts the real cause in its own response_text ("Web fetch for `X` failed: <exc>",
     # "... failed with HTTP 503") and carries no `reason` key at all, so reading only `reason` gave
@@ -227,7 +286,36 @@ def maybe_handle_url_read(
         or (f"HTTP {observation['http_status']}" if observation.get("http_status") else "")
         or str(getattr(execution, "response_text", "") or "")
     ).strip()
-    body = _render(execution, url=url) if ok else _failure_text(status, reason=reason, url=url)
+    body = _render(execution, url=url) if ok else _failure_text(
+        status, reason=reason, url=url, source_context=source_context
+    )
+    if ok:
+        # web.fetch declares no result field for that record to carry, so the page text itself is
+        # minted as this turn's retrieved row -- the same row shape the gate harvests from receipts.
+        try:
+            from urllib.parse import urlparse
+
+            from core import grounding_lifecycle
+
+            fetched = dict(getattr(execution, "details", {}) or {})
+            page_text = str(fetched.get("text") or "").strip()
+            final_url = str(fetched.get("final_url") or url).strip()
+            if page_text:
+                # The row is the reply as rendered: its header line (the URL and size fetched) is an
+                # observation too, and a header the gate could not match was withheld as a claim.
+                row = {"summary": body, "result_url": final_url, "origin_domain": urlparse(final_url).netloc,
+                       "source_type": "tool_receipt", "intent": "web.fetch", "ok": True}
+                grounding_lifecycle.record_retrieved(source_context, outcome="tool_receipt", source_count=1, notes=[row])
+                grounding_lifecycle.record_typed_observations(source_context, entries=[row])
+        except Exception:
+            pass
+    if ok and _DIGEST_RE.search(user_input):
+        digest = _digest_from_page(
+            agent, user_input, url=url, execution=execution, rendered=body,
+            session_id=session_id, source_context=source_context, interpretation=interpretation,
+        )
+        if digest is not None:
+            return digest
     return _machine_tool_fast_path_result(
         agent,
         user_input=user_input,
@@ -238,6 +326,61 @@ def maybe_handle_url_read(
         reason="web_fetch_fast_path" if ok else "web_fetch_fast_path_failed",
         response_text=body,
     )
+
+
+def _digest_from_page(
+    agent: Any,
+    user_input: str,
+    *,
+    url: str,
+    execution: Any,
+    rendered: str,
+    session_id: str,
+    source_context: dict[str, Any] | None,
+    interpretation: Any,
+) -> dict[str, Any] | None:
+    """The answer to "summarize / explain / give the gist of <url>": a model writes it from the page
+    this turn fetched, under the strict live-evidence frame (answer only from the page). If no model
+    answers, the page text itself is shown, said plainly, never markup."""
+    from urllib.parse import urlparse
+
+    details = dict(getattr(execution, "details", {}) or {})
+    page_text = str(details.get("text") or "").strip()
+    final_url = str(details.get("final_url") or url).strip()
+    if not page_text or interpretation is None:
+        return None
+    note = {
+        "summary": page_text[:_DIGEST_PAGE_CHARS],
+        "result_url": final_url,
+        "result_title": page_text.splitlines()[0][:120],
+        "origin_domain": urlparse(final_url).netloc,
+        "source_type": "tool_receipt",
+    }
+    try:
+        from core.agent_runtime.current_evidence_prefetch import _bind_existing_notes
+        from core.identity_manager import load_active_persona
+
+        _bind_existing_notes([note], task=None, effective_input=user_input, source_context=source_context)
+        return agent._chat_surface_model_wording_result(
+            session_id=session_id,
+            user_input=user_input,
+            source_context=source_context,
+            persona=load_active_persona(agent.persona_id),
+            interpretation=interpretation,
+            task_class="research",
+            response_class=agent.ResponseClass.UTILITY_ANSWER,
+            reason="web_fetch_digest",
+            model_input=agent._chat_surface_live_info_model_input(
+                user_input=user_input, query=final_url, mode="fresh_lookup", notes=[note],
+            ),
+            fallback_response=(
+                f"I opened {urlparse(final_url).netloc or final_url} but couldn't write the summary this time. "
+                f"Here is the page text:\n\n{page_text[:4000]}"
+            ),
+            tool_backing_sources=["web_lookup"],
+        )
+    except Exception:
+        return None
 
 
 __all__ = ["maybe_handle_url_read", "url_read_request"]

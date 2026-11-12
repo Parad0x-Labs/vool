@@ -244,6 +244,26 @@ def maybe_handle_live_info_fast_path(
     # branch (`chat_truth_live_info_result`, the unresolved-price road, the failure text) can be the
     # one that forgets.
     record_live_info_observation(source_context, notes)
+    # The answer below is written FROM these notes: bind them, through the same binder the
+    # prefetch lane uses for evidence a pre-model lane retrieved, so the grounding gate can see
+    # that the sources reached the writing call. Measured on the 0.7.8 sweep (block 2): "look up
+    # online how tall the eiffel tower is" retrieved 3 sources, answered "330 m", and was refused
+    # at bound_to_synthesis because nothing recorded the binding. The gate itself is unchanged:
+    # an answer the bound sources do not support is still refused.
+    if notes:
+        try:
+            from types import SimpleNamespace
+
+            from core.agent_runtime.current_evidence_prefetch import _bind_existing_notes
+
+            _bind_existing_notes(
+                [dict(note) for note in notes if isinstance(note, dict)],
+                task=SimpleNamespace(task_id=str((source_context or {}).get("task_id") or "")),
+                effective_input=user_input,
+                source_context=source_context if isinstance(source_context, dict) else None,
+            )
+        except Exception:
+            pass
     return build_live_info_response_result(
         agent,
         session_id=session_id,

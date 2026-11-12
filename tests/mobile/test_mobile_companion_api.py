@@ -749,6 +749,47 @@ class TestJourneyActions:
         refused = _companion(claim, "approvals.resolve", {"approval_id": token, "decision": "deny"}, runtime=runtime)
         assert refused.status == 403 and _body(refused)["code"] == "approve_on_computer"
 
+    def test_hide_name_on_screen_reaches_the_phone_and_never_the_stored_approval(self, runtime, tmp_path, monkeypatch):
+        """The phone shows what the desktop shows: with "Hide my name on screen" on, a pending
+        approval naming a file in the home folder reads ~/... on the phone, the approval itself
+        keeps the real path, and the phone can still resolve it by id."""
+        from core import screen_privacy
+        from core.user_preferences import load_preferences, save_preferences
+
+        home = tmp_path / "rivermaple"
+        monkeypatch.setattr(screen_privacy, "_machine_identity", lambda: (str(home), ("rivermaple",), ()))
+        session = "chat-mobile-mask"
+        set_active_mode(session, "manual", project_id="", client_turn_id="turn-mask")
+        # A phone sees only the approvals its own chats raised, so this one is raised by the paired phone.
+        from core.request_trust import REMOTE_DEVICE_KEY
+
+        claim = _body(_pair(runtime)[0])
+        decision = decide_tool_call(
+            intent="workspace.write_file",
+            arguments={"path": "notes/rivermaple-plan.txt", "content": "x"},
+            task_id="turn-mask",
+            source_context={"runtime_session_id": session, "operating_mode": "manual", "workspace_root": str(home),
+                            REMOTE_DEVICE_KEY: claim["device_id"]},
+        )
+        token = decision.approval_request["approval_id"]
+
+        def shown() -> str:
+            rows = _body(_companion(claim, "approvals.pending", runtime=runtime))["result"]["approvals"]
+            return json.dumps(next(a for a in rows if a["approval_id"] == token))
+
+        assert "rivermaple" in shown()                       # off by default: the real text
+        prefs = load_preferences()
+        prefs.hide_name_on_screen = True
+        save_preferences(prefs)
+        masked = shown()
+        assert "rivermaple" not in masked.lower() and "\\u2022\\u2022\\u2022" in masked
+        import core.mode_permission_policy as mpp
+        assert "rivermaple" in json.dumps(mpp._APPROVALS[token], default=str)   # stored bytes unchanged
+        # The id still names the approval from the phone. This phone has no "Use tools on my computer"
+        # right, so the answer itself stays on the computer.
+        resolved = _companion(claim, "approvals.resolve", {"approval_id": token, "decision": "deny"}, runtime=runtime)
+        assert resolved.status == 403 and _body(resolved)["code"] == "approve_on_computer"
+
     def test_notifications_poll_classifies_completion_and_failure(self, runtime):
         from core.runtime_task_events import emit_runtime_event
 

@@ -106,7 +106,11 @@ _AGENDA_RE = re.compile(
     r"|\bagenda\s+(?:for|from)\b"
     r"|\bupcoming\s+(?:events?|meetings?|appointments?)\b"
     r"|\b(?:on|for)\s+(?:my|the)\s+calendar\b[^\n!?.]*\b(?:this week|next week|today|tomorrow)\b"
-    r"|\bcalendar\b[^\n!?.]*\bfrom\s+[0-9]{4}-[0-9]{2}-[0-9]{2}\b",
+    r"|\bcalendar\b[^\n!?.]*\bfrom\s+[0-9]{4}-[0-9]{2}-[0-9]{2}\b"
+    # "do I have any meetings this week?" -- measured 2026-11-11 (battery v9, installed build): it
+    # missed this lane, reached a model with no calendar read, and was refused by the evidence check.
+    r"|\b(?:do|will)\s+(?:i|we)\s+have\s+(?:any(?:thing)?\s+)?(?:meetings?|appointments?|events?|calls?)\b"
+    r"[^\n!?.]*\b(?:today|tonight|tomorrow|this week|next week|this weekend)\b",
     re.IGNORECASE,
 )
 _SEARCH_CALENDAR_RE = re.compile(
@@ -308,6 +312,14 @@ _NOTE_DELETE_ACTION_RE = _head_words_re("delete", "remove")
 _PROPOSE_ACTION_RE = _head_words_re("propose", "book", "schedule", "create")
 
 
+_REMIND_ME_OWN_FACT_RE = re.compile(
+    r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?"
+    r"(?:(?:of\s+|about\s+|what\s+)?(?:is\s+)?my\s+|(?:which|what|who|where|when|how)\s+|the\s+)"
+    r"(?![^.!?]*\bto\s+\w)[^.!?]+?[.!?]?\s*$",
+    re.IGNORECASE,
+)
+
+
 def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     """ "Remind me what I told you about my landlord" asks what was said, not for a reminder.
 
@@ -318,7 +330,24 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     from core.execution.constants import conversation_recall_remainder
     from core.operator.when import time_expression_spans
 
-    return conversation_recall_remainder(words) is not None and not time_expression_spans(words, word_dates=False)
+    if time_expression_spans(words, word_dates=False):
+        return False
+    # "remind me my bike lock code word" / "remind me of my gym locker number": the object is one of
+    # the speaker's OWN facts and nothing is to be done later (no "to ...", no time) -- a recall.
+    # Measured 2026-11-11 by the acceptance runner: it was parsed as a reminder to schedule.
+    if _REMIND_ME_OWN_FACT_RE.match(words):
+        return True
+    return conversation_recall_remainder(words) is not None
+
+
+_ASKS_ABOUT_EXISTING_REMINDER_RE = re.compile(
+    r"^\s*(?:(?:did|have|had)\s+i\s+(?:already\s+)?(?:set|make|made|create|created|schedule|scheduled|add|added|get|got)"
+    r"\s+(?:up\s+)?(?:a|an|any|the|my)?\s*reminders?\b"
+    r"|(?:do|did)\s+i\s+(?:still\s+)?have\s+(?:a|an|any)\s+reminders?\b"
+    r"|(?:is|was|are)\s+there\s+(?:a|an|any)\s+reminders?\b"
+    r"|(?:any\s+|a\s+|the\s+|my\s+)?reminders?\s+(?:for|about|to|on)\b[^.!]*\?\s*$)",
+    re.IGNORECASE,
+)
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
@@ -342,6 +371,11 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # "remind me to clean temp files tomorrow" is a reminder, not a cleanup; and before
     # _SCHEDULE_HINTS so "reschedule a meeting" is a MOVE, not a new draft ("schedule a
     # meeting" is a substring of "reschedule a meeting" and would otherwise win).
+    # A question about a reminder that may already exist is a lookup, not a new reminder:
+    # "did i set a reminder to feed the iguana" was parsed as a schedule order and leaked the time
+    # parser's error text (0.7.8 sweep block 3).
+    if _ASKS_ABOUT_EXISTING_REMINDER_RE.search(words):
+        return OperatorActionIntent(kind="list_reminders", raw_text=text)
     if _REMINDER_HINT_RE.search(words) and not _asks_to_recall_not_to_be_reminded(words):
         return OperatorActionIntent(kind="schedule_reminder", raw_text=text)
     reminder_id_match = re.search(

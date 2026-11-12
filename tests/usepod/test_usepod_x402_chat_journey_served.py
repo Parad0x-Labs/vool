@@ -74,7 +74,7 @@ def journey(tmp_path_factory):
 
 def test_setup_through_the_settings_doors(journey) -> None:
     daemon, service, node = journey.daemon, journey.service, journey.node
-    status, switched = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet"})
+    status, switched = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
     assert status == 200, switched
     wallet = ready_pilot_wallet(daemon)
     node.fund_sol(wallet["address"], 20_000_000)

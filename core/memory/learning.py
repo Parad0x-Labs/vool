@@ -1217,9 +1217,21 @@ def should_auto_extract(text: str) -> bool:
     return len(lowered) >= 12
 
 
+#: A question or a request typed without its "?" ("remind me which bakery i like most") is not a
+#: fact about the owner: battery v9 saved exactly that sentence as an active "preference".
+_ASKS_NOT_TELLS_RE = re.compile(
+    r"^(?:(?:what|whats|what's|which|where|wheres|where's|who|whose|why)\b|when\s+(?:is|are|was|do|does|did|will)\b|how\s+(?:do|does|did|many|much|long|old|far|is|are|can|should)\b|"
+    r"(?:do|does|did|can|could|would|will|is|are)\s+(?:you|u|i|we|my)\b|"
+    r"(?:remind|tell|show|give|find|get|check|list)\s+(?:me|us)\b)",
+    re.IGNORECASE,
+)
+
+
 def should_skip_memory_sentence(sentence: str) -> bool:
     lowered = sentence.lower()
     if sentence.endswith("?") or len(sentence) < 12:
+        return True
+    if _ASKS_NOT_TELLS_RE.match(lowered.strip()):
         return True
     return any(hint in lowered for hint in _EPHEMERAL_HINTS)
 

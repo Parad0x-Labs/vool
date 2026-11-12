@@ -324,6 +324,22 @@ def _denial_subjects(sentence: str, evidence: TurnEvidence) -> list[tuple[str, s
     return found
 
 
+#: Attempt statuses that mean the runtime refused the call before anything left the machine.
+_REFUSED_BEFORE_DISPATCH = frozenset({
+    "disabled", "disabled_by_policy", "unsupported", "unavailable", "refused", "blocked",
+    "private_target_refused", "runtime_origin_refused", "web_off", "offline",
+})
+_DENIES_TRYING_RE = re.compile(r"\b(?:try|tried|trying|attempt(?:ed|ing)?|call(?:ed)?|contact(?:ed)?)\b", re.IGNORECASE)
+
+
+def _refused_before_dispatch(attempts: tuple[Any, ...]) -> bool:
+    return all(
+        not bool(getattr(a, "ok", True))
+        and str(getattr(a, "status", "") or "").strip().lower() in _REFUSED_BEFORE_DISPATCH
+        for a in attempts
+    )
+
+
 def _matching_attempts(kind: str, subject: str, evidence: TurnEvidence, *, whole_conversation: bool):
     if kind == SUBJECT_HOST:
         return evidence.attempts_against_host(subject, whole_conversation=whole_conversation)
@@ -464,6 +480,20 @@ def _check_denial(sentence: str, evidence: TurnEvidence, *, whole_conversation: 
         return None
     for kind, subject in subjects:
         attempts = _matching_attempts(kind, subject, evidence, whole_conversation=whole_conversation)
+        if attempts and _refused_before_dispatch(attempts) and not _DENIES_TRYING_RE.search(sentence):
+            # "Web lookups are off, so I didn't open example.com": every matching attempt was refused
+            # before anything left the machine, so the page was never opened -- the denial is the
+            # trace's own fact. Rewriting it as "Activity shows tried example -- failed (disabled).
+            # I cannot claim otherwise" replaced a true plain sentence with a false-sounding one
+            # (0.7.8 sweep block 2c, WEB-READ-01). A denial of TRYING stays contradicted.
+            return ClaimFinding(
+                kind="tool_action_denial",
+                subject=f"{kind}:{subject}",
+                verdict=VERDICT_SUPPORTED,
+                sentence=sentence,
+                replacement=sentence,
+                detail="every matching attempt was refused before dispatch",
+            )
         if attempts:
             replacement, detail = _repair_denial(kind, subject, VERDICT_CONTRADICTED, attempts, evidence)
             return ClaimFinding(

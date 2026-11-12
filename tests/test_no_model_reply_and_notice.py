@@ -139,7 +139,7 @@ def test_with_a_local_model_running_the_certification_refusal_is_unchanged(home,
         fake.close()
     assert text.startswith(UNCERTIFIED_AUTHOR_NOTICE_LEAD), text
     assert NO_MODEL_NOTICE_LEAD not in text
-    assert "press Use this model" in text
+    assert "run the local model tool certification" in text
 
 
 def test_the_refusal_speaks_the_turn_language_and_every_language_is_recognised(home) -> None:
@@ -210,7 +210,11 @@ def test_model_bytes_that_only_quote_the_lead_are_still_refused(home) -> None:
 
 
 def test_the_page_carries_the_lead_of_every_shipped_language() -> None:
-    from core.final_answer_authorship import LEGACY_NO_MODEL_NOTICE_LEAD, no_model_notice_leads
+    from core.final_answer_authorship import (
+        LEGACY_NO_MODEL_NOTICE_LEAD,
+        UNCERTIFIED_AUTHOR_NOTICE_LEAD,
+        no_model_notice_leads,
+    )
     from core.vool_chat_page import render_vool_chat_html
 
     html = render_vool_chat_html(ui_locale="ar")
@@ -218,7 +222,9 @@ def test_the_page_carries_the_lead_of_every_shipped_language() -> None:
     marker = "var NO_MODEL_LEADS = "
     start = html.index(marker) + len(marker)
     embedded = json.loads(html[start:html.index(";\n", start)])
-    assert embedded == [*no_model_notice_leads(), LEGACY_NO_MODEL_NOTICE_LEAD]
+    # The not-yet-checked-model refusal joined the list (2026-11-11): it ends with a technical
+    # "Details:" paragraph that the same fold keeps out of the person's way.
+    assert embedded == [*no_model_notice_leads(), LEGACY_NO_MODEL_NOTICE_LEAD, UNCERTIFIED_AUTHOR_NOTICE_LEAD]
     assert len(embedded) >= 17
 
 

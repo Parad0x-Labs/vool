@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from core.final_answer_authorship import (
     REASON_BLOCKED_BEFORE_GENERATION,
-    UNCERTIFIED_AUTHOR_NOTICE_LEAD,
     AuthorshipDecision,
     authorship_record_for_publication,
     gate_authored_content,
@@ -31,8 +30,6 @@ ATTEMPTED = (
     "openrouter-byok:nvidia/nemotron-3.5-lightning:free",
     "openrouter-byok:thinkingmachines/inkling-small:free",
 )
-#: What a person reads: the model names without the provider prefix (0.7.7 plain refusal).
-PLAIN = tuple(name.split(":", 1)[1] for name in ATTEMPTED)
 
 
 def _context(turn_id: str) -> dict:
@@ -52,21 +49,22 @@ def _blocked_decision() -> AuthorshipDecision:
 
 def test_a_refusal_with_attempts_names_them_and_claims_no_more_than_happened() -> None:
     text = _blocked_decision().refusal_text(attempted_failed=ATTEMPTED)
-    for model in PLAIN:
+    assert "qwen2.5:7b" in text
+    for model in ATTEMPTED:
         assert model in text, f"attempted author {model} not named in refusal"
     # The false claim this file exists to remove.
     assert "no certified model was available and permitted" not in text
-    assert "didn\u2019t reply properly" in text
-    # The blocked model was never called, so it is not what the person is told about (GLM audit
-    # R2: 97 refusals blamed qwen2.5:7b after qwen3:8b had failed).
-    assert "qwen2.5:7b" not in text
+    assert "each failed before producing a usable answer" in text
 
 
-def test_a_refusal_without_attempts_names_the_blocked_model_plainly() -> None:
-    """With nothing called, the refusal is about the model that may not answer, in plain words."""
+def test_a_refusal_without_attempts_keeps_its_exact_former_bytes() -> None:
+    """The no-attempts path keeps its shape. Its wording changed once, on purpose (2026-11-11): "the call
+    was never made" contradicted the receipt when the routing step ran on the same model."""
     text = _blocked_decision().refusal_text()
-    assert "qwen2.5:7b isn\u2019t ready to answer for VOOL yet." in text
-    assert "certif" not in text.lower()
+    assert (
+        "`ollama-local:qwen2.5:7b` is not certified to author on this runtime, so it was not asked "
+        "to write this answer, and no certified model was available and permitted to write it instead."
+    ) in text
 
 
 def test_the_gate_serves_the_attempt_aware_refusal() -> None:
@@ -80,8 +78,8 @@ def test_the_gate_serves_the_attempt_aware_refusal() -> None:
     )
     record_authorship_attempts(context, ATTEMPTED)
     gated, payload = gate_authored_content("Paris is the capital of France.", turn_id=turn_id)
-    assert gated.startswith(UNCERTIFIED_AUTHOR_NOTICE_LEAD)
-    for model in PLAIN:
+    assert gated.startswith("I can't publish this answer:")
+    for model in ATTEMPTED:
         assert model in gated
     assert "no certified model was available and permitted" not in gated
     assert payload.get("attempted_failed") == list(ATTEMPTED)
@@ -119,5 +117,6 @@ def test_a_blocked_model_is_not_reported_as_called() -> None:
     assert "ollama-local:qwen2.5:7b" not in record.attempted_failed
     assert record.attempted_failed == (ATTEMPTED[0],)
     gated, _payload = gate_authored_content("Paris.", turn_id=turn_id)
-    assert PLAIN[0] in gated
-    assert "qwen2.5:7b" not in gated
+    assert "was not asked to write this answer" in gated
+    assert ATTEMPTED[0] in gated
+    assert "ollama-local:qwen2.5:7b`) each failed" not in gated

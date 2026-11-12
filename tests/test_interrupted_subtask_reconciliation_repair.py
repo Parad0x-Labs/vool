@@ -15,6 +15,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.attempt_followup import render_attempt_failure_explanation
 from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
@@ -100,6 +102,7 @@ class InterruptedSubtaskReconciliationTests(unittest.TestCase):
         self.assertIn("Gold", explanation)  # successful sibling retained, per the existing renderer
         self.assertIn("retried", explanation.lower())
 
+    @pytest.mark.usefixtures("enable_web")
     def test_retry_reruns_the_interrupted_subtask_instead_of_carrying_it_forward(self) -> None:
         from core.agent_runtime.attempt_retry import execute_attempt_retry
         from core.runtime_continuity import update_runtime_attempt

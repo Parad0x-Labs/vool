@@ -22,6 +22,7 @@ Laws enforced by this module:
 """
 from __future__ import annotations
 
+import asyncio as _asyncio
 import contextlib
 import contextvars
 import hashlib
@@ -182,8 +183,61 @@ RSS_REASON_ANSWERED_IN_PART = (
 )
 
 
+def _withheld_claims_target(slot_text: str, withheld_claims: tuple[str, ...] | list[str]) -> bool:
+    """Whether a withheld statement belongs to THIS slot's answer.
+
+    The gate removes the statement's own words from the answer; those words name what the slot
+    asked about ("Rome: Overcast, 24 C" against a slot asking about Rome's weather). The same
+    anchor machinery the satisfaction ladder uses decides the overlap: a slot whose anchors the
+    withheld statement carries is the slot that lost words. Measured 2026-11-05 (build
+    0a9ffad3): a withheld runtime-status line ("Running clean") carried no Rome anchor, yet both
+    slots were stamped answered-in-part by echo-absence — the blanket this helper ends. Case
+    notes: a slot whose anchors the statement cannot name is not accused; a slot with no
+    anchors at all (it names nothing) is likewise never accused by this path.
+    """
+    from core.agent_runtime.answer_coverage import unit_anchors
+
+    cleaned = [str(claim or "").strip().lower() for claim in (withheld_claims or ()) if str(claim or "").strip()]
+    if not cleaned:
+        return False
+    slot_lower = str(slot_text or "").strip().lower()
+    if not slot_lower:
+        return False
+    try:
+        anchors = [str(anchor or "").strip().lower() for anchor in unit_anchors(slot_lower) if str(anchor or "").strip()]
+    except Exception:
+        return False
+    # RED-TEAM FIX (2026-11-05): raw substring matching false-attributed — anchor "us"
+    # (from "emails from US banks") matched inside "because", stamping an unrelated slot
+    # answered-in-part. Anchors match at word boundaries only, as whole words or phrases.
+    import re
+
+    for anchor in anchors:
+        pattern = re.compile(r"\b" + re.escape(anchor) + r"\b")
+        for claim in cleaned:
+            if pattern.search(claim):
+                return True
+    return False
+
+
+_NOT_A_DEMAND_RE = __import__("re").compile(
+    r"^\s*(?:(?:thanks?|thank\s+you|thx|ty|cheers|ok(?:ay)?|cool|great|nice|perfect|awesome|hi|hello|hey|please|pls|"
+    r"sure|yes|yeah|no|nope|got\s+it|sounds\s+good)[\s,!.]*)+$"
+    r"|^\s*(?:according\s+to|as\s+per|per|from|on|in)\s+(?:the\s+)?[\w .'-]{1,40}?[\s,:]*$",
+    __import__("re").IGNORECASE,
+)
+
+
+def _is_a_demand(text: str) -> bool:
+    """A courtesy ("thanks,") or a bare source attribution ("according to wikipedia") is part of how
+    the person asked, not something to answer. Listing them under "Could not be answered" told the
+    person a "thanks" had failed (database run 8; sweep block 2, 2026-11-12)."""
+    return not _NOT_A_DEMAND_RE.match(str(text or ""))
+
+
 def _render_closure_rows(pending: list[dict[str, Any]], content: str) -> str:
     """The closure section: unanswered slots under one header, partially answered under another."""
+    pending = [row for row in pending if _is_a_demand(str(row.get("text") or ""))]
     unanswered = [row for row in pending if not row.get("answered_in_part")]
     partial = [row for row in pending if row.get("answered_in_part")]
     blocks: list[str] = []
@@ -574,6 +628,16 @@ def _rss_closure_sweep(
             #
             # Only slots the answer does not otherwise carry, and only on a turn that actually
             # withheld something, so a normal turn renders exactly what it did before.
+            #
+            # MEASURED 2026-11-05 (build 0a9ffad3, operator's live test): "hows going? whats the
+            # weather like in Rome now?" — the weather lookup SUCCEEDED 1/1, the answer carried
+            # the sourced Rome reading — and BOTH slots were stamped "answered in part" because
+            # the append below read `state != DEMAND_SATISFIED`, and the text ladder had graded
+            # both `indeterminate`: the answer "Rome: Partly cloudy, 18 C" never echoes the
+            # asking word "weather", and absence of echo asserts nothing (the ladder's own law).
+            # A slot is "answered in part" only when a WITHHELD statement belongs to it — the
+            # gate removed that slot's words — or the slot is provably unanswered. Indeterminate
+            # with nothing withheld against it stays silent, exactly as the ladder's law says.
             already = {str(row.get("text") or "") for row in pending}
             pending += [
                 {
@@ -582,7 +646,10 @@ def _rss_closure_sweep(
                     **({"answered_in_part": True} if published_in_part else {}),
                 }
                 for row in rows
-                if row.get("state") != DEMAND_SATISFIED
+                if (
+                    row.get("state") == DEMAND_UNANSWERED
+                    or _withheld_claims_target(str(row.get("text") or ""), withheld_claims)
+                )
                 and str(row.get("text") or "") not in already
                 and not unit_is_disclosed_in(str(row.get("text") or ""), content)
             ]
@@ -949,10 +1016,9 @@ def finalize_answer(
                     content = f"{_body}\n\n{_notice}"
                 else:
                     content = (
-                        "I couldn't complete my check for whether this question has a single "
-                        "well-known answer, and the reply I drafted rested on exact figures I "
-                        "can't stand behind without it. Tell me which place, person or thing you "
-                        "mean, and I'll answer precisely."
+                        "I couldn't complete my check on which one you mean, and the reply I "
+                        "drafted rested on exact figures I can't stand behind without it. Tell me "
+                        "which place, person or thing you mean, and I'll answer precisely."
                     )
     except Exception:  # pragma: no cover — enforcement may not kill a working answer
         _log.exception("ambiguity-adjudication enforcement failed; publishing ungated")
@@ -1899,7 +1965,104 @@ def _migrate_legacy_digest_tombstones(conn: sqlite3.Connection) -> None:
 #: pass-002 TOCTOU closure.)
 import threading as _threading
 
-A8_TRAVERSAL_LOCK = _threading.RLock()
+
+class _A8TraversalGate:
+    """Writer-reentrant, async-compatible gate for public governed reads and writes."""
+
+    def __init__(self) -> None:
+        self._condition = _threading.Condition(_threading.Lock())
+        self._writer_owner: int | None = None
+        self._writer_depth = 0
+        self._waiting_writers = 0
+        self._readers = 0
+
+    def acquire(self) -> None:
+        owner = _threading.get_ident()
+        with self._condition:
+            if self._writer_owner == owner:
+                self._writer_depth += 1
+                return
+            self._waiting_writers += 1
+            try:
+                while self._writer_owner is not None or self._readers:
+                    self._condition.wait()
+                self._writer_owner = owner
+                self._writer_depth = 1
+            finally:
+                self._waiting_writers -= 1
+
+    def release(self) -> None:
+        owner = _threading.get_ident()
+        with self._condition:
+            if self._writer_owner != owner or self._writer_depth <= 0:
+                raise RuntimeError("A8 traversal write gate released by a non-owner")
+            self._writer_depth -= 1
+            if self._writer_depth == 0:
+                self._writer_owner = None
+                self._condition.notify_all()
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        del exc_type, exc, traceback
+        self.release()
+
+    def acquire_read(self) -> None:
+        with self._condition:
+            while self._writer_owner is not None or self._waiting_writers:
+                self._condition.wait()
+            self._readers += 1
+
+    def release_read(self) -> None:
+        with self._condition:
+            if self._readers <= 0:
+                raise RuntimeError("A8 traversal read gate released without an active reader")
+            self._readers -= 1
+            if self._readers == 0:
+                self._condition.notify_all()
+
+    @contextlib.contextmanager
+    def read_scope(self):
+        self.acquire_read()
+        try:
+            yield
+        finally:
+            self.release_read()
+
+    @contextlib.asynccontextmanager
+    async def async_read_scope(self):
+        # Waiting for a writer must not block the ASGI event loop. Reader ownership is a shared
+        # count, so the loop thread may safely release the acquisition made by this worker.
+        await _asyncio.to_thread(self.acquire_read)
+        try:
+            yield
+        finally:
+            self.release_read()
+
+
+A8_TRAVERSAL_LOCK = _A8TraversalGate()
+
+
+@contextlib.contextmanager
+def public_governed_read_scope():
+    """Linearize a public governed read through response delivery against WITHHOLD/ERASE.
+
+    Availability checks alone linearize when a row is read, but an HTTP handler can hold that
+    already-approved body in memory while a WITHHOLD commits, then send it afterward. Public
+    handlers wrap projection and response writing in this scope so the transition waits for any
+    earlier response to finish, and later responses observe the committed restriction.
+    """
+    with A8_TRAVERSAL_LOCK.read_scope():
+        yield
+
+
+@contextlib.asynccontextmanager
+async def public_governed_async_read_scope():
+    """Async counterpart held until the ASGI response has finished sending."""
+    async with A8_TRAVERSAL_LOCK.async_read_scope():
+        yield
 
 
 def text_is_unserveable_on(conn: sqlite3.Connection, text: str) -> bool:

@@ -50,7 +50,12 @@ def test_forgetting_a_number_again_and_again_on_a_profile_with_history(tmp_path)
             for round_number in range(ROUNDS):
                 chat = "openclaw:" + f"{round_number:02d}" * 10
                 kept, _ = _stream(daemon, "Remember that my favourite colour is teal.", chat)
-                assert "Locked in" in kept, (round_number, kept)
+                # Round 0 stores it; a later chat already holds the owner's own memory (profile scope
+                # carries across their chats), so saying it again is acknowledged, not duplicated.
+                assert "Locked in" in kept or (round_number and "already had that in memory" in kept), (
+                    round_number,
+                    kept,
+                )
                 saved, _ = _stream(daemon, f"Remember that my locker is {locker}.", chat)
                 assert "Locked in" in saved, (round_number, saved)
 

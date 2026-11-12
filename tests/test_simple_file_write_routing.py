@@ -496,9 +496,9 @@ def test_symlink_escape_writes_nothing(make_agent, tmp_path: Path) -> None:
 def test_mixed_write_and_weather_preserves_both_demands(make_agent, tmp_path: Path) -> None:
     """The audit's mixed shape: the write is deterministic; the live unit gets a typed outcome.
 
-    In this harness fallback retrieval is disabled and no model is available. The composite
-    must name the unanswered weather demand alongside the completed write. A fast-path
-    refusal alone is not terminal: other typed retrieval lanes may still serve the demand.
+    In this harness Web lookups are off and no model is available. The composite must answer the
+    weather demand alongside the completed write: with the switch off that answer is the plain
+    switch sentence (owner decision 2026-11-12: nothing is fetched live with Web lookups off).
     """
     agent = _make_agent(make_agent)
     result = _run(
@@ -512,8 +512,10 @@ def test_mixed_write_and_weather_preserves_both_demands(make_agent, tmp_path: Pa
     assert target.exists(), f"the write demand was lost; served result said: {result.get('response')!r}"
     assert target.read_text(encoding="utf-8") == "hello", "the question text must not leak into the file"
     answer = str(result.get("response") or "")
-    assert "I could not answer this part of your message:" in answer, answer
-    assert "tell me the weather in Kaunas" in answer, answer
+    from core.remote_fetch_policy import WEB_OFF_TEXT
+
+    assert answer.startswith("I wrote `notes.txt`"), answer
+    assert WEB_OFF_TEXT in answer, answer
 
 
 def test_mixed_write_and_weather_serves_the_observed_reading(make_agent, tmp_path, monkeypatch, enable_web):

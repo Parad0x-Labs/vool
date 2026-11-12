@@ -209,8 +209,9 @@ def test_draft_vs_remote_is_labelled_honestly(vilnius_env, monkeypatch, tmp_path
 
     _intent, unavailable = _run("check Tuesday afternoon for a free 30-minute slot", session_id=session)
     assert not unavailable.ok
-    assert "no calendar provider is configured" in unavailable.response_text
-    assert ".ics draft" in unavailable.response_text
+    assert "no calendar is connected yet" in unavailable.response_text
+    assert "calendar file (.ics)" in unavailable.response_text
+    assert "VOOL_CALENDAR" not in unavailable.response_text
 
 
 def _says_provider_event(text: str) -> bool:
@@ -473,7 +474,7 @@ def test_missing_configuration_is_a_typed_refusal(vilnius_env, monkeypatch):
         _intent, refused = _run(text, session_id=session)
         assert not refused.ok
         assert refused.status == "unavailable"
-        assert "no calendar provider is configured" in refused.response_text
+        assert "no calendar is connected yet" in refused.response_text
 
 
 def test_all_day_event_and_event_zone_formatting(vilnius_env):

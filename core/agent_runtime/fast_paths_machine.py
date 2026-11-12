@@ -28,7 +28,7 @@ from core.execution.constants import (
     machine_folder_search_intent,
     machine_folder_size_intent,
     machine_host_state_intent,
-    machine_kind_listing_intent,
+    machine_kind_listing_ask,
     machine_largest_intent,
     machine_live_load_intent,
     machine_named_folder_contents_intent,
@@ -42,6 +42,7 @@ from core.execution.constants import (
     resolve_named_folder_under_home,
     spreadsheet_question_intent,
 )
+from core.file_size_answer import size_answer_for_ask
 from core.onboarding import get_agent_display_name
 from core.persistent_memory import recent_conversation_events
 
@@ -2956,6 +2957,29 @@ def maybe_handle_direct_machine_read_request(
                 execution=answered,
                 reason="machine_read_fast_path",
             )
+    # A size-of-a-thing ask ("how big is the holiday photos zip") is answered with the size of
+    # THAT thing only. Measured on the benchmark run 2026-10-30: with no lane owning the question
+    # the model lane answered it by pulling the machine's drive fill ("94.6% full, 24.7 GB free
+    # of 460.4 GB") into the reply and the provider request -- numbers about the whole computer,
+    # which the person never asked for, from outside the folder the ask was about. Answering
+    # here, deterministically, is what keeps drive numbers off that path entirely: the ask is
+    # about one thing, the answer states that thing's size, and a miss fails closed in plain
+    # words rather than widening to the machine.
+    from core.request_trust import turn_is_remote
+
+    # The size lane measures and searches as the owner (a typed path is stat'ed, a folder walked, a name found
+    # across the home folders), so a turn from a phone or a chat app never takes it: such a turn goes on to the
+    # model lane, where every tool passes the remote-turn fence and the phone's folder limit.
+    size_answer = None if turn_is_remote(source_context) else size_answer_for_ask(user_input)
+    if size_answer is not None:
+        return agent._fast_path_result(
+            session_id=session_id,
+            user_input=user_input,
+            response=str(size_answer.get("response_text") or ""),
+            confidence=0.95,
+            source_context=source_context,
+            reason="file_size_fast_path",
+        )
     # Read-only diagnostics (per-drive disk space, Windows event-log errors) execute the machine.*
     # tool directly. This runs before the planner/gate below because the deterministic tools already
     # return real data — "how many drives does my PC have" must inspect the host, not answer as prose.
@@ -3146,7 +3170,14 @@ def maybe_handle_direct_machine_read_request(
                 reason="machine_read_fast_path",
             )
     # "the pictures in my Downloads from the last two days" is one KIND of file in one folder.
-    kind_listing = machine_kind_listing_intent(user_input)
+    kind_listing = machine_kind_listing_ask(user_input)
+    if kind_listing is not None:
+        # The newer reader further down also knows "the latest 3" and "that folder"; when it
+        # claims the ask, it answers it.
+        from core.execution.constants import machine_kind_listing_intent as _newer_kind_listing
+
+        if _newer_kind_listing(user_input, earlier_turns=_earlier_user_turns(session_id)) is not None:
+            kind_listing = None
     if kind_listing is not None:
         listed = list_files_of_kind(kind_listing, source_context=source_context)
         if listed is not None:
@@ -3194,6 +3225,27 @@ def maybe_handle_direct_machine_read_request(
     # A path the user typed out plus "what is inside it" needs no classification at all. Routed
     # deterministically here, this stops being a coin flip between whichever family matched a
     # word in the sentence and whatever the arbiter happened to pick that run.
+    # "what pics are in my Downloads", "the latest 10 pics in that folder": one kind of file in a
+    # folder everyone has (or the one this chat just named), newest first when asked for the latest.
+    from core.execution.constants import machine_kind_listing_intent
+
+    kind_listing = machine_kind_listing_intent(user_input, earlier_turns=_earlier_user_turns(session_id))
+    if kind_listing is not None:
+        execution = execute_authorized_runtime_tool(
+            "machine.list_directory", dict(kind_listing), source_context=dict(source_context or {})
+        )
+        if execution is not None and _GROUNDED_LISTING_VERDICTS.issuperset(
+            {str(getattr(execution, "status", "") or "")}
+        ):
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.list_directory",
+                execution=execution,
+                reason="machine_read_fast_path",
+            )
     listing_path = machine_path_listing_intent(user_input)
     if listing_path is not None:
         from core.execution.planner import listing_view_arguments
@@ -3478,3 +3530,15 @@ def maybe_handle_direct_machine_read_request(
         source_context=source_context,
         reason="machine_read_fast_path",
     )
+
+
+def _earlier_user_turns(session_id: str, *, look_back: int = 4) -> list[str]:
+    """This chat's earlier user turns, most recent first (for "that folder", "there")."""
+    try:
+        from core.chat_session_identity import canonical_chat_session_id
+        from core.memory.entries import recent_conversation_events
+
+        rows = list(recent_conversation_events(canonical_chat_session_id(str(session_id or "")), limit=look_back) or ())
+    except Exception:
+        return []
+    return [str((row or {}).get("user") or "") for row in reversed(rows) if str((row or {}).get("user") or "").strip()]

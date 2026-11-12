@@ -720,7 +720,7 @@ def test_greeting_evaluative_and_help_emit_fast_path_metrics(
         ("hey", "hey"),
         ("hello", "hello"),
         ("how are you", "running clean. what do you need?"),
-        ("help", "wired on this runtime:"),
+        ("help", "here's what i can do on this computer:"),
         ("you sound weird", "routing is still too stitched together."),
     ]
 

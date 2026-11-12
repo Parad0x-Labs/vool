@@ -1713,6 +1713,18 @@ pull_models() {
   while IFS= read -r required_model; do
     pull_one_ollama_model
   done < <(detect_memory_embedding_models "${runtime_home}")
+  # The model picked for this machine (core.local_model_suggestions via the catalog CLI): the
+  # same one the Settings Download button offers, so an install and the app agree. Usually the
+  # bundle above already pulled it. Best-effort like every pull here; skipped when the
+  # venv/python cannot answer.
+  local catalog_picks=""
+  catalog_picks="$(VOOL_HOME="${runtime_home}" "${VENV_DIR}/bin/python" -m core.local_model_catalog --top-picks 2>/dev/null || true)"
+  if [[ -n "${catalog_picks}" ]]; then
+    say "Step 12b/14: Pulling the model picked for this computer..."
+    while IFS= read -r required_model; do
+      pull_one_ollama_model
+    done <<< "${catalog_picks}"
+  fi
 }
 
 

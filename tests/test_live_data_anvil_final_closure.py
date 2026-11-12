@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.fast_live_info_weather_rendering import render_weather_response
 from core.agent_runtime.live_data_plan import LiveDataSubtask, SubtaskLifecycle, build_live_data_plan
 from core.agent_runtime.live_data_runner import _run_weather_subtask
@@ -79,10 +81,12 @@ _COLLIDING_PLACES = ("My Tho", "My Son", "She Xian", "He Xian")
 
 
 class TestPlaceNamesThatCollideWithPronouns:
+    @pytest.mark.usefixtures("enable_web")
     def test_each_colliding_place_resolves(self) -> None:
         for place in _COLLIDING_PLACES:
             assert _provider_targets(f"weather in {place}") == [place.lower()], place
 
+    @pytest.mark.usefixtures("enable_web")
     def test_no_requested_sibling_disappears(self) -> None:
         """The list form was the worse symptom -- Tallinn came back alone, with no signal that a
         requested city had been dropped."""
@@ -90,6 +94,7 @@ class TestPlaceNamesThatCollideWithPronouns:
         assert _provider_targets("Weather: She Xian and Kaunas") == ["she xian", "kaunas"]
         assert _provider_targets("Weather: He Xian, Tallinn, Warsaw") == ["he xian", "tallinn", "warsaw"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_colliding_places_in_any_case(self) -> None:
         for place in _COLLIDING_PLACES:
             assert _provider_targets(f"weather in {place.lower()}") == [place.lower()]
@@ -104,20 +109,24 @@ class TestContinuationsStayContained:
         "rank them", "show me", "tell me", "give me",
     )
 
+    @pytest.mark.usefixtures("enable_web")
     def test_every_required_continuation_is_still_contained(self) -> None:
         for continuation in self._CONTINUATIONS:
             got = _provider_targets(f"weather in Kaunas and {continuation}")
             assert got == ["kaunas"], f"{continuation!r} leaked: {got!r}"
 
+    @pytest.mark.usefixtures("enable_web")
     def test_with_terminal_punctuation_too(self) -> None:
         for continuation in self._CONTINUATIONS:
             got = _provider_targets(f"Check the current weather in Kaunas and {continuation}.")
             assert got == ["kaunas"], f"{continuation!r}. leaked: {got!r}"
 
+    @pytest.mark.usefixtures("enable_web")
     def test_a_colliding_place_and_a_continuation_in_one_request(self) -> None:
         """Both behaviours at once: the city survives, the instruction does not."""
         assert _provider_targets("weather in My Tho and summarize it") == ["my tho"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_a_marker_wrapped_in_quotes_is_still_a_marker(self) -> None:
         """The end-to-end case that makes `_has_clause_structure_marker`'s per-token punctuation
         stripping load-bearing. Sentence punctuation ("it!", "them?") is already removed upstream
@@ -180,19 +189,24 @@ class TestRenderGateHalvesAreSeparatelyLoadBearing:
 
 
 class TestTimeQualifiedLocations:
+    @pytest.mark.usefixtures("enable_web")
     def test_london_at_a_time(self) -> None:
         assert _provider_targets("weather in London at 15:00") == ["london"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_paris_at_a_time_with_a_trailing_noise_word(self) -> None:
         """The noise word sits AFTER the time, so a single fixed-order cleanup pass misses it."""
         assert _provider_targets("weather in Paris at 14:30 today") == ["paris"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_meridiem_form(self) -> None:
         assert _provider_targets("weather in Paris at 9:05 pm") == ["paris"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_bare_time_without_a_preposition(self) -> None:
         assert _provider_targets("weather in Paris 14:30") == ["paris"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_time_qualified_city_in_a_list(self) -> None:
         assert _provider_targets("Weather: London at 15:00 / Tallinn") == ["london", "tallinn"]
 
@@ -233,11 +247,13 @@ class TestLongLegitimateVersusLongInstruction:
         for place in _LONG_LEGITIMATE:
             assert _is_plausible_weather_location(place.lower()), place
 
+    @pytest.mark.usefixtures("enable_web")
     def test_the_flagship_case_reaches_the_provider_whole(self) -> None:
         assert _provider_targets("weather in San Carlos de Bariloche Rio Negro Argentina") == [
             "san carlos de bariloche rio negro argentina"
         ]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_a_long_place_does_not_swallow_its_sibling(self) -> None:
         assert _provider_targets("Weather: San Carlos de Bariloche Rio Negro Argentina and Tallinn") == [
             "san carlos de bariloche rio negro argentina", "tallinn",
@@ -278,6 +294,7 @@ class TestProviderIsNotCalledForAnUntrustedEntity:
             required_result_fields=(), tool="weather", tool_intent="web.research",
         )
 
+    @pytest.mark.usefixtures("enable_web")
     def test_the_provider_is_never_called_for_an_implausible_location(self) -> None:
         for bad in ("source: retrieval timestamp", "[kaunas]", "kaunas gmt+2", "12345", "my"):
             with mock.patch("tools.web.web_research.structured_weather_lookup") as spy:
@@ -293,6 +310,7 @@ class TestProviderIsNotCalledForAnUntrustedEntity:
             spy.assert_not_called()
             assert outcome.state == SubtaskLifecycle.FAILED, confidence
 
+    @pytest.mark.usefixtures("enable_web")
     def test_a_valid_location_does_reach_the_provider(self) -> None:
         """Control -- otherwise the assertions above would pass with the runner simply broken."""
         with mock.patch("tools.web.web_research.structured_weather_lookup") as spy:

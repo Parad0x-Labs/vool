@@ -119,7 +119,34 @@ def loaded_ollama_model_names(
     )
 
 
+def local_ollama_version(
+    *,
+    env: Mapping[str, str] | None = None,
+    base_url: str | None = None,
+    timeout_seconds: float = 2.0,
+) -> str:
+    """The local Ollama's own version string, or "" when it cannot be read."""
+    payload = _ollama_json(
+        env=os.environ if env is None else env,
+        base_url=base_url,
+        path="/api/version",
+        timeout_seconds=timeout_seconds,
+    )
+    return str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
+
+
 def _ollama_models_payload(
+    *,
+    env: Mapping[str, str],
+    base_url: str | None,
+    path: str,
+    timeout_seconds: float,
+) -> Any:
+    payload = _ollama_json(env=env, base_url=base_url, path=path, timeout_seconds=timeout_seconds)
+    return payload.get("models") if isinstance(payload, dict) else None
+
+
+def _ollama_json(
     *,
     env: Mapping[str, str],
     base_url: str | None,
@@ -137,10 +164,9 @@ def _ollama_models_payload(
         from core.provider_http import urlopen
 
         with urlopen(request, timeout=float(timeout_seconds)) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            return json.loads(response.read().decode("utf-8", errors="replace"))
     except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         return None
-    return payload.get("models") if isinstance(payload, dict) else None
 
 
 def is_text_generation_ollama_model(model_name: str) -> bool:

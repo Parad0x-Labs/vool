@@ -60,6 +60,7 @@ def _clean_mode_state():
     reset_mode_permission_state()
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_benchmark_answers_with_two_tables_through_the_real_run_once(make_agent) -> None:
     agent = make_agent()
     with (
@@ -84,6 +85,7 @@ def test_the_benchmark_answers_with_two_tables_through_the_real_run_once(make_ag
     assert result.get("reason") != "planned_multi_request_turn"  # confirms the NEW path answered, not the old text-splitting planner
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_single_asset_request_is_unaffected_and_still_answers(make_agent) -> None:
     """The new hook must not regress an ordinary single-asset request into a two-table dump."""
     agent = make_agent()

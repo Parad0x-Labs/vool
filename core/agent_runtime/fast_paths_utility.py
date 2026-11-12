@@ -2035,7 +2035,16 @@ def _time_word_is_the_clock(cleaned: str, *, has_timezone: bool = False) -> bool
 
 _ASKS_DATE_RE = re.compile(
     r"(?:"
-    r"what(?:'?s| is| was)?\s+(?:the\s+)?date(?!\s+(?:of|for|on)\b)"
+    # "what date" asks the CLOCK only when nothing after it names another subject: the sentence
+    # ends, or the date is pinned to the present ("today", "now", "is it"), to a place ("in
+    # Tokyo") or joined to the time ("and time"). Any other continuation makes the date the
+    # attribute of an event the conversation owns. Measured 2026-11-10 on 0.7.8 c684e66d: after
+    # "I fly from Vilnius to Lisbon on 14 March and stay 5 nights", the follow-up "What date do I
+    # fly back?" was claimed here and answered "Today is Tuesday, 2026-11-10." in 0.6s; the
+    # earlier negative list (of/for/on) could never enumerate "do I fly", "is my flight", ...
+    r"what(?:'?s| is| was)?\s+(?:the\s+)?date"
+    r"(?=\s*(?:[?.!,;:]|$)"
+    r"|\s+(?:today|now|right\s+now|currently|exactly|please|here|is\s+(?:it|today|this)\b|in\s|and\s+time\b))"
     r"|(?:what|wat)\s+date\s+is\s+(?:it|today|this)\b"
     r"|today'?s?\s+date\b"
     r"|\bdate\s+today\b"
@@ -2116,7 +2125,17 @@ def date_time_fast_path(
     effective_timezone = requested_timezone or contextual_timezone
     effective_label = requested_label or contextual_label
     # NOT `\btime\b`: the bare word is a topic in most sentences that contain it. See _ASKS_TIME_RE.
-    has_time_word = _time_word_is_the_clock(base, has_timezone=bool(effective_timezone))
+    # The clock-ask read needs to know whether the turn BINDS a place. A two-city ask
+    # ("time in riga and NY now") binds TWO places, and the single-place extractor above
+    # deliberately resolves neither as THE place — so `effective_timezone` is empty for exactly
+    # the shape the multi-city branch exists to serve, and reading the ask without that
+    # binding declined the lane (measured 2026-11-03, build 8af687ca: the turn fell to the
+    # model, which answered the user's local clock labeled as New York). Resolve the multi-city
+    # list here, before the ask-shape gate, and let any bound place inform it.
+    all_places = extract_utility_timezones_all(base)
+    has_time_word = _time_word_is_the_clock(
+        base, has_timezone=bool(effective_timezone or all_places)
+    )
     # A literal marker list covered 5 of 10 natural date phrasings -- "what date is today?", "whats
     # the date", "todays date", "what is the date" and "tell me the date" all fell through to the
     # model, which then answered "I don't have a real-time clock" while the runtime had one. The
@@ -2182,9 +2201,9 @@ def date_time_fast_path(
     # skip the offset machinery (an offset plus multiple cities is ambiguous
     # about which place the offset anchors; that shape keeps the old path).
     # Same fail-closed rule as below: an unresolvable named place declines the
-    # lane rather than dropping that city.
+    # lane rather than dropping that city. `all_places` was resolved above,
+    # before the ask-shape gate, so a two-city ask reaches this branch.
     if asks_time and offset is None:
-        all_places = extract_utility_timezones_all(base)
         if len(all_places) >= 2:
             lines = []
             for zone, label in all_places:
@@ -2523,6 +2542,53 @@ _UTILITY_OFFSET_ALIASES = {
     "gmt": ("UTC", "GMT"),
     "zulu": ("UTC", "UTC"),
 }
+
+
+#: Whole-word city abbreviations, matched ONLY as an entire prepositional object (never as a
+#: substring -- "ny" inside "many" or "vinnytsia" would misresolve). Measured 2026-11-03 (build
+#: 8af687ca, served chats): "What time in NY now?" resolved no zone at all, the fail-closed rule
+#: declined the lane, and a model answered the user's local clock labeled "New York (EST)" — the
+#: exact confident-wrong answer the fail-closed law exists to prevent. The canonical tzdb table
+#: knows "new york" but no abbreviation a person actually types. Deliberately tiny and
+#: unambiguous; a word that reads as ordinary English in any plausible clock ask stays out.
+_CITY_ABBREVIATION_ALIASES = {
+    "ny": ("America/New_York", "New York"),
+    "nyc": ("America/New_York", "New York"),
+}
+
+
+def _abbreviation_zone(candidate: str) -> tuple[str, str] | None:
+    """The (zone, label) for a whole-word city abbreviation, or None."""
+    return _CITY_ABBREVIATION_ALIASES.get(str(candidate or "").strip().lower())
+
+
+#: Filler that may trail a place in one coordinated segment ("time in ny and vilnius now") — the
+#: ask's own tail, never part of a name. Stripped before a bare-place reading of the segment.
+_SEGMENT_TAIL_FILLER_RE = re.compile(
+    r"\b(?:right\s+now|now|today|currently|at\s+the\s+moment|please|pls|rn)\b\??\s*$",
+    re.IGNORECASE,
+)
+
+
+def _bare_place_candidate(segment: str, leaves: dict[str, str]) -> tuple[str, str] | None:
+    """A segment that IS a place once the ask's tail fillers are gone.
+
+    The locative regex requires the place to sit after "in"/"at" and phrase-final; a coordinated
+    second city ("... in new york and vilnius", "... time in riga and NY now") sits in its own
+    segment without its own "in" — measured 2026-11-03: the second city was silently dropped and
+    the answer named one clock for a two-city ask. The WHOLE remainder must be the place (strict
+    equality against the tables), so ordinary prose in a coordinated clause can never resolve.
+    """
+    probe = _SEGMENT_TAIL_FILLER_RE.sub(" ", str(segment or ""))
+    probe = re.sub(r"^\s*(?:in|at)\s+", " ", probe, flags=re.IGNORECASE)
+    probe = probe.strip(" \t?!.,;:")
+    if not probe or " " in probe:
+        return None
+    found = _abbreviation_zone(probe) or _UTILITY_OFFSET_ALIASES.get(probe)
+    if found is not None:
+        return found
+    zone = leaves.get(probe)
+    return (zone, probe.title()) if zone else None
 
 
 #: A relative shift attached to a clock ask ("in 5h from now", "2 hours ago", "in 90 minutes").
@@ -3044,21 +3110,42 @@ def extract_utility_timezones_all(cleaned_input: str) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
     seen_zones: set[str] = set()
 
+    # The bare-place fallback below exists for a coordinated SECOND city ("... in riga and NY
+    # now") — a turn that already binds a place with its own "in"/"at". A text with no locative
+    # anywhere ("get the current weather for Kaunas and Tallinn") binds nothing of this lane's:
+    # its places belong to another operation, and widening them here let the clock operation
+    # claim a weather ask (measured: general-operations decline test).
+    locative_present = bool(re.search(r"\b(?:in|at)\b", search_space))
+
     def _scan(span: str) -> None:
+        resolved_in_segment = False
         for match in _LOCATIVE_PLACE_RE.finditer(span):
             candidate = " ".join(match.group("place").split())
             if candidate in _UTILITY_OFFSET_ALIASES:
                 found = _UTILITY_OFFSET_ALIASES[candidate]
             else:
-                zone = leaves.get(candidate)
-                found = (zone, candidate.title()) if zone else None
+                found = _abbreviation_zone(candidate)
+                if found is None:
+                    zone = leaves.get(candidate)
+                    found = (zone, candidate.title()) if zone else None
             if found is None:
                 continue
             zone, label = found
-            if zone in seen_zones:
-                continue
-            seen_zones.add(zone)
-            pairs.append((zone, label))
+            if zone not in seen_zones:
+                seen_zones.add(zone)
+                pairs.append((zone, label))
+            resolved_in_segment = True
+        # A coordinated second city often arrives WITHOUT its own locative ("... in riga and NY
+        # now"). When the locative scan found nothing here and the whole remainder IS a known
+        # place, that is the city the user named — measured 2026-11-03 (build 8af687ca): "time
+        # in riga and NY now" answered Riga only. Strict whole-remainder equality keeps prose out.
+        if not resolved_in_segment and locative_present:
+            bare = _bare_place_candidate(span, leaves)
+            if bare is not None:
+                zone, label = bare
+                if zone not in seen_zones:
+                    seen_zones.add(zone)
+                    pairs.append((zone, label))
 
     # `_LOCATIVE_PLACE_RE` requires the place to be phrase-final, so "in tokyo
     # and in new york" only ever resolved the LAST city (the first sat mid-
@@ -3133,6 +3220,9 @@ def _locative_zone(text: str, leaves: dict[str, str]) -> tuple[str, str] | None:
         candidate = " ".join(match.group("place").split())
         if candidate in _UTILITY_OFFSET_ALIASES:
             return _UTILITY_OFFSET_ALIASES[candidate]
+        abbreviation = _abbreviation_zone(candidate)
+        if abbreviation is not None:
+            return abbreviation
         zone = leaves.get(candidate)
         if zone:
             return zone, candidate.title()

@@ -399,6 +399,32 @@ def list_runtime_sessions(*, limit: int = 20, include_execution_history: bool = 
         return _list_runtime_sessions(limit=limit, include_execution_history=include_execution_history)
 
 
+
+def interrupted_chat_requests() -> dict[str, dict[str, str]]:
+    """{session_id: {request_preview, updated_at}} for chats whose last turn was cut off.
+
+    The startup sweep (`mark_stale_runtime_checkpoints_interrupted`) records a turn the stopped
+    runtime never finished as an `interrupted` runtime session carrying its request preview. The
+    chat list reads this so a chat whose FIRST reply was cut off keeps its question as its title
+    instead of reappearing as an empty "New chat" (measured 2026-11-11, row-icons thread report).
+    """
+    with _LOCK:
+        conn = _conn()
+        try:
+            rows = conn.execute(
+                "SELECT session_id, request_preview, updated_at FROM runtime_sessions WHERE status = 'interrupted'"
+            ).fetchall()
+        finally:
+            conn.close()
+    return {
+        str(row["session_id"]): {
+            "request_preview": str(row["request_preview"] or ""),
+            "updated_at": str(row["updated_at"] or ""),
+        }
+        for row in rows
+        if str(row["session_id"] or "").strip()
+    }
+
 def _list_runtime_sessions(*, limit: int, include_execution_history: bool = True) -> list[dict[str, Any]]:
     bounded_limit = max(1, min(int(limit), 100))
     with _LOCK:

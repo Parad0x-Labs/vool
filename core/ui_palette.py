@@ -16,6 +16,7 @@ DARK_PALETTE_CSS = """:root {
   --accent-rgb:195,184,168; --accent-soft:rgba(var(--accent-rgb),.12);
   --grad:linear-gradient(135deg,var(--accent),var(--accent2));
   --success:#8fb59a; --ok:var(--success); --bad:#d08a82; --warn:#cfae6e;
+  --live:#6cc98c; --live-rgb:108,201,140;
   --mk-bg:#18181b; --mk-border:#39393f; --shadow:rgba(0,0,0,.45);
 }"""
 
@@ -36,6 +37,7 @@ _LIGHT_TOKENS = """
   --accent:#6a5941; --accent2:#7b6a51; --accent-ink:#ffffff;
   --accent-rgb:106,89,65; --accent-soft:rgba(var(--accent-rgb),.12);
   --success:#15803d; --ok:var(--success); --bad:#b42318; --warn:#a15c07;
+  --live:#16a34a; --live-rgb:22,163,74;
   --mk-bg:#ebe8e3; --mk-border:#cdc7be; --shadow:rgba(0,0,0,.12); --bg-elev:#ffffff;
   /* Tokens the dark page never defines (its rules fall back to a fixed dark colour): the toast,
      the Skills & Plugins store. */

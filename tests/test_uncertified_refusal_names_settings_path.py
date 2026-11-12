@@ -1,9 +1,9 @@
-"""The refusal for a model that is not ready must say WHERE to make it ready.
+"""The uncertified-local-model refusal must say WHERE certification lives.
 
-A person told only that a model "isn't ready" has no way to fix it: the surface that does is
-Settings > Models & Providers > Local models > Use this model (core/vool_settings_page.py). The
-refusal names that path and that button with the words the Settings page shows (0.7.7: plain
-words replaced the old "certify" wording).
+A user told to "run the local model tool certification for that model" has no way to find it:
+the only surface that runs it is Settings > Models & Providers > Local models > Certify
+(core/vool_settings_page.py; README.md points owners there the same way). The refusal keeps
+every phrase it always had and now names that path with the words the Settings page shows.
 """
 from __future__ import annotations
 
@@ -13,8 +13,7 @@ import pytest
 
 from core import local_model_presence
 
-SETTINGS_CERTIFY_PATH = "Settings → Models & Providers → Local models"
-SETTINGS_MODELS_PATH = "Settings → Models & Providers"
+SETTINGS_CERTIFY_PATH = "Settings → Models & Providers → Local models → Certify"
 
 
 @pytest.fixture
@@ -69,10 +68,10 @@ def test_the_refusal_for_an_uncertified_local_model_names_the_settings_path(home
 
     monkeypatch.setattr("core.local_model_presence.local_model_running", lambda **_: True)
     text = _decision(home, REASON_UNCERTIFIED_AUTHOR)
-    assert SETTINGS_CERTIFY_PATH in text, "the refusal must say where the model is made ready"
-    # It names the model as the Settings list shows it, and the one button that fixes it.
-    assert "qwen3:4b" in text
-    assert "press Use this model" in text
+    assert SETTINGS_CERTIFY_PATH in text, "the refusal must say where Certify lives"
+    # It still names the model and the historical remedy phrases, not a rewording.
+    assert "`ollama-local:qwen3:4b`" in text
+    assert "run the local model tool certification for that model" in text
 
 
 def test_every_refusal_that_recommends_certification_names_the_settings_path(home, monkeypatch) -> None:
@@ -82,4 +81,4 @@ def test_every_refusal_that_recommends_certification_names_the_settings_path(hom
     # The blocked-before-generation shape and the attempted-failed variant ship the same remedy.
     for attempted in (None, ["openrouter-byok:fake/free"]):
         text = _decision(home, REASON_BLOCKED_BEFORE_GENERATION, attempted_failed=attempted)
-        assert SETTINGS_MODELS_PATH in text
+        assert SETTINGS_CERTIFY_PATH in text

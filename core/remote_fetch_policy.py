@@ -179,28 +179,96 @@ def _active_mode_label() -> str:
 #: The one sentence the product says when Local Only refuses to leave the machine.
 #: Named once so the served UI, the CLI and the receipts cannot drift from each other.
 LOCAL_ONLY_EGRESS_DENIAL = (
-    "Local Only is in force for this turn: no request may leave this machine, so no "
-    "socket was opened. Loopback and operator-owned LAN endpoints stay available. "
-    "To use the web, leave Local Only by changing the model selection."
+    "This chat is Offline, so nothing may leave this computer and VOOL did not go online. "
+    "To let VOOL look things up on the web, choose Computer + web or Local first in the model menu."
 )
 
 
+#: What the user is told when a live question (weather, prices, news) cannot be looked up this
+#: turn. One sentence per cause, each naming the way out, so the reply never reads as an outage.
+#: The opening words are kept stable ("Live web lookup is ...") for log and test readers.
+WEB_OFF_TEXT = (
+    "Live web lookup is off: Web lookups are switched off, so I can't check current weather, "
+    "prices or news. You can turn them on in Settings, Privacy & Permissions."
+)
+OFFLINE_TEXT = (
+    "Live web lookup is off because this chat is Offline: nothing leaves this computer, so I "
+    "can't check current weather, prices or news. Choosing Computer + web or Local first in the "
+    "model menu allows web lookups for this chat."
+)
+MACHINE_OFFLINE_TEXT = (
+    "Live web lookup is off because VOOL is set to keep everything on this computer, so I can't "
+    "check current weather, prices or news."
+)
+
+
+#: An Offline chat asked to look something up that is not weather, prices or news.
+OFFLINE_LOOKUP_TEXT = (
+    "This chat is Offline: nothing leaves this computer, so I can't look this up online. "
+    "Choosing Computer + web or Local first in the model menu allows web lookups for this chat."
+)
+#: The Web lookups switch is off and the ask is a lookup that is not weather, prices or news.
+WEB_OFF_LOOKUP_TEXT = (
+    "Web lookups are off, so I can't look this up online. You can turn them on in Settings, "
+    "Privacy & Permissions."
+)
+#: The machine keeps everything on this computer and the ask is a lookup.
+MACHINE_OFFLINE_LOOKUP_TEXT = (
+    "VOOL is set to keep everything on this computer, so I can't look this up online."
+)
+
+
+def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
+    """Why THIS turn has no web, in the user's words: machine-wide offline, an Offline chat, or
+    the switch. With no context given, the turn's bound scope is read (tool surfaces)."""
+    if source_context is None:
+        source_context = dict(_SCOPE_CONTEXT.get() or {})
+    try:
+        from core.policy_engine import local_only_mode
+
+        if local_only_mode():
+            return MACHINE_OFFLINE_TEXT
+    except Exception:
+        pass
+    try:
+        from core.auto_local_only_mode import turn_is_offline
+
+        if turn_is_offline(dict(source_context or {})):
+            return OFFLINE_TEXT
+    except Exception:
+        pass
+    return WEB_OFF_TEXT
+
+
+def lookup_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
+    """`web_unavailable_reason`'s wording for a lookup that is not live weather, prices or news."""
+    return {
+        MACHINE_OFFLINE_TEXT: MACHINE_OFFLINE_LOOKUP_TEXT,
+        OFFLINE_TEXT: OFFLINE_LOOKUP_TEXT,
+    }.get(web_unavailable_reason(source_context), WEB_OFF_LOOKUP_TEXT)
+
+
 def local_only_active(source_context: dict[str, Any] | None = None) -> bool:
-    """Whether Local Only binds THIS turn — by operator selection or by profile.
+    """Whether zero public egress binds THIS turn ("Offline") — by operator selection or by profile.
 
     Two independent sources, either sufficient:
 
-    * the operator picked the Local Only Auto lane for this turn
-      (``core.auto_local_only_mode.turn_is_local_only``), or
-    * the machine is configured local-only
-      (``core.policy_engine.local_only_mode``), which is how a local-only install
+    * the operator picked the Offline Auto lane for this turn
+      (``core.auto_local_only_mode.turn_is_offline``), or
+    * the machine is configured local-only ("Keep everything on this machine",
+      ``core.policy_engine.local_only_mode``), which is how a local-only install
       or profile binds turns that never named a lane.
+
+    The "Computer + web" lane (``vool-local-only``) is deliberately NOT a source:
+    it removes the cloud-model arm only, and web lookups for it follow the Web
+    lookups switch. Owner decision 2026-11-11: a local AI asked for today's
+    weather or an exchange rate should be able to look it up.
     """
     context = dict(source_context if source_context is not None else (_SCOPE_CONTEXT.get() or {}))
     with contextlib.suppress(Exception):
-        from core.auto_local_only_mode import turn_is_local_only
+        from core.auto_local_only_mode import turn_is_offline
 
-        if turn_is_local_only(context):
+        if turn_is_offline(context):
             return True
     try:
         from core.policy_engine import local_only_mode
@@ -213,14 +281,12 @@ def local_only_active(source_context: dict[str, Any] | None = None) -> bool:
 def _local_only_egress_forbidden(
     source_context: dict[str, Any] | None, url: str
 ) -> tuple[bool, str]:
-    """Is this URL public egress under an active Local Only?
+    """Is this URL public egress under an active Offline mode?
 
-    Local Only means ZERO public-network egress — not "no cloud models". The
-    product has always said so: the composer entry reads "this machine only ·
-    cloud blocked". The policy did not, because `allow_web_fallback` stayed true
-    under `local_only_mode`, so search, direct fetch, browser navigation to public
-    origins, fallback scrapers and attachment URL retrieval all remained reachable
-    in the one mode whose whole promise is that they are not.
+    Offline means ZERO public-network egress — not just "no cloud models".
+    Search, direct fetch, browser navigation to public origins, fallback scrapers
+    and attachment URL retrieval are all refused in it. (The Computer + web lane
+    blocks cloud models only; see :func:`local_only_active`.)
 
     Bound HERE because this is the single outbound door every one of those lanes
     already converges on; a door added later cannot forget to ask.
@@ -997,13 +1063,17 @@ def remote_fetch_policy_scope(source_context: dict[str, Any] | None) -> Iterator
 
 __all__ = [
     "LOCAL_ONLY_EGRESS_DENIAL",
+    "MACHINE_OFFLINE_LOOKUP_TEXT",
     "NO_ACTIVE_LEDGER_DENIAL",
+    "OFFLINE_LOOKUP_TEXT",
+    "WEB_OFF_LOOKUP_TEXT",
     "CredentialRedirectRefusedError",
     "RemoteFetchRefusedError",
     "capture_remote_fetch_telemetry",
     "effective_web_available",
     "explicit_remote_fetch_disabled",
     "local_only_active",
+    "lookup_unavailable_reason",
     "note_remote_fetch_attempt",
     "open_keyed_request",
     "open_remote",
@@ -1017,4 +1087,5 @@ __all__ = [
     "remote_fetch_scope_active",
     "remote_fetch_turn_scope",
     "remote_fetch_veto",
+    "web_unavailable_reason",
 ]

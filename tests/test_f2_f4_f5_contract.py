@@ -572,6 +572,7 @@ def test_realization_ids_are_distinct_and_cover_every_required_requirement():
     assert required <= realized
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a_successful_quantitative_node_never_renders_unavailable():
     """The measured F4 defect: a derived realization with no node, no outcome and a false line."""

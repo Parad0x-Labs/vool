@@ -178,6 +178,7 @@ def test_the_plan_carves_the_four_required_semantic_nodes(fetchers) -> None:
     assert set(comparison.depends_on) == weather_ids
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_shipped_defect_no_longer_loses_the_arithmetic(fetchers) -> None:
     _plan, _outcomes, composed = _run(ARITHMETIC_AND_WEATHER, A_REPLY)
     assert "3973" in composed.text
@@ -240,6 +241,7 @@ def test_main_still_loses_the_arithmetic_so_the_repair_is_measured_not_assumed()
     assert not any("137" in task.entity or "29" in task.entity for task in legacy.subtasks)
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_warmer_city_is_computed_from_results_not_phrased_by_a_model(fetchers) -> None:
     _plan, outcomes, composed = _run(ARITHMETIC_AND_WEATHER, A_REPLY)
     comparison = next(o for o in outcomes if o.node.operation == "comparison")
@@ -271,6 +273,7 @@ B_REPLY = _plan_reply(
 )
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_weather_and_repository_work_are_independently_represented(fetchers) -> None:
     plan, outcomes, composed = _run(WEATHER_AND_REPO, B_REPLY)
     operations = sorted(node.operation for node in plan.nodes)
@@ -311,6 +314,7 @@ def test_the_weather_adapter_receives_only_the_two_cities(fetchers) -> None:
         assert not any(term in blob for term in forbidden), node.arguments
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_derived_node_starts_only_after_every_dependency_finished(fetchers) -> None:
     """Ordering asserted on the clock, not on list position."""
     _plan, outcomes, _composed = _run(WEATHER_AND_REPO, B_REPLY)
@@ -384,6 +388,7 @@ def test_every_requested_output_maps_to_a_plan_node(fetchers) -> None:
     assert set(composed.provenance) == {node.node_id for node in plan.nodes}
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_killer_answers_all_three_derived_questions(fetchers) -> None:
     _plan, outcomes, composed = _run(KILLER, C_REPLY)
     assert all(o.succeeded for o in outcomes), [
@@ -401,6 +406,7 @@ def test_the_killer_answers_all_three_derived_questions(fetchers) -> None:
     assert "circuit breaker" in composed.text.lower()
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_independent_roots_genuinely_overlap_in_the_killer(fetchers) -> None:
     """Concurrency proved from the runtime's own clocks, never from prose."""
     _plan, outcomes, _composed = _run(KILLER, C_REPLY)
@@ -462,6 +468,7 @@ def test_a_derived_clause_with_no_dependencies_is_refused_rather_than_invented(f
     assert composed.complete
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_one_failed_branch_does_not_erase_its_successful_siblings() -> None:
     """A systematic fault in one adapter must cost exactly one node."""
     with (
@@ -514,6 +521,7 @@ def test_mutation_deleting_a_planned_node_turns_the_completeness_check_red(fetch
     assert "3973" not in mutated.text
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_mutation_serializing_independent_nodes_turns_the_overlap_proof_red(fetchers) -> None:
     """Serialize independent nodes -> concurrency proof RED where parallel_preferred applies.
 
@@ -540,6 +548,7 @@ def test_mutation_serializing_independent_nodes_turns_the_overlap_proof_red(fetc
     assert compose_product(plan, serial_outcomes).complete
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_mutation_inventing_a_success_without_a_backing_result_turns_binding_red(fetchers) -> None:
     """Invent success without receipt -> answer binding RED.
 

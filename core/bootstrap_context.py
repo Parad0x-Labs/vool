@@ -1447,9 +1447,12 @@ def build_bootstrap_context(
             item_id="bootstrap-task",
             layer="bootstrap",
             source_type="task_constraints",
-            title="Active task constraints",
+            # Named as VOOL's routing note, not "task": asked "any tasks left to do?" about the
+            # person's own task table, the model answered from this block ("the active task
+            # constraints indicate that the task class is unknown") -- database run 9, 2026-11-12.
+            title="VOOL's internal routing note (not the person's tasks or to-do items)",
             content=(
-                f"Task class: {classification.get('task_class', 'unknown')}. "
+                f"Request type: {classification.get('task_class', 'unknown')}. "
                 f"Summary: {getattr(task, 'task_summary', '')}. "
                 f"Risk flags: {_compact_join(list(classification.get('risk_flags') or []), limit=4) or 'none'}."
             ),

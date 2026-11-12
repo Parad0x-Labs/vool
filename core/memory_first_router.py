@@ -285,6 +285,78 @@ def _cached_free_vram_gb() -> float | None:
     return _FREE_VRAM_GB_CACHE
 
 
+_INSTALLED_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
+
+
+def _installed_model_names_at(base_url: str) -> frozenset[str]:
+    """Model names the Ollama server at `base_url` reports installed, read at most every 30 s per
+    server; empty when unknown (no answer, not an Ollama server)."""
+    import time as _time
+
+    key = str(base_url or "").strip().rstrip("/")
+    if not key:
+        return frozenset()
+    now = _time.monotonic()
+    cached = _INSTALLED_CACHE.get(key)
+    if cached is not None and now - cached[0] < 30.0:
+        return cached[1]
+    try:
+        from core.local_ollama_inventory import installed_ollama_model_names
+
+        names = frozenset(
+            str(n).strip().lower() for n in installed_ollama_model_names(base_url=key, timeout_seconds=1.0) if str(n).strip()
+        )
+    except Exception:
+        names = frozenset()
+    _INSTALLED_CACHE[key] = (now, names)
+    return names
+
+
+def _not_installed_local(manifest: Any) -> bool:
+    """A local manifest whose own server answers with an inventory that lacks its model.
+
+    Each manifest is checked against ITS server: a provider on another port (a test stub, a second
+    runtime) is never judged by this machine's Ollama list. Unknown inventory is never "missing".
+    """
+    try:
+        from core.local_model_policy import manifest_is_local
+
+        if not manifest_is_local(manifest):
+            return False
+        base_url = str(dict(getattr(manifest, "runtime_config", None) or {}).get("base_url") or "").strip()
+        if base_url.endswith("/v1"):
+            base_url = base_url[: -len("/v1")]
+        installed = _installed_model_names_at(base_url)
+    except Exception:
+        return False
+    if not installed:
+        return False
+    name = str(getattr(manifest, "model_name", "") or "").strip().lower()
+    return bool(name) and name not in installed and f"{name}:latest" not in installed and name.removesuffix(":latest") not in installed
+
+
+def _local_model_free_memory_gb() -> float | None:
+    """Memory a local model could load into right now, for the primary's fit check; None if unknown.
+
+    A discrete GPU reports free VRAM. On a unified-memory Mac it does not, and the RAM that is free
+    right now is the limit (0.7.8 sweep, 2026-11-12: gpt-oss:20b ranked first with ~2.1 GB free on
+    a 24 GB Mac). Read fresh through the resource snapshot's own short cache, never once per
+    process: free memory moves as models load and unload."""
+    vram = _cached_free_vram_gb()
+    if vram is not None:
+        return vram
+    try:
+        import platform
+
+        if platform.system() != "Darwin" or platform.machine() != "arm64":
+            return None
+        from core.system_resources import snapshot
+
+        return float(snapshot().available_ram_gb)
+    except Exception:
+        return None
+
+
 # The minimum per-attempt window the sequential fallback loop will ever grant a candidate,
 # whether it is the ONLY candidate attempted (see the pre-existing `max(5.0, ...)` floor at the
 # per-call cap site) or one further down a reserve-shrunk chain (see
@@ -842,6 +914,9 @@ def _mint_routing_plan_for_turn(
             context_identity=f"turnctx-{turn_id}",
             context_reason="canonical_session_transcript",
             applied_rule_ids=applied_rule_ids,
+            not_installed_provider_ids=frozenset(
+                str(m.provider_id) for m in list(manifests or ()) if _not_installed_local(m)
+            ),
         )
     except _turn_routing.RoutingIdentityError:
         return None
@@ -1124,6 +1199,135 @@ def _release_undispatched_pin_reservation(
         source_context=source_context,
         call_role=str((source_context or {}).get("model_call_role") or ""),
     )
+
+
+#: The denial reason that is a clearance, not a refusal: the spend authority classifying the
+#: pinned manifest as free for this turn (core.paid_call_reservation).
+FREE_PIN_CLEARANCE_REASON = "free_pin_needs_no_reservation"
+
+
+def pin_reservation_clearance(
+    *,
+    denial_reason: str,
+    authorized_paid_call: Any,
+    requested_paid_cloud: bool,
+    requested_manifest: Any,
+) -> str:
+    """The provider id a reservation refusal CLEARED, or "" when nothing was cleared.
+
+    "free pin needs no reservation" is the spend authority classifying the pinned manifest as
+    free for this turn. Measured 2026-11-03 (build 8af687ca, two served chats): that refusal was
+    consumed as a block — the paid arm switched off, the pinned :free model then refused at a
+    downstream paid gate or emptied from the ranking — and the turn died for a pin the authority
+    had already cleared to run for nothing. The clearance travels as the server-authored stamp
+    ``pin_reservation_free_provider`` (RESERVED_TRUST_KEYS strips caller copies) so the plan
+    mint, the candidate filter and the invoke seam honor the ONE verdict instead of re-deriving
+    the free/paid question at four seams from a cache that can disagree with itself.
+
+    A granted reservation, a non-paid pin, or any other denial reason clears nothing: every
+    other refusal means the pin genuinely may not run as asked.
+    """
+    if authorized_paid_call is not None:
+        return ""
+    if not requested_paid_cloud or requested_manifest is None:
+        return ""
+    if str(denial_reason or "").strip() != FREE_PIN_CLEARANCE_REASON:
+        return ""
+    return str(getattr(requested_manifest, "provider_id", "") or "").strip()
+
+
+def _pin_disclosed_fallback_notice(requested_model: str, block_reason: str, answered_by: Any) -> str:
+    """The one-line disclosure that rides a substituted answer for a blocked pin.
+
+    The pin contract bans a SILENT substitution; naming the pinned model, the actual cause and
+    the model that answered keeps the ban intact while the turn still serves the person. The
+    cause vocabulary is the served surface's own mapper (single source of truth), read lazily to
+    keep the import off the router's module path; an unreadable mapper degrades to a plain
+    phrase, never a raw internal code.
+    """
+    name = f"`{requested_model}`" if str(requested_model or "").strip() else "The model you selected"
+    cause = "it could not be started this turn"
+    answered_with = ""
+    try:
+        from core.agent_runtime.memory_runtime import _selected_model_block_cause
+
+        cause = _selected_model_block_cause(str(block_reason or ""), model_was_attempted=False)
+    except Exception:
+        pass
+    model_label = str(getattr(answered_by, "model_name", "") or "").strip()
+    if model_label:
+        answered_with = f" This reply is from `{model_label}` on Auto."
+    return (
+        f"{name} could not run this turn: {cause}.{answered_with} "
+        "I did not substitute silently — your selector is unchanged."
+    )
+
+
+#: Per-process bench for local models the resource governor refused to LOAD
+#: (``model_load_gated_low_memory``). RAM pressure is semi-persistent: measured 2026-11-05
+#: (operator's live 0.7.8 session), an 8 GB model sat at the front of the daily lane and was
+#: refused by the gate EVERY turn while the machine stayed tight — each turn paid the refusal
+#: before falling back. Advisory like the cloud auth cooldown: a benched model keeps its
+#: candidateship (RAM frees up), it just stops riding first, and nothing persists across
+#: processes. Short window on purpose: memory pressure changes minute to minute.
+RAM_GATE_COOLDOWN_S = 120.0
+_RAM_GATE_COOLDOWN: dict[str, float] = {}
+
+
+def _ram_gate_key(provider_id: str) -> str:
+    return str(provider_id or "").strip()
+
+
+def _note_ram_gate_refusal(provider_id: str, *, now: float | None = None) -> None:
+    key = _ram_gate_key(provider_id)
+    if not key:
+        return
+    _RAM_GATE_COOLDOWN[key] = (time.monotonic() if now is None else float(now)) + RAM_GATE_COOLDOWN_S
+
+
+def _ram_gate_active(provider_id: str) -> bool:
+    deadline = _RAM_GATE_COOLDOWN.get(_ram_gate_key(provider_id))
+    return bool(deadline and deadline > time.monotonic())
+
+
+def _demote_ram_gated(ranked_manifests: list[Any]) -> list[Any]:
+    """Benched models move to the BACK of the ranked list, order otherwise unchanged."""
+    healthy = [m for m in ranked_manifests if not _ram_gate_active(str(getattr(m, "provider_id", "") or ""))]
+    benched = [m for m in ranked_manifests if _ram_gate_active(str(getattr(m, "provider_id", "") or ""))]
+    return healthy + benched if benched else ranked_manifests
+
+
+def turn_has_private_content(source_context: Any) -> bool:
+    """True when a private-data tool (email) executed in this turn.
+
+    The stamp is server-authored (`private_content_touch`, RESERVED_TRUST_KEYS) — written by
+    the tool loop when an email tool executes, never by a caller. From that point the turn's
+    model calls stay on local providers: the plan mint raises the private-local-only ceiling.
+    """
+    return bool(str((source_context or {}).get("private_content_touch") or "").strip())
+
+
+def _reselect_verifier_after_fallback(
+    ranked_manifests: list[Any],
+    *,
+    primary_provider_id: str,
+    planned_verifier_provider_id: str,
+    failed_provider_ids: set[str] | None = None,
+) -> Any | None:
+    """A verifier lane for the world that EXISTS: the best ranked candidate that is neither the
+    serving primary nor the (now-identical) planned verifier, and has not already failed this
+    turn. None when every other ranked lane is gone — the caller then reports the honest
+    degraded_same_model verdict instead of inventing a checker.
+    """
+    primary_id = str(primary_provider_id or "").strip()
+    planned_id = str(planned_verifier_provider_id or "").strip()
+    failed_ids = {str(item or "").strip() for item in set(failed_provider_ids or set())}
+    for manifest in ranked_manifests:
+        provider_id = str(getattr(manifest, "provider_id", "") or "").strip()
+        if not provider_id or provider_id in {primary_id, planned_id} or provider_id in failed_ids:
+            continue
+        return manifest
+    return None
 
 
 def _emergency_model_can_answer(*, model_name: str, lane: str) -> bool:
@@ -1921,6 +2125,7 @@ class MemoryFirstRouter:
             # the plain_text/auto catalog is a capability offer, not a requirement, and must not
             # trip the final pre-invocation gate just because a conversational turn didn't call one.
             request.tools_required = True
+            _stamp_tool_loop_continuation(request, source_context)
             # Which offer this request carries: the same digest the prompt catalog's offer has.
             request.metadata["tool_offer_fingerprint"] = offer.fingerprint
             # A later contextual follow-up in the same session inherits this
@@ -2606,6 +2811,12 @@ class MemoryFirstRouter:
             provider_cost_class(manifest) == "paid_cloud"
             and paid_authorization is None
             and not is_verified_free_cloud_manifest(manifest)
+            # The reservation authority cleared THIS manifest as free for this turn (the stamp is
+            # server-authored from its own refusal; RESERVED_TRUST_KEYS strips caller copies).
+            # The manifest is bounded to the pin by the stamp itself, so this cannot widen to any
+            # other candidate; a manifest that is genuinely not free fails at the plan and here.
+            and str((source_context or {}).get("pin_reservation_free_provider") or "")
+            != str(manifest.provider_id or "")
         ):
             return None, None, "paid_call_not_authorized_or_reserved"
         model_call_id = str(getattr(paid_authorization, "model_call_id", "") or f"model-call-{uuid.uuid4().hex}")
@@ -4780,39 +4991,71 @@ class MemoryFirstRouter:
                 primary_model_id=getattr(primary_manifest, "model_name", ""),
             )
             return "blocked"
-        if verifier_provider_id == str(getattr(primary_manifest, "provider_id", "") or "").strip():
-            _emit_model_routing_event(
-                source_context,
-                "model_lane_verifier_degraded",
-                "Verifier required but selected the same model as the primary lane.",
-                lane="verifier",
-                lane_type="verifier",
-                phase="blocked",
-                verifier_status="degraded_same_model",
-                primary_provider_id=getattr(primary_manifest, "provider_id", ""),
-                primary_model_id=getattr(primary_manifest, "model_name", ""),
-                verifier_provider_id=verifier_provider_id,
-                verifier_model_id=str(autopilot_plan.get("verifier_model") or "").strip(),
+        primary_provider_id = str(getattr(primary_manifest, "provider_id", "") or "").strip()
+        if verifier_provider_id == primary_provider_id:
+            # The plan chose its verifier against the PRIMARY IT PLANNED; the lane then fell back
+            # (measured 2026-11-03, build 8af687ca: qwen2.5:7b planned, qwen3:8b served, the
+            # planned verifier became the served primary and the check died as
+            # degraded_same_model). The plan's world ended at the fallback — re-select against
+            # the world that actually happened. None available: the honest degraded verdict
+            # below stands.
+            reselected = _reselect_verifier_after_fallback(
+                ranked_manifests,
+                primary_provider_id=primary_provider_id,
+                planned_verifier_provider_id=verifier_provider_id,
+                failed_provider_ids=failed_provider_ids,
             )
-            return "degraded_same_model"
-        if verifier_provider_id in set(failed_provider_ids or set()):
-            _emit_model_routing_event(
-                source_context,
-                "model_lane_verifier_blocked",
-                "Verifier was required, but the selected verifier lane already failed earlier in this turn.",
-                lane="verifier",
-                lane_type="verifier",
-                phase="blocked",
-                verifier_status="blocked_failed_lane",
-                primary_provider_id=getattr(primary_manifest, "provider_id", ""),
-                primary_model_id=getattr(primary_manifest, "model_name", ""),
-                verifier_provider_id=verifier_provider_id,
+            if reselected is not None:
+                verifier_manifest = reselected
+                _emit_model_routing_event(
+                    source_context,
+                    "model_lane_verifier_reselected",
+                    "Verifier required; the planned verifier became the serving primary, so the check moved to "
+                    f"{reselected.provider_id}.",
+                    lane="verifier",
+                    lane_type="verifier",
+                    phase="reselected",
+                    verifier_status="reselected_after_fallback",
+                    primary_provider_id=primary_provider_id,
+                    primary_model_id=getattr(primary_manifest, "model_name", ""),
+                    planned_verifier_provider_id=verifier_provider_id,
+                    verifier_provider_id=reselected.provider_id,
+                    verifier_model_id=getattr(reselected, "model_name", ""),
+                )
+            else:
+                _emit_model_routing_event(
+                    source_context,
+                    "model_lane_verifier_degraded",
+                    "Verifier required but selected the same model as the primary lane.",
+                    lane="verifier",
+                    lane_type="verifier",
+                    phase="blocked",
+                    verifier_status="degraded_same_model",
+                    primary_provider_id=primary_provider_id,
+                    primary_model_id=getattr(primary_manifest, "model_name", ""),
+                    verifier_provider_id=verifier_provider_id,
+                    verifier_model_id=str(autopilot_plan.get("verifier_model") or "").strip(),
+                )
+                return "degraded_same_model"
+        else:
+            if verifier_provider_id in set(failed_provider_ids or set()):
+                _emit_model_routing_event(
+                    source_context,
+                    "model_lane_verifier_blocked",
+                    "Verifier was required, but the selected verifier lane already failed earlier in this turn.",
+                    lane="verifier",
+                    lane_type="verifier",
+                    phase="blocked",
+                    verifier_status="blocked_failed_lane",
+                    primary_provider_id=primary_provider_id,
+                    primary_model_id=getattr(primary_manifest, "model_name", ""),
+                    verifier_provider_id=verifier_provider_id,
+                )
+                return "blocked_failed_lane"
+            verifier_manifest = next(
+                (manifest for manifest in ranked_manifests if manifest.provider_id == verifier_provider_id),
+                None,
             )
-            return "blocked_failed_lane"
-        verifier_manifest = next(
-            (manifest for manifest in ranked_manifests if manifest.provider_id == verifier_provider_id),
-            None,
-        )
         if verifier_manifest is None:
             _emit_model_routing_event(
                 source_context,
@@ -4822,7 +5065,7 @@ class MemoryFirstRouter:
                 lane_type="verifier",
                 phase="blocked",
                 verifier_status="blocked",
-                primary_provider_id=getattr(primary_manifest, "provider_id", ""),
+                primary_provider_id=primary_provider_id,
                 primary_model_id=getattr(primary_manifest, "model_name", ""),
                 verifier_provider_id=verifier_provider_id,
             )
@@ -5646,12 +5889,34 @@ class MemoryFirstRouter:
             call_role=paid_call_role,
             denial=pin_reservation_denial,
         )
+        # THE AUTHORITY'S OWN VERDICT TRAVELS. "free pin needs no reservation" is not a refusal to
+        # run the pin — it is the spend authority classifying the pinned manifest as free for this
+        # turn. Measured 2026-11-03 (build 8af687ca, two served chats): the refusal was consumed
+        # as a block, the paid arm was switched off, and the pinned :free model then died at a
+        # downstream paid gate (or was emptied from the ranking) — a turn the authority had
+        # already cleared to run for nothing. The stamp below (server-authored; the key is in
+        # RESERVED_TRUST_KEYS) carries the provider id the authority cleared, and the plan mint,
+        # the candidate filter and the invoke seam honor it for that manifest only. If the
+        # manifest is genuinely not free anywhere downstream, the paid fence still refuses it at
+        # the call — fail closed, with an honest reason.
+        pin_reservation_free_provider = pin_reservation_clearance(
+            denial_reason=str(pin_reservation_denial.get("reason") or ""),
+            authorized_paid_call=authorized_paid_call,
+            requested_paid_cloud=requested_paid_cloud,
+            requested_manifest=requested_manifest,
+        )
+        if pin_reservation_free_provider:
+            source_context = {
+                **(source_context or {}),
+                "pin_reservation_free_provider": pin_reservation_free_provider,
+            }
         # The free-cloud boost is the fallback for when no ranked candidate served, and it selects
         # a model of its own. The reservation authorizes the ONE model the owner picked, so it is
         # deliberately withheld here: the boost keeps routing free-only, exactly as before.
         free_boost_context = source_context
         if authorized_paid_call is None:
-            resolved_allow_paid = False
+            if not pin_reservation_free_provider:
+                resolved_allow_paid = False
         else:
             # Attach server-side, on a copy, so the reservation reaches the gates below and the
             # invocation of the picked manifest without being written back into the caller's
@@ -5670,13 +5935,26 @@ class MemoryFirstRouter:
         # `_invoke_manifest` enforces it at the one seam every provider call crosses. A turn
         # without routing identity fails closed here — no plan, no spend.
         routing_user_text = _interpreted_user_text(interpretation, task)
+        # THE PRIVACY CEILING: when a private-data tool (email) has executed in this turn, the
+        # context carries the person's mailbox content — every model call from here on stays on
+        # LOCAL providers, or the turn refuses honestly with the grounded rows shown locally.
+        # Measured 2026-11-06 (operator's live session): email.read executed locally, then the
+        # SYNTHESIS crossed to a cloud model carrying the inbox rows — three times. The stamp
+        # is server-authored (RESERVED_TRUST_KEYS); the mint turns it into the plan's
+        # private-local-only ceiling, the same ceiling Local Only mode uses.
+        privacy_ceiling_local = turn_has_private_content(source_context)
         routing_plan = _mint_routing_plan_for_turn(
             self.registry,
             source_context=source_context,
             requested_provider=preferred_provider,
             requested_model=preferred_model if requested_model_explicit else "",
-            allow_paid=resolved_allow_paid,
-            local_only=turn_is_local_only(source_context),
+            # The spend authority cleared the pinned manifest as free for this turn; the plan's
+            # paid gate must not re-litigate that verdict through a second catalog read and
+            # refuse the very candidate the authority cleared. The pin fence still narrows the
+            # ladder to that one model, so this widens nothing beyond the pin; a manifest that
+            # turns out not to be free fails at the invoke seam's paid gate instead.
+            allow_paid=resolved_allow_paid or bool(pin_reservation_free_provider),
+            local_only=turn_is_local_only(source_context) or privacy_ceiling_local,
             user_text=routing_user_text,
         )
         if routing_plan is None:
@@ -5730,6 +6008,11 @@ class MemoryFirstRouter:
             and (
                 provider_cost_class(manifest) != "paid_cloud"
                 or is_verified_free_cloud_manifest(manifest)
+                # The reservation authority cleared this exact manifest as free for this turn
+                # ("free pin needs no reservation"); a second catalog read must not overrule a
+                # verdict that was already minted. The paid fence at the call stays the backstop.
+                or str((source_context or {}).get("pin_reservation_free_provider") or "")
+                == str(manifest.provider_id or "")
                 or _paid_call_authorization(source_context, manifest=manifest, task=task) is not None
             )
         ]
@@ -5783,6 +6066,15 @@ class MemoryFirstRouter:
             and (row := routing_plan.permits(manifest.provider_id, manifest.model_name)) is not None
             and row.allowed
         ]
+        # A registered local model that is not installed can never answer: it must not be the
+        # plan's selected model. Measured on the 0.7.8 sweep (block 2): every plan named an
+        # uninstalled qwen3.5:9b while qwen3:8b wrote every answer. Unknown inventory changes
+        # nothing, and at least one local candidate is always kept.
+        from core.local_model_policy import manifest_is_local as _is_local
+
+        _kept = [m for m in ranked_manifests if not _not_installed_local(m)]
+        if any(_is_local(m) for m in _kept):
+            ranked_manifests = _kept
         capability_truth = hydrate_capability_truth_with_benchmarks(
             tuple(provider_capability_truth_for_manifest(entry) for entry in ranked_manifests)
         )
@@ -5811,6 +6103,7 @@ class MemoryFirstRouter:
             capability_truth=capability_truth,
             source_context=source_context,
             free_vram_gb=_cached_free_vram_gb(),
+            free_memory_gb=_local_model_free_memory_gb(),
             eagle3_active=_eagle3_active,
             default_model_tag=_cached_default_model_tag(),
             resident_model_tags=_recent_resident_model_tags(),
@@ -5839,6 +6132,7 @@ class MemoryFirstRouter:
             allow_paid_fallback=resolved_allow_paid,
         ):
             ranked_manifests = _prioritize_autopilot_selection(ranked_manifests, autopilot.selected_provider_id)
+        ranked_manifests = _demote_ram_gated(ranked_manifests)
         attempted: list[str] = []
         # Every non-empty entry mirrors `attempted` 1:1. Lets the terminal "all failed" state say
         # REQUIRED_TOOLS_NOT_OFFERED instead of the generic all_ranked_providers_failed when that is
@@ -6094,6 +6388,7 @@ class MemoryFirstRouter:
             # the plain_text/auto catalog is a capability offer, not a requirement, and must not
             # trip the final pre-invocation gate just because a conversational turn didn't call one.
             request.tools_required = True
+            _stamp_tool_loop_continuation(request, source_context)
             # A later contextual follow-up in the same session inherits this
             # turn's families instead of receiving zero tools. The recorded set is what the
             # offer ACTUALLY seated (demand-signal and control-plane-session families
@@ -6169,13 +6464,58 @@ class MemoryFirstRouter:
             if explicit_pin_selected:
                 # The user pinned a concrete model and its lane is empty before any adapter ran
                 # (its paid reservation was refused, or a locality/plan/emergency gate excluded it).
-                # The free-cloud boost must NOT answer in its place. Name the model and the actual
-                # gate; carry the reservation's own rejection reason when that is what happened.
+                # Name the model and the actual gate; carry the reservation's own rejection reason
+                # when that is what happened.
                 block_reason = (
                     pin_reservation_denial.get("reason", "")
-                    if (requested_paid_cloud and authorized_paid_call is None)
+                    if (
+                        requested_paid_cloud
+                        and authorized_paid_call is None
+                        # A benign "free pin needs no reservation" refusal is the spend
+                        # authority clearing the pin, not a gate that blocked it — it must
+                        # never be surfaced as the reason the pin could not run.
+                        and not pin_reservation_free_provider
+                    )
                     else ""
                 ) or "selected_provider_excluded_before_invocation"
+                # DISCLOSED SUBSTITUTION, not a dead turn. Measured 2026-11-03 (build 8af687ca,
+                # two served chats): a pin excluded by policy (a BYOK lane the escalation policy
+                # had not authorized) made every turn a dead end -- the runtime repeated "pick
+                # another model or switch to Auto" across a dozen asks, and nothing arrived. The
+                # pin contract bans a SILENT substitution; a notice that names the pinned model,
+                # the cause, and the model that answered is not silent. Nothing was spent on the
+                # pin (it never ran), the fallback is the free-cloud boost only (no paid arm, no
+                # reservation), and the selector is left untouched. When no free model can serve,
+                # the honest blocked terminal below stands unchanged.
+                if str(output_mode or "").strip() != "tool_intent":
+                    disclosed_fallback = self._try_free_cloud_boost(
+                        request=request,
+                        task=task,
+                        task_hash=task_hash,
+                        output_mode=output_mode,
+                        source_context=free_boost_context,
+                        route_reason="free_cloud_boost_pinned_model_blocked",
+                    )
+                    if (
+                        disclosed_fallback is not None
+                        and str(disclosed_fallback.output_text or "").strip()
+                    ):
+                        notice = _pin_disclosed_fallback_notice(
+                            requested_model_raw, block_reason, disclosed_fallback
+                        )
+                        disclosed_fallback.output_text = (
+                            f"{notice}\n\n{disclosed_fallback.output_text}"
+                        )
+                        disclosed_fallback.details = {
+                            **dict(disclosed_fallback.details or {}),
+                            "pin_disclosed_fallback": {
+                                "requested_model": requested_model_raw,
+                                "block_reason": block_reason,
+                                "answered_by": str(disclosed_fallback.provider_id or ""),
+                                "answered_by_model": str(disclosed_fallback.model_name or ""),
+                            },
+                        }
+                        return disclosed_fallback
                 return self._selected_model_blocked_decision(
                     requested_model_raw,
                     block_reason=block_reason,
@@ -6579,6 +6919,11 @@ class MemoryFirstRouter:
                 attempted_error_reasons.append(str(error or "no_response"))
                 _attempt_kind = _turn_routing.classify_provider_error(error or "no_response").value
                 attempt_kinds.append(_attempt_kind)
+                if "model_load_gated_low_memory" in str(error or ""):
+                    # The resource governor refused this LOAD: bench the model for this
+                    # process so later turns and later candidates do not re-pay the same
+                    # refusal while the machine stays tight (see the cooldown notes above).
+                    _note_ram_gate_refusal(str(manifest.provider_id or ""))
                 failover_used = True
                 # A9 P0 — the typed failed execution this turn will be asked about. Recorded
                 # at the loop that owns candidate order (not inside _invoke_manifest, which
@@ -8295,7 +8640,63 @@ def _can_prioritize_autopilot_selection(
 
 
 def _prioritize_autopilot_selection(ranked_manifests: list[Any], selected_provider_id: str) -> list[Any]:
-    return sorted(
-        ranked_manifests,
-        key=lambda manifest: 0 if manifest.provider_id == selected_provider_id else 1,
+    """The autopilot's pick rides first — unless the authorship fence would refuse it.
+
+    Measured 2026-11-03 (build 8af687ca, two served chats): the daily lane's policy pick was the
+    seeded uncertified local default (qwen2.5:7b). The bump below put it first, the precall
+    authorship fence refused it in 0.0 s, the ranked loop fell through to the certified model —
+    and nothing remembered, so the same two-lane failure replayed every turn of every chat, 30+
+    a chat. The pick is the autopilot's opinion; the fence is the authority. Ordering that
+    contradicts the authority burns a provider attempt per turn to prove it wrong.
+
+    The uncertified pick stays in the list, at the back: certification only binds the
+    FINAL_ANSWER role, and the fence at the call remains the one refusal — this only stops
+    ordering the refusal ahead of authors the fence accepts. Cloud and non-authoring picks are
+    unaffected (the certification read returns True when the question does not arise).
+    """
+    from core.final_answer_authorship import local_manifest_authorship_certified
+
+    selected = next(
+        (manifest for manifest in ranked_manifests if manifest.provider_id == selected_provider_id),
+        None,
     )
+    if selected is None or local_manifest_authorship_certified(selected):
+        return sorted(
+            ranked_manifests,
+            key=lambda manifest: 0 if manifest.provider_id == selected_provider_id else 1,
+        )
+
+    def _fence_would_refuse(manifest: Any) -> bool:
+        return not local_manifest_authorship_certified(manifest)
+
+    fence_refused = [manifest for manifest in ranked_manifests if _fence_would_refuse(manifest)]
+    fence_admits = [manifest for manifest in ranked_manifests if not _fence_would_refuse(manifest)]
+    return fence_admits + fence_refused
+
+
+#: Request metadata key: this tool-intent round follows a tool that already EXECUTED in this turn.
+TOOL_LOOP_CONTINUATION_KEY = "tool_loop_continuation"
+
+
+def _stamp_tool_loop_continuation(request: Any, source_context: dict[str, Any] | None) -> None:
+    """Mark a tool-intent round whose turn already holds an executed, successful tool observation.
+
+    On such a round the model has the evidence in front of it and may close the loop by answering;
+    the Ollama lane reads this stamp to take a prose reply as that answer (``respond.direct``)
+    instead of refusing it as a missing call. Measured 2026-11-10 on 0.7.8 c684e66d: email.read
+    returned the 8 unread messages, qwen3:8b answered them in prose twice (initial + re-ask), both
+    were refused as "required native tool call is missing", the fallbacks timed out or were
+    RAM-gated, and the person saw "8 message(s) matched" with no list after 370 s.
+    """
+    observations = (source_context or {}).get("runtime_tool_observations") or []
+    executed = any(
+        isinstance(item, dict)
+        and bool(item.get("ok"))
+        and str(item.get("mode") or "tool_executed") == "tool_executed"
+        and str(item.get("intent") or "").strip().lower() not in {"", "respond.direct", "none", "no_tool"}
+        for item in observations
+    )
+    if executed:
+        request.metadata[TOOL_LOOP_CONTINUATION_KEY] = True
+    else:
+        request.metadata.pop(TOOL_LOOP_CONTINUATION_KEY, None)

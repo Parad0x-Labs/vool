@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from core.hardware_tier import MachineProbe
@@ -45,7 +45,9 @@ class LocalBundleSpec:
 
     @property
     def models(self) -> tuple[str, ...]:
-        return tuple(item.model for item in self.role_models)
+        # Distinct, in role order: a small machine's deep role reuses the daily model, and a model
+        # is pulled, registered and counted against the disk once.
+        return tuple(dict.fromkeys(item.model for item in self.role_models))
 
     @property
     def role_map(self) -> dict[str, str]:
@@ -87,6 +89,17 @@ MODEL_STORAGE_GB: dict[str, float] = {
     "qwen3:30b-a3b": 19.0,
     "vool-qwen3-30b-a3b:nothink": 19.0,
     "qwen3.5:35b-a3b": 23.0,
+    # The current suggestion table (core.local_model_suggestions): the largest size Ollama lists
+    # for each tag, so the load gate never under-counts the MLX build Apple machines may get.
+    "qwen3.5:0.8b": 1.3,
+    "qwen3.5:2b": 3.1,
+    "qwen3.5:4b": 4.0,
+    "qwen3.5:9b": 7.6,
+    "qwen3.6:35b": 24.0,
+    "qwen3.6:35b-a3b": 24.0,
+    "qwen3.8:27b": 18.0,
+    "qwen3:1.7b": 1.4,
+    "qwen3:32b": 20.0,
     "deepseek-r1:8b": 5.2,
     "deepseek-r1:14b": 9.0,
     "deepseek-r1:32b": 20.0,
@@ -214,6 +227,26 @@ MODEL_METADATA: dict[str, dict[str, Any]] = {
         "eagle3_draft_eligible": False,
         "constant_vram": True,
         "max_context": 262144,
+    },
+    **{
+        tag: {
+            "family": tag.split(":", 1)[0],
+            "license_name": "Apache-2.0",
+            "license_reference": reference,
+            "parameter_count": count,
+            **({"active_parameter_count": active, "architecture": "moe"} if active else {}),
+        }
+        for tag, reference, count, active in (
+            ("qwen3.5:0.8b", "https://huggingface.co/Qwen/Qwen3.5-0.8B", "0.8B", ""),
+            ("qwen3.5:2b", "https://huggingface.co/Qwen/Qwen3.5-2B", "2B", ""),
+            ("qwen3.5:4b", "https://huggingface.co/Qwen/Qwen3.5-4B", "4B", ""),
+            ("qwen3.5:9b", "https://huggingface.co/Qwen/Qwen3.5-9B", "9B", ""),
+            ("qwen3.6:35b", "https://huggingface.co/Qwen/Qwen3.6-35B-A3B", "35B", "3B"),
+            ("qwen3.6:35b-a3b", "https://huggingface.co/Qwen/Qwen3.6-35B-A3B", "35B", "3B"),
+            ("qwen3.8:27b", "https://huggingface.co/Qwen/Qwen3.8-27B", "27B", ""),
+            ("qwen3:1.7b", "https://ollama.com/library/qwen3", "1.7B", ""),
+            ("qwen3:32b", "https://ollama.com/library/qwen3", "32B", ""),
+        )
     },
     "deepseek-r1:8b": {
         "family": "deepseek-r1",
@@ -994,7 +1027,9 @@ def resolve_local_bundle_recommendation(
         )
 
     bucket_key = bucket.lower()
-    no_gpu_bundle = bundle_spec(f"triple_bucket_{bucket_key}_no_gpu")
+    no_gpu_bundle = _with_suggested_models(
+        bundle_spec(f"triple_bucket_{bucket_key}_no_gpu"), probe=probe, free_disk_gb=free_disk_gb
+    )
     gpu_bundle = bundle_spec(f"triple_bucket_{bucket_key}_gpu_accelerated")
     if gpu_offload:
         recommended = gpu_bundle
@@ -1023,8 +1058,10 @@ def resolve_local_bundle_recommendation(
         )
     else:
         if bucket == "B":
-            # RAM-sized B: the VRAM-sized B bundle's qwen2.5:7b exists for 6-10GB GPUs only.
-            no_gpu_bundle = bundle_spec("triple_bucket_b_ram_no_gpu")
+            # RAM-sized B keeps its own id in the install record; its models come from the same table.
+            no_gpu_bundle = _with_suggested_models(
+                bundle_spec("triple_bucket_b_ram_no_gpu"), probe=probe, free_disk_gb=free_disk_gb
+            )
         recommended = no_gpu_bundle
         fallback = no_gpu_bundle
         reasons = (
@@ -1046,6 +1083,43 @@ def resolve_local_bundle_recommendation(
         advanced_optional_profile="local-max" if advanced_allowed else "",
         selection_reasons=reasons,
         gpu_capability_used=gpu_offload,
+    )
+
+
+def _with_suggested_models(
+    spec: LocalBundleSpec, *, probe: MachineProbe | Mapping[str, Any], free_disk_gb: float
+) -> LocalBundleSpec:
+    """The Ollama bundle for this exact machine: the bucket's id, the suggestion table's models.
+
+    A capacity bucket is too coarse to name models (bucket A spans a 4 GB netbook and a 12 GB
+    laptop; bucket C is a 24 GB Mac and a 12 GB NVIDIA card), so the models come from
+    `core.local_model_suggestions`, which sizes Apple by RAM, NVIDIA by VRAM and CPU machines for
+    speed. The id stays the bucket's so install records and the profile summary keep meaning
+    what they meant. The deep role falls back to the daily model when nothing bigger fits, so
+    every bundle still carries the three speed-tier roles.
+    """
+    from core.local_model_suggestions import suggest_local_models
+
+    suggestion = suggest_local_models(probe, free_disk_gb=free_disk_gb)
+    tiny = next((item for item in spec.role_models if item.role == "tiny_fast"), None)
+    tiny_model = tiny or BundleRoleModel("tiny_fast", suggestion.tiny)
+    deep_note = (
+        "Bigger, slower model for queued jobs; it answers live chat only if you pick it."
+        if suggestion.deep
+        else "Same model as the daily one: nothing bigger fits this computer."
+    )
+    role_models = (
+        replace(tiny_model, model=suggestion.tiny),
+        BundleRoleModel("daily_accelerated", suggestion.daily),
+        BundleRoleModel("deep_overnight", suggestion.deep or suggestion.daily, offload_note=deep_note),
+    )
+    return replace(
+        spec,
+        role_models=role_models,
+        summary=(
+            f"Picked for this computer ({suggestion.machine_kind}, {suggestion.sized_by_gb:.0f} GB): "
+            f"{suggestion.daily} answers, {suggestion.deep or suggestion.daily} takes bigger jobs."
+        ),
     )
 
 

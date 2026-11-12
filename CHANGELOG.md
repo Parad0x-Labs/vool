@@ -3,6 +3,99 @@
 All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
 history is not republished here.
 
+## [0.7.8] — 2026-11-04
+
+A patch release about the two things a chat app must never do: forget what you just said, and
+die instead of answering.
+
+### Fixed
+- **The chat remembers the conversation.** Follow-up messages ("why cant you?", "what context?",
+  "and in NY?") are answered with the recent turns of your chat in front of the answering model.
+  Before this, a whole class of follow-ups was answered from your latest words alone — the
+  previous answer was one chat line away and invisible to the part of VOOL that wrote the reply.
+- **A selected model that cannot run no longer dead-ends the chat.** When the model you picked is
+  blocked before it even starts (a cloud lane your policy has not authorized, for example), VOOL
+  says so in one line and answers anyway through Auto, naming the model that answered. Your
+  selector is not changed. Before this, every ask returned the same "pick another model" note
+  until you switched by hand.
+- **A free model you picked runs without a spending reservation.** Picking an OpenRouter
+  ":free" model could fail with the runtime's own "free pins need no reservation" notice — a
+  clearance mistaken for a block. The verdict now travels with the turn: free stays free, and a
+  model that is not actually free is still refused, with the honest reason.
+- **Routing stops re-trying what it already refused.** The lane picker no longer puts a model
+  the authorship gate will refuse at the front of the queue — the same two-lane failure that
+  repeated on every turn of a chat is gone. A cloud key the provider rejects (HTTP 401) is
+  benched for 10 minutes instead of being re-paid on every turn; a model you pinned as your only
+  route is always still tried.
+- **The double-checker checks again after a fallback.** When the planned model fails and a
+  different one answers, the answer still gets its independent second look instead of being
+  marked "could not double-check" because the checker had become the answerer.
+- **"What time in NY?" answers New York.** The clock lane now knows the abbreviations people
+  type (ny, nyc), and a two-city ask ("time in riga and NY now") answers every named city in one
+  reply — before, the second city was silently dropped or the whole ask fell to a model that
+  guessed. A misspelled ask still declines rather than guessing.
+- **A connected email account works in chat.** Adding an email account in Settings (the green
+  "connected" state) is now what enables reading it in chat; before this, the chat tools read a
+  switch nothing in the app ever set, so a connected mailbox answered "I cannot access your
+  email directly". An explicit policy switch still wins in both directions.
+- **"Go fetch data online" keeps what it fetched.** The research steps now stay attached to the
+  turn even when the writing model failed, the answer is judged against what was actually
+  retrieved, and a refusal tells the truth about the evidence it kept — before this, a turn that
+  retrieved three times was refused as if it had retrieved nothing.
+- **Toggles in Settings read plainly.** A switch that is on says "On" with a green light and a
+  switch that is off says "Off" with a red light, in words and color, so the state never has to
+  be guessed from a control's position alone.
+
+### Updating
+- **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own"
+  is on. Press Update.
+- **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.8 and install it
+  over your current version. Your chats and settings stay in your profile.
+
+## [0.7.7-beta] — 2026-11-02
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.7-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
+Safer updates, a wallet that asks you first, and a more thorough forget.
+
+### New
+- **The wallet asks you first.** Wallet settings that loosen what can be paid (raising a spending cap, switching to Mainnet, turning on a payment channel, adding an AI endpoint) ask for your wallet PIN, password or Touch ID. Turning things off never asks.
+- **Hide or show the pet.** In Settings, "Hide pet" turns into "Show pet" and brings the pet back. Closing the pet with its X no longer leaves a "Companion" button over the chat list.
+- **Calmer message buttons.** The buttons under an answer (copy, pin, try again and the rest) are a small row of icons below the answer, so they no longer cover its text.
+
+### Fixes
+- **Updates are safer.** If an update fails, VOOL puts the old version back, keeps checking for newer versions and skips only the one that failed.
+- **Forget reaches more places:** update backups, logs, the chat's helper files and undo copies. If a copy cannot be changed, the reply says which one.
+- A paired phone never uses your paid chain-data keys, and a spending cap must be a real number.
+- "How big is the holiday photos zip" answers with the size of that file or folder only.
+- A price VOOL recorded earlier is not shown as the current price.
+- API Keys: Remove is a plain button now, and a working key shows a soft green light. A key the provider refuses shows red.
+
+### Updating
+- **From 0.7.5 or 0.7.6:** the update notice comes by itself when "Go online on its own" is on. Press Update.
+- **From 0.7.4 or 0.7.3 on a Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu.
+- **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.7 and install it over your current version. Your chats and settings stay in your profile.
+
+## [0.7.6-beta] — 2026-10-30
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.6-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.6-beta).
+A small update for finding your files.
+
+### New
+- **Find a file by name or description.** "Find the photo called day 4" or "where is my tax letter" looks for a file, not a folder, and matches everyday spellings such as Day_4.png or day-4.jpg.
+- **Hide my name on screen.** A switch in Settings masks your name and your home folder on screen (chat, Settings and notifications). Nothing changes on disk or in memory. Off by default.
+
+### Fixes
+- Folder and file searches start in your home folder and on plugged-in drives, never in system folders, and finish in a second or two.
+- Hidden folders (names starting with a dot) are left out of searches unless you name one.
+- Linux: chats no longer treat VOOL's own install folder as your workspace.
+
+### Updating
+- **From 0.7.5:** the update notice comes by itself when "Go online on its own" is on. Press Update.
+- **From 0.7.4 or 0.7.3 on a Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu.
+- **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.6 and install it over your current version. Your chats and settings stay in your profile.
+
 ## [0.7.5-beta] — 2026-10-27
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
@@ -10,16 +103,16 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 From this version on, VOOL tells you about new versions by itself and installs them with one press, on Mac and on Linux.
 
 Updating from 0.7.4 or 0.7.3 (one time only):
-- **Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu. Press Download and update. From 0.7.5 on, the notice comes by itself.
+- **Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu. Press Update. From 0.7.5 on, the notice comes by itself.
 - **Linux:** install 0.7.5 from the release once. From 0.7.5 on, updates install in the app.
 - From 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app.
 
 ### Added
-- **Updates arrive on their own.** With "Go online on its own" on (Settings > Privacy & Permissions), VOOL checks for a new version at start and once a day and shows a notice. Press Download and update: VOOL installs it, restarts on the new version and keeps your data. With it off, VOOL fetches nothing and the header says Update checks off.
+- **Updates arrive on their own.** With "Go online on its own" on (Settings > Privacy & Permissions), VOOL checks for a new version at start and once a day and shows a notice. Press Update: VOOL installs it, restarts on the new version and keeps your data. With it off, VOOL fetches nothing and the header says Update checks off.
 - **Linux updates in the app.** The Linux download now updates itself from inside VOOL. The new version is installed next to the old one; if it does not start properly, VOOL switches back by itself.
 - **Your VOOL on the local network stays yours.** When VOOL listens on your local network, only this computer reaches settings, files, keys and tools. Another device gets plain chat and can read one public web page; web searches, research, the browser, quotes, payments and your paid keys stay on your own computer. The Discord bridge answers only its owner.
 - **Notes and agenda do what you said.** Saving to notes, the agenda or Apple Notes keeps exactly what you asked for. An answer is saved only when you ask, only the answer you saw, and never from a private chat.
-- **VOOL's own skills first.** Skills & Plugins lists VOOL's own skills first, and Browse Skill Codex ships with 53 ready skills.
+- **VOOL's own skills first.** Skills & Plugins lists VOOL's own skills first, and the app ships with 53 ready VOOL skills. Browse Skill Codex shows the list from the Skill Codex service.
 
 ### Fixed
 - Reminders keep the right date and time.

@@ -42,7 +42,7 @@ WEATHER = "what's the weather in Paris today?"
 WEATHER_REPLY = "It is 18 C and sunny in Paris right now."
 RECORDS_QUESTION = "How many tonnes does the yard currently hold according to my notes?"
 RECORDS_REPLY = "Your notes say the yard currently holds 12,400 tonnes."
-CURRENT_INFORMATION_LEAD = "I can't publish an answer to this: it needed current information"
+CURRENT_INFORMATION_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
 
 
 class OfflineOpenRouterDaemon(OpenRouterCompatibleDaemon):
@@ -54,6 +54,9 @@ class OfflineOpenRouterDaemon(OpenRouterCompatibleDaemon):
         for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
             env[name] = DEAD
         env["NO_PROXY"] = env["no_proxy"] = loopback
+        # Web lookups are on (with them off nothing is looked up at all); the fence above is what
+        # makes every lookup fail.
+        env["VOOL_ENABLE_WEB"] = "1"
         return env
 
 
@@ -98,18 +101,27 @@ def _turn(lane, text: str) -> tuple[str, list[dict], list[dict]]:
 
 
 def test_weather_with_a_failed_lookup_is_not_answered_from_the_records(lane) -> None:
-    reply, arrived, events = _turn(lane, WEATHER)
-    assert [_user_text(body) for body in arrived] == [WEATHER], "the model is called once with the question"
+    # Web lookups are on and every lookup fails at the fence. Since 2026-11-12 (nothing is fetched
+    # with the switch off) this test runs with the switch on, where the weather lane itself states
+    # the failed reading; it used to reach the model only because the switch-off run let the lane
+    # fetch anyway and then handed the failure on.
+    reply, _arrived, events = _turn(lane, WEATHER)
     lookups = [event for event in events if event.get("event_type") == "live_data_plan_completed"]
     assert lookups and "0/1 succeeded" in str(lookups[-1].get("message")), lookups
     assert reply != RECORDS_WITHDRAWAL_NOTICE
     assert "records" not in reply.lower(), reply
-    assert reply.startswith(CURRENT_INFORMATION_LEAD), reply
+    assert "paris" in reply.lower() and "no current conditions" in reply.lower(), reply
     assert WEATHER_REPLY not in reply, "an unobserved reading is never published"
 
 
 def test_a_question_about_what_was_said_in_a_chat_with_no_records_keeps_the_records_notice(lane) -> None:
+    # Since the cross-chat recall lane answers questions about the person's own notes, it searches
+    # every chat and project and says plainly that nothing is saved, without a model call. Either
+    # honest answer is right; what must never happen is the invented figure.
     reply, arrived, _events = _turn(lane, RECORDS_QUESTION)
-    assert [_user_text(body) for body in arrived] == [RECORDS_QUESTION]
-    assert reply == RECORDS_WITHDRAWAL_NOTICE, reply
-    assert RECORDS_REPLY not in reply
+    assert RECORDS_REPLY not in reply and "12,400" not in reply, reply
+    if arrived:
+        assert [_user_text(body) for body in arrived] == [RECORDS_QUESTION]
+        assert reply == RECORDS_WITHDRAWAL_NOTICE, reply
+    else:
+        assert reply.startswith("I don't have that saved"), reply

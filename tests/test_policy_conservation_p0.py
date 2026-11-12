@@ -474,6 +474,7 @@ def test_6_toolset_grain_refuses_only_what_the_parent_froze(harness, workspace):
     assert _ETH_PRICE_TEXT not in answer
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_6_toolset_grain_does_not_over_block_other_families(harness, workspace):
     """The other half of toolset grain: under a market-prices-only prohibition
     a WEATHER child still runs (canned observation) — the intersection refuses

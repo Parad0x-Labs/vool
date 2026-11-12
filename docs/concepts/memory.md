@@ -7,6 +7,14 @@ description: How VOOL remembers things between sessions, and where that memory l
 Memory is how VOOL carries facts across sessions. It is stored as files on your
 machine, in VOOL's data home, in a readable format.
 
+## How well it remembers
+
+On 150 never-used questions from the LoCoMo long-conversation benchmark, the memory shipped in
+VOOL 0.7 answered 123 right (82.0%). In the head-to-head round on the same questions, with the same
+model answering for all three, VOOL got 124 (82.7%), OpenClaw 107 (71.3%) and Hermes 94 (62.7%),
+while sending 3.5 to 5.4 times fewer tokens per question. Every run is published:
+[memory benchmarks](https://github.com/Parad0x-Labs/vool/tree/main/docs/benchmarks).
+
 ## Properties
 
 * **On disk, in the open.** Memory is files you can read. `MEMORY.md` is the readable

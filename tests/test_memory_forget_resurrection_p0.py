@@ -30,6 +30,7 @@ from typing import Any
 import pytest
 
 from core.context_namespace import ensure_chat_namespace
+from core.memory.copies import FORGET_LIST_NOTE
 from core.memory.entries import (
     add_memory_fact,
     combined_memory_entries,
@@ -165,7 +166,7 @@ def test_reproduction_remember_forget_cold_restart_zero_canary_bytes(isolated_ho
     )
     assert handled, reply
     assert reply.startswith("Forget applied"), reply
-    assert reply.strip().endswith("Removed 1 memory entry."), reply
+    assert reply.strip().endswith("Removed 1 memory entry." + " " + FORGET_LIST_NOTE), reply
 
     probe = _cold_probe(isolated_home)
     leaks = [text for text in _model_visible_texts(probe) if CANARY in text]
@@ -222,7 +223,7 @@ def test_two_similar_memories_forgetting_one_preserves_the_other(isolated_home: 
         f"Forget {CANARY}.", session_id=CHAT, access_policy=policy
     )
     assert handled and reply.startswith("Forget applied"), reply
-    assert reply.strip().endswith("Removed 1 memory entry."), reply
+    assert reply.strip().endswith("Removed 1 memory entry." + " " + FORGET_LIST_NOTE), reply
 
     # Structured store: the other fact survives.
     texts = [str(row.get("text") or "") for row in list_memory_entries(access_policy=policy, limit=20)]
@@ -291,7 +292,7 @@ def test_partial_token_forget_reports_and_removes_honestly(isolated_home: Path) 
         "Forget Project Zenith", session_id=CHAT, access_policy=policy
     )
     assert handled and reply.startswith("Forget applied"), reply
-    assert reply.strip().endswith("Removed 1 memory entry."), reply
+    assert reply.strip().endswith("Removed 1 memory entry." + " " + FORGET_LIST_NOTE), reply
     texts = [str(row.get("text") or "") for row in list_memory_entries(access_policy=policy, limit=20)]
     assert any("Zenora" in t for t in texts)
     assert not any("Zenith" in t for t in texts)
@@ -847,7 +848,7 @@ def test_collision_classes_prefix_suffix_unicode_casefold(isolated_home: Path) -
     assert handled and reply.startswith("Forget applied"), reply
     # The target AND the case-variant (it genuinely contains the token,
     # case-insensitively — the documented keyword UX) are erased together…
-    assert reply.strip().endswith("Removed 2 memory entries."), reply
+    assert reply.strip().endswith("Removed 2 memory entries." + " " + FORGET_LIST_NOTE), reply
     texts = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
     assert not any("Observatory hosts" in t for t in texts)
     assert not any("OBSERVATORY EAST" in t for t in texts)
@@ -931,7 +932,7 @@ def test_identical_text_entries_documented_semantics(isolated_home: Path) -> Non
         "Forget Twin lighthouse", session_id=CHAT, access_policy=policy
     )
     assert handled and reply.startswith("Forget applied"), reply
-    assert reply.strip().endswith("Removed 3 memory entries."), reply  # 1 + 2 twins
+    assert reply.strip().endswith("Removed 3 memory entries." + " " + FORGET_LIST_NOTE), reply  # 1 + 2 twins
 
     rows = load_jsonl(memory_entries_path())
     tombstones = [r for r in rows if str(r.get("status") or "") == "erased"]

@@ -196,6 +196,40 @@ def _apply_edition_floor(
     return floored
 
 
+def _email_lane_available(kind: str) -> bool:
+    """Whether the email tools of this lane may run, from the ACCOUNT the user actually connected.
+
+    Measured 2026-11-03 (build 8af687ca, served chats): the Settings page showed the email
+    account green (core.email_accounts state "configured" — credentials stored, transport
+    selectable), while every chat ask ("check my email...") died — the tool contracts read
+    ``policy_engine.get("email.read_enabled"/"email.send_enabled", False)`` and NOTHING in the
+    product ever wrote those keys: not the setup flow, not the settings page, not the API, not
+    the shipped default policy. The two green systems never met; the served answer was a model
+    honestly reporting "I cannot access your email directly".
+
+    Semantics: an explicitly set policy key wins in BOTH directions (an operator who wrote
+    ``email.read_enabled: false`` keeps it off); an UNSET key (the shipped state — the key is in
+    no default policy) derives from the accounts the operator actually connected — the same
+    stored-credential authority the Settings page renders as connected. ``policy_engine.get(key, None)`` distinguishes unset from explicit false.
+    """
+    explicit = policy_engine.get(f"email.{kind}_enabled", None)
+    if explicit is not None:
+        return bool(explicit)
+    try:
+        # The authority the Settings page renders: accounts with stored credentials for this
+        # transport. (resolve_default_account is NOT that signal — its selection falls back to
+        # the legacy "default" name with nothing configured at all, measured in a bare home.)
+        from core.email_accounts import configured_accounts
+
+        want_read = kind == "read"
+        return any(
+            (record.read if want_read else record.send)
+            for record in configured_accounts().values()
+        )
+    except Exception:
+        return False
+
+
 def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[RuntimeToolContract]:
     read_enabled = bool(policy_engine.get("filesystem.allow_read_workspace", True))
     write_enabled = bool(policy_engine.get("filesystem.allow_write_workspace", False))
@@ -211,8 +245,8 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
 
         web_enabled = bool(effective_web_available())
     browser_enabled = bool(policy_engine.browser_runtime_enabled())
-    email_send_enabled = bool(policy_engine.get("email.send_enabled", False))
-    email_read_enabled = bool(policy_engine.get("email.read_enabled", False))
+    email_send_enabled = _email_lane_available("send")
+    email_read_enabled = _email_lane_available("read")
     image_gen_enabled = bool(policy_engine.get("image.generate_enabled", False)) or _has_image_service()
     video_gen_enabled = bool(policy_engine.get("video.generate_enabled", False))
     x_connected = _x_reads_available()
@@ -273,6 +307,9 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "limit": "integer optional",
                 # "how many files are in ~/Downloads" wants the number, not the first page of names.
                 "count_only": "boolean optional",
+                # "the latest 10 pics in Downloads": only one kind of file, newest first.
+                "kind": "string optional (image|video|audio|pdf|document|spreadsheet)",
+                "newest_first": "boolean optional",
             },
             output_schema={"entries": "list[directory_entry]", "truncated": "boolean"},
             side_effect_class="read_only",
@@ -567,7 +604,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_send",
             capability_claim="send email from a locally-configured SMTP account, gated by an explicit per-call opt-in and metered by tier quota",
             supported=email_send_enabled,
-            unsupported_reason="Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials).",
+            unsupported_reason="Email sending is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.",
             input_schema={
                 "to": "string|list[string]",
                 "subject": "string",
@@ -591,7 +628,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_read",
             capability_claim="read and search email headers and snippets from a locally-configured IMAP account, read-only",
             supported=email_read_enabled,
-            unsupported_reason="Email read is disabled on this runtime (set email.read_enabled and store IMAP credentials).",
+            unsupported_reason="Email reading is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.",
             input_schema={
                 "account": "string optional",
                 "folder": "string optional",
@@ -617,7 +654,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_read",
             capability_claim="open a specific message or thread with full content from a locally-configured IMAP account, read-only",
             supported=email_read_enabled,
-            unsupported_reason="Email open is disabled on this runtime (set email.read_enabled and store IMAP credentials).",
+            unsupported_reason="Email open is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.",
             input_schema={
                 "message_id": "string, the Message-ID to open",
                 "thread": "boolean optional, open the whole thread",
@@ -641,7 +678,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             # A draft exists to be sent: it is offered only where sending is enabled, so a policy that
             # disables email leaves the email family metadata-only (never seated, never admitted).
             supported=email_send_enabled,
-            unsupported_reason="Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).",
+            unsupported_reason="Email drafts need sending, which is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.",
             input_schema={
                 "to": "string|list[string]",
                 "subject": "string",
@@ -672,7 +709,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_send",
             capability_claim="re-show the draft under review",
             supported=email_send_enabled,
-            unsupported_reason="Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).",
+            unsupported_reason="Email drafts need sending, which is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.",
             input_schema={"draft_id": "string optional, defaults to the session's latest draft"},
             output_schema={"draft": "email_draft", "status": "string"},
             side_effect_class="read_only",
@@ -690,7 +727,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_send",
             capability_claim="bind the user's send approval to the exact reviewed draft content",
             supported=email_send_enabled,
-            unsupported_reason="Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).",
+            unsupported_reason="Email drafts need sending, which is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.",
             input_schema={
                 "draft_id": "string optional, defaults to the session's latest draft",
                 "expected_version": "integer optional, the version the user reviewed",
@@ -711,7 +748,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_send",
             capability_claim="send the reviewed, approved draft from a locally-configured SMTP account with a durable receipt",
             supported=email_send_enabled,
-            unsupported_reason="Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials).",
+            unsupported_reason="Email sending is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.",
             input_schema={
                 "draft_id": "string optional, defaults to the session's latest draft",
             },
@@ -731,7 +768,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_read",
             capability_claim="reconcile an uncertain send outcome against the account's Sent folder",
             supported=email_read_enabled,
-            unsupported_reason="Email reconciliation is disabled on this runtime (set email.read_enabled and store IMAP credentials).",
+            unsupported_reason="Email reconciliation is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.",
             input_schema={"draft_id": "string"},
             output_schema={"draft": "email_draft", "status": "string"},
             side_effect_class="read_only",
@@ -748,7 +785,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="email.native_send",
             capability_claim="reply to email from a locally-configured SMTP account, gated by an explicit per-call opt-in and metered by tier quota",
             supported=email_send_enabled,
-            unsupported_reason="Email reply is disabled on this runtime (set email.send_enabled and store SMTP credentials).",
+            unsupported_reason="Email reply is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.",
             input_schema={
                 "to": "string|list[string]",
                 "subject": "string",
@@ -1378,7 +1415,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="web.fetch",
             capability_claim="fetch public web pages when web access is enabled and report policy, network, or page barriers honestly",
             supported=web_enabled,
-            unsupported_reason="Web fetch is disabled by runtime web policy.",
+            unsupported_reason="Web lookups are off. You can turn them on in Settings, Privacy & Permissions.",
             # `timeout_s` is what core/execution/web_tools.py:140 actually reads. This declared
             # `timeout_seconds`, so the argument a model was told to send was discarded on arrival
             # and every fetch silently used the 15s default.

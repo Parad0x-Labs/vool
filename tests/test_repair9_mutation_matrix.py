@@ -24,6 +24,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
     create_runtime_attempt,
@@ -89,6 +91,7 @@ class MutationARemoveProcessLockTests(unittest.TestCase):
         configure_runtime_continuity_db_path(None)
         self._tmp.cleanup()
 
+    @pytest.mark.usefixtures("enable_web")
     def test_with_the_process_lock_defeated_the_db_constraint_still_allows_only_one_execution(self) -> None:
         import core.agent_runtime.attempt_retry as attempt_retry_module
         from core.agent_runtime.attempt_retry import execute_attempt_retry
@@ -222,6 +225,7 @@ class MutationCRemoveBothTests(unittest.TestCase):
         configure_runtime_continuity_db_path(None)
         self._tmp.cleanup()
 
+    @pytest.mark.usefixtures("enable_web")
     def test_removing_both_guards_makes_the_duplicate_execution_visible_in_the_invocation_count(self) -> None:
         import core.agent_runtime.attempt_retry as attempt_retry_module
         import core.runtime_continuity as runtime_continuity_module
@@ -301,6 +305,7 @@ class MutationDRemoveTurnWiringTests(unittest.TestCase):
                 trigger_user_turn_id="", execution_generation=2,
             )
 
+    @pytest.mark.usefixtures("enable_web")
     def test_dropped_turn_wiring_at_the_agent_layer_fails_the_retry_honestly(self) -> None:
         """Reproduces Repair 4's exact defect at the vool_agent.py boundary: with
         `_canonical_user_turn_id` always returning "" (as it did before that repair), a retry

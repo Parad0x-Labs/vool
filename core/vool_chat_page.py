@@ -299,20 +299,36 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 /* Chats nest under their project/General header as a tree: indented, with a thin left guide line. */
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
-#sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
-#sessions .s-pin-mark { flex:0 0 auto; font-size:11px; opacity:.75; margin-left:4px; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
-#sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
-#sessions .session:hover .s-actions, #sessions .session:focus-within .s-actions { display:flex; }
+#sessions .s-actions { display:none; gap:1px; flex:0 0 auto; }
+/* Keyboard focus shows a row's actions; a mouse click on one of them does not keep them pinned open. */
+#sessions .session:hover .s-actions, #sessions .session:has(:focus-visible) .s-actions { display:flex; }
 #sessions .s-title:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:4px; }
 #sessions .session { cursor:pointer; }
 /* Touch screens have no hover: the row actions are always there. */
 @media (hover: none) {   /* touch: a tap never reveals buttons under the finger; only the open chat and its project show theirs */
   #sessions .session .s-actions, .proj-head .proj-actions { display:none !important; }
   #sessions .session.active .s-actions, .proj-head.active .proj-actions { display:flex !important; }
+  #sessions .session.pinned:not(.active) .s-actions { display:flex !important; }
+  #sessions .session.pinned:not(.active) .s-actions > :not(.s-pin) { display:none; }
+  #sessions .session.more-open.active .s-actions > .s-act:not(.s-more-toggle) { display:none; }
 }
-#sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:4px; line-height:1; }
+#sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 3px; border-radius:4px; line-height:1; }
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
+/* Row actions: pin, rename, archive, delete always; emoji/colour and move-to-project open from the
+   chevron. A pinned chat keeps its (filled) pin showing when the row is idle -- that one icon is
+   both the "pinned" mark and the unpin button. */
+#sessions .s-more { display:none; gap:2px; }
+#sessions .session.more-open .s-more { display:inline-flex; }
+/* Open, the chevron swaps the row's actions instead of adding to them, so the title keeps its room. */
+#sessions .session.more-open:is(:hover, :has(:focus-visible)) .s-actions > .s-act:not(.s-more-toggle) { display:none; }
+/* While the actions show, the wide "Needs you" pill steps aside for the title (it is back on leave). */
+#sessions .session:is(:hover, :has(:focus-visible)) .lc-badge.lc-needs { display:none; }
+#sessions .s-more-toggle::before { transition:transform .15s ease; }
+#sessions .session.more-open .s-more-toggle::before { transform:scaleX(-1); }
+#sessions .s-act.s-pin.on { color:var(--accent); }
+#sessions .session.pinned .s-actions { display:flex; }
+#sessions .session.pinned:not(:hover):not(:has(:focus-visible)) .s-actions > :not(.s-pin) { display:none; }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
 #sessions .arch-head:hover { color:var(--ink); }
 #sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
@@ -422,18 +438,33 @@ header a:hover { text-decoration:underline; }
 .msg.assistant.pending { color:var(--muted); }
 .msg-text a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
 .msg-text a:hover { text-decoration:none; }
-.msg-actions { position:absolute; top:6px; right:6px; display:flex; gap:4px; opacity:0; transition:opacity .12s; }
+/* The message actions are one small framed pill of icon buttons. It never sits over the words:
+   an answer's pill hangs off its bottom edge, in the space before the next message; your own
+   message's pill sits just under the bubble. Each button keeps its translated name as its text
+   (read by screen readers, shown as the tooltip above it) and draws only its line icon. */
+.msg-actions { position:absolute; bottom:-14px; inset-inline-end:0; z-index:3; display:flex; align-items:center; gap:1px; padding:1px;
+  background:var(--panel); border:1px solid var(--border); border-radius:9px; box-shadow:0 2px 8px var(--shadow);
+  opacity:0; transition:opacity .12s; white-space:nowrap; }
 .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity:1; }
-/* Your own message carries Copy and Edit: the pair sits just under the bubble, in the gap between
-   messages, so it never covers the message's attachments or words. */
-.msg.user .msg-actions { top:calc(100% + 2px); right:auto; inset-inline-end:0; white-space:nowrap; }
-/* No hover on a touch screen: your own message's row stays faintly visible under the bubble. */
+.msg.user .msg-actions { bottom:auto; top:calc(100% + 3px); }
+/* No hover on a touch screen: your own message's pill stays faintly visible under the bubble. */
 @media (hover:none) { .msg.user .msg-actions { opacity:.75; } }
+.msg .msg-actions button { box-sizing:border-box; position:relative; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0;
+  background:transparent; color:var(--muted); border:0; border-radius:7px; font-size:0; line-height:0; cursor:pointer; user-select:none; }
+.msg-actions button.vi::before { width:15px; height:15px; margin:0; vertical-align:0; }
+.msg-actions button:hover, .msg-actions button:focus-visible { color:var(--ink); background:var(--active); }
+.msg-actions button:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
+.msg-actions button:disabled { opacity:.5; cursor:default; }
+.msg-actions button[data-tip]:hover::after, .msg-actions button[data-tip]:focus-visible::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+  padding:4px 8px; border-radius:6px; background:var(--panel); color:var(--ink); border:1px solid var(--border); box-shadow:0 2px 8px var(--shadow);
+  font-size:11.5px; line-height:1.2; white-space:nowrap; pointer-events:none; z-index:4; }
+.msg-actions button[data-tip]:first-child:hover::after, .msg-actions button[data-tip]:first-child:focus-visible::after { left:0; transform:none; }
+.msg-actions button[data-tip]:last-child:hover::after, .msg-actions button[data-tip]:last-child:focus-visible::after { left:auto; right:0; transform:none; }
 .msg-copy, .msg-act { background:var(--bg); color:var(--muted); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1; padding:3px 7px; cursor:pointer; user-select:none; }
 .msg-copy:hover, .msg-act:hover { color:var(--ink); border-color:var(--accent); }
 .msg-export-status { display:block; max-width:100%; overflow-wrap:anywhere; margin-top:6px; font-size:12px; color:var(--muted); }
 .msg-export-status:empty { display:none; }
-.msg-pin.on { color:var(--accent); border-color:var(--accent); }
+.msg-pin.on, .msg-actions .msg-pin.on { color:var(--accent); border-color:var(--accent); }
 .msg-act.icon { padding:3px 6px; font-size:12px; }
 .msg-act.on { color:var(--accent); border-color:var(--accent); }
 /* Code-block copy: the button lives at the top-right edge of the fenced block it copies, shown on
@@ -1241,11 +1272,13 @@ body:not(.panel-open) #xpanel { display:none; }
     <div class="popover below" id="modelPop" role="menu" aria-label="Model" data-i18n-aria-label="header.model_popover_title">
       <div class="pop-title" id="runTitle" data-i18n="header.run_title">Where VOOL can run</div>
       <div class="run-switch" role="radiogroup" aria-labelledby="runTitle">
+        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-offline"><b data-i18n="header.run_offline">Offline</b><small data-i18n="header.run_offline_hint">nothing goes online</small></button>
+        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-local-only"><b data-i18n="header.run_computer_only">Computer + web</b><small data-i18n="header.run_computer_only_hint">no cloud AI</small></button>
         <button type="button" class="run-choice" role="radio" aria-checked="true" data-run-model="vool"><b data-i18n="header.run_local_first">Local first</b><small data-i18n="header.run_local_first_hint">free cloud only if needed</small></button>
-        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-local-only"><b data-i18n="header.run_computer_only">This computer only</b><small data-i18n="header.run_computer_only_hint">cloud blocked</small></button>
       </div>
+      <div class="run-hint" id="runModeNote" data-i18n="header.run_local_first_explainer">Uses this computer first, and free cloud AI only if needed. Looks things up on the web when a question needs it.</div>
+      <div class="run-hint" id="runWebNote" hidden></div>
       <div class="run-hint" data-i18n="header.run_explainer">Auto never picks a paid model. Choosing a model below pins it.</div>
-      <div class="run-hint" id="runLocalDisclosure" hidden data-i18n="header.model_local_only_explainer">Local Only routes among the models and tools on this machine and never reaches a cloud provider — not paid, not free, not for planning.</div>
       <div class="pop-title" data-i18n="header.model_popover_title">Model</div>
       <div class="pop-prov" id="modelProv" hidden></div>
       <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_auto_option">VOOL Auto</span> <span class="pi-hint" data-i18n="header.model_auto_hint">local-first &middot; free</span></span></button>
@@ -1680,7 +1713,7 @@ function markTabTitle(kind) {
 // Mac shows the command sign and Linux/Windows show "Ctrl+". Unknown platforms keep the sign.
 const VOOL_IS_MAC = (() => {
   try {
-    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+    const p = navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || '';
     return !p || /mac|iphone|ipad|ipod/i.test(p);
   } catch (e) { return true; }
 })();
@@ -2059,12 +2092,19 @@ function reapplyActivitySearch() {
 // mode preference per chat only so a chat reopens consistently; the server remains authoritative.
 // Bypass is deliberately excluded from durable browser preferences and always expires server-side.
 const MODE_LABELS = { manual: pageT('mode.js.manual', 'Manual'), review_edits: pageT('mode.js.review_edits', 'Review edits'), plan: pageT('mode.js.plan', 'Plan'), auto: pageT('mode.js.auto', 'Auto'), bypass_permissions: pageT('mode.js.bypass_permissions', 'Bypass permissions') };
-const MODEL_LABELS = { 'vool': pageT('header.model_auto_option', 'VOOL Auto'), 'vool-local-only': pageT('header.model_local_only_option', 'VOOL Auto Local Only') };
+const MODEL_LABELS = { 'vool': pageT('header.model_auto_option', 'VOOL Auto'), 'vool-local-only': pageT('header.model_local_only_option', 'VOOL Auto Local Only'), 'vool-offline': pageT('header.model_auto_option', 'VOOL Auto') };
 // The Local Only lane, by the one value the server recognises. Kept as a named constant because
 // several checks below have to agree about it exactly: the cloud list is suppressed under it, the
 // no-key revert must not treat it as a stale cloud pin, and the footer disclosure keys off it.
 const LOCAL_ONLY_MODEL = 'vool-local-only';
-function isLocalOnlyMode() { return modelValue === LOCAL_ONLY_MODEL; }
+// The Offline lane: no cloud AI AND nothing goes online. Every "no cloud" check below treats it
+// exactly like Computer + web (isNoCloudModel); only the web note and the egress door differ.
+const OFFLINE_MODEL = 'vool-offline';
+// The three run modes, in menu order (arrow keys walk this list).
+const RUN_MODES = [OFFLINE_MODEL, LOCAL_ONLY_MODEL, 'vool'];
+function isNoCloudModel(m) { return m === LOCAL_ONLY_MODEL || m === OFFLINE_MODEL; }
+function isLocalOnlyMode() { return isNoCloudModel(modelValue); }
+function isOfflineMode() { return modelValue === OFFLINE_MODEL; }
 // A concrete cloud model id chosen from the dropdown: a bare id (gpt-4.1-mini, what the direct
 // providers use), a vendor/name[:tag] slug, or either with an optional provider: prefix. Friendly
 // labels are filled in as the catalog loads; the raw id is the safe fallback. NOTE: this matches
@@ -2116,7 +2156,7 @@ function armTryOnce(chatId, model, label) {
   // One-turn trials may serve a turn even under an explicit pin (the click IS operator
   // intent), but they never REPLACE it: the grant dies with its one turn and the pin
   // is untouched. The send-time paid-ack gate still evaluates the trial model itself.
-  if (modelForChat(chatId) === LOCAL_ONLY_MODEL && !isLocalModel(model)) setModelValue('vool', chatId);
+  if (isNoCloudModel(modelForChat(chatId)) && !isLocalModel(model)) setModelValue('vool', chatId);
   tryOnceGrant = { chatId: String(chatId), model: String(model), label: String(label || model), consumed: false };
   return true;
 }
@@ -2472,7 +2512,8 @@ function resumedTranscriptLength(run, owner) {
 function canonicalMessagesForModel(history) {
   // Messages brought in from another app are history to read, never model input: they are
   // left out here, so continuing such a chat sends only what was said in VOOL.
-  return (history || []).filter((m) => !(m && m.imported)).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
+  // A question whose reply was cut off by VOOL stopping is shown, not sent: Ask again sends it.
+  return (history || []).filter((m) => !(m && (m.imported || m.interrupted))).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
 }
 function applyResponseCommit(run, commit) {
   if (!run || !commit || commit.type !== 'response.commit' || Number(commit.version) < 1) return false;
@@ -2798,7 +2839,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const rawOf = () => (span.dataset.raw != null ? span.dataset.raw : span.textContent);
   const copy = document.createElement('button');
   copy.type = 'button';
-  copy.className = 'msg-copy';
+  copy.className = 'vi msg-copy'; copy.dataset.ico = 'copy';
   copy.textContent = pageT('msg.copy', 'Copy');
   copy.title = role === 'assistant' ? pageT('msg.copy_source_title', 'Copy message source (raw Markdown, exactly as stored)') : pageT('msg.copy_title', 'Copy message');
   copy.addEventListener('click', () => copyText(rawOf(), copy));
@@ -2806,7 +2847,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   if (role === 'assistant') {
     const copyTextBtn = document.createElement('button');
     copyTextBtn.type = 'button';
-    copyTextBtn.className = 'msg-copy msg-copy-text';
+    copyTextBtn.className = 'vi msg-copy msg-copy-text'; copyTextBtn.dataset.ico = 'copy-text';
     copyTextBtn.textContent = pageT('msg.copy_text', 'Copy text');
     copyTextBtn.title = pageT('msg.copy_text_title', 'Copy as plain text (Markdown formatting removed)');
     copyTextBtn.addEventListener('click', () => copyText(mdToPlainText(rawOf()), copyTextBtn));
@@ -2814,7 +2855,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
     if (richClipboardSupported()) {
       const copyRichBtn = document.createElement('button');
       copyRichBtn.type = 'button';
-      copyRichBtn.className = 'msg-copy msg-copy-rich';
+      copyRichBtn.className = 'vi msg-copy msg-copy-rich'; copyRichBtn.dataset.ico = 'copy-rich';
       copyRichBtn.textContent = pageT('msg.copy_rich', 'Copy rich');
       copyRichBtn.title = pageT('msg.copy_rich_title', 'Copy with formatting (sanitized HTML + plain text — the receiving app decides how it renders)');
       copyRichBtn.addEventListener('click', () => copyRichMessage(rawOf(), copyRichBtn));
@@ -2826,14 +2867,14 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   // as to any typed message, and the earlier turn stays in the chat exactly as it happened.
   if (role === 'assistant') {
     const retry = document.createElement('button');
-    retry.type = 'button'; retry.className = 'msg-act msg-retry';
+    retry.type = 'button'; retry.className = 'vi msg-act msg-retry'; retry.dataset.ico = 'retry';
     retry.textContent = pageT('msg.retry', 'Try again');
     retry.title = pageT('msg.retry_title', 'Ask the same question again as a new message');
     retry.addEventListener('click', () => resendFromBubble(el, true));
     actions.insertBefore(retry, actions.firstChild);   // the main action comes first
   } else if (role === 'user') {
     const edit = document.createElement('button');
-    edit.type = 'button'; edit.className = 'msg-act msg-edit';
+    edit.type = 'button'; edit.className = 'vi msg-act msg-edit'; edit.dataset.ico = 'rename';
     edit.textContent = pageT('msg.edit', 'Edit');
     edit.title = pageT('msg.edit_title', 'Put this message back in the box to change it and send it again');
     edit.addEventListener('click', () => resendFromBubble(el, false));
@@ -2841,11 +2882,12 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   }
   // Pin: save this message to the chat so it's findable later (📌 in the header opens the pinned list).
   const pin = document.createElement('button');
-  pin.type = 'button'; pin.className = 'msg-act msg-pin';
+  pin.type = 'button'; pin.className = 'vi msg-act msg-pin'; pin.dataset.ico = 'pin';
   setPinBtn(pin, isPinnedLocal(role, text));
   pin.addEventListener('click', () => togglePin(role, text, pin));
   actions.appendChild(pin);
   el.appendChild(actions);
+  wireActionTips(actions);
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
   if (displayMetadata && displayMetadata.private_chat) markPrivateMsg(el);
   logEl.appendChild(el);
@@ -2854,6 +2896,20 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
 }
 
 function msgTextEl(el) { return el.querySelector('.msg-text'); }
+
+// The pill's tooltip shows each button's own current name -- its translated label, or "Copied" /
+// "Copy failed" / "Pinned" while that feedback is up -- so it follows every later text change.
+// Icon-only buttons (thumbs-down, PDF) fall back to their aria-label.
+function wireActionTips(actions) {
+  if (!actions || actions.dataset.tips) return;
+  actions.dataset.tips = '1';
+  const sync = () => actions.querySelectorAll('button').forEach((b) => {
+    const tip = (b.textContent || '').trim() || b.getAttribute('aria-label') || b.title || '';
+    if (b.dataset.tip !== tip) b.dataset.tip = tip;
+  });
+  sync();
+  try { new MutationObserver(sync).observe(actions, { childList: true, subtree: true, characterData: true }); } catch (e) {}
+}
 
 // ---- Private chat (core.private_chat) ----
 // "private chat" / "don't record this" turns it on; "turn recording back on" ends it. The server owns
@@ -3481,22 +3537,49 @@ function makeSessionItem(s, archived, nested) {
   }
   const actions = document.createElement('div');
   actions.className = 's-actions';
+  // Always on the row: pin (one toggle), rename, archive, delete. The rarer two, emoji/colour and
+  // move-to-project, sit behind one chevron; open, it shows those two in place of the usual four.
+  const more = document.createElement('span');
+  more.className = 's-more';
   const semo = document.createElement('button');
   semo.type = 'button'; semo.className = 's-act vi'; semo.dataset.ico = 'palette'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour'); semo.setAttribute('aria-label', 'Emoji and colour for this chat');
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
-  actions.appendChild(semo);
+  more.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
     move.type = 'button'; move.className = 's-act vi'; move.dataset.ico = 'move'; move.title = pageT('session.move_title', 'Move to project'); move.setAttribute('aria-label', 'Move chat to a project');
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
-    actions.appendChild(move);
+    more.appendChild(move);
   }
+  const moreB = document.createElement('button');
+  moreB.type = 'button'; moreB.className = 's-act s-more-toggle vi'; moreB.dataset.ico = 'chevron-left';
+  const setMoreOpen = (open) => {
+    item.classList.toggle('more-open', open);
+    moreB.setAttribute('aria-expanded', open ? 'true' : 'false');
+    moreB.title = open ? pageT('session.less_title', 'Fewer actions') : pageT('session.more_title', 'More: emoji, colour, move to project');
+    moreB.setAttribute('aria-label', moreB.title);
+  };
+  setMoreOpen(_sessionMoreOpen === s.session_id);   // survives the sidebar's own re-renders
+  moreB.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !item.classList.contains('more-open');
+    if (open) document.querySelectorAll('#sessions .session.more-open').forEach((row) => { if (row !== item) row.classList.remove('more-open'); });
+    _sessionMoreOpen = open ? s.session_id : '';
+    setMoreOpen(open);
+  });
+  actions.appendChild(more); actions.appendChild(moreB);
   if (!archived) {
+    // One pin control. Its state is the chat's: filled and always shown while pinned, a plain
+    // outline on hover while not. Clicking it flips that state.
     const pinB = document.createElement('button');
-    pinB.type = 'button'; pinB.className = 's-act'; pinB.textContent = s.pinned ? '\u{1F4CD}' : '\u{1F4CC}';
-    pinB.title = s.pinned ? 'Unpin chat' : 'Pin chat to the top';
+    pinB.type = 'button'; pinB.className = 's-act s-pin vi' + (s.pinned ? ' on' : '');
+    pinB.dataset.ico = s.pinned ? 'pin-filled' : 'pin';
+    pinB.title = s.pinned ? pageT('session.unpin_title', 'Unpin chat') : pageT('session.pin_title', 'Pin chat to the top');
+    pinB.setAttribute('aria-label', pinB.title);
+    pinB.setAttribute('aria-pressed', s.pinned ? 'true' : 'false');
     pinB.addEventListener('click', (e) => { e.stopPropagation(); setChatPinned(s.session_id, !s.pinned); });
     actions.appendChild(pinB);
+    if (s.pinned) item.classList.add('pinned');
   }
   const ren = document.createElement('button');
   ren.type = 'button'; ren.className = 's-act vi'; ren.dataset.ico = 'rename'; ren.title = pageT('session.rename_title', 'Rename'); ren.setAttribute('aria-label', 'Rename chat');
@@ -3511,15 +3594,22 @@ function makeSessionItem(s, archived, nested) {
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
-  if (s.pinned && !archived) { const pm = document.createElement('span'); pm.className = 's-pin-mark'; pm.textContent = '\u{1F4CC}'; pm.title = 'Pinned'; item.appendChild(pm); }
   if (!archived) appendLifecycleBadge(item, sidebarLifecycleState(s.session_id));
   item.appendChild(actions);
   return item;
 }
+// The one sidebar row whose chevron is open (emoji/colour and move showing), kept across re-renders.
+let _sessionMoreOpen = '';
 async function setChatPinned(sid, pinned) {
+  let ok = false, reached = true;
   try {
-    await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
-  } catch (e) {}
+    const res = await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
+    const data = await res.json().catch(() => ({}));
+    ok = res.ok && data.ok !== false;
+  } catch (e) { reached = false; }
+  // A refused or lost change is said out loud; the reload below shows the state the server kept.
+  if (!ok) toast(!reached ? pageT('session.pin_unreachable', "VOOL couldn't be reached, so the pin didn't change.")
+    : pageT('session.pin_failed', "Couldn't change this chat's pin. Try again in a moment."));
   await loadSessions();
 }
 // Stop a chat's own running turn the way its Stop button does: the server turn first (by its
@@ -4041,7 +4131,7 @@ function renderSessions(sessions) {
     const pinCollapsed = !!collapsed[PIN_KEY];
     const ph = document.createElement('div'); ph.className = 'proj-head pin-head' + (pinCollapsed ? ' collapsed' : '');
     const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = pinCollapsed ? '▸' : '▾';
-    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'Pinned';
+    const n = document.createElement('span'); n.className = 'proj-name vi'; n.dataset.ico = 'pin'; n.textContent = pageT('pin.pinned', 'Pinned');
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
     ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
     ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
@@ -4223,6 +4313,9 @@ function renderChat(chatId) {
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
   privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
+  // A rebuilt transcript keeps its interrupted-reply note: a question cut off by a restart (boot
+  // restore included, which never loads the Activity list) shows with Ask again under it.
+  if (!run) { if (!st.recoveredTask) st.recoveredTask = interruptedQuestion(st); if (st.recoveredTask) paintRecoveryNote(st); }
   followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
@@ -4795,7 +4888,7 @@ function provenancePlain(rawLine) {
     ? T('try_failed_cloud', 'a cloud model try failed') : T('try_failed', 'an AI model try failed'));
   for (const c of facts.cost) out.push(c);
   if (facts.costPartial) out.push(T('cost_partial', 'cost not fully reported'));
-  if (facts.localOnly) out.push(T('local_only', 'Local Only: cloud blocked'));
+  if (facts.localOnly) out.push(T('local_only', 'no cloud AI'));
   return out.join(' · ');
 }
 
@@ -5104,7 +5197,7 @@ function mountAnswerReport(host, chatId, requestId) {
   if (!actions) return;
   host.dataset.requestId = requestId; host.dataset.chatId = chatId;
   const report = document.createElement('button');
-  report.type = 'button'; report.className = 'msg-act msg-report';
+  report.type = 'button'; report.className = 'vi msg-act msg-report'; report.dataset.ico = 'report';
   report.textContent = pageT('msg.report', 'Report');
   report.title = pageT('msg.report_title', 'Report a wrong answer or a problem with this answer');
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
@@ -5125,8 +5218,8 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!actions) return;
   const label = (key, fallback) => (typeof pageT === 'function') ? pageT(key, fallback) : fallback;
   const button = document.createElement('button');
-  button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = label('msg.pdf_title', 'Download this answer as PDF');
+  button.type = 'button'; button.className = 'vi msg-act msg-export-pdf'; button.dataset.ico = 'download';
+  button.title = label('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');
@@ -6131,6 +6224,19 @@ function finishRun(run, kind, summaryText, tsIso) {
   if (run.historyIndex >= 0 && _owner.history[run.historyIndex]) _owner.history[run.historyIndex].ts = run.endedAt;
   clearRunTimers(run);
   if (kind !== 'awaiting_approval') applyResultSummary(run);
+  // A turn that ended without a reply the person did not stop says so in plain words. Measured on
+  // the 0.7.8 sweep (2026-11-12): a second turn failed on the server, the bubble kept its "…" and
+  // the person waited 15 minutes for nothing. The bubble's own Try again stays under it.
+  if ((kind === 'failed' || kind === 'cancelled') && !run.stopRequested && !run.responseCommit
+      && !String(run.text || '').trim()) {
+    run.text = pageT('run.no_reply_retry', "I couldn't finish that reply. Press Try again, or ask it another way.");
+    const _entry = run.historyIndex >= 0 ? _owner.history[run.historyIndex] : null;
+    if (_entry && _entry.role === 'assistant') _entry.content = run.text;
+    withRunDom(run, () => {
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      if (run.textEl) run.textEl.textContent = run.text;
+    });
+  }
   // Terminal events (task_completed/failed/cancelled) land right at stream close -- one last drain
   // if this run's chat is the one on screen with the panel open (openPanel does its own fresh read
   // when it is opened later, and a re-opened chat catches up from the run's own cursor).
@@ -8184,10 +8290,18 @@ async function loadActivityHistory() {
   try {
     const data = await fetchRuntimeActivity();
     activityHistory = Array.isArray(data.sessions) ? data.sessions : [];
-    target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available) || null;
-  } catch (e) { activityHistory = []; target.recoveredTask = null; }
+    target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available)
+      || interruptedQuestion(target) || null;
+  } catch (e) { activityHistory = []; target.recoveredTask = interruptedQuestion(target); }
   renderPanel();
   if (isDisplayed(chatId)) paintRecoveryNote(target);
+}
+// The chat's last question had its reply cut off by VOOL stopping, and nothing of it is left to
+// resume: the history row the server marks `interrupted` (INTERRUPT-01). The note offers Ask again.
+function interruptedQuestion(st) {
+  const last = st && st.history && st.history[st.history.length - 1];
+  if (!last || last.role !== 'user' || !last.interrupted) return null;
+  return { request_preview: String(last.content || ''), interruptedOnly: true };
 }
 // A chat whose turn was cut off by VOOL stopping is badged "Needs you" (it can be resumed). The
 // way to answer that lives in the Activity panel, so the chat itself says what happened and opens
@@ -8202,14 +8316,38 @@ function paintRecoveryNote(st) {
   const note = document.createElement('div');
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
-  text.textContent = 'This chat was interrupted when VOOL stopped.' + (asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '') + ' You can resume it or cancel it.';
-  const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
-  btn.addEventListener('click', () => openPanel());
-  note.appendChild(text); note.appendChild(btn);
+  const resumable = !st.recoveredTask.interruptedOnly;
+  text.textContent = 'Reply interrupted: VOOL stopped before it finished answering.'
+    + (asked && resumable ? ' You asked: \u201c' + asked.slice(0, 180) + '\u201d' : '')
+    + (resumable ? ' Ask again, or resume or cancel the saved work.' : (asked.endsWith('...') ? ' Ask it again to get the answer.' : ' Press Ask again to get the answer.'));
+  note.appendChild(text);
+  if (resumable) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
+    btn.addEventListener('click', () => openPanel());
+    note.appendChild(btn);
+  }
+  // The plain way back: send the same question again in this chat (the reply was cut off, so
+  // nothing of it was kept). Offered only when the question itself is known.
+  if (asked && !asked.endsWith('...')) {
+    const again = document.createElement('button');
+    again.type = 'button'; again.className = 'tc-view'; again.textContent = 'Ask again';
+    again.addEventListener('click', async () => {
+      const sid = displayedChat;
+      if (isChatBusy(sid)) return;
+      st.recoveredTask = null; note.remove();
+      // The cut-off question row gives way to the same question sent again, so it shows once.
+      const last = st.history[st.history.length - 1];
+      if (last && last.interrupted && last.role === 'user') { st.history.pop(); if (isDisplayed(sid)) renderChat(sid); }
+      await runTurn(asked, null, { chatId: sid });
+    });
+    note.appendChild(again);
+  }
   const empty = logEl.querySelector('.empty');
   if (empty) empty.remove();
-  logEl.insertBefore(note, logEl.firstChild);
+  // Under the question it belongs to when the chat shows it; first in an otherwise empty chat.
+  if (st.recoveredTask.interruptedOnly) logEl.appendChild(note);
+  else logEl.insertBefore(note, logEl.firstChild);
 }
 function historyProjectLabel(sid) {
   const chat = _lastSessions.find((item) => item.session_id === sid) || {};
@@ -9093,7 +9231,10 @@ async function runTurn(text, queueItemId, opts) {
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
   // `Working` header (measured 2026-09-06). `task.submitted` claims nothing about the server.
   if (typeof window !== 'undefined' && window.VoolCompanion) {
-    try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start }); } catch (e) {}
+    // The user's own words ride the event so the companion's bubble follows the conversation
+    // ("as we go") instead of the frozen first-message chat title. Presentation only: the
+    // reducer bounds it, the screen-privacy mask covers it before it reaches the native pet.
+    try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start, userText: text }); } catch (e) {}
   }
   run.attachments = turnAttachments;
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one
@@ -9119,12 +9260,12 @@ async function runTurn(text, queueItemId, opts) {
     // Resolve the owning chat's pin before the paid gate and carry it into the request inputs.
     // Local Only must override queued or trial models without a later page-state lookup.
     const chatModel = modelForChat(chatId);
-    const selectedModel = chatModel === LOCAL_ONLY_MODEL ? LOCAL_ONLY_MODEL : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
+    const selectedModel = isNoCloudModel(chatModel) ? chatModel : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
     // A try-once grant serving THIS turn reports "sticky" (a concrete id that degrades to
     // auto if unresolvable), never "pin" — it is not the operator's pin and must not
     // inherit the pin's hard-refusal semantics.
-    const trialServing = chatModel !== LOCAL_ONLY_MODEL && activeTryOnce(chatId, lastUser.content || '');
-    const modelSelection = chatModel === LOCAL_ONLY_MODEL ? 'pin' : opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (chatModel !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
+    const trialServing = !isNoCloudModel(chatModel) && activeTryOnce(chatId, lastUser.content || '');
+    const modelSelection = isNoCloudModel(chatModel) ? 'pin' : opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (chatModel !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
     // Restored pins need an explicit decision in this app session. A successful paid selection
     // already supplies it for the selected conversation, so the first send never asks twice.
     let sendRequiresPaidAck = false;
@@ -9791,6 +9932,7 @@ function attachmentMeta(a) {
 function historyEntryFromServer(m) {
   const entry = { role: m.role, content: m.content, ts: m.ts, request_id: m.request_id || '' };
   if (m.imported === true) entry.imported = true;
+  if (m.interrupted === true) entry.interrupted = true;
   if (m.artifact && typeof m.artifact === 'object') entry.artifact = { ...m.artifact };
   if (m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length) {
     entry.attachments = m.attachments.map((a) => Object.assign(attachmentMeta(a), { previewUrl: '' }));
@@ -10600,12 +10742,12 @@ function compactLabel(text, max) {
 }
 function reflectModel() {
   // Label priority: known tier -> friendly cloud name -> the raw id itself (never blank).
-  const label = modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
+  const label = isLocalOnlyMode() ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   reflectControl('modelPop', 'modelLbl', modelValue, { [modelValue]: label }, '');
   // When Auto is sticking to this chat's cloud model, mark the pill (📌) so the switching-stop is visible.
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
-  const laneKind = (modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL) ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
+  const laneKind = (modelValue === 'vool' || isLocalOnlyMode()) ? 'auto' : (isLocalModel(modelValue) ? 'local' : 'cloud');
   if (lane) { lane.textContent = pageT('header.lane_' + laneKind, laneKind); lane.className = 'model-lane ' + laneKind; }  // caps via CSS so the DOM i18n pass and this render agree
   if (lastConnectionSelection !== modelValue) {
     lastConnectionSelection = modelValue;
@@ -10619,11 +10761,15 @@ function reflectModel() {
   } else if (lbl) lbl.textContent = compactLabel(label);
   const where = document.getElementById('modelWhere');
   const known = !!modelValue && (MODEL_LABELS[modelValue] || isLocalModel(modelValue) || CLOUD_MODEL_ID_RE.test(modelValue));
-  if (where) where.textContent = isLocalOnlyMode()
-    ? pageT('header.run_computer_only', 'This computer only')
+  if (where) where.textContent = isOfflineMode()
+    ? pageT('header.run_offline', 'Offline')
+    : isLocalOnlyMode()
+    ? pageT('header.run_computer_only', 'Computer + web')
     : (known ? pageT('header.run_local_first', 'Local first') : String(modelValue || pageT('header.run_unknown', 'Unknown')));
   document.querySelectorAll('#modelPop .run-choice').forEach((it) => {
-    const checked = known && (it.getAttribute('data-run-model') === LOCAL_ONLY_MODEL) === isLocalOnlyMode();
+    const runModel = it.getAttribute('data-run-model');
+    // A concrete model pin (not one of the three run modes) shows under Local first, as before.
+    const checked = known && (RUN_MODES.includes(modelValue) ? runModel === modelValue : runModel === 'vool');
     it.setAttribute('aria-checked', checked ? 'true' : 'false'); it.tabIndex = checked || (!known && it.getAttribute('data-run-model') === 'vool') ? 0 : -1;
   });
   const autoRow = document.querySelector('#modelPop .pop-item[data-model="vool"]');
@@ -10632,9 +10778,9 @@ function reflectModel() {
     autoRow.setAttribute('aria-checked', auto ? 'true' : 'false');
     const check = autoRow.querySelector('.pi-check'); if (check) check.textContent = auto ? '✓' : '';
     const hint = autoRow.querySelector('.pi-hint');
-    if (hint) hint.textContent = isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'cloud blocked') : pageT('header.model_auto_hint', 'local-first · free');
+    if (hint) hint.textContent = isOfflineMode() ? pageT('header.run_offline_hint', 'nothing goes online') : isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'no cloud AI') : pageT('header.model_auto_hint', 'local-first · free');
   }
-  const disclosure = document.getElementById('runLocalDisclosure'); if (disclosure) disclosure.hidden = !isLocalOnlyMode();
+  paintRunModeNote();
   if (isLocalOnlyMode()) renderSelectionProvenance(null);
   renderConnections(lastConnectionRows || []);
   syncModelConnectionTitle();
@@ -10720,6 +10866,7 @@ function initComposerControls() {
           // box, 2026-09-10: test green, Quick Pick empty). Re-read the credential NAMES on
           // open — the same cheap GET boot already does; setCloudConnected renders when it flips.
           refreshCredentials();
+          refreshRunWebState();
         }
       }
     });
@@ -10786,7 +10933,9 @@ function initComposerControls() {
     it.addEventListener('keydown', (e) => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
       e.preventDefault();
-      const next = document.querySelector('#modelPop .run-choice[data-run-model="' + (isLocalOnlyMode() ? 'vool' : LOCAL_ONLY_MODEL) + '"]');
+      const at = Math.max(0, RUN_MODES.indexOf(RUN_MODES.includes(modelValue) ? modelValue : 'vool'));
+      const step = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 1;
+      const next = document.querySelector('#modelPop .run-choice[data-run-model="' + RUN_MODES[(at + step + RUN_MODES.length) % RUN_MODES.length] + '"]');
       if (next) { next.click(); next.focus(); }
     });
   });
@@ -10795,7 +10944,7 @@ function initComposerControls() {
       e.stopPropagation();
       // Paid/OpenRouter tiers are disabled until a key is wired -- never select a dead tier.
       if (it.disabled || it.getAttribute('aria-disabled') === 'true') return;
-      modelValue = it.getAttribute('data-model') === 'vool' && isLocalOnlyMode() ? LOCAL_ONLY_MODEL : it.getAttribute('data-model');
+      modelValue = it.getAttribute('data-model') === 'vool' && isLocalOnlyMode() ? modelValue : it.getAttribute('data-model');
       rememberActiveModel();
       releaseServerChatPin(displayedChat);
       // Selecting (or leaving) Local Only changes which rows may be offered at all, so the cloud
@@ -10883,14 +11032,14 @@ function chatRoute() {
   const selected = sticky ? view.stickyModel : modelValue;
   if (selected === 'vool') return { kind: 'auto', provider: '', model: '' };
   if (!selected || (!MODEL_LABELS[selected] && !isLocalModel(selected) && !CLOUD_MODEL_ID_RE.test(selected))) return { kind:'unknown', provider:'', model:String(selected || '') };
-  if (selected === LOCAL_ONLY_MODEL) return { kind: 'local-only', provider: '', model: '' };
+  if (isNoCloudModel(selected)) return { kind: 'local-only', provider: '', model: '' };
   if (isLocalModel(selected) || MODEL_LABELS[selected]) return { kind: 'local', provider: '', model: String(selected) };
   const match = String(selected).match(/^(openrouter|openai|anthropic|groq|google|deepseek|moonshot|usepod|custom):/);
   return { kind: sticky ? 'sticky' : 'pin', provider: match ? match[1] : 'openrouter', model: match ? String(selected).slice(match[0].length) : String(selected) };
 }
 function selectedCloudProvider() { return chatRoute().provider; }
 function selectRunMode(value) {
-  if (value !== 'vool' && value !== LOCAL_ONLY_MODEL) return;
+  if (!RUN_MODES.includes(value)) return;
   view.stickyModel = '';
   if (tryOnceGrant && tryOnceGrant.chatId === String(displayedChat)) tryOnceGrant = null;
   setModelValue(value);
@@ -10898,7 +11047,56 @@ function selectRunMode(value) {
   releaseServerChatPin(displayedChat);
   if (cloudKeyConnected) { if (isLocalOnlyMode()) clearCloudModels(); else renderCloudModels(); }
   reflectModel();
+  // Picking a mode that may go online IS the operator's opt-in to web lookups (owner decision
+  // 2026-11-11): a fresh install keeps Web lookups off until someone picks Computer + web or
+  // Local first here, and the Settings switch reads the same authority.
+  if (value !== OFFLINE_MODEL) ensureWebLookupsOn(); else refreshRunWebState();
   positionPopover(document.getElementById('modelPop'), document.getElementById('modelBtn'));
+}
+// The live web-lookups truth (same authority as Settings > Web lookups): null = not read yet / unreadable.
+let runWebState = null;
+let runWebJustEnabled = false;
+async function refreshRunWebState() {
+  try {
+    const r = await fetch('/api/onboarding/pact?view=boundary', { cache: 'no-store' });
+    const j = await r.json().catch(() => null);
+    runWebState = (r.ok && j && j.ok !== false && typeof j.allow_web_fallback === 'boolean' && typeof j.local_only_mode === 'boolean')
+      ? { web: j.allow_web_fallback && !j.local_only_mode, machineOffline: j.local_only_mode } : null;
+  } catch (e) { runWebState = null; }
+  paintRunModeNote();
+}
+async function ensureWebLookupsOn() {
+  await refreshRunWebState();
+  if (!runWebState || runWebState.web || runWebState.machineOffline) return;
+  try {
+    const r = await fetch('/api/onboarding/pact/boundary', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'web_lookups', value: true }),
+    });
+    const j = await r.json().catch(() => null);
+    runWebJustEnabled = !!(r.ok && j && j.ok !== false);
+  } catch (e) { runWebJustEnabled = false; }
+  await refreshRunWebState();
+}
+// The short notice under the three run modes: what the selected mode does, plus the live web state
+// when it changes what the mode can do. Never claims web access the authority did not report.
+function paintRunModeNote() {
+  const note = document.getElementById('runModeNote');
+  if (note) note.textContent = isOfflineMode()
+    ? pageT('header.run_offline_explainer', 'Nothing leaves this computer. No cloud AI, no web lookups.')
+    : isLocalOnlyMode()
+    ? pageT('header.run_computer_only_explainer', 'The AI runs on this computer. If a question needs fresh info like weather, prices or Wikipedia, VOOL looks it up online. Only the lookup itself goes out, not your chats or files.')
+    : pageT('header.run_local_first_explainer', 'Uses this computer first, and free cloud AI only if needed. Looks things up on the web when a question needs it.');
+  const web = document.getElementById('runWebNote');
+  if (!web) return;
+  let text = '';
+  if (!isOfflineMode() && runWebState) {
+    if (runWebState.machineOffline) text = pageT('header.run_web_machine_offline', 'This computer is set to keep everything on this machine, so VOOL stays offline in every mode.');
+    else if (!runWebState.web) text = pageT('header.run_web_off', 'Web lookups are off, so VOOL will not look things up online. Turn them on in Settings, Privacy & Permissions.');
+    else if (runWebJustEnabled) text = pageT('header.run_web_turned_on', 'Web lookups are now on.');
+  }
+  web.textContent = text;
+  web.hidden = !text;
 }
 function renderConnections(conns) {
   lastConnectionRows = conns || [];
@@ -10931,7 +11129,7 @@ function renderConnections(conns) {
     const d = document.createElement('span'); d.className = 'dot ok'; cloudPillEl.appendChild(d);
     const t = document.createElement('span'); t.className = 'cp-txt'; t.textContent = pageT('header.cloud_local', 'Local'); cloudPillEl.appendChild(t);
     cloudPillEl.title = route.kind === 'local-only'
-      ? pageT('header.run_blocked_title', 'This chat runs on this computer; cloud blocked. Click to choose a model.')
+      ? (isOfflineMode() ? pageT('header.run_offline_title', 'This chat is Offline: nothing leaves this computer. Click to choose a mode.') : pageT('header.run_blocked_title', 'The AI for this chat runs on this computer; it may look things up on the web. Click to choose a mode.'))
       : pageTF('header.run_local_title', 'This chat is pinned to the local model {model} — no cloud provider is used. Click to choose a model.', {model:route.model});
     syncModelConnectionTitle(); return;
   }
@@ -10967,7 +11165,7 @@ function renderConnections(conns) {
 }
 function syncModelConnectionTitle() {
   const btn = document.getElementById('modelBtn'), where = document.getElementById('modelWhere');
-  const label = modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
+  const label = modelValue === 'vool' || isLocalOnlyMode() ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   const detail = document.getElementById('modelConnectionDetail');
   const sticky = modelValue === 'vool' && view.stickyModel ? pageT('header.run_sticky_suffix', ' — Auto is staying on ') + view.stickyModel : '';
   if (btn) btn.title = [label, where ? where.textContent : '', cloudPillEl ? cloudPillEl.title + sticky : '', detail ? detail.textContent : ''].filter(Boolean).join(' — ');
@@ -11005,7 +11203,7 @@ function setCloudConnected(on) {
   if (orKeyEl) orKeyEl.value = '';
   const note = document.querySelector('#modelPop .pop-note');
   if (note) note.textContent = isLocalOnlyMode()
-    ? pageT('header.model_local_only_explainer', 'Local Only never reaches a cloud provider.')
+    ? pageT('header.model_local_only_explainer', 'This chat never uses a cloud AI.')
     : (cloudKeyConnected ? pageT('header.run_explainer', 'Auto never picks a paid model. Choosing a model below pins it.') : pageT('header.model_connect_note', 'Connect a provider key in Settings.'));
   // Add the live model list when connected; strip it back to the static popover when not.
   // Only the false->true TRANSITION renders: renderCloudModels() clears the rows before its
@@ -11209,7 +11407,7 @@ function renderSelectionProvenance(sel) {
   if (!el) return;
   if (sel == null && isLocalOnlyMode()) {
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_title', 'Where VOOL can run')) + '</b><span>' + esc(pageT('header.run_prov_local_only', 'Local Only — this machine; cloud blocked')) + '</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_title', 'Where VOOL can run')) + '</b><span>' + esc(isOfflineMode() ? pageT('header.run_prov_offline', 'Offline — nothing leaves this computer') : pageT('header.run_prov_local_only', 'Computer + web — no cloud AI')) + '</span></span>';
     return;
   }
   if (!sel || !sel.ok) {
@@ -11276,7 +11474,7 @@ function serverSelectionId(j) {
 }
 function isCloudPinId(id) {
   const value = String(id || '');
-  if (!value || value === 'vool' || value === LOCAL_ONLY_MODEL || MODEL_LABELS[value] || isLocalModel(value)) return false;
+  if (!value || value === 'vool' || isNoCloudModel(value) || MODEL_LABELS[value] || isLocalModel(value)) return false;
   return value.indexOf('openrouter') === 0 || CLOUD_MODEL_ID_RE.test(value);
 }
 // For a chat entered mid-session: a cloud pin the server holds for THIS chat is adopted, so the
@@ -14556,7 +14754,7 @@ function noModelNeeded() {
   const cd = noModelState;
   if (!cd || cd.check_failed || cd.local_model_running !== false) return false;
   const m = String((typeof modelValue === 'string' && modelValue) || 'vool');
-  if (m === LOCAL_ONLY_MODEL) return true;                                   // only a local model may answer
+  if (isNoCloudModel(m)) return true;                                        // only a local model may answer
   if (m !== 'vool' && !MODEL_LABELS[m] && !isLocalModel(m)) return false;     // this chat names a cloud model
   if (m === 'vool' && view && view.stickyModel) return false;                 // Auto sticks to this chat's cloud model
   const saved = cd.decision === 'use_cloud' && !!cd.model && Array.isArray(cd.candidates)
@@ -14705,6 +14903,11 @@ def _no_model_leads_js() -> str:
     except Exception:
         leads = [NO_MODEL_NOTICE_LEAD]
     leads.append(LEGACY_NO_MODEL_NOTICE_LEAD)
+    # The not-yet-checked-model refusal ends with its technical cause too ("Details: ..."); the
+    # same fold keeps it behind "details", and the Set up button names the way forward.
+    from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD
+
+    leads.append(UNCERTIFIED_AUTHOR_NOTICE_LEAD)
     # `<` is escaped so translated text can never close the script element.
     return json.dumps(leads, ensure_ascii=False).replace("<", "\\u003c")
 

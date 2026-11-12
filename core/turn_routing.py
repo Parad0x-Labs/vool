@@ -500,8 +500,14 @@ def mint_turn_routing_plan(
     applied_rule_ids: tuple[str, ...] = (),
     retry_linkage: Mapping[str, Any] | None = None,
     now_unix_ms: int | None = None,
+    not_installed_provider_ids: frozenset[str] | None = None,
 ) -> TurnRoutingPlan:
     """Mint the turn's ONE routing plan — the only constructor of live plans.
+
+    ``not_installed_provider_ids``: local providers whose own server reports their model is not
+    installed. Such a candidate can never answer, so it is ``not_installed`` -- never the plan's
+    selected model (0.7.8 sweep: every plan named an uninstalled qwen3.5:9b while qwen3:8b wrote
+    every answer). The caller reads each server's inventory; this function stays pure.
 
     Identity first, fences second, ladder third:
 
@@ -577,6 +583,8 @@ def mint_turn_routing_plan(
             else tuple(pid for pid in allowed_provider_ids if pid == requested_provider)
         )
 
+    missing = frozenset(str(pid) for pid in (not_installed_provider_ids or ()))
+
     rows: list[CandidateEligibility] = []
     for manifest in manifest_list:
         try:
@@ -596,6 +604,8 @@ def mint_turn_routing_plan(
             allowed_models=effective_allowed_models,
             paid_allowed=paid_allowed,
         )
+        if reason == "eligible" and provider_id in missing:
+            reason = "not_installed"
         rows.append(
             CandidateEligibility(
                 provider_id=provider_id,

@@ -235,9 +235,9 @@ def test_explicit_remote_fetch_false_uses_local_memory_on_trusted_surface(make_a
 def test_live_info_without_web_fallback_returns_deterministic_disabled_response(make_agent, context_result_factory):
     """With the web fallback disabled, a live price ask never delivers unverified numbers.
 
-    The old deterministic pre-model refusal moved to the output truth guard: the model may run,
-    but a value-asserting answer about a current price this turn never observed is replaced by
-    the honest no-reading refusal, so no stale figure reaches the user."""
+    Owner decision 2026-11-12: with Web lookups off the front door answers a live price ask with
+    the plain switch sentence before any model call, so no stale figure can reach the user and the
+    person learns where to turn lookups on."""
     agent = make_agent()
     agent.context_loader.load = mock.Mock(return_value=context_result_factory())  # type: ignore[assignment]
     agent.memory_router.resolve = mock.Mock(  # type: ignore[assignment]
@@ -263,8 +263,10 @@ def test_live_info_without_web_fallback_returns_deterministic_disabled_response(
 
     response = result["response"].lower()
     assert "67,432.18" not in response and "coingecko" not in response, result["response"]
-    assert "didn't run any live lookup" in response, result["response"]
-    assert "not going to state them" in response, result["response"]
+    from core.remote_fetch_policy import WEB_OFF_TEXT
+
+    assert result["response"] == WEB_OFF_TEXT
+    agent.memory_router.resolve.assert_not_called()
     for marker in FORBIDDEN_CHAT_WRAPPERS:
         assert marker not in response
 
@@ -436,7 +438,7 @@ def test_help_turn_uses_deterministic_fast_path_when_no_cached_answer(make_agent
     )
 
     assert result["response_class"] == "utility_answer"
-    assert "wired on this runtime" in result["response"].lower()
+    assert "here's what i can do on this computer" in result["response"].lower()
     agent.memory_router.resolve.assert_not_called()
     assert result["model_execution"]["used_model"] is False
 

@@ -22,6 +22,7 @@ from core.memory import entries as memory_entries
 from core.memory import learning as memory_learning
 from core.memory.admission import _APOSTROPHES
 from core.memory.command_result import _ForgetOutcomeRegistry
+from core.memory.copies import forget_copies, kept_note
 from core.memory.files import (
     MAX_CONVERSATION_LOG_BYTES as _MAX_CONVERSATION_LOG_BYTES,
 )
@@ -634,6 +635,8 @@ def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> t
     if len(applied) == len(results):
         removed = sum(int(re.search(r"Removed (\d+)", reply).group(1)) for reply in applied)
         reply = f"Forget applied. Removed {removed} memory entr{'y' if removed == 1 else 'ies'}."
+        note = kept_note({"stores": stores})
+        reply = f"{reply} {note}" if note else reply
     else:
         reply = "\n".join(reply for reply, _, _ in results)
     return reply, combined, {"stores": stores}
@@ -792,13 +795,25 @@ def _memory_recall_value(text: str) -> str:
     return clean
 
 
+#: Words that frame a recall question rather than name the fact asked for.
+_RECALL_FRAME_TERMS = frozenset(
+    __import__("core.chat_housekeeping", fromlist=["query_terms"]).query_terms(
+        "tell told say said mention mentioned remember remembered recall know chat chats another "
+        "other earlier before previous conversation ask asked saved save me"
+    )
+)
+
+
 def _memory_recall_response(
     query: str,
     *,
     access_policy: ContextAccessPolicy,
 ) -> str:
     lowered = " ".join(str(query or "").casefold().split())
-    if any(marker in lowered for marker in _OTHER_CHAT_MEMORY_MARKERS):
+    if any(marker in lowered for marker in _OTHER_CHAT_MEMORY_MARKERS) and not access_policy.allow_user_profile_context:
+        # Only where cross-chat reading is not allowed. In the owner's own chat their saved memory
+        # is readable from every chat and is searched below like any recall; mentions that were
+        # never saved are the cross-chat recall lane's (core.agent_runtime.cross_chat_recall).
         return (
             "I can only access active memory from this chat; I don't have access to memory from another chat."
         )
@@ -813,6 +828,8 @@ def _memory_recall_response(
         )
     )
     stored_rows = list_memory_entries(access_policy=access_policy, limit=20)
+    stale_request = False
+    subject = ""
     if list_request:
         rows = stored_rows[:8]
     else:
@@ -876,6 +893,41 @@ def _memory_recall_response(
                 access_policy=access_policy,
                 limit=4,
             )
+            # The best-matching rows only: measured 2026-11-11 on the installed build, "do you
+            # remember my test hotel booking code?" answered the bike lock code beside the hotel
+            # code, because both share "test" and "code". A row that matches fewer of the
+            # question's words than the best one answers a different question.
+            if len(rows) > 1:
+                from core.chat_housekeeping import query_terms as _terms
+
+                wanted = set(_terms(query))
+                overlaps = [len(wanted & set(_terms(str(row.get("text") or "")))) for row in rows]
+                best_overlap = max(overlaps)
+                rows = [row for row, overlap in zip(rows, overlaps, strict=True) if overlap == best_overlap]
+    if not list_request and len(rows) > 1:
+        # The best-matching rows only, whichever branch selected them: "do you remember my test
+        # hotel booking code?" listed the bike lock code beside it (both share "test", "code").
+        from core.chat_housekeeping import query_terms as _terms
+
+        wanted = set(_terms(query))
+        overlaps = [len(wanted & set(_terms(str(row.get("text") or "")))) for row in rows]
+        rows = [row for row, overlap in zip(rows, overlaps, strict=True) if overlap == max(overlaps)]
+    if not list_request and not stale_request and not subject and rows:
+        # A saved row answers only when it holds most of what was asked. "What did I tell you in
+        # another chat about my test parking spot?" listed the hotel and bike-lock codes, which
+        # share nothing with it but "test" (battery v8, 2026-11-11). Typed slot questions ("the
+        # current exact identifier") are matched by their slot above, not here. With no such row
+        # this lane has nothing to say, and the turn goes on to the cross-chat lane and the conversation.
+        from core.chat_housekeeping import _doc_stems, _term_in
+        from core.chat_housekeeping import query_terms as _terms
+
+        asked = [term for term in _terms(query) if term not in _RECALL_FRAME_TERMS]
+        if asked:
+            rows = [
+                row
+                for row in rows
+                if 2 * sum(1 for term in asked if _term_in(term, _doc_stems(str(row.get("text") or "")))) > len(asked)
+            ]
     values: list[str] = []
     for row in rows:
         value = _memory_recall_value(str(row.get("text") or ""))
@@ -898,8 +950,8 @@ def _memory_recall_response(
             f"- {value}" for value in values[:8]
         )
     if len(values) == 1:
-        return f"Active remembered value: {values[0]}."
-    return "Active remembered values: " + "; ".join(values[:4]) + "."
+        return f"From what you asked me to remember: {values[0]}."
+    return "From what you asked me to remember: " + "; ".join(values[:4]) + "."
 
 
 def _correction_values(body: str) -> list[str]:
@@ -2340,6 +2392,7 @@ def maybe_handle_memory_command(
     if not (
         scope_command is not None
         or lowered in {"/memory", "what do you remember", "show memory"}
+        or _MEMORY_INVENTORY_RE.fullmatch(" ".join(lowered.split()).strip(" ?.!"))
         or _memory_capture_match(text)
         or _CORRECTION_RE.match(text)
         or _FORGET_RE.match(text)
@@ -2430,7 +2483,7 @@ def maybe_handle_memory_command(
             f", forced local by privacy guard: {int(result.get('blocked_shards') or 0)}."
         )
         return True, f"Session scope set to {label}. {scope_note}{protected}{stats}"
-    if lowered in {"/memory", "what do you remember", "show memory"}:
+    if lowered in {"/memory", "what do you remember", "show memory"} or _MEMORY_INVENTORY_RE.fullmatch(" ".join(lowered.split()).strip(" ?.!")):
         summary = summarize_memory(
             access_policy=resolved_policy,
             limit=8,
@@ -2445,8 +2498,14 @@ def maybe_handle_memory_command(
         # dressed up as "Active remembered value" answers a DIFFERENT question than the one asked.
         if _asks_about_transcript_order(text):
             return False, ""
-        asked_for_an_inventory = _memory_recall_empty_result_is_explicit(text) or any(
-            marker in text.casefold() for marker in _OTHER_CHAT_MEMORY_MARKERS
+        about_other_chats = any(marker in text.casefold() for marker in _OTHER_CHAT_MEMORY_MARKERS)
+        # In the owner's own chat a question about another chat is not an inventory of saved
+        # memory: what was only SAID there is the cross-chat recall lane's to find, so an empty
+        # lookup here hands the turn on instead of answering "nothing in this chat".
+        asked_for_an_inventory = (
+            not resolved_policy.allow_user_profile_context
+            if about_other_chats
+            else _memory_recall_empty_result_is_explicit(text)
         )
         response = _memory_recall_response(
             text,
@@ -2585,7 +2644,9 @@ def maybe_handle_memory_command(
             erasures: dict[str, Any] = {}
 
             def outcome(reply: str, status: str) -> tuple[str, str, dict[str, Any]]:
-                return reply, status, erasures
+                # What a finished forget leaves holding the words (the forget list itself) is said, never implied.
+                note = kept_note(erasures) if status in {"applied", "already_erased", "no_match"} else ""
+                return (f"{reply} {note}" if note else reply), status, erasures
 
             referential, token = _referential_forget_token(
                 argument,
@@ -2733,6 +2794,9 @@ def maybe_handle_memory_command(
             # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
             # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
             forget_run_history(token, chat_id=resolved_session, erasures=erasures, command=text)
+            # The update backups, the log files and the file undo copies kept what the live stores no longer
+            # did; a rollback would have brought a forgotten fact back (red-team pass on 0.7.7, 2026-10-30).
+            forget_copies(token, chat_id=resolved_session, erasures=erasures)
             for owner, operation_store in owner_stores.items():
                 block_status: dict[str, Any] = {}
                 try:
@@ -3048,17 +3112,40 @@ def _forget_persisted_copies(token: str, *, chat_id: str, erasures: dict[str, An
         os.environ.get("VOOL_MIRROR_URL") or "").strip() else "not_applicable")
 
 
+#: The owner's own words binding a remembered fact to the current chat only.
+_CHAT_BOUND_REMEMBER_RE = re.compile(
+    r"\b(?:for|in|within|to)\s+(?:this|the\s+current)\s+(?:chat|conversation|thread)\b"
+    r"|\b(?:this|the\s+current)\s+(?:chat|conversation|thread)\s+only\b"
+    r"|\bonly\s+(?:here|in\s+here)\b",
+    re.IGNORECASE,
+)
+
+
+#: An ask for the WHOLE of what VOOL remembers, in the ways people say it. Only the three literal
+#: strings above used to open the inventory: measured 2026-11-11 on 0.7.8, "What do you remember
+#: about me?" reached a model that saw no memory rows (nothing overlapped "about me") and answered
+#: "I don't remember anything specific about you yet" while saved facts existed.
+_MEMORY_INVENTORY_RE = re.compile(
+    r"(?:what|wat)\s+(?:do|did|have)\s+you\s+(?:remember(?:ed)?|know|saved|stored)(?:\s+about\s+me)?"
+    r"|(?:what'?s|whats|what\s+is)\s+in\s+(?:your\s+)?memory"
+    r"|(?:show|list|tell)(?:\s+me)?\s+(?:everything|all|what)\s+(?:you\s+)?(?:remember|know\s+about\s+me|have\s+saved|saved)"
+    r"|(?:show|list)\s+(?:my\s+)?memor(?:y|ies)",
+    re.IGNORECASE,
+)
+
+
 def _memory_scope_for_user_fact(
     fact: str,
     *,
     policy: ContextAccessPolicy,
 ) -> str:
-    """Keep ordinary remembered facts in the chat namespace.
+    """Decide where an explicitly remembered, owner-authored fact lives.
 
-    Private local chats may import confirmed profile preferences, but that does
-    not make every user-authored fact a profile preference.  Only explicit
-    preference/identity language is eligible for profile scope; all other
-    captures stay bound to their originating chat.
+    In the owner's trusted private local chats (the ones holding the confirmed
+    profile grant) an authored fact is the owner's own memory and is stored at
+    profile scope, readable from their other chats; the owner keeps one to the
+    current chat by saying so ("for this chat").  Chats without the grant
+    (groups, channels, remote callers) keep every capture in their own chat.
 
     Eligibility is decided on the fact's AUTHORED portion only: an explicitly
     remembered quotation ("Remember this article excerpt: \"My name is Petra.
@@ -3076,7 +3163,19 @@ def _memory_scope_for_user_fact(
         # The entire fact is quoted/fenced source material.
         return "chat"
     lowered = " ".join(authored.casefold().split())
-    return "user_profile" if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS) else "chat"
+    if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS):
+        return "user_profile"
+    # An explicit "remember X" the owner authors in their own trusted local chat is THEIR memory,
+    # and the product promise is that memory carries across sessions (docs/concepts/memory.md:
+    # "one store per VOOL home"). Measured 2026-11-10 on 0.7.8 c684e66d through the chat page:
+    # "Please remember that my dentist appointment is on 3 December at 9:30" answered "Locked in",
+    # and a new chat asked "When is my dentist appointment?" got "That is not mentioned in the
+    # records I have" -- the row was stored scope=chat, which no other chat may read. The owner
+    # can still keep a fact to one chat by saying so; group/channel chats never reach this line
+    # (they hold no profile grant), and quoted source material is classified out above.
+    if _CHAT_BOUND_REMEMBER_RE.search(lowered):
+        return "chat"
+    return "user_profile"
 
 
 #: Trailing connective framing that introduces quoted/pasted source material

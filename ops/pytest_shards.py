@@ -59,6 +59,7 @@ REQUIRED_EXECUTED_FILES = (
 class PytestManifest:
     item_count: int
     targets: tuple[str, ...]
+    skipped_targets: tuple[str, ...]
     items: tuple[tuple[str, str], ...]
 
 
@@ -207,6 +208,7 @@ def collect_test_manifest(
             raise ValueError("unexpected manifest schema")
         item_count = int(payload["item_count"])
         targets = tuple(str(item) for item in payload["targets"])
+        skipped_targets = tuple(str(item) for item in payload.get("skipped_targets", ()))
         raw_items = payload["items"]
         items = tuple((str(item["nodeid"]), str(item["path"])) for item in raw_items)
     except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
@@ -221,6 +223,12 @@ def collect_test_manifest(
     if len(targets) != len(set(targets)):
         print("!! pytest collection manifest contains duplicate files", flush=True)
         return 1, None
+    if (
+        len(skipped_targets) != len(set(skipped_targets))
+        or set(targets) & set(skipped_targets)
+    ):
+        print("!! pytest collection manifest has an invalid skipped-file inventory", flush=True)
+        return 1, None
     nodeids = tuple(nodeid for nodeid, _ in items)
     item_targets = {path for _, path in items}
     if len(items) != item_count or len(nodeids) != len(set(nodeids)):
@@ -229,8 +237,17 @@ def collect_test_manifest(
     if item_targets != set(targets):
         print("!! pytest collection file and node inventories disagree", flush=True)
         return 1, None
-    print(f"collected {item_count} items from {len(targets)} files", flush=True)
-    return 0, PytestManifest(item_count=item_count, targets=targets, items=items)
+    print(
+        f"collected {item_count} items from {len(targets)} files; "
+        f"{len(skipped_targets)} files skipped during collection",
+        flush=True,
+    )
+    return 0, PytestManifest(
+        item_count=item_count,
+        targets=targets,
+        skipped_targets=skipped_targets,
+        items=items,
+    )
 
 
 def partition_targets(
@@ -294,9 +311,12 @@ def tracked_test_targets(repo_root: Path) -> tuple[str, ...]:
 
 
 def collection_manifest_gaps(
-    collected_targets: Sequence[str], tracked_targets: Sequence[str]
+    collected_targets: Sequence[str],
+    tracked_targets: Sequence[str],
+    skipped_targets: Sequence[str] = (),
 ) -> tuple[str, ...]:
-    return tuple(sorted(set(tracked_targets) - set(collected_targets)))
+    observed = set(collected_targets) | set(skipped_targets)
+    return tuple(sorted(set(tracked_targets) - observed))
 
 
 def build_shard_command(
@@ -584,7 +604,9 @@ def run_collected_shards(
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             print(f"!! could not establish tracked test scope: {exc}", flush=True)
             return 1
-        gaps = collection_manifest_gaps(manifest.targets, tracked_targets)
+        gaps = collection_manifest_gaps(
+            manifest.targets, tracked_targets, skipped_targets=manifest.skipped_targets
+        )
         if gaps:
             print("!! canonical collection omitted tracked test files:", flush=True)
             for target in gaps:

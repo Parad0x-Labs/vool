@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 from typing import NamedTuple
+from collections.abc import Sequence
+from typing import Any
 
 # ---------------------------------------------------------------------------------------------
 # "Is this sentence ASKING THE RUNTIME for a fact, or is it merely ABOUT the topic?"
@@ -912,6 +914,9 @@ def refers_to_current_scope(text: str) -> bool:
     )
 
 
+_NOT_A_FOLDER_NAME = frozenset({"in", "on", "at", "from", "to", "of", "into", "inside", "there", "here", "it", "that", "this"})
+
+
 def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     """Map a local folder-search request to ``("machine.find_folder", <name>)``, else ``None``.
 
@@ -928,6 +933,10 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
         return None
     if refers_to_current_scope(lowered):
         return None  # "this/current/local folder" = the bound scope; the project-aware path handles it
+    if re.search(r"\b(?:that|the\s+same|same)\s+(?:folder|dir(?:ectory)?)\b", lowered):
+        # "that folder" points back at a folder this chat already named; it is not a name to search
+        # the disk for (the phone searched for folders named "in", 2026-11-12).
+        return None
     # A folder search is signalled EITHER by a search verb ("find the X folder") or by asking where
     # something is / whether it exists ("i lost my X folder, where did it go"). The verb-only rule
     # left the second form with no route at all.
@@ -956,6 +965,8 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     clean_name = " ".join(name_words)
     if all(word in _FOLDER_NAME_FILLER_WORDS for word in clean_name.split()):
         return None
+    if all(word in _NOT_A_FOLDER_NAME for word in clean_name.split()):
+        return None  # a preposition or a pointer is never a folder's name
     if len(clean_name) < 2:
         return None
     return ("machine.find_folder", clean_name)
@@ -1712,7 +1723,7 @@ def _age_days(text: str) -> float | None:
     return None
 
 
-def machine_kind_listing_intent(text: str) -> KindListing | None:
+def machine_kind_listing_ask(text: str) -> KindListing | None:
     """A listing of one KIND of file ("the pictures in my Downloads from the last 2 days"), else ``None``.
 
     ``kind`` is image/pdf/video/audio/document, a ``.ext`` the user named, or ``""`` (any file).
@@ -1796,7 +1807,7 @@ def machine_kind_listing_covers_turn(text: str) -> bool:
     the turn on the conductor.
     """
     raw = " ".join(str(text or "").split())
-    if machine_kind_listing_intent(raw) is None:
+    if machine_kind_listing_ask(raw) is None:
         return False
     listing_seen = False
     whole = _listing_match(raw)
@@ -1865,7 +1876,7 @@ def machine_open_newest_intent(text: str) -> KindListing | None:
         return None
     word = re.sub(r"\s+", "", match.group("word").lower())
     rest = str(match.group("rest") or "")
-    named = machine_kind_listing_intent(f"show me the newest {word}{rest}") if rest.strip() else None
+    named = machine_kind_listing_ask(f"show me the newest {word}{rest}") if rest.strip() else None
     if named is not None:
         return named._replace(limit=1, order="newest", max_age_days=None)
     if re.search(r"\b(?:in|on|from|inside)\b", rest, re.IGNORECASE):
@@ -1954,7 +1965,7 @@ def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> Send
     search = machine_file_search_intent("find " + rest)
     if search is not None:
         return SendToPhone(search=search)
-    listing = machine_kind_listing_intent("show me " + rest)
+    listing = machine_kind_listing_ask("show me " + rest)
     if listing is not None and listing.limit == 1:
         return SendToPhone(listing=listing)
     return None
@@ -2229,6 +2240,208 @@ def spreadsheet_question_intent(text: str) -> SpreadsheetQuestion | None:
     return SpreadsheetQuestion(file_words, month, year, date_from, date_to, direction, tuple(exclude[:4]))
 
 
+# A size ask about ONE NAMED thing ("how big is the holiday photos zip"). The disk family above
+# answers this host's STORAGE; this family answers the size of the thing the person named -- a
+# file, an archive, a folder -- and nothing else. The two must never bleed into each other:
+# measured 2026-10-30, that zip ask (a file in Downloads) was answered with the file's size AND
+# the machine's disk fill, because no lane owned it, the model fished for a number and a mid-turn
+# drive read rode the turn to the provider. A size-of-a-thing ask gets the size of that thing
+# only; drive totals stay with machine_diagnostics_intent.
+_SIZE_QUERY_CUE_RE = re.compile(
+    # "how big/large/heavy is the taxes folder", "how big's the download": the adjective alone, on
+    # a word boundary, is the ask; the subject extraction below decides whether a NAMED thing
+    # carries it, so "how big is the population of france" matches the cue and still returns None.
+    r"\bhow\s+(?:big|large|heavy|huge|massive)\b"
+    # "how many MB is the intro video": the unit spells out what is being measured.
+    r"|\bhow\s+many\s+(?:k|kb|kib|mb|mib|g|gb|gib|tb|tib|megs?|gigs?|kilobytes?|kibibytes?|"
+    r"megabytes?|mebibytes?|gigabytes?|gibibytes?|terabytes?|tebibytes?)\b"
+    # "what size is the backup folder", "whats the file size of notes.txt", "size of the taxes
+    # folder please" (the apostrophe-less "whats" is allowed for the same reason every question
+    # detector here allows it: people drop it constantly).
+    r"|\bwhat\s+size\b|\bwhat'?s\s+(?:the\s+)?(?:file\s+)?size\b|\bwhats\s+(?:the\s+)?(?:file\s+)?size\b"
+    r"|\b(?:file\s+)?size\s+of\b"
+    # "how much space does the taxes folder take (up)": space ABOUT a named thing, not space left
+    # on a drive -- the diagnostics guard below has already claimed the drive readings of these
+    # same words before this alternative ever sees them.
+    r"|\bhow\s+much\s+(?:space|room)\s+does\b[^.!?\n]{0,60}?\btake\b",
+    re.IGNORECASE,
+)
+# Extensions people SAY without a dot ("the holiday photos zip"). A superset of the find-file
+# table because "tar", "iso", "dmg" and friends get asked about by size more than any other way.
+_SIZE_EXT_ALT = "|".join(sorted(set(_FILE_EXT_KINDS) | {"7z", "dmg", "gz", "iso", "rar", "tar"}, key=len, reverse=True))
+# "the holiday photos zip" / "that report pdf" / "the intro video": a determiner or possessive, a
+# name, then the kind word that ends it. The name is GREEDY on purpose: with a lazy name "the
+# holiday photos zip" parses as name "holiday" + kind "photos" ("photos" is itself a kind word),
+# and the image-suffix filter downstream then discards holiday photos.zip -- the one file being
+# asked about. Greedy takes the longest name a kind word can end, which is the one the person said.
+_SIZE_KIND_SUBJECT_RE = re.compile(
+    r"\b(?:the|a|an|my|our|your|that|this|those)\s+(?P<name>[\w][\w .'&()\-]{0,50})\s+"
+    r"(?P<kind>" + _SIZE_EXT_ALT + r"|" + _FILE_KIND_ALT + r")\b(?![\w.])",
+    re.IGNORECASE,
+)
+# A name said WITH its extension: "notes.txt", "holiday photos.zip", "backup.tar.gz". The lookbehind
+# keeps "and/or" and "8.5x11" out; the lazy body takes the shortest name that ends in a known
+# extension, so "backup.tar.gz" is read whole (".tar" is not the end), not cut at ".tar".
+_SIZE_NAMED_FILENAME_RE = re.compile(
+    r"(?<![\w./~\-])(?P<name>[\w\-][\w .'\-()]{0,60}?\.(?:" + _SIZE_EXT_ALT + r"))\b(?![\w.])",
+    re.IGNORECASE,
+)
+# "how big's the download": a handful of nouns that NAME a thing without describing it. Only with
+# a determiner, so prose ("how big is download speed") never reads as one of these.
+_SIZE_BARE_THING_NOUN_RE = re.compile(
+    r"\b(?:the|that|this|my|our|your)\s+(?P<name>download|attachment|backup|archive|invoice|export)\b",
+    re.IGNORECASE,
+)
+# A folder subject that is really the storage hardware ("how big is my drive") or a hardware-shaped
+# name ("the storage folder") is declined even when the wording parses: better the model lane than
+# a size answer about the wrong thing.
+_SIZE_DISK_SUBJECT_WORDS = frozenset({"drive", "disk", "ssd", "hdd", "volume", "partition", "storage"})
+# Question filler a filename-shaped match can swallow when it starts left of the real name:
+# "whats the file size of notes.txt" parses dotted from "whats", "what is the size of the invoice
+# pdf" parses greedy from "size". Stripping these from the FRONT of an extracted name leaves the
+# name; a real file called "the answer.txt" is still found by the substring search for "answer.txt".
+# The unit words and handing-over verbs belong here for the same reason: the dotted/lazy match
+# starts LEFT of the unit, so "how many megabytes is holiday-pictures.zip" parses from "how" and
+# nothing stops it before ".zip" -- without "megabytes" (and kb/mb/gb/...) here the unit survives
+# the strip and rides the needle into the search, which then finds nothing. A one-letter unit
+# ("k", "g") heading a real name ("k-drama list.zip") only costs that letter: the search is
+# substring and still finds the file.
+_SIZE_NAME_HEAD_FILLERS = frozenset(
+    {"whats", "what", "what's", "how", "big", "large", "heavy", "huge", "massive", "many", "much",
+     "size", "file", "of", "the", "a", "an", "my", "our", "your", "that", "this", "those", "is",
+     "are", "was", "were", "please", "pls", "tell", "me", "for", "on", "in", "at",
+     "give", "gimme", "show", "get",
+     "byte", "bytes", "k", "kb", "kib", "m", "mb", "mib", "g", "gb", "gib", "t", "tb", "tib",
+     "megs", "gigs", "kilobytes", "kibibytes", "megabytes", "mebibytes", "gigabytes",
+     "gibibytes", "terabytes", "tebibytes"}
+)
+# The same family's words INSIDE a folder-name extraction: "whats the total size of the Taxes
+# 2025 folder" hands the folder regexes "total size of the Taxes 2025", and the shared folder
+# stopword table rightly knows nothing about SIZE vocabulary (it serves find_folder too, whose
+# users may legitimately be looking for a folder called "total"). Dropping these HERE, in the
+# size lane only, leaves "Taxes 2025"; the shared table stays put.
+_SIZE_FOLDER_NAME_DROP_WORDS = _SIZE_NAME_HEAD_FILLERS | {"total", "combined", "overall"}
+
+
+def _size_name_without_leading_fillers(name: str) -> str:
+    words = str(name or "").split()
+    while words and words[0].lower().strip(".,;:!?-'\"") in _SIZE_NAME_HEAD_FILLERS:
+        words = words[1:]
+    return " ".join(words)
+
+
+# A typed path with spaces in its name ("how big is ~/Downloads/holiday photos.zip") comes back
+# from explicit_path_in truncated at the first space whenever the file does not exist to grow over
+# (its growth probes the disk; recognition must not). Textual continuation here: a following token
+# extends the path while it looks like part of a name and is not a CONNECTOR word, so "supposed to
+# be" and "and whats its name" stop it. Over-extending costs only a cleaner miss message (the stat
+# of a non-existent path fails closed); truncating costs the size of a real multi-word file.
+_SIZE_PATH_CONNECTORS = frozenset(
+    {"and", "or", "please", "pls", "then", "also", "is", "are", "was", "were", "whats", "what",
+     "how", "tell", "me", "its", "it", "to", "be", "in", "on", "at", "for", "of", "the", "a",
+     "an", "my", "supposed", "should", "can", "do", "does", "dont", "know", "think", "maybe",
+     "just", "thanks", "now", "again", "today", "there"}
+)
+_SIZE_PATH_TOKEN_RE = re.compile(r"[\w.'&()\-]+", re.UNICODE)
+
+
+def _extend_typed_path_name(raw: str, path: str) -> str:
+    start = raw.find(path)
+    if start < 0:
+        return path
+    tail = raw[start + len(path):]
+    grown = path
+    for piece in tail.split()[:6]:
+        piece = piece.strip()
+        if not piece or not _SIZE_PATH_TOKEN_RE.fullmatch(piece):
+            break
+        if piece.lower() in _SIZE_PATH_CONNECTORS:
+            break
+        grown = f"{grown} {piece}"
+    return grown
+
+
+def machine_size_query_intent(text: str) -> tuple[str, str, str, str | None] | None:
+    """``(kind, name, place, explicit_path)`` for a size ask about ONE named file/folder, else ``None``.
+
+    ``kind`` is ``"file"``, ``"folder"`` or ``""`` (unknown; a typed path whose kind the stat
+    settles); ``name`` is the RAW name-hint exactly as the person said it -- phrase reduction
+    belongs to the resolver, which may import helpers this module cannot (it would cycle);
+    ``place`` is Desktop/Downloads/Documents when the message names one, or when the subject IS
+    that folder ("how big is my documents folder" -> ``("folder", "", "Documents", None)``);
+    ``explicit_path`` is a path the person typed, else ``None``. Storage asks ("how much space is
+    left", "is my disk full") return ``None`` -- they stay with ``machine_diagnostics_intent`` --
+    and so do mutating asks (``_MACHINE_DIAG_WRITE_RE``) and largest-files asks. When no name,
+    path or place-folder can be extracted, ``None``: the model lane keeps the turn rather than
+    getting a size question answered with a guess.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return None
+    lowered = raw.lower()
+    if _MACHINE_DIAG_WRITE_RE.search(lowered):
+        return None
+    if machine_diagnostics_intent(raw) is not None:
+        return None  # the disk family owns storage asks whatever size wording dresses them in
+    if machine_largest_intent(raw) is not None:
+        return None  # "how big is the biggest file on my machine" ranks files; it does not size one
+    if not _SIZE_QUERY_CUE_RE.search(lowered):
+        return None
+    explicit = explicit_path_in(raw)
+    if explicit:
+        return ("", "", _named_place(raw), _extend_typed_path_name(raw, explicit))
+    # A name WITH its extension beats the folder noun: "how big is notes.txt in my documents
+    # folder" is about the file; the folder is only where it lives.
+    named_file = _SIZE_NAMED_FILENAME_RE.search(raw)
+    if named_file is not None:
+        dotted = _size_name_without_leading_fillers(" ".join(named_file.group("name").split()).strip(" .'\"-"))
+        if dotted:
+            return ("file", dotted, _named_place(raw), None)
+    # A folder subject reuses the folder family's own shapes ("the taxes folder", "folder named
+    # taxes", "which folder holds my invoices") rather than restating them.
+    if not refers_to_current_scope(lowered):  # "this/current folder" is the bound scope's business
+        folder_match = (
+            _FOLDER_NAMED_RE.search(raw)
+            or _FOLDER_NAME_BEFORE_NOUN_RE.search(raw)
+            or _FOLDER_NAME_AFTER_NOUN_RE.search(raw)
+        )
+        if folder_match is not None:
+            name = " ".join(str(folder_match.group("name") or "").split()).strip(" .'\"-")
+            name = _FOLDER_NAME_TRAILING_LOCATIVE_RE.sub("", name).strip(" .'\"-")
+            words = [
+                word
+                for word in name.split()
+                if word not in _FOLDER_NAME_STOPWORDS and word.lower() not in _SIZE_FOLDER_NAME_DROP_WORDS
+            ]
+            clean = " ".join(words)
+            if len(clean) >= 2:
+                # "how big is my documents folder": the subject is the Documents folder ITSELF,
+                # not a second folder called "documents" inside it -- a place with an empty name.
+                place_word = {"documents": "Documents", "downloads": "Downloads", "desktop": "Desktop"}.get(clean)
+                if place_word:
+                    return ("folder", "", place_word, None)
+                if clean not in _SIZE_DISK_SUBJECT_WORDS:
+                    return ("folder", clean, _named_place(raw), None)
+    named = _FILE_NAMED_RE.search(raw)
+    if named is not None:
+        # "how big is the file named budget": the name follows named/called exactly as in
+        # _named_file_search; only the first "or"-alternative is kept (a size is one number).
+        spoken = named.group("name").strip(" .'\"-")
+        part = re.split(r"\s+or\s+", spoken, flags=re.IGNORECASE)[0].strip(" .'\"-")
+        part = re.sub(r"^(?:like|something\s+like)\s+", "", part, flags=re.IGNORECASE)
+        if len(re.sub(r"[^0-9a-z]", "", part.lower())) >= 2 and part.lower() not in _FILE_NAME_FILLERS:
+            return ("file", part, _named_place(raw), None)
+    subject = _SIZE_KIND_SUBJECT_RE.search(raw)
+    if subject is not None:
+        name = _size_name_without_leading_fillers(" ".join(subject.group("name").split()).strip(" .'\"-"))
+        if len(re.sub(r"[^0-9a-z]", "", name.lower())) >= 2 and name.lower() not in _FILE_NAME_FILLERS:
+            return ("file", name, _named_place(raw), None)
+    bare = _SIZE_BARE_THING_NOUN_RE.search(raw)
+    if bare is not None:
+        return ("", " ".join(bare.group("name").split()), _named_place(raw), None)
+    return None
+
+
 # An ANALYSIS verb wants the folder's CONTENTS ("audit/analyze/review/what's in my X folder"),
 # not just its location. find_folder only LISTS paths, so those asks used to stop at a path list
 # and never read anything -- the model then talked about an audit it never ran. This routes them to
@@ -2267,6 +2480,10 @@ def machine_folder_audit_intent(text: str) -> str | None:
         return None
     if refers_to_current_scope(lowered):
         return None  # "this/current/local folder" = the bound scope; the project-aware path handles it
+    if re.search(r"\b(?:that|the\s+same|same)\s+(?:folder|dir(?:ectory)?)\b", lowered):
+        # "that folder" points back at a folder this chat already named; it is not a name to search
+        # the disk for (the phone searched for folders named "in", 2026-11-12).
+        return None
     if not _FOLDER_ANALYSIS_VERB_RE.search(lowered):
         return None
     match = _FOLDER_AUDIT_RE.search(lowered) or _FOLDER_NAMED_RE.search(lowered)
@@ -2279,6 +2496,8 @@ def machine_folder_audit_intent(text: str) -> str | None:
     clean_name = " ".join(name_words)
     if all(word in _FOLDER_NAME_FILLER_WORDS for word in clean_name.split()):
         return None
+    if all(word in _NOT_A_FOLDER_NAME for word in clean_name.split()):
+        return None  # a preposition or a pointer is never a folder's name
     return clean_name if len(clean_name) >= 2 else None
 
 
@@ -3831,3 +4050,84 @@ _GENERIC_HIVE_TITLE_MARKERS = {
     "on the hive",
     "on hive mind",
 }
+
+
+# --- A kind of file in a known folder: "what pics are in my Downloads", "the latest 10 photos there" ---
+# Measured on the phone (2026-11-12): "I have fees pics in my downloads folder in iMac, can u check
+# what pics are there and give me a list?" ran a disk-wide FOLDER search for "downloads", and "Just
+# fetch the latest 10 pics that you can find in that folder" searched for folders named "in". The
+# person named a folder everyone has and a kind of file; the answer is that folder's files of that
+# kind, newest first when they say latest.
+_KNOWN_USER_FOLDERS = {
+    "downloads": "~/Downloads", "download": "~/Downloads", "desktop": "~/Desktop",
+    "documents": "~/Documents", "pictures": "~/Pictures", "movies": "~/Movies", "music": "~/Music",
+}
+_LISTING_KIND_WORDS = {
+    "pic": "image", "pics": "image", "picture": "image", "pictures": "image", "photo": "image",
+    "photos": "image", "image": "image", "images": "image", "screenshot": "image", "screenshots": "image",
+    "jpg": "image", "jpgs": "image", "jpeg": "image", "jpegs": "image", "png": "image", "pngs": "image",
+    "video": "video", "videos": "video", "clip": "video", "clips": "video",
+    "pdf": "pdf", "pdfs": "pdf", "song": "audio", "songs": "audio", "mp3": "audio", "mp3s": "audio",
+    "spreadsheet": "spreadsheet", "spreadsheets": "spreadsheet",
+}
+_KIND_WORD_RE = re.compile(r"\b(" + "|".join(sorted(_LISTING_KIND_WORDS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
+_KNOWN_FOLDER_RE = re.compile(
+    r"\b(?:my\s+|the\s+|in\s+|from\s+|on\s+(?:the\s+|my\s+)?)?(" + "|".join(_KNOWN_USER_FOLDERS) + r")\b(?:\s+folder)?",
+    re.IGNORECASE,
+)
+_FOLDER_ANAPHORA_RE = re.compile(
+    r"\b(?:(?:in|from|inside)\s+)?(?:that|the\s+same|this)\s+(?:folder|directory|dir)\b|\b(?:in|from)\s+there\b|\bthere\b",
+    re.IGNORECASE,
+)
+_LISTING_ASK_RE = re.compile(
+    r"\b(?:list|show|give\s+me|fetch|get|grab|find|check|see|tell\s+me|which|what(?:'s|\s+is|\s+are)?|"
+    r"are\s+there|any|latest|newest|recent|last)\b",
+    re.IGNORECASE,
+)
+_NEWEST_COUNT_RE = re.compile(
+    r"\b(?:latest|newest|most\s+recent|recent|last)\s+(\d{1,3})\b|\b(\d{1,3})\s+(?:latest|newest|most\s+recent|recent|last)\b"
+    r"|\b(?:latest|newest|most\s+recent|recent|last)\b",
+    re.IGNORECASE,
+)
+_KIND_LISTING_REFUSE_RE = re.compile(
+    r"\b(?:delete|remove|move|rename|copy|upload|send|share|edit|convert|compress|zip|named|called|titled)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_kind_listing_intent(text: str, *, earlier_turns: Sequence[str] = ()) -> dict[str, Any] | None:
+    """`{"path", "kind", "limit", "newest_first"}` for "the <kind> files in <a known folder>", else None.
+
+    The folder may be named in this turn or, for "that folder" / "there", in one of `earlier_turns`
+    (most recent first). A file asked for BY NAME is the file finder's; a change to files is not a
+    listing.
+    """
+    clean = " ".join(str(text or "").split())
+    if not clean or _KIND_LISTING_REFUSE_RE.search(clean):
+        return None
+    kind_match = _KIND_WORD_RE.search(clean)
+    if kind_match is None or not _LISTING_ASK_RE.search(clean):
+        return None
+    # "pictures" names both a kind of file and a folder: the word that named the kind is not also the
+    # folder ("the 2 most recent pictures there" is not ~/Pictures).
+    kind_words = {kind_match.span(1)}
+    folder = next((m for m in _KNOWN_FOLDER_RE.finditer(clean) if m.span(1) not in kind_words), None)
+    path = _KNOWN_USER_FOLDERS[folder.group(1).lower()] if folder else ""
+    if not path and _FOLDER_ANAPHORA_RE.search(clean):
+        for earlier in earlier_turns:
+            said = str(earlier or "")
+            spans = {m.span(1) for m in _KIND_WORD_RE.finditer(said)}
+            found = next((m for m in _KNOWN_FOLDER_RE.finditer(said) if m.span(1) not in spans), None)
+            if found:
+                path = _KNOWN_USER_FOLDERS[found.group(1).lower()]
+                break
+    if not path:
+        return None
+    kind = _LISTING_KIND_WORDS[kind_match.group(1).lower()]
+    count = _NEWEST_COUNT_RE.search(clean)
+    newest_first = count is not None
+    limit = 200
+    if count is not None:
+        digits = count.group(1) or count.group(2)
+        limit = max(1, min(int(digits), 200)) if digits else 20
+    return {"path": path, "kind": kind, "limit": limit, "newest_first": newest_first}

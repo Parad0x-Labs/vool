@@ -218,10 +218,15 @@ def default_runtime_model_tag(*, env: Mapping[str, str] | None = None) -> str:
             return _installed_alternative_to(primary_model, env=env_map) or primary_model
     except Exception:
         pass
-    # Last-resort default if the tier tag resolves empty: qwen2.5:7b fits 7-8GB GPUs and CPU;
-    # never qwen3:8b, which partial-offloads on 6-10GB VRAM (~47s/turn). Reachable paths above
-    # already resolve correctly (guarded by test_runtime_provider_defaults_gpu_gating).
-    return str(select_qwen_tier(probe_machine()).ollama_tag or "").strip() or "qwen2.5:7b"
+    # The tier tag is this machine's daily pick from the one suggestion table
+    # (core.local_model_suggestions), the same model the Settings Download button offers. Which
+    # installed model boot actually runs is decided at boot, from what is ready on this computer
+    # (ready-first alignment, then _certified_author_instead_of in core.web.api.runtime).
+    # Last resort if the tier tag resolves empty: qwen3.5:4b fits a 6 GB card whole and answers on
+    # a CPU; never a model that part-offloads on 6-10GB VRAM (qwen3:8b measured ~47s a turn there).
+    # Reachable paths above already resolve correctly (guarded by
+    # test_runtime_provider_defaults_gpu_gating).
+    return str(select_qwen_tier(probe_machine()).ollama_tag or "").strip() or "qwen3.5:4b"
 
 
 def _is_thinking_capable_model(model_tag: str) -> bool:

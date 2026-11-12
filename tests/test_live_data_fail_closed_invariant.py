@@ -47,9 +47,14 @@ def agent() -> VoolAgent:
 # --- plan construction returns None despite LIVE_DATA classification ---
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_plan_is_none_never_reaches_the_ordinary_turn(agent: VoolAgent) -> None:
+    # Web lookups are on (with them off nothing is fetched and the switch sentence answers), so the
+    # coin-symbol index would refresh over the network; it is held empty here, as offline, so the
+    # web-call count below still proves the plan-less turn fetched nothing for its answer.
     with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire), \
-         mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):
+         mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None), \
+         mock.patch("tools.web.coin_index._read_index_rows", return_value=None):
         result = agent.run_once(
             "Market data only for Bitcoin and gold.",
             source_context={"surface": "openclaw", "platform": "openclaw"},
@@ -60,6 +65,7 @@ def test_plan_is_none_never_reaches_the_ordinary_turn(agent: VoolAgent) -> None:
     assert result.get("route") == "deterministic:live_data_plan_unavailable"
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_plan_is_none_preserves_the_requested_entities_without_inventing_a_number(agent: VoolAgent) -> None:
     with mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):
         result = agent.run_once(
@@ -74,6 +80,7 @@ def test_plan_is_none_preserves_the_requested_entities_without_inventing_a_numbe
     assert not any(ch.isdigit() for ch in response)
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_plan_is_none_with_a_weather_request_names_the_cities(agent: VoolAgent) -> None:
     with mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):
         result = agent.run_once(
@@ -88,6 +95,7 @@ def test_plan_is_none_with_a_weather_request_names_the_cities(agent: VoolAgent) 
 # --- an exception raised while building or executing the plan ---
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_an_exception_building_the_plan_never_reaches_the_ordinary_turn(agent: VoolAgent) -> None:
     with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire), \
          mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", side_effect=RuntimeError("boom")):
@@ -103,6 +111,7 @@ def test_an_exception_building_the_plan_never_reaches_the_ordinary_turn(agent: V
 # --- every subtask fails: still a deterministic answer, never a fallthrough ---
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_every_subtask_failing_still_renders_a_deterministic_answer(agent: VoolAgent) -> None:
     def _all_fail(coin_ids, **_kwargs):
         raise RuntimeError("network down")

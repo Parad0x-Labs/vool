@@ -112,19 +112,10 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 /* No status dot on the sprite (product/desktop-usability-20260917): it sat at the CORNER of the
    112px drag box, ~1cm from the character's drawn feet, and read as a stray floating mark. It
    duplicated the tone, and the pack's colour law already requires the word to carry every
-   state -- colour is never the sole carrier -- so removing it loses no information. The restore
-   chip keeps its own small dot below: that one is part of a real control. */
+   state -- colour is never the sole carrier -- so removing it loses no information. */
 #companionLayer .vn-sr {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
-#companionLayer .vn-restore {
-  position: fixed; left: 10px; top: 10px; pointer-events: auto; display: none;
-  background: var(--panel, #14181f); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
-  border-radius: 8px; font-size: 11px; padding: 4px 8px; cursor: pointer;
-}
-#companionLayer .vn-restore:focus-visible { outline: 2px solid var(--accent, var(--vn-tone, #94a3b8)); }
-#companionLayer .vn-restore .vn-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--vn-tone, #94a3b8); margin-right: 5px; vertical-align: 1px; }
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
 .vool-ninja-pop {
   /* The layer is click-through; its own panels must take the clicks they draw (otherwise a
@@ -446,6 +437,16 @@ function vnApply(view, ev) {
       // tool. Carrying the previous turn's category here would narrate work not yet started.
       view.started = false; view.category = null; view.catFp = null; view.catN = -1;
       view.activeTool = null; view.lastSummary = null; view.lastTool = null;
+      // The user's own words for THIS turn: the bubble follows the conversation ("as we go")
+      // instead of the chat title frozen at the first message (measured 2026-11-05: the pet
+      // said "yO BRO" for the whole chat). The page's own fact, presentation-only, bounded;
+      // the screen-privacy mask covers it before it reaches the native pet.
+      if (typeof ev.userText === "string" && ev.userText.trim()) {
+        view.lastUserText = ev.userText.trim().slice(0, 200);
+        // The bubble names the TASK, not the raw message (operator 2026-11-11: "instead of my
+        // message it should show the title of that current task"). "" for a greeting-only turn.
+        view.taskTitle = vnTaskTitle(view.lastUserText);
+      }
     }
   }
   // Terminal truth is immutable: a late DONE can never repaint a FAILED turn
@@ -686,6 +687,58 @@ function vnClampBubble() {
   else if (b.right > window.innerWidth - m) dx = window.innerWidth - m - b.right;
   vnBubble.style.setProperty("--vn-bubble-dx", dx + "px");
 }
+/* A short task title from the user's own words, for the bubble's first line. Deterministic and
+   local (no model call): the first clause, with greetings, request wrappers ("can you", "please",
+   "what's") and pronoun filler dropped, at most VN_TASK_TITLE_WORDS words, sentence case, no
+   trailing connector or punctuation. "can you check my email from Anna and summarize it" ->
+   "Check email from Anna"; "whats the weather in Paris?" -> "Weather in Paris". A turn that is
+   only a greeting ("yo bro") has no task to name: "" (the bubble then shows its fun line only).
+   Wrapper words are English; other languages keep their first clause, shortened. */
+const VN_TASK_TITLE_WORDS = 6;
+const VN_TITLE_LEAD = new RegExp("^(?:" + [
+  "hey+", "hi+", "hello", "yo+", "bro", "dude", "mate", "ok(?:ay)?", "so", "well", "um+", "hmm+",
+  "pl[sz]", "please", "kindly", "btw", "quick question", "also", "and", "then", "now", "just",
+  "can (?:you|u)", "could (?:you|u)", "would (?:you|u)", "will (?:you|u)", "would you mind",
+  "i (?:want|need) (?:you )?to", "i(?:['\u2019]?d| would) like (?:you )?to", "i need", "i want",
+  "help me(?: to)?", "let['\u2019]?s", "go ahead and", "tell me(?: about)?",
+  "what(?:['\u2019]?s| is| are)", "who(?:['\u2019]?s| is)",
+  "remind me to", "(?:on|in|at|about|for)(?= )"
+].join("|") + ")\\b[\\s,!.:;-]*", "i");
+const VN_TITLE_DROP = { the: 1, a: 1, an: 1, my: 1, me: 1, our: 1, your: 1, please: 1, pls: 1,
+  plz: 1, thanks: 1, thank: 1, thx: 1, some: 1 };
+const VN_TITLE_TAIL = { and: 1, or: 1, but: 1, to: 1, in: 1, on: 1, at: 1, of: 1, for: 1, with: 1,
+  from: 1, about: 1, it: 1, then: 1, the: 1, a: 1, an: 1, by: 1, into: 1, is: 1, are: 1 };
+function vnTaskTitle(text) {
+  const strip = function (v) {
+    for (let i = 0; i < 12; i++) {
+      const next = v.replace(VN_TITLE_LEAD, "").trim();
+      if (next === v) break;
+      v = next;
+    }
+    return v;
+  };
+  let s = String(text || "").replace(/https?:\/\/(?:www\.)?([^\/\s]+)\S*/gi, "$1");
+  // Greetings go before the clause split, so "hi! how do I ..." names the question, not "hi".
+  s = strip(s.split(/\n/)[0].replace(/\s+/g, " ").trim());
+  s = strip(s.split(/[.!?;,](?:\s|$)|:\s/)[0].trim());
+  let words = s.split(" ").map(function (w) { return w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""); })
+    .filter(function (w) { return w && !VN_TITLE_DROP[w.toLowerCase()]; });
+  // A clause of "X and Y" keeps X: the title names the first thing asked.
+  const cut = words.findIndex(function (w, i) { return i > 1 && /^(?:and|then)$/i.test(w); });
+  if (cut > 0) words = words.slice(0, cut);
+  words = words.slice(0, VN_TASK_TITLE_WORDS);
+  while (words.length && VN_TITLE_TAIL[words[words.length - 1].toLowerCase()]) words.pop();
+  if (!words.length) return "";
+  const title = words.join(" ");
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+/* Line 1 of the bubble (in-app and detached pet alike): the current task's title; a turn with
+   no nameable task (a greeting) shows no title line; a legacy turn with no user words falls back
+   to the chat's REAL title only (an untitled chat sends none; the in-app bubble says "New chat"). */
+function vnBubbleTitleFor(view, chatId) {
+  if (view && typeof view.taskTitle === "string") return view.taskTitle;
+  return vnBoundChatTitle(chatId) || "";
+}
 /* The BOUND chat's title. The chat page already owns chat titles, so reuse that owner instead
    of duplicating the lookup. A chat with no title yet reads "New chat" in the UI language, never
    a raw id tail a person cannot place. Never another chat's title -- always the id this pet is
@@ -785,7 +838,7 @@ let vnLayer = null, vnSprite = null, vnCanvas = null, vnCtx = null, vnSr = null;
 let vnBubble = null, vnBubbleTitle = null, vnBubbleActivity = null;
 /* Bounded display lengths. Chat names are operator-facing labels, not documents. */
 const VN_TITLE_MAX = 42, VN_ACTIVITY_MAX = 34;
-let vnPop = null, vnMenu = null, vnLab = null, vnRestore = null;
+let vnPop = null, vnMenu = null, vnLab = null;
 //: Minimum time one activity phrase stays readable before a newer phrase replaces it.
 //: Presentation cadence ONLY (the pack allows wall-clock to animate cadence); it never creates,
 //: delays or reorders execution truth, and terminal states ignore it.
@@ -1164,7 +1217,6 @@ function vnApplyPos() {
   if (!vnDrag) vnSprite.classList.toggle("over-critical", covering);
   const onDesktop = (vnPos.mode === "desktop" && vnDesktopActive) || vnDetachPending;
   vnSprite.style.display = (vnPos.hidden || onDesktop) ? "none" : "flex";
-  if (vnRestore) vnRestore.style.display = vnPos.hidden ? "block" : "none";
   // A moved or re-shown pet covers different controls: re-clip its hit area.
   const place = vnSprite.style.left + "," + vnSprite.style.top + "," + vnSprite.style.display;
   if (place !== vnHitPlace) { vnHitPlace = place; vnScheduleHitMask(true); }
@@ -1257,8 +1309,12 @@ function vnPaintNow(now) {
      chat's activity, never model prose. Idle keeps the title and drops the activity line, so
      a finished turn stops advertising stale work. */
   {
-    // A chat with no title yet is named in words in the window, never by its id.
-    const bound = vnBoundChatTitle(chatId) || (chatId ? vnLabel("companion.untitled_chat", "New chat") : "");
+    // Line 1 names THIS turn's task (a short title made from the latest ask, never the raw
+    // message), so it follows the conversation; the frozen first-message chat title alone read
+    // as the pet being stuck (measured 2026-11-05). The chat title is the fallback only when the
+    // page has not told the companion what was asked.
+    const bound = vnBubbleTitleFor(view, chatId)
+      || ((view && typeof view.taskTitle === "string") || !chatId ? "" : vnLabel("companion.untitled_chat", "New chat"));
     let line2;
     if (vnDevPuppet) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
@@ -1527,10 +1583,13 @@ function vnDock() {
   vnPos.mode = "docked";
   vnPersistPos(); vnApplyPos();
 }
+const VN_HIDDEN_NOTE = "Pet hidden. To bring it back: Settings, Companion, Show pet.";
 function vnHide(hidden) {
   vnCloseMenu(false);
+  const wasHidden = vnPos.hidden === true;
   vnPos.hidden = hidden === true;
   vnPersistPos(); vnApplyPos();
+  if (vnPos.hidden && !wasHidden) vnNotify(VN_HIDDEN_NOTE);
 }
 function vnCyclePersonality() {
   const keys = Object.keys(window.VoolCompanionWorld.characters);
@@ -1699,7 +1758,8 @@ function vnDesktopPayload(pres, state) {
      for the bound chat; neither is model prose, and the native side re-validates both. */
   const chatId = (typeof displayedChat !== "undefined" && displayedChat) ? displayedChat
     : (vnLastChat && VN_VIEWS.has(vnLastChat)) ? vnLastChat : "";
-  const title = vnBoundChatTitle(chatId);
+  const view = VN_VIEWS.get(String(chatId || ""));
+  const title = vnBubbleTitleFor(view, chatId);
   if (title) payload.chatTitle = title;
   const activity = vnActivity(pres);
   if (activity) payload.activity = activity;
@@ -1718,8 +1778,10 @@ function vnDesktopMoved(position) {
 }
 function vnDesktopHidden() {
   vnDesktopActive = false; vnDesktopSignature = "";
+  const wasHidden = vnPos.hidden === true;
   vnPos.hidden = true;
   vnPersistPos(); vnApplyPos();
+  if (!wasHidden) vnNotify(VN_HIDDEN_NOTE);
 }
 async function vnResetDesktopPosition() {
   const api = vnNativeCompanionApi();
@@ -1728,6 +1790,25 @@ async function vnResetDesktopPosition() {
     const result = await api.reset_companion_position();
     vnNotify(result && result.ok ? "Pet position reset." : "The pet is not on the desktop.");
   } catch (e) { vnNotify("Could not reset the pet position."); }
+}
+/* Bring a hidden pet back where it was: a pet hidden from the desktop goes back out to the desktop
+   (falling back to the chat if the native window refuses), an in-app pet reappears in the chat.
+   Plain vnHide(false) would re-show a desktop-mode pet inside the chat window while its mode still
+   said "desktop". Returns true when a show was started. */
+function vnShowPet() {
+  vnCloseMenu(false);
+  vnPos.hidden = false;
+  if (vnPos.mode === "desktop") {
+    if (vnNativeCompanionApi()) {
+      vnDetachPending = true;  // keep the in-chat sprite out of sight while the desktop window comes back
+      vnPersistPos(); vnApplyPos();
+      vnDetachDesktop(true);
+      return true;
+    }
+    vnPos.mode = vnPos.previousMode === "free" ? "free" : "docked";  // no desktop here: show it in the chat
+  }
+  vnPersistPos(); vnApplyPos();
+  return true;
 }
 async function vnHideDesktopPet() {
   const api = vnNativeCompanionApi();
@@ -1895,12 +1976,8 @@ function vnBoot() {
   vnHit.className = "vn-hit";
   vnHit.setAttribute("aria-hidden", "true");
   vnSprite.appendChild(vnHit);
-  vnRestore = document.createElement("button");
-  vnRestore.type = "button";
-  vnRestore.className = "vn-restore";
-  vnRestore.innerHTML = '<span class="vn-dot"></span>';
-  vnRestore.appendChild(document.createTextNode(vnLabel("companion.label", "Companion")));
-  vnRestore.addEventListener("click", function () { vnHide(false); });
+  // No pill is left behind when the pet is hidden: a hidden pet is simply gone, and Settings
+  // (Companion > Show pet) brings it back. The old "Companion" pill sat over the sidebar's buttons.
   vnPop = document.createElement("div");
   vnPop.className = "vool-ninja-pop";
   vnPop.style.display = "none";
@@ -1913,7 +1990,6 @@ function vnBoot() {
   vnLab.addEventListener("click", function (e) { if (e.target === vnLab) vnCloseCharacterLab(); });
   vnLayer.appendChild(vnSr);
   vnLayer.appendChild(vnSprite);
-  vnLayer.appendChild(vnRestore);
   vnLayer.appendChild(vnPop);
   vnLayer.appendChild(vnMenu);
   vnLayer.appendChild(vnLab);
@@ -1990,6 +2066,8 @@ window.VoolCompanion = {
   desktopHidden: vnDesktopHidden,
   resetDesktopPosition: vnResetDesktopPosition,
   hideDesktopPet: vnHideDesktopPet,
+  showPet: vnShowPet,
+  isHidden: function () { return vnPos.hidden === true; },
   pos: function () { return vnPos; },
   spriteCount: function () { return vnSprite && !vnPos.hidden ? 1 : (vnSprite ? 0 : 0); },
   popoverHtml: function (chatId) { vnRenderPopover(chatId); return vnPop ? vnPop.innerHTML : ""; },

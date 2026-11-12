@@ -1196,6 +1196,17 @@ input[type=number].inp { min-width:140px; }
 .sw[aria-checked="true"] { background:rgba(var(--accent-rgb),.22); border-color:var(--accent); }
 .sw[aria-checked="true"]::after { transform:translateX(19px); background:var(--accent); }
 .sw:disabled { opacity:.45; cursor:not-allowed; }
+.sw-row { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+/* The state says itself, in words and color, never only in a knob's position: the toggle's
+   state word sits beside the switch and uses the same green/red vocabulary as every status
+   pill on this page (the pill.on/.off dots). Measured 2026-11-03 (served chats): the operator
+   could not tell an on toggle from an off one without studying the knob. */
+.sw-state { font-size:12px; font-weight:600; color:var(--muted); white-space:nowrap; }
+.sw-state .sw-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:var(--muted); vertical-align:1px; }
+.sw-state.on { color:var(--ok); }
+.sw-state.on .sw-dot { background:var(--ok); }
+.sw-state.off { color:var(--bad); }
+.sw-state.off .sw-dot { background:var(--bad); }
 .btn { background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:6px 13px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
 .btn:hover:not(:disabled) { border-color:var(--accent); }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
@@ -1226,6 +1237,12 @@ dl.kv dd { margin:0; }
 .pill .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
 .pill.on .dot { background:var(--ok); }
 .pill.off .dot { background:var(--bad); }
+/* A stored key that works: a green light that breathes slowly. It stops (and turns red) only when a
+   Test hears the provider refuse the key; a check that could not judge the key leaves it as it was. */
+.pill.live .dot { background:var(--live, var(--ok)); box-shadow:0 0 0 0 rgba(var(--live-rgb, 108,201,140),.5); animation:keyLive 2.6s ease-in-out infinite; }
+.pill.live { border-color:rgba(var(--live-rgb, 108,201,140),.45); }
+@keyframes keyLive { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(var(--live-rgb, 108,201,140),.5); } 50% { opacity:.6; box-shadow:0 0 0 4px rgba(var(--live-rgb, 108,201,140),0); } }
+@media (prefers-reduced-motion: reduce) { .pill.live .dot { animation:none; } }
 .empty { color:var(--muted); font-size:12.5px; padding:10px 0; }
 .profile-item { border-top:1px solid var(--border); padding-top:10px; }
 /* a mounted extras section sits under its own row label, so the fragment's heading is redundant here */
@@ -1509,7 +1526,21 @@ function snapBackToggle(row, st, attempted) {
     return;
   }
   const b = document.querySelector('[data-row="' + CSS.escape(row.id) + '"] button.sw');
-  if (b) b.setAttribute('aria-checked', valueOf(row) ? 'true' : 'false');
+  if (b) paintSwitchState(b, valueOf(row));
+}
+
+/* One painter for every switch state change — initial render, click, refused-write snap-back and
+   Retry — so the words and the light can never drift from what aria-checked says. */
+function paintSwitchState(button, value) {
+  if (!button) return;
+  const on = !!value;
+  button.setAttribute('aria-checked', on ? 'true' : 'false');
+  const word = button.parentElement && button.parentElement.querySelector('.sw-state');
+  if (!word) return;
+  word.classList.toggle('on', on);
+  word.classList.toggle('off', !on);
+  const text = word.lastChild;
+  if (text && text.nodeType === 3) text.textContent = on ? 'On' : 'Off';
 }
 
 /* Writes whose outcome is unknown (VOOL did not answer), by row id -> the value that was sent.
@@ -1695,26 +1726,31 @@ function control(row) {
     wrap.appendChild(el('span', 'subtle', 'Unavailable — ' + state.sourceErr[row.read.url]));
   }
   else if (row.kind === 'toggle') {
+    const holder = el('div', 'sw-row');
     const b = el('button', 'sw');
     b.type = 'button';
     b.setAttribute('role', 'switch');
-    b.setAttribute('aria-checked', v ? 'true' : 'false');
     b.setAttribute('aria-label', row.label);
     /* The switch shows the value being written, then whatever the authority reports back. `v` was
        captured when the row was drawn, so it must never decide what a later click shows. One write at
        a time: a double click is one change, not two racing ones. A refused write snaps the switch back
        to the stored value; Retry resends the attempted one. */
+    const stateWord = el('span', 'sw-state');
+    stateWord.appendChild(el('span', 'sw-dot'));
+    stateWord.appendChild(document.createTextNode(''));
+    holder.appendChild(b); holder.appendChild(stateWord);
+    paintSwitchState(b, v);
     b.addEventListener('click', async () => {
       const st = rowState(row.id);
       if (st.pending) return;
       const next = !shownValue(row);
-      b.setAttribute('aria-checked', next ? 'true' : 'false');
+      paintSwitchState(b, next);
       b.setAttribute('aria-busy', 'true');
       await commit(row, next);
       b.removeAttribute('aria-busy');
-      b.setAttribute('aria-checked', shownValue(row) ? 'true' : 'false');
+      paintSwitchState(b, shownValue(row));
     });
-    wrap.appendChild(b);
+    wrap.appendChild(holder);
   }
   else if (row.kind === 'select') {
     const s = el('select', 'inp');
@@ -2405,6 +2441,7 @@ function widgetAppearance(stack) {
   stack.appendChild(said);
 }
 
+let petToggleRefresh = null, petToggleHooked = false;
 function widgetCompanionPet(stack) {
   const api = (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
   const appearance = el('button', 'btn', 'Customise pet');
@@ -2436,6 +2473,31 @@ function widgetCompanionPet(stack) {
   appearanceBar.append(appearance, appearanceStatus);
   stack.appendChild(appearanceBar);
   if (!api || !api.detach_companion) {
+    // A browser tab has no native bridge, but the chat that opened Settings still owns its pet: the
+    // Hide/Show toggle drives it directly, so a hidden pet always has a way back.
+    let pet = null;
+    try {
+      const owner = window.opener || (window.parent !== window ? window.parent : null);
+      pet = owner && owner.VoolCompanion && owner.VoolCompanion.showPet ? owner.VoolCompanion : null;
+    } catch (e) { pet = null; }  // another origin's window: no toggle, just the note below
+    if (pet) {
+      const petBar = el('div', 'inline');
+      const petSaid = el('span', 'subtle', '');
+      const petToggle = el('button', 'btn', '');
+      petToggle.type = 'button';
+      petToggle.dataset.testid = 'settings-pet-toggle';
+      const paint = function () { petToggle.textContent = pet.isHidden() ? 'Show pet' : 'Hide pet'; };
+      petToggle.addEventListener('click', function () {
+        try {
+          if (pet.isHidden()) { pet.showPet(); petSaid.textContent = 'The pet is back.'; }
+          else { pet.hide(true); petSaid.textContent = 'The pet is hidden. Chat and the runtime keep running.'; }
+        } catch (e) { petSaid.textContent = 'That is not available right now.'; }
+        paint();
+      });
+      paint();
+      petBar.append(petToggle, petSaid);
+      stack.appendChild(petBar);
+    }
     stack.appendChild(el('div', 'empty', T('settings.companion.needs_app', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.')));
     return;
   }
@@ -2449,23 +2511,53 @@ function widgetCompanionPet(stack) {
     ['Hide pet', 'hide_companion', 'The pet is hidden. Chat and the runtime keep running.'],
     ['Reset position', 'reset_companion_position', 'The pet is back on the main display.'],
   ];
+  // Hide and Show are one toggle whose label says what a press does now: "Hide pet" while the pet
+  // is visible, "Show pet" once it is hidden. The pet's state is asked from the chat window, so a
+  // pet hidden from its own menu also shows "Show pet" here.
+  let petHidden = false;
+  let toggle = null;
+  const paintToggle = function () {
+    if (toggle) toggle.textContent = petHidden ? 'Show pet' : 'Hide pet';
+  };
+  const refreshToggle = async function () {
+    if (!api.companion_visibility) return;
+    try {
+      const state = await api.companion_visibility();
+      if (state && state.ok && typeof state.hidden === 'boolean') { petHidden = state.hidden; paintToggle(); }
+    } catch (e) { /* keep the last known label */ }
+  };
   actions.forEach(function (entry) {
+    const isToggle = entry[1] === 'hide_companion';
     const button = el('button', 'btn', entry[0]);
     button.type = 'button';
+    if (isToggle) { toggle = button; button.dataset.testid = 'settings-pet-toggle'; }
     button.addEventListener('click', async function () {
       button.disabled = true;
+      const showing = isToggle && petHidden;
+      const method = showing ? 'show_companion' : entry[1];
+      const done = showing ? 'The pet is back.' : entry[2];
       try {
-        const call = api[entry[1]];
+        const call = api[method];
         const result = call ? await call() : null;
-        said.textContent = (result && result.ok) ? entry[2] : 'That is not available right now.';
+        const ok = !!(result && result.ok);
+        if (ok && isToggle) { petHidden = !showing; paintToggle(); }
+        said.textContent = ok ? done : 'That is not available right now.';
       } catch (e) {
         said.textContent = 'That is not available right now.';
       } finally {
         button.disabled = false;
       }
+      if (!isToggle) refreshToggle();
     });
     bar.appendChild(button);
   });
+  refreshToggle();
+  // One focus hook for the page: this panel can be drawn again, and only the latest copy re-reads.
+  petToggleRefresh = refreshToggle;
+  if (!petToggleHooked) {
+    petToggleHooked = true;
+    window.addEventListener('focus', function () { if (petToggleRefresh) petToggleRefresh(); });
+  }
   bar.appendChild(said);
   stack.appendChild(bar);
 }
@@ -2702,7 +2794,7 @@ function widgetKeys(stack) {
       }
       rows.forEach(c => {
         const rowEl = el('div', 'inline');
-        const pill = el('span', isOperatorKey(c.name) ? 'pill on' : 'pill');
+        const pill = el('span', isOperatorKey(c.name) ? 'pill on live' : 'pill');
         pill.appendChild(el('span', 'dot'));
         pill.appendChild(el('span', null, c.label || PROVIDER_LABELS[String(c.name).slice(keyFamilyOf(c.name).length)] || c.name));
         rowEl.appendChild(pill);
@@ -2739,10 +2831,14 @@ function widgetKeys(stack) {
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
             st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
+            /* The light follows what the provider said about the key: accepted keeps it green, a refusal
+               turns it red. Anything that left the key unjudged (timeout, outage, rate limit) changes nothing. */
+            const verdict = fam === 'security.' ? (r.ok && j.ok ? 'ok' : '') : keyTestVerdict(j);
+            if (verdict) { pill.classList.toggle('live', verdict === 'ok'); pill.classList.toggle('on', verdict === 'ok'); pill.classList.toggle('off', verdict === 'refused'); }
           } catch (e) { st.textContent = tfmt('keys.test_failed', 'Test failed: {error}', { error: (e && e.message ? e.message : e) }); }
           testBtn.disabled = false;
         });
-        const rm = el('button', 'btn danger', T('keys.remove', 'Remove')); rm.type = 'button';
+        const rm = el('button', 'btn key-remove', T('keys.remove', 'Remove')); rm.type = 'button';  /* plain: a working key's row is not an alarm; the confirm guards the delete */
         rm.addEventListener('click', async () => {
           if (!confirm(tfmt('keys.remove_confirm', 'Remove the stored key “{name}”?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.', { name: (c.label || c.name) }))) return;
           rm.disabled = true; st.textContent = T('keys.removing', 'Removing…');
@@ -3084,6 +3180,17 @@ function widgetKeys(stack) {
         { detail: j.detail || T('keys.outcome.refused.detail', 'the request was refused') });
       default: return tfmt('keys.outcome.unexpected', '{label} gave an unexpected answer{http}. The key was not judged. Nothing was stored.', p);
     }
+  }
+  /* What a Test said about the key itself: 'ok' (accepted), 'refused' (the provider turned the key
+     down, or there is none), or '' (the key was not judged). Kept beside keyTestMessage so the light
+     and the words cannot disagree. */
+  function keyTestVerdict(j) {
+    const state = String(j.state || '');
+    if (state === 'ok') return 'ok';
+    const reason = state === 'failed' ? String(j.detail || '') : state;
+    if (reason === 'unauthorized' && Number(j.http_status) === 401) return 'refused';
+    if (reason === 'no_key' || reason === 'quota_exhausted' || reason === 'exhausted') return 'refused';
+    return '';
   }
   /* The Test button's answer for a stored key, in the same terms. */
   function keyTestMessage(label, j) {
@@ -4096,11 +4203,15 @@ function widgetLocalModels(stack) {
     catch (e) { pull.failed = true; render(); return; }
     setTimeout(pollPull, 800);
   };
-  const ways = (models) => {
+  /* anyReady: a model already answers here, so this block only offers the newer suggested model
+     (a person on last year's model is told a better one fits), not "what you can do instead". */
+  const ways = (models, anyReady) => {
     const wrap = el('div', 'stack');
-    if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
-    const line = el('div', 'inline');
     const rec = data && data.recommended;
+    const recHave = !!(rec && rec.model_name && models.some(x => x.model_name === rec.model_name));
+    if (anyReady) { if (rec && rec.model_name && !recHave) wrap.appendChild(el('div', 'subtle', LM('suggest.newer', 'A newer model fits this computer:'))); }
+    else if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
+    const line = el('div', 'inline');
     if (pull) {
       wrap.appendChild(el('div', pull.failed ? 'state failed' : 'state loading', pull.failed
         ? LM('download.failed', 'The download of {model} didn’t finish. Check your internet connection and that Ollama is open, then try again.', { model: pull.model })
@@ -4121,10 +4232,29 @@ function widgetLocalModels(stack) {
         line.appendChild(b);
       }
     }
-    const cloud = el('button', 'btn', LM('suggest.cloud', 'Use a cloud model instead')); cloud.type = 'button';
-    cloud.addEventListener('click', () => mpOpenRow('model_pin'));
-    line.appendChild(cloud);
+    /* The bigger model is offered only once the daily one is on this computer: one download at a
+       time, the one that answers first. */
+    const big = rec && rec.bigger;
+    if (big && big.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === big.model_name) && (!pull || pull.failed)) {
+      const b = el('button', 'btn', LM('suggest.download_bigger', 'Download a bigger model, {model} ({gb} GB): smarter, but slower', { model: big.model_name, gb: big.download_gb }));
+      b.type = 'button'; b.disabled = !!busy;
+      b.addEventListener('click', () => startPull(big));
+      line.appendChild(b);
+    }
+    if (!anyReady) {
+      const cloud = el('button', 'btn', LM('suggest.cloud', 'Use a cloud model instead')); cloud.type = 'button';
+      cloud.addEventListener('click', () => mpOpenRow('model_pin'));
+      line.appendChild(cloud);
+    }
     wrap.appendChild(line);
+    if (rec && rec.model_name && rec.sized_by_gb) {
+      wrap.appendChild(el('div', 'subtle', rec.machine_kind === 'nvidia'
+        ? LM('suggest.picked_gpu', 'Picked for this computer’s {gb} GB graphics card.', { gb: Math.round(rec.sized_by_gb) })
+        : LM('suggest.picked_memory', 'Picked for this computer’s {gb} GB of memory.', { gb: Math.round(rec.sized_by_gb) })));
+    }
+    if (rec && rec.ollama_update_unlocks) {
+      wrap.appendChild(el('div', 'subtle', LM('suggest.update_ollama', 'Update Ollama to get the newer {model}.', { model: rec.ollama_update_unlocks })));
+    }
     return wrap;
   };
   const render = () => {
@@ -4141,7 +4271,7 @@ function widgetLocalModels(stack) {
     const models = data.models || [];
     if (!models.length) {
       body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
-      body.appendChild(ways(models));
+      body.appendChild(ways(models, false));
       return;
     }
     for (const m of models) {
@@ -4170,7 +4300,12 @@ function widgetLocalModels(stack) {
       body.appendChild(rowEl);
     }
     const anyReady = models.some(m => m.readiness === 'ready');
-    if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models));
+    const rec = data.recommended;
+    const recMissing = !!(rec && rec.model_name && !models.some(x => x.model_name === rec.model_name));
+    /* Once the suggested daily model is on this computer, the bigger-jobs model is the next offer. */
+    const bigMissing = !recMissing && !!(rec && rec.bigger && rec.bigger.model_name && !models.some(x => x.model_name === rec.bigger.model_name));
+    if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models, anyReady && !(outcome && outcome.kind !== 'ready')));
+    else if (anyReady && (recMissing || bigMissing)) body.appendChild(ways(models, true));
     body.appendChild(el('div', 'subtle', LM('footer', 'VOOL checks a model on this computer before it answers with it. The check never leaves your computer.')));
   };
   body.appendChild(el('div', 'empty', LM('reading', 'Looking for models on this computer…')));
