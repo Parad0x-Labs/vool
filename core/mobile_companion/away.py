@@ -92,9 +92,9 @@ class AwayLink:
         except BaseException:
             server.server_close()
             if started:
-                with _quiet():
+                with _Quiet():
                     tor.remove_onion(published)
-                with _quiet():
+                with _Quiet():
                     tor.release(self.USER)
             raise
         self.server = server
@@ -111,9 +111,9 @@ class AwayLink:
         if server is None:
             return
         tor = self._runtime()
-        with _quiet():
+        with _Quiet():
             tor.remove_onion(host)
-        with _quiet():
+        with _Quiet():
             tor.release(self.USER)
         server.shutdown()
         server.server_close()
@@ -121,7 +121,7 @@ class AwayLink:
             thread.join(timeout=2)
 
 
-class _quiet:
+class _Quiet:
     """Shutting the route down must never keep the listener from closing."""
 
     def __enter__(self):

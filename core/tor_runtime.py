@@ -21,6 +21,7 @@ Features never touch torrc: they use `socks_port` and `add_onion` / `remove_onio
 
 from __future__ import annotations
 
+import contextlib
 import os
 import platform
 import re
@@ -88,7 +89,7 @@ class _Control:
         self._sock = socket.create_connection(("127.0.0.1", port), timeout=_CONTROL_IO_TIMEOUT_SECONDS)
         self._file = self._sock.makefile("rb")
         self._lock = threading.Lock()
-        code, lines = self.command(f"AUTHENTICATE {cookie.hex()}")
+        code, _lines = self.command(f"AUTHENTICATE {cookie.hex()}")
         if code != "250":
             self.close()
             raise TorUnavailable("Tor refused VOOL's control sign-in.")
@@ -129,10 +130,8 @@ class _Control:
 
     def close(self) -> None:
         for closer in (self._file.close, self._sock.close):
-            try:
+            with contextlib.suppress(OSError):
                 closer()
-            except OSError:
-                pass
 
 
 class TorRuntime:
@@ -332,10 +331,8 @@ class TorRuntime:
         self._ready = False
         self._onions.clear()
         if control is not None:
-            try:
+            with contextlib.suppress(OSError, TorUnavailable):
                 control.command("SIGNAL SHUTDOWN")
-            except (OSError, TorUnavailable):
-                pass
             control.close()
         if process is not None and process.poll() is None:
             process.terminate()

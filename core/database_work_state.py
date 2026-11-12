@@ -56,7 +56,7 @@ def note_database_demand(source_context: dict[str, Any] | None) -> None:
         now = time.time()
         _ASKED[session] = now
         if len(_ASKED) > _MAX_TRACKED:
-            for key, stamp in sorted(_ASKED.items(), key=lambda kv: kv[1])[: len(_ASKED) - _MAX_TRACKED]:
+            for key, _stamp in sorted(_ASKED.items(), key=lambda kv: kv[1])[: len(_ASKED) - _MAX_TRACKED]:
                 _ASKED.pop(key, None)
     except Exception:
         pass

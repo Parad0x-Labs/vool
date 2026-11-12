@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from test_phone_listener_served import desktop, http  # noqa: F401
+from test_phone_listener_served import desktop, http
 
 from core import tor_runtime
 from core.mobile_companion import away
@@ -35,7 +35,7 @@ def _checked(page, name, value):
         arg=[name, value])
 
 
-def test_away_switch_in_chromium_puts_the_address_in_the_pairing_code(desktop, tor, tmp_path):  # noqa: F811
+def test_away_switch_in_chromium_puts_the_address_in_the_pairing_code(desktop, tor, tmp_path):
     from playwright.sync_api import sync_playwright
 
     base, runtime, _home = desktop

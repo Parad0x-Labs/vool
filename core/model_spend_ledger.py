@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sqlite3
 import math
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone

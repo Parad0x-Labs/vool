@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import re
-from typing import NamedTuple
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NamedTuple
 
 # ---------------------------------------------------------------------------------------------
 # "Is this sentence ASKING THE RUNTIME for a fact, or is it merely ABOUT the topic?"

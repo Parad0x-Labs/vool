@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from core.execution.constants import machine_kind_listing_covers_turn, machine_kind_listing_ask
+from core.execution.constants import machine_kind_listing_ask, machine_kind_listing_covers_turn
 
 REPORTED = (
     "Find me all the pictures in the Downloads folder on my Mac, up to two days old and fetch me the "

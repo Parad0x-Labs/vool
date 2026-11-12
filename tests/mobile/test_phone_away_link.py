@@ -19,7 +19,7 @@ from core import tor_runtime
 from core.mobile_companion import away, bot_runtime
 from core.mobile_companion import listener as listener_module
 from core.tor_runtime import TorRuntime
-from tests.mobile.test_mobile_companion_api import _body, _mobile_home, _post, runtime  # noqa: F401
+from tests.mobile.test_mobile_companion_api import _body, _mobile_home, _post, runtime
 
 FAKE = Path(__file__).resolve().parents[1] / "fixtures" / "fake_tor.py"
 

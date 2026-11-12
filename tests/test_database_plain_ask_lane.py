@@ -9,8 +9,7 @@ from __future__ import annotations
 import pytest
 
 from tests._vool_database_pack import isolated_db_world
-from tests.test_production_route_matrix import _lane_probe_agent
-from tests.test_production_route_matrix import PRODUCTION_CONTEXT
+from tests.test_production_route_matrix import PRODUCTION_CONTEXT, _lane_probe_agent
 
 ASKS = [
     "whats in my orders database?",

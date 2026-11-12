@@ -13,8 +13,8 @@ import pytest
 from core.execution.constants import (
     machine_diagnostics_intent,
     machine_file_search_intent,
-    machine_kind_listing_covers_turn,
     machine_kind_listing_ask,
+    machine_kind_listing_covers_turn,
     machine_live_load_intent,
 )
 from core.operator.parser import parse_operator_action_intent

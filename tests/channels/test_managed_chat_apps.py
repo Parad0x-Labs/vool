@@ -290,7 +290,8 @@ def test_a_refused_connection_says_its_own_reason_and_never_echoes_the_key(bots)
         assert status==400 and answer['code']=='chat_app_unavailable',answer
         assert not token or token not in json.dumps(answer)
         return answer['error']
-    good=lambda:secrets.token_urlsafe(40)
+    def good():
+        return secrets.token_urlsafe(40)
     assert refused('telegram','')==words.KEY_SHAPE
     assert refused('telegram','hello')==words.KEY_SHAPE
     assert refused('discord',good(),'')==words.PRIVATE_LINK_NEEDED
