@@ -679,6 +679,20 @@ def classify_identity_question(
 # --- answers and prompt context --------------------------------------------------------------
 
 
+def _saved_name_was_picked_up() -> bool:
+    """True when the name in use was learned (an introduction, own mail, a pasted letter) rather
+    than stated by the user or typed in Settings."""
+    try:
+        from core.operator_profile import OWNER_PRINCIPAL, resolve
+        from core.operator_profile_turn import current_turn_scope
+
+        principal, session_id, project_id = current_turn_scope()
+        item = resolve(principal or OWNER_PRINCIPAL, "preferred_name", session_id=session_id, project_id=project_id)
+        return item is not None and item.origin == "inferred"
+    except Exception:
+        return False
+
+
 def user_identity_answer(*, fallback_name: str = "", fallback_provenance: str = "") -> tuple[str, str, str]:
     """The local answer to "what is my name", as ``(text, name, provenance)``.
 
@@ -691,13 +705,14 @@ def user_identity_answer(*, fallback_name: str = "", fallback_provenance: str = 
     provenance = saved.provenance if saved.known else (str(fallback_provenance or "").strip() if name else "")
     if not name:
         return (
-            "I don't have a name saved for you. Tell me to remember it (\"remember to call me ...\") "
-            "or add it under \"What I remember about you\" in Settings, and I'll "
-            "use it from then on.",
+            "I don't know your name yet. Just tell me what to call you and I'll remember it.",
             "",
             "",
         )
     if provenance == SETTINGS_PROVENANCE:
+        if _saved_name_was_picked_up():
+            # Nobody told VOOL this name; it noticed it. Say so, so a wrong guess is easy to correct.
+            return (f"I have you down as {name}. I picked that up along the way, so tell me if it's wrong.", name, provenance)
         return (f"Your name is {name} — the name in your profile.", name, provenance)
     return (f"Your name is {name}.", name, provenance)
 
