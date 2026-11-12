@@ -3136,11 +3136,12 @@
     "phone.ui.address_away_from_home": "घर से बाहर का पता",
     "phone.ui.away_address_optional_used_by_itself": "वैकल्पिक। जब घर का नेटवर्क पहुँच से बाहर हो, VOOL इसे अपने आप इस्तेमाल करता है।",
     "phone.ui.connected_from_away": "घर से बाहर से जुड़ा है",
+    "phone.ui.settings": "सेटिंग्स",
     "phone.ui.connected_over_your_home_network": "घर के नेटवर्क से जुड़ा है",
     "phone.ui.looking_home_and_away": "आपका कंप्यूटर खोजा जा रहा है, घर पर और बाहर। घर से बाहर इसमें एक मिनट लग सकता है।",
     "phone.ui.no_answer_home_or_away": "आपके कंप्यूटर ने न घर पर जवाब दिया, न बाहर। जाँचें कि वह चालू है और VOOL खुला है।"
   },
-  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
+  "source_catalog_sha256": "5b088d3b8c2ac43def01bb7cbbb72592715938dc17e72b6011fa2dfa7e2fa390",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

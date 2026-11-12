@@ -5,6 +5,8 @@ import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, 
 import PhoneAbilities from "./PhoneAbilities.tsx";
 import FromComputer from "./FromComputer.tsx";
 import Header from "../ui/Header.tsx";
+import {useLink} from "../ui/LinkBadge.tsx";
+import {linkState} from "../protocol/linkState.ts";
 import Icon from "../ui/Icon.tsx";
 import Gears from "../ui/Gears.tsx";
 import {C, R} from "../ui/theme.ts";
@@ -82,13 +84,17 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
       }
       if (!guard(exc)) setNotice(exc instanceof CompanionError && exc.code === "phone_right_off_or_expired"
         ? tr("Change this phone’s permissions on your computer.")
-        : tr("Can't reach your computer. Your saved messages will wait here."));
+        : linkState() === "connecting" ? "" : tr("Can't reach your computer. Your saved messages will wait here."));
     }
   }, [client, guard, search]);
 
   const outbox = useMemo(() => outboxFor(client), [client]);
   const refreshRef = useRef(refreshChats);
   refreshRef.current = refreshChats;
+  // The moment the computer answers (at home or away), the list is read again, so a line that
+  // said it was out of reach never stays on screen while the app is connected.
+  const link = useLink();
+  useEffect(() => {if (link === "connected") void refreshRef.current();}, [link]);
   useEffect(() => outbox.subscribe(setQueued,
     (result, turn) => {
       if (activeRef.current === result.chat_id) {

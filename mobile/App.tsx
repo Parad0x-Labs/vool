@@ -38,7 +38,7 @@ import {C, R} from "./src/ui/theme.ts";
 installPrivateRoute();
 
 type Tab = "chats" | "approvals" | "notifications" | "wallet" | "status";
-const TAB_LABELS = {chats: "Chats", approvals: "Approvals", notifications: "Alerts", wallet: "Wallet", status: "Status"};
+const TAB_LABELS = {chats: "Chats", approvals: "Approvals", notifications: "Alerts", wallet: "Wallet", status: "Settings"};
 const TAB_ICONS = {chats: "message-outline", approvals: "shield-check-outline", notifications: "bell-outline", wallet: "wallet-outline", status: "tune-variant"} as const;
 const TABS: Tab[] = ["chats", "approvals", "notifications", "wallet", "status"];
 // The status bar is drawn over the app on Android; keep the first row below it.

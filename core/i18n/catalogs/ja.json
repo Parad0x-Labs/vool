@@ -3136,11 +3136,12 @@
     "phone.ui.address_away_from_home": "外出先用のアドレス",
     "phone.ui.away_address_optional_used_by_itself": "任意です。自宅のネットワークに届かないとき、VOOL が自動で使います。",
     "phone.ui.connected_from_away": "外出先から接続中",
+    "phone.ui.settings": "設定",
     "phone.ui.connected_over_your_home_network": "自宅のネットワークで接続中",
     "phone.ui.looking_home_and_away": "自宅と外出先の両方でコンピューターを探しています。外出先では1分ほどかかることがあります。",
     "phone.ui.no_answer_home_or_away": "コンピューターは自宅でも外出先でも応答しませんでした。電源が入っていて VOOL が開いているか確認してください。"
   },
-  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
+  "source_catalog_sha256": "5b088d3b8c2ac43def01bb7cbbb72592715938dc17e72b6011fa2dfa7e2fa390",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

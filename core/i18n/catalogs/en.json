@@ -3136,6 +3136,7 @@
     "phone.ui.address_away_from_home": "Address away from home",
     "phone.ui.away_address_optional_used_by_itself": "Optional. VOOL uses it by itself when your home network is out of reach.",
     "phone.ui.connected_from_away": "Connected from away",
+    "phone.ui.settings": "Settings",
     "phone.ui.connected_over_your_home_network": "Connected over your home network",
     "phone.ui.looking_home_and_away": "Looking for your computer, at home and away. Away from home this can take a minute.",
     "phone.ui.no_answer_home_or_away": "Your computer did not answer at home or away. Check that it is on and VOOL is open."

@@ -11,7 +11,7 @@ import { canonicalBytes } from "./canonical.ts";
 import {connectionAddress} from './connection.ts';
 import { hmacSha256, randomBytes, toHex } from "./sha256.ts";
 import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
-import { reportLink } from "./linkState.ts";
+import { reportLink, resetLink } from "./linkState.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
@@ -174,9 +174,12 @@ export class MobileCompanionClient {
     } catch (error) {
       if (!answered(error)) {
         // No answer, or an answer that could not be verified as this computer's.
-        reportLink(false);
-        // Look for the other way in the background; the caller's own retry then uses it.
-        if (this.creds.awayUrl) void this.findRoute().catch(() => {});
+        // With an away address there is still another way to try: the app is looking, not cut off.
+        // Only when neither way answers does it say the computer is out of reach.
+        if (this.creds.awayUrl) {
+          resetLink();
+          void this.findRoute().then(found => {if (!found) reportLink(false);}).catch(() => reportLink(false));
+        } else reportLink(false);
       } else reportLink(true);
       throw error;
     }

@@ -3136,11 +3136,12 @@
     "phone.ui.address_away_from_home": "כתובת מחוץ לבית",
     "phone.ui.away_address_optional_used_by_itself": "לא חובה. VOOL משתמש בה בעצמו כשרשת הבית מחוץ לטווח.",
     "phone.ui.connected_from_away": "מחובר מחוץ לבית",
+    "phone.ui.settings": "הגדרות",
     "phone.ui.connected_over_your_home_network": "מחובר דרך רשת הבית",
     "phone.ui.looking_home_and_away": "מחפש את המחשב שלך, בבית ומחוצה לו. מחוץ לבית זה עשוי לקחת דקה.",
     "phone.ui.no_answer_home_or_away": "המחשב שלך לא ענה בבית או מחוצה לו. בדוק שהוא דולק וש-VOOL פתוח."
   },
-  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
+  "source_catalog_sha256": "5b088d3b8c2ac43def01bb7cbbb72592715938dc17e72b6011fa2dfa7e2fa390",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
