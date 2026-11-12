@@ -307,6 +307,9 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "limit": "integer optional",
                 # "how many files are in ~/Downloads" wants the number, not the first page of names.
                 "count_only": "boolean optional",
+                # "the latest 10 pics in Downloads": only one kind of file, newest first.
+                "kind": "string optional (image|video|audio|pdf|document|spreadsheet)",
+                "newest_first": "boolean optional",
             },
             output_schema={"entries": "list[directory_entry]", "truncated": "boolean"},
             side_effect_class="read_only",

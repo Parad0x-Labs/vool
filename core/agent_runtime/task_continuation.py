@@ -46,6 +46,53 @@ _TASK_HEAD_RE = re.compile(
 )
 
 
+#: A bare retry of the last request, usually after the person fixed what blocked it: "Try again, I
+#: fixed permissions", "ok tools are on now, go", "retry", "it should work now". Measured on the phone
+#: (2026-11-12): after a refusal for a missing permission, "Try again, I fixed permissions" was
+#: answered "Let me know which photos you need" and the refused request never ran again.
+_RETRY_RE = re.compile(
+    rf"^\s*{_LEAD}(?:(?:please|pls)\s+)?(?:try\s+(?:it\s+)?again|try\s+now|retry|(?:do|run)\s+it\s+(?:again|now)|"
+    r"go\s+ahead|it\s+should\s+work\s+now|again)\b"
+    r"|\b(?:i(?:'ve)?\s+)?(?:fixed|turned\s+on|switched\s+on|enabled|allowed|granted|gave\s+you)\s+(?:the\s+|you\s+)?"
+    r"(?:permissions?|access|rights?|tools?|computer\s+tools)\b"
+    r"|\b(?:permissions?|access|tools?)\s+(?:is|are)\s+(?:on|fixed|enabled|granted)\s+now\b",
+    re.IGNORECASE,
+)
+
+
+def last_user_request(session_id: str, *, look_back: int = 4) -> str:
+    """The chat's most recent user turn, whatever it asked."""
+    try:
+        from core.chat_session_identity import canonical_chat_session_id
+        from core.memory.entries import recent_conversation_events
+
+        rows = list(recent_conversation_events(canonical_chat_session_id(str(session_id or "")), limit=look_back) or ())
+    except Exception:
+        return ""
+    for row in reversed(rows):
+        said = " ".join(str((row or {}).get("user") or "").split())
+        if said and not _RETRY_RE.search(said):
+            return said
+    return ""
+
+
+def compose_retry(text: str, previous_request: str) -> str:
+    """The turn's text as a redo of the last request, or "" when it is not a bare retry."""
+    current = " ".join(str(text or "").split())
+    previous = " ".join(str(previous_request or "").split())
+    if not current or not previous or len(current.split()) > 12 or not _RETRY_RE.search(current):
+        return ""
+    rest = _RETRY_RE.sub(" ", current)
+    rest = re.sub(r"\b(?:ok(?:ay)?|now|go|please|pls|thanks|thx|i|i've|it|so|and|but)\b", " ", rest, flags=re.IGNORECASE)
+    rest = " ".join(rest.replace(",", " ").split()).strip(" .!?-")
+    if (rest and len(rest.split()) >= 2) or (rest and not re.fullmatch(r"(?:now|go|again)", rest, re.IGNORECASE)):
+        change = re.sub(r"^\s*(?:but|and)\s+", "", re.sub(_RETRY_RE, "", current, count=1), flags=re.IGNORECASE)
+        change = " ".join(change.replace(" ,", ",").split()).strip(" ,.;:!?-")
+        if change and change.lower() not in {"i fixed permissions"}:
+            return f"Please do my previous request again now — “{previous}” — with this change: {change}"
+    return f"Please do my previous request again now: “{previous}”"
+
+
 def last_task_request(session_id: str, *, look_back: int = 4) -> str:
     """The chat's most recent user turn that set a task (a translation, a split, a list...)."""
     try:
@@ -87,4 +134,4 @@ def compose_continuation(text: str, previous_request: str) -> str:
     return f"Same as my previous request — “{previous}” — but for: {obj}"
 
 
-__all__ = ["compose_continuation", "last_task_request"]
+__all__ = ["compose_continuation", "compose_retry", "last_task_request", "last_user_request"]

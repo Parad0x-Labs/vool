@@ -1520,3 +1520,34 @@ def test_a_refusal_after_the_checked_model_failed_names_that_model_first():
     sentence = _plain_refusal_sentence("", "ollama-local:qwen3:4b", ("ollama-local:qwen3:8b",))
     assert sentence.startswith("The checked model (qwen3:8b) couldn't finish this answer")
     assert "qwen3:4b" not in sentence
+
+
+@pytest.mark.parametrize("asked, change", [("Try again, I fixed permissions", None), ("ok tools are on now, go", None),
+                                           ("retry pls", None), ("try again but only jpgs", "only jpgs")])
+def test_a_bare_retry_redoes_the_last_request(asked, change):
+    from core.agent_runtime.task_continuation import compose_retry
+
+    out = compose_retry(asked, "list the pics in my downloads")
+    assert "list the pics in my downloads" in out
+    assert (change in out) if change else "with this change" not in out
+
+
+def test_a_question_about_retrying_is_not_a_retry():
+    from core.agent_runtime.task_continuation import compose_retry
+
+    assert compose_retry("how do I try again?", "list the pics in my downloads") == ""
+
+
+@pytest.mark.parametrize("asked", ["Just fetch the latest 10 pics that you can find in that folder", "find in that folder the tax files"])
+def test_that_folder_is_never_a_disk_search_for_a_name(asked):
+    from core.execution.constants import machine_folder_search_intent
+
+    assert machine_folder_search_intent(asked) is None
+
+
+def test_a_multi_part_web_task_stays_with_the_conductor():
+    import re
+
+    text = ("Search the live web for the current price of BTC and gold. Once you have both, calculate the ratio.")
+    sentences = [p for p in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text) if p.strip()]
+    assert len(sentences) == 2

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+from typing import Any
 
 # ---------------------------------------------------------------------------------------------
 # "Is this sentence ASKING THE RUNTIME for a fact, or is it merely ABOUT the topic?"
@@ -907,6 +909,9 @@ def refers_to_current_scope(text: str) -> bool:
     )
 
 
+_NOT_A_FOLDER_NAME = frozenset({"in", "on", "at", "from", "to", "of", "into", "inside", "there", "here", "it", "that", "this"})
+
+
 def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     """Map a local folder-search request to ``("machine.find_folder", <name>)``, else ``None``.
 
@@ -923,6 +928,10 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
         return None
     if refers_to_current_scope(lowered):
         return None  # "this/current/local folder" = the bound scope; the project-aware path handles it
+    if re.search(r"\b(?:that|the\s+same|same)\s+(?:folder|dir(?:ectory)?)\b", lowered):
+        # "that folder" points back at a folder this chat already named; it is not a name to search
+        # the disk for (the phone searched for folders named "in", 2026-11-12).
+        return None
     # A folder search is signalled EITHER by a search verb ("find the X folder") or by asking where
     # something is / whether it exists ("i lost my X folder, where did it go"). The verb-only rule
     # left the second form with no route at all.
@@ -951,6 +960,8 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     clean_name = " ".join(name_words)
     if all(word in _FOLDER_NAME_FILLER_WORDS for word in clean_name.split()):
         return None
+    if all(word in _NOT_A_FOLDER_NAME for word in clean_name.split()):
+        return None  # a preposition or a pointer is never a folder's name
     if len(clean_name) < 2:
         return None
     return ("machine.find_folder", clean_name)
@@ -1398,6 +1409,10 @@ def machine_folder_audit_intent(text: str) -> str | None:
         return None
     if refers_to_current_scope(lowered):
         return None  # "this/current/local folder" = the bound scope; the project-aware path handles it
+    if re.search(r"\b(?:that|the\s+same|same)\s+(?:folder|dir(?:ectory)?)\b", lowered):
+        # "that folder" points back at a folder this chat already named; it is not a name to search
+        # the disk for (the phone searched for folders named "in", 2026-11-12).
+        return None
     if not _FOLDER_ANALYSIS_VERB_RE.search(lowered):
         return None
     match = _FOLDER_AUDIT_RE.search(lowered) or _FOLDER_NAMED_RE.search(lowered)
@@ -1410,6 +1425,8 @@ def machine_folder_audit_intent(text: str) -> str | None:
     clean_name = " ".join(name_words)
     if all(word in _FOLDER_NAME_FILLER_WORDS for word in clean_name.split()):
         return None
+    if all(word in _NOT_A_FOLDER_NAME for word in clean_name.split()):
+        return None  # a preposition or a pointer is never a folder's name
     return clean_name if len(clean_name) >= 2 else None
 
 
@@ -2926,3 +2943,84 @@ _GENERIC_HIVE_TITLE_MARKERS = {
     "on the hive",
     "on hive mind",
 }
+
+
+# --- A kind of file in a known folder: "what pics are in my Downloads", "the latest 10 photos there" ---
+# Measured on the phone (2026-11-12): "I have fees pics in my downloads folder in iMac, can u check
+# what pics are there and give me a list?" ran a disk-wide FOLDER search for "downloads", and "Just
+# fetch the latest 10 pics that you can find in that folder" searched for folders named "in". The
+# person named a folder everyone has and a kind of file; the answer is that folder's files of that
+# kind, newest first when they say latest.
+_KNOWN_USER_FOLDERS = {
+    "downloads": "~/Downloads", "download": "~/Downloads", "desktop": "~/Desktop",
+    "documents": "~/Documents", "pictures": "~/Pictures", "movies": "~/Movies", "music": "~/Music",
+}
+_LISTING_KIND_WORDS = {
+    "pic": "image", "pics": "image", "picture": "image", "pictures": "image", "photo": "image",
+    "photos": "image", "image": "image", "images": "image", "screenshot": "image", "screenshots": "image",
+    "jpg": "image", "jpgs": "image", "jpeg": "image", "jpegs": "image", "png": "image", "pngs": "image",
+    "video": "video", "videos": "video", "clip": "video", "clips": "video",
+    "pdf": "pdf", "pdfs": "pdf", "song": "audio", "songs": "audio", "mp3": "audio", "mp3s": "audio",
+    "spreadsheet": "spreadsheet", "spreadsheets": "spreadsheet",
+}
+_KIND_WORD_RE = re.compile(r"\b(" + "|".join(sorted(_LISTING_KIND_WORDS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
+_KNOWN_FOLDER_RE = re.compile(
+    r"\b(?:my\s+|the\s+|in\s+|from\s+|on\s+(?:the\s+|my\s+)?)?(" + "|".join(_KNOWN_USER_FOLDERS) + r")\b(?:\s+folder)?",
+    re.IGNORECASE,
+)
+_FOLDER_ANAPHORA_RE = re.compile(
+    r"\b(?:(?:in|from|inside)\s+)?(?:that|the\s+same|this)\s+(?:folder|directory|dir)\b|\b(?:in|from)\s+there\b|\bthere\b",
+    re.IGNORECASE,
+)
+_LISTING_ASK_RE = re.compile(
+    r"\b(?:list|show|give\s+me|fetch|get|grab|find|check|see|tell\s+me|which|what(?:'s|\s+is|\s+are)?|"
+    r"are\s+there|any|latest|newest|recent|last)\b",
+    re.IGNORECASE,
+)
+_NEWEST_COUNT_RE = re.compile(
+    r"\b(?:latest|newest|most\s+recent|recent|last)\s+(\d{1,3})\b|\b(\d{1,3})\s+(?:latest|newest|most\s+recent|recent|last)\b"
+    r"|\b(?:latest|newest|most\s+recent|recent|last)\b",
+    re.IGNORECASE,
+)
+_KIND_LISTING_REFUSE_RE = re.compile(
+    r"\b(?:delete|remove|move|rename|copy|upload|send|share|edit|convert|compress|zip|named|called|titled)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_kind_listing_intent(text: str, *, earlier_turns: Sequence[str] = ()) -> dict[str, Any] | None:
+    """`{"path", "kind", "limit", "newest_first"}` for "the <kind> files in <a known folder>", else None.
+
+    The folder may be named in this turn or, for "that folder" / "there", in one of `earlier_turns`
+    (most recent first). A file asked for BY NAME is the file finder's; a change to files is not a
+    listing.
+    """
+    clean = " ".join(str(text or "").split())
+    if not clean or _KIND_LISTING_REFUSE_RE.search(clean):
+        return None
+    kind_match = _KIND_WORD_RE.search(clean)
+    if kind_match is None or not _LISTING_ASK_RE.search(clean):
+        return None
+    # "pictures" names both a kind of file and a folder: the word that named the kind is not also the
+    # folder ("the 2 most recent pictures there" is not ~/Pictures).
+    kind_words = {kind_match.span(1)}
+    folder = next((m for m in _KNOWN_FOLDER_RE.finditer(clean) if m.span(1) not in kind_words), None)
+    path = _KNOWN_USER_FOLDERS[folder.group(1).lower()] if folder else ""
+    if not path and _FOLDER_ANAPHORA_RE.search(clean):
+        for earlier in earlier_turns:
+            said = str(earlier or "")
+            spans = {m.span(1) for m in _KIND_WORD_RE.finditer(said)}
+            found = next((m for m in _KNOWN_FOLDER_RE.finditer(said) if m.span(1) not in spans), None)
+            if found:
+                path = _KNOWN_USER_FOLDERS[found.group(1).lower()]
+                break
+    if not path:
+        return None
+    kind = _LISTING_KIND_WORDS[kind_match.group(1).lower()]
+    count = _NEWEST_COUNT_RE.search(clean)
+    newest_first = count is not None
+    limit = 200
+    if count is not None:
+        digits = count.group(1) or count.group(2)
+        limit = max(1, min(int(digits), 200)) if digits else 20
+    return {"path": path, "kind": kind, "limit": limit, "newest_first": newest_first}

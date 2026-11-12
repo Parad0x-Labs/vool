@@ -2640,8 +2640,16 @@ def plan_conductor_turn(
         # Only a web ask the person did not forbid: "Do NOT search the web for this" names the
         # web too, and that turn is still the conductor's to split.
         web_forbidden = analyze_retrieval_constraints(original).forbids_external_retrieval
+        # Only a single web ask: a several-part task that also searches ("Search the live web for
+        # the BTC and gold prices. Once you have both, calculate the ratio. Present ...") is the
+        # conductor's to split, so no part of it is silently dropped.
+        sentences = [part for part in re.split(r"(?<=[.!?])\s+(?=[A-Z])", " ".join(original.split())) if part.strip()]
+        single_ask = len(sentences) <= 1 and not re.search(
+            r"\b(?:and\s+then|then|once\s+you|after\s+that|calculate|compute|compare|convert)\b", original, re.IGNORECASE
+        )
         if not web_forbidden and (
-            url_read_request(original) or "web" in resolve_demand_signals(original).required_families
+            url_read_request(original)
+            or (single_ask and "web" in resolve_demand_signals(original).required_families)
         ):
             return None
     except Exception:

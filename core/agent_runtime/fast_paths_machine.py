@@ -1836,6 +1836,27 @@ def maybe_handle_direct_machine_read_request(
     # A path the user typed out plus "what is inside it" needs no classification at all. Routed
     # deterministically here, this stops being a coin flip between whichever family matched a
     # word in the sentence and whatever the arbiter happened to pick that run.
+    # "what pics are in my Downloads", "the latest 10 pics in that folder": one kind of file in a
+    # folder everyone has (or the one this chat just named), newest first when asked for the latest.
+    from core.execution.constants import machine_kind_listing_intent
+
+    kind_listing = machine_kind_listing_intent(user_input, earlier_turns=_earlier_user_turns(session_id))
+    if kind_listing is not None:
+        execution = execute_authorized_runtime_tool(
+            "machine.list_directory", dict(kind_listing), source_context=dict(source_context or {})
+        )
+        if execution is not None and _GROUNDED_LISTING_VERDICTS.issuperset(
+            {str(getattr(execution, "status", "") or "")}
+        ):
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.list_directory",
+                execution=execution,
+                reason="machine_read_fast_path",
+            )
     listing_path = machine_path_listing_intent(user_input)
     if listing_path is not None:
         from core.execution.planner import listing_view_arguments
@@ -2031,3 +2052,15 @@ def maybe_handle_direct_machine_read_request(
         source_context=source_context,
         reason="machine_read_fast_path",
     )
+
+
+def _earlier_user_turns(session_id: str, *, look_back: int = 4) -> list[str]:
+    """This chat's earlier user turns, most recent first (for "that folder", "there")."""
+    try:
+        from core.chat_session_identity import canonical_chat_session_id
+        from core.memory.entries import recent_conversation_events
+
+        rows = list(recent_conversation_events(canonical_chat_session_id(str(session_id or "")), limit=look_back) or ())
+    except Exception:
+        return []
+    return [str((row or {}).get("user") or "") for row in reversed(rows) if str((row or {}).get("user") or "").strip()]

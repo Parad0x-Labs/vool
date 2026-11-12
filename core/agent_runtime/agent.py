@@ -2725,9 +2725,18 @@ class VoolAgent(
         # task in its text from here on, so no lane or model reads it on its own
         # (core.agent_runtime.task_continuation; 0.7.8 sweep blocks 1c/1e).
         with contextlib.suppress(Exception):
-            from core.agent_runtime.task_continuation import compose_continuation, last_task_request
+            from core.agent_runtime.task_continuation import (
+                compose_continuation,
+                compose_retry,
+                last_task_request,
+                last_user_request,
+            )
 
-            _carried = compose_continuation(effective_input, last_task_request(session_id))
+            # A bare retry ("Try again, I fixed permissions") redoes the last request, whatever it
+            # asked; otherwise a follow-up carries the last task.
+            _carried = compose_retry(effective_input, last_user_request(session_id)) or compose_continuation(
+                effective_input, last_task_request(session_id)
+            )
             if _carried:
                 effective_input = _carried
                 interpreted = adapt_user_input(

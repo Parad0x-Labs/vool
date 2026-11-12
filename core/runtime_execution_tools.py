@@ -5217,6 +5217,21 @@ def _sibling_projects_to_hide(target: Path, *, workspace_root: Path) -> set[str]
     return hidden
 
 
+#: File kinds a listing can be narrowed to, by extension.
+_LISTING_KIND_SUFFIXES: dict[str, tuple[str, ...]] = {
+    "image": (".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".raw", ".dng"),
+    "video": (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"),
+    "audio": (".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"),
+    "pdf": (".pdf",),
+    "document": (".pdf", ".doc", ".docx", ".txt", ".md", ".rtf", ".pages", ".odt"),
+    "spreadsheet": (".xlsx", ".xls", ".csv", ".numbers", ".ods"),
+}
+_LISTING_KIND_LABELS = {
+    "image": "Pictures", "video": "Videos", "audio": "Audio files", "pdf": "PDFs",
+    "document": "Documents", "spreadsheet": "Spreadsheets",
+}
+
+
 def _list_machine_directory(
     arguments: dict[str, Any], *, workspace_root: Path
 ) -> RuntimeExecutionResult:
@@ -5300,11 +5315,28 @@ def _list_machine_directory(
     # Measured on the deployed build 2026-07-30. A list that silently stops is a wrong answer, not
     # a short one.
     matched: list[dict[str, Any]] = []
-    for child in sorted(target.iterdir(), key=lambda item: item.name.lower()):
-        if child.name.startswith(".") or child.name in hidden_names:
-            continue
-        if directories_only and not child.is_dir():
-            continue
+    # "the latest 10 pics in my Downloads": a kind of file and newest first. The listing used to be
+    # every entry by name, so a person asking for their recent photos got folders and installers.
+    kind = str(arguments.get("kind") or "").strip().lower()
+    kind_suffixes = _LISTING_KIND_SUFFIXES.get(kind, ())
+    newest_first = bool(arguments.get("newest_first", False))
+    children = [
+        child for child in target.iterdir()
+        if not child.name.startswith(".") and child.name not in hidden_names
+        and not (directories_only and not child.is_dir())
+        and not (kind_suffixes and (child.is_dir() or not child.name.lower().endswith(kind_suffixes)))
+    ]
+    if newest_first:
+        def _mtime(item: Path) -> float:
+            try:
+                return item.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        children.sort(key=_mtime, reverse=True)
+    else:
+        children.sort(key=lambda item: item.name.lower())
+    for child in children:
         matched.append(
             {
                 "name": child.name,
@@ -5316,6 +5348,8 @@ def _list_machine_directory(
     dropped = len(matched) - len(entries)
     if not entries:
         noun = "folders" if directories_only else "entries"
+        if kind_suffixes:
+            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
         return RuntimeExecutionResult(
             handled=True,
             ok=True,
@@ -5341,6 +5375,8 @@ def _list_machine_directory(
             },
         )
     label = "Visible folders" if directories_only else "Visible entries"
+    if kind_suffixes:
+        label = f"{_LISTING_KIND_LABELS.get(kind, 'Files')}{', newest first,' if newest_first else ''}"
     if bool(arguments.get("count_only", False)):
         # "how many files are in ~/Downloads" was answered with the first thirty filenames and a
         # bare "-...", so the number it asked for was nowhere in the reply and could not be
