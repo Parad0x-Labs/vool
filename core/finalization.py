@@ -2138,34 +2138,56 @@ def text_is_unserveable_on(conn: sqlite3.Connection, text: str) -> bool:
 
 
 def erased_only_before(text: str, cutoff_iso: str) -> bool:
-    """True when the ONLY governance truth for these bytes is an erasure tombstone written before
-    ``cutoff_iso`` -- no live finalization row, no governed derivative carries them.
+    """True when every privacy truth that keeps these bytes from being served is an erasure that
+    ran before ``cutoff_iso``: no withheld row or withheld derivative carries them, and every
+    erasure that covers them (a digest tombstone, an erased derivative) is older than the writer.
 
     Lineage, not likeness: an erasure removes what was written; a writer that began AFTER the
     erasure and produces the same bytes (a new chat asking the deleted chat's question, a fresh
     answer that happens to match) is not resurrecting anything. Measured on the 0.7.8 sweep
-    (2026-11-12): deleting a chat made the next chat's identical question unwritable. Any read
-    failure answers False, so the caller keeps its fail-closed veto."""
+    (2026-11-12): deleting a chat made the next chat's identical question unwritable.
+
+    A live row or a live derivative with the same bytes is no veto: it is servable truth, and
+    counting it made the THIRD chat that asked the question lose its answer once a second chat had
+    written the same words (ledger V-058). A row born ERASED with these bytes holds no bytes of its
+    own; the erasure it was bound to is one of the tombstones read here. A withheld payload is not
+    an erasure and always keeps the veto, as does a derivative whose governing row is withheld or
+    missing. Any read failure answers False, so the caller keeps its fail-closed veto."""
     clean = _sha256_hex(str(text or ""))
     cutoff = str(cutoff_iso or "").strip()
     if not clean or not cutoff:
         return False
     try:
         with _availability_connection() as conn:
-            if conn.execute("SELECT 1 FROM a7_finalizations WHERE content_hash = ? LIMIT 1", (clean,)).fetchone():
+            if conn.execute(
+                "SELECT 1 FROM a7_finalizations WHERE content_hash = ? AND availability = ? LIMIT 1",
+                (clean, AVAILABILITY_WITHHELD),
+            ).fetchone():
                 return False
-            # A derivative of a payload that was ERASED is covered by that erasure's tombstone
-            # time below; any other governed derivative (live or withheld) keeps the veto.
             if conn.execute(
                 """
                 SELECT 1 FROM a8_governed_derivatives d
                 LEFT JOIN a7_finalizations f ON f.finalization_id = d.finalization_id
-                WHERE d.value_key = ? AND COALESCE(f.availability, '') != ?
+                WHERE d.value_key = ? AND (f.finalization_id IS NULL OR f.availability = ?)
                 LIMIT 1
                 """,
-                (clean, AVAILABILITY_ERASED),
+                (clean, AVAILABILITY_WITHHELD),
             ).fetchone():
                 return False
+            # An erased derivative counts from the moment its governing row was erased.
+            erased_derivatives = conn.execute(
+                """
+                SELECT d.finalization_id AS fid,
+                       (SELECT MAX(e.created_at) FROM a7_governance_events e
+                         WHERE e.finalization_id = d.finalization_id
+                           AND e.event_kind = 'availability_transition'
+                           AND e.new_state = ?) AS erased_at
+                FROM a8_governed_derivatives d
+                JOIN a7_finalizations f ON f.finalization_id = d.finalization_id
+                WHERE d.value_key = ? AND f.availability = ?
+                """,
+                (AVAILABILITY_ERASED, clean, AVAILABILITY_ERASED),
+            ).fetchall()
             rows = conn.execute(
                 "SELECT created_at FROM a7_governance_events WHERE event_kind = ? AND reason IN (?, ?)",
                 (EVENT_KIND_ERASURE_DIGEST_TOMBSTONE, clean, _keyed_tombstone_value(clean)),
@@ -2173,7 +2195,10 @@ def erased_only_before(text: str, cutoff_iso: str) -> bool:
     except Exception:
         return False
     times = [str(row["created_at"] or "") for row in rows]
-    return bool(times) and all(t and t < cutoff for t in times)
+    derivative_times = [str(row["erased_at"] or "") for row in erased_derivatives]
+    if not times:
+        return False
+    return all(t and t < cutoff for t in (*times, *derivative_times))
 
 
 def payload_availability_for_text(text: str) -> str | None:
@@ -2879,6 +2904,32 @@ def _private_chat_still_on(source_context: dict[str, Any]) -> bool:
         return True
 
 
+def _turn_began_after_its_erasure(commit: dict[str, Any]) -> bool:
+    """True when this answer's turn was accepted after the only erasure that covers its bytes.
+
+    Erase lineage (owner decision 2026-11-12): a deletion binds to the chats that existed when it
+    ran. Deleting a chat left a tombstone keyed by its answer's bytes, and a later chat that
+    produced the same bytes ("31 * 17 = 527.", the same weather reading) was born ERASED: it showed
+    once, then a reload served nothing and the export said "unavailable by privacy policy" (ledger
+    V-058). The turn's start is its request's ``accepted_at`` in the invocation ledger, the moment
+    the person sent it; :func:`erased_only_before` keeps the veto for a live or withheld row, a
+    governed derivative that is not erased, and any turn that was already running when the
+    erasure ran. No request, or anything unreadable, keeps the inherited verdict (fail closed).
+    """
+    request_id = str(commit.get("request_id") or "").strip()
+    if not request_id:
+        return False
+    try:
+        from core.invocation.ledger import get_invocation
+
+        began = str((get_invocation(request_id) or {}).get("accepted_at") or "")
+    except Exception:
+        return False
+    if not began:
+        return False
+    return erased_only_before(str(commit.get("canonical_content") or ""), began)
+
+
 def _bind_durably(commit: dict[str, Any], *, private: bool = False) -> str:
     """Engine-enforced durable binding (immutable-first-insert).
 
@@ -2935,6 +2986,10 @@ def _bind_durably(commit: dict[str, Any], *, private: bool = False) -> str:
                 )
             except Exception:
                 _inherited = AVAILABILITY_ERASED  # fail closed on live-store outage
+            if _inherited == AVAILABILITY_ERASED and _turn_began_after_its_erasure(commit):
+                # Erase lineage: the bytes match only an erasure from before this turn was
+                # accepted, so they are this turn's own answer, not a resurrection.
+                _inherited = ""
             _inherit_unavailable = _inherited in _UNSERVEABLE_AVAILABILITY
             _availability = (
                 _inherited if _inherit_unavailable else AVAILABILITY_AVAILABLE
