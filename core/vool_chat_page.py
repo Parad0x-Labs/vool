@@ -64,6 +64,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .home-options { position:absolute; bottom:calc(100% + 8px); left:0; right:0; z-index:60; padding:6px; border:1px solid var(--border); border-radius:12px; background:var(--panel-solid); box-shadow:0 8px 30px #0005; max-height:calc(100dvh - 100px); overflow-y:auto; }
 .home-options .side-foot-btn { display:block; border-color:transparent; padding:9px 10px; }
 .home-options .side-foot-btn:hover { background:var(--active); }
+.home-options a.side-foot-btn { text-decoration:none; box-sizing:border-box; }
 .home-support { margin-top:5px; padding-top:5px; border-top:1px solid var(--border); }
 .home-support .side-foot-btn { font-size:12px; font-weight:500; color:var(--muted); }
 
@@ -1256,6 +1257,7 @@ body:not(.panel-open) #xpanel { display:none; }
         <button id="pluginsBtn" type="button" class="side-foot-btn vi" data-ico="addons" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
         <button id="filesBtn" type="button" class="side-foot-btn vi" data-ico="files" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">Files</button>
         <button id="contactsBtn" type="button" class="side-foot-btn vi" data-ico="contacts" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">Contacts</button>
+        <a id="petYardLink" class="side-foot-btn vi" data-ico="paw" href="/pet-yard" title="Pet Yard &mdash; build and play with your pets, offline" data-i18n="yard.title" data-i18n-title="yard.open_title">Pet Yard</a>
         <button id="settingsBtn" type="button" class="side-foot-btn vi" data-ico="settings" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">Settings</button>
         <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn vi" data-ico="report" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
       </div>

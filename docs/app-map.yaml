@@ -1422,6 +1422,17 @@ rows:
     target_release: unknown
     note: The follow-up tracker is on by default and points at a shipped watcher address; whether it reaches the network on a fresh install is undetermined; the outbound-fetch consent check is the only remaining gate.
 
+  - id: pet-yard
+    title: Build and play in the offline Pet Yard
+    area: other
+    ui: [petYardLink]
+    wired: ["/pet-yard", "/api/pet-yard", "/api/pet-yard/lifeform", "/api/pet-cosmetics", "/api/pet-cosmetics/*"]
+    default: []
+    tests: [tests/test_pet_world_journey.py, tests/test_pet_cosmetics.py]
+    label: IMPLEMENTED
+    target_release: unknown
+    note: Local operator doors; custom web pets and sounds are inert imports. Detached desktop custom pets and online visits are not provided.
+
 # Deliberate non-features: census routes and pinned tools that no row claims,
 # each with the reason they are not user features.
 internal:

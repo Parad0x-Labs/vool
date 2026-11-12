@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -115,7 +116,7 @@ def _measure(page, *, stream=False, seconds=10):
             'before':trace_before,'after':page.evaluate("({attrs:{...document.documentElement.dataset},animations:document.getAnimations().map(a=>[a.animationName,a.playState,a.effect.target.id,a.effect.pseudoElement])})"),
             'metrics':{k:after[k]-before[k] for k in ('ScriptDuration','LayoutDuration','RecalcStyleDuration','LayoutCount','RecalcStyleCount')}}
     # Keep even an invalid first/default observation when later assertions fail.
-    with (Path(os.environ['TMPDIR'])/'stage-budget-observations.jsonl').open('a') as output:
+    with (Path(tempfile.gettempdir())/'stage-budget-observations.jsonl').open('a') as output:
         output.write(json.dumps(result)+'\n')
     return result
 
@@ -248,5 +249,5 @@ def test_complete_trust_motion_and_stream_budget(served,theme):
         assert not guard()
         context.close()
     finally:
-        (Path(os.environ['TMPDIR'])/('stage-budget-'+theme+'.json')).write_text(json.dumps(records,indent=2))
+        (Path(tempfile.gettempdir())/('stage-budget-'+theme+'.json')).write_text(json.dumps(records,indent=2))
         finish_browser(manager, browser)

@@ -1300,6 +1300,11 @@ def _dispatch_get(
             runtime,
         )
 
+    if normalized_path in ("/pet-yard", "/api/pet-yard", "/api/pet-yard/lifeform", "/api/pet-cosmetics") or normalized_path.startswith(("/api/pet-cosmetics/assets/", "/api/pet-cosmetics/voices/")):
+        from core.web.api import pet_world_api
+
+        return apply_runtime_headers(pet_world_api.get(normalized_path, query, headers, runtime, client_host), runtime)
+
     if normalized_path == "/api/toybox":
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
@@ -6902,6 +6907,11 @@ def _dispatch_post_inner(
         except ValueError as exc:
             return apply_runtime_headers(json_response(400, {"ok": False, "error": str(exc)}), runtime)
         return apply_runtime_headers(json_response(404, {"ok": False, "error": "unknown profile action"}), runtime)
+
+    if normalized_path == "/api/pet-yard" or normalized_path.startswith("/api/pet-cosmetics/"):
+        from core.web.api import pet_world_api
+
+        return apply_runtime_headers(pet_world_api.post(normalized_path, body, headers, runtime, client_host), runtime)
 
     if normalized_path.startswith("/api/toybox/"):
         from core.web.api.registry_authorities import operator_json_guard

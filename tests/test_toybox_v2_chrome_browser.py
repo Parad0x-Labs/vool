@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-import time
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,15 +11,7 @@ from core.toybox_registry_v2 import manifests
 from tests._toybox_v2_browser import finish_browser, network_guard, shoot
 from tests._toybox_v2_browser import served as served
 from tests.served_browser import launch_chromium
-
-
-def wait(page, expression):
-    deadline = time.monotonic()+15
-    while time.monotonic() < deadline:
-        if page.evaluate("() => Boolean("+expression+")"):
-            return
-        page.wait_for_timeout(100)
-    raise AssertionError("Timed out: "+expression)
+from tests.test_pet_world_journey import wait
 
 
 def apply(page, served, manifest, revision):
@@ -76,7 +68,7 @@ def test_dock_drawer_keyboard_mobile_rtl_and_native_actions(served,locale):
         page.bring_to_front()
         page.locator('#tbDockHome').click()
         wait(page,'VoolToyboxChrome.diagnostics.drawer && document.getElementById("homeMenu").open')
-        assert page.locator('#settingsBtn').is_visible()
+        assert page.locator('#petYardLink').is_visible()
         # Actual reducer authority can take focus back from a navigation drawer.
         page.evaluate("VoolCompanion.consume('drawer-approval',{type:'task.started'});VoolCompanion.consume('drawer-approval',{type:'permission.required'});VoolStage.mirror('drawer-approval',false)")
         wait(page,'!VoolToyboxChrome.diagnostics.drawer')
@@ -93,9 +85,11 @@ def test_dock_drawer_keyboard_mobile_rtl_and_native_actions(served,locale):
         assert page.locator('#tbDockChats').evaluate('e=>e===document.activeElement')
         page.locator('#tbDockHome').click()
         wait(page,'VoolToyboxChrome.diagnostics.drawer && document.getElementById("homeMenu").open')
-        assert page.locator('#settingsBtn').is_visible()
+        page.locator('#petYardLink').click()
+        wait(page,'window.VoolYardPage?.controller')
+        assert page.url.split('?')[0]==served+'/pet-yard'
         assert not outside()
-        shoot(page,'dock-home-'+locale)
+        shoot(page,'dock-yard-'+locale)
     finally:
         finish_browser(manager,browser)
 
@@ -180,7 +174,7 @@ def test_native_docking_places_perch_before_current_frame_paint(served):
               });
             })''')
             records.append({'theme':theme, **sample})
-            (Path(os.environ['TMPDIR'])/'perch-native-frame-order.json').write_text(json.dumps(records,indent=2))
+            (Path(tempfile.gettempdir())/'perch-native-frame-order.json').write_text(json.dumps(records,indent=2))
             assert sample['mode']=='docked'
             assert not sample['hidden']
             assert sample['delta']<2

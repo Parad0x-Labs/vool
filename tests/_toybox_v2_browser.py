@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -113,7 +114,7 @@ def network_guard(page, base):
 
 
 def shoot(page, name):
-    folder = Path(os.environ["TMPDIR"]) / "shots"
+    folder = Path(tempfile.gettempdir()) / "shots"
     folder.mkdir(exist_ok=True)
     page.screenshot(path=str(folder / (name + ".png")))
 

@@ -1,4 +1,4 @@
-"""Original pixel mascot art for the Dawn Circuit skin."""
+"""Original character art shared by the Dawn Circuit skin and the Pet Yard."""
 from collections import defaultdict
 
 EXPRESSIONS = ('idle', 'blink', 'love', 'happy', 'surprise', 'spar', 'work', 'wave', 'nap', 'unknown')

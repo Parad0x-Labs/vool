@@ -248,3 +248,33 @@ def test_docked_pet_slides_clear_of_the_live_stop_not_a_hidden_one(browser, size
         save_evidence(page, f"inline-live-stop-clearance-{size[0]}.png")
     finally:
         page.close()
+
+
+def test_right_click_opens_the_pet_menu_and_a_click_opens_the_status_card(browser):
+    page = browser.new_page(viewport={"width": 900, "height": 700})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        inline(page)
+        # The status card escapes text with the chat page's esc(); this bare host lacks it.
+        page.evaluate("window.esc=t=>{const d=document.createElement('div');d.textContent=(t==null?'':String(t));return d.innerHTML;}")
+        hit = page.locator("#companionLayer .vool-ninja > .vn-hit").evaluate(
+            "e=>{const r=e.getBoundingClientRect();for(let y=r.top+6;y<r.bottom-6;y+=6)"
+            "for(let x=r.left+6;x<r.right-6;x+=6)if(document.elementFromPoint(x,y)===e)return {x,y};return null;}")
+        assert hit is not None
+        display = "e=>getComputedStyle(e).display"
+        # A real right-click: the browser fires the context menu on the press here, then the release.
+        page.mouse.click(hit["x"], hit["y"], button="right")
+        assert page.locator("#companionLayer .vool-ninja-menu").evaluate(display) == "block"
+        assert page.locator("#companionLayer .vool-ninja-menu button", has_text="Character Lab").is_visible()
+        assert page.locator("#companionLayer .vool-ninja-pop").evaluate(display) == "none"
+        # The menu opened under the pointer; Escape closes it, and the primary button keeps
+        # its tap: the status card opens.
+        page.keyboard.press("Escape")
+        assert page.locator("#companionLayer .vool-ninja-menu").evaluate(display) == "none"
+        page.mouse.click(hit["x"], hit["y"])
+        assert page.locator("#companionLayer .vool-ninja-pop").evaluate(display) == "block"
+        assert page.locator("#companionLayer .vool-ninja-menu").evaluate(display) == "none"
+        assert not errors
+    finally:
+        page.close()
