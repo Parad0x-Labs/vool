@@ -70,7 +70,15 @@ from tests.semantic_phase0._fixtures import (
 #: to 32/252, over this proof's own cap. Excluding it puts those 22 turns BACK under byte comparison
 #: rather than setting them aside; see `test_a_per_run_identity_is_the_only_thing_this_hides`, which
 #: pins the two properties that make the exclusion safe.
-_VARIED_BY_DESIGN = frozenset({"session_id", "task_id", "turn_id"})
+#:
+#: `_sealed_turn_key` joined on the same footing (V-046, 2026-11-12). The final-action seal stashes the
+#: turn key it judged with, so the served boundaries re-check the reply under that key and not under
+#: the request id (the mismatch turned a true command claim into HTTP 500). The key is the turn id
+#: `prepare_runtime_checkpoint` mints from a fresh `uuid4`, or the client's own turn id. Measured on
+#: "hi" and "what is 2+2", two runs under one flag differed in this key and in no other compared field;
+#: left in, nearly every model-lane turn would read as "nondeterministic". The value is set aside,
+#: the field is not: `test_the_sealed_turn_key_is_a_per_run_identity` pins both properties.
+_VARIED_BY_DESIGN = frozenset({"session_id", "task_id", "turn_id", "_sealed_turn_key"})
 
 #: Compared structurally rather than by value: `honesty_receipt` embeds the turn's own hashes and an
 #: issue timestamp, and `source_context` is a mutated input dict.
@@ -284,6 +292,36 @@ def test_a_per_run_identity_is_the_only_thing_this_hides(make_agent_module, dete
     ]
     assert not drifted, (
         "instrumentation changed whether a turn carries a turn id:\n" + "\n".join(drifted[:5])
+    )
+
+
+def test_the_sealed_turn_key_is_a_per_run_identity(make_agent_module, deterministic) -> None:
+    """`_sealed_turn_key` is excluded from the byte comparison for the two reasons `turn_id` is.
+
+    First, its value cannot be compared: two runs of one model-lane turn under the SAME flag carry
+    different keys. Second, excluding the value must not excuse the field, so whether a turn carries
+    the key is still compared between OFF and ON.
+    """
+    try:
+        first = _drive(make_agent_module, "hi", "sealed-key-ctrl-a", flag="0")
+        second = _drive(make_agent_module, "hi", "sealed-key-ctrl-b", flag="0")
+    finally:
+        os.environ.pop("VOOL_SEMANTIC_REACH", None)
+    assert first.get("_sealed_turn_key") and second.get("_sealed_turn_key"), (
+        "this model-lane turn is expected to carry the seal's turn key; if it no longer does, the "
+        f"exclusion has nothing to justify: {first.get('_sealed_turn_key')!r} / {second.get('_sealed_turn_key')!r}"
+    )
+    assert first["_sealed_turn_key"] != second["_sealed_turn_key"], (
+        "`_sealed_turn_key` is excluded because it is a per-run identity. It just reproduced across two "
+        "runs, so it is NOT one any more and does not belong in the excluded set"
+    )
+    drifted = [
+        f"{text!r}: off={'_sealed_turn_key' in off} on={'_sealed_turn_key' in on}"
+        for text, off, on in deterministic
+        if ("_sealed_turn_key" in off) != ("_sealed_turn_key" in on)
+    ]
+    assert not drifted, (
+        "instrumentation changed whether a turn carries the seal's turn key:\n" + "\n".join(drifted[:5])
     )
 
 
