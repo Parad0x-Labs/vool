@@ -356,6 +356,31 @@ bundle_ollama_runtime() {
   return 0
 }
 
+# Wheels for macOS are often universal2: pyobjc 13 ships objc/_objc, _machsignals, the EventKit and
+# Contacts extensions and _objc's dSYM with both an arm64 and an x86_64 slice. The arm64 app never
+# runs the Intel half, but it still ships Intel code, which the arm64 package must not carry
+# (0.8 Mac check on 247124ed). Every Mach-O under the embedded Python that holds more than the
+# target slice keeps only the target slice, written back over the same file so its mode stays.
+# A file without the target slice is left as it is: the architecture gate names it and fails the
+# build. Runs after the lock drift check (which compares names and versions, not file bytes) and
+# before the per-file signature repair, which re-signs every thinned file. Fails closed when lipo
+# cannot thin a file it read as universal.
+thin_embedded_python() {
+  local root="$1" arch="$2" f archs thinned=0
+  while IFS= read -r -d '' f; do
+    archs="$(lipo -archs "${f}" 2>/dev/null)" || continue
+    [[ -n "${archs}" && "${archs}" != "${arch}" ]] || continue
+    [[ " ${archs} " == *" ${arch} "* ]] || continue
+    lipo -thin "${arch}" -output "${f}.thin" "${f}" || die "could not thin ${f#"${root}/"} to ${arch} (slices: ${archs})"
+    cat "${f}.thin" > "${f}" || die "could not write the ${arch} slice of ${f#"${root}/"}"
+    rm -f "${f}.thin"
+    say "        thinned ${f#"${root}/"} to ${arch} (slices: ${archs})"
+    thinned=$((thinned + 1))
+  done < <(find "${root}" -type f \( -name '*.so' -o -name '*.dylib' -o -path '*.dSYM/Contents/Resources/DWARF/*' -o -perm -u+x \) -print0)
+  say "        ${thinned} universal file(s) in the embedded Python thinned to ${arch}"
+  return 0
+}
+
 # ── Builder-footprint roots ────────────────────────────────────────────────────────────────
 # A distributed bundle must not carry ANY absolute path of the machine or run that built it.
 # The 0.6.0-beta release scan found 3,907 files embedding the builder's home and the scrub below
@@ -692,6 +717,8 @@ stage_self_contained() {
   "${embedded}" -I "${PROJECT_ROOT}/ops/macos_locked_requirements.py" check --arch "${TARGET_ARCH}" \
       --python-version "${embedded_minor}" --site-packages "${site_packages}" --requirements "${locked_reqs}" \
     || die "the installed dependencies differ from uv.lock (see DRIFT above)"
+  say "  [2a/4] keep only the ${TARGET_ARCH} slice of universal files in the embedded Python"
+  thin_embedded_python "${res}/python" "${TARGET_ARCH}"
 
   # Deterministic bytecode for the embedded runtime: wipe any install-time caches, then compile
   # in unchecked-hash invalidation mode — the .pyc embeds the source HASH, not a timestamp, so
