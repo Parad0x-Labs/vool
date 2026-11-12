@@ -54,6 +54,9 @@ class OfflineOpenRouterDaemon(OpenRouterCompatibleDaemon):
         for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
             env[name] = DEAD
         env["NO_PROXY"] = env["no_proxy"] = loopback
+        # Web lookups are on (with them off nothing is looked up at all); the fence above is what
+        # makes every lookup fail.
+        env["VOOL_ENABLE_WEB"] = "1"
         return env
 
 
@@ -98,13 +101,16 @@ def _turn(lane, text: str) -> tuple[str, list[dict], list[dict]]:
 
 
 def test_weather_with_a_failed_lookup_is_not_answered_from_the_records(lane) -> None:
-    reply, arrived, events = _turn(lane, WEATHER)
-    assert [_user_text(body) for body in arrived] == [WEATHER], "the model is called once with the question"
+    # Web lookups are on and every lookup fails at the fence. Since 2026-11-12 (nothing is fetched
+    # with the switch off) this test runs with the switch on, where the weather lane itself states
+    # the failed reading; it used to reach the model only because the switch-off run let the lane
+    # fetch anyway and then handed the failure on.
+    reply, _arrived, events = _turn(lane, WEATHER)
     lookups = [event for event in events if event.get("event_type") == "live_data_plan_completed"]
     assert lookups and "0/1 succeeded" in str(lookups[-1].get("message")), lookups
     assert reply != RECORDS_WITHDRAWAL_NOTICE
     assert "records" not in reply.lower(), reply
-    assert reply.startswith(CURRENT_INFORMATION_LEAD), reply
+    assert "paris" in reply.lower() and "no current conditions" in reply.lower(), reply
     assert WEATHER_REPLY not in reply, "an unobserved reading is never published"
 
 

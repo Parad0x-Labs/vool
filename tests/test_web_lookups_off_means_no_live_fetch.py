@@ -54,7 +54,10 @@ def test_switch_off_answers_live_data_and_lookups_plainly_and_opens_nothing() ->
         "look up the latest news about the olympics",
     ]
     ordinary = ["tell me a short joke", "what is the capital of france"]
-    answers, public = _ask_all(live + lookups + ordinary, web_on=False)
+    # Evidence a local tool provides is not a web lookup (measured: this database ask was refused
+    # as one while the refusal read the requirement authority's external-evidence flag).
+    local = ["answer from the orders database the exact created receipt, no guessing"]
+    answers, public = _ask_all(live + lookups + ordinary + local, web_on=False)
     assert public == [], public
     for question in live:
         assert str(answers[question].get("response") or "") == WEB_OFF_TEXT, question
@@ -63,6 +66,8 @@ def test_switch_off_answers_live_data_and_lookups_plainly_and_opens_nothing() ->
     # Control: an ordinary question still reaches the model, never a web-off sentence.
     for question in ordinary:
         assert str(answers[question].get("response") or "") == "A stand-in answer.", question
+    for question in local:
+        assert str(answers[question].get("response") or "") not in (WEB_OFF_TEXT, WEB_OFF_LOOKUP_TEXT)
 
 
 def test_switch_on_does_not_answer_with_the_web_off_sentence() -> None:

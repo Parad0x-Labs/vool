@@ -33,6 +33,8 @@ def _daemon(tmp_path: Path, provider, manifest: Path):
     env_extra = {
         "PYTHONPATH": os.pathsep.join([str(SHIM), str(rig.REPO_ROOT), str(rig.READER_DEPS)]),
         "VOOL_FIXTURE_TRANSPORT_MANIFEST": str(manifest),
+        # Web lookups on: the fixture transport answers every lookup, nothing leaves the machine.
+        "VOOL_ENABLE_WEB": "1",
         "VOOL_FIXTURE_TRANSPORT_LOG": str(log),
     }
     daemon = rig.ServedDaemon(tmp_path / "home", provider=provider, env_extra=env_extra)

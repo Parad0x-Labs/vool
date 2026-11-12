@@ -2237,9 +2237,11 @@ def handle_turn_frontdoor(
 
                 _need = _reqs(effective_input, source_context=source_context)
                 _ask_is_live_data = str(_need.answer_mode) == "LIVE_DATA"
-                _ask_needs_web = not _ask_is_live_data and bool(_need.external_evidence_required)
             except Exception:
-                _ask_needs_web = False
+                _ask_is_live_data = False
+            # "Needs the web" is read from web-specific signals only. `external_evidence_required`
+            # is also true for evidence a local tool provides (a database receipt, a file), and
+            # reading it here refused "answer from the orders database ..." as a web lookup.
             if not _ask_is_live_data and not _ask_needs_web:
                 try:
                     _mode = _text_live_mode(None, effective_input, interpretation=None)
