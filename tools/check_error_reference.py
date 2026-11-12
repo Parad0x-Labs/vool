@@ -13,7 +13,8 @@ What it verifies (same input -> same output, every time):
 3. NAVIGATION IS COHERENT -- every page SUMMARY.md lists exists; every page in a public
    docs section is listed (an unlisted page never publishes); relative links inside
    listed pages resolve, and every link to a section of the Error Book (``#<anchor>``,
-   from another page or from the book itself) names a section the book has.
+   from another page or from the book itself) names a section the book has. A link labelled
+   with a code lands on that code's section, and a title written beside it is the catalog's.
 4. EMITTED-CODE COVERAGE, WITH ITS DENOMINATOR STATED -- the codes the wallet modules
    emit (statically extracted) must all be declared in the catalog, and every declared
    wallet code must have an emission site; every boundary code listed in
@@ -49,6 +50,8 @@ _MD_LINK_RE = re.compile(r"\]\(([^)#\s]+?)(?:#[^)\s]*)?\)")
 _FRAGMENT_LINK_RE = re.compile(r"\]\(([^)#\s]*)#([^)\s]+)\)")
 _HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
 _NAMED_ANCHOR_RE = re.compile(r'<a name="([^"]+)"></a>')
+#: A code named as a link to a section, and in a table row the next cell (its title).
+_CODE_LINK_RE = re.compile(r"\[`([a-z0-9_]+)`\]\(([^)#\s]*)#([^)\s]+)\)(?:\s*\|\s*([^|\n]+?)\s*\|)?")
 _PUBLIC_SECTIONS = ("getting-started", "concepts", "guides", "reference", "trust", "help")
 
 #: The wallet family's emission spellings. Each takes the code as its first positional
@@ -198,6 +201,35 @@ def check_error_book_fragments(problems: list[str], pages: list[pathlib.Path]) -
                 bad.append(f"{page.relative_to(DOCS)} -> {target}#{fragment}")
     if bad:
         problems.append(f"links to Error Book sections that do not exist: {bad}")
+    check_error_book_code_links(problems, sources, book_path)
+
+
+def check_error_book_code_links(problems: list[str], sources: dict[pathlib.Path, pathlib.Path],
+                                book_path: pathlib.Path) -> None:
+    """A hand-written page that names a code as a link to the book (``[`code`](…#anchor)``)
+    must land on THAT code's section, the code must be declared, and a table cell right after
+    the link must carry the code's catalog title: a renamed title or a mislabelled link would
+    otherwise tell the reader one thing and open another."""
+    specs = {spec.code: spec for spec in all_specs()}
+    bad: list[str] = []
+    for resolved, page in sorted(sources.items()):
+        for match in _CODE_LINK_RE.finditer(page.read_text(encoding="utf-8")):
+            code, target, fragment, title = match.group(1), match.group(2), match.group(3), match.group(4)
+            if target.startswith(("http://", "https://", "mailto:")):
+                continue
+            if ((page.parent / target).resolve() if target else resolved) != book_path:
+                continue
+            where = f"{page.relative_to(DOCS)}: `{code}`"
+            spec = specs.get(code)
+            if spec is None:
+                bad.append(f"{where} is not a declared code")
+                continue
+            if fragment != doc_anchor(code):
+                bad.append(f"{where} links to #{fragment}, not #{doc_anchor(code)}")
+            if title is not None and title.strip() != spec.title:
+                bad.append(f"{where} is titled {title.strip()!r}, the catalog says {spec.title!r}")
+    if bad:
+        problems.append(f"code links that disagree with the catalog: {bad}")
 
 
 def check_emitted_coverage(problems: list[str]) -> dict[str, object]:

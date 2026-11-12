@@ -31,27 +31,62 @@ def test_a_link_to_an_error_book_section_that_does_not_exist_is_refused(tmp_path
 
     (tmp_path / "reference").mkdir()
     (tmp_path / "ERROR_BOOK.md").write_text(
-        '# Error Book\n\n| [`wallet_locked`](#wallet-locked) | Wallet locked |\n\n'
-        '<a name="wallet-locked"></a>\n\n### wallet_locked\n\nSee [the next one](#wallet-gone).\n',
+        '# Error Book\n\n| [`wallet_pin_invalid`](#wallet-pin-invalid) | PIN invalid |\n\n'
+        '<a name="wallet-pin-invalid"></a>\n\n### wallet_pin_invalid\n\nSee [the next one](#wallet-gone).\n',
         encoding="utf-8",
     )
     page = tmp_path / "reference" / "errors.md"
     page.write_text(
-        "[lands](../ERROR_BOOK.md#wallet-locked) [github only](../ERROR_BOOK.md#wallet_locked) "
-        "[misspelled](../ERROR_BOOK.md#wallet-lockd) [another page](other.md#anything) "
+        "[lands](../ERROR_BOOK.md#wallet-pin-invalid) [github only](../ERROR_BOOK.md#wallet_pin_invalid) "
+        "[misspelled](../ERROR_BOOK.md#wallet-pin-invalide) [another page](other.md#anything) "
         "[the web](https://example.com/ERROR_BOOK.md#nowhere)\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(checker, "DOCS", tmp_path)
 
     assert checker.error_book_anchors((tmp_path / "ERROR_BOOK.md").read_text(encoding="utf-8")) == {
-        "error-book", "wallet-locked",
+        "error-book", "wallet-pin-invalid",
     }
     problems: list[str] = []
     checker.check_error_book_fragments(problems, [page])
     assert problems == [
         "links to Error Book sections that do not exist: ["
         "'ERROR_BOOK.md -> #wallet-gone', "
-        "'reference/errors.md -> ../ERROR_BOOK.md#wallet_locked', "
-        "'reference/errors.md -> ../ERROR_BOOK.md#wallet-lockd']"
+        "'reference/errors.md -> ../ERROR_BOOK.md#wallet_pin_invalid', "
+        "'reference/errors.md -> ../ERROR_BOOK.md#wallet-pin-invalide']"
+    ]
+
+
+def test_a_code_link_must_land_on_its_own_section_with_the_catalog_title(tmp_path, monkeypatch) -> None:
+    """A hand-written table that labels a link with one code but points at another, keeps a title
+    the catalog has since changed, or names a code that does not exist, tells the reader one
+    thing and opens another."""
+    import tools.check_error_reference as checker
+    from core.faults.catalog import get_spec
+
+    (tmp_path / "reference").mkdir()
+    book = "".join(
+        f'<a name="{anchor}"></a>\n\n### {code}\n\n'
+        for code, anchor in (("wallet_pin_invalid", "wallet-pin-invalid"), ("timeout", "timeout"))
+    )
+    (tmp_path / "ERROR_BOOK.md").write_text(book, encoding="utf-8")
+    page = tmp_path / "reference" / "errors.md"
+    page.write_text(
+        "| Code | Title |\n| --- | --- |\n"
+        f"| [`timeout`](../ERROR_BOOK.md#timeout) | {get_spec('timeout').title} |\n"
+        "| [`wallet_pin_invalid`](../ERROR_BOOK.md#timeout) | PIN invalid |\n"
+        "| [`wallet_pin_invalid`](../ERROR_BOOK.md#wallet-pin-invalid) | Wrong PIN |\n"
+        "| [`wallet_pin_wrong`](../ERROR_BOOK.md#wallet-pin-invalid) | PIN invalid |\n"
+        "Prose may name [`timeout`](../ERROR_BOOK.md#timeout) without a title.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(checker, "DOCS", tmp_path)
+
+    problems: list[str] = []
+    checker.check_error_book_fragments(problems, [page])
+    assert problems == [
+        "code links that disagree with the catalog: ["
+        "'reference/errors.md: `wallet_pin_invalid` links to #timeout, not #wallet-pin-invalid', "
+        f"\"reference/errors.md: `wallet_pin_invalid` is titled 'Wrong PIN', the catalog says {get_spec('wallet_pin_invalid').title!r}\", "
+        "'reference/errors.md: `wallet_pin_wrong` is not a declared code']"
     ]
