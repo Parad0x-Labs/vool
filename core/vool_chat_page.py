@@ -15030,6 +15030,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.my_things_fragment import render_my_things_fragment
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
+    from core.routines_fragment import render_routines_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.toybox_fragment import render_toybox_fragment
     from core.ui_chip_fragment import render_chip_fragment
@@ -15056,6 +15057,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_wallet_fragment(),
         render_contacts_fragment(),
         render_my_things_fragment(),
+        render_routines_fragment(),
     )
 
 

@@ -1188,7 +1188,45 @@ def _deliver_oauth_url(url: str) -> None:
         _log(f"failed to deliver vool:// oauth callback ({exc!r})")
 
 
-def _register_url_scheme_handler() -> None:
+def routine_link_path(url: str) -> str:
+    """The page a ``vool://routine/<id>`` link opens (``/routines?run=<id>``), or "" for any other text.
+
+    A shortcut, a tag or another app can hold such a link. It only shows the routine's exact list in My
+    routines; the person still chooses Run there. Anything but exactly that shape is not a routine link.
+    """
+    import re
+    import urllib.parse
+
+    try:
+        parsed = urllib.parse.urlparse(str(url or "").strip())
+    except ValueError:
+        return ""
+    if (parsed.scheme.lower() != "vool" or parsed.netloc.lower() != "routine" or parsed.params or parsed.query
+            or parsed.fragment):
+        return ""
+    routine_id = parsed.path[1:] if parsed.path.startswith("/") else parsed.path
+    routine_id = routine_id[:-1] if routine_id.endswith("/") else routine_id
+    return "/routines?run=" + routine_id if re.fullmatch(r"rt-[0-9a-f]{10}", routine_id) else ""
+
+
+def _deliver_vool_url(url: str, window: object | None) -> None:
+    """One vool:// link: a routine link opens My routines in this window; anything else is a sign-in callback."""
+    path = routine_link_path(url)
+    if not path:
+        _deliver_oauth_url(url)
+        return
+    if window is None:
+        _log("vool:// routine link arrived before the window; ignored")
+        return
+    _focus_window(window)
+    try:
+        window.load_url(_API_ORIGIN + path)
+        _log("opened a vool:// routine link in My routines")
+    except Exception as exc:
+        _log(f"could not open a vool:// routine link ({exc!r})")
+
+
+def _register_url_scheme_handler(window: object | None = None) -> None:
     """macOS: catch the vool:// launch/activation (GURL Apple Event) and relay its params.
 
     The .app's bash launcher exec's into THIS process, so the window is the .app's NSApplication and
@@ -1210,7 +1248,7 @@ def _register_url_scheme_handler() -> None:
         def handleAppleEvent_withReplyEvent_(self, event, reply_event):  # noqa: N802 (ObjC selector)
             try:
                 descriptor = event.paramDescriptorForKeyword_(key_direct_object)
-                _deliver_oauth_url(str(descriptor.stringValue() or "")) if descriptor else None
+                _deliver_vool_url(str(descriptor.stringValue() or ""), window) if descriptor else None
             except Exception as exc:
                 _log(f"vool:// handler error ({exc!r})")
 
@@ -1685,7 +1723,7 @@ def main() -> int:
         if window is None:
             raise RuntimeError("pywebview returned no native window")
         api.set_window(window, webview)
-        _register_url_scheme_handler()   # catch vool://auth/<provider>/callback launches (macOS)
+        _register_url_scheme_handler(window)   # vool://auth/<provider>/callback and vool://routine/<id> (macOS)
         runtime_lost = _start_runtime_watchdog(supervisor, window, done)
         notification_bridge = _start_notification_bridge(window)
         # macOS: X hides to Dock, Cmd+Q quits (default on); the same post-start hook binds Cmd+,

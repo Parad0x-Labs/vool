@@ -1088,6 +1088,14 @@ def _dispatch_get(
         from core.my_things.api import get as things_get
 
         return apply_runtime_headers(things_get(normalized_path, client_host, headers), runtime)
+    if normalized_path == "/routines":
+        from core.routines_fragment import render_routines_page
+
+        return apply_runtime_headers(html_response(200, render_routines_page(resolve_page_locale(query, headers)), headers={"Cache-Control": "no-store"}), runtime)
+    if normalized_path == "/api/routines" or normalized_path.startswith("/api/routines/"):
+        from core.routines.api import get as routines_get
+
+        return apply_runtime_headers(routines_get(normalized_path, query, client_host, headers), runtime)
 
     if normalized_path.startswith("/api/disclosure/"):
         if not is_loopback_host(client_host):
@@ -3466,6 +3474,11 @@ def dispatch_post(
         from core.my_things.api import post as things_post
 
         return apply_runtime_headers(things_post(normalized_path, body, headers, client_host), runtime)
+
+    if normalized_path.startswith("/api/routines/"):
+        from core.routines.api import post as routines_post
+
+        return apply_runtime_headers(routines_post(normalized_path, body, headers, client_host), runtime)
 
     if normalized_path.startswith("/api/disclosure/"):
         from core.web.api.runtime import host_header_allowed as _disclosure_host_allowed

@@ -1457,6 +1457,20 @@
       "registry_command_id": "repoops.sessions",
       "surface": "http"
     },
+    "http:GET:/api/routines": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/routines",
+      "note": "routines owner-local listing",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/routines/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/routines/*",
+      "note": "routines owner-local views (folders, watch, names)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/runtime/capabilities": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/runtime/capabilities",
@@ -1769,6 +1783,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /null-browser",
       "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/routines": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /routines",
+      "note": "My routines page transport",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2724,6 +2745,13 @@
       "registry_command_id": "repoops.authorize_push",
       "surface": "http"
     },
+    "http:POST:/api/routines/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/routines/*",
+      "note": "routines owner-local actions with confirmation",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/runtime/unresolved-effects/resolve": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/runtime/unresolved-effects/resolve",
@@ -3378,7 +3406,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 324,
+    "EXTERNAL_TRANSPORT_ONLY": 328,
     "GENERATED_ADAPTER": 149,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

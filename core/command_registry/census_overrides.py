@@ -113,6 +113,10 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/my-things": "household records owner-local listing",
     "http:GET:/api/my-things/*": "household records owner-local views",
     "http:POST:/api/my-things/*": "household records owner-local actions with confirmation",
+    "http:GET:/routines": "My routines page transport",
+    "http:GET:/api/routines": "routines owner-local listing",
+    "http:GET:/api/routines/*": "routines owner-local views (folders, watch, names)",
+    "http:POST:/api/routines/*": "routines owner-local actions with confirmation",
 
     # -- daemon / service entry points --------------------------------------
     "cli-script:vool-agent": "runtime daemon entry point",

@@ -6872,6 +6872,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.my_things_fragment import render_my_things_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.provider_key_guide import provider_key_guide
+    from core.routines_fragment import render_routines_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
@@ -6882,7 +6883,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_my_things_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
+        + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the
