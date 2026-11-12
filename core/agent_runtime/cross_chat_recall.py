@@ -191,6 +191,9 @@ def _private(session_id: str, source_context: dict[str, Any] | None) -> bool:
 _LIVE_DOMAIN_RE = re.compile(
     r"\b(?:meetings?|appointments?|calendar|agenda|events?|schedule|reminders?|e-?mails?|mail|inbox|"
     r"messages?|files?|folders?|downloads?|desktop|disk|battery|weather|forecast|balance|wallet|price|"
+    # Writing the owner keeps (VOOL's notes, a journal, a notes file in a project): "what's in my
+    # notes?" reads those, never "I don't have that saved" (v0.8 line 247124ed, 2026-11-12).
+    r"notes|notebooks?|journal|diary|"
     # Data the owner keeps in a store a tool reads (database run 2, 2026-11-12: "whats in my orders
     # database?" was answered "I don't have that saved" by this lane).
     r"databases?|databse|datbase|db|tables?|tabel|spreadsheets?|sheets?|repo|repository|repositories|"
@@ -219,8 +222,21 @@ def _agent_turn(session_id: str) -> bool:
         return False
 
 
-def _owned_by_another_lane(text: str) -> bool:
+def _owned_by_another_lane(text: str, asked: str = "") -> bool:
     if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
+        return True
+    typed = asked or text
+    try:
+        # Read as typed, before the recall grammar's rewrite: "show me my notes" lists the notes
+        # (the operator's find_notes), and "find my chat about X" is the saved-chat search. Both
+        # were rewritten to "what's my ...?" and answered "I don't have that saved" (v0.8 line
+        # 247124ed; in-process on the v0.8 candidate fa4fcc92, 2026-11-12).
+        from core.agent_runtime.housekeeping_lane import covers_unit
+        from core.operator.parser import parse_operator_action_intent
+
+        if parse_operator_action_intent(typed) is not None or covers_unit(typed):
+            return True
+    except Exception:
         return True
     try:
         # Files on this computer ("which pdfs are in my documents", "find my tax folder") are the
@@ -269,6 +285,21 @@ def _owned_by_another_lane(text: str) -> bool:
     except Exception:
         return True
     return False
+
+
+def _names_a_project_file(text: str, source_context: dict[str, Any] | None) -> bool:
+    """The question names a file in the folder this chat is bound to, so it is that file's question.
+
+    Measured 2026-11-12 on the v0.8 candidate, project chats: "What do my dentist notes say?" with
+    dentist_notes.md in the project was answered "I don't have that saved" by this lane. A failed
+    check declines too, as every other ownership check here does: the ordinary path still answers.
+    """
+    try:
+        from core.agent_runtime.workspace_question_evidence import question_names_project_file
+
+        return question_names_project_file(text, dict(source_context or {}))
+    except Exception:
+        return True
 
 
 def _covers(terms: tuple[str, ...], found: tuple[str, ...] | list[str]) -> bool:
@@ -597,10 +628,12 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if _owned_by_another_lane(text):
+    if _owned_by_another_lane(text, " ".join(str(question or "").split())):
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them
+    if _names_a_project_file(text, source_context):
+        return None  # "what do my dentist notes say?" with dentist_notes.md in this chat's project
     if not explicit_recall and _chat_works_on_a_data_store(source_context):
         return None
     from core.chat_housekeeping import query_terms, search_chats

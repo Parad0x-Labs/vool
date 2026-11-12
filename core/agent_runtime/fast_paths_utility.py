@@ -83,7 +83,9 @@ _TIME_FOLLOWUP_EXCLUSION_MARKERS = (
     "queue",
     "work",
 )
-_FILE_TOKEN = r"[A-Za-z0-9_./-]+\.(?:toml|json|ya?ml|md|txt|py|ts|tsx|js|jsx)"
+# Tables are files too: without csv/tsv "Read tally.csv" named no file here, and without the closing
+# boundary "harvest.tsv" was read as `harvest.ts` (both measured 2026-11-12 on the v0.8 candidate).
+_FILE_TOKEN = r"[A-Za-z0-9_./-]+\.(?:(?i:csv|tsv)|toml|json|ya?ml|md|txt|py|ts|tsx|js|jsx)(?![A-Za-z0-9_])"
 _WORKSPACE_READ_FILE_RE = re.compile(rf"(?P<path>{_FILE_TOKEN})")
 # A named file with a MUTATION intent is not a read -- defer to the writer/builder lanes.
 _WORKSPACE_MUTATION_INTENT_RE = re.compile(
@@ -702,6 +704,25 @@ def _attachment_lookup_name(path: str) -> str:
     return str(path or "").replace("\\", "/").rsplit("/", 1)[-1].strip().casefold()
 
 
+def named_file_is_at_hand(path: str, source_context: dict[str, object] | None) -> bool:
+    """Whether a file this lane would read is attached to the turn or sits in the chat's folder.
+
+    Asked before a turn is planned, never to read: only the name is looked up, nothing is opened,
+    and a path that leaves the folder is never at hand.
+    """
+    if _attachment_lookup_name(path) in _attached_text_files_by_name(source_context):
+        return True
+    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
+    if not root or not str(path or "").strip():
+        return False
+    try:
+        base = Path(root).expanduser().resolve()
+        candidate = (base / str(path)).resolve()
+        return candidate.is_relative_to(base) and candidate.is_file()
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
 def _attached_text_files_by_name(source_context: dict[str, object] | None) -> dict[str, dict[str, Any]]:
     """The turn's staged TEXT attachments, by display name.
 
@@ -948,37 +969,60 @@ def maybe_handle_direct_workspace_runtime_request(
             for request in direct_reads
         ):
             return None
+        # A question whose answer is worked out FROM the file ("what's the total in tally.csv",
+        # "summarize plan.md") is not a request to see the file: the reads become evidence, with a
+        # table's sums computed in code, and the model answers (prompt cache bench B2: the raw CSV
+        # was pasted as the answer and the next turn's hand-made sum was wrong). The parser above
+        # still claims such a question for the request splitter, which keeps a one-file
+        # computation whole by its own check (`_one_file_computation_answers_every_part`).
+        from core.agent_runtime.tabular_evidence import file_question_requires_synthesis
+        from core.agent_runtime.workspace_question_evidence import MAX_DISCOVERY_BYTES, record_evidence
+
+        synthesis = isinstance(source_context, dict) and any(
+            file_question_requires_synthesis(user_input, str(request.get("path") or "")) for request in direct_reads
+        )
         for read_request in direct_reads:
             attached = attached_by_name.get(_attachment_lookup_name(str(read_request.get("path") or "")))
             if attached is not None:
                 execution = _read_attached_file(attached, read_request)
-                _emit_workspace_tool_events(
-                    agent,
-                    source_context,
-                    intent="attachment.read_file",
-                    execution=execution,
-                    path=str(attached.get("name") or ""),
-                )
+                if synthesis:
+                    record_evidence(agent, source_context, "attachment.read_file", read_request, execution)
+                else:
+                    _emit_workspace_tool_events(
+                        agent,
+                        source_context,
+                        intent="attachment.read_file",
+                        execution=execution,
+                        path=str(attached.get("name") or ""),
+                    )
                 _record_attachment_fast_read(agent, source_context, attached)
                 executions.append(execution)
                 continue
+            read_context = dict(source_context or {})
+            if synthesis:
+                read_context["_workspace_context_read_byte_budget"] = MAX_DISCOVERY_BYTES
             execution = execute_runtime_tool(
                 "workspace.read_file",
                 read_request,
-                source_context=dict(source_context or {}),
+                source_context=read_context,
             )
             # A tool that cannot run at all is not a partial answer. Stand down and let the rest of
             # the front door decide, exactly as the single-file path did.
             if execution is None:
                 return None
-            _emit_workspace_tool_events(
-                agent,
-                source_context,
-                intent="workspace.read_file",
-                execution=execution,
-                path=str(read_request.get("path") or ""),
-            )
+            if synthesis:
+                record_evidence(agent, source_context, "workspace.read_file", read_request, execution)
+            else:
+                _emit_workspace_tool_events(
+                    agent,
+                    source_context,
+                    intent="workspace.read_file",
+                    execution=execution,
+                    path=str(read_request.get("path") or ""),
+                )
             executions.append(execution)
+        if synthesis and any(item.ok for item in executions):
+            return None
         response = _render_direct_workspace_read_response(
             user_input, executions[0].response_text, executions[0].details
         )

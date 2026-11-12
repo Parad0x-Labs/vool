@@ -1435,6 +1435,47 @@ def _question_terms(question: str) -> set[str]:
     return {term.lower() for term in _TERM_RE.findall(str(question or "")) if term.lower() not in _STOP_TERMS}
 
 
+#: Words that name no subject in a question about a kept document: pronouns, helper verbs and the
+#: time words that make an ordinary question sound live. Measured 2026-11-12: "which depot does the
+#: quarry team use these days, and who is its supervisor now?" counted "its", "use", "days" and
+#: "now" as subject words and missed the crew document it was about.
+_FILLER_TERMS = frozenset({
+    "its", "it's", "use", "uses", "used", "using", "now", "today", "tonight", "currently", "current",
+    "nowadays", "days", "lately", "recently", "latest", "still", "right", "any", "some", "all", "can",
+    "may", "might", "just", "also", "very", "much", "many", "more", "most", "she", "her", "his", "him",
+    "our", "out", "get", "got", "say", "says", "said", "know", "yet", "too", "own", "only", "else",
+})
+
+
+def documents_hold_question(session_id: str, question: str) -> bool:
+    """Whether a document kept in this chat holds most of the question's own words.
+
+    Such a question ("who leads the quarry team?" after the person pasted the crew handbook) is
+    about that document, so it is answered from it, never refused as a web lookup. At least two
+    subject words, and three in five of them, must appear in one document; only a yes or no comes
+    back. A live question that shares one word with a document ("what's the weather today?") has
+    one subject word, so it is not the document's.
+    """
+    terms = _question_terms(question) - _FILLER_TERMS
+    if len(terms) < 2:
+        return False
+    need = max(2, -(-3 * len(terms) // 5))
+    try:
+        documents = list_documents(session_id)
+    except AttachmentRefused:
+        return False
+    for document in documents:
+        with _LOCK:
+            try:
+                raw = _open_regular(_bytes_path(document["id"]))
+            except (OSError, AttachmentRefused):
+                continue
+        lowered = raw[:MAX_TEXT_CHARS_PER_FILE * 4].decode("utf-8", errors="replace").lower()
+        if sum(term in lowered for term in terms) >= need:
+            return True
+    return False
+
+
 def _line_windows(text: str) -> list[tuple[int, int, str]]:
     """(first_line, last_line, chunk_text) windows of at most CHUNK_LINES lines / CHUNK_CHARS chars."""
     lines = text.splitlines(keepends=True)

@@ -3396,6 +3396,10 @@ class VoolAgent(
             coverage = demand_coverage(demand_text)
             if not coverage.mixed:
                 return None
+            from core.agent_runtime.demand_ownership import one_file_computation_owns_turn
+
+            if one_file_computation_owns_turn(demand_text, source_context, coverage=coverage):
+                return None
             # The turn's clause decomposition (one model reading, already asked by the conductor)
             # read every clause as ONE request: answer it as one. Measured on the live agent-team run
             # (2026-10-07): it grouped "Review the three files ... For each file, find the bug ...

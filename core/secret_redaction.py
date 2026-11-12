@@ -391,6 +391,16 @@ def _bip39_index() -> dict[str, int]:
     return _BIP39_INDEX
 
 
+def recovery_phrase_words():
+    """The canonical BIP-39 English words as a read-only word -> index mapping.
+
+    Empty when the wallet's wordlist is absent or malformed: a caller deciding whether text is a
+    recovery phrase must then fail closed (treat the shape alone as enough), never open."""
+    from types import MappingProxyType
+
+    return MappingProxyType(_bip39_index())
+
+
 def mnemonic_redaction_available() -> bool:
     """Whether recovery-phrase detection is armed (canonical wordlist present and well-formed).
 

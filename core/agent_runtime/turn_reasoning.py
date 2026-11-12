@@ -1701,7 +1701,7 @@ def execute_grounded_turn(
             from core.remote_fetch_policy import effective_web_available
 
             if not effective_web_available(source_context) and _asks_about_something_that_changes(
-                effective_input, _requirements, source_context
+                effective_input, _requirements, source_context, session_id=str(session_id or "")
             ) and "web lookups" not in str(response or "").lower():
                 response = (
                     f"{str(response or '').rstrip()}\n\n"
@@ -2185,18 +2185,32 @@ def execute_grounded_turn(
     }
 
 
-def _asks_about_something_that_changes(text: str, requirements: Any, source_context: Any = None) -> bool:
+def _asks_about_something_that_changes(
+    text: str, requirements: Any, source_context: Any = None, *, session_id: str = "",
+) -> bool:
     """A question whose true answer can change from day to day (the requirement authority's own
-    reading, or the live-information classifier), and not one the chat's own records answer."""
+    reading, or the live-information classifier), and not one the chat's own records answer.
+
+    Nor one the person's own material answers: text the turn pastes, or a document this chat keeps
+    that holds the question (measured 2026-11-12 on the v0.8 candidate: "Who leads the quarry team,
+    and where does it assemble indoors?" about a kept crew document came back labelled "from what I
+    already know and may be out of date")."""
     try:
         from core.agent_runtime.turn_frontdoor import _ASKS_FROM_OWN_RECORDS_RE
 
         if _ASKS_FROM_OWN_RECORDS_RE.search(str(text or "")):
             return False
+        from core.inline_payload import supplied_material_answers
+
+        ctx = source_context if isinstance(source_context, dict) else {}
+        if supplied_material_answers(
+            text, session_id=session_id or str(ctx.get("runtime_session_id") or ""),
+            source_context=ctx or None,
+        ):
+            return False
         from core.bootstrap_context import admitted_capsule_evidence_text
         from core.memory_grounding import question_names_someone_in_the_records
 
-        ctx = source_context if isinstance(source_context, dict) else {}
         if question_names_someone_in_the_records(
             str(text or ""), admitted_capsule_evidence_text(ctx, str(ctx.get("session_id") or ""))
         ):

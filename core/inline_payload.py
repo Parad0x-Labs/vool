@@ -34,9 +34,18 @@ _FENCED_PAYLOAD_RE = re.compile(r"(`{3,}|~{3,}).+?\1", re.DOTALL)
 # A content label owns its unfenced body, including any executable sentences.
 # A literal locator can instead be the object of an explicit observation request;
 # that authority comes from the prefix, never from sentences inside supplied data.
+#: Words that name material a person pastes: the generic ones, and the kinds of writing people
+#: paste to ask about (prompt cache bench B4, 2026-10-15: "Here is the plan for our neighbourhood
+#: repair cafe. Read it, then answer my questions" was split into searches and refusals).
+_MATERIAL_KINDS = (
+    r"text|content|contents|file|document|doc|message|transcript|comment|code|plan|notes?|draft|"
+    r"article|report|letter|e-?mail|essay|story|agenda|minutes|proposal|spec|specification|outline|"
+    r"contract|policy|recipe|brief|memo|announcement|statement|paper|manual|handbook|checklist"
+)
+
 _PLAIN_PAYLOAD_RE = re.compile(
     r"\b(?:this|(?:the\s+)?following|pasted|supplied)\b"
-    r"(?:\s+(?P<content_kind>text|content|contents|file|document|message|transcript|comment|code)\b)?"
+    rf"(?:\s+(?P<content_kind>{_MATERIAL_KINDS})\b)?"
     r"[^:\n]*:\s*\n", re.IGNORECASE,
 )
 
@@ -47,6 +56,18 @@ _HERE_IS_PAYLOAD_RE = re.compile(
     r"(?:text|content|contents|file|document|message|transcript|comment|code)\b[^.!?]{0,40}[:\n]",
     re.IGNORECASE,
 )
+
+#: A message that OPENS by handing over material ("Here is the plan for ...", "Here are my meeting
+#: notes from Tuesday.", "Below is the draft contract.") and then asks about it.
+_LEAD_IN_MATERIAL_RE = re.compile(
+    r"^\s*(?:(?:ok|okay|so|hi|hey|right)\b[\s,!.]*)?(?:here(?:\s+is|\s+are|'s|\s+'s)|below\s+(?:is|are))\s+"
+    r"(?:(?:the|my|our|a|an|some)\s+)?(?:[\w'-]+\s+){0,3}?"
+    rf"(?:{_MATERIAL_KINDS})\b[^.!?:\n]{{0,80}}[.!:\n]",
+    re.IGNORECASE,
+)
+#: Where the lead-in ends: the first blank line, else the first colon that ends a line.
+_LEAD_IN_END_RE = re.compile(r"\n\s*\n|:\s*\n")
+_LEAD_IN_MAX_CHARS = 600
 
 #: An analysis ask that makes supplied content self-sufficient. Without one of these the payload
 #: may be an instruction ("save this text to notes.txt: ...") and the machine lanes keep the turn.
@@ -84,24 +105,32 @@ def _plain_body_names_external_input(body: str, *, observation_request: bool) ->
     return bool(lines) and locator(lines[0]) and (len(lines) == 1 or observation_request)
 
 
-def turn_supplies_its_own_content(text: Any, *, source_context: dict | None = None) -> bool:
-    """Whether this turn pastes the very content it asks about.
+def _lead_in_material_end(turn: str) -> re.Match[str] | None:
+    """"Here is the plan ... Read it, then answer my questions ...\n\n<the plan>": the opening
+    paragraph hands over material and asks only to read, explain or answer from it, and the material
+    follows. Only the opening paragraph decides, never a sentence inside the material; an opening
+    that also asks for an action ("Here's the contract, save it to my documents") keeps its owner.
+    Returns where the opening paragraph ends, or None."""
+    if not _LEAD_IN_MATERIAL_RE.match(turn):
+        return None
+    end = _LEAD_IN_END_RE.search(turn)
+    if end is None or end.start() > _LEAD_IN_MAX_CHARS or not turn[end.end():].strip():
+        return None
+    if _plain_body_names_external_input(turn[end.end():], observation_request=False):
+        return None
+    from core.turn_ir import ClauseKind, parse_turn_ir
 
-    Require an analysis ask and a supplied payload, or a non-mutating request introducing
-    fenced or explicitly labelled material. The existing clause kinds distinguish reading shown material from an
-    instruction to write it. Naming a file alone still requires a read; supplying text for
-    a write still belongs to machine work.
-    """
+    kinds = {clause.kind for clause in parse_turn_ir(turn[:end.start()], response_shape_parser=None).clauses}
+    if kinds & {ClauseKind.KNOW, ClauseKind.OBSERVE, ClauseKind.TRANSFORM} and ClauseKind.ACT not in kinds:
+        return end
+    return None
 
-    if source_context is not None:
-        from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
 
-        request = source_context.get(TURN_REQUEST_KEY)
-        if isinstance(request, TurnRequest):
-            text = request.user_text
-    turn = str(text or "")
+def _supplied_instruction_end(turn: str) -> int | None:
+    """Where the instruction ends and the pasted material begins, when the turn pastes the content
+    it asks about; None otherwise. See `turn_supplies_its_own_content`."""
     if not turn.strip():
-        return False
+        return None
     plain = re.search(r":\s*\n", turn)
     if plain and turn[plain.end():].strip():
         from core.turn_ir import ClauseKind, parse_turn_ir
@@ -121,7 +150,10 @@ def turn_supplies_its_own_content(text: Any, *, source_context: dict | None = No
         if (supplied_prefix and not external_input
                 and kinds & {ClauseKind.KNOW, ClauseKind.OBSERVE, ClauseKind.TRANSFORM}
                 and ClauseKind.ACT not in kinds):
-            return True
+            return plain.end()
+    lead_in_end = _lead_in_material_end(turn)
+    if lead_in_end is not None:
+        return lead_in_end.start()
     analysis = bool(_ANALYSIS_ASK_RE.search(turn))
     fence = _FENCED_PAYLOAD_RE.search(turn)
     if not analysis and fence:
@@ -132,13 +164,66 @@ def turn_supplies_its_own_content(text: Any, *, source_context: dict | None = No
         ).clauses}
         analysis = bool(kinds & {ClauseKind.KNOW, ClauseKind.OBSERVE, ClauseKind.TRANSFORM}) and ClauseKind.ACT not in kinds
     if not analysis:
-        return False
-    return bool(
-        _LABELLED_PAYLOAD_RE.search(turn)
-        or _FENCED_PAYLOAD_RE.search(turn)
-        or _HERE_IS_PAYLOAD_RE.search(turn)
-        or (_PASTED_CODE_SCOPE_RE.search(turn) and _SOURCE_SYNTAX_RE.search(turn))
-    )
+        return None
+    payloads = [match.start() for match in (
+        _LABELLED_PAYLOAD_RE.search(turn), fence, _HERE_IS_PAYLOAD_RE.search(turn),
+    ) if match is not None]
+    if _PASTED_CODE_SCOPE_RE.search(turn) and (syntax := _SOURCE_SYNTAX_RE.search(turn)) is not None:
+        payloads.append(syntax.start())
+    return min(payloads) if payloads else None
 
 
-__all__ = ["turn_supplies_its_own_content"]
+def _turn_text(text: Any, source_context: dict | None) -> str:
+    if source_context is not None:
+        from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
+
+        request = source_context.get(TURN_REQUEST_KEY)
+        if isinstance(request, TurnRequest):
+            return str(request.user_text or "")
+    return str(text or "")
+
+
+def turn_supplies_its_own_content(text: Any, *, source_context: dict | None = None) -> bool:
+    """Whether this turn pastes the very content it asks about.
+
+    Require an analysis ask and a supplied payload, or a non-mutating request introducing
+    fenced or explicitly labelled material. The existing clause kinds distinguish reading shown material from an
+    instruction to write it. Naming a file alone still requires a read; supplying text for
+    a write still belongs to machine work.
+    """
+    return _supplied_instruction_end(_turn_text(text, source_context)) is not None
+
+
+def supplied_instruction(text: Any, *, source_context: dict | None = None) -> str | None:
+    """The person's instruction alone, without the material it hands over, when the turn pastes the
+    content it asks about; None otherwise. What the instruction asks for is the request; words
+    inside the material are data and never a request of their own."""
+    turn = _turn_text(text, source_context)
+    end = _supplied_instruction_end(turn)
+    return None if end is None else turn[:end]
+
+
+def supplied_material_answers(text: Any, *, session_id: str = "", source_context: dict | None = None) -> str:
+    """Where the answer to this turn comes from when the person supplied it, or "".
+
+    "turn": the turn pastes the content it asks about (`turn_supplies_its_own_content`).
+    "document": a document this chat keeps holds most of the question's words
+    (`chat_attachments.documents_hold_question`), so the question is about that document.
+    Either way nothing is looked up and nothing is answered from memory: the web being off is no
+    reason to refuse the turn, and no reason to label its answer as possibly out of date. The front
+    door and the reasoning stage ask this same question so they cannot disagree.
+    """
+    if turn_supplies_its_own_content(text, source_context=source_context):
+        return "turn"
+    if session_id:
+        try:
+            from core.chat_attachments import documents_hold_question
+
+            if documents_hold_question(str(session_id), str(text or "")):
+                return "document"
+        except Exception:
+            return ""
+    return ""
+
+
+__all__ = ["supplied_instruction", "supplied_material_answers", "turn_supplies_its_own_content"]
