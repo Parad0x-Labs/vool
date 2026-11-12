@@ -179,3 +179,34 @@ def test_a_turn_that_asked_for_database_work_keeps_the_session_in_the_database_l
     assert should_attempt_tool_intent("show me my databse tables", task_class="unknown", source_context=dict(ctx)) is True
     assert gates("s-asked") == (False, True)
     assert gates("s-other") == (True, False)
+
+
+# ── the clean local loop does not take database questions (run14) ────────────
+
+def test_the_clean_loop_leaves_database_questions_to_the_database_tools(world, tmp_path) -> None:
+    import sqlite3
+
+    from core.clean_loop import route
+    from core.database_work_state import _ASKED, note_database_demand
+    from core.plugin_tools import plugin_scratch_dir
+    from core.tool_demand_signals import _VOCAB_CACHE
+
+    root = plugin_scratch_dir("vool-database") / "databases"
+    root.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(root / "library.sqlite")
+    c.executescript("create table books(id integer primary key, title text); create table loans(id, returned int);")
+    c.commit(); c.close()
+    _VOCAB_CACHE.clear(); _ASKED.clear()
+    brain = object()
+    ctx = {"surface": "cli", "session_id": "s-clean-1", "runtime_session_id": "s-clean-1"}
+
+    def take(text: str) -> route.RouteDecision:
+        return route.decide(text, source_context=dict(ctx), session_id="s-clean-1",
+                            resolve_brain=lambda: brain, document_match=lambda _t: True, env={})
+
+    assert take("is Ines holding any books at the moment").reason == "database_work"
+    assert take("has Tomas given everything back").reason != "database_work"  # no database word yet
+    note_database_demand(ctx)
+    assert take("has Tomas given everything back").reason == "database_work"
+    # the owner's files stay the clean loop's even inside a database chat
+    assert take("find the invoice file on my desktop").reason != "database_work"

@@ -426,6 +426,21 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
     return ""
 
 
+def _database_work_owns(text: str, source_context: Mapping[str, Any]) -> bool:
+    """A data question about the person's own databases, or a follow-up inside a database chat."""
+    try:
+        from core.database_work_state import active_database_work_intents
+        from core.tool_demand_signals import asks_for_database_work
+
+        if asks_for_database_work(text):
+            return True
+        # Inside a database chat a bare follow-up stays with the database tools, but a turn that
+        # plainly asks about the owner's files or computer is still this loop's.
+        return bool(active_database_work_intents(dict(source_context))) and not asks_about_own_files_or_computer(text)
+    except Exception:
+        return False
+
+
 def decide(
     text: str,
     *,
@@ -452,6 +467,11 @@ def decide(
         return RouteDecision(False, "online_ask")
     if is_notes_ask(text):
         return RouteDecision(False, "notes_ask")
+    if _database_work_owns(text, dict(source_context or {})):
+        # The person's own databases belong to the database tools, which this loop's brain does not
+        # have: it answered "lacks sufficient context" to "has Tomas given everything back" and "is
+        # Ines holding any books" (served run14), turns the database lane answers from real rows.
+        return RouteDecision(False, "database_work")
     by_documents = False
     if not (
         asks_about_own_files_or_computer(text)
