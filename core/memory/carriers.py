@@ -29,7 +29,7 @@ ROW_IDENTITIES = frozenset({
     "source_id", "heuristic_id", "created_at", "updated_at", "recorded_at", "ts",
     "last_confirmed_at", "erased_at", "erasure_salt", "erasure_digest", "content_hash",
     "body_sha256", "lineage_request_id", "superseded_record_id", "source_occurrence_id",
-    "turn_id", "parent_turn_id", "archive_id", "topic_id", "previous_version_id",
+    "turn_id", "parent_turn_id", "archive_id", "topic_id", "previous_version_id", "source_key", "review_key",
     "version_id", "payload_hash", "record_hash", "transcript_head_hash", "page_hash",
     "content_ref", "admission_id", "principal", "pin_id", "_erasure_rowid",
     # Bookkeeping: a page's byte size and task id, an admission's generation, a page's erased flag, a writer's
@@ -449,7 +449,7 @@ def _derivative_tables(tables: Sequence[str]) -> set[str]:
     # chat_import_messages: the inert history of chats brought in from other apps
     # (core.chat_import.store). It is no memory, but a forget in that chat must reach it.
     return ({"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions",
-             "chat_import_messages"}
+             "chat_import_messages", "chat_import_chats"}
             | {name for name in tables if name.startswith("dialogue_")
                or any(part in name for part in ("packet", "cache", "snapshot"))}) & set(tables)
 
@@ -503,6 +503,10 @@ def verify_forget_stores(
         except Exception as exc:
             _LOG.warning("forget: %s could not be verified: %s", name, type(exc).__name__)
             _record_erasure_store(erasures, name, "incomplete")
+
+    from core.chat_import.workspace_transfer import retains_forgotten_artifacts
+
+    verify("imported_working_state", lambda: retains_forgotten_artifacts(chat_id, token))
 
     def file_rows(path: Path) -> bool:
         rows = _load_erasure_rows(path)

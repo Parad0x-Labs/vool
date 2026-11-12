@@ -21,7 +21,7 @@ import json
 import os
 import re
 
-from cryptography.exceptions import InvalidSignature, InvalidTag
+from cryptography.exceptions import InvalidSignature, InvalidTag, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, mldsa, mlkem, x25519
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -203,7 +203,7 @@ def public_key(text, kind):
     data = unb64(text, SPKI_SIZES[kind])
     try:
         key = serialization.load_der_public_key(data)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, UnsupportedAlgorithm) as exc:
         raise DropError("INVALID_KEY") from exc
     demand(isinstance(key, _PUBLIC_TYPES[kind]), "INVALID_KEY")
     demand(key.public_bytes(*_SPKI) == data, "INVALID_KEY")
@@ -213,7 +213,7 @@ def public_key(text, kind):
 def private_key(text, kind):
     try:
         key = serialization.load_der_private_key(unb64(text, 1, 5000), password=None)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, UnsupportedAlgorithm) as exc:
         raise DropError("INVALID_KEY") from exc
     demand(isinstance(key, _PRIVATE_TYPES[kind]), "INVALID_KEY")
     return key
@@ -421,6 +421,9 @@ def receive_draft(current, frame, now) -> tuple[dict, bytes]:
             state["root"], state["receiveChain"] = root_step(state["root"], dh(state["ownDh"], state["remoteDh"]))
             state["ownDh"] = pair("x25519")
             state["root"], state["sendChain"] = root_step(state["root"], dh(state["ownDh"], state["remoteDh"]))
+        # The initiator has no receiving chain until the responder's first ratchet key arrives. A
+        # frame that reuses the public one-time prekey instead is a counter error, not a local fault.
+        demand(state["receiveChain"] is not None, "INVALID_COUNTER")
         _skip(state, frame["n"])
         state["receiveChain"], key = chain_step(state["receiveChain"])
         state["nr"] += 1

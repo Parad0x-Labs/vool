@@ -1,11 +1,13 @@
 """Limits and small shared helpers for every chat-history reader.
 
-Everything here is pure: no file is opened, nothing is written.
+Everything here is pure except ``read_regular_file``, which only reads; nothing is written.
 """
 from __future__ import annotations
 
 import math
+import os
 import re
+import stat
 from array import array
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -159,3 +161,28 @@ def make_message(
         ),
         cut,
     )
+
+
+def read_regular_file(path: os.PathLike[str] | str, limit: int) -> bytes:
+    """A regular file's bytes, refusing links, pipes and devices before any read can block.
+
+    Raises ``OSError`` for anything that is not a plain readable file and ``ValueError`` when
+    the file is larger than ``limit``.
+    """
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            raise OSError("not a regular file")
+        if info.st_size > limit:
+            raise ValueError("too large")
+        chunks: list[bytes] = []
+        total = 0
+        while chunk := os.read(descriptor, min(1 << 20, limit + 1 - total)):
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > limit:
+                raise ValueError("too large")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)

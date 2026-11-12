@@ -80,7 +80,10 @@ def _read(path, limit):
         raise DropError("INPUT_UNAVAILABLE") from exc
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > limit:
         raise DropError("INPUT_LIMIT")
-    data = path.read_bytes()
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise DropError("INPUT_UNAVAILABLE") from exc
     if len(data) > limit:
         raise DropError("INPUT_LIMIT")
     return data
@@ -89,7 +92,8 @@ def _read(path, limit):
 def _json(data):
     try:
         value = json.loads(data)
-    except (ValueError, UnicodeError) as exc:
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        # Deep nesting is malformed input from the folder or a peer, never a local fault.
         raise DropError("INVALID_FORMAT") from exc
     if not isinstance(value, dict):
         raise DropError("INVALID_FORMAT")
@@ -126,8 +130,15 @@ class LocalRelay:
             return []
         _private_directory(mailbox)
         # Oldest first and bounded: a flooded mailbox delays later frames but
-        # never stops this home from reading the ones it can process.
-        return sorted(mailbox.glob("*.wire"))[:1024]
+        # never stops this home from reading the ones it can process. Only regular
+        # files count: a directory or link someone left can never be consumed, so it
+        # must not take a place in the window.
+        frames = []
+        for path in mailbox.glob("*.wire"):
+            with contextlib.suppress(OSError):
+                if stat.S_ISREG(path.lstat().st_mode):
+                    frames.append(path)
+        return sorted(frames)[:1024]
 
 
 # Authenticated payloads or frames that are not acceptable here. Each one is
@@ -139,16 +150,23 @@ _REJECTED = frozenset({
     "IDENTITY_MISMATCH", "SELF_SESSION", "UNKNOWN_PREKEY", "PREKEY_UNAVAILABLE", "EXPIRED", "REPLAY",
     "SKIP_LIMIT", "INVALID_COUNTER", "WRONG_SESSION", "UNKNOWN_SESSION", "SESSION_REVOKED", "PAYLOAD_LIMIT",
     "SESSION_EXHAUSTED", "CHAIN_EXHAUSTED", "INPUT_LIMIT", "INVALID_ID", "UNKNOWN_DROP", "DROP_REVOKED",
-    "DROP_WITHHELD", "UNKNOWN_INVITE", "INVALID_MANIFEST", "CHUNK_INDEX", "CHUNK_SIZE", "CHUNK_CONFLICT",
+    "UNKNOWN_INVITE", "INVALID_MANIFEST", "CHUNK_INDEX", "CHUNK_SIZE", "CHUNK_CONFLICT",
     "INVALID_TASK", "TASK_CONFLICT", "INVALID_RESULT", "UNSUPPORTED_PAYLOAD",
     "ADMISSION_CONFLICT", "FILE_INTEGRITY", "INVALID_BASE64",
 })
 
 
+# This home's own queues are full, or a pending forget barrier withholds every
+# Drop until another Drop's cleanup finishes. The frame is left in the folder for a
+# later poll; it never stops the frames behind it and is never consumed unread.
+_HELD = frozenset({"STORE_LIMIT", "ADMISSION_QUOTA", "DROP_WITHHELD"})
+
+
 # Authentic frames that arrived ahead of the frame they depend on (a synced
-# folder can deliver files out of order). They stay in the encrypted inbox and
-# are retried on the next poll; a forgotten or expired Drop discards them.
-_DEFERRED = frozenset({"MISSING_MANIFEST", "TASK_BEFORE_PACKET"})
+# folder can deliver files out of order), or while a pending forget barrier
+# withholds this Drop. They stay in the encrypted inbox and are retried on the
+# next poll; a forgotten or expired Drop discards them.
+_DEFERRED = frozenset({"MISSING_MANIFEST", "TASK_BEFORE_PACKET", "DROP_WITHHELD"})
 
 
 def _discard(path: Path):
@@ -156,6 +174,16 @@ def _discard(path: Path):
     # unremovable entry) is skipped, never allowed to stop the poll.
     with contextlib.suppress(OSError):
         path.unlink()
+
+
+def _names_drop(path: Path, sid) -> bool:
+    """Whether a relay file is a frame of this Drop. Anything unreadable is not."""
+    try:
+        wire = _json(_read(path, 110000))
+    except (DropError, OSError):
+        return False
+    intro = wire.get("intro")
+    return wire.get("sid") == sid or (isinstance(intro, dict) and intro.get("sid") == sid)
 
 
 def _vault_key(path: Path) -> bytes:
@@ -345,7 +373,7 @@ class DropHome:
         if row["status"] in {"deleted", "expired", "incomplete"}:
             raise DropError("DROP_REVOKED")
         if self.clock() >= row["expires"]:
-            self._forget(sid, "expired")
+            self._expire_one(sid)
             raise DropError("EXPIRED")
         if not authorize_payload({"drop": sid}, sid, self.home):
             raise DropError("DROP_WITHHELD")
@@ -399,7 +427,14 @@ class DropHome:
                                 (row["session"], intro["recipient"], intro["expires"]))
                 self.db.commit()
                 self._ensure_scope(row["session"])
-            state = self._live(row["session"])
+            try:
+                state = self._live(row["session"])
+            except DropError as exc:
+                # A Drop being deleted, expired or withheld keeps its queued send until its
+                # cleanup removes it or the barrier lifts; it never stops this home's poll.
+                if exc.code in {"DROP_REVOKED", "EXPIRED", "DROP_WITHHELD"}:
+                    continue
+                raise
             self.relay.put(state["peer"], row["request"], wire)
             # Relay publication is durable. It is not recipient/execution proof.
             self.client.acknowledge_send(row["request"])
@@ -431,7 +466,9 @@ class DropHome:
 
     def poll(self):
         """Read this home's mailbox. Returns one outcome per frame processed:
-        ``received``, ``duplicate`` or ``rejected`` (consumed without effect)."""
+        ``received``, ``duplicate``, ``rejected`` (consumed without effect),
+        ``deferred`` (kept in the encrypted inbox) or ``held`` (left in the folder
+        because this home's queue is full or its Drops are withheld for now)."""
         with self.scope():
             self._expire()
             self._flush()
@@ -453,6 +490,9 @@ class DropHome:
                 try:
                     record = self._open_wire(raw, digest)
                 except DropError as exc:
+                    if exc.code in _HELD:
+                        results.append("held")
+                        continue
                     if exc.code not in _REJECTED:
                         raise
                     _discard(path)
@@ -735,7 +775,17 @@ class DropHome:
         self._expire_invites()
         for row in self.db.execute("SELECT sid FROM drops WHERE expires<=? AND status NOT IN ('deleted','expired')",
                                    (self.clock(),)).fetchall():
-            self._forget(row["sid"], "expired")
+            self._expire_one(row["sid"])
+
+    def _expire_one(self, sid):
+        # A cleanup that cannot finish keeps its barrier and its 'incomplete' state, which
+        # Settings shows with Delete to try again. It never stops this home from opening,
+        # polling or listing its other Drops.
+        try:
+            self._forget(sid, "expired")
+        except DropError as exc:
+            if exc.code != "DROP_FORGET_INCOMPLETE":
+                raise
 
     def _forget(self, sid, state):
         from core.context_retrieval import forget_session_memory
@@ -770,12 +820,20 @@ class DropHome:
                         raise DropError("UNEXPECTED_CARRIER")
                     path.unlink()
                 folder.rmdir()
-            # Purge current queued ciphertext on both sides of this local relay.
+            # Purge current queued ciphertext on both sides of this local relay. Relay copies
+            # are outside what a forget can promise (other people can read and write that
+            # folder), so this is best effort: a file that is not this Drop's own frame (junk,
+            # another user's file, an unreadable entry) or an unavailable mailbox is left
+            # alone and never fails the cleanup.
             for peer in (self.fingerprint, row["peer"]):
-                for path in self.relay.messages(peer):
-                    wire = _json(_read(path, 110000))
-                    if wire.get("sid") == sid or wire.get("intro", {}).get("sid") == sid:
-                        path.unlink()
+                try:
+                    queued = self.relay.messages(peer)
+                except (DropError, OSError):
+                    continue
+                for path in queued:
+                    if _names_drop(path, sid):
+                        with contextlib.suppress(OSError):
+                            path.unlink()
             status = {}
             forget_session_memory(sid, sid, source_context={"runtime_home": str(self.home), "chat_id": sid},
                                   store_status=status)
@@ -791,6 +849,11 @@ class DropHome:
             revocation.complete(operation, self.home)
             self.db.execute("UPDATE drops SET status=? WHERE sid=?", (state, sid))
             self.db.commit()
+            # Both databases run in WAL mode: the erased note, task, inbox copy and session
+            # state stay readable in their -wal files until a checkpoint. Empty them now.
+            with contextlib.suppress(sqlite3.Error, DropError):
+                self.client.checkpoint()
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
         except Exception as exc:
             # Keep both independently persisted barriers pending. Do not call
             # cleanup failure a successful deletion or re-enable a reader.

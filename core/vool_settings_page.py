@@ -671,11 +671,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="chat_import",
                     help=(
-                        "Moving in: bring the chats you had in other AI apps, with their names and messages. "
-                        "Choose an app on this computer or a data export file, look over the chats found, and "
-                        "tick the ones to bring in. Everything stays on this computer, and the other app's "
-                        "files are never changed. VOOL keeps these chats as history: it does not learn from "
-                        "them or follow anything written in them."
+                        "Choose an app on this computer or a data export file. Preview your chats and select "
+                        "the ones to bring in. You can choose whether their history is used when you continue them."
                     ),
                     keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
                 ),
@@ -2774,7 +2771,7 @@ const KEY_FAMILIES = [
   { id: 'llm.cloud.', title: 'Model providers', blurb: 'Used only when a turn actually runs on that provider.' },
   { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
   { id: 'chain.data.', title: 'Blockchain data', blurb: 'Used for read-only chain lookups in any chat. Never used to sign or pay.' },
-  { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL does not post with them.' },
+  { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL posts or acts on X only after you approve each action.' },
   { id: 'market.data.', title: 'Market data', blurb: 'Raises crypto price limits. Verified when saved; if the provider later refuses it, VOOL answers prices without it.' },
 ];
 

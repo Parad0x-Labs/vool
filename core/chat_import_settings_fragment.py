@@ -15,7 +15,7 @@ from __future__ import annotations
 _CSS = """
 .vci-root{display:flex;flex-direction:column;gap:10px}
 .vci-note{font-size:12px;color:var(--muted,#9aa1af)}
-.vci-status{font-size:12.5px;min-height:16px;color:var(--muted,#9aa1af)}
+.vci-status,.vci-context-status{font-size:12.5px;min-height:16px;color:var(--muted,#9aa1af)}
 .vci-status.vci-bad{color:var(--bad,#f2545b)}
 .vci-status.vci-good{color:var(--ink,#e8eaf0)}
 .vci-sources{border:1px solid var(--border,#262b35);border-radius:10px;padding:8px 12px;margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -36,6 +36,8 @@ _CSS = """
 .vci-chat .vci-meta{color:var(--muted,#9aa1af);font-size:11.5px;white-space:nowrap}
 .vci-chat.vci-here{opacity:.6;cursor:default}
 .vci-problems{margin:0;padding-inline-start:18px;font-size:12px;color:var(--muted,#9aa1af)}
+.vci-context{padding:10px;border-bottom:1px solid var(--border,#262b35)}
+.vci-context-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:160px;overflow:auto;font-size:12px}
 .vci-progress{width:100%;max-width:360px}
 @media (max-width:560px){.vci-chat{flex-wrap:wrap}.vci-chat .vci-meta{white-space:normal;flex-basis:100%;padding-inline-start:24px}}
 """
@@ -74,7 +76,10 @@ function day(iso){
 var SOURCE_TEXT = {
   code_editor: ['chatimport.source.code_editor', 'A code editor on this computer'],
   ai_agent: ['chatimport.source.ai_agent', 'An AI agent on this computer'],
-  assistant: ['chatimport.source.assistant', 'A personal AI assistant on this computer']
+  assistant: ['chatimport.source.assistant', 'A personal AI assistant on this computer'],
+  terminal_agent: ['chatimport.source.terminal_agent', 'A coding agent in your terminal'],
+  terminal_assistant: ['chatimport.source.terminal_assistant', 'A coding assistant in your terminal'],
+  command_line_assistant: ['chatimport.source.command_line_assistant', 'An AI assistant for the command line']
 };
 // Reader problem codes, grouped into the lines a person can act on.
 var PROBLEM_TEXT = {
@@ -92,12 +97,22 @@ var PROBLEM_TEXT = {
   too_many_chats: ['chatimport.problem.too_many', 'Only part of the chats are listed; the rest are over the import limit.'],
   chats_internal_skipped: ['chatimport.problem.internal', 'Sessions the app ran by itself, not you, were left out.'],
   chats_without_order_skipped: ['chatimport.problem.no_order', 'Some chats were left out because the order of their messages is not saved.'],
-  chat_skipped_duplicate: ['chatimport.problem.duplicate', 'Some chats appeared twice and are listed once.']
+  chat_skipped_duplicate: ['chatimport.problem.duplicate', 'Some chats appeared twice and are listed once.'],
+  projects_unreadable: ['chatimport.problem.projects', 'Some project details could not be read or matched to a chat. Add project instructions during review.'],
+  projects_unlinked: ['chatimport.problem.projects', 'Some project details could not be read or matched to a chat. Add project instructions during review.'],
+  project_document_cut: ['chatimport.problem.cut', 'Some long project documents were shortened to fit the import limit.']
 };
 var PROBLEM_FALLBACK = ['chatimport.problem.unreadable', 'Some of it could not be read and was left out.'];
 var FILE_PROBLEMS = {file_unreadable: 1, not_a_zip: 1, zip_too_many_members: 1, zip_unsafe_path: 1, zip_symlink: 1,
   conversations_unreadable: 1, conversations_not_utf8: 1, conversations_not_json: 1, conversations_too_deep: 1};
 var ERROR_TEXT = {
+  context_incomplete: ['chatimport.error.incomplete','This import did not finish. Undo it, then import again.'],
+  context_withheld: ['chatimport.context.withheld','Withheld after a forget request'],
+  context_copy_required: ['chatimport.context.copy','Create a separate working copy'],
+  context_unavailable: ['chatimport.context.unavailable','The folder or context could not be reviewed. Check the folder and try again.'],
+  bad_context: ['chatimport.context.unavailable','The folder or context could not be reviewed. Check the folder and try again.'],
+  batch_in_use: ['chatimport.error.in_use', 'These chats have new work. Undo would remove it, so nothing was removed.'],
+  undo_failed: ['chatimport.error.undo', 'Undo stopped. Try again to remove the remaining imported chats.'],
   busy: ['chatimport.error.busy', 'An import is already running. Wait for it to finish.'],
   preview_missing: ['chatimport.error.stale', 'This list is out of date. Show your chats again.'],
   preview_expired: ['chatimport.error.stale', 'This list is out of date. Show your chats again.'],
@@ -110,6 +125,7 @@ function errorText(j){
   var entry = ERROR_TEXT[j && j.error];
   return entry ? IT(entry[0], entry[1]) : IT('chatimport.error.generic', 'That did not work. Nothing was changed.');
 }
+function fileStatus(status){var keys={missing:['chatimport.context.missing','Missing'],outside:['chatimport.context.outside','Outside the chosen folder'],refused:['chatimport.context.refused','Refused']};var entry=keys[status]||keys.refused;return IT(entry[0],entry[1]);}
 function noAnswer(){ return IT('notif.no_answer', 'VOOL did not answer; nothing was changed.'); }
 
 function mountInto(host){
@@ -121,6 +137,7 @@ function mountInto(host){
   var sourceList = h('div', 'vci-row'); sourceList.style.flexDirection = 'column'; sourceList.style.alignItems = 'stretch';
   fieldset.appendChild(sourceList);
   root.appendChild(fieldset);
+  root.appendChild(h('div', 'vci-note vci-limits', IT('chatimport.context.limits', 'Review a folder to bring project context, instructions and file references with each chat.')));
   var actions = h('div', 'vci-row');
   var lookBtn = h('button', 'btn vci-look', IT('chatimport.btn.look', 'Show my chats')); lookBtn.type = 'button'; lookBtn.disabled = true;
   actions.appendChild(lookBtn);
@@ -180,9 +197,77 @@ function mountInto(host){
   function refreshImportButton(){
     if (!importBtn) return;
     var n = selectedRefs().length;
-    importBtn.disabled = n === 0;
+    importBtn.disabled = n === 0 || checks.some(function(c){return c.box.checked && !c.box.disabled && c.working && c.working.checked && (!c.plan || c.reviewing);});
     importBtn.textContent = n ? IT('chatimport.btn.import', '{n, plural, one {Bring in {n} chat} other {Bring in {n} chats}}', {n: n}) : IT('chatimport.btn.import_none', 'Bring in chats');
   }
+  function contextControls(chat, item){
+    if(chat.withheld) return h('div','vci-note',IT('chatimport.context.withheld','Withheld after a forget request'));
+    var details=h('details','vci-context');
+    details.appendChild(h('summary',null,IT('chatimport.context.working','Bring working context')));
+    var body=h('div','vci-root');details.appendChild(body);
+    var work=check(body,'working',IT('chatimport.context.working','Bring working context'));
+    item.working=work;
+    function field(key,label,value,multiline){
+      var wrap=h('label','vci-root'),input=h(multiline?'textarea':'input','inp vci-'+key);
+      wrap.appendChild(h('span','vci-note',label));input.value=value||'';
+      if(!multiline) input.type='text';
+      input.style.width='100%';input.style.boxSizing='border-box';
+      wrap.appendChild(input);body.appendChild(wrap);return input;
+    }
+    var folder=field('folder',IT('setup.folder.aria','Folder path'),chat.workspace_hint);
+    var old=field('old-folder',IT('chatimport.context.old_folder','Previous folder (if moved)'));
+    var extra=field('instructions',IT('chatimport.context.extra','Additional instructions'),'',true);
+    var memoryText=field('memory-text',IT('vx.memory.title','Memory'),'',true);
+    var privateBox=check(body,'private',IT('private.banner_short','Private'));
+    item.privateBox=privateBox;
+    var copy=chat.already_here?check(body,'copy',IT('chatimport.context.copy','Create a separate working copy')):null;
+    item.copyBox=copy;
+    body.appendChild(h('div','vci-note',IT('chatimport.context.notice','Working context stays local. Files remain in your chosen folder.')));
+    body.appendChild(h('div','vci-note',IT('chatimport.context.copies','Each chat receives its own inactive copies of drafts, tools and tasks.')));
+    var review=h('button','btn vci-review',IT('chatimport.context.review','Review working context'));review.type='button';body.appendChild(review);
+    var result=h('div','vci-root vci-context-result');body.appendChild(result);
+    var note=h('div','vci-context-status');note.setAttribute('role','status');body.appendChild(note);
+    function invalidate(){item.plan=null;item.options=null;result.textContent='';note.textContent=IT('chatimport.context.stale','Review again after changing these details.');refreshImportButton();}
+    [folder,old,extra,memoryText,privateBox].forEach(function(input){input.addEventListener('input',invalidate);});
+    work.addEventListener('change',refreshImportButton);
+    if(copy) copy.addEventListener('change',function(){item.box.disabled=!copy.checked;work.checked=copy.checked;refreshImportButton();});
+    review.addEventListener('click',function(){
+      item.plan=null;result.textContent='';review.disabled=true;item.reviewing=true;refreshImportButton();
+      request('POST','/api/chat/import/context',{preview_id:preview.preview_id,ref:chat.ref,root:folder.value,old_root:old.value,instructions:extra.value,memories:memoryText.value,private:privateBox.checked}).then(function(j){
+        if(!j.ok){note.textContent=IT('chatimport.context.unavailable','The folder or context could not be reviewed. Check the folder and try again.');return;}
+        var plan=j.context;item.plan=j.plan_id;item.options={};work.checked=true;
+        note.textContent=IT('chatimport.context.ready','Review complete. Choose what to bring.');
+        (plan.notes||[]).forEach(function(row){result.appendChild(h('pre','vci-context-text',row.text));});
+        ['instructions','memories','skills','tools','schedules'].forEach(function(category){
+          var labels={instructions:'chatimport.context.rules',memories:'chatimport.context.memories',skills:'chatimport.context.skills',tools:'chatimport.context.tools',schedules:'chatimport.context.schedules'};
+          var fallbacks={instructions:'Save instructions as RULES',memories:'Save reviewed memories',skills:'Save skills as local drafts',tools:'Save tools disabled',schedules:'Save tasks paused'};
+          var rows=plan[category]||[];
+          var option=check(result,category,IT(labels[category],fallbacks[category])+' ('+rows.length+')');
+          option.disabled=!rows.length||(plan.private&&(category==='instructions'||category==='memories'));
+          option.addEventListener('change',function(){item.options[category]=option.checked;});
+          rows.forEach(function(row){var text=row.text||row.body||JSON.stringify(row);result.appendChild(h('pre','vci-context-text',text));});
+        });
+        if((plan.files||[]).length) result.appendChild(h('strong',null,IT('panel.tab_files','Files')));
+        (plan.files||[]).forEach(function(file){
+          var entry={exists:['vx.toolbelt.st_available','Available'],missing:['chatimport.context.missing','Missing'],outside:['chatimport.context.outside','Outside the chosen folder'],refused:['chatimport.context.refused','Refused']}[file.status]||['chatimport.context.refused','Refused'];
+          result.appendChild(h('div','vci-note vci-file-reference',IT(entry[0],entry[1])+' · '+file.source+' → '+file.path));
+        });
+        [['models','chatimport.context.models','Recorded models'],['providers','chatimport.context.providers','Providers (add keys in Settings)']].forEach(function(pair){
+          result.appendChild(h('div','vci-note',IT(pair[1],pair[2])+': '+(plan[pair[0]]||[]).join(', ')));
+        });
+        if((plan.notices||[]).indexOf('conditional_rules_staged')>=0)result.appendChild(h('div','vci-note',IT('chatimport.context.conditional','Conditional instructions are saved as drafts. Review their conditions before using them.')));
+        if((plan.warnings||[]).length)result.appendChild(h('div','vci-note',IT('chatimport.context.warnings','Some source context was left out because it is unsupported, unreadable, or over the review limit. Check the source before continuing.')));
+        var modelWrap=h('label','vci-root');modelWrap.appendChild(h('span','vci-note',IT('settings.row.local_models.label','Local models')));
+        var models=h('select','inp vci-model');var keep=h('option',null,'—');keep.value='';models.appendChild(keep);
+        (j.local_models||[]).forEach(function(name){var option=h('option',null,name);option.value=name;models.appendChild(option);});
+        modelWrap.appendChild(models);result.appendChild(modelWrap);
+        models.addEventListener('change',function(){item.options.model=models.value;});
+      }).catch(function(){note.textContent=noAnswer();}).finally(function(){review.disabled=false;item.reviewing=false;refreshImportButton();});
+    });
+    return details;
+  }
+  function check(host,cls,text){var label=h('label','vci-source'),box=h('input','vci-'+cls);box.type='checkbox';label.appendChild(box);label.appendChild(h('span',null,text));host.appendChild(label);return box;}
+
   function paintPreview(j){
     preview = j; checks = [];
     previewBox.textContent = ''; previewBox.hidden = false;
@@ -208,17 +293,23 @@ function mountInto(host){
     var listBox = h('div', 'vci-list'); listBox.setAttribute('role', 'group'); listBox.setAttribute('aria-label', IT('chatimport.list_aria', 'Chats found'));
     chats.forEach(function(chat){
       var row = h('label', 'vci-chat' + (chat.already_here ? ' vci-here' : ''));
-      var box = h('input'); box.type = 'checkbox'; box.checked = false; box.disabled = !!chat.already_here;
+      var box = h('input'); box.type = 'checkbox'; box.checked = false; box.disabled = !!chat.already_here || !!chat.withheld;
       box.addEventListener('change', refreshImportButton);
       row.appendChild(box);
-      row.appendChild(h('span', 'vci-title', chat.title || IT('chatimport.chat.untitled', 'Untitled chat')));
+      row.appendChild(h('span', 'vci-title', chat.withheld ? IT('chatimport.context.withheld','Withheld after a forget request') : (chat.title || IT('chatimport.chat.untitled', 'Untitled chat'))));
       var meta = [day(chat.updated_at || chat.created_at), IT('chatimport.chat.messages', '{n, plural, one {{n} message} other {{n} messages}}', {n: chat.message_count || 0})];
       if (chat.already_here) meta.push(IT('chatimport.chat.already', 'Already here'));
       row.appendChild(h('span', 'vci-meta', meta.filter(Boolean).join(' · ')));
       listBox.appendChild(row);
-      checks.push({ref: chat.ref, box: box});
+      var item={ref:chat.ref,box:box};checks.push(item);
+      listBox.appendChild(contextControls(chat,item));
     });
     previewBox.appendChild(listBox);
+    var consent = h('label', 'vci-source');
+    var continueBox = h('input', 'vci-continue'); continueBox.type = 'checkbox'; continueBox.checked = false;
+    consent.appendChild(continueBox);
+    consent.appendChild(h('span', null, IT('chatimport.continue', 'Use this history with a local model when I continue these chats.')));
+    previewBox.appendChild(consent);
     var go = h('div', 'vci-row');
     importBtn = h('button', 'btn primary vci-import', ''); importBtn.type = 'button';
     var cancel = h('button', 'btn vci-cancel', IT('chatimport.btn.cancel', 'Cancel')); cancel.type = 'button';
@@ -285,9 +376,13 @@ function mountInto(host){
       if (j.state === 'done') {
         clearPreview();
         say(resultText(j.outcome || {}), 'good');
-        if ((j.outcome || {}).brought_in) root.appendChild(h('div', 'vci-note vci-where', IT('chatimport.result.where', 'They are in your chat list with their original names and dates. VOOL keeps them as history: it does not learn from them or follow anything written in them.')));
+        if ((j.outcome || {}).brought_in) root.appendChild(h('div', 'vci-note vci-where', j.continuation
+          ? IT('chatimport.result.continue_where', 'They are in your chat list. Their history will be included when you continue them.')
+          : IT('chatimport.result.where', 'They are in your chat list with their original names and dates. VOOL keeps them as history: it does not learn from them or follow anything written in them.')));
+        refreshBatches();
       } else if (j.state === 'failed') {
-        say(IT('chatimport.result.stopped', 'The import stopped before it finished. Chats already brought in are kept; try again to bring in the rest.'), 'bad');
+        say(j.working_context ? IT('chatimport.error.incomplete','This import did not finish. Undo it, then import again.') : IT('chatimport.result.stopped', 'The import stopped before it finished. Chats already brought in are kept; try again to bring in the rest.'), 'bad');
+        refreshBatches();
       }
     }).catch(function(){ polling = setTimeout(watch, 1500); });
   }
@@ -296,11 +391,58 @@ function mountInto(host){
     if (!refs.length || !preview) return;
     importBtn.disabled = true; lookBtn.disabled = true;
     var old = root.querySelector('.vci-where'); if (old) old.remove();
-    request('POST', '/api/chat/import/start', {preview_id: preview.preview_id, chats: refs}).then(function(j){
+    var continueBox = previewBox.querySelector('.vci-continue');
+    request('POST', '/api/chat/import/start', {preview_id: preview.preview_id, chats: refs, continuation: !!(continueBox && continueBox.checked),contexts: checks.reduce(function(out,c){if(c.box.checked&&!c.box.disabled&&c.working&&c.working.checked){out[c.ref]={plan_id:c.plan,options:Object.assign({},c.options,{private:!!c.privateBox.checked,working_copy:!!(c.copyBox&&c.copyBox.checked)})};}return out;},{})}).then(function(j){
       if (!j.ok) { say(errorText(j), 'bad'); importBtn.disabled = false; lookBtn.disabled = false; return; }
       watch();
     }).catch(function(){ say(noAnswer(), 'bad'); importBtn.disabled = false; lookBtn.disabled = false; });
   }
+
+  var batchesBox = h('div', 'vci-batches'); root.appendChild(batchesBox);
+  function refreshBatches(){
+    request('GET', '/api/chat/import/batches').then(function(j){
+      if (!j.ok) return;
+      batchesBox.textContent = '';
+      (j.batches || []).filter(function(b){ return b.state !== 'undone' && b.chats > 0; }).forEach(function(b){
+        var row = h('div', 'vci-row');
+        var when = day(b.created_at);
+        try { when = new Date(b.created_at).toLocaleString(lang()); } catch (e) {}
+        row.appendChild(h('span', 'vci-note', when + ' · ' + IT('chatimport.result.brought', '{n, plural, one {Brought in {n} chat.} other {Brought in {n} chats.}}', {n: b.chats})));
+        if(b.state==='failed')row.appendChild(h('span','vci-note',IT('chatimport.error.incomplete','This import did not finish. Undo it, then import again.')));
+        var undo = h('button', 'btn vci-undo', IT('chatimport.undo', 'Undo import')); undo.type = 'button';
+        undo.addEventListener('click', function(){
+          undo.disabled = true;
+          request('POST', '/api/chat/import/undo', {batch_id: b.batch_id}).then(function(result){
+            if (!result.ok) { say(errorText(result), 'bad'); undo.disabled = false; return; }
+            say(IT('chatimport.undone', 'Import removed.'), 'good');
+            refreshBatches();
+          }).catch(function(){ say(noAnswer(), 'bad'); undo.disabled = false; });
+        });
+        row.appendChild(undo); batchesBox.appendChild(row);
+        (b.contexts||[]).forEach(function(context){
+          var overview=h('details','vci-context vci-saved-context');
+          overview.appendChild(h('summary',null,IT('chatimport.context.working','Bring working context')));
+          if(context.project)overview.appendChild(h('div','vci-note',context.project.name+' · '+context.project.root));
+          (context.files||[]).forEach(function(file){
+            overview.appendChild(h('div','vci-note',file.source+' → '+file.path+' · '+(file.status==='exists'?IT('vx.toolbelt.st_available','Available'):fileStatus(file.status))));
+          });
+          [['models','chatimport.context.models','Recorded models'],['providers','chatimport.context.providers','Providers (add keys in Settings)']].forEach(function(pair){
+            overview.appendChild(h('div','vci-note',IT(pair[1],pair[2])+': '+(context[pair[0]]||[]).join(', ')));
+          });
+          [['rules','chatimport.context.rules','Save instructions as RULES'],['skills','chatimport.context.skills','Save skills as local drafts'],['tools','chatimport.context.tools','Save tools disabled'],['schedules','chatimport.context.schedules','Save tasks paused']].forEach(function(pair){
+            var rows=(context.resources||{})[pair[0]]||[];
+            if(!rows.length)return;
+            var saved=h('details','vci-saved-resources');
+            saved.appendChild(h('summary',null,IT(pair[1],pair[2])+' ('+rows.length+')'));
+            rows.forEach(function(row){saved.appendChild(h('pre','vci-context-text',row.id+'\n'+row.text));});
+            overview.appendChild(saved);
+          });
+          batchesBox.appendChild(overview);
+        });
+      });
+    }).catch(function(){});
+  }
+  refreshBatches();
 
   request('GET', '/api/chat/import/sources').then(function(j){
     if (!j.ok) { paintSources([]); say(errorText(j), 'bad'); return; }

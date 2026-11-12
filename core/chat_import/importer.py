@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 
 from core.chat_import.model import ImportedChat
 from core.chat_import.store import (
+    BATCH_SESSIONS_TABLE,
     CHATS_TABLE,
     MESSAGES_TABLE,
     STATE_COMPLETE,
@@ -61,6 +62,9 @@ FAMILY_OF_FORMAT = {
     "openclaw_agent_db": "local-assistant",
     "openclaw_jsonl": "local-assistant",
     "cursor_state_vscdb": "local-code-editor",
+    "codex_rollout_jsonl": "local-terminal-agent",
+    "claude_code_jsonl": "local-terminal-assistant",
+    "gemini_cli_session": "local-command-line-assistant",
 }
 
 _TITLE_CHARS = 80
@@ -209,9 +213,13 @@ def import_chats(
     progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
     batch_size: int = BATCH_SIZE,
+    batch_id: str = "",
+    continuation: bool = False,
+    admission_payloads: dict[str, dict] | None = None,
+    key_variants: dict[str, str] | None = None,
 ) -> ImportOutcome:
     """Bring ``chats`` in. Returns counts; raises only on a store fault (nothing half-written)."""
-    from core.memory.revocation import writing
+    from core.memory.revocation import RevokedContentWrite, authorize_payload, writing
     from core.session_portability.redaction import RedactionReport
 
     outcome = ImportOutcome()
@@ -228,6 +236,8 @@ def import_chats(
             for chat in chats[start : start + batch_size]:
                 done += 1
                 key = source_key(chat)
+                original_key = key
+                key = (key_variants or {}).get(key, key)
                 row = connection.execute(
                     f"SELECT session_id, state, pending_title FROM {CHATS_TABLE} WHERE source_key = ?", (key,)
                 ).fetchone()
@@ -253,10 +263,22 @@ def import_chats(
                     continue
                 session_id = _new_session_id(connection)
                 try:
-                    with writing({"title": title, "messages": [text for _role, text, _at, _names in rows]}, session_id):
+                    payload = {
+                        "title": title,
+                        "messages": [text for _role, text, _at, _names in rows],
+                        "attachments": [json.loads(names) for _role, _text, _at, names in rows],
+                        "working_state": (admission_payloads or {}).get(original_key, {}),
+                    }
+                    with writing(payload, session_id):
+                        from core.chat_import.store import ORIGINS_TABLE, source_origins
+
+                        if any(not authorize_payload(payload, previous)
+                               for previous in source_origins(connection, original_key)):
+                            raise RevokedContentWrite("revoked content write refused")
                         connection.execute(
                             f"INSERT INTO {CHATS_TABLE} (session_id, source_key, source_format, state, pending_title, "
-                            "created_at, updated_at, imported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            "created_at, updated_at, imported_at, batch_id, continuation_enabled, context_state) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (
                                 session_id,
                                 key,
@@ -266,6 +288,9 @@ def import_chats(
                                 iso_time(chat.created_at or _first_time(chat)),
                                 iso_time(chat.updated_at or _last_time(chat) or chat.created_at),
                                 iso_time(time.time()),
+                                batch_id,
+                                int(continuation and not (admission_payloads or {}).get(original_key)),
+                                "pending" if (admission_payloads or {}).get(original_key) else "",
                             ),
                         )
                         connection.executemany(
@@ -273,6 +298,13 @@ def import_chats(
                             "attachment_names_json) VALUES (?, ?, ?, ?, ?, ?)",
                             [(session_id, index + 1, *values) for index, values in enumerate(rows)],
                         )
+                        if batch_id:
+                            connection.execute(
+                                f"INSERT INTO {BATCH_SESSIONS_TABLE} (batch_id, session_id) VALUES (?, ?)",
+                                (batch_id, session_id),
+                            )
+                        connection.execute(f"INSERT OR IGNORE INTO {ORIGINS_TABLE} VALUES (_chat_import_origin_key(?), ?)",
+                                           (original_key, session_id))
                         connection.commit()
                 except RuntimeError as exc:
                     connection.rollback()

@@ -136,6 +136,26 @@ def test_a_file_the_project_lacks_is_read_from_home(machine_tools, tmp_path):
     assert read_home_file_the_project_lacks(_fake_agent(), "open google.com", session_id="s", source_context={}) is None
 
 
+def test_a_file_the_project_holds_is_opened_there_not_searched_for(machine_tools, tmp_path):
+    """"Open notes.txt." in a chat bound to a project that has a notes.txt was answered with every
+    notes.txt on the computer, other projects' included (chat import run 3, 2026-11-12): the
+    present lane searched the home folders by the file's words. That file is the workspace lane's."""
+    from core.agent_runtime.fast_paths_machine import maybe_handle_direct_machine_read_request
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "notes.txt").write_text("project notes\n")
+    bound = {"workspace": str(project)}
+    assert maybe_handle_direct_machine_read_request(
+        _fake_agent(), "Open notes.txt.", session_id="s", source_surface="api", source_context=bound) is None
+    assert [intent for intent, _args in machine_tools if intent == "machine.find_file"] == []
+    # A named place still means that place, and a chat with no project still looks in the home folders.
+    for text, context in (("open notes.txt in my documents", bound), ("Open notes.txt.", {})):
+        answered = maybe_handle_direct_machine_read_request(
+            _fake_agent(), text, session_id="s", source_surface="api", source_context=context)
+        assert answered is not None and "buy milk" in answered["response"], text
+
+
 def test_the_biggest_file_in_a_folder_is_measured_in_that_folder(monkeypatch):
     import core.authorized_tool_execution as ate
     from core.agent_runtime import fast_paths_machine

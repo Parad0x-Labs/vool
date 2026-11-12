@@ -869,6 +869,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/chat/import/batches": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/import/batches",
+      "note": "chat-import lane (persistent batch ownership and undo status)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/chat/import/sources": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/chat/import/sources",
@@ -2094,6 +2101,13 @@
       "registry_command_id": "chat.followup",
       "surface": "http"
     },
+    "http:POST:/api/chat/import/context": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/chat/import/context",
+      "note": "chat-import lane (explicit working-context review before any owner mutation)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/chat/import/discard": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/chat/import/discard",
@@ -2112,6 +2126,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/chat/import/start",
       "note": "chat-import lane (imports the ticked chats from the preview)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/import/undo": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/chat/import/undo",
+      "note": "chat-import lane (canonical conversation deletion with later-work refusal)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3441,7 +3462,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 331,
+    "EXTERNAL_TRANSPORT_ONLY": 334,
     "GENERATED_ADAPTER": 151,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

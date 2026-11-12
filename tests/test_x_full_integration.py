@@ -1070,3 +1070,42 @@ def test_every_feature_name_is_translated_and_used_in_the_owner_language():
     from core.x_settings_fragment import X_FEATURES_JS
 
     assert "T('xop.' + feature.id, feature.summary)" in X_FEATURES_JS
+
+
+@pytest.mark.parametrize(("arguments", "shown"), [
+    ({"operation_id": "getUsersByUsername", "path": {"username": "vool_garden"}},
+     "X: Get Users by Username (username vool_garden)"),
+    ({"operation_id": "createPosts", "body": {"text": "The first tomatoes are red."}}, "X: Create Posts"),
+])
+def test_the_device_approval_card_names_the_x_operation_and_no_folder(arguments, shown):
+    """Measured 2026-11-12 in the running app: the card for an X account read said "Affects:
+    <workspace folder>/{'username': 'vool_garden'}" (the request's path parameters read as a
+    file), and the card for a post said "No specific path reported"."""
+    from core.mode_permission_policy import OperatingMode, PermissionAction, _new_approval_request
+
+    request = _new_approval_request(
+        session_id="x-card", task_id="x-card", intent="x.api.request", arguments=arguments,
+        actions=(PermissionAction.USE_NETWORK, PermissionAction.ACCESS_EXTERNAL_PROVIDERS), mode=OperatingMode.MANUAL, mode_revision=0,
+        source_context={"session_id": "x-card", "workspace_root": "/srv/workspace"}, fingerprint="fp-x-card",
+    )
+    assert request["affected_resources"] == [shown]
+    assert not any("{" in item or "/srv/workspace" in item for item in request["affected_resources"])
+
+
+def test_a_structured_path_argument_is_never_shown_as_a_file():
+    from core.mode_permission_policy import _affected_resources
+
+    assert _affected_resources({"path": {"username": "bob"}, "url": "https://example.test/a"}) == ["https://example.test/a"]
+    assert _affected_resources({"path": "notes/today.md", "paths": ["a.txt", {"x": 1}]}) == ["notes/today.md", "a.txt"]
+
+
+def test_the_saved_x_keys_note_says_what_the_keys_can_do():
+    """With the full X integration the account keys can post, reply, like or follow, each only after the owner
+    approves it in Settings. The note under the saved X keys still said "VOOL does not post with them"
+    (found 2026-11-12 while writing the v0.8 X guide)."""
+    from core.vool_settings_page import render_vool_settings_html
+
+    page = render_vool_settings_html()
+    assert "VOOL does not post with them" not in page
+    assert "VOOL posts or acts on X only after you approve each action." in page
+

@@ -3237,10 +3237,32 @@ def _affected_resources(arguments: dict[str, Any]) -> list[str]:
     for key in ("path", "paths", "cwd", "resource", "url", "recipient", "to", "cc", "bcc", "sender", "channel", "target"):
         value = arguments.get(key)
         if isinstance(value, list):
-            resources.extend(str(item) for item in value[:12] if str(item).strip())
-        elif value not in (None, ""):
+            resources.extend(str(item) for item in value[:12] if isinstance(item, str) and item.strip())
+        elif isinstance(value, (str, int, float)) and value != "":
+            # A structured value (the X request's path parameters, {"username": ...}) names no
+            # file: shown as one, it read "Affects: <workspace>/{'username': 'vool_garden'}".
             resources.append(str(value))
     return resources[:12]
+
+
+def _x_request_resources(intent: str, arguments: dict[str, Any]) -> list[str]:
+    """What an X API call reaches, in the X catalog's own words ("X: Get Users by Username
+    (username vool_garden)"), so a read or a post is approved knowing which one it is. Measured
+    2026-11-12 in the running app: the read's card said "Affects:" a workspace folder joined to the
+    request's path parameters, and the post's said "No specific path reported"."""
+    if intent != "x.api.request":
+        return []
+    operation_id = str(arguments.get("operation_id") or "").strip()
+    try:
+        from core.x_endpoint_catalog import operation
+
+        summary = str(operation(operation_id).get("summary") or "").strip()
+    except Exception:
+        summary = ""
+    params = arguments.get("path") if isinstance(arguments.get("path"), dict) else {}
+    named = ", ".join(f"{key} {value}" for key, value in params.items() if str(value or "").strip())
+    label = f"X: {summary or operation_id or 'a request'}"
+    return [f"{label} ({named})" if named else label]
 
 
 def _affected_resources_display(
@@ -3912,7 +3934,8 @@ def _new_approval_request(
         "action": action_text,
         **({"skill": skill_card["skill"]} if skill_card else {}),
         **({"command": command_line} if command_line else {}),
-        "affected_resources": _affected_resources_display(display_arguments, display_context),
+        "affected_resources": _x_request_resources(display_intent, display_arguments)
+        or _affected_resources_display(display_arguments, display_context),
         "expected_side_effects": _approval_effect_summary(actions),
         "reversible": bool(edit_batch or PermissionAction.GIT_COMMIT in actions),
         "scope_options": scope_options,

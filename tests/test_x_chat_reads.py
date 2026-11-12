@@ -48,6 +48,43 @@ def test_real_asks_to_act_still_propose(text):
     assert "x.action.propose" in _x_intents(text)
 
 
-@pytest.mark.parametrize("text", ["my last 3 posts on my blog", "what did the market do today"])
+@pytest.mark.parametrize("text", [
+    "look up the X account @vool_garden",
+    "who is @vool_garden on X?",
+    "show me @vool_garden's X profile",
+    "the twitter profile of @vool_garden",
+])
+def test_asking_about_one_x_account_seats_the_account_read(text):
+    intents = _x_intents(text)
+    assert "x.user" in intents
+    assert "x.action.propose" not in intents
+
+
+@pytest.mark.parametrize("text", ["my last 3 posts on my blog", "what did the market do today",
+                                  "who is @bob", "check the box account balance"])
 def test_words_without_x_seat_no_x_tool(text):
     assert _x_intents(text) == set()
+
+
+@pytest.mark.parametrize("text", ["Look up the X account @vool_garden", "who is @vool_garden on X?"])
+def test_with_x_connected_an_account_ask_leaves_the_toolless_chat_lane(text, monkeypatch):
+    """Measured 2026-11-12 in the running app (X connected, account read on): "Look up the X account
+    @vool_garden" was kept in the tools-less chat lane as a live-information question, and the model,
+    offered no tools, answered "I can't use X from this chat right now". With X connected the ask
+    reaches the tool gate; without X it stays the ordinary question it was."""
+    from core import x_api
+    from core.agent_runtime.runtime_checkpoint_lane_policy import should_keep_ai_first_chat_lane
+    from core.execution.planner import should_attempt_tool_intent
+    from tests.test_production_route_matrix import PRODUCTION_CONTEXT, _lane_probe_agent
+
+    def kept() -> bool:
+        return should_keep_ai_first_chat_lane(
+            _lane_probe_agent(), user_input=text, classification={"task_class": "unknown"},
+            interpretation=None, source_context=dict(PRODUCTION_CONTEXT), checkpoint_state=None,
+        )
+
+    monkeypatch.setattr(x_api, "connected", lambda: True)
+    assert kept() is False
+    assert should_attempt_tool_intent(text, task_class="unknown", source_context=dict(PRODUCTION_CONTEXT)) is True
+    monkeypatch.setattr(x_api, "connected", lambda: False)
+    assert kept() is True

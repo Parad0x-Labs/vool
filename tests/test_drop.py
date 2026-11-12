@@ -439,3 +439,143 @@ def test_out_of_order_folder_sync_and_junk_entries_do_not_lose_or_block_frames(p
     assert "received" in outcomes and b.show(sid)["status"] == "ready"
     assert (b.root / sid / "selected.bin").read_bytes() == selected.read_bytes()
     assert b.client.pending_receives() == []
+
+
+def _foreign(mailbox, name, data=None):
+    mailbox.mkdir(mode=0o700, exist_ok=True)
+    path = mailbox / name
+    if data is None:
+        path.mkdir()
+    else:
+        path.write_bytes(data)
+    return path
+
+
+def test_files_another_folder_user_left_never_fail_a_delete(pair):
+    """Anyone who can write to the shared folder can leave files in either mailbox. None of them
+    is this Drop's frame, so none of them may stop the delete (or its forget barrier would stay)."""
+    a, b, sid, relay = pair
+    left = [
+        _foreign(relay / a.fingerprint, "99-not-json.wire", b"not json"),
+        _foreign(relay / a.fingerprint, "99-array.wire", b"[]"),
+        _foreign(relay / a.fingerprint, "99-intro.wire", b'{"intro": 1}'),
+        _foreign(relay / a.fingerprint, "99-nested.wire", b"[" * 100000),
+        _foreign(relay / a.fingerprint, "99-large.wire", b" " * 110001),
+        _foreign(relay / b.fingerprint, "99-directory.wire"),
+    ]
+    selected = relay.parent / "f.bin"
+    selected.write_bytes(os.urandom(100))
+    a.send_packet(sid, "queued for B", selected)
+    own = [p for p in a.relay.messages(b.fingerprint) if p not in left]
+    assert own
+    b.delete(sid)
+    assert b._row(sid)["status"] == "deleted"
+    assert not any(p.exists() for p in own)  # this Drop's queued frames are purged
+    assert all(p.exists() for p in left)  # other people's files are left alone
+
+
+def test_unfinished_expiry_cleanup_never_stops_the_home_from_opening(pair, tmp_path):
+    a, b, sid, relay = pair
+    expires = b._row(sid)["expires"]
+    (b.root / sid).mkdir(mode=0o700, exist_ok=True)
+    (b.root / sid / "unexpected-directory").mkdir()  # a real cleanup failure, no mocked exception
+    home = b.home
+    b.close()
+    with DropHome(home, relay, clock=lambda: expires + 1) as reopened:
+        assert [row["status"] for row in reopened.list()] == ["incomplete"]
+        assert reopened.poll() == []
+        (reopened.root / sid / "unexpected-directory").rmdir()
+        reopened.delete(sid)  # retried by the owner
+        assert reopened._row(sid)["status"] == "deleted"
+
+
+def test_frames_anyone_can_forge_are_consumed_and_never_stop_later_frames(tmp_path, monkeypatch):
+    """DROP.md: a forged, replayed, late or malformed frame is consumed without effect, so it
+    never blocks the frames behind it. Each of these used to stop every later poll."""
+    from core.drop.session import decode, encode, fresh_id
+
+    monkeypatch.setenv("VOOL_DROP", "1")
+    relay = tmp_path / "relay"
+    LocalRelay(relay, create=True)
+    with DropHome(tmp_path / "a", relay) as a, DropHome(tmp_path / "b", relay) as b:
+        link = a.invite(b.fingerprint)
+        invite = decode((relay / "invites" / (link.rsplit("/", 1)[1] + ".invite")).read_bytes())
+        sid = b.join(link, a.fingerprint)
+        assert a.poll() == ["received"]
+        box = {"nonce": b64(os.urandom(12)), "body": b64(os.urandom(40)), "tag": b64(os.urandom(16))}
+        frame = {"profile": "DROP-HYBRID-1", "type": "message", "sid": sid, "pn": 0, "n": 0, "box": box}
+        unknown_key = bytearray(unb64(invite["body"]["x"], 44))
+        unknown_key[8] = 0x63  # same size, an algorithm no library knows
+        mailbox = relay / b.fingerprint
+        mailbox.mkdir(mode=0o700, exist_ok=True)
+        for index, data in enumerate([
+            encode({**frame, "dh": invite["body"]["x"]}),  # the invite's public one-time key
+            encode({**frame, "dh": b64(bytes(unknown_key))}),
+            b"[" * 100000,
+        ]):
+            _write(mailbox / f"{index:020d}-{fresh_id()}-forged.wire", data)
+        for index in range(1100):  # entries that can never be consumed must not fill the window
+            (mailbox / f"{index:020d}-{fresh_id()}-left.wire").mkdir()
+        selected = tmp_path / "f.bin"
+        selected.write_bytes(os.urandom(300))
+        a.send_packet(sid, "the real packet", selected)
+        outcomes = b.poll()
+        assert outcomes.count("rejected") == 3 and outcomes.count("received") == 2
+        assert b.show(sid)["status"] == "ready"
+
+
+def test_a_full_receive_queue_holds_frames_without_stopping_the_poll(pair):
+    a, b, sid, relay = pair
+    with a.scope():
+        for index in range(257):  # chunks with no packet: every one waits in the shared queue
+            a._send(sid, {"type": "chunk", "index": index, "data": b64(b"x")})
+    outcomes = b.poll()
+    assert outcomes.count("deferred") >= 256 and "held" in outcomes
+    held = len(a.relay.messages(b.fingerprint))
+    assert held >= 1  # left in the folder, never consumed unread
+    assert b.poll().count("held") == held
+
+
+def test_a_deleted_note_does_not_linger_in_the_database_journals(pair, tmp_path):
+    import secrets
+
+    a, b, sid, _ = pair
+    note = "Lingering-" + secrets.token_hex(8)
+    selected = tmp_path / "f.bin"
+    selected.write_bytes(os.urandom(200))
+    a.send_packet(sid, note, selected)
+    b.poll()
+    assert b.show(sid)["note"] == note
+    b.delete(sid)
+    # While the home is still open (the app keeps it open for the whole request).
+    leftovers = [p.name for p in b.root.rglob("*") if p.is_file() and note.encode() in p.read_bytes()]
+    assert leftovers == []
+    for journal in (b.root / "drops.db-wal", b.root / "crypto" / "sessions" / "drop.sqlite-wal"):
+        assert not journal.exists() or journal.stat().st_size == 0, journal.name
+
+
+def test_other_drops_wait_while_one_deletion_is_unfinished(tmp_path, monkeypatch):
+    """A pending forget barrier withholds every Drop in the home. Frames that arrive for the
+    other Drops meanwhile wait in the folder; they used to be consumed and lost."""
+    monkeypatch.setenv("VOOL_DROP", "1")
+    relay = tmp_path / "relay"
+    LocalRelay(relay, create=True)
+    with DropHome(tmp_path / "a", relay) as a, DropHome(tmp_path / "b", relay) as b:
+        stuck_sid = b.join(a.invite(b.fingerprint), a.fingerprint)
+        other = b.join(a.invite(b.fingerprint), a.fingerprint)
+        assert a.poll() == ["received", "received"]
+        stuck = b.root / stuck_sid / "unexpected-directory"
+        stuck.parent.mkdir(mode=0o700, exist_ok=True)
+        stuck.mkdir()  # a real cleanup failure, no mocked exception
+        with pytest.raises(DropError, match="DROP_FORGET_INCOMPLETE"):
+            b.delete(stuck_sid)
+        selected = tmp_path / "f.bin"
+        selected.write_bytes(os.urandom(300))
+        a.send_packet(other, "for the other Drop", selected)
+        outcomes = b.poll()
+        assert "rejected" not in outcomes and set(outcomes) == {"held"}
+        assert len(a.relay.messages(b.fingerprint)) == 2
+        stuck.rmdir()
+        b.delete(stuck_sid)  # the owner tries again; the barrier lifts
+        assert b.poll() == ["received", "received"]
+        assert b.show(other)["note"] == "for the other Drop" and b.show(other)["status"] == "ready"

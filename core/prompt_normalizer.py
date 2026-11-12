@@ -387,7 +387,7 @@ def normalize_prompt(
         task_kind=task_kind,
         task_class=task_class,
         output_mode=output_mode,
-        messages=[system, user, context],
+        messages=[system, *(_reviewed_working_context_messages(source_context)), user, context],
         trace_id=trace_id,
         max_output_tokens=int(generation_profile["max_output_tokens"]),
         temperature=float(generation_profile["temperature"]),
@@ -413,6 +413,22 @@ def normalize_prompt(
         },
         attachments=list(context_result.report.to_dict().get("external_evidence_attachments") or []),
     )
+
+
+def _reviewed_working_context_messages(source_context: dict[str, Any] | None) -> list[InternalMessage]:
+    """Attach reviewed file/settings evidence without inventing transcript turns."""
+    context = dict(source_context or {})
+    session_id = str(context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "").strip()
+    if not session_id:
+        return []
+    from core.chat_import.store import reviewed_working_context
+    from core.context_scope import ContextAccessPolicy
+
+    content = reviewed_working_context(session_id)
+    if not content:
+        return []
+    ContextAccessPolicy.for_request(session_id=session_id, source_context=context)
+    return [InternalMessage(role="context", content=content)]
 
 
 def _communication_style_guide() -> str:
@@ -1155,7 +1171,9 @@ def _build_conversational_request(
     # reproducing its target on this head.
     if memory_prompt.get("suppressed_reason") in {"disabled_by_caller", "group_chat", "surface_not_allowed"}:
         capsule_messages = []
-    messages = [system, *history_messages]
+    working_context_messages = _reviewed_working_context_messages(source_context)
+    _label_payload_messages(working_context_messages, _PAYLOAD_FILES_ARTIFACTS, "reviewed_working_context")
+    messages = [system, *history_messages, *working_context_messages]
     turn_directives_message: InternalMessage | None = None
     if turn_directives:
         turn_directives_message = InternalMessage(
@@ -1192,7 +1210,7 @@ def _build_conversational_request(
     # Only the evidence surviving those decisions may support this answer.
     from core.bootstrap_context import seal_request_evidence
 
-    actual_evidence = [*correction_messages, *history_messages, *capsule_messages]
+    actual_evidence = [*correction_messages, *history_messages, *capsule_messages, *working_context_messages]
     if context_message is not None:
         actual_evidence.append(context_message)
     if tool_observation_message is not None:

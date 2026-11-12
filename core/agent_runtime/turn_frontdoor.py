@@ -2270,6 +2270,7 @@ def handle_turn_frontdoor(
         # the transport door. Siblings without an owner send the whole turn to the composite.
         live_info_wanted = False
     from core.model_own_tools import turn_has_provider_search as _model_searches_itself
+    from core.x_api import serves_ask as _x_serves
 
     # A turn that cannot reach the web asked for something only the web can answer: answer that
     # plainly here, before any model call or fetch. Two ways a turn has no web:
@@ -2350,6 +2351,10 @@ def handle_turn_frontdoor(
                         _ask_needs_web = _ask_is_live_data = False
                 except Exception:
                     pass
+            if (_ask_needs_web or _ask_is_live_data) and not _chat_is_offline and _x_serves(effective_input):
+                # Measured in the running app: "look up the X account @..." was refused as a web
+                # lookup while X was connected and the read was switched on.
+                _ask_needs_web = _ask_is_live_data = False
             _plain = ""
             _plain_reason = ""
             if _ask_is_live_data:
@@ -2392,6 +2397,11 @@ def handle_turn_frontdoor(
             # The owner handed the pinned cloud model its provider's own web search: the live
             # lookup is the model's to make, so VOOL's price/weather lane steps aside.
             or _model_searches_itself(source_context)
+            # The person's connected X account answers it through the X tools. Measured
+            # 2026-11-12 in the running app, X connected: "Look up the X account @vool_garden"
+            # was taken here, searched on the web (or, with Web lookups off, answered from model
+            # memory) and X was never asked.
+            or _x_serves(effective_input)
         ) else agent._maybe_handle_live_info_fast_path(
             effective_input if _live_info_whole_claim
             else slice_text(effective_input, live_info_coverage.consumed),

@@ -381,6 +381,14 @@ def should_keep_ai_first_chat_lane(
 
     if "web" in resolve_demand_signals(user_input).required_families:
         return False
+    # An ask the person's connected X account answers needs the X tools this lane cannot offer.
+    # Measured 2026-11-12 in the running app (X connected, account read on): "Look up the X
+    # account @vool_garden" was kept here as a live-information question and the model, offered
+    # no tools, answered "I can't use X from this chat right now".
+    from core.x_api import serves_ask as x_serves_ask
+
+    if x_serves_ask(user_input):
+        return False
     # Database work ("whats in the users table?") needs the database tools this lane cannot
     # offer; without them the model only promises to connect. Registered tools only.
     from core.database_work_state import note_database_demand

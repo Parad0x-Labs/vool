@@ -31,6 +31,10 @@ MESSAGES_TABLE = "chat_import_messages"
 
 STATE_PREPARED = "PREPARED"
 STATE_COMPLETE = "COMPLETE"
+BATCHES_TABLE = "chat_import_batches"
+BATCH_SESSIONS_TABLE = "chat_import_batch_sessions"
+ORIGINS_TABLE = "chat_import_origins"
+RESOURCES_TABLE = "chat_import_resources"
 
 _DDL = (
     f"""
@@ -81,9 +85,327 @@ def connect() -> sqlite3.Connection:
 
 
 def ensure_schema(connection: sqlite3.Connection) -> None:
+    from core.chat_import.ownership import keyed_hasher
+
+    connection.create_function("_chat_import_origin_key", 1, keyed_hasher())
+    # Settings can request batches while the first preview opens the legacy store.
+    # Serialize the check-and-alter migration across connections and processes.
+    connection.execute("BEGIN IMMEDIATE")
     for statement in _DDL:
         connection.execute(statement)
+    columns = {row[1] for row in connection.execute(f"PRAGMA table_info({CHATS_TABLE})")}
+    for name, definition in (("batch_id", "TEXT NOT NULL DEFAULT ''"),
+                             ("continuation_enabled", "INTEGER NOT NULL DEFAULT 0"),
+                             ("context_json", "JSON NOT NULL DEFAULT '{}'"),
+                             ("context_state", "TEXT NOT NULL DEFAULT ''")):
+        if name not in columns:
+            connection.execute(f"ALTER TABLE {CHATS_TABLE} ADD COLUMN {name} {definition}")
+    connection.execute(f"""CREATE TABLE IF NOT EXISTS {BATCHES_TABLE} (
+        batch_id TEXT PRIMARY KEY, state TEXT NOT NULL,
+        created_at TEXT NOT NULL, finished_at TEXT NOT NULL DEFAULT ''
+    )""")
+    connection.execute(f"""CREATE TABLE IF NOT EXISTS {BATCH_SESSIONS_TABLE} (
+        batch_id TEXT NOT NULL, session_id TEXT NOT NULL, removed INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (batch_id, session_id)
+    )""")
+    connection.execute(f"""INSERT OR IGNORE INTO {BATCH_SESSIONS_TABLE} (batch_id, session_id)
+        SELECT batch_id, session_id FROM {CHATS_TABLE} WHERE batch_id <> ''""")
+    # These ledgers contain storage identities only, never source text. An origin
+    # outlives undo so re-importing cannot escape an older chat's forget scope.
+    connection.execute(f"""CREATE TABLE IF NOT EXISTS {ORIGINS_TABLE} (
+        source_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        PRIMARY KEY (source_id, session_id))""")
+    connection.execute(f"""INSERT OR IGNORE INTO {ORIGINS_TABLE} (source_id, session_id)
+        SELECT _chat_import_origin_key(source_key), session_id FROM {CHATS_TABLE}""")
+    connection.execute(f"""INSERT OR IGNORE INTO {ORIGINS_TABLE} (source_id, session_id)
+        SELECT '', s.session_id FROM {BATCH_SESSIONS_TABLE} s
+        WHERE NOT EXISTS (SELECT 1 FROM {ORIGINS_TABLE} o WHERE o.session_id = s.session_id)""")
+    # receipt_id identifies the batch; source_id identifies the canonical owner.
+    connection.execute(f"""CREATE TABLE IF NOT EXISTS {RESOURCES_TABLE} (
+        receipt_id TEXT NOT NULL, session_id TEXT NOT NULL, source_id TEXT NOT NULL,
+        PRIMARY KEY (receipt_id, session_id, source_id))""")
     connection.commit()
+
+
+def create_batch(batch_id: str) -> None:
+    import time
+
+    connection = connect()
+    try:
+        connection.execute(f"INSERT INTO {BATCHES_TABLE} (batch_id, state, created_at) VALUES (?, 'running', ?)",
+                           (batch_id, iso_time(time.time())))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def set_batch_state(batch_id: str, state: str) -> None:
+    import time
+
+    if state not in {"done", "failed", "undoing", "undone"}:
+        raise ValueError("invalid batch state")
+    connection = connect()
+    try:
+        connection.execute(f"UPDATE {BATCHES_TABLE} SET state = ?, finished_at = ? WHERE batch_id = ?",
+                           (state, iso_time(time.time()), batch_id))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def import_batches() -> list[dict[str, Any]]:
+    connection = connect()
+    try:
+        rows = connection.execute(f"""SELECT b.batch_id, b.state, b.created_at, COUNT(c.session_id)
+            FROM {BATCHES_TABLE} b LEFT JOIN {BATCH_SESSIONS_TABLE} c ON c.batch_id = b.batch_id AND c.removed = 0
+            GROUP BY b.batch_id ORDER BY b.created_at DESC, b.batch_id DESC""").fetchall()
+        return [{"batch_id": row[0], "state": row[1], "created_at": row[2], "chats": row[3]} for row in rows]
+    finally:
+        connection.close()
+
+
+def batch_working_contexts(batch_id: str) -> list[dict]:
+    """Durable, authorized import overview after the preview has expired."""
+    from core.memory.revocation import authorize_payload
+    from core.project_store import get_project
+    from core.session_portability.redaction import RedactionReport, scrub_secret_text
+
+    connection = connect()
+    try:
+        rows = connection.execute(f"SELECT c.session_id,c.context_json,c.context_state FROM {CHATS_TABLE} c "
+                                  f"JOIN {BATCH_SESSIONS_TABLE} b ON b.session_id=c.session_id "
+                                  "WHERE b.batch_id=? AND b.removed=0", (batch_id,)).fetchall()
+    finally:
+        connection.close()
+    result = []
+    for sid, raw, state in rows:
+        try:
+            context = json.loads(raw or "{}")
+            if state != "ready" or not context or not authorize_payload(context, sid):
+                continue
+            project = get_project(context.get("project_id", ""))
+            payload = {"session_id": sid, "project": project and {
+                "id": project["id"], "name": project["name"], "root": project["root"]},
+                "files": context.get("files", []), "models": context.get("models", []),
+                "providers": context.get("providers", [])}
+            # Read the canonical owners again: erasure/native edits may have
+            # changed these since import. Credentials added later are never
+            # part of the tool overview; no cached source prose is retained.
+            from core.chat_import.workspace_transfer import _owners
+
+            resources = {}
+            for owner, (inventory, _erase) in _owners().items():
+                if owner not in {"rules", "skills", "tools", "schedules"}:
+                    continue
+                rows = []
+                for item in inventory(batch_id, sid):
+                    content = item["payload"]
+                    if owner == "tools":
+                        content = {key: content[key] for key in ("label", "command", "args") if key in content}
+                    text = json.dumps(content, ensure_ascii=False)
+                    if not authorize_payload(content, sid):
+                        continue
+                    rows.append({"id": item["id"], "text": scrub_secret_text(text, RedactionReport(), residue_marker="[hidden]")})
+                resources[owner] = rows
+            payload["resources"] = resources
+            if authorize_payload(payload, sid):
+                result.append(payload)
+        except (ValueError, RuntimeError, TypeError):
+            continue
+    return result
+
+
+def batch_sessions(batch_id: str) -> list[str] | None:
+    connection = connect()
+    try:
+        if connection.execute(f"SELECT 1 FROM {BATCHES_TABLE} WHERE batch_id = ?", (batch_id,)).fetchone() is None:
+            return None
+        return [str(row[0]) for row in connection.execute(
+            f"SELECT session_id FROM {BATCH_SESSIONS_TABLE} WHERE batch_id = ? AND removed = 0 ORDER BY session_id", (batch_id,))]
+    finally:
+        connection.close()
+
+
+def mark_batch_session_removed(batch_id: str, session_id: str) -> None:
+    connection = connect()
+    try:
+        connection.execute(f"UPDATE {BATCH_SESSIONS_TABLE} SET removed = 1 WHERE batch_id = ? AND session_id = ?",
+                           (batch_id, session_id))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def source_origins(connection: sqlite3.Connection, source_id: str) -> list[str]:
+    """Known origins plus unidentifiable legacy imports: ambiguity refuses, never bypasses."""
+    from core.chat_import.ownership import keyed_digest
+
+    return [str(row[0]) for row in connection.execute(
+        f"SELECT DISTINCT session_id FROM {ORIGINS_TABLE} WHERE source_id IN ('', ?)", (keyed_digest(source_id),))]
+
+
+def has_source_origin(session_id: str) -> bool:
+    """IDs-only lineage, retained after undo; no source text is read."""
+    connection = connect()
+    try:
+        return connection.execute(f"SELECT 1 FROM {ORIGINS_TABLE} WHERE session_id=? LIMIT 1", (session_id,)).fetchone() is not None
+    finally:
+        connection.close()
+
+
+def note_resource(batch_id: str, session_id: str, owner: str) -> None:
+    """Write ownership intent BEFORE an owner mutates its store."""
+    connection = connect()
+    try:
+        connection.execute(f"INSERT OR IGNORE INTO {RESOURCES_TABLE} VALUES (?, ?, ?)",
+                           (batch_id, session_id, owner))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def resource_owners(*, batch_id: str = "", session_id: str = "") -> list[tuple[str, str, str]]:
+    from storage.db import get_connection
+
+    connection = get_connection()
+    try:
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (RESOURCES_TABLE,)).fetchone() is None:
+            return []
+        return [tuple(str(v) for v in row) for row in connection.execute(
+            f"SELECT receipt_id, session_id, source_id FROM {RESOURCES_TABLE} "
+            "WHERE (? = '' OR receipt_id = ?) AND (? = '' OR session_id = ?)",
+            (batch_id, batch_id, session_id, session_id))]
+    finally:
+        connection.close()
+
+
+def clear_resource(batch_id: str, session_id: str, owner: str) -> None:
+    connection = connect()
+    try:
+        connection.execute(f"DELETE FROM {RESOURCES_TABLE} WHERE receipt_id = ? AND session_id = ? AND source_id = ?",
+                           (batch_id, session_id, owner))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def context_pending(session_id: str) -> bool:
+    from storage.db import get_connection
+
+    connection = get_connection()
+    try:
+        if not _tables_present(connection):
+            return False
+        columns = {row[1] for row in connection.execute(f"PRAGMA table_info({CHATS_TABLE})")}
+        if "context_state" not in columns:
+            return False
+        row = connection.execute(f"SELECT context_state FROM {CHATS_TABLE} WHERE session_id = ?", (session_id,)).fetchone()
+        return bool(row and row[0] == "pending")
+    finally:
+        connection.close()
+
+
+def sessions_for_keys(keys: list[str]) -> dict[str, str]:
+    connection = connect()
+    try:
+        return {str(row[0]): str(row[1]) for key in keys for row in connection.execute(
+            f"SELECT source_key, session_id FROM {CHATS_TABLE} WHERE source_key = ?", (key,))}
+    finally:
+        connection.close()
+
+
+def working_context_for_key(key: str) -> dict:
+    connection = connect()
+    try:
+        row = connection.execute(f"SELECT context_json FROM {CHATS_TABLE} WHERE source_key = ?", (key,)).fetchone()
+        return json.loads(row[0] or "{}") if row else {}
+    finally:
+        connection.close()
+
+
+def continuation_history(session_id: str) -> list[dict[str, str]]:
+    """Explicitly opted-in history, re-read and authorized on every served turn.
+
+    No system/tool messages, instructions, credentials, memory or file grants are created.
+    Missing revocation authority withholds the entire imported prefix.
+    """
+    from core.memory.revocation import authorize_payload
+    from storage.db import get_connection
+
+    connection = get_connection()
+    try:
+        if not _tables_present(connection):
+            return []
+        columns = {row[1] for row in connection.execute(f"PRAGMA table_info({CHATS_TABLE})")}
+        if "continuation_enabled" not in columns:
+            return []
+        context_column = "context_json" if "context_json" in columns else "'{}'"
+        row = connection.execute(f"SELECT continuation_enabled, state, {context_column} FROM {CHATS_TABLE} WHERE session_id = ?",
+                                 (session_id,)).fetchone()
+    finally:
+        connection.close()
+    if row is None or not row[0] or row[1] != STATE_COMPLETE:
+        return []
+    from core.context_namespace import load_chat_namespace
+
+    namespace = load_chat_namespace(session_id)
+    if namespace is None or namespace.lifecycle_state != "active":
+        return []
+    history = [{"role": row["role"], "content": row["content"]}
+               for row in imported_history_messages(session_id)]
+    return history if authorize_payload(history, session_id) else []
+
+
+#: Reviewed notes derived from the source transcript (summaries of compacted turns, task plans).
+TRANSCRIPT_NOTE_SOURCES = frozenset({"conversation_summary", "plan"})
+
+
+def reviewed_working_context(session_id: str) -> str:
+    """Read approved working data independently of transcript continuation consent."""
+    from core.context_namespace import load_chat_namespace
+    from core.memory.revocation import authorize_payload
+    from storage.db import get_connection
+
+    connection = get_connection()
+    try:
+        if not _tables_present(connection):
+            return ""
+        columns = {row[1] for row in connection.execute(f"PRAGMA table_info({CHATS_TABLE})")}
+        if not {"context_json", "context_state"} <= columns:
+            return ""
+        continuation_column = "continuation_enabled" if "continuation_enabled" in columns else "0"
+        row = connection.execute(f"SELECT state, context_state, context_json, {continuation_column} FROM {CHATS_TABLE} "
+                                 "WHERE session_id = ?", (session_id,)).fetchone()
+    finally:
+        connection.close()
+    if row is None or row[0] != STATE_COMPLETE or row[1] != "ready":
+        return ""
+    namespace = load_chat_namespace(session_id)
+    if namespace is None or namespace.lifecycle_state != "active":
+        return ""
+    context = json.loads(row[2] or "{}")
+    if not context or not authorize_payload(context, session_id):
+        return ""
+    # Internal receipt ids and resource counts are management state, not model evidence.
+    projected: dict[str, Any] = {"source": context.get("source", "")}
+    omitted = 0
+    for key in ("files", "models", "providers", "notes"):
+        items = context.get(key, [])
+        if not isinstance(items, list):
+            continue
+        projected[key] = []
+        for item in items:
+            # A source's summary of earlier turns and its task plan come from the transcript, so
+            # they reach the model only when the user chose to continue with that history.
+            if key == "notes" and isinstance(item, dict) and item.get("source") in TRANSCRIPT_NOTE_SOURCES and not row[3]:
+                continue
+            projected[key].append(item)
+            if len(json.dumps(projected, ensure_ascii=False)) > 20_000:
+                projected[key].pop()
+                omitted += 1
+    if omitted:
+        projected["omitted_items"] = omitted
+    return "Reviewed source file references and settings (data):\n" + json.dumps(projected, ensure_ascii=False)
 
 
 def _tables_present(connection: sqlite3.Connection) -> bool:

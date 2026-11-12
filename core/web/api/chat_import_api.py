@@ -55,6 +55,11 @@ def handle_get(path: str, *, headers: dict[str, Any] | None, client_host: str) -
         return 200, {"ok": True, **flow.sources()}
     if path == "/api/chat/import/status":
         return 200, {"ok": True, **flow.status()}
+    if path == "/api/chat/import/batches":
+        from core.chat_import.store import batch_working_contexts, import_batches
+
+        return 200, {"ok": True, "batches": [{**batch, "contexts": batch_working_contexts(batch["batch_id"])}
+                                           for batch in import_batches()]}
     return 404, {"ok": False, "error": "not_found"}
 
 
@@ -68,11 +73,13 @@ def handle_post(path: str, body: dict[str, Any], *, headers: dict[str, Any] | No
         size = len(json.dumps(body))
     except (TypeError, ValueError):
         return 400, {"ok": False, "error": "unserializable_body"}
-    if size > (START_BODY_CAP if path == "/api/chat/import/start" else BODY_CAP):
+    if size > (START_BODY_CAP if path in {"/api/chat/import/start", "/api/chat/import/context"} else BODY_CAP):
         return 413, {"ok": False, "error": "body_too_large"}
     allowed = {
         "/api/chat/import/preview": {"source", "upload_id"},
-        "/api/chat/import/start": {"preview_id", "chats"},
+        "/api/chat/import/start": {"preview_id", "chats", "continuation", "contexts"},
+        "/api/chat/import/context": {"preview_id", "ref", "root", "instructions", "memories", "private", "old_root"},
+        "/api/chat/import/undo": {"batch_id"},
         "/api/chat/import/discard": set(),
     }.get(path)
     if allowed is None:
@@ -88,12 +95,29 @@ def handle_post(path: str, body: dict[str, Any], *, headers: dict[str, Any] | No
             if isinstance(source, str) and source and not upload_id:
                 return 200, {"ok": True, **flow.preview_local(source)}
             return 400, {"ok": False, "error": "missing_source"}
+        if path == "/api/chat/import/context":
+            required = ("preview_id", "ref", "root")
+            if any(not isinstance(body.get(key), str) for key in required):
+                return 400, {"ok": False, "error": "bad_context"}
+            if (any(not isinstance(body.get(key, ""), str) for key in ("instructions", "old_root", "memories"))
+                    or type(body.get("private", False)) is not bool):
+                return 400, {"ok": False, "error": "bad_context"}
+            return 200, {"ok": True, **flow.review_context(body["preview_id"], body["ref"], root=body["root"],
+                                                         instructions=body.get("instructions", ""),
+                                                         private=body.get("private", False), old_root=body.get("old_root", ""),
+                                                         memories=body.get("memories", ""))}
         if path == "/api/chat/import/start":
             preview_id = body.get("preview_id")
             chats = body.get("chats")
             if not isinstance(preview_id, str) or not isinstance(chats, list):
                 return 400, {"ok": False, "error": "missing_selection"}
-            return 202, {"ok": True, **flow.start_import(preview_id, chats)}
+            return 202, {"ok": True, **flow.start_import(preview_id, chats, continuation=body.get("continuation", False),
+                                                        contexts=body.get("contexts"))}
+        if path == "/api/chat/import/undo":
+            batch_id = body.get("batch_id")
+            if not isinstance(batch_id, str) or not batch_id or len(batch_id) > 64:
+                return 400, {"ok": False, "error": "batch_missing"}
+            return 200, {"ok": True, **flow.undo(batch_id)}
         return 200, {"ok": True, **flow.discard()}
     except flow.FlowError as exc:
         return _flow_error(exc)

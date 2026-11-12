@@ -51,6 +51,7 @@ window.VoolDrop={mountInto:function(host){
   var poll=el('div');poll.className='vd-controls';panel.appendChild(poll);
   button(poll,'drop.poll','Check for Drops',async function(){await request('poll');await refresh();});
   var select=el('select');select.className='vd-select';select.setAttribute('aria-label',t('drop.choose','Choose a Drop'));panel.appendChild(select);
+  var unfinished=el('div');unfinished.className='vd-unfinished';unfinished.setAttribute('role','status');panel.appendChild(unfinished);
   var expiry=el('div');expiry.className='vd-expiry';panel.appendChild(expiry);
   var note=el('pre');note.className='vd-note';panel.appendChild(note);
   var fileInfo=el('pre');fileInfo.className='vd-file-info';panel.appendChild(fileInfo);
@@ -73,10 +74,14 @@ window.VoolDrop={mountInto:function(host){
     await request('execute',{sid:current.sid});await show();
   });
   var decline=button(actions,'xact.decline','Decline',async function(){await request('decline',{sid:shown.sid,task_id:JSON.parse(shown.task).task_id});await show();});
-  button(actions,'dialog.delete','Delete',async function(){clear();await request('delete',{sid:select.value});await refresh();});
-  function clear(){generation++;if(expiryTimer)clearTimeout(expiryTimer);expiryTimer=null;shown=null;note.textContent='';fileInfo.textContent='';expiry.textContent='';taskState.textContent='';result.textContent='';approve.hidden=true;decline.hidden=true;sendButton.hidden=true;taskButton.hidden=true;}
+  button(actions,'dialog.delete','Delete',async function(){clear();try{await request('delete',{sid:select.value});}finally{await refresh();}});
+  function clear(){generation++;if(expiryTimer)clearTimeout(expiryTimer);expiryTimer=null;shown=null;unfinished.textContent='';note.textContent='';fileInfo.textContent='';expiry.textContent='';taskState.textContent='';result.textContent='';approve.hidden=true;decline.hidden=true;sendButton.hidden=true;taskButton.hidden=true;}
   async function show(){
-    clear();var version=generation,sid=select.value;if(!sid)return;var j=await request('show',{sid:sid});
+    clear();var version=generation,sid=select.value;if(!sid)return;
+    var option=select.options[select.selectedIndex];
+    // A Drop whose deletion did not finish keeps only Delete, which tries the deletion again.
+    if(option&&option.dataset.status==='incomplete'){unfinished.textContent=t('drop.delete_unfinished','Deleting this Drop did not finish. Press Delete to try again.');return;}
+    var j=await request('show',{sid:sid});
     if(version!==generation||select.value!==sid||panel.hidden||j.expires<=Date.now())return;shown=j;
     note.textContent=j.note;var manifest=j.manifest?JSON.parse(j.manifest):{};
     fileInfo.textContent=manifest.name?manifest.name+' · '+manifest.size+' B\nSHA-256: '+manifest.sha256:'';
@@ -91,7 +96,7 @@ window.VoolDrop={mountInto:function(host){
   select.onchange=function(){show().catch(function(e){status.textContent=errorText(e.code);});};
   async function refresh(){
     clear();status.textContent='';var version=generation,prior=select.value;var j=await request('list');if(version!==generation||panel.hidden)return;select.textContent='';
-    (j.drops||[]).filter(function(d){return !['expired','deleted','incomplete'].includes(d.status);}).forEach(function(d){var o=el('option',d.sid);o.value=d.sid;select.appendChild(o);});
+    (j.drops||[]).filter(function(d){return !['expired','deleted'].includes(d.status);}).forEach(function(d){var o=el('option',d.sid);o.value=d.sid;o.dataset.status=d.status;select.appendChild(o);});
     if(Array.from(select.options).some(function(o){return o.value===prior;}))select.value=prior;
     await show();
   }

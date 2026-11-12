@@ -783,8 +783,14 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    # One account: "look up the X account @bob", "who is @bob on X?", "@bob's X profile".
     ("x.user", "x", re.compile(r"\b(?:find|search\s+for|look\s+for)\s+(?:x|twitter)\s+accounts?\b"
-                              r"|\baccounts?\s+on\s+(?:x|twitter)\s+(?:called|named|about)\b", re.I)),
+                              r"|\baccounts?\s+on\s+(?:x|twitter)\s+(?:called|named|about)\b"
+                              r"|\b(?:look\s+up|find|show\s+me|check|open)\s+(?:the\s+|this\s+|that\s+)?"
+                              r"(?:x|twitter)\s+(?:account|profile|user|handle)\b"
+                              r"|\bwho\s+is\s+@[A-Za-z0-9_]{1,15}\b[^.?!]{0,20}?\b(?:on|from)\s+(?:x|twitter)\b(?!\.)"
+                              r"|(?<![\w@])@[A-Za-z0-9_]{1,15}(?:'s|’s)\s+(?:x|twitter)\s+(?:account|profile|bio)\b"
+                              r"|\b(?:x|twitter)\s+(?:account|profile)\s+(?:of|for)\s+@[A-Za-z0-9_]{1,15}\b", re.I)),
     # -- mcp (family-level: server tools are dynamic) ------------------------------
     # matched separately below via the mcp.<server>. prefix vocabulary
 )

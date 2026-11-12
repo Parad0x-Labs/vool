@@ -30,8 +30,11 @@ from core.drop.session import (
 )
 
 RECORD_LIMIT = 262144
+# A revocation tombstone is written only by this owner's own delete or expiry, one per Drop,
+# so nobody else can grow it. The reference profile caps it at 1024 for the life of the
+# store, which made every deletion after the 1024th fail; here it is not capped.
 KIND_LIMITS = {"identity": 1, "prekey": LIMITS["prekeys"], "session": LIMITS["sessions"],
-               "outbox": LIMITS["queued"], "inbox": LIMITS["queued"], "revoked": 1024}
+               "outbox": LIMITS["queued"], "inbox": LIMITS["queued"], "revoked": None}
 
 
 def secure_directory(directory) -> Path:
@@ -143,7 +146,7 @@ class EncryptedStore:
     def put(self, kind, record_id, value):
         demand(self._transaction and kind in KIND_LIMITS, "TRANSACTION_REQUIRED")
         exists = self._db.execute("SELECT 1 FROM records WHERE kind=? AND id=?", (kind, record_id)).fetchone()
-        if not exists:
+        if not exists and KIND_LIMITS[kind] is not None:
             demand(self.count(kind) < KIND_LIMITS[kind], "STORE_LIMIT")
         owner = (check_id(value["sid"]) if kind == "session"
                  else check_id(value["session"]) if kind in ("inbox", "outbox") else "")
@@ -168,6 +171,12 @@ class EncryptedStore:
         self._require()
         check_id(session)
         self._db.execute("DELETE FROM records WHERE owner=? AND kind IN ('inbox','outbox')", (session,))
+
+    def checkpoint(self):
+        """Copy committed pages into the database and empty the write-ahead log now, so
+        removed records do not linger in the -wal file until the store closes."""
+        demand(not self._closed and not self._transaction, "STORE_UNAVAILABLE")
+        self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
 
     def close(self):
         if self._closed:

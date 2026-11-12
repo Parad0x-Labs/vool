@@ -13,7 +13,7 @@ each) so the screen can show them in the user's language.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 #: The only roles an imported message can carry.
 Role = Literal["user", "assistant"]
@@ -50,6 +50,8 @@ class ImportedChat:
     updated_at: float | None = None
     messages: tuple[ImportedMessage, ...] = ()
     skipped: dict[str, int] = field(default_factory=dict)
+    #: Separately reviewed context, never an executable transcript role.
+    context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -99,6 +101,9 @@ PROBLEM_TEXT: dict[str, str] = {
     "chats_without_order_skipped": "Some chats were left out because their message order is not recorded.",
     "chats_internal_skipped": "Some sessions were left out because the app ran them by itself, not you.",
     "files_skipped": "Some chat files could not be read and were left out.",
+    "projects_unreadable": "The export's project list could not be read; add project instructions during review.",
+    "projects_unlinked": "Some projects in the export could not be matched to a chat; add their instructions during review.",
+    "project_document_cut": "Some project documents were longer than the import limit and were cut.",
 }
 
 

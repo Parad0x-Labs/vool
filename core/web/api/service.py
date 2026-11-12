@@ -1562,7 +1562,7 @@ def _dispatch_get(
             runtime,
         )
 
-    if normalized_path in ("/api/chat/import/sources", "/api/chat/import/status"):
+    if normalized_path in ("/api/chat/import/sources", "/api/chat/import/status", "/api/chat/import/batches"):
         # Bring chats from other AI apps (Settings): which local apps are present (existence
         # checks only) and how a running import is going. Owner-only, same guards as X setup.
         from core.web.api.chat_import_api import handle_get as _chat_import_get
@@ -5786,7 +5786,7 @@ def _dispatch_post_inner(
         _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()}, client_host=client_host)
         return apply_runtime_headers(json_response(_ct_status, _ct_payload), runtime)
 
-    if normalized_path in ("/api/chat/import/preview", "/api/chat/import/start", "/api/chat/import/discard"):
+    if normalized_path in ("/api/chat/import/preview", "/api/chat/import/start", "/api/chat/import/discard", "/api/chat/import/undo", "/api/chat/import/context"):
         # Bring chats from other AI apps (Settings): preview a source the user picked, import the
         # chats they ticked, or drop the preview. Owner-only, same guards as /api/x/setup below.
         from core.web.api.chat_import_api import handle_post as _chat_import_post
@@ -8239,6 +8239,15 @@ def _dispatch_post_inner(
             # existing desktop namespace by presenting a guessed canonical id.
             allow_canonical_resume=owner_local,
         )
+        from core.chat_import.store import context_pending
+
+        if context_pending(session_id):
+            from core.i18n import catalog_for
+
+            return apply_runtime_headers(json_response(409, {
+                "error": "import_context_incomplete",
+                "detail": catalog_for(request_ui_locale(headers)).text("chatimport.error.incomplete"),
+            }), runtime)
         # Private chat (core.private_chat), decided at the door before anything below can record the
         # turn: a chat already private, or a message turning it on, makes this whole request private.
         from core.private_chat import observe_private_door

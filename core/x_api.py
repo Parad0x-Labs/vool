@@ -82,6 +82,22 @@ def connected() -> bool:
         return False
 
 
+def serves_ask(text: str) -> bool:
+    """Whether an ask is the X tools' to serve: it asks for X ("look up the X account @bob", "post
+    this on X") and the person's X is connected. X has its own opt-in (their keys, the features
+    they chose, the device approval), each read asks before it goes out and a post waits for
+    approval in Settings, so such an ask is never a web lookup and never a tools-less chat answer.
+    Without X connected it is an ordinary ask."""
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        if "x" not in tuple(getattr(resolve_demand_signals(text), "required_families", ()) or ()):
+            return False
+    except Exception:
+        return False
+    return connected()
+
+
 def _auth(saved: dict[str, Any], method: str, url: str, *, user_context: bool) -> tuple[str, tuple[str, ...]]:
     from core.x_setup import FIELDS, OAuth1Keys, oauth1_authorization
 

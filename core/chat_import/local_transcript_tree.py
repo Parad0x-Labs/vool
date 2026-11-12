@@ -28,6 +28,7 @@ import json
 import os
 import sqlite3
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +129,7 @@ def read_stores(
                     chat, cut = _chat_from_events(events, key, FORMAT_DB, limits, problems)
                     truncated = truncated or cut
                     if chat is not None:
-                        chats.append(chat)
+                        chats.append(replace(chat, context={**chat.context, "profile_root": str(database.parents[3])}))
         except SnapshotError as exc:
             problems.append(exc.code)
         except sqlite3.DatabaseError:
@@ -158,7 +159,7 @@ def read_stores(
         seen.add(key)
         truncated = truncated or cut
         if chat is not None:
-            chats.append(chat)
+            chats.append(replace(chat, context={**chat.context, "profile_root": str(transcript.parents[3])}))
     formats = {chat.source_format for chat in chats}
     source_format = FORMAT_DB if FORMAT_DB in formats else (FORMAT_JSONL if chats or not problems else "")
     return ReadResult(source_format=source_format, chats=tuple(chats), problems=tuple(dict.fromkeys(problems)), truncated=truncated)
@@ -336,6 +337,8 @@ def _chat_from_events(
             updated_at=last_time or created_at,
             messages=tuple(messages),
             skipped=skipped,
+            context={"workspace_hint": as_text(header.get("cwd")) if header else "",
+                     "file_references": _tool_paths_in_events(visible)},
         ),
         truncated,
     )
@@ -366,3 +369,18 @@ def _message_text(message: dict) -> tuple[str | None, str]:
         if reason in kinds:
             return None, reason
     return None, "empty"
+
+
+def _tool_paths_in_events(events: list[dict]) -> list[str]:
+    from core.chat_import.source_context import tool_paths
+
+    paths = []
+    for entry in events:
+        message = entry.get("message")
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if isinstance(content, list):
+            paths.extend(tool_paths([part]) for part in content if isinstance(part, dict)
+                         and part.get("type") in {"toolCall", "tool_use"})
+    return [path for group in paths for path in group][:100]

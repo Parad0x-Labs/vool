@@ -2869,6 +2869,8 @@ class MemoryFirstRouter:
             # else here: a value in a dict that travels with the request, not ambient state.
             if turn_is_local_only(source_context):
                 call_request.metadata[LOCAL_ONLY_CONTEXT_KEY] = True
+            if (source_context or {}).get("_device_only"):
+                call_request.metadata["_device_only"] = True
         identity = _model_call_identity(source_context, task=task, model_call_id=model_call_id)
         if lane_receipted:
             # The caller wraps this call in its own lane receipts (`model_lane_*` /

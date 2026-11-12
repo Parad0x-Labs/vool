@@ -357,6 +357,10 @@ def save_policy(policy: CloudEscalationPolicy) -> CloudEscalationPolicy:
 def chat_model_selection(session_id: str) -> dict[str, str]:
     """A chat pin never inherits the global provider pin or another chat's choice."""
     row = _read_raw().get("chat_models", {}).get(session_id, {})
+    from core.chat_import.ownership import visible
+
+    if not visible({"model": row.get("model"), "provider": row.get("provider")}, row.get("import_origin")):
+        return {"model": "", "provider": ""}
     return {"model": str(row.get("model", "")), "provider": str(row.get("provider", ""))}
 
 
@@ -378,14 +382,75 @@ def selected_chat_models(provider: str) -> tuple[str, ...]:
     }))
 
 
-def save_chat_model_selection(session_id: str, *, model: str, provider: str, revision: int = 0) -> bool:
+def save_chat_model_selection(session_id: str, *, model: str, provider: str, revision: int = 0,
+                              _import: dict | None = None) -> bool:
     with _COUNTER_LOCK, _counter_file_lock():
         raw = _read_raw()
         choices = raw.setdefault("chat_models", {})
         if revision and revision < int(choices.get(session_id, {}).get("revision", 0)):
             return False
+        previous = choices.get(session_id, {})
         choices[session_id] = {"model": model, "provider": provider, "revision": revision}
+        if previous.get("import_origin"):
+            choices[session_id]["import_origin"] = previous["import_origin"]
+        elif _import:
+            from core.chat_import.ownership import origin
+
+            choices[session_id]["import_origin"] = origin(payload={"model": model, "provider": provider}, **_import)
         return _write_raw(raw)
+
+
+def available_import_models() -> list[str]:
+    """Configured local lanes only; this inventory performs no health or provider calls."""
+    from core.auto_local_only_mode import manifest_is_device_local
+    from core.model_registry import ModelRegistry
+    from core.secret_redaction import contains_secret
+
+    return sorted({manifest.model_name for manifest in ModelRegistry().list_manifests(enabled_only=True, limit=4096)
+                   if manifest_is_device_local(manifest)
+                   and not contains_secret(manifest.model_name)})
+
+
+def import_local_chat_model(session_id: str, *, model: str, batch_id: str, source: str) -> None:
+    from core.memory.revocation import writing
+
+    if model not in available_import_models():
+        raise ValueError("local model unavailable")
+    with writing({"model": model}, session_id):
+        current = chat_model_selection(session_id)
+        if current.get("model") and current["model"] != model:
+            raise ValueError("chat model already selected")
+        if current.get("model"):
+            return
+        if not save_chat_model_selection(session_id, model=model, provider="local", _import={
+                "batch_id": batch_id, "session_id": session_id, "source": source}):
+            raise RuntimeError("chat model selection could not be saved")
+
+
+def imported_chat_models(batch_id: str, session_id: str) -> list[dict]:
+    from core.chat_import.ownership import belongs, unchanged
+
+    row = _read_raw().get("chat_models", {}).get(session_id, {})
+    provenance = row.get("import_origin")
+    if not belongs(provenance, batch_id, session_id):
+        return []
+    payload = {"model": row.get("model"), "provider": row.get("provider")}
+    return [{"id": session_id, "payload": payload, "unchanged": unchanged(payload, provenance)}]
+
+
+def purge_imported_chat_models(batch_id: str, session_id: str, *, token: str = "") -> int:
+    from core.memory.carriers import carries
+
+    with _COUNTER_LOCK, _counter_file_lock():
+        rows = [row for row in imported_chat_models(batch_id, session_id) if not token or carries(row["payload"], token)]
+        if not token and any(not row["unchanged"] for row in rows):
+            raise ValueError("imported model selection changed")
+        if rows:
+            raw = _read_raw()
+            raw.get("chat_models", {}).pop(session_id, None)
+            if not _write_raw(raw):
+                raise RuntimeError("chat model selection could not be removed")
+        return len(rows)
 
 
 def used_today(*, now: float | None = None) -> int:

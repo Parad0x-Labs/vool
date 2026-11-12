@@ -76,6 +76,104 @@ def _config_path() -> Path | None:
     return active_vool_home() / "mcp_servers.json"
 
 
+def _import_config_document() -> tuple[Path, dict]:
+    path = _config_path()
+    if path is None:
+        raise ValueError("tool configuration unavailable")
+    if not path.exists():
+        return path, {"servers": []}
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(document, list):
+        document = {"servers": document}
+    if not isinstance(document, dict) or not isinstance(document.get("servers", []), list):
+        raise ValueError("tool configuration unreadable")
+    document.setdefault("servers", [])
+    return path, document
+
+
+def _save_import_config(path: Path, document: dict) -> None:
+    import uuid
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(document, handle, ensure_ascii=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            temporary.unlink()
+
+
+def import_disabled_server(*, label: str, command: str, args: list[str], batch_id: str,
+                           session_id: str, source: str) -> str:
+    """Persist a reviewable disabled entry. Never discover tools or start a process."""
+    from core.chat_import.ownership import keyed_digest, origin
+    from core.memory.revocation import writing
+    from core.secret_redaction import contains_secret
+
+    values = [label, command, *args]
+    if (not command or len(args) > 64 or any(not isinstance(v, str) or len(v) > 4096
+                                            or contains_secret(v) or "${" in v for v in values)):
+        raise ValueError("invalid imported tool configuration")
+    name = "import-" + keyed_digest([batch_id, session_id, source, values])[:16]
+    entry = {"name": name, "label": label, "command": command, "args": args,
+             "enabled": False, "allow_network": False, "confinement": "auto", "env": {}, "env_allowlist": []}
+    with writing(entry, session_id):
+        path, document = _import_config_document()
+        existing = next((row for row in document["servers"] if isinstance(row, dict) and row.get("name") == name), None)
+        if existing is not None:
+            if {k: v for k, v in existing.items() if k != "import_origin"} != entry:
+                raise ValueError("imported tool configuration changed")
+            return name
+        entry["import_origin"] = origin(batch_id, session_id, source, entry)
+        document["servers"].append(entry)
+        _save_import_config(path, document)
+    return name
+
+
+def imported_servers(batch_id: str, session_id: str) -> list[dict]:
+    from core.chat_import.ownership import belongs, unchanged
+
+    _path, document = _import_config_document()
+    result = []
+    for entry in document["servers"]:
+        if not isinstance(entry, dict) or not belongs(entry.get("import_origin"), batch_id, session_id):
+            continue
+        original = {k: v for k, v in entry.items() if k != "import_origin"}
+        result.append({"id": str(entry["name"]),
+                       "payload": {key: entry.get(key) for key in ("label", "command", "args", "cwd", "url", "env")},
+                       "unchanged": unchanged(original, entry["import_origin"])})
+    return result
+
+
+def purge_imported_servers(batch_id: str, session_id: str, *, token: str = "") -> int:
+    from core.memory.carriers import carries
+
+    rows = [row for row in imported_servers(batch_id, session_id) if not token or carries(row["payload"], token)]
+    if not token and any(not row["unchanged"] for row in rows):
+        raise ValueError("imported tools have new work")
+    remove = {row["id"] for row in rows}
+    if remove:
+        path, document = _import_config_document()
+        document["servers"] = [row for row in document["servers"]
+                               if not isinstance(row, dict) or row.get("name") not in remove]
+        _save_import_config(path, document)
+        # An explicitly enabled imported server can be erased later. Evict only
+        # its own client; unrelated configured servers retain their lifetime.
+        for name in remove:
+            client = _CLIENTS.pop(name, None)
+            if client is not None:
+                client.close()
+        global _CONFIG_CACHE, _CONTRACT_CACHE
+        _CONFIG_CACHE = None
+        _CONTRACT_CACHE = None
+    return len(rows)
+
+
 def _ensure_profile_scope() -> None:
     global _PROFILE_TOKEN
     from core.runtime_paths import runtime_home_generation
@@ -117,9 +215,12 @@ def _parse_trust(raw: Any, *, server: str) -> tuple[dict[str, dict[str, Any]], d
 def load_mcp_server_configs() -> list[dict[str, Any]]:
     """Enabled MCP server configs. Off by default: a missing/invalid config yields []."""
     global _CONFIG_CACHE
+    from core.chat_import.ownership import visible
+
     _ensure_profile_scope()
     if _CONFIG_CACHE is not None:
-        return _CONFIG_CACHE
+        return [entry for entry in _CONFIG_CACHE if visible(
+            {key: value for key, value in entry.items() if key != "import_origin"}, entry.get("import_origin"))]
     servers: list[dict[str, Any]] = []
     path = _config_path()
     if path is not None and path.is_file():
@@ -127,7 +228,8 @@ def load_mcp_server_configs() -> list[dict[str, Any]]:
             raw = json.loads(path.read_text(encoding="utf-8"))
             entries = raw.get("servers") if isinstance(raw, dict) else raw
             for entry in entries or []:
-                if not isinstance(entry, dict) or entry.get("enabled", True) is not True:
+                if (not isinstance(entry, dict) or entry.get("enabled", True) is not True
+                        or not visible({k: v for k, v in entry.items() if k != "import_origin"}, entry.get("import_origin"))):
                     continue
                 name = str(entry.get("name") or "").strip()
                 command = str(entry.get("command") or "").strip()
@@ -139,6 +241,7 @@ def load_mcp_server_configs() -> list[dict[str, Any]]:
                 servers.append(
                     {
                         "name": name,
+                        **({"import_origin": entry["import_origin"]} if entry.get("import_origin") else {}),
                         "command": command,
                         "args": [str(a) for a in (entry.get("args") or [])],
                         "cwd": (str(entry["cwd"]) if entry.get("cwd") else None),

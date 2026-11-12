@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS user_rules (
 _LATER_COLUMNS = (
     ("kind", "TEXT NOT NULL DEFAULT 'rule'"),
     ("overrides_rule_no", "INTEGER NOT NULL DEFAULT 0"),
+    ("import_origin_json", "TEXT NOT NULL DEFAULT '{}'"),
 )
 _IDX = "CREATE INDEX IF NOT EXISTS idx_user_rules_active ON user_rules(status, scope, scope_ref)"
 
@@ -229,12 +230,31 @@ def _row_to_rule(row: Any) -> UserRule:
     )
 
 
-def _query(sql: str, params: tuple = ()) -> list[UserRule]:
+def _query(sql: str, params: tuple = (), *, read_chat_id: str = "") -> list[UserRule]:
+    from core.chat_import.ownership import visible
+
     conn = get_connection()
     try:
         _ensure(conn)
         conn.row_factory = _dict_row
-        return [_row_to_rule(row) for row in conn.execute(sql, params).fetchall()]
+        rows = conn.execute(sql, params).fetchall()
+        result = []
+        for row in rows:
+            try:
+                provenance = json.loads(row.get("import_origin_json") or "{}") or None
+            except (TypeError, ValueError):
+                continue
+            if provenance and read_chat_id:
+                from core.memory.revocation import authorize_payload
+
+                try:
+                    if not authorize_payload({"text": row["text"]}, read_chat_id):
+                        continue
+                except RuntimeError:
+                    continue
+            if visible({"text": row["text"]}, provenance):
+                result.append(_row_to_rule(row))
+        return result
     finally:
         conn.close()
 
@@ -389,7 +409,7 @@ def active_rules(
         "SELECT * FROM user_rules WHERE status = 'active' AND (" + " OR ".join(clauses) + ") "
         "ORDER BY CASE scope WHEN 'global' THEN 0 WHEN 'project' THEN 1 ELSE 2 END, rule_no"
     )
-    rows = _query(sql, tuple(params))
+    rows = _query(sql, tuple(params), read_chat_id=chat)
     return rows if include_exceptions else [row for row in rows if not row.is_exception]
 
 
@@ -632,19 +652,21 @@ def add_rule(
     chat_id: str = "",
     project_id: str = "",
     turn_id: str = "",
+    _import: dict | None = None,
 ) -> RuleChange:
     """Save one rule. Refuses (and saves nothing) when the scope cannot be bound, the text is
     empty, too long, or carries a secret."""
     clean_scope = str(scope or "").strip().lower()
     if clean_scope not in SCOPES:
         return RuleChange("refused", f"`{scope}` is not a rule scope. Use global, project or chat. Nothing was saved.")
-    body = " ".join(str(text or "").split()).strip().rstrip(".")
+    body = str(text or "").strip() if _import else " ".join(str(text or "").split()).strip().rstrip(".")
     if not body:
         return RuleChange("refused", "That rule is empty. Nothing was saved.")
-    if len(body) > MAX_RULE_CHARS:
+    limit = 20_000 if _import else MAX_RULE_CHARS
+    if len(body) > limit:
         return RuleChange(
             "refused",
-            f"That rule is {len(body)} characters; a rule can be at most {MAX_RULE_CHARS}. Nothing was saved.",
+            f"That rule is {len(body)} characters; a rule can be at most {limit}. Nothing was saved.",
         )
     try:
         from core.secret_redaction import contains_secret
@@ -661,17 +683,29 @@ def add_rule(
     for existing in _rules_for_scope(clean_scope, ref):
         if not existing.is_exception and existing.text.lower() == body.lower():
             return RuleChange("duplicate", f"That's already rule {existing.rule_no} ({existing.scope_label()}). Nothing changed.", (existing,))
-    terms = extract_terms(body)
+    # Imported instructions guide the model; they are not the person's own word bans. Instruction
+    # files name code and files in quotes and backticks ("Run `pytest`", "keep `plan.txt` current"),
+    # and reading those as banned words masked a file's name in the very answer that opened it and
+    # refused every commit that mentions it. A word ban is something the person asks for here.
+    terms = () if _import else extract_terms(body)
     targets = _targets_for(body)
     now = _utcnow()
     rule_id = "rule-" + uuid.uuid4().hex[:12]
+    provenance = {}
+    if _import:
+        from core.chat_import.ownership import origin
+
+        provenance = origin(payload={"scope": clean_scope, "scope_ref": ref, "text": body,
+                                     "terms_json": json.dumps(list(terms)), "targets_json": json.dumps(list(targets)),
+                                     "kind": KIND_RULE, "overrides_rule_no": 0}, **_import)
     conn = get_connection()
     try:
         _ensure(conn)
         cursor = conn.execute(
-            "INSERT INTO user_rules (rule_id, scope, scope_ref, text, terms_json, targets_json, status, created_at, created_turn) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)",
-            (rule_id, clean_scope, ref, body, json.dumps(list(terms)), json.dumps(list(targets)), now, str(turn_id or "")),
+            "INSERT INTO user_rules (rule_id, scope, scope_ref, text, terms_json, targets_json, status, created_at, created_turn, import_origin_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)",
+            (rule_id, clean_scope, ref, body, json.dumps(list(terms)), json.dumps(list(targets)), now, str(turn_id or ""),
+             json.dumps(provenance)),
         )
         conn.commit()
         rule_no = int(cursor.lastrowid)
@@ -680,6 +714,66 @@ def add_rule(
     saved = UserRule(rule_no=rule_no, rule_id=rule_id, scope=clean_scope, scope_ref=ref, text=body,
                      terms=terms, targets=targets, created_at=now)
     return RuleChange("saved", _saved_report(saved), (saved,))
+
+
+def _import_rule_payload(row: dict) -> dict:
+    return {key: row[key] for key in ("scope", "scope_ref", "text", "terms_json", "targets_json",
+                                      "kind", "overrides_rule_no")}
+
+
+def import_rule(scope: str, text: str, *, batch_id: str, session_id: str, source: str,
+                project_id: str = "") -> RuleChange:
+    """Explicitly reviewed source instructions enter the canonical RULES store."""
+    from core.memory.revocation import writing
+    from core.private_chat import is_private
+
+    if is_private(session_id):
+        return RuleChange("refused", "Private chats cannot save imported instructions as rules.")
+    with writing({"text": text, "source": source}, session_id):
+        return add_rule(scope, text, chat_id=session_id, project_id=project_id,
+                        turn_id=f"chat-import:{batch_id}:{session_id}",
+                        _import={"batch_id": batch_id, "session_id": session_id, "source": source})
+
+
+def imported_rules(batch_id: str, session_id: str) -> list[dict]:
+    """Owner inventory, including soft-removed rows, for complete undo and erasure."""
+    from core.chat_import.ownership import belongs, unchanged
+
+    conn = get_connection()
+    try:
+        _ensure(conn)
+        conn.row_factory = _dict_row
+        rows = conn.execute("SELECT * FROM user_rules WHERE created_turn = ?",
+                            (f"chat-import:{batch_id}:{session_id}",)).fetchall()
+        result = []
+        for row in rows:
+            provenance = json.loads(row["import_origin_json"])
+            if belongs(provenance, batch_id, session_id):
+                payload = _import_rule_payload(row)
+                result.append({"id": row["rule_id"], "payload": {"text": row["text"]},
+                               "unchanged": unchanged(payload, provenance)})
+        return result
+    finally:
+        conn.close()
+
+
+def purge_imported_rules(batch_id: str, session_id: str, *, token: str = "") -> int:
+    """Hard erase imported rules through their owner; manual and duplicate rules survive."""
+    from core.memory.carriers import carries
+
+    rows = [row for row in imported_rules(batch_id, session_id)
+            if not token or carries(row["payload"], token)]
+    if not token and any(not row["unchanged"] for row in rows):
+        raise ValueError("imported rules changed")
+    conn = get_connection()
+    try:
+        for row in rows:
+            conn.execute("DELETE FROM user_rules WHERE rule_id = ? AND created_turn = ?",
+                         (row["id"], f"chat-import:{batch_id}:{session_id}"))
+        conn.commit()
+        return len(rows)
+    finally:
+        conn.close()
 
 
 def _enforcement_line(rule: UserRule) -> str:

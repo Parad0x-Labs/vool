@@ -9564,7 +9564,7 @@ async function runTurn(text, queueItemId, opts) {
           continue;
         }
         const chunk = obj && obj.message && obj.message.content ? obj.message.content : '';
-        if (chunk) {
+        if (chunk && !hasResponseCommit) {
           // State first, unconditionally: the answer accrues on the run whether or not anyone is
           // looking at this chat. Painting is the gated second step.
           assistant += chunk;

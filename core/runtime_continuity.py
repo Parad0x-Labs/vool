@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import copy
+import functools
 import hashlib
 import json
 import logging
@@ -263,6 +264,24 @@ def _next_session_seq(conn: Any, session_id: str, recorded_event_count: int) -> 
     return max(int(recorded_event_count or 0), max_persisted_seq) + 1
 
 
+def _availability_operation(function):
+    """Share the public read scope within one write, without caching verdicts.
+
+    Event trees and checkpoint evidence can contain hundreds of strings. Opening
+    a new SQLite connection for each string stalls served turns under contention.
+    Every check still queries current governance, including the durable recheck.
+    """
+    @functools.wraps(function)
+    def scoped(*args, **kwargs):
+        from core.finalization import availability_read_scope
+
+        with availability_read_scope():
+            return function(*args, **kwargs)
+
+    return scoped
+
+
+@_availability_operation
 def append_runtime_event(
     *,
     session_id: str,
@@ -940,6 +959,7 @@ def _servable_event_message(message: str) -> str:
     return ""
 
 
+@_availability_operation
 def update_runtime_checkpoint(
     checkpoint_id: str,
     *,
