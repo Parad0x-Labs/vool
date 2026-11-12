@@ -1479,6 +1479,21 @@ _LIVE_CLAIM_WINDOW = 120
 # subject (crypto asset/ticker, commodity, an FX conversion pair): those keep the notice
 # however old the record is.  The subject recognizers are imported, not written here -- see
 # `_clause_states_a_market_priced_value` below the keys helper.
+#
+# Scope (v0.8 merge, 2026-11-12): the measured failure was MONEY -- salary, offer, raise,
+# budget -- with the percentages that ride along ("a 12% increase to $110,000").  Those are
+# the only figures the exemption stands down.  A temperature and every other measured
+# quantity (metres, kilograms, points, days) is a reading or a record, and whether a recorded
+# one may be stated as CURRENT is the record law's call: `recorded_state_retention` binds the
+# subject, honours negations and same-day corrections, owns only the user's own lines and
+# only this chat's scope.  A bare number-and-unit match must not overrule it, and neither may
+# it stand down a figure the capsule states AS A RECORD ("My highest share price was 56
+# euros"): the record law exempts general measured quantities only, so a price or a
+# temperature stated as a record is no exemption.  The owner's frozen acceptance rounds pin
+# that law (tests/test_owner_fresh_guard_contracts.py, test_owner_fresh_round2.py,
+# test_p300_fresh_acceptance_20260930.py, test_final_repair_fresh2.py and K17/K18 of
+# test_final_repair_fresh_acceptance.py); without this scope, 23 of their cases had a stale,
+# negated, foreign, quoted or assistant-said figure stated back as the current one.
 
 #: Currency tokens the price kind reads, canonicalised to lowercase ISO codes -- the same
 #: formal standard `_LIVE_CURRENCY_CODE` cites.  "cents" stays its own unit: 42 cents is not
@@ -1624,6 +1639,51 @@ def _clause_states_a_market_priced_value(clause: str) -> bool:
     return False
 
 
+def _plain_number(number: float) -> str:
+    """``98000.0`` -> ``"98000"``, ``2.5`` -> ``"2.5"``: a record's number written back as text
+    the keys helper reads, never in exponent notation."""
+    text = f"{number:.6f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+@functools.lru_cache(maxsize=64)
+def _capsule_record_figure_keys(evidence_text: str) -> frozenset[tuple[float, str]]:
+    """The figure keys of every value the capsule states AS A RECORD, read by the record
+    law's own reader (`_record_assertions`: the user's own lines, quotes and foreign
+    possessors masked, asserted and denied values alike).  Cached per capsule text: the
+    sentence-level split asks once per sentence of the same reply."""
+    try:
+        from core.unsourced_current_claim import _record_assertions
+
+        assertions = _record_assertions(evidence_text)
+    except Exception:
+        return frozenset()
+    keys: set[tuple[float, str]] = set()
+    for assertion in assertions:
+        number, unit = assertion.get("number"), str(assertion.get("unit") or "")
+        if number is None or not unit:
+            continue
+        keys |= _memory_figure_keys(f"{_plain_number(float(number))} {unit}")
+    return frozenset(keys)
+
+
+def _memory_figure_exemptable(
+    kind: str, match_text: str, record_keys: frozenset[tuple[float, str]]
+) -> bool:
+    """Whether the memory-figure exemption may stand this live-shaped match down at all.
+
+    Money (the price kind) and percentages only, and never a figure the capsule states as a
+    record -- see the scope note in the memory-figure section above.
+    """
+    if kind == "measured-quantity":
+        lowered = match_text.lower()
+        if "%" not in lowered and "percent" not in lowered:
+            return False
+    elif kind != "price":
+        return False
+    return not (record_keys and _memory_figure_keys(match_text) & record_keys)
+
+
 def unobserved_live_value_claims(
     text: str, *, user_turn_text: str = "", evidence_text: str = ""
 ) -> tuple[str, ...]:
@@ -1642,13 +1702,17 @@ def unobserved_live_value_claims(
     tonnes at the moment" after the user wrote "I have 3 tonnes of gravel at the moment" is
     retention, not invention. Values whose prose-safe measured-value string appears in the
     user's own words are skipped; kinds with NO surviving match drop out. Dated memory and
-    hydrated history are not exempt channels -- only this turn's user text.
+    hydrated history are not exempt channels for readings -- a temperature or a measured
+    quantity the memory states stays with the record law (see ``evidence_text``).
 
     ``evidence_text`` is the memory/evidence the turn carried (the admitted capsule, BOTH
     sides of the past chats: the user's lines, VOOL's old replies and the tool results they
-    quoted). A figure STATED IN IT -- same number AND unit/currency, notation-insensitive
-    ("GBP 90,000" == "£90,000") -- is a recorded fact, not an invention: salary, offer,
-    budget, a price paid. Each such match is skipped exactly like a user-turn echo, and a
+    quoted). A money or percentage figure STATED IN IT -- same number AND unit/currency,
+    notation-insensitive ("GBP 90,000" == "£90,000") -- is a recorded fact, not an
+    invention: salary, offer, budget, a raise, a price paid. A temperature, any other
+    measured quantity, and a figure the capsule states as a record are not exempted here:
+    the record law judges those (`_memory_figure_exemptable`). Each exempt match is
+    skipped exactly like a user-turn echo, and a
     kind whose every match is memory-stated drops out -- UNLESS the match's own clause
     states the figure as the value of a market-priced subject (crypto asset/ticker,
     commodity, an FX pair: "Bitcoin is $61,250 right now" against a recorded "BTC was
@@ -1682,6 +1746,7 @@ def unobserved_live_value_claims(
 
     exempt_exact = set(prose_safe_measured_value_matches(user_turn_text))
     memory_figures = _memory_figure_keys(evidence_text) if evidence_text else frozenset()
+    record_keys = _capsule_record_figure_keys(str(evidence_text)) if memory_figures else frozenset()
     found: list[str] = []
     for kind, pattern in _LIVE_VALUE_KINDS:
         for match in pattern.finditer(body):
@@ -1703,7 +1768,11 @@ def unobserved_live_value_claims(
                     match_text, user_turn_text
                 ):
                     continue
-            if memory_figures and _memory_figure_keys(match.group(0)) & memory_figures:
+            if (
+                memory_figures
+                and _memory_figure_exemptable(kind, match.group(0), record_keys)
+                and _memory_figure_keys(match.group(0)) & memory_figures
+            ):
                 # R1: a figure the capsule states may be re-asserted as the user's own
                 # recorded fact, but never as the CURRENT value of a market-priced
                 # subject -- a stale recorded market price stated as current keeps the
