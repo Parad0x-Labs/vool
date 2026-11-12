@@ -478,8 +478,22 @@ def routed_intents(
 
 
 def releases_lane(text: str, *, owner_local: bool, surface: str = "") -> tuple[CardMatch, ...]:
-    """The matches strong enough to give a tool-less chat turn its tools."""
+    """The matches strong enough to give a tool-less chat turn its tools.
 
+    Never for a request for instructions: asking how is asking for knowledge
+    (core.instructional_request), the rule the owner live-source recognizer already follows. Card
+    words alone gave "how do I make a note in the iPhone notes app?" the note list at 0.80 by
+    words, and the prose retry then insisted on that tool for a how-to question (measured
+    2026-11-12 on a00dc760, the card chain's own head).
+    """
+
+    try:
+        from core.instructional_request import asks_for_instructions_not_execution
+
+        if asks_for_instructions_not_execution(" ".join(str(text or "").split())):
+            return ()
+    except Exception:
+        pass
     return tuple(
         m
         for m in routed_intents(text, owner_local=owner_local, surface=surface, floor=RELEASE_SCORE)

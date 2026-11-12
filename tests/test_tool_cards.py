@@ -119,7 +119,7 @@ def test_a_card_changes_nothing_a_gate_reads() -> None:
 def test_a_bad_plugin_card_fails_the_manifest_loudly() -> None:
     from core.plugin_tools import PluginManifestError, parse_manifest
 
-    with pytest.raises(PluginManifestError, match="card.examples"):
+    with pytest.raises(PluginManifestError, match=r"card\.examples"):
         parse_manifest(_pack(card=dict(_CARD, examples=["one"])), path=Path("/x/bin-day/.codex-plugin/plugin.json"))
 
 

@@ -218,13 +218,25 @@ def test_english_folder_arguments_answer_exactly_as_before(tmp_path, monkeypatch
     assert execution.response_text.startswith("Visible entries under `~/Downloads`:")
 
 
-@pytest.mark.parametrize("argument", ("~/Bilder", "~/.ssh", "/etc", "~", "Schreibtisch/../../.."))
+@pytest.mark.parametrize("argument", ("~/.ssh", "/etc", "~", "Schreibtisch/../../.."))
 def test_the_roots_are_not_widened_by_a_spoken_name(argument: str, tmp_path, monkeypatch) -> None:
     home = _home(tmp_path, monkeypatch)
     (home / "Bilder").mkdir()
     (home / ".ssh").mkdir()
     execution = _list(argument, {**OWNER, "_semantic_machine_list_directory_admitted": True})
     assert not execution.ok
+
+
+def test_a_spoken_name_for_another_folder_is_never_a_write_root(tmp_path, monkeypatch) -> None:
+    """"Bilder" is German for Pictures, not one of the three write roots. It is read like any other
+    visible folder in the home (read-only, the owner's choice of 2026-10-31), never written to."""
+    from core.runtime_execution_tools import _resolve_safe_machine_directory
+
+    home = _home(tmp_path, monkeypatch)
+    (home / "Bilder").mkdir()
+    with pytest.raises(ValueError):
+        _resolve_safe_machine_directory("~/Bilder", write=True)
+    assert _resolve_safe_machine_directory("~/Bilder") == (home / "Bilder").resolve()
 
 
 def test_a_remote_turn_is_refused_the_listing_whatever_language_it_names_the_folder_in(tmp_path, monkeypatch) -> None:
