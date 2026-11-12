@@ -890,6 +890,19 @@ def _seal_semantic_result(
         result, user_text=user_input, session_id=session_id, source_context=source_context,
     )
 
+    try:
+        from core import conversation_state
+
+        _ctx = source_context if isinstance(source_context, dict) else {}
+        conversation_state.record_sealed_turn(
+            session_id,
+            str(_ctx.get("_conversation_request") or user_input or ""),
+            result,
+            extra_slots=_ctx.get("_conversation_kind_listing") if isinstance(_ctx.get("_conversation_kind_listing"), dict) else None,
+        )
+    except Exception:
+        pass
+
     # M3: bring the turn's grounding lifecycle up to date BEFORE the transforms, because this
     # is the last seam that holds the turn's context and its request text together -- and the
     # coverage a gate at finalization has is exactly the coverage this call gives it. Measured
@@ -2743,16 +2756,31 @@ class VoolAgent(
         # task in its text from here on, so no lane or model reads it on its own
         # (core.agent_runtime.task_continuation; 0.7.8 sweep blocks 1c/1e).
         with contextlib.suppress(Exception):
-            from core.agent_runtime.task_continuation import (
-                compose_continuation,
-                compose_retry,
-                last_task_request,
-                last_user_request,
-            )
+            from core import conversation_state
+            from core.agent_runtime.task_continuation import compose_continuation, last_task_request
 
-            # A bare retry ("Try again, I fixed permissions") redoes the last request, whatever it
-            # asked; otherwise a follow-up carries the last task.
-            _carried = compose_retry(effective_input, last_user_request(session_id)) or compose_continuation(
+            # One resolver before any handler reads the message: a retry of the chat's recorded request (state, not a
+            # phrase list), or a pointer ("that folder") the record cannot supply, which handlers must not guess at.
+            from core.intent_arbiter import arbitrate_followup
+
+            _resolution = conversation_state.resolve(
+                session_id,
+                effective_input,
+                arbiter=lambda request, reason, message: arbitrate_followup(
+                    request, reason, message, chat_id=str(session_id or ""), source_context=runtime_source_context
+                ),
+            )
+            if isinstance(runtime_source_context, dict):
+                runtime_source_context["_conversation_request"] = (
+                    _resolution.request if _resolution.kind == "retry" else effective_input
+                )
+                if _resolution.slots:
+                    runtime_source_context["_conversation_slots"] = dict(_resolution.slots)
+                if _resolution.note:
+                    runtime_source_context["conversation_state_note"] = _resolution.note
+                if _resolution.kind == "referent_unresolved":
+                    runtime_source_context["unresolved_referent"] = True
+            _carried = _resolution.request if _resolution.kind == "retry" else compose_continuation(
                 effective_input, last_task_request(session_id)
             )
             if _carried:

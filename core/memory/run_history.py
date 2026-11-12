@@ -130,6 +130,7 @@ _INVENTORY: tuple[_Table, ...] = (
         "created_at", "updated_at", "completed_at")),
     _Table("live_data_obligation_memory", "delete", _SESSION, _cols(
         "session_id", "operation", "source_turn_id", "updated_at")),
+    _Table("conversation_state", "delete", _SESSION, _cols("session_id", "outcome", "turns_since", "updated_at")),
     _Table("machine_read_memory", "delete", _SESSION, _cols("session_id", "source_turn_id", "updated_at")),
     _Table("active_mission_slots", "delete", _SESSION, _cols(
         "slot_id", "session_id", "slot_name", "source_turn_id", "slot_confidence", "scope", "created_at",

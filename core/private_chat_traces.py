@@ -59,6 +59,7 @@ _RUN_RECORDS: tuple[tuple[str, str, str], ...] = (
     ("fault_records", "session_id", "eq"),
     ("dialogue_turns", "session_id", "eq"),
     ("dialogue_sessions", "session_id", "eq"),
+    ("conversation_state", "session_id", "eq"),
 )
 #: The chat is waiting on the person (an approval, a queued message, a turn to resume): its records
 #: are what that wait runs on, so nothing is erased until it is over.

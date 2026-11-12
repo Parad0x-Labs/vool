@@ -153,6 +153,7 @@ def reset_runtime_continuity_state() -> None:
     for module_name, clear_name in (
         ("core.agent_runtime.active_finding", "clear_active_findings"),
         ("core.agent_runtime.audit_session", "clear_audit_capsules"),
+        ("core.conversation_state", "clear_all"),
     ):
         try:
             module = __import__(module_name, fromlist=[clear_name])

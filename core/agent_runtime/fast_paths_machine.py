@@ -1850,8 +1850,16 @@ def maybe_handle_direct_machine_read_request(
     # folder everyone has (or the one this chat just named), newest first when asked for the latest.
     from core.execution.constants import machine_kind_listing_intent
 
-    kind_listing = machine_kind_listing_intent(user_input, earlier_turns=_earlier_user_turns(session_id))
+    if (source_context or {}).get("unresolved_referent"):
+        return None  # "that folder" with no folder recorded for this chat: the model asks, no handler guesses
+    kind_listing = machine_kind_listing_intent(
+        user_input,
+        earlier_turns=_earlier_user_turns(session_id),
+        folder_hint=str(((source_context or {}).get("_conversation_slots") or {}).get("path") or ""),
+    )
     if kind_listing is not None:
+        if isinstance(source_context, dict):
+            source_context["_conversation_kind_listing"] = dict(kind_listing)
         execution = execute_authorized_runtime_tool(
             "machine.list_directory", dict(kind_listing), source_context=dict(source_context or {})
         )

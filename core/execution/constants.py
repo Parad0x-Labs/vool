@@ -2988,7 +2988,9 @@ _KIND_LISTING_REFUSE_RE = re.compile(
 )
 
 
-def machine_kind_listing_intent(text: str, *, earlier_turns: Sequence[str] = ()) -> dict[str, Any] | None:
+def machine_kind_listing_intent(
+    text: str, *, earlier_turns: Sequence[str] = (), folder_hint: str = ""
+) -> dict[str, Any] | None:
     """`{"path", "kind", "limit", "newest_first"}` for "the <kind> files in <a known folder>", else None.
 
     The folder may be named in this turn or, for "that folder" / "there", in one of `earlier_turns`
@@ -3006,6 +3008,8 @@ def machine_kind_listing_intent(text: str, *, earlier_turns: Sequence[str] = ())
     kind_words = {kind_match.span(1)}
     folder = next((m for m in _KNOWN_FOLDER_RE.finditer(clean) if m.span(1) not in kind_words), None)
     path = _KNOWN_USER_FOLDERS[folder.group(1).lower()] if folder else ""
+    if not path and folder_hint and _FOLDER_ANAPHORA_RE.search(clean):
+        path = str(folder_hint)  # the folder the chat's own record resolved beats re-reading earlier wording
     if not path and _FOLDER_ANAPHORA_RE.search(clean):
         for earlier in earlier_turns:
             said = str(earlier or "")

@@ -1412,6 +1412,11 @@ def _followup_context_message(source_context: dict[str, Any] | None) -> Internal
     from core.followup_continuity import render_prompt_context
 
     content = render_prompt_context(source_context)
+    # The chat's own record of its last request (core.conversation_state): stated in plain text so the model
+    # reads the same state the resolver did, instead of guessing it from the transcript.
+    state_note = str((source_context or {}).get("conversation_state_note") or "").strip()
+    if state_note:
+        content = f"{content}\n\n{state_note}".strip() if content else state_note
     if not content:
         return None
     return InternalMessage(role="context", content=content, metadata={"followup_continuity": True})

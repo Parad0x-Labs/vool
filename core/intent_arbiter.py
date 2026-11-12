@@ -400,6 +400,121 @@ def _parse_decision(content: str, *, options: list[str], claims: list[IntentClai
     return ArbiterDecision(choice, _claim_argument(claims, choice) or argument)
 
 
+
+# --- follow-up arbitration: retry / new / dismiss ------------------------------------------------------------------
+# Runs ONLY when the chat's last actionable request is unfinished (refused/failed) and the next message is short and
+# brings no task of its own (core.conversation_state.resolve). It exists because "is this a retry?" cannot be decided by
+# listing retry wordings. Same lane as `arbitrate`: the smallest local model, sealed provider permit, the call ledger,
+# the circuit breaker. Anything but a clean one-word decision is None, and None is never a retry (fail closed).
+FOLLOWUP_RETRY, FOLLOWUP_NEW, FOLLOWUP_DISMISS = "retry", "new", "dismiss"
+
+
+def _followup_prompt(request: str, reason: str, message: str) -> str:
+    return "\n".join([
+        "A request from the user did not get done.",
+        f'Request: "{" ".join(str(request or "").split())[:300]}"',
+        f"Why it did not get done: {str(reason or 'it failed').strip()[:80]}",
+        f'The user now writes: "{" ".join(str(message or "").split())[:200]}"',
+        "Decide what the new message is:",
+        "- RETRY: the user wants that same request run again (they fixed or changed something, or say go, again, try, "
+        "check, in any wording or typos), with nothing else asked.",
+        "- NEW: the user asks for something different, or changes the request.",
+        "- DISMISS: the user drops it, thanks, chats, or asks something unrelated.",
+        'Reply with ONLY this JSON: {"decision": "RETRY"} or {"decision": "NEW"} or {"decision": "DISMISS"}',
+    ])
+
+
+def arbitrate_followup(
+    request: str,
+    reason: str,
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """``"retry"`` / ``"new"`` / ``"dismiss"``, or None (disabled, no model, breaker open, error, unparseable)."""
+    _LAST_FAILURE["reason"] = ""
+    if not arbiter_enabled():
+        _LAST_FAILURE["reason"] = "disabled"
+        return None
+    if _breaker_open():
+        _LAST_FAILURE["reason"] = "breaker_open"
+        return None
+    model = _resolve_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_model"
+        return None
+    call_id = ""
+    try:
+        import requests
+
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": _followup_prompt(request, reason, message)}],
+            "stream": False,
+            "format": "json",
+            "think": False,
+            "keep_alive": "30m",
+            "options": {"temperature": 0, "num_predict": 24, "num_ctx": _arbiter_num_ctx(model)},
+        }
+        permit = seal_direct_provider_invocation(
+            provider_id="ollama",
+            model_id=model,
+            operation="followup_arbitration",
+            payload=payload,
+            request_id=str(request_id or "").strip() or f"followup-arbiter-{uuid.uuid4().hex}",
+            context_manifest={"chat_id": str(chat_id or ""), "project_id": "", "items_included": [],
+                              "items_excluded": [], "capsule_version": "none"},
+            max_output_tokens=24,
+        )
+        from core.turn_model_call_ledger import record_provider_call
+
+        call_id = record_provider_call(source_context, provider_id="ollama", model_id=str(model or ""), cost_class="free_local")
+        response = requests.post(_ollama_chat_url(), json=permit.consume(), timeout=(1.5, _TIMEOUT_S))
+        response.raise_for_status()
+        content = str(((response.json().get("message") or {}).get("content")) or "")
+    except Exception as exc:
+        if call_id:
+            from core.normalized_provider_result import classify_error_class
+            from core.turn_model_call_ledger import record_provider_call_outcome
+
+            error_class = classify_error_class(exc)
+            record_provider_call_outcome(source_context, call_id, outcome="failed",
+                                         error_class=error_class.value if error_class else "")
+        _LAST_FAILURE["reason"] = f"request:{type(exc).__name__}"
+        if "Timeout" in type(exc).__name__:
+            _trip_breaker()
+        return None
+    reset_breaker()
+    decision = parse_followup_decision(content)
+    if call_id:
+        from core.normalized_provider_result import ProviderErrorClass
+        from core.turn_model_call_ledger import record_provider_call_outcome
+
+        record_provider_call_outcome(
+            source_context, call_id, outcome="completed" if decision else "failed",
+            error_class="" if decision else ProviderErrorClass.MALFORMED_PROVIDER_RESPONSE.value,
+        )
+    return decision
+
+
+def parse_followup_decision(content: str) -> str | None:
+    """Strict: one JSON object whose ``decision`` is exactly RETRY / NEW / DISMISS; anything else is None."""
+    try:
+        raw = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        match = re.search(r"\{[^{}]*\}", str(content or ""), re.DOTALL)
+        if not match:
+            return None
+        try:
+            raw = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    value = str(raw.get("decision") or "").strip().lower() if isinstance(raw, dict) else ""
+    return value if value in {FOLLOWUP_RETRY, FOLLOWUP_NEW, FOLLOWUP_DISMISS} else None
+
+
 def prewarm_async() -> None:
     """Load the arbiter model in the background at boot (fail-soft, never blocks startup).
 

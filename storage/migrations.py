@@ -1601,6 +1601,19 @@ CREATE TABLE IF NOT EXISTS machine_read_memory (
     updated_at TEXT NOT NULL
 );
 
+-- What this chat last asked the runtime to DO, how it ended and the slots it resolved
+-- (core/conversation_state.py). A retry or "that folder" resolves against THIS record, not against
+-- the previous user line.
+CREATE TABLE IF NOT EXISTS conversation_state (
+    session_id TEXT PRIMARY KEY,
+    request TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    slots TEXT NOT NULL DEFAULT '{}',
+    turns_since INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
 -- The live-data OBLIGATION currently on the table for a session: which typed operation the
 -- conversation opened, which entities have filled its slot so far, and the user's own phrasing of
 -- it. A follow-up resolves against THIS, not against the prior message text.

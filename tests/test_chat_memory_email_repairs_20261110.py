@@ -1522,20 +1522,41 @@ def test_a_refusal_after_the_checked_model_failed_names_that_model_first():
     assert "qwen3:4b" not in sentence
 
 
+@pytest.fixture
+def _refused_listing(tmp_path):
+    """The chat's record: 'list the pics in my downloads' was refused (v3 asserts behaviour, not the old wrapper text)."""
+    from core import conversation_state
+    from core import runtime_continuity as rc
+
+    rc.configure_runtime_continuity_db_path(tmp_path / "state.db")
+    conversation_state.record_sealed_turn(
+        "retry-chat", "list the pics in my downloads",
+        {"status": "blocked_by_mode", "success": False, "mode": "tool_failed",
+         "tool_receipts": [{"tool_name": "machine.list_directory", "execution": {"ok": False, "status": "blocked_by_mode"}}]},
+    )
+    yield
+    rc.configure_runtime_continuity_db_path(None)
+
+
 @pytest.mark.parametrize("asked, change", [("Try again, I fixed permissions", None), ("ok tools are on now, go", None),
                                            ("retry pls", None), ("try again but only jpgs", "only jpgs")])
-def test_a_bare_retry_redoes_the_last_request(asked, change):
-    from core.agent_runtime.task_continuation import compose_retry
+def test_a_bare_retry_redoes_the_last_request(asked, change, _refused_listing):
+    from core import conversation_state
 
-    out = compose_retry(asked, "list the pics in my downloads")
-    assert "list the pics in my downloads" in out
-    assert (change in out) if change else "with this change" not in out
+    got = conversation_state.resolve("retry-chat", asked)
+    if change is None:
+        # the refused request runs again, as the user's own words
+        assert (got.kind, got.request) == ("retry", "list the pics in my downloads")
+    else:
+        # a change said with the retry is kept: the message is not swallowed into a blind rerun
+        assert got.kind == "none" and change in asked
+        assert "list the pics in my downloads" in got.note
 
 
-def test_a_question_about_retrying_is_not_a_retry():
-    from core.agent_runtime.task_continuation import compose_retry
+def test_a_question_about_retrying_is_not_a_retry(_refused_listing):
+    from core import conversation_state
 
-    assert compose_retry("how do I try again?", "list the pics in my downloads") == ""
+    assert conversation_state.resolve("retry-chat", "how do I try again?").kind == "none"
 
 
 @pytest.mark.parametrize("asked", ["Just fetch the latest 10 pics that you can find in that folder", "find in that folder the tax files"])

@@ -552,6 +552,7 @@ def set_chat_namespace_state(chat_id: str, state: NamespaceState) -> ContextName
             # nothing left for a later saved turn to carry over.
             with _UNSAVED_LOCK:
                 _UNSAVED.pop(clean_chat, None)
+            _erase_conversation_state(clean_chat)
             if unsaved is not None:
                 return replace(unsaved[0], lifecycle_state="deleted", updated_at=_utcnow())
         raise ValueError("chat namespace does not exist")
@@ -592,10 +593,24 @@ def set_chat_namespace_state(chat_id: str, state: NamespaceState) -> ContextName
         conn.commit()
     finally:
         conn.close()
+    if clean_state == "deleted":
+        _erase_conversation_state(clean_chat)
     namespace = load_chat_namespace(clean_chat)
     if namespace is None:
         raise RuntimeError("context namespace disappeared")
     return namespace
+
+
+def _erase_conversation_state(chat_id: str) -> None:
+    """Deleting a chat deletes the record of what it last asked the runtime to do (core.conversation_state)."""
+    try:
+        from core.conversation_state import erase_chat
+
+        erase_chat(chat_id)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("conversation_state erase failed for a deleted chat", exc_info=True)
 
 
 #: Session-meta fields a chat can have before its first message is saved without the person having
