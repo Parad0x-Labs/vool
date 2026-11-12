@@ -4,6 +4,8 @@ Source repo : ~/Desktop/OX-NEBULA MEDIA/nebula-media
 Source branch: feature/media-studio-m1 @ 331b7105006b11ab894e487b96d8a52e5518a559
 Vendored on : 2026-08-29
 Files       : nebula/__init__.py, nebula/media_ops.py, nebula/worker.py
+Licence     : MIT (`LICENSE` in this folder). nebula-media is the VOOL owner's own project; its
+              owner chose MIT for it on 2026-11-12, so the worker ships inside VOOL's app bundles.
 
 ## Why vendored rather than referenced
 

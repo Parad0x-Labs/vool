@@ -182,10 +182,14 @@ Notes: Adapter code is ours; remote provider services remain under their own ter
 - path: `core/web_assets/mermaid-12.0.0.min.js`
 - license: MIT (`core/web_assets/mermaid-LICENSE`)
 
+## Bundled Code
+
 ### vendor/nebula-media
 
 - path: `vendor/nebula-media/`
-- license: not yet recorded; see `vendor/nebula-media/PROVENANCE.md`
+- license: MIT (`vendor/nebula-media/LICENSE`); origin in `vendor/nebula-media/PROVENANCE.md`
+- bundled: yes, inside the macOS, Linux and Windows app bundles (the Media Studio worker)
+- notes: standard library only; it runs `ffmpeg` and `ffprobe` from the computer, and neither is bundled
 
 ## Disclaimer
 
