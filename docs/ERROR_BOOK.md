@@ -2,123 +2,690 @@
 
 <!-- GENERATED FILE — do not hand-edit. Regenerate with `python -m tools.generate_error_book`. -->
 
-Every fault VOOL can surface, as a human-readable view of the one canonical fault catalog
-(`core/faults/catalog.py`). This document is *derived from* that catalog, not a second copy
-of it: the codes, messages and actions below are exactly what the runtime emits.
+Every error VOOL can show you, generated from the app's own error catalog: the codes,
+messages and next steps below are exactly what the app shows.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `5ae1ef9922236c089be8b54de1e64d160ee13c0bad8f62ae02b401202bde55a1`
-- **Fault count:** 52
+- **Catalog digest:** `ff2f8e729fbe010b434ce69499c768e53dc82dc47e0e419fef655952ee548a98`
+- **Fault count:** 58
 
-A fault's `code` is stable and safe to match on; `user_message` is what a person sees;
-`operator_action` is what to do about it; `authority` names the module that owns the fault.
+Each code is stable and never reused for a different meaning. Every code has its own
+section below whose heading is the code itself, so searching this page for the code as
+you were given it finds its section, and a link to the section is this page's address
+followed by `#` and the code with underscores as hyphens. Each section says what
+happened, what may already have happened, what to do next, and whether trying again
+can help. If a code you were given is not in this book, it is not from this version of
+VOOL: check which version showed it, or report it with the code as written.
 
-## security
+## Security
 
-| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |
-|---|---|---|---|---|---|---|---|---|
-| `confinement_refusal` | high | no | never | yes | A file change outside the allowed scope was blocked. Nothing outside the scope was touched. | Nothing was sent, signed or changed | If this change is wanted, request it explicitly so it is inside the authorized scope. | `core.agent_runtime.builder.app_builder` |
-| `credential_failure` | high | no | never | yes | A stored credential could not be read. Re-enter it in settings to continue. | Nothing was sent, signed or changed | The vault entry failed to decrypt; re-store the credential or check the vault key. | `core.credential_store` |
-| `wallet_backup_unavailable` | high | no | never | yes | This wallet's backup key was already shown once, so it cannot be shown again. If you did not save it, cancel setup and do not send funds to this address. | Nothing was sent, signed or changed | A Crypto Pilot backup is released exactly once during setup; there is no second reveal and no export for pilot wallets. | `core.wallet.pilot_custody` |
-| `wallet_caller_refused` | high | yes | retry_after_change | yes | This wallet action can only be started from VOOL's own window on this computer, so nothing was changed, signed or sent. Open VOOL and try again there. | Nothing was sent, signed or changed | Drive trusted wallet doors from the served page or the native window; a page on another origin, a framed page, a text/plain form and the command-dispatch projection are refused by design. | `core.wallet.caller_binding` |
-| `wallet_card_data_refused` | high | no | never | yes | Card numbers and security codes are never stored here; only a provider token is accepted. Nothing was saved. | Nothing was sent, signed or changed | Tokenize the card with the provider and register the token reference instead. | `core.wallet.cards` |
-| `wallet_chain_identity_mismatch` | high | no | never | yes | The chain endpoint did not prove the identity of the network it claims to be, so nothing was signed or sent. | A request reached an external service; no payment moved | Check the RPC endpoint for the network; a lying chain id or genesis is refused before any payment. | `core.wallet.chains` |
-| `wallet_environment_inactive` | medium | yes | retry_after_change | yes | That network belongs to the other network environment (Mainnet or Test networks), so nothing was created, proposed or signed. Switch in Settings, Crypto, Developer options, then try again. | Nothing was sent, signed or changed | Choose the network environment deliberately in Crypto settings; accounts, balances and receipts never move between environments. | `core.wallet.environment` |
-| `wallet_export_refused` | high | no | never | yes | Private keys are never exported by this runtime. The recovery phrase is shown once at creation and nowhere else. Nothing was revealed. | Nothing was sent, signed or changed | Recover a VOOL Wallet from the phrase written down at creation; there is no export door to enable. | `core.wallet.authority` |
-| `wallet_legacy_surface_retired` | high | no | never | yes | That money path is retired: every payment goes through the wallet's proposal and approval flow. Nothing was signed or sent. | Nothing was sent, signed or changed | Use the wallet tools (wallet.propose) or the wallet API; the legacy signer, spender and exporter no longer exist. | `core.wallet.authority` |
-| `wallet_network_disabled` | high | no | never | yes | That network is not one this wallet declares for this action, so nothing was created or sent. | Nothing was sent, signed or changed | Use one of the declared network rows; undeclared chains, aliases and look-alike names are refused by construction. | `core.wallet.custody` |
-| `wallet_outbound_refused` | high | no | never | yes | That request was not allowed to leave the wallet's approved endpoints, so no connection was made. | Nothing was sent, signed or changed | Check the declared RPC origins and payment-resource policy; private, metadata and unapproved hosts are refused. | `core.wallet.outbound` |
-| `wallet_quote_mismatch` | high | no | never | yes | The approval no longer matches the transfer that was previewed, so nothing was signed or sent. Start again from a fresh preview. | Nothing was sent, signed or changed | An approval binds one quote digest; a changed account, chain, recipient, amount, environment or fee ceiling invalidates it. | `core.wallet.quotes` |
-| `wallet_recovery_refused` | high | yes | retry_after_change | yes | That recovery proof does not fit this wallet, so nothing was changed: the saved key must be the backup VOOL showed for this exact address, in the format it was shown. Check it and try again, or use the other options. | Nothing was sent, signed or changed | Recovery re-seals an existing wallet only from a backup that decodes to the wallet's own key (both derivations agree), or from an enrolled device secret released by fresh user presence; a wrong or foreign key is refused before any write and counted on the recovery throttle only. | `core.wallet.pilot_custody` |
-| `wallet_signature_invalid` | high | no | never | yes | The signature returned for this payment did not match the wallet's key, so it was not broadcast. | A request reached an external service; no payment moved | Check the connected signer; a mismatched signature is refused before broadcast. | `core.wallet.signers` |
-| `wallet_unlock_throttled` | high | yes | retry_later | yes | There were too many wrong PIN or password attempts, so this wallet is locked for a while and nothing was unlocked. Wait, then try again. | Nothing was sent, signed or changed | Failed unlocks are counted durably per wallet and for the whole app, across restarts; the lock lifts on its own after the stated wait. | `core.wallet.pilot_custody` |
+| Code | Title | Severity | What may already have happened |
+|---|---|---|---|
+| [`confinement_refusal`](#confinement-refusal) | Change outside the allowed scope | high | Nothing was sent, signed or changed |
+| [`credential_failure`](#credential-failure) | Stored credential could not be read | high | Nothing was sent, signed or changed |
+| [`wallet_backup_unavailable`](#wallet-backup-unavailable) | Backup already shown once | high | Nothing was sent, signed or changed |
+| [`wallet_caller_refused`](#wallet-caller-refused) | Not started from VOOL's own window | high | Nothing was sent, signed or changed |
+| [`wallet_card_data_refused`](#wallet-card-data-refused) | Card data refused | high | Nothing was sent, signed or changed |
+| [`wallet_chain_identity_mismatch`](#wallet-chain-identity-mismatch) | Chain endpoint identity unproven | high | A request reached an external service; no payment moved |
+| [`wallet_environment_inactive`](#wallet-environment-inactive) | Wrong network environment | medium | Nothing was sent, signed or changed |
+| [`wallet_export_pin_not_accepted`](#wallet-export-pin-not-accepted) | Export unlocks only by device authentication | high | Nothing was sent, signed or changed |
+| [`wallet_export_refused`](#wallet-export-refused) | Private key export refused | high | Nothing was sent, signed or changed |
+| [`wallet_export_unavailable`](#wallet-export-unavailable) | Export unavailable for this wallet | high | Nothing was sent, signed or changed |
+| [`wallet_legacy_surface_retired`](#wallet-legacy-surface-retired) | Legacy money path retired | high | Nothing was sent, signed or changed |
+| [`wallet_network_disabled`](#wallet-network-disabled) | Network not declared for this wallet | high | Nothing was sent, signed or changed |
+| [`wallet_outbound_refused`](#wallet-outbound-refused) | Request outside approved endpoints | high | Nothing was sent, signed or changed |
+| [`wallet_quote_mismatch`](#wallet-quote-mismatch) | Approval no longer matches the preview | high | Nothing was sent, signed or changed |
+| [`wallet_recovery_refused`](#wallet-recovery-refused) | Recovery proof does not fit this wallet | high | Nothing was sent, signed or changed |
+| [`wallet_signature_invalid`](#wallet-signature-invalid) | Signature did not match the wallet's key | high | A request reached an external service; no payment moved |
+| [`wallet_unlock_throttled`](#wallet-unlock-throttled) | Wallet locked after failed unlocks | high | Nothing was sent, signed or changed |
 
-## integrity
+## Integrity
 
-| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |
-|---|---|---|---|---|---|---|---|---|
-| `evidence_corruption` | high | no | never | yes | This answer's supporting records failed a consistency check, so treat the answer as unverified. | A local record/change happened | Investigate this turn's execution ledger against the runtime event stream. | `core.execution_truth` |
-| `integrity_verification_failure` | critical | no | never | yes | A record failed its tamper-evidence check. Nothing was silently accepted. | A local record/change happened | Treat the affected receipt chain as compromised; investigate before trusting its entries. | `core.contribution_proof` |
-| `unsupported_claim` | medium | no | never | no | One or more statements were not supported by the retrieved sources and were withheld. | A local record/change happened | No action needed -- this is the grounding gate working. Check retrieval quality if frequent. | `core.grounding_publication` |
-| `wallet_duplicate_payment` | medium | no | never | yes | This payment was already proposed or sent, so it was not sent again. | A local record/change happened | Check the existing proposal's receipt; use a new idempotency key for a genuinely new payment. | `core.wallet.proposals` |
+| Code | Title | Severity | What may already have happened |
+|---|---|---|---|
+| [`evidence_corruption`](#evidence-corruption) | Answer records failed a consistency check | high | A local record/change happened |
+| [`integrity_verification_failure`](#integrity-verification-failure) | Record failed its tamper check | critical | A local record/change happened |
+| [`unsupported_claim`](#unsupported-claim) | Unsupported statements withheld | medium | A local record/change happened |
+| [`wallet_duplicate_payment`](#wallet-duplicate-payment) | Payment already proposed or sent | medium | A local record/change happened |
 
-## policy
+## Policy
 
-| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |
-|---|---|---|---|---|---|---|---|---|
-| `evm_pocket_custody_unavailable` | low | no | never | no | EVM keys cannot be held on this device: use watch-only or an external wallet signer. Nothing was created. | Nothing was sent, signed or changed | Register the account watch-only or connect an external EVM signer (EIP-1193); in-process EVM custody does not exist in this build. | `core.wallet.custody` |
-| `permission_denied` | medium | no | never | yes | That action was not permitted, so nothing was changed. | Nothing was sent, signed or changed | Check the permission policy or approval settings that govern this action. | `core.runtime_execution_tools` |
-| `wallet_amount_invalid` | low | yes | retry_after_change | no | That amount is not an exact amount this coin can hold, so nothing was proposed. Check the amount, then try again. | Nothing was sent, signed or changed | Send a plain decimal amount no more precise than the coin allows and within the pilot's per-transfer ceiling. | `core.wallet.amounts` |
-| `wallet_approval_rejected` | medium | no | never | yes | The approval for this payment was not accepted, so nothing was signed or sent. | Nothing was sent, signed or changed | Approve the exact proposal with the owner's PIN or biometric; approvals do not transfer between proposals. | `core.wallet.lifecycle` |
-| `wallet_confirmation_required` | low | yes | retry_after_change | no | That step needs the typed confirmation first, so nothing was changed. Confirm it, then try again. | Nothing was sent, signed or changed | Read the warning and type the exact confirmation phrase to proceed. | `core.wallet.custody` |
-| `wallet_credential_mismatch` | low | yes | retry_after_change | no | The two entries did not match, so nothing was created. Enter the same PIN or password twice, then try again. | Nothing was sent, signed or changed | A Crypto Pilot credential is confirmed before any key material exists. | `core.wallet.pilot_custody` |
-| `wallet_dependency_unavailable` | medium | yes | retry_after_change | no | This build cannot do EVM signing or ABI encoding: the Ethereum libraries are not installed on this machine. Nothing was signed or sent. Solana, custody and spend ceilings are unaffected; once the libraries are installed, try again. | Nothing was sent, signed or changed | Install the EVM extras (eth-abi, eth-utils, eth-account) to enable the EVM lanes; every other wallet lane works without them. | `core.wallet.evm` |
-| `wallet_disabled` | low | yes | retry_after_change | no | The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again. | Nothing was sent, signed or changed | Enable the wallet explicitly (VOOL_WALLET_ENABLED=1) only if payments are wanted on this install. | `core.wallet.custody` |
-| `wallet_insufficient_funds` | low | yes | retry_after_change | no | The balance does not cover the amount plus the most this network fee can be, so nothing was prepared. Lower the amount or add funds, then try again. | A request reached an external service; no payment moved | Spendable excludes other in-flight holds; a Solana remainder must be zero-free and at least the rent minimum in the pilot. | `core.wallet.quotes` |
-| `wallet_limit_exceeded` | medium | no | never | yes | That payment is above a spending limit, so it was not sent. | Nothing was sent, signed or changed | Review the per-transaction, daily and per-destination limits before retrying. | `core.wallet.limits` |
-| `wallet_not_found` | low | yes | retry_after_change | no | That wallet, proposal or destination was not recognised, so nothing was done. Check it and try again. | Nothing was sent, signed or changed | Check the wallet id, proposal id or destination address and try again. | `core.wallet.custody` |
-| `wallet_paykit_unavailable` | medium | yes | retry_after_change | no | This build cannot pay Solana x402 or MPP offers: the optional pay extra (Solana pay-kit, Python 3.11 or newer) is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again. | Nothing was sent, signed or changed | Install VOOL's optional pay extra on Python 3.11 or newer to enable pay-kit payments; the wallet keeps its own signer, spend caps and approval either way. | `core.wallet.paykit_x402` |
-| `wallet_payment_channel_off` | low | yes | retry_after_change | no | That payment goes through a payment channel that is turned off, so nothing was signed or sent. Turn the channel on in Settings, Crypto, Payment channels, then try again. | Nothing was sent, signed or changed | Turn a payment channel on in Crypto settings only if you want payments made through it; the cap and your approval apply on every channel. | `core.wallet.channels` |
-| `wallet_pin_invalid` | low | yes | retry_after_change | no | The PIN did not meet the policy or did not unlock the wallet, so nothing was signed. Check the PIN and try again. | Nothing was sent, signed or changed | Use a 6 to 12 digit PIN; a wrong PIN leaves the sealed key untouched. | `core.wallet.custody` |
-| `wallet_quote_expired` | low | yes | retry_after_change | no | This transfer preview expired or was replaced, so it cannot be approved and nothing was sent. Refresh the preview, then try again. | Nothing was sent, signed or changed | A quote lives for a short window and is superseded by a refresh or an environment switch; approval never carries over. | `core.wallet.quotes` |
-| `wallet_recipient_refused` | medium | yes | retry_after_change | no | That recipient cannot safely receive this transfer on this network, so nothing was prepared. Check the address, then try again. | Nothing was sent, signed or changed | Refused: a new Solana account below the rent minimum, an executable or off-curve account, a bad EIP-55 checksum, the zero address, precompiles and system contracts. | `core.wallet.quotes` |
-| `wallet_request_ambiguous` | low | yes | retry_after_change | no | More than one account or network fits this transfer, so nothing was proposed. Say which account or network you mean, then try again. | Nothing was sent, signed or changed | A transfer names one account on one network; the candidates are listed in the fault context. | `core.wallet.transfers` |
-| `wallet_send_needs_vool_wallet` | low | yes | retry_after_change | no | This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again. | Nothing was sent, signed or changed | Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network. | `core.wallet.lifecycle` |
-| `wallet_setup_state_invalid` | low | yes | retry_after_change | no | That setup step does not apply to this wallet right now, so nothing changed. Check the wallet's setup status, then try again. | Nothing was sent, signed or changed | Setup moves generating, awaiting backup, backup revealed, ready; cancel and resume never reveal a backup twice. | `core.wallet.pilot_custody` |
-| `wallet_signing_unavailable` | medium | yes | retry_after_change | no | This wallet cannot sign from here: it is watch-only or its external signer is not connected. Nothing was sent; connect a signer, then try again. | Nothing was sent, signed or changed | Connect the external wallet, or create a VOOL Wallet after reading its warning. | `core.wallet.signers` |
-| `wallet_storage_class_refused` | medium | yes | retry_after_change | no | This installation keeps its device key only in memory, so a wallet created here could not be opened after a restart. Nothing was created. Switch key storage to a lasting mode, then try again. | Nothing was sent, signed or changed | Crypto Pilot wallets are refused while VOOL_KEY_STORAGE_MODE is ephemeral; use file or keyring storage. | `core.wallet.pilot_custody` |
-| `wallet_x402_cap_exceeded` | medium | no | never | yes | A paid resource asked for more than the automatic payment cap, so it was not paid. | Nothing was sent, signed or changed | Raise VOOL_WALLET_X402_CAP_MINOR deliberately, or pay the resource by an explicit proposal. | `core.wallet.x402` |
-| `wallet_x402_sdk_unavailable` | medium | yes | retry_after_change | no | This build cannot pay x402 offers on Base through the x402 Foundation SDK: the optional x402 extra is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again. | Nothing was sent, signed or changed | Install VOOL's optional x402 extra to pay x402 offers on Base from a Crypto Pilot wallet; the wallet keeps its own signer, spend caps and approval either way. | `core.wallet.x402_sdk` |
-| `x402_scheme_unavailable` | low | yes | retry_after_change | no | This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network. | Nothing was sent, signed or changed | Use an offer whose scheme, token and facilitator are verified for the network; partial signing support is never improvised. | `core.wallet.x402` |
+| Code | Title | Severity | What may already have happened |
+|---|---|---|---|
+| [`evm_pocket_custody_unavailable`](#evm-pocket-custody-unavailable) | EVM keys not held on this device | low | Nothing was sent, signed or changed |
+| [`permission_denied`](#permission-denied) | Permission denied | medium | Nothing was sent, signed or changed |
+| [`wallet_acknowledgement_required`](#wallet-acknowledgement-required) | Acknowledgement required | low | Nothing was sent, signed or changed |
+| [`wallet_amount_invalid`](#wallet-amount-invalid) | Amount not exact for this coin | low | Nothing was sent, signed or changed |
+| [`wallet_approval_rejected`](#wallet-approval-rejected) | Approval not accepted | medium | Nothing was sent, signed or changed |
+| [`wallet_confirmation_required`](#wallet-confirmation-required) | Typed confirmation required | low | Nothing was sent, signed or changed |
+| [`wallet_credential_mismatch`](#wallet-credential-mismatch) | Entries did not match | low | Nothing was sent, signed or changed |
+| [`wallet_dependency_unavailable`](#wallet-dependency-unavailable) | EVM libraries not installed | medium | Nothing was sent, signed or changed |
+| [`wallet_device_auth_denied`](#wallet-device-auth-denied) | Device unlock declined | low | Nothing was sent, signed or changed |
+| [`wallet_disabled`](#wallet-disabled) | Wallet is switched off | low | Nothing was sent, signed or changed |
+| [`wallet_insufficient_funds`](#wallet-insufficient-funds) | Balance does not cover amount and fee | low | A request reached an external service; no payment moved |
+| [`wallet_limit_exceeded`](#wallet-limit-exceeded) | Spending limit exceeded | medium | Nothing was sent, signed or changed |
+| [`wallet_not_found`](#wallet-not-found) | Wallet, proposal or destination not recognised | low | Nothing was sent, signed or changed |
+| [`wallet_password_invalid`](#wallet-password-invalid) | Wallet password invalid | low | Nothing was sent, signed or changed |
+| [`wallet_paykit_unavailable`](#wallet-paykit-unavailable) | Solana pay extra not installed | medium | Nothing was sent, signed or changed |
+| [`wallet_payment_channel_off`](#wallet-payment-channel-off) | Payment channel turned off | low | Nothing was sent, signed or changed |
+| [`wallet_pin_invalid`](#wallet-pin-invalid) | PIN invalid | low | Nothing was sent, signed or changed |
+| [`wallet_quote_expired`](#wallet-quote-expired) | Preview expired or was replaced | low | Nothing was sent, signed or changed |
+| [`wallet_recipient_refused`](#wallet-recipient-refused) | Recipient cannot safely receive this | medium | Nothing was sent, signed or changed |
+| [`wallet_request_ambiguous`](#wallet-request-ambiguous) | More than one account or network fits | low | Nothing was sent, signed or changed |
+| [`wallet_send_needs_vool_wallet`](#wallet-send-needs-vool-wallet) | Sending needs a VOOL Wallet | low | Nothing was sent, signed or changed |
+| [`wallet_setup_state_invalid`](#wallet-setup-state-invalid) | Setup step does not apply now | low | Nothing was sent, signed or changed |
+| [`wallet_signing_unavailable`](#wallet-signing-unavailable) | Wallet cannot sign from here | medium | Nothing was sent, signed or changed |
+| [`wallet_storage_class_refused`](#wallet-storage-class-refused) | Key storage is memory-only | medium | Nothing was sent, signed or changed |
+| [`wallet_x402_cap_exceeded`](#wallet-x402-cap-exceeded) | Paid resource above the automatic cap | medium | Nothing was sent, signed or changed |
+| [`wallet_x402_sdk_unavailable`](#wallet-x402-sdk-unavailable) | x402 extra not installed | medium | Nothing was sent, signed or changed |
+| [`x402_scheme_unavailable`](#x402-scheme-unavailable) | Payment scheme unsupported | low | Nothing was sent, signed or changed |
 
-## availability
+## Availability
 
-| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |
-|---|---|---|---|---|---|---|---|---|
-| `provider_exhausted` | medium | yes | retry_later | no | The model provider's usage limit is reached. You can try again later. | A request reached an external service; no payment moved | Check quota, rate limits and billing for the configured provider. | `core.turn_model_call_ledger` |
-| `provider_unavailable` | medium | yes | retry_later | no | The model provider could not be reached. You can try again in a moment. | Nothing was sent, signed or changed | Check the provider's status, network reachability, and configured endpoints. | `core.turn_model_call_ledger` |
-| `timeout` | medium | yes | retry_now | no | This took too long and was stopped. Trying again may succeed. | Outcome unknown — check state before retrying | If timeouts repeat, check network latency and provider responsiveness. | `core.remote_fetch_policy` |
-| `tool_unavailable` | low | yes | retry_after_change | no | That tool is not available right now, so this part was not done. Enabling it is needed before you retry. | Nothing was sent, signed or changed | Enable the tool for this mode in settings, or choose a different approach. | `core.runtime_execution_tools` |
-| `wallet_broadcast_failed` | medium | yes | retry_later | no | The payment could not be broadcast. Check its status before retrying. | Outcome unknown — check state before retrying | Check the test-network RPC and the proposal's receipt; the spend was not recorded as sent. | `core.wallet.lifecycle` |
-| `wallet_quote_unavailable` | medium | yes | retry_later | no | The network did not give a complete answer for this transfer's balance or fee, so no approval was prepared and nothing was sent. Try again in a moment. | A request reached an external service; no payment moved | Unknown chain data is never treated as zero; check the row's endpoint and its identity proof. | `core.wallet.quotes` |
-| `wallet_simulation_failed` | medium | yes | retry_later | no | The payment did not pass simulation, so it was not sent. Check the balance and destination, then try again. | A request reached an external service; no payment moved | Check the balance, the destination and the test-network RPC, then propose again. | `core.wallet.lifecycle` |
+| Code | Title | Severity | What may already have happened |
+|---|---|---|---|
+| [`provider_exhausted`](#provider-exhausted) | Provider limit reached | medium | A request reached an external service; no payment moved |
+| [`provider_unavailable`](#provider-unavailable) | Provider unreachable | medium | Nothing was sent, signed or changed |
+| [`timeout`](#timeout) | Timed out | medium | Outcome unknown — check state before retrying |
+| [`tool_unavailable`](#tool-unavailable) | Tool unavailable | low | Nothing was sent, signed or changed |
+| [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Payment could not be broadcast | medium | Outcome unknown — check state before retrying |
+| [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Device unlock unavailable | medium | Nothing was sent, signed or changed |
+| [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Balance or fee unknown | medium | A request reached an external service; no payment moved |
+| [`wallet_simulation_failed`](#wallet-simulation-failed) | Payment failed simulation | medium | A request reached an external service; no payment moved |
 
-## cancellation
+## Cancellation
 
-| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |
-|---|---|---|---|---|---|---|---|---|
-| `cancelled` | info | no | never | no | This was cancelled, so it did not finish. | Outcome unknown — check state before retrying | No action needed; start again if you want it done. | `core.remote_fetch_policy` |
+| Code | Title | Severity | What may already have happened |
+|---|---|---|---|
+| [`cancelled`](#cancelled) | Cancelled | info | Outcome unknown — check state before retrying |
 
-## internal
+## Internal
 
-| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |
-|---|---|---|---|---|---|---|---|---|
-| `unknown` | medium | no | never | no | Something went wrong on this machine while handling that. You can try again. | Outcome unknown — check state before retrying | See the fault's redacted cause chain in diagnostics; an unknown cause is never retried blind. | `core.faults.mapping` |
+| Code | Title | Severity | What may already have happened |
+|---|---|---|---|
+| [`unknown`](#unknown) | Unexpected error | medium | Outcome unknown — check state before retrying |
 
-## Boundary coverage
+## Reference by code
 
-Every user-facing failure boundary and the code space that classifies it. A boundary
-keeps its OWN closed vocabulary when it predates or sits beside `vool.fault.v1`; what
-this matrix promises is that none is silently unclassified -- a boundary with no code
-space would have to show that here.
+Every code, in alphabetical order. The section heading is the code's stable anchor.
 
-| Boundary | Classified by | Codes | Where it is mapped | What the user reads | Recovery | Fault records |
-|---|---|---|---|---|---|---|
-| startup | process exit + boot log | `no supported backend found`, `Database healthcheck failed` | build_runtime_backbone / bootstrap_storage_environment | apps/vool_cli.py:85 ('Vool could not start: {exc}') | Install a supported runtime (mlx/torch/onnxruntime) or repair the data store; the CLI names which. | own code space |
-| update | core.updater.status.UpdateFault | `download_failed`, `download_blocked`, `insufficient_disk_space`, `verification_failed`, `update_not_applicable`, `install_failed`, `migration_failed`, `health_check_failed`, `destructive_work_active`, `stale_update_cleaned_up`, `unexpected_failure` | UpdatePhase/UpdateFault status store (update_v2/status.json under the runtime data dir) | core/updater/status.py:42-186 plain_message() + per-fault recovery() | Per-fault recovery sentences; every failure leaves the app as it was or rolls back and restarts. | own code space |
-| project_workspace | workspace root_reason | `project`, `missing_chat`, `deleted_chat`, `unbound`, `project_missing`, `unreadable` | authoritative_chat_workspace (HTTP 409 + reason) | core/web/api/service.py:4399-4407; chat toast core/vool_chat_page.py:11001; core/folder_overview.py:81-92 | Bind the chat to a project folder (Projects -> New project / pick existing) or name an explicit path; pending requests wait, nothing is cancelled. | own code space |
-| filesystem_tool_execution | vool.fault.v1 | `permission_denied`, `confinement_refusal`, `tool_unavailable`, `timeout` | core.faults.mapping.map_exception at the executing seam; records via record_fault | fault user_message on the execution receipt; refusal text on the turn | Permission: request the action explicitly so it is inside an authorized scope. Confinement: same. Tool unavailable: the message names the missing prerequisite. | yes |
-| permissions | vool.fault.v1 | `permission_denied` | the permission controller's decision (scope-named, never prose) | the approval prompt, or the typed refusal on the turn | Approve the exact action, or change the governing policy; the refusal names the governing scope. | yes |
-| provider_credentials | vool.fault.v1 + attempt evidence | `credential_failure`, `provider_credential_unavailable (attempt error class)` | per-attempt evidence; local refusal vs wire attempt distinguished before wording | core/agent_runtime/memory_runtime.py:730 _provider_auth_failure_hint ('stopped before sending... nothing was charged' vs the both-facts wording) | Restore the key under Settings -> API Keys, then send again; the message never words a local refusal as a provider rejection. | yes |
-| provider_network_limits | vool.fault.v1 + ProviderErrorClass | `provider_unavailable`, `provider_exhausted`, `timeout`, `PROVIDER_RATE_LIMIT` | fault_code_for_provider_error_class (typed error class, never prose) | degraded-response hints; 429 wording quotes the provider's own Retry-After when present | Retry later for limits/exhaustion; the wording never pretends a short wait fixes a quota. | yes |
-| model_availability | routing block reasons | `no_ranked_provider`, `emergency_lane_insufficient`, `selected_provider_excluded_before_invocation`, `selected_model_unavailable` | explicit-pin terminal _selected_model_blocked_decision (no silent substitution) | 'Selected model X could not run (reason); no other model was substituted.' | Pick an available model or repair the named gate; a pinned model is never silently answered by another. | own code space |
-| price_budget_approvals | reservation denial codes | `usepod_route_not_approved`, `usepod_route_state_unavailable`, `per_call_spend_cap_exceeded`, `per_task_spend_cap_exceeded`, `daily_spend_cap_exceeded`, `monthly_spend_cap_exceeded`, `device_monthly_spend_cap_exceeded`, `daily_call_cap_exceeded`, `cloud_policy_unreadable`, `not_owner_local`, `reservation_unavailable` | denial['reason'] set by the refusing authority, carried verbatim to the blocked-pin terminal | _selected_model_block_cause: 'running it would exceed your spend cap' -- pre-send wording, never claims the provider was contacted | Raise the cap/ceiling deliberately in Settings, approve the model's price, or pick a model inside the cap. | own code space |
-| wallet_payment | vool.fault.v1 wallet family | `wallet_disabled`, `wallet_quote_unavailable`, `wallet_quote_expired`, `wallet_quote_mismatch`, `wallet_insufficient_funds`, `wallet_limit_exceeded`, `wallet_duplicate_payment`, `wallet_broadcast_failed`, `wallet_approval_rejected`, `wallet_x402_cap_exceeded`, `wallet_signature_invalid`, `wallet_chain_identity_mismatch` | each wallet boundary maps its own code before any signature or send | fault user_message on the proposal/turn; every refusal states exactly what did not happen | Per-code operator action; unknown outcomes (broadcast_failed, paid-result-unknown) say how to CHECK state and never invite a blind duplicate retry. | yes |
-| contacts | ContactsError.reason | `name_required`, `contact_not_found`, `contact_deleted`, `change_stale`, `revision_mismatch`, `too_many_pending`, `operation_expired`, `operation_cancelled`, `authorization_required`, `batch_too_large` | ContactsError(reason, message, status) at the store/authority seam | exc.as_dict() with HTTP status; every sentence states 'Nothing was saved/changed' where true | Re-review the changed entry, confirm with PIN in review, or re-save before the confirmation expires. | own code space |
-| plugin_skill_loading | plugin storage states + typed contract violations | `accessible`, `missing`, `denied`, `stalled`, `failed`, `contract invalid`, `unmet prerequisites`, `unavailable capabilities`, `disabled by operator`, `duplicate plugin identity` | bounded storage probe + typed contract validation law (fail-soft, never a boot hang) | catalog reason strings (core/plugin_catalog.py _reason_for) + the Plugins/Skills panel with Rescan | Grant folder access / answer the consent dialog / press Rescan; every state says 'nothing was disabled or changed'. | own code space |
-| attachments | AttachmentRefused.code | `too_large`, `too_many`, `unsupported_type`, `not_text`, `image_unparseable`, `content_mismatch` | AttachmentRefused(code, message, http_status) at upload/queue/send seams | the attachment chip keeps the server message; limits are shown up front | Remove or shrink/retry per the chip's reason; failed chips block send so a message never silently drops a file. | own code space |
-| storage | StoreVersionError.code | `VOOL_E_STORE_VERSION`, `VOOL_E_STORE_TOO_NEW` | version-stamp check at open; boot healthcheck | startup: 'Vool could not start: {exc}'; in-turn: core/error_surface.py generic redacted surface | Downgrade refusal is deliberate (open only with the binary that upgraded the store); corruption needs the backup. | own code space |
-| voice | DictationUnavailable.code | `empty_recording`, `recording_too_large`, `speech_toolchain_unavailable`, `speech_recognizer_unauthorized`, `speech_recognizer_unavailable`, `speech_recognizer_on_device_unavailable`, `decoder_failed` | DictationUnavailable(code, message, remediation); local-only by design | pre-record availability probe shows message + remediation; browser fallbacks say 'Type your message instead.' | Every typed unavailability carries a remediation (install CLT, grant Speech Recognition, add a dictation language). | own code space |
-| reporting | submission failure codes | `draft_not_found`, `approval_required`, `consent_mismatch`, `outbound_scan_refused` | approval-bound submission state machine (payload sha256 binding) | exact-bytes preview dialog; redaction summary chip; 'Nothing is sent yet' | Re-approve the new bytes after any edit; local export needs no consent; duplicates return the prior issue URL. | own code space |
+### cancelled
 
+**Cancelled**
+
+- **What happened:** This was cancelled, so it did not finish.
+- **What may already have happened:** Outcome unknown — check state before retrying
+- **What to do next:** No action needed; start again if you want it done.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** info · **Category:** cancellation
+
+### confinement_refusal
+
+**Change outside the allowed scope**
+
+- **What happened:** A file change outside the allowed scope was blocked. Nothing outside the scope was touched.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** If this change is wanted, request it explicitly so it is inside the authorized scope.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### credential_failure
+
+**Stored credential could not be read**
+
+- **What happened:** A stored credential could not be read. Re-enter it in settings to continue.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** The vault entry failed to decrypt; re-store the credential or check the vault key.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### evidence_corruption
+
+**Answer records failed a consistency check**
+
+- **What happened:** This answer's supporting records failed a consistency check, so treat the answer as unverified.
+- **What may already have happened:** A local record/change happened
+- **What to do next:** Investigate this turn's execution ledger against the runtime event stream.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** integrity · **Security-relevant:** yes
+
+### evm_pocket_custody_unavailable
+
+**EVM keys not held on this device**
+
+- **What happened:** EVM keys cannot be held on this device: use watch-only or an external wallet signer. Nothing was created.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Register the account watch-only or connect an external EVM signer (EIP-1193); in-process EVM custody does not exist in this build.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** low · **Category:** policy
+
+### integrity_verification_failure
+
+**Record failed its tamper check**
+
+- **What happened:** A record failed its tamper-evidence check. Nothing was silently accepted.
+- **What may already have happened:** A local record/change happened
+- **What to do next:** Treat the affected receipt chain as compromised; investigate before trusting its entries.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** critical · **Category:** integrity · **Security-relevant:** yes
+
+### permission_denied
+
+**Permission denied**
+
+- **What happened:** That action was not permitted, so nothing was changed.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Check the permission policy or approval settings that govern this action.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** policy · **Security-relevant:** yes
+
+### provider_exhausted
+
+**Provider limit reached**
+
+- **What happened:** The model provider's usage limit is reached. You can try again later.
+- **What may already have happened:** A request reached an external service; no payment moved
+- **What to do next:** Check quota, rate limits and billing for the configured provider.
+- **Trying again:** Try again later: what stopped this clears with time.
+- **Severity:** medium · **Category:** availability
+
+### provider_unavailable
+
+**Provider unreachable**
+
+- **What happened:** The model provider could not be reached. You can try again in a moment.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Check the provider's status, network reachability, and configured endpoints.
+- **Trying again:** Try again later: what stopped this clears with time.
+- **Severity:** medium · **Category:** availability
+
+### timeout
+
+**Timed out**
+
+- **What happened:** This took too long and was stopped. Trying again may succeed.
+- **What may already have happened:** Outcome unknown — check state before retrying
+- **What to do next:** If timeouts repeat, check network latency and provider responsiveness.
+- **Trying again:** Trying again now may work.
+- **Severity:** medium · **Category:** availability
+
+### tool_unavailable
+
+**Tool unavailable**
+
+- **What happened:** That tool is not available right now, so this part was not done. Enabling it is needed before you retry.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Enable the tool for this mode in settings, or choose a different approach.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** availability
+
+### unknown
+
+**Unexpected error**
+
+- **What happened:** Something went wrong on this machine while handling that. You can try again.
+- **What may already have happened:** Outcome unknown — check state before retrying
+- **What to do next:** See the fault's redacted cause chain in diagnostics; an unknown cause is never retried blind.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** internal
+
+### unsupported_claim
+
+**Unsupported statements withheld**
+
+- **What happened:** One or more statements were not supported by the retrieved sources and were withheld.
+- **What may already have happened:** A local record/change happened
+- **What to do next:** No action needed -- this is the grounding gate working. Check retrieval quality if frequent.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** integrity
+
+### wallet_acknowledgement_required
+
+**Acknowledgement required**
+
+- **What happened:** This step needs your acknowledgement first, so nothing was signed or sent. Read what the wallet says this action does, acknowledge it exactly, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** When an approval would grant lasting spending rights, change ownership or run an upgrade, or the wallet finds a mismatch or cannot read the request, it asks you to type its exact acknowledgement first; nothing generic passes in its place.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_amount_invalid
+
+**Amount not exact for this coin**
+
+- **What happened:** That amount is not an exact amount this coin can hold, so nothing was proposed. Check the amount, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Send a plain decimal amount no more precise than the coin allows and within the pilot's per-transfer ceiling.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_approval_rejected
+
+**Approval not accepted**
+
+- **What happened:** The approval for this payment was not accepted, so nothing was signed or sent.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Approve the exact proposal with the owner's PIN or biometric; approvals do not transfer between proposals.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** policy · **Security-relevant:** yes
+
+### wallet_backup_unavailable
+
+**Backup already shown once**
+
+- **What happened:** This wallet's backup key was already shown once, so it cannot be shown again. If you did not save it, cancel setup and do not send funds to this address.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** A Crypto Pilot backup is released exactly once during setup; there is no second reveal and no export for pilot wallets.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_broadcast_failed
+
+**Payment could not be broadcast**
+
+- **What happened:** The payment could not be broadcast. Check its status before retrying.
+- **What may already have happened:** Outcome unknown — check state before retrying
+- **What to do next:** Check the test-network RPC and the proposal's receipt; the spend was not recorded as sent.
+- **Trying again:** Try again later: what stopped this clears with time.
+- **Severity:** medium · **Category:** availability
+
+### wallet_caller_refused
+
+**Not started from VOOL's own window**
+
+- **What happened:** This wallet action can only be started from VOOL's own window on this computer, so nothing was changed, signed or sent. Open VOOL and try again there.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Drive trusted wallet doors from the served page or the native window; a page on another origin, a framed page, a text/plain form and the command-dispatch projection are refused by design.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_card_data_refused
+
+**Card data refused**
+
+- **What happened:** Card numbers and security codes are never stored here; only a provider token is accepted. Nothing was saved.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Tokenize the card with the provider and register the token reference instead.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_chain_identity_mismatch
+
+**Chain endpoint identity unproven**
+
+- **What happened:** The chain endpoint did not prove the identity of the network it claims to be, so nothing was signed or sent.
+- **What may already have happened:** A request reached an external service; no payment moved
+- **What to do next:** Check the RPC endpoint for the network; a lying chain id or genesis is refused before any payment.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_confirmation_required
+
+**Typed confirmation required**
+
+- **What happened:** That step needs the typed confirmation first, so nothing was changed. Confirm it, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Read the warning and type the exact confirmation phrase to proceed.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_credential_mismatch
+
+**Entries did not match**
+
+- **What happened:** The two entries did not match, so nothing was created. Enter the same PIN or password twice, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** A Crypto Pilot credential is confirmed before any key material exists.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_dependency_unavailable
+
+**EVM libraries not installed**
+
+- **What happened:** This build cannot do EVM signing or ABI encoding: the Ethereum libraries are not installed on this machine. Nothing was signed or sent. Solana, custody and spend ceilings are unaffected; once the libraries are installed, try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Install the EVM extras (eth-abi, eth-utils, eth-account) to enable the EVM lanes; every other wallet lane works without them.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** policy
+
+### wallet_device_auth_denied
+
+**Device unlock declined**
+
+- **What happened:** The device unlock was declined or did not recognize this wallet, so nothing was unlocked, revealed, signed or sent. Try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** A declined or failed device unlock counts toward the wallet's lock after too many wrong tries; the lock lifts on its own after a while. Payments can also be approved with the wallet's PIN or password; an export cannot.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_device_auth_unavailable
+
+**Device unlock unavailable**
+
+- **What happened:** Device authentication (Touch ID or your Mac password) is not available for this wallet here, so nothing was unlocked, revealed, signed or sent. Try again where it is available, or use the wallet's PIN or password where that is allowed.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Payments and approvals can use a PIN or a password instead. A private-key export opens only with device authentication: restore the wallet from its recovery phrase on a Mac with Touch ID or a login password, then export there.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** availability
+
+### wallet_disabled
+
+**Wallet is switched off**
+
+- **What happened:** The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Enable the wallet explicitly (VOOL_WALLET_ENABLED=1) only if payments are wanted on this install.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_duplicate_payment
+
+**Payment already proposed or sent**
+
+- **What happened:** This payment was already proposed or sent, so it was not sent again.
+- **What may already have happened:** A local record/change happened
+- **What to do next:** Check the existing proposal's receipt; use a new idempotency key for a genuinely new payment.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** integrity · **Security-relevant:** yes
+
+### wallet_environment_inactive
+
+**Wrong network environment**
+
+- **What happened:** That network belongs to the other network environment (Mainnet or Test networks), so nothing was created, proposed or signed. Switch in Settings, Crypto, Developer options, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Choose the network environment deliberately in Crypto settings; accounts, balances and receipts never move between environments.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** security · **Security-relevant:** yes
+
+### wallet_export_pin_not_accepted
+
+**Export unlocks only by device authentication**
+
+- **What happened:** Export never unlocks with a PIN, password or passphrase, only with device authentication (Touch ID or your Mac password), so nothing was revealed. Try again without the PIN or password.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Export is unlocked by device authentication only, on purpose; a PIN, password or passphrase in the request is refused before it is ever checked.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_export_refused
+
+**Private key export refused**
+
+- **What happened:** Private keys are never exported by this runtime. The recovery phrase is shown once at creation and nowhere else. Nothing was revealed.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Recover a VOOL Wallet from the phrase written down at creation; there is no export door to enable.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_export_unavailable
+
+**Export unavailable for this wallet**
+
+- **What happened:** This wallet cannot be exported that way: it is watch-only, holds no key on this machine, is a Crypto Pilot whose backup was shown once at setup, or its key does not fit the wallet app you chose. Nothing was revealed.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Export works only for a VOOL Wallet sealed on this machine, to Phantom or MetaMask. A Crypto Pilot recovers from the backup shown at setup. An older wallet exports to MetaMask after it is restored from its recovery phrase.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_insufficient_funds
+
+**Balance does not cover amount and fee**
+
+- **What happened:** The balance does not cover the amount plus the most this network fee can be, so nothing was prepared. Lower the amount or add funds, then try again.
+- **What may already have happened:** A request reached an external service; no payment moved
+- **What to do next:** Spendable excludes other in-flight holds; a Solana remainder must be zero-free and at least the rent minimum in the pilot.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_legacy_surface_retired
+
+**Legacy money path retired**
+
+- **What happened:** That money path is retired: every payment goes through the wallet's proposal and approval flow. Nothing was signed or sent.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Use the wallet tools (wallet.propose) or the wallet API; the legacy signer, spender and exporter no longer exist.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_limit_exceeded
+
+**Spending limit exceeded**
+
+- **What happened:** That payment is above a spending limit, so it was not sent.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Review the per-transaction, daily and per-destination limits before retrying.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** policy · **Security-relevant:** yes
+
+### wallet_network_disabled
+
+**Network not declared for this wallet**
+
+- **What happened:** That network is not one this wallet declares for this action, so nothing was created or sent.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Use one of the declared network rows; undeclared chains, aliases and look-alike names are refused by construction.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_not_found
+
+**Wallet, proposal or destination not recognised**
+
+- **What happened:** That wallet, proposal or destination was not recognised, so nothing was done. Check it and try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Check the wallet id, proposal id or destination address and try again.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_outbound_refused
+
+**Request outside approved endpoints**
+
+- **What happened:** That request was not allowed to leave the wallet's approved endpoints, so no connection was made.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Check the declared RPC origins and payment-resource policy; private, metadata and unapproved hosts are refused.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_password_invalid
+
+**Wallet password invalid**
+
+- **What happened:** The password did not meet the policy or did not unlock the wallet, so nothing was signed or changed. Check the password and try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Wallet passwords are 10 to 128 characters and not only digits. A wrong password leaves the key sealed and counts toward the wallet's lock after too many wrong tries.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_paykit_unavailable
+
+**Solana pay extra not installed**
+
+- **What happened:** This build cannot pay Solana x402 or MPP offers: the optional pay extra (Solana pay-kit, Python 3.11 or newer) is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Install VOOL's optional pay extra on Python 3.11 or newer to enable pay-kit payments; the wallet keeps its own signer, spend caps and approval either way.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** policy
+
+### wallet_payment_channel_off
+
+**Payment channel turned off**
+
+- **What happened:** That payment goes through a payment channel that is turned off, so nothing was signed or sent. Turn the channel on in Settings, Crypto, Payment channels, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Turn a payment channel on in Crypto settings only if you want payments made through it; the cap and your approval apply on every channel.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_pin_invalid
+
+**PIN invalid**
+
+- **What happened:** The PIN did not meet the policy or did not unlock the wallet, so nothing was signed. Check the PIN and try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Use a 6 to 12 digit PIN; a wrong PIN leaves the sealed key untouched.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_quote_expired
+
+**Preview expired or was replaced**
+
+- **What happened:** This transfer preview expired or was replaced, so it cannot be approved and nothing was sent. Refresh the preview, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** A quote lives for a short window and is superseded by a refresh or an environment switch; approval never carries over.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_quote_mismatch
+
+**Approval no longer matches the preview**
+
+- **What happened:** The approval no longer matches the transfer that was previewed, so nothing was signed or sent. Start again from a fresh preview.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** An approval binds one quote digest; a changed account, chain, recipient, amount, environment or fee ceiling invalidates it.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_quote_unavailable
+
+**Balance or fee unknown**
+
+- **What happened:** The network did not give a complete answer for this transfer's balance or fee, so no approval was prepared and nothing was sent. Try again in a moment.
+- **What may already have happened:** A request reached an external service; no payment moved
+- **What to do next:** Unknown chain data is never treated as zero; check the row's endpoint and its identity proof.
+- **Trying again:** Try again later: what stopped this clears with time.
+- **Severity:** medium · **Category:** availability
+
+### wallet_recipient_refused
+
+**Recipient cannot safely receive this**
+
+- **What happened:** That recipient cannot safely receive this transfer on this network, so nothing was prepared. Check the address, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Refused: a new Solana account below the rent minimum, an executable or off-curve account, a bad EIP-55 checksum, the zero address, precompiles and system contracts.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** policy
+
+### wallet_recovery_refused
+
+**Recovery proof does not fit this wallet**
+
+- **What happened:** That recovery proof does not fit this wallet, so nothing was changed: the saved key must be the backup VOOL showed for this exact address, in the format it was shown. Check it and try again, or use the other options.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Recovery re-seals an existing wallet only from a backup that decodes to the wallet's own key (both derivations agree), or from an enrolled device secret released by fresh user presence; a wrong or foreign key is refused before any write and counted on the recovery throttle only.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_request_ambiguous
+
+**More than one account or network fits**
+
+- **What happened:** More than one account or network fits this transfer, so nothing was proposed. Say which account or network you mean, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** A transfer names one account on one network; the candidates are listed in the fault context.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_send_needs_vool_wallet
+
+**Sending needs a VOOL Wallet**
+
+- **What happened:** This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_setup_state_invalid
+
+**Setup step does not apply now**
+
+- **What happened:** That setup step does not apply to this wallet right now, so nothing changed. Check the wallet's setup status, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Setup moves generating, awaiting backup, backup revealed, ready; cancel and resume never reveal a backup twice.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy
+
+### wallet_signature_invalid
+
+**Signature did not match the wallet's key**
+
+- **What happened:** The signature returned for this payment did not match the wallet's key, so it was not broadcast.
+- **What may already have happened:** A request reached an external service; no payment moved
+- **What to do next:** Check the connected signer; a mismatched signature is refused before broadcast.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_signing_unavailable
+
+**Wallet cannot sign from here**
+
+- **What happened:** This wallet cannot sign from here: it is watch-only or its external signer is not connected. Nothing was sent; connect a signer, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Connect the external wallet, or create a VOOL Wallet after reading its warning.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** policy
+
+### wallet_simulation_failed
+
+**Payment failed simulation**
+
+- **What happened:** The payment did not pass simulation, so it was not sent. Check the balance and destination, then try again.
+- **What may already have happened:** A request reached an external service; no payment moved
+- **What to do next:** Check the balance, the destination and the test-network RPC, then propose again.
+- **Trying again:** Try again later: what stopped this clears with time.
+- **Severity:** medium · **Category:** availability
+
+### wallet_storage_class_refused
+
+**Key storage is memory-only**
+
+- **What happened:** This installation keeps its device key only in memory, so a wallet created here could not be opened after a restart. Nothing was created. Switch key storage to a lasting mode, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Crypto Pilot wallets are refused while VOOL_KEY_STORAGE_MODE is ephemeral; use file or keyring storage.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** policy
+
+### wallet_unlock_throttled
+
+**Wallet locked after failed unlocks**
+
+- **What happened:** There were too many wrong PIN or password attempts, so this wallet is locked for a while and nothing was unlocked. Wait, then try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Failed unlocks are counted durably per wallet and for the whole app, across restarts; the lock lifts on its own after the stated wait.
+- **Trying again:** Try again later: what stopped this clears with time.
+- **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+### wallet_x402_cap_exceeded
+
+**Paid resource above the automatic cap**
+
+- **What happened:** A paid resource asked for more than the automatic payment cap, so it was not paid.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Raise VOOL_WALLET_X402_CAP_MINOR deliberately, or pay the resource by an explicit proposal.
+- **Trying again:** Do not send the same request again unchanged.
+- **Severity:** medium · **Category:** policy · **Security-relevant:** yes
+
+### wallet_x402_sdk_unavailable
+
+**x402 extra not installed**
+
+- **What happened:** This build cannot pay x402 offers on Base through the x402 Foundation SDK: the optional x402 extra is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Install VOOL's optional x402 extra to pay x402 offers on Base from a Crypto Pilot wallet; the wallet keeps its own signer, spend caps and approval either way.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** medium · **Category:** policy
+
+### x402_scheme_unavailable
+
+**Payment scheme unsupported**
+
+- **What happened:** This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Use an offer whose scheme, token and facilitator are verified for the network; partial signing support is never improvised.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** policy

@@ -140,6 +140,16 @@ FAULT_WALLET_REQUEST_AMBIGUOUS = "wallet_request_ambiguous"
 FAULT_WALLET_PAYMENT_CHANNEL_OFF = "wallet_payment_channel_off"
 FAULT_WALLET_X402_SDK_UNAVAILABLE = "wallet_x402_sdk_unavailable"
 FAULT_WALLET_SEND_NEEDS_VOOL_WALLET = "wallet_send_needs_vool_wallet"
+# --- the unlock/export surface (core.wallet.custody, core.wallet.pilot_custody and the wallet API).
+# These were EMITTED before they were declared: the closed catalog refused them, wallet_fault
+# swallowed the refusal, and the person got a bare code with an empty message, no fault record and
+# no documentation entry. Declared here so the emitted surface and the declared surface are one.
+FAULT_WALLET_PASSWORD_INVALID = "wallet_password_invalid"
+FAULT_WALLET_DEVICE_AUTH_UNAVAILABLE = "wallet_device_auth_unavailable"
+FAULT_WALLET_DEVICE_AUTH_DENIED = "wallet_device_auth_denied"
+FAULT_WALLET_EXPORT_UNAVAILABLE = "wallet_export_unavailable"
+FAULT_WALLET_EXPORT_PIN_NOT_ACCEPTED = "wallet_export_pin_not_accepted"
+FAULT_WALLET_ACKNOWLEDGEMENT_REQUIRED = "wallet_acknowledgement_required"
 
 
 class FaultVocabularyError(Exception):
@@ -179,6 +189,9 @@ class FaultSpec:
     #: only transiently before the catalog applies its explicit effect table -- consumers read
     #: it through the catalog, never off a hand-built spec.
     effect: str = ""
+    #: Short human title (a label, not a sentence), applied from the explicit title table at
+    #: construction -- surfaces and the generated error reference render it.
+    title: str = ""
 
     @property
     def retryable(self) -> bool:
@@ -498,6 +511,30 @@ _WALLET_SPECS: tuple[FaultSpec, ...] = (
               user_message="This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again.",
               operator_action="Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network.",
               authority="core.wallet.lifecycle"),
+    FaultSpec(code=FAULT_WALLET_PASSWORD_INVALID, category=CATEGORY_POLICY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
+              user_message="The password did not meet the policy or did not unlock the wallet, so nothing was signed or changed. Check the password and try again.",
+              operator_action="Wallet passwords are 10 to 128 characters and not only digits. A wrong password leaves the key sealed and counts toward the wallet's lock after too many wrong tries.",
+              authority="core.wallet.custody"),
+    FaultSpec(code=FAULT_WALLET_DEVICE_AUTH_UNAVAILABLE, category=CATEGORY_AVAILABILITY, severity=SEVERITY_MEDIUM, retry=RETRY_AFTER_CHANGE,
+              user_message="Device authentication (Touch ID or your Mac password) is not available for this wallet here, so nothing was unlocked, revealed, signed or sent. Try again where it is available, or use the wallet's PIN or password where that is allowed.",
+              operator_action="Payments and approvals can use a PIN or a password instead. A private-key export opens only with device authentication: restore the wallet from its recovery phrase on a Mac with Touch ID or a login password, then export there.",
+              authority="core.wallet.custody"),
+    FaultSpec(code=FAULT_WALLET_DEVICE_AUTH_DENIED, category=CATEGORY_POLICY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
+              user_message="The device unlock was declined or did not recognize this wallet, so nothing was unlocked, revealed, signed or sent. Try again.",
+              operator_action="A declined or failed device unlock counts toward the wallet's lock after too many wrong tries; the lock lifts on its own after a while. Payments can also be approved with the wallet's PIN or password; an export cannot.",
+              authority="core.wallet.custody"),
+    FaultSpec(code=FAULT_WALLET_EXPORT_UNAVAILABLE, category=CATEGORY_SECURITY, severity=SEVERITY_HIGH, retry=RETRY_NEVER,
+              user_message="This wallet cannot be exported that way: it is watch-only, holds no key on this machine, is a Crypto Pilot whose backup was shown once at setup, or its key does not fit the wallet app you chose. Nothing was revealed.",
+              operator_action="Export works only for a VOOL Wallet sealed on this machine, to Phantom or MetaMask. A Crypto Pilot recovers from the backup shown at setup. An older wallet exports to MetaMask after it is restored from its recovery phrase.",
+              authority="core.wallet.custody", security_relevant=True),
+    FaultSpec(code=FAULT_WALLET_EXPORT_PIN_NOT_ACCEPTED, category=CATEGORY_SECURITY, severity=SEVERITY_HIGH, retry=RETRY_AFTER_CHANGE,
+              user_message="Export never unlocks with a PIN, password or passphrase, only with device authentication (Touch ID or your Mac password), so nothing was revealed. Try again without the PIN or password.",
+              operator_action="Export is unlocked by device authentication only, on purpose; a PIN, password or passphrase in the request is refused before it is ever checked.",
+              authority="core.wallet.custody", security_relevant=True),
+    FaultSpec(code=FAULT_WALLET_ACKNOWLEDGEMENT_REQUIRED, category=CATEGORY_POLICY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
+              user_message="This step needs your acknowledgement first, so nothing was signed or sent. Read what the wallet says this action does, acknowledge it exactly, then try again.",
+              operator_action="When an approval would grant lasting spending rights, change ownership or run an upgrade, or the wallet finds a mismatch or cannot read the request, it asks you to type its exact acknowledgement first; nothing generic passes in its place.",
+              authority="core.wallet.meaning"),
 )
 
 #: The effect state of every code, EXPLICIT: one row per entry, no defaults. Applied (and
@@ -559,6 +596,76 @@ _EFFECT_BY_CODE: dict[str, str] = {
     FAULT_WALLET_PAYMENT_CHANNEL_OFF: EFFECT_NONE,
     FAULT_WALLET_X402_SDK_UNAVAILABLE: EFFECT_NONE,
     FAULT_WALLET_SEND_NEEDS_VOOL_WALLET: EFFECT_NONE,
+    FAULT_WALLET_PASSWORD_INVALID: EFFECT_NONE,  # a failed unlock seals everything back
+    FAULT_WALLET_DEVICE_AUTH_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_DEVICE_AUTH_DENIED: EFFECT_NONE,
+    FAULT_WALLET_EXPORT_UNAVAILABLE: EFFECT_NONE,  # "nothing was revealed"
+    FAULT_WALLET_EXPORT_PIN_NOT_ACCEPTED: EFFECT_NONE,  # refused before the credential is consulted
+    FAULT_WALLET_ACKNOWLEDGEMENT_REQUIRED: EFFECT_NONE,  # refused before any signature
+}
+
+#: The short human title of every code, EXPLICIT: one row per entry, no defaults, validated at
+#: construction together with the effect table. A title is a LABEL ("Provider limit reached"),
+#: not a sentence -- sentences are what ``user_message`` is for.
+_TITLE_BY_CODE: dict[str, str] = {
+    FAULT_PERMISSION_DENIED: "Permission denied",
+    FAULT_PROVIDER_UNAVAILABLE: "Provider unreachable",
+    FAULT_PROVIDER_EXHAUSTED: "Provider limit reached",
+    FAULT_TOOL_UNAVAILABLE: "Tool unavailable",
+    FAULT_TIMEOUT: "Timed out",
+    FAULT_CANCELLED: "Cancelled",
+    FAULT_CONFINEMENT_REFUSAL: "Change outside the allowed scope",
+    FAULT_EVIDENCE_CORRUPTION: "Answer records failed a consistency check",
+    FAULT_UNSUPPORTED_CLAIM: "Unsupported statements withheld",
+    FAULT_CREDENTIAL_FAILURE: "Stored credential could not be read",
+    FAULT_INTEGRITY_VERIFICATION_FAILURE: "Record failed its tamper check",
+    FAULT_UNKNOWN: "Unexpected error",
+    FAULT_WALLET_DISABLED: "Wallet is switched off",
+    FAULT_WALLET_NETWORK_DISABLED: "Network not declared for this wallet",
+    FAULT_WALLET_NOT_FOUND: "Wallet, proposal or destination not recognised",
+    FAULT_WALLET_SIGNING_UNAVAILABLE: "Wallet cannot sign from here",
+    FAULT_WALLET_SIGNATURE_INVALID: "Signature did not match the wallet's key",
+    FAULT_WALLET_CONFIRMATION_REQUIRED: "Typed confirmation required",
+    FAULT_WALLET_PIN_INVALID: "PIN invalid",
+    FAULT_WALLET_PASSWORD_INVALID: "Wallet password invalid",
+    FAULT_WALLET_LIMIT_EXCEEDED: "Spending limit exceeded",
+    FAULT_WALLET_DUPLICATE_PAYMENT: "Payment already proposed or sent",
+    FAULT_WALLET_APPROVAL_REJECTED: "Approval not accepted",
+    FAULT_WALLET_ACKNOWLEDGEMENT_REQUIRED: "Acknowledgement required",
+    FAULT_WALLET_X402_CAP_EXCEEDED: "Paid resource above the automatic cap",
+    FAULT_WALLET_CARD_DATA_REFUSED: "Card data refused",
+    FAULT_WALLET_SIMULATION_FAILED: "Payment failed simulation",
+    FAULT_WALLET_BROADCAST_FAILED: "Payment could not be broadcast",
+    FAULT_WALLET_LEGACY_SURFACE_RETIRED: "Legacy money path retired",
+    FAULT_WALLET_EXPORT_REFUSED: "Private key export refused",
+    FAULT_WALLET_EXPORT_UNAVAILABLE: "Export unavailable for this wallet",
+    FAULT_WALLET_EXPORT_PIN_NOT_ACCEPTED: "Export unlocks only by device authentication",
+    FAULT_WALLET_CHAIN_IDENTITY_MISMATCH: "Chain endpoint identity unproven",
+    FAULT_WALLET_OUTBOUND_REFUSED: "Request outside approved endpoints",
+    FAULT_EVM_POCKET_CUSTODY_UNAVAILABLE: "EVM keys not held on this device",
+    FAULT_X402_SCHEME_UNAVAILABLE: "Payment scheme unsupported",
+    FAULT_WALLET_DEPENDENCY_UNAVAILABLE: "EVM libraries not installed",
+    FAULT_WALLET_PAYKIT_UNAVAILABLE: "Solana pay extra not installed",
+    FAULT_WALLET_X402_SDK_UNAVAILABLE: "x402 extra not installed",
+    FAULT_WALLET_PAYMENT_CHANNEL_OFF: "Payment channel turned off",
+    FAULT_WALLET_SEND_NEEDS_VOOL_WALLET: "Sending needs a VOOL Wallet",
+    FAULT_WALLET_ENVIRONMENT_INACTIVE: "Wrong network environment",
+    FAULT_WALLET_AMOUNT_INVALID: "Amount not exact for this coin",
+    FAULT_WALLET_CALLER_REFUSED: "Not started from VOOL's own window",
+    FAULT_WALLET_UNLOCK_THROTTLED: "Wallet locked after failed unlocks",
+    FAULT_WALLET_BACKUP_UNAVAILABLE: "Backup already shown once",
+    FAULT_WALLET_RECOVERY_REFUSED: "Recovery proof does not fit this wallet",
+    FAULT_WALLET_STORAGE_CLASS_REFUSED: "Key storage is memory-only",
+    FAULT_WALLET_SETUP_STATE_INVALID: "Setup step does not apply now",
+    FAULT_WALLET_CREDENTIAL_MISMATCH: "Entries did not match",
+    FAULT_WALLET_QUOTE_UNAVAILABLE: "Balance or fee unknown",
+    FAULT_WALLET_QUOTE_EXPIRED: "Preview expired or was replaced",
+    FAULT_WALLET_QUOTE_MISMATCH: "Approval no longer matches the preview",
+    FAULT_WALLET_INSUFFICIENT_FUNDS: "Balance does not cover amount and fee",
+    FAULT_WALLET_RECIPIENT_REFUSED: "Recipient cannot safely receive this",
+    FAULT_WALLET_REQUEST_AMBIGUOUS: "More than one account or network fits",
+    FAULT_WALLET_DEVICE_AUTH_UNAVAILABLE: "Device unlock unavailable",
+    FAULT_WALLET_DEVICE_AUTH_DENIED: "Device unlock declined",
 }
 
 
@@ -581,9 +688,21 @@ def _specs_with_effect() -> tuple[FaultSpec, ...]:
     invalid = sorted({code for code, effect in _EFFECT_BY_CODE.items() if effect not in _VALID_EFFECTS})
     if invalid:
         raise FaultVocabularyError(f"effect rows outside the closed vocabulary: {invalid}")
-    return tuple(
+    effected = tuple(
         _replace(spec, effect=_EFFECT_BY_CODE[spec.code]) for spec in (*_SPECS, *_WALLET_SPECS)
     )
+    # The title table obeys the same law as the effect table: one explicit row per code, validated at
+    # construction, so a new code without a short title cannot enter silently.
+    title_orphaned = sorted(set(_TITLE_BY_CODE) - known)
+    if title_orphaned:
+        raise FaultVocabularyError(f"title table names unknown fault codes: {title_orphaned}")
+    title_missing = sorted(known - set(_TITLE_BY_CODE))
+    if title_missing:
+        raise FaultVocabularyError(f"fault codes without a title row: {title_missing}")
+    title_blank = sorted(code for code, title in _TITLE_BY_CODE.items() if not str(title).strip())
+    if title_blank:
+        raise FaultVocabularyError(f"fault codes with an empty title: {title_blank}")
+    return tuple(_replace(spec, title=_TITLE_BY_CODE[spec.code]) for spec in effected)
 
 
 _CATALOG: dict[str, FaultSpec] = build_catalog(_specs_with_effect())
@@ -595,6 +714,16 @@ def get_spec(code: str) -> FaultSpec:
     if spec is None:
         raise UnknownFaultCodeError(f"no such fault code: {code!r}")
     return spec
+
+
+def doc_anchor(code: str) -> str:
+    """The code's stable anchor in the generated error reference (docs/ERROR_BOOK.md).
+
+    The docs site builds heading ids by slugifying the heading text (``tools/docs/build_docs.py``
+    ``slugify``); for this catalog's ``[a-z0-9_]+`` codes that maps underscores to hyphens. This is
+    the ONE place the rule is encoded on the runtime side, and a test pins it against the builder.
+    """
+    return str(code or "").strip().replace("_", "-")
 
 
 def all_codes() -> tuple[str, ...]:
@@ -624,6 +753,7 @@ def export_catalog() -> dict[str, object]:
         "faults": [
             {
                 "code": spec.code,
+                "title": spec.title,
                 "category": spec.category,
                 "severity": spec.severity,
                 "retry": spec.retry,
@@ -633,6 +763,7 @@ def export_catalog() -> dict[str, object]:
                 "authority": spec.authority,
                 "security_relevant": spec.security_relevant,
                 "effect": spec.effect,
+                "doc_anchor": doc_anchor(spec.code),
             }
             for spec in all_specs()
         ],
@@ -688,6 +819,7 @@ __all__ = [
     "allowed_fault_transition",
     "build_catalog",
     "catalog_digest",
+    "doc_anchor",
     "export_catalog",
     "get_spec",
 ]
