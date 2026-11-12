@@ -22,12 +22,14 @@ Usage:
 """
 
 import argparse
+import hashlib
 import html
 import json
 import os
 import re
 import shutil
 import sys
+import unicodedata
 from datetime import datetime, timezone
 
 # --------------------------------------------------------------------------
@@ -72,7 +74,10 @@ RAW_SPAN = "\x00RAW%d\x00"
 
 def slugify(text):
     s = re.sub(r"<[^>]+>", "", text).strip().lower()
-    s = re.sub(r"[^\w\s-]", "", s)
+    # Letters, digits, spaces and hyphens survive, and so do combining marks:
+    # without them a Hindi heading's vowel signs vanish from its anchor.
+    s = "".join(ch for ch in s if ch.isalnum() or ch in "_-" or ch.isspace()
+                or unicodedata.category(ch).startswith("M"))
     s = re.sub(r"[\s_]+", "-", s).strip("-")
     return s or "section"
 
@@ -115,11 +120,16 @@ class Inline:
 
         def link(m):
             label, href, title = m.group(1), m.group(2), m.group(3)
-            resolved = self.link(href)
+            resolved, extra = self.link(href), ""
+            if isinstance(resolved, tuple):
+                # (url, extra attributes, default title): a translated page linking
+                # to a page that exists only in English.
+                resolved, extra, title = resolved[0], resolved[1], title or resolved[2]
             ext = resolved.startswith("http")
             attrs = ' rel="noopener" target="_blank"' if ext else ""
             t = ' title="%s"' % html.escape(title) if title else ""
-            return '<a href="%s"%s%s>%s</a>' % (html.escape(resolved), t, attrs, label)
+            return '<a href="%s"%s%s%s>%s</a>' % (html.escape(resolved), t, attrs, extra,
+                                                  label)
 
         text = re.sub(r'\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)', link, text)
 
@@ -142,9 +152,12 @@ HINT_STYLES = {"info": "info", "success": "success", "warning": "warning",
                "danger": "danger", "tip": "success"}
 
 
-# Language set, matching the marketing site's picker exactly so the two never
-# drift. English is the canonical tree and lives at the docs root; every other
-# language is a subtree under docs/translations/<code>/ with its own SUMMARY.md.
+# Language set: the marketing site's picker plus every language the app itself
+# ships a UI catalog for (core/i18n/catalogs: tr, vi, hi, ar, he were missing
+# here). Keep the website copy of this list the same. English is the canonical
+# tree and lives at the docs root; every other language is a subtree under
+# docs/translations/<code>/ with its own SUMMARY.md, and only a language with a
+# SUMMARY.md is built or offered in the picker.
 LANGS = [
     ("en", "English"), ("zh", "\u7b80\u4f53\u4e2d\u6587"), ("fr", "Fran\u00e7ais"),
     ("de", "Deutsch"), ("es", "Espa\u00f1ol"), ("pt", "Portugu\u00eas (BR)"),
@@ -153,8 +166,235 @@ LANGS = [
     ("uk", "\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430"),
     ("pl", "Polski"), ("lt", "Lietuvi\u0173"), ("lv", "Latvie\u0161u"),
     ("et", "Eesti"), ("sv", "Svenska"), ("fi", "Suomi"), ("nb", "Norsk"),
+    ("tr", "T\u00fcrk\u00e7e"), ("vi", "Ti\u1ebfng Vi\u1ec7t"),
+    ("hi", "\u0939\u093f\u0928\u094d\u0926\u0940"),
+    ("ar", "\u0627\u0644\u0639\u0631\u0628\u064a\u0629"),
+    ("he", "\u05e2\u05d1\u05e8\u05d9\u05ea"),
 ]
 LANG_NAME = dict(LANGS)
+
+# Languages written right to left: their pages get dir="rtl" (code stays left to right).
+RTL_LANGS = frozenset({"ar", "he"})
+
+# The page chrome in each language. "nomatch" keeps {q} for the search term.
+# A language without a row here falls back to English chrome.
+UI = {
+    "en": {
+        "skip": "Skip to content", "menu": "Open navigation",
+        "search": "Search documentation", "lang": "Change language", "theme": "Switch theme",
+        "theme_light": "Switch to light theme", "theme_dark": "Switch to dark theme",
+        "website": "Website", "docs": "Docs", "nav": "Documentation", "crumbs": "Breadcrumb",
+        "toc": "On this page", "prev": "Previous", "next": "Next",
+        "anchor": "Link to this section", "copy": "Copy", "copied": "Copied",
+        "nomatch": "No matches for “{q}”",
+        "machine": "This page was translated by machine from the English original. "
+                   "If the two differ, the English page is correct.",
+        "machine_link": "Read the English page", "to_en": "This page is in English",
+        "stale": "The English page has changed since this page was translated, so parts of it may be out of date.",
+    },
+    "de": {
+        "skip": "Zum Inhalt springen", "menu": "Navigation öffnen",
+        "search": "Dokumentation durchsuchen", "lang": "Sprache wechseln",
+        "theme": "Design wechseln", "theme_light": "Zum hellen Design wechseln",
+        "theme_dark": "Zum dunklen Design wechseln", "website": "Website", "docs": "Doku",
+        "nav": "Dokumentation", "crumbs": "Brotkrümelnavigation", "toc": "Auf dieser Seite",
+        "prev": "Zurück", "next": "Weiter", "anchor": "Link zu diesem Abschnitt",
+        "copy": "Kopieren", "copied": "Kopiert", "nomatch": "Keine Treffer für „{q}“",
+        "machine": "Diese Seite wurde maschinell aus dem englischen Original übersetzt. "
+                   "Wenn sich beide unterscheiden, gilt die englische Seite.",
+        "machine_link": "Englische Seite lesen", "to_en": "Diese Seite ist auf Englisch",
+        "stale": "Die englische Seite wurde seit dieser Übersetzung geändert, Teile davon können veraltet sein.",
+    },
+    "fr": {
+        "skip": "Aller au contenu", "menu": "Ouvrir la navigation",
+        "search": "Rechercher dans la documentation", "lang": "Changer de langue",
+        "theme": "Changer de thème", "theme_light": "Passer au thème clair",
+        "theme_dark": "Passer au thème sombre", "website": "Site web", "docs": "Docs",
+        "nav": "Documentation", "crumbs": "Fil d’Ariane", "toc": "Sur cette page",
+        "prev": "Précédent", "next": "Suivant", "anchor": "Lien vers cette section",
+        "copy": "Copier", "copied": "Copié", "nomatch": "Aucun résultat pour « {q} »",
+        "machine": "Cette page a été traduite automatiquement depuis l’original anglais. "
+                   "En cas de différence, la page anglaise fait foi.",
+        "machine_link": "Lire la page en anglais", "to_en": "Cette page est en anglais",
+        "stale": "La page anglaise a changé depuis cette traduction : certaines parties peuvent ne plus être à jour.",
+    },
+    "es": {
+        "skip": "Saltar al contenido", "menu": "Abrir la navegación",
+        "search": "Buscar en la documentación", "lang": "Cambiar de idioma",
+        "theme": "Cambiar de tema", "theme_light": "Cambiar al tema claro",
+        "theme_dark": "Cambiar al tema oscuro", "website": "Sitio web", "docs": "Docs",
+        "nav": "Documentación", "crumbs": "Ruta de navegación", "toc": "En esta página",
+        "prev": "Anterior", "next": "Siguiente", "anchor": "Enlace a esta sección",
+        "copy": "Copiar", "copied": "Copiado", "nomatch": "No hay resultados para «{q}»",
+        "machine": "Esta página se tradujo automáticamente del original en inglés. "
+                   "Si hay diferencias, la página en inglés es la correcta.",
+        "machine_link": "Leer la página en inglés", "to_en": "Esta página está en inglés",
+        "stale": "La página en inglés ha cambiado desde que se tradujo esta, así que algunas partes pueden estar desactualizadas.",
+    },
+    "pt": {
+        "skip": "Pular para o conteúdo", "menu": "Abrir a navegação",
+        "search": "Pesquisar na documentação", "lang": "Mudar o idioma",
+        "theme": "Mudar o tema", "theme_light": "Mudar para o tema claro",
+        "theme_dark": "Mudar para o tema escuro", "website": "Site", "docs": "Docs",
+        "nav": "Documentação", "crumbs": "Trilha de navegação", "toc": "Nesta página",
+        "prev": "Anterior", "next": "Próximo", "anchor": "Link para esta seção",
+        "copy": "Copiar", "copied": "Copiado", "nomatch": "Nenhum resultado para “{q}”",
+        "machine": "Esta página foi traduzida automaticamente do original em inglês. "
+                   "Se houver diferença, vale a página em inglês.",
+        "machine_link": "Ler a página em inglês", "to_en": "Esta página está em inglês",
+        "stale": "A página em inglês mudou desde que esta foi traduzida, então algumas partes podem estar desatualizadas.",
+    },
+    "ja": {
+        "skip": "本文へ移動", "menu": "ナビゲーションを開く",
+        "search": "ドキュメントを検索", "lang": "言語を切り替える",
+        "theme": "テーマを切り替える", "theme_light": "ライトテーマに切り替える",
+        "theme_dark": "ダークテーマに切り替える", "website": "ウェブサイト",
+        "docs": "ドキュメント", "nav": "ドキュメント", "crumbs": "パンくずリスト",
+        "toc": "このページの内容", "prev": "前へ", "next": "次へ",
+        "anchor": "このセクションへのリンク", "copy": "コピー", "copied": "コピーしました",
+        "nomatch": "「{q}」に一致する結果はありません",
+        "machine": "このページは英語の原文から機械翻訳されています。"
+                   "内容が異なる場合は、英語のページが正しい内容です。",
+        "machine_link": "英語のページを読む", "to_en": "このページは英語です",
+        "stale": "このページの翻訳後に英語版が更新されたため、一部の内容が古くなっている可能性があります。",
+    },
+    "ko": {
+        "skip": "본문으로 건너뛰기", "menu": "탐색 메뉴 열기", "search": "문서 검색",
+        "lang": "언어 변경", "theme": "테마 변경", "theme_light": "밝은 테마로 전환",
+        "theme_dark": "어두운 테마로 전환", "website": "웹사이트", "docs": "문서",
+        "nav": "문서", "crumbs": "현재 위치", "toc": "이 페이지의 내용", "prev": "이전",
+        "next": "다음", "anchor": "이 섹션으로 연결되는 링크", "copy": "복사",
+        "copied": "복사됨", "nomatch": "‘{q}’에 대한 검색 결과가 없습니다",
+        "machine": "이 페이지는 영어 원문을 기계 번역한 것입니다. "
+                   "내용이 다르면 영어 페이지가 기준입니다.",
+        "machine_link": "영어 페이지 보기", "to_en": "이 페이지는 영어로 되어 있습니다",
+        "stale": "이 페이지를 번역한 뒤 영어 원문이 바뀌어 일부 내용이 최신이 아닐 수 있습니다.",
+    },
+    "zh": {
+        "skip": "跳到正文", "menu": "打开导航", "search": "搜索文档", "lang": "切换语言",
+        "theme": "切换主题", "theme_light": "切换到浅色主题", "theme_dark": "切换到深色主题",
+        "website": "网站", "docs": "文档", "nav": "文档", "crumbs": "当前位置",
+        "toc": "本页内容", "prev": "上一页", "next": "下一页", "anchor": "链接到本节",
+        "copy": "复制", "copied": "已复制", "nomatch": "没有与“{q}”匹配的结果",
+        "machine": "本页由英文原文机器翻译而来。如有出入，以英文页面为准。",
+        "machine_link": "阅读英文页面", "to_en": "此页面为英文",
+        "stale": "本页翻译完成后英文原文已有更改，部分内容可能已过时。",
+    },
+    "ru": {
+        "skip": "Перейти к содержимому", "menu": "Открыть навигацию",
+        "search": "Поиск по документации", "lang": "Сменить язык", "theme": "Сменить тему",
+        "theme_light": "Включить светлую тему", "theme_dark": "Включить тёмную тему",
+        "website": "Сайт", "docs": "Документация", "nav": "Документация",
+        "crumbs": "Навигационная цепочка", "toc": "На этой странице", "prev": "Назад",
+        "next": "Далее", "anchor": "Ссылка на этот раздел", "copy": "Копировать",
+        "copied": "Скопировано", "nomatch": "Ничего не найдено по запросу «{q}»",
+        "machine": "Эта страница переведена машинным способом с английского оригинала. "
+                   "Если тексты расходятся, верна английская страница.",
+        "machine_link": "Читать на английском", "to_en": "Эта страница на английском",
+        "stale": "Английская страница изменилась после этого перевода, поэтому часть сведений может быть устаревшей.",
+    },
+    "uk": {
+        "skip": "Перейти до вмісту", "menu": "Відкрити навігацію",
+        "search": "Пошук у документації", "lang": "Змінити мову", "theme": "Змінити тему",
+        "theme_light": "Увімкнути світлу тему", "theme_dark": "Увімкнути темну тему",
+        "website": "Сайт", "docs": "Документація", "nav": "Документація",
+        "crumbs": "Навігаційний ланцюжок", "toc": "На цій сторінці", "prev": "Назад",
+        "next": "Далі", "anchor": "Посилання на цей розділ", "copy": "Копіювати",
+        "copied": "Скопійовано", "nomatch": "Нічого не знайдено за запитом «{q}»",
+        "machine": "Цю сторінку перекладено машинним способом з англійського оригіналу. "
+                   "Якщо тексти відрізняються, правильною є англійська сторінка.",
+        "machine_link": "Читати англійською", "to_en": "Ця сторінка англійською",
+        "stale": "Англійська сторінка змінилася після цього перекладу, тож частина відомостей може бути застарілою.",
+    },
+    "pl": {
+        "skip": "Przejdź do treści", "menu": "Otwórz nawigację",
+        "search": "Szukaj w dokumentacji", "lang": "Zmień język", "theme": "Zmień motyw",
+        "theme_light": "Przełącz na jasny motyw", "theme_dark": "Przełącz na ciemny motyw",
+        "website": "Strona", "docs": "Dokumentacja", "nav": "Dokumentacja",
+        "crumbs": "Ścieżka nawigacji", "toc": "Na tej stronie", "prev": "Wstecz",
+        "next": "Dalej", "anchor": "Link do tej sekcji", "copy": "Kopiuj",
+        "copied": "Skopiowano", "nomatch": "Brak wyników dla „{q}”",
+        "machine": "Ta strona została przetłumaczona maszynowo z angielskiego oryginału. "
+                   "Jeśli teksty się różnią, rozstrzyga strona angielska.",
+        "machine_link": "Czytaj po angielsku", "to_en": "Ta strona jest po angielsku",
+        "stale": "Angielska strona zmieniła się od czasu tego tłumaczenia, więc część informacji może być nieaktualna.",
+    },
+    "lt": {
+        "skip": "Pereiti prie turinio", "menu": "Atverti naršymą",
+        "search": "Ieškoti dokumentacijoje", "lang": "Keisti kalbą", "theme": "Keisti temą",
+        "theme_light": "Įjungti šviesią temą", "theme_dark": "Įjungti tamsią temą",
+        "website": "Svetainė", "docs": "Dokumentacija", "nav": "Dokumentacija",
+        "crumbs": "Naršymo kelias", "toc": "Šiame puslapyje", "prev": "Ankstesnis",
+        "next": "Kitas", "anchor": "Nuoroda į šį skyrių", "copy": "Kopijuoti",
+        "copied": "Nukopijuota", "nomatch": "Nieko nerasta pagal „{q}“",
+        "machine": "Šis puslapis išverstas mašininiu vertimu iš originalo anglų kalba. "
+                   "Jei tekstai skiriasi, teisingas yra puslapis anglų kalba.",
+        "machine_link": "Skaityti angliškai", "to_en": "Šis puslapis yra anglų kalba",
+        "stale": "Angliškas puslapis pasikeitė po šio vertimo, todėl dalis informacijos gali būti pasenusi.",
+    },
+    "tr": {
+        "skip": "İçeriğe geç", "menu": "Gezinmeyi aç", "search": "Belgelerde ara",
+        "lang": "Dili değiştir", "theme": "Temayı değiştir",
+        "theme_light": "Açık temaya geç", "theme_dark": "Koyu temaya geç",
+        "website": "Web sitesi", "docs": "Belgeler", "nav": "Belgeler",
+        "crumbs": "Sayfa yolu", "toc": "Bu sayfada", "prev": "Önceki", "next": "Sonraki",
+        "anchor": "Bu bölümün bağlantısı", "copy": "Kopyala", "copied": "Kopyalandı",
+        "nomatch": "“{q}” için sonuç yok",
+        "machine": "Bu sayfa İngilizce asıl metinden makine çevirisiyle çevrildi. "
+                   "İkisi arasında fark varsa İngilizce sayfa geçerlidir.",
+        "machine_link": "İngilizce sayfayı oku", "to_en": "Bu sayfa İngilizce",
+        "stale": "Bu sayfa çevrildikten sonra İngilizce sayfa değişti; bazı bölümleri güncel olmayabilir.",
+    },
+    "vi": {
+        "skip": "Chuyển đến nội dung", "menu": "Mở thanh điều hướng",
+        "search": "Tìm trong tài liệu", "lang": "Đổi ngôn ngữ", "theme": "Đổi giao diện",
+        "theme_light": "Chuyển sang giao diện sáng", "theme_dark": "Chuyển sang giao diện tối",
+        "website": "Trang web", "docs": "Tài liệu", "nav": "Tài liệu", "crumbs": "Đường dẫn",
+        "toc": "Trên trang này", "prev": "Trước", "next": "Tiếp",
+        "anchor": "Liên kết đến mục này", "copy": "Sao chép", "copied": "Đã sao chép",
+        "nomatch": "Không có kết quả cho “{q}”",
+        "machine": "Trang này được dịch máy từ bản gốc tiếng Anh. "
+                   "Nếu hai bản khác nhau, trang tiếng Anh là bản đúng.",
+        "machine_link": "Đọc trang tiếng Anh", "to_en": "Trang này bằng tiếng Anh",
+        "stale": "Trang tiếng Anh đã thay đổi kể từ khi trang này được dịch, nên một số nội dung có thể đã lỗi thời.",
+    },
+    "hi": {
+        "skip": "सामग्री पर जाएँ", "menu": "नेविगेशन खोलें", "search": "दस्तावेज़ों में खोजें",
+        "lang": "भाषा बदलें", "theme": "थीम बदलें", "theme_light": "हल्की थीम पर जाएँ",
+        "theme_dark": "गहरी थीम पर जाएँ", "website": "वेबसाइट", "docs": "दस्तावेज़",
+        "nav": "दस्तावेज़", "crumbs": "पेज का रास्ता", "toc": "इस पेज पर", "prev": "पिछला",
+        "next": "अगला", "anchor": "इस हिस्से का लिंक", "copy": "कॉपी करें",
+        "copied": "कॉपी हो गया", "nomatch": "“{q}” के लिए कोई नतीजा नहीं",
+        "machine": "इस पेज का अनुवाद अंग्रेज़ी मूल से मशीन ने किया है। "
+                   "अगर दोनों में फ़र्क हो, तो अंग्रेज़ी पेज सही है।",
+        "machine_link": "अंग्रेज़ी पेज पढ़ें", "to_en": "यह पेज अंग्रेज़ी में है",
+        "stale": "इस पेज के अनुवाद के बाद अंग्रेज़ी पेज बदल गया है, इसलिए इसके कुछ हिस्से पुराने हो सकते हैं।",
+    },
+    "ar": {
+        "skip": "انتقل إلى المحتوى", "menu": "افتح قائمة التنقل", "search": "ابحث في الوثائق",
+        "lang": "غيّر اللغة", "theme": "غيّر السمة", "theme_light": "التبديل إلى السمة الفاتحة",
+        "theme_dark": "التبديل إلى السمة الداكنة", "website": "الموقع", "docs": "الوثائق",
+        "nav": "الوثائق", "crumbs": "مسار التنقل", "toc": "في هذه الصفحة", "prev": "السابق",
+        "next": "التالي", "anchor": "رابط إلى هذا القسم", "copy": "نسخ", "copied": "تم النسخ",
+        "nomatch": "لا توجد نتائج لـ «{q}»",
+        "machine": "تُرجمت هذه الصفحة آليًا من الأصل الإنجليزي. "
+                   "إذا اختلف النصّان، فالصفحة الإنجليزية هي الصحيحة.",
+        "machine_link": "اقرأ الصفحة الإنجليزية", "to_en": "هذه الصفحة باللغة الإنجليزية",
+        "stale": "تغيّرت الصفحة الإنجليزية منذ ترجمة هذه الصفحة، لذا قد تكون بعض أجزائها قديمة.",
+    },
+    "he": {
+        "skip": "דילוג לתוכן", "menu": "פתיחת הניווט", "search": "חיפוש בתיעוד",
+        "lang": "החלפת שפה", "theme": "החלפת ערכת נושא",
+        "theme_light": "מעבר לערכת נושא בהירה", "theme_dark": "מעבר לערכת נושא כהה",
+        "website": "אתר", "docs": "תיעוד", "nav": "תיעוד", "crumbs": "נתיב ניווט",
+        "toc": "בדף זה", "prev": "הקודם", "next": "הבא", "anchor": "קישור לסעיף זה",
+        "copy": "העתקה", "copied": "הועתק", "nomatch": "אין תוצאות עבור „{q}”",
+        "machine": "דף זה תורגם בתרגום מכונה מהמקור באנגלית. "
+                   "אם יש הבדל ביניהם, הדף באנגלית הוא הנכון.",
+        "machine_link": "לקריאת הדף באנגלית", "to_en": "הדף הזה באנגלית",
+        "stale": "הדף באנגלית השתנה מאז שדף זה תורגם, ולכן חלקים ממנו עשויים שלא להיות עדכניים.",
+    },
+}
 
 
 def discover_languages(root, base):
@@ -170,8 +410,9 @@ def discover_languages(root, base):
 
 
 class Markdown:
-    def __init__(self, link_resolver):
+    def __init__(self, link_resolver, anchor_label="Link to this section"):
         self.inline = Inline(link_resolver)
+        self.anchor_label = anchor_label
 
     def convert(self, text):
         """Returns (html, toc) where toc is a list of (level, slug, title)."""
@@ -244,8 +485,9 @@ class Markdown:
                 if lvl in (2, 3):
                     self.toc.append((lvl, slug, re.sub(r"[*`_]", "", title)))
                 out.append('<h%d id="%s">%s<a class="anchor" href="#%s" '
-                           'aria-label="Link to this section">#</a></h%d>'
-                           % (lvl, slug, self.inline(title), slug, lvl))
+                           'aria-label="%s">#</a></h%d>'
+                           % (lvl, slug, self.inline(title), slug,
+                              html.escape(self.anchor_label), lvl))
                 i += 1
                 continue
 
@@ -413,8 +655,10 @@ class Entry:
         "description",
         "external",
         "level",
+        "machine",
         "section",
         "src",
+        "stale",
         "title",
         "toc",
         "url",
@@ -425,6 +669,11 @@ class Entry:
         self.section, self.level, self.external = section, level, external
         self.children = []
         self.toc, self.description, self.body = [], "", ""
+        # True for a translated page whose front matter says "translation: machine".
+        self.machine = False
+        # True for a translated page made from an older English page: its
+        # source_sha256 is missing or no longer the English file's SHA-256.
+        self.stale = False
 
 
 def parse_summary(path, base):
@@ -538,7 +787,7 @@ ICON_SUN = ('<svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">'
             'M19 5 C18.4 5.6 17.8 6.2 17.3 6.8 M6.6 17.3 C6 17.9 5.4 18.5 4.9 19.1"/></svg>')
 
 
-def render_lang_picker(lang, targets):
+def render_lang_picker(lang, targets, label="Change language"):
     """targets: [(code, name, url, translated_bool)] — always every language."""
     if len(targets) < 2:
         return ""
@@ -553,19 +802,24 @@ def render_lang_picker(lang, targets):
                         code.upper(), html.escape(name)))
     return ('<div class="lang-wrap">'
             '<button class="lang-btn" id="langBtn" type="button" aria-haspopup="true" '
-            'aria-expanded="false" aria-label="Change language">'
+            'aria-expanded="false" aria-label="%s">'
             '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/>'
             '<path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18"/>'
             '</svg><span>%s</span></button>'
             '<div class="lang-menu" id="langMenu" hidden>%s</div></div>'
-            % (lang.upper(), "".join(items)))
+            % (html.escape(label), lang.upper(), "".join(items)))
 
 
 def render_page(entry, entries, cfg, prev_e, next_e, lang="en", targets=(),
-                alternates=()):
+                alternates=(), en_url=None):
+    """`en_url` is the English page this one was translated from; a machine
+    translation, or one made from an older English page, links to it from a
+    notice under the title."""
     base, site = cfg["base"], cfg["site_url"]
+    ui = UI.get(lang, UI["en"])
     canonical = site + entry.url
-    title = "VOOL Docs" if entry.url == base + "/" else "%s \u00b7 VOOL Docs" % entry.title
+    brand = "VOOL Docs" if lang == "en" else "VOOL %s" % ui["docs"]
+    title = brand if entry.url == base + "/" else "%s \u00b7 %s" % (entry.title, brand)
     desc = entry.description or plain_text(entry.body, 155)
 
     toc_html = ""
@@ -573,10 +827,11 @@ def render_page(entry, entries, cfg, prev_e, next_e, lang="en", targets=(),
         items = "".join(
             '<a class="toc-l%d" href="#%s">%s</a>' % (lvl, slug, html.escape(t))
             for lvl, slug, t in entry.toc)
-        toc_html = ('<aside class="toc" aria-label="On this page">'
-                    '<div class="toc-head">On this page</div>%s</aside>' % items)
+        toc_html = ('<aside class="toc" aria-label="%s">'
+                    '<div class="toc-head">%s</div>%s</aside>'
+                    % (html.escape(ui["toc"]), html.escape(ui["toc"]), items))
 
-    crumbs = ['<a href="%s/">Docs</a>' % base]
+    crumbs = ['<a href="%s/">%s</a>' % (base, html.escape(ui["docs"]))]
     if entry.section:
         crumbs.append("<span>%s</span>" % html.escape(entry.section))
     if entry.url != base + "/":
@@ -584,11 +839,31 @@ def render_page(entry, entries, cfg, prev_e, next_e, lang="en", targets=(),
 
     pager = []
     if prev_e:
-        pager.append('<a class="pager prev" href="%s"><span>Previous</span><b>%s</b></a>'
-                     % (html.escape(prev_e.url), html.escape(prev_e.title)))
+        pager.append('<a class="pager prev" href="%s"><span>%s</span><b>%s</b></a>'
+                     % (html.escape(prev_e.url), html.escape(ui["prev"]),
+                        html.escape(prev_e.title)))
     if next_e:
-        pager.append('<a class="pager next" href="%s"><span>Next</span><b>%s</b></a>'
-                     % (html.escape(next_e.url), html.escape(next_e.title)))
+        pager.append('<a class="pager next" href="%s"><span>%s</span><b>%s</b></a>'
+                     % (html.escape(next_e.url), html.escape(ui["next"]),
+                        html.escape(next_e.title)))
+
+    # The title, then (for a machine or out-of-date translation) the notice that
+    # says so and links the English original, then the rest of the page.
+    body = entry.body
+    if body.lstrip().startswith("<h1"):
+        cut = body.find("</h1>") + len("</h1>")
+        h1, body = body[:cut], body[cut:]
+    else:
+        h1 = "<h1>%s</h1>" % html.escape(entry.title)
+    notice = ""
+    if (entry.stale or entry.machine) and en_url:
+        # An out-of-date translation says so first: it is the stronger warning.
+        notice = ('<div class="mt-note%s" role="note">%s <a href="%s" hreflang="en">%s</a></div>'
+                  % (" mt-stale" if entry.stale else "",
+                     html.escape(ui["stale"] if entry.stale else ui["machine"]),
+                     html.escape(en_url), html.escape(ui["machine_link"])))
+    # Strings the shared docs.js needs in this page's language.
+    js_ui = {k: ui[k] for k in ("theme_light", "theme_dark", "copy", "copied", "nomatch")}
 
     # hreflang alternates — only for languages that actually have this page.
     alt = "".join('<link rel="alternate" hreflang="%s" href="%s%s">'
@@ -613,6 +888,7 @@ def render_page(entry, entries, cfg, prev_e, next_e, lang="en", targets=(),
 
     return TEMPLATE.format(
         lang=lang,
+        dir=' dir="rtl"' if lang in RTL_LANGS else "",
         boot=BOOT_JS,
         title=html.escape(title),
         desc=html.escape(desc, quote=True),
@@ -621,12 +897,23 @@ def render_page(entry, entries, cfg, prev_e, next_e, lang="en", targets=(),
         base=base,
         abase=cfg["asset_base"],
         site=site,
+        ui=html.escape(json.dumps(js_ui, ensure_ascii=False, sort_keys=True,
+                                  separators=(",", ":")), quote=True),
+        t_skip=html.escape(ui["skip"]),
+        t_menu=html.escape(ui["menu"]),
+        t_search=html.escape(ui["search"]),
+        t_theme=html.escape(ui["theme"]),
+        t_website=html.escape(ui["website"]),
+        t_docs=html.escape(ui["docs"]),
+        t_nav=html.escape(ui["nav"]),
+        t_crumbs=html.escape(ui["crumbs"]),
         nav=render_nav(entries, entry.url),
         crumbs='<span class="sep">/</span>'.join(crumbs),
-        langpicker=render_lang_picker(lang, targets),
+        langpicker=render_lang_picker(lang, targets, ui["lang"]),
         moon=ICON_MOON, sun=ICON_SUN,
-        h1="" if entry.body.lstrip().startswith("<h1") else "<h1>%s</h1>" % html.escape(entry.title),
-        body=entry.body,
+        h1=h1,
+        notice=notice,
+        body=body,
         toc=toc_html,
         pager='<nav class="pager-row">%s</nav>' % "".join(pager) if pager else "",
         jsonld=json.dumps(ld, ensure_ascii=False, separators=(",", ":")),
@@ -635,7 +922,7 @@ def render_page(entry, entries, cfg, prev_e, next_e, lang="en", targets=(),
 
 
 TEMPLATE = """<!doctype html>
-<html lang="{lang}">
+<html lang="{lang}"{dir}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -660,38 +947,38 @@ TEMPLATE = """<!doctype html>
 <script>{boot}</script>
 <script type="application/ld+json">{jsonld}</script>
 </head>
-<body data-search="{base}/search.json">
-<a class="skip" href="#main">Skip to content</a>
+<body data-search="{base}/search.json" data-ui="{ui}">
+<a class="skip" href="#main">{t_skip}</a>
 
 <header class="topbar">
-  <button class="menu-btn" id="menuBtn" aria-label="Open navigation" aria-expanded="false">
+  <button class="menu-btn" id="menuBtn" aria-label="{t_menu}" aria-expanded="false">
     <span></span><span></span><span></span>
   </button>
-  <a class="brand" href="/"><span class="brand-mark">VOOL</span><span class="brand-sub">Docs</span></a>
+  <a class="brand" href="/"><span class="brand-mark">VOOL</span><span class="brand-sub">{t_docs}</span></a>
   <div class="search">
-    <input id="q" type="search" placeholder="Search documentation" autocomplete="off"
-           aria-label="Search documentation" spellcheck="false">
+    <input id="q" type="search" placeholder="{t_search}" autocomplete="off"
+           aria-label="{t_search}" spellcheck="false">
     <div class="results" id="results" role="listbox" hidden></div>
   </div>
   <div class="tools">
     {langpicker}
-    <button class="theme-toggle" id="themeBtn" type="button" aria-label="Switch theme">
+    <button class="theme-toggle" id="themeBtn" type="button" aria-label="{t_theme}">
       {moon}{sun}
     </button>
-    <nav class="topnav"><a href="/">Website</a></nav>
+    <nav class="topnav"><a href="/">{t_website}</a></nav>
   </div>
 </header>
 
 <div class="shell">
-  <aside class="sidebar" id="sidebar" aria-label="Documentation">
+  <aside class="sidebar" id="sidebar" aria-label="{t_nav}">
     <nav class="nav">{nav}</nav>
   </aside>
   <div class="scrim" id="scrim" hidden></div>
 
   <main class="main" id="main">
-    <nav class="crumbs" aria-label="Breadcrumb">{crumbs}</nav>
+    <nav class="crumbs" aria-label="{t_crumbs}">{crumbs}</nav>
     <article class="prose">
-      {h1}
+      {h1}{notice}
       {body}
     </article>
     {pager}
@@ -944,19 +1231,76 @@ tbody tr:last-child td{border-bottom:0}
   .topbar,.sidebar,.toc,.pager-row,.scrim{display:none!important}
   .shell{display:block}.main{padding:0}
 }
+
+/* ---------- translations ---------- */
+.mt-note{margin:-4px 0 22px;padding:9px 13px;font-size:13px;line-height:1.55;color:var(--mut);
+  background:var(--paper-2);border:1px solid var(--line);border-radius:8px}
+.mt-note a{color:var(--char)}
+.mt-note.mt-stale{color:var(--char);border-color:#B07A1E;border-inline-start-width:3px}
+/* A link from a translated page to a page that exists only in English. */
+.prose a.to-en::after{content:"EN";display:inline-block;margin-inline-start:5px;padding:0 4px;
+  font-family:var(--mono);font-size:9.5px;font-weight:400;letter-spacing:.08em;line-height:1.5;
+  color:var(--mut);border:1px solid var(--line);border-radius:4px;vertical-align:1px}
+
+/* ---------- right-to-left pages (ar, he); code stays left to right ---------- */
+/* Hide the skip link past the right edge: a right-to-left page scrolls to the left, so
+   left:-9999px would widen it by 9999px and phones would zoom the whole page out. */
+[dir="rtl"] .skip{left:auto;right:-9999px}
+[dir="rtl"] .skip:focus{left:auto;right:8px}
+[dir="rtl"] .tools{margin-left:0;margin-right:auto}
+[dir="rtl"] .topnav{margin-left:0;margin-right:6px}
+[dir="rtl"] .lang-menu{right:auto;left:0}
+[dir="rtl"] .sidebar{padding:22px clamp(14px,2.4vw,24px) 40px 12px;border-right:0;
+  border-left:1px solid var(--line)}
+[dir="rtl"] .nav-link{border-left:0;border-right:2px solid transparent}
+[dir="rtl"] .nav-link.is-current{border-right-color:var(--red)}
+[dir="rtl"] .nav-link.lvl-1{padding-left:10px;padding-right:24px}
+[dir="rtl"] .nav-link.lvl-2{padding-left:10px;padding-right:38px}
+[dir="rtl"] .prose ul,[dir="rtl"] .prose ol{padding-left:0;padding-right:22px}
+[dir="rtl"] .prose ul.contains-task-list{padding-right:2px}
+[dir="rtl"] .prose blockquote{padding:2px 18px 2px 0;border-left:0;border-right:2px solid var(--red)}
+[dir="rtl"] .anchor{margin-left:0;margin-right:9px}
+[dir="rtl"] th,[dir="rtl"] td{text-align:right}
+[dir="rtl"] .hint{border-left-width:1px;border-right-width:3px}
+[dir="rtl"] .hint-info{border-left-color:var(--line);border-right-color:#3B6EA5}
+[dir="rtl"] .hint-success{border-left-color:var(--line);border-right-color:#2E7D5B}
+[dir="rtl"] .hint-warning{border-left-color:var(--line);border-right-color:#B07A1E}
+[dir="rtl"] .hint-danger{border-left-color:var(--line);border-right-color:var(--red)}
+[dir="rtl"] .pager.next{text-align:left}
+[dir="rtl"] .toc{padding:26px 8px 40px 20px}
+[dir="rtl"] .toc a{padding:4px 11px 4px 0;border-left:0;border-right:1.5px solid var(--line)}
+[dir="rtl"] .toc a.active{border-right-color:var(--red)}
+[dir="rtl"] .toc .toc-l3{padding-left:0;padding-right:24px}
+[dir="rtl"] .code-block{direction:ltr;text-align:left}
+[dir="rtl"] .prose :not(pre)>code{direction:ltr;unicode-bidi:isolate}
+@media (max-width:860px){
+  [dir="rtl"] .sidebar{left:auto;right:0;transform:translateX(102%);
+    border-left:1px solid var(--line-strong)}
+  [dir="rtl"] body.nav-open .sidebar{transform:none}
+}
+/* Arabic and Devanagari letters join up: spacing them apart breaks the words, and
+   monospace fonts draw them poorly, so their small labels use the text font, unspaced. */
+:lang(ar) .brand-sub,:lang(ar) .nav-group,:lang(ar) .crumbs,:lang(ar) .pager span,
+:lang(ar) .toc-head,:lang(ar) .copy,
+:lang(hi) .brand-sub,:lang(hi) .nav-group,:lang(hi) .crumbs,:lang(hi) .pager span,
+:lang(hi) .toc-head,:lang(hi) .copy{font-family:var(--sans);letter-spacing:0}
 """
 
 
 DOCS_JS = r"""(function(){
   "use strict";
   var SEARCH_URL = document.body.getAttribute("data-search") || "/docs/search.json";
+  /* page chrome in the page's language (data-ui), English when absent */
+  var UI = {};
+  try { UI = JSON.parse(document.body.getAttribute("data-ui") || "{}") || {}; } catch (e) {}
+  function T(key, fallback){ return UI[key] || fallback; }
 
   /* ---- theme: shares the vool-theme key with the marketing site ---- */
   var root = document.documentElement, themeBtn = document.getElementById("themeBtn");
   function label(){
     var dark = root.getAttribute("data-theme") === "dark";
     if (themeBtn) themeBtn.setAttribute("aria-label",
-      dark ? "Switch to light theme" : "Switch to dark theme");
+      dark ? T("theme_light", "Switch to light theme") : T("theme_dark", "Switch to dark theme"));
   }
   label();
   if (themeBtn) themeBtn.addEventListener("click", function(){
@@ -1030,12 +1374,12 @@ DOCS_JS = r"""(function(){
   if (navigator.clipboard) {
     document.querySelectorAll(".code-block").forEach(function(block){
       var b = document.createElement("button");
-      b.className = "copy"; b.type = "button"; b.textContent = "Copy";
+      b.className = "copy"; b.type = "button"; b.textContent = T("copy", "Copy");
       b.addEventListener("click", function(){
         var code = block.querySelector("code");
         navigator.clipboard.writeText(code ? code.textContent : "").then(function(){
-          b.textContent = "Copied";
-          setTimeout(function(){ b.textContent = "Copy"; }, 1400);
+          b.textContent = T("copied", "Copied");
+          setTimeout(function(){ b.textContent = T("copy", "Copy"); }, 1400);
         });
       });
       block.appendChild(b);
@@ -1096,7 +1440,8 @@ DOCS_JS = r"""(function(){
     hits = hits.slice(0, 8);
     sel = -1;
     if (!hits.length) {
-      panel.innerHTML = '<div class="empty">No matches for &ldquo;' + esc(term) + '&rdquo;</div>';
+      panel.innerHTML = '<div class="empty">' +
+        esc(T("nomatch", "No matches for \u201c{q}\u201d").replace("{q}", term)) + '</div>';
       panel.hidden = false; return;
     }
     panel.innerHTML = hits.map(function(h){
@@ -1155,14 +1500,20 @@ def build(src, out, base, site_url, edit_base):
                 "asset_base": base}
 
     # ---- pass 1: parse and convert every language ----------------------
-    trees, missing_all = {}, {}
+    trees, missing_all, stale_all = {}, {}, {}
     for code, ldir, lbase in languages:
         entries = parse_summary(os.path.join(ldir, cfg_yaml["summary"]), lbase)
         if not entries:
             print("!! %s: no entries in %s — skipped" % (code, cfg_yaml["summary"]),
                   file=sys.stderr)
             continue
-        missing = []
+        missing, stale = [], []
+        ui = UI.get(code, UI["en"])
+        # A translation's links that climb out of its own folder are read from the
+        # page's real place in the repository and land on the English page.
+        tree = None if code == "en" else {
+            "prefix": os.path.relpath(ldir, root).replace(os.sep, "/"),
+            "en_base": base, "to_en": ui["to_en"]}
         for e in (x for x in entries if not x.external):
             path = os.path.join(ldir, e.src)
             if not os.path.isfile(path):
@@ -1174,11 +1525,23 @@ def build(src, out, base, site_url, edit_base):
             with open(path, encoding="utf-8") as fh:
                 meta, text = split_front_matter(fh.read())
             e.description = meta.get("description", "")
-            md = Markdown(lambda h, asset=False, _s=e.src, _b=lbase:
-                          resolve_link(h, _s, _b, asset, base))
+            e.machine = code != "en" and meta.get("translation", "") == "machine"
+            if code != "en":
+                # A translation records the SHA-256 of the English file it was made
+                # from (tools/docs/check_translations.py stamp). When the English
+                # has changed since, the page still publishes, under a notice.
+                english = os.path.join(root, e.src)
+                e.stale = (not os.path.isfile(english)
+                           or meta.get("source_sha256", "") != _sha256_file(english))
+                if e.stale:
+                    stale.append(e.src)
+            md = Markdown(lambda h, asset=False, _s=e.src, _b=lbase, _t=tree:
+                          resolve_link(h, _s, _b, asset, base, _t),
+                          anchor_label=ui["anchor"])
             e.body, e.toc = md.convert(text)
         trees[code] = (lbase, entries)
         missing_all[code] = missing
+        stale_all[code] = stale
 
     if not trees:
         print("!! nothing to build — no language has a usable SUMMARY.md",
@@ -1216,7 +1579,8 @@ def build(src, out, base, site_url, edit_base):
 
             page = render_page(e, entries, cfg, internal[n - 1] if n else None,
                                internal[n + 1] if n + 1 < len(internal) else None,
-                               lang=code, targets=targets, alternates=alternates)
+                               lang=code, targets=targets, alternates=alternates,
+                               en_url=have.get("en", {}).get(e.src))
             dest = out_path_for(e.url, lbase, outdir)
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             with open(dest, "w", encoding="utf-8") as fh:
@@ -1315,7 +1679,8 @@ def build(src, out, base, site_url, edit_base):
     with open(os.path.join(out, "build.json"), "w", encoding="utf-8") as fh:
         json.dump({"built": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                    "languages": sorted(trees), "pages": total, "assets": copied,
-                   "missing": {k: v for k, v in missing_all.items() if v}},
+                   "missing": {k: v for k, v in missing_all.items() if v},
+                   "out_of_date": {k: v for k, v in stale_all.items() if v}},
                   fh, indent=2)
 
     print("built %d pages in %d language(s), %d assets -> %s"
@@ -1323,14 +1688,29 @@ def build(src, out, base, site_url, edit_base):
     for code, miss in missing_all.items():
         for mfile in miss:
             print("   %s: listed in SUMMARY.md but no file yet: %s" % (code, mfile))
+    for code, old in stale_all.items():
+        for sfile in old:
+            print("   %s: translation older than the English page, shown with a notice: %s"
+                  % (code, sfile))
     return 0
 
 
-def resolve_link(href, from_src, base, asset=False, asset_base=None):
+def _sha256_file(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def resolve_link(href, from_src, base, asset=False, asset_base=None, tree=None):
     """Rewrite a repo-relative markdown/asset link into a site URL.
 
     `base` is the current language's URL prefix; `asset_base` is the docs root,
-    because every language shares one asset directory."""
+    because every language shares one asset directory. `tree` is set for a
+    translated page: {"prefix": its folder under the docs root, e.g.
+    "translations/de", "en_base": the English URL prefix, "to_en": link title}.
+    A translated page links a page that has no translation yet by climbing out
+    of its own folder to the English file (../../concepts/memory.md from
+    translations/de/README.md), the same file GitHub opens for that link; such a
+    link resolves to the English page and comes back as (url, attrs, title)."""
     if re.match(r"^(https?:|mailto:|tel:|#|//)", href):
         return href
     frag = ""
@@ -1344,6 +1724,13 @@ def resolve_link(href, from_src, base, asset=False, asset_base=None):
     if joined.startswith(".gitbook/assets/") or asset:
         return "%s/assets/%s%s" % (asset_base if asset_base is not None else base,
                                    os.path.basename(joined), frag)
+    if tree and (joined == ".." or joined.startswith("../")):
+        real = os.path.normpath(os.path.join(tree["prefix"], os.path.dirname(from_src), href))
+        real = real.replace(os.sep, "/")
+        if (real.lower().endswith(".md") and not real.startswith("../")
+                and not real.startswith("translations/")):
+            return (url_for(real, tree["en_base"]) + frag, ' class="to-en" hreflang="en"',
+                    tree["to_en"])
     if joined.lower().endswith(".md"):
         return url_for(joined, base) + frag
     return "%s/%s%s" % (base, joined, frag)
