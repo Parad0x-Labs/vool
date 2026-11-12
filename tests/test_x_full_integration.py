@@ -477,6 +477,25 @@ def test_catalog_available_without_keys_and_discovery_reflects_actual_access(vau
     assert any(row['id'] == 'searchCommunities' for row in result.details['features'])
 
 
+def test_the_chat_model_can_propose_a_post_through_its_native_tool_call(vault_home):
+    """The model's own call shape for a post passes the argument check before anything runs.
+
+    Found in the running app: the offered schema left `body` untyped, the check before execution
+    admits no value for an untyped field, and so every X post, reply or like the model proposed
+    was refused there and never reached Settings for approval."""
+    from core.cloud_tool_call_contract import build_cloud_tool_definitions, parse_native_tool_calls
+    from core.runtime_execution_tools import runtime_execution_tool_specs
+    from tests.test_x_api_reads import _connect
+
+    _connect()
+    definitions = build_cloud_tool_definitions(runtime_execution_tool_specs())
+    request = next(item for item in definitions if item.intent == 'x.api.request')
+    calls = parse_native_tool_calls([{'type': 'function', 'function': {'name': request.name, 'arguments': {
+        'operation_id': 'createPosts', 'body': {'text': 'A garden update'}}}}], definitions=definitions)
+    assert [(call.intent, call.arguments) for call in calls] == [
+        ('x.api.request', {'operation_id': 'createPosts', 'body': {'text': 'A garden update'}})]
+
+
 def test_new_read_uses_real_local_provider_and_quota_receipt(vault_home, monkeypatch):
     from core import usage_quota, x_api, x_request_gateway
 
