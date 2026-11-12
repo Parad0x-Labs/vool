@@ -1465,3 +1465,25 @@ def test_a_wiki_of_ones_own_is_not_wikipedia(asked):
     from core.tool_demand_signals import resolve_demand_signals
 
     assert "web" not in resolve_demand_signals(asked).required_families
+
+
+_DANUBE = [{"summary": "The Danube is Europe's second-longest river, at about 2,850 km (1,770 mi) long.",
+            "result_url": "https://en.wikipedia.org/wiki/Danube", "origin_domain": "en.wikipedia.org"}]
+
+
+@pytest.mark.parametrize("answer", ["The Danube is about 2,850 miles long.",
+                                    "The Danube spans approximately 2,850 miles (4,580 kilometers)."])
+def test_a_number_in_the_wrong_unit_is_not_supported(answer):
+    from core.claim_support import match_claims
+
+    claims = match_claims(answer=answer, notes=_DANUBE, request_text="per wikipedia, how long is the danube?").claims
+    assert claims and all(claim.status != "supported" for claim in claims)
+
+
+@pytest.mark.parametrize("answer", ["The Danube is about 2,850 km long.", "The Danube is about 1,770 miles long.",
+                                    "The Danube is about 2,850 kilometres (1,770 miles) long."])
+def test_the_same_number_in_the_same_unit_is_supported(answer):
+    from core.claim_support import match_claims
+
+    claims = match_claims(answer=answer, notes=_DANUBE, request_text="per wikipedia, how long is the danube?").claims
+    assert claims and all(claim.status == "supported" for claim in claims)

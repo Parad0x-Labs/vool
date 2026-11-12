@@ -248,6 +248,10 @@ class ClaimAnchors:
     #: claim's subject cannot support the claim either (measured 2026-09-06: a Passat production
     #: page that mentions Europe "supported" "Regions: Golf sells mainly in Europe").
     subjects: tuple[str, ...] = ()
+    #: (number, unit) pairs the claim states ("2,850 miles" -> ("2850", "mile")). A number a source
+    #: states only in ANOTHER unit does not support it: 2,850 km is not 2,850 miles (0.7.8 sweep
+    #: block 2c published "the Danube is about 2,850 miles long" against a 2,850 km source).
+    quantities: tuple[tuple[str, str], ...] = ()
 
     @property
     def specific(self) -> bool:
@@ -355,6 +359,41 @@ def _extract_dates(text: str) -> tuple[date, ...]:
         except ValueError:
             continue
     return tuple(found)
+
+
+#: Units people state a measured quantity in, folded to one name per unit. Closed list; a number
+#: followed by anything else carries no unit here.
+_UNIT_NAMES = {
+    "km": "km", "kms": "km", "kilometer": "km", "kilometers": "km", "kilometre": "km", "kilometres": "km",
+    "mi": "mile", "mile": "mile", "miles": "mile",
+    "m": "m", "meter": "m", "meters": "m", "metre": "m", "metres": "m",
+    "ft": "ft", "foot": "ft", "feet": "ft",
+    "cm": "cm", "mm": "mm", "in": "inch", "inch": "inch", "inches": "inch",
+    "kg": "kg", "kgs": "kg", "kilogram": "kg", "kilograms": "kg",
+    "lb": "lb", "lbs": "lb", "pound": "lb", "pounds": "lb",
+    "t": "tonne", "tonne": "tonne", "tonnes": "tonne", "ton": "ton", "tons": "ton",
+    "°c": "c", "c": "c", "celsius": "c", "°f": "f", "f": "f", "fahrenheit": "f",
+    "km²": "km2", "km2": "km2", "sq": "sq", "acres": "acre", "acre": "acre", "hectares": "ha", "ha": "ha",
+}
+_QUANTITY_RE = re.compile(
+    r"(?<![\w.])(\d[\d,]*(?:\.\d+)?)\s?(°\s?[cf]\b|km²|[a-z]+\b)", re.IGNORECASE
+)
+
+
+def _unit_quantities(text: str) -> set[tuple[str, str]]:
+    """(number, unit) pairs stated in the text, numbers folded the way `_extract_numerics` folds them."""
+    pairs: set[tuple[str, str]] = set()
+    for match in _QUANTITY_RE.finditer(str(text or "")):
+        unit = _UNIT_NAMES.get(match.group(2).lower().replace(" ", ""))
+        if not unit:
+            continue
+        # "in" after a number is a unit only in a measurement shape ("12 in long"); "2002 in Paris"
+        # is a preposition. Inches are left out unless written "inch"/"inches".
+        if match.group(2).lower() == "in":
+            continue
+        for value in _extract_numerics(match.group(1)):
+            pairs.add((value, unit))
+    return pairs
 
 
 def _extract_numerics(text: str) -> set[str]:
@@ -658,6 +697,7 @@ def extract_claim_anchors(
         terms=terms,
         currency_markers=_has_currency_marker(folded_segment),
         subjects=_subject_candidates(segment, stopwords=stopwords, request_terms=request_terms),
+        quantities=tuple(sorted(_unit_quantities(segment))),
     )
 
 
@@ -814,6 +854,13 @@ def _source_supports(
 
     if anchors.numerics and source.numerics and not matched_numerics:
         return False, ("value_mismatch",)
+    if anchors.quantities:
+        stated = _unit_quantities(source.folded)
+        for value, unit in anchors.quantities:
+            units_in_source = {u for v, u in stated if v == value}
+            if units_in_source and unit not in units_in_source:
+                # The source states this number, but as a different measure.
+                return False, ("unit_mismatch",)
     # A shared YEAR cannot carry a quantity: "37 million units by end of 2024" is not supported by a
     # page that mentions a 2024 facelift. When the claim states quantities, one of them must match.
     quantities = {value for value in anchors.numerics if not _year_like(value)}
