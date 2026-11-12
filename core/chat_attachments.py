@@ -1780,6 +1780,9 @@ def evidence_items_for_turn(*, session_id: str, turn_id: str, question: str = ""
                 item["origin"] = "chat_attachment"
                 remaining = max(0, remaining - len(str(item.get("text") or "")))
             items.append(item)
+    from core.disclosure.sources import register_prepared
+
+    register_prepared(items)
     return items
 
 
@@ -1830,6 +1833,9 @@ def model_attachments_for_turn(*, session_id: str, turn_id: str, question: str =
                     if truncated:
                         entry["selection"] = selection
             entries.append(entry)
+    from core.disclosure.sources import register_prepared
+
+    register_prepared(entries)
     return entries
 
 
@@ -1885,6 +1891,9 @@ def carried_documents_for_turn(*, session_id: str, exclude_turn_id: str = "", bu
         if selection:
             entry["selection"] = selection
         entries.append(entry)
+    from core.disclosure.sources import register_prepared
+
+    register_prepared(entries)
     return entries
 
 
@@ -2046,8 +2055,12 @@ def apply_to_provider_messages(
         target = len(rendered) - 1
     original = rendered[target].get("content")
     parts: list[dict[str, Any]] = list(original) if isinstance(original, list) else [{"type": "text", "text": str(original or "")}]
+    from core.disclosure.sources import AttachmentParts
+
+    parts = AttachmentParts(parts)
     receipts: list[dict[str, Any]] = []
     for entry in entries:
+        parts.source = str(entry.get("attachment_id") or entry.get("id") or "")
         attachment_id = str(entry.get("attachment_id") or "")
         name = str(entry.get("name") or "attachment")
         kind = str(entry.get("kind") or "").lower()
@@ -2148,7 +2161,11 @@ def flatten_message_for_ollama(message: dict[str, Any]) -> dict[str, Any]:
         if part.get("type") == "image_url":
             url = str((part.get("image_url") or {}).get("url") or "")
             if url.startswith("data:") and "," in url:
-                images.append(url.split(",", 1)[1])
+                encoded = url.split(",", 1)[1]
+                from core.disclosure.sources import register_derived
+
+                register_derived(url, encoded)
+                images.append(encoded)
             continue
         text = part.get("text")
         if isinstance(text, str) and text:

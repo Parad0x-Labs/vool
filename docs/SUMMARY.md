@@ -38,9 +38,12 @@
 * [Pay for web resources (x402)](guides/paid-resources.md)
 * [Private invoices with Zcash](guides/zcash-invoices.md)
 * [Contacts](guides/contacts.md)
+* [My things](guides/my-things.md)
+* [My routines](guides/routines.md)
 * [Lend a job](guides/lend-a-job.md)
 * [X drafts, ratings and results](guides/x-social.md)
 * [X integration](guides/x-integration.md)
+* [See what leaves your computer](guides/what-leaves-your-computer.md)
 
 ## Reference
 

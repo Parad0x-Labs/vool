@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import signal
@@ -13,14 +14,19 @@ from pathlib import Path
 
 import psutil
 
-from core.artifact_readers._sandbox import (
-    confinement_available,
-    extraction_budget,
-    run_confined,
-)
+from core.artifact_readers._sandbox import confinement_available as _os_confinement_available
+from core.artifact_readers._sandbox import extraction_budget, run_confined
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
 
 from .terms import MAX_OUTPUT, OFFERED, LendError, demand, identity
+
+
+def confinement_available():
+    """Whether a lent job can run here: the macOS sandbox this worker's profile is written for.
+
+    Linux confinement (bubblewrap) reads documents in the person's own chats, but a guest's job is not
+    offered on it in this version: the worker, its limits and its tests are proven on macOS only."""
+    return platform.system() == 'Darwin' and _os_confinement_available()
 
 
 def available(capability):

@@ -122,6 +122,10 @@ def chat_surface_honest_degraded_response(
     if provider_hint:
         return provider_hint
 
+    preview_hint = _disclosure_preview_needed_hint(model_execution)
+    if preview_hint:
+        return preview_hint
+
     cancelled_hint = _cancelled_turn_hint(model_execution)
     if cancelled_hint:
         return cancelled_hint
@@ -970,6 +974,21 @@ def _provider_auth_failure_hint(model_execution: Any) -> str:
             "Check the key and its permissions under Settings → API Keys, then send your message again."
         )
     return ""
+
+
+def _disclosure_preview_needed_hint(model_execution: Any) -> str:
+    """A cloud call stopped at a preview its caller cannot show is a wait for review, not a failure.
+
+    The disclosure wire raises it before anything is sent (core.disclosure.wire.
+    DisclosurePreviewNeeded); worded as a model failure it would send the user to the model
+    selector instead of to the chat page, where the preview is waiting for them.
+    """
+    from core.disclosure.wire import PREVIEW_NEEDED_DETAIL
+
+    details = getattr(model_execution, "details", None)
+    if not isinstance(details, dict):
+        return ""
+    return PREVIEW_NEEDED_DETAIL if PREVIEW_NEEDED_DETAIL in _provider_failure_evidence(details) else ""
 
 
 def _cancelled_turn_hint(model_execution: Any) -> str:

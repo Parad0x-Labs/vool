@@ -1259,6 +1259,36 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: Opened from the sidebar button; the draft called it palette-only, the sidebar button exists too.
+  - id: my-things
+    title: My things (household records, receipts, photo match, prepared drafts)
+    area: other
+    ui: [thingsLink, myThingsSetting, myThingsRoot]
+    wired: ["/my-things", "/api/my-things", "/api/my-things/*", things.search, things.match, things.prepare]
+    default: []
+    tests: [tests/my_things/test_browser.py, tests/my_things/test_match.py, tests/my_things/test_prepare.py]
+    label: TESTED
+    target_release: unknown
+    note: Starts with an empty list; nothing is scanned or added on its own.
+  - id: my-routines
+    title: My routines (teach a folder task once, look at the exact list, run it)
+    area: other
+    ui: [routinesLink, routinesSetting, rtTeach, rtOps]
+    wired: ["/routines", "/api/routines", "/api/routines/*"]
+    default: []
+    tests: [tests/routines/test_served_doors.py, tests/routines/test_browser.py, tests/routines/test_plan_and_run.py]
+    label: TESTED
+    target_release: unknown
+    note: A schedule only adds a bell note; a run always waits for Run on the exact list the person saw.
+  - id: cloud-disclosure
+    title: See and approve the exact words before anything goes to a cloud model
+    area: memory-permissions
+    ui: []
+    wired: ["/api/disclosure/*"]
+    default: []
+    tests: [tests/disclosure/test_preview_needed.py, tests/disclosure/test_served_clean_loop.py]
+    label: TESTED
+    target_release: unknown
+    note: The preview is drawn in the chat as each cloud step comes up, without an element id.
   - id: notification-bell
     title: Notification bell and hub
     area: other

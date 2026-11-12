@@ -13,11 +13,10 @@ fail-safe: ``verify_gpu_inference`` never raises. Style mirrors ``core/machine_d
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from core.disclosure import urllib_transport as urllib
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
@@ -154,7 +153,7 @@ def _excerpt(text: str) -> str:
 
 def _default_http_post(url: str, payload: dict, timeout: float) -> tuple[int, dict | None, str]:
     """POST ``payload`` as JSON to ``url``; return (status, parsed_json_or_None, error_text)."""
-    data = json.dumps(payload).encode("utf-8")
+    data = payload
     request = urllib.request.Request(
         url, data=data, headers={"Content-Type": "application/json"}, method="POST"
     )
@@ -263,7 +262,11 @@ def verify_gpu_inference(
     }
 
     try:
+        _disclosure_endpoint = url
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
+            control_only=True,
+            privacy_class='public',
             provider_id="ollama:gpu-inference-probe",
             model_id=model,
             operation="generation_probe",

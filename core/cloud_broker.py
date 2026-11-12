@@ -13,6 +13,7 @@ from core.cloud_provider_contract import (
     CloudModelResponse,
     CloudTaskRequirements,
     PricingState,
+    PrivacyClass,
     ProviderError,
     ProviderErrorKind,
 )
@@ -451,6 +452,12 @@ class CloudModelBroker:
                     metadata=deepcopy(request.metadata),
                 )
                 call_request.metadata.pop("request_evidence_finalized", None)
+                from core.disclosure.privacy import PrivacyScope
+                call_request.metadata["_disclosure_privacy"] = PrivacyScope(
+                    (PrivacyClass(str(requirements.privacy_class)),), tuple(paths), tuple(requirements.data_categories))
+                call_request.metadata["_disclosure_sensitive"] = str(requirements.privacy_class) not in {
+                    "public", "user-approved",
+                } or bool(paths) or bool(requirements.data_categories)
                 estimated_max = float(recheck.estimated_max_usd or 0.0)
                 current_executed_key = str(fresh.catalog_key or f"{fresh.provider_id}:{fresh.model_id}")
                 predecessor_key = (
@@ -527,6 +534,9 @@ class CloudModelBroker:
                         transport,
                         call_request,
                     )
+                    from core.disclosure.restore import restore_response
+
+                    response = restore_response(call_request, response)
                     wire_evidence = None
                     if call_request.metadata.get("request_evidence_finalized"):
                         finalized = call_request.metadata.get("admitted_capsule_evidence")

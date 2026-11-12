@@ -12,6 +12,7 @@ from core.brain_hive_artifacts import store_artifact_manifest
 from core.brain_hive_research import is_disposable_research_topic
 from core.candidate_knowledge_lane import get_candidate_by_id
 from core.curiosity_roamer import CuriosityRoamer
+from core.disclosure.direct import received_headers, request_options
 from core.hive_activity_tracker import HiveActivityTracker
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
@@ -1074,7 +1075,9 @@ def _generate_refinement_queries(
             "temperature": 0.8,
             "max_tokens": 300,
         }
+        _disclosure_endpoint = f"{base_url}/v1/chat/completions"
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
             provider_id="ollama:research-refinement",
             model_id=model,
             operation="research_query_refinement",
@@ -1097,11 +1100,13 @@ def _generate_refinement_queries(
             max_output_tokens=300,
             header_names=("Content-Type",),
         )
+        _disclosure_body = permit.consume()
         resp = __import__("requests").post(
-            f"{base_url}/v1/chat/completions",
-            json=permit.consume(),
+            _disclosure_endpoint,
+            **request_options(_disclosure_body, _disclosure_endpoint),
             timeout=25,
         )
+        received_headers(_disclosure_body)
         resp.raise_for_status()
         text = resp.json()["choices"][0]["message"]["content"].strip()
         lines = [

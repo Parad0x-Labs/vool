@@ -195,10 +195,13 @@ def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None
 
     def call(messages: list[dict[str, str]]) -> str:
         from core import runtime_active_clock
+        from core.clean_loop.loop import BoundaryStop, carries_owner_evidence
+        from core.disclosure.wire import STOP_NOTE_KEY
         from core.memory_first_router import _release_undispatched_pin_reservation
         from core.paid_call_reservation import release_owner_pick_paid_call
         from core.provider_call_deadline import bind_provider_deadline
 
+        stop_note: dict[str, str] = {}
         system = next((m["content"] for m in messages if m.get("role") == "system"), "")
         last_user = next((m["content"] for m in reversed(messages) if m.get("role") == "user"), "")
         request = ModelRequest(
@@ -210,7 +213,12 @@ def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None
             max_output_tokens=_MAX_OUTPUT_TOKENS,
             output_mode="plain_text",
             reasoning_mode="disabled",
-            metadata={"clean_local_loop": True},
+            # What the loop read on the owner's computer rides in these messages: on a cloud brain the
+            # disclosure boundary previews it like any other request that carries the owner's files,
+            # and says in `stop_note` when the owner's answer (or a preview this caller cannot show)
+            # stopped the step. The router copies metadata per call, so the shared dict carries it back.
+            metadata={"clean_local_loop": True, "_disclosure_carries_files": carries_owner_evidence(messages),
+                      STOP_NOTE_KEY: stop_note},
             allow_response_control_retry=False,
             allow_provider_retry=False,
         )
@@ -236,12 +244,17 @@ def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None
                 release_owner_pick_paid_call(
                     authorization, reason="call_failed", source_context=context, call_role="clean_loop_step"
                 )
+            if stop_note:
+                raise BoundaryStop(stop_note.get("kind", ""), stop_note.get("message", "")) from None
             raise
         if response is None or error:
             if authorization is not None:
                 # A refusal before any request was built leaves the hold standing: hand it back
                 # (a no-op on one the invoke loop already settled or released).
                 _release_undispatched_pin_reservation(authorization, source_context=context)
+            if stop_note:
+                # The owner's cloud boundary stopped this step before anything was sent.
+                raise BoundaryStop(stop_note.get("kind", ""), stop_note.get("message", ""))
             raise RuntimeError(str(error or "no_response"))
         return str(getattr(response, "output_text", "") or "")
 

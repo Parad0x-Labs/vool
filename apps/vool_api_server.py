@@ -730,6 +730,15 @@ def main() -> int:
             start_default_daemon()
         except Exception:
             logger.exception("standing coordinator failed to start; server continues without it")
+        # My routines: at a routine's chosen time the poller makes its list and adds one bell item. It never
+        # runs a routine (the person looks at the list and chooses Run) and looks into a folder only when a
+        # scheduled routine comes due. Fail-soft like the dispatcher.
+        try:
+            from core.routines.schedule import start_default_poller as start_routine_schedule
+
+            start_routine_schedule()
+        except Exception:
+            logger.exception("routine schedule poller failed to start; server continues without routine notices")
         # Calendar alerts: the bounded background sync of opted-in calendars (a few accounts per tick, each
         # refreshed every 10 minutes, never on chat turns). Fail-soft like the dispatcher.
         try:
@@ -817,6 +826,12 @@ def main() -> int:
             from core.standing_coordinator.daemon import stop_default_daemon
 
             stop_default_daemon()
+        except Exception:
+            pass
+        try:
+            from core.routines.schedule import stop_default_poller as stop_routine_schedule
+
+            stop_routine_schedule()
         except Exception:
             pass
         try:

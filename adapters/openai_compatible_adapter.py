@@ -355,7 +355,11 @@ class OpenAICompatibleAdapter(ModelAdapter):
         )
         try:
             headers = self._headers()
+            _disclosure_endpoint = endpoint
             permit = seal_direct_provider_invocation(
+                destination_url=_disclosure_endpoint,
+                control_only=prewarm_config.get("message") is None and prewarm_config.get("prompt") is None,
+                privacy_class='public',
                 provider_id=self.manifest.provider_id,
                 model_id=str(payload.get("model") or ""),
                 operation="prewarm",
@@ -474,9 +478,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
     def stream_text_task(self, request: ModelRequest):
         self._assert_local_only_allows(request)
-        if self._uses_native_ollama_chat():
-            return self._stream_ollama_chat(request)
-        return self._stream_openai_compatible(request)
+        from core.disclosure.restore import restore_stream
+
+        chunks = self._stream_ollama_chat(request) if self._uses_native_ollama_chat() else self._stream_openai_compatible(request)
+        return restore_stream(request, chunks)
 
     def invoke(self, request: ModelRequest) -> ModelResponse:
         force_json = request.output_mode in {"json_object", "action_plan", "tool_intent", "summary_block"}
@@ -484,9 +489,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
     def _invoke_http(self, request: ModelRequest, *, force_json: bool) -> ModelResponse:
         self._assert_local_only_allows(request)
-        if self._uses_native_ollama_chat():
-            return self._invoke_ollama_chat(request, force_json=force_json)
-        return self._invoke_openai_compatible(request, force_json=force_json)
+        from core.disclosure.restore import restore_response
+
+        response = self._invoke_ollama_chat(request, force_json=force_json) if self._uses_native_ollama_chat() else self._invoke_openai_compatible(request, force_json=force_json)
+        return restore_response(request, response)
 
     def _invoke_openai_compatible(self, request: ModelRequest, *, force_json: bool) -> ModelResponse:
         if request.is_cancelled():
@@ -547,6 +553,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             timeout_seconds = effective_timeout_seconds(request, timeout_seconds)
             for reasoning_try in range(2):
                 permit = seal_provider_invocation(
+                    destination_url=f"{base_url}{api_path}",
+                    cloud_destination=self.manifest.metadata.get("deployment_class") == "cloud",
                     request=request,
                     provider_id=self.manifest.provider_id,
                     model_id=self.manifest.model_name,
@@ -793,6 +801,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             """One sealed, admitted socket round. Each round seals its own payload — a second
             round carries different messages and must journal its own invocation."""
             permit = seal_provider_invocation(
+                destination_url=f"{base_url}/api/chat",
+                cloud_destination=self.manifest.metadata.get("deployment_class") == "cloud",
                 request=request,
                 provider_id=self.manifest.provider_id,
                 model_id=self.manifest.model_name,
@@ -944,6 +954,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
         )
         headers = self._headers(base_url=base_url, api_key=dispatch_key)
         permit = seal_provider_invocation(
+            destination_url=f"{base_url}{api_path}",
+            cloud_destination=self.manifest.metadata.get("deployment_class") == "cloud",
             request=request,
             provider_id=self.manifest.provider_id,
             model_id=self.manifest.model_name,
@@ -968,6 +980,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
         def _iter_chunks():
             stream_usage: dict[str, Any] = {}
             response_metadata = {}
+            tool_requested = False
+            from core.model_compare.tool_observation import requested_tool
             # OpenAI-compatible streams typically repeat "model" on every frame, but the contract
             # here only promises it arrives on SOME frame -- captured once, the first time it's
             # seen, and carried on every chunk from then on (including the terminal one). Stays
@@ -991,6 +1005,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     if event == "__DONE__":
                         break
                     response_metadata.update(response_body_facts(event))
+                    tool_requested |= requested_tool(event)
                     if isinstance(event, dict) and event.get("usage"):
                         # The terminal usage frame carries choices:[] (no delta) plus tokens + cost.
                         stream_usage = dict(event["usage"])
@@ -1030,7 +1045,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 delta_text="",
                 done=True,
                 usage=stream_usage or None,
-                provider_metadata={"response_headers": response_header_facts(getattr(response, "headers", None)),
+                provider_metadata={**({"vool_tool_request_observed": True} if tool_requested else {}),
+                                   "response_headers": response_header_facts(getattr(response, "headers", None)),
                                    "response_metadata": response_metadata,
                                    **provider_search_metadata(
                                        granted_provider_tools(getattr(request, "metadata", None)),
@@ -1063,6 +1079,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
         )
         headers = self._headers()
         permit = seal_provider_invocation(
+            destination_url=f"{base_url}/api/chat",
+            cloud_destination=self.manifest.metadata.get("deployment_class") == "cloud",
             request=request,
             provider_id=self.manifest.provider_id,
             model_id=self.manifest.model_name,
@@ -1099,6 +1117,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # Ollama's NDJSON frame carries "model", carried on every chunk from then on.
             attested_model: str | None = None
             finish_reason = ""
+            tool_requested = False
+            from core.model_compare.tool_observation import requested_tool
             try:
                 for raw_line in response.iter_lines(decode_unicode=True):
                     _assert_response_timely(request, response)
@@ -1110,6 +1130,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     event = _parse_stream_line(line)
                     if not isinstance(event, dict):
                         continue
+                    tool_requested |= requested_tool(event)
                     if attested_model is None and event.get("model"):
                         attested_model = str(event["model"])
                     if event.get("done_reason"):
@@ -1150,6 +1171,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 delta_text="",
                 done=True,
                 usage=stream_usage or None,
+                provider_metadata={"vool_tool_request_observed": True} if tool_requested else None,
                 provider_attested_model=attested_model,
                 finish_reason=finish_reason,
             )
@@ -2156,7 +2178,11 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 payload["tools"] = [openai_tool_payload(tool) for tool in tools]
                 if tool_choice:
                     payload["tool_choice"] = tool_choice
+        _disclosure_endpoint = endpoint
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
+            control_only=True,
+            privacy_class='public',
             provider_id=self.manifest.provider_id,
             model_id=self.manifest.model_name,
             operation="local_tool_certification",
@@ -2452,6 +2478,9 @@ def _finalize_provider_evidence_messages(
         eligible = clean_message.pop("_vool_evidence_support", False) is True
         final_messages.append(clean_message)
         if eligible:
+            from core.disclosure.sources import register_admitted_memory
+
+            register_admitted_memory(request, clean_message)
             evidence_messages.append(clean_message)
     from core.bootstrap_context import finalize_request_evidence
 
@@ -2498,6 +2527,10 @@ def _request_messages_with_memory(
         messages = [{**message, "_vool_evidence_support": index in eligible_indices}
                     for index, message in enumerate(messages)]
     memory_prefix = build_memory_prefix_for_request(request)
+    if memory_prefix:
+        from core.disclosure.sources import register_memory_content
+
+        register_memory_content(memory_prefix)
     messages = apply_memory_prefix_to_messages(messages, request, prefix=memory_prefix)
     if context_window <= 0:
         return messages

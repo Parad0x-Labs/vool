@@ -1163,6 +1163,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/disclosure/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/disclosure/*",
+      "note": "cloud disclosure lane read feed family (pending preview, settings, projects, local models, comparison job; loopback-only)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/discovery": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/discovery",
@@ -1366,6 +1373,20 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/my-things": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/my-things",
+      "note": "household records owner-local listing",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/my-things/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/my-things/*",
+      "note": "household records owner-local views",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/notifications": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/notifications",
@@ -1490,6 +1511,20 @@
       "name": "GET /api/repoops/sessions",
       "note": "legacy surface forwards through execute_command",
       "registry_command_id": "repoops.sessions",
+      "surface": "http"
+    },
+    "http:GET:/api/routines": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/routines",
+      "note": "routines owner-local listing",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/routines/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/routines/*",
+      "note": "routines owner-local views (folders, watch, names)",
+      "registry_command_id": "",
       "surface": "http"
     },
     "http:GET:/api/runtime/capabilities": {
@@ -1807,6 +1842,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/my-things": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /my-things",
+      "note": "household records page transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/null-browser": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /null-browser",
@@ -1818,6 +1860,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /pet-yard",
       "note": "yard lane local page (offline cosmetic play)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/routines": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /routines",
+      "note": "My routines page transport",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2409,6 +2458,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/disclosure/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/disclosure/*",
+      "note": "cloud disclosure lane operator surface family (preview decision, local retry, settings, source rules, comparisons; loopback, host and origin gated)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/discovery/refresh": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/discovery/refresh",
@@ -2661,6 +2717,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/my-things/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/my-things/*",
+      "note": "household records owner-local actions with confirmation",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/notifications/action": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/notifications/action",
@@ -2827,6 +2890,13 @@
       "name": "POST /api/repoops/authorize-push",
       "note": "legacy surface forwards through execute_command",
       "registry_command_id": "repoops.authorize_push",
+      "surface": "http"
+    },
+    "http:POST:/api/routines/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/routines/*",
+      "note": "routines owner-local actions with confirmation",
+      "registry_command_id": "",
       "surface": "http"
     },
     "http:POST:/api/runtime/unresolved-effects/resolve": {
@@ -3581,7 +3651,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 335,
+    "EXTERNAL_TRANSPORT_ONLY": 345,
     "GENERATED_ADAPTER": 167,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

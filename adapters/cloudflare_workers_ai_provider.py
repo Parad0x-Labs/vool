@@ -132,6 +132,8 @@ class CloudflareWorkersAIProvider(CloudProviderAdapter):
         if request.temperature is not None:
             body["temperature"] = request.temperature
         permit = seal_provider_invocation(
+            destination_url=f"{self.base_url}/run/{request.model_id}",
+            cloud_destination=True,
             request=request,
             provider_id=self.provider_id,
             model_id=request.model_id,

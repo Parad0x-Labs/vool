@@ -555,6 +555,6 @@ Not for skills:
 * `capability.expand_family`: VOOL's own way of widening the tool offer mid-turn.
 * `orchestration.execute_envelope`: VOOL's own sub-task runner, used by VOOL's planner rather than by a skill.
 * `respond.direct`: the plain answer itself; it is always offered, so naming it changes nothing.
-* `repo.pr.authorize`: owner-only; never offered to a model, so naming it in a skill does nothing.
+* `repo.pr.authorize`, `things.match`, `things.prepare`, `things.search`: owner-only; never offered to a model, so naming it in a skill does nothing.
 
 <!-- END GENERATED TOOL TABLE -->

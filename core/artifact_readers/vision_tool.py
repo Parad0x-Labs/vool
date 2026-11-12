@@ -29,6 +29,7 @@ import platform
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -233,7 +234,16 @@ def _binary_path() -> Path:
     return tools_dir() / f"{TOOL_NAME}-{TOOL_VERSION}-{_source_digest()}"
 
 
+_BUILD_LOCK = threading.Lock()
+
+
 def ensure_tool() -> Path:
+    # Concurrent first uploads share one compiler and one atomic publication.
+    with _BUILD_LOCK:
+        return _ensure_tool()
+
+
+def _ensure_tool() -> Path:
     """The compiled helper, built once and cached by the hash of the source above."""
     if not toolchain_available():
         message, remediation = toolchain_unavailable_words()
@@ -255,12 +265,14 @@ def ensure_tool() -> Path:
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             _LOG.warning("OCR helper build failed: %s", exc)
-            raise ReaderUnavailable(*_build_failed_words(), code="vision_build_failed") from exc
+            message, remediation = _build_failed_words()
+            raise ReaderUnavailable(message, code="vision_build_failed", remediation=remediation) from exc
         if completed.returncode != 0 or not staged.exists():
             # Compiler output is for the log, not for the person reading the chat.
             detail = (completed.stderr or b"").decode("utf-8", "replace").strip().splitlines()
             _LOG.warning("OCR helper build failed: %s", "; ".join(detail[-3:]) or "unknown compiler error")
-            raise ReaderUnavailable(*_build_failed_words(), code="vision_build_failed")
+            message, remediation = _build_failed_words()
+            raise ReaderUnavailable(message, code="vision_build_failed", remediation=remediation)
         # Atomic publish: a half-written binary is never visible to a concurrent extraction.
         pending = binary.with_name(binary.name + f".{os.getpid()}.tmp")
         shutil.copy2(staged, pending)

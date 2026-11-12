@@ -3838,6 +3838,10 @@ def _dispatch_runtime_tool(
             return _skill_inspect(arguments)
         if intent in {"skill.export", "skill.import", "skill.remove", "skill.pack"}:
             return _covered(lambda: _skill_share_tool(intent, arguments, source_context))
+        if intent in {"things.search", "things.match", "things.prepare"}:
+            from core.my_things.tools import run as things_tool
+
+            return things_tool(intent, arguments, source_context)
         if intent in {"contacts.search", "contacts.resolve", "contacts.save", "contacts.update", "contacts.delete"}:
             return _contacts_tool(intent, arguments, source_context)
         if intent in {"profile.remember", "profile.forget", "profile.list"}:
@@ -7275,6 +7279,9 @@ def _read_file(
         if verbatim
         else f"File `{_relative_path(target, workspace_root=workspace_root)}`:\n" + rendered_body
     ) + tail_note
+    from core.disclosure.sources import register as register_disclosure_source
+
+    register_disclosure_source(response_text, kind="folder", source=str(target.resolve()))
     return RuntimeExecutionResult(
         handled=True,
         ok=True,

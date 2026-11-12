@@ -409,6 +409,11 @@ def _settings_groups() -> list[dict]:
                     keywords="manual auto bypass mode approval per chat composer",
                 ),
                 _row(
+                    id="cloud_disclosure", label="Before files go to cloud", kind="custom", widget="cloud_disclosure",
+                    help="Review outgoing requests and choose which project sources cloud models may see.",
+                    keywords="cloud privacy preview disclosure files folders project rules personal details",
+                ),
+                _row(
                     id="privacy_disclosure",
                     label="Privacy & data, as it stands",
                     kind="custom",
@@ -2023,6 +2028,11 @@ function renderWidget(row, host) {
   if (w === 'companion_pet') return widgetCompanionPet(stack);
   if (w === 'advanced_links') return widgetAdvancedLinks(stack);
   if (w === 'extras_memory') return widgetExtras(stack, 'memory');
+  if (w === 'cloud_disclosure') {
+    const host=el('div');host.dataset.disclosureSettings='1';stack.appendChild(host);
+    if(window.VoolDisclosureSettings)window.VoolDisclosureSettings.mount(host);
+    return;
+  }
   if (w === 'extras_privacy') return widgetExtras(stack, 'privacy');
   if (w === 'extras_toolbelt') return widgetExtras(stack, 'toolbelt');
   if (w === 'bundle_export') return widgetBundleExport(stack);
@@ -3598,6 +3608,10 @@ function xActionSummary(a) {
   return a.summary || a.kind;
 }
 
+// The X API call and the bookmark actions keep the base's own card (summary, receipt, cleanup);
+// the social card (VoolXSocial) draws the post-shaped actions it knows.
+function xBaseCard(a) { return a.kind === 'api' || String(a.kind || '').startsWith('bookmark_'); }
+
 function widgetXActivity(host) {
   host.replaceChildren();
   const draw = async (message) => {
@@ -3621,10 +3635,12 @@ function widgetXActivity(host) {
     host.appendChild(note);
     pending.forEach(a => {
       const card = el('div', 'x-action-card');
-      const summary = a.kind === 'api' ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
+      const summary = xBaseCard(a) ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
       card.appendChild(el('strong', null, summary));
       if (a.kind === 'api') {
         xApiProposalDetails(card, a);
+      } else if (xBaseCard(a)) {
+        if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
       } else {
         card.appendChild(Object.assign(el('p', 'subtle', '@' + ((a.account || {}).username || '?') + ' · ' + String(a.weighted_length || 0) + '/280'), { dir: 'ltr' }));
         if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
@@ -3713,15 +3729,15 @@ function widgetXActivity(host) {
       recent.forEach(a => {
         const line = el('p', 'subtle');
         const word = X_STATE_WORDS[a.state];
-        const summary = a.kind === 'api' ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
+        const summary = xBaseCard(a) ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
         const state = a.kind === 'api'
           ? xApiActionMessage({ ok: a.state === 'sent', j: { action: a } }, a)
-          : (window.VoolXSocial ? window.VoolXSocial.state(a) : (word ? T(word[0], word[1]) : a.message || a.state));
+          : (window.VoolXSocial && !xBaseCard(a) ? window.VoolXSocial.state(a) : (a.message || (word ? T(word[0], word[1]) : a.state)));
         line.textContent = summary + ' · ' + state;
         const url = (a.result || {}).url;
         if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, summary)); }
         host.appendChild(line);
-        if (a.kind === 'api') {
+        if (xBaseCard(a)) {
           xApiReceiptDetails(host, a);
           xApiCleanupControl(host, a, draw);
         } else if (a.state === 'sent' && window.VoolXSocial) window.VoolXSocial.rating(host, a);
@@ -5917,11 +5933,14 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.chat_import_settings_fragment import render_chat_import_settings_fragment
+    from core.disclosure.settings_fragment import render_settings_fragment
     from core.drop_settings_fragment import render_drop_settings_fragment
     from core.lend_fragment import render_lend_fragment
+    from core.my_things_fragment import render_my_things_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.plugin_migration import retired_slots
     from core.provider_key_guide import provider_key_guide
+    from core.routines_fragment import render_routines_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
@@ -5933,8 +5952,8 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("/*__X_FEATURES__*/", X_FEATURES_JS, 1).replace(
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
-        "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_x_social_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
+        "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
+        + "\n" + render_x_social_fragment() + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the

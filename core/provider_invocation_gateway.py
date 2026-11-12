@@ -646,9 +646,11 @@ class ProviderInvocationPermit:
         budget_reservation_id: str = "",
         budget_effect_id: str = "",
         money_liability_id: str = "",
+        disclosure_wire: Any = None,
     ) -> None:
         self.manifest = manifest
         self._payload = copy.deepcopy(payload)
+        self._disclosure_wire = disclosure_wire
         self._used = False
         # P3 — the paid call's monetary liability, reserved at the seal; its
         # dispatch claim is persisted in consume() before the payload leaves
@@ -713,6 +715,17 @@ class ProviderInvocationPermit:
                             )
                     raise
             self._used = True
+            if self._disclosure_wire is not None:
+                from core.disclosure.wire import WirePayload
+
+                result = WirePayload(copy.deepcopy(self._payload), self._disclosure_wire.wire_body,
+                                     self._disclosure_wire.destination, self._disclosure_wire.preview_id,
+                                     encoder=self._disclosure_wire.encoder,
+                                     control_only=self._disclosure_wire.control_only,
+                                     cloud_destination=self._disclosure_wire.cloud_destination,
+                                     network_consent=self._disclosure_wire.network_consent)
+                result.timing = self._disclosure_wire.timing
+                return result
             return copy.deepcopy(self._payload)
 
     def settle_budget_cost(self, *, actual_units: int) -> dict[str, Any]:
@@ -931,6 +944,9 @@ def _finalize_request_evidence_payload(request: Any, payload: dict[str, Any]) ->
         clean = dict(message)
         stamped = stamped or "_vool_evidence_support" in clean
         if clean.pop("_vool_evidence_support", False) is True:
+            from core.disclosure.sources import register_admitted_memory
+
+            register_admitted_memory(request, clean)
             evidence_messages.append(clean)
         clean_messages.append(clean)
     payload["messages"] = clean_messages
@@ -962,8 +978,19 @@ def seal_provider_invocation(
     header_names: list[str] | tuple[str, ...] = (),
     monetary: Any = None,
     require_monetary_authority: bool = False,
+    destination_url: str = "",
+    cloud_destination: bool = False,
 ) -> ProviderInvocationPermit:
     _finalize_request_evidence_payload(request, payload)
+    disclosure_wire = None
+    if destination_url:
+        from core.disclosure.wire import prepare, request_context
+
+        disclosure_wire = prepare(payload, url=destination_url, request=request,
+                                  context=request_context(request, provider=provider_id, cloud=cloud_destination))
+        payload.clear()
+        payload.update(disclosure_wire)
+        _finalize_request_evidence_payload(request, payload)
     metadata = dict(getattr(request, "metadata", None) or {})
     context = dict(
         getattr(request, "context", None)
@@ -1301,6 +1328,7 @@ def seal_provider_invocation(
         budget_reservation_id=budget_reservation_id,
         budget_effect_id=budget_effect_id,
         money_liability_id=money_liability_id,
+        disclosure_wire=disclosure_wire,
     )
 
 
@@ -1421,6 +1449,9 @@ def lifecycle_effect_reservation(effect_id: str) -> str:
     return ""
 
 
+_PRIVACY_UNSPECIFIED = object()
+
+
 @provider_execution_boundary
 def seal_direct_provider_invocation(
     *,
@@ -1434,12 +1465,17 @@ def seal_direct_provider_invocation(
     header_names: list[str] | tuple[str, ...] = (),
     monetary: Any = None,
     require_monetary_authority: bool = False,
+    destination_url: str = "",
+    cloud_destination: bool = False,
+    control_only: bool = False,
+    privacy_class: Any = _PRIVACY_UNSPECIFIED,
 ) -> ProviderInvocationPermit:
     """Seal a direct provider call that has not yet migrated to ModelRequest."""
     request = DirectProviderRequest(
         trace_id=str(request_id or ""),
         context=dict(context_manifest or {}),
-        metadata={},
+        metadata={"_disclosure_direct_helper": True, "_disclosure_control_only": control_only,
+                  **({"privacy_class": privacy_class} if privacy_class is not _PRIVACY_UNSPECIFIED else {})},
         max_output_tokens=max(0, int(max_output_tokens or 0)),
     )
     return seal_provider_invocation(
@@ -1451,6 +1487,8 @@ def seal_direct_provider_invocation(
         header_names=header_names,
         monetary=monetary,
         require_monetary_authority=require_monetary_authority,
+        destination_url=destination_url,
+        cloud_destination=cloud_destination,
     )
 
 

@@ -192,9 +192,13 @@ def test_the_reply_names_the_file_and_the_computer_first(drop_off, ask, lead):
     assert text.startswith(lead + ' In VOOL, sending a file'), text
 
 
+NOTE_BACK = '\n\nHere is your note, so you can copy it yourself: '
+
+
 @pytest.mark.parametrize('on', [False, True])
 def test_a_note_for_a_phone_says_drop_cannot_reach_a_phone(drop_off, monkeypatch, on):
-    """Recheck r9b D03: Drop sends between computers; a phone gets a plain no, with no setup steps."""
+    """Recheck r9b D03: Drop sends between computers; a phone gets a plain no, with no setup steps, and the
+    note the person dictated comes back word for word (the reply never said "oat milk")."""
     from core.drop import chat_door
 
     if on:
@@ -203,8 +207,65 @@ def test_a_note_for_a_phone_says_drop_cannot_reach_a_phone(drop_off, monkeypatch
         monkeypatch.setattr(chat_door, '_drop_paired', lambda: True)
     text = str(_run('drop a quick note on my phone saying buy oat milk').get('response') or '')
     assert text == ('I have not sent a quick note to your phone. Send with Drop only works between your '
-                    'computers, so it cannot send anything to a phone.'), text
+                    'computers, so it cannot send anything to a phone.' + NOTE_BACK + 'buy oat milk'), text
     _plain(text)
+
+
+@pytest.mark.parametrize('ask, lead, note', [
+    ('send a note to my laptop: call the bank before 5', 'I have not sent a note to your laptop.',
+     'call the bank before 5'),
+    ('send a note saying buy oat milk to my macbook', 'I have not sent a note to your macbook.', 'buy oat milk'),
+    ('put a note on my macbook reading pick up the kids at 4', 'I have not sent a note to your macbook.',
+     'pick up the kids at 4'),
+])
+def test_a_note_for_another_computer_comes_back_after_the_setup_steps(drop_off, ask, lead, note):
+    """Recheck r9b D03, new wordings: with Drop off, a note for one of the person's computers gets the same
+    setup steps as a file, and the note itself comes back last, so it can be copied."""
+    text = str(_run(ask).get('response') or '')
+    assert text.startswith(lead + ' In VOOL, sending a file'), text
+    assert 'Settings > Backup & restore > Send with Drop' in text, text
+    assert text.endswith(NOTE_BACK + note), text
+    _plain(text)
+
+
+@pytest.mark.parametrize('ask, note', [
+    ("drop a note on my phone saying don't forget to send the rent", "don't forget to send the rent"),
+    ('send a reminder to my phone that says “email the landlord”', 'email the landlord'),
+    ('drop a quick note on my phone saying how do i get to the station', 'how do i get to the station'),
+])
+def test_the_words_of_a_note_never_change_what_was_asked(drop_off, ask, note):
+    """A dictated note is the person's note, not their ask: "don't ... send", "email" and "how do i" inside
+    it once made the door step aside, and the model answered instead."""
+    from core.drop.chat_door import kind_of_ask
+
+    assert kind_of_ask(ask) == 'drop', ask
+    text = str(_run(ask).get('response') or '')
+    assert 'Send with Drop only works between your computers' in text, text
+    assert text.endswith(NOTE_BACK + note), text
+
+
+def test_only_a_dictated_note_comes_back(drop_off):
+    """Words after a file ("the invoice ... saying it is urgent") or after a plain dash are not a note."""
+    from core.drop.chat_door import drop_note
+
+    assert drop_note('send this to my phone: buy oat milk') == 'buy oat milk'
+    assert drop_note('send a list to my phone:\neggs\nmilk') == 'eggs\nmilk'
+    assert drop_note('drop a note on my phone - buy oat milk') == 'buy oat milk'
+    assert drop_note('drop a quick note on my phone for later saying “buy oat milk”.') == 'buy oat milk'
+    for ask in ('send the invoice to my laptop saying it is urgent', 'send the text file to my laptop saying draft',
+                'send it to my laptop - the invoice from downloads', 'send a note to my phone about the reading list',
+                'drop a quick note on my phone', 'write a note saying buy oat milk',
+                'send the invoice in my downloads to my laptop'):
+        assert drop_note(ask) == '', ask
+    text = str(_run('send the invoice to my laptop saying it is urgent').get('response') or '')
+    assert text.startswith('I have not sent the invoice to your laptop. In VOOL, sending a file'), text
+    assert 'Here is your note' not in text, text
+
+
+def test_the_note_comes_back_in_the_app_language(drop_off):
+    text = str(_run('drop a quick note on my phone saying buy oat milk', ui_locale='de').get('response') or '')
+    assert 'Telefon' in text, text
+    assert text.endswith('\n\nHier ist deine Notiz, damit du sie selbst kopieren kannst: buy oat milk'), text
 
 
 @pytest.mark.parametrize('state', ['off', 'unpaired'])

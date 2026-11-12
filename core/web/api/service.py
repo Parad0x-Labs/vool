@@ -288,6 +288,34 @@ def _attach_profile_frame(payload: dict, *, result: dict) -> dict:
     return payload
 
 
+def _disclosure_pending(source_context: dict[str, Any]) -> list[dict[str, Any]]:
+    """Previews this turn stopped at because its caller cannot show them (see core.disclosure.wire)."""
+    from core.disclosure.wire import PENDING_HOLDER_KEY
+
+    holder = (source_context or {}).get(PENDING_HOLDER_KEY)
+    return [dict(item) for item in holder if isinstance(item, dict)] if isinstance(holder, list) else []
+
+
+def _with_disclosure_pending(payload: dict[str, Any], pending: list[dict[str, Any]]) -> dict[str, Any]:
+    """The typed "preview needed" result: what is waiting, and where the owner approves it."""
+    if not pending:
+        return payload
+    from core.disclosure.wire import PREVIEW_NEEDED_DETAIL
+
+    return {**payload, "vool_pending": {"type": "disclosure_preview", "detail": PREVIEW_NEEDED_DETAIL,
+                                        "approve_at": "chat_page", "previews": pending}}
+
+
+def _stream_disclosure_pending(chunks: Iterator[Any], source_context: dict[str, Any]) -> Iterator[Any]:
+    """Close a streamed turn that stopped at a preview with the same typed pending frame
+    (a ``{"vool_pending": ...}`` line, which the SSE lane passes through as an extension event)."""
+    yield from chunks
+    pending = _disclosure_pending(source_context)
+    if pending:
+        line = json.dumps(_with_disclosure_pending({}, pending), ensure_ascii=False) + "\n"
+        yield line.encode("utf-8")
+
+
 def _attach_work_receipt(
     payload: dict[str, Any],
     *,
@@ -1075,6 +1103,31 @@ def _dispatch_get(
             )
         except BrowserFault as exc:
             return json_response(409, {"ok": False, "error": str(exc)})
+
+    if normalized_path == "/my-things":
+        from core.my_things_fragment import render_my_things_page
+
+        return apply_runtime_headers(html_response(200, render_my_things_page(resolve_page_locale(query, headers)), headers={"Cache-Control": "no-store"}), runtime)
+    if normalized_path == "/api/my-things" or normalized_path.startswith("/api/my-things/"):
+        from core.my_things.api import get as things_get
+
+        return apply_runtime_headers(things_get(normalized_path, client_host, headers), runtime)
+    if normalized_path == "/routines":
+        from core.routines_fragment import render_routines_page
+
+        return apply_runtime_headers(html_response(200, render_routines_page(resolve_page_locale(query, headers)), headers={"Cache-Control": "no-store"}), runtime)
+    if normalized_path == "/api/routines" or normalized_path.startswith("/api/routines/"):
+        from core.routines.api import get as routines_get
+
+        return apply_runtime_headers(routines_get(normalized_path, query, client_host, headers), runtime)
+
+    if normalized_path.startswith("/api/disclosure/"):
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"error": "owner_local_required"}), runtime)
+        from core.disclosure.api import handle_get
+
+        status, payload = handle_get(normalized_path, query)
+        return apply_runtime_headers(json_response(status, payload, headers={"Cache-Control": "no-store"}), runtime)
 
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
@@ -3486,6 +3539,32 @@ def dispatch_post(
 
         status, payload = handle(body, headers=headers, client_host=client_host)
         return apply_runtime_headers(json_response(status, payload), runtime)
+
+    if normalized_path.startswith("/api/my-things/"):
+        from core.my_things.api import post as things_post
+
+        return apply_runtime_headers(things_post(normalized_path, body, headers, client_host), runtime)
+
+    if normalized_path.startswith("/api/routines/"):
+        from core.routines.api import post as routines_post
+
+        return apply_runtime_headers(routines_post(normalized_path, body, headers, client_host), runtime)
+
+    if normalized_path.startswith("/api/disclosure/"):
+        from core.web.api.runtime import host_header_allowed as _disclosure_host_allowed
+
+        _disclosure_headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+        _disclosure_origin = _disclosure_headers.get("origin", "")
+        if (_disclosure_origin and not _disclosure_host_allowed(_disclosure_origin.split("://", 1)[-1])) or _disclosure_headers.get("sec-fetch-site") == "cross-site":
+            return apply_runtime_headers(json_response(403, {"error": "cross_origin_refused"}), runtime)
+        if "application/json" not in _disclosure_headers.get("content-type", "").lower():
+            return apply_runtime_headers(json_response(415, {"error": "json_required"}), runtime)
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"error": "owner_local_required"}), runtime)
+        from core.disclosure.api import handle_post
+
+        status, payload = handle_post(normalized_path, body)
+        return apply_runtime_headers(json_response(status, payload, headers={"Cache-Control": "no-store"}), runtime)
 
     if normalized_path == "/api/addons":
         from core.web.api.addon_api import handle_addon_post
@@ -7836,6 +7915,9 @@ def _dispatch_post_inner(
                     )
                 else:
                     deleted = delete_conversation_session(session_id)
+                    from core.disclosure.wire import close_chat as close_disclosure_chat
+
+                    close_disclosure_chat(session_id)
                     _erase_session_attachments(session_id)
                     from core import message_pins
 
@@ -7983,6 +8065,9 @@ def _dispatch_post_inner(
             if namespace is not None and namespace.lifecycle_state != "deleted":
                 set_chat_namespace_state(session_id, "deleted")
             deleted = delete_conversation_session(session_id)
+            from core.disclosure.wire import close_chat as close_disclosure_chat
+
+            close_disclosure_chat(session_id)
             _erase_session_attachments(session_id)
             from core import message_pins
 
@@ -8524,6 +8609,21 @@ def _dispatch_post_inner(
             if existing_namespace is not None
             else persisted_project_id
         )
+        council_disclosure_scope = None
+        if _header_value(headers, "x-vool-council-dispatch"):
+            from core.council.api import disclosure_scope
+            council_disclosure_scope = disclosure_scope(
+                _header_value(headers, "x-vool-council-dispatch"),
+                owner_local=is_loopback_host(client_host),
+            )
+            if council_disclosure_scope is None:
+                return apply_runtime_headers(json_response(409, {"error": "The Council run closed. Nothing was sent."}), runtime)
+            try:
+                council_disclosure_scope.verify()
+            except (RuntimeError, ValueError) as exc:
+                return apply_runtime_headers(json_response(409, {"error": str(exc)}), runtime)
+            namespace_project_id = council_disclosure_scope.project_id
+            requested_workspace = council_disclosure_scope.workspace
         context_namespace = ensure_chat_namespace(
             session_id,
             project_id=namespace_project_id,
@@ -8648,6 +8748,26 @@ def _dispatch_post_inner(
 
         stamp_remote_device(source_context)
         source_context["chat_id"] = context_namespace.chat_id
+        from core.disclosure.sources import SourceCatalog
+
+        source_context["_disclosure_sources"] = SourceCatalog()
+        if council_disclosure_scope is not None:
+            source_context["_council_disclosure_scope"] = council_disclosure_scope
+            source_context["_disclosure_sources"] = council_disclosure_scope.catalog
+            source_context[TURN_AUTHOR_KEY] = "agent"
+        else:
+            source_context["_disclosure_sources"].add(user_text, "conversation", context_namespace.chat_id)
+        # Who answers a cloud preview while this turn waits. Only the chat page declares it (the
+        # same way it declares ``on_busy``): it shows the preview and the owner answers there.
+        # Every other caller -- a script, the CLI, a phone, a channel bridge -- is answered at once
+        # with a typed "preview needed" result and the preview stays open on the chat page.
+        # Stamped unconditionally, so a caller-sent copy never survives.
+        from core.disclosure.wire import PENDING_HOLDER_KEY, REVIEW_WAITS_KEY
+
+        source_context[REVIEW_WAITS_KEY] = (
+            "wait" if owner_local and str(body.get(REVIEW_WAITS_KEY) or "").strip() == "wait" else ""
+        )
+        source_context[PENDING_HOLDER_KEY] = []
         # The page's app language, server-read from its cookie (never a body field): a reply VOOL
         # writes itself, such as a private chat switch, answers in it (core.private_chat_languages).
         from core.private_chat_languages import UI_LOCALE_KEY
@@ -8659,6 +8779,19 @@ def _dispatch_post_inner(
         workspace_words_notice = _WORKSPACE_WORDS_NOTICE.get("")
         if workspace_words_notice:
             source_context["workspace_binding_notice"] = workspace_words_notice
+        local_retry = str(body.get("disclosure_local_retry") or "")
+        if local_retry:
+            from core.disclosure.local_choice import consume_retry
+            try:
+                if not owner_local:
+                    raise ValueError("Local retry needs this computer's owner session.")
+                consume_retry(local_retry, session_id=session_id, project_id=bound_project_id,
+                              model=str(model or ""), question=user_text, workspace=effective_workspace,
+                              attachments=body.get("attachments"))
+            except (KeyError, ValueError, RuntimeError) as exc:
+                return apply_runtime_headers(json_response(409, {"error": str(exc)}), runtime)
+            from core.auto_local_only_mode import CONTEXT_KEY
+            source_context[CONTEXT_KEY] = True
         requested_model = str(model or "").strip()
         # Cloud-only machines: an owner-local Auto turn takes the cloud model the owner saved in
         # setup, but only while no local model is reachable (core.cloud_only_default).
@@ -9147,6 +9280,7 @@ def _dispatch_post_inner(
             # S1: the single task.finalizing event, emitted only in front of the real
             # response-commit frame, only when the typed channel is on for this turn.
             stream_iter = _inject_task_finalizing_event(stream_iter, emit_task_events)
+            stream_iter = _stream_disclosure_pending(stream_iter, source_context)
             if _attachment_turn:
                 # Outermost on purpose: the turn's attachments are released only once every
                 # byte has left (or the client has), never while a frame is still being built.
@@ -9201,6 +9335,13 @@ def _dispatch_post_inner(
             # 2026-09-03: a concurrent-edit journey lost one turn to a FileNotFoundError and
             # the daemon log recorded nothing, so the flake looked environmental for a day.
             # The traceback is operator-side only; the client still gets the safe text.
+            pending = _disclosure_pending(source_context)
+            if pending:
+                # Nothing was sent: the turn stopped at a preview this caller cannot show.
+                _release_turn_admission()
+                return apply_runtime_headers(json_response(200, _with_disclosure_pending(
+                    no_answer_chat_response(exc, str(model), openai_shape=normalized_path.startswith("/v1/")),
+                    pending)), runtime)
             logging.getLogger("vool.api").exception("served chat turn failed (session=%s)", session_id)
             _release_turn_admission()  # the turn is over, however it ended: free the slot
             return apply_runtime_headers(json_response(500, {"error": safe_error_text(exc)}), runtime)
@@ -9282,12 +9423,16 @@ def _dispatch_post_inner(
             return apply_runtime_headers(
                 json_response(
                     200,
-                    no_answer_chat_response(exc, str(model), openai_shape=normalized_path.startswith("/v1/")),
+                    _with_disclosure_pending(
+                        no_answer_chat_response(exc, str(model), openai_shape=normalized_path.startswith("/v1/")),
+                        _disclosure_pending(source_context),
+                    ),
                 ),
                 runtime,
             )
         payload = _attach_work_receipt(payload, result=result, session_id=session_id)
         payload = _attach_profile_frame(payload, result=result)
+        payload = _with_disclosure_pending(payload, _disclosure_pending(source_context))
         # R-7 (A-6): buffered lanes mark ATTEMPTED_UNKNOWN before the bytes
         # leave - the handoff row asserts what actually happened.
         try:
