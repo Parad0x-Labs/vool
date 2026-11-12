@@ -78,7 +78,7 @@ SCHOOL_FLOOR_SERVICES = frozenset(
 _EDITION_REASONS = {
     "wallet": "Money and wallet capabilities are not part of VOOL School.",
     "marketplace": "Paid marketplaces are not part of VOOL School.",
-    "web0": "The web0 paid-site economy is not part of VOOL School.",
+    "web0": "Paid sites on special web addresses are not part of VOOL School.",
     "mesh_daemon": "The hive mesh is not part of VOOL School (local network is never authority).",
     "hive_task_intake": "The hive mesh is not part of VOOL School (local network is never authority).",
     "meet_server": "The public meet surface is not part of VOOL School.",

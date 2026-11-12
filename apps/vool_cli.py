@@ -2320,7 +2320,7 @@ def build_parser() -> argparse.ArgumentParser:
     summary.add_argument("--limit", type=int, default=5, help="Number of recent items to show per section.")
 
     resolve = sub.add_parser("resolve", help="Resolve a .null name on mainnet (read-only): owner, Arweave, x402 endpoint.")
-    resolve.add_argument("name", help="The .null name to resolve, e.g. web0.null")
+    resolve.add_argument("name", help="The .null name to resolve, e.g. alice.null")
     resolve.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable text.")
 
     web = sub.add_parser(
@@ -2436,7 +2436,7 @@ def build_parser() -> argparse.ArgumentParser:
         "dial",
         help="Reach a named .null agent's endpoint and return its result. Opt-in: off unless VOOL_ENABLE_NULL_DIAL=1.",
     )
-    dial.add_argument("name", help="The .null name to dial, e.g. web0.null")
+    dial.add_argument("name", help="The .null name to dial, e.g. alice.null")
     dial.add_argument("task", help="The task to hand the named agent.")
     dial.add_argument("--allow-spend", action="store_true", help="Permit paying the endpoint via x402 (within --max-spend).")
     dial.add_argument("--max-spend", type=float, default=1.0, metavar="USDC", help="Spend cap in USDC (clamped to 1.0).")

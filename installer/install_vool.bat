@@ -600,7 +600,7 @@ echo.
 echo Visible agent name: %AGENT_NAME%
 echo Selected model: %MODEL_TAG%
 echo To chat now:   %PROJECT_ROOT%\Open_Chat.bat
-echo Web0 browser:  %PROJECT_ROOT%\Open_Web0.bat
+echo Special web addresses:  %PROJECT_ROOT%\Open_Web0.bat
 echo To start headless:  %PROJECT_ROOT%\Start_VOOL.bat
 if defined DESKTOP_SHORTCUT echo Desktop:      %DESKTOP_SHORTCUT%
 echo.

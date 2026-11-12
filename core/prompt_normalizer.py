@@ -2640,7 +2640,7 @@ def _tooling_guidance(*, has_openclaw_tools: bool) -> str:
     if sell_quote_wired:
         available_tools.insert(0, "read-only x402 quote of VOOL's own compute")
     if web0_builder_wired:
-        available_tools.insert(0, "local Web0 builder draft generation")
+        available_tools.insert(0, "local site builder draft generation")
     if policy_engine.get("filesystem.allow_read_workspace", True):
         available_tools.insert(0, "workspace file listing, search, and read")
     if policy_engine.get("filesystem.allow_write_workspace", False):
@@ -2675,7 +2675,7 @@ def _tooling_guidance(*, has_openclaw_tools: bool) -> str:
         "Never present partial or insufficient evidence as conclusive."
     )
     web0_guidance = (
-        "For Web0 site-building requests, do not refuse or say you can only guide setup when the local builder draft tool is wired; create or offer the local builder draft URL. "
+        "For .null site-building requests, do not refuse or say you can only guide setup when the local builder draft tool is wired; create or offer the local builder draft URL. "
         "Publishing, mainnet registration, Arweave uploads, wallet signatures, payments, and outward-facing network changes require explicit user confirmation."
         if web0_builder_wired
         else ""

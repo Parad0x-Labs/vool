@@ -45,7 +45,7 @@ Pilot and is no longer true: mainnet rows exist for native-coin transfers, and t
 USDC on Base, exist for x402 payments only. Websites that ask for x402 payment in USDC on Base
 can be paid from your Crypto Pilot wallet, one PIN approval within your limits; no live
 mainnet payment has been made with this yet. See the
-[Wallet & Web0 guide](WALLET_WEB0_GUIDE.md) for what is enabled and how.
+[Wallet and special web addresses guide](WALLET_AND_SPECIAL_ADDRESSES_GUIDE.md) for what is enabled and how.
 
 ## Reporting bugs safely
 

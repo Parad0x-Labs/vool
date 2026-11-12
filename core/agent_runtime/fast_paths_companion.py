@@ -99,9 +99,9 @@ def maybe_handle_web0_builder_fast_path(
         session_id=session_id,
         user_input=clean,
         response=(
-            "Web0 local builder draft ready:\n"
+            "Local site builder draft ready:\n"
             f"{builder_url}\n\n"
-            "This opens in the local Web0 editor. Publishing to Arweave/mainnet still needs an explicit publish command and wallet confirmation."
+            "This opens in VOOL's local site editor. Publishing to Arweave/mainnet still needs an explicit publish command and wallet confirmation."
         ),
         confidence=0.95,
         source_context=source_context,
@@ -151,10 +151,10 @@ def looks_like_web0_builder_request(lowered: str) -> bool:
 def _web0_builder_title(user_text: str) -> str:
     lowered = str(user_text or "").lower()
     if "hello" in lowered:
-        return "Hello, Web0"
+        return "Hello, world"
     if "nully" in lowered:
-        return "Nully Web0 draft"
-    return "VOOL-built Web0 draft"
+        return "Nully draft"
+    return "VOOL-built site draft"
 
 
 def _web0_builder_code(user_text: str) -> str:
@@ -172,9 +172,9 @@ p{{max-width:650px;color:#b8cad3;font-size:20px;line-height:1.55}}
 </style>
 <main class="wrap">
   <div class="orb"></div>
-  <div class="badge">VOOL local draft -> Web0 builder</div>
+  <div class="badge">VOOL local draft -> site builder</div>
   <h1>{title}<br><span class="rent">with rent</span><br><span class="web0">without landlords.</span></h1>
-  <p>Web0 pages are wallet-owned, permanent, and agent-callable. This draft is local-only until you explicitly publish.</p>
+  <p>Published pages are wallet-owned, permanent, and agent-callable. This draft is local-only until you explicitly publish.</p>
 </main>"""
 
 

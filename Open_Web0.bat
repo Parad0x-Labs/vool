@@ -53,5 +53,5 @@ if !READY! neq 1 (
 
 :open
 start "" "%WEB0_URL%"
-echo Web0 browser opened at %WEB0_URL%
+echo Special web addresses page opened at %WEB0_URL%
 endlocal
