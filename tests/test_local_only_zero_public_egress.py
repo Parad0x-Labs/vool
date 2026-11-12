@@ -434,3 +434,36 @@ def test_the_typed_live_data_lane_does_not_run_in_an_offline_chat(
     reached.clear()
     _ask(_local_only_context())
     assert reached == [], "the live-data lane planned a fetch in an Offline chat"
+
+
+def test_web_tools_answer_offline_instead_of_searching(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Measured 2026-11-12 on the Mac: Offline chat, Web lookups on, web.research ran and the user
+    saw only "Adaptive web research for ..." and "Search failed". The tool now says Offline."""
+    from core import policy_engine
+    from core.execution.web_tools import execute_web_tool
+
+    monkeypatch.setattr(policy_engine, "local_only_mode", lambda: False)
+    calls: list[str] = []
+
+    def _never(*args, **kwargs):  # pragma: no cover - reaching it is the failure
+        calls.append("research")
+        raise AssertionError("an Offline chat ran web research")
+
+    def _run(context: dict):
+        return execute_web_tool(
+            "web.research", {"query": "when was the eiffel tower finished"},
+            task_id="t", source_context=context,
+            allow_web_fallback_fn=lambda: True, load_builtin_tools_fn=lambda: None,
+            planned_search_query_fn=_never, call_tool_fn=_never, adaptive_research_fn=_never,
+            unsupported_execution_for_intent_fn=_never, tool_observation_fn=lambda **k: {},
+            audit_log_fn=lambda *a, **k: None,
+        )
+
+    result = _run(_local_only_context())
+    assert result.ok is False and calls == []
+    assert "this chat is Offline" in result.user_safe_response_text
+    assert "VOOL_ENABLE_WEB" not in result.user_safe_response_text
+    # Control: a Computer + web chat does reach the research step.
+    with contextlib.suppress(Exception):
+        _run(_computer_web_context())
+    assert calls == ["research"]
