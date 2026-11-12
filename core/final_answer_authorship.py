@@ -333,10 +333,46 @@ class AuthorshipDecision:
             else "nothing this turn retrieved, computed or observed backs it, so the answer "
             "would rest on the writing model alone."
         )
+        # Plain words first, the runtime's own terms last (private-web test 2026-11-11: the person
+        # saw "`ollama-local:qwen2.5:7b` is not certified to author on this runtime" as the
+        # reply). The last paragraph is the cause; the chat page folds it behind "details".
         return (
-            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {evidence_sentence} {cause}\n\n"
-            f"{remedy}"
+            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {_plain_refusal_sentence(self.reason, author, attempted)}\n\n"
+            f"{_plain_refusal_remedy(author)}\n\n"
+            f"Details: {evidence_sentence} {cause} {remedy}"
         )
+
+
+def _short_model_name(model: str) -> str:
+    name = str(model or "").strip()
+    return name.split(":", 1)[1] if name.startswith(("ollama-local:", "ollama:")) else name
+
+
+def _plain_refusal_sentence(reason: str, author: str, attempted: tuple[str, ...]) -> str:
+    """Why no answer, in words the person can act on: no ids, no engine terms."""
+    if reason == REASON_AUTHOR_UNRESOLVED:
+        return "I couldn't tell which model wrote this answer, so I won't show it."
+    who = _short_model_name(author)
+    named = f"the model chosen to write answers here ({who})" if who and "model that wrote" not in who else (
+        "the model chosen to write answers here")
+    if reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
+        tail = ", and this chat stays on this computer, so no cloud model can answer instead."
+    elif reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
+        tail = ". A cloud model could answer, but cloud models are switched off."
+    elif attempted:
+        tail = ", and the checked model I tried instead couldn't finish." if len(attempted) == 1 else (
+            ", and the checked models I tried instead couldn't finish.")
+    else:
+        tail = ", and no model that has passed it is available right now."
+    return f"{named} hasn't passed VOOL's answer check yet{tail}"
+
+
+def _plain_refusal_remedy(author: str) -> str:
+    if _local_author_not_running(author):
+        return ("To fix it, start your local model app (such as Ollama), or pick a cloud model in the "
+                "model selector.")
+    return ("To fix it, pick a ready model in the model selector, or run the check on this one in "
+            "Settings → Models & Providers → Local models → Certify.")
 
 
 def no_model_notice_text(locale: str = "") -> str:

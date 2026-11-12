@@ -626,3 +626,54 @@ def test_a_question_about_wikipedia_itself_is_not_a_lookup():
     from core.tool_demand_signals import resolve_demand_signals
 
     assert resolve_demand_signals("what is wikipedia?").explicit_intents == ()
+
+
+# --- private-web test (2026-11-11) -------------------------------------------------------------
+
+
+def test_a_fetched_page_is_evidence_the_grounding_gate_can_read(monkeypatch):
+    from types import SimpleNamespace
+
+    from core import grounding_lifecycle
+    from core.agent_runtime import fast_paths_web
+    from tests.test_a_url_is_not_a_local_file_path import _Agent
+
+    body = '{"IsTor":true,"IP":"5.2.69.86"}'
+    monkeypatch.setattr(
+        "core.runtime_execution_tools.execute_runtime_tool",
+        lambda intent, arguments, *, source_context=None: SimpleNamespace(
+            ok=True, status="ok", response_text="",
+            details={"url": arguments["url"], "final_url": arguments["url"], "text": body, "truncated": False,
+                     "observation": {"url": arguments["url"], "text": body, "http_status": 200}},
+        ),
+    )
+    context = {"session_id": "fetch-s", "turn_id": "fetch-t", "surface": "api"}
+    assert grounding_lifecycle.register_required(
+        context, request_text="open it", reason_codes=("current_info_signal:explicit_lookup_request",)
+    )
+    question = "Open https://check.torproject.org/api/ip and tell me exactly what it says"
+    result = fast_paths_web.maybe_handle_url_read(_Agent(), question, session_id="fetch-s", source_context=context)
+    assert '"IsTor":true' in str(result["response"])
+    record = grounding_lifecycle.lifecycle_for_context(context)
+    assert record.retrieval_outcome == "tool_receipt" and record.retrieved_source_count == 1
+    rows = record.typed_observations
+    assert any("5.2.69.86" in str(row.get("summary")) for row in rows)
+    from core.grounding_publication import publication_verdict
+
+    grounding_lifecycle.record_model_authorship(context)
+    grounding_lifecycle.seal_turn_grounding(context, str(result["response"]))
+    verdict = publication_verdict(grounding_lifecycle.lifecycle_for_context(context), str(result["response"]))
+    assert verdict.failed_stage == "" and not verdict.withheld_claims, verdict
+    assert verdict.failed_stage != "retrieved", verdict
+    assert "5.2.69.86" in verdict.content and "no usable rows" not in verdict.content, verdict
+
+
+def test_the_not_yet_checked_model_refusal_leads_with_plain_words():
+    from tests.test_authorship_refusal_names_attempted_models import _blocked_decision
+
+    text = _blocked_decision().refusal_text()
+    plain, remedy, details = text.split("\n\n")
+    assert "hasn't passed VOOL's answer check" in plain and "(qwen2.5:7b)" in plain
+    for term in ("certified to author", "runtime", "ollama-local:", "`"):
+        assert term not in plain and term not in remedy
+    assert details.startswith("Details:") and "not certified to author" in details

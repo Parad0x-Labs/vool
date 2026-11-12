@@ -14801,6 +14801,11 @@ def _no_model_leads_js() -> str:
     except Exception:
         leads = [NO_MODEL_NOTICE_LEAD]
     leads.append(LEGACY_NO_MODEL_NOTICE_LEAD)
+    # The not-yet-checked-model refusal ends with its technical cause too ("Details: ..."); the
+    # same fold keeps it behind "details", and the Set up button names the way forward.
+    from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD
+
+    leads.append(UNCERTIFIED_AUTHOR_NOTICE_LEAD)
     # `<` is escaped so translated text can never close the script element.
     return json.dumps(leads, ensure_ascii=False).replace("<", "\\u003c")
 

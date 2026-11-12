@@ -213,8 +213,23 @@ def maybe_handle_url_read(
     if execution is None:
         return None
 
+    # The fetch is this turn's evidence: record it where the grounding gate reads tool results.
+    # Measured 2026-11-11 (private-web test): "Open https://check.torproject.org/api/ip and tell me
+    # exactly what it says" fetched the page, then was withheld as "The retrieval for this turn
+    # returned no usable rows" -- this path called the tool directly, so no execution record
+    # existed for the gate to harvest. The tool loop records every call the same way.
+    try:
+        from core.tool_intent_executor import _record_execution
+
+        _record_execution(
+            execution, session_id=session_id, intent="web.fetch", arguments={"url": url},
+            source_context=source_context,
+        )
+    except Exception:
+        pass
     status = str(getattr(execution, "status", "") or "")
     ok = bool(getattr(execution, "ok", False))
+
     details = dict(getattr(execution, "details", {}) or {})
     # `web.fetch` puts the real cause in its own response_text ("Web fetch for `X` failed: <exc>",
     # "... failed with HTTP 503") and carries no `reason` key at all, so reading only `reason` gave
@@ -228,6 +243,26 @@ def maybe_handle_url_read(
         or str(getattr(execution, "response_text", "") or "")
     ).strip()
     body = _render(execution, url=url) if ok else _failure_text(status, reason=reason, url=url)
+    if ok:
+        # web.fetch declares no result field for that record to carry, so the page text itself is
+        # minted as this turn's retrieved row -- the same row shape the gate harvests from receipts.
+        try:
+            from urllib.parse import urlparse
+
+            from core import grounding_lifecycle
+
+            fetched = dict(getattr(execution, "details", {}) or {})
+            page_text = str(fetched.get("text") or "").strip()
+            final_url = str(fetched.get("final_url") or url).strip()
+            if page_text:
+                # The row is the reply as rendered: its header line (the URL and size fetched) is an
+                # observation too, and a header the gate could not match was withheld as a claim.
+                row = {"summary": body, "result_url": final_url, "origin_domain": urlparse(final_url).netloc,
+                       "source_type": "tool_receipt", "intent": "web.fetch", "ok": True}
+                grounding_lifecycle.record_retrieved(source_context, outcome="tool_receipt", source_count=1, notes=[row])
+                grounding_lifecycle.record_typed_observations(source_context, entries=[row])
+        except Exception:
+            pass
     return _machine_tool_fast_path_result(
         agent,
         user_input=user_input,
