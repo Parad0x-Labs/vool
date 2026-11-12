@@ -43,7 +43,9 @@ _STOP = {
     "what", "what's", "whats", "is", "are", "on", "in", "find", "search", "for", "a", "an", "and", "to", "it", "please",
     "pls", "can", "you", "u", "that", "this", "there", "plan", "budget",
 }
-_WORD_RE = re.compile(r"[a-z0-9][a-z0-9'-]*")
+# Words in any script: "what's in my 购物 file?" found no file when only ASCII words counted
+# (measured 2026-11-12 on the v0.8 candidate).
+_WORD_RE = re.compile(r"[^\W_][\w'-]*")
 
 
 def _project_root(session_id: str, source_context: dict[str, Any] | None) -> Path | None:
@@ -63,10 +65,18 @@ def _project_root(session_id: str, source_context: dict[str, Any] | None) -> Pat
 def _terms(text: str) -> list[str]:
     seen: list[str] = []
     for word in _WORD_RE.findall(text.lower()):
-        word = word.strip("'-")
-        if len(word) >= 3 and word not in _STOP and word not in seen:
+        word = word.strip("'-_")
+        # Two letters are a word in a script without spaces between words (购物, 메모).
+        long_enough = len(word) >= 3 or (len(word) == 2 and not word.isascii())
+        if long_enough and word not in _STOP and word not in seen:
             seen.append(word)
     return seen
+
+
+def _name_form(term: str) -> str:
+    """A term as a file name is compared: "shopping-cn" names shopping-cn.txt, whose name is read
+    as "shopping cn" (measured 2026-11-12: "read my shopping-cn file" said no file mentions it)."""
+    return term.replace("_", " ").replace("-", " ")
 
 
 def _text_files(root: Path) -> list[Path]:
@@ -110,7 +120,7 @@ def project_document_answer(question: str, *, session_id: str, source_context: d
     scored: list[tuple[int, int, Path, str, str]] = []
     for path in _text_files(root):
         name = path.stem.lower().replace("_", " ").replace("-", " ")
-        name_hits = sum(1 for term in terms if term in name)
+        name_hits = sum(1 for term in terms if _name_form(term) in name)
         # A secret file is matched by its name alone: its text is never searched, quoted or shown.
         withheld = "name" if never_autoread(path.relative_to(root).as_posix()) else ""
         body = "" if withheld else _read(path)

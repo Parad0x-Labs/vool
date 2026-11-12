@@ -6,6 +6,11 @@ had refused the provider's reply. The receipt added for that is proven here on t
 a real OpenAI-compatible request/response through the production router, validation and
 publication, with only the model substituted by a synthetic local service (nothing is paid).
 What this does not prove: the cause of the original B5 turns, which is still unknown.
+
+The served daemon runs with the clean loop on (the v0.8 default) and off. With the loop on, the
+loop's brain answers first; measured 2026-11-12 on the v0.8 candidate, its leaked tool call was
+shown only as "I asked to run a tool and the runtime did not execute it" and no receipt named the
+check. The loop now hands such a turn to the normal pipeline, whose one request is the one refused.
 """
 from __future__ import annotations
 
@@ -13,19 +18,46 @@ import json
 import sqlite3
 import uuid
 
+import pytest
+
 from core.agent_runtime.reply_rejection import reply_rejection_receipt
+from core.clean_loop import route
+from core.clean_loop.prompt import build_system_prompt
+from core.clean_loop.registry import default_registry
 from core.memory_first_router import ModelExecutionDecision
-from tests.test_conversation_intent_served import (  # openrouter: the module-scoped served daemon
+from tests.test_conversation_intent_served import (
     _answer_text,
     _or_certification,
     _or_completion,
     _session,
-    openrouter,
+    served_openrouter,
 )
 
 PRIVATE_MARKER = "KESTREL-PRIVATE-7781"
 LEAKED_CALL = '<tool_call>{"name": "web_search", "arguments": {"query": "' + PRIVATE_MARKER + '"}}</tool_call>'
-QUESTION = "Which of my two kiln schedules would finish first, the slow glaze or the bisque?"
+# On the v0.8 line "Which of my two kiln schedules would finish first, ...?" is the records lane's
+# when the clean loop is off ("I don't have that saved ...", no model call, as on the plain
+# candidate), so the question that reaches the provider either way is the general one.
+QUESTION = "Which finishes first in a kiln, a slow glaze firing or a bisque firing?"
+
+
+@pytest.fixture(scope="module", params=["clean-loop-on", "clean-loop-off"])
+def openrouter(request, tmp_path_factory):
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv(route.FLAG_ENV, "1" if request.param == "clean-loop-on" else "0")
+        served = next(daemon := served_openrouter(tmp_path_factory))
+        served.clean_loop = request.param == "clean-loop-on"
+        yield served
+        daemon.close()
+
+
+def _loop_requests(requests: list[dict]) -> int:
+    """Requests the clean loop's brain sent: they lead with the loop's own system prompt."""
+    head = build_system_prompt(default_registry()).split("Tools (", 1)[0]
+    return sum(
+        1 for body in requests
+        if str(((body.get("messages") or [{}])[0] or {}).get("content") or "").startswith(head)
+    )
 
 
 def _audit_rejections(home) -> list[dict]:
@@ -55,7 +87,11 @@ def test_a_refused_provider_reply_names_its_check_without_its_text(openrouter) -
     status, answer = daemon.chat(QUESTION, session_id=session)
     events = daemon.events(session)
     text = _answer_text(answer)
-    assert status == 200 and len(service.inference_requests()) - before == 1
+    requests = service.inference_requests()[before:]
+    loop_requests = _loop_requests(requests)
+    assert status == 200 and len(requests) - loop_requests == 1, (len(requests), loop_requests)
+    # With the loop on, its brain tried first and handed the turn over; with it off, it never ran.
+    assert (loop_requests > 0) is openrouter.clean_loop, loop_requests
     # This is one way a healthy provider produces the B5 notice.
     assert text.startswith("I couldn't get a usable model response in this run"), text
     assert PRIVATE_MARKER not in text

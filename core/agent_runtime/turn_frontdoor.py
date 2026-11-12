@@ -395,7 +395,7 @@ _ASKS_FROM_OWN_RECORDS_RE = re.compile(
 
 def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
     """Why this turn cannot check a live rate, in the person's words."""
-    from core.remote_fetch_policy import WEB_OFF_TEXT, web_unavailable_reason
+    from core.remote_fetch_policy import WEB_FORCED_OFF_TEXT, WEB_OFF_TEXT, web_unavailable_reason
 
     reason = web_unavailable_reason(dict(source_context or {}))
     if reason == WEB_OFF_TEXT:
@@ -403,6 +403,8 @@ def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
             "A current exchange rate is a live observation, and Web lookups are off, so I can't "
             "check it. You can turn them on in Settings, Privacy & Permissions."
         )
+    elif reason == WEB_FORCED_OFF_TEXT:
+        reason = "A current exchange rate is a live observation, and Web lookups are off, so I can't check it."
     else:
         reason = "A current exchange rate is a live observation. " + reason
     return reason + " I won't guess a rate from memory."

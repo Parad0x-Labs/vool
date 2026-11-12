@@ -224,12 +224,14 @@ def _failure_text(status: str, *, reason: str, url: str, source_context: dict[st
         # kept fully local) in the same words as every other web-off reply, and the address is
         # shown without code marks (0.7.8 sweep block 2c, WEB-READ-01 p2: "I could not fetch
         # example.org`: Web fetch is disabled by runtime web policy..").
-        from core.remote_fetch_policy import OFFLINE_TEXT, WEB_OFF_TEXT, web_unavailable_reason
+        from core.remote_fetch_policy import OFFLINE_TEXT, WEB_FORCED_OFF_TEXT, WEB_OFF_TEXT, web_unavailable_reason
 
         cause = web_unavailable_reason(source_context)
         if cause == WEB_OFF_TEXT:
             return (f"Web lookups are off, so I didn't open {shown}. "
                     "You can turn them on in Settings, Privacy & Permissions.")
+        if cause == WEB_FORCED_OFF_TEXT:
+            return f"Web lookups are off, so I didn't open {shown}."
         if cause == OFFLINE_TEXT:
             return (f"This chat is Offline, so I didn't open {shown}. Choosing Computer + web or Local "
                     "first in the model menu allows web lookups for this chat.")

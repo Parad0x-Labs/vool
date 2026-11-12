@@ -135,6 +135,16 @@ def _record_observations(context: dict[str, Any], receipts: list[dict[str, Any]]
         return
 
 
+def _is_a_foreign_tool_call(answer: str) -> bool:
+    """Whether the loop's answer is a tool-call envelope the loop does not speak, not prose."""
+    try:
+        from core.model_output_guard import foreign_markers
+
+        return bool(foreign_markers(str(answer or "")))
+    except Exception:
+        return False
+
+
 def maybe_answer(
     agent: Any,
     *,
@@ -247,6 +257,14 @@ def maybe_answer(
         # No answer came out of the loop (the audit's "mac or windows" and "what is a dmg" turns):
         # an apology is never better than the normal pipeline's own try. Only reads ran so far.
         context["clean_local_loop_route"] = "no_answer_fell_through"
+        return None
+    if not loop_result.proposals and _is_a_foreign_tool_call(loop_result.answer):
+        # The brain's last word was a tool call in its own format (`<tool_call>{"name": ...}`), not
+        # an answer: shown, it is only replaced by "I asked to run a tool and the runtime did not
+        # execute it", and nothing records which check set it aside (measured 2026-11-12 on the
+        # v0.8 candidate, served, with the loop on). The normal pipeline gets the turn; a reply it
+        # refuses carries a receipt naming the check. Only reads ran so far.
+        context["clean_local_loop_route"] = "foreign_tool_call_fell_through"
         return None
     if decision.by_documents and not loop_result.proposals and content_absence_claim(loop_result.answer):
         # Only the owner's documents brought this turn here, and they did not answer it. It may be

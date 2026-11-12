@@ -391,14 +391,61 @@ def _bip39_index() -> dict[str, int]:
     return _BIP39_INDEX
 
 
-def recovery_phrase_words():
-    """The canonical BIP-39 English words as a read-only word -> index mapping.
+#: The other nine official BIP-39 wordlists, files next to the English one, each pinned by its
+#: sha256. Copied from bitcoin/bips (bip-0039) and checked byte-identical to the copies
+#: trezor/python-mnemonic ships, 2026-11-12. Only recovery-phrase detection reads them: the wallet
+#: creates and restores English phrases only (core/wallet/mnemonic.py).
+_BIP39_OTHER_WORDLISTS = {
+    "chinese_simplified": "5c5942792bd8340cb8b27cd592f1015edf56a8c5b26276ee18a482428e7c5726",
+    "chinese_traditional": "417b26b3d8500a4ae3d59717d7011952db6fc2fb84b807f3f94ac734e89c1b5f",
+    "czech": "7e80e161c3e93d9554c2efb78d4e3cebf8fc727e9c52e03b83b94406bdcc95fc",
+    "french": "ebc3959ab7801a1df6bac4fa7d970652f1df76b683cd2f4003c941c63d517e59",
+    "italian": "d392c49fdb700a24cd1fceb237c1f65dcc128f6b34a8aacb58b59384b5c648c2",
+    "japanese": "2eed0aef492291e061633d7ad8117f1a2b03eb80a29d0e4e3117ac2528d05ffd",
+    "korean": "9e95f86c167de88f450f0aaf89e87f6624a57f973c67b516e338e8e8b8897f60",
+    "portuguese": "2685e9c194c82ae67e10ba59d9ea5345a23dc093e92276fc5361f6667d79cd3f",
+    "spanish": "46846a5a0139d1e3cb77293e521c2865f7bcdb82c44e8d0a06a2cd0ecba48c0b",
+}
+_PHRASE_WORDLISTS: tuple[frozenset[str], ...] | None = None  # cached ONLY on a complete, verified load
 
-    Empty when the wallet's wordlist is absent or malformed: a caller deciding whether text is a
-    recovery phrase must then fail closed (treat the shape alone as enough), never open."""
-    from types import MappingProxyType
 
-    return MappingProxyType(_bip39_index())
+def phrase_word_key(word: str) -> str:
+    """How a word is looked up in `recovery_phrase_wordlists`: case and accents set aside, so
+    "Ábaco", "abaco" and a decomposed "ábaco" are one word, and a phrase written down without its
+    accents is still that phrase."""
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", str(word or "").casefold())
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
+def recovery_phrase_wordlists() -> tuple[frozenset[str], ...]:
+    """Every official BIP-39 wordlist, English first, each as a set of `phrase_word_key` forms.
+
+    Empty unless all ten load and the nine others match their pinned hashes: a caller deciding
+    whether text is a recovery phrase must then fail closed (treat the shape alone as enough),
+    never open. A load failure is not cached, so a repaired install recovers on the next call."""
+    global _PHRASE_WORDLISTS
+    if _PHRASE_WORDLISTS is None:
+        import hashlib
+        from pathlib import Path
+
+        try:
+            english = _bip39_index()
+            if not english:
+                return ()
+            lists = [frozenset(phrase_word_key(word) for word in english)]
+            folder = Path(__file__).resolve().parent / "wallet"
+            for language, digest in _BIP39_OTHER_WORDLISTS.items():
+                data = (folder / f"bip39_{language}.txt").read_bytes()
+                words = data.decode("utf-8").split()
+                if hashlib.sha256(data).hexdigest() != digest or len(set(words)) != 2048:
+                    return ()
+                lists.append(frozenset(phrase_word_key(word) for word in words))
+            _PHRASE_WORDLISTS = tuple(lists)
+        except Exception:
+            return ()
+    return _PHRASE_WORDLISTS
 
 
 def mnemonic_redaction_available() -> bool:

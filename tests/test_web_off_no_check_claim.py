@@ -6,6 +6,11 @@ current answer confidently." No lookup ran (web_calls=0); the live-info prefligh
 the front door set the refusal aside so other lanes could serve the demand, and the degraded
 chat fallback then rendered the lookup-failure wording. The phrasings below are written for
 this file except the review's own input, which is kept as its regression twin.
+
+On the v0.8 line the front door answers these turns before any lane, in its own words ("Web
+lookups are off, so I can't look this up online."), so the turns are held to that sentence. Measured
+2026-11-12 on the v0.8 candidate: with web lookups forced off at start it still said "You can turn
+them on in Settings", which that switch cannot do.
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from apps.vool_agent import VoolAgent
 from core import chat_attachments as ca
 from core import policy_engine, runtime_paths
 from core.agent_runtime.fast_live_info_mode_failure import live_info_failure_text
+from core.remote_fetch_policy import WEB_FORCED_OFF_LOOKUP_TEXT, WEB_OFF_LOOKUP_TEXT
 
 SESSION = "openclaw:5234567890abcdef5678"
 
@@ -61,7 +67,7 @@ def test_web_off_turn_says_web_is_off_and_claims_no_check(web_off, text, carried
     response = str(result.get("response") or "")
     assert policy_engine.allow_web_fallback() is False
     assert "web lookups are off" in response.lower(), response
-    assert "did not search the web" in response, response
+    assert response == WEB_FORCED_OFF_LOOKUP_TEXT, response
     assert "checked the live web" not in response.lower(), response
     assert "tried the live web" not in response.lower(), response
     # Forced off at start: the Settings switch cannot turn it back on, so the notice does not send the user there.
@@ -80,8 +86,8 @@ def test_web_off_in_settings_points_to_the_switch(monkeypatch):
     finally:
         monkeypatch.undo()
         policy_engine.load(force_reload=True)
-    assert response.startswith("Web lookups are off, so I did not search the web"), response
-    assert "Settings → Privacy & Permissions → Web lookups" in response, response
+    assert response == WEB_OFF_LOOKUP_TEXT, response
+    assert "Settings, Privacy & Permissions" in response, response
 
 
 @pytest.mark.parametrize("mode", ["fresh_lookup", "weather", "news"])

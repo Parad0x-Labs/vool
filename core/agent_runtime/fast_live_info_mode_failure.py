@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 
 def live_info_failure_text(*, query: str, mode: str) -> str:
     # Every wording below reports a web lookup that ran. With web lookups off no lookup can
@@ -34,7 +32,6 @@ def live_info_failure_text(*, query: str, mode: str) -> str:
 
 def _web_forced_off_at_start() -> bool:
     # The same variables and truthy values policy_engine's environment overrides read.
-    return any(
-        str(os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
-        for name in ("VOOL_DISABLE_WEB", "VOOL_NO_WEB")
-    )
+    from core.policy_engine import web_forced_off_by_environment
+
+    return web_forced_off_by_environment()

@@ -532,6 +532,12 @@ class OpenRouterCompatibleDaemon(UsePodServedDaemon):
 
 @pytest.fixture(scope="module")
 def openrouter(tmp_path_factory):
+    yield from served_openrouter(tmp_path_factory)
+
+
+def served_openrouter(tmp_path_factory):
+    """The synthetic service and the served daemon pinned and certified on its lane (a generator,
+    so a module that needs the daemon under another environment can start its own)."""
     service = OpenAICompatibleService().start()
     daemon = OpenRouterCompatibleDaemon(tmp_path_factory.mktemp("intent-openrouter") / "home", service)
     try:

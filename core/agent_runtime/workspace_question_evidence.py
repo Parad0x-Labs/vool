@@ -4,6 +4,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import re
+import unicodedata
 from itertools import pairwise
 from pathlib import PurePosixPath
 from typing import Any
@@ -11,7 +12,7 @@ from typing import Any
 from core.authorized_tool_execution import execute_authorized_runtime_tool
 from core.model_escalation_policy import PaidModelPolicy
 from core.model_handoff_capsule import _DEFAULT_EXCLUSIONS, _WALLET_TERMS, SECRET_SCAN
-from core.secret_redaction import recovery_phrase_words, redact_secrets, redacted_copy
+from core.secret_redaction import phrase_word_key, recovery_phrase_wordlists, redact_secrets, redacted_copy
 
 # Model-context budgets, independent of the tool's file-display budget.
 MAX_FILES = 4
@@ -327,23 +328,27 @@ def _secret_column(text: str) -> bool:
 
 
 def _mnemonic_shaped(text: str) -> bool:
-    """Twelve consecutive short words (3-8 letters, any script) with nothing between them but list
-    furniture -- spaces, line breaks, list numbers, commas, dashes, pipes, full stops -- at least nine
-    of them recovery-phrase words. That is how a seed or recovery phrase looks in any layout (one
-    line, one per line, numbered, columns, a table, hyphen-joined, after a label). A short word
-    (under 3 letters), a number of three or more digits, a markdown heading or a long word breaks the
-    run; twelve words holding more than two stop words, or fewer than ten different words, read as
-    prose or a tally.
+    """Twelve consecutive words with nothing between them but list furniture -- spaces, line breaks,
+    list numbers, commas, dashes, pipes, full stops -- at least nine of them words of ONE BIP-39
+    list. That is how a seed or recovery phrase looks in any layout (one line, one per line,
+    numbered, columns, a table, hyphen-joined, after a label). A word joins the run when it has 3 to
+    8 letters or is a phrase word itself (an Italian phrase word has up to nine letters, a Korean one
+    two syllables, a Chinese one a single character). A word that is neither, a number of three or
+    more digits or a markdown heading breaks the run; twelve words holding more than two stop words,
+    or fewer than ten different words, read as prose or a tally.
 
-    The recovery-phrase words are the wallet's own BIP-39 English list (`core.secret_redaction`).
-    The shape alone withheld ordinary lists (measured 2026-11-12 while porting onto v0.8: a 13-item
-    shopping list, a 12-item packing list and a 12-name guest list all read as recovery phrases, so
-    "what's on my packing list?" would have been refused). Everyday lists measured 4 to 8 phrase
-    words in their best twelve, made-up test phrases 9 to 11, real phrases 12. Without the list (a
-    broken install) the shape alone decides: when unsure, the text stays out of the model's
-    context. A labelled phrase ("seed: ...", "mnemonic = ...") is caught by the secret-field rule
-    whatever its words."""
-    phrase_words = recovery_phrase_words()
+    The phrase words are the ten official BIP-39 lists (`core.secret_redaction`), compared without
+    case or accents. The shape alone withheld ordinary lists (measured 2026-11-12 while porting onto
+    v0.8: a 13-item shopping list, a 12-item packing list and a 12-name guest list all read as
+    recovery phrases, so "what's on my packing list?" would have been refused). Everyday lists
+    measured 4 to 8 phrase words in their best twelve, made-up test phrases 9 to 11, real phrases
+    12. With the English list alone a twelve-word Spanish phrase in a named notes file reached the
+    model (measured the same day on the v0.8 candidate), so every language's list counts, each on
+    its own. Without the lists (a broken install) the shape alone decides: when unsure, the text
+    stays out of the model's context. A labelled phrase ("seed: ...", "mnemonic = ...") is caught by
+    the secret-field rule whatever its words."""
+    wordlists = recovery_phrase_wordlists()
+    value = unicodedata.normalize("NFC", str(text or ""))
     run: list[str] = []
     last_end = 0
 
@@ -352,20 +357,25 @@ def _mnemonic_shaped(text: str) -> bool:
             window = words[start:start + _MNEMONIC_MIN_WORDS]
             if len(set(window)) < _MNEMONIC_MIN_WORDS - 2 or sum(word in _STOP_WORDS for word in window) > 2:
                 continue
-            if not phrase_words or sum(word in phrase_words for word in window) >= _MNEMONIC_PHRASE_WORDS:
+            if not wordlists or any(
+                sum(word in wordlist for word in window) >= _MNEMONIC_PHRASE_WORDS for wordlist in wordlists
+            ):
                 return True
         return False
 
-    for match in re.finditer(r"[^\W\d_]+", str(text or "")):
+    for match in re.finditer(r"[^\W\d_]+", value):
         word = match.group()
-        between = text[last_end:match.start()]
+        between = value[last_end:match.start()]
         last_end = match.end()
         if re.search(r"\d{3,}|(?:^|\n)\s*#{1,6}\s", between):
             if counts(run):
                 return True
             run = []
-        if 3 <= len(word) <= 8 and (word.islower() or word.istitle() or word.isupper()):
-            run.append(word.casefold())
+        key = phrase_word_key(word)
+        if (3 <= len(word) <= 8 and (word.islower() or word.istitle() or word.isupper())) or any(
+            key in wordlist for wordlist in wordlists
+        ):
+            run.append(key)
             continue
         if counts(run):
             return True

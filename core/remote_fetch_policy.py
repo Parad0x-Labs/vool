@@ -216,6 +216,14 @@ WEB_OFF_LOOKUP_TEXT = (
 MACHINE_OFFLINE_LOOKUP_TEXT = (
     "VOOL is set to keep everything on this computer, so I can't look this up online."
 )
+#: Web lookups were forced off when VOOL started (`VOOL_DISABLE_WEB` / `VOOL_NO_WEB`). The Settings
+#: switch cannot turn them back on, so these do not send the person there (review finding
+#: 2026-10-18; measured again 2026-11-12 on the v0.8 candidate, where the lookup refusal did).
+WEB_FORCED_OFF_TEXT = (
+    "Live web lookup is off: Web lookups are switched off, so I can't check current weather, "
+    "prices or news."
+)
+WEB_FORCED_OFF_LOOKUP_TEXT = "Web lookups are off, so I can't look this up online."
 
 
 def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
@@ -237,6 +245,13 @@ def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
             return OFFLINE_TEXT
     except Exception:
         pass
+    try:
+        from core.policy_engine import web_forced_off_by_environment
+
+        if web_forced_off_by_environment():
+            return WEB_FORCED_OFF_TEXT
+    except Exception:
+        pass
     return WEB_OFF_TEXT
 
 
@@ -245,6 +260,7 @@ def lookup_unavailable_reason(source_context: dict[str, Any] | None = None) -> s
     return {
         MACHINE_OFFLINE_TEXT: MACHINE_OFFLINE_LOOKUP_TEXT,
         OFFLINE_TEXT: OFFLINE_LOOKUP_TEXT,
+        WEB_FORCED_OFF_TEXT: WEB_FORCED_OFF_LOOKUP_TEXT,
     }.get(web_unavailable_reason(source_context), WEB_OFF_LOOKUP_TEXT)
 
 
@@ -1136,6 +1152,8 @@ __all__ = [
     "MACHINE_OFFLINE_LOOKUP_TEXT",
     "NO_ACTIVE_LEDGER_DENIAL",
     "OFFLINE_LOOKUP_TEXT",
+    "WEB_FORCED_OFF_LOOKUP_TEXT",
+    "WEB_FORCED_OFF_TEXT",
     "WEB_OFF_LOOKUP_TEXT",
     "CredentialRedirectRefusedError",
     "RemoteFetchRefusedError",
