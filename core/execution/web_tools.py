@@ -9,7 +9,6 @@ from core.execution.models import ToolIntentExecution
 from core.research_evidence import truthful_evidence_strength
 from core.retrieval_observability import begin_web_retrieval, finish_web_retrieval
 
-
 #: The lookup tools the Web lookups switch governs (browser.render has its own policy).
 WEB_LOOKUP_INTENTS = frozenset({"web.search", "web.research", "web.fetch"})
 WEB_OFF_REFUSAL_KEY = "web.off.tool_refusal"
