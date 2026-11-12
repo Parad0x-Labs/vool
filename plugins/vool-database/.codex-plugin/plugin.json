@@ -177,14 +177,14 @@
             "description": "Values for the :name parameters in the statement; never interpolate values into sql."
           },
           "row_limit": {
-            "type": "integer",
+            "type": ["integer", "string"],
             "minimum": 1,
             "maximum": 1000,
             "default": 200,
             "description": "Maximum rows returned; extra rows are reported as truncated."
           },
           "max_seconds": {
-            "type": "integer",
+            "type": ["integer", "string"],
             "minimum": 1,
             "maximum": 30,
             "default": 5,

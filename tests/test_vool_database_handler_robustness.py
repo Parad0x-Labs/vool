@@ -100,3 +100,14 @@ def test_truncated_text_says_it_is_not_a_count(h, monkeypatch) -> None:
 def test_a_change_sent_to_the_query_tool_points_to_the_preview(h, monkeypatch) -> None:
     r = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "alter table customers add column x text"})
     assert r["ok"] is False and "migrate.preview" in r["error"] and "nothing was changed" in r["error"]
+
+
+def test_the_manifest_accepts_limits_written_as_text() -> None:
+    """Run14: the executor rejected row_limit='1' before the handler (which reads text numbers) ran."""
+    from core.json_schema_lite import assert_supported, validate
+
+    manifest = json.loads((HANDLER.parent.parent / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    schema = next(t for t in manifest["tools"] if t["intent"] == "vool-database.query")["input_schema"]
+    assert_supported(schema)
+    assert validate({"name": "orders", "sql": "select 1", "row_limit": "1", "max_seconds": "5"}, schema) == []
+    assert validate({"name": "orders", "sql": "select 1", "row_limit": 2000}, schema) != []
