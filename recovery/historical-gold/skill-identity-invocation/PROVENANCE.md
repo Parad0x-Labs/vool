@@ -10,3 +10,9 @@
 - **Runtime status:** NOT REGISTERED
 
 Vault copy is PRESERVATION only — NOT imported or registered by the runtime (guarded by tests/test_recovery_vault_isolation.py). Identity/machine paths scrubbed.
+
+## Updated 2026-11-12 to the branch tip
+
+- **Tip:** exp/skill-system-pass1 @ a4d07699. core/skill_identity.py was updated to the tip (the change from 6c194fc6 is patches/6c194fc6-to-a4d07699.skill_identity.diff); core/skill_invocation.py is byte-identical.
+- Kept as patches (they edit files the line has rewritten): patches/core/plugin_catalog.py.diff, patches/core/plugin_skills.py.diff.
+- Added: experimental/tests/test_skill_system.py, tests/test_skill_convergence.py, tests/test_skill_legacy_trust.py, scripts/skill_convergence_demo.py, and six skill fixtures (three hostile, three ordinary), stored as SKILL.md.txt so no skill scanner can load them.

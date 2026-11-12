@@ -13,6 +13,12 @@ PROVEN is returned only when read-only provider evidence genuinely establishes
 the exact operation. When GitHub cannot guarantee pushability without attempting
 the push, UNKNOWN is the honest answer. A remaining TOCTOU race is stated on
 every result: provider rules can change between final probe and dispatch.
+
+Pass #4 closure — LAW: UNOBSERVED GOVERNING POLICY -> CANNOT RETURN PROVEN.
+STATUS=PROVEN requires COMPLETE coverage of every provider-side policy surface
+that governs the operation; missing policy information is never permission.
+Even a PROVEN result means "provider evidence indicates permitted at observation
+time" — it is NOT VOOL platform authorization, and the TOCTOU race remains.
 """
 from __future__ import annotations
 
@@ -60,9 +66,24 @@ class OperationEvidence:
     status: OperationStatus
     evidence: tuple[str, ...] = ()      # secretless, read-only probe results
     note: str = ""
+    # Pass #4 evidence-coverage law: STATUS=PROVEN requires COMPLETE coverage of
+    # every provider-side policy surface that governs the operation.
+    observed_policy_surfaces: tuple[str, ...] = ()
+    required_policy_surfaces: tuple[str, ...] = ()
+
+    @property
+    def coverage_complete(self) -> bool:
+        return all(s in self.observed_policy_surfaces
+                   for s in self.required_policy_surfaces)
 
     def __post_init__(self) -> None:
-        pass  # frozen; TOCTOU note appended via full_note()
+        # Structural enforcement: a PROVEN result with incomplete coverage is a
+        # bug, not an opinion — refuse to construct it.
+        if self.status is OperationStatus.OPERATION_PROVEN and not self.coverage_complete:
+            raise ValueError(
+                f"PROVEN requires complete evidence coverage "
+                f"(observed={self.observed_policy_surfaces}, "
+                f"required={self.required_policy_surfaces}) for {self.operation}")
 
     def full_note(self) -> str:
         base = self.note or ""
@@ -81,7 +102,8 @@ def preflight(operation: str, slug: str, runner: ProbeRunner,
 
     Supported exact operations (evidence model, not full provider coverage):
       github.repo.read          role alone proves it (any role > NONE)
-      github.branch.push        branch existence + protection metadata
+      github.branch.push        branch existence + protection + ruleset surfaces;
+                                PROVEN only when ALL governing surfaces observed
       github.branch.force_push  explicit allow_force_pushes flag only
       github.pr.merge           mergeable flag + WRITE role
       github.repo.settings.write ADMIN role necessary, still UNKNOWN (org rules)
@@ -98,30 +120,57 @@ def preflight(operation: str, slug: str, runner: ProbeRunner,
                                  evidence=(f"viewerPermission={role.value}",))
 
     if op == "branch.push":
+        # Pass #4 evidence ceiling: the governing policy surfaces for a direct
+        # branch push are classic branch protection AND org/repository rulesets.
+        required = ("classic_branch_protection", "rulesets")
         if branch is None:
             return _unknown(op, slug, role, "no branch bound to request")
         ok, body = _gh_json(runner, f"repos/{slug}/branches/{branch}")
         if not ok:
             return OperationEvidence(op, slug, role, OperationStatus.OPERATION_REFUSED,
                                      evidence=("branch lookup failed",),
-                                     note="branch missing or inaccessible")
+                                     note="branch missing or inaccessible",
+                                     required_policy_surfaces=required)
         protected = '"protected":true' in body.replace(" ", "")
         ev = [f"branch {branch} exists", f"protected={protected}",
               f"repository_role={role.value}"]
+        observed: tuple[str, ...] = ()
         if protected:
-            # Protection metadata says direct pushes are restricted; a PR route
-            # may exist but that is a different operation with different rules.
             return OperationEvidence(op, slug, role, OperationStatus.OPERATION_REFUSED,
                                      evidence=tuple(ev),
                                      note="protected branch: direct push refused; "
-                                          "PR route is a separate operation")
+                                          "PR route is a separate operation",
+                                     observed_policy_surfaces=("classic_branch_protection",),
+                                     required_policy_surfaces=required)
         if not role_at_least(role, RepositoryRole.WRITE):
             return OperationEvidence(op, slug, role, OperationStatus.OPERATION_REFUSED,
-                                     evidence=tuple(ev), note="role below WRITE")
+                                     evidence=tuple(ev), note="role below WRITE",
+                                     required_policy_surfaces=required)
+        # Role + unprotected is NOT enough (Pass #3 overclaim retracted): rulesets
+        # can block pushes invisibly. Observe them or return UNKNOWN.
+        rules_ok, rules_body = _gh_json(
+            runner, f"repos/{slug}/rules/branches?branch={branch}")
+        if not rules_ok:
+            return OperationEvidence(
+                op, slug, role, OperationStatus.OPERATION_UNKNOWN,
+                evidence=(*ev, "ruleset query unavailable"),
+                note="provider policy coverage incomplete — unobserved governing "
+                     "policy cannot yield PROVEN",
+                observed_policy_surfaces=("classic_branch_protection",),
+                required_policy_surfaces=required)
+        observed = ("classic_branch_protection", "rulesets")
+        if '"PUSH_REQUEST"' in rules_body or '"NON_FAST_FORWARD"' in rules_body:
+            return OperationEvidence(op, slug, role, OperationStatus.OPERATION_REFUSED,
+                                     evidence=(*ev, "blocking ruleset observed"),
+                                     observed_policy_surfaces=observed,
+                                     required_policy_surfaces=required)
+        ev.append("rulesets explicitly evaluated: none blocking")
         return OperationEvidence(op, slug, role, OperationStatus.OPERATION_PROVEN,
                                  evidence=tuple(ev),
-                                 note="unprotected branch + WRITE role; "
-                                      "org rulesets beyond branch protection are not visible here")
+                                 note="all governing policy surfaces this evidence model "
+                                      "requires were observed permissive",
+                                 observed_policy_surfaces=observed,
+                                 required_policy_surfaces=required)
 
     if op == "branch.force_push":
         if branch is None:

@@ -13,6 +13,11 @@ STRONG EXECUTABLE IDENTITY (opt-in, where justified):
     sha256 content digest. Only computed on request — never blindly hashed for
     every giant binary on every probe.
 
+POLICY:
+    FAST  = cheap drift screening. It does NOT prove bytes are unchanged —
+            an in-place edit preserving inode/size/mtime_ns can pass FAST.
+    STRONG = required when exact executable identity matters (content SHA256).
+
 This is drift DETECTION, not attestation.
 """
 from __future__ import annotations

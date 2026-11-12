@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VOOL · Kernel Lab Bench</title>
+<link rel="stylesheet" href="/static/lab.css">
+<script type="importmap">
+{ "imports": {
+    "three": "/static/vendor/three.module.min.js",
+    "three/addons/controls/OrbitControls.js": "/static/vendor/OrbitControls.js" } }
+</script>
+</head>
+<body>
+<div id="lab">
+  <!-- 3D viewport -->
+  <div id="viewport"></div>
+
+  <!-- TOP BAR -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="led led-ok"></span>
+      <span class="brand-name">VOOL</span>
+      <span class="brand-sub">kernel trace · lab</span>
+    </div>
+    <div class="run-box">
+      <span id="run-id" class="mono">journal —</span>
+      <span id="health" class="mono">…</span>
+    </div>
+    <div class="view-switch">
+      <button id="btn3d" class="active">3D lab</button>
+      <button id="btn2d">2D DAG</button>
+    </div>
+  </header>
+
+  <!-- LEFT: turn rail -->
+  <aside id="turnrail">
+    <div class="rail-head">TURNS <span id="turncount"></span></div>
+    <div id="turnlist" class="rail-list"></div>
+  </aside>
+
+  <!-- RIGHT: inspector -->
+  <aside id="inspector">
+    <section class="panel">
+      <div class="panel-head">Turn <span id="turnid">—</span></div>
+      <div id="turnmeta" class="mono small"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">STAGES</div>
+      <div id="legend" class="legend"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">SELECTED PART</div>
+      <div id="nodedetail" class="mono small muted">Click a chip in the lab.</div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">KNOBS <span class="badge badge-warn">read-only</span></div>
+      <div id="knobs" class="knobs"></div>
+      <div class="hint">Write-back locked while the delta review is open. Flipped via env flag after close.</div>
+    </section>
+  </aside>
+
+  <!-- BOTTOM: timing / log -->
+  <footer id="deck">
+    <div id="timeline">
+      <button id="btn-prev" title="prev turn">◀ turn</button>
+      <button id="btn-play" title="run signal">▶</button>
+      <button id="btn-next" title="next turn">turn ▶</button>
+      <div id="scope" class="scope"></div>
+      <span id="steplabel" class="mono small">—</span>
+    </div>
+    <div id="statusline" class="mono">ready — open a turn in the left rail, then ▶ to watch the kernel signal.</div>
+  </footer>
+</div>
+
+<script>
+  /* Fast, classic-scope rail so the turn list is never empty even if the 3D
+     module (three.js/WebGL) fails to load. The ESM app3d.js re-renders it. */
+  (function () {
+    var host = document.getElementById("turnlist");
+    if (!host) return;
+    fetch("/api/state").then(function (r) { return r.json(); }).then(function (d) {
+      var turns = d.turns || [];
+      document.getElementById("turncount").textContent = turns.length + "";
+      if (!turns.length) {
+        host.innerHTML = '<div class="turn"><div class="q muted">no turns in journal</div></div>';
+        return;
+      }
+      host.innerHTML = "";
+      turns.forEach(function (t) {
+        var c = (t.commit || "").toLowerCase();
+        var pill = "pill-partial", label = "partial";
+        if (t.crashed) { pill = "pill-crash"; label = "crash"; }
+        else if (c.indexOf("committed") >= 0) { pill = "pill-committed"; label = "committed"; }
+        var el = document.createElement("div");
+        el.className = "turn" + (t.turn_index === window.selTurn ? " sel" : "");
+        el.innerHTML = '<div class="q">#' + t.turn_index + " " + (t.question || "").slice(0, 60) + '</div>' +
+          '<div class="m"><span class="pill ' + pill + '">' + label + '</span><span>' + t.effects.length + 'fx</span></div>';
+        el.onclick = function () { window.location.search = "?t=" + t.turn_index; };
+        host.appendChild(el);
+      });
+    }).catch(function () {
+      host.innerHTML = '<div class="turn"><div class="q">server unreachable</div></div>';
+    });
+  })();
+</script>
+<script type="module" src="/static/app3d.js"></script>
+</body>
+</html>

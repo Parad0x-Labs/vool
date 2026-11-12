@@ -1,0 +1,41 @@
+diff --git a/core/plugin_catalog.py b/core/plugin_catalog.py
+index 05fd486f..874e9176 100644
+--- a/core/plugin_catalog.py
++++ b/core/plugin_catalog.py
+@@ -62,19 +62,24 @@ def _read_json(path: Path) -> dict[str, Any]:
+ 
+ 
+ def _skill_frontmatter(skill_md: Path) -> dict[str, str]:
+-    try:
+-        text = skill_md.read_text(encoding="utf-8")
+-    except Exception:
+-        return {}
+-    match = _FRONTMATTER_RE.match(text)
+-    if not match:
++    """Display-only frontmatter for the catalog.
++
++    Pass #2: interpretation is DELEGATED to `core.plugin_skills.parse_skill` — the one
++    parser owns skill identity and meaning. This shim only flattens what the catalog
++    needs for display (name/description). It no longer interprets YAML itself, so two
++    parsers can never disagree about what a skill is (sabotage S7).
++    """
++    from core.plugin_skills import parse_skill
++
++    skill = parse_skill(skill_md)
++    if skill is None:
+         return {}
+-    values: dict[str, str] = {}
+-    for line in match.group(1).splitlines():
+-        if ":" in line:
+-            key, value = line.split(":", 1)
+-            values[key.strip()] = value.strip()
+-    return values
++    front = {"name": skill.name, "description": skill.description}
++    if skill.identity is not None:
++        front["publisher"] = skill.identity.publisher
++        front["id"] = skill.identity.skill_id
++        front["version"] = skill.identity.version
++    return {k: v for k, v in front.items() if v}
+ 
+ 
+ def _plugin_entry(plugin_dir: Path) -> dict[str, Any] | None:

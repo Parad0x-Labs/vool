@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VOOL kernel trace visualizer</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <h1>VOOL kernel trace</h1>
+  <div class="hdr-meta">
+    <span id="hdr-journal">journal: —</span>
+    <span id="hdr-health">health: —</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT: turn list -->
+  <aside id="turnlist">
+    <div class="tl-head">Turns <button id="refresh">↻</button></div>
+    <div id="tl-items" class="tl-items"></div>
+  </aside>
+
+  <!-- CENTER: DAG canvas -->
+  <section id="stage">
+    <div id="stage-toolbar">
+      <span id="stage-title">Select a turn</span>
+      <div class="tb-group">
+        <button id="play">▶ step</button>
+        <button id="reset">reset view</button>
+        <label><input type="checkbox" id="show3d"> 3D tilt</label>
+      </div>
+    </div>
+    <svg id="dag" width="100%" height="100%">
+      <g id="layers"></g>
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </svg>
+    <div id="detail" class="hidden"></div>
+  </section>
+
+  <!-- RIGHT: knobs + prompts + code -->
+  <aside id="inspector">
+    <div class="insp-scroll">
+      <details open>
+        <summary>Turn</summary>
+        <div id="turn-detail"></div>
+      </details>
+      <details>
+        <summary>Behavior knobs <small>(reads config; write-back gated)</small></summary>
+        <div class="knobs">
+          <label><input type="checkbox" id="k-wordcount" disabled> word-count contract</label>
+          <label><input type="checkbox" id="k-entity" disabled> entity binding</label>
+          <label><input type="checkbox" id="k-harvest" disabled> harvest binding</label>
+          <label><input type="checkbox" id="k-echo" disabled> render echo ban</label>
+          <label><input type="checkbox" id="k-unknown" disabled> multipart UNKNOWN</label>
+          <div class="knob-note">Knobs display current intent; write-back to the
+            kernel is env-gated (<code>VOOL_VIS_WRITEBACK</code>=0) and not active
+            while the delta review is open.</div>
+        </div>
+      </details>
+      <details>
+        <summary>Prompts (read-only)</summary>
+        <div id="prompt-pane"><em>Select a model effect in the DAG to view its prompt input.</em></div>
+      </details>
+      <details>
+        <summary>Code locator</summary>
+        <div id="code-pane">Click an effect node to see which repl.py region drives it. (Static map; line numbers at HEAD.)</div>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

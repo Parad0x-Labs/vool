@@ -6,7 +6,7 @@
   "families": {
     "kernel-laws-enforcement": {
       "source": "dangling commits 32c7740f (+ e288f48a, 819cd464) in OX-VOOL/code; also on-disk at-risk-recovery-20260829/vool-engine-kernel",
-      "path": "core/kernel/* (wasm_sandbox, broker, compartments, counterfactual, plugin_contract, plugin_lifecycle, envelope, flow, boundary, continuation, stability, composition, council_flow)",
+      "path": "core/kernel/* (wasm_sandbox, broker, compartments, counterfactual, plugin_contract, plugin_lifecycle, envelope, flow, boundary, continuation, stability, composition, council_flow); added 2026-11-12: round 019 single semantic ownership (patches/core/kernel/repl.py.diff + 2 tests)",
       "maturity": "SUBSTANTIAL + TESTED (dedicated test_kernel_* + compiled vool_plugin.wasm fixture)",
       "hist_wired": "experimental lab only (never on the served path)",
       "hist_tested": "yes",
@@ -15,7 +15,7 @@
       "status": "DISABLED / NOT REGISTERED"
     },
     "toolbelt": {
-      "source": "tag preserve/exp-toolbelt-ninja-pass3-20260829 (+ pass1/2 tags, origin/exp/toolbelt-ninja-pass4)",
+      "source": "tag preserve/exp-toolbelt-ninja-pass3-20260829 (+ pass1/2 tags, origin/exp/toolbelt-ninja-pass4); updated 2026-11-12 to exp/toolbelt-ninja-pass4 @ 93ec937c (patches/pass3-to-pass4.diff) + 4 tests + 3 demos",
       "path": "core/toolbelt/* (models, operations, resolve, evidence, identities, exe_identity, ssh_signing, probes, inventory, credentials, runtime_manifest, version_spec)",
       "maturity": "SUBSTANTIAL (typed per-tool presence/scope/health/auth state machine; install plans; secrets-as-handles CredentialHandle invariant)",
       "hist_wired": "experiment lane",
@@ -45,7 +45,7 @@
       "status": "NOT REGISTERED"
     },
     "skill-identity-invocation": {
-      "source": "branch origin/exp/skill-system-pass1 @ 6c194fc6",
+      "source": "branch origin/exp/skill-system-pass1 @ 6c194fc6; updated 2026-11-12 to tip a4d07699 + plugin_catalog/plugin_skills patches, tests, fixtures (as SKILL.md.txt), demo",
       "path": "core/skill_identity.py (two-digest PACKAGE vs EFFECTIVE authenticity, parse_skill_md, strip_hidden_blocks) + core/skill_invocation.py (APPLIED/PARTIAL/BLOCKED invocation truth)",
       "maturity": "PARTIAL (collision + identity-conflict law)",
       "hist_wired": "experiment",
@@ -76,7 +76,7 @@
     },
     "social-content": {
       "source": "branch build/social-content-manager-p1-20260904 @ bfa92578",
-      "path": "core/social_content/* (research, x_session_research, adaptation, observations, review, publishing, platform_policy) + storage/social_content_store.py + command group",
+      "path": "core/social_content/* (research, x_session_research, adaptation, observations, review, publishing, platform_policy) + storage/social_content_store.py + command group; added 2026-11-12: command group, contract doc, skill (as SKILL.md.txt), 11 tests",
       "maturity": "SUBSTANTIAL (multi-platform)",
       "hist_wired": "branch only; the X-specific variant DID merge (x_editorial.py)",
       "hist_tested": "partial",
@@ -104,6 +104,46 @@
       "rec": "PRESERVE + ANALYZE ONLY. **KAS owns external channels/integrations** \u2014 do NOT wire into VOOL if it violates the VOOL/KAS boundary. Hand to the KAS lane.",
       "status": "NOT REGISTERED",
       "owner": "KAS lane (external channels)"
+    },
+    "pa-capabilities": {
+      "source": "branch build/pa-capabilities-20260909 @ 53383844 (Mac only; recovered 2026-11-12)",
+      "path": "core/pa_tasks.py, core/pa_reminders.py, core/pa_reminder_runtime.py, core/email_approval.py, core/email_send_ledger.py + calendar timezone patch + 8 tests",
+      "maturity": "SUBSTANTIAL (todo store and reminders with journeys and daemon end-to-end tests)",
+      "hist_wired": "branch only",
+      "hist_tested": "yes",
+      "current_equiv": "reminders rebuilt (core/operator/reminders.py, reminder_dispatcher.py); email send safety in core/email_tools.py + email_work_state.py; user todo list ABSENT",
+      "rec": "Owner call: a user todo list in a later release (pa_tasks is the start); reminder and email parts superseded. Commit dfb6e939 is lost.",
+      "status": "NOT REGISTERED"
+    },
+    "kernel-visualizer": {
+      "source": "branch experiment/kernel-laws-poc @ c811ffef (Mac only; recovered 2026-11-12)",
+      "path": "vool_visualizer/* + core/kernel/vis_events.py + tests/test_vollow_visualizer.py + 4 regression drive scripts",
+      "maturity": "lab tool",
+      "hist_wired": "lab only",
+      "hist_tested": "one test (needs a local journal)",
+      "current_equiv": "NONE",
+      "rec": "VAULT-ONLY; vendored three.js r160 files not kept (see vendor-README.txt).",
+      "status": "NOT REGISTERED"
+    },
+    "council-trials": {
+      "source": "branch experiment/council-mode @ 8a852ff6 (separate experiment clone; recovered 2026-11-12)",
+      "path": "scripts/council_demo.py, council_live_trial.py, council_live_trial2.py, council_trial3.py, council_trial4.py, trial3_*.py, trial4_*.py",
+      "maturity": "experiment harness (four live council trials with scoring)",
+      "hist_wired": "scripts only (OpenRouter key from the environment)",
+      "hist_tested": "n/a",
+      "current_equiv": "council runtime on the line (core/council/*); trial harnesses absent",
+      "rec": "VAULT-ONLY; result JSON stays in the owner's Mac export archive; a rerun spends API credits and needs the owner's ok.",
+      "status": "NOT REGISTERED"
+    },
+    "notes-store-reading-spec": {
+      "source": "untracked tests of worktree apple-notes-object-reading-20260915 (base 1d58a641; recovered 2026-11-12 from the 2026-11-11 worktree archive)",
+      "path": "tests/test_apple_notes_object_names_the_store.py, tests/pa_beta_gate/test_served_apple_notes_object_reading.py, tests/operator_notes_store_census.py",
+      "maturity": "SPEC ONLY (tests written first; the fix was never written)",
+      "hist_wired": "no",
+      "hist_tested": "these are the tests",
+      "current_equiv": "gap still open: an Apple note named with find/search/look up, or a singular 'Apple note' create, still goes to the workspace",
+      "rec": "P1 fix: implement the store reading these tests describe, then move them into tests/.",
+      "status": "NOT REGISTERED"
     }
   },
   "standalone_repos": {

@@ -1,0 +1,14 @@
+---
+publisher: vool
+id: commit-message-quality
+version: 1.0.0
+description: Commit messages state what changed and why, under 72 chars for the subject.
+requires:
+  write: [git.commit.propose]
+inputs: [RepairProposal]
+outputs: [CommitMessage]
+tags: [git, commits]
+---
+
+# Commit Message Quality
+Subject <= 72 chars, imperative mood, body explains why.
