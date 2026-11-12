@@ -12368,7 +12368,8 @@ async function renderBugReportReview() {
     (brFlow.tokenAvailable ? '<button type="button" id="brSubmit" class="set-btn"' + (brFlow.approved && !brFlow.submitting ? '' : ' disabled') + '>Send with my GitHub token</button>' : '') +
     '</div>' +
     '<p class="br-status">Approve first, then &ldquo;Open on GitHub&rdquo; fills in a new report on GitHub in your browser &mdash; you press Submit there, and VOOL sends nothing itself. &ldquo;Copy report&rdquo; and &ldquo;Save a local copy&rdquo; never leave this computer.</p>' +
-    '<p class="br-note">We remove keys, passwords, PINs, card, bank and phone numbers, emails, wallet addresses, your user name and computer name. We can&rsquo;t spot names you typed &mdash; check the text above.</p>';
+    '<p class="br-note">We remove keys, passwords, PINs, card, bank and phone numbers, emails, wallet addresses, your user name and computer name. We can&rsquo;t spot names you typed &mdash; check the text above.</p>' +
+    '<p class="br-note">Each removed email, person, address or number keeps one marker throughout the report, such as [EMAIL_1] and [EMAIL_2], so it still reads clearly. Every removed key, password, PIN or card shows as [SECRET_REMOVED].</p>';
   bugReportBody.querySelectorAll('.br-rm-field').forEach((el) => el.addEventListener('change', brRemovalsChanged));
   bugReportBody.querySelectorAll('.br-rm-att').forEach((el) => el.addEventListener('change', brRemovalsChanged));
   document.getElementById('brEdit').addEventListener('click', brEditDraft);

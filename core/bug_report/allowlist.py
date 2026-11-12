@@ -39,11 +39,11 @@ _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$")
 MAX_ERROR_MESSAGE_CHARS = 1000
 
 
-def sanitize_prose(text: str, *, max_chars: int) -> str:
+def sanitize_prose(text: str, *, max_chars: int, aliases=None) -> str:
     """Normalize + redact free text, then hard-cap its length."""
     if text is None:
         return ""
-    sanitized, _summary = redact_text(str(text))
+    sanitized, _summary = redact_text(str(text), aliases=aliases)
     if len(sanitized) <= max_chars:
         return sanitized
     return sanitized[:max_chars].rstrip() + _TRUNCATION_MARKER
@@ -89,7 +89,7 @@ def _basename(path: str) -> str:
     return path
 
 
-def parse_stack(error_text: str, *, summary: RedactionSummary | None = None) -> SanitizedError | None:
+def parse_stack(error_text: str, *, summary: RedactionSummary | None = None, aliases=None) -> SanitizedError | None:
     """Reconstruct a typed error from raw traceback text.
 
     Everything passes redaction first; frames keep only basename/line/function; the
@@ -97,7 +97,7 @@ def parse_stack(error_text: str, *, summary: RedactionSummary | None = None) -> 
     """
     if not error_text or not str(error_text).strip():
         return None
-    sanitized, text_summary = redact_text(str(error_text))
+    sanitized, text_summary = redact_text(str(error_text), aliases=aliases)
     if summary is not None:
         _absorb(summary, text_summary)
     frames: list[StackFrameSanitized] = []
@@ -112,7 +112,7 @@ def parse_stack(error_text: str, *, summary: RedactionSummary | None = None) -> 
             exc_type = exc_match.group(1).rsplit(".", 1)[-1]
             message = exc_match.group(2).strip()
             break
-    message, msg_summary = redact_text(message)
+    message, msg_summary = redact_text(message, aliases=aliases)
     if summary is not None:
         _absorb(summary, msg_summary)
     if len(message) > MAX_ERROR_MESSAGE_CHARS:
@@ -120,9 +120,9 @@ def parse_stack(error_text: str, *, summary: RedactionSummary | None = None) -> 
     return SanitizedError(exc_type=exc_type, message=message, frames=tuple(frames))
 
 
-def sanitize_log_line(line: str, *, summary: RedactionSummary | None = None) -> tuple[str, bool]:
+def sanitize_log_line(line: str, *, summary: RedactionSummary | None = None, aliases=None) -> tuple[str, bool]:
     """Redact one log line. Returns (sanitized_line, has_safe_shape)."""
-    sanitized, line_summary = redact_text(str(line))
+    sanitized, line_summary = redact_text(str(line), aliases=aliases)
     if summary is not None:
         _absorb(summary, line_summary)
     return sanitized, has_safe_log_shape(sanitized)

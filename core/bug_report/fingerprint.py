@@ -23,12 +23,17 @@ _NOISE_ID_RE = re.compile(r"\b(?:req|sess|turn|run|trace|span)_[A-Za-z0-9]{4,}\b
 # dedup purposes; the issue body still carries the exact numbers.
 _NOISE_LONG_DIGITS_RE = re.compile(r"\d{2,}")
 _WHITESPACE_RE = re.compile(r"\s+")
+# A report's alias numbers depend on which field first named a value ("[EMAIL_2]" in a repro
+# step only because the expected text named another address first), so dedup drops the
+# number and keeps the family: the same defect keeps one fingerprint however it was worded.
+_ALIAS_INDEX_RE = re.compile(r"\[([a-z_]+)_\d+\]")
 
 
 def _normalize_free_text(text: str) -> str:
     value = str(text or "").lower()
     value = _NOISE_DATE_RE.sub("<date>", value)
     value = _NOISE_ID_RE.sub("<id>", value)
+    value = _ALIAS_INDEX_RE.sub(r"[\1]", value)
     value = _NOISE_LONG_DIGITS_RE.sub("<n>", value)
     return _WHITESPACE_RE.sub(" ", value).strip()
 
