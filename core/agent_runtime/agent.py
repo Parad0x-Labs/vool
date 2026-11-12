@@ -2917,6 +2917,13 @@ class VoolAgent(
             )
             if counted is None:
                 counted = _no_mailbox_reply(effective_input)
+            if counted is None:
+                # A document ask in a chat bound to a project reads the project's own files first.
+                from core.agent_runtime.project_documents import project_document_answer
+
+                counted = project_document_answer(
+                    effective_input, session_id=session_id, source_context=runtime_source_context
+                )
             if counted is not None:
                 count_result = self._fast_path_result(
                     session_id=session_id, user_input=effective_input, response=counted,
