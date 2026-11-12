@@ -135,6 +135,70 @@ def _record_observations(context: dict[str, Any], receipts: list[dict[str, Any]]
         return
 
 
+def front_door_needs_web(text: str, context: dict[str, Any]) -> bool:
+    """Whether the front door would class this ask as needing fresh or online information (weather, news,
+    a lookup, a live value): the same three reads core.agent_runtime.turn_frontdoor makes before it sends an
+    ask to the web switch. Used so such an ask meets the switch instead of this loop's file reads."""
+    try:
+        from core.execution_requirements import requirements_for
+
+        if str(requirements_for(text, source_context=context).answer_mode).rsplit(".", 1)[-1] == "LIVE_DATA":
+            return True
+    except Exception:
+        pass
+    try:
+        from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+
+        if live_info_mode(None, text, interpretation=None) in ("weather", "news", "fresh_lookup"):
+            return True
+    except Exception:
+        pass
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        return "web" in tuple(getattr(resolve_demand_signals(text), "required_families", ()) or ())
+    except Exception:
+        return False
+
+
+#: Step statuses that are a read which came back with nothing to show.
+_EMPTY_STATUSES = frozenset({"repeated_failure", "error", "unsupported", "outside_home"})
+
+
+def productive_steps(loop_result: Any) -> list[int]:
+    """Indexes of the loop's tool steps that returned something: a read that ran, ok, and was not an empty search."""
+    return [
+        i for i, step in enumerate(getattr(loop_result, "steps", None) or [])
+        if step.get("tool") and step.get("tool") != "propose_change" and step.get("ok")
+        and not step.get("empty") and str(step.get("status") or "") not in _EMPTY_STATUSES and int(step.get("result_chars") or 0) > 0
+    ]
+
+
+def loop_should_decline(text: str, loop_result: Any, receipts: list[dict[str, Any]] | None = None, *, follow_up: bool = False) -> str:
+    """A reason when the loop's tools did not produce evidence for this ask, "" when it may answer.
+
+    Read from what the tools returned: no read ran at all, every search came back empty, or what was read shares
+    no word with the ask (names, paths, lines). The model's own wording is only a secondary signal. Only for an
+    ask that is not explicitly the owner's own: then "nothing found" is not an answer, the turn is not this
+    loop's and the normal turn flow (web lookup, the web-off refusal, the model) gets it."""
+    steps = list(getattr(loop_result, "steps", None) or [])
+    good = productive_steps(loop_result)
+    if not good:
+        # Nothing was read. A follow-up may still be answered from the chat's own earlier evidence (no tool ran).
+        if follow_up and not steps:
+            return ""
+        return "found_nothing_fell_through"
+    words = route.own_content_words(text)
+    seen = [str(x) for x in getattr(loop_result, "seen", None) or []]
+    observed = [str(r.get("response_preview") or "") for r in (receipts or []) if (r.get("execution") or {}).get("ok", True)]
+    blob = " ".join([*seen, *observed]).lower()
+    if words and not any(w in blob for w in words):
+        return "irrelevant_matches_fell_through"
+    if content_absence_claim(loop_result.answer) and not follow_up:
+        return "found_nothing_fell_through"
+    return ""
+
+
 def maybe_answer(
     agent: Any,
     *,
@@ -204,6 +268,18 @@ def maybe_answer(
     _LOG.info("clean loop route: %s", decision.reason)
     if not decision.admit:
         return None
+    # A short follow-up to a loop turn that left evidence stays with the loop: its answer may come from that
+    # evidence alone, so "no new read" is not a reason to decline it.
+    needs_web = front_door_needs_web(effective_input or text, context)
+    # A follow-up only when the previous loop turn left evidence (a follow-up to a found-nothing turn has nothing
+    # to follow up on) (the front door's fresh-ask reading does not override that: it misreads elliptical follow-ups).
+    follow_up = bool(prior_evidence) or route._is_follow_up(text, session_id)
+    explicit_own = route.asks_explicitly_about_own_things(text) or follow_up
+    if not explicit_own and needs_web:
+        # Order: an ask the front door classes as fresh/online meets the web switch (or its refusal)
+        # before this loop; only an ask that says it is the owner's own keeps the loop's first turn.
+        context["clean_local_loop_route"] = "fresh_ask_to_front_door"
+        return None
     exact = _exact_read_first(agent, effective_input or text, session_id=session_id, context=context)
     if exact is not None:
         context["clean_local_loop_route"] = "exact_read_lane"
@@ -255,7 +331,19 @@ def maybe_answer(
         context["clean_local_loop_route"] = "documents_found_nothing_fell_through"
         _clear_evidence(session_id)
         return None
-    evidence = _turn_evidence(loop_result.seen) or prior_evidence
+    if not explicit_own and not loop_result.proposals:
+        declined = loop_should_decline(text, loop_result, ctx.receipts, follow_up=follow_up)
+        if declined:
+            # Admitted on a word, not on the owner's own things, and the reads found nothing for it: not this
+            # loop's turn. Only reads ran; none of them is recorded as this turn's observation.
+            context["clean_local_loop_route"] = declined
+            _clear_evidence(session_id)
+            return None
+    productive = bool(productive_steps(loop_result))
+    if productive:
+        evidence = _turn_evidence(loop_result.seen) or prior_evidence
+    else:
+        evidence = "" if loop_result.steps else prior_evidence
     if evidence:
         _remember_evidence(session_id, evidence)
     else:
@@ -291,7 +379,10 @@ def maybe_answer(
         from core.clean_loop import changes
 
         changes.remember_pending(session_id, ctx.plans[-1])
-    route.note_clean_turn(session_id)
+    if productive or evidence or loop_result.proposals:
+        route.note_clean_turn(session_id)
+    else:
+        route.forget_clean_turn(session_id)
     return result
 
 

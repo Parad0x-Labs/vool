@@ -271,11 +271,11 @@ def _home_path(label: str, home: Path) -> Path:
     return candidate if candidate.is_absolute() else home / candidate
 
 
-def _merge(outcomes: list[ToolOutcome], text: str, *, status: str | None = None) -> ToolOutcome:
+def _merge(outcomes: list[ToolOutcome], text: str, *, status: str | None = None, empty: bool = False) -> ToolOutcome:
     intents = tuple(i for o in outcomes for i in o.intents)
     ok = any(o.ok for o in outcomes)
     outcome_status = status or ("executed" if ok else (outcomes[-1].status if outcomes else "error"))
-    return ToolOutcome(text=text[:_RESULT_CHARS] or "(empty)", ok=ok, status=outcome_status, intents=intents)
+    return ToolOutcome(text=text[:_RESULT_CHARS] or "(empty)", ok=ok, status=outcome_status, intents=intents, empty=empty)
 
 
 def _scoped(args: dict[str, Any], ctx: ToolContext, key: str = "path") -> Path | ToolOutcome:
@@ -489,6 +489,7 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
         f"I didn't find it in your files. Search result: nothing found for: {', '.join(words)} in file "
         f"names or inside documents.{_unopened_note(ctx)} Try another word you used or a folder name.",
         status=status,
+        empty=True,
     )
 
 

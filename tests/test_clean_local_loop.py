@@ -1011,3 +1011,109 @@ def test_a_free_brain_reserves_nothing(monkeypatch):
     router = _PaidRouter("answer")
     assert make_brain(router, object(), dict(OWNER))(MESSAGES) == "answer"
     assert router.calls[0]["task"] is None and "authorized_paid_call" not in router.calls[0]["context"]
+
+
+# --- the loop may decline: admission is permissive, "the owner's own" is explicit (red/blue 2026-11-12) ----
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "is the print museum in lyon open on mondays",
+        "what papers do i need to rent a car in spain",
+        "how do spreadsheet macros work",
+        "upload speed of a fibre line in germany",
+        "what does a receipt need to say for a tax claim",
+        "laptop vs desktop for video editing",
+        "photo of the day from the hubble",
+        "how much does a notary charge for a lease",
+        "free folder icons for mac",
+        "how do i take a screenshot on windows",
+    ],
+)
+def test_a_world_ask_that_holds_a_file_word_is_not_explicitly_the_owners(ask):
+    assert not route.asks_explicitly_about_own_things(ask), ask
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "where did my holiday photos go",
+        "what is in my budget spreadsheet",
+        "the pdf i saved yesterday, whats its name",
+        "anything new in downloads",
+        "is there a lease on the desktop",
+        "list what is in ~/Documents/taxes",
+        "how full is my laptop",
+        "did we get the receipt we downloaded last week",
+    ],
+)
+def test_an_ask_that_names_the_owners_things_is_explicit(ask):
+    assert route.asks_explicitly_about_own_things(ask), ask
+
+
+class _Result:
+    def __init__(self, answer, steps=(), seen=()):
+        self.answer, self.steps, self.seen, self.proposals = answer, list(steps), list(seen), []
+
+
+def _step(tool="find", status="executed", chars=40, ok=True, empty=False):
+    return {"tool": tool, "ok": ok, "status": status, "result_chars": chars, "empty": empty}
+
+
+def test_the_loop_declines_when_no_read_ran():
+    from core.clean_loop.hook import loop_should_decline
+
+    assert loop_should_decline("how do pdf forms work", _Result("They are fillable."), []) == "found_nothing_fell_through"
+
+
+def test_the_loop_declines_when_every_search_came_back_empty():
+    from core.clean_loop.hook import loop_should_decline
+
+    result = _Result("Here is a general answer.", steps=[_step(empty=True)], seen=["I didn't find it in your files."])
+    assert loop_should_decline("how do pdf forms work", result, []) == "found_nothing_fell_through"
+
+
+def test_the_loop_declines_reads_that_share_no_word_with_the_ask():
+    from core.clean_loop.hook import loop_should_decline
+
+    result = _Result("Your Downloads hold plumber_invoice.txt.", steps=[_step()], seen=["plumber_invoice.txt"])
+    assert loop_should_decline("how fast is starlink download", result, []) == "irrelevant_matches_fell_through"
+
+
+def test_the_loop_keeps_an_answer_its_reads_support():
+    from core.clean_loop.hook import loop_should_decline
+
+    result = _Result("You owe the plumber 140.", steps=[_step()], seen=["Total due: EUR 140.00 plumber"])
+    assert loop_should_decline("how much is the plumber owed", result, []) == ""
+
+
+def test_a_model_that_says_nothing_about_absence_is_still_declined_on_the_tools_alone():
+    from core.clean_loop.hook import loop_should_decline
+
+    result = _Result("Sure, here you go: it is blue.", steps=[_step(empty=True)])
+    assert loop_should_decline("what colour is a pdf icon", result, []) == "found_nothing_fell_through"
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["meh fine, thanks anyway", "nah never mind lol", "ok cool thx anyways", "ugh whatever then, cheers", "meh"],
+)
+def test_a_closing_or_reaction_after_a_clean_turn_is_not_a_follow_up(message):
+    route.note_clean_turn("sess-closing")
+    decision = route.decide(message, source_context=OWNER, session_id="sess-closing", resolve_brain=_local_brain, env=ON)
+    assert not decision.admit, message
+
+
+def test_a_short_real_follow_up_still_rides_after_a_clean_turn():
+    route.note_clean_turn("sess-real")
+    for message in ("and the one before it?", "what about last month", "open the biggest one"):
+        decision = route.decide(message, source_context=OWNER, session_id="sess-real", resolve_brain=_local_brain, env=ON)
+        assert decision.admit, message
+
+
+def test_the_front_door_reading_of_a_fresh_ask_is_what_orders_it_before_the_loop():
+    from core.clean_loop.hook import front_door_needs_web
+
+    assert front_door_needs_web("will it rain in berlin next weekend", {})
+    assert not front_door_needs_web("what is in the folder called trip planning", {})

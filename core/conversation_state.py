@@ -317,13 +317,30 @@ _PROMPT_WORDS = frozenset({"work", "works", "working", "now", "them", "those", "
 _NO_WH_RE = re.compile(_WH_RE.pattern, re.IGNORECASE)
 
 
+def is_social_only(text: str) -> bool:
+    """Whether the whole message is a closing or a reaction (thanks, "meh ok whatever", "nvm thanks anyway") and asks for
+    nothing: every word is a function word of the closed classes above, and at least one is thanks, a reaction, a filler or
+    a dismissal. "go again" / "go on" are acknowledgements only, so they are not social. Read from words, not phrases."""
+    toks = _tokens(text)
+    if not toks:
+        return False
+    core = _THANKS_WORDS | _REACTION_WORDS | _FILLER_WORDS | _DISMISS_TOKENS | _SOCIAL_EXTRA
+    if any(t in _GO_TOKENS for t in toks):
+        return False
+    if not all(t in core or t in _THANKS_TAIL or t in _ACK_WORDS for t in toks):
+        return False
+    return any(t in core for t in toks)
+
+
 def _cleared_exit(compact: str, pending: PendingRequest | None = None) -> bool:
     """The closed set of messages that are NOT a retry although the blocker is cleared: a dismissal or postponement, thanks
     alone, a question or task with content of its own."""
     if _DISMISS_RE.search(compact) or _DISMISS_WHOLE_RE.match(compact):
         return True
     toks = _tokens(compact)
-    if toks and all(t in _THANKS_WORDS or t in _ACK_WORDS or t in _THANKS_TAIL for t in toks) and any(t in _THANKS_WORDS for t in toks):
+    if toks and all(t in _THANKS_WORDS or t in _ACK_WORDS or t in _THANKS_TAIL or t in _FILLER_WORDS for t in toks) and any(
+        t in _THANKS_WORDS or t in _FILLER_WORDS for t in toks
+    ):
         return True
     if _WH_RE.search(compact) and any(t not in _FUNCTION_WORDS for t in toks):
         return True  # a question with content of its own
@@ -370,8 +387,15 @@ def _grounded(content: list[str], pending: PendingRequest | None) -> bool:
     return all(_stem(t) in known or t in _HEDGES for t in content)
 
 
+_DISMISS_TOKENS = frozenset({"no", "nope", "not", "cancel", "stop", "skip", "drop", "leave", "scrap", "quit", "abort", "ignore", "later", "nvm"})
 _THANKS_TAIL = frozenset({"anyway", "anyways", "though", "tho", "much", "again", "mate", "dude", "man"})
 _THANKS_WORDS = frozenset({"thanks", "thank", "thx", "ty", "cheers", "tyvm"})
+#: Interjections that carry no request ("meh", "whatever"): function words like the thanks tail.
+_FILLER_WORDS = frozenset({"meh", "whatever", "anyway", "anyways", "nah", "nvm", "never", "mind", "forget", "bye"})
+#: Further reactions that are social in a closing ("ugh whatever") but still a bare prompt on their own.
+_SOCIAL_EXTRA = frozenset({"ugh", "oh", "fine", "eh", "pff", "bah"})
+#: Words that ask to run something: a message holding one is never a closing.
+_GO_TOKENS = frozenset({"again", "retry", "redo", "rerun", "repeat", "try", "once", "more", "same", "go", "ahead", "proceed", "continue"})
 _BARE_GO_MAX_AGE = 0
 _ARBITRATE_MAX_AGE = 1
 
@@ -666,4 +690,4 @@ def _note(pending: PendingRequest) -> str:
     return f"Earlier in this chat the user asked: “{pending.request}”. It ended {pending.outcome}{why}.{where}"
 
 
-__all__ = ["PendingRequest", "Resolution", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
+__all__ = ["PendingRequest", "Resolution", "is_social_only", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
