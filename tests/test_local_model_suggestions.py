@@ -44,7 +44,7 @@ def _nvidia(vram_gb: float, ram_gb: float = 32.0) -> dict[str, object]:
         (18.0, "qwen3.5:9b", ""),
         (24.0, "qwen3.5:9b", ""),
         (32.0, "qwen3.5:9b", "qwen3.8:27b"),
-        (36.0, "qwen3.5:9b", "qwen3.8:27b"),
+        (36.0, "qwen3:30b-instruct", "qwen3.8:27b"),
         (48.0, "qwen3.6:35b", "qwen3.8:27b"),
         (128.0, "qwen3.6:35b", "qwen3.8:27b"),
     ],
@@ -82,7 +82,7 @@ def test_a_computer_without_a_usable_gpu_stays_on_a_model_the_cpu_can_run(ram_gb
         (8.0, "qwen3.5:4b", "qwen3.5:9b"),
         (12.0, "qwen3.5:9b", ""),
         (16.0, "qwen3.5:9b", "qwen3.8:27b"),
-        (24.0, "qwen3.8:27b", ""),
+        (24.0, "qwen3:30b-instruct", "qwen3.8:27b"),
     ],
 )
 def test_an_nvidia_card_is_sized_by_its_own_memory(vram_gb: float, daily: str, deep: str) -> None:
@@ -233,45 +233,33 @@ def test_the_download_size_shown_is_the_one_this_computer_gets() -> None:
 
 
 @pytest.mark.parametrize(
-    ("probe", "fast"),
+    ("probe", "daily"),
     [
-        (_apple(16.0), ""),
         # 24 GB Mac: the 30B (~18.2 GiB at 8K, 16.7 GiB of it on the GPU when measured there)
-        # cannot stay loaded beside VOOL's helper model, so it is not offered.
-        (_apple(24.0), ""),
-        # 32 GB Mac: macOS gives the GPU about 21 to 24 GB, which leaves too little beside the
-        # 30B for the helper and recall models.
-        (_apple(32.0), ""),
+        # cannot stay loaded beside VOOL's helper model.
+        (_apple(24.0), "qwen3.5:9b"),
+        # 32 GB Mac: macOS gives the GPU about 21 to 24 GB, too little beside the helper and recall models.
+        (_apple(32.0), "qwen3.5:9b"),
         (_apple(36.0), "qwen3:30b-instruct"),
-        # From 44 GB the daily model is already a 3B-active mixture of experts.
-        (_apple(48.0), ""),
-        (_nvidia(16.0), ""),
+        (_nvidia(16.0), "qwen3.5:9b"),
         (_nvidia(24.0), "qwen3:30b-instruct"),
-        (_cpu(64.0), ""),
+        (_cpu(31.8), "qwen3.5:4b"),
     ],
 )
-def test_the_faster_model_is_offered_only_where_it_can_stay_loaded(probe: dict[str, object], fast: str) -> None:
+def test_the_30b_is_the_daily_model_wherever_it_can_stay_loaded(probe: dict[str, object], daily: str) -> None:
+    # sls 21:24Z Nov 12: given by default, nothing to tune; so no separate faster offer remains.
     pick = suggest_local_models(probe, free_disk_gb=500.0, ollama_version="0.40.3")
-    assert pick.fast == fast
-    assert pick.to_dict()["fast"] == fast
-    # An offer only: the bundle a computer is set up with never carries it.
-    assert "qwen3:30b-instruct" not in pick.models
-
-
-def test_the_faster_offer_needs_room_on_the_disk_and_survives_an_older_ollama() -> None:
-    assert suggest_local_models(_apple(36.0), free_disk_gb=20.0, ollama_version="0.40.3").fast == ""
-    assert suggest_local_models(_apple(36.0), free_disk_gb=500.0, ollama_version="0.21.2").fast == "qwen3:30b-instruct"
+    assert pick.daily == daily
+    assert pick.fast == ""
     entry = SUGGESTED_MODELS["qwen3:30b-instruct"]
     assert (entry.architecture, entry.active_parameter_count) == ("moe", "3.3B")
     assert entry.license_reference == "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507"
 
 
-def test_settings_receives_the_faster_offer_with_this_computers_download_size() -> None:
+def test_settings_offers_no_separate_faster_model() -> None:
     from core.local_model_readiness import recommended_local_model
 
-    mac = recommended_local_model(probe=_apple(36.0), free_disk_gb=500.0, ollama_version="0.40.3")
-    assert mac["faster"] == {"model_name": "qwen3:30b-instruct", "download_gb": 19.0}
-    card = recommended_local_model(probe=_nvidia(24.0), free_disk_gb=500.0, ollama_version="0.40.3")
-    assert card["faster"] == {"model_name": "qwen3:30b-instruct", "download_gb": 18.6}
-    for small_mac in (_apple(24.0), _apple(32.0)):
-        assert "faster" not in recommended_local_model(probe=small_mac, free_disk_gb=500.0, ollama_version="0.40.3")
+    for probe in (_apple(24.0), _apple(36.0), _nvidia(24.0)):
+        rec = recommended_local_model(probe=probe, free_disk_gb=500.0, ollama_version="0.40.3")
+        assert "faster" not in rec
+    assert recommended_local_model(probe=_apple(36.0), free_disk_gb=500.0, ollama_version="0.40.3")["model_name"] == "qwen3:30b-instruct"
