@@ -915,3 +915,28 @@ def test_a_load_waits_for_unloaded_memory_to_come_back(monkeypatch):
     monkeypatch.setattr(governor.time, "sleep", lambda _s: None)
     decision = governor.plan_model_load("qwen3:8b")
     assert decision.ok and decision.usable_after_gb == 9.5
+
+
+def _boot_manifest(name):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(model_name=name, provider_id=f"ollama-local:{name}")
+
+
+def test_boot_check_skips_a_model_too_big_for_this_computer_and_stops_once_one_is_ready(monkeypatch):
+    import core.local_model_readiness as readiness
+
+    monkeypatch.setattr("core.local_model_tool_certification.certification_applies", lambda _m: True)
+    checked: list[str] = []
+
+    def _run(manifest):
+        checked.append(manifest.model_name)
+        return {"state": "degraded"}
+
+    rows = readiness.ready_local_models(
+        [_boot_manifest("qwen3.8:27b"), _boot_manifest("qwen2.5:7b"), _boot_manifest("qwen3:4b")],
+        primary_model="qwen3.8:27b", status_of=lambda _m: {"state": "unknown"}, run_check=_run,
+        fits=lambda m: m.model_name != "qwen3.8:27b", ready_now=lambda: len(checked) >= 1,
+    )
+    assert checked == ["qwen2.5:7b"]  # 27b never loaded; after the first check a model was ready
+    assert rows[0] == {"model": "qwen3.8:27b", "readiness": "too_large_for_this_computer"}

@@ -753,8 +753,37 @@ def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str,
             ]
 
         manifests = _local_manifests()
-        rows = ready_local_models(manifests, primary_model=primary_model)
-        if not any(row["readiness"] == READY for row in rows):
+
+        def _ready_now() -> bool:
+            from core.local_model_tool_certification import certification_status
+
+            for manifest in _local_manifests():
+                try:
+                    if str((certification_status(manifest) or {}).get("state") or "").lower() == "verified":
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        def _fits(manifest: Any) -> bool:
+            # The most this machine may give one model: total memory less the share kept for
+            # the person. A model bigger than that can only swap-freeze the computer.
+            from core import system_resources
+            from core.resource_governor import _LOAD_SAFETY_FLOOR_GB, estimated_model_gb
+
+            need = float(estimated_model_gb(str(manifest.model_name or "")) or 0.0)
+            if need <= 0:
+                return True
+            snap = system_resources.snapshot()
+            ceiling = float(snap.total_ram_gb) - float(getattr(snap, "reserve_gb", 0.0) or 0.0)
+            return need + _LOAD_SAFETY_FLOOR_GB <= ceiling
+
+        rows = ready_local_models(manifests, primary_model=primary_model, ready_now=_ready_now, fits=_fits)
+        # Adopting other installed models is off when the setup said so in so many words.
+        adoption_allowed = str(
+            env.get("VOOL_REGISTER_INSTALLED_OLLAMA_MODELS") or os.environ.get("VOOL_REGISTER_INSTALLED_OLLAMA_MODELS") or ""
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        if adoption_allowed and not _ready_now() and not any(row["readiness"] == READY for row in rows):
             # None of the registered models could answer (or none was checkable). A suggested
             # model that is installed but was never registered (an upgrade that pulled qwen3:8b or
             # qwen3.5:9b beside the old qwen2.5:7b primary) is registered the way Use this model
@@ -773,7 +802,9 @@ def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str,
                     if manifest is not None:
                         added.append(manifest)
             if added:
-                rows += ready_local_models(added, primary_model=added[0].model_name)
+                rows += ready_local_models(
+                    added, primary_model=added[0].model_name, ready_now=_ready_now, fits=_fits
+                )
         for row in rows:
             logger.info("Local model readiness on boot: %s is %s", row["model"], row["readiness"])
     except Exception as exc:  # pragma: no cover - boot must never fail on this

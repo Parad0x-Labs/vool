@@ -210,6 +210,8 @@ def ready_local_models(
     status_of: Any = None,
     run_check: Any = None,
     limit: int = _BOOT_CHECK_LIMIT,
+    ready_now: Any = None,
+    fits: Any = None,
 ) -> list[dict[str, str]]:
     """Make sure one installed local model is ready to answer, without asking the person.
 
@@ -250,6 +252,18 @@ def ready_local_models(
             break
         if state not in _BOOT_CHECK_STATES:
             continue
+        # A model became ready meanwhile (the person pressed Use this model, or setup certified
+        # one): stop -- every further check only loads a model nobody needs. And never check a
+        # model this machine cannot hold: measured on the 0.7.8 sweep (2026-11-12, block 1b), boot
+        # certified a 19 GB qwen3.8:27b on a 24 GB Mac while qwen3:8b was already being set up.
+        try:
+            if ready_now is not None and ready_now():
+                break
+            if fits is not None and not fits(manifest):
+                checked.append({"model": str(manifest.model_name), "readiness": "too_large_for_this_computer"})
+                continue
+        except Exception:
+            pass
         try:
             result = run_check(manifest)
         except Exception:
