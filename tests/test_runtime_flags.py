@@ -44,9 +44,8 @@ SHIPS_OFF = {
     # until the false-positive rate is measured on real traffic — a checker that blocks correct
     # answers is worse than the fabrication it prevents.
     "answer_binder_enforce",
-    # Registers third-party tools into the live catalog. Stays off until install consent exists;
-    # until then a manifest on disk would register tools nobody approved.
-    "plugin_runtime_tools",
+    # (plugin_runtime_tools ships ON: only plugins the person enabled in the plugin lifecycle
+    # expose tools, so enabling is the consent. Off by default left every install without tools.)
     # Ships the full 58-tool catalog on ordinary plain_text turns. Correct in principle — a turn
     # with no tools is why a cloud model invented its own call shape — but with it on, the first
     # cloud turn killed the daemon twice — once on a scratch daemon and once on the installed app —

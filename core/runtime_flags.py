@@ -134,10 +134,12 @@ _FLAGS: tuple[RuntimeFlag, ...] = (
     RuntimeFlag(
         name="plugin_runtime_tools",
         env_var="VOOL_PLUGIN_RUNTIME_TOOLS",
-        default=False,
+        default=True,
         description=(
             "Load the `runtime` and `tools` blocks from a plugin manifest and register the "
-            "declared tools. Manifests without those blocks load exactly as they do today."
+            "declared tools. Only plugins that are enabled in the plugin lifecycle expose "
+            "tools; set VOOL_PLUGIN_RUNTIME_TOOLS=0 to turn the lane off. Manifests without "
+            "those blocks load exactly as they do today."
         ),
     ),
     RuntimeFlag(
