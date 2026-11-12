@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "запланированные изменения",
     "permissions.planned_header": "Планируемые изменения в этом запросе ({count}):",
     "permissions.proposed_changes": "Предлагаемые изменения:",
-    "permissions.recovery_interrupted": "Этот чат был прерван при остановке VOOL.",
+    "permissions.recovery_interrupted": "Ответ прерван: VOOL остановлен до завершения ответа.",
     "permissions.recovery_resume_or_cancel": "Продолжить или отменить…",
     "permissions.resolve_failed": "Не удалось ответить на это подтверждение. Попробуйте ещё раз.",
     "permissions.resolve_failed_prefix": "Не удалось разрешить подтверждение: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "нет",
     "receipts.unavailable": "Квитанции недоступны.",
     "receipts.yes": "да",
+    "recovery.ask_again": "Спросить ещё раз",
+    "recovery.ask_again_or_resume": "Спросите ещё раз или продолжите либо отмените сохранённую работу.",
+    "recovery.ask_it_again": "Задайте вопрос ещё раз, чтобы получить ответ.",
     "recovery.cancel": "Отменить задачу",
     "recovery.cancel_failed_prefix": "Не удалось отменить восстановленную задачу: ",
     "recovery.default_preview": "Сохранённую работу можно продолжить с её контрольной точки.",
+    "recovery.press_ask_again": "Нажмите «Спросить ещё раз», чтобы получить ответ.",
     "recovery.resume": "Продолжить",
     "recovery.resume_or_cancel": "Её можно продолжить или отменить.",
     "recovery.review": "Просмотр активности",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Ниже показана сохранённая шкала задачи и квитанции.",
     "recovery.waiting_elsewhere": "Этот запрос ждёт вашего разрешения, но он был отправлен из другого места, поэтому разрешить его здесь нельзя.",
     "recovery.waiting_expired": "Этот запрос ждал вашего разрешения, и этот вопрос больше не открыт.",
+    "recovery.you_asked": "Вы спросили: «{question}»",
     "run.cancelled": "Остановлено — ход отменён на вашем компьютере.",
     "run.cancelled_paid": "Отменено — платная модель не подтверждена",
     "run.complete": "Завершено",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Контур рассвета",
     "toybox.skin_dawn-circuit_description": "Пиксельный сон о лунных вратах, облачных лентах и выразительных маленьких спутниках."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

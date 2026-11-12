@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "cambios planificados",
     "permissions.planned_header": "Cambios planificados en esta solicitud ({count}):",
     "permissions.proposed_changes": "Cambios propuestos:",
-    "permissions.recovery_interrupted": "Este chat se interrumpió cuando VOOL se detuvo.",
+    "permissions.recovery_interrupted": "Respuesta interrumpida: VOOL se detuvo antes de terminar de responder.",
     "permissions.recovery_resume_or_cancel": "Reanudar o cancelar…",
     "permissions.resolve_failed": "No se pudo responder a esta aprobación. Inténtalo de nuevo.",
     "permissions.resolve_failed_prefix": "No se pudo resolver la aprobación: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "no",
     "receipts.unavailable": "Recibos no disponibles.",
     "receipts.yes": "sí",
+    "recovery.ask_again": "Preguntar de nuevo",
+    "recovery.ask_again_or_resume": "Vuelve a preguntar, o reanuda o cancela el trabajo guardado.",
+    "recovery.ask_it_again": "Vuelve a preguntarlo para obtener la respuesta.",
     "recovery.cancel": "Cancelar tarea",
     "recovery.cancel_failed_prefix": "No se pudo cancelar la tarea recuperada: ",
     "recovery.default_preview": "El trabajo guardado puede continuarse desde su punto de control.",
+    "recovery.press_ask_again": "Pulsa «Preguntar de nuevo» para obtener la respuesta.",
     "recovery.resume": "Reanudar",
     "recovery.resume_or_cancel": "Puedes reanudarla o cancelarla.",
     "recovery.review": "Revisar actividad",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Se muestra abajo la línea temporal guardada de la tarea y sus recibos.",
     "recovery.waiting_elsewhere": "Esta solicitud espera tu aprobación, pero se envió desde otro lugar, así que no se puede permitir aquí.",
     "recovery.waiting_expired": "Esta solicitud esperaba tu aprobación, y esa pregunta ya no está abierta.",
+    "recovery.you_asked": "Preguntaste: «{question}»",
     "run.cancelled": "Detenido — se canceló el turno en tu máquina.",
     "run.cancelled_paid": "Cancelado — modelo de pago no confirmado",
     "run.complete": "Completado",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Circuito del alba",
     "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

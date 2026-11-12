@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "planlanan değişiklik",
     "permissions.planned_header": "Bu istekteki planlanan değişiklikler ({count}):",
     "permissions.proposed_changes": "Önerilen değişiklikler:",
-    "permissions.recovery_interrupted": "VOOL durduğunda bu sohbet kesildi.",
+    "permissions.recovery_interrupted": "Yanıt kesildi: VOOL yanıtlamayı bitirmeden durdu.",
     "permissions.recovery_resume_or_cancel": "Sürdür veya iptal et…",
     "permissions.resolve_failed": "Bu onaya yanıt verilemedi. Lütfen tekrar deneyin.",
     "permissions.resolve_failed_prefix": "Onay çözümlenemedi: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "hayır",
     "receipts.unavailable": "Makbuzlar kullanılamıyor.",
     "receipts.yes": "evet",
+    "recovery.ask_again": "Yeniden sor",
+    "recovery.ask_again_or_resume": "Yeniden sorun ya da kaydedilen işi sürdürün veya iptal edin.",
+    "recovery.ask_it_again": "Yanıtı almak için yeniden sorun.",
     "recovery.cancel": "Görevi iptal et",
     "recovery.cancel_failed_prefix": "Kurtarılan görev iptal edilemedi: ",
     "recovery.default_preview": "Kaydedilen iş, kontrol noktasından devam ettirilebilir.",
+    "recovery.press_ask_again": "Yanıtı almak için \"Yeniden sor\" düğmesine basın.",
     "recovery.resume": "Devam et",
     "recovery.resume_or_cancel": "Devam ettirebilir ya da iptal edebilirsiniz.",
     "recovery.review": "Etkinliği incele",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Aşağıda kaydedilen görev zaman çizelgesi ve makbuzlar gösteriliyor.",
     "recovery.waiting_elsewhere": "Bu istek onayınızı bekliyor, ancak başka bir yerden gönderildiği için burada izin verilemez.",
     "recovery.waiting_expired": "Bu istek onayınızı bekliyordu ve bu soru artık açık değil.",
+    "recovery.you_asked": "Sorunuz: \"{question}\"",
     "run.cancelled": "Durduruldu — tur senin makinen üzerinde iptal edildi.",
     "run.cancelled_paid": "İptal edildi — ücretli model onaylanmadı",
     "run.complete": "Tamamlandı",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Şafak Devresi",
     "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

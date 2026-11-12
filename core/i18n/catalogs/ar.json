@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "تغييرات مخططة",
     "permissions.planned_header": "التغييرات المخططة في هذا الطلب ({count}):",
     "permissions.proposed_changes": "التغييرات المقترحة:",
-    "permissions.recovery_interrupted": "تمت مقاطعة هذه المحادثة عندما توقف VOOL.",
+    "permissions.recovery_interrupted": "انقطع الرد: توقف VOOL قبل أن يُنهي الإجابة.",
     "permissions.recovery_resume_or_cancel": "استئناف أو إلغاء…",
     "permissions.resolve_failed": "تعذّر الإجابة على هذه الموافقة. يرجى المحاولة مرة أخرى.",
     "permissions.resolve_failed_prefix": "تعذّر حل الموافقة: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "لا",
     "receipts.unavailable": "الإيصالات غير متاحة.",
     "receipts.yes": "نعم",
+    "recovery.ask_again": "اسأل مرة أخرى",
+    "recovery.ask_again_or_resume": "اسأل مرة أخرى، أو استأنف العمل المحفوظ أو ألغِه.",
+    "recovery.ask_it_again": "اطرح السؤال مرة أخرى لتحصل على الإجابة.",
     "recovery.cancel": "إلغاء المهمة",
     "recovery.cancel_failed_prefix": "تعذّر إلغاء المهمة المستعادة: ",
     "recovery.default_preview": "يمكن متابعة العمل المحفوظ من نقطة التحقق الخاصة به.",
+    "recovery.press_ask_again": "اضغط «اسأل مرة أخرى» لتحصل على الإجابة.",
     "recovery.resume": "استئناف",
     "recovery.resume_or_cancel": "يمكنك استئنافه أو إلغاؤه.",
     "recovery.review": "مراجعة النشاط",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "يُعرض أدناه الجدول الزمني المحفوظ للمهمة والإيصالات.",
     "recovery.waiting_elsewhere": "هذا الطلب ينتظر موافقتك، لكنه أُرسل من مكان آخر، لذلك لا يمكن السماح به هنا.",
     "recovery.waiting_expired": "كان هذا الطلب ينتظر موافقتك، ولم يعد ذلك السؤال مطروحًا.",
+    "recovery.you_asked": "سؤالك: «{question}»",
     "run.cancelled": "متوقف — تم إلغاء الدور على جهازك.",
     "run.cancelled_paid": "أُلغي — النموذج المدفوع غير مؤكد",
     "run.complete": "مكتمل",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "دائرة الفجر",
     "toybox.skin_dawn-circuit_description": "حلم بكسلي ببوابات قمرية وسحب شريطية ورفاق صغار معبّرين."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

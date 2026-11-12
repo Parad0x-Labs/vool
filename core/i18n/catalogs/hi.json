@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "नियोजित बदलाव",
     "permissions.planned_header": "इस अनुरोध में योजनाबद्ध बदलाव ({count}):",
     "permissions.proposed_changes": "प्रस्तावित बदलाव:",
-    "permissions.recovery_interrupted": "VOOL रुकने पर यह चैट बाधित हो गई थी।",
+    "permissions.recovery_interrupted": "जवाब बीच में रुक गया: VOOL जवाब पूरा करने से पहले रुक गया।",
     "permissions.recovery_resume_or_cancel": "जारी रखें या रद्द करें…",
     "permissions.resolve_failed": "इस स्वीकृति का उत्तर नहीं दिया जा सका। कृपया फिर से प्रयास करें।",
     "permissions.resolve_failed_prefix": "स्वीकृति हल नहीं हो सकी: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "नहीं",
     "receipts.unavailable": "रसीदें अनुपलब्ध हैं।",
     "receipts.yes": "हाँ",
+    "recovery.ask_again": "फिर से पूछें",
+    "recovery.ask_again_or_resume": "फिर से पूछें, या सहेजा गया काम जारी रखें या रद्द करें।",
+    "recovery.ask_it_again": "जवाब पाने के लिए इसे फिर से पूछें।",
     "recovery.cancel": "कार्य रद्द करें",
     "recovery.cancel_failed_prefix": "पुनर्प्राप्त कार्य रद्द नहीं हो सका: ",
     "recovery.default_preview": "सहेया गया कार्य उसके चेकपॉइंट से आगे जारी रखा जा सकता है।",
+    "recovery.press_ask_again": "जवाब पाने के लिए “फिर से पूछें” दबाएँ।",
     "recovery.resume": "पुनः आरंभ करें",
     "recovery.resume_or_cancel": "आप इसे फिर से शुरू कर सकते हैं या रद्द कर सकते हैं।",
     "recovery.review": "गतिविधि समीक्षा करें",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "नीचे सहेए गए कार्य की टाइमलाइन और रसीदें दिखाई जा रही हैं।",
     "recovery.waiting_elsewhere": "यह अनुरोध आपकी मंज़ूरी का इंतज़ार कर रहा है, लेकिन इसे कहीं और से भेजा गया था, इसलिए इसे यहाँ अनुमति नहीं दी जा सकती।",
     "recovery.waiting_expired": "यह अनुरोध आपकी मंज़ूरी का इंतज़ार कर रहा था, और वह सवाल अब खुला नहीं है।",
+    "recovery.you_asked": "आपने पूछा: “{question}”",
     "run.cancelled": "रुका — आपकी मशीन पर यह मोड़ रद्द कर दिया गया।",
     "run.cancelled_paid": "रद्द किया गया — सशुल्क मॉडल पुष्ट नहीं हुआ",
     "run.complete": "पूर्ण",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "भोर का परिपथ",
     "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।"
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

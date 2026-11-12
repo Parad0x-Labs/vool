@@ -8664,13 +8664,17 @@ function paintRecoveryNote(st) {
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
   const resumable = !st.recoveredTask.interruptedOnly;
+  // Every sentence of the note reads through the catalog, so it speaks the person's language.
+  const youAsked = (n) => ' ' + pageTF('recovery.you_asked', 'You asked: “{question}”', { question: asked.slice(0, n) });
   if (!waiting) {
-    text.textContent = 'Reply interrupted: VOOL stopped before it finished answering.'
-      + (asked && resumable ? ' You asked: “' + asked.slice(0, 180) + '”' : '')
-      + (resumable ? ' Ask again, or resume or cancel the saved work.' : (asked.endsWith('...') ? ' Ask it again to get the answer.' : ' Press Ask again to get the answer.'));
+    text.textContent = pageT('permissions.recovery_interrupted', 'Reply interrupted: VOOL stopped before it finished answering.')
+      + (asked && resumable ? youAsked(180) : '')
+      + ' ' + (resumable ? pageT('recovery.ask_again_or_resume', 'Ask again, or resume or cancel the saved work.')
+        : (asked.endsWith('...') ? pageT('recovery.ask_it_again', 'Ask it again to get the answer.')
+          : pageT('recovery.press_ask_again', 'Press Ask again to get the answer.')));
   } else {
     // A request that was waiting for an OK: say whether it can still be answered here.
-    const quoted = asked ? ' You asked: “' + asked.slice(0, 160) + '”' : '';
+    const quoted = asked ? youAsked(160) : '';
     text.textContent = st.approvalAskedElsewhere
       ? pageT('recovery.waiting_elsewhere', 'This request is waiting for your OK, but it was sent from somewhere else, so it cannot be allowed here.') + quoted + ' ' + pageT('recovery.send_again', 'Send it again here to allow it, or cancel it.')
       : pageT('recovery.waiting_expired', 'This request was waiting for your OK, and that question is no longer open.') + quoted + ' ' + pageT('recovery.resume_or_cancel', 'You can resume it or cancel it.');
@@ -8686,7 +8690,7 @@ function paintRecoveryNote(st) {
   // nothing of it was kept). Offered only when the question itself is known.
   if (asked && !asked.endsWith('...')) {
     const again = document.createElement('button');
-    again.type = 'button'; again.className = 'tc-view'; again.textContent = 'Ask again';
+    again.type = 'button'; again.className = 'tc-view'; again.textContent = pageT('recovery.ask_again', 'Ask again');
     again.addEventListener('click', async () => {
       const sid = displayedChat;
       if (isChatBusy(sid)) return;

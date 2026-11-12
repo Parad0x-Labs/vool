@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "planuojami pakeitimai",
     "permissions.planned_header": "Planuojami pakeitimai šioje užklausoje ({count}):",
     "permissions.proposed_changes": "Siūlomi pakeitimai:",
-    "permissions.recovery_interrupted": "Šis pokalbis buvo nutrauktas, kai VOOL sustojo.",
+    "permissions.recovery_interrupted": "Atsakymas nutrūko: VOOL sustojo nebaigęs atsakyti.",
     "permissions.recovery_resume_or_cancel": "Tęsti arba atšaukti…",
     "permissions.resolve_failed": "Nepavyko atsakyti į šį patvirtinimą. Bandykite dar kartą.",
     "permissions.resolve_failed_prefix": "Nepavyko išspręsti patvirtinimo: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "ne",
     "receipts.unavailable": "Kvitai neprieinami.",
     "receipts.yes": "taip",
+    "recovery.ask_again": "Klausti dar kartą",
+    "recovery.ask_again_or_resume": "Paklauskite dar kartą arba tęskite ar atšaukite išsaugotą darbą.",
+    "recovery.ask_it_again": "Paklauskite dar kartą, kad gautumėte atsakymą.",
     "recovery.cancel": "Atšaukti užduotį",
     "recovery.cancel_failed_prefix": "Nepavyko atšaukti atkurtos užduoties: ",
     "recovery.default_preview": "Išsaugotą darbą galima tęsti nuo jo kontrolinio taško.",
+    "recovery.press_ask_again": "Paspauskite „Klausti dar kartą“, kad gautumėte atsakymą.",
     "recovery.resume": "Tęsti",
     "recovery.resume_or_cancel": "Galite ją tęsti arba atšaukti.",
     "recovery.review": "Peržiūrėti veiklą",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Žemiau rodoma išsaugota užduoties laiko juosta ir kvitai.",
     "recovery.waiting_elsewhere": "Ši užklausa laukia jūsų sutikimo, bet ji išsiųsta iš kitur, todėl čia jos leisti negalima.",
     "recovery.waiting_expired": "Ši užklausa laukė jūsų sutikimo, o tas klausimas nebėra atviras.",
+    "recovery.you_asked": "Klausėte: „{question}“",
     "run.cancelled": "Sustabdyta — ėjimas atšauktas jūsų kompiuteryje.",
     "run.cancelled_paid": "Atšaukta — apmokamas modelis nepatvirtintas",
     "run.complete": "Užbaigta",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Aušros grandinė",
     "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

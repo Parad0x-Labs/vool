@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "modifications prévues",
     "permissions.planned_header": "Modifications prévues dans cette demande ({count}) :",
     "permissions.proposed_changes": "Modifications proposées :",
-    "permissions.recovery_interrupted": "Cette conversation a été interrompue quand VOOL s'est arrêtée.",
+    "permissions.recovery_interrupted": "Réponse interrompue : VOOL s'est arrêtée avant d'avoir fini de répondre.",
     "permissions.recovery_resume_or_cancel": "Reprendre ou annuler…",
     "permissions.resolve_failed": "Impossible de répondre à cette approbation. Veuillez réessayer.",
     "permissions.resolve_failed_prefix": "Impossible de résoudre l'approbation : ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "non",
     "receipts.unavailable": "Reçus indisponibles.",
     "receipts.yes": "oui",
+    "recovery.ask_again": "Redemander",
+    "recovery.ask_again_or_resume": "Redemandez, ou reprenez ou annulez le travail enregistré.",
+    "recovery.ask_it_again": "Posez la question à nouveau pour obtenir la réponse.",
     "recovery.cancel": "Annuler la tâche",
     "recovery.cancel_failed_prefix": "Impossible d'annuler la tâche récupérée : ",
     "recovery.default_preview": "Le travail enregistré peut reprendre depuis son point de contrôle.",
+    "recovery.press_ask_again": "Appuyez sur « Redemander » pour obtenir la réponse.",
     "recovery.resume": "Reprendre",
     "recovery.resume_or_cancel": "Vous pouvez la reprendre ou l'annuler.",
     "recovery.review": "Voir l'activité",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Affichage ci-dessous de la chronologie enregistrée de la tâche et des reçus.",
     "recovery.waiting_elsewhere": "Cette demande attend votre accord, mais elle a été envoyée d'ailleurs, elle ne peut donc pas être autorisée ici.",
     "recovery.waiting_expired": "Cette demande attendait votre accord, et cette question n'est plus ouverte.",
+    "recovery.you_asked": "Vous avez demandé : « {question} »",
     "run.cancelled": "Arrêté — le tour a été annulé sur votre machine.",
     "run.cancelled_paid": "Annulé — modèle payant non confirmé",
     "run.complete": "Terminé",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Circuit de l'aube",
     "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

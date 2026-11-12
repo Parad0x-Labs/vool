@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "planowane zmiany",
     "permissions.planned_header": "Planowane zmiany w tym żądaniu ({count}):",
     "permissions.proposed_changes": "Proponowane zmiany:",
-    "permissions.recovery_interrupted": "Ta rozmowa została przerwana, gdy VOOL się zatrzymał.",
+    "permissions.recovery_interrupted": "Odpowiedź przerwana: VOOL zatrzymał się, zanim skończył odpowiadać.",
     "permissions.recovery_resume_or_cancel": "Wznów lub anuluj…",
     "permissions.resolve_failed": "Nie udało się odpowiedzieć na to zatwierdzenie. Spróbuj ponownie.",
     "permissions.resolve_failed_prefix": "Nie udało się rozstrzygnąć zatwierdzenia: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "nie",
     "receipts.unavailable": "Potwierdzenia niedostępne.",
     "receipts.yes": "tak",
+    "recovery.ask_again": "Zapytaj ponownie",
+    "recovery.ask_again_or_resume": "Zapytaj ponownie albo wznów lub anuluj zapisaną pracę.",
+    "recovery.ask_it_again": "Zadaj je ponownie, aby uzyskać odpowiedź.",
     "recovery.cancel": "Anuluj zadanie",
     "recovery.cancel_failed_prefix": "Nie udało się anulować odzyskanego zadania: ",
     "recovery.default_preview": "Zapisaną pracę można kontynuować od jej punktu kontrolnego.",
+    "recovery.press_ask_again": "Naciśnij „Zapytaj ponownie”, aby uzyskać odpowiedź.",
     "recovery.resume": "Wznów",
     "recovery.resume_or_cancel": "Możesz je wznowić albo anulować.",
     "recovery.review": "Przejrzyj aktywność",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Poniżej pokazano zapisaną oś czasu zadania i potwierdzenia.",
     "recovery.waiting_elsewhere": "To żądanie czeka na Twoją zgodę, ale zostało wysłane z innego miejsca, więc nie można na nie zezwolić tutaj.",
     "recovery.waiting_expired": "To żądanie czekało na Twoją zgodę, a to pytanie nie jest już otwarte.",
+    "recovery.you_asked": "Twoje pytanie: „{question}”",
     "run.cancelled": "Zatrzymano — anulowano turę na twoim komputerze.",
     "run.cancelled_paid": "Anulowano — płatny model niepotwierdzony",
     "run.complete": "Ukończono",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Obwód świtu",
     "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

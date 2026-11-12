@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "計画済み変更",
     "permissions.planned_header": "このリクエスト内の予定変更（{count}）：",
     "permissions.proposed_changes": "提案された変更：",
-    "permissions.recovery_interrupted": "VOOL が停止したため、このチャットは中断されました。",
+    "permissions.recovery_interrupted": "返信が中断されました。VOOL が回答を終える前に停止しました。",
     "permissions.recovery_resume_or_cancel": "再開またはキャンセル…",
     "permissions.resolve_failed": "この承認には回答できませんでした。もう一度お試しください。",
     "permissions.resolve_failed_prefix": "承認を解決できませんでした: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "いいえ",
     "receipts.unavailable": "レシートは利用できません。",
     "receipts.yes": "はい",
+    "recovery.ask_again": "もう一度質問",
+    "recovery.ask_again_or_resume": "もう一度質問するか、保存された作業を再開またはキャンセルしてください。",
+    "recovery.ask_it_again": "回答を得るには、もう一度質問してください。",
     "recovery.cancel": "タスクをキャンセル",
     "recovery.cancel_failed_prefix": "復元されたタスクをキャンセルできませんでした: ",
     "recovery.default_preview": "保存された作業は、チェックポイントから再開できます。",
+    "recovery.press_ask_again": "回答を得るには「もう一度質問」を押してください。",
     "recovery.resume": "再開",
     "recovery.resume_or_cancel": "再開するか、キャンセルできます。",
     "recovery.review": "アクティビティを確認",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "保存されたタスクのタイムラインとレシートを以下に表示しています。",
     "recovery.waiting_elsewhere": "このリクエストはあなたの許可を待っていますが、別の場所から送信されたため、ここでは許可できません。",
     "recovery.waiting_expired": "このリクエストはあなたの許可を待っていましたが、その確認はもう受け付けていません。",
+    "recovery.you_asked": "あなたの質問：「{question}」",
     "run.cancelled": "停止しました — このマシンでターンをキャンセルしました。",
     "run.cancelled_paid": "キャンセル済み — 有料モデルが未確認",
     "run.complete": "完了",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "暁の回路",
     "toybox.skin_dawn-circuit_description": "月の門、リボン雲、表情豊かな小さな仲間たちのピクセルの夢。"
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

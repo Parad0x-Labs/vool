@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "thay đổi đã lập kế hoạch",
     "permissions.planned_header": "Thay đổi dự kiến trong yêu cầu này ({count}):",
     "permissions.proposed_changes": "Thay đổi được đề xuất:",
-    "permissions.recovery_interrupted": "Cuộc trò chuyện này bị gián đoạn khi VOOL dừng lại.",
+    "permissions.recovery_interrupted": "Câu trả lời bị gián đoạn: VOOL đã dừng trước khi trả lời xong.",
     "permissions.recovery_resume_or_cancel": "Tiếp tục hoặc hủy…",
     "permissions.resolve_failed": "Không thể trả lời phê duyệt này. Vui lòng thử lại.",
     "permissions.resolve_failed_prefix": "Không thể xử lý phê duyệt: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "không",
     "receipts.unavailable": "Biên nhận không khả dụng.",
     "receipts.yes": "có",
+    "recovery.ask_again": "Hỏi lại",
+    "recovery.ask_again_or_resume": "Hãy hỏi lại, hoặc tiếp tục hay hủy phần việc đã lưu.",
+    "recovery.ask_it_again": "Hãy hỏi lại để nhận câu trả lời.",
     "recovery.cancel": "Hủy tác vụ",
     "recovery.cancel_failed_prefix": "Không thể hủy tác vụ đã khôi phục: ",
     "recovery.default_preview": "Công việc đã lưu có thể tiếp tục từ điểm kiểm tra của nó.",
+    "recovery.press_ask_again": "Nhấn \"Hỏi lại\" để nhận câu trả lời.",
     "recovery.resume": "Tiếp tục",
     "recovery.resume_or_cancel": "Bạn có thể tiếp tục hoặc hủy nó.",
     "recovery.review": "Xem lại hoạt động",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Dưới đây là dòng thời gian tác vụ đã lưu cùng các biên nhận.",
     "recovery.waiting_elsewhere": "Yêu cầu này đang chờ bạn đồng ý, nhưng nó được gửi từ nơi khác nên không thể cho phép ở đây.",
     "recovery.waiting_expired": "Yêu cầu này đã chờ bạn đồng ý, và câu hỏi đó không còn mở nữa.",
+    "recovery.you_asked": "Bạn đã hỏi: \"{question}\"",
     "run.cancelled": "Đã dừng — hủy lượt này trên máy của bạn.",
     "run.cancelled_paid": "Đã hủy — mô hình trả phí chưa được xác nhận",
     "run.complete": "Hoàn tất",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "заплановані зміни",
     "permissions.planned_header": "Заплановані зміни в цьому запиті ({count}):",
     "permissions.proposed_changes": "Запропоновані зміни:",
-    "permissions.recovery_interrupted": "Цей чат було перервано, коли зупинилася VOOL.",
+    "permissions.recovery_interrupted": "Відповідь перервано: VOOL зупинилася, не закінчивши відповідати.",
     "permissions.recovery_resume_or_cancel": "Продовжити чи скасувати…",
     "permissions.resolve_failed": "Не вдалося відповісти на це підтвердження. Спробуйте ще раз.",
     "permissions.resolve_failed_prefix": "Не вдалося розв’язати підтвердження: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "ні",
     "receipts.unavailable": "Квитанції недоступні.",
     "receipts.yes": "так",
+    "recovery.ask_again": "Запитати ще раз",
+    "recovery.ask_again_or_resume": "Запитайте ще раз або продовжте чи скасуйте збережену роботу.",
+    "recovery.ask_it_again": "Запитайте ще раз, щоб отримати відповідь.",
     "recovery.cancel": "Скасувати завдання",
     "recovery.cancel_failed_prefix": "Не вдалося скасувати відновлене завдання: ",
     "recovery.default_preview": "Збережену роботу можна продовжити з її контрольної точки.",
+    "recovery.press_ask_again": "Натисніть «Запитати ще раз», щоб отримати відповідь.",
     "recovery.resume": "Відновити",
     "recovery.resume_or_cancel": "Її можна продовжити або скасувати.",
     "recovery.review": "Переглянути активність",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Нижче показано збережену шкалу завдання та квитанції.",
     "recovery.waiting_elsewhere": "Цей запит чекає на ваш дозвіл, але його надіслано з іншого місця, тому дозволити його тут не можна.",
     "recovery.waiting_expired": "Цей запит чекав на ваш дозвіл, і це питання вже не відкрите.",
+    "recovery.you_asked": "Ви запитали: «{question}»",
     "run.cancelled": "Зупинено — хід скасовано на вашому комп’ютері.",
     "run.cancelled_paid": "Скасовано — платну модель не підтверджено",
     "run.complete": "Завершено",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Контур світанку",
     "toybox.skin_dawn-circuit_description": "Піксельний сон про місячні брами, хмарні стрічки та виразних маленьких супутників."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "geplante Änderungen",
     "permissions.planned_header": "Geplante Änderungen in dieser Anfrage ({count}):",
     "permissions.proposed_changes": "Vorgeschlagene Änderungen:",
-    "permissions.recovery_interrupted": "Dieser Chat wurde unterbrochen, als VOOL anhielt.",
+    "permissions.recovery_interrupted": "Antwort unterbrochen: VOOL hat angehalten, bevor die Antwort fertig war.",
     "permissions.recovery_resume_or_cancel": "Fortsetzen oder abbrechen…",
     "permissions.resolve_failed": "Diese Freigabe konnte nicht beantwortet werden. Bitte versuche es erneut.",
     "permissions.resolve_failed_prefix": "Freigabe konnte nicht aufgelöst werden: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "nein",
     "receipts.unavailable": "Belege nicht verfügbar.",
     "receipts.yes": "ja",
+    "recovery.ask_again": "Noch einmal fragen",
+    "recovery.ask_again_or_resume": "Frag noch einmal, oder setze die gespeicherte Arbeit fort oder brich sie ab.",
+    "recovery.ask_it_again": "Stell die Frage noch einmal, um die Antwort zu bekommen.",
     "recovery.cancel": "Aufgabe abbrechen",
     "recovery.cancel_failed_prefix": "Wiederhergestellte Aufgabe konnte nicht abgebrochen werden: ",
     "recovery.default_preview": "Gespeicherte Arbeit kann ab ihrem Prüfpunkt fortgesetzt werden.",
+    "recovery.press_ask_again": "Drück auf „Noch einmal fragen“, um die Antwort zu bekommen.",
     "recovery.resume": "Fortsetzen",
     "recovery.resume_or_cancel": "Du kannst sie fortsetzen oder abbrechen.",
     "recovery.review": "Aktivität ansehen",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "Unten wird die gespeicherte Aufgaben-Zeitleiste samt Belegen angezeigt.",
     "recovery.waiting_elsewhere": "Diese Anfrage wartet auf dein OK, wurde aber von woanders gesendet und kann deshalb hier nicht erlaubt werden.",
     "recovery.waiting_expired": "Diese Anfrage wartete auf dein OK, und diese Frage ist nicht mehr offen.",
+    "recovery.you_asked": "Du hast gefragt: „{question}“",
     "run.cancelled": "Gestoppt — der Zug wurde auf deinem Rechner abgebrochen.",
     "run.cancelled_paid": "Abgebrochen — bezahltes Modell nicht bestätigt",
     "run.complete": "Fertig",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "Morgenkreis",
     "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }

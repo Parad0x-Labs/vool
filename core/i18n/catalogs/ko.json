@@ -966,7 +966,7 @@
     "permissions.planned_changes_label": "계획된 변경",
     "permissions.planned_header": "이 요청의 계획된 변경 ({count}):",
     "permissions.proposed_changes": "제안된 변경:",
-    "permissions.recovery_interrupted": "VOOL이 중지되어 이 채팅이 중단되었습니다.",
+    "permissions.recovery_interrupted": "답변 중단됨: VOOL이 답변을 마치기 전에 멈췄습니다.",
     "permissions.recovery_resume_or_cancel": "재개 또는 취소…",
     "permissions.resolve_failed": "이 승인에 응답하지 못했습니다. 다시 시도해 주세요.",
     "permissions.resolve_failed_prefix": "승인을 처리할 수 없었습니다: ",
@@ -1030,9 +1030,13 @@
     "receipts.no": "아니오",
     "receipts.unavailable": "영수증을 사용할 수 없습니다.",
     "receipts.yes": "예",
+    "recovery.ask_again": "다시 질문",
+    "recovery.ask_again_or_resume": "다시 질문하거나, 저장된 작업을 재개하거나 취소하세요.",
+    "recovery.ask_it_again": "답변을 받으려면 다시 질문하세요.",
     "recovery.cancel": "작업 취소",
     "recovery.cancel_failed_prefix": "복구된 작업을 취소할 수 없었습니다: ",
     "recovery.default_preview": "저장된 작업은 체크포인트에서 이어서 할 수 있습니다.",
+    "recovery.press_ask_again": "답변을 받으려면 '다시 질문'을 누르세요.",
     "recovery.resume": "이어 하기",
     "recovery.resume_or_cancel": "다시 시작하거나 취소할 수 있습니다.",
     "recovery.review": "활동 검토",
@@ -1042,6 +1046,7 @@
     "recovery.toast_timeline": "저장된 작업 타임라인과 영수증이 아래에 표시됩니다.",
     "recovery.waiting_elsewhere": "이 요청은 승인을 기다리고 있지만 다른 곳에서 보낸 것이라 여기서는 허용할 수 없습니다.",
     "recovery.waiting_expired": "이 요청은 승인을 기다리고 있었지만 그 질문은 더 이상 열려 있지 않습니다.",
+    "recovery.you_asked": "질문: “{question}”",
     "run.cancelled": "중지됨 — 이 컴퓨터에서 턴이 취소되었습니다.",
     "run.cancelled_paid": "취소됨 — 유료 모델 미확인",
     "run.complete": "완료",
@@ -3508,7 +3513,7 @@
     "toybox.skin_dawn-circuit_name": "새벽 회로",
     "toybox.skin_dawn-circuit_description": "달문과 리본 구름, 표정 풍부한 작은 친구들이 있는 픽셀 꿈."
   },
-  "source_catalog_sha256": "05d1746e0a9db6c9c21228853ab920e178ff284c118965298c949fcadeaf0bff",
+  "source_catalog_sha256": "9bf48752771441fd9e577d79bd2aaf8af2f8b81e4ce704c2f60bea0d9051585d",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",
@@ -3521,6 +3526,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "skills_store_addendum": "35 keys translated by the lane author (single writer)"
+    "skills_store_addendum": "35 keys translated by the lane author (single writer)",
+    "recovery_note_words_addendum": "6 keys translated by the lane author (single writer)"
   }
 }
