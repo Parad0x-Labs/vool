@@ -314,3 +314,16 @@ def test_the_memory_extractor_never_reads_a_no_answer_notice():
     answered = _messages_for_memory_extraction(user_text=ANSWERED[0], assistant_output=ANSWERED[1],
                                                source_context={"conversation_history": history})
     assert answered[-1] == {"role": "assistant", "content": ANSWERED[1]}, answered
+
+
+def test_the_records_refusal_is_one_the_runtime_ships():
+    """`typed_refusal` ships the records refusal for a turn whose only support was this chat's own records,
+    with the same request echo as the other leads. It was missing from the list every refusal check reads,
+    so it was stored and served as "assistant said" and replayed into the next prompt."""
+    from core.context_history_authority import assistant_text_is_no_answer
+    from core.grounding_publication import _RECORDS_REFUSAL_LEAD, is_typed_refusal_text
+
+    echoed = f'{_RECORDS_REFUSAL_LEAD} (request: "which book did Ines borrow")'
+    assert is_typed_refusal_text(echoed)
+    assert assistant_text_is_no_answer(echoed)
+    assert not assistant_text_is_no_answer("Ines borrowed The Left Hand of Darkness on Monday.")
