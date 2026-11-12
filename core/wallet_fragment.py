@@ -1281,8 +1281,9 @@ function credentialPrompt(host, prefix, cp, opts){
   var policy = (cp && cp.credential_policy) || {};
   // the PIN and password rules come as numbers, so the option reads in the page's language (the server's English
   // rule text stays the fallback when a policy carries no numbers)
-  var pinRule = policy.pin && policy.pin.min != null ? WTF('wallet.cred.pin_option', 'PIN ({min}–{max} digits)', { min: policy.pin.min, max: policy.pin.max }) : 'PIN (' + ((policy.pin && policy.pin.text) || 'digits') + ')';
-  var pwRule = policy.password && policy.password.min != null ? WTF('wallet.cred.password_option', 'Wallet password ({min}–{max} characters, not only digits)', { min: policy.password.min, max: policy.password.max }) : 'Wallet password (' + ((policy.password && policy.password.text) || '') + ')';
+  var pinPol = policy.pin_rule || policy.pin, pwPol = policy.password_rule || policy.password;
+  var pinRule = pinPol && pinPol.min != null ? WTF('wallet.cred.pin_option', 'PIN ({min}–{max} digits)', { min: pinPol.min, max: pinPol.max }) : 'PIN (' + ((pinPol && pinPol.text) || 'digits') + ')';
+  var pwRule = pwPol && pwPol.min != null ? WTF('wallet.cred.password_option', 'Wallet password ({min}–{max} characters, not only digits)', { min: pwPol.min, max: pwPol.max }) : 'Wallet password (' + ((pwPol && pwPol.text) || '') + ')';
   var methods = [['pin', pinRule], ['password', pwRule]];
   if (policy.device && policy.device.available) methods.push(['device', WT('wallet.cred.device_option', 'Touch ID or your Mac password')]);
   var mLabel = el('label', null, WT('wallet.home.approve_method', 'How you approve payments')); mLabel.setAttribute('for', prefix + 'Method'); host.appendChild(mLabel);
