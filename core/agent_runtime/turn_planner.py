@@ -191,6 +191,60 @@ def recall_question_needs_no_planner(text: str) -> bool:
         return False
 
 
+def single_shape_needs_no_planner(text: str) -> bool:
+    """Whether *text* is one request by the runtime's own readers, so a planner adds nothing.
+
+    The same fail-toward-the-planner law as `recall_question_needs_no_planner`, two shapes:
+
+    - A turn that SUPPLIES MATERIAL (the runtime's own paste detector,
+      ``plain_task_routing._SUPPLIED_MATERIAL_RE``: eight-plus words after a colon, newline or
+      quote) is one request over that material when the material's HEAD -- the instruction
+      before the paste -- is a single clause minting at most one demanded slot AND that clause
+      is an OPERATION over supplied text (Turn-IR kind TRANSFORM: summarise, rewrite,
+      translate). A colon can equally introduce a LIST of requests ("three things: ..."), and
+      those heads read as UNKNOWN/OBSERVE clauses -- operation kind is the structural
+      separator, so request lists keep the planner. The paste's own sentences mint clauses and
+      slots of their own, and the planner call spent on them returns the turn undivided
+      (measured on the model-free speed harness: a summarize-with-paste turn paid a
+      ~2.7K-token call to learn that).
+    No other turn declines on shape: a pinned test ("ok what about gold and silver price?" ->
+    two planned requests) proves the planner can find sub-requests the structural readers read
+    as one clause and one slot, so every non-material turn keeps today's behaviour (the call
+    runs). Any second clause in the head, a non-operation head, or any exception also keeps
+    the call.
+    """
+    message = str(text or "").strip()
+    if not message:
+        return False
+    try:
+        from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
+
+        material = _SUPPLIED_MATERIAL_RE.search(message)
+        if material is not None:
+            head = message[: material.start()].strip(" \t\r\n:-")
+            if head:
+                from core.agent_runtime.answer_coverage import demand_units
+                from core.turn_ir import ClauseKind, parse_turn_ir
+
+                head_units = demand_units(head)
+                head_clauses = parse_turn_ir(head).clauses
+                if (
+                    (head_units is None or len(head_units) <= 1)
+                    and len(head_clauses) == 1
+                    and head_clauses[0].kind is ClauseKind.TRANSFORM
+                ):
+                    return True
+        from core.agent_runtime.answer_coverage import demand_units
+
+        # No other decline survives its pins: question marks do not separate splittable from
+        # unsplittable ("gold and silver price?" splits; a reordered fetch-then-compute turn
+        # with no question mark must reach the conductor), so only supplied-material turns
+        # decline.
+        return False
+    except Exception:
+        return False
+
+
 def _subject_without_answer_frame(text: str) -> str:
     """The turn minus the sentences that only say HOW to answer.
 
@@ -373,6 +427,10 @@ def plan_turn(
     if is_software_authoring_request(text):
         return []
     if recall_question_needs_no_planner(text):
+        return []
+    if single_shape_needs_no_planner(text):
+        # One clause, one demanded slot, one sentence: the planner can only return the turn
+        # itself, and its ~1K-token system prompt is the whole cost of learning that.
         return []
     # A SKILL-authoring request is the same shape: one request whose clauses are the skill's spec.
     # Measured live 2026-10-05: "create a skill for this project that writes release notes from a

@@ -1,0 +1,16 @@
+---
+publisher: vool
+id: python-test-discipline
+version: 1.0.0
+description: Run the correct local test suite before any repair is considered done.
+requires:
+  read: [python.test.pytest]
+inputs: [RepairProposal]
+outputs: [TestReport]
+tags: [python, testing]
+---
+
+# Python Test Discipline
+1. Detect the project's test runner from project config (via capability, not PATH archaeology).
+2. Run the narrowest suite covering the changed files first.
+3. A repair is not done until the suite that failed in CI passes locally.

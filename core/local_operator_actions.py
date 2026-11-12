@@ -983,9 +983,15 @@ def _handle_apple_note_list(
         lines.append(f"(first {len(shown)} shown)")
     if not names:
         lines.append(f"Apple Notes reports no notes{scope}.")
+    # A topic the request asked to find ("search my Apple Notes for packing"): the listing does not read note bodies,
+    # so the reply says what it did not do instead of letting the list pass for search results.
+    topic = str(intent.target_label or "").strip()
+    if topic:
+        lines.append(f"I did not search Apple Notes for {topic!r}: I can list the notes here, and read one when you "
+                     "name its title.")
     return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines),
                                 details={"notes": shown, "total": len(names), "folder": destination["folder"],
-                                         "account": destination["account"]})
+                                         "account": destination["account"], "unsearched_topic": topic})
 
 
 def _handle_apple_note_read(

@@ -185,6 +185,11 @@ _NOUN_FOLD = tuple(_SCOPE_NOUNS)
 _PREPOSITION_FOLD = ("into", "inside", "within", "under", "from")
 _ARTICLE_FOLD = ("the", "this", "that")
 _POSSESSIVE_FOLD = ("your",)
+#: The store word's own vocabulary for the one typo budget. The real words one edit from "apple" are in it so they stay
+#: themselves: "aple", "appel" and "appple" are the app's name mistyped, "apples", "applet" and "dapple" never are.
+_STORE_WORD_FOLD = ("apple", "apples", "applet", "dapple")
+#: Where a quoted app name is the place a phrase names ('save a note to "Apple Notes"'), not a title.
+_PLACE_PREPOSITIONS = frozenset({"in", "into", "inside", "within", "from", "on", "to"})
 
 _SCOPE_TOKEN_RE = re.compile(
     r'"(?P<dq>[^"\n]*)"'
@@ -199,6 +204,22 @@ def _scope_fold(word: str, vocabulary: tuple[str, ...], *, min_len: int) -> str:
     from core.typo_fold import fold_near_miss_tokens
 
     return fold_near_miss_tokens(word, vocabulary, min_len=min_len)
+
+
+def _is_store_word(word: str) -> bool:
+    """'apple' as written, in any case, or as its one near miss ('aple', 'Appel', 'appple'); never another real word."""
+    lowered = str(word or "").lower()
+    return lowered == "apple" or (len(lowered) >= 4 and _scope_fold(lowered, _STORE_WORD_FOLD, min_len=4) == "apple")
+
+
+def _names_the_app(words: list[str]) -> bool:
+    """Whether the words of one quoted value are the app's name: "Apple Notes", "Apple note", "Notes app", "Notes.app"."""
+    lowered = [word.lower() for word in words]
+    if lowered[:1] == ["the"]:
+        lowered = lowered[1:]
+    if lowered == ["notes.app"]:
+        return True
+    return len(lowered) == 2 and ((_is_store_word(lowered[0]) and lowered[1] in ("note", "notes")) or lowered == ["notes", "app"])
 
 
 class _ScopeReader:
@@ -278,10 +299,14 @@ class _ScopeReader:
         return (_SCOPE_NOUNS[folded], possessive, False) if folded in _SCOPE_NOUNS else None
 
     def _app(self, index: int) -> bool:
-        """'Apple Notes', 'Apple note', 'Notes app', 'Notes.app' name the app, never a folder."""
+        """'Apple Notes', 'Apple note', 'Notes app', 'Notes.app' name the app, never a folder.
+
+        "Apple" takes the one typo budget ('aple notes'): the store reading (`names_apple_notes`) asks these same app
+        words, so a mistyped app name bounds a folder name exactly where it names the store.
+        """
         word, before, after = (self._word(position).lower() for position in (index, index - 1, index + 1))
-        return (word == "notes.app" or (word == "apple" and after in ("note", "notes"))
-                or (word in ("note", "notes") and before == "apple")
+        return (word == "notes.app" or (after in ("note", "notes") and _is_store_word(word))
+                or (word in ("note", "notes") and _is_store_word(before))
                 or (word == "notes" and after == "app") or (word == "app" and before == "notes"))
 
     def _naming(self, index: int) -> bool:
@@ -440,9 +465,120 @@ def parse_notes_destination(text: str, *, data: Any = ()) -> dict[str, str]:
     already read as data from this request (an unquoted payload or new name); they are never read as scope.
     """
     raw = str(text or "")
-    wants = bool(re.search(r"\bapple\s+notes\b|\bnotes\.app\b", raw, re.IGNORECASE))
+    wants = names_apple_notes(raw, data=data)
     folder, account, _scope_quotes = _ScopeReader(_without_data(raw, data)).read()
     return {"wants_apple_notes": str(wants), "folder": folder, "account": account}
+
+
+def names_apple_notes(text: str, *, data: Any = ()) -> bool:
+    """Whether the request's own words name the Apple Notes store.
+
+    The store is named by the scope reader's app words -- "Apple note(s)", "Apple Notes", "Notes app", "Notes.app", with
+    "apple" taking the one typo budget of `core.typo_fold` -- or by a quoted app name written as a place ('save a note
+    to "Apple Notes"'). A word inside a value is never the user naming the store: not inside a quoted title or payload,
+    not inside `data` (the values a reader already took from outside quotes: a find topic, an unquoted title, a create
+    payload) and not inside a path or URL. Measured at 1d58a641: the singular "Apple note" named no store, so 'create an
+    Apple note titled "Trip"' was saved to the workspace, while 'create a note titled "Apple Notes export"' and a payload
+    reading 'export this to Apple Notes later' went to Apple Notes.
+    """
+    from core.execution.constants import text_without_paths
+
+    reader = _ScopeReader(text_without_paths(_without_data(str(text or ""), data)))
+    reader.read()
+    for index, (kind, value) in enumerate(reader.tokens):
+        if kind == "word" and reader._apps[index] and index not in reader.named_words:
+            return True
+        if (kind == "quote" and reader._word(index - 1).lower() in _PLACE_PREPOSITIONS
+                and _names_the_app(value.split())):
+            return True
+    return False
+
+
+#: The verbs that read notes. "look" reads only with its particle ("look up", "look for"); "find out" learns a fact.
+_READ_VERBS = frozenset({"find", "search", "look", "read", "show", "open", "display", "list"})
+_READ_PARTICLES = {"search": frozenset({"for", "through", "in"}), "look": frozenset({"up", "for", "through"}),
+                   "show": frozenset({"me"}), "find": frozenset({"me"})}
+#: The words a read verb crosses on its way to what it takes: "find ALL OF MY Apple notes", "can u find THE note".
+_READ_DETERMINERS = frozenset({"my", "the", "a", "an", "all", "of", "your", "our", "this", "that", "these", "those",
+                               "any", "some", "every", "each", "me"})
+#: What may follow the note noun a read verb takes, so the noun heads its phrase: "my Apple note in the Work folder",
+#: 'the note "Plan"', "my Apple note called Plan". Any other word continues a noun of its own ("Apple Notes tips").
+_AFTER_THE_NOTE = frozenset({"in", "into", "inside", "within", "from", "on", "of", "for", "about", "among", "at", "under",
+                             "with", "titled", "called", "named", "that", "which", "and", "then", "please", "pls", "plz",
+                             "thx", "thanks", "now", "again"})
+
+
+def _scope_phrase_end(reader: _ScopeReader, start: int, scope_quotes: set[int]) -> int:
+    """The token after a scope phrase that starts at `start` ("in the Personal folder", "from my Gmail account's Home
+    folder"), or `start` when none starts there. A phrase holds a name the reader read and the scope noun it names."""
+    if not reader._prepositions[start]:
+        return start
+    index, named, noun = start, False, False
+    while index < len(reader.tokens):
+        if index in reader.named_words or index in scope_quotes:
+            named = True
+        elif reader._spelled[index] is not None and not reader._apps[index]:
+            noun = True
+        elif not (reader._prepositions[index] or reader._articles[index] or reader._possessives[index]
+                  or reader._naming(index)):
+            break
+        index += 1
+    return index if named and noun else start
+
+
+def note_read_object(text: str, *, data: Any = ()) -> tuple[str, str] | None:
+    """(verb, what it takes) for the first read verb of the request that takes a note; None when none does.
+
+    A read verb takes the note it names when a title follows it ('find "Packing list" among my Apple notes') or when it
+    reaches the note noun with nothing of its own in between: determiners and a scope phrase only ('find in the Personal
+    folder my Apple note "Plan"'). "what it takes" is "title", "note" (one note), "notes" (the notes) or "app" (the app's
+    own plural name read as the notes: "search my Apple Notes for packing"). A verb that takes a page, a clause or another
+    noun reads no note: 'search the web for Apple Notes tips', 'look up how Apple Notes syncs', "find out whether ...",
+    "open the Notes app". `data` holds the values a reader already took (a find topic, an unquoted title, a payload): a
+    word inside one is never a verb of the request.
+    """
+    from core.execution.constants import text_without_paths
+
+    reader = _ScopeReader(text_without_paths(_without_data(str(text or ""), data)))
+    _folder, _account, scope_quotes = reader.read()
+    count = len(reader.tokens)
+    for index in range(count):
+        verb = reader._word(index).lower()
+        if verb not in _READ_VERBS:
+            continue
+        position = index + 1
+        particles = _READ_PARTICLES.get(verb, frozenset())
+        while reader._word(position).lower() in particles:
+            position += 1
+        if (verb == "look" and position == index + 1) or reader._word(position).lower() == "out":
+            continue
+        while position < count:
+            # An article or possessive takes the scope reader's one typo ("read teh Apple note").
+            if (reader._word(position).lower() in _READ_DETERMINERS or reader._articles[position]
+                    or reader._possessives[position]):
+                position += 1
+                continue
+            end = _scope_phrase_end(reader, position, scope_quotes)
+            if end == position:
+                break
+            position = end
+        if reader._quote(position):
+            return verb, "title"
+        word = reader._word(position).lower()
+        if _is_store_word(word) and reader._apps[position]:
+            position += 1
+            word = reader._word(position).lower()
+            taken = "note" if word == "note" else "app"
+        elif word in ("note", "notes") and not reader._apps[position]:
+            taken = word
+        else:
+            continue
+        follower = position + 1
+        if follower < count and reader.tokens[follower][0] == "word" \
+                and reader._word(follower).lower() not in _AFTER_THE_NOTE:
+            continue
+        return verb, taken
+    return None
 
 
 def quoted_note_values(text: str) -> list[str]:
@@ -723,6 +859,7 @@ def new_note_title(text: str) -> str:
 __all__ = [
     "append_apple_note", "build_append_note_script", "build_create_note_script", "build_delete_note_script",
     "build_list_notes_script", "build_note_name_script", "build_read_note_script", "build_rename_note_script",
-    "create_apple_note", "delete_apple_note", "list_apple_notes", "notes_in_scope", "parse_notes_destination",
-    "quoted_note_values", "read_apple_note", "rename_apple_note", "resolve_note", "revalidate_note", "run_notes_bridge",
+    "create_apple_note", "delete_apple_note", "list_apple_notes", "names_apple_notes", "note_read_object",
+    "notes_in_scope", "parse_notes_destination", "quoted_note_values", "read_apple_note", "rename_apple_note", "resolve_note",
+    "revalidate_note", "run_notes_bridge",
 ]

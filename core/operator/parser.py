@@ -556,14 +556,6 @@ _ARCHIVE_NOTE_RE = re.compile(
 _RESTORE_NOTE_RE = re.compile(
     r"\b(?:restore|bring back|unarchive)\b[^\n!?.]*\bnotes?\b", re.IGNORECASE,
 )
-_APPLE_NOTE_LIST_RE = re.compile(r"\b(?:list|show)\b[^\n!?.]*\bapple\s+notes\b", re.IGNORECASE)
-# One note, named, read from the Apple Notes app: "read my note about the flat viewing in apple notes".
-# Checked before the list form above, which "show my note about X in apple notes" would otherwise match.
-_APPLE_NOTE_READ_IN_APP_RE = re.compile(
-    r"\b(?:read|show|open|display)\b(?:\s+me)?\s+(?:my|the|that)\s+note\b[^\n!?.]*\b(?:in|from)\s+(?:my\s+)?apple\s+notes\b",
-    re.IGNORECASE,
-)
-_APPLE_NOTE_READ_RE = re.compile(r"\b(?:read|show|open|display)\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_APPEND_RE = re.compile(r"\bappend\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_RENAME_RE = re.compile(r"\brename\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_DELETE_RE = re.compile(r"\b(?:delete|remove)\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
@@ -786,6 +778,11 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             destination_path=_calendar_name(text),
             raw_text=text,
         )
+    # Reads of the Apple Notes store, before the named-event reads and the workspace notes lanes: a read verb that takes
+    # a note, in a request whose own words name the store (see `_apple_notes_read`).
+    apple_read = _apple_notes_read(text)
+    if apple_read is not None:
+        return apple_read
     # --- Everyday named-event reads. "when is the school play", "where is the dentist
     # appointment", "is the school play soon", "am I seeing the dentist any time soon",
     # "anything coming up with the dentist": a definite subject from the person's own life under a
@@ -805,12 +802,6 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     if _bare_cancel_referent(words):
         return OperatorActionIntent(kind="cancel_reminder", referent="most_recent", raw_text=text)
 
-    if _APPLE_NOTE_READ_IN_APP_RE.search(words):
-        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
-    if _APPLE_NOTE_LIST_RE.search(words):
-        return OperatorActionIntent(kind="apple_note_list", raw_text=text)
-    if _APPLE_NOTE_READ_RE.search(words):
-        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     if _APPLE_NOTE_APPEND_RE.search(words):
         return OperatorActionIntent(kind="apple_note_append", target_label=_apple_note_title(text),
                                     destination_path=_apple_note_append_text(text), raw_text=text)
@@ -1106,6 +1097,54 @@ def _apple_note_title(text: str) -> str | None:
         return values[0]
     match = re.search(r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)", str(text or ""), re.IGNORECASE)
     return _spoken_note_title(match) if match else None
+
+
+_SPOKEN_TITLE_RE = re.compile(r"\bnotes?\s+(?P<how>titled|called|named)\s+(?P<title>[^\n,.]+)", re.IGNORECASE)
+
+
+def _apple_notes_read(text: str) -> OperatorActionIntent | None:
+    """A read of the Apple Notes store: a read verb that takes a note, in a request whose own words name the store.
+
+    Measured at 1d58a641: the store a notes read addressed was decided by which verb list its verb was in. Apple Notes
+    knew read/show/open/display for one note and list/show for the notes, and read the app words anywhere, quotes and
+    payloads included. So 'find my Apple note "Plan" in the On My Mac account' searched the workspace, and 'show my note
+    titled "Apple Notes tips"' listed Apple Notes. Now every notes read asks the same two questions: does a read verb
+    take a note (`apple_notes.note_read_object`), and do the request's own words name the store
+    (`apple_notes.names_apple_notes`), each outside the values the request carries: its quotes, its find topic, an
+    unquoted title, a payload and its paths.
+
+    In Apple Notes, a read of one note -- a title, or a singular note -- is `apple_note_read` (no title: the handler asks
+    which); a read of the notes is `apple_note_list`, carrying the find topic so the reply can say it was not searched for.
+    "open Apple Notes" opens the app and reads no note.
+    """
+    from core.operator.apple_notes import names_apple_notes, note_read_object, quoted_note_values
+    from core.operator.notes import parse_note_request
+
+    raw = str(text or "")
+    query = (_note_query(raw) or "").strip("\"'\u201c\u201d\u2018\u2019 ") or None
+    spoken_match = _SPOKEN_TITLE_RE.search(raw)
+    spoken = _spoken_note_title(spoken_match) if spoken_match else None
+    quoted = quoted_note_values(raw)
+    payload = str(parse_note_request(raw).get("body") or "").strip()
+    # A value inside a longer one is blanked with it: blanking the find topic "boxes" first would leave the payload
+    # "find the Apple note about boxes" unfindable, and its words would read as the request's own.
+    values = [value for value in dict.fromkeys((query, spoken, payload)) if value and value not in quoted]
+    data = tuple(value for value in sorted(values, key=len, reverse=True)
+                 if not any(value != other and value in other for other in values))
+    taken = note_read_object(raw, data=data)
+    if taken is None or not names_apple_notes(raw, data=data):
+        return None
+    verb, what = taken
+    if what in ("title", "note"):
+        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(raw), raw_text=raw)
+    # The notes: a quoted value is their find topic when it is what the request searches for ('search my Apple notes
+    # for "TODO"'), and a title otherwise.
+    title = spoken or next((value for value in quoted if value != query), None)
+    if title:
+        return OperatorActionIntent(kind="apple_note_read", target_label=title, raw_text=raw)
+    if what == "app" and verb == "open":
+        return None
+    return OperatorActionIntent(kind="apple_note_list", target_label=query, raw_text=raw)
 
 
 def _apple_note_append_text(text: str) -> str | None:

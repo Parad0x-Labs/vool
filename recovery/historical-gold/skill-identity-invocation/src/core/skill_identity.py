@@ -36,6 +36,50 @@ class SkillIdentityError(ValueError):
     """Raised when a skill cannot form a valid identity or fails tamper checks."""
 
 
+class IdentityConflict(ValueError):
+    """The same canonical ref appeared with different effective instruction bytes."""
+
+
+class LegacyShadowError(ValueError):
+    """A LEGACY_UNVERIFIED skill attempted to supersede a VERIFIED one."""
+
+
+# The ONLY two trust states a parsed skill can carry. identity=None can never mean
+# verified: parse_skill assigns VERIFIED exclusively when a canonical identity was
+# declared AND passed tamper verification.
+VERIFIED = "VERIFIED"
+LEGACY_UNVERIFIED = "LEGACY_UNVERIFIED"
+
+
+def satisfies_pin(verification: str, identity: "SkillIdentity | None", stored_pin: dict) -> bool:
+    """Pin satisfaction requires an actual VERIFIED canonical identity.
+
+    A legacy (identity=None) skill structurally cannot satisfy a pin: it has no
+    ref and no hash. This makes sabotage S1 unrepresentable rather than avoided.
+    """
+    if verification != VERIFIED or identity is None:
+        return False
+    return (
+        stored_pin.get("ref") == identity.ref
+        and stored_pin.get("hash") == identity.digests.effective_instructions
+    )
+
+
+def assert_no_identity_conflict(seen: dict[str, str], ref: str, effective_digest: str) -> None:
+    """Same publisher/id@version twice with different effective bytes => hard conflict.
+
+    Scope or load order NEVER chooses between them silently (Pass #3 law C).
+    Identical effective bytes under one ref remain fine: package-byte differences
+    with identical effective instructions are exactly the two-digest law of Pass #2.
+    """
+    prior = seen.get(ref)
+    if prior is not None and prior != effective_digest:
+        raise IdentityConflict(
+            f"{ref} loaded with two different effective digests "
+            f"({prior[:12]} vs {effective_digest[:12]}); refusing silent selection")
+    seen[ref] = effective_digest
+
+
 @dataclass(frozen=True)
 class SkillDigests:
     package: str                 # exact raw bytes

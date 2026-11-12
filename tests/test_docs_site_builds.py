@@ -83,7 +83,6 @@ def test_gitbook_contract_is_what_the_site_builder_reads() -> None:
     assert "readme: README.md" in text and "summary: SUMMARY.md" in text
 
 
-@pytest.mark.order(index=-1)
 def test_the_docs_site_builds_and_passes_the_publish_gate(tmp_path: Path) -> None:
     """End-to-end: build from the repo into a scratch dir with the SAME command the website
     and the server-side sync use, then run the publish gate against the output."""

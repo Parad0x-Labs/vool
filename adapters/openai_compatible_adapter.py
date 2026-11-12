@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from dataclasses import replace
 from typing import Any
@@ -56,6 +57,24 @@ from core.tool_call_recovery import (
 )
 
 logger = logging.getLogger("vool.model_adapter")
+
+#: Residency a local serving call asks for when the manifest sets none. Longer than the boot
+#: prewarm's 15 m on purpose: the model must still be loaded for the first turn after a
+#: twenty-minute idle, which Ollama's 5-minute default (and the prewarm value alone) cannot
+#: cover. The resource governor can stand this down (see _build_ollama_payload).
+_SERVING_KEEP_ALIVE = "30m"
+
+#: How long a loopback certification-identity read (backend version, tags digest, chat-template
+#: hash) is reused per (endpoint, model). The authorship lane asks for it on every ranked
+#: candidate of every turn, and the three round-trips it costs (/api/version, /api/tags,
+#: /api/show) were measured at roughly half a plain turn's own wall time on an instant engine
+#: (baseline dev-1: ~10 identity triples per turn). Identity drifts only with an Ollama upgrade
+#: or a model re-pull; a five-minute reuse delays a drift detection by at most that window, and
+#: the certification run's own tool-competence probe -- the actual gate -- never consults this
+#: identity at all.
+_CERTIFICATE_IDENTITY_TTL_S = 300.0
+_certificate_identity_cache: dict[tuple[str, str], tuple[float, dict[str, str]]] = {}
+_certificate_identity_cache_lock = threading.Lock()
 
 
 def _reasoning_disabled(request: Any) -> bool:
@@ -389,7 +408,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         strategy: str,
         prewarm_config: dict[str, Any],
     ) -> tuple[str, dict[str, Any]]:
-        keep_alive = prewarm_config.get("keep_alive", "10m")
+        keep_alive = prewarm_config.get("keep_alive", _SERVING_KEEP_ALIVE)
         native_base_url = _native_ollama_base_url(base_url)
         if strategy == "ollama_chat":
             message = prewarm_config.get("message")
@@ -1375,6 +1394,18 @@ class OpenAICompatibleAdapter(ModelAdapter):
         if think_flag is not None:
             payload["think"] = think_flag
         keep_alive = str(self.manifest.runtime_config.get("keep_alive") or "").strip()
+        if not keep_alive:
+            # One residency policy per local model. A serving call that omits keep_alive drops
+            # Ollama to its 5-minute default, so a chat left idle for twenty minutes pays a full
+            # reload (the manifest prewarm holds 15 m at boot; this never goes below it). The
+            # governor stands the extension down under active memory pressure -- its release path
+            # unloads with keep_alive 0 and nothing here re-warms until the pressure clears. An
+            # absent or failing signal keeps BASE behaviour (no keep_alive on the wire).
+            with contextlib.suppress(Exception):
+                from core.resource_governor import may_keep_warm
+
+                if may_keep_warm():
+                    keep_alive = _SERVING_KEEP_ALIVE
         if keep_alive:
             payload["keep_alive"] = keep_alive
         # Ollama's /api/chat speaks the OpenAI `tools` shape. Without this the local lane can
@@ -1461,7 +1492,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         not read from the live compute budget: that budget changes whenever the user steps away,
         and a `num_thread` that followed it reloaded the model at every change.
         """
-        options: dict[str, Any] = {"num_thread": ollama_runner_thread_count()}
+        options: dict[str, Any] = dict(shared_ollama_thread_option())
         context_window = self._ollama_context_window(request)
         if context_window > 0:
             options["num_ctx"] = context_window
@@ -1960,9 +1991,27 @@ class OpenAICompatibleAdapter(ModelAdapter):
         """Read non-generative loopback metadata used to invalidate stale certifications.
 
         Raw templates are never returned or persisted; only their SHA-256 digest crosses this
-        boundary. Failure is represented as ``unknown`` rather than guessed identity.
+        boundary. Failure is represented as ``unknown`` rather than guessed identity. The read
+        is reused for ``_CERTIFICATE_IDENTITY_TTL_S`` per (endpoint, model): it is asked for on
+        every ranked candidate of every turn, and identity only drifts with an upgrade or
+        re-pull (see the constant's note).
         """
+        base_url_cached = str(self.manifest.runtime_config.get("base_url") or "").strip().rstrip("/")
+        model_cached = str(self.manifest.model_name or "")
+        cache_key = (base_url_cached, model_cached)
+        now = time.monotonic()
+        with _certificate_identity_cache_lock:
+            hit = _certificate_identity_cache.get(cache_key)
+            if hit is not None and hit[0] > now:
+                return dict(hit[1])
 
+        identity = self._read_tool_certification_runtime_identity()
+
+        with _certificate_identity_cache_lock:
+            _certificate_identity_cache[cache_key] = (time.monotonic() + _CERTIFICATE_IDENTITY_TTL_S, dict(identity))
+        return identity
+
+    def _read_tool_certification_runtime_identity(self) -> dict[str, str]:
         identity = {
             "backend_version": self.tool_certification_backend_version(),
             "model_digest": str(
@@ -2471,6 +2520,18 @@ def _request_messages_with_memory(
     if result.telemetry["status"] == "trimmed":
         logger.warning("Trimmed Ollama prompt to preserve system instructions: %s", result.telemetry)
     return result.messages
+
+
+def shared_ollama_thread_option() -> dict[str, int]:
+    """The thread stamp every native-Ollama payload carries: the ONE runner-key seam.
+
+    Ollama keys a loaded runner on the model plus num_ctx / num_gpu / num_thread, so two calls
+    to one model that disagree on any of them reload it. The count is the machine's fixed one
+    (`core.compute_mode.ollama_runner_thread_count`), never the live compute budget, which
+    flips whenever the person steps away (measured live: 5 threads at boot, 9 after two idle
+    minutes) and re-keyed the runner at every flip.
+    """
+    return {"num_thread": ollama_runner_thread_count()}
 
 
 def _provider_error_detail(payload: dict[str, Any]) -> str:

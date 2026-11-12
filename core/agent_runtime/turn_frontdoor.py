@@ -387,6 +387,17 @@ def _currency_reply(
 #: The person asks for an answer from their own conversations or records ("Answer using the imported
 #: prior conversations", "based on what I told you"): nothing online is needed, so a web-off refusal
 #: must not stand in front of it.
+def _reads_own_notes(text: str) -> bool:
+    """Whether the operator parser reads the ask as a read of the person's notes: the Apple Notes store or VOOL's own."""
+    try:
+        from core.operator.parser import parse_operator_action_intent
+
+        intent = parse_operator_action_intent(text)
+    except Exception:
+        return False
+    return intent is not None and intent.kind in {"apple_note_read", "apple_note_list", "find_notes", "show_note"}
+
+
 _ASKS_FROM_OWN_RECORDS_RE = re.compile(
     r"\b(?:using|use|from|based\s+on|according\s+to|per)\s+(?:the\s+|my\s+|our\s+|these\s+|those\s+)?"
     r"(?:(?:imported|prior|previous|past|earlier|old|saved)\s+)*"
@@ -2383,6 +2394,12 @@ def handle_turn_frontdoor(
                     _ask_needs_web = requirements_want_a_lookup(effective_input, source_context)
                 except Exception:
                     _ask_needs_web = False
+            if (_ask_needs_web or _ask_is_live_data) and _reads_own_notes(effective_input):
+                # A read of the person's own notes ('look up my Apple note "Plan"', "look up my notes
+                # about the trip") is answered on this computer by the Notes lane, which needs no web.
+                # Measured on the v0.8 line: 'look up my apple note "Plan" personal folder' was refused
+                # as a web lookup.
+                _ask_needs_web = _ask_is_live_data = False
             if _ask_needs_web or _ask_is_live_data:
                 # A question about someone this chat's own records name ("When will Tim leave for
                 # Ireland?") is answered from those records, which need no web: the lookup refusal

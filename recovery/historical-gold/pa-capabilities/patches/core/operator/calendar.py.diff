@@ -1,0 +1,183 @@
+diff --git a/core/operator/calendar.py b/core/operator/calendar.py
+index 5767a926..54a90741 100644
+--- a/core/operator/calendar.py
++++ b/core/operator/calendar.py
+@@ -4,10 +4,67 @@ import re
+ import uuid
+ from datetime import datetime, timedelta, timezone
+ from typing import Any
++from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+ 
+ _TIME_RE = re.compile(r"\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.IGNORECASE)
+ _ISO_DATETIME_RE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})(?:[ T](\d{1,2}:\d{2}))?\b")
+ _DURATION_RE = re.compile(r"\bfor\s+(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b", re.IGNORECASE)
++# An explicit place/zone for the TIME: "at 9am Berlin", "9:00 Europe/Vilnius".
++# A deliberately tiny city map — honest and bounded; unknown places are refused
++# with the machine/user zone rather than guessed.
++_CITY_ZONES: dict[str, str] = {
++    "berlin": "Europe/Berlin",
++    "vilnius": "Europe/Vilnius",
++    "london": "Europe/London",
++    "paris": "Europe/Paris",
++    "madrid": "Europe/Madrid",
++    "rome": "Europe/Rome",
++    "new york": "America/New_York",
++    "york": "America/New_York",
++    "boston": "America/New_York",
++    "chicago": "America/Chicago",
++    "denver": "America/Denver",
++    "los angeles": "America/Los_Angeles",
++    "san francisco": "America/Los_Angeles",
++    "seattle": "America/Los_Angeles",
++    "tokyo": "Asia/Tokyo",
++    "singapore": "Asia/Singapore",
++    "sydney": "Australia/Sydney",
++    "dubai": "Asia/Dubai",
++    "utc": "UTC",
++}
++def _explicit_zone(text: str) -> tuple[str, str] | None:
++    """(zone_name, source) when the text names a place for the time: an IANA
++    identifier verbatim, or one of the small city aliases above."""
++    lowered = str(text or "").lower()
++    for alias in sorted(_CITY_ZONES, key=len, reverse=True):
++        if re.search(rf"\b{re.escape(alias)}\b", lowered):
++            return _CITY_ZONES[alias], "city"
++    for match in re.finditer(r"\b([A-Za-z]+/[A-Za-z_/\-]+)\b", str(text or "")):
++        candidate = match.group(1)
++        try:
++            ZoneInfo(candidate)
++            return candidate, "iana"
++        except (ZoneInfoNotFoundError, ValueError):
++            continue
++    return None
++
++
++def _dst_status(naive_dt: datetime, tz: ZoneInfo) -> str:
++    """'unique' | 'ambiguous' (fall-back overlap) | 'nonexistent' (spring-forward gap).
++
++    The parser never silently invents a time: an ambiguous time is pinned to the
++    FIRST occurrence (fold=0, the pre-transition offset) and a nonexistent one is
++    shifted per zoneinfo's wall-clock arithmetic — both annotated in the scope so
++    the preview can say so."""
++    dt0 = naive_dt.replace(tzinfo=tz, fold=0)
++    dt1 = naive_dt.replace(tzinfo=tz, fold=1)
++    r0 = dt0.astimezone(timezone.utc).astimezone(tz).replace(tzinfo=None)
++    if r0 != naive_dt:
++        return "nonexistent"
++    if dt0.utcoffset() != dt1.utcoffset():
++        return "ambiguous"
++    return "unique"
+ 
+ 
+ def parse_calendar_request(
+@@ -16,17 +73,43 @@ def parse_calendar_request(
+     extract_quoted_values_fn: Any,
+     data_path_fn: Any,
+     now_fn: Any,
++    preferred_tz_name: str | None = None,
+ ) -> dict[str, Any] | None:
++    """Parse a schedule request into a zone-aware event scope.
++
++    Zone law (B7): an explicit place named in the text wins ("9am Berlin");
++    then the user's SAVED timezone preference; then the machine's local zone.
++    All arithmetic happens in the event's zone; the scope carries the IANA name,
++    UTC instants, local renderings, and an honest DST note when the requested
++    wall time is ambiguous or nonexistent in that zone.
++    """
+     quoted_values = extract_quoted_values_fn(text)
+     title = quoted_values[0] if quoted_values else "NULLA Meeting"
+     now = now_fn()
+-    start_dt: datetime | None = None
++
++    event_tz: ZoneInfo
++    explicit = _explicit_zone(text)
++    tz_source = "machine"
++    if explicit is not None:
++        event_tz = ZoneInfo(explicit[0])
++        tz_source = "explicit"
++    elif preferred_tz_name:
++        try:
++            event_tz = ZoneInfo(preferred_tz_name)
++            tz_source = "user_preference"
++        except (ZoneInfoNotFoundError, ValueError):
++            event_tz = ZoneInfo(now.tzinfo or timezone.utc)
++    else:
++        event_tz = now.tzinfo or timezone.utc  # the machine's zone (a ZoneInfo with .key, or UTC)
++
++    now_in_zone = now.astimezone(event_tz)
++    naive_start: datetime | None = None
+ 
+     iso_match = _ISO_DATETIME_RE.search(text)
+     if iso_match:
+         date_part = iso_match.group(1)
+         time_part = iso_match.group(2) or "09:00"
+-        start_dt = datetime.fromisoformat(f"{date_part}T{time_part}").replace(tzinfo=now.tzinfo)
++        naive_start = datetime.fromisoformat(f"{date_part}T{time_part}")
+     else:
+         time_match = _TIME_RE.search(text)
+         if time_match and ("today" in text.lower() or "tomorrow" in text.lower()):
+@@ -37,27 +120,57 @@ def parse_calendar_request(
+                 hour += 12
+             elif meridiem == "am" and hour == 12:
+                 hour = 0
+-            target_day = now.date() + timedelta(days=1 if "tomorrow" in text.lower() else 0)
+-            start_dt = datetime.combine(target_day, datetime.min.time(), tzinfo=now.tzinfo).replace(
+-                hour=hour,
+-                minute=minute,
+-            )
+-    if start_dt is None:
++            target_day = now_in_zone.date() + timedelta(days=1 if "tomorrow" in text.lower() else 0)
++            naive_start = datetime.combine(target_day, datetime.min.time()).replace(hour=hour, minute=minute)
++    if naive_start is None:
+         return None
+ 
++    dst_note = ""
++    status = _dst_status(naive_start, event_tz)
++    if status == "ambiguous":
++        dst_note = (
++            f"{naive_start.strftime('%H:%M')} occurs twice in {event_tz} on that date (DST fall-back); "
++            "the FIRST occurrence is used."
++        )
++    elif status == "nonexistent":
++        dst_note = (
++            f"{naive_start.strftime('%H:%M')} does not exist in {event_tz} on that date (DST spring-forward); "
++            "zoneinfo wall-clock arithmetic shifts it past the gap."
++        )
++
++    start_dt = naive_start.replace(tzinfo=event_tz, fold=0)
+     duration_match = _DURATION_RE.search(text)
+     duration_value = int(duration_match.group(1)) if duration_match else 30
+     duration_unit = str(duration_match.group(2) or "m").lower() if duration_match else "m"
+     duration_minutes = duration_value * 60 if duration_unit.startswith("h") else duration_value
+     end_dt = start_dt + timedelta(minutes=max(15, duration_minutes))
+     outbox_dir = data_path_fn("calendar_outbox")
+-    return {
++
++    zone_name = str(getattr(event_tz, "key", "") or event_tz)
++    scope: dict[str, Any] = {
+         "title": title,
+         "start_iso": start_dt.isoformat(),
+         "end_iso": end_dt.isoformat(),
+         "duration_minutes": max(15, duration_minutes),
+         "outbox_dir": str(outbox_dir),
++        "timezone": zone_name,
++        "tz_source": tz_source,
++        "start_utc_iso": start_dt.astimezone(timezone.utc).isoformat(),
++        "end_utc_iso": end_dt.astimezone(timezone.utc).isoformat(),
++        "rendered_local": f"{start_dt.strftime('%Y-%m-%d %H:%M')} ({zone_name})",
+     }
++    if dst_note:
++        scope["dst_note"] = dst_note
++    if explicit is not None and tz_source == "explicit" and preferred_tz_name:
++        # Cross-timezone attendee view: the operator asked in ANOTHER zone — render both.
++        try:
++            home = ZoneInfo(preferred_tz_name)
++            scope["rendered_home"] = (
++                f"{start_dt.astimezone(home).strftime('%Y-%m-%d %H:%M')} ({preferred_tz_name})"
++            )
++        except (ZoneInfoNotFoundError, ValueError):
++            pass
++    return scope
+ 
+ 
+ def render_ics(

@@ -358,6 +358,26 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
     return decision
 
 
+def may_keep_warm() -> bool:
+    """Whether residency extensions (a serving call's keep_alive) may hold a local model loaded.
+
+    The governor's own law, kept: never block on ignorance. A disabled local runtime may not be
+    signalled at all, so it may not be kept warm either. Active memory pressure stands the
+    keep-warm down until it clears -- the governor's release path unloads with keep_alive 0 and
+    nothing here re-warms it; only an ungated serving call may load the model again. The reading
+    is the ~3 s cached snapshot, so a per-turn question is free.
+    """
+    from core.local_model_policy import local_models_enabled
+
+    try:
+        if not local_models_enabled():
+            return False
+        snap = sr.snapshot()
+        return snap.memory_pressure not in {"warn", "critical"}
+    except Exception:
+        return True
+
+
 def resource_hog_report() -> dict:
     """A plain answer to "why is my Mac slow/loud?": pressure, swap, and who is eating the RAM."""
     snap = sr.snapshot(force=True)
@@ -415,6 +435,7 @@ __all__ = [
     "ensure_headroom_for",
     "estimated_model_gb",
     "free_up_memory",
+    "may_keep_warm",
     "plan_model_load",
     "plan_render",
     "reclaim_if_pressured",

@@ -492,7 +492,33 @@ def _local_candidate_items(
     return items, ranked
 
 
-def _dialogue_items(session_id: str, *, query_text: str = "") -> list[ContextItem]:
+#: Exchanges the standard history window ships as chat messages: the authority's window is
+#: measured in messages (10 by default, core.context_history_authority), roughly one exchange
+#: per user+assistant pair. Rows in it are excluded from the duplicate dialogue-line carrier.
+_HISTORY_WINDOW_EXCHANGE_ROWS = 5
+
+
+def _history_covered_turn_ids(session_id: str) -> frozenset[str]:
+    """Turn ids the answering prompt's chat-history window already carries for this session.
+
+    Reads the same transcript reader the history assembly reads; any failure reads as "nothing
+    covered", which restores the pre-dedupe behaviour (the duplicate lines ride).
+    """
+    try:
+        rows = recent_dialogue_turns(session_id, limit=_HISTORY_WINDOW_EXCHANGE_ROWS)
+    except Exception:
+        return frozenset()
+    return frozenset(
+        str(row.get("turn_id") or "") for row in rows if str(row.get("turn_id") or "")
+    )
+
+
+def _dialogue_items(
+    session_id: str,
+    *,
+    query_text: str = "",
+    exclude_turn_ids: frozenset[str] | set[str] = frozenset(),
+) -> list[ContextItem]:
     items: list[ContextItem] = []
     # Forget law (F14-01): dialogue context items are a second carrier of
     # stored turns into prompts; they clear the same durable revocation
@@ -521,6 +547,11 @@ def _dialogue_items(session_id: str, *, query_text: str = "") -> list[ContextIte
     else:
         is_stale_observation_for_current_ask = None
     for turn in recent_dialogue_turns(session_id, limit=6):
+        if str(turn.get("turn_id") or "") in exclude_turn_ids:
+            # The same exchange is already riding this prompt as a chat history message
+            # (canonical_runtime_transcript); a second 260-char rendering of it is the
+            # duplication, not the memory.
+            continue
         content = str(turn.get("normalized_input") or turn.get("raw_input") or turn.get("reconstructed_input") or "")
         if text_carries_revoked_token(content, revoked):
             continue
@@ -766,6 +797,15 @@ def _persistent_memory_items(
     allow_instruction_memory: bool = True,
 ) -> list[ContextItem]:
     items: list[ContextItem] = []
+    # A stored row whose text this chat's own history already carries verbatim is the same fact
+    # twice in one prompt: the history window ships the exchange it was extracted from. Skip
+    # those rows here, at context assembly (content identity, never wording rules); rows from
+    # OTHER conversations, or the extractor's reworded rows, still ride (and a reworded row is
+    # how recall normally reads, so a needle never depends on this skip).
+    history_blob = " \x01 ".join(
+        str(turn.get("normalized_input") or turn.get("raw_input") or turn.get("reconstructed_input") or "")
+        for turn in recent_dialogue_turns(session_id, limit=10)
+    ).lower()
     for entry in search_relevant_memory(
         query_text,
         access_policy=policy,
@@ -776,6 +816,8 @@ def _persistent_memory_items(
         if category == "instruction" and not allow_instruction_memory:
             continue
         content = str(entry.get("text") or "")[:320]
+        if content and history_blob and content.lower() in history_blob:
+            continue
         items.append(
             ContextItem(
                 item_id=f"runtime-memory-{category}-{abs(hash(str(entry.get('text') or '')))}",
@@ -1727,8 +1769,17 @@ class TieredContextLoader:
                     )
                 )
             if history_selection.expands_beyond_adjacency:
+                # The answering prompt ships this same transcript as chat history
+                # (canonical_runtime_transcript): the dialogue lines below would re-serve the
+                # newest rows a second time. The rows the history window carries are excluded
+                # HERE, at context assembly, so the conversation reaches the model once.
                 relevant_candidates.extend(
-                    _dialogue_items(session_id, query_text=query_text))
+                    _dialogue_items(
+                        session_id,
+                        query_text=query_text,
+                        exclude_turn_ids=_history_covered_turn_ids(session_id),
+                    )
+                )
             persistent_items = (
                 _persistent_memory_items(
                     query_text,

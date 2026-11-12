@@ -1,0 +1,92 @@
+/* VOOL Kernel Lab Bench — dark lab / microchip aesthetic */
+:root{
+  --bg:#07090d; --panel:#0e1219; --panel2:#141a24; --line:#243041;
+  --text:#d7dde8; --muted:#7f8aa0; --accent:#39d0ff; --accent2:#7d5cff;
+  --good:#3fe08a; --bad:#ff5d6b; --warn:#ffb454; --amber:#ffc24b;
+  --chip:#182231; --chip-ok:#123121; --chip-bad:#33141a; --chip-ob:#1b2440;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--text);
+  font:12px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  overflow:hidden}
+.mono{font-family:var(--mono)}
+.small{font-size:11px}
+.muted{color:var(--muted)}
+
+#lab{position:relative;height:100vh;display:grid;
+  grid-template-columns:190px 1fr 300px;
+  grid-template-rows:44px 1fr 74px;
+  grid-template-areas:"top top top" "rail view ins" "deck deck deck";}
+#topbar{grid-area:top;display:flex;align-items:center;justify-content:space-between;
+  padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px}
+.led{width:8px;height:8px;border-radius:50%;display:inline-block;box-shadow:0 0 8px currentColor}
+.led-ok{background:var(--good);color:var(--good)}
+.led-bad{background:var(--bad);color:var(--bad)}
+.led-warn{background:var(--warn);color:var(--warn)}
+.brand-name{font-weight:800;letter-spacing:2px;color:var(--cyan)}
+.brand-sub{color:var(--muted);font-size:11px}
+.run-box{display:flex;gap:16px;color:var(--muted)}
+.view-switch button{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+  padding:5px 12px;cursor:pointer}
+.view-switch button.active{color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(63,208,255,.25)}
+
+#turnrail{grid-area:rail;background:var(--panel);border-right:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column}
+.rail-head{padding:9px 12px;border-bottom:1px solid var(--line);font-weight:700;letter-spacing:1px;font-size:11px}
+.rail-list{flex:1;overflow:auto}
+.turn{margin:4px 6px;padding:7px 9px;background:var(--panel2);border:1px solid var(--line);
+  border-left:3px solid var(--line);cursor:pointer;border-radius:4px}
+.turn:hover{border-color:var(--cyan)}
+.turn.sel{border-left-color:var(--cyan);background:#0f1c29}
+.turn .q{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--text)}
+.turn .m{display:flex;gap:6px;align-items:center;font-size:10px;color:var(--muted);margin-top:2px}
+.turn .pill{padding:0 5px;border-radius:6px;font-family:var(--mono)}
+.pill-committed{background:#10301f;color:var(--good)}
+.pill-partial{background:#3a2b10;color:var(--warn)}
+.pill-crash{background:#33141c;color:var(--bad)}
+
+#viewport{grid-area:viewport;position:relative;background:
+  radial-gradient(1200px 700px at 60% 20%, #0d1622 0%, var(--bg) 70%)}
+canvas{display:block}
+
+#inspector{grid-area:viewport;justify-self:end;width:300px;color:var(--text);
+  background:linear-gradient(180deg,rgba(14,18,25,.92),rgba(10,13,19,.92));
+  border-left:1px solid var(--line);overflow:auto;z-index:3}
+.panel{border-bottom:1px solid var(--line);padding:10px 12px}
+.panel-head{font-weight:700;letter-spacing:1px;font-size:11px;color:var(--text);display:flex;align-items:center;gap:8px}
+.badge{font-size:9px;padding:1px 6px;border-radius:6px;font-family:var(--mono)}
+.badge-warn{background:#3a2a10;color:var(--warn)}
+#turnmeta{margin-top:6px}
+.legend{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.lg{font-size:9px;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted);font-family:var(--mono)}
+#nodedetail{margin-top:6px;white-space:pre-wrap;word-break:break-word}
+.knobs{display:grid;gap:8px;margin-top:8px}
+.knob{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 8px;background:var(--panel2);border:1px solid var(--line);border-radius:4px}
+.knob .k{font-size:11px}
+.knob .sw{width:26px;height:14px;border-radius:8px;background:#2a3344;position:relative;opacity:.5}
+.knob .sw::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.knob .sw.on::after{left:14px;background:var(--cyan)}
+.hint{font-size:10px;color:var(--muted);margin-top:8px}
+
+#deck{grid-area:deck;background:var(--panel);border-top:1px solid var(--line);padding:8px 12px;
+  display:flex;flex-direction:column;justify-content:center;gap:6px}
+#timeline{display:flex;align-items:center;gap:8px}
+#timeline button{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px}
+#timeline button:hover{border-color:var(--cyan)}
+#scope{flex:1;height:22px;background:var(--bg);border:1px solid var(--line);border-radius:3px;
+  position:relative;overflow:hidden}
+.scope-cell{position:absolute;top:2px;bottom:2px;border-radius:2px;opacity:.85}
+.scope-active{outline:1px solid var(--cyan);box-shadow:0 0 8px var(--cyan)}
+#statusline{font-size:11px;color:var(--muted)}
+
+canvas.vr{cursor:grab}
+canvas.vr.drag{cursor:grabbing}
+
+@media(max-width:900px){
+  #lab{grid-template-columns:150px 1fr;grid-template-areas:"top top" "rail viewport" "deck deck"}
+  #inspector{display:none}
+}

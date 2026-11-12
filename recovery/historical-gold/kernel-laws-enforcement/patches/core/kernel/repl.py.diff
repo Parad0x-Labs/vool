@@ -1,0 +1,1418 @@
+diff --git a/core/kernel/repl.py b/core/kernel/repl.py
+index 56939e33..f173aa5d 100644
+--- a/core/kernel/repl.py
++++ b/core/kernel/repl.py
+@@ -55,7 +55,9 @@ from core.kernel.evidence_types import (
+     render_typed_answer,
+     validate_claims,
+ )
++from core.kernel.lexical_spans import has_quantity, lex_spans, quantity_values
+ from core.kernel.obligations import CommitRefused, Obligation, TurnTransaction
++from core.runtime_flags import flag_enabled
+ 
+ _OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
+ # Pluggable judgment model: the runtime's laws are model-agnostic, so a stronger local
+@@ -306,7 +308,7 @@ def _openrouter_chat(system: str, user: str) -> str:
+     raise RuntimeError(f"OpenRouter rejected every request dialect: {last}")
+ 
+ 
+-def _ollama_chat(system: str, user: str) -> str:
++def _ollama_chat(system: str, user: str, *, json_mode: bool = True) -> str:
+     """One judgment call — local Ollama, or OpenRouter when the model id carries a slash.
+ 
+     Thinking-capable local models get thinking turned OFF.
+@@ -316,6 +318,26 @@ def _ollama_chat(system: str, user: str) -> str:
+     repo root-caused on 2026-08-03 and met again here with qwen3:8b (derive round dead on
+     'Expecting value: char 0'). "think": false is the wire-format fix; models that reject
+     the field get one retry without it. Adapter translates the wire, never the semantics.
++
++    THE WIRE FORMAT IS THE CALLER'S DECISION, NOT THIS ADAPTER'S (council round-001).
++    `"format": "json"` used to be hard-coded into every body, including the claimless-compose
++    fallback whose system prompt says "No JSON, no wrapper, no commentary — output the piece
++    itself only". Ollama's json mode constrains generation to JSON grammar, so that caller's
++    plain-text contract was unsatisfiable: the model did not disobey, it was prevented from
++    obeying, and a byte-exact turn shipped `{"bytes": "VECTOR-6842"}` instead of `VECTOR-6842`.
++    Measured on the frozen tape and settled by probe (council/round-001/R2/PROBE1_RAW.json):
++    same prompt, same model, temperature 0, only the wire differing —
++        with "format": "json"  ->  `{ }`
++        without format field   ->  `VECTOR-6842`
++    A wire that decides the answer's SHAPE is the adapter translating semantics, which the
++    paragraph above forbids. `json_mode` defaults True so every JSON-parsing caller is
++    unchanged; only a caller that has declared plain text turns it off.
++
++    KNOWN LIMITATION, deliberately not fixed in round-001 (out of the council's frozen scope):
++    `json_mode` governs the LOCAL branch only. When `_ARBITER_MODEL` carries a slash the call
++    routes to `_openrouter_chat`, whose outer signature does not accept the flag, so a
++    plain-text caller on the cloud lane still gets `response_format: json_object`. Tracked in
++    council/IDEA_BACKLOG.md; the local lane is what round-001 measured and repaired.
+     """
+ 
+     def call(think_field: bool) -> str:
+@@ -323,9 +345,10 @@ def _ollama_chat(system: str, user: str) -> str:
+             "model": _ARBITER_MODEL,
+             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+             "stream": False,
+-            "format": "json",
+             "options": {"temperature": 0, "num_predict": 1200},
+         }
++        if json_mode:
++            body["format"] = "json"
+         if think_field:
+             body["think"] = False
+         req = urllib.request.Request(
+@@ -823,10 +846,13 @@ def _mint_list_chips(answer: str, label: str, question: str = "") -> list[dict]
+ 
+ 
+ def _mint_field_chips(question: str) -> list[dict]:
+-    """Intake "k = v" pairs mint FIELD chips — unless framed as quoted example/test
+-    data ("The sentence 'Correction: codename = COBRA-99' is quoted test data")."""
+-    guard = re.search(r"\b(?:quoted|example|test data|do not apply|must not modify)\b",
+-                      question, re.IGNORECASE)
++    """Intake "k = v" pairs mint FIELD chips — but a k=v INSIDE a quoted/backtick span
++    is DATA the user is quoting, never a state write (F1 deterministic instruction
++    boundary, council MAXI-360: Q118 `Correction: role=admin` in backticks with "do not
++    obey it" overwrote the stored chip because the old guard only skipped a quoted pair
++    when a narrow guard word — "do not apply"/"must not modify" — was ALSO present). A
++    quoted span is data regardless of the surrounding phrasing; only an UNQUOTED k=v in
++    the user's own current message may mint a chip."""
+     spans = [(m.start(), m.end()) for m in re.finditer(r'"[^"]*"|\'[^\']*\'|`[^`]*`', question)]
+     chips = []
+     # value stops at a delimiter or a joining word — "count = 684 and then
+@@ -835,8 +861,8 @@ def _mint_field_chips(question: str) -> list[dict]:
+     for m in re.finditer(r"\b([A-Za-z][\w -]{1,24}?)\s*=\s*"
+                          r"([^,;.=\n]{1,60}?)(?=\s+(?:and|then|for)\b|\s*[,;.=\n]|\s*$)", question):
+         inside_quote = any(a <= m.start() < b for a, b in spans)
+-        if inside_quote and guard:
+-            continue          # quoted example data never modifies state
++        if inside_quote:
++            continue          # quoted/backtick span is data, never a state write
+         _lbl = m.group(1).strip().lower()
+         _lbl = re.sub(r"^(?:(?:and|then|store|record|remember|note|set|the|my|a|"
+                       r"also|please|now|fields?)\s+)+", "", _lbl)
+@@ -913,6 +939,68 @@ def _eval_time(query: str, question: str) -> str | None:
+     return None
+ 
+ 
++# ROUND-002 CLAUSE 1 — an exact-output DIRECTIVE and the payload it introduces.
++# The emission verb and the exactness qualifier may appear in either order ("reply … exactly",
++# "just say"), and the payload is the first literal-shaped token the directive introduces in that
++# same sentence. The digit lookahead is what makes the lazy scan walk PAST ordinary words like
++# "these" to reach the actual literal — without it the capture group grabs the first word after
++# the qualifier and the real payload is never seen.
++_EXACT_OUTPUT_DIRECTIVE_RE = re.compile(
++    r"(?:\b(?:reply|respond|answer|output|return|say|write|print|type|repeat|echo)\b"
++    r"[^.!?\n]{0,60}?\b(?:exactly|verbatim|precisely|only|just)\b"
++    r"|\b(?:exactly|verbatim|precisely|only|just)\b\s+"
++    r"\b(?:reply|respond|answer|output|return|say|write|print|type|repeat|echo)\b)"
++    r"[^.!?\n]{0,60}?[:\-–—]?\s+"
++    r"((?=[A-Za-z0-9_.\-]*\d)[A-Za-z][A-Za-z0-9_.\-]{1,60})(?=[\s.,!?]|$)",
++    re.IGNORECASE)
++
++
++def _byte_exact_dominance(
++    valid: list[TypedClaim],
++    valid_owner: list[str],
++    demanded_literals: set[str],
++    single_purpose: bool,
++) -> tuple[list[TypedClaim], list[str], list[str]]:
++    """ROUND-002 CLAUSE 2 — a byte-exact turn ships the demanded payload and nothing else.
++
++    Capture alone only APPENDS the literal, so a turn whose extraction invented siblings still
++    shipped them beside it (measured, round-002 Probe 1:
++    `silver market / EMBER-X604 / Refused — capability gap…`). Owning the answer means excluding
++    the siblings.
++
++    SCOPE: needs a captured user-verbatim payload AND a single-purpose contract. Inert when the
++    demanded value is COMPUTED rather than echoed ("Return ONLY the final numeric total" captures
++    no payload), which is what keeps the arithmetic turns whole; inert on a multi-ask turn, so it
++    cannot hijack one.
++
++    HONEST-DECLINE FLOOR: a refusal owned by the BYTE obligation itself survives — dominance must
++    never convert a genuine unservability into a silent echo. A refusal owned by a spurious
++    SIBLING obligation is not this turn's answer and is excluded.
++
++    A function, not an inline block, so the seam is drivable by a test: an inline version was
++    pinned only by a test that reimplemented it, and reverting the real code left that test green
++    (vacuous). Returns (valid, valid_owner, notes).
++    """
++    payload_owners = {o for c, o in zip(valid, valid_owner, strict=True)
++                      if c.text.strip() in demanded_literals}
++    if not (payload_owners and single_purpose):
++        return valid, valid_owner, []
++    kept: list[TypedClaim] = []
++    kept_owner: list[str] = []
++    notes: list[str] = []
++    for c, o in zip(valid, valid_owner, strict=True):
++        is_payload = c.text.strip() in demanded_literals
++        is_own_decline = (o in payload_owners
++                          and c.text.strip().lower().startswith(
++                              ("refused", "cannot", "unable", "i cannot")))
++        if is_payload or is_own_decline:
++            kept.append(c)
++            kept_owner.append(o)
++        else:
++            notes.append(f"  * byte-exact dominance: sibling claim excluded — {c.text[:50]}")
++    return kept, kept_owner, notes
++
++
+ def _repeat_contract(question: str) -> str | None:
+     """BLOCK-C seam 7 (t47/t69: exact quoted payload not repeated): an explicit
+     single-purpose repeat/echo order with a quoted payload is a MECHANICAL
+@@ -1037,7 +1125,18 @@ def _recall_field(question: str, chips: list[dict]) -> str | None:
+ 
+ 
+ _LEDGER_KEY = "_ledger"
+-_TTL_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
++# ROUND-007: the count vocabulary stopped at five. "exactly SIX lowercase words" armed lowercase
++# and silently dropped exact_words(6) — the count parser at _mint_ledger knew only one..five while
++# a sibling frame regex (repl.py ~886) already knew six..ten, so the file disagreed with itself.
++# One table now, reaching twenty; both mint clauses build their number token from it, so a
++# six-shaped hole cannot reopen in one regex while the other is whole.
++_TTL_WORDS = {
++    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
++    "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
++    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
++}
++# Longest-first so "seven" never shadows "seventeen" during alternation backtracking.
++_NUM_WORD_ALT = "|".join(sorted(_TTL_WORDS, key=len, reverse=True))
+ 
+ 
+ def _mint_ledger(question: str) -> list[dict]:
+@@ -1045,30 +1144,127 @@ def _mint_ledger(question: str) -> list[dict]:
+     answers only, lowercase") becomes a typed ledger entry with a TTL instead of
+     ambient prose that either evaporates (t141-3: ignored) or haunts forever
+     (t144: UPPERCASE refused after expiry). The minting turn itself is not
+-    constrained; each later turn applies active entries and decrements."""
+-    m = re.search(r"(?:for\s+)?(?:your\s+|the\s+)?next\s+(one|two|three|four|five|\d+)\s+"
+-                  r"(?:answers?|repl(?:y|ies)|responses?)\b", question, re.IGNORECASE)
++    constrained; each later turn applies active entries and decrements.
++
++    ROUND-012 (council/round-012/R1-COMPARISON.md, three-seat consensus): the frame's
++    prospective relation was LEXICALIZED to the single word "next", so the semantically
++    equivalent "the following THREE substantive replies ... exactly seven words" died
++    before its (valid) cardinality, answer-noun and constraint clauses were consulted.
++    The repair decomposes the frame into STRUCTURAL ROLES —
++      prospective marker (next|following|subsequent|upcoming|coming) as one ROLE,
++      cardinality (1..20), answer-noun class (answers/replies/responses) —
++    and HOISTS the constraint clauses so they attach to any valid scope instead of
++    being chained to historical surface adjacency. The marker class is an ingredient,
++    never sufficient alone: the overfire law still requires (A) a structural
++    prospective answer scope AND (B) a recognized constraint clause AND (C) no
++    disqualifier (negation/veto, quoted example, or past-tense/descriptive framing).
++    A novel future marker with scope+constraint mints because of the hoist; the same
++    marker without them mints nothing."""
++    _FRAME_RE = re.compile(
++        rf"(?:for\s+)?(?:your\s+|the\s+|my\s+)?(?:next|following|subsequent|upcoming|coming)\s+"
++        rf"({_NUM_WORD_ALT}|\d+)\s+(?:\w+\s+){{0,2}}?(?:answers?|repl(?:y|ies)|responses?)\b",
++        re.IGNORECASE)
++    m = _FRAME_RE.search(question)
++    entries: list[dict] = []
+     if not m:
++        # ROUND-012 HOIST, part 1: a valid constraint clause may still establish the
++        # scope when the surface frame differs — but ONLY with a bounded prospective
++        # answer scope present somewhere (overfire guard A+B). Look for the roles
++        # independently: a cardinality + answer-noun preceded by ANY scope-ish lead
++        # (including "each of the ...", "make my ...", "use ... for the ...").
++        alt = re.search(
++            rf"({_NUM_WORD_ALT}|\d+)\s+(?:\w+\s+){{0,2}}?(?:answers?|repl(?:y|ies)|responses?)",
++            question, re.IGNORECASE)
++        if not alt:
++            return []
++        # require a prospective cue near the scope (future/imperative relation), else
++        # ordinary prose ("the following two reasons" has no answer noun anyway, but
++        # "the three answers I gave" must not arm either)
++        cue = re.search(
++            r"\b(?:following|subsequent|upcoming|coming|next|after|then|each of|"
++            r"must|shall|will|use|make|keep)\b",
++            question[:alt.start() + 40], re.IGNORECASE)
++        if not cue:
++            return []
++        m = alt
++    # ROUND-012 overfire guard C: a NEGATED/VETOED constraint never mints — but the
++    # negation must target the constraint application, not the standard ack-exclusion
++    # clause ("do not consume one on this acknowledgement"), which every legitimate
++    # setter carries. Scope the guard to negation near constraint-application verbs.
++    if _VETO_RE.search(question) or re.search(
++            r"\b(?:do not|don'?t|no longer|stop)\s+(?:apply(?:ing)?|enforc(?:e|ing)|"
++            r"limit(?:ing|s)?|restrict(?:ing)?|constrain(?:ing)?|count(?:ing)?)\b"
++            r"|\bignore\s+(?:the|any|all|this)?\s*(?:word|format|"
++            r"constraint|limit|count|rule)"
++            r"|\b(?:do not|don'?t)\s+use\s+(?:the|any|a|this)\s+"
++            r"(?:word|format|constraint|limit|count|rule)",
++            question, re.IGNORECASE):
++        return []
++    if re.search(
++            rf"\b(?:used|was|were|had been|gave|wrote|sent)\b[^.!?]{{0,40}}"
++            rf"(?:{_NUM_WORD_ALT}|\d+)\s+(?:\w+\s+){{0,2}}?(?:answers?|repl(?:y|ies)|responses?)",
++            question, re.IGNORECASE):
+         return []
+     # DM-2 Track K (smoke F1): the "only" token was load-bearing — "For your
+     # next TWO answers, output exactly three words each" never minted while the
+     # "only"-phrased twin did. The next-N frame + a recognizable constraint
+     # clause below is the mint condition; a next-N frame with NO constraint
+     # clause still mints nothing (the empty-entries return guards overfire).
++    #
++    # ROUND-003: THE COUNT AND THE ANSWER-NOUN NEED NOT BE ADJACENT.
++    # The frame used to demand them glued together, so one ordinary adjective silently
++    # killed the contract: "my next TWO ACTUAL answers" and "the next THREE SUBSTANTIVE
++    # replies" both minted nothing, and the scoped machinery below — which is entirely
++    # correct — was simply never armed. The following turns ran unconstrained and the
++    # setter turn, denied the deterministic ack at the ledger_mints branch, shipped
++    # extraction's raw prose instead.
++    #
++    # `(?:\w+\s+){0,2}?` is a BOUNDED GENERIC BRIDGE, deliberately not a list of allowed
++    # adjectives. The Track K note above records this same class being patched once by
++    # deleting the one blocking token ("only") without changing the approach — and the next
++    # wording variation reproduced it. A repair a synonym can defeat is not a repair.
++    # The answer-noun is still required, and a frame with no constraint clause still mints
++    # nothing, so widening the bridge introduced no new false positive on the measured set.
+     ttl = _TTL_WORDS.get(m.group(1).lower()) or int(m.group(1))
+-    entries: list[dict] = []
+     if re.search(r"lowercase", question, re.IGNORECASE):
+         entries.append({"kind": "lowercase", "arg": "", "ttl": ttl})
+     mw = re.search(r"end your answer with the word\s+[\"']?(\w+)", question, re.IGNORECASE)
+     if mw:
+         entries.append({"kind": "end_word", "arg": mw.group(1), "ttl": ttl})
+-    me = re.search(r"exactly\s+(one|two|three|four|five|\d+)\s+words", question, re.IGNORECASE)
++    # The SAME adjacency defect lived here too: "use exactly six LOWERCASE words per reply"
++    # never matched, so turn 010 of the round-003 session half-minted (lowercase armed, the word
++    # count silently dropped). Identical bounded bridge, for the identical reason — the root is
++    # "intake requires token adjacency the human sentence does not have", and it had two
++    # instances in this one function. Fixing only the frame would have left the round's own
++    # second contract turn broken for exactly the reason just repaired.
++    # ROUND-012 HOIST, part 2: the exact-words clause also accepts "N words long"
++    # ("must each be exactly seven words long" — the failed R0 phrasing) and
++    # "precisely N words" as the same constraint.
++    me = re.search(
++        rf"(?:exactly|precisely)\s+({_NUM_WORD_ALT}|\d+)\s+(?:\w+\s+){{0,2}}?words",
++        question, re.IGNORECASE)
+     if me:
+         n = _TTL_WORDS.get(me.group(1).lower()) or int(me.group(1))
+         entries.append({"kind": "exact_words", "arg": str(n), "ttl": ttl})
+     return entries
+ 
+ 
++def _describe_mint(entry: dict) -> str:
++    """Render a ledger mint for the setter ack WITH its value — the operator must be able to read
++    back exactly which constraint, and what N, was accepted (round-007 Root B). The ack previously
++    printed only the kind name ("exact words"), dropping the arg, so "exactly four words" and
++    "exactly nine words" acknowledged identically and the user could not confirm N."""
++    kind, arg = entry.get("kind", ""), str(entry.get("arg", ""))
++    if kind == "exact_words":
++        return f"exactly {arg} words" if arg else "an exact word count"
++    if kind == "lowercase":
++        return "lowercase"
++    if kind == "end_word":
++        return f"ending with '{arg}'" if arg else "a required end word"
++    base = kind.replace("_", " ")
++    return f"{base} ({arg})" if arg else base
++
++
+ def _load_ledger(session_facts: dict | None) -> list[dict]:
+     try:
+         return json.loads((session_facts or {}).get(_LEDGER_KEY, "") or "[]")
+@@ -1255,7 +1451,59 @@ def _machine_op_ask_mismatch(op_name: str, ask: str) -> str | None:
+             f"(none of {', '.join(stems[:3])}...) — refusing to run a substitute op")
+ 
+ 
+-_LANES = ("arithmetic", "web_lookup", "knowledge", "chat", "clarify", "machine", "recall", "cancelled", "compose", "intake")
++_LANES = ("arithmetic", "web_lookup", "knowledge", "chat", "clarify", "machine", "recall", "cancelled", "compose", "intake", "action")
++
++
++# ROUND-014 ROOT 1: external-action guard. Binds the kernel's intake to the CANONICAL
++# classifier (core.turn_ir.classify_clause_kind — "send" is ACT, "draft" is CREATE)
++# and requires an EXTERNAL side-effect destination so the guard never claims
++# in-conversation sends ("send me the answer") or local machine ops (the T002
++# open/read path). Detection is structural: canonical kind + target class. Never a
++# platform phrase list.
++_EXTERNAL_TARGET_RE = re.compile(
++    r"\b(?:to|into|on|via|through|at)\s+"
++    # ROUND-015: local-computer and home-device objects are NOT external targets,
++    # and "to <infinitive>" is a purpose clause, not a destination ("to unlock").
++    r"(?!(?:me|myself|us|himself|herself|itself|them)\b"
++    r"|this\s+(?:machine|computer|system|device)\b"
++    r"|the\s+(?:machine|computer|system|device|file|files|folder|disk|screen)\b"
++    r"|[a-z]+\b(?=\s+(?:the|a|an|my|your|this)\b)"   # infinitive: to unlock the...
++    r")"
++    r"(?:the\s+|my\s+|our\s+)?"
++    r"(?:#|@)?[\w.-]+(?:\s+(?:channel|chat|room|server|group|queue|board|repo|calendar|"
++    r"account|list|workspace))?\b"
++    r"|\b(?:channel|slack|discord|telegram|email|inbox|calendar|tweet|post|message|"
++    r"ticket|issue|webhook|relay)\b"
++    r"|\b[\w.+-]+@[\w-]+\.[\w.]+\b"
++    r"|\b#\w+\b",
++    re.IGNORECASE)
++# Comm-verb + person-name/email recipient: compiled CASE-SENSITIVELY so the recipient
++# must be a proper name (capitalized) — "call the function" must never match while
++# "call Alice" / "text Bob" do. Technical callables are excluded explicitly.
++_COMM_RECIPIENT_RE = re.compile(
++    r"\b(?:(?i:text|texting|phone|dial|notify|alert|ping|message|send|sending|dm|sms)\s+"
++    r"[A-Z][a-z]+"
++    r"|(?i:call(?:ing)?)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"
++    r"(?![\w.])"
++    r"(?![^.!?\n]{0,24}\b(?:function|method|api|script|command|endpoint|op)\b)")
++
++
++def _external_action_guard(description: str) -> bool:
++    """True when the description is canonically an ACT with an external destination.
++
++    The canonical owner decides act-vs-create ("send" vs "draft"); the structural
++    external-target class decides internal-vs-external. Both must hold — a draft
++    naming Slack stays compose, and a send to the user in-conversation stays an
++    ordinary reply."""
++    try:
++        from core.turn_ir import classify_clause_kind, ClauseKind
++        kind = classify_clause_kind(description)
++    except Exception:
++        return False
++    if kind is not ClauseKind.ACT:
++        return False
++    return bool(_EXTERNAL_TARGET_RE.search(description)
++                or _COMM_RECIPIENT_RE.search(description))
+ 
+ 
+ # BLOCK-C seam 6 (harvest binding, t30/t31): unit identities per asked
+@@ -1412,39 +1660,20 @@ def _number_index(
+     citation from the token. A number the composition layer never types is a number it
+     cannot fabricate — impossible by construction, not merely caught.
+     """
+-    from core.kernel.evidence_types import _NUMBER_RE
+-
+     index: list[dict[str, str]] = []
+     for ref, text in receipts.items():
+         if exclude_refs and ref in exclude_refs:
+             continue
+-        # URL/path spans are addresses, not quantities (consensus-2, measured live:
+-        # a Verge article id 21345733 shipped as the weight of three headphones).
+-        # Structural exclusion by span, no blacklist.
+-        url_spans = [m.span() for m in re.finditer(r"https?://\S+", text)]
+-        for found, match in enumerate(_NUMBER_RE.finditer(text)):
++        # Canonical lexical spans: QUANTITY spans are the only citable numbers.
++        # URL, IDENTIFIER, and OPAQUE spans own their digits — they never enter
++        # the number index (Round-020).
++        for found, span in enumerate(s for s in lex_spans(text) if s.kind == "QUANTITY"):
+             if found >= per_receipt or len(index) >= cap:
+                 break
+-            start, end = match.span()
+-            if any(a <= start < b for a, b in url_spans):
+-                continue
+-            if (match.group().count(".") >= 2
+-                    or (start > 0 and text[start - 1] == "." and start >= 2 and text[start - 2].isdigit())
+-                    or (end < len(text) and text[end] == "." and text[end + 1:end + 2].isdigit())):
+-                # A member of a dotted VERSION token (3.14.7, 26.5.1) is an
+-                # IDENTIFIER, never a quantity (consensus-5 pending-tier sharpening:
+-                # "1/100 = 0.01" was computed from a version string live). The regex
+-                # only matches one dotted segment, so a segment glued to ".<digit>"
+-                # on either side is a version member and is skipped.
+-                continue
+-            # A digit glued to letters is an identifier, not a quantity: "PS5" is not a 5.
+-            # Measured live: the 5 harvested from "PS5" became "released in 5 [receipt:user]".
+-            if (start > 0 and text[start - 1].isalpha()) or (end < len(text) and text[end].isalpha()):
+-                continue
+-            context = " ".join(text[max(0, start - 40):min(len(text), end + 40)].split())
++            context = " ".join(text[max(0, span.start - 40):min(len(text), span.end + 40)].split())
+             index.append({
+                 "token": f"n{len(index) + 1}",
+-                "value": match.group().replace(",", ""),
++                "value": span.normalized,
+                 "ref": ref,
+                 "context": context,
+             })
+@@ -1463,6 +1692,10 @@ _NEG_EXIST_RE = re.compile(
+ # never a quantity. Recall heuristics (excerpt pickers, gap escalation) keep
+ # the loose probe deliberately: over-keeping evidence is safe, over-rejecting
+ # claims is not.
++# Round-020: _QUANTITY_RE is deprecated. All quantity presence checks use
++# has_quantity() from the canonical lexical span authority (lexical_spans.py).
++# Kept as a module-level constant for any external reference but no longer used
++# internally — the canonical lexer handles URL/IDENTIFIER byte ownership.
+ _QUANTITY_RE = re.compile(r"(?<![0-9A-Za-z.])\d")
+ 
+ 
+@@ -1529,7 +1762,8 @@ def _repair_unknown_tokens(text: str, index: list[dict]) -> str:
+ 
+ 
+ def _number_tokens_of(text: str) -> set[str]:
+-    return set(re.findall(r"-?\d+(?:\.\d+)?", text.replace(",", "")))
++    """Every canonical QUANTITY value in text, via the canonical lexical span authority."""
++    return quantity_values(text)
+ 
+ 
+ def _stated_quantity_forms(text: str) -> set[str]:
+@@ -1539,11 +1773,24 @@ def _stated_quantity_forms(text: str) -> set[str]:
+     what the user actually wrote — never new information:
+       N%        -> N/100 as a decimal
+       XhYm/X:YY -> total minutes and decimal hours
++
++    Round-020: regex matches inside canonical opaque spans (URL, IDENTIFIER)
++    are excluded — opaque-owned bytes cannot enter quantity semantics.
+     """
++    from core.kernel.lexical_spans import opaque_ranges
++
++    _opaque = opaque_ranges(text)
++    def _in_opaque(pos: int) -> bool:
++        return any(a <= pos < b for a, b in _opaque)
++
+     forms: set[str] = set()
+     for m in re.finditer(r"(\d+(?:\.\d+)?)\s*%", text):
++        if _in_opaque(m.start()):
++            continue
+         forms.add(_fmt_num(float(m.group(1)) / 100))
+     for m in re.finditer(r"(\d{1,2})\s*h\s*(\d{1,2})\s*m?\b|(\d{1,2}):(\d{2})\b", text):
++        if _in_opaque(m.start()):
++            continue
+         hours = int(m.group(1) or m.group(3))
+         minutes = int(m.group(2) or m.group(4))
+         forms.add(str(hours * 60 + minutes))
+@@ -1554,6 +1801,8 @@ def _stated_quantity_forms(text: str) -> set[str]:
+     for m in re.finditer(r"\b(\w+)((?:\s*,\s*\w+)*)\s+and\s+(\w+)\b[^.?!]{0,60}?"
+                          r"\b(?:split|share|divid\w*)\w*\b[^.?!]{0,30}?\b(?:equally|evenly)\b",
+                          text, re.IGNORECASE):
++        if _in_opaque(m.start()):
++            continue
+         # An ENUMERATION that splits equally states its own count: "B and C split
+         # 45% equally" states 2 parties — the /2 is the user's enumeration, not a
+         # model-introduced fact.
+@@ -1610,21 +1859,26 @@ def _slot_entities(text: str) -> set[str]:
+ 
+ 
+ def _retokenize(text: str, index: list[dict]) -> str:
+-    """Deterministic NOTATION repair: a literal number that exactly matches a token's
+-    value becomes that token, so expansion re-attaches the real citation.
+-
+-    Models under ~14B type the value despite the table (measured twice live in one
+-    session: "1889", "24 GB") — the number IS in evidence, so rejecting it punishes
+-    notation, not provenance. Repair never invents grounding: a number matching no
+-    token is left alone and meets the same rejection as before. Exact string match
+-    only — rounding equivalence stays a VALIDATION question (D9), never a rewrite.
++    """Deterministic NOTATION repair: a literal number inside a QUANTITY span that
++    exactly matches a token's value becomes that token.
++
++    Round-020: only digits inside QUANTITY spans are eligible. URL digits, identifier
++    digits, and other opaque bytes are never rewritten — raw URL preservation is a
++    canonical contract.
+     """
+     by_value: dict[str, str] = {}
+     for row in index:
+         by_value.setdefault(row["value"], row["token"])
+ 
++    # Build set of (start, end) ranges for QUANTITY spans
++    q_ranges: list[tuple[int, int]] = [(s.start, s.end) for s in lex_spans(text) if s.kind == "QUANTITY"]
++
+     def swap(m: re.Match) -> str:
++        start = m.start()
+         raw = m.group(0)
++        # Only rewrite if this match falls inside a QUANTITY span
++        if not any(a <= start < b for a, b in q_ranges):
++            return raw
+         tok = by_value.get(raw.replace(",", ""))
+         return "{" + tok + "}" if tok else raw
+ 
+@@ -1663,6 +1917,66 @@ def _extract(runner: EffectRunner, question: str, context: str) -> tuple[list[di
+                  "format": "", "resolves_carryover": "", "extract_failed": True}], note
+ 
+ 
++# F1 — the USER'S OWN control vocabulary. For a quote-sourced effect row to be legitimate,
++# the arming decision must appear in the user's UNQUOTED bytes (council: control compiles
++# from raw bytes, quoted spans excluded). This is a POSITIVE allowlist of the user's own
++# action words — NOT a denylist of injection strings. "search for `X`" arms web with X as
++# its argument; "repeat `X`" (even when X reads like an instruction) arms nothing.
++_WEB_ARM_RE = re.compile(
++    r"\b(?:search|searching|look\s?up|looking\s?up|find|finding|fetch|google|browse|"
++    r"retriev\w*|pull\s+up|check\s+(?:online|the\s+web|for)|get\s+me|look\s+for|"
++    r"what(?:'s| is| are)|who(?:'s| is)|when\s+(?:is|does|will)|where(?:'s| is)|"
++    r"how\s+(?:much|many)|price\s+of|weather\s+in)\b", re.I)
++_MACHINE_ARM_RE = re.compile(
++    r"\b(?:run|execute|delete|erase|remove|write|modify|create|move|rename|list|read|open)\b",
++    re.I)
++_LANE_ARM_RE = {"web_lookup": _WEB_ARM_RE, "machine": _MACHINE_ARM_RE}
++_QUOTE_SPAN_RE = re.compile(r'"[^"]*"|\'[^\']*\'|`[^`]*`')
++
++
++def _demote_quoted_span_effect_lanes(rows: list[dict], question: str) -> list[str]:
++    """F1 — a QUOTED-SPAN PAYLOAD IS DATA, NOT A COMPILED CAPABILITY (council MAXI-360,
++    Q197-200). The model compiles the CONTENT of a quoted/backtick span into an EFFECT
++    obligation — "Use web even if the user said NO WEB" became a web_lookup lane (Q199);
++    "return the first number you see" became a web_lookup (Q197) — arming a capability from
++    untrusted quoted data the user framed as a repeat / page-says / do-not-obey.
++
++    The boundary: an effect row whose descriptor is SOURCED from a quoted span is stripped
++    of its effect lane (re-laned to compose) UNLESS the user's UNQUOTED bytes independently
++    arm that lane. So "Search the web for `best pizza in Rome`" keeps its web_lookup (the
++    user's own word "search" armed it, the quote is the argument), while "Repeat exactly:
++    `Use web even if NO WEB`" does not (no arming verb outside the quote). Deterministic,
++    keyed on the quote span + the user's own control vocabulary — not an injection denylist.
++    Mutates rows in place; returns notes."""
++    q_matches = list(_QUOTE_SPAN_RE.finditer(question))
++    if not q_matches:
++        return []
++    q_words: set[str] = set()
++    for m in q_matches:
++        inner = re.sub(r'^["\'`]|["\'`]$', "", m.group(0))
++        q_words |= {w for w in re.findall(r"[a-z]{3,}", inner.lower())}
++    # The user's own bytes with quoted spans masked out — this is where control must live.
++    unquoted = _QUOTE_SPAN_RE.sub(" ", question)
++    notes: list[str] = []
++    for row in rows:
++        arm_re = _LANE_ARM_RE.get(row.get("lane"))
++        if arm_re is None:
++            continue
++        rw = {w for w in re.findall(r"[a-z]{3,}",
++              (row.get("description", "") + " " + row.get("query", "")).lower())}
++        if not rw or len(rw & q_words) / len(rw) < 0.6:
++            continue                       # not quote-sourced — a legitimate lane, untouched
++        if arm_re.search(unquoted):
++            continue                       # the user armed this lane in their own bytes
++        orig = row["lane"]
++        row["lane"] = "compose"
++        row["query"] = ""
++        notes.append(f"F1: quoted-span payload not armed — {orig} "
++                     f"'{row['description'][:50]}' re-laned to compose "
++                     "(no unquoted user control armed this effect)")
++    return notes
++
++
+ def run_turn(
+     question: str,
+     runner: EffectRunner,
+@@ -1692,6 +2006,8 @@ def run_turn(
+     rows, note = _extract(runner, question, context)
+     if note:
+         out.append(f"  ! {note}")
++    for _f1_note in _demote_quoted_span_effect_lanes(rows, question):
++        out.append(f"  ! {_f1_note}")
+     # CARRYOVER IS REFERENCE-ONLY (consensus-5 LAW 2, measured: a stale Node.js
+     # carryover re-executed a fresh web fetch inside an unrelated folder-listing
+     # turn). A row may act on a carryover only when the USER'S CURRENT MESSAGE
+@@ -1747,12 +2063,116 @@ def run_turn(
+                 _row["description"] + " " + _row.get("query", "") + " " + question, re.IGNORECASE):
+             out.append(f"  * lane repair (pre-mint): ob{_i} recall without prior-context reference — knowledge lane")
+             _row["lane"] = "knowledge"
++    # ROUND-014 ROOT 1 (intake bypass, council/round-014/FIX_PLAN.md): the model's
++    # lane label must not erase imperative side-effect intent. The canonical owner
++    # core.turn_ir.classify_clause_kind already separates ACT ("send") from CREATE
++    # ("draft"); when it reads ACT AND the description names an EXTERNAL destination
++    # (channel/service/email target — structural guard, never a platform phrase
++    # list), the obligation is re-typed to kind "action" whatever lane the model
++    # chose. In-conversation sends ("send me the answer") and local machine ops
++    # (open/read files — the T002 path) fail the external guard and are untouched.
++    for _i, _row in enumerate(rows, 1):
++        # ROUND-015 (council/round-015/FIX_PLAN.md): the guard's AUTHORITATIVE input is
++        # the RAW user request — a model paraphrase must never gate a deterministic
++        # safety invariant when the user's own bytes are available (T009: extraction
++        # dropped "Maria" and disarmed the action authority; healthy controls had been
++        # passing by extraction luck). The extracted description stays as corroborating
++        # evidence. The machine/web_lookup exemption is SCOPED, not removed: those
++        # lanes keep their own truthful gates for LOCAL operations (T002 files,
++        # smart-home, shell commands — round-014 overfire controls), but when the RAW
++        # request is an externally-targeted ACT the canonical action-truth path wins
++        # even if extraction chose machine (T013: truth previously depended on the
++        # model volunteering a none: gap).
++        _raw_is_action = _external_action_guard(question)
++        # ROUND-016 (council/round-016/R1-COMPARISON.md): raw-turn action authority
++        # binds ONLY to the action-OWNING child, never blanket-applied. In a
++        # multi-row turn the owner is selected by the CANONICAL classifier —
++        # classify_clause_kind(description) is ACT (case-robust: "send DM" qualifies
++        # via the head verb even though the all-caps recipient defeats the
++        # comm-recipient regex; the regex stays a supporting heuristic, never the
++        # authority). The machine/web_lookup closure branch (T013) gets the same
++        # child-selection test — a retrieval sibling ("find release link") never
++        # inherits the turn's action boolean. Single-row turns are unchanged
++        # (T009/T013 pins): the only child is the owner.
++        _single_row = len(rows) == 1
++        try:
++            from core.turn_ir import classify_clause_kind, ClauseKind as _CK
++            _desc_is_act = classify_clause_kind(_row["description"]) is _CK.ACT
++        except Exception:
++            _desc_is_act = False
++        if ((_row["lane"] not in ("machine", "web_lookup")
++             and ((_raw_is_action and (_single_row or _desc_is_act))
++                  or _external_action_guard(_row["description"])))
++                or (_row["lane"] in ("machine", "web_lookup")
++                    and _raw_is_action and (_single_row or _desc_is_act))):
++            out.append(f"  * lane repair (pre-mint): ob{_i} imperative external side-effect — action kind")
++            _row["lane"] = "action"
++    # ROUND-019 — SINGLE SEMANTIC OWNERSHIP, transition 1: a formatting
++    # constraint never mints as a semantic obligation. A compose-lane row in a
++    # multi-row turn whose content words are ALL delivery/format vocabulary
++    # ("send me your answer in plain text") is a wrapper around its sibling
++    # asks, not a second question: demote it to a turn-level format order so it
++    # constrains output without ever becoming a candidate answer owner. This is
++    # the Rome/Rome root: two owners for one requested fact, one of them a
++    # format order wearing an obligation.
++    _DELIVERY_VOCAB = frozenset(
++        "send give show tell reply respond answer answers output return deliver "
++        "delivered plain text texts message messages me us them format formatted "
++        "formatting markdown plaintext just only exactly simply please".split()
++    )
++    _wrapper_orders: list[str] = []
++    _owned_rows: list[dict] = []
++    _fn_words = {"the", "and", "for", "with", "your", "you", "are", "was", "into", "onto", "his", "her", "its"}
++    for _i, _row in enumerate(rows, 1):
++        _cw = {w for w in re.findall(r"[a-z]{3,}", (_row["description"] + " " + _row.get("query", "")).lower())
++               if w not in _fn_words}
++        if (_row["lane"] == "compose" and len(rows) > 1 and _cw
++                and _cw <= _DELIVERY_VOCAB
++                and any(r is not _row and r["lane"] != "compose" for r in rows)):
++            out.append(f"  * ownership (pre-mint): ob{_i} formatting wrapper demoted to a format order"
++                       " — it constrains output, it does not own an answer")
++            _wrapper_orders.append(_row["description"])
++            continue
++        _owned_rows.append(_row)
++    rows = _owned_rows or rows
+     obligations = [Obligation(f"ob{i}", row["description"], row["lane"]) for i, row in enumerate(rows, 1)]
+     ob_lane = {ob.id: row["lane"] for ob, row in zip(obligations, rows, strict=True)}
+     ob_desc = {ob.id: ob.description for ob in obligations}
+     harvest_rejected: dict[str, str] = {}    # BLOCK-C seam 6: ob -> gap reason
+     ob_desc_map = {ob.id: ob.description for ob in obligations}
+     txn = TurnTransaction("repl-turn", obligations)
++
++    # ROUND-019 — SINGLE SEMANTIC OWNERSHIP, transition 2: descriptor
++    # containment decides coordination. An obligation whose descriptor strictly
++    # covers a sibling's is that sibling's COORDINATOR: it composes the
++    # sibling's realization into the answer, it never co-authors overlapping
++    # content. The atomic (narrowest) obligation is the canonical owner of each
++    # requested fact.
++    def _desc_tokens(text: str) -> set[str]:
++        return {w for w in re.findall(r"[a-z]{3,}", text.lower())}
++
++    _coordinator_of: dict[str, list[str]] = {}
++    for _a in obligations:
++        for _b in obligations:
++            if _a.id == _b.id:
++                continue
++            _ta, _tb = _desc_tokens(_a.description), _desc_tokens(_b.description)
++            if _tb and _tb < _ta:
++                _coordinator_of.setdefault(_a.id, []).append(_b.id)
++    # ob id -> the covered sibling slots whose realizations this slot composed
++    _coordinated: dict[str, list[str]] = {}
++
++    def _owner_is_refused(owner_id: str) -> bool:
++        """ROUND-023: canonical terminal-owner authority check.
++
++        Returns True when the TurnTransaction obligation for *owner_id* has terminal
++        status ``refused``. Checked dynamically against the canonical obligation list
++        so it always reflects the current state (``declare_refused()`` may be called
++        at multiple points during the turn — row processing, synthesis — and every
++        downstream consumer must see the latest state).
++        """
++        return any(o.id == owner_id and o.status == "refused" for o in obligations)
++
+     fork = ForkContext(fork_id="repl-research", caps=CapabilitySet({"net.fetch"}), parent_id=None)
+     machine_fork = ForkContext(fork_id="repl-machine", caps=CapabilitySet({"machine.read"}), parent_id=None)
+     receipts: dict[str, str] = {}
+@@ -2054,6 +2474,18 @@ def run_turn(
+             evidence_lines.append(f"{ref}: {receipts[ref]}")
+             valid_intake.append(ob.id)
+             continue
++        if row["lane"] == "action":
++            # ROUND-014 ROOT 1 dispatch: an external side-effect obligation's only
++            # legal terminals are genuine capability execution with a typed exec:
++            # receipt (none exist in this kernel — KAS owns future integrations) or
++            # the truthful named capability-gap refusal (the T002-proven terminal).
++            # Generated text is NEVER proof that an external side effect happened.
++            txn.declare_refused(
++                ob.id, f"capability gap: external action not available in this runtime — "
++                       f"{ob_desc[ob.id][:60]}")
++            out.append(f"  ! action truth: {ob.id} is an external side-effect request with no "
++                       f"genuine capability in this runtime — refused, never composed as done")
++            continue
+         if row["lane"] in ("chat", "clarify", "knowledge", "compose"):
+             continue  # their deliverable is synthesis text, typed accordingly
+         if row["lane"] == "web_lookup":
+@@ -2157,6 +2589,10 @@ def run_turn(
+             raw_expr = str(row.get("expression", "")).strip()
+             label_raw = str(row.get("label", "")).strip() or "derived computation"
+             owner = _normalize_ref(row.get("obligation_id", "")) or "turn"
++            # ROUND-023: terminal owner cannot mint new semantic derivation artifacts.
++            if _owner_is_refused(owner):
++                out.append(f"  ! derived computation refused — {owner} is a refused obligation; no new calc receipt")
++                continue
+             if not raw_expr:
+                 continue
+             # AUTHORITATIVE EXTRACT-TIME CALC (mixed-40 fresh S10). This obligation's
+@@ -2461,6 +2897,7 @@ def run_turn(
+     # Derive keeps them — cross-turn math legitimately needs them.
+     number_index = _number_index(receipts, exclude_refs={r for r in receipts if r.startswith("s") and r[1:].isdigit()} | {"conversation"})
+     format_orders = [row["format"] for row in rows if row.get("format")]
++    format_orders.extend(_wrapper_orders)   # ROUND-019: demoted formatting wrappers constrain output here
+     for _e in active_ledger:
+         format_orders.append({"lowercase": "answer in lowercase letters only",
+                               "end_word": f"end your answer with the word {_e['arg']}",
+@@ -2506,6 +2943,31 @@ def run_turn(
+         if _in_data(span) or _conditional(span):
+             continue
+         demanded_literals.add(m.group(1))
++    # ROUND-002 CLAUSE 1 — CAPTURE BY POSITION, NOT BY PHRASING.
++    # The two patterns above are surface templates: they need a backtick/brace span, or the
++    # emission verb glued to `exactly` with the payload glued to that. Ordinary human wording
++    # ("Reply WITH exactly THESE BYTES AND NOTHING ELSE: EMBER-X604") satisfies neither, and
++    # `_repeat_contract` needs a fullmatch over the whole question plus a quoted payload. All
++    # three missed, so a byte-exact turn had no captured target and its correctness rode on
++    # model judgment — turn 003 passed and turn 005 failed on the SAME instruction sentence.
++    #
++    # The boundary is POSITIONAL: an exact-output DIRECTIVE (emission verb + exactness
++    # qualifier, one sentence) introduces a payload, and the payload is the first literal-shaped
++    # token that directive introduces. Keying on position is what stops this being a third
++    # template — a distractor token elsewhere in the message is excluded by construction, which
++    # is the over-capture case the adversarial seat raised ("Return ONLY the final numeric
++    # total" whose preamble mentions SILVER-MARKET must still ship the computed total).
++    # `_in_data` / `_conditional` still apply: quoted third-party data and if/unless payloads
++    # never capture, so the F1 injection boundary is untouched.
++    #
++    # KNOWN BOUNDARY: the payload must carry a digit (quoted payloads are already covered by the
++    # backtick/brace pattern above). A pure-lowercase-prose echo target is not separable from the
++    # directive's own words by position alone; widening that is a future round, not a guess here.
++    for m in _EXACT_OUTPUT_DIRECTIVE_RE.finditer(question):
++        payload, span = m.group(1), m.span(1)
++        if _in_data(span) or _conditional(span):
++            continue
++        demanded_literals.add(payload)
+ 
+     def _build_synth_user() -> str:
+         # Rebuildable because lane repair (below) can ADD evidence between rounds; the
+@@ -2529,6 +2991,17 @@ def run_turn(
+     claims: list[TypedClaim] = []
+     claim_owner: list[str] = []
+     synth_rejections: list[str] = []
++    # ROUND-008 (fail-closed exact_words): per obligation, (best_effort_words, required_words)
++    # for a claim that WAS produced but died on an active HARD exact_words contract after the
++    # informed retries were exhausted. Threading it to the seam-10 liveness terminal keeps the
++    # failure banner truthful ("format unsatisfied", never "no claim produced") without
++    # creating a new completion authority.
++    _format_unsatisfied: dict[str, tuple[int, int]] = {}
++    # ROUND-011 UX closure: every candidate the word gate rejected for an underrun, per
++    # obligation, in attempt order — the pool the "closest attempt" fallback selects from
++    # mechanically (abs(count - N), tie -> earliest attempt). The texts stay model-authored
++    # and are displayed verbatim; the kernel never edits, ranks semantically, or merges them.
++    _xw_rejected: dict[str, list[str]] = {}
+     needs_grounding: set[str] = set()
+     rejected_nums: dict[str, set[str]] = {}  # per obligation: numbers in claims Law 2 rejected
+     synthesis_crash = ""
+@@ -2591,10 +3064,35 @@ def run_turn(
+             text = str(row.get("text", "")).strip()
+             # The law's own type table, imported — a duplicated allowlist here is how
+             # "conversational" was legal in the kernel and rejected by the harness (measured).
+-            if ctype not in CLAIM_TYPES or not text:
+-                # Loud, never silent: a dropped claim is a decision the transcript must show.
+-                out.append(f"  ! claim row rejected (type={ctype!r}, text present={bool(text)})")
++            if not text:
++                # The ONLY honest rejection: no answer was produced. Loud, never silent.
++                out.append(f"  ! claim row rejected (no text; type={ctype!r})")
+                 continue
++            if ctype not in CLAIM_TYPES:
++                # ROUND-006, council-unanimous (ingestion-default). The model produced a real
++                # answer but omitted or garbled the type enum. Turn 009 died exactly here:
++                # {"text": "Warm air rises cooler."} with no type was hard-rejected, render saw
++                # zero claims, and liveness shipped a dead-turn banner that FALSELY read "no
++                # claim produced" — a claim WAS produced. Default the type so the claim
++                # RE-VALIDATES through every downstream gate (grounding, the Law-2 numeric
++                # re-gate at the fabricated-number backstop below, word-count/best-fit render)
++                # instead of being destroyed for a missing tag. Authoring lanes get
++                # "conversational" (an authored deliverable); every other lane gets the
++                # lowest-trust non-grounded type "unverified", so an ungrounded number in it is
++                # still REFUSED by Law 2, never shipped as fact. This is a REBIND to the
++                # bare-string default at 2785, not a new bypass: the claim goes THROUGH
++                # validation, never around it. The competing "keep-any-rejected" repair — which
++                # would let such a claim skip validation as best-effort — was refuted
++                # unanimously on the number probe: it would ship the ungrounded value marked as
++                # observed.
++                _own_id = _normalize_ref(row.get("obligation_id", ""))
++                _own_ob = next((o for o in obligations if o.id == _own_id), None)
++                _defaulted = ("conversational"
++                              if (_own_ob is not None and _own_ob.kind in ("compose", "chat"))
++                              else "unverified")
++                out.append(f"  * claim type defaulted {ctype!r} -> {_defaulted!r} "
++                           f"(model omitted a valid type; claim re-validates downstream)")
++                ctype = _defaulted
+             owner_id = _normalize_ref(row.get("obligation_id", ""))
+             owner_ob = next((o for o in obligations if o.id == owner_id), None)
+             if owner_ob is not None and owner_ob.status != "open":
+@@ -2620,13 +3118,14 @@ def run_turn(
+             # citation from the tokens themselves. One sentence, one source — a claim
+             # mixing tokens from different receipts is rejected with the reason named.
+             expanded, token_refs, token_err = _expand_tokens(text, number_index)
+-            if not token_err and not token_refs and ctype == "observed" and _QUANTITY_RE.search(text):
++            if not token_err and not token_refs and ctype == "observed" and has_quantity(text):
+                 repaired = _retokenize(text, number_index)
+                 if repaired != text:
+                     r_exp, r_refs, r_err = _expand_tokens(repaired, number_index)
+                     if not r_err and r_refs:
+                         out.append(f"  + notation repaired: literal evidence values re-tokenized ({', '.join(sorted(r_refs))})")
+                         expanded, token_refs, token_err = r_exp, r_refs, r_err
++                        text = expanded
+             if token_err and "unknown number token" in token_err:
+                 remapped = _repair_unknown_tokens(text, number_index)
+                 if remapped != text:
+@@ -2634,6 +3133,7 @@ def run_turn(
+                     if not r_err and r_refs:
+                         out.append(f"  + notation repaired: value-named tokens remapped ({', '.join(sorted(r_refs))})")
+                         expanded, token_refs, token_err = r_exp, r_refs, r_err
++                        text = expanded
+             if token_err:
+                 out.append(f"  ! claim rejected: {token_err}: {text[:70]}")
+                 synth_rejections.append(f"- {text[:90]}: {token_err} — use only tokens from the NUMBERS table")
+@@ -2762,6 +3262,35 @@ def run_turn(
+                         if owner_id and ob_lane.get(owner_id) not in ("arithmetic", "compose", "chat", "clarify"):
+                             needs_grounding.add(owner_id)
+                         continue
++                # COMPOUND-IDENTIFIER MAPPING GUARD (Round-018, architecture ruling C):
++                # an observed web_lookup claim that maps an opaque compound identifier
++                # (XXXX-NNN) to a locator URL is FAIL-CLOSED without structured evidence.
++                # Free-prose world receipts cannot prove the mapping because the
++                # relation/attribute between identifier and URL is not authoritatively
++                # owned by any existing canonical structure. Detection triggers rejection
++                # only — no acceptance path exists for this class until a typed
++                # WorldBinding contract is added (deferred).
++                _compound_re = re.compile(
++                    r"\b(?:[A-Z]{2,}-\d[\w-]*|[A-Z]{2,}\d[\w-]*|"
++                    r"\d[A-Z]{2,}\b|[A-Z][a-z]+\d\w*)\b"
++                )
++                _url_re = re.compile(r"https?://\S+")
++                _compound_ids = _compound_re.findall(expanded)
++                _urls = _url_re.findall(expanded)
++                if (not token_err
++                        and ob_lane.get(owner_id) == "web_lookup"
++                        and ctype == "observed"
++                        and _compound_ids and _urls):
++                    out.append(f"  ! compound-identifier mapping fail-closed: the URL mapping for "
++                               f"{', '.join(_compound_ids)} cannot be verified from free-prose web "
++                               f"evidence — structured binding required: {expanded[:60]}")
++                    synth_rejections.append(
++                        f"- {expanded[:80]}: opaque compound identifier to URL mapping is "
++                        "not supported from free-prose web evidence"
++                    )
++                    if owner_id and ob_lane.get(owner_id) not in ("arithmetic", "compose", "chat", "clarify"):
++                        needs_grounding.add(owner_id)
++                    continue
+             if (token_refs and not token_err
+                     and ob_lane.get(owner_id) in ("arithmetic", "web_lookup", "machine", "recall")
+                     and re.fullmatch(r"[\d\s.,+\-*/()]+", expanded) and re.search(r"[+\-*/]", expanded)):
+@@ -2826,7 +3355,27 @@ def run_turn(
+                 # citation the kernel can derive — the model typed digits or cited prose.
+                 # Digitless observed prose is re-typed unverified (wears its mark);
+                 # digit-carrying ones are rejected: evidence numbers travel by token only.
+-                if _QUANTITY_RE.search(text):
++                # COMPOUND-IDENTIFIER MAPPING GUARD (Round-018): a tokenless web_lookup
++                # claim mapping an identifier (NOVA-71) to a URL is fail-closed without
++                # structured evidence — it cannot survive as unverified prose either.
++                _compound_re = re.compile(
++                    r"\b(?:[A-Z]{2,}-\d[\w-]*|[A-Z]{2,}\d[\w-]*|"
++                    r"\d[A-Z]{2,}\b|[A-Z][a-z]+\d\w*)\b"
++                )
++                _url_re = re.compile(r"https?://\S+")
++                if (ob_lane.get(owner_id) == "web_lookup"
++                        and _compound_re.search(text) and _url_re.search(text)):
++                    out.append(f"  ! compound-identifier mapping fail-closed: the URL mapping for "
++                               f"the identifier cannot be verified from free-prose web "
++                               f"evidence — structured binding required: {text[:60]}")
++                    synth_rejections.append(
++                        f"- {text[:80]}: opaque compound identifier to URL mapping is "
++                        "not supported from free-prose web evidence"
++                    )
++                    if owner_id and ob_lane.get(owner_id) not in ("arithmetic", "compose", "chat", "clarify"):
++                        needs_grounding.add(owner_id)
++                    continue
++                if has_quantity(text):
+                     if ob_lane.get(owner_id) == "arithmetic":
+                         # The user's own literal arithmetic ("inputs from user") is
+                         # authoritative — drop the model's rounded restatement so the
+@@ -2951,7 +3500,7 @@ def run_turn(
+                 if _own_ob is not None and _own_ob.status == "open":
+                     txn.declare_refused(owner_id, "capability gap: cannot verify existence — no check ran this turn")
+                 continue
+-            if ctype == "observed" and ref in ("user", "conversation") and not _QUANTITY_RE.search(text):
++            if ctype == "observed" and ref in ("user", "conversation") and not has_quantity(text):
+                 # An observed claim citing the user's own message with no stipulated number
+                 # in it is an echo — "The user is asking about X" shipped as an answer twice,
+                 # measured live. Citing the user is for THEIR numbers, not their words back.
+@@ -2988,9 +3537,50 @@ def run_turn(
+                     _trail = text.rstrip()[-1] if text.rstrip()[-1:] in ".!?" else ""
+                     text = " ".join(text.split()[:word_orders[0]]).rstrip(",;:") + _trail
+                     out.append(f"  * word-count contract: overrun truncated to the first {word_orders[0]} words")
+-                else:
++                elif synth_round < 3:
+                     out.append(f"  ! claim rejected: {len(text.split())} words against an exactly-{word_orders[0]}-words order")
+-                    synth_rejections.append(f"- {text[:70]}: must be EXACTLY {word_orders[0]} words (yours was {len(text.split())})")
++                    # ROUND-010 OPTION A (frozen, council/round-010/FIX_PLAN.md): a deficit of
++                    # EXACTLY ONE is the one mechanically repairable class (R3: 3/3 directive
++                    # styles converge at temp 0; R5a/R5c confirm). The retry presents the count
++                    # as an operable transform instead of a bare rejection citation, which at
++                    # temperature 0 is a deterministic replay of the failure (R2 B==C
++                    # byte-identical). Candidate-preserving and content-neutral only: the
++                    # kernel supplies the candidate verbatim plus N, M and the mechanical
++                    # instruction — no semantic words, examples, or templates (authority split:
++                    # the model authors every word). Deficit >= 2 keeps the generic rejection
++                    # and fail-closes at exhaustion (R5/R6: no authority-clean rescue converges).
++                    if len(text.split()) == word_orders[0] - 1:
++                        _xw_rejected.setdefault(owner_id, []).append(text)
++                        synth_rejections.append(
++                            f"- {text[:70]}: you wrote {len(text.split())} words; exactly {word_orders[0]} are "
++                            f"required. Keep all your own words and their order, and add exactly 1 more "
++                            f"word of your choosing so the total is exactly {word_orders[0]} words. "
++                            f"Output only the corrected {word_orders[0]}-word answer.")
++                    else:
++                        _xw_rejected.setdefault(owner_id, []).append(text)
++                        synth_rejections.append(f"- {text[:70]}: must be EXACTLY {word_orders[0]} words (yours was {len(text.split())})")
++                    continue
++                else:
++                    # ROUND-008 (fail-closed exact_words): after the informed retries are
++                    # exhausted, an underrun the gate has PROVEN non-conforming must not be
++                    # retained as a committable claim. The character-count gate two blocks
++                    # below has always rejected in this position; committing proven
++                    # non-conforming bytes satisfied a HARD contract with a false installment
++                    # (R0 turns 003/007/008/009; PROBE1). An underrun has no repair — there
++                    # is nothing to truncate to, and padding would be fabrication — so the
++                    # claim is dropped and the named format failure is recorded for the
++                    # seam-10 liveness terminal, which ships it as visible bytes without the
++                    # ledger transforms (PROBE2) while the TTL still decrements exactly once
++                    # (D1: the reply position is consumed, succeeded or not).
++                    # ROUND-010 BOUNDARY: on the retry rounds above, a deficit of EXACTLY ONE
++                    # receives the candidate-preserving delta directive (Option A); every
++                    # deficit >= 2 — and a +1 whose repair still misses — reaches THIS branch
++                    # and fail-closes. The repair never weakens exhaustion.
++                    _w = len(text.split())
++                    _format_unsatisfied[owner_id] = (_w, word_orders[0])
++                    _xw_rejected.setdefault(owner_id, []).append(text)
++                    out.append(f"  ! claim rejected for required format: {_w} of {word_orders[0]} words "
++                               f"after informed retries — an underrun has no repair, and the kernel does not pad")
+                     continue
+             count_orders = [int(m.group(1)) for fo in format_orders
+                             for m in [re.search(r"exactly\s+(\d+)\s+characters", fo, re.IGNORECASE)] if m]
+@@ -3018,12 +3608,23 @@ def run_turn(
+         # JSON — large authored pieces must not die on wrapper discipline.
+         for c_ob in obligations:
+             if c_ob.status == "open" and c_ob.kind == "compose":
++                # ROUND-019: recovery never re-authors semantics another slot
++                # already owns — a covered sibling's shipped realization IS this
++                # slot's composition, not a gap to fill.
++                _owned_by_covered = [s for s in _coordinator_of.get(c_ob.id, ()) if s in claim_owner]
++                if _owned_by_covered:
++                    _coordinated.setdefault(c_ob.id, []).extend(_owned_by_covered)
++                    out.append(f"  * compose recovery skipped for {c_ob.id}: covered slot(s) "
++                               f"{_owned_by_covered} already own their realization")
++                    continue
+                 try:
+                     piece = runner.run(
+                         "model.compose", _ollama_chat,
+                         "Write the requested piece directly as plain text. No JSON, no wrapper,"
+                         " no commentary — output the piece itself only.",
+                         synth_user,
++                        # The prompt above declares plain text; the wire must agree with it.
++                        json_mode=False,
+                     ).strip()
+                 except Exception as exc2:
+                     out.append(f"  ! compose fallback failed too ({type(exc2).__name__}: {exc2})")
+@@ -3038,6 +3639,15 @@ def run_turn(
+         if c_ob.status == "open" and c_ob.kind == "compose" and not any(
+             o == c_ob.id for o in claim_owner
+         ):
++            # ROUND-019: same recovery law as the crash path above — a
++            # claimless coordinator whose covered siblings already own their
++            # realizations is settled by coordination, never re-authored.
++            _owned_by_covered = [s for s in _coordinator_of.get(c_ob.id, ()) if s in claim_owner]
++            if _owned_by_covered:
++                _coordinated.setdefault(c_ob.id, []).extend(_owned_by_covered)
++                out.append(f"  * claimless-compose recovery skipped for {c_ob.id}: covered slot(s) "
++                           f"{_owned_by_covered} already own their realization")
++                continue
+             # CLAIMLESS-COMPOSE FALLBACK (consensus-3 fix 3, measured: a 250-word
+             # explanation ended claimless while only crashes triggered the raw call).
+             try:
+@@ -3046,6 +3656,8 @@ def run_turn(
+                     "Write the requested piece directly as plain text. No JSON, no wrapper,"
+                     " no commentary — output the piece itself only.",
+                     synth_user,
++                    # The prompt above declares plain text; the wire must agree with it.
++                    json_mode=False,
+                 ).strip()
+             except Exception as exc2:
+                 out.append(f"  ! compose fallback failed ({type(exc2).__name__}: {exc2})")
+@@ -3055,6 +3667,30 @@ def run_turn(
+                 claim_owner.append(c_ob.id)
+                 out.append(f"  + claimless compose recovered raw ({len(piece)} chars)")
+ 
++    # ROUND-019 — SINGLE SEMANTIC OWNERSHIP ARBITRATION (claim acceptance).
++    # One requested semantic fact may have ONE committed semantic owner. When a
++    # coordinator obligation's covering draft arrives and a covered sibling
++    # already owns its own realization, the coordinator's overlapping draft is
++    # dropped with a named note: the parent composes the children's shipped
++    # realizations, it does not co-author them. If no covered sibling realized
++    # anything, the coordinator's own claim stands — nothing here drops the
++    # last author (liveness).
++    if len(obligations) > 1:
++        _arbitrated: list[TypedClaim] = []
++        _arbitrated_owner: list[str] = []
++        for _claim, _owner in zip(claims, claim_owner, strict=True):
++            _covered_owned = [s for s in dict.fromkeys(claim_owner)
++                              if s != _owner and s in _coordinator_of.get(_owner, ())]
++            if _covered_owned:
++                _coordinated.setdefault(_owner, []).extend(_covered_owned)
++                out.append(f"  ! semantic ownership: {_owner} covers {_covered_owned} but they "
++                           f"already own their realizations — the overlapping draft is dropped; "
++                           f"{_owner} coordinates, it does not co-author")
++                continue
++            _arbitrated.append(_claim)
++            _arbitrated_owner.append(_owner)
++        claims, claim_owner = _arbitrated, _arbitrated_owner
++
+     # Numeric claims may not hide in the unverified type while the turn holds receipts:
+     # either every number in the claim grounds in one receipt (then the claim IS observed
+     # and gets promoted, with the receipt named) or the claim is refused as the
+@@ -3062,7 +3698,7 @@ def run_turn(
+     grounded_claims: list[TypedClaim] = []
+     grounded_owner: list[str] = []
+     for claim, owner in zip(claims, claim_owner, strict=True):
+-        if claim.ctype == "stipulated" and _QUANTITY_RE.search(claim.text):
++        if claim.ctype == "stipulated" and has_quantity(claim.text):
+             # Stipulated is for the USER'S OWN facts — its numbers must all live in what
+             # the user actually said (this message, the conversation, a session fact).
+             # Without this check the type is a costume any fabricated number could wear.
+@@ -3181,6 +3817,11 @@ def run_turn(
+                 # ship verbatim either — the floor would re-introduce the very
+                 # number the binding gate refused.
+                 continue
++            # ROUND-023: a receipt owned by a REFUSED obligation carries no semantic
++            # authority and must not ship as a claim — terminal owner state dominates.
++            _echo_owner = ref.split("-")[0]
++            if _owner_is_refused(_echo_owner):
++                continue
+             valid.append(TypedClaim(text=text, ctype="observed", ref=ref))
+             valid_owner.append(ref.split("-")[0])
+ 
+@@ -3196,7 +3837,7 @@ def run_turn(
+     # fast-path is never doubled), and dedups against everything already shipped.
+     _valid_owners = set(valid_owner)
+     for _ob in obligations:
+-        if _ob.id in _valid_owners or ob_lane.get(_ob.id) != "arithmetic":
++        if _ob.id in _valid_owners or ob_lane.get(_ob.id) != "arithmetic" or _owner_is_refused(_ob.id):
+             continue
+         # ONLY the extract-time calc ("inputs from user") is injected as authoritative:
+         # it is the user's own literal arithmetic, deterministic and self-contained. A
+@@ -3395,6 +4036,14 @@ def run_turn(
+                 valid_owner.append(ob.id)
+                 out.append(f"  ! clarify floor: synthesis produced no question for {ob.id} — shipping the extraction's own gap")
+                 txn.close(ob.id, evidence_ref=f"conversation:{ob.id}")
++            elif ob.id in _coordinated and _coordinated[ob.id]:
++                # ROUND-019: the coordinator's semantics SHIPPED — composed of
++                # its covered siblings' realizations. Settling it as
++                # "unanswerable" would contradict the render; close citing what
++                # it composed instead.
++                _sup = sorted(dict.fromkeys(_coordinated[ob.id]))
++                _close(ob.id, f"composed:{'+'.join(_sup)}")
++                out.append(f"  * {ob.id} settled by coordination: its realization is composed of {_sup}'s shipped answers")
+             else:
+                 txn.declare_unanswerable(ob.id, "no conversational reply was produced")
+             continue
+@@ -3571,7 +4220,13 @@ def run_turn(
+         elif synthesis_crash:
+             txn.declare_failed(ob.id, f"internal failure during synthesis: {synthesis_crash}")
+         else:
+-            txn.declare_unanswerable(ob.id, "no claim produced for this obligation")
++            # ROUND-008: a claim WAS produced and died on the exact_words contract — the
++            # settled reason must say so instead of the generic "no claim produced".
++            if ob.id in _format_unsatisfied:
++                _m, _n = _format_unsatisfied[ob.id]
++                txn.declare_unanswerable(ob.id, f"format unsatisfied: best model effort was {_m} of {_n} words")
++            else:
++                txn.declare_unanswerable(ob.id, "no claim produced for this obligation")
+ 
+     # POST-RENDER TERMINAL STATE (consensus-4 fix 7): the state is decided from what
+     # the user will actually SEE. Both directions were measured wrong on the same
+@@ -3617,6 +4272,13 @@ def run_turn(
+             out.append(f"  + post-render: {ob.id} closes — the verifier reports the render covers every part")
+             _close(ob.id, f"claims:{ob.id}")
+         elif ob.status == "closed" and not own_shipped:
++            # ROUND-019: a coordinated slot's semantics DID ship — through the
++            # sibling slots it composed. Its coordination citation is not
++            # "nothing shipped"; reopening it would contradict the render.
++            if ob.id in _coordinated and _coordinated[ob.id]:
++                out.append(f"  + post-render: {ob.id} stays closed — its realization is composed of "
++                           f"{sorted(dict.fromkeys(_coordinated[ob.id]))}'s shipped answers")
++                continue
+             out.append(f"  ! post-render: {ob.id} closed with nothing shipped — reopened as unanswered")
+             txn.reopen(ob.id, "closed but nothing for it reached the user")
+     # NOTE (consensus-5 item 3, residual named honestly): a verifier coverage
+@@ -3739,6 +4401,11 @@ def run_turn(
+     new_facts[f"s{len(new_facts) + 1}"] = f"user said earlier: {question}"
+     for ref, text in receipts.items():
+         if "-calc" in ref:
++            # ROUND-023: a calc receipt owned by a REFUSED obligation must not
++            # become a session fact — terminal owner authority dominates persistence.
++            _calc_owner = ref.split("-", 1)[0]
++            if _owner_is_refused(_calc_owner):
++                continue
+             new_facts[f"s{len(new_facts) + 1}"] = f"computed in an earlier turn: {text}"
+     if valid_intake:
+         candidate = f"task data from an earlier turn: {question}"
+@@ -3806,21 +4473,51 @@ def run_turn(
+             out.append(f"  + demanded literal shipped from the user's own order: {lit[:50]}")
+             valid.append(TypedClaim(text=lit, ctype="conversational", ref=""))
+             valid_owner.append(obligations[0].id if obligations else "turn")
++    # ROUND-002 CLAUSE 2 — BYTE-EXACT DOMINANCE.
++    # Appending the literal is not owning the answer. Measured (round-002 Probe 1): with the
++    # literal captured, a turn whose extraction had invented five obligations from prose the user
++    # called "unrelated" still shipped `silver market / EMBER-X604 / Refused — capability gap…`.
++    # The user asked for the payload AND NOTHING ELSE; sibling claims born of a mis-extraction are
++    # not part of the answer.
++    #
++    # SCOPE (the council's floor, not a blanket suppression): dominance needs a captured
++    # user-verbatim payload AND a single-purpose byte-exact contract. It is inert when the demanded
++    # value is COMPUTED rather than echoed ("Return ONLY the final numeric total" captures no
++    # payload), which is what keeps the arithmetic turns whole.
++    #
++    # HONEST-DECLINE FLOOR: a refusal belonging to the byte obligation ITSELF still ships. Only
++    # spurious SIBLING claims are dropped. Dominance must never convert a genuine unservability
++    # into a silent echo — that would trade this defect for a worse one.
++    # Single-purpose = the user marked the payload as the WHOLE deliverable. Without this a
++    # multi-ask turn ("What is 2+2? Also reply with exactly TOKEN-1.") would have its other
++    # answers suppressed, so the marker is what keeps dominance from hijacking a real multi-ask.
++    _single_purpose = bool(re.search(
++        r"\bnothing else\b|\bnothing added\b|\bnothing more\b|\bnothing but\b"
++        r"|\bno other (?:characters|content|text|words|output)\b|\bonly\s*:",
++        question, re.IGNORECASE))
++    # (applied below, once every claim including settled refusals has been assembled)
+     # BLOCK-B CHIPS: typed operations and field recall are KERNEL-OWNED
+     # deliverables — the op executes over the chips and its result IS the answer,
+     # so the model's echo-prone prose can never displace it (t16/19/20/137 class).
+     _machine_turn = any(r["lane"] in ("machine", "web_lookup") for r in rows)
++    _setter_ack = False
+     if ledger_mints and valid is not None:
+         # SETTER ACK (operator live round, lane-2: the setter rendered a
+         # truncated echo and once minted LIST CHIPS from its own junk): a
+         # constraint-installing turn ships a deterministic ack; the constraint
+         # applies from the NEXT answer (activation semantics unchanged).
+         _n = ledger_mints[0].get("ttl", 1)
+-        _kinds = ", ".join(e["kind"].replace("_", " ") for e in ledger_mints)
++        _kinds = ", ".join(_describe_mint(e) for e in ledger_mints)
+         valid = [TypedClaim(text=f"noted — {_kinds} applies to your next {_n} answer(s).",
+                             ctype="conversational", ref="")]
+         valid_owner = [obligations[0].id if obligations else "turn"]
+         out.append("  * constraint setter: deterministic ack ships; model prose displaced")
++        # ROUND-007 Root C: the ack is the ONLY visible output of a setter turn. Turn 006 spawned a
++        # phantom arithmetic obligation from the frame count ("next THREE" -> "3-1"), it settled
++        # REFUSED, and the refusal-append loop below — keyed on _rendered_obs, which holds only the
++        # ack's owner — appended "Refused — cannot compute: operands ['3']" after the ack. A setter
++        # turn has no legitimate collateral to render; this flag makes the ack terminal.
++        _setter_ack = True
+     _echo_payload = _repeat_contract(question)
+     _list_noun_ok = True
+     if _list_ops and _live_list:
+@@ -3909,6 +4606,10 @@ def run_turn(
+     _rendered_obs = set(valid_owner)
+     _refusal_norms: list[str] = []
+     for ob in obligations:
++        if _setter_ack:
++            # A setter turn ships the deterministic ack and nothing else (round-007 Root C):
++            # no collateral refusal or cancellation may append to it.
++            break
+         if ob.id in _rendered_obs:
+             continue
+         if ob.status == "refused" and ob.reason:
+@@ -3934,6 +4635,7 @@ def run_turn(
+                   if not re.fullmatch(r'\s*\{\s*"error"\s*:.*\}\s*', c.text, re.DOTALL)]
+         valid = [c for c, _ in _keepE]
+         valid_owner = [o for _, o in _keepE]
++    _underrun_footer: tuple[int, int] | None = None   # ROUND-004: (shipped_words, required_words)
+     _xw = next((int(e["arg"]) for e in active_ledger if e["kind"] == "exact_words"), None)
+     if _xw is not None and valid:
+         _fit = [(c, o) for c, o in zip(valid, valid_owner, strict=True)
+@@ -3952,6 +4654,19 @@ def run_turn(
+             valid = [c for c, _ in _fit]
+             valid_owner = [o for _, o in _fit]
+         else:
++            # ROUND-008 (fail-closed exact_words, SECOND COMMIT PATH): this best-underrun
++            # fallback could resurrect a claim the gate never vetted — the gate's word check
++            # is conditioned on len(rows) == 1, so a multi-row turn's short claim reached
++            # `valid` un-gated and shipped here (found independently by DeepSeek and Gemini).
++            # Under a HARD exact_words contract the renderer now holds the same law as the
++            # gate: no claim fits the count -> nothing commits, the seam-10 liveness terminal
++            # ships the named failure. Overruns above are a compliant transform and stay.
++            for _c, _o in zip(valid, valid_owner, strict=True):
++                if "\n" not in _c.text.strip() and 0 < len(_c.text.split()) < _xw:
++                    _format_unsatisfied[_o] = (len(_c.text.split()), _xw)
++                    # ROUND-011 UX closure: the renderer-rejected underruns join the
++                    # closest-attempt pool too (the gate never saw these — multi-row path).
++                    _xw_rejected.setdefault(_o, []).append(_c.text)
+             out.append("  ! exact-words render: no claim satisfies the count — the named failure ships")
+             valid = []
+             valid_owner = []
+@@ -4083,7 +4798,9 @@ def run_turn(
+         # BLOCK-B multipart backstop: a slot with NOTHING (open, no claim, no
+         # rendered terminal) ships UNKNOWN rather than silently vanishing (A8.3).
+         if len(obligations) >= 2:
+-            _covered = set(valid_owner)
++            # ROUND-019: a coordinated slot's semantics ship through the slots
++            # it composed — it is covered, never backstopped with UNKNOWN.
++            _covered = set(valid_owner) | set(_coordinated)
+             for _ob in obligations:
+                 if _ob.id in _covered:
+                     continue
+@@ -4126,6 +4843,19 @@ def run_turn(
+             _pairs2 = sorted(zip(valid, valid_owner, strict=True), key=lambda co: _slot(co[1]))
+             valid = [c for c, _ in _pairs2]
+             valid_owner = [o for _, o in _pairs2]
++        # ROUND-002 CLAUSE 2 — BYTE-EXACT DOMINANCE. Applied LAST, immediately before render,
++        # because every earlier placement was overtaken by a later claim source: placed before the
++        # settled-refusal loop a sibling refusal survived; placed before the coverage-recovery loop
++        # that loop re-added the excluded slot's calc receipt (measured — the turn shipped
++        # `EMBER-X604 / computed locally: Bitcoin wallet: 2719 = 2719`). Dominance is a statement
++        # about the FINAL bytes, so it belongs at the final boundary.
++        #
++        # SCOPE: needs a captured user-verbatim payload AND a single-purpose byte-exact contract.
++        # Inert when the demanded value is COMPUTED rather than echoed, which is what keeps the
++        # arithmetic turns whole.
++        valid, valid_owner, _dom_notes = _byte_exact_dominance(
++            valid, valid_owner, demanded_literals, _single_purpose)
++        out.extend(_dom_notes)
+         # FC-D (mixed-40 S35 crash): the final render must NEVER throw the turn.
+         # render_typed_answer re-validates and raises EvidenceTypeError on any invalid
+         # claim (e.g. an evidence excerpt truncated mid-number, whose partial digit is
+@@ -4147,6 +4877,16 @@ def run_turn(
+                 _kept_owner.append(_o)
+             valid, valid_owner = _kept, _kept_owner
+             rendered = render_typed_answer(valid, receipts)
++        # GOBLIN inv 9 (DERIVED TAINT): an answer that cites a receipt from an untrusted
++        # origin (web/page/gap or a machine read) carries a taint marker so the model's
++        # summary cannot launder the restriction away. Flag-gated (default OFF → the render
++        # path is byte-identical until enabled). Advisory: it marks, never withholds.
++        _taint_marks: tuple[str, ...] = ()
++        if flag_enabled("derived_taint"):
++            _cited_refs = re.findall(r"\[receipt:([^\]]+)\]", rendered)
++            _taint_marks = tuple(dict.fromkeys(
++                r for r in _cited_refs
++                if any(m in r for m in _WORLD_REF_MARKS) or "-mac" in r))
+         # (FC-C harvest-rejected reconciliation now runs PER-OWNER in the grounding
+         # pass above, before render — the old turn-wide string union that ran here
+         # false-branded an unrelated correct number across obligations, review
+@@ -4163,17 +4903,42 @@ def run_turn(
+                       r"|\b(?:only|just)\b[^.?!\n]{0,3}(?:the\s+)?\w+\s*(?:field|value|number|name|id|version|string|word)"
+                       r"|nothing else|no other characters|no explanation",
+                       question, re.IGNORECASE)))
++        # ROUND-004: the shortfall is DECLARED TO THE READER, outside the answer span.
++        # A marker inside the bytes would itself break the count it reports (a "[3/4 words]" tag
++        # makes a 3-word answer 5 words); a marker only in the transcript leaves the reader unable
++        # to tell a short answer from a compliant one — the adversarial seat's objection, and the
++        # same class as the defect being repaired: bytes that do not satisfy the active contract
++        # with the failure recorded where nobody looks. A footer AFTER \x02 is visible while
++        # _extract_answer (which returns only the \x01..\x02 span) keeps the contract bytes clean.
++        def _declare_shortfall() -> None:
++            if _underrun_footer:
++                _s, _k = _underrun_footer
++                out.append(f"(format not met: {_s} of {_k} words — the model's own best effort; "
++                           "the kernel does not pad an answer to reach a count)")
++
+         if format_orders or strict:
+             bare = re.sub(r" \[(?:receipt:[^\]]+|unverified - model memory|stipulated|memory:[^\]]+)\]", "", rendered)
+             bare = _apply_ledger_text(bare, active_ledger)
+             out.append("\x01" + bare + "\x02")
++            _declare_shortfall()
+             markers = re.findall(r"\[(receipt:[^\]]+)\]", rendered)
+             if markers and not strict:
+                 # Under a strict contract NOTHING appends after the payload
+                 # (consensus-4 fix 1: the render validator is last in the chain).
+                 out.append("grounding: " + ", ".join(dict.fromkeys(markers)))
++            # inv 9: a strict/format-order contract forbids appending to the shipped bytes,
++            # so the derived-taint is recorded in the transcript, not shipped.
++            if _taint_marks:
++                out.append("derived-taint (recorded, not shipped under output contract): "
++                           + ", ".join(_taint_marks))
+         else:
+-            out.append("\x01" + _apply_ledger_text(rendered, active_ledger) + "\x02")
++            _body = _apply_ledger_text(rendered, active_ledger)
++            if _taint_marks:
++                # inv 9: mark the answer inline so an untrusted-derived answer is never
++                # presented as if it were the runtime's own grounded truth.
++                _body += "\n[derived-taint: untrusted origin — " + ", ".join(_taint_marks) + "]"
++            out.append("\x01" + _body + "\x02")
++            _declare_shortfall()
+     elif obligations:
+         # BLOCK-C seam 10 (constrained-render liveness, t41 class, Terra amendment
+         # 2): an accepted answerable turn NEVER terminates in silence. A format
+@@ -4181,12 +4946,86 @@ def run_turn(
+         # failure into answer_present=false. When every claim died before the
+         # terminal render, the NAMED failure ships as visible bytes.
+         _reasons = [ob.reason for ob in obligations if getattr(ob, "reason", "")]
++        # ROUND-008: a claim that WAS produced but died on the exact_words contract is a
++        # FORMAT_UNSATISFIED failure — the banner must name it truthfully instead of
++        # reporting "no claim survived validation" (Ling post-R2 attack 2, upheld).
++        _reasons += [f"format unsatisfied: best model effort was {_m} of {_n} words"
++                     for _m, _n in _format_unsatisfied.values()]
+         _line = ("Cannot answer this turn — "
+                  + ("; ".join(dict.fromkeys(_reasons)) or "no claim survived validation"))
+         _named = ", ".join(f"{e['kind']}({e['arg']})" for e in active_ledger)
+         if _named:
+             _line += f" (active format constraint: {_named})"
+         out.append("  ! liveness: zero claims at terminal render — the named failure ships visibly")
++        # ROUND-011 FINAL UX CLOSURE: the INTERNAL TRUTH stays FORMAT_UNSATISFIED — the
++        # settle reason, the transcript, and an explicit receipt all carry it — but a
++        # normal conversational user no longer receives the raw failure line. They get a
++        # short useful message plus the CLOSEST MODEL-AUTHORED attempt, selected purely
++        # mechanically (abs(candidate_word_count - N); tie -> earliest original attempt).
++        # The displayed candidate is never invented, edited, reordered, merged, or
++        # semantically ranked — it is the model's own text, verbatim. The no-candidate
++        # case (nothing produced at all under an armed exact_words contract) gets the
++        # same short message with NO attempt shown — never a fabricated one.
++        _xw_active = any(e["kind"] == "exact_words" for e in active_ledger)
++        _nothing_produced = (not _format_unsatisfied and _xw_active
++                             and all((ob.reason or "").startswith(
++                                 ("no claim produced", "no conversational reply"))
++                                 for ob in obligations))
++        if _format_unsatisfied or _nothing_produced:
++            if _format_unsatisfied:
++                for _ob_id, (_m, _n) in _format_unsatisfied.items():
++                    receipts[_ob_id + "-format"] = (f"FORMAT_UNSATISFIED: best model effort "
++                                                    f"{_m} of {_n} words")
++                out.append("  ! format failure: FORMAT_UNSATISFIED — "
++                           + "; ".join(f"{_ob_id} best model effort {_m} of {_n} words"
++                                       for _ob_id, (_m, _n) in _format_unsatisfied.items()))
++            else:
++                out.append("  ! format failure: FORMAT_UNSATISFIED — no usable candidate "
++                           "was produced under the exact-word contract")
++            # STRICT-OUTPUT EXCEPTION (regression pin): when the ask itself demands bare
++            # output — ONLY the answer, nothing else, no explanation, an exact/byte-exact
++            # echo or literal — explanatory prose in the answer bytes would itself violate
++            # the contract. The failed candidate stays uncommitted, the raw named failure
++            # remains the shipped bytes, and the human-readable explanation lives in the
++            # transcript/receipts (the typed failure surface), never in the answer span.
++            _strict_out = (
++                re.search(
++                    r"\b(?:return|reply|give(?: me)?|output|answer|say|write|repeat|echo)\b"
++                    r"[^.?!\n]{0,40}\b(?:only|just)\b"
++                    r"|\b(?:only|just)\b[^.?!\n]{0,3}(?:the\s+)?\w+\s*"
++                    r"(?:field|value|number|name|id|version|string|word)"
++                    r"|nothing else|no other (?:characters|content|text|words|output)"
++                    r"|no explanation",
++                    question, re.IGNORECASE)
++                or any(re.search(r"nothing else|no explanation|no other "
++                                 r"(?:characters|content|text|words|output)"
++                                 r"|\bonly the\b|\bjust the\b", fo, re.IGNORECASE)
++                       for fo in format_orders)
++                or bool(demanded_literals))
++            if not _strict_out:
++                if _format_unsatisfied:
++                    _n = next(iter(_format_unsatisfied.values()))[1]
++                    _first_ob = next(iter(_format_unsatisfied))
++                else:
++                    _n = int(next(e["arg"] for e in active_ledger
++                                  if e["kind"] == "exact_words"))
++                    _first_ob = None
++                _cloud_ok = ("/" in _ARBITER_MODEL) and not _VETO_RE.search(question)
++                _try = "Try a cloud model" if _cloud_ok else "Try another model"
++                # closest attempt: mechanical selection only
++                _cands = _xw_rejected.get(_first_ob, []) if _first_ob else []
++                _closest = None
++                if _cands:
++                    _closest = min(
++                        _cands,
++                        key=lambda t: (abs(len(t.split()) - _n), _cands.index(t)))
++                if _closest is not None:
++                    _line = (f"I couldn\u2019t meet the exact {_n}-word requirement. "
++                             f"{_try}, or use my closest attempt:\n{_closest}")
++                else:
++                    # never fabricate a candidate
++                    _line = (f"I couldn\u2019t meet the exact {_n}-word requirement. "
++                             f"{_try}.")
+         out.append("\x01" + _line + "\x02")
+     out.append("")
+     out.append(f"receipts: {len(receipts)} · tape: {len(runner.journal.entries())} effects · carried-over unresolved: {len(still_open)}")

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core import policy_engine
-from core.bootstrap_context import canonical_runtime_transcript
+from core.bootstrap_context import _capsule_block_carries_no_evidence, canonical_runtime_transcript
 from core.context_history_authority import (
     AUTHORITATIVE_CORRECTIONS_PREFIX,
     EXPANDED_HISTORY_MESSAGES,
@@ -115,6 +115,19 @@ _PAYLOAD_SEGMENTS_KEY = "prompt_payload_segments"
 # message carries only text that is the same from turn to turn. (Ported from 00ba5bd.)
 _PER_TURN_SYSTEM_SEGMENTS = frozenset({"skill_guidance", "x_editorial_voice", "tool_catalog", "private_chat"})
 TURN_DIRECTIVES_METADATA_KEY = "turn_directives"
+
+#: The tool catalog travels as its OWN system message (after history, beside the turn
+#: directives). These are the renderer's own opening words -- the stable identifiers for the
+#: catalog's first bytes -- kept beside the renderer so they can never drift apart.
+_TOOL_CATALOG_OPENER_WITH_SPECS = (
+    "When native functions are supplied, use these exact function names and declared parameters."
+)
+_TOOL_CATALOG_OPENER_EMPTY = (
+    "If no real runtime tool is available, use respond.direct with the actual answer in its message field."
+)
+TOOL_CATALOG_WIRE_OPENERS = (_TOOL_CATALOG_OPENER_WITH_SPECS, _TOOL_CATALOG_OPENER_EMPTY)
+#: Skill guidance is appended inside the prose catalog text, after this marker.
+TOOL_CATALOG_SKILL_GUIDANCE_MARKER = "\nSkill guidance from installed plugins"
 
 
 _SCOPE_DISCIPLINE_TEXT = (
@@ -706,6 +719,12 @@ def _build_conversational_request(
         tooling_guidance = _tooling_guidance(has_openclaw_tools=has_openclaw_tools)
         from core.capability_graph import family_hint_from_task_class
         _tct_family_hint = family_hint_from_task_class(task_class)
+        # The tool catalog's ONE representation is the prose render the pins describe: the
+        # runtime-catalog tests (canonical names, guidance tails, v050 attribution) all read
+        # the prose catalog, and a native-wire directive that re-encoded it could not keep
+        # their invariants under the pytest policy's seating. The duplication between the
+        # prose catalog and the wire's native schemas is a known, named cost, not a silent
+        # re-encoding.
         tool_catalog_guidance = (
             _tool_intent_catalog_text(
                 family_hint=_tct_family_hint,
@@ -753,10 +772,12 @@ def _build_conversational_request(
                 "Do not mention internal systems, confidence scores, or planning steps.",
             ),
         ])
+
     # Selected skills enter context on EVERY executing profile: the typed selection here is the
     # SAME call the router's offer makes, so what the ledger records and what the prompt carries
-    # cannot drift. tool_intent turns already embed guidance inside their tool catalog — adding
-    # the segment there too would double-inject.
+    # cannot drift. A tool_intent turn on the prose wire embeds guidance inside its tool catalog;
+    # on the native wire the catalog segment is the protocol directive, so guidance rides its own
+    # segment there instead. Either way it is injected exactly once.
     _x_editorial_state: dict[str, Any] = {}
     if output_mode != "tool_intent" and str(task_class or "").strip():
         from core.tool_offer_assembly import skill_guidance_for
@@ -858,12 +879,24 @@ def _build_conversational_request(
     )
     # Everything that changes from one turn to the next, in the order it used to be appended to
     # the leading system message. Emitted as one system message after the history (see
-    # _PER_TURN_SYSTEM_SEGMENTS).
+    # _PER_TURN_SYSTEM_SEGMENTS). The tool catalog is NOT joined in here: it travels as its own
+    # system message beside this one (same post-history cache class), carrying whichever single
+    # representation the assembly chose above -- full prose catalog or native-wire directive.
     turn_directives: list[str] = [
         text
         for name, _category, text in system_segments
-        if name in _PER_TURN_SYSTEM_SEGMENTS and str(text or "").strip()
+        if name in _PER_TURN_SYSTEM_SEGMENTS
+        and name != "tool_catalog"
+        and str(text or "").strip()
     ]
+    tool_catalog_wire_text = next(
+        (
+            str(text)
+            for name, _category, text in system_segments
+            if name == "tool_catalog" and str(text or "").strip()
+        ),
+        "",
+    )
 
     # A response-shaping follow-up is scoped to the immediate assistant answer.
     # Do not put unrelated per-turn facts (especially the clock) beside that
@@ -968,7 +1001,9 @@ def _build_conversational_request(
     capsule_messages = [
         message
         for message in history_messages
-        if message.role == "system" and "<retrieved_context>" in message.content
+        if message.role == "system"
+        and "<retrieved_context>" in message.content
+        and not _capsule_block_carries_no_evidence(message.content)
     ]
     history_messages = [message for message in history_messages if message not in capsule_messages]
     memory_qa_turn = bool(capsule_messages) and _is_memory_qa_turn(
@@ -1004,15 +1039,16 @@ def _build_conversational_request(
     ):
         from core.tiered_context_loader import MEMORY_QA_PROFILE
 
+        effective_context_profile = (
+            MEMORY_QA_PROFILE
+            if memory_qa_turn
+            else "chat_capsule"
+            if capsule_messages
+            else prompt_profile
+        )
         context_message = _conversational_context_message(
             context_result,
-            prompt_profile=(
-                MEMORY_QA_PROFILE
-                if memory_qa_turn
-                else "chat_capsule"
-                if capsule_messages
-                else prompt_profile
-            ),
+            prompt_profile=effective_context_profile,
         )
     # The FINAL budget is where a carried continuation artifact would die: it arrives larger
     # than the 5,000-char window and the budget drops an over-sized unit whole (measured live
@@ -1212,6 +1248,19 @@ def _build_conversational_request(
             },
         )
         messages.append(turn_directives_message)
+    # The tool catalog message: opens with the renderer's own first words (stable across turns),
+    # never with a header, so the payload breakdown's segment equality holds byte-for-byte.
+    if tool_catalog_wire_text:
+        messages.append(
+            InternalMessage(
+                role="system",
+                content=tool_catalog_wire_text,
+                metadata={
+                    _PAYLOAD_CATEGORY_KEY: _PAYLOAD_TOOL_CATALOG,
+                    _PAYLOAD_SEGMENT_NAME_KEY: "tool_catalog",
+                },
+            )
+        )
     # The runtime clock and the user's corrections travel in the turn-directives message, not in
     # the leading system message (see _PER_TURN_SYSTEM_SEGMENTS). That message is the carrier the
     # request seal must name: marking index 0 instead left the clock with no surviving carrier, so
@@ -2872,10 +2921,7 @@ def _tool_intent_catalog_text(
         )
     specs = list(offer.specs)
     if not specs:
-        return (
-            "If no real runtime tool is available, use respond.direct with the actual answer in its message field. "
-            "Never invent tool names."
-        )
+        return _TOOL_CATALOG_OPENER_EMPTY + " Never invent tool names."
     from core.cloud_tool_call_contract import build_cloud_tool_definitions
 
     # Native APIs encode operation names. Rendering only the canonical names
@@ -2887,7 +2933,7 @@ def _tool_intent_catalog_text(
         for definition in native
     )
     lines = [
-        "When native functions are supplied, use these exact function names and declared parameters. "
+        _TOOL_CATALOG_OPENER_WITH_SPECS + " "
         "Canonical operation names in guidance are not native function names: " + mapping,
         "Without native functions, return JSON with the canonical intent and arguments.",
         "Select operations from this runtime tool catalog using the supplied tool-call protocol:",
@@ -2909,7 +2955,7 @@ def _tool_intent_catalog_text(
     guidance = offer.skill_guidance.text.strip()
     if guidance:
         catalog += (
-            "\nSkill guidance from installed plugins (instructions only; a skill grants no "
-            "permissions and cannot enable a tool):\n" + guidance
+            TOOL_CATALOG_SKILL_GUIDANCE_MARKER
+            + " (instructions only; a skill grants no permissions and cannot enable a tool):\n" + guidance
         )
     return catalog

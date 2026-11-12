@@ -330,6 +330,10 @@ markers = [
     "safety: zero-tolerance money/consent/destructive-action gate — must stay 100% green to ship",
     "pa_beta: personal-assistant beta-gate check — deterministic, no live model, runs in the default CI lane",
     "pa_beta_live: PA beta-gate check that needs a live local Ollama; opt in with VOOL_ALLOW_LIVE_OLLAMA_TESTS=1 (or VOOL_ALPHA_LIVE_SOAK=1)",
+    "served: drives the real daemon over HTTP (a served journey), slower than an in-process test",
+    "real_restart_store: proves a store survives a real second process, not a cleared in-memory dict",
+    "email_live: talks to a local SMTP/IMAP test server on loopback (no outside network)",
+    "timeout(seconds): how long one setup, call or teardown phase of this test may run before ops/pytest_watchdog.py calls it a stall; raises the watchdog's phase bound (at most an hour), never lowers it (pytest-timeout is not installed)",
 ]
 
 [dependency-groups]

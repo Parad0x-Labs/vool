@@ -1,0 +1,36 @@
+---
+publisher: vool
+id: safe-pr-repair
+version: 1.2.0
+description: >
+  Repair a failing PR's CI: bind failure to exact head SHA, repair locally,
+  test, propose commit/push. Never merges without explicit authorization.
+requires:
+  read: [repo.read, github.ci.read, python.test.pytest]
+  write: [git.commit.propose, git.push.propose]
+inputs: [RepositoryEvidence, CiObservation]
+outputs: [RepairProposal]
+tags: [ci, repair, pr]
+after: [python-test-discipline, commit-message-quality]
+---
+
+# Safe PR Repair
+
+Workflow:
+1. Confirm the repo/worktree identity from RepositoryEvidence. Never assume.
+2. Confirm the CI observation belongs to the CURRENT PR head SHA. Stale CI is not evidence.
+3. Inspect the failed job logs (capability: github.ci.read).
+4. Locate likely files; form one repair hypothesis at a time.
+5. Apply the repair locally (no push yet).
+6. Run the project's correct local test suite (capability: python.test.pytest).
+7. Propose a commit message following commit-message-quality.
+8. PROPOSE a push. Do not treat proposal as execution.
+9. Wait for new CI on the new head SHA before claiming anything is fixed.
+10. Merge only when an explicitly authorized actor grants it.
+
+Hard obligations:
+- MUST bind every CI claim to an exact SHA.
+- MUST NOT claim success from stale or missing CI.
+- MUST NOT push automatically; pushing requires platform authorization.
+
+This skill declares capability NEEDS only. It has no authority to execute anything.
