@@ -91,6 +91,8 @@ def two_enabled_packages(tmp_path, monkeypatch):
     "cna u count teh words in: red green blue",
     "wrd count of: red green blue",
     "how many words and characters: red green blue",
+    "how many words are in: red green blue",          # real chat 2026-11-12: never offered, model miscounted 6 of 6
+    "number of words in: red green blue",
 ])
 def test_plain_words_for_an_added_plugin_ask_for_the_plugin_family(two_enabled_packages, said) -> None:
     signals = resolve_demand_signals(said)
@@ -106,6 +108,9 @@ def test_plain_words_for_an_added_plugin_ask_for_the_plugin_family(two_enabled_p
     "and characters?",
     "hello there",
     "summarise this article for me",
+    "how many files are in my folder",
+    "how many characters are in this text",
+    "which words rhyme with orange",
 ])
 def test_ordinary_requests_are_left_where_they_were(two_enabled_packages, said) -> None:
     assert "plugin" not in resolve_demand_signals(said).required_families

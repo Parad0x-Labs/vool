@@ -806,8 +806,10 @@ def _plugin_word_forms(word: str) -> set[str]:
     return forms
 
 
-_PluginWords = tuple[tuple[str, frozenset[str], frozenset[str], frozenset[str]], ...]
+_PluginWords = tuple[tuple[str, frozenset[str], frozenset[str], frozenset[str], frozenset[str]], ...]
 _PLUGIN_SPOKEN_CACHE: tuple[tuple, _PluginWords] | None = None
+#: A plain ask for a quantity. Grammar, not a topic: what is being counted comes from the plugin's own name.
+_PLUGIN_QUANTITY_ASK = re.compile(r"(?i)\bhow\s+many\b|\bnumber\s+of\b|\bhow\s+much\b")
 _PLUGIN_DISPLAY: dict[str, str] = {}
 _PLUGIN_REMOVED: dict[str, tuple[str, tuple]] = {}
 
@@ -838,7 +840,7 @@ def _plugin_spoken_vocabulary() -> _PluginWords:
             continue
         for word in _PLUGIN_WORD.findall(f"{contract.intent} {contract.description}".lower().replace("_", " ").replace(".", " ")):
             built_in_words |= _plugin_word_forms(word)
-    rows: list[tuple[str, frozenset[str], frozenset[str], frozenset[str]]] = []
+    rows: list[tuple[str, frozenset[str], frozenset[str], frozenset[str], frozenset[str]]] = []
     for record in installed:
         try:
             block = load_manifest(Path(record.root) / ".codex-plugin" / "plugin.json").vool
@@ -869,7 +871,14 @@ def _plugin_spoken_vocabulary() -> _PluginWords:
             # two of them are needed where one of the plugin's own words is enough.
             digits = any(ch.isdigit() for form in forms for ch in form)   # "sha-256" is telling anywhere
             (shared if forms & built_in_words and not digits else terms).update(f for f in forms if len(f) >= 5)
-        rows.append((record.plugin_id, frozenset(names), frozenset(terms), frozenset(shared - terms)))
+        # The words of the plugin's own name ("Word count" -> word, count): with a plain quantity
+        # ask ("how many words are in: ...") one of them is enough.
+        name_words: set[str] = set()
+        for word in _PLUGIN_WORD.findall(display.lower()):
+            forms = _plugin_word_forms(word)
+            if not forms & _PLUGIN_ORDINARY_WORDS:
+                name_words |= {f.rstrip("s") for f in forms if len(f) >= 4}
+        rows.append((record.plugin_id, frozenset(names), frozenset(terms), frozenset(shared - terms), frozenset(name_words)))
         _PLUGIN_DISPLAY[record.plugin_id] = display or record.plugin_id
     # A plugin that was here a moment ago and is now uninstalled is still what the person may ask
     # for. Its words are remembered for as long as the app runs, only to say that it was removed.
@@ -942,10 +951,12 @@ def _plugins_matching(text: str, vocabulary) -> tuple[str, ...]:
         )
 
     named: list[str] = []
-    for plugin_id, names, terms, shared in vocabulary:
+    quantity_ask = bool(_PLUGIN_QUANTITY_ASK.search(text))
+    for plugin_id, names, terms, shared, name_words in vocabulary:
         hits = {term for term in terms if term in said or near(term, said)}
         if (
             any(name in runs or near(name, runs) for name in names)
+            or (quantity_ask and bool(name_words & {word.rstrip("s") for word in said}))
             or any(len(term) >= _PLUGIN_TELLING_LENGTH or any(ch.isdigit() for ch in term) for term in hits)
             or len({term.rstrip("s") for term in hits | {term for term in shared if term in said}}) >= 2
         ):
