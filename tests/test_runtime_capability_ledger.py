@@ -221,8 +221,7 @@ def test_disabled_web_search_reports_unsupported_capability_honestly() -> None:
     assert result.handled is True
     assert result.ok is False
     assert result.status == "disabled"
-    # The chat names the Settings switch, never the command-line variable (0.7.8 sweep block 2).
-    assert "turn them on in settings > privacy & permissions > web lookups" in result.response_text.lower()
+    assert "web lookups are off. you can turn them on in settings, privacy & permissions" in result.response_text.lower()
     assert "vool_enable_web" not in result.response_text.lower()
     assert result.user_safe_response_text == result.response_text
 

@@ -183,7 +183,7 @@ class WebOptInPolicyTests(unittest.TestCase):
                     open_remote(
                         urllib.request.Request("https://duckduckgo.com/html/?q=x"), timeout=1.0
                     )
-            self.assertIn("local only", str(caught.exception).lower())
+            self.assertIn("offline", str(caught.exception).lower())
 
     def test_the_enable_web_env_still_works_outside_local_only(self) -> None:
         """The law narrows Local Only only. An ordinary profile is untouched."""

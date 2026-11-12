@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from core.agent_runtime.live_data_plan import (
     LiveDataSubtask,
     SubtaskLifecycle,
@@ -239,6 +241,7 @@ class TestNoContaminatedProviderCalls:
                 f"contaminated provider-call argument would have been sent: {location!r}"
             )
 
+    @pytest.mark.usefixtures("enable_web")
     def test_runner_rejects_a_malformed_location_before_any_network_attempt(self) -> None:
         """Defense in depth at the execution boundary: even a hand-built subtask (simulating a
         future extraction regression) whose location is instruction-tail prose fails fast, never

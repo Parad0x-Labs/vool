@@ -516,6 +516,7 @@ def test_a_receipt_follow_up_does_not_swallow_a_new_creation(real_agent) -> None
     assert context[COVERAGE_CONTEXT_KEY]["uncovered"] == ["s2"]
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_an_audit_phrase_inside_a_larger_prompt_refuses_only_its_own_clause(real_agent) -> None:
     """The General-chat fallback refusal is correct -- for the clause that asked for an audit. It
     must not be the answer to the currency question sitting beside it."""
@@ -1179,6 +1180,7 @@ def test_sabotage_a_clause_splitter_that_never_splits_disables_the_whole_contrac
 # lane is handed, which is half of what is under test.
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_blocked_live_info_lane_answers_its_own_clause_and_records_it(real_agent, monkeypatch, tmp_path):
     from core.agent_runtime.answer_coverage import claim_may_preempt_turn
 

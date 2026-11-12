@@ -408,12 +408,14 @@ def prefetch_current_evidence(
 WEB_LOOKUPS_OFF = "web_lookups_off"
 
 WEB_LOOKUPS_OFF_ANSWER = (
-    "Web lookups are off, so I can't check current information for that. "
-    "Turn them on in Settings > Privacy & Permissions > Web lookups."
+    "Web lookups are off, so I can't look this up online. You can turn them on in Settings, "
+    "Privacy & Permissions."
 )
 
 
-def unavailable_current_answer(effective_input: str, outcome: str, *, reason: str = "") -> str:
+def unavailable_current_answer(
+    effective_input: str, outcome: str, *, reason: str = "", source_context: dict[str, Any] | None = None
+) -> str:
     """What a person is told when the turn could not get the current facts it needed.
 
     Names the actual boundary. A refusal is a permission fact and sends nobody to fix a
@@ -421,7 +423,12 @@ def unavailable_current_answer(effective_input: str, outcome: str, *, reason: st
     neither invites the model to fill the gap from its weights.
     """
     if reason == WEB_LOOKUPS_OFF:
-        return WEB_LOOKUPS_OFF_ANSWER
+        try:
+            from core.remote_fetch_policy import lookup_unavailable_reason
+
+            return lookup_unavailable_reason(source_context)
+        except Exception:
+            return WEB_LOOKUPS_OFF_ANSWER
     subject = " ".join(str(effective_input or "").split()).strip()
     tail = f' for "{subject[:160]}"' if subject else ""
     if outcome == OUTCOME_REFUSED:

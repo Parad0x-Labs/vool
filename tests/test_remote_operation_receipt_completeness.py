@@ -473,6 +473,7 @@ class _HermeticResponse:
         return self._payload
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_declared_remote_operations_really_reach_the_network(monkeypatch) -> None:
     """Hermetic transports + a socket sentinel: each operation the runner
     dispatches under `effect_class=remote_fetch` must, when it really runs,

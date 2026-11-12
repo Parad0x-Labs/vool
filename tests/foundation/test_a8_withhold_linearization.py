@@ -627,6 +627,7 @@ def test_asgi_governed_read_holds_transition_until_response_send_finishes():
     asyncio.run(exercise())
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.parametrize("attempt", range(30))
 def test_adversarial_concurrent_repetition_never_serves_governed_bytes(a8_env, attempt):
     """30 adversarial repetitions of F18's own shape: three hammering writers against a

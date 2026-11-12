@@ -217,7 +217,10 @@ class TestModeContract:
     def test_the_refusal_names_the_mode_and_the_reason_class(self) -> None:
         result = mode.refusal_result("live_data", source_context={mode.CONTEXT_KEY: True})
         assert result["response"] == mode.REFUSAL_TEXT
-        assert "Local Only" in result["response"]
+        # Names where the chat runs, why it stopped, and the way out (owner wording 2026-11-11).
+        assert "on this computer" in result["response"]
+        assert "cloud AI" in result["response"]
+        assert "Local first" in result["response"]
         assert result["deterministic"] is True
         assert result["local_only"] is True
         # A refusal must not be dressed as a partial answer; it is the whole response.
@@ -718,8 +721,9 @@ class TestTheComposerOffersTheLane:
         """A mode whose row does not say it blocks the cloud is a mode the operator has to guess
         at. The disclosure requirement is on the picker, not only on the footer."""
         html = self._page()
-        assert "cloud blocked" in html
-        assert "never reaches a cloud provider" in html
+        assert "no cloud AI" in html
+        assert "Nothing leaves this computer. No cloud AI, no web lookups." in html
+        assert "If a question needs fresh info like weather, prices or Wikipedia, VOOL looks it up online." in html
 
     def test_the_lane_is_a_known_tier_so_a_reload_does_not_reset_it(self) -> None:
         """The composer persists `vool_model` and, on boot, drops any value that is neither a known

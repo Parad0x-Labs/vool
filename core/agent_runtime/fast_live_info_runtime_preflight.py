@@ -49,7 +49,11 @@ def prepare_live_info_request(
         return "", "", None
     if _explicit_remote_fetch_disabled(source_context):
         return "", "", None
-    if not policy_engine.allow_web_fallback():
+    from core.remote_fetch_policy import effective_web_available
+
+    # Effective for THIS turn: the Web lookups switch AND the turn's run mode (an Offline chat
+    # cannot reach the web whatever the switch says).
+    if not policy_engine.allow_web_fallback() or not effective_web_available(source_context):
         return live_mode, "", disabled_live_info_result(
             agent,
             session_id=session_id,

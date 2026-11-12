@@ -3750,6 +3750,22 @@ class VoolAgent(
         if turn_has_provider_search(source_context):
             # Live prices and weather are the pinned cloud model's to look up with its own search.
             return None
+        from core.auto_local_only_mode import turn_selected_offline
+
+        if turn_selected_offline(source_context):
+            # The operator chose Offline for this chat: this lane's whole job is a public fetch
+            # the door will refuse, so it does not run and the front door serves the plain
+            # Offline refusal instead. A machine kept fully local still runs the lane so the
+            # door records its genuine pre-dispatch denial (the first-run denial demo reads it).
+            return None
+        from core.remote_fetch_policy import effective_web_available, local_only_active
+
+        if not local_only_active(source_context) and not effective_web_available(source_context):
+            # Web lookups are switched off: nothing goes online until the person opts in, live
+            # weather and prices included (owner decision 2026-11-12). The front door answers a
+            # whole live-data turn with the plain switch sentence; this keeps the lane from
+            # fetching for any turn that reaches it another way.
+            return None
         if dict((source_context or {}).get("raw_output_contract") or {}).get(
             "structured_labels"
         ):

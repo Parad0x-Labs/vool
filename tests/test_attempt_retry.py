@@ -9,6 +9,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.attempt_retry import execute_attempt_retry, plan_retry_generation
 from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
@@ -130,6 +132,7 @@ class ExecuteAttemptRetryTests(unittest.TestCase):
             source_url="https://x", observed_at="03:00 PM",
         )
 
+    @pytest.mark.usefixtures("enable_web")
     def test_retry_carries_forward_three_and_reruns_one(self) -> None:
         parent, subtasks = self._make_parent()
         with mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=self._fake_weather):
@@ -196,6 +199,7 @@ class ExecuteAttemptRetryTests(unittest.TestCase):
         self.assertEqual(len(rerun), 1)
         self.assertEqual(carried[0]["carried_forward_from_attempt_id"], parent["attempt_id"])
 
+    @pytest.mark.usefixtures("enable_web")
     def test_second_failure_on_rerun_never_fabricates_a_result(self) -> None:
         """Even when the RETRY itself fails again, the answer stays honest -- no fabricated price
         or forecast, matching the same fail-closed guarantee as the very first attempt."""

@@ -199,31 +199,24 @@ def _render(execution: Any, *, url: str) -> str:
     return f"{header}\n\n{text}".rstrip()
 
 
-def _failure_text(status: str, *, reason: str, url: str) -> str:
+def _failure_text(status: str, *, reason: str, url: str, source_context: dict[str, Any] | None = None) -> str:
     """Each barrier keeps its own words, for the same reason the PDF statuses do."""
     shown = url.split("://", 1)[-1].rstrip("/")
     if status in {"disabled_by_policy", "unsupported", "unavailable"} or "web lookups are off" in reason.lower():
-        # The same plain sentence every web-off reply uses, and the address without code marks (0.7.8
-        # sweep block 2c, WEB-READ-01 p2: "I could not fetch example.org`: Web fetch is disabled by
-        # runtime web policy..").
-        try:
-            from core.policy_engine import allow_web_fallback
+        # The run-mode authority names the cause (Web lookups switch, Offline chat, or a computer
+        # kept fully local) in the same words as every other web-off reply, and the address is
+        # shown without code marks (0.7.8 sweep block 2c, WEB-READ-01 p2: "I could not fetch
+        # example.org`: Web fetch is disabled by runtime web policy..").
+        from core.remote_fetch_policy import OFFLINE_TEXT, WEB_OFF_TEXT, web_unavailable_reason
 
-            switch_on = bool(allow_web_fallback())
-        except Exception:
-            switch_on = False
-        if switch_on:
-            # The switch is on and the fetch was still refused: this chat or this computer is kept
-            # local (Offline chat, Local Only). Sending the person to a switch that is already on
-            # would be wrong advice.
-            return (
-                f"This chat is kept on this computer, so I didn't open {shown}. "
-                "Switch the chat out of Offline (or turn off Local Only) to read web pages."
-            )
-        return (
-            f"Web lookups are off, so I didn't open {shown}. "
-            "Turn them on in Settings > Privacy & Permissions > Web lookups."
-        )
+        cause = web_unavailable_reason(source_context)
+        if cause == WEB_OFF_TEXT:
+            return (f"Web lookups are off, so I didn't open {shown}. "
+                    "You can turn them on in Settings, Privacy & Permissions.")
+        if cause == OFFLINE_TEXT:
+            return (f"This chat is Offline, so I didn't open {shown}. Choosing Computer + web or Local "
+                    "first in the model menu allows web lookups for this chat.")
+        return f"VOOL is set to keep everything on this computer, so I didn't open {shown}."
     if status == "captcha":
         return f"{shown} served a bot check rather than the page, so there is nothing I can read there."
     if status == "login_wall":
@@ -293,7 +286,9 @@ def maybe_handle_url_read(
         or (f"HTTP {observation['http_status']}" if observation.get("http_status") else "")
         or str(getattr(execution, "response_text", "") or "")
     ).strip()
-    body = _render(execution, url=url) if ok else _failure_text(status, reason=reason, url=url)
+    body = _render(execution, url=url) if ok else _failure_text(
+        status, reason=reason, url=url, source_context=source_context
+    )
     if ok:
         # web.fetch declares no result field for that record to carry, so the page text itself is
         # minted as this turn's retrieved row -- the same row shape the gate harvests from receipts.

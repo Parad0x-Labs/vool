@@ -74,8 +74,13 @@ law("P4.local_only_names_the_block", () => {
   const prev = modelValue;
   modelValue = 'vool-local-only';
   renderSelectionProvenance(null);
+  const webHtml = stripHtml();
+  modelValue = 'vool-offline';
+  renderSelectionProvenance(null);
+  const offlineHtml = stripHtml();
   modelValue = prev;
-  assert(stripHtml().indexOf('Local Only') !== -1, 'local-only mode renders the block truth');
+  assert(webHtml.indexOf('no cloud AI') !== -1, 'Computer + web renders the block truth');
+  assert(offlineHtml.indexOf('nothing leaves this computer') !== -1, 'Offline renders the block truth');
 });
 """
 

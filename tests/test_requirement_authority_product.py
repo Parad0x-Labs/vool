@@ -307,6 +307,7 @@ def _captured(text, propose_semantics):
     return real(text, propose=propose_semantics)
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a_fulfilled_turn_ships_with_its_exact_runtime_outcome():
     agent = _Agent()

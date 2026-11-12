@@ -121,6 +121,7 @@ def test_a_failed_weather_followup_states_no_reading():
         ("what's the temperature in Vilnius right now?", "Antananarivo?", "Antananarivo"),
     ],
 )
+@pytest.mark.usefixtures("enable_web")
 def test_a_failed_followup_states_no_reading_whatever_the_wording(opening, followup, city):
     """Six unseen phrasings and six unseen cities -- none of them the reported one."""
     harness.SCRIPT.default = weather_fabrication(city)
@@ -145,6 +146,7 @@ def test_a_failed_followup_states_no_reading_whatever_the_wording(opening, follo
         ("what's the temperature in Vilnius right now?", "Antananarivo pls thx", "Antananarivo"),
     ],
 )
+@pytest.mark.usefixtures("enable_web")
 def test_a_sloppy_followup_never_gets_a_reading_by_either_road(opening, followup, city):
     """The follow-up as a real user types it: no question mark, politeness filler, `???`, stray space.
 
@@ -202,6 +204,7 @@ def test_naming_a_source_does_not_license_a_reading_the_turn_never_took():
 # ------------------------------------------------------------------- the rest of the mandated scope
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_first_turn_failed_lookup_states_no_reading():
     """No prior turn to inherit from -- the failure must still not authorize a value."""
     harness.SCRIPT.default = weather_fabrication("Porto")
@@ -210,6 +213,7 @@ def test_a_first_turn_failed_lookup_states_no_reading():
     assert_states_no_reading(turn)
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_mixed_turn_binds_each_reading_to_its_own_entity():
     """One entity resolved, one failed: the failure may not ride on its sibling's evidence."""
     harness.SCRIPT.default = "Vilnius 17 C and Porto 22 C right now. Source: wttr.in."
@@ -228,6 +232,7 @@ def test_a_mixed_turn_binds_each_reading_to_its_own_entity():
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_failed_market_followup_states_no_price():
     """The same invariant on a different operation, with no weather vocabulary anywhere near it."""
     harness.SCRIPT.default = market_fabrication("Gold")
@@ -240,6 +245,7 @@ def test_a_failed_market_followup_states_no_price():
     assert_states_no_reading(turn, forbidden_extra=("61,000",))
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_fresh_request_after_a_success_does_not_inherit_the_earlier_evidence():
     """Cross-turn staleness: an independent later request whose own lookup fails."""
     harness.SCRIPT.default = weather_fabrication("Porto")
@@ -255,6 +261,7 @@ def test_a_fresh_request_after_a_success_does_not_inherit_the_earlier_evidence()
 # ----------------------------------------------------------------------------- negative controls
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_successful_followup_still_reports_its_reading():
     """The repair must not cost a turn that really observed its answer."""
     chat = harness.Conversation("control-ok")
@@ -275,6 +282,7 @@ def test_a_static_fact_needing_no_observation_is_untouched():
     assert turn.weather_requests == [] and turn.market_requests == []
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_successful_multi_entity_turn_keeps_both_readings():
     harness.SCRIPT.default = "unused"
     turn = harness.Conversation("control-multi").say("weather in Vilnius and Riga right now?")
@@ -294,6 +302,7 @@ def test_an_ordinary_non_live_turn_is_not_disturbed():
 # --------------------------------------------------------------------------- adversarial near-miss
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_failed_lookup_does_not_mangle_an_answer_that_claims_nothing():
     """The over-fire direction: a truthful non-answer on a failed turn must be left alone.
 

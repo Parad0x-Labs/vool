@@ -46,6 +46,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.live_data_plan import (
     SubtaskLifecycle,
     build_live_data_plan,
@@ -124,6 +126,7 @@ class TestNoWordCountRejection:
         assert subtasks[0].arguments["location"] == "ho chi minh city"
         assert subtasks[0].arguments["extraction_confidence"] == "tail_fallback"
 
+    @pytest.mark.usefixtures("enable_web")
     def test_four_word_location_reaches_the_provider_call_intact(self) -> None:
         """End-to-end through `_run_weather_subtask` (mocked network, not just the plan) -- proves
         the runner does not independently re-reject a long `tail_fallback` candidate before ever

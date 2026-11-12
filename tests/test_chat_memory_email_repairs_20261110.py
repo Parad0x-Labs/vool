@@ -1350,13 +1350,15 @@ def test_reading_a_page_out_still_shows_the_page(monkeypatch):
 
 
 @pytest.mark.parametrize("cause, sentence", [
-    ("Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups.", "Web lookups are off, so I didn't open example.org."),
+    ("Web lookups are off. You can turn them on in Settings, Privacy & Permissions.", "Web lookups are off, so I didn't open example.org."),
     ("Web fetch for `https://example.org` failed: <urlopen error timed out>", "I couldn't open example.org: <urlopen error timed out>."),
 ])
 def test_a_failed_page_read_is_said_plainly(monkeypatch, cause, sentence):
     from core.agent_runtime.fast_paths_web import _failure_text
 
     monkeypatch.setattr("core.policy_engine.allow_web_fallback", lambda: False)
+    monkeypatch.setattr("core.remote_fetch_policy.web_unavailable_reason",
+                        lambda _ctx=None: __import__("core.remote_fetch_policy", fromlist=["x"]).WEB_OFF_TEXT)
     reply = _failure_text("unsupported" if "off" in cause else "error", reason=cause, url="https://example.org")
     assert reply.startswith(sentence)
     assert "`" not in reply and ".." not in reply and "runtime" not in reply

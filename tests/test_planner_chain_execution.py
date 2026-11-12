@@ -129,6 +129,7 @@ def test_a_resumed_turn_still_persists_one_user_dialogue_row(harness):
 # ------------------------------------------------------------------ 2. the planner reaches the lane
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_real_planned_turn_reaches_live_data_execution(harness):
     """The planner admitted both requests as servable; the runtime must then let the
     lane that serves them run. Driven end to end: the merged answer carries both parts'
@@ -157,6 +158,7 @@ def test_a_real_planned_turn_reaches_live_data_execution(harness):
 # ------------------------------------------------------------------ 3. concurrency identity
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_two_distinct_planner_tasks_execute_concurrently(harness):
     """`run_plan` runs an independent wave concurrently by default. Two DISTINCT tasks of
     one turn must both be able to hold a live claim — exclusivity is per task, not per
@@ -258,6 +260,7 @@ def test_the_same_planner_task_cannot_take_two_live_claims(harness):
 # ------------------------------------------------------------------ 4. chain-level recall
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_followup_recovers_every_entity_of_a_multi_child_turn(harness):
     """The turn answered through several children; the follow-up must recall what the
     TURN was asked, not what one of its children happened to hold."""
@@ -275,6 +278,7 @@ def test_a_followup_recovers_every_entity_of_a_multi_child_turn(harness):
 # ------------------------------------------------------------------ 5. surface parity
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_http_and_in_process_planned_turns_agree():
     """The same planned message must produce the same served truth and the same chain
     shape whether or not the caller passes a session override."""

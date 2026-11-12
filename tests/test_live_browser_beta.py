@@ -304,7 +304,9 @@ def test_browser_turn_is_confined_but_owner_can_approve_its_real_page(world):
     assert requests == [('GET', '/')]
 
 
-@pytest.mark.parametrize('context', [{'local_only_mode': True}, {'requested_model': 'vool-local-only'}, {'cloud_disabled': True}])
+# Offline (lane, stamp, or machine-wide) closes the browser. The Computer + web lane
+# ('vool-local-only') deliberately does not: owner decision 2026-11-11.
+@pytest.mark.parametrize('context', [{'local_only_mode': True}, {'requested_model': 'vool-offline'}, {'offline': True}])
 def test_turn_local_only_veto_is_preserved_by_browser_tools(world, context):
     from core.vool_browser.live import BrowserFault, tool_intent
 

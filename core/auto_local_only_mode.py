@@ -1,18 +1,24 @@
-"""VOOL Auto Local Only — an Auto lane that may never call a cloud model.
+"""VOOL run modes — the Auto lanes that may never call a cloud model.
 
-There are two Auto modes, and they differ in exactly one way:
+The model menu offers three run modes ("Where VOOL can run"):
 
-* **VOOL Auto** (``vool``) routes local-first and MAY escalate to the user's cloud lane — a
+* **Local first** (``vool``) routes local-first and MAY escalate to the user's cloud lane — a
   verified-free OpenRouter model, or a paid one the operator explicitly authorized.
-* **VOOL Auto Local Only** (``vool-local-only``) routes automatically among LOCAL models and
-  tools. It has no cloud-model arm at all: not a paid one, not a verified-free one, not a "just the
-  planner" one, not a model fallback after a local failure. Deterministic tools, web search,
-  retrieval, browser tools, filesystem tools and local APIs remain available under their own
-  policies.
+* **Computer + web** (``vool-local-only``) routes automatically among LOCAL models and tools. It
+  has no cloud-model arm at all: not a paid one, not a verified-free one, not a "just the planner"
+  one, not a model fallback after a local failure. Deterministic tools, web search, retrieval,
+  browser tools, filesystem tools and local APIs remain available under their own policies (the
+  Web lookups switch), so a weather or exchange-rate question can still be looked up online.
+* **Offline** (``vool-offline``) is Computer + web with every public-network door closed as well:
+  no cloud model AND no web lookup, browser navigation or other public egress
+  (see :func:`turn_is_offline` and ``core.remote_fetch_policy``). The machine-wide
+  "Keep everything on this machine" setting (``system.local_only_mode``) binds every turn the
+  same way.
 
-Both are Auto: neither is a concrete model pin, and both let the runtime choose the lane per turn.
-The mode is a *ceiling on where the turn may run*, never an instruction about which local model
-answers.
+All three are Auto: none is a concrete model pin, and each lets the runtime choose the lane per
+turn. The mode is a *ceiling on where the turn may run*, never an instruction about which local
+model answers. "Local Only" in identifiers below means "no cloud model" (Computer + web or
+Offline); "offline" means "nothing leaves this machine".
 
 **Why the block is layered rather than a single flag.** A mode that is enforced in one place is
 enforced wherever that place is on the path — and the runtime reaches a provider by more than one
@@ -59,14 +65,20 @@ from urllib.parse import urlparse
 
 #: The composer value for the cloud-capable Auto lane.
 AUTO_SELECTOR_VALUE = "vool"
-#: The composer value for the local-only Auto lane.
+#: The composer value for the "Computer + web" Auto lane (no cloud model; web per its own switch).
 SELECTOR_VALUE = "vool-local-only"
+#: The composer value for the "Offline" Auto lane (no cloud model and no public egress at all).
+OFFLINE_SELECTOR_VALUE = "vool-offline"
 
 #: Every composer value that means "let the runtime choose", as opposed to a concrete model pin.
 #: Call sites that ask "did the operator pin an exact model?" test against THIS set rather than
 #: against their own literal, so adding a third Auto lane later cannot leave one of them behind
 #: treating it as a model id that does not resolve.
-AUTO_SELECTOR_VALUES = frozenset({AUTO_SELECTOR_VALUE, "vool:latest", "auto", SELECTOR_VALUE})
+AUTO_SELECTOR_VALUES = frozenset(
+    {AUTO_SELECTOR_VALUE, "vool:latest", "auto", SELECTOR_VALUE, OFFLINE_SELECTOR_VALUE}
+)
+#: Every composer value whose lane has no cloud-model arm.
+_NO_CLOUD_SELECTOR_VALUES = frozenset({SELECTOR_VALUE, OFFLINE_SELECTOR_VALUE})
 
 #: The context key carrying the mode into the turn. Deliberately the key
 #: `core.agent_runtime.audit_routing._local_only_flagged` already reads, so audit routing honours
@@ -77,12 +89,17 @@ CONTEXT_KEY = "local_only"
 #: lane, as opposed to the machine being configured local-only globally. Underscore-prefixed, so it
 #: is never accepted from an API caller.
 SELECTED_KEY = "_auto_local_only_selected"
+#: The context key carrying "nothing may leave this machine" into the turn. Accepted from a caller
+#: (it can only make a turn stricter) and stamped by :func:`bind_turn` for the Offline lane.
+OFFLINE_KEY = "offline"
+#: Server-derived provenance: the operator SELECTED the Offline lane for this turn.
+OFFLINE_SELECTED_KEY = "_auto_offline_selected"
 
 #: What the runtime says when Local Only cannot answer a turn honestly. One sentence, no hedging,
 #: and it names the reason class rather than inventing a partial answer.
 REFUSAL_TEXT = (
-    "I can't complete this in Local Only mode because it requires a cloud AI/model call and no "
-    "local model or deterministic tool can perform it."
+    "I can't do this while this chat is set to run on this computer: it needs a cloud AI, and "
+    "nothing on this computer can do it. To allow cloud AI, choose Local first in the model menu."
 )
 
 #: The exclusion reason selection records for a manifest dropped by this mode. Distinct from the
@@ -106,8 +123,13 @@ class CloudEgressBlockedError(RuntimeError):
 
 
 def is_local_only_selection(value: Any) -> bool:
-    """Whether a composer selection names the Local Only Auto lane."""
-    return str(value or "").strip().lower() == SELECTOR_VALUE
+    """Whether a composer selection names a lane with no cloud model (Computer + web or Offline)."""
+    return str(value or "").strip().lower() in _NO_CLOUD_SELECTOR_VALUES
+
+
+def is_offline_selection(value: Any) -> bool:
+    """Whether a composer selection names the Offline Auto lane."""
+    return str(value or "").strip().lower() == OFFLINE_SELECTOR_VALUE
 
 
 def is_auto_selection(value: Any) -> bool:
@@ -128,10 +150,11 @@ def bind_turn(source_context: dict[str, Any] | None, requested_model: Any = None
     """
     if not isinstance(source_context, dict):
         return False
-    selected = is_local_only_selection(
-        requested_model if requested_model is not None else source_context.get("requested_model")
-    )
-    if selected:
+    selection = requested_model if requested_model is not None else source_context.get("requested_model")
+    if is_offline_selection(selection):
+        source_context[OFFLINE_KEY] = True
+        source_context[OFFLINE_SELECTED_KEY] = True
+    if is_local_only_selection(selection):
         source_context[CONTEXT_KEY] = True
         source_context[SELECTED_KEY] = True
         return True
@@ -165,6 +188,40 @@ def turn_is_local_only(source_context: dict[str, Any] | None) -> bool:
         # Returning True instead would put the whole runtime in Local Only over a transient config
         # read, which is a much larger failure than the one it would prevent.
         return False
+
+
+def turn_is_offline(source_context: dict[str, Any] | None) -> bool:
+    """Whether NOTHING may leave this machine this turn: no cloud model and no public egress.
+
+    Two kinds of source, any one sufficient: the operator picked the Offline lane for this turn
+    (stamped or still only named in ``requested_model``), or the machine is configured
+    "Keep everything on this machine" (``system.local_only_mode``). The Computer + web lane is
+    NOT offline: it blocks cloud models only, and web lookups follow their own switch.
+    """
+    context = source_context if isinstance(source_context, dict) else {}
+    for key in (OFFLINE_KEY, OFFLINE_SELECTED_KEY, "local_only_mode"):
+        if bool(context.get(key)):
+            return True
+    if is_offline_selection(context.get("requested_model")):
+        return True
+    try:
+        from core.policy_engine import local_only_mode
+
+        return bool(local_only_mode())
+    except Exception:
+        # Same reasoning as turn_is_local_only: only the machine-wide setting is read here, and
+        # every per-turn source was consulted above.
+        return False
+
+
+def turn_selected_offline(source_context: dict[str, Any] | None) -> bool:
+    """Whether the operator chose the Offline lane for this turn (not the machine-wide setting)."""
+    context = source_context if isinstance(source_context, dict) else {}
+    return (
+        bool(context.get(OFFLINE_KEY))
+        or bool(context.get(OFFLINE_SELECTED_KEY))
+        or is_offline_selection(context.get("requested_model"))
+    )
 
 
 def turn_selected_local_only(source_context: dict[str, Any] | None) -> bool:
@@ -316,6 +373,9 @@ __all__ = [
     "AUTO_SELECTOR_VALUE",
     "AUTO_SELECTOR_VALUES",
     "CONTEXT_KEY",
+    "OFFLINE_KEY",
+    "OFFLINE_SELECTED_KEY",
+    "OFFLINE_SELECTOR_VALUE",
     "REFUSAL_TEXT",
     "SELECTED_KEY",
     "SELECTION_EXCLUSION_REASON",
@@ -328,9 +388,12 @@ __all__ = [
     "endpoint_is_local",
     "is_auto_selection",
     "is_local_only_selection",
+    "is_offline_selection",
     "local_only_egress_scope",
     "manifest_is_local",
     "refusal_result",
     "turn_is_local_only",
+    "turn_is_offline",
     "turn_selected_local_only",
+    "turn_selected_offline",
 ]
