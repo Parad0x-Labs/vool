@@ -207,6 +207,15 @@ OFFLINE_LOOKUP_TEXT = (
     "This chat is Offline: nothing leaves this computer, so I can't look this up online. "
     "Choosing Computer + web or Local first in the model menu allows web lookups for this chat."
 )
+#: The Web lookups switch is off and the ask is a lookup that is not weather, prices or news.
+WEB_OFF_LOOKUP_TEXT = (
+    "Web lookups are off, so I can't look this up online. You can turn them on in Settings, "
+    "Privacy & Permissions."
+)
+#: The machine keeps everything on this computer and the ask is a lookup.
+MACHINE_OFFLINE_LOOKUP_TEXT = (
+    "VOOL is set to keep everything on this computer, so I can't look this up online."
+)
 
 
 def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
@@ -229,6 +238,14 @@ def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
     except Exception:
         pass
     return WEB_OFF_TEXT
+
+
+def lookup_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
+    """`web_unavailable_reason`'s wording for a lookup that is not live weather, prices or news."""
+    return {
+        MACHINE_OFFLINE_TEXT: MACHINE_OFFLINE_LOOKUP_TEXT,
+        OFFLINE_TEXT: OFFLINE_LOOKUP_TEXT,
+    }.get(web_unavailable_reason(source_context), WEB_OFF_LOOKUP_TEXT)
 
 
 def local_only_active(source_context: dict[str, Any] | None = None) -> bool:
@@ -1055,6 +1072,9 @@ __all__ = [
     "local_only_active",
     "web_unavailable_reason",
     "OFFLINE_LOOKUP_TEXT",
+    "WEB_OFF_LOOKUP_TEXT",
+    "MACHINE_OFFLINE_LOOKUP_TEXT",
+    "lookup_unavailable_reason",
     "note_remote_fetch_attempt",
     "open_keyed_request",
     "open_remote",

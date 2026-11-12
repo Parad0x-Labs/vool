@@ -339,10 +339,9 @@ def _currency_reply(
     ):
         reply = {
             **reply,
-            "response": (
-                "A current exchange rate is a live observation, but external retrieval is "
-                "disabled by the runtime policy. I will not substitute a rate from training data."
-            ),
+            # The person's words, not the runtime's: which switch is off and where it lives
+            # (0.7.8 sweep 2026-11-12 flagged "runtime policy" wording on a web-off profile).
+            "response": _fx_web_off_text(source),
             "grounded": "retrieval_disabled_declined",
         }
     elif (
@@ -370,6 +369,19 @@ def _currency_reply(
             },
         }
     return reply
+
+
+def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
+    """Why this turn cannot check a live rate, in the person's words."""
+    from core.remote_fetch_policy import WEB_OFF_TEXT, web_unavailable_reason
+
+    reason = web_unavailable_reason(dict(source_context or {}))
+    if reason == WEB_OFF_TEXT:
+        reason = (
+            "A current exchange rate is a live figure, and Web lookups are off, so I can't check "
+            "it. You can turn them on in Settings, Privacy & Permissions."
+        )
+    return reason + " I won't guess a rate from memory."
 
 
 def _attach_currency_grounding(
@@ -2183,47 +2195,90 @@ def handle_turn_frontdoor(
         live_info_wanted = False
     from core.model_own_tools import turn_has_provider_search as _model_searches_itself
 
-    # An Offline chat asked for something only the web can answer (an explicit lookup, a named
-    # public source): answer that plainly here, before any model call. Measured 2026-11-12 on the
-    # Mac: "according to wikipedia, ..." in an Offline chat spent a full 53 s model call choosing
-    # web.research, which the door then refused, and the page showed "Search failed". Live data
-    # (weather, prices) keeps its own refusal through the live-info lane below.
-    if not live_info_wanted and not action_forbidden:
+    # A turn that cannot reach the web asked for something only the web can answer: answer that
+    # plainly here, before any model call or fetch. Two ways a turn has no web:
+    #
+    # * the chat is Offline. Measured 2026-11-12 on the Mac: "according to wikipedia, ..." in an
+    #   Offline chat spent a full 53 s model call choosing web.research, which the door then
+    #   refused, and the page showed "Search failed".
+    # * the Web lookups switch is off. Owner rule: nothing goes online until the person opts in,
+    #   weather and prices included. Measured 2026-11-12 (0.7.8 sweep, fresh profile, switch off):
+    #   "what's the weather in Paris right now?" fetched wttr.in and quoted it, "weather paris now"
+    #   ended in "I couldn't get a usable model response", and "according to wikipedia, ..." was
+    #   answered from model memory with no word that lookups are off.
+    #
+    # A machine kept fully local is left to the lanes below, so the door records its genuine
+    # pre-dispatch denial (the first-run denial demo reads it). A pinned cloud model that searches
+    # with its provider's own tool is its own lookup and is not refused here.
+    if not action_forbidden and not _model_searches_itself(source_context):
         from core.auto_local_only_mode import turn_selected_offline as _chat_offline
+        from core.remote_fetch_policy import (
+            effective_web_available as _web_reachable,
+            local_only_active as _no_egress,
+        )
 
-        if _chat_offline(source_context):
-            _offline_needs_web = False
+        _chat_is_offline = _chat_offline(source_context)
+        _switch_is_off = not _no_egress(source_context) and not _web_reachable(source_context)
+        if _chat_is_offline or _switch_is_off:
+            # Read from the text alone: an interpretation's topic hints can name the web for an
+            # ordinary question, and a refusal must never stand in for an answer the model owns.
+            from core.agent_runtime.fast_live_info_mode_classifier import (
+                live_info_mode as _text_live_mode,
+            )
+
+            _ask_is_live_data = False
+            _ask_needs_web = False
             try:
                 from core.execution_requirements import requirements_for as _reqs
 
                 _need = _reqs(effective_input, source_context=source_context)
-                _offline_needs_web = bool(_need.external_evidence_required) and str(
-                    _need.answer_mode
-                ) != "LIVE_DATA"
+                _ask_is_live_data = str(_need.answer_mode) == "LIVE_DATA"
+                _ask_needs_web = not _ask_is_live_data and bool(_need.external_evidence_required)
             except Exception:
-                _offline_needs_web = False
-            if not _offline_needs_web:
+                _ask_needs_web = False
+            if not _ask_is_live_data and not _ask_needs_web:
+                try:
+                    _mode = _text_live_mode(None, effective_input, interpretation=None)
+                except Exception:
+                    _mode = ""
+                _ask_is_live_data = _mode == "weather"
+                _ask_needs_web = _mode in ("news", "fresh_lookup")
+            if not _ask_is_live_data and not _ask_needs_web:
                 # The tool-demand authority is what seats a web search for "according to
                 # wikipedia, ..." (the requirement authority reads it DIRECT).
                 try:
                     from core.tool_demand_signals import resolve_demand_signals as _demand
 
-                    _offline_needs_web = "web" in tuple(
+                    _ask_needs_web = "web" in tuple(
                         getattr(_demand(effective_input), "required_families", ()) or ()
                     )
                 except Exception:
-                    _offline_needs_web = False
-            if _offline_needs_web:
-                from core.remote_fetch_policy import OFFLINE_LOOKUP_TEXT
+                    _ask_needs_web = False
+            _plain = ""
+            _plain_reason = ""
+            if _ask_is_live_data:
+                from core.remote_fetch_policy import web_unavailable_reason
 
+                _plain = web_unavailable_reason(source_context)
+                _plain_reason = (
+                    "offline_live_data_refusal" if _chat_is_offline else "web_off_live_data_refusal"
+                )
+            elif _ask_needs_web:
+                from core.remote_fetch_policy import lookup_unavailable_reason
+
+                _plain = lookup_unavailable_reason(source_context)
+                _plain_reason = (
+                    "offline_lookup_refusal" if _chat_is_offline else "web_off_lookup_refusal"
+                )
+            if _plain:
                 return {
                     "result": agent._fast_path_result(
                         session_id=session_id,
                         user_input=effective_input,
-                        response=OFFLINE_LOOKUP_TEXT,
+                        response=_plain,
                         confidence=0.95,
                         source_context=source_context,
-                        reason="offline_lookup_refusal",
+                        reason=_plain_reason,
                     )
                 }
 

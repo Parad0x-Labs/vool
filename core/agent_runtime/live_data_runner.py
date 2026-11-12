@@ -33,7 +33,36 @@ def _now() -> tuple[float, str]:
     return time.monotonic(), datetime.now(timezone.utc).isoformat()
 
 
+def _web_switch_refusal(subtask: LiveDataSubtask) -> SubtaskOutcome | None:
+    """A FAILED outcome when the Web lookups switch is off, before any fetch; else None.
+
+    Owner decision 2026-11-12: with Web lookups off nothing goes online, live weather and prices
+    included. Every live-data runner (the typed lane's and the conductor's, which share these
+    functions) asks here first, so no road reaches a provider with the switch off. A turn kept
+    off the network by Offline or by "keep everything on this computer" is refused by the fetch
+    door itself, which records the denial; this only adds the switch.
+    """
+    try:
+        from core import policy_engine
+        from core.remote_fetch_policy import local_only_active
+
+        if local_only_active() or policy_engine.allow_web_fallback():
+            return None
+    except Exception:
+        pass
+    else:
+        from core.remote_fetch_policy import WEB_OFF_TEXT
+
+        return SubtaskOutcome(
+            subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason=WEB_OFF_TEXT[:200]
+        )
+    return None
+
+
 def _run_market_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> SubtaskOutcome:
+    refused = _web_switch_refusal(subtask)
+    if refused is not None:
+        return refused
     from tools.web.web_research import _MARKET_QUOTE_TARGETS, _crypto_price_fallback_multi, _market_quote_fallback_multi
 
     asset_key = str(subtask.arguments.get("asset_key") or "")
@@ -78,6 +107,9 @@ def _run_market_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> Subtas
 
 
 def _run_weather_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> SubtaskOutcome:
+    refused = _web_switch_refusal(subtask)
+    if refused is not None:
+        return refused
     from tools.web.web_research import _is_plausible_weather_location, structured_weather_lookup
 
     location = str(subtask.arguments.get("location") or "")
@@ -138,6 +170,9 @@ def _run_water_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> Subtask
     """One sea/water-temperature observation. None from the fetcher is an honest
     failure (unresolved place, provider down, no reading for that point) — never
     a fallback number and never prose."""
+    refused = _web_switch_refusal(subtask)
+    if refused is not None:
+        return refused
     from core.fresh_data.water_temperature import water_temperature_lookup
 
     place = str(subtask.arguments.get("place") or "")

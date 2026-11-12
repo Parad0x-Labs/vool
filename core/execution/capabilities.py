@@ -825,7 +825,6 @@ def _web_unsupported_reason() -> str:
             return web_unavailable_reason()
     except Exception:
         pass
-    return (
-        "Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups. "
-        "(Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
-    )
+    # Chat words only: the 0.7.8 sweep (2026-11-12) flagged the environment-variable hint here
+    # as engineering text in a chat reply.
+    return "Web lookups are off. You can turn them on in Settings, Privacy & Permissions."
