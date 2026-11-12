@@ -228,6 +228,9 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
             try:
                 if actionable:
                     slots = {**slots_of(result), **dict(extra_slots or {})}
+                    reply = " ".join(str((result or {}).get("response") or (result or {}).get("response_text") or "").split())[:600]
+                    if reply and outcome in {REFUSED, FAILED, NEEDS_ANSWER}:
+                        slots["_reply"] = reply  # what VOOL showed: it names the blocker; later messages are grounded against it
                     conn.execute(
                         "INSERT OR REPLACE INTO conversation_state (session_id, request, outcome, reason, slots, turns_since, updated_at) "
                         "VALUES (?, ?, ?, ?, ?, 0, ?)",
@@ -314,7 +317,7 @@ _PROMPT_WORDS = frozenset({"work", "works", "working", "now", "them", "those", "
 _NO_WH_RE = re.compile(_WH_RE.pattern, re.IGNORECASE)
 
 
-def _cleared_exit(compact: str) -> bool:
+def _cleared_exit(compact: str, pending: PendingRequest | None = None) -> bool:
     """The closed set of messages that are NOT a retry although the blocker is cleared: a dismissal or postponement, thanks
     alone, a question or task with content of its own."""
     if _DISMISS_RE.search(compact) or _DISMISS_WHOLE_RE.match(compact):
@@ -328,13 +331,43 @@ def _cleared_exit(compact: str) -> bool:
         return True  # an auxiliary-first question with content of its own ("does it cost anything"); "does it work now" is a prompt
     rest = _WH_RE.sub(" ", compact)
     content = [t for t in toks if t not in _FUNCTION_WORDS]
-    if len(content) <= 1 and not _CHANGE_RE.search(_NEUTRAL_RE.sub(" ", rest)):
+    if len(content) <= 1 and (not _CHANGE_RE.search(_NEUTRAL_RE.sub(" ", rest)) or _grounded(content, pending)):
         return False  # one bare verb or noun has nothing of its own to do it to
-    if len(content) >= 3:
-        return True  # three words of content: it says something of its own
-    if len(content) == 2:
-        return True  # two content words: it says something of its own (no past-tense guess; "i ticked the box" is a miss)
+    if len(content) >= 2:
+        # Grounding, not a count: every content word must come from what the chat already said (the refusal reply, the
+        # request) or from the closed state-change / look-again verbs. One ungrounded word is a task of its own.
+        return not _grounded(content, pending)
     return _own_task(rest)
+
+
+def _stem(token: str) -> str:
+    t = token.lower().strip("'")
+    for _ in range(2):
+        for suffix in ("ing", "ed", "es", "s", "ly", "d"):
+            if t.endswith(suffix) and len(t) - len(suffix) >= 3:
+                t = t[: -len(suffix)]
+                break
+    return t
+
+
+#: Closed classes (verbs of changing a switch; verbs of looking again; hedges), used only to ground a message.
+_STATE_VERBS = frozenset(_stem(w) for w in (
+    "turn", "turned", "switch", "switched", "enable", "enabled", "allow", "allowed", "grant", "granted", "toggle", "toggled", "tick",
+    "ticked", "flip", "flipped", "set", "fix", "fixed", "sort", "sorted", "change", "changed", "update", "updated", "unlock",
+    "unlocked", "approve", "approved", "work", "works", "working", "worked", "do", "done", "did", "given",
+))
+_LOOK_VERBS = frozenset(_stem(w) for w in ("look", "see", "check", "show", "try", "go", "run", "find", "get", "turn", "peek", "take", "have"))
+#: Nouns for the controls a person flips to remove a blocker.
+_CONTROLS = frozenset(_stem(w) for w in ("box", "checkbox", "button", "switch", "toggle", "option", "setting", "slider", "tab", "menu", "permission", "access", "right"))
+_HEDGES = frozenset({"think", "guess", "hope", "believe", "suppose", "reckon", "pretty", "really", "just", "finally", "ur", "thats", "that's", "ill", "im"})
+
+
+def _grounded(content: list[str], pending: PendingRequest | None) -> bool:
+    known: set[str] = set(_STATE_VERBS) | set(_LOOK_VERBS) | set(_CONTROLS)
+    if pending is not None:
+        for text in (pending.slots.get("_reply"), pending.request):
+            known |= {_stem(t) for t in _tokens(str(text or "")) if t not in _FUNCTION_WORDS}
+    return all(_stem(t) in known or t in _HEDGES for t in content)
 
 
 _THANKS_TAIL = frozenset({"anyway", "anyways", "though", "tho", "much", "again", "mate", "dude", "man"})
@@ -543,7 +576,7 @@ def resolve(
             if state is True:
                 # Refused, the person has since removed the blocker (live state), the record is fresh and only reads:
                 # any short message retries unless it is an exit (dismissal, a task or question of its own, thanks alone).
-                if _read_only(pending) and not _cleared_exit(compact):
+                if _read_only(pending) and not _cleared_exit(compact, pending):
                     return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
             elif (
                 not _DISMISS_RE.search(compact) and not _THANKS_RE.search(compact) and not _DISMISS_WHOLE_RE.match(compact)

@@ -478,3 +478,24 @@ def test_the_phone_case_is_decided_by_the_right_the_device_holds_now(monkeypatch
     # right still missing: a bare reaction does not rerun
     held["v"] = False
     assert cs.resolve("ph", "lol ok", source_context=sc, arbiter=_arb("no")).kind == "none"
+
+
+# --- grounding: a report about the blocker is a retry, a message with an object of its own is a task ----------------------
+
+def _phone_pending():
+    cs.record_sealed_turn("g", "list the pics in my downloads", _phone_refusal())
+    return cs.load("g")
+
+
+def test_the_refusal_reply_is_recorded_next_to_the_request():
+    assert "phone" in _phone_pending().slots["_reply"]
+
+
+@pytest.mark.parametrize("message", ["enabled it, take a look", "ok done on my phone", "i ticked the box", "ur turn, flipped the toggle"])
+def test_a_message_grounded_in_the_reply_and_the_state_verbs_is_a_retry(message):
+    assert cs.resolve("g", message, pending=_phone_pending(), cleared=True).kind == "retry"
+
+
+@pytest.mark.parametrize("message", ["open settings", "tell me a joke", "set a timer 10 min", "play some music in my phone"])
+def test_one_ungrounded_content_word_is_a_task_of_its_own(message):
+    assert cs.resolve("g", message, pending=_phone_pending(), cleared=True).kind == "none"
