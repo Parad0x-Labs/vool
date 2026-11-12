@@ -41,6 +41,11 @@ def test_dock_drawer_keyboard_mobile_rtl_and_native_actions(served,locale):
         rail=page.locator('#tb-dock').bounding_box()
         assert rail['width']==56
         assert rail['x']==(1224 if locale=='ar' else 0)
+        # Every dock button draws a real SVG icon (built without naming any URL in the page code).
+        icons=page.locator('#tb-dock button').evaluate_all(
+            "bs=>bs.map(b=>{const s=b.querySelector('svg'),p=s&&s.querySelector('path');"
+            "return !!(s&&s.namespaceURI.endsWith('/svg')&&p&&p.getAttribute('d')&&s.getBBox().width>0)})")
+        assert icons and all(icons), icons
         shoot(page,'dock-rail-'+locale)
         assert page.locator('#sidebar').evaluate('e=>e.inert')
         assert page.locator('#log').bounding_box()['width']>=640

@@ -94,6 +94,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .plugins-empty { color:var(--muted); font-size:13px; }
 .modal.modal-lg { width:min(820px,94vw); height:min(615px,86vh); max-height:86vh; display:flex; flex-direction:column; }
 .modal.settings-frame-modal { padding:0; overflow:hidden; }
+.modal.settings-frame-modal.browser-surface { width:min(1280px,96vw); height:min(880px,92vh); max-height:92vh; }
 #settingsFrame { flex:1 1 auto; width:100%; min-height:0; border:0; background:var(--panel-solid); }
 .modal.modal-lg .modal-body { flex:1 1 auto; overflow:auto; min-height:0; }
 .plugins-search { width:100%; box-sizing:border-box; margin:2px 0 14px; padding:10px 13px; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:10px; font:inherit; font-size:14px; }
@@ -129,6 +130,7 @@ img.chat-img:hover { border-color:var(--accent); }
   text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
 .chat-provenance .prov-more:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .chat-provenance .prov-raw[hidden] { display:none; }
+.chat-provenance.chat-skills-used { margin-top:6px; }
 .chat-provenance.prov-open { white-space:normal; }
 .chat-provenance.prov-open .prov-raw { display:block; margin-top:4px; overflow-wrap:anywhere; }
 /* The Proof Chip: one served turn's evidence, projected read-only by the server and rendered
@@ -4317,6 +4319,7 @@ function renderChat(chatId) {
   // A rebuilt transcript keeps its interrupted-reply note: a question cut off by a restart (boot
   // restore included, which never loads the Activity list) shows with Ask again under it.
   if (!run) { if (!st.recoveredTask) st.recoveredTask = interruptedQuestion(st); if (st.recoveredTask) paintRecoveryNote(st); }
+  if (window.VoolBrowserCard) { try { window.VoolBrowserCard.repaint(chatId); } catch (e) {} }
   followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
@@ -5183,6 +5186,63 @@ function renderAssistantContent(el, text, displayMetadata) {
   el.dataset.raw = normalized.content;
 }
 
+// ---- "Skill used" note: which skill shaped THIS answer ----
+// Read from this turn's own ledger rows: `tool_offer_skills` is emitted when a skill's
+// instructions joined the turn's context (core.tool_offer_assembly.skill_provenance_rows), with
+// `details` flattened onto the row. Only rows stamped with THIS turn's id count -- an untagged or
+// other-turn row never lends its skill to this answer. A row whose body was dropped or cut
+// (`complete: false` / `dropped`) did not reach the model, so it is not named. Expert lenses and
+// the answer-style rule (lane `doctrine`) ride many turns automatically and are not named here.
+// Pure and DOM-free so a test can execute it under node.
+function skillsUsedFrom(events, turnId) {
+  const want = String(turnId || '');
+  if (!want) return [];
+  const seen = new Set();
+  const out = [];
+  for (const ev of (events || [])) {
+    if (!ev || String(ev.event_type || ev.type || '') !== 'tool_offer_skills') continue;
+    if (String(ev.client_turn_id || '') !== want) continue;
+    const rows = Array.isArray(ev.skills) ? ev.skills : ((ev.details && Array.isArray(ev.details.skills)) ? ev.details.skills : []);
+    for (const row of rows) {
+      if (!row || row.complete === false || row.dropped) continue;
+      if (String(row.lane || '') === 'doctrine') continue;
+      const words = String(row.name || '').replace(/^vool[-_]/i, '').replace(/[-_]+/g, ' ').trim();
+      if (!words) continue;
+      const title = words.charAt(0).toUpperCase() + words.slice(1);
+      const k = title.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(title);
+    }
+  }
+  return out;
+}
+function paintSkillsUsed(el, names) {
+  if (!el) return;
+  const old = el.querySelector(':scope > .chat-skills-used'); if (old) old.remove();
+  if (!names || !names.length) return;
+  const p = document.createElement('p'); p.className = 'chat-provenance chat-skills-used';
+  const label = names.length === 1 ? pageT('chat.skills_used_one', 'Skill used:') : pageT('chat.skills_used_many', 'Skills used:');
+  p.textContent = label + ' ' + names.join(', ');
+  p.title = pageT('chat.skills_used_title', 'This skill\u2019s instructions were part of how VOOL wrote this answer. Turn skills on or off in Skills & Plugins, under My add-ons.');
+  el.appendChild(p);
+}
+// After a turn ends: read its ledger rows (the same bounded reader the Activity tab uses) and
+// put the note under the answer. Nothing is shown when the turn used no skill, or when the
+// ledger cannot be read -- a missing note never claims "no skill".
+async function noteSkillsUsed(run) {
+  if (!run || !run.chatId || !run.turnId) return;
+  for (let tries = 0; tries < 3; tries++) {
+    try { await pollLedger(run); } catch (e) { /* the next try, or no note */ }
+    const owner = chatState(run.chatId);
+    if (!owner.chatLedgerBusy) break;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  const names = skillsUsedFrom(run.ledger, run.turnId);
+  if (!names.length) return;
+  run.skillsUsed = names;
+  withRunDom(run, () => { if (run.textEl) paintSkillsUsed(run.textEl, names); });
+}
+
 // ---- Proof Chip: one served turn's evidence, beside the answer ----
 // Everything shown here is projected server-side (GET /api/chat/proof) from the stores that own
 // it, bound to the canonical (session, request) pair of THIS message. The page's only job is to
@@ -5631,6 +5691,8 @@ function startRunTimers(run) {
   if (run.timer || run.ledgerTimer) return;
   run.timer = setInterval(() => {
     if (run.ended) return;
+    // Named fragment call site: a browser request from this turn is answered in the chat itself.
+    if (window.VoolBrowserCard) { try { window.VoolBrowserCard.tick(run.chatId, isDisplayed(run.chatId)); } catch (e) {} }
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
     run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   }, 1000);
@@ -5811,7 +5873,7 @@ function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata);
+      if (run.ended) { renderAssistantContent(run.textEl, run.text, run.displayMetadata); if (run.skillsUsed) paintSkillsUsed(run.textEl, run.skillsUsed); }
       else {
         // The fresh node now shows everything so far: a batched paint still waiting is moot, and
         // the next piece paints straight into this node.
@@ -6871,9 +6933,9 @@ function ledgerSameText(a, b) {
 function humanToolTitle(e, eventType, map) {
   const tool = String(e.tool_name || '').trim();
   const category = activityCategoryFor(tool)[0];
-  const active = { tests: pageT('activity.tool.active.tests', 'Running tests'), reads: pageT('activity.tool.active.reads', 'Reading'), edits: pageT('activity.tool.active.edits', 'Editing'), searches: pageT('activity.tool.active.searches', 'Searching'), commands: pageT('activity.tool.active.commands', 'Running command'), tools: pageT('activity.tool.active.tools', 'Running tool') };
-  const finished = { tests: pageT('activity.tool.finished.tests', 'Test command finished'), reads: pageT('activity.tool.finished.reads', 'Read finished'), edits: pageT('activity.tool.finished.edits', 'Edit finished'), searches: pageT('activity.tool.finished.searches', 'Search finished'), commands: pageT('activity.tool.finished.commands', 'Command finished'), tools: pageT('activity.tool.finished.tools', 'Tool finished') };
-  const failed = { tests: pageT('activity.tool.failed.tests', 'Test command failed'), reads: pageT('activity.tool.failed.reads', 'Read failed'), edits: pageT('activity.tool.failed.edits', 'Edit failed'), searches: pageT('activity.tool.failed.searches', 'Search failed'), commands: pageT('activity.tool.failed.commands', 'Command failed'), tools: pageT('activity.tool.failed.tools', 'Tool failed') };
+  const active = { browser: pageT('activity.tool.active.browser', 'Using the browser'), tests: pageT('activity.tool.active.tests', 'Running tests'), reads: pageT('activity.tool.active.reads', 'Reading'), edits: pageT('activity.tool.active.edits', 'Editing'), searches: pageT('activity.tool.active.searches', 'Searching'), commands: pageT('activity.tool.active.commands', 'Running command'), tools: pageT('activity.tool.active.tools', 'Running tool') };
+  const finished = { browser: pageT('activity.tool.finished.browser', 'Browser step done'), tests: pageT('activity.tool.finished.tests', 'Test command finished'), reads: pageT('activity.tool.finished.reads', 'Read finished'), edits: pageT('activity.tool.finished.edits', 'Edit finished'), searches: pageT('activity.tool.finished.searches', 'Search finished'), commands: pageT('activity.tool.finished.commands', 'Command finished'), tools: pageT('activity.tool.finished.tools', 'Tool finished') };
+  const failed = { browser: pageT('activity.tool.failed.browser', 'Browser step did not run'), tests: pageT('activity.tool.failed.tests', 'Test command failed'), reads: pageT('activity.tool.failed.reads', 'Read failed'), edits: pageT('activity.tool.failed.edits', 'Edit failed'), searches: pageT('activity.tool.failed.searches', 'Search failed'), commands: pageT('activity.tool.failed.commands', 'Command failed'), tools: pageT('activity.tool.failed.tools', 'Tool failed') };
   if (eventType === 'tool_selected') return active[category] || pageT('activity.tool.active.running', 'Running');
   if (eventType === 'tool_failed') return failed[category] || pageT('activity.tool.failed.tools', 'Tool failed');
   if (eventType === 'tool_executed') return finished[category] || pageT('activity.tool.finished.tools', 'Tool finished');
@@ -7018,6 +7080,8 @@ function runExecutionTruth(run) {
 // calls"), not "Files changed". "Files changed" is built separately, from canonical mutation
 // receipts, in the `changes` category below.
 const ACTIVITY_CATEGORY_RULES = [
+  // Before "searches": vool-browser.* names contain "browse" but are browser steps, not searches.
+  [['vool-browser'], 'browser', 'Browser'],
   [['search', 'research', 'web', 'lookup', 'browse', 'find', 'grep', 'index'], 'searches', 'Searches'],
   [['read', 'fetch', 'open', 'inspect', 'view', 'cat', 'load'], 'reads', 'Files read'],
   [['edit', 'write', 'patch', 'apply', 'create_file', 'modify', 'format'], 'edits', 'Edit tool calls'],
@@ -9558,6 +9622,7 @@ async function runTurn(text, queueItemId, opts) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
       renderAssistantContent(run.textEl, assistant, run.displayMetadata);
     });
+    noteSkillsUsed(run);
   }
   if (!run.ended) finishRun(run, run.permissionDenied ? 'failed' : (run.permission ? 'awaiting_approval' : (run.terminal ? 'failed' : 'completed')), run.permissionDenied ? pageT('run.permission_denied', 'Permission denied') : (run.permission ? pageT('run.review_action', 'Review the exact action below.') : (run.terminal ? (run.action || pageT('run.failed_safely_label', 'Failed safely')) : pageT('run.complete', 'Complete'))));
   // The turn ran to the end without asking again, so the server either matched the token or never
@@ -12581,6 +12646,8 @@ function openSurfaceInFrame(url, label) {
   settingsFrame.title = label || 'VOOL Settings';
   const dialog = settingsFrameOverlay.querySelector('[role="dialog"]');
   if (dialog) dialog.setAttribute('aria-label', label || 'VOOL Settings');
+  // The browser is a working surface, not a dialog: it gets nearly the whole window.
+  if (dialog) dialog.classList.toggle('browser-surface', url.indexOf('/browser?') === 0);
   settingsFrameOverlay.hidden = false;
   try { settingsFrame.focus(); } catch (e) {}
 }
@@ -12617,6 +12684,8 @@ window.addEventListener('message', async (e) => {
   const d = e.data;
   if (!d || typeof d !== 'object') return;
   if (d.type === 'vool-settings-close' || d.type === 'vool-setup-close') { closeSettingsFrame(); setupLineLoad(); return; }
+  // The framed browser closes its overlay; its session keeps running until it is stopped or idles out.
+  if (d.type === 'vool-browser-close') { closeSettingsFrame(); return; }
   // The framed setup page asks its host to open a Settings section (it cannot open windows itself).
   if (d.type === 'vool-setup-open-settings') { closeSettingsFrame(); openSettings(typeof d.section === 'string' ? d.section : ''); return; }
   // ...and to run the native folder picker, which only the host document's bridge can reach.
@@ -13182,9 +13251,16 @@ function openSkills() { return _openPanel('skills'); }
 function renderPluginPanel(d, query) { if (window.VoolAddons && window.VoolAddons.render(query)) return; if (_pluginMode === 'skills') { renderSkills(d, query); } else { renderPlugins(d, query); } }
 
 function _firstPartyBadge() {
-  const fp = document.createElement('span'); fp.className = 'p-firstparty'; fp.title = 'Built by Parad0x Labs';
+  // A person reads "comes with VOOL", never a company handle.
+  const fp = document.createElement('span'); fp.className = 'p-firstparty'; fp.title = pageT('plugins.badge_title', 'Comes with VOOL');
   const mk = document.createElement('span'); mk.className = 'fp-mark'; fp.appendChild(mk);
-  fp.appendChild(document.createTextNode('parad0x')); return fp;
+  fp.appendChild(document.createTextNode('VOOL')); return fp;
+}
+// A skill id such as `vool-answer-presentation` or `shopping-list-by-aisle` reads as plain words
+// ("Answer presentation", "Shopping list by aisle"). The id itself stays the on/off key.
+function _skillTitle(name) {
+  const words = String(name || '').replace(/^vool[-_]/i, '').replace(/[-_]+/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : String(name || '');
 }
 
 // Plugin STORAGE state, verbatim from the server (`storage.state`: accessible / missing / denied /
@@ -13236,7 +13312,7 @@ function renderPlugins(d, query) {
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
   head.textContent = q
     ? (plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
-    : (d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's') + ' installed · ' + d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' (see the Skills panel)');
+    : (d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's') + ' · ' + d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' (choose Skills above to see them)');
   body.appendChild(head);
   if (!plugins.length) { const p = document.createElement('div'); p.className = 'plugins-empty'; p.textContent = 'No plugins match that search.'; body.appendChild(p); return; }
   plugins.forEach((pl) => {
@@ -13264,9 +13340,21 @@ function renderPlugins(d, query) {
       : pageT('plugins.status.unknown', 'Status unknown');
     const st = document.createElement('span'); st.className = 'p-status' + (pl.enabled === true ? '' : ' off');
     st.textContent = (origin ? origin + ' · ' : '') + state + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
-    const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? 'Enable' : 'Disable';
-    tg.addEventListener('click', () => togglePlugin(pl.id, off));
-    act.appendChild(st); act.appendChild(tg); card.appendChild(act);
+    act.appendChild(st);
+    if (pl.id === 'native-library') {
+      // The built-in skills are not one plugin to switch: the server has no off switch for the
+      // group (a Disable here wrote a setting nothing reads and the card stayed On). Each one
+      // turns off on its own under Skills.
+      const hint = document.createElement('span'); hint.className = 'p-status';
+      hint.textContent = pageT('plugins.native_hint', 'Turn single skills on or off under Skills.');
+      act.appendChild(hint);
+    } else {
+      const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
+      tg.setAttribute('aria-label', tg.textContent + ' ' + (pl.name || pl.id));
+      tg.addEventListener('click', () => togglePlugin(pl.id, off));
+      act.appendChild(tg);
+    }
+    card.appendChild(act);
     body.appendChild(card);
   });
 }
@@ -13293,30 +13381,44 @@ function renderSkills(d, query) {
     const notice = _storageNotice(d);
     if (notice) { body.appendChild(notice); return; }
     const p = document.createElement('div'); p.className = 'plugins-empty';
-    p.textContent = (d && d.reason) ? d.reason : 'No skills installed yet.';
+    p.textContent = (d && d.reason) ? d.reason : 'No skills yet. Ask VOOL in any chat: make me a skill that ...';
     body.appendChild(p); return;
   }
   const q = String(query || '').trim().toLowerCase();
   let skills = [];
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug })));
-  if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
-  skills.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  // `summary` is the line written for people; `description` is written for skill picking and can
+  // read as instructions, so it is only the fallback for a skill whose author wrote no summary.
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, title: _skillTitle(s.name), description: s.summary || s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
+  if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.title || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
+  skills.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
   head.textContent = q
     ? (skills.length + ' skill' + (skills.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
-    : (d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' across ' + d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's'));
+    : (d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + '. A skill that is On is used when your message is about its job.');
   body.appendChild(head);
   if (!skills.length) { const p = document.createElement('div'); p.className = 'plugins-empty'; p.textContent = 'No skills match that search.'; body.appendChild(p); return; }
   skills.forEach((s) => {
     const card = document.createElement('div'); card.className = 'plugin-card' + (s.first_party ? ' firstparty' : '');
     const h = document.createElement('div'); h.className = 'p-head';
-    const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = s.name;
+    const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = s.title || s.name;
     h.appendChild(nm);
-    const pill = document.createElement('span'); pill.className = 'p-cat'; pill.textContent = s.plugin; pill.title = 'From plugin: ' + s.plugin;
+    const pill = document.createElement('span'); pill.className = 'p-cat'; pill.textContent = s.plugin; pill.title = 'From: ' + s.plugin;
     h.appendChild(pill);
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
+    // Each skill turns on and off on its own, through the one disable store the skill picker
+    // reads (POST /api/skills/enable), with the same status line and button as a plugin card.
+    if (typeof s.enabled === 'boolean') {
+      const act = document.createElement('div'); act.className = 'p-actions';
+      const off = s.enabled === false;
+      const st = document.createElement('span'); st.className = 'p-status' + (off ? ' off' : '');
+      st.textContent = off ? pageT('plugins.status.off', 'Off') : pageT('plugins.status.on', 'On');
+      const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
+      tg.setAttribute('aria-label', tg.textContent + ' ' + (s.title || s.name));
+      tg.addEventListener('click', () => toggleSkill(s.name, off, tg, st));
+      act.appendChild(st); act.appendChild(tg); card.appendChild(act);
+    }
     // Only a skill the person made gets the quiet Skill Codex button (the add-on store owns it).
     if (d.skill_codex_open === true && s.own && s.slug && window.VoolAddons && typeof window.VoolAddons.publishControl === 'function') card.appendChild(window.VoolAddons.publishControl(s));
     body.appendChild(card);
@@ -13337,6 +13439,31 @@ async function togglePlugin(id, enable) {
       renderPluginPanel(_pluginCatalog, s ? s.value : '');
     }
   } catch (e) { /* fail-soft: leave the card as-is */ }
+}
+
+async function toggleSkill(id, enable, btn, status) {
+  if (!id || (btn && btn.disabled)) return;
+  // The catalog re-read can take a few seconds: say so on the card, and say it kindly when it fails.
+  const was = status ? status.textContent : '';
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = pageT('plugins.loading_js', 'Loading…');
+  let d = null;
+  try {
+    const r = await fetch('/api/skills/enable', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, enabled: !!enable }),
+    });
+    d = await r.json();
+    if (d && d.ok) {
+      _pluginCatalog = await (await fetch('/api/plugins')).json();
+      const s = document.getElementById('pluginsSearch');
+      renderPluginPanel(_pluginCatalog, s ? s.value : '');
+      return;
+    }
+  } catch (e) { /* shown below */ }
+  if (btn) btn.disabled = false;
+  if (status) { status.textContent = was; status.setAttribute('role', 'status'); }
+  if (typeof toast === 'function') toast(pageT('addons.request_failed', 'The request could not finish.'));
 }
 
 // ---- Files panel: everything VOOL generated, across all chats ----
@@ -14865,6 +14992,7 @@ def _page_fragments() -> tuple[str, ...]:
     `VoolChips.html`; the companion stays last, exactly where it always evaluated.
     """
     from core.addon_store_fragment import render_addon_store_fragment
+    from core.browser_chat_card_fragment import render_browser_card_fragment
     from core.chat_visuals_fragment import render_chat_visuals_fragment
     from core.command_palette_fragment import render_palette_fragment
     from core.companion_drawer_fragment import render_companion_drawer_fragment
@@ -14897,6 +15025,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_companion_drawer_fragment(),
         render_council_fragment(),
         render_council_card_fragment(),
+        render_browser_card_fragment(),
         render_companion_fragment(),
         render_wallet_fragment(),
         render_contacts_fragment(),

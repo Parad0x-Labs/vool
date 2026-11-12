@@ -521,7 +521,14 @@ class HiveTopicFacadeMixin:
         session_id: str,
     ) -> str:
         safe = str(getattr(execution, "user_safe_response_text", "") or "").strip()
-        if safe:
+        from core.agent_runtime.action_honesty_validator import unanswered_browser_reply
+
+        browser = unanswered_browser_reply()
+        if browser:
+            # The browser step was refused, expired or taken over: say exactly that, never the
+            # generic "tell me the specific thing" that blamed the person for a card they answered.
+            base = browser
+        elif safe:
             base = safe
         else:
             status = str(getattr(execution, "status", "")).strip().lower()
@@ -539,6 +546,8 @@ class HiveTopicFacadeMixin:
         # (product decision of 2026-09-17). It is offered only when this session actually holds
         # pending Hive topics -- words like "task" or "research" in a failed build's own spec
         # must not decorate a tool failure with Hive boilerplate the request never asked about.
+        if browser:
+            return base
         state = self._session_hive_state(session_id)
         pending = self._interaction_pending_topic_ids(state) or [
             str(item).strip()

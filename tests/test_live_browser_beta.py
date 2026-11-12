@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from tests.first_run_pact_rig import pact_rig as pact_rig
+from tests.test_live_browser import ROOT_LOAD, page_load
 from tests.test_live_browser import world as world
 
 
@@ -61,13 +62,13 @@ def _owner_approval_roundtrip(world, path, evidence, *, wait_seconds=25):
     assert execution.details['observation']['receipt']['approved_proposal_id'] == proposal_id
     assert evidence in execution.details['observation']['page_text']
     assert execution.details['observation']['authority'] == 'none'
-    assert requests == [('GET', path)]
+    assert requests == page_load(path)
     from core.vool_browser.live import tool_intent
 
     observed = tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'})
     assert observed['ok'] and evidence in observed['page_text']
     assert observed['authority'] == 'none'
-    assert len(requests) == 1
+    assert requests == page_load(path)
     status, replay = rig.post('/api/browser/decide', {'chat': 'live-test', 'id': proposal_id, 'approve': True})
     assert status == 409 and replay['error'] == 'stale_approval'
 
@@ -200,7 +201,7 @@ def test_abandoned_private_view_expires_even_while_model_reads(world):
     assert item.state == 'stopped' and not item.profile.exists()
     assert item.result == {} and item.nodes == [] and item.frame == ''
     assert item._completed == {} and item._context is None
-    assert requests == [('GET', '/')]
+    assert requests == ROOT_LOAD
 
 
 def test_human_approval_wait_does_not_exhaust_the_owned_turn_clock(world):
@@ -255,13 +256,14 @@ def test_real_browser_fetch_is_counted_in_the_waiting_turn(world):
         assert remote_fetch_attempt_count() == 0 and requests == []
         rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': True})
         assert future.result(timeout=25).ok
-        assert remote_fetch_attempt_count() == 1
-        assert remote_fetch_attempts()[0]['url'] == origin + '/'
+        # The document and its one picture are both counted in the turn that asked for them.
+        assert remote_fetch_attempt_count() == 2
+        assert [row['url'] for row in remote_fetch_attempts()] == [origin + '/', origin + '/secret']
         from core.vool_browser.live import tool_intent
 
         assert tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'})['ok']
-        assert remote_fetch_attempt_count() == 1
-    assert requests == [('GET', '/')]
+        assert remote_fetch_attempt_count() == 2
+    assert requests == ROOT_LOAD
 
 
 def test_browser_turn_is_confined_but_owner_can_approve_its_real_page(world):
@@ -301,7 +303,7 @@ def test_browser_turn_is_confined_but_owner_can_approve_its_real_page(world):
         assert requests == []
         rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': True})
         assert future.result(timeout=25).ok
-    assert requests == [('GET', '/')]
+    assert requests == ROOT_LOAD
 
 
 # Offline (lane, stamp, or machine-wide) closes the browser. The Computer + web lane
@@ -430,7 +432,7 @@ def test_live_pane_in_chat_approves_the_original_tool_call(world, tmp_path):
             execution = future.result(timeout=25)
             assert execution.ok and requests == [('GET', '/other')]
             expect(pane.locator('#status')).to_have_text('Ready')
-            pane.locator('#stop').click()
+            pane.locator('#moreBtn').click();pane.locator('#stop').click()
             expect(pane.locator('#status')).to_have_text('Stopped')
             assert not item.profile.exists()
             browser.close()
@@ -489,7 +491,7 @@ def test_page_cannot_expand_a_read_request_into_new_actions(world, path):
                 assert not direct.ok and direct.status == 'browser_scope_required'
                 with pytest.raises(live.BrowserFault, match='request_scope_required'):
                     live.tool_intent(intent, arguments, {'session_id':'live-test'})
-        assert item.pending is None and requests == [('GET',path)]
+        assert item.pending is None and requests == page_load(path)
 
 
 def test_only_the_original_owner_request_can_grant_actions():
@@ -671,7 +673,7 @@ def test_live_form_review_is_visible_in_the_real_owner_pane(world,tmp_path):
             page.locator('#refuse').click()
             expect(page.locator('#pending')).to_be_hidden()
             assert requests==[('GET','/review')]
-            page.locator('#stop').click()
+            page.locator('#moreBtn').click();page.locator('#stop').click()
             expect(page.locator('#status')).to_have_text('Stopped')
             assert item._forms==[] and not item.profile.exists()
             browser.close()
@@ -745,7 +747,7 @@ def test_actual_engine_profile_sandbox_and_network_rejector_are_owned(world):
     with socket.create_connection(('127.0.0.1',port),timeout=2) as connection:
         connection.sendall(('GET '+origin+'/unapproved HTTP/1.1\r\nHost: fixture\r\n\r\n').encode())
         assert b'502' in connection.recv(4096)
-    assert item.engine_network_refusals>before and requests==[('GET','/')]
+    assert item.engine_network_refusals>before and requests==ROOT_LOAD
     assert (item.profile/'Default').is_dir()
     owned=list(item._owned_processes.items())
     item.stop()
@@ -949,7 +951,7 @@ def test_a_model_scroll_reads_the_whole_observation_without_an_approval(world):
     with turn_scope(f'Use the browser to open {origin}/ and tell me the train time', 'live-test'):
         observed = tool_intent('vool-browser.inspect', {'mode': 'scroll_down'}, {'session_id': 'live-test', 'surface': 'api', 'platform': 'web_companion'})
     assert observed['ok'] and '14:36' in observed['page_text'] and 'Platform 2' in observed['page_text']
-    assert item.pending is None and item.state == 'ready' and requests == [('GET', '/')]
+    assert item.pending is None and item.state == 'ready' and requests == ROOT_LOAD
 
 
 def test_refusing_while_the_switch_goes_off_never_holds_the_session_lock_into_a_stop(world, monkeypatch):
@@ -1019,7 +1021,7 @@ def test_the_owner_decided_opening_is_counted_for_the_clause_that_asked_for_it(w
     assert ol.slice_dispatches(opened['set_id'], opened['version']) == ()
     assert all(states[unit] == 'indeterminate' for unit in train)
     if approve:
-        assert requests == [('GET', '/')] and all(states[unit] == 'satisfied' for unit in opening)
+        assert requests == ROOT_LOAD and all(states[unit] == 'satisfied' for unit in opening)
     else:
         assert requests == [] and all(states[unit] == 'indeterminate' for unit in opening)
         assert ol.consumption_receipts(opened['set_id'], opened['version']) == ()
@@ -1039,7 +1041,7 @@ def test_a_label_instead_of_an_element_handle_comes_back_as_a_correction(world):
         result = execute_runtime_tool('vool-browser.type', {'selector': 'Destination', 'text': 'Riga', 'submit': True}, source_context=context)
         assert result.status == 'invalid_arguments' and 'vool-browser.inspect' in result.response_text
         # The correction names no page text and proposes nothing; a real handle still works.
-        assert item.pending is None and requests == [('GET', '/')]
+        assert item.pending is None and requests == ROOT_LOAD
         handle = next(n for n in live.tool_intent('vool-browser.inspect', {}, context)['nodes']['items'] if n.get('name') == 'destination')
         proposed = live.tool_intent('vool-browser.type', {'selector': handle['selector'], 'text': 'Riga'}, context)
     assert proposed['status'] == 'approval_required' or proposed.get('proposal')

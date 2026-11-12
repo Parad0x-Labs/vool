@@ -234,6 +234,7 @@ class AuthorshipDecision:
         *,
         attempted_failed: tuple[str, ...] | list[str] | None = None,
         grounded_steps: int = 0,
+        observed_pages: tuple[str, ...] | list[str] | None = None,
     ) -> str:
         """What ships instead of the model's bytes. Names the model, the role and the cause.
 
@@ -252,6 +253,10 @@ class AuthorshipDecision:
         own trace on the wire. The sentence is now evidence-aware: with grounded rows it names
         what actually happened — evidence WAS collected and kept; what was missing is a
         certified writer.
+
+        ``observed_pages`` are the pages this turn's approved browser steps opened. When the
+        writing failed after one opened, the refusal leads with that page and says it is still
+        in the Browser pane (Mac run 2026-11-11: it said "nothing this turn observed" instead).
         """
 
         attempted = tuple(str(name).strip() for name in (attempted_failed or ()) if str(name).strip())
@@ -325,19 +330,41 @@ class AuthorshipDecision:
                 f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
                 "Setup under \u201cWhere should it think?\u201d, or start a local model."
             )
-        evidence_sentence = (
-            f"This turn did collect grounded evidence ({grounded_steps} step"
-            f"{'s' if grounded_steps != 1 else ''} succeeded) and it is kept in the turn's "
-            "records — what was missing is a certified model to write the answer from it."
-            if grounded_steps > 0
-            else "nothing this turn retrieved, computed or observed backs it, so the answer "
-            "would rest on the writing model alone."
-        )
+        pages = [str(page).strip() for page in (observed_pages or ()) if str(page).strip()]
+        opened = ", ".join(pages[:3])
+        if pages:
+            # The browser DID open the page this turn; only the writing failed. Saying "nothing
+            # this turn observed" here was false and sent the person to debug the browser
+            # (Mac run 2026-11-11).
+            grounded = (
+                f", and {grounded_steps} grounded step{'s' if grounded_steps != 1 else ''} succeeded"
+                if grounded_steps > 0
+                else ""
+            )
+            evidence_sentence = (
+                f"The browser opened {opened} this turn and the page is kept in the Browser pane{grounded}"
+                " — what was missing is a certified model to write the answer from it."
+            )
+        else:
+            evidence_sentence = (
+                f"This turn did collect grounded evidence ({grounded_steps} step"
+                f"{'s' if grounded_steps != 1 else ''} succeeded) and it is kept in the turn's "
+                "records — what was missing is a certified model to write the answer from it."
+                if grounded_steps > 0
+                else "nothing this turn retrieved, computed or observed backs it, so the answer "
+                "would rest on the writing model alone."
+            )
         # Plain words first, the runtime's own terms last (private-web test 2026-11-11: the person
         # saw "`ollama-local:qwen2.5:7b` is not certified to author on this runtime" as the
         # reply). The last paragraph is the cause; the chat page folds it behind "details".
+        plain = _plain_refusal_sentence(self.reason, author, attempted)
+        if pages:
+            plain = (
+                f"I opened {opened} in the browser, and it is still open in the Browser pane. "
+                f"{plain[:1].upper()}{plain[1:]} Ask again to have it read."
+            )
         return (
-            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {_plain_refusal_sentence(self.reason, author, attempted)}\n\n"
+            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {plain}\n\n"
             f"{_plain_refusal_remedy(author)}\n\n"
             f"Details: {evidence_sentence} {cause} {remedy}"
         )
@@ -1424,7 +1451,23 @@ def gate_authored_content(content: str, *, turn_id: str = "") -> tuple[str, dict
     return record.decision.refusal_text(
         attempted_failed=record.attempted_failed,
         grounded_steps=len(record.support_rows or ()),
+        observed_pages=_browser_pages_opened(),
     ), payload
+
+
+def _browser_pages_opened() -> tuple[str, ...]:
+    """Pages this turn's approved browser steps opened, if any. Never raises."""
+    try:
+        from core.vool_browser.live_requests import completed
+
+        seen: list[str] = []
+        for step in completed():
+            url = str(step.get("url") or "").strip()
+            if url and url not in seen:
+                seen.append(url)
+        return tuple(seen)
+    except Exception:
+        return ()
 
 
 # ---- execution claims ------------------------------------------------------------------------
@@ -1631,6 +1674,37 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     return (f"{body}\n\n{notice}" if body else notice), payload
 
 
+def model_authored_turn(*, turn_id: str = "", source_context: Any = None) -> tuple[bool, str]:
+    """Whether a model served this turn's bytes, and the request text the recorders hold.
+
+    Three recorders, any one enough: the authorship record, the grounding lifecycle, and -- for
+    a DIRECT served turn, which has no lifecycle and whose authorship record is keyed by a turn
+    id the transport may not present -- the turn's own model-call ledger, which still knows a
+    provider call completed (the seal receives the turn context).
+    """
+    record = authorship_record_for_publication(turn_id=turn_id)
+    model_authored = bool(getattr(record, "model_authored", False)) if record is not None else False
+    lifecycle = None
+    try:
+        from core.grounding_lifecycle import lifecycle_for_publication
+        lifecycle = lifecycle_for_publication(turn_id=turn_id)
+    except Exception:
+        lifecycle = None
+    if not model_authored:
+        model_authored = bool(lifecycle is not None and lifecycle.generated)
+    if not model_authored and source_context is not None:
+        try:
+            from core.turn_model_call_ledger import turn_call_accounting
+            accounting = turn_call_accounting(source_context)
+            model_authored = int(accounting.get("completed_calls") or 0) > 0 or bool(accounting.get("served_usage"))
+        except Exception:
+            model_authored = False
+    request_text = str(getattr(record, "request_text", "") or "") or str(
+        getattr(lifecycle, "request_text", "") or ""
+    )
+    return model_authored, request_text
+
+
 def gate_execution_claims(
     content: str, *, turn_id: str = "", source_context: Any = None
 ) -> tuple[str, dict[str, Any]]:
@@ -1643,26 +1717,7 @@ def gate_execution_claims(
     bytes and the record; when nothing survives the caller sees "" and takes its no-answer path.
     """
     text = str(content or "")
-    record = authorship_record_for_publication(turn_id=turn_id)
-    model_authored = bool(getattr(record, "model_authored", False)) if record is not None else False
-    lifecycle = None
-    try:
-        from core.grounding_lifecycle import lifecycle_for_publication
-        lifecycle = lifecycle_for_publication(turn_id=turn_id)
-    except Exception:
-        lifecycle = None
-    if not model_authored:
-        model_authored = bool(lifecycle is not None and lifecycle.generated)
-    if not model_authored and source_context is not None:
-        # The third recorder: a DIRECT served turn has no lifecycle, and its authorship record
-        # is keyed by a turn id the transport may not present; the turn's own model-call ledger
-        # still knows a provider call completed (the seal receives the turn context).
-        try:
-            from core.turn_model_call_ledger import turn_call_accounting
-            accounting = turn_call_accounting(source_context)
-            model_authored = int(accounting.get("completed_calls") or 0) > 0 or bool(accounting.get("served_usage"))
-        except Exception:
-            model_authored = False
+    model_authored, request_text = model_authored_turn(turn_id=turn_id, source_context=source_context)
     if not model_authored:
         return text, {"publication": "stood_down:not_model_authored"}
     claims = execution_claims(text)
@@ -1671,9 +1726,6 @@ def gate_execution_claims(
         if listed is not None:
             return listed
         return text, {"publication": "stood_down:no_execution_claims"}
-    request_text = str(getattr(record, "request_text", "") or "") or str(
-        getattr(lifecycle, "request_text", "") or ""
-    )
     try:
         from core.stipulated_frame import has_stipulated_frame
         if request_text and has_stipulated_frame(request_text):
@@ -1751,6 +1803,7 @@ __all__ = [
     "gate_execution_claims",
     "invalidate_author_certification",
     "is_authorship_refusal_text",
+    "model_authored_turn",
     "no_model_notice_leads",
     "no_model_notice_text",
     "record_authorship_decision",

@@ -199,6 +199,11 @@ class PrefsSetInput:
 
 
 @dataclass(frozen=True)
+class Web0SetInput:
+    enabled: Any = None
+
+
+@dataclass(frozen=True)
 class CredentialsSetInput:
     payload: dict = dataclasses.field(default_factory=dict)
 
@@ -251,6 +256,32 @@ def _handle_prefs_set(inp, ctx):
         ok_summary="Preferences saved",
         fault_summary="Preference write refused",
         receipts=({"kind": "settings_write", "surface": "prefs"},),
+    )
+
+
+def _handle_web0_show(inp, ctx):
+    from core.web0_settings import web0_settings_status
+
+    return HandlerOk(data={"ok": True, **web0_settings_status()}, summary="Special web addresses switch")
+
+
+def _handle_web0_set(inp, ctx):
+    import contextlib
+
+    from core.web0_settings import set_web0_enabled
+
+    if not isinstance(inp.enabled, bool):
+        return _legacy_fault("usage", "Special web addresses switch write refused", 400, {"ok": False, "error": "body must be {\"enabled\": true|false}"})
+    status_payload = set_web0_enabled(inp.enabled)
+    if status_payload.get("enabled"):
+        with contextlib.suppress(Exception):
+            from core.runtime_backbone import start_web0_background_workers
+
+            start_web0_background_workers()
+    return HandlerOk(
+        data={"ok": True, **status_payload},
+        summary="Special web addresses switch saved",
+        receipts=({"kind": "settings_write", "surface": "web0"},),
     )
 
 
@@ -850,6 +881,33 @@ def register(reg) -> None:
     )
     reg.add(
         CommandSpec(
+            command_id="settings.web0.show",
+            group="settings",
+            description="Read the special web addresses switch (off by default)",
+            effects="read_only",
+            handler=Handler("core.command_registry.groups.convergence:_handle_web0_show"),
+            exit_codes=(0,),
+        )
+    )
+    reg.add(
+        CommandSpec(
+            command_id="settings.web0.set",
+            group="settings",
+            description="Turn special web addresses on or off (off stops their background work and lookups)",
+            input_schema=Web0SetInput,
+            effects="mutating",
+            capabilities=frozenset({"change_settings"}),
+            permission=OperatorAuthority(
+                kind="settings.write",
+                verifier="core.command_registry.groups.convergence:_gate_operator",
+            ),
+            handler=Handler("core.command_registry.groups.convergence:_handle_web0_set"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_web0_store"),
+            exit_codes=(0, 2, 21, 30),
+        )
+    )
+    reg.add(
+        CommandSpec(
             command_id="settings.credentials.list",
             group="settings",
             description="List credential slots (names only; secrets never returned)",
@@ -1197,6 +1255,17 @@ def _probe_prefs_store(context: dict) -> tuple[bool, str]:
         return True, ""
     except Exception as exc:
         return False, f"preferences store unreachable: {exc}"
+
+
+def _probe_web0_store(context: dict) -> tuple[bool, str]:
+    # Read-only: resolves where the switch is kept without creating anything.
+    try:
+        from core.runtime_paths import active_data_dir
+
+        active_data_dir()
+        return True, ""
+    except Exception as exc:
+        return False, f"Special web addresses settings unreachable: {exc}"
 
 
 def _gate_operator_approval(inp, ctx) -> ApprovalDecision:

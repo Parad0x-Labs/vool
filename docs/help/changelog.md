@@ -20,6 +20,7 @@ die instead of answering.
 * **A connected email account works in chat.** The green "connected" state in Settings is what enables reading the mailbox in chat.
 * **"Go fetch data online" keeps what it fetched.** Research steps stay attached to the turn even when the writing model failed, and a refusal tells the truth about the evidence it kept.
 * **Toggles in Settings read plainly.** On is "On" with a green light; off is "Off" with a red light.
+* **PDFs open on Linux.** VOOL reads a PDF's text in a locked-down sandbox (bubblewrap): no network, no home folder. Without bubblewrap it says how to install it; where the system blocks that sandbox (stock Ubuntu 24.04), it says so and asks you to paste the text instead.
 
 ### Updating
 * **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own" is on. Press Update.

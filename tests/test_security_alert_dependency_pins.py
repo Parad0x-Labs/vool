@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from importlib import metadata
 from pathlib import Path
 
@@ -24,6 +25,28 @@ def test_frozen_dependencies_meet_the_advisory_patch_floor(package, patched):
     versions = [entry["version"] for entry in lock["package"] if entry["name"] == package]
     assert versions, f"{package} is missing from the frozen dependency graph"
     assert all(Version(version) >= Version(patched) for version in versions)
+
+
+# The phone app's tooling lock. A merge that takes an older branch's mobile/package-lock.json puts
+# patched releases back without touching package.json, and the scheduled Security Audit is the only
+# other check that reads this file. Each row: package, first affected release, first patched release.
+#   node-forge  21 advisories up to 1.4.2, e.g. GHSA-86w9-cpqp-85rv, GHSA-6889-vf6x-f3g5
+#   glob        GHSA-3g3m-2fjr-6pw4, 9.0.0 - 14.0.1 (the 7.x line React Native uses is outside it)
+#   minimatch   GHSA-g3hv-75wg-m249, 7.0.0 - 11.0.0 (the 3.x line is outside it)
+@pytest.mark.parametrize(
+    ("package", "affected_from", "patched"),
+    [("node-forge", "0", "1.4.3"), ("glob", "9.0.0", "14.0.2"), ("minimatch", "7.0.0", "11.0.1")],
+)
+def test_mobile_tooling_lock_meets_the_advisory_patch_floor(package, affected_from, patched):
+    lock = json.loads((ROOT / "mobile" / "package-lock.json").read_text())
+    versions = {
+        entry["version"]
+        for path, entry in lock["packages"].items()
+        if path.rpartition("node_modules/")[2] == package and "version" in entry
+    }
+    assert versions, f"{package} is missing from the mobile lock"
+    exposed = sorted(v for v in versions if Version(affected_from) <= Version(v) < Version(patched))
+    assert not exposed, f"mobile/package-lock.json locks {package} {exposed}; the first patched release is {patched}"
 
 
 def test_pdf_decoder_installed_for_the_reader_is_patched():

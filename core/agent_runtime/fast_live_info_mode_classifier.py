@@ -82,6 +82,10 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     # and "how hot is the sun" (no in/at) stay out.
     r"|how\s+(?:cold|warm|hot|chilly|freezing|windy|humid|sunny|rainy|wet|snowy)\s+(?:is\s+it|it\s+is|it'?s)\s+"
     r"(?:(?:out|over|up|down)\s+)?(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
+    # The verb form of sunset/sunrise: "what time does the sun set in oslo today", "when will the sun
+    # come up in lisbon" (red team R1-16: answered from memory with web off, and wrong).
+    r"|(?:when|what\s+time)\s+(?:does|did|will|is|'s)\s+(?:the\s+)?sun\s+(?:going\s+to\s+)?"
+    r"(?:set|rise|go\s+down|come\s+up|setting|rising)\s+(?:in|at|over)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
     r")\b"
     # A labeled section header ("Weather:" followed by a list of places) carries no in/for/at
     # trigger word at all -- the request is a live-weather lookup by section structure, not by

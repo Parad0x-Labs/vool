@@ -266,11 +266,26 @@ def inspect(repository_name_input: str, ref: str, path: str) -> dict:
     return result
 
 
+#: Pictures a skill folder may carry in assets/ (an icon or banner). They are never installed or run.
+_PICTURE_SUFFIXES = frozenset({'.png', '.jpg', '.jpeg', '.webp', '.svg'})
+_PICTURE_MAX_BYTES = 1024 * 1024
+
+
+def _picture_asset(item: dict, prefix: str) -> bool:
+    """A plain image file directly inside the skill's assets/ folder, at most 1 MB."""
+    rel = str(item.get('path', ''))[len(prefix):]
+    parts = PurePosixPath(rel).parts
+    size = item.get('size')
+    return (item.get('type') == 'blob' and item.get('mode') == '100644'
+            and len(parts) == 2 and parts[0] == 'assets'
+            and PurePosixPath(rel).suffix.lower() in _PICTURE_SUFFIXES
+            and isinstance(size, int) and not isinstance(size, bool) and 0 < size <= _PICTURE_MAX_BYTES)
+
+
 def inspect_source(source: dict, path: str, read_file) -> dict:
     """One compatibility law for public discovery and release-time catalogue snapshots."""
-    import yaml
-
     from core.plugin_skills import _FRONTMATTER_RE, _MAX_BODY_CHARS
+    from core.skill_frontmatter import FrontmatterRefused, load_header
     path = safe_path(path)
     row = next((dict(r) for r in source['entries'] if r['skill_path'] == path), None)
     if not row:
@@ -281,12 +296,15 @@ def inspect_source(source: dict, path: str, read_file) -> dict:
     except UnicodeError:
         raise AddonError('github_skill_encoding', 'The skill is not valid UTF-8 text.') from None
     match = _FRONTMATTER_RE.match(text)
-    try:
-        front = yaml.safe_load(match.group(1)) if match else {}
-    except yaml.YAMLError:
-        front = {}
-    front = front if isinstance(front, dict) else {}
     reasons = []
+    header_refused = False
+    try:
+        # The one bounded header reader: a header of YAML aliases is refused here, before any value
+        # is turned into text (red team t11: 548 bytes from GitHub ran out of memory on inspect).
+        front = load_header(match.group(1)) if match else {}
+    except FrontmatterRefused as refused:
+        front, header_refused = {}, True
+        reasons.append(refused.message)
     if not match or not isinstance(front.get('name'), str) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}',front['name']):
         reasons.append('The skill needs a valid name and SKILL.md header before VOOL can load it.')
     if not isinstance(front.get('description'), str) or not front.get('description','').strip():
@@ -295,13 +313,27 @@ def inspect_source(source: dict, path: str, read_file) -> dict:
         reasons.append('This skill is larger than VOOL’s instruction limit. It needs adaptation; VOOL will not silently cut it short.')
     if front.get('allowed-tools') or front.get('allowed_tools'):
         reasons.append('This skill declares a host-specific tool list that needs a VOOL mapping.')
+    from core.skill_tools import content_problem, reserved_name_reason, typed_keys_problem
+    typed = typed_keys_problem(front)
+    if typed:
+        reasons.append(typed)
+    if isinstance(front.get('name'), str):
+        reserved = reserved_name_reason(front['name'])
+        if reserved:
+            reasons.append(reserved)
+    if match and not header_refused:
+        # The Skill Codex's own text checks, so a skill from GitHub is held to what a published one is.
+        problem = content_problem(text)
+        if problem:
+            reasons.append(problem)
     folder = str(PurePosixPath(path).parent)
     files = {i['path']:i for i in source['tree'] if i.get('type') == 'blob'}
     prefix = '' if folder == '.' else folder+'/'
     extras = [i['path'] for i in source['tree'] if i.get('type') in {'blob','commit'}
               and i['path'].startswith(prefix) and i['path'] != path
               and not (str(PurePosixPath(i['path']).parent) == folder
-                       and PurePosixPath(i['path']).name.lower() in {'license','license.txt','license.md'})]
+                       and PurePosixPath(i['path']).name.lower() in {'license','license.txt','license.md'})
+              and not _picture_asset(i, prefix)]
     if extras:
         reasons.append('This skill includes supporting files or scripts. The current importer only installs complete standalone instruction skills.')
     licence = b''

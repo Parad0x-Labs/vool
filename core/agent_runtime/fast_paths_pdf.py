@@ -297,13 +297,18 @@ def _display(path: Path, named: str) -> str:
         return named or str(path)
 
 
-def _failure_text(status: str, *, reason: str, shown: str) -> str:
+def _failure_text(status: str, *, reason: str, shown: str, source: str = "") -> str:
     """Each status keeps its own words. This is the whole point of the module.
 
     Before this, a missing file, a .txt wearing a .pdf name, a scanned page and a router bail all
     reached the user as one sentence, so the one question a user can actually act on — is this my
     typo, my file, or your bug? — had no answer in the reply.
+
+    ``source`` is the reader that ran: ``pdfkit`` on macOS, ``pypdf`` elsewhere. Only the macOS
+    reply may point at the macOS system Python.
     """
+    # Reasons arrive as sentences; each template adds its own full stop.
+    reason = str(reason or "").strip().rstrip(".").rstrip()
     if status == "not_found":
         return (
             f"There is no file at `{shown}`. Check the name and the folder — I looked for exactly "
@@ -312,10 +317,14 @@ def _failure_text(status: str, *, reason: str, shown: str) -> str:
     if status == "unreadable":
         return (
             f"`{shown}` is not a readable PDF. The name ends in .pdf but the contents are not PDF "
-            f"data, so PDFKit cannot open it — it is most likely a text or image file that was "
-            f"renamed."
+            f"data, so it cannot be opened as one — it is most likely a text or image file that "
+            f"was renamed."
         )
+    if status == "too_large":
+        return f"`{shown}` is too big for me to read here: {reason}."
     if status == "missing_dependency":
+        if source != "pdfkit":
+            return f"I can't open `{shown}` on this computer: {reason}."
         return (
             f"I cannot read PDFs on this machine: {reason}. PDF reading needs the macOS system "
             f"Python at /usr/bin/python3 and its PyObjC bindings."
@@ -434,6 +443,16 @@ def maybe_handle_pdf_read(
     if status == "no_text_layer":
         ocr_execution = run("pdf.ocr")
         ocr_status = str(getattr(ocr_execution, "status", "") or "") if ocr_execution is not None else ""
+        ocr_details = dict(getattr(ocr_execution, "details", {}) or {}) if ocr_execution is not None else {}
+        if ocr_details.get("cause") == "ocr_not_available":
+            # No recogniser on this computer: nothing was recognised, so the reply must not say
+            # it tried (real chat on Linux, 2026-11-12, quoted a Python import error instead).
+            return plain(
+                f"`{shown}` has no text layer, so it is a scanned PDF, and reading text from "
+                f"scanned pages is not available on this computer yet. Paste the text instead, or "
+                f"send a copy with selectable text.",
+                reason="pdf_read_scanned_ocr_not_available",
+            )
         if ocr_execution is not None and getattr(ocr_execution, "ok", False):
             body = _render_ok(
                 ocr_execution,
@@ -495,7 +514,12 @@ def maybe_handle_pdf_read(
         intent=intent,
         execution=execution,
         reason="pdf_read_fast_path_failed",
-        response_text=_failure_text(status, reason=reason, shown=shown),
+        response_text=_failure_text(
+            status,
+            reason=reason,
+            shown=shown,
+            source=str(dict(getattr(execution, "details", {}) or {}).get("source") or ""),
+        ),
     )
 
 

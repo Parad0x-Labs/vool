@@ -1,6 +1,6 @@
 """Should this turn take the clean local path? One pure decision, in a fixed order.
 
-1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default OFF).
+1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default ON; 0/false/no/off turns it off).
 2. The turn is not RED: no pay/send/delete/post/cancel-style verb and no money words. VOOL has no
    text-level risky-action classifier to reuse (its consent gates sit at the effect, which this loop
    never reaches), so this is a small verb floor. RED turns keep the normal ceremony. Nor is it a
@@ -9,12 +9,13 @@
    how much am i paying for it") asks for facts, so its verb counts as neither, but only when every clause is a question.
    Money words are RED in any form.
 3. Nothing else owns the turn: not a planned sub-turn, a resumed checkpoint, a browser workflow, a
-   project-bound chat or a chat with an active goal workflow, and it is the owner's own local turn.
+   project-bound chat, a private chat (its words never reach this loop's brain) or a chat with an
+   active goal workflow, and it is the owner's own local turn.
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
    shares a distinctive word with the name of one of the owner's files, or, checked last, it is a
    question about something the owner's documents hold: `tools.document_matches`), and not a
    live/online question, which the online lanes own.
-5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on the owner's own cloud model
+5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on (default ON) the owner's own cloud model
    (resolved last: it is the only costly check).
 """
 from __future__ import annotations
@@ -30,6 +31,7 @@ from typing import Any
 
 FLAG_ENV = "VOOL_CLEAN_LOCAL_LOOP"
 _TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
 
 _RED_RE = re.compile(
     r"\b(?:pay|paying|send|sending|transfer|wire|remit|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|reimburse|refund|charge|deposit|"
@@ -83,17 +85,49 @@ _ONLINE_RE = re.compile(
 )
 _TOPIC_RE = re.compile(
     r"\b(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|"
-    r"videos?|movies?|music|songs?|notes?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
-    r"tickets?|flights?|boarding|bookings?|reservations?|itinerar(?:y|ies)|meetings?|minutes|reports?|insurance|lease|rent|"
+    r"videos?|movies?|music|songs?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
+    r"itinerar(?:y|ies)|meetings?|reports?|insurance|lease|rent|"
     r"contracts?|payslips?|warrant(?:y|ies)|appointments?|recipes?|disk|drive|storage|space|ram|memory|cpu|processor|specs?|"
     r"screen|monitors?|resolution|process(?:es)?|running|background|services?|logs?|errors?|slow|sluggish|junk|temp|"
     r"privacy|private|left\s+(?:this|my)\s+(?:computer|mac|laptop|machine)|sent\s+to\s+the\s+cloud)\b",
     re.I,
 )
+# "minutes" is not a topic: "meetings?" already covers meeting minutes, and a bare "minutes" admitted
+# "15 minutes a day" (skills thread, 2026-11-12). Notes are not a topic either, see is_notes_ask.
+# The person's notes ("check my notes", "find my note about the plumber") belong to the notes tools,
+# which this loop does not have: it answered from files and the claim gate then said "I haven't
+# looked through your notes". A notes FILE ("my notes.md", "the notes on my desktop") stays a file.
+_NOTES_RE = re.compile(
+    r"\b(?:my|our)\s+notes?\b|\bnotes?\s+app\b|\bapple\s+notes\b|"
+    r"\b(?:a|any|the)\s+notes?\s+(?:about|on|for|that|i|where|with|mentioning)\b|"
+    r"\b(?:in|through|search|check|find|look\s+in)\s+(?:my\s+|the\s+)?notes\b(?!\s*\.)",
+    re.I,
+)
+_NOTES_FILE_RE = re.compile(
+    r"\bnotes?\s*\.\w|\bnotes?\s+(?:file|folder|doc|document|pdf|txt)s?\b|"
+    r"\b(?:files?|folders?|desktop|downloads|documents\s+folder|pdfs?)\b|\.(?:md|txt|pdf|docx?|rtf)\b",
+    re.I,
+)
+# Tickets, flights, bookings and reservations count only when they are the owner's: "my flight",
+# "the tickets i bought", "what seat am i in on the flight". Without that they are prices and
+# timetables for the web ("how much is a ticket for the louvre these days", "cheapest flight from
+# krakow to rome"), which this loop answered from the owner's files (red3 wordings, 2026-11-12).
+_OWNED_TRAVEL_RE = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'-]+\s+){0,2}(?:tickets?|flights?|bookings?|reservations?|boarding)\b|"
+    r"\b(?:tickets?|flights?|bookings?|reservations?)\s+(?:i|we|i've|we've)\b|"
+    r"\b(?:am|do|did|have|are|was|were)\s+(?:i|we)\b[^.?!]{0,40}\b(?:tickets?|flights?|bookings?|reservations?)\b",
+    re.I,
+)
 # The machine itself counts only when it is the owner's: "my laptop", "this mac", not "mac or windows".
 _MACHINE_RE = re.compile(r"\b(?:my|this|the)\s+(?:own\s+)?(?:laptop|computer|mac(?:book)?|pc|machine)\b", re.I)
+# Ownership counts only with a file action of the owner's own ("did i move the audit", "i saved the
+# invoice"). A bare possessive ("my cat is called Biscuit", default-on delivery 2026-11-01) is
+# ordinary chat, not an ask about the owner's files or computer: claiming it kept the turn out of
+# the old pipeline, which then never wrote its routing provenance (turn_routing_events.jsonl) —
+# the no-trace contract's ordinary-chat control broke. The same holds for "my speed" style general
+# asks (the document-admission hold-out's reported false admission).
 _OWNED_RE = re.compile(
-    r"\b(?:my|mine|our|ours|did\s+(?:i|we)|i\s+(?:wrote|saved|downloaded|took|put|keep|named|made|have|had|got|need|owe))\b",
+    r"\b(?:did\s+(?:i|we)|i\s+(?:wrote|saved|downloaded|took|put|keep|named|made|have|had|got|need|owe))\b",
     re.I,
 )
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -189,7 +223,8 @@ def changes_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 
 def flag_on(env: Mapping[str, str] | None = None) -> bool:
-    return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() in _TRUTHY
+    # Default ON (0.8): unset or empty runs the clean loop; 0/false/no/off turns it off.
+    return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() not in _FALSY
 
 
 # A follow-up often opens with a joining word: "and how much am i paying for it a year", "so when is it
@@ -301,11 +336,19 @@ def is_online_ask(text: str) -> bool:
     return bool(_ONLINE_RE.search(value)) and not is_privacy_ask(value)
 
 
+def is_notes_ask(text: str) -> bool:
+    """An ask about the person's notes, for the notes tools; a notes file stays a file ask."""
+    value = str(text or "")
+    return bool(_NOTES_RE.search(value)) and not _NOTES_FILE_RE.search(value)
+
+
 def asks_about_own_files_or_computer(text: str) -> bool:
     value = str(text or "")
     if _SELF_RE.search(value):
         return False
-    return bool(_TOPIC_RE.search(value) or _MACHINE_RE.search(value) or _OWNED_RE.search(value))
+    return bool(
+        _TOPIC_RE.search(value) or _OWNED_TRAVEL_RE.search(value) or _MACHINE_RE.search(value) or _OWNED_RE.search(value)
+    )
 
 
 def note_clean_turn(session_id: str) -> None:
@@ -328,6 +371,22 @@ def _is_follow_up(text: str, session_id: str) -> bool:
     return seen is not None and time.monotonic() - seen < _FOLLOW_UP_TTL_S
 
 
+def _carries_attachments(source_context: Mapping[str, Any]) -> bool:
+    """A turn that carries files (the chat's attachments, a channel's media) belongs to the lanes
+    that read them: this loop's brain sees only the words and its own tools, so "what token is in
+    the attached notes?" was answered from the owner's disk with the file itself never read. When
+    the evidence cannot be counted, a turn that names any is treated as carrying it."""
+    if str(source_context.get("attachment_turn_id") or "").strip():
+        return True
+    evidence = source_context.get("external_evidence")
+    try:
+        from core.agent_runtime.request_authority import bounded_evidence
+
+        return bool(bounded_evidence(evidence).recognized)
+    except Exception:
+        return bool(evidence)
+
+
 def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) -> str:
     if source_context.get("planned_subturn"):
         return "planned_subturn"
@@ -335,6 +394,21 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
         return "resumed_turn"
     if str(source_context.get("_trusted_project_id") or "").strip():
         return "project_owns_turn"
+    if _carries_attachments(source_context):
+        return "attachment_turn"
+    try:
+        from core.private_chat import turn_is_private
+
+        # A private turn belongs to the private-chat machinery (core.private_chat): its words must
+        # not reach this loop's brain — with VOOL_CLEAN_LOOP_CLOUD on (default) that can be the
+        # owner's cloud model — and its pin/rename/move asks must keep the switch's own refusal
+        # (no-trace contract, default-on delivery 2026-11-01: "pin this chat" in a private chat was
+        # claimed here as a follow-up and answered by the brain).
+        if turn_is_private(source_context, session_id):
+            return "private_turn"
+    except Exception:
+        # The switch could not be read: treat the turn as private, as core.private_chat.record_chat_ref does.
+        return "private_turn"
     try:
         from core.goal_workflow import load_active_goal_for_session
 
@@ -376,6 +450,8 @@ def decide(
         return RouteDecision(False, blocked)
     if is_online_ask(text):
         return RouteDecision(False, "online_ask")
+    if is_notes_ask(text):
+        return RouteDecision(False, "notes_ask")
     by_documents = False
     if not (
         asks_about_own_files_or_computer(text)
@@ -404,6 +480,7 @@ __all__ = [
     "changes_enabled",
     "decide",
     "flag_on",
+    "is_notes_ask",
     "is_online_ask",
     "is_privacy_ask",
     "is_question",

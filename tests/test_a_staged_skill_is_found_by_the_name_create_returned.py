@@ -68,13 +68,17 @@ def test_a_skill_is_found_by_the_name_a_person_would_type(skills, handle: str) -
 
 
 def test_an_installed_skill_is_still_found_by_name(skills) -> None:
-    """After install the file has MOVED out of staging. The name must keep resolving to it."""
+    """After install the file has MOVED out of staging. The name must keep resolving to it.
+
+    Install retires the staged copy itself (one skill, listed once), so staging is already
+    empty here -- the unlink this test used to do by hand is now install's own behaviour.
+    """
 
     module, _root = skills
     created = module.create_skill(name="qa-echo", description="Echo a word.", body="Repeat it.")
     module.install_skill(created["path"])
 
-    module.staging_root().joinpath("qa-echo", "SKILL.md").unlink()
+    assert not module.staging_root().joinpath("qa-echo").exists()
 
     assert module.validate_skill("qa-echo")["status"] == "ok"
 
@@ -156,11 +160,12 @@ def test_the_search_order_is_staging_then_installed(skills) -> None:
 
     locations = module._skill_locations("qa-echo")
 
-    # P1 native skill library: the first-party package root joined the search between staging
-    # (the copy being redrafted) and installed (the active copy). Three homes, order pinned.
-    assert len(locations) == 3, "all three homes must be in the search, or the order says nothing"
+    # Two homes, order pinned: staging (the copy being redrafted), then installed (the active
+    # copy). VOOL's built-in library is NOT searched: a bare name resolving there let "turn on
+    # vool-feature-build" copy a developer skill into the person's own skills (red team t5).
+    assert len(locations) == 2, "both homes must be in the search, or the order says nothing"
     assert locations[0] == module.staging_root() / "qa-echo" / "SKILL.md"
+    assert locations[1].parent.parent.name == "skills"
     from core.native_skill_library import native_skills_root
 
-    assert locations[1] == native_skills_root() / "qa-echo" / "SKILL.md"
-    assert locations[2].parent.parent.name == "skills"
+    assert not any(location.is_relative_to(native_skills_root()) for location in locations)

@@ -121,6 +121,10 @@ network:
   pow_min_difficulty: 4
   report_abuse_gossip_ttl: 2
   report_abuse_gossip_fanout: 8
+  # Private web: off, tor, wireguard or system_vpn. Off until the person turns it on.
+  private_web:
+    route: "off"
+    socks_port: 0
 
 orchestration:
   max_subtasks_per_parent: 3

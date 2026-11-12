@@ -371,3 +371,29 @@ def test_a_runtime_minted_key_is_listed_but_never_removable() -> None:
     assert "return;" in guard, "a managed key would fall through to the Remove button"
     assert "'system'" in guard, "a managed key is not marked as one"
     assert html.index("function isOperatorKey") < html.index("btn key-remove")
+
+
+@pytest.mark.parametrize("ui_locale", ["en", "ar"])
+def test_every_script_on_the_page_parses(ui_locale: str, tmp_path) -> None:
+    """One unclosed function makes the whole main script a syntax error, and then no Settings group
+    renders at all, in any language. Every source-text test of the page stays green through that,
+    so the page's own scripts are parsed here the way a browser parses them (special addresses
+    switch, 2026-11-12: its block landed inside the phone widget, which was never closed)."""
+    import re
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not available to parse the Settings page scripts")
+    html = render_vool_settings_html(ui_locale=ui_locale)
+    scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)
+    assert scripts
+    broken = []
+    for index, body in enumerate(scripts):
+        path = tmp_path / f"script{index}.js"
+        path.write_text(body, encoding="utf-8")
+        checked = subprocess.run([node, "--check", str(path)], capture_output=True, text=True, timeout=60)
+        if checked.returncode:
+            broken.append((index, len(body), checked.stderr.strip()[-600:]))
+    assert not broken, broken

@@ -1,4 +1,4 @@
-"""The native skill library contract: 13 first-party VOOL skill packages, shipped in `skills/`.
+"""The native skill library contract: the first-party VOOL skill packages shipped in `skills/`.
 
 VOOL had exactly two native skill packages (media-studio, vool-hive-mind) and both predate the
 library contract — they declare capabilities but no triggers, effects, stop conditions, recovery or
@@ -40,14 +40,11 @@ from core.skill_tools import validate_skill
 EXPECTED_VOOL_PACKAGES = (
     "vool-repo-onboarding",
     "vool-root-cause-repair",
-    "vool-bug-reproduction",
     "vool-feature-build",
     "vool-cumulative-testing",
     "vool-code-review",
     "vool-security-audit",
-    "vool-git-worktrees",
     "vool-ci-repair",
-    "vool-browser-qa",
     "vool-performance",
     "vool-migration",
     "vool-release-gate",
@@ -73,16 +70,16 @@ def _by_name() -> dict[str, object]:
     return {skill.name: skill for skill in native_skills()}
 
 
-def test_all_thirteen_vool_packages_ship_and_parse() -> None:
+def test_all_first_party_vool_packages_ship_and_parse() -> None:
     names = {skill.name for skill in native_skills()}
     missing = [slug for slug in EXPECTED_VOOL_PACKAGES if slug not in names]
     assert not missing, f"native library is missing first-party packages: {missing}"
 
 
-def test_the_two_preexisting_packages_still_parse() -> None:
-    """The library seam is additive: media-studio and vool-hive-mind must survive it untouched."""
+def test_the_preexisting_media_package_still_parses() -> None:
+    """The library seam is additive: media-studio must survive it untouched."""
     names = {skill.name for skill in native_skills()}
-    assert {"media-studio", "vool-hive-mind"} <= names
+    assert {"media-studio"} <= names
 
 
 def test_native_root_is_the_repository_skills_directory() -> None:

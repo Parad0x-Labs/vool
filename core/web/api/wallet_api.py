@@ -218,6 +218,18 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
         except (TypeError, ValueError):
             limit = 50
         return _ok({"transfers": transfers.list_transfers(limit=limit, wallet_id=str((query.get("wallet_id") or [""])[0] or ""), network=str((query.get("network") or [""])[0] or ""))})
+    if path == "/api/wallet/agents":
+        # Settings, Crypto, Agent spending: each agent's own wallet, its allowance and use, what waits for the owner
+        from core.wallet import agent_settings
+
+        return _json(200, {"ok": True, "agent_spending": agent_settings.overview()}, headers=_NO_STORE)
+    if path == "/api/wallet/agents/balance":
+        from core.wallet import agent_settings
+
+        try:
+            return _json(200, {"ok": True, "balances": agent_settings.balances_of(str((query.get("wallet_id") or [""])[0] or "").strip())}, headers=_NO_STORE)
+        except WalletFault as exc:
+            return _fault(exc)
     if path.startswith("/api/wallet/wallets/"):
         profile = custody.get_wallet(path.rsplit("/", 1)[-1])
         return _ok({"wallet": profile.to_dict()}) if profile else _json(404, {"ok": False, "error": "wallet_not_found"})
@@ -288,6 +300,36 @@ def _recovery_door(path: str, body: dict[str, Any], *, source_context: dict[str,
     return _json(404, {"ok": False, "error": "not found"})
 
 
+def _agent_door(path: str, body: dict[str, Any], *, source_context: dict[str, Any]) -> Any:
+    """Settings, Crypto, Agent spending. Creating a wallet, creating or loosening an allowance and resuming one are the
+    owner's act (their own wallet's PIN or password, proven in the wallet); pausing, tightening and ending need none.
+    The backup key crosses this seam once, no-store, in the answer that creates the wallet."""
+    from core.wallet import agent_settings
+
+    try:
+        if path == "/api/wallet/agents/wallet":
+            return _json(200, {"ok": True, **agent_settings.create_wallet(body, source_context=source_context)}, headers=_NO_STORE)
+        if path == "/api/wallet/agents/backup":
+            return _json(200, {"ok": True, **agent_settings.show_backup(body, source_context=source_context)}, headers=_NO_STORE)
+        if path == "/api/wallet/agents/allowance":
+            answer = agent_settings.save_allowance(body, source_context=source_context)
+        elif path == "/api/wallet/agents/allowance/state":
+            answer = agent_settings.set_state(body, source_context=source_context)
+        else:
+            return _json(404, {"ok": False, "error": "not found"})
+    except agent_settings.SettingsRefused as exc:
+        return _json(400, {"ok": False, "error": "agent_spending_invalid", "message": f"{exc} Nothing was changed."}, headers=_NO_STORE)
+    except WalletFault as exc:
+        said = agent_settings.refusal_text(str(exc.context.get("reason") or ""), str(exc.context.get("detail") or ""))
+        if not said:
+            if str(exc.context.get("reason") or "") == "credential_required":
+                owner = custody.owner_proof_wallet()
+                exc.context["wallet_label"] = (owner.label if owner else "") or "your first wallet"
+            raise
+        return _json(_STATUS_FOR_CODE.get(exc.code, 400), {"ok": False, "error": exc.code, "message": f"{said} Nothing was changed.", "fault": exc.to_dict()}, headers=_NO_STORE)
+    return _json(200, {"ok": True, **answer, "agent_spending": agent_settings.overview()}, headers=_NO_STORE)
+
+
 @_in_request_locale(reads_query=False)
 def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
     """``headers`` are the real request's headers. A caller without a request behind it (the command-dispatch
@@ -301,6 +343,9 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
         if reason:
             return _fault(wallet_fault("wallet_caller_refused", authority=caller_binding.AUTHORITY, context={"reason": reason, "door": path}, source_context=source_context))
     try:
+        if path in ("/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state"):
+            # listed door by door: each is its own registered command
+            return _agent_door(path, body, source_context=source_context)
         if path == "/api/wallet/transfers/refresh":
             # wakes the observer only; it runs whether Crypto is enabled or not, so unresolved transfers keep moving
             from core.wallet import settlement
@@ -506,8 +551,17 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                         stale = exc
                     if stale is not None:
                         return _json(409, {"ok": False, "error": stale.code, "message": stale.message})
-                    result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
-                                                           approver=pilot_approver)
+                    parked = proposals.get_proposal(proposal_id)
+                    if parked is not None and custody.agent_of(parked.wallet_id):
+                        # a payment waiting on an agent's own wallet: the owner approves it with their OWN wallet's
+                        # credential (the agent wallet's is the machine's and proves nobody)
+                        from core.wallet import agent_pay
+
+                        result = agent_pay.approve_as_owner(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
+                                                            credential=str(body.get("password") or body.get("pin") or ""), source_context=source_context)
+                    else:
+                        result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
+                                                               approver=pilot_approver)
                 # a pay-per-answer AI payment: its one delivered answer is checked and posted into the chat that asked
                 try:
                     paid_ai = x402_ai.after_approval(proposal_id, result)

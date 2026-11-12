@@ -1,0 +1,9 @@
+{"created_at": "2026-09-02T23:30:23.657791+00:00", "event_type": "runtime_attempt_created", "message": "Runtime attempt attempt-4cc98b46c60a4c5e86dfa7e3dec595c4 created (unknown mode).", "seq": 1}
+{"created_at": "2026-09-02T23:30:23.669943+00:00", "event_type": "task_received", "message": "Received request: Remember the codeword LANTERN for this session and reply OK.", "seq": 2}
+{"created_at": "2026-09-02T23:30:23.710841+00:00", "event_type": "model.call_started", "message": "Model call started with ollama-local:qwen2.5:7b.", "seq": 3}
+{"created_at": "2026-09-02T23:30:23.797535+00:00", "event_type": "model.call_completed", "message": "Model call completed with ollama-local:qwen2.5:7b.", "seq": 4}
+{"created_at": "2026-09-02T23:30:23.896228+00:00", "event_type": "model_lane_proof", "message": "Fast-path response completed without model inference.", "seq": 5}
+{"created_at": "2026-09-02T23:30:23.896747+00:00", "event_type": "task_completed", "message": "Fast-path response ready: Locked in. I’ll remember that.", "seq": 6}
+{"created_at": "2026-09-02T23:30:23.901786+00:00", "event_type": "semantic_resolution_receipt", "message": "Resolution: 9 gates consulted, preempted by turn_frontdoor", "seq": 7}
+{"created_at": "2026-09-02T23:30:23.902545+00:00", "event_type": "runtime_attempt_completed", "message": "Runtime attempt attempt-4cc98b46c60a4c5e86dfa7e3dec595c4 -> SUCCEEDED.", "seq": 8}
+{"created_at": "2026-09-02T23:30:23.912977+00:00", "event_type": "turn.trace_completed", "message": "Turn trace completed.", "seq": 9}

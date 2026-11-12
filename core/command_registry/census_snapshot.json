@@ -1387,6 +1387,13 @@
       "registry_command_id": "plugins.lifecycle.state",
       "surface": "http"
     },
+    "http:GET:/api/private-web": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/private-web",
+      "note": "owner-local Private web state for Settings (route, whether it is up, plain reason)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/profile": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/profile",
@@ -1569,6 +1576,20 @@
       "registry_command_id": "update.status",
       "surface": "http"
     },
+    "http:GET:/api/wallet/agents": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/agents",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.status",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/agents/balance": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/agents/balance",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.balance",
+      "surface": "http"
+    },
     "http:GET:/api/wallet/balance": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/balance",
@@ -1644,6 +1665,13 @@
       "name": "GET /api/web0/resolve",
       "note": "web0 gateway feed",
       "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/web0/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/web0/settings",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.web0.show",
       "surface": "http"
     },
     "http:GET:/api/zcash/*": {
@@ -2598,6 +2626,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/private-web/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/private-web/*",
+      "note": "legacy surface forwards through execute_command; typed family: private_web.settings, private_web.vpn_file, private_web.forget_vpn_file",
+      "registry_command_id": "private_web.settings",
+      "surface": "http"
+    },
     "http:POST:/api/profile/*": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/profile/*",
@@ -2764,6 +2799,34 @@
       "name": "POST /api/update/rollback",
       "note": "legacy surface forwards through execute_command",
       "registry_command_id": "update.rollback",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/allowance": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/allowance",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.allowance.set",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/allowance/state": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/allowance/state",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.allowance.state",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/backup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/backup",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.backup.reveal",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/wallet": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/wallet",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.wallet.create",
       "surface": "http"
     },
     "http:POST:/api/wallet/ai-endpoints": {
@@ -3002,6 +3065,13 @@
       "name": "POST /api/wallet/x402/retry",
       "note": "delegated route forwards through execute_command",
       "registry_command_id": "wallet.x402.retry",
+      "surface": "http"
+    },
+    "http:POST:/api/web0/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/web0/settings",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.web0.set",
       "surface": "http"
     },
     "http:POST:/api/x/activity": {
@@ -3266,8 +3336,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 317,
-    "GENERATED_ADAPTER": 140,
+    "EXTERNAL_TRANSPORT_ONLY": 318,
+    "GENERATED_ADAPTER": 149,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

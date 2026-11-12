@@ -116,9 +116,10 @@ def parse_skill_md(path: Path) -> tuple[dict, str, bytes]:
     m = _FRONTMATTER_RE.match(text)
     if not m:
         raise SkillIdentityError(f"{path}: missing YAML frontmatter")
-    import yaml
+    from core.skill_frontmatter import FrontmatterRefused, load_header
 
-    loaded = yaml.safe_load(m.group(1))
-    if not isinstance(loaded, dict):
-        raise SkillIdentityError(f"{path}: frontmatter is not a mapping")
+    try:
+        loaded = load_header(m.group(1))
+    except FrontmatterRefused as refused:
+        raise SkillIdentityError(f"{path}: {refused.message}") from None
     return loaded, (m.group(2) or "").strip(), raw

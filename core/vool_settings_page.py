@@ -69,6 +69,8 @@ PROFILE = "/api/profile"
 # through the existing boundary command POST /api/onboarding/pact/boundary from their own
 # widgets.
 WEB_LOOKUPS_READ = "/api/onboarding/pact?view=boundary"
+# Private web: route state (GET) and the owner-local control doors (POST /api/private-web/*).
+PRIVATE_WEB = "/api/private-web"
 # Email: the account authority's listing (credential NAMES and identities, never a secret) and the
 # draft store's recovery hold. Both are owner-local reads served by this runtime (core/web/api/service.py).
 EMAIL_ACCOUNTS = "/api/email/accounts"
@@ -359,8 +361,23 @@ def _settings_groups() -> list[dict]:
                     keywords="web search lookups online internet browse network access fallback allow",
                 ),
                 _row(
+                    id="private_web",
+                    label="Private web",
+                    kind="custom",
+                    widget="private_web",
+                    help=(
+                        "Send VOOL's web traffic through Tor or your own VPN instead of straight from "
+                        "your internet connection. If that route stops working, VOOL sends nothing "
+                        "rather than going around it. Tor is slower and some sites ask for a check. "
+                        "Off by default. For the most privacy, also use local models and stay signed "
+                        "out of sites."
+                    ),
+                    read={"url": PRIVATE_WEB},
+                    keywords="private web tor vpn anonymous proxy wireguard mullvad proton ivpn nordvpn expressvpn surfshark kill switch",
+                ),
+                _row(
                     id="live_browser", label="Browser", kind="custom", widget="live_browser",
-                    help="Review every action before it runs. Page scripts are off. Use the wallet for payments.",
+                    help="VOOL asks before it acts or sends anything. Pages load with images and styles; page scripts stay off. Use the wallet for payments.",
                     read={"url": "/api/browser/settings"}, keywords="browser live navigate forms",
                 ),
                 _row(
@@ -999,6 +1016,15 @@ def _settings_groups() -> list[dict]:
                     ),
                     keywords="advanced trace rail task rail events receipts web0 null browser diagnostics runtime surfaces",
                 ),
+                _row(
+                    id="web0",
+                    label="Special web addresses",
+                    kind="custom",
+                    widget="web0",
+                    help="Off by default. Switch it on to open special web addresses on the Web0 page. Switch it off and VOOL stops looking them up.",
+                    read={"url": "/api/web0/settings"},
+                    keywords="web0 null dot null names browser mesh switch off on advanced background",
+                ),
             ],
         },
         {
@@ -1550,7 +1576,7 @@ function paintSwitchState(button, value) {
   word.classList.toggle('on', on);
   word.classList.toggle('off', !on);
   const text = word.lastChild;
-  if (text && text.nodeType === 3) text.textContent = on ? 'On' : 'Off';
+  if (text && text.nodeType === 3) text.textContent = on ? T('settings.switch.on', 'On') : T('settings.switch.off', 'Off');
 }
 
 /* Writes whose outcome is unknown (VOOL did not answer), by row id -> the value that was sent.
@@ -1979,9 +2005,11 @@ function renderWidget(row, host) {
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
   if (w === 'live_browser') return widgetLiveBrowser(stack);
+  if (w === 'private_web') return widgetPrivateWeb(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
   if (w === 'phone_access') return widgetPhoneAccess(stack);
+  if (w === 'web0') return widgetWeb0(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -5407,6 +5435,69 @@ function widgetLiveBrowser(stack) {
   const link = el('a', '', T('live.browser', 'Browser')); link.href = '/browser?chat=browser'; link.target = '_blank'; link.rel = 'noopener'; stack.appendChild(link);
   const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => { button.disabled = true; }); }, 1500);
 }
+function widgetPrivateWeb(stack) {
+  const data = state.sources['/api/private-web'];
+  if (!data || typeof data.route !== 'string') { stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return; }
+  const choices = [
+    ['off', T('settings.private_web.off', 'Off')],
+    ['tor', T('settings.private_web.tor', 'Tor (slower)')],
+    ['wireguard', T('settings.private_web.wireguard', 'My VPN file')],
+    ['system_vpn', T('settings.private_web.system_vpn', 'My VPN app on this computer')],
+  ];
+  const pick = el('select', 'inp'); pick.setAttribute('aria-label', T('settings.row.private_web.label', 'Private web'));
+  for (const [value, label] of choices) { const o = el('option', '', label); o.value = value; pick.appendChild(o); }
+  const line = el('div', 'subtle'); line.setAttribute('role', 'status');
+  const fileRow = el('div', '');
+  const fileNote = el('div', 'subtle');
+  const fileInput = el('input', ''); fileInput.type = 'file'; fileInput.accept = '.conf,text/plain';
+  fileInput.setAttribute('aria-label', T('settings.private_web.add_file', 'Add the WireGuard file from your VPN'));
+  const forget = el('button', 'btn', T('settings.private_web.forget_file', 'Remove VPN file')); forget.type = 'button';
+  const status = el('div', 'state idle'); status.setAttribute('role', 'status');
+  let current = data, busy = false;
+  const words = {
+    off: T('settings.private_web.state.off', 'Off. Web traffic leaves from your own connection.'),
+    on: T('settings.private_web.state.on', 'On. Web traffic goes only through this route.'),
+    starting: T('settings.private_web.state.starting', 'Connecting. Until it is ready, nothing goes online.'),
+    down: T('settings.private_web.state.down', 'Not working right now, so nothing goes online.'),
+  };
+  const paint = back => {
+    current = back;
+    pick.value = back.route;
+    pick.disabled = busy || back.local_only;
+    let text = back.local_only ? T('settings.private_web.local_only', 'This computer is set to keep everything on it, so nothing goes online anyway.') : (words[back.state] || '');
+    if (back.detail && back.state !== 'on') text += ' ' + back.detail;
+    line.textContent = text;
+    fileRow.style.display = back.route === 'wireguard' ? '' : 'none';
+    fileNote.textContent = back.vpn_file ? T('settings.private_web.file_kept', 'A VPN file is added.') : T('settings.private_web.file_needed', 'Download a WireGuard file from your VPN account (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark and others offer one) and add it here.');
+    forget.style.display = back.vpn_file ? '' : 'none';
+  };
+  const reread = async () => {
+    const r = await fetch('/api/private-web', {cache:'no-store'}); const back = await r.json();
+    if (!r.ok || !back.ok) throw new Error('unavailable');
+    paint(back); return back;
+  };
+  const send = async (action, body) => {
+    busy = true; paint(current); status.textContent = T('settings.switch.saving', 'Saving…');
+    try {
+      const r = await fetch('/api/private-web/' + action, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      const back = await r.json().catch(() => ({}));
+      status.textContent = r.ok ? T('settings.switch.saved', 'Saved') : (back.error && back.error.length > 12 ? back.error : T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'));
+    } catch (e) { status.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    busy = false;
+    try { await reread(); } catch (e) { paint(current); }
+  };
+  pick.onchange = () => send('settings', {route: pick.value});
+  fileInput.onchange = async () => {
+    const f = fileInput.files && fileInput.files[0]; if (!f) return;
+    if (f.size > 16384) { status.textContent = T('settings.private_web.bad_file', 'This does not look like a WireGuard file.'); return; }
+    await send('vpn_file', {text: await f.text()}); fileInput.value = '';
+  };
+  forget.onclick = () => send('forget_vpn_file', {});
+  paint(data);
+  fileRow.appendChild(fileNote); fileRow.appendChild(fileInput); fileRow.appendChild(forget);
+  stack.appendChild(pick); stack.appendChild(line); stack.appendChild(fileRow); stack.appendChild(status);
+  const timer = setInterval(() => { if (!pick.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => {}); }, 2000);
+}
 function widgetWebLookups(stack) {
   return boundarySwitchWidget(stack, {
     key: 'web_lookups', field: 'allow_web_fallback',
@@ -5710,6 +5801,83 @@ function widgetPhoneAccess(host) {
     } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
     finally { pair.disabled = !src.running; }
   };
+}
+/* --- The Web0 switch (Advanced). One boolean at /api/web0/settings, written the same way.
+   Same consent-control discipline as the boundary switches: an unreadable answer draws no
+   switch (never a guessed state), a failed write re-reads and says so in plain words, and
+   the confirmed state comes from the authority's own answer, not the optimistic one. */
+const WEB0_SETTINGS_URL = '/api/web0/settings';
+function widgetWeb0(stack) {
+  const readFailed = () => T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.');
+  const reading = () => {
+    const src = state.sources[WEB0_SETTINGS_URL];
+    if (!src || src.ok === false) return null;
+    return typeof src.enabled === 'boolean' ? { on: src.enabled } : null;
+  };
+  if (state.sourceErr[WEB0_SETTINGS_URL]) { stack.appendChild(el('div', 'empty', readFailed())); return; }
+  if (!state.sources[WEB0_SETTINGS_URL]) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+  const first = reading();
+  if (!first) { stack.appendChild(el('div', 'empty', readFailed())); return; }
+
+  const st = el('div', 'state idle');
+  st.setAttribute('role', 'status');
+  const line = el('div', 'inline');
+  const sw = el('button', 'sw');
+  sw.type = 'button';
+  sw.setAttribute('role', 'switch');
+  sw.setAttribute('aria-label', T('settings.row.web0.label', 'Special web addresses'));
+  const note = el('div', 'subtle', T('settings.row.web0.note',
+    'Off by default. On lets the Web0 page open special web addresses and run its background work. Off starts none of it.'));
+  line.appendChild(sw);
+  stack.appendChild(line);
+  stack.appendChild(note);
+  stack.appendChild(st);
+  const paint = (r) => {
+    if (!r) { sw.disabled = true; sw.setAttribute('aria-checked', 'false'); return; }
+    sw.setAttribute('aria-checked', r.on ? 'true' : 'false');
+  };
+  paint(first);
+  const reread = async () => paint((await readSource(WEB0_SETTINGS_URL)) ? reading() : null);
+
+  sw.addEventListener('click', async () => {
+    if (sw.disabled) return;
+    const now = reading();
+    if (!now) { paint(null); return; }
+    const want = !now.on;
+    sw.disabled = true;
+    st.className = 'state saving'; st.textContent = T('settings.switch.saving', 'Saving…');
+    try {
+      const r = await fetch(WEB0_SETTINGS_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: want }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok === false) {
+        await reread();
+        st.className = 'state failed';
+        st.textContent = tfmt('settings.switch.not_saved', 'Not saved — {reason}', {
+          reason: T('settings.row.web0.retry_note', 'VOOL could not change this right now. Try again in a moment.'),
+        });
+        return;
+      }
+      await reread();
+      const back = state.sourceErr[WEB0_SETTINGS_URL] ? null : reading();
+      if (!back || back.on !== want) {
+        st.className = 'state stale';
+        st.textContent = T('settings.switch.unconfirmed', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
+        return;
+      }
+      st.className = 'state saved'; st.textContent = T('settings.switch.saved', 'Saved');
+      setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
+    } catch (e) {
+      await reread();
+      st.className = 'state failed';
+      st.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
+    } finally {
+      sw.disabled = false;
+      paint(reading());
+    }
+  });
 }
 
 function widgetAnswerLanguage(stack) {

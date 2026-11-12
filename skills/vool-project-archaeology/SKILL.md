@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [archaeology, what happened last night, which task changed this file, where is that report, why did this fail, can this work be recovered, history, lineage, project history, job history]
 allowed-tools: [workspace.identity, workspace.read_file, workspace.search_text, workspace.list_tree, workspace.git_summary]
 capabilities: [workspace.read, workspace.git]

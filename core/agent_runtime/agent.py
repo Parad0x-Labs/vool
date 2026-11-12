@@ -894,11 +894,16 @@ def _seal_semantic_result(
         from core import conversation_state
 
         _ctx = source_context if isinstance(source_context, dict) else {}
+        _extra = dict(_ctx.get("_conversation_kind_listing") or {}) if isinstance(_ctx.get("_conversation_kind_listing"), dict) else {}
+        _slots = _ctx.get("_conversation_slots") if isinstance(_ctx.get("_conversation_slots"), dict) else {}
+        if _slots.get("picked") and _slots.get("listed"):
+            # A pick keeps the list it picked from and what it picked, for "the one before it" next.
+            _extra.update({"listed": _slots["listed"], "picked": _slots["picked"]})
         conversation_state.record_sealed_turn(
             session_id,
             str(_ctx.get("_conversation_request") or user_input or ""),
             result,
-            extra_slots=_ctx.get("_conversation_kind_listing") if isinstance(_ctx.get("_conversation_kind_listing"), dict) else None,
+            extra_slots=_extra or None,
         )
     except Exception:
         pass
@@ -2695,6 +2700,13 @@ class VoolAgent(
             except Exception:
                 pass
 
+        # The chat keeps the person's words as typed. Every lane below reads the normalized text
+        # ("pls" -> "please", "folder (in" -> "folder(in"), and the turn's transcript row was
+        # written from it, so the reloaded chat showed words nobody typed (red team R3-01,
+        # 2026-11-12). Taken after the secret intake, so a redacted credential stays redacted.
+        if isinstance(runtime_source_context, dict) and raw_turn_text.strip():
+            runtime_source_context.setdefault("_typed_user_text", raw_turn_text)
+
         prune_stale_hive_interaction_state(session_id)
         self._emit_runtime_event(
             source_context,
@@ -2788,11 +2800,12 @@ class VoolAgent(
                 arbiter=lambda request, reason, message: arbitrate_followup(
                     request, reason, message, chat_id=str(session_id or ""), source_context=runtime_source_context
                 ),
+                source_context=runtime_source_context,
             )
             if isinstance(runtime_source_context, dict):
                 runtime_source_context["_conversation_request"] = (
                     _resolution.request if _resolution.kind == "retry"
-                    else _resolution.text if _resolution.kind == "retry_changed" else effective_input
+                    else _resolution.text if _resolution.kind in {"retry_changed", "pick"} else effective_input
                 )
                 if _resolution.slots:
                     runtime_source_context["_conversation_slots"] = dict(_resolution.slots)
@@ -2802,7 +2815,7 @@ class VoolAgent(
                     runtime_source_context["unresolved_referent"] = True
                 if _resolution.kind == "retry_changed":
                     runtime_source_context["_conversation_changed"] = True
-            _carried = _resolution.text if _resolution.kind in {"retry", "retry_changed"} else compose_continuation(
+            _carried = _resolution.text if _resolution.kind in {"retry", "retry_changed", "pick"} else compose_continuation(
                 effective_input, last_task_request(session_id)
             )
             if _carried:
@@ -2900,6 +2913,26 @@ class VoolAgent(
             )
         semantic_reach.declined("currency_value_contract")
 
+        # A name said beside a request ("Hi, I'm Kofi, what is the capital of Portugal?") is the
+        # profile's to take before any several-part lane below reads the introduction as a
+        # request it cannot serve (core.operator_profile_turn.observe_name_beside_request).
+        parts_raw_text, parts_effective_input, parts_single_request, parts_plan_text = raw_turn_text, effective_input, False, ""
+        if not browser_turn:
+            from core.operator_profile_turn import observe_name_beside_request, turn_only_states_a_name
+
+            name_beside = observe_name_beside_request(
+                raw_turn_text, effective_input, session_id=session_id,
+                source_context=runtime_source_context, access_policy=access_policy,
+            )
+            if name_beside is not None:
+                parts_raw_text = name_beside["raw"] or raw_turn_text
+                parts_effective_input = name_beside["effective"] or effective_input
+                parts_single_request = bool(name_beside["single"])
+                parts_plan_text = str(name_beside.get("plan") or "")
+            elif turn_only_states_a_name(raw_turn_text):
+                # "my name isnt Agnes, its Sam": the profile seat answers it; there are no parts to plan.
+                parts_single_request = True
+
         # Closed whole-turn contracts do not need semantic decomposition.  Running the conductor
         # first bought a real local-model planner call for exact haikus and user-supplied FX math,
         # then returned a fast-path envelope claiming model_calls=0.  Admit only reviewed contracts
@@ -2952,9 +2985,11 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = None if browser_turn else self._maybe_answer_conductor_turn(
-            effective_input=effective_input,
-            raw_input=raw_turn_text,
+        conductor_result = None if browser_turn or parts_single_request else self._maybe_answer_conductor_turn(
+            effective_input=parts_effective_input,
+            raw_input=parts_raw_text,
+            # Named only when there is one: every other turn calls the conductor exactly as before.
+            **({"plan_text": parts_plan_text} if parts_plan_text else {}),
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -2973,9 +3008,9 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = None if browser_turn else self._maybe_answer_demand_owned_turn(
-            effective_input=effective_input,
-            raw_input=raw_turn_text,
+        demand_owned_result = None if browser_turn or parts_single_request else self._maybe_answer_demand_owned_turn(
+            effective_input=parts_effective_input,
+            raw_input=parts_raw_text,
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -3001,8 +3036,8 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = None if browser_turn else self._maybe_answer_planned_turn(
-            effective_input=effective_input,
+        planned_result = None if browser_turn or parts_single_request else self._maybe_answer_planned_turn(
+            effective_input=parts_effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -5753,10 +5788,15 @@ class VoolAgent(
         *,
         effective_input: str,
         raw_input: str = "",
+        plan_text: str = "",
         session_id: str,
         source_context: dict[str, object] | None,
     ) -> dict | None:
         """Answer a message that spans several domains, or None to leave the turn as it was.
+
+        `plan_text`, when given, is the message with a part the profile already took (a name said
+        beside the requests) blanked out at the same length: the parts are PLANNED from it, while
+        everything that accounts for what was asked keeps reading the message as written.
 
         None is the common path and stays cheap: `turn_may_hold_several_requests` rejects a
         single-request message inside `plan_conductor_turn` before any model call is made.
@@ -5858,7 +5898,7 @@ class VoolAgent(
             # could not be resolved) plans the RECORDED request again, exactly as the
             # live-data lane re-asks its own. The raw text stays what the user wrote; the
             # plan text is the request it refers to.
-            conductor_text = str(raw_input or effective_input)
+            conductor_text = str(plan_text or raw_input or effective_input)
             try:
                 from core.live_data_continuation import continuation_inherits_live_data
 
@@ -6566,6 +6606,19 @@ class VoolAgent(
                 from core.chat_housekeeping import query_terms as _terms
 
                 if _re.match(r"\s*(?:and|or|plus|also|but|so|then|what\s+about|how\s+about)\b", question, _re.IGNORECASE):
+                    return None
+                # A question that points back at what the chat just showed ("which is the biggest one
+                # there", "how many are there in it?", "the second one") names its referent by
+                # pointing; it is not a world-entity ambiguity. Red team R1-12 (2026-11-12): both got
+                # "Which place, person or thing do you mean?" one turn after VOOL listed the folder.
+                if _re.search(
+                    r"\b(?:in|from|inside)\s+(?:there|it|that|them)\b"
+                    r"|\bthat\s+(?:folder|directory|file|list|one)\b"
+                    r"|\b(?:first|second|third|fourth|fifth|last|other|previous|next)\s+one\b"
+                    r"|\bthe\s+one\s+(?:before|after)\b|\b(?:one|ones|file|files)\s+there\b",
+                    question,
+                    _re.IGNORECASE,
+                ):
                     return None
                 asked = set(_terms(question))
                 # A chat about the person's own data (a database, table, sheet, file) answers its

@@ -355,6 +355,12 @@ class RemoteFetchRefusedError(RuntimeError):
     """This turn is not permitted to reach the network, so no socket was opened."""
 
 
+class PrivateWebDownError(RemoteFetchRefusedError):
+    """Private web is on and its route (Tor or the person's VPN) cannot carry traffic now.
+
+    The message is a plain sentence meant to reach the person as it stands."""
+
+
 def open_remote(
     request: Any,
     *,
@@ -617,6 +623,32 @@ def _open_enforced(
             retry_of=retry_of,
         )
         raise RemoteFetchRefusedError(f"network fetch denied by the permission gateway: {_m5_reason}")
+    # PRIVATE WEB -- when the person chose Tor or their VPN, a request that cannot go that way
+    # does not go at all. Checked after every other denial (a turn that may not fetch says so
+    # first) and before the effect is authorized, so the refusal is a recorded denial with no
+    # socket behind it.
+    from core import private_web
+
+    _route = private_web.current_route()
+    _goes_out = not private_web.url_stays_local(url)
+    _route_problem = private_web.route_problem(_route) if _goes_out else None
+    if _route_problem:
+        ledger.open_effect(
+            EffectReceipt(
+                effect_class=EFFECT_NETWORK_FETCH,
+                decision=DECISION_DENIED,
+                lifecycle=LIFECYCLE_DENIED,
+                reason=_route_problem,
+                host=_host_of(url),
+                provider_id=str(provider_id or ""),
+                keyed_or_keyless=str(keyed_or_keyless or ""),
+                mode=_active_mode_label(),
+                decided_by="private_web.route",
+                recorded_at=_utcnow_iso(),
+            ),
+            retry_of=retry_of,
+        )
+        raise PrivateWebDownError(_route_problem)
     from core.effect_budget import EffectBudgetRefusedError
 
     try:
@@ -645,9 +677,16 @@ def _open_enforced(
     note_remote_fetch_attempt(url)
     effect.begin_attempt()
     try:
-        if pinned_addresses is not None:
-            if redirect_policy != "refuse":
-                raise ValueError("Pinned addresses require per-hop redirect validation")
+        if pinned_addresses is not None and redirect_policy != "refuse":
+            raise ValueError("Pinned addresses require per-hop redirect validation")
+        if _route.uses_socks and _goes_out:
+            # Through Tor or the WireGuard tunnel, by name. Pinned addresses are not used: the
+            # name is resolved at the far end, and the far end cannot reach this machine's
+            # private network, which is what pinning protected against.
+            response = _private_route_opener(
+                _route, context=context, refuse_redirects=redirect_policy == "refuse"
+            ).open(request, timeout=timeout)
+        elif pinned_addresses is not None:
             response = _no_redirect_opener(pinned_addresses=pinned_addresses, context=context).open(request, timeout=timeout)
         elif redirect_policy == "refuse":
             # Origin-pinned callers (the wallet's outbound confinement) take each redirect
@@ -675,6 +714,37 @@ def _open_enforced(
         raise
     effect.succeed(status=getattr(response, "status", None))
     return response
+
+
+def _refuse_redirect_handler() -> Any:
+    import urllib.error
+    import urllib.request
+
+    class _RefuseRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            fp.close()
+            raise urllib.error.HTTPError(req.full_url, code, f"redirect_refused:{newurl}", headers, fp)
+
+    return _RefuseRedirectHandler()
+
+
+def _private_route_opener(route: Any, *, context: Any = None, refuse_redirects: bool = False) -> Any:
+    """An opener whose only way out is the Private web route. No proxy variables are read
+    (the route IS the proxy), and a followed redirect goes through the same route."""
+    import urllib.request
+
+    from core import private_web
+
+    isolation = ""
+    with contextlib.suppress(Exception):
+        from core.faults.recorder import identity_from_context
+
+        isolation = private_web.isolation_key(identity_from_context(_SCOPE_CONTEXT.get())[1])
+    handlers: list[Any] = [urllib.request.ProxyHandler({})]
+    if refuse_redirects:
+        handlers.append(_refuse_redirect_handler())
+    handlers.extend(private_web.socks_http_handlers(route, context=context, isolation=isolation or "vool"))
+    return urllib.request.build_opener(*handlers)
 
 
 _NO_REDIRECT_OPENER: Any = None

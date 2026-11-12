@@ -77,14 +77,18 @@ def _native_note(spec: Any) -> str:
         "This balance shows only the network's native coin; tokens are not included.")
 
 
-def read_token_balances(wallet_id: str, *, source_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def read_token_balances(wallet_id: str, *, symbols: tuple[str, ...] | None = None, source_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """What the account holds of each token the owner may send from its row, read from the row's endpoint after its
     identity proof: one answer per token, ``unavailable`` with its reason when it could not be read (never a zero).
     A row without such tokens answers an empty list."""
     custody.require_enabled(source_context=source_context)
     profile = custody.require_wallet(wallet_id, source_context=source_context)
     spec = chains.resolve_network(profile.network)
-    tokens = chains.user_transfer_tokens(spec.network)
+    if symbols is None:
+        tokens = chains.user_transfer_tokens(spec.network)
+    else:
+        # the named registered tokens of this row (an agent wallet's allowance coins): same proof, same read
+        tokens = tuple(asset for symbol, asset in spec.assets.items() if symbol in symbols and not asset.native)
     if not tokens:
         return []
 

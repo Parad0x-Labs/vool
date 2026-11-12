@@ -650,6 +650,53 @@ def _only_a_file_count(fragment: str) -> bool:
     )
 
 
+# A report that VOOL itself just did something with an effect outside the reply: "I saved your note
+# 'x'", "Saved your note 'x'.", "Deleted your note", "Sent your email to Bob", "Moved the photo to
+# your Desktop". The noun lists above name the objects (file, notes, funds...), so a claim about a
+# note, an email or a photo passed with no receipt (train thread, 2026-11-12). The claim is the
+# shape: the sentence opens with the past-tense verb, or "I"/"we" did it, and an object follows.
+# Edits inside the reply ("I removed the extra comma") are not effects, so text units are left out.
+_SELF_ACTION_VERB = (
+    r"(?:saved|deleted|removed|erased|sent|moved|renamed|copied|uploaded|downloaded|posted|e-?mailed|"
+    r"forwarded|shared|published|scheduled|booked|cancell?ed|archived|trashed|stored|installed|"
+    r"uninstalled|paid|transferred|filed|pinned)"
+)
+# "added"/"created"/"set up" make text inside a reply as often as things outside it ("I added a short
+# summary below", "I created a poem"), so they count only with an object that lives outside the reply.
+_SELF_MAKE_VERB = r"(?:added|created|set\s+up|made)"
+_OUTSIDE_OBJECT = (
+    r"(?:\w+\s+){0,2}(?:folders?|files?|notes?|events?|reminders?|appointments?|alarms?|tasks?|contacts?|"
+    r"calendar|entr(?:y|ies)|meetings?|bookings?|reservations?|accounts?|rules?|filters?|labels?|"
+    r"documents?|spreadsheets?|backups?|shortcuts?|playlists?)\b"
+)
+_TEXT_UNIT = (
+    r"(?:extra\s+|last\s+|first\s+|second\s+)?(?:sentence|word|line|comma|paragraph|phrase|bullet|period|"
+    r"space|typo|clause|heading|emoji)s?\b"
+)
+_SELF_ACTION_CLAIM_RE = re.compile(
+    r"(?:^\s*(?:(?:ok(?:ay)?|done|sure|great|all\s+set|got\s+it|alright)[\s,.!:—-]*)?"
+    r"|\b(?:i|we)(?:'ve|’ve)?\s+(?:(?:have|just|already|also|now)\s+)*)"
+    r"(?:" + _SELF_ACTION_VERB
+    + r"\s+(?:it\b|them\b|that\b|this\b|(?:your|the|a|an|these|those|both|all|my|new)\s+(?!" + _TEXT_UNIT + r")\w|['\"“‘])"
+    r"|" + _SELF_MAKE_VERB + r"\s+(?:your|the|a|an|these|those|both|all|my|new)\s+" + _OUTSIDE_OBJECT + r")",
+    re.IGNORECASE,
+)
+_SELF_ACTION_NOT_A_CLAIM_RE = re.compile(
+    r"\b(?:not|never|n't|n’t|no)\b|\b(?:if|once|when|after|before|unless)\b[^.!?]*$|\?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _claims_its_own_action(sentence: str) -> bool:
+    match = _SELF_ACTION_CLAIM_RE.search(sentence)
+    if match is None:
+        return False
+    before = sentence[: match.start()]
+    if _NOT_A_SELF_CLAIM_RE.search(before) or _SELF_ACTION_NOT_A_CLAIM_RE.search(before + sentence[match.start():match.end()]):
+        return False
+    return not sentence.rstrip().endswith("?")
+
+
 def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
@@ -724,6 +771,9 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         if _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence):
             continue  # "I'll store that" is an intention, not a report of a finished write
         return "persistence"
+    # Last, so a claim one of the kinds above names keeps its own kind and its own reply.
+    if any(_claims_its_own_action(sentence) for sentence in _split_sentences(body)):
+        return "mutation"
     return ""
 
 
@@ -1998,6 +2048,126 @@ _UNFETCHED_URL_SENTINEL = "did not open it on this turn"
 assert _UNFETCHED_URL_SENTINEL in _UNFETCHED_URL_RESPONSE.lower()
 
 
+# The page was not fetched because the person's browser step never ran, not because nobody
+# tried. Saying "ask me to fetch it" there blamed them for a request they never saw (the
+# approval used to live only in the Browser pane). Each reply keeps the sentinel, so the
+# post-admission verify of this same backstop recognises it and changes nothing.
+_UNANSWERED_BROWSER_RESPONSES = {
+    "refused": "You said no to opening {url} in the browser, so I did not open it on this turn.",
+    "stale_approval": (
+        "I asked to open {url} in the browser, but the request was not approved within two minutes, "
+        "so I did not open it on this turn. Ask again and press Approve once on the card that appears in this chat."
+    ),
+    "paused": (
+        "You took over the browser before {url} opened, so I did not open it on this turn. "
+        "The browser is yours to drive until you hand it back."
+    ),
+    "web_off": (
+        "Web access was switched off before {url} opened, so I did not open it on this turn. "
+        "Turn on Web lookups and Browser in Settings, then ask again."
+    ),
+}
+_UNANSWERED_BROWSER_RESPONSES.update({
+    "destination_refused": (
+        "I can't open {url}: the browser only opens public web addresses, never ones on this computer "
+        "or your local network, so I did not open it on this turn."
+    ),
+    "page_failed": (
+        "I tried to open {url} after you allowed it, but the page did not load (the address may be "
+        "wrong, or the site may be down), so I did not open it on this turn."
+    ),
+    "redirect_refused": (
+        "{url} sends visitors on to a different address that you had not allowed, so I did not open it "
+        "on this turn. The Browser pane shows that address if you want to open it yourself."
+    ),
+    "page_too_large": "{url} is too large for the browser to show, so I did not open it on this turn.",
+    "download_refused": "{url} is a file rather than a page, so I did not open it on this turn. Ask me to download it instead.",
+})
+_UNANSWERED_BROWSER_RESPONSES["operation_timeout"] = _UNANSWERED_BROWSER_RESPONSES["stale_approval"]
+_UNANSWERED_BROWSER_FALLBACK = (
+    "The browser stopped before {url} opened, so I did not open it on this turn. Ask again to retry."
+)
+assert all(_UNFETCHED_URL_SENTINEL in text.lower() for text in
+           [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK])
+
+
+def _unanswered_browser_step() -> dict[str, str] | None:
+    try:
+        from core.vool_browser.live_requests import unanswered
+    except ImportError:
+        return None
+    step = unanswered()
+    return step if step and step.get("url") else None
+
+
+def _browser_step_completed() -> bool:
+    try:
+        from core.vool_browser.live_requests import completed
+    except ImportError:
+        return False
+    return bool(completed())
+
+
+def _unanswered_browser_response(step: dict[str, str]) -> str:
+    template = _UNANSWERED_BROWSER_RESPONSES.get(step.get("status", ""), _UNANSWERED_BROWSER_FALLBACK)
+    return template.format(url=step["url"])
+
+
+#: A browser step ran after Allow, then the model never finished writing the answer (a local
+#: model's time limit on a long page). Mac run 4 showed "Incomplete — model synthesis failed
+#: (empty_synthesis) ... 3 of 3 tool steps succeeded. Last result: [Browser](...)" instead.
+_BROWSER_SYNTHESIS_FAILED = (
+    "I opened {url} in the browser, but the model ran out of time before it finished writing the "
+    "answer, so I have no answer from the page yet. The page is still open in the Browser pane: "
+    "ask again to have it read, or read it there."
+)
+
+#: The same, for a follow-up that only read the page already open in the pane.
+_BROWSER_READ_SYNTHESIS_FAILED = (
+    "I read {url} in the browser, but the model ran out of time before it finished writing the "
+    "answer, so I have no answer from the page yet. The page is still open in the Browser pane: "
+    "ask again to have it read, or read it there."
+)
+
+
+def browser_synthesis_failed_reply() -> str:
+    """The reply when this turn's browser steps ran but no answer was written, else ""."""
+    try:
+        from core.vool_browser.live_requests import completed, page_read
+    except ImportError:
+        return ""
+    pages = [step.get("url") for step in completed() if step.get("url")]
+    if pages:
+        return _BROWSER_SYNTHESIS_FAILED.format(url=pages[-1])
+    read = page_read()
+    return _BROWSER_READ_SYNTHESIS_FAILED.format(url=read) if read else ""
+
+
+def _step_reply_pattern() -> re.Pattern[str]:
+    import re as _re
+
+    shapes = [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK, _BROWSER_SYNTHESIS_FAILED,
+              _BROWSER_READ_SYNTHESIS_FAILED]
+    return _re.compile("|".join("(?:" + _re.escape(t).replace(_re.escape("{url}"), r"\S{1,4096}") + ")" for t in shapes))
+
+
+_STEP_REPLY = _step_reply_pattern()
+
+
+def is_browser_step_reply(text: str) -> bool:
+    """Whether `text` is, whole, the runtime's own reply for a browser step that never ran.
+
+    It reports what happened to the step (refused, expired, not loaded); it states nothing
+    about the page, so no later answer gate has anything in it to withhold or replace."""
+    return bool(_STEP_REPLY.fullmatch(str(text or "").strip()))
+
+
+def unanswered_browser_reply() -> str:
+    """This turn's true reply when the browser step the model asked for never ran, else ""."""
+    step = _unanswered_browser_step()
+    return _unanswered_browser_response(step) if step else ""
+
+
 def response_describes_unfetched_url(*, user_input: str, response: str, fetch_attempts: int) -> bool:
     """Whether the model answered ABOUT a URL it never fetched. If a URL is named with a
     review/check/score intent and no web fetch happened this turn, any substantive answer is a
@@ -2020,15 +2190,23 @@ def enforce_url_grounding(result: dict[str, Any], *, user_input: str, fetch_atte
     output = dict(result or {})
     if output.get("deterministic") or output.get("response_control"):
         return output
-    if not response_describes_unfetched_url(
-        user_input=user_input, response=str(output.get("response") or ""), fetch_attempts=int(fetch_attempts or 0)
+    browser_step = _unanswered_browser_step()
+    current = str(output.get("response") or "")
+    if browser_step and not _browser_step_completed() and _UNFETCHED_URL_SENTINEL not in current.lower():
+        # The page this turn asked for never opened (refused, expired, failed, not allowed). Any
+        # answer about it now is the model's guess -- "the top headline is ...", "not mentioned in
+        # the records I have" -- whatever the wording of the ask, so the step's own outcome is
+        # the reply. The sentinel keeps the K-08 re-check from changing it again.
+        pass
+    elif not response_describes_unfetched_url(
+        user_input=user_input, response=current, fetch_attempts=int(fetch_attempts or 0)
     ):
         return output
-    original = str(output.get("response") or "")
-    output["response"] = _UNFETCHED_URL_RESPONSE
+    original = current
+    output["response"] = _unanswered_browser_response(browser_step) if browser_step else _UNFETCHED_URL_RESPONSE
     output["url_grounding_validator"] = {
         "applied": True,
-        "reason": "url_named_but_not_fetched",
+        "reason": "browser_request_not_approved" if browser_step else "url_named_but_not_fetched",
         "original_response_excerpt": original[:240],
     }
     output["route"] = "url_grounding_validator"

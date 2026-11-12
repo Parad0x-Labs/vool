@@ -69,6 +69,21 @@ def runtime_capability_ledger(
         and public_hive_write_enabled_fn(public_hive_cfg)
     )
     web_enabled = bool(allow_web_fallback_fn())
+    web_unsupported_reason = _web_unsupported_reason()
+    if web_enabled:
+        # Private web on but its route down: lookups are unavailable for THAT reason, and the
+        # reply should say so plainly instead of claiming web lookups are switched off.
+        try:
+            from core import private_web
+
+            _route_problem = private_web.route_problem()
+        except Exception:
+            _route_problem = None
+        if _route_problem:
+            web_enabled = False
+            web_unsupported_reason = (
+                f"{_route_problem} Check Settings > Privacy & Permissions > Private web, or turn it off."
+            )
     browser_enabled = bool(allow_browser_fallback_fn()) and bool(policy_engine.browser_runtime_enabled())
     web_intents = sorted(item for item in _WEB_TOOL_INTENTS if item != "browser.render")
     entries: list[dict[str, Any]] = [
@@ -79,7 +94,7 @@ def runtime_capability_ledger(
             "supported": web_enabled,
             "support_level": "supported" if web_enabled else "unsupported",
             "availability_state": "ready" if web_enabled else "unavailable",
-            "unsupported_reason": _web_unsupported_reason(),
+            "unsupported_reason": web_unsupported_reason,
             "intents": web_intents,
             "public_tag": "web.live_lookup",
         },

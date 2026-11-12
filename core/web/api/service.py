@@ -432,7 +432,9 @@ def _web0_resolve_response(query: dict[str, list[str]]) -> ApiResponse:
     """Read-only: resolve a .null NAME to its Arweave content URL for the /web0 browser.
 
     Public on-chain read + a public gateway URL. No key, no signing, no payment.
-    Honors local_only_mode (a hard no-remote switch).
+    Honors local_only_mode (a hard no-remote switch). The route that serves this
+    refuses first while the Web0 switch is off; if the helper is reached anyway,
+    the resolver's own door refuses and this answers the same 403 web0_off.
     """
     from core import policy_engine
 
@@ -445,10 +447,14 @@ def _web0_resolve_response(query: dict[str, list[str]]) -> ApiResponse:
             403,
             {"ok": False, "name": name, "error": "local_only_mode is on; remote .null resolution is disabled"},
         )
+    from core.web0_settings import Web0OffError
+
     try:
         from core.null_resolver import resolve_null_domain
 
         record = resolve_null_domain(name)
+    except Web0OffError as exc:
+        return json_response(403, {"ok": False, "name": name, "code": "web0_off", "error": str(exc)})
     except Exception as exc:
         return json_response(502, {"ok": False, "name": name, "error": f"resolver error: {exc}"})
     if record is None:
@@ -1023,6 +1029,13 @@ def _dispatch_get(
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
 
+    if normalized_path == "/api/private-web":
+        from core.web.api import private_web_api
+
+        if not is_loopback_host(client_host) or str((headers or {}).get("Sec-Fetch-Site", (headers or {}).get("sec-fetch-site", ""))) not in {"", "same-origin", "none"}:
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return private_web_api.get(normalized_path, query)
+
     if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
         from core.vool_browser.live import BrowserFault
         from core.web.api import browser_api
@@ -1367,10 +1380,34 @@ def _dispatch_get(
             runtime,
         )
 
+    if normalized_path == "/api/web0/settings":
+        # The Web0 switch's read side (Settings > Advanced reads this). The state
+        # file lives in the daemon-owned data area; the write side is the POST
+        # below. Same Host-header guard as every other settings route.
+        # settings.web0.show owns the read.
+        from core.command_registry.legacy import forward as _cr_forward
+
+        _w0_status, _w0_payload = _cr_forward("settings.web0.show", {})
+        return apply_runtime_headers(json_response(_w0_status, _w0_payload), runtime)
+
     if normalized_path == "/api/web0/resolve":
         # Read-only: a .null NAME -> its Arweave content URL, so the /web0 browser can
         # load the live site. This is a public on-chain read + a public Arweave gateway
         # URL; no key, no signing, no payment (distinct from the /api/null dial path).
+        # The product's Web0 switch lives HERE, at the boundary: while it is off the
+        # lookup refuses before any resolver or RPC work (core.web0_settings).
+        from core.web0_settings import WEB0_OFF_MESSAGE, web0_enabled
+
+        if not web0_enabled():
+            values = query.get("name") or query.get("q") or []
+            name = _normalize_web0_name(str(values[0]) if values else "")
+            return apply_runtime_headers(
+                json_response(
+                    403,
+                    {"ok": False, "name": name, "code": "web0_off", "error": WEB0_OFF_MESSAGE},
+                ),
+                runtime,
+            )
         return apply_runtime_headers(_web0_resolve_response(query), runtime)
 
     if normalized_path == "/":
@@ -3356,6 +3393,13 @@ def dispatch_post(
     request_id: str = "",
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
+
+    if normalized_path.startswith("/api/private-web/"):
+        from core.web.api import private_web_api
+
+        if _credential_page_refusal(headers, client_host):
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return private_web_api.post(normalized_path, body, headers=headers, client_host=client_host)
 
     if normalized_path.startswith("/api/browser/"):
         from core.web.api import browser_api
@@ -6798,6 +6842,21 @@ def _dispatch_post_inner(
         if _pr_status == 415 or _pr_status == 413:
             return apply_runtime_headers(json_response(_pr_status, {"error": "request rejected by transport guards"}), runtime)
         return apply_runtime_headers(json_response(_pr_status, _pr_payload), runtime)
+
+    if normalized_path == "/api/web0/settings":
+        # The Web0 switch's write side (Settings > Advanced). A strict {"enabled": bool}
+        # body only; turning it on starts the background work now, turning it off stops
+        # the poller at its next tick (core.runtime_backbone honors the same flag).
+        # settings.web0.set owns the write.
+        from core.command_registry.legacy import forward as _cr_forward
+
+        if not isinstance(body, dict) or not isinstance(body.get("enabled"), bool):
+            return apply_runtime_headers(
+                json_response(400, {"ok": False, "error": "body must be {\"enabled\": true|false}"}), runtime)
+        _w0_status, _w0_payload = _cr_forward(
+            "settings.web0.set", {"enabled": body["enabled"]}, client_host=client_host, headers=headers
+        )
+        return apply_runtime_headers(json_response(_w0_status, _w0_payload), runtime)
 
     if normalized_path == "/api/contacts/create":
         # OPERATOR: save a contact the owner typed in Contacts. contacts.book.create owns the action (owner-local, JSON,

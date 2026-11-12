@@ -1,0 +1,10 @@
+{
+  "events": [],
+  "failed_step": "events",
+  "generated_at": "2026-09-02T22:57:44Z",
+  "journey": "file_photo_attachment",
+  "missing_expected_events": [],
+  "reason": "event trace unreadable: /api/runtime/events?session=openclaw%3A8e9144ab925a73abf9dc&after=0&limit=200 answered HTTP 500: Internal Server Error",
+  "schema": "demo-studio/abort-report@1",
+  "verdict": "aborted"
+}

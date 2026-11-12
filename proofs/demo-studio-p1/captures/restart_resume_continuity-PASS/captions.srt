@@ -1,0 +1,11 @@
+1
+00:00:00,070 --> 00:00:00,470
+VOOL received the turn.
+
+2
+00:00:00,520 --> 00:00:00,920
+The answering lane was proven on the record: Fast-path response completed without model inference.
+
+3
+00:00:00,970 --> 00:00:02,920
+The turn completed.

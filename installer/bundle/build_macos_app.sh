@@ -765,6 +765,26 @@ stage_self_contained() {
       || die "pinned Ollama download failed"
   bundle_ollama_runtime "${input_scratch}/ollama" "${res}/ollama" "${TARGET_ARCH}"
   [[ -x "${res}/ollama/ollama" ]] || die "the pinned Ollama executable is missing"
+
+  # Private web helpers: the pinned, SHA-256-checked tor and wireproxy land where
+  # core.tor_runtime / core.wireguard_runtime look (app/third_party/<tool>/<platform>/), with
+  # their licence notice. wireproxy is built with Go from the pinned module, or taken from
+  # VOOL_WIREPROXY_FILE (a prebuilt file that must match the pinned SHA-256). Without them the
+  # Settings choices Tor and "My VPN file" refuse plainly; nothing else changes.
+  local pw_platform
+  case "${TARGET_ARCH}" in
+    arm64) pw_platform="macos-arm64" ;;
+    x86_64) pw_platform="macos-x64" ;;
+    *) die "no Private web helpers for architecture ${TARGET_ARCH}" ;;
+  esac
+  say "        private web helpers (${pw_platform})"
+  "${embedded}" "${PROJECT_ROOT}/installer/private_web_helpers.py" \
+      --platform "${pw_platform}" --dest "${res}/app" --cache "${input_scratch}/cache" \
+      ${VOOL_WIREPROXY_FILE:+--wireproxy-file "${VOOL_WIREPROXY_FILE}"} \
+      || die "Private web helpers (tor, wireproxy) could not be fetched and checked"
+  mkdir -p "${res}/app/third_party/NOTICES"
+  cp -f "${PROJECT_ROOT}/third_party/NOTICES/private-web-helpers.md" "${res}/app/third_party/NOTICES/" \
+      || die "could not place the Private web helpers licence notice"
   rm -rf "${input_scratch}"
 
   # ---- BUILDER-FOOTPRINT SCRUB (must run before any code signature) ------------------------

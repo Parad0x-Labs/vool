@@ -82,6 +82,71 @@ def register_media_capabilities(*, available: bool | None = None) -> dict[str, A
             "available": bool(available), "reason": reason}
 
 
+#: The binaries the worker's operations shell out to (nebula/media_ops.py resolves them on PATH).
+_MEDIA_BINARIES = ("ffmpeg", "ffprobe")
+
+
+def media_tools_present() -> tuple[bool, str]:
+    """Whether this machine has the media tools: the nebula-media worker module
+    (``nebula/worker.py`` under NEBULA_MEDIA_HOME, else under the vendored
+    ``vendor/nebula-media``, else an importable ``nebula`` package) AND the ffmpeg and ffprobe
+    binaries on PATH. (present, plain reason). Reads the disk only; starts nothing."""
+    import importlib.util
+    import shutil
+    from pathlib import Path
+
+    from core.media_worker_client import default_nebula_home
+
+    home = default_nebula_home()
+    if home:
+        worker = (Path(home) / "nebula" / "worker.py").is_file()
+        where = f"{home}/nebula/worker.py"
+    else:
+        worker = importlib.util.find_spec("nebula") is not None
+        where = "an importable nebula package"
+    if not worker:
+        return False, f"no nebula-media worker ({where} not found)"
+    missing = [name for name in _MEDIA_BINARIES if not shutil.which(name)]
+    if missing:
+        return False, f"not on PATH: {', '.join(missing)}"
+    return True, f"worker at {where}; {', '.join(_MEDIA_BINARIES)} on PATH"
+
+
+#: What a person reads when video or audio editing cannot run on this computer: the media
+#: tools are missing (a packaged app ships without the nebula-media worker, or ffmpeg/ffprobe is
+#: not on PATH). The internal reasons ("unknown capability id", "worker exited ... set
+#: NEBULA_MEDIA_HOME") stay in the records and details for developers; they never reach a person.
+MEDIA_TOOLS_MISSING_TEXT = "Video editing needs VOOL's media tools (ffmpeg), which aren't on this computer yet."
+#: The tools are on this computer but the worker did not run.
+MEDIA_TOOLS_FAILED_TEXT = (
+    "Video editing couldn't start: VOOL's media tools didn't run on this computer. Nothing was changed."
+)
+
+
+def media_unavailable_text() -> str:
+    """The plain sentence for "video editing cannot run here", chosen by what is on this disk."""
+    try:
+        present, _reason = media_tools_present()
+    except Exception:
+        present = False
+    return MEDIA_TOOLS_FAILED_TEXT if present else MEDIA_TOOLS_MISSING_TEXT
+
+
+def register_media_capabilities_if_present() -> dict[str, Any]:
+    """Boot hook: register the media family only on a machine that has the media tools.
+
+    Without them nothing is registered: the media ids stay unknown to the graph and the
+    media-studio skill is refused by name, as before. With them the family is registered and
+    each implementation's availability is the worker's live answer (``register_media_capabilities``
+    probes it), so a worker that will not start is recorded as unavailable, never as ready.
+    """
+    present, reason = media_tools_present()
+    if not present:
+        return {"family": "media", "registered": False, "reason": reason}
+    result = register_media_capabilities()
+    return {**result, "registered": True, "tools": reason}
+
+
 def _tool_intent_for(cap_id: str) -> str:
     mapping = {
         "media.inspect": "media.inspect",
@@ -120,4 +185,12 @@ def media_capability_snapshot() -> dict[str, Any]:
     return {"implementations": out}
 
 
-__all__ = ["media_capability_snapshot", "register_media_capabilities"]
+__all__ = [
+    "MEDIA_TOOLS_FAILED_TEXT",
+    "MEDIA_TOOLS_MISSING_TEXT",
+    "media_capability_snapshot",
+    "media_tools_present",
+    "media_unavailable_text",
+    "register_media_capabilities",
+    "register_media_capabilities_if_present",
+]

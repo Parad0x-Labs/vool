@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # annotation-only: the refusal type is imported lazily at the doors
     from core.effect_budget import EffectBudgetRefusedError
 
+import contextlib
 import json
 import os
 import platform
@@ -2220,7 +2221,9 @@ def _operator_profile_tool(intent: str, arguments: dict[str, Any], source_contex
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text,
                                       details={"observation": _tool_observation(intent=intent, tool_surface="profile", ok=True, status="ok")})
     if proposal.strength == "explicit":
-        change = profile.remember(principal, proposal.category, proposal.value, scope=proposal.scope, session_id=session_id, origin="explicit", actor="model_tool")
+        # A name the user told the model to remember replaces the old one: a correction never raises a question.
+        change = profile.remember(principal, proposal.category, proposal.value, scope=proposal.scope, session_id=session_id, origin="explicit", actor="model_tool",
+                                  replace=proposal.category == "preferred_name")
     else:
         change = profile.propose_candidate(principal, proposal.category, proposal.value, session_id=session_id)
     ok = change.kind in {"saved", "updated", "unchanged", "candidate", "conflict"}
@@ -2875,6 +2878,17 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 raise WalletFault("wallet_not_found", context={"reason": "no_wallet_registered"}, message="No wallet is set up yet, so nothing was proposed.")
             resource_url = str(args.get("resource_url") or "").strip()
             if resource_url:
+                # the assistant's own wallet first, when the owner gave it one: it pays only what its allowance
+                # permits (core.wallet.agent_pay). Everything else is parked for the owner exactly as before.
+                from core.wallet import agent_pay
+
+                ridden = agent_pay.fetch_for_turn(resource_url, source_context=context)
+                if ridden is not None:
+                    return _agent_fetch_result(intent, ridden)
+                if agent_pay.is_team_turn(context):
+                    # a team agent never parks a payment on the owner's own wallet: with no slice to pay from, nothing happens
+                    text = "Nothing was paid and nothing was requested: helper agents can pay only from the assistant's own wallet, and it has none that fits this service."
+                    return RuntimeExecutionResult(handled=True, ok=False, status="not_paid", response_text=text, details={"observation": _tool_observation(intent=intent, tool_surface="wallet", ok=False, status="not_paid")})
                 outcome = wallet_x402.fetch_paid_resource(resource_url, wallet_id=wallet_id, source_context=context)
                 if outcome.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and outcome.proposal_id:
                     text = f"x402 offer parked as proposal {outcome.proposal_id} (state pending_approval). Nothing has been signed; approve it in your wallet."
@@ -2934,6 +2948,56 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text, details={"proposal": proposal.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", proposal_id=proposal.proposal_id, state=proposal.state)})
     except WalletFault as exc:
         return refusal(exc)
+
+
+def _agent_fetch_result(intent: str, ridden: dict[str, Any]) -> RuntimeExecutionResult:
+    """What the model is told after a paid fetch went through the assistant's own wallet: what was paid or why not,
+    in the owner's words, and the delivered content when there is some. Amounts come from the wallet's records."""
+    from core.wallet import agent_pay, proposals
+    from core.wallet import allowances as agent_allowances
+
+    payment = ridden.get("payment")
+    proposal_id = str(ridden.get("proposal_id") or "")
+    body = bytes(ridden.get("body") or b"").decode("utf-8", "replace")[: agent_pay.MAX_BODY_CHARS]
+    if payment is None:
+        status = str(ridden.get("status") or "")
+        text = f"The resource answered {ridden.get('http_status')} and asked for no payment." + (f" It returned:\n{body}" if body else "")
+        return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={"resource_body": body, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status)})
+    proposal = proposals.get_proposal(proposal_id)
+    amount = "the amount"
+    if proposal is not None:
+        try:
+            from core.wallet import amounts, chains
+
+            amount = f"{amounts.format_minor(int(proposal.amount_minor), int(chains.asset_for(proposal.network, proposal.asset).decimals))} {proposal.asset}"
+        except Exception:
+            amount = "the amount"
+    reason = agent_pay.explain(str(payment.get("reason") or ""))
+    decision = str(payment.get("decision") or "")
+    if decision == agent_allowances.DECISION_PAY and payment.get("paid"):
+        status = "paid"
+        text = f"Paid {amount} from the assistant's own wallet for this request. {reason}"
+        text += f" It returned:\n{body}" if body else " The payment went through, but the service returned nothing; it will not be paid again for this without your approval."
+    elif decision == agent_allowances.DECISION_PAY:
+        status = "payment_outcome_unknown"
+        text = f"A payment of {amount} was sent from the assistant's own wallet, but it is not confirmed yet. Nothing more will be paid for this request until it is known."
+    elif decision == agent_allowances.DECISION_ASK_OWNER:
+        status = "pending_approval"
+        text = f"Nothing was paid. {reason} The payment of {amount} is waiting as proposal {proposal_id}; approve it in your wallet if you want it paid."
+        hint = agent_pay.raise_hint(str(payment.get("reason") or ""))
+        text += f" {hint}" if hint else ""
+    else:
+        status = "not_paid"
+        text = f"Nothing was paid. {reason}"
+    said = agent_pay.notice_text(payment.get("notices") or [])
+    if said and status == "paid":
+        # ahead of the delivered content, so the owner reads it even when the content is long
+        text = text.replace(" It returned:\n", f" {said} It returned:\n", 1) if " It returned:\n" in text else f"{text} {said}"
+    if payment.get("paused"):
+        text += " The assistant's spending allowance has been paused after repeated problems; you can turn it back on in Settings."
+    return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={
+        "proposal_id": proposal_id, "agent_payment": {key: payment.get(key) for key in ("decision", "reason", "paid", "delivered", "notices", "paused")}, "resource_body": body,
+        "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status, proposal_id=proposal_id)})
 
 
 def _wallet_spend(arguments: dict[str, Any]) -> RuntimeExecutionResult:
@@ -3629,12 +3693,16 @@ def _dispatch_runtime_tool(
             return _research_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
-        if intent == "email.read":
-            return _email_read(arguments)
+        if intent in {"email.read", "email.open"}:
+            _mail_result = _email_read(arguments) if intent == "email.read" else _email_open(arguments)
+            if _mail_result.ok:
+                # The operator's own mailbox shows the name people use for them.
+                from core.operator_profile_turn import learn_name_from_mail
+
+                learn_name_from_mail((_mail_result.details or {}).get("messages"), source_context=source_context)
+            return _mail_result
         if intent == "email.reply":
             return _email_reply(arguments)
-        if intent == "email.open":
-            return _email_open(arguments)
         if intent in {"email.draft.save", "email.draft.get", "email.draft.approve",
                       "email.draft.send", "email.draft.reconcile"}:
             return _email_draft_tool(intent, arguments, source_context)
@@ -4346,6 +4414,26 @@ def _web0_publish(
             },
         )
 
+    from core.web0_settings import WEB0_OFF_MESSAGE, web0_enabled
+
+    if not web0_enabled():
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="web0_off",
+            response_text=f"I won't publish to Arweave: {WEB0_OFF_MESSAGE}",
+            details={
+                "project_id": project_id,
+                "status": "publish_web0_off",
+                "observation": _tool_observation(
+                    intent="web0.publish",
+                    tool_surface="web0",
+                    ok=False,
+                    status="web0_off",
+                    project_id=project_id,
+                ),
+            },
+        )
     result = web0_publish(project_id, wallet, allow_network_publish=True)
     return _web0_result(
         "web0.publish",
@@ -5514,6 +5602,20 @@ _LISTING_KIND_LABELS = {
 }
 
 
+def _kind_label(kind: str) -> str:
+    """"Pictures", or "PNG files" / "JPG and JPEG files" for a kind named by its extension."""
+    if kind.startswith("ext:"):
+        names = [part.strip().upper() for part in kind[4:].split(",") if part.strip()]
+        return (" and ".join(names) or "Matching") + " files"
+    return _LISTING_KIND_LABELS.get(kind, "Files")
+
+
+def _human_size(num_bytes: int) -> str:
+    from core.file_size_answer import _human_size as _shared_human_size
+
+    return _shared_human_size(num_bytes)
+
+
 def _list_machine_directory(
     arguments: dict[str, Any], *, workspace_root: Path
 ) -> RuntimeExecutionResult:
@@ -5601,7 +5703,22 @@ def _list_machine_directory(
     # every entry by name, so a person asking for their recent photos got folders and installers.
     kind = str(arguments.get("kind") or "").strip().lower()
     kind_suffixes = _LISTING_KIND_SUFFIXES.get(kind, ())
+    if kind.startswith("ext:"):
+        # "ext:jpg,jpeg": the extensions the person named, and only those.
+        kind_suffixes = tuple(
+            "." + part.strip().lstrip(".") for part in kind[4:].split(",") if re.fullmatch(r"\.?[a-z0-9]{1,6}", part.strip())
+        )
     newest_first = bool(arguments.get("newest_first", False))
+    size_order = str(arguments.get("size_order") or "").strip().lower()
+    if size_order not in {"largest", "smallest"}:
+        size_order = ""
+
+    def _size_of(item: Path) -> int:
+        try:
+            return int(item.stat().st_size)
+        except OSError:
+            return 0
+
     children = [
         child for child in target.iterdir()
         if not child.name.startswith(".") and child.name not in hidden_names
@@ -5617,6 +5734,11 @@ def _list_machine_directory(
                 return 0.0
 
         children.sort(key=_mtime, reverse=True)
+    elif size_order:
+        # "which is the biggest one there": files by size, folders left out (a folder's own entry
+        # size says nothing about what it holds).
+        children = [child for child in children if child.is_file()]
+        children.sort(key=_size_of, reverse=size_order == "largest")
     else:
         children.sort(key=lambda item: item.name.lower())
     for child in children:
@@ -5625,6 +5747,7 @@ def _list_machine_directory(
                 "name": child.name,
                 "path": _home_relative_label(child),
                 "type": "directory" if child.is_dir() else "file",
+                **({"size_bytes": _size_of(child)} if size_order else {}),
             }
         )
     entries = matched[:limit]
@@ -5632,7 +5755,7 @@ def _list_machine_directory(
     if not entries:
         noun = "folders" if directories_only else "entries"
         if kind_suffixes:
-            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            noun = _kind_label(kind).lower()
         return RuntimeExecutionResult(
             handled=True,
             ok=True,
@@ -5659,7 +5782,7 @@ def _list_machine_directory(
         )
     label = "Visible folders" if directories_only else "Visible entries"
     if kind_suffixes:
-        label = f"{_LISTING_KIND_LABELS.get(kind, 'Files')}{', newest first,' if newest_first else ''}"
+        label = f"{_kind_label(kind)}{', newest first,' if newest_first else ''}"
     if bool(arguments.get("count_only", False)):
         # "how many files are in ~/Downloads" was answered with the first thirty filenames and a
         # bare "-...", so the number it asked for was nowhere in the reply and could not be
@@ -5682,7 +5805,7 @@ def _list_machine_directory(
             # "how many pdf files are in my Documents folder?": that kind only, and said whether
             # subfolders are included (they are not: this counts the folder itself).
             counted = len(matched)
-            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            noun = _kind_label(kind).lower()
             detail = " (not counting subfolders)"
         return RuntimeExecutionResult(
             handled=True,
@@ -5708,10 +5831,13 @@ def _list_machine_directory(
                 ),
             },
         )
+    if size_order:
+        label = f"{'Largest' if size_order == 'largest' else 'Smallest'} files"
     lines = [f"{label} under `{_home_relative_label(target)}`:"]
     for entry in entries:
         suffix = "/" if entry["type"] == "directory" else ""
-        lines.append(f"- {entry['name']}{suffix}")
+        size_note = f" ({_human_size(entry['size_bytes'])})" if "size_bytes" in entry else ""
+        lines.append(f"- {entry['name']}{suffix}{size_note}")
     if dropped:
         noun = "folders" if directories_only else "entries"
         lines.append(f"…and {dropped} more {noun} ({len(matched)} in total).")
@@ -8212,7 +8338,8 @@ def _pdf_result(intent: str, result: dict[str, Any], *, verb: str) -> RuntimeExe
             f"\n\n{text}"
         )
     else:
-        response = f"Could not read `{result.get('path')}`: {result.get('reason') or status}."
+        reason = str(result.get("reason") or "").strip().rstrip(".").rstrip()
+        response = f"Could not read `{result.get('path')}`: {reason or status}."
     return RuntimeExecutionResult(
         handled=True,
         ok=ok,
@@ -8304,49 +8431,252 @@ def _skill_scope_arg(arguments: dict[str, Any]) -> str:
     return str(arguments.get("scope") or "global").strip().lower()
 
 
+def _display_name(name: str) -> str:
+    """A slug such as `decline-politely` reads as the plain words `Decline politely`."""
+
+    words = re.sub(r"[-_/\s]+", " ", str(name or "").replace("`", "")).strip()
+    if not words:
+        return ""
+    return words[:1].upper() + words[1:]
+
+
 def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
-    from core.skill_tools import list_skills
+    """Which skills I have, in plain words: one row per skill, no machine paths.
+
+    The old reply printed slugs in backticks with full filesystem paths, and the same skill
+    twice when it was both staged and installed (measured 2026-10-28). Rows are now grouped
+    by what the skill means to the person, and paths stay in the result details.
+    """
+
+    from core.native_skill_library import disabled_skill_ids, skill_inventory
+    from core.skill_scopes import SCOPE_LABELS
+    from core.skill_tools import list_skills, plugins_root
 
     result = list_skills(str(arguments.get("workspace") or ""), keys=_skill_scope_keys(source_context))
 
-    def _section(title: str, rows: list[dict[str, Any]], *, show_path: bool = True) -> str:
-        if not rows:
-            return ""
-        lines = [f"**{title}** ({len(rows)})"]
-        for row in rows:
-            name = str(row.get("name") or "?")
-            desc = str(row.get("description") or "").strip()
-            path = str(row.get("path") or "")
-            scope = str(row.get("scope") or "")
-            summary = f" — {desc}" if desc else ""
-            where = f" ({scope})" if scope and scope != "global" else ""
-            if show_path and path and scope in ("", "global"):
-                lines.append(f"- `{name}`{where}{summary}\n  `{path}`")
-            else:
-                lines.append(f"- `{name}`{where}{summary}")
-        return "\n".join(lines)
+    # On/Off is read from the ONE disable store the skill picker reads (live from disk: native
+    # contracts by id, plain installed skills by name), so the list can never disagree with a
+    # turn that just seated or skipped the same skill.
+    disabled = set(disabled_skill_ids())
+    # The row's own availability: a built-in whose prerequisites or capabilities this machine
+    # cannot honour (media-studio on a fresh profile) is "not available here", never "on".
+    inventory = skill_inventory()
+    native_runs: dict[str, bool] = {str(row.get("id") or ""): bool(row.get("available")) for row in inventory}
+    # Why a built-in cannot run here, in plain words ("Video editing needs VOOL's media tools ...").
+    native_why: dict[str, str] = {
+        str(row.get("id") or ""): str(row.get("plain_reason") or "") for row in inventory
+    }
+    # Browse rows run only while their add-on serves skills here: the same managed/available
+    # and lifecycle checks the picker applies, plus the add-on's own off switch.
+    plugin_off: set[str] = set()
+    plugin_serving: set[str] | None = None
+    try:
+        from core.addon_store import available as _addon_available
+        from core.addon_store import is_managed
+        from core.plugin_catalog import _disabled_ids, discovered_plugin_sources
+        from core.plugin_lifecycle import is_available as _plugin_is_available
+        from core.plugin_lifecycle import record_for
 
-    sections = [
-        # The skills VOOL ships with are listed too: "what skills do you have?" answered only
-        # "26 skill(s)." because this section was missing (0.7.8 sweep block 2, 2026-11-12).
-        _section("Built into VOOL", list(result.get("native_skills") or []), show_path=False),
-        _section("For this chat", list(result.get("chat_skills") or []), show_path=False),
-        _section("For this project", list(result.get("project_skills") or []), show_path=False),
-        _section("In the workspace", list(result.get("workspace_skills") or [])),
-        _section("Staged (drafted, not active)", list(result.get("staged_skills") or [])),
-        _section("Installed for all of VOOL (active)", list(result.get("installed_skills") or [])),
-    ]
-    body = "\n\n".join(section for section in sections if section)
-    total = int(result.get("total") or 0)
-    if not total:
-        scanned = str(result.get("workspace") or "").strip()
-        body = (
-            f"No skills found. I scanned {scanned or 'no workspace (none is bound to this chat)'}, "
-            "the staging area, and the installed plugins tree for SKILL.md files."
+        plugin_off = {str(pid) for pid in _disabled_ids()}
+        plugin_serving = {
+            str(pid) for pid, path in discovered_plugin_sources()
+            if (not is_managed(pid) or _addon_available(pid, path))
+            and (record_for(pid) is None or _plugin_is_available(pid, root=path))
+        }
+    except Exception:
+        plugin_serving = None
+
+    try:
+        from core.plugin_catalog import native_skill_summaries, skill_summary
+
+        summaries = native_skill_summaries()
+    except Exception:
+        summaries, skill_summary = {}, None
+
+    def _plain_use(row: dict[str, Any]) -> str:
+        # A skill's own `summary:` line is written for people; the description is written for
+        # skill picking and often reads as instructions ("Answer presentation doctrine: ...").
+        summary = summaries.get(str(row.get("name") or ""), "")
+        if not summary and skill_summary is not None and row.get("path"):
+            try:
+                summary = skill_summary(str(row.get("path")))
+            except Exception:
+                summary = ""
+        if summary:
+            return re.sub(r"\s+", " ", summary.replace("`", "")).strip().rstrip(".")
+        # One line of plain words; the reply itself must never become a path listing.
+        first_line = next(
+            (line.strip() for line in str(row.get("description") or "").splitlines() if line.strip()),
+            "",
         )
-    if total and body:
-        body = f"I have {total} skill{'' if total == 1 else 's'}:\n\n" + body
-    return _skill_result("skill.list", result, response=body or f"I have {total} skill{'' if total == 1 else 's'}.")
+        text = re.sub(
+            r"\s+", " ", first_line.replace("`", "").replace(".md", "").replace("/", " ")
+        ).strip()
+        # One short phrase per row: the first sentence (or what comes before a colon) when it
+        # says enough on its own, so a list of skills does not read as a wall of instructions.
+        head = re.split(r"(?<=[^\s]):\s|\.\s", text, maxsplit=1)[0].strip().rstrip(".")
+        return head if len(head) >= 12 else text
+
+    def _state(row: dict[str, Any], *, kind: str) -> str:
+        # off beats not-available: a skill the person turned off says off even when it also
+        # could not run here. Drafts are off by nature (the section title says why).
+        if kind == "draft":
+            return "off"
+        name = str(row.get("name") or "").strip()
+        if name and name in disabled:
+            return "off"
+        if kind == "native" and name in native_runs and not native_runs[name]:
+            return "not available here"
+        if kind == "browse":
+            plugin_id = _plugin_id(row)
+            if plugin_id and plugin_id in plugin_off:
+                return "off"
+            if plugin_id and plugin_serving is not None and plugin_id not in plugin_serving:
+                return "not available here"
+        kept_off = _kept_off(row) if kind != "native" else ""
+        return kept_off or "on"
+
+    def _kept_off(row: dict[str, Any]) -> str:
+        # A file that got into the skill folders without an import or an install (copied by hand)
+        # meets the safety check when it loads; one that fails is kept off, and this says why (M1).
+        try:
+            from types import SimpleNamespace
+
+            from core.skill_tools import load_problem
+
+            plugin_id = _plugin_id(row) or f"{row.get('scope') or 'local'}-skills"
+            problem = load_problem(SimpleNamespace(path=str(row.get("path") or ""), plugin_id=plugin_id))
+        except Exception:
+            return ""
+        if not problem:
+            return ""
+        return "kept off: " + problem.replace("so it was not kept", "so VOOL does not use it")
+
+    def _row(row: dict[str, Any], state: str) -> str:
+        label = _display_name(str(row.get("name") or "?"))
+        scope = str(row.get("scope") or "")
+        if scope in ("chat", "project"):
+            label += f", for {SCOPE_LABELS.get(scope, scope)}"
+        text = f"- {label} — {state}"
+        use = _plain_use(row)
+        # A built-in that cannot run here says why instead of what it does: one short phrase per row.
+        why = native_why.get(str(row.get("name") or "").strip(), "") if state == "not available here" else ""
+        if why:
+            return f"{text} — {why}"
+        return f"{text} — {use}" if use else text
+
+    seen: set[str] = set()
+
+    def _section(title: str, rows: list[dict[str, Any]], *, kind: str = "") -> tuple[str, int, int]:
+        # Every skill once across the whole reply, first section wins: a draft of an
+        # installed skill, or a Browse copy of it, must not earn a second row.
+        lines: list[str] = []
+        on_count = 0
+        for row in rows:
+            key = _display_name(str(row.get("name") or "?")).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            # A row in an installed pack other than the person's own folder follows that pack's
+            # on/off switch, whichever section it is listed under.
+            row_kind = kind or ("browse" if _plugin_id(row) not in ("", "local-skills") else "own")
+            state = _state(row, kind=row_kind)
+            on_count += state == "on"
+            lines.append(_row(row, state))
+        if not lines:
+            return "", 0, 0
+        return f"**{title}** ({len(lines)})\n" + "\n".join(lines), len(lines), on_count
+
+    def _plugin_id(row: dict[str, Any]) -> str:
+        # Installed rows sit under plugins/plugins/<plugin id>/skills/<name>/SKILL.md; that
+        # first segment is the only difference between the person's own installs
+        # (local-skills) and add-ons. A path outside the tree is never counted as local.
+        try:
+            relative = Path(str(row.get("path") or "")).relative_to(plugins_root() / "plugins")
+        except ValueError:
+            return ""
+        return relative.parts[0] if relative.parts else ""
+
+    installed = list(result.get("installed_skills") or [])
+
+    def _origin(row: dict[str, Any]) -> str:
+        # Where the skill came from, from VOOL's own install record (core.skill_origin): the folder
+        # it sits in says nothing, because imports land beside the person's own skills (audit M3).
+        try:
+            from types import SimpleNamespace
+
+            from core.skill_origin import origin_of
+
+            plugin_id = _plugin_id(row) or f"{row.get('scope') or 'local'}-skills"
+            return origin_of(SimpleNamespace(path=str(row.get("path") or ""), plugin_id=plugin_id))
+        except Exception:
+            return "installed"
+
+    def _browse(row: dict[str, Any]) -> bool:
+        plugin_id = _plugin_id(row)
+        return plugin_id.startswith("discover-") or _origin(row) in ("registry", "bundled")
+
+    yours = ("created_here", "drafted")
+    scoped_rows = [*(result.get("chat_skills") or []), *(result.get("project_skills") or [])]
+    mine_rows = [row for row in [*scoped_rows, *installed] if not _browse(row) and _origin(row) in yours]
+    file_rows = [row for row in [*scoped_rows, *installed] if not _browse(row) and _origin(row) not in yours]
+    # VOOL's own developer skills are not the person's: never listed unless the developer setting
+    # is on. And a workspace that is VOOL's own program folder (the 0.7.5 Linux launcher made it
+    # so) holds the built-ins' source files, which are not skills the person made.
+    from core.native_skill_library import native_skills_root, shown_to_people
+
+    native_rows = [
+        row for row in (result.get("native_skills") or [])
+        if shown_to_people(str(row.get("name") or ""))
+    ]
+    try:
+        own_library = native_skills_root().resolve()
+    except OSError:
+        own_library = None
+
+    def _from_vool_itself(row: dict[str, Any]) -> bool:
+        if own_library is None:
+            return False
+        try:
+            return own_library in Path(str(row.get("path") or "")).resolve().parents
+        except (OSError, ValueError):
+            return False
+
+    workspace_rows = [row for row in (result.get("workspace_skills") or []) if not _from_vool_itself(row)]
+    browse_rows = [row for row in installed if _browse(row)]
+    sections = [
+        _section("Made by you", mine_rows),
+        _section("Built in", native_rows, kind="native"),
+        _section("Added from Browse", browse_rows, kind="browse"),
+        # Someone else's file (a zip or a chat import, a pack, a copy put into VOOL's folders by
+        # hand): listed as such, never as the person's own.
+        _section("Added from a file", file_rows),
+        _section("In your project folder", workspace_rows, kind="own"),
+        _section("Drafts not turned on yet", list(result.get("staged_skills") or []), kind="draft"),
+    ]
+    body = "\n\n".join(text for text, _count, _on in sections if text)
+    total = sum(count for _text, count, _on in sections)
+    if not total:
+        body = "No skills found. I looked in this chat, this project and the installed skills."
+    elif sections[1][1] and not any(section[1] for index, section in enumerate(sections) if index != 1):
+        # Only built-ins exist: say the number in one line rather than opening with a heading,
+        # counting only the ones that are really on here.
+        count, on_count = sections[1][1], sections[1][2]
+        head = (
+            f"You have {count} built-in skills on."
+            if on_count == count
+            else f"You have {count} built-in skills, {on_count} of them on."
+        )
+        body = f"{head}\n\n{sections[1][0]}"
+    if total:
+        body += (
+            "\n\nMore ready-made skills are in Skills & Plugins, under Browse. "
+            "To turn one on or off, open My add-ons there, then Skills. "
+            "To make your own, ask me: make me a skill that ..."
+        )
+    else:
+        body += " To make your own, ask me: make me a skill that ..."
+    return _skill_result("skill.list", result, response=body or "No skills found.")
 
 
 def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
@@ -8363,7 +8693,11 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
         overwrite=bool(arguments.get("overwrite", False)),
         scope=scope,
         keys=_skill_scope_keys(source_context),
+        made_by_person=False,
     )
+    # Not noted as the person's own here: a model can call this tool in a turn that is reading a web
+    # page, an email or someone else's skill (audit H1). create_skill records the bytes as drafted;
+    # only the chat lane answering the person's own "make me a skill that ..." records them as theirs.
     where = (
         f"`{result.get('path')}`"
         if scope == "global"
@@ -8379,10 +8713,48 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
     )
 
 
+_SKILL_PATH_REFUSED = (
+    "I did not open that file: I only check or turn on skills kept in VOOL's own skill folders, so a "
+    "file elsewhere on this computer stays private. To add a skill from a file, attach its zip and say "
+    "import this skill, or name a skill you already have (for example: validate the trip-notes skill). "
+    "A skill author can put a folder into VOOL's drafts first with: python -m tools.community_skills stage <folder>."
+)
+
+
+def _skill_path_refusal(path: str, source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A refusal when a model-supplied skill path leads outside VOOL's skill folders, else None.
+
+    The validator hands the file's words back and the installer loads them into every later turn,
+    so neither may be pointed at an arbitrary file (red team t17). A name that is not on disk yet is
+    left to the tool, which says it was not found.
+    """
+    from core.skill_tools import resolve_skill_markdown, skill_path_allowed
+
+    raw = str(path or "").strip().strip("`\"'")
+    if not raw:
+        return None
+    keys = _skill_scope_keys(source_context)
+    candidate = resolve_skill_markdown(raw, keys)
+    if not candidate.exists():
+        return None  # nothing there to read: the tool says it was not found
+    if skill_path_allowed(candidate, keys):
+        return None
+    return {"status": "not_allowed", "reason": _SKILL_PATH_REFUSED, "path": str(path)}
+
+
 def _skill_validate(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
     from core.skill_tools import validate_skill
 
+    refusal = _skill_path_refusal(str(arguments.get("path") or ""), source_context)
+    if refusal is not None:
+        return _skill_result("skill.validate", refusal, response="")
     result = validate_skill(str(arguments.get("path") or ""), keys=_skill_scope_keys(source_context))
+    if result.get("status") == "invalid" and result.get("problems"):
+        from core.skill_tools import plain_problem
+
+        # The validator's own words stay in the details; the reply says what to fix in plain words.
+        result["reason"] = "This skill needs fixing before it can be turned on. " + " ".join(
+            plain_problem(str(item)) for item in result["problems"])
     return _skill_result(
         "skill.validate",
         result,
@@ -8391,6 +8763,112 @@ def _skill_validate(arguments: dict[str, Any], source_context: dict[str, Any] | 
             "instructions, and every tool it names exists."
         ),
     )
+
+
+def _native_copy_refusal(path: str, source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """VOOL's own library is never installed as a copy.
+
+    "turn on vool-feature-build" resolved the bare name to the native folder and copied it into
+    ``local-skills``, where it no longer carried the native lane's audience and trust rules and
+    seated workspace write tools with the developer setting off (red team t5). A built-in is
+    turned on or off where it lives; it has no installable copy.
+    """
+    try:
+        from core.native_skill_library import native_skills_root
+        from core.skill_tools import resolve_skill_markdown
+
+        resolved = resolve_skill_markdown(path, _skill_scope_keys(source_context)).resolve()
+        if resolved.is_relative_to(native_skills_root().resolve()):
+            return {
+                "status": "refused",
+                "reason": (
+                    f"`{Path(resolved).parent.name}` is one of VOOL's built-in skills. It is part of "
+                    "VOOL already and is turned on or off in Skills; it is not installed as a copy."
+                ),
+                "problems": ["built-in skills have no installable copy"],
+                "path": "",
+            }
+    except Exception:
+        return None
+    return None
+
+
+def _record_skill_install_origin(result: dict[str, Any], *, tools_confirmed: bool = False) -> list[str]:
+    """Record, durably, where the skill just installed came from (core.skill_origin), and return
+    the plain-words notes the person is told about what that origin means for this skill.
+
+    ``tools_confirmed``: the person approved turning on exactly these bytes on a card that listed
+    the tools they ask for. It counts only for a skill ``skill.create`` drafted (core.skill_origin).
+    """
+    notes: list[str] = []
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import _frontmatter_of
+        from core.skill_origin import (
+            ORIGIN_CREATED_HERE,
+            ORIGIN_DRAFTED,
+            TOOLS_NOT_ADDED,
+            TOOLS_NOT_CONFIRMED,
+            TYPED_KEYS_IGNORED,
+            _history_source,
+            decide_install_origin,
+            record_install,
+        )
+
+        path = Path(str(result.get("path") or ""))
+        digest = str(result.get("sha256") or "")
+        origin = decide_install_origin(digest, history_source=_history_source(path))
+        confirmed = bool(tools_confirmed and origin == ORIGIN_DRAFTED)
+        record_install(path, origin=origin, sha256=digest, tools_confirmed=confirmed)
+        result["origin"] = origin
+        result["tools_confirmed"] = confirmed
+        front = _frontmatter_of(path)
+        if str(front.get("id") or "").strip():
+            # Installed skills never hold typed contracts (core.native_skill_library).
+            notes.append(TYPED_KEYS_IGNORED)
+        if front.get("allowed-tools") or front.get("allowed_tools"):
+            if origin == ORIGIN_DRAFTED and not confirmed:
+                notes.append(TOOLS_NOT_CONFIRMED)
+            elif origin not in (ORIGIN_CREATED_HERE, ORIGIN_DRAFTED):
+                notes.append(TOOLS_NOT_ADDED)
+    return notes
+
+
+def _install_approved_by_the_person(arguments: dict[str, Any], result: dict[str, Any]) -> bool:
+    """Whether the person approved THIS install on its card, bound to the bytes that went live.
+
+    Only the person's own click on the approval card for this exact call counts (the decision says
+    ``exact_approval``), and only when the call named the digest the card showed and that digest is
+    what was installed. A mode that allows the call by itself (Bypass), a task-wide grant or an
+    internal scope confirms nothing (audit H1).
+    """
+    try:
+        from core.authorized_tool_execution import current_permission_decision
+
+        decision = current_permission_decision()
+    except Exception:
+        return False
+    bound = str(arguments.get("sha256") or "").strip().lower()
+    return bool(
+        decision is not None
+        and decision.allowed
+        and str(getattr(decision, "granted_by", "") or "") == "exact_approval"
+        and bound
+        and bound == str(result.get("sha256") or "").strip().lower()
+    )
+
+
+def _record_pack_install_origin(result: dict[str, Any]) -> None:
+    """A pack's skills are the person's own only where their bytes are what skill.create wrote."""
+    with contextlib.suppress(Exception):
+        import hashlib as _hashlib
+
+        from core.skill_origin import ORIGIN_PACK, decide_install_origin, record_install
+
+        for skill_md in sorted(Path(str(result.get("path") or "")).glob("skills/*/SKILL.md")):
+            digest = _hashlib.sha256(skill_md.read_bytes()).hexdigest()
+            record_install(
+                skill_md, origin=decide_install_origin(digest, default=ORIGIN_PACK), sha256=digest,
+            )
 
 
 def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
@@ -8405,6 +8883,8 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
             expected_sha256=str(arguments.get("sha256") or ""),
             overwrite=bool(arguments.get("overwrite", False)),
         )
+        if result.get("status") == "ok":
+            _record_pack_install_origin(result)
         return _skill_result(
             "skill.install",
             result,
@@ -8416,6 +8896,10 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
             ),
         )
     scope = _skill_scope_arg(arguments)
+    path_arg = str(arguments.get("path") or "")
+    refusal = _skill_path_refusal(path_arg, source_context) or _native_copy_refusal(path_arg, source_context)
+    if refusal is not None:
+        return _skill_result("skill.install", refusal, response="")
     result = install_skill(
         str(arguments.get("path") or ""),
         plugin_id=str(arguments.get("plugin_id") or "local-skills"),
@@ -8424,17 +8908,52 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         keys=_skill_scope_keys(source_context),
         expected_sha256=str(arguments.get("sha256") or ""),
     )
-    version = result.get("version")
-    version_text = f" as version {version}" if isinstance(version, int) else ""
-    where = f"at `{result.get('path')}`" if scope == "global" else f"for {SCOPE_LABELS.get(scope, scope)}"
+    notes: list[str] = []
+    if result.get("status") == "ok":
+        notes = _record_skill_install_origin(
+            result, tools_confirmed=_install_approved_by_the_person(arguments, result))
+        if notes:
+            result["trust_notes"] = list(notes)
+    display = _display_name(str(result.get("name") or ""))
+    where = "" if scope == "global" else f" for {SCOPE_LABELS.get(scope, scope)}"
+    try:
+        version = int(result.get("version") or 0)
+    except (TypeError, ValueError):
+        version = 0
+    # Version 2+ means a skill of this name was already installed: the person replaced it,
+    # so the reply says Updated, not Added.
+    verb = "Updated" if version >= 2 else "Added"
     return _skill_result(
         "skill.install",
         result,
         response=(
-            f"Installed `{result.get('name')}` {where}{version_text}. "
-            "It is active from the next turn."
+            f'{verb} the skill "{display}"{where}. '
+            "It is on from your next message."
+            + "".join(f" {note}" for note in notes)
         ),
     )
+
+
+def _native_built_in_display(name: str) -> str:
+    """The plain name of the built-in skill `name` refers to, or "" when it names no built-in.
+
+    Read-only: the native inventory is only consulted, never written. Any failure reading it
+    reads as "not a built-in", so the caller's own reply stands.
+    """
+    wanted = re.sub(r"[-_/\s]+", "-", str(name or "").replace("`", "").strip().lower()).strip("-")
+    if not wanted:
+        return ""
+    try:
+        from core.native_skill_library import skill_inventory
+
+        for row in skill_inventory():
+            if str(row.get("source") or "") != "native":
+                continue
+            if wanted in (str(row.get("id") or "").lower(), str(row.get("name") or "").lower()):
+                return _display_name(str(row.get("id") or row.get("name") or ""))
+    except Exception:
+        return ""
+    return ""
 
 
 def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
@@ -8446,18 +8965,24 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
         from core import skill_package
 
         name = str(arguments.get("name") or "")
-        if str(arguments.get("kind") or "").strip().lower() == "plugin":
+        wants_plugin = str(arguments.get("kind") or "").strip().lower() == "plugin"
+        if wants_plugin:
             result = skill_package.export_plugin(name)
         else:
             result = skill_package.export_skill(name, keys=keys, scope=str(arguments.get("scope") or ""))
-        return _skill_result(
-            intent,
-            result,
-            response=(
+        if wants_plugin:
+            response = (
                 f"Exported `{result.get('name')}` to `{result.get('path')}` "
                 f"({result.get('bytes')} bytes). Anyone can import that zip into their VOOL."
-            ),
-        )
+            )
+        else:
+            # The one reply that names a place on disk: the file to hand over, and its folder.
+            exported = Path(str(result.get("path") or ""))
+            response = (
+                f'Saved the skill "{_display_name(str(result.get("name") or ""))}" as the file '
+                f"{exported.name}, in this folder: {exported.parent}. Send that file to share it."
+            )
+        return _skill_result(intent, result, response=response)
     if intent == "skill.import":
         from core import skill_package
 
@@ -8474,15 +8999,17 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
             )
         else:
             response = (
-                f"Imported `{result.get('name')}` into the drafts for "
-                f"{SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}; it is not active yet."
+                f'This file holds the skill "{_display_name(str(result.get("name") or ""))}", '
+                f"ready for {SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}. "
+                "It is not on yet: say turn it on."
             )
         return _skill_result(intent, result, response=response)
     if intent == "skill.remove":
         from core.skill_tools import remove_skill
 
-        result = remove_skill(str(arguments.get("name") or ""), scope=str(arguments.get("scope") or ""), keys=keys)
-        return _skill_result(
+        name = str(arguments.get("name") or "")
+        result = remove_skill(name, scope=str(arguments.get("scope") or ""), keys=keys)
+        outcome = _skill_result(
             intent,
             result,
             response=(
@@ -8490,6 +9017,16 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
                 "Its files and versions were kept."
             ),
         )
+        # A built-in skill is not the operator's to remove, so the refused turn names it plainly
+        # instead of quoting the storage reason. Every other outcome keeps its own reply.
+        if str(result.get("status") or "") != "ok":
+            built_in = _native_built_in_display(name)
+            if built_in:
+                outcome.response_text = (
+                    f"{built_in} comes with VOOL, so I can't remove it. You can turn it off in "
+                    "Skills & Plugins, under My add-ons, Skills."
+                )
+        return outcome
     from core import skill_package
 
     result = skill_package.create_plugin(
@@ -8557,7 +9094,7 @@ def _skill_package_bytes(
 
 
 def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
-    from core.skill_tools import rollback_skill, skill_history
+    from core.skill_tools import rollback_skill
 
     keys = _skill_scope_keys(source_context)
     name = str(arguments.get("skill") or arguments.get("path") or "")
@@ -8572,14 +9109,14 @@ def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | 
         )
     result = rollback_skill(name, version=version, keys=keys)
     if result.get("status") == "ok":
-        history = skill_history(name, keys)
+        # The versions and counts stay in the result details; the reply says only what happened.
         return _skill_result(
             "skill.rollback",
             result,
             response=(
-                f"Rolled `{result.get('name')}` back to version {result.get('restored_from')} "
-                f"byte for byte; it is now head version {result.get('version')} of "
-                f"{history.get('head_version')} recorded. The loader picks it up next turn."
+                f'Restored version {result.get("restored_from")} of the skill '
+                f'"{_display_name(str(result.get("name") or ""))}". '
+                "It is used from your next message."
             ),
         )
     return _skill_result(
@@ -8600,7 +9137,10 @@ def _skill_inspect(arguments: dict[str, Any]) -> RuntimeExecutionResult:
             response=str(result.get("reason") or "that skill could not be inspected"),
         )
     contract = result.get("contract") or {}
-    availability = "available" if result.get("available") else f"not available ({result.get('reason')})"
+    # The plain reason, never the typed one ("unknown capability id"): this reply reaches people.
+    availability = "available" if result.get("available") else (
+        f"not available: {str(result.get('plain_reason') or result.get('reason') or '').rstrip('.')}"
+    )
     body = (
         f"`{result.get('id')}` v{result.get('version')} — "
         f"risk class {contract.get('risk_class')}, "

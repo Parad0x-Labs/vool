@@ -310,6 +310,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 # "the latest 10 pics in Downloads": only one kind of file, newest first.
                 "kind": "string optional (image|screenshot|video|audio|pdf|document|spreadsheet)",
                 "newest_first": "boolean optional",
+                "size_order": "string optional (largest|smallest: files only, by size)",
             },
             output_schema={"entries": "list[directory_entry]", "truncated": "boolean"},
             side_effect_class="read_only",
@@ -1410,7 +1411,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         ),
         RuntimeToolContract(
             intent="web.fetch",
-            description="Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status.",
+            description="Fetch a public web page over HTTP(S) and return bounded text plus the fetch status.",
             tool_surface="web",
             capability_id="web.fetch",
             capability_claim="fetch public web pages when web access is enabled and report policy, network, or page barriers honestly",
@@ -2273,7 +2274,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             unsupported_reason="Local file reading is disabled on this runtime.",
             input_schema={"path": "string", "start_page": "integer optional", "max_pages": "integer optional"},
             output_schema={
-                "status": "ok|no_text_layer|not_found|unreadable|missing_dependency|timeout|error",
+                "status": "ok|no_text_layer|not_found|unreadable|too_large|missing_dependency|timeout|error",
                 "text": "string",
                 "pages_total": "integer",
                 "pages_read": "integer",
@@ -3044,7 +3045,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="read one Apple Notes note",
             supported=True,
             unsupported_reason="",
-            input_schema={"title": "string"},
+            input_schema={"title": "string", "folder": "string (optional)", "account": "string (optional)"},
             output_schema={"body": "string", "note": "note_row"},
             side_effect_class="read_only",
             approval_requirement="none",
@@ -3149,6 +3150,57 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             error_contract="returns_structured_error_result",
             handler="external_lane",
             permission_actions=("create_files",),
+        ),
+        RuntimeToolContract(
+            intent="operator.schedule_reminder",
+            description=(
+                "Schedule one of this runtime's own reminders from the request as written. The words go "
+                "through the same when-reading and subject parsing as the chat lane, and a due time in "
+                "the past is refused."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="schedule this runtime's own reminders from the owner's words",
+            supported=True,
+            unsupported_reason="",
+            input_schema={"text": "string (the request as written)"},
+            output_schema={"reminder_id": "string", "due_at_utc": "string"},
+            # In-app, local state: a reminder row in this runtime's own store (the same class as
+            # contacts.save). What may be written is decided by the runtime (request provenance,
+            # the past-time refusal), never by the model alone.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("create_files",),
+        ),
+        RuntimeToolContract(
+            intent="operator.cancel_reminder",
+            description=(
+                "Cancel one of this runtime's own pending reminders from the request as written. The "
+                "reminder it means is resolved exactly as the chat lane resolves it: a reminder id in "
+                "the words, or the one pending reminder; anything else is an unambiguous refusal."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="cancel this runtime's own pending reminders",
+            supported=True,
+            unsupported_reason="",
+            input_schema={"text": "string (the request as written)"},
+            output_schema={"reminder_id": "string", "cancelled": "boolean"},
+            # In-app, local state, same class as schedule_reminder: removing a row of this
+            # runtime's own store, never an outward send.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("delete_files",),
         ),
         RuntimeToolContract(
             intent="operator.propose_calendar_event",

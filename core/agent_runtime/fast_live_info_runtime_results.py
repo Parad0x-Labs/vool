@@ -34,8 +34,9 @@ def disabled_live_info_result(
     session_id: str,
     user_input: str,
     source_context: dict[str, object] | None,
+    response: str = "",
 ) -> dict[str, Any]:
-    disabled_response = web_unavailable_text(source_context)
+    disabled_response = response or web_unavailable_text(source_context)
     _reason, confidence = _route_metadata(agent, source_context, 0.82)
     result = agent._fast_path_result(
         session_id=session_id,

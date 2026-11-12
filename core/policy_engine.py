@@ -124,6 +124,9 @@ _DEFAULT_POLICY = {
         "pow_min_difficulty": 4,
         "report_abuse_gossip_ttl": 2,
         "report_abuse_gossip_fanout": 8,
+        # Private web (core/private_web.py): off, tor, wireguard or system_vpn. Off by default:
+        # a fresh install stays offline until the person opts in, and Tor would go online.
+        "private_web": {"route": "off", "socks_port": 0},
     },
     "orchestration": {
         "max_subtasks_per_parent": 3,
@@ -626,6 +629,8 @@ _OPERATOR_POLICY_KEYS: frozenset[str] = frozenset(
         "system.local_only_mode",
         "system.allow_web_fallback",
         "network.outbound_enabled",
+        "network.private_web.route",
+        "network.private_web.socks_port",
         "shards.default_share_scope",
     }
 )

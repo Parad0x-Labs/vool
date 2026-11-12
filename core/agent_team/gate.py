@@ -51,6 +51,11 @@ def binding(session_id: str) -> tuple[Any, str] | None:
         return _BINDINGS.get(str(session_id or ""))
 
 
+def is_agent_session(session_id: str) -> bool:
+    """Whether a team has bound this session to one of its agents right now."""
+    return binding(session_id) is not None
+
+
 def check_write(path: str, *, session_id: str = "") -> tuple[bool, str]:
     """``(allowed, reason)`` for a write the tool layer is about to make."""
     bound = binding(session_id)
@@ -86,6 +91,15 @@ def check_tool(intent: str, arguments: Any, source_context: Any) -> str:
     effect = containment._declared_side_effect_class(intent)
     if effect in _READ_CLASSES:
         return ""
+    try:
+        # the one paid fetch the owner opened to helpers (Settings, Crypto, Agent spending): it pays only through
+        # the helper's slice of the assistant's allowance, and parks nothing on the owner's own wallet
+        from core.wallet import agent_pay
+
+        if agent_pay.helper_may_ask(intent, containment._bound_arguments(intent, arguments)):
+            return ""
+    except Exception:
+        pass
     if effect not in _PATH_WRITE_CLASSES:
         return (f"agents may not run `{intent}` (side effect {effect or 'undeclared'}); only reads and "
                 "writes inside their own claimed paths are allowed")

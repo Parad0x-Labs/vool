@@ -322,7 +322,10 @@ def resolve_everyday_move(text: str) -> dict[str, str] | str | None:
     match = EVERYDAY_MOVE_RE.search(str(text or ""))
     if match is None:
         return None
-    home = Path.home()
+    # Resolved, like the finder's own roots and the write guard's probe: on macOS the OS home
+    # symlink (/var -> /private/var) would otherwise make the in-folder test below drop the one
+    # file the finder did find (measured 2026-10-31: "move the cat photo from Pictures").
+    home = Path.home().resolve()
     destination = home / match.group("dst").capitalize()
     source_place = (match.group("src") or "").capitalize()
     what = match.group("what").strip(" .'\"")
@@ -1029,6 +1032,14 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
                 str(((booking.details or {}) if booking is not None else {}).get("tz_name") or ((availability.details or {}).get("zone") if "check_availability" in present else "") or "UTC")
                 part_raw = (f"remind me about the proposed event on {due.astimezone(_tz.utc):%Y-%m-%d %H:%M} UTC "
                             f"({minutes} minutes before its start)")
+            elif not lead and "save_note" in present and by_kind.get("save_note") is not None and by_kind["save_note"].ok:
+                # "...due 2026-11-10. remind me on 2026-11-08 at 09:00" names a time but no subject:
+                # the reminder is about the note just saved, so it says so instead of reading "2026-11-08".
+                title = str((by_kind["save_note"].details or {}).get("title") or "").strip()
+                last_sentence = re.split(r"[.!?]\s+", raw.strip())[-1]
+                if title and re.search(r"\bremind\s+me\b", last_sentence, re.IGNORECASE) \
+                        and not operator_handlers.reminder_names_a_subject(raw):
+                    part_raw = f'{raw.rstrip(" .")} about the note "{title}"'
         part_intent = OperatorActionIntent(kind=kind, raw_text=part_raw)
         handler = {"check_availability": _handle_check_availability,
                    "schedule_reminder": _handle_schedule_reminder,
