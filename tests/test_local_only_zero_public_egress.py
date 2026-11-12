@@ -385,7 +385,15 @@ def test_the_live_refusal_names_offline_the_switch_or_the_machine(monkeypatch: p
     switch = web_unavailable_text(_computer_web_context())
     assert "Web lookups are switched off" in switch and "Settings" in switch
     monkeypatch.setattr(policy_engine, "local_only_mode", lambda: True)
-    assert "keep everything on this computer" in web_unavailable_text(_computer_web_context())
+    machine = web_unavailable_text(_computer_web_context())
+    assert "keep everything on this computer" in machine
+    # Measured 2026-11-12 on the Mac: "To let me look it up, ..." read as an unfulfilled promise of
+    # tool work and the final guard replaced the whole refusal with a generic failure line.
+    from core.agent_runtime.response import answer_is_tool_invocation, answer_is_unfulfilled_intent
+
+    for text in (offline, switch, machine):
+        assert not answer_is_unfulfilled_intent(text), text
+        assert not answer_is_tool_invocation(text), text
 
 
 def test_the_typed_live_data_lane_does_not_run_when_the_turn_has_no_web(

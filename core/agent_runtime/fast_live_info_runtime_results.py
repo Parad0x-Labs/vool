@@ -5,41 +5,12 @@ from typing import Any
 from core.turn_contract import LaneProposal
 
 
-#: What the user is told when a live question (weather, prices, news) cannot be looked up this
-#: turn. One sentence per cause, each naming the way out, so the reply never reads as an outage.
-#: The opening words are kept stable ("Live web lookup is ...") for log and test readers.
-WEB_OFF_TEXT = (
-    "Live web lookup is off: Web lookups are switched off, so I can't check current weather, "
-    "prices or news. You can turn them on in Settings, Privacy & Permissions."
+from core.remote_fetch_policy import (  # noqa: E402  (one home for the wording)
+    MACHINE_OFFLINE_TEXT,
+    OFFLINE_TEXT,
+    WEB_OFF_TEXT,
 )
-OFFLINE_TEXT = (
-    "Live web lookup is off because this chat is Offline: nothing leaves this computer, so I "
-    "can't check current weather, prices or news. To let me look it up, choose Computer + web "
-    "or Local first in the model menu."
-)
-MACHINE_OFFLINE_TEXT = (
-    "Live web lookup is off because VOOL is set to keep everything on this computer, so I can't "
-    "check current weather, prices or news."
-)
-
-
-def web_unavailable_text(source_context: dict[str, object] | None) -> str:
-    """The refusal for THIS turn's reason: machine-wide offline, an Offline chat, or the switch."""
-    try:
-        from core.policy_engine import local_only_mode
-
-        if local_only_mode():
-            return MACHINE_OFFLINE_TEXT
-    except Exception:
-        pass
-    try:
-        from core.auto_local_only_mode import turn_is_offline
-
-        if turn_is_offline(dict(source_context or {})):
-            return OFFLINE_TEXT
-    except Exception:
-        pass
-    return WEB_OFF_TEXT
+from core.remote_fetch_policy import web_unavailable_reason as web_unavailable_text  # noqa: E402
 
 
 def _frontdoor_live_info_proposal(source_context: dict[str, object] | None) -> LaneProposal | None:

@@ -184,6 +184,46 @@ LOCAL_ONLY_EGRESS_DENIAL = (
 )
 
 
+#: What the user is told when a live question (weather, prices, news) cannot be looked up this
+#: turn. One sentence per cause, each naming the way out, so the reply never reads as an outage.
+#: The opening words are kept stable ("Live web lookup is ...") for log and test readers.
+WEB_OFF_TEXT = (
+    "Live web lookup is off: Web lookups are switched off, so I can't check current weather, "
+    "prices or news. You can turn them on in Settings, Privacy & Permissions."
+)
+OFFLINE_TEXT = (
+    "Live web lookup is off because this chat is Offline: nothing leaves this computer, so I "
+    "can't check current weather, prices or news. Choosing Computer + web or Local first in the "
+    "model menu allows web lookups for this chat."
+)
+MACHINE_OFFLINE_TEXT = (
+    "Live web lookup is off because VOOL is set to keep everything on this computer, so I can't "
+    "check current weather, prices or news."
+)
+
+
+def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
+    """Why THIS turn has no web, in the user's words: machine-wide offline, an Offline chat, or
+    the switch. With no context given, the turn's bound scope is read (tool surfaces)."""
+    if source_context is None:
+        source_context = dict(_SCOPE_CONTEXT.get() or {})
+    try:
+        from core.policy_engine import local_only_mode
+
+        if local_only_mode():
+            return MACHINE_OFFLINE_TEXT
+    except Exception:
+        pass
+    try:
+        from core.auto_local_only_mode import turn_is_offline
+
+        if turn_is_offline(dict(source_context or {})):
+            return OFFLINE_TEXT
+    except Exception:
+        pass
+    return WEB_OFF_TEXT
+
+
 def local_only_active(source_context: dict[str, Any] | None = None) -> bool:
     """Whether zero public egress binds THIS turn ("Offline") — by operator selection or by profile.
 
@@ -1006,6 +1046,7 @@ __all__ = [
     "effective_web_available",
     "explicit_remote_fetch_disabled",
     "local_only_active",
+    "web_unavailable_reason",
     "note_remote_fetch_attempt",
     "open_keyed_request",
     "open_remote",
