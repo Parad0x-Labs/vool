@@ -252,6 +252,14 @@ def classify_migration_statements(statements):
     return clean
 
 
+def _allow_all_authorizer(action, arg1, arg2, database, trigger):
+    """Disarm by installing an allow-all callback: passing None to set_authorizer only means "disable"
+    from Python 3.11; on 3.9/3.10 (the macOS system python3 this handler's shebang finds) it
+    installs a callback that is not callable, so EVERY statement -- including the wrapper's own
+    BEGIN -- fails with 'not authorized' (served run6: migrate.preview "BEGIN failed")."""
+    return _AUTH_OK
+
+
 def _migration_authorizer(action, arg1, arg2, database, trigger):
     """Engine-level backstop armed while CALLER statements are prepared.
 
@@ -274,7 +282,7 @@ def _wrapper_execute(conn, sql):
     _execute_guarded_statement): wrapper BEGIN/COMMIT/ROLLBACK and the
     wrapper's own integrity PRAGMA are the trusted control path.
     """
-    conn.set_authorizer(None)
+    conn.set_authorizer(_allow_all_authorizer)
     return conn.execute(sql)
 
 
@@ -429,6 +437,92 @@ def databases_root():
     return os.path.join(scratch_root(), "databases")
 
 
+def _lenient_int(value, default):
+    """A limit the model wrote as text ("100", "100 rows", "5s") is still the number it meant;
+    only a value with no number in it is refused (served run6: the count answer was lost to
+    a string limit)."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        raise ValueError("boolean limit")
+    if isinstance(value, (int, float)):
+        return int(value)
+    found = re.search(r"-?\d+", str(value))
+    if not found:
+        raise ValueError("no number in %r" % (value,))
+    return int(found.group(0))
+
+
+# Read-only tools may resolve a missing or unknown database name to the ONLY database that
+# exists. The caller is told exactly what happened; mutating tools never substitute.
+_READ_ONLY_INTENTS = (
+    "vool-database.connect",
+    "vool-database.schema",
+    "vool-database.query",
+    "vool-database.explain",
+    "vool-database.migrate.preview",
+)
+
+
+def _substitute_only_database(intent, args):
+    if intent not in _READ_ONLY_INTENTS or not isinstance(args, dict):
+        return None
+    asked = str(args.get("name") or "").strip().lower()
+    names = available_databases()
+    if len(names) != 1 or asked == names[0]:
+        return None
+    if asked and os.path.isfile(os.path.join(databases_root(), asked + ".sqlite")):
+        return None
+    args["name"] = names[0]
+    return (asked, names[0])
+
+
+def _shape_hint(args, message):
+    """For "no such column/table": the real shape, so the next attempt (or the person) can
+    correct the name instead of reading a bare engine error (served run8: publication_year)."""
+    if "no such column" not in message and "no such table" not in message:
+        return ""
+    try:
+        path, _name = db_path(args.get("name"))
+        conn = open_ro(path)
+        try:
+            parts = []
+            for (table,) in conn.execute(
+                "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name"
+            ).fetchall()[:20]:
+                columns = [row[1] for row in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
+                parts.append("%s(%s)" % (table, ", ".join(columns[:30])))
+        finally:
+            conn.close()
+        return "; the tables and columns that exist are: " + "; ".join(parts) if parts else ""
+    except Exception:
+        return ""
+
+
+def available_databases():
+    try:
+        return sorted(
+            entry[: -len(".sqlite")]
+            for entry in os.listdir(databases_root())
+            if entry.endswith(".sqlite") and os.path.isfile(os.path.join(databases_root(), entry))
+        )[:20]
+    except OSError:
+        return []
+
+
+def unknown_database(name):
+    """The refusal names the databases that DO exist, so a caller who guessed the name can
+    correct itself instead of asking the person for something they may not know."""
+    names = available_databases()
+    hint = ("; the databases that exist are: %s" % ", ".join(names)) if names else "; no database exists yet"
+    return Fail(
+        "unknown_database",
+        "no disposable database named %r exists%s" % (name, hint),
+        database=name,
+        available_databases=names,
+    )
+
+
 def db_path(name):
     clean = str(name or "").strip().lower()
     if not NAME_RE.match(clean):
@@ -486,7 +580,7 @@ def single_select(sql):
     if not SELECT_HEAD_RE.match(body):
         raise Fail(
             "refused_not_select",
-            "the query tool runs a single SELECT/WITH statement in read-only mode; mutations go through migrate.preview + migrate.apply",
+            "nothing was changed: the query tool only runs one read-only SELECT/WITH. To change data or add a column, call vool-database.migrate.preview (it shows the change on a copy, then apply needs the person's approval)",
         )
     if not sqlite3.complete_statement(body + ";"):
         raise Fail("invalid_sql", "the statement is not complete SQL")
@@ -562,7 +656,7 @@ def tool_connect(args):
         )
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     conn = open_ro(path)
     try:
         identity = {
@@ -707,12 +801,18 @@ def _diff_schemas(before, after):
 def tool_schema(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     table_filter = str(args.get("table") or "").strip().lower() or None
     conn = open_ro(path)
     try:
         deadline = time.monotonic()
         snapshot = _schema_snapshot(conn)
+        missing_table = None
+        if table_filter and table_filter not in snapshot:
+            # "my library db" is a database, not a table: answer with the whole database and
+            # say so, rather than a bare "table not found" (served run9).
+            missing_table = table_filter
+            table_filter = None
         pii_columns = []
         row_counts = {}
         for table, shape in snapshot.items():
@@ -729,8 +829,6 @@ def tool_schema(args):
         elapsed = int((time.monotonic() - deadline) * 1000)
     finally:
         conn.close()
-    if table_filter and table_filter not in snapshot:
-        raise Fail("unknown_table", "table %r not found" % table_filter, database=name)
     tables = {}
     for table, shape in snapshot.items():
         if table_filter and table != table_filter:
@@ -745,8 +843,11 @@ def tool_schema(args):
         "introspected_ms": elapsed,
         "engine": "sqlite",
     }
+    if missing_table:
+        observation["requested_table_not_found"] = missing_table
     return (
-        "Schema of %r: %d table(s)%s. Potential PII columns to review: %s."
+        ("There is no table %r; here is the whole database. " % missing_table if missing_table else "")
+        + "Schema of %r: %d table(s)%s. Potential PII columns to review: %s."
         % (
             name,
             len(tables),
@@ -776,12 +877,12 @@ def _cancelled(name, max_seconds):
 def tool_query(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     body = single_select(args.get("sql"))
     params = named_params(args.get("params"))
     try:
-        row_limit = int(args.get("row_limit") or DEFAULT_ROW_LIMIT)
-        max_seconds = int(args.get("max_seconds") or DEFAULT_SECONDS)
+        row_limit = _lenient_int(args.get("row_limit"), DEFAULT_ROW_LIMIT)
+        max_seconds = _lenient_int(args.get("max_seconds"), DEFAULT_SECONDS)
     except (TypeError, ValueError):
         raise Fail("invalid_arguments", "row_limit and max_seconds are integers")
     row_limit = max(1, min(row_limit, MAX_ROW_LIMIT))
@@ -815,14 +916,14 @@ def tool_query(args):
         "parameterized": bool(params),
         "engine": "sqlite",
     }
-    text = "%d row(s)%s from %r in %dms." % (len(rows), " (truncated at the limit)" if truncated else "", name, elapsed_ms)
+    text = "%d row(s)%s from %r in %dms." % (len(rows), (" (TRUNCATED at row_limit=%d: not the full result, and the rows shown are not a count -- use SELECT COUNT(*))" % row_limit) if truncated else "", name, elapsed_ms)
     return text, observation, "sqlite:" + name
 
 
 def tool_explain(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     body = single_select(args.get("sql"))
     params = named_params(args.get("params"))
     conn = open_ro(path)
@@ -873,7 +974,7 @@ def _execute_guarded_statement(conn, stmt, params):
         else:
             conn.execute(stmt)
     finally:
-        conn.set_authorizer(None)
+        conn.set_authorizer(_allow_all_authorizer)
 
 
 def _rollback_quietly(conn):
@@ -1029,7 +1130,7 @@ def execute_migration(conn, statements, params, *, path=None, preimage=None):
 def tool_migrate_preview(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     statements = classify_migration_statements(args.get("statements"))
     params = named_params(args.get("params"))
     # Preview runs on an in-memory clone: the read-only child never writes the
@@ -1077,7 +1178,7 @@ def tool_migrate_preview(args):
         "engine_truth": _ENGINE_TRUTH,
     }
     return (
-        "Migration preview on a clone of %r: %d table(s) added, %d removed, %d changed; %d statement(s) classified."
+        "Migration PREVIEW on a clone of %r (nothing was applied; the database is unchanged): %d table(s) added, %d removed, %d changed; %d statement(s) classified."
         % (name, len(diff["tables_added"]), len(diff["tables_removed"]), len(diff["tables_changed"]), len(statements)),
         observation,
         "sqlite:" + name,
@@ -1170,7 +1271,7 @@ def _take_backup(path, name, backup_name, *, retry_on_collision=False):
 def tool_migrate_apply(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     # Refusal BEFORE any effect -- no backup is taken for a migration that will
     # not run, and no statement of it executes.
     statements = classify_migration_statements(args.get("statements"))
@@ -1273,7 +1374,7 @@ def tool_migrate_apply(args):
 def tool_backup(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
-        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+        raise unknown_database(name)
     raw = str(args.get("backup_name") or "").strip()
     backup_name = raw if raw else _unique_backup_name("snapshot")
     # Automatic names retry on a collision; a NAMED preimage is immutable and never retries.
@@ -1407,7 +1508,18 @@ def main():
         sys.stdout.write(json.dumps({"ok": False, "status": "unknown_intent", "error": intent}))
         return
     try:
+        substituted = _substitute_only_database(intent, args)
         text, observation, resolved = handler(args)
+        if substituted:
+            asked, used = substituted
+            observation = dict(observation)
+            observation["asked_database"] = asked
+            observation["used_database"] = used
+            text = "Note: %s; %r is the only database that exists, so it was used. %s" % (
+                ("no database named %r exists" % asked) if asked else "no database name was given",
+                used,
+                text,
+            )
         sys.stdout.write(
             json.dumps({"ok": True, "text": text, "observation": observation, "resolved_target": resolved})
         )
@@ -1416,8 +1528,10 @@ def main():
         sys.stdout.write(json.dumps(body))
     except sqlite3.Error as exc:
         # The engine refused something the guards did not pre-classify; typed, not a crash.
+        message = "sqlite: %s" % exc
+        hint = _shape_hint(args, str(exc))
         sys.stdout.write(
-            json.dumps({"ok": False, "status": "sql_error", "error": "sqlite: %s" % exc})
+            json.dumps({"ok": False, "status": "sql_error", "error": message + hint})
         )
     except Exception as exc:  # never a bare crash: a typed failure the model can act on
         sys.stdout.write(

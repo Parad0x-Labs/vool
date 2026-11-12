@@ -275,6 +275,18 @@ def _email_work_owns_follow_up(user_input: str, source_context: dict[str, object
         return False
 
 
+def _database_work_owns_follow_up(user_input: str, source_context: dict[str, object] | None) -> bool:
+    try:
+        from core.database_work_state import active_database_work_intents
+        from core.retrieval_constraints import analyze_retrieval_constraints
+
+        if analyze_retrieval_constraints(str(user_input or "")).forbids_all_tools:
+            return False
+        return bool(active_database_work_intents(dict(source_context or {})))
+    except Exception:
+        return False
+
+
 def should_keep_ai_first_chat_lane(
     agent: Any,
     *,
@@ -369,6 +381,14 @@ def should_keep_ai_first_chat_lane(
 
     if "web" in resolve_demand_signals(user_input).required_families:
         return False
+    # Database work ("whats in the users table?") needs the database tools this lane cannot
+    # offer; without them the model only promises to connect. Registered tools only.
+    from core.database_work_state import note_database_demand
+    from core.tool_demand_signals import asks_for_database_work
+
+    if asks_for_database_work(user_input):
+        note_database_demand(source_context)
+        return False
     from core.stipulated_frame import stipulated_frame_active
 
     if stipulated_frame_active(user_input, source_context=source_context):
@@ -443,6 +463,10 @@ def should_keep_ai_first_chat_lane(
     # wording. Placed after every specific lane decision above, so only the class-based keep below
     # is overridden -- and never for a turn that forbids tools.
     if _email_work_owns_follow_up(user_input, source_context):
+        return False
+    # Same for a session mid database work (core.database_work_state): its follow-ups ("and how
+    # many are pending?") name no database, so the wording cannot release them.
+    if _database_work_owns_follow_up(user_input, source_context):
         return False
 
     return routed_task_class in {

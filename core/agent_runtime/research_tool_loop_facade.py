@@ -1090,6 +1090,14 @@ class ResearchToolLoopFacadeMixin:
         }
     )
     _MAX_ARGUMENT_CORRECTIONS = 2
+    #: The database tools' typed refusals that NAME the real databases/tables/columns ("no such column:
+    #: publication_year; the tables and columns that exist are: books(id, title, author, year)").
+    #: The model guessed a name; the refusal already carries the right one. Served runs 8-11: the raw
+    #: engine text ended the turn although one more call would have answered. Read-only mistakes
+    #: only -- a changed-nothing refusal -- and the same two-correction bound applies.
+    _DATABASE_RECOVERABLE_STATUSES = frozenset(
+        {"sql_error", "unknown_database", "unknown_table", "invalid_database_name", "invalid_arguments"}
+    )
     #: Refusals by an open code task's own control plane that name the lawful next act: the reviewed
     #: base changed (re-read, propose again), a landed repair's checkpoint is not validated yet (run its
     #: checks), a repair unit is part-applied or not wholly approved, an approval already ran or is
@@ -1150,7 +1158,8 @@ class ResearchToolLoopFacadeMixin:
         status = str(getattr(execution, "status", "") or "")
         intent = str(tool_payload.get("intent") or "unknown")
         task_plane_refusal = intent.startswith("code.task.") and status in self._CODE_TASK_RECOVERABLE_STATUSES
-        if status not in self._CORRECTABLE_STATUSES and not task_plane_refusal:
+        database_refusal = intent.startswith("vool-database.") and status in self._DATABASE_RECOVERABLE_STATUSES
+        if status not in self._CORRECTABLE_STATUSES and not task_plane_refusal and not database_refusal:
             return False
         corrections = sum(1 for step in executed_steps if step.get("correction"))
         if corrections >= self._MAX_ARGUMENT_CORRECTIONS:
@@ -1172,6 +1181,9 @@ class ResearchToolLoopFacadeMixin:
                     f"The call to {intent} was refused by the code task before anything changed: {detail} "
                     "Take the lawful next action it names."
                     if task_plane_refusal
+                    else f"The call to {intent} failed and nothing was changed: {detail} "
+                    "Use the exact names it lists and call the tool again."
+                    if database_refusal
                     else f"The call to {intent} was rejected before it ran: {detail} "
                     "Correct the arguments and call the tool again."
                 ),

@@ -1126,6 +1126,12 @@ def guidance_for_selection(
                 }
             )
             continue
+        if contract.id == "database":
+            from core.database_work_state import database_catalog_block
+
+            catalog = database_catalog_block()
+            if catalog and len(block) + len(catalog) + 2 <= remaining[lane]:
+                block = block + "\n\n" + catalog
         used = len(block)
         blocks.append(block)
         remaining[lane] -= used

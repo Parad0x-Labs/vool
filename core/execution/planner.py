@@ -429,6 +429,12 @@ def should_attempt_tool_intent(
     if active_email_work_intents(source_context):
         return True
 
+    # A session mid database work admits its follow-ups the same way (core.database_work_state).
+    from core.database_work_state import active_database_work_intents
+
+    if active_database_work_intents(source_context):
+        return True
+
     # A FIRST-TURN mailbox request is an action through the email tools, never a topic to
     # converse about — the same law the session admission above states for follow-ups, read
     # through the SAME typed recognizer the tool offer seats from
@@ -466,6 +472,14 @@ def should_attempt_tool_intent(
     from core.tool_demand_signals import resolve_demand_signals
 
     if "web" in resolve_demand_signals(text).required_families:
+        return True
+
+    # Database work is tool work too (same recogniser that seats the tools in the offer).
+    from core.database_work_state import note_database_demand
+    from core.tool_demand_signals import asks_for_database_work
+
+    if asks_for_database_work(text):
+        note_database_demand(source_context)
         return True
 
     # A few ordinary knowledge/text requests in one message still need one plain answer, not the

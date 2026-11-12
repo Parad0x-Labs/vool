@@ -222,3 +222,79 @@ def test_sabotage_removing_the_context_veto_lets_discussion_seat_the_skill(
         "sabotage no-op: with the context veto disabled no discussion phrasing raised "
         "the database family, so the veto is not what keeps them out"
     )
+
+
+# ── plain asks SEAT the read-only tools (the skill alone only promised) ──────
+
+#: Varied, typo'd, follow-up shaped asks with no dotted token anywhere.
+PLAIN_READ_ASKS = [
+    "show me the tables in my database",
+    "whats in the users table?",
+    "how many rows r in the orders table",
+    "show me my databse tables",
+    "count the rows in the invoices table",
+    "query the sqlite file and tell me how many orders shipped last week",
+    "can you look at the customers tabel for me",
+    "and how many are in the products table?",
+]
+SEATED_READ_TOOLS = {"vool-database.schema", "vool-database.query", "vool-database.connect"}
+MUTATING_TOOLS = {
+    "vool-database.migrate.apply",
+    "vool-database.restore",
+    "vool-database.backup",
+    "vool-database.db.create",
+}
+
+
+def _warm(db_world) -> None:
+    """Register the installed pack's tools the way daemon boot does."""
+    from core import plugin_tools
+
+    plugin_tools.load_all(db_world_root(db_world))
+
+
+def db_world_root(db_world):
+    import os
+    from pathlib import Path
+
+    return Path(os.environ["VOOL_PLUGINS_DIR"])
+
+
+@pytest.mark.parametrize("text", PLAIN_READ_ASKS)
+def test_plain_database_asks_seat_a_read_only_tool(db_world, text: str) -> None:
+    _warm(db_world)
+    signals = resolve_demand_signals(text)
+    seated = set(signals.explicit_intents) & SEATED_READ_TOOLS
+    assert seated, f"{text!r} seated nothing: {signals}"
+    assert not (set(signals.explicit_intents) & MUTATING_TOOLS), signals
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "add a column called email to the customers table",
+        "delete every row where status is cancelled",
+        "drop the customers table and delete all the data",
+        "back up my database before I change anything",
+    ],
+)
+def test_plain_change_asks_seat_preview_only_never_a_mutating_tool(db_world, text: str) -> None:
+    _warm(db_world)
+    explicit = set(resolve_demand_signals(text).explicit_intents)
+    assert not (explicit & MUTATING_TOOLS), explicit
+    assert "vool-database.migrate.preview" in explicit or "vool-database.schema" in explicit, explicit
+
+
+@pytest.mark.parametrize("text", CONTEXT_PHRASINGS)
+def test_context_phrasings_seat_no_database_tool(db_world, text: str) -> None:
+    _warm(db_world)
+    explicit = set(resolve_demand_signals(text).explicit_intents)
+    assert not any(i.startswith("vool-database.") for i in explicit), (text, explicit)
+
+
+def test_without_the_plugin_installed_nothing_is_seated() -> None:
+    from core import tool_registry
+
+    tool_registry.reset()
+    explicit = set(resolve_demand_signals("show me the tables in my database").explicit_intents)
+    assert not any(i.startswith("vool-database.") for i in explicit), explicit

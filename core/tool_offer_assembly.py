@@ -609,7 +609,13 @@ def assemble_tool_offer(
         email_seats = tuple(active_email_work_intents(source_context))
     except Exception:
         email_seats = ()
-    work_seats = tuple(dict.fromkeys((*task_seats, *email_seats)))
+    try:
+        from core.database_work_state import active_database_work_intents
+
+        database_seats = tuple(active_database_work_intents(source_context))
+    except Exception:
+        database_seats = ()
+    work_seats = tuple(dict.fromkeys((*task_seats, *email_seats, *database_seats)))
     # ONE read of the turn's navigation set (core.tool_offer_state): the offer is built from it and
     # records it, so every rendering of this offer agrees on which expansions it carries.
     from core.tool_offer_state import turn_family_expansions

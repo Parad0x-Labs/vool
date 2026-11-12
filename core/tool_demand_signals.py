@@ -122,6 +122,14 @@ def _market_rule(branch: str, *, datasets: bool = False) -> re.Pattern[str]:
 _FLOW_TOKEN = (r"(?:\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"
                r"|\b(?:this|that|the|my)\s+(?:token|coin|memecoin)\b)")
 
+# Typo-tolerant database nouns ("databse", "datbase", "tabel"): the people asking are not
+# engineers, and a one-letter slip must not turn a database ask into a promise-only chat.
+_DB_TABLE = r"(?:tables?|tabels?|tabl|tbl)"
+_DB_NOUN = (
+    r"\b(?:databases?|databses?|datbases?|dbs?|" + _DB_TABLE + r"|schemas?|columns?|rows?|"
+    r"sqlite|postgres|mysql)\b"
+)
+
 _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     # -- repository operations (RepoOps control plane) ------------------------
     # GitHub-management demands -- pull requests, issues, CI truth, the typed git vertical --
@@ -545,8 +553,9 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "database.inspect",
         "database",
         re.compile(
-            r"\b(?:show|list|describe|inspect|count|check|look\s+at|what(?:'s|\s+is)\s+in)\b"
-            r"[^.?!]{0,60}?\b(?:databases?|db|tables?|schemas?|columns?|rows?|sqlite|postgres|mysql)\b",
+            r"\b(?:show|list|describe|inspect|count|check|look\s+at|see|view|open|"
+            r"what(?:'?s|\s+is|\s+are)\s+(?:in|inside)|how\s+many)\b"
+            r"[^.?!]{0,60}?" + _DB_NOUN,
             re.I,
         ),
     ),
@@ -554,9 +563,10 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "database.query",
         "database",
         re.compile(
-            r"\b(?:query|select|search|fetch|pull|read)\b[^.?!]{0,60}?"
-            r"\b(?:databases?|db|tables?|sqlite|postgres|mysql|rows?)\b"
-            r"|\bfrom\s+(?:the\s+)?(?:\w+\s+)?tables?\b",
+            r"\b(?:query|select|search|fetch|pull|read|find|get|give\s+me|tell\s+me)\b[^.?!]{0,60}?"
+            + _DB_NOUN
+            + r"|\b(?:from|in|of|on)\s+(?:the\s+|my\s+)?(?:\w+\s+)?" + _DB_TABLE + r"\b"
+            r"|\bhow\s+many\b[^.?!]{0,40}?\b(?:are|r|is|do|does|did|have|has)\b[^.?!]{0,40}?" + _DB_NOUN,
             re.I,
         ),
     ),
@@ -1314,6 +1324,136 @@ def owner_file_demand(text: str) -> bool:
     return bool(_FILE_DEMAND_DEVICE.search(cleaned) and _FILE_DEMAND_FILE_WORK.search(cleaned))
 
 
+#: What a plain database ask SEATS. The skill only teaches; the work needs the tool in the
+#: offer, or the model can only promise. Read-only tools only (their contracts declare
+#: side_effect_class read_only, approval none): `migrate.preview` mutates nothing, so a
+#: schema-change ask can be previewed and explained, while apply/restore/backup/db.create
+#: stay unseated -- a mutation still needs the user to name it (or the model to ask for
+#: the family) and then crosses approval, effect budget and the permission controller.
+_DATABASE_SEATS: dict[str, tuple[str, ...]] = {
+    "database.inspect": ("vool-database.schema", "vool-database.connect"),
+    "database.query": ("vool-database.query", "vool-database.schema", "vool-database.connect"),
+    "database.mutate": ("vool-database.migrate.preview", "vool-database.schema"),
+    "database.migrate": ("vool-database.migrate.preview", "vool-database.schema"),
+}
+
+
+_DATA_QUESTION = re.compile(
+    r"\b(?:how\s+many|how\s+much|count|list|show|which|who|whom|what|whats|what's|total|sum|average|"
+    r"oldest|newest|latest|earliest|largest|smallest|biggest|most|least|any|anything|does|do\s+i\s+have|"
+    r"find|get|give\s+me|tell\s+me|number\s+of|is\s+there|are\s+there)\b",
+    re.I,
+)
+_VOCAB_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
+# Column names that are ordinary English on their own ("what is your name", "what year is it"):
+# they never make a sentence database work by themselves.
+_GENERIC_COLUMNS = frozenset(
+    {"id", "name", "type", "date", "time", "year", "day", "status", "text", "value", "key", "data", "note",
+     "notes", "title", "code", "number", "count", "size", "state", "level", "kind", "group", "order", "end",
+     "start", "user", "item", "list", "left", "right", "total", "price", "city", "country", "person"}
+)
+
+
+def _database_vocabulary() -> frozenset[str]:
+    """Names of the disposable databases that exist and of their tables (lowercase).
+
+    A closed vocabulary read from the person's own data, like the registered plugin intents:
+    "how many books are there" names no database word, but `books` is a table here.
+    """
+    try:
+        from core.plugin_tools import plugin_scratch_dir
+
+        root = plugin_scratch_dir("vool-database") / "databases"
+        files = sorted(p for p in root.glob("*.sqlite") if p.is_file())
+    except Exception:
+        return frozenset()
+    words: set[str] = set()
+    for path in files[:20]:
+        try:
+            stamp = path.stat().st_mtime
+            key = str(path)
+            cached = _VOCAB_CACHE.get(key)
+            if cached is not None and cached[0] == stamp:
+                words |= cached[1]
+                continue
+            import sqlite3
+
+            found = {path.stem.lower()}
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+            try:
+                tables = [
+                    str(r[0]).lower()
+                    for r in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'")
+                ]
+                found |= set(tables)
+                for table in tables[:20]:
+                    for row in conn.execute('pragma table_info("%s")' % table.replace('"', "")):
+                        column = str(row[1]).lower()
+                        if column not in _GENERIC_COLUMNS:
+                            found.add(column)
+            finally:
+                conn.close()
+            _VOCAB_CACHE[key] = (stamp, frozenset(found))
+            words |= found
+        except Exception:
+            continue
+    return frozenset(w for w in words if len(w) >= 3)
+
+
+def _names_the_persons_database(text: str) -> bool:
+    """A data question that uses a name from the person's own databases/tables ("how many books are there")."""
+    if not _DATA_QUESTION.search(text):
+        return False
+    vocab = _database_vocabulary()
+    if not vocab:
+        return False
+    lowered = text.lower()
+    stems: set[str] = set()
+    for word in vocab:
+        stems.add(word)
+        if word.endswith("ies") and len(word) > 4:
+            stems.add(word[:-3] + "y")
+        if word.endswith("es") and len(word) > 4:
+            stems.add(word[:-2])
+        if word.endswith("s") and len(word) > 3:
+            stems.add(word[:-1])
+    return any(re.search(r"\b%s(?:e?s)?\b" % re.escape(stem), lowered) for stem in stems)
+
+
+def _database_tool_intents(rule_intents: list[str]) -> list[str]:
+    """Registered read-only database tools a plain database ask should seat, in priority order."""
+    wanted: list[str] = []
+    for rule_intent in rule_intents:
+        for tool_intent in _DATABASE_SEATS.get(rule_intent, ()):
+            if tool_intent not in wanted:
+                wanted.append(tool_intent)
+    if not wanted:
+        return []
+    try:
+        from core.tool_registry import registered_tools
+
+        registered = {
+            str(c.intent) for c in registered_tools() if str(c.source or "").startswith("plugin:")
+        }
+    except Exception:
+        return []
+    return [t for t in wanted if t in registered]
+
+
+def asks_for_database_work(text: str) -> bool:
+    """Whether plain words ask for database work AND the database tools are registered here.
+
+    The lane gates read this beside the wallet/email/web arms so a tools-less chat lane cannot
+    keep a turn the offer would have armed (the model then only promised: "Let's connect to
+    your database... shall I proceed?"). Registered-only: a runtime without the database
+    plugin tools (the default) is unchanged.
+    """
+    try:
+        return any(i.startswith("vool-database.") for i in resolve_demand_signals(text).explicit_intents)
+    except Exception:
+        return False
+
+
 def resolve_demand_signals(text: str) -> DemandSignals:
     """Resolve the user's words into explicit intents and required families.
 
@@ -1348,6 +1488,7 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     is_wallet_move = any(
         pattern.search(cleaned) for intent, _family, pattern in _RULES if intent == "wallet.propose"
     )
+    database_rule_hits: list[str] = []
     for intent, family, pattern in _RULES:
         if pattern.search(cleaned):
             if family == "database" and database_is_context_only:
@@ -1362,11 +1503,33 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 # receipt): the destination address in the words is not a chain-data
                 # question, so the read-only lookup is not offered beside the proposal.
                 continue
+            if family == "database":
+                # Family only: the rule name is not a tool, and as an "intent" it would
+                # spend one of the few explicit slots the real tools below need.
+                database_rule_hits.append(intent)
+                if family not in families and len(families) < MAX_REQUIRED_FAMILIES:
+                    families.append(family)
+                continue
             _note(intent, family)
             if family == "workspace" and intent.startswith(
                 ("workspace.write", "workspace.replace", "workspace.apply", "workspace.rollback")
             ):
                 write_demand = True
+
+    # "what is the biggest capacity" asks about the person's data; only a DEFINITION shape
+    # ("what is a join") is talk about databases, so the vocabulary path reads the veto
+    # without the bare "what is/are/does" alternatives.
+    vocabulary_veto = bool(
+        _DATABASE_CONTEXT_ONLY.search(
+            re.sub(r"\bwhat(?:'s|\s+is|\s+are|\s+does)\b(?!\s+(?:a|an)\b)", "which", cleaned, flags=re.I)
+        )
+    )
+    if not vocabulary_veto and "database.query" not in database_rule_hits and _names_the_persons_database(cleaned):
+        database_rule_hits.append("database.query")
+        if "database" not in families and len(families) < MAX_REQUIRED_FAMILIES:
+            families.append("database")
+    for tool_intent in _database_tool_intents(database_rule_hits):
+        _note(tool_intent, "plugin")
 
     # Share the reader with front-door ownership: an anaphoric artifact order
     # must seat file.deliver too, not only classify as a file after seating.
@@ -1419,6 +1582,7 @@ __all__ = [
     "MAX_EXPLICIT_INTENTS",
     "MAX_REQUIRED_FAMILIES",
     "DemandSignals",
+    "asks_for_database_work",
     "mailbox_retrieval_intents",
     "owner_file_demand",
     "owner_file_intents",
