@@ -108,12 +108,17 @@ def chat(monkeypatch, enable_web):
     return say
 
 
+#: The frame v0.8's page digest writes its answer under: the fetched page is the turn's only
+#: evidence (core.agent_runtime.chat_surface.observation_prompt, live_info / fresh_lookup).
+_PAGE_PROMPT_MARK = "Answer ONLY using"
+
+
 def _page_prompts(chat) -> list[str]:
-    return [text for text in chat.seen if "page_text" in text]
+    return [text for text in chat.seen if _PAGE_PROMPT_MARK in text]
 
 
 def _when_the_page_is_read(chat, reply) -> None:
-    chat.script.when(lambda request: "page_text" in str(getattr(request, "messages", "")), reply)
+    chat.script.when(lambda request: _PAGE_PROMPT_MARK in str(getattr(request, "messages", "")), reply)
 
 
 def test_a_summary_ask_is_answered_from_the_page_text(chat) -> None:
@@ -157,7 +162,7 @@ def test_without_a_model_answer_the_person_still_gets_the_readable_page(chat) ->
     reply = chat(f"can you summarise this page for me {url}")
 
     assert "Includes car tax, MOT and driving licences." in reply
-    assert "could not write the answer" in reply
+    assert "couldn't write the summary" in reply
     for markup in ("<html", "<script", "govuk-header", "trackPage"):
         assert markup not in reply, markup
 

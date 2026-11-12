@@ -50,6 +50,12 @@ def evaluative_model_input(*, user_input: str) -> str:
     ).strip()
 
 
+#: How each `observation_prompt` frame begins: the strict frame for a fresh lookup, and the
+#: evidence frame for every other lane. `composed_turn_prefix` finds the observations by them.
+_LOOKUP_FRAME_START = "IMPORTANT: Answer ONLY using the search results below."
+_EVIDENCE_FRAME_START = "Grounding observations for this turn."
+
+
 def observation_prompt(
     *,
     user_input: str,
@@ -59,18 +65,30 @@ def observation_prompt(
     mode = str(observations.get("mode") or "").strip()
     if channel == "live_info" and mode == "fresh_lookup":
         grounding = (
-            "IMPORTANT: Answer ONLY using the search results below. "
+            f"{_LOOKUP_FRAME_START} "
             "If the search results do not contain the answer, say so honestly - "
             "do NOT guess or fill in from general knowledge. "
             "Cite the source domain when possible."
         )
     else:
-        grounding = "Grounding observations for this turn. Use them as evidence, not as a template:"
+        grounding = f"{_EVIDENCE_FRAME_START} Use them as evidence, not as a template:"
     return (
         f"{str(user_input or '').strip()}\n\n"
         f"{grounding}\n"
         f"{json.dumps(dict(observations or {}), indent=2, sort_keys=True)}"
     ).strip()
+
+
+def composed_turn_prefix(composed: str) -> str:
+    """The turn as the lane read it: what an `observation_prompt` holds before its frame.
+
+    Empty when the text carries no frame. The last frame is the lane's own: the observations after
+    it are one JSON document, which never holds a blank line, while the person's words before it can
+    quote anything.
+    """
+    text = str(composed or "")
+    index = max(text.rfind(f"\n\n{start}") for start in (_LOOKUP_FRAME_START, _EVIDENCE_FRAME_START))
+    return text[:index] if index > 0 else ""
 
 
 def live_info_observations(

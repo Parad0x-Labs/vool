@@ -2514,6 +2514,19 @@ class MemoryFirstRouter:
         evidence_prefix = raw_current_turn
         if not composed_input.startswith(evidence_prefix + "\n\n"):
             evidence_prefix = " ".join(raw_current_turn.split())
+        if (
+            raw_current_turn
+            and composed_input != raw_current_turn
+            and not composed_input.startswith(evidence_prefix + "\n\n")
+        ):
+            # The lane composed the prompt from ITS reading of the turn, and the typo fold reads
+            # "summarise" as "summarize", so the person's bytes are not the prompt's prefix. Before
+            # this the observations went nowhere: "can you summarise this page for me <url>" reached
+            # the model without the page and was answered as a bare question. The composer's own
+            # frame marks where the observations begin.
+            from core.agent_runtime.chat_surface import composed_turn_prefix
+
+            evidence_prefix = composed_turn_prefix(composed_input) or evidence_prefix
         if raw_current_turn and composed_input.startswith(evidence_prefix + "\n\n"):
             # Runtime observations are evidence, with their own bounded message.
             # They never become bytes authored by the user at the provider door.
