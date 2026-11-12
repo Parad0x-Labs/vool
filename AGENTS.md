@@ -136,6 +136,27 @@ never replaces it, and an old head's green never covers a new head. A draft pull
 `verify` only: mark it ready to start the full gate, and convert it back to draft to hold it
 (that cancels the full round in flight). A draft's green `verify` is not merge evidence.
 
+## Change impact
+
+`ops/impact/` turns a diff into the behaviors it puts at risk and the proofs that hold them.
+Before calling a change done, run
+
+    python ops/impact/governor.py map --base <base-ref> --format json
+
+and run the `required_proofs` it names, or run `gate` instead of `map` to have it run them and
+also check that they actually executed the changed code. The gate refuses a change when governed
+code has no covering proof, a required proof failed or never ran, a required proof ran without
+entering the changed code, a new `.py` file sits beside governed code unclaimed, or the registry
+itself is wrong. CI runs `audit` on every push and `gate` on every pull request
+(`.github/workflows/impact.yml`).
+
+To govern a behavior, add an invariant to `ops/impact/invariants.yaml` (statement in product
+terms, scenario, proofs, surfaces, and for a blocker the sabotage that would break it), list its
+files under `governed_scope`, then run `record` and `audit`. A surface none of its own proofs is
+seen executing is reported as a false claim. A `record` run that captured a failing proof keeps
+that failure in `ops/impact/proof_map.json`, including the registry check's own: fix the cause,
+move the map aside, and run `record` twice.
+
 ## Evidence
 
 Every pull request names the exact tested commit, the commands run, pass/fail denominators,
