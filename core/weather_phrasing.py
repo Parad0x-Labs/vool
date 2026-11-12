@@ -20,10 +20,21 @@ POLITE_TAIL = r"(?:\s+(?:please|pls|plz|thanks|thx|ty))?"
 #: shorthands ("rn", "atm") and "at the moment" ask the same thing as "now" (app bugs 2026-11-12:
 #: "paris weather rn" and "is it raining in Paris at the moment" found no place and failed).
 TIME_ANCHOR_AT_END = (
+    # "for today" asks the same as "today" ("Paris forecast for today?", app bugs 2026-11-12 rerun:
+    # the ask was claimed as weather but no place was found, so nothing was looked up).
+    r"(?:for\s+)?"
     r"(?:right\s+this\s+minute|right\s+now|now|rn|atm|at\s+(?:the|this)\s+moment|this\s+minute|"
     r"today|tonight|tomorrow|currently|this\s+(?:morning|afternoon|evening|weekend))"
     + POLITE_TAIL
     + r"\s*(?:$|[?.!;,])"
+)
+
+#: A time word right after "in/for/at" is not a place: "forecast for today", "weather for tonight".
+#: A negative lookahead for the scanner's preposition shape, so the place-first shape reads the
+#: place before the weather word instead.
+NOT_A_TIME = (
+    r"(?!(?:today|tonight|tomorrow|now|right\s+now|this\s+(?:morning|afternoon|evening|weekend|week)|"
+    r"the\s+(?:day|week|weekend))\b)"
 )
 
 #: Words that can never be the place in a prepositionless weather ask: function words, pronouns,
@@ -56,9 +67,21 @@ PLACE_FIRST_AT_START = (
 #: "how cold is it in oslo", "how warm it is out in tallinn": the air at a place, asked by how it
 #: feels. The words up to the preposition; the place follows. A named place is required, so "how
 #: hot is it in the oven" (an article) and "how hot is the sun" (no in/at) stay out.
+_FEEL = r"(?:cold|warm|hot|chilly|freezing|windy|humid|sunny|rainy|wet|snowy)"
+#: The same ask as a yes/no question is the same lookup: "is it cold in Berlin right now", "isn't it
+#: freezing in Toronto" (app bugs 2026-11-12 rerun: reached the model, which had nothing to read).
 FEEL_ASK = (
-    r"how\s+(?:cold|warm|hot|chilly|freezing|windy|humid|sunny|rainy|wet|snowy)\s+(?:is\s+it|it\s+is|it'?s)\s+"
-    r"(?:(?:out|over|up|down)\s+)?(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
+    r"(?:how\s+" + _FEEL + r"\s+(?:is\s+it|it\s+is|it'?s)"
+    r"|(?:is|isn'?t)\s+it\s+(?:(?:very|really|too|so|still)\s+)?" + _FEEL + r")\s+"
+    r"(?:(?:out|outside|over|up|down)\s+)?(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
+)
+
+#: "what's it like outside in Paris", "how's it outside in Oslo": the air at a place, asked by what
+#: it is like out there. "outside" (or "out") is required: "what's it like living in Paris" and
+#: "what is it like to work in Berlin" ask about life there, not the weather. Same rerun as above.
+OUTSIDE_ASK = (
+    r"(?:what(?:'?s|\s+is)\s+it\s+like|how(?:'?s|\s+is)\s+it(?:\s+looking)?)\s+(?:outside|out(?:doors)?)\s+"
+    r"(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
 )
 
 #: Weather verbs in every form a person asks with: "rain", "raining", "rainy", "going to rain".

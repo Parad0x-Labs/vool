@@ -1211,6 +1211,8 @@ def _split_weather_candidates(clause: str) -> list[tuple[str, bool]]:
 #: The clause shapes that tie a weather trigger word to what it is the weather OF. Named once and
 #: shared by the singular and plural scanners below, so the two can never drift apart.
 from core.weather_phrasing import FEEL_ASK as _FEEL_ASK
+from core.weather_phrasing import NOT_A_TIME as _NOT_A_TIME
+from core.weather_phrasing import OUTSIDE_ASK as _OUTSIDE_ASK
 from core.weather_phrasing import PLACE as _PLACE
 from core.weather_phrasing import PLACE_FIRST_AT_START as _PLACE_FIRST_AT_START
 from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END
@@ -1221,7 +1223,7 @@ _WEATHER_CLAUSE_PATTERNS = (
     # `_WEATHER_LIVE_REQUEST_RE` in `fast_live_info_mode_classifier.py`, which documents
     # the same production incident ("weather only for Berlin and Copenhagen" was measured to miss
     # the classifier entirely without this filler support).
-    rf"\b(?:{_WEATHER_WORD_RE}|forecast|temperature|{_WEATHER_VERB}|wind|humidity)\s+(?:only\s+|just\s+|specifically\s+|like\s+|looking\s+|going\s+to\s+be\s+)?(?:in|for|at)\s+(.+)$",
+    rf"\b(?:{_WEATHER_WORD_RE}|forecast|temperature|{_WEATHER_VERB}|wind|humidity)\s+(?:only\s+|just\s+|specifically\s+|like\s+|looking\s+|going\s+to\s+be\s+)?(?:in|for|at)\s+{_NOT_A_TIME}(.+)$",
     r"\b(?:what is|what's|tell me|show me)\s+the\s+(?:weather|forecast)\s+(?:in|for|at)\s+(.+)$",
     # An INLINE colon label sharing its line with its list ("Weather: Kaunas/Tallinn/Warsaw."),
     # as distinct from `_WEATHER_HEADER_RE`'s bare-header-then-list-below shape. The trigger
@@ -1259,6 +1261,9 @@ _WEATHER_CLAUSE_PATTERNS = (
     # The air at a place asked by how it feels ("how cold is it in paris today"). Same app bugs
     # sweep: the classifier saw a weather ask, this list saw no clause, and nothing was looked up.
     rf"\b{_FEEL_ASK}(.+)$",
+    # "what's it like outside in paris right now" (app bugs 2026-11-12 rerun): the classifier's
+    # branch for the same shape, read from the same definition.
+    rf"\b{_OUTSIDE_ASK}(.+)$",
 )
 
 

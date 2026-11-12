@@ -42,6 +42,7 @@ from .fast_live_info_mode_markers import (
 _WEATHER_WORD = r"(?:weather|wheather|weater|weathr|wetaher|weahter|wheter|wather)"
 
 from core.weather_phrasing import FEEL_ASK as _FEEL_ASK
+from core.weather_phrasing import OUTSIDE_ASK as _OUTSIDE_ASK
 from core.weather_phrasing import PLACE as _PLACE
 from core.weather_phrasing import PLACE_FIRST_AT_START as _PLACE_FIRST_AT_START
 from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END
@@ -85,6 +86,9 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     # the place scanner in `tools.web.web_research` reads the same asks this branch claims (app
     # bugs 2026-11-12: "how cold is it in paris today" was claimed here and found no place there).
     rf"|{_FEEL_ASK}"
+    # "what's it like outside in paris right now": the same air at a place, asked by what it is
+    # like out there; "outside"/"out" is required, so "what's it like living in paris" stays out.
+    rf"|{_OUTSIDE_ASK}"
     # The verb form of sunset/sunrise: "what time does the sun set in oslo today", "when will the sun
     # come up in lisbon" (red team R1-16: answered from memory with web off, and wrong).
     r"|(?:when|what\s+time)\s+(?:does|did|will|is|'s)\s+(?:the\s+)?sun\s+(?:going\s+to\s+)?"
