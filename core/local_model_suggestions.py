@@ -172,6 +172,7 @@ PREVIOUS_GENERATION_DOWNLOAD_GB: dict[str, float] = {
 # lands on its row.
 _APPLE_DAILY: tuple[tuple[float, str], ...] = (
     (44.0, "qwen3.6:35b"),
+    (34.0, "qwen3:30b-instruct"),  # 36 GB Macs: ~30 tok/s and it stays loaded (module docstring)
     (17.0, "qwen3.5:9b"),
     (11.0, "qwen3.5:4b"),
     (5.5, "qwen3.5:2b"),
@@ -184,7 +185,7 @@ _CPU_DAILY: tuple[tuple[float, str], ...] = (
     (0.0, "qwen3.5:0.8b"),
 )
 _NVIDIA_DAILY: tuple[tuple[float, str], ...] = (
-    (22.0, "qwen3.8:27b"),
+    (22.0, "qwen3:30b-instruct"),
     (10.0, "qwen3.5:9b"),
     (6.0, "qwen3.5:4b"),
 )
@@ -205,23 +206,17 @@ _CPU_DEEP: tuple[tuple[float, str], ...] = (
     (0.0, ""),
 )
 _NVIDIA_DEEP: tuple[tuple[float, str], ...] = (
-    (22.0, ""),
+    (22.0, "qwen3.8:27b"),
     (15.0, "qwen3.8:27b"),
     (10.0, ""),
     (6.0, "qwen3.5:9b"),
 )
 
-# "Faster" (Settings offers it next to the daily model): the 30B mixture of experts, only where it
-# can stay loaded beside VOOL's helper model (see the module docstring). "" means no faster pick.
-_APPLE_FAST: tuple[tuple[float, str], ...] = (
-    (44.0, ""),  # the daily qwen3.6:35b is already a 3B-active mixture of experts
-    (34.0, "qwen3:30b-instruct"),  # 36 GB Macs; 32 GB is too tight (module docstring)
-    (0.0, ""),
-)
-_NVIDIA_FAST: tuple[tuple[float, str], ...] = (
-    (22.0, "qwen3:30b-instruct"),
-    (0.0, ""),
-)
+# "Faster" (Settings offers it next to the daily model). Empty everywhere: the 30B is the daily
+# model wherever it can stay loaded beside VOOL's helper model (see the module docstring), so
+# there is nothing separate to offer or tune. "" means no faster pick.
+_APPLE_FAST: tuple[tuple[float, str], ...] = ((0.0, ""),)
+_NVIDIA_FAST: tuple[tuple[float, str], ...] = ((0.0, ""),)
 _CPU_FAST: tuple[tuple[float, str], ...] = ((0.0, ""),)
 
 #: Room kept free on the model disk beyond the download itself.
