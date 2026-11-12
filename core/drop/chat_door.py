@@ -78,12 +78,16 @@ _PLACE_KEYS = (
     ("borrow", "lend.guest", "Borrow a job"),
     ("review", "lend.review", "Review invitation"),
 )
+#: Every job lending knows, in the order Settings lists them. The reply names only the jobs this version
+#: can run (core.lend.terms.OFFERED). Measured in the served app on the v0.8 lend port, 2026-11-12: the
+#: reply listed "Summarise a document with a local model" and "Translate a document with a local model",
+#: which this version cannot run on any computer.
 _JOB_KEYS = (
-    ("lend.cap_contact_sheet", "Make a contact sheet from photos"),
-    ("lend.cap_clean_pdf", "Turn a document into a clean PDF"),
-    ("lend.cap_summary", "Summarise a document with a local model"),
-    ("lend.cap_translation", "Translate a document with a local model"),
-    ("lend.cap_recording", "Trim or convert a recording"),
+    ("contact_sheet", "lend.cap_contact_sheet", "Make a contact sheet from photos"),
+    ("clean_pdf", "lend.cap_clean_pdf", "Turn a document into a clean PDF"),
+    ("summary", "lend.cap_summary", "Summarise a document with a local model"),
+    ("translation", "lend.cap_translation", "Translate a document with a local model"),
+    ("recording", "lend.cap_recording", "Trim or convert a recording"),
 )
 _WARNINGS = {"drop": ("drop.warning", "Not reviewed. Do not use for real messages."),
              "lend": ("lend.warning", "Not reviewed yet. Use test files only.")}
@@ -203,8 +207,12 @@ def _fields(catalog) -> dict[str, str]:
     for name, key, english in _PLACE_KEYS:
         text = catalog.text(key)
         fields[name] = english if text == key else text
+    from core.lend.terms import OFFERED
+
     jobs = []
-    for key, english in _JOB_KEYS:
+    for job, key, english in _JOB_KEYS:
+        if job not in OFFERED:
+            continue
         text = catalog.text(key)
         jobs.append(english if text == key else text)
     fields["jobs"] = "; ".join(jobs)

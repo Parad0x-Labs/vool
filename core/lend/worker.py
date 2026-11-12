@@ -20,7 +20,7 @@ from core.artifact_readers._sandbox import (
 )
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
 
-from .terms import MAX_OUTPUT, LendError, demand, identity
+from .terms import MAX_OUTPUT, OFFERED, LendError, demand, identity
 
 
 def available(capability):
@@ -31,7 +31,7 @@ def available(capability):
         # launches that do not inherit the owner's interactive shell PATH.
         path = '/opt/homebrew/bin:/usr/local/bin'
         return bool(shutil.which('ffmpeg', path=path) and shutil.which('ffprobe', path=path))
-    return capability in {'contact_sheet', 'clean_pdf'}
+    return capability in OFFERED
 
 
 def runtime_reads():

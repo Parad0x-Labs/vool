@@ -201,3 +201,32 @@ def test_a_note_for_a_phone_says_drop_cannot_reach_a_phone(drop_off, monkeypatch
     assert text == ('I have not sent a quick note to your phone. Send with Drop only works between your '
                     'computers, so it cannot send anything to a phone.'), text
     _plain(text)
+
+
+@pytest.mark.parametrize('state', ['off', 'unpaired'])
+def test_the_lend_reply_names_only_the_jobs_this_version_can_run(drop_off, state):
+    """Measured in the served app on the v0.8 lend port, 2026-11-12: the reply offered summarising and
+    translating a document with a local model, which this version cannot run on any computer."""
+    from core.drop import chat_door
+
+    text = chat_door.reply_text('lend', state, 'en')
+    assert ('It can take these jobs: Make a contact sheet from photos; Turn a document into a clean PDF; '
+            'Trim or convert a recording.') in text, text
+    assert 'Summarise' not in text and 'Translate' not in text, text
+    german = json.loads((CATALOGS / 'de.json').read_text())['messages']
+    text = chat_door.reply_text('lend', state, 'de')
+    assert german['lend.cap_contact_sheet'] in text and german['lend.cap_recording'] in text, text
+    assert german['lend.cap_summary'] not in text and german['lend.cap_translation'] not in text, text
+
+
+def test_the_jobs_the_reply_names_are_the_jobs_the_worker_can_run(monkeypatch):
+    """The reply and the worker read one list: with confinement and the media tools present the worker
+    runs exactly the jobs the reply names, and without confinement it runs none."""
+    from core.lend import worker
+    from core.lend.terms import CAPABILITIES, OFFERED
+
+    monkeypatch.setattr(worker, 'confinement_available', lambda: True)
+    monkeypatch.setattr(worker.shutil, 'which', lambda name, path=None: '/usr/local/bin/' + name)
+    assert tuple(job for job in CAPABILITIES if worker.available(job)) == OFFERED
+    monkeypatch.setattr(worker, 'confinement_available', lambda: False)
+    assert not [job for job in CAPABILITIES if worker.available(job)]

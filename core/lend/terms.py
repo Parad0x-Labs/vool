@@ -12,6 +12,10 @@ MAX_INPUT = 10 * 1024 * 1024
 MAX_OUTPUT = 10 * 1024 * 1024
 DAY = 86400000
 CAPABILITIES = ('contact_sheet', 'clean_pdf', 'summary', 'translation', 'recording')
+#: The jobs this version can run at all: on a computer with process confinement, and a recording only
+#: with the local media tools as well. Summarising and translating with a local model are not among
+#: them (there is no independently isolated model executor yet), so nothing may offer them as a job.
+OFFERED = ('contact_sheet', 'clean_pdf', 'recording')
 
 
 class LendError(Exception):
