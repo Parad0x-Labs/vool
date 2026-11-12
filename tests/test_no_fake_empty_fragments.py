@@ -241,7 +241,7 @@ await new Promise((resolve) => _st(resolve, 150));
 out({ calls: globalThis.__calls, afterFail,
       error: afterFail.includes('Could not read the add-on catalogue'),
       retry: afterFail.includes('Try again'),
-      empty: afterFail.includes('No matching add-ons') || afterFail.includes('No compatible skills match'),
+      empty: afterFail.includes('No matching add-ons') || afterFail.includes('No skills match that search'),
       loaded: !!data });
 """
 
@@ -272,7 +272,7 @@ def test_addon_store_real_empty_catalogue_shows_the_empty_state() -> None:
 await load();
 render('');
 const text = document.getElementById('pluginsBody').textContent;
-out({ empty: text.includes('No compatible skills match'),
+out({ empty: text.includes('No skills match that search'),
       error: text.includes('Could not read the add-on catalogue'),
       loaded: !!data });
 """,
