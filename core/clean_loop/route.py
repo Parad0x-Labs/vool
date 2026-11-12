@@ -351,6 +351,43 @@ def asks_about_own_files_or_computer(text: str) -> bool:
     )
 
 
+# Admission above is permissive: a topic word is enough to TRY the loop. The loop may then decline
+# (core.clean_loop.hook) unless the ask is explicitly about the owner's own things, which needs one of:
+#  - a possessive bound to a file or machine noun ("my invoices", "our holiday photos", "my budget sheet");
+#  - the owner's own act on it ("the pdf i saved", "the receipt we downloaded");
+#  - a named local place used as a place ("in downloads", "on the desktop", "~/x", "/Users/x/y").
+_OWN_NOUN = (
+    r"(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|videos?|"
+    r"invoices?|receipts?|bills?|notes?|sheets?|spreadsheets?|cv|resume|statements?|contracts?|payslips?|leases?|"
+    r"tickets?|flights?|bookings?|reservations?|itinerar(?:y|ies)|reports?|recipes?|laptop|computer|mac(?:book)?|pc|machine|"
+    r"disk|drive|storage|memory|ram|cpu|screen|apps?|budget|taxes|tax\s+return)"
+)
+_OWN_POSSESSIVE_RE = re.compile(rf"\b(?:my|our)\s+(?:[\w'-]+\s+){{0,3}}?{_OWN_NOUN}\b", re.I)
+_OWN_ACT_RE = re.compile(
+    rf"\b{_OWN_NOUN}\s+(?:(?:that|which)\s+)?(?:i|we)(?:'ve|\s+have)?\s+(?:\w+\s+)?(?:saved|downloaded|wrote|written|made|took|taken|put|kept|got|booked|stored|scanned|had)\b",
+    re.I,
+)
+_OWN_PLACE_RE = re.compile(
+    r"(?:\b(?:in|on|from|to|under|inside|into|at|of)\s+(?:(?:my|the|our)\s+)?(?:downloads?|desktop|documents|pictures|home)\b(?!\s+(?:pc|computer|app|icon|wallpaper|speed|forms?)))"
+    r"|(?:^|\s)~/|(?:^|\s)/(?:users|home|volumes)/\S+",
+    re.I,
+)
+
+
+def asks_explicitly_about_own_things(text: str) -> bool:
+    """Whether the ask itself says it is about the owner's things (see the comment above)."""
+    value = str(text or "")
+    if _SELF_RE.search(value):
+        return False
+    return bool(_OWN_POSSESSIVE_RE.search(value) or _OWN_ACT_RE.search(value) or _OWN_PLACE_RE.search(value) or _MACHINE_RE.search(value))
+
+
+def own_content_words(text: str) -> set[str]:
+    """The distinctive words of the ask without the topic nouns that got it admitted."""
+    value = _OWN_POSSESSIVE_RE.sub(" ", _TOPIC_RE.sub(" ", str(text or "")))
+    return ask_words(value)
+
+
 def note_clean_turn(session_id: str) -> None:
     """Remember that this session's last turn ran here, so a short follow-up stays on the same path."""
     if not session_id:
@@ -362,10 +399,25 @@ def note_clean_turn(session_id: str) -> None:
             _RECENT.popitem(last=False)
 
 
+def forget_clean_turn(session_id: str) -> None:
+    """The session's last loop turn left nothing to follow up on (it found nothing)."""
+    with _RECENT_LOCK:
+        _RECENT.pop(session_id, None)
+
+
 def _is_follow_up(text: str, session_id: str) -> bool:
     value = str(text or "")
     if not session_id or len(value.split()) > _FOLLOW_UP_WORDS or _APPROVAL_RE.search(value):
         return False
+    try:
+        from core.conversation_state import is_social_only
+
+        # A closing or a reaction ("meh ok whatever, thanks anyway") asks for nothing: it is no follow-up,
+        # so the loop does not re-answer the last ask for it.
+        if is_social_only(value):
+            return False
+    except Exception:
+        pass
     with _RECENT_LOCK:
         seen = _RECENT.get(session_id)
     return seen is not None and time.monotonic() - seen < _FOLLOW_UP_TTL_S
@@ -476,6 +528,8 @@ __all__ = [
     "RouteDecision",
     "ask_words",
     "asks_about_own_files_or_computer",
+    "asks_explicitly_about_own_things",
+    "own_content_words",
     "change_reply",
     "changes_enabled",
     "decide",

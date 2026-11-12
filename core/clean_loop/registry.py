@@ -31,6 +31,8 @@ class ToolOutcome:
     status: str = "executed"
     intents: tuple[str, ...] = ()
     proposal: dict[str, Any] | None = None
+    #: A search that came back with nothing to show (zero matches), as a structured fact.
+    empty: bool = False
 
 
 @dataclass

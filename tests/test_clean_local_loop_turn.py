@@ -155,3 +155,62 @@ def test_a_current_sounding_ask_is_published_from_the_loops_own_reads(turn_setup
     lifecycle = lifecycle_for_context({"session_id": result.get("session_id"), "turn_id": result.get("turn_id")})
     if lifecycle is not None:
         assert any("plumber_invoice.txt" in str(row.get("summary")) for row in lifecycle.typed_observations)
+
+
+def _world_turn(agent, fake, monkeypatch, replies, ask):
+    from core.clean_loop import hook
+
+    fake.replies[:] = replies
+    monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "1")
+    hook._EVIDENCE.clear()
+    hook.route._RECENT.clear()
+    return agent.run_once(ask, source_context={"surface": "cli", "platform": "cli"})
+
+
+@pytest.mark.parametrize(
+    "replies",
+    [
+        ['{"answer": "PDF forms are documents with fillable fields."}'],  # no tool call at all
+        ['{"tool": "find", "query": "zzqq"}', '{"answer": "PDF forms have fillable fields."}'],  # empty find, no absence wording
+        ['{"tool": "find", "query": "plumber"}', '{"answer": "PDF forms have fillable fields."}'],  # one unrelated file
+    ],
+)
+def test_a_world_ask_without_related_tool_evidence_is_handed_back_to_the_turn(turn_setup, monkeypatch, replies):
+    """Harness (stubbed model, real tools and agent): admitted on the word "pdf", the tools return nothing related."""
+    agent, fake, _home = turn_setup
+    result = _world_turn(agent, fake, monkeypatch, replies, "how do pdf forms work")
+    assert result.get("route_reason") != "clean_local_loop"
+    assert "clean_local_loop" not in result
+
+
+def test_a_world_ask_the_tools_do_answer_stays_with_the_loop(turn_setup, monkeypatch):
+    agent, fake, _home = turn_setup
+    replies = [
+        '{"tool": "find", "query": "plumber"}',
+        '{"tool": "read_file", "path": "Downloads/plumber_invoice.txt"}',
+        '{"answer": "The plumber invoice says EUR 140.00 is due."}',
+    ]
+    result = _world_turn(agent, fake, monkeypatch, replies, "what total is on the plumber invoice")
+    assert result.get("route_reason") == "clean_local_loop", result.get("route_reason")
+    assert "140.00" in result["response"]
+
+
+def test_a_follow_up_to_a_found_nothing_turn_is_not_a_follow_up(turn_setup, monkeypatch):
+    from core.clean_loop import hook, route
+
+    agent, fake, _home = turn_setup
+    _world_turn(agent, fake, monkeypatch, ['{"tool": "find", "query": "zzqq"}', '{"answer": "I didn\'t find a mortgage pdf in your Documents."}'], "is my mortgage pdf in documents")
+    assert not route._is_follow_up("and the one before?", "")  # no session id: sanity
+    assert not hook._EVIDENCE
+
+
+def test_an_explicitly_own_ask_keeps_its_found_nothing_answer(turn_setup, monkeypatch):
+    agent, fake, _home = turn_setup
+    fake.replies[:] = [
+        '{"tool": "find", "query": "mortgage"}',
+        '{"answer": "I didn\'t find a mortgage pdf in your Documents. Is it under another name?"}',
+    ]
+    monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "1")
+    result = agent.run_once("is my mortgage pdf in documents", source_context={"surface": "cli", "platform": "cli"})
+    assert result.get("route_reason") == "clean_local_loop", result.get("route_reason")
+    assert "mortgage" in result["response"]

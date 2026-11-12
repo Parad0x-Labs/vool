@@ -499,3 +499,23 @@ def test_a_message_grounded_in_the_reply_and_the_state_verbs_is_a_retry(message)
 @pytest.mark.parametrize("message", ["open settings", "tell me a joke", "set a timer 10 min", "play some music in my phone"])
 def test_one_ungrounded_content_word_is_a_task_of_its_own(message):
     assert cs.resolve("g", message, pending=_phone_pending(), cleared=True).kind == "none"
+
+
+@pytest.mark.parametrize("message", [
+    "meh fine, thanks anyway", "nah never mind, cheers", "ugh forget it then", "ok cool thx anyways", "meh",
+])
+def test_a_closing_or_reaction_never_reruns_an_unfinished_read(message):
+    """The blocker is cleared and the record fresh: only a message with a request of its own reruns it."""
+    _seed()
+    assert cs.is_social_only(message)
+    assert cs.resolve("s1", message, cleared=True).kind == "none"
+
+
+def test_a_closing_after_a_finished_read_is_not_a_retry():
+    _seed(result=LISTED)
+    assert cs.resolve("s1", "meh whatever, thanks anyway", cleared=True).kind == "none"
+
+
+def test_social_only_is_not_a_go_or_a_request():
+    for message in ("go again", "try that once more", "what about tomorrow", "list the ones from june"):
+        assert not cs.is_social_only(message), message

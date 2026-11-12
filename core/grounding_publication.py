@@ -91,6 +91,13 @@ _REFUSAL_LEAD = (
     "I looked this up, but what I found doesn't back the answer I wrote, so I'm not sending it."
 )
 
+#: The same refusal for a turn that never ran a lookup. "I looked this up" there was a false statement
+#: about VOOL's own actions: a retry was answered with it while no search ran (red team R3-03, 2026-11-12).
+_NO_LOOKUP_REFUSAL_LEAD = (
+    "I didn't look anything up for this, and I had nothing to check the answer I wrote against, so I'm not "
+    "sending it."
+)
+
 #: The same refusal for a turn whose only support was this chat's own records: the answer was checked against what
 #: the user's conversations hold, not against a live lookup, so the notice says so instead of "current information".
 _RECORDS_REFUSAL_LEAD = (
@@ -128,6 +135,7 @@ _LEGACY_REFUSAL_LEAD = (
 
 _ALL_REFUSAL_LEADS = (
     _REFUSAL_LEAD,
+    _NO_LOOKUP_REFUSAL_LEAD,
     _LEGACY_REFUSAL_LEAD,
     _RE_PRESENTATION_REFUSAL_LEAD,
     _RE_PRESENTATION_OF_WITHHELD_LEAD,
@@ -705,6 +713,20 @@ def unsupported_work_notice(
     return "\n\n".join(parts)
 
 
+#: Lanes whose observations are reads of the owner's own files or machine, never a lookup.
+_NON_LOOKUP_LANES = frozenset({"clean_local_loop"})
+
+
+def _lookup_observations(lifecycle: GroundingLifecycle) -> tuple[dict[str, Any], ...]:
+    """The typed observations that came from a lookup. A refusal may say "I looked this up" only when one did:
+    reading the owner's files (the clean local loop) is not a lookup, and claiming one was a false statement
+    about what ran (Mac real-app run 2026-11-12: a ticket-price ask with Web lookups off)."""
+    return tuple(
+        row for row in lifecycle.typed_observations
+        if not (isinstance(row, dict) and str(row.get("lane") or "") in _NON_LOOKUP_LANES)
+    )
+
+
 def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
     """What ships when nothing in the answer is supported. Names the stage, not a mood.
 
@@ -718,6 +740,7 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
     from core.grounding_lifecycle import REASON_RE_PRESENTATION, REASON_RE_PRESENTATION_OF_WITHHELD
 
     subject = " ".join(str(lifecycle.request_text or "").split()).strip()
+    lookups = _lookup_observations(lifecycle)
     if REASON_RE_PRESENTATION_OF_WITHHELD in tuple(lifecycle.reason_codes or ()):
         lead = _RE_PRESENTATION_OF_WITHHELD_LEAD
         return lead if not subject else f'{lead} (request: "{subject[:160]}")'
@@ -731,7 +754,7 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
         and not lifecycle.retrieved_source_count
         and not lifecycle.retrieved_notes
         and not lifecycle.bound_notes
-        and not lifecycle.typed_observations
+        and not lookups
         and not _records_only_support(lifecycle)
     ):
         # Nothing was retrieved because this turn cannot reach the web (the Web lookups switch, an
@@ -751,6 +774,15 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
 
             return RECORDS_WITHDRAWAL_NOTICE
         return _RECORDS_REFUSAL_LEAD if not subject else f'{_RECORDS_REFUSAL_LEAD} (request: "{subject[:160]}")'
+    looked = bool(
+        lifecycle.retrieval_outcome
+        or lifecycle.retrieved_source_count
+        or lifecycle.retrieved_notes
+        or lifecycle.bound_notes
+        or lookups
+    )
+    if not looked:
+        return _NO_LOOKUP_REFUSAL_LEAD if not subject else f'{_NO_LOOKUP_REFUSAL_LEAD} (request: "{subject[:160]}")'
     parts = [_REFUSAL_LEAD]
     explanation = _STAGE_EXPLANATION.get(failed_stage or "")
     if explanation:

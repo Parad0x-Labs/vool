@@ -209,6 +209,7 @@ def run_loop(
                 "args": args,
                 "ok": outcome.ok,
                 "status": outcome.status,
+                "empty": bool(getattr(outcome, "empty", False)),
                 "intents": list(outcome.intents),
                 "result_chars": len(outcome.text),
                 "think_ms": think_ms,
