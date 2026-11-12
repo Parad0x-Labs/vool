@@ -4551,9 +4551,12 @@
     "web.off.tool_refusal": "Websuchen sind aus. Du kannst den Artikeltext, Links oder Notizen einfügen, die ich verwenden soll, und ich arbeite damit. Websuchen einschalten: Einstellungen > Privatsphäre & Berechtigungen > Websuchen. (Befehlszeile: Websuche ist optional; einschalten mit VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X ist noch nicht verbunden. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Bis dahin kann ich dir trotzdem beim Entwerfen von Beiträgen helfen.",
     "x.not_connected.post_draft": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Hier ist dein Beitrag als Entwurf, den du kopieren und selbst posten kannst:",
-    "x.not_connected.post_ask": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Sag mir, was im Beitrag stehen soll, und ich schreibe dir einen Entwurf zum Kopieren."
+    "x.not_connected.post_ask": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Sag mir, was im Beitrag stehen soll, und ich schreibe dir einen Entwurf zum Kopieren.",
+    "xs.summary_bookmark_read": "Deine X-Lesezeichen lesen",
+    "xs.summary_bookmark_add": "Den Beitrag {post} zu deinen Lesezeichen hinzufügen",
+    "xs.summary_bookmark_remove": "Den Beitrag {post} aus deinen Lesezeichen entfernen"
   },
-  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
+  "source_catalog_sha256": "50ba4371e2224c3d329c0443d5e0b41a5f108c664b10a932d8ae01838411e537",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

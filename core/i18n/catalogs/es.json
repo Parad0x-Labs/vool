@@ -4551,9 +4551,12 @@
     "web.off.tool_refusal": "Las búsquedas web están desactivadas. Puedes pegar el texto del artículo, los enlaces o las notas que quieras que use, y trabajaré con ellos. Para activarlas: Ajustes > Privacidad y permisos > Búsquedas web. (Línea de comandos: la búsqueda web es opcional; actívala con VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X aún no está conectado. Para conectarlo, abre {settings} > {keys} > {x_row}, elige {connect} y sigue los pasos. Mientras tanto, puedo ayudarte a redactar publicaciones.",
     "x.not_connected.post_draft": "X no está conectado, así que no se publicó nada. Para conectarlo, abre {settings} > {keys} > {x_row}, elige {connect} y sigue los pasos. Aquí tienes tu publicación como borrador para copiarla y publicarla tú mismo:",
-    "x.not_connected.post_ask": "X no está conectado, así que no se publicó nada. Para conectarlo, abre {settings} > {keys} > {x_row}, elige {connect} y sigue los pasos. Dime qué debe decir la publicación y te escribiré un borrador para copiar."
+    "x.not_connected.post_ask": "X no está conectado, así que no se publicó nada. Para conectarlo, abre {settings} > {keys} > {x_row}, elige {connect} y sigue los pasos. Dime qué debe decir la publicación y te escribiré un borrador para copiar.",
+    "xs.summary_bookmark_read": "Leer tus marcadores de X",
+    "xs.summary_bookmark_add": "Guardar la publicación {post} en tus marcadores",
+    "xs.summary_bookmark_remove": "Quitar la publicación {post} de tus marcadores"
   },
-  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
+  "source_catalog_sha256": "50ba4371e2224c3d329c0443d5e0b41a5f108c664b10a932d8ae01838411e537",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

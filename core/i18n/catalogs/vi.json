@@ -4551,9 +4551,12 @@
     "web.off.tool_refusal": "Tra cứu web đang tắt. Bạn có thể dán nội dung bài viết, liên kết hoặc ghi chú bạn muốn tôi dùng, và tôi sẽ làm việc từ đó. Để bật: Cài đặt > Riêng tư và Quyền > Tra cứu web. (Dòng lệnh: tra cứu web là tùy chọn; bật bằng VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X chưa được kết nối. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Trong lúc chờ, tôi vẫn có thể giúp bạn soạn bản nháp bài đăng.",
     "x.not_connected.post_draft": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Đây là bài đăng của bạn dưới dạng bản nháp để bạn sao chép và tự đăng:",
-    "x.not_connected.post_ask": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Hãy cho tôi biết bài đăng nên nói gì, tôi sẽ viết bản nháp để bạn sao chép."
+    "x.not_connected.post_ask": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Hãy cho tôi biết bài đăng nên nói gì, tôi sẽ viết bản nháp để bạn sao chép.",
+    "xs.summary_bookmark_read": "Đọc dấu trang X của bạn",
+    "xs.summary_bookmark_add": "Thêm bài đăng {post} vào dấu trang của bạn",
+    "xs.summary_bookmark_remove": "Xóa bài đăng {post} khỏi dấu trang của bạn"
   },
-  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
+  "source_catalog_sha256": "50ba4371e2224c3d329c0443d5e0b41a5f108c664b10a932d8ae01838411e537",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

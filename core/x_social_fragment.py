@@ -36,7 +36,7 @@ _FRAGMENT = r'''<style>
 (function(){'use strict';
 function t(k,f){try{const v=VOOLT(k);if(v&&v!==k)return v;}catch(e){}return f;}
 
-const summaryTemplates={"post": "Post on X", "reply": "Reply to @{author}", "quote": "Quote a post by @{author}", "delete": "Delete your post", "like": "Like a post by @{author}", "unlike": "Remove your like from a post by @{author}", "repost": "Repost a post by @{author}", "unrepost": "Undo your repost of a post by @{author}", "follow": "Follow {who}", "unfollow": "Unfollow {who}", "hide_reply": "Hide a reply by @{author}", "unhide_reply": "Unhide a reply by @{author}", "mute": "Mute {who}", "unmute": "Unmute {who}", "dm": "Send a direct message to {who}", "list_create": "Create the {privacy} list “{name}”{description}", "list_add": "Add {who} to your list “{name}”", "list_remove": "Remove {who} from your list “{name}”"};
+const summaryTemplates={"post": "Post on X", "reply": "Reply to @{author}", "quote": "Quote a post by @{author}", "delete": "Delete your post", "like": "Like a post by @{author}", "unlike": "Remove your like from a post by @{author}", "repost": "Repost a post by @{author}", "unrepost": "Undo your repost of a post by @{author}", "follow": "Follow {who}", "unfollow": "Unfollow {who}", "hide_reply": "Hide a reply by @{author}", "unhide_reply": "Unhide a reply by @{author}", "mute": "Mute {who}", "unmute": "Unmute {who}", "dm": "Send a direct message to {who}", "list_create": "Create the {privacy} list “{name}”{description}", "list_add": "Add {who} to your list “{name}”", "list_remove": "Remove {who} from your list “{name}”", "bookmark_read": "Read your X bookmarks", "bookmark_add": "Bookmark the post {post}", "bookmark_remove": "Remove the post {post} from your bookmarks"};
 function format(k,f,values){let text=t(k,f);if(document.documentElement.dir==='rtl')text=text.replace(/@\{author\}/g,'\u2068@{author}\u2069');return text.replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??'?'));}
 function summary(a){
  const isolate=value=>document.documentElement.dir==='rtl'?'\u2068'+value+'\u2069':String(value);
@@ -46,7 +46,7 @@ function summary(a){
  const name=Array.from(String(target.name||'').replace(/[\p{Cf}\u{E0000}-\u{E007F}]/gu,'').trim()).slice(0,50).join('');
  const who=name&&name.toLowerCase()!==username.toLowerCase()?name+' ('+handle+')':handle;
  const values={author:target.author||'?',who:isolate(who),name:isolate(target.list_name||target.name||target.list_id||'?'),
-  privacy:target.private?t('xs.private','private'):t('xs.public','public'),
+  post:isolate(target.post_id||'?'),privacy:target.private?t('xs.private','private'):t('xs.public','public'),
   description:target.description?format('xs.description',', described as "{description}"',{description:isolate(target.description)}):''};
  return summaryTemplates[a.kind]?format('xs.summary_'+a.kind,summaryTemplates[a.kind],values):t('xs.summary_unknown','X action');
 }

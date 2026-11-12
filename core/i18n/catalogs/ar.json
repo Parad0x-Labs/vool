@@ -4551,9 +4551,12 @@
     "web.off.tool_refusal": "عمليات البحث في الويب متوقفة. يمكنك لصق نص المقال أو الروابط أو الملاحظات التي تريد أن أستخدمها، وسأعمل بها. لتشغيل البحث: الإعدادات > الخصوصية والأذونات > عمليات البحث في الويب. (سطر الأوامر: البحث في الويب اختياري؛ فعّله بـ VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "لم يتم ربط X بعد. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. وحتى ذلك الحين، يمكنني مساعدتك في كتابة مسودات المنشورات.",
     "x.not_connected.post_draft": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. هذا منشورك كمسودة يمكنك نسخها ونشرها بنفسك:",
-    "x.not_connected.post_ask": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. أخبرني بما يجب أن يقوله المنشور وسأكتب لك مسودة لتنسخها."
+    "x.not_connected.post_ask": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. أخبرني بما يجب أن يقوله المنشور وسأكتب لك مسودة لتنسخها.",
+    "xs.summary_bookmark_read": "قراءة إشاراتك المرجعية على X",
+    "xs.summary_bookmark_add": "إضافة المنشور {post} إلى إشاراتك المرجعية",
+    "xs.summary_bookmark_remove": "إزالة المنشور {post} من إشاراتك المرجعية"
   },
-  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
+  "source_catalog_sha256": "50ba4371e2224c3d329c0443d5e0b41a5f108c664b10a932d8ae01838411e537",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
