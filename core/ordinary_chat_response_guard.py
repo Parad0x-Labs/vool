@@ -1162,7 +1162,14 @@ _PREVIOUS_TURN_POINTER_RE = re.compile(
     r"(?:\w+\s+)?(?:text|string|output|answer|result|reply|response|message|value|code|word|words|line|lines|"
     r"sentence|phrase|list|number|name|id|token)\b"
     r"|\b(?:the\s+)?(?:text|string|output|answer|result|reply|response|message|value|code)\s+(?:above|you\s+(?:just\s+)?"
-    r"(?:gave|wrote|returned|said|printed|showed))\b",
+    r"(?:gave|wrote|returned|said|printed|showed))\b"
+    # Repeat-the-task follow-ups (plugins run 5, 2026-11-12): "now do the same for X", "same for
+    # X", "again for X", "and for X?", "repeat that for X" -- the previous turn's task is the
+    # object, so its output may come back with the new input.
+    r"|\b(?:do|try|run|repeat)\s+(?:the\s+same|it|that|this)(?:\s+again)?\s+(?:for|with|on)\b"
+    r"|\b(?:the\s+)?same\s+(?:thing\s+|again\s+)?(?:for|with|on)\b"
+    r"|\bagain\s+(?:for|with|on)\b"
+    r"|^\s*(?:now\s+|ok(?:ay)?[,\s]+|and\s+)?(?:what\s+about|how\s+about|and\s+for|and\s+with|now\s+for)\b",
     re.IGNORECASE,
 )
 

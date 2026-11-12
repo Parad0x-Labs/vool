@@ -737,3 +737,15 @@ def test_an_unrelated_later_turn_still_may_not_answer_with_an_old_code():
     policy = _follow_up_policy("Run the echo plugin with ORBIT-7731.", current)
     result = inspect_ordinary_chat_output("ORBIT-7731", policy, current_user_text=current)
     assert not result.allowed and result.reasons == ("unrequested_prior_turn_literal",)
+
+
+@pytest.mark.parametrize(
+    "current", ["now do the same for BRAVO-2", "same for BRAVO-2", "again for BRAVO-2", "and for BRAVO-2?",
+                "repeat that for BRAVO-2", "what about BRAVO-2?"],
+)
+def test_a_repeat_the_task_follow_up_may_carry_the_previous_output(current):
+    from core.ordinary_chat_response_guard import inspect_ordinary_chat_output
+
+    policy = _follow_up_policy("Run the echo plugin with ORBIT-7731.", current)
+    answer = "ORBIT-7731 became BRAVO-2 in the second run."
+    assert inspect_ordinary_chat_output(answer, policy, current_user_text=current).allowed
