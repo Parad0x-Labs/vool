@@ -1,0 +1,56 @@
+{
+  "events": [
+    {
+      "event_type": "runtime_attempt_created",
+      "message": "Runtime attempt attempt-cdfc7c4849d2465eba20dc57598ffc29 created (unknown mode).",
+      "seq": 1
+    },
+    {
+      "event_type": "task_received",
+      "message": "Received request: Remember the codeword LANTERN for this session and reply OK.",
+      "seq": 2
+    },
+    {
+      "event_type": "model.call_started",
+      "message": "Model call started with ollama-local:qwen2.5:7b.",
+      "seq": 3
+    },
+    {
+      "event_type": "model.call_completed",
+      "message": "Model call completed with ollama-local:qwen2.5:7b.",
+      "seq": 4
+    },
+    {
+      "event_type": "model_lane_proof",
+      "message": "Fast-path response completed without model inference.",
+      "seq": 5
+    },
+    {
+      "event_type": "task_completed",
+      "message": "Fast-path response ready: Locked in. I’ll remember that.",
+      "seq": 6
+    },
+    {
+      "event_type": "semantic_resolution_receipt",
+      "message": "Resolution: 9 gates consulted, preempted by turn_frontdoor",
+      "seq": 7
+    },
+    {
+      "event_type": "runtime_attempt_completed",
+      "message": "Runtime attempt attempt-cdfc7c4849d2465eba20dc57598ffc29 -> SUCCEEDED.",
+      "seq": 8
+    },
+    {
+      "event_type": "turn.trace_completed",
+      "message": "Turn trace completed.",
+      "seq": 9
+    }
+  ],
+  "failed_step": "reload",
+  "generated_at": "2026-09-02T23:26:17Z",
+  "journey": "restart_resume_continuity",
+  "missing_expected_events": [],
+  "reason": "Error: Page.reload: net::ERR_CONNECTION_REFUSED\nCall log:\n  - waiting for navigation until \"domcontentloaded\"\n",
+  "schema": "demo-studio/abort-report@1",
+  "verdict": "aborted"
+}

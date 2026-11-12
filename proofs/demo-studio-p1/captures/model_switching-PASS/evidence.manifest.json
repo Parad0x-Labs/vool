@@ -1,0 +1,254 @@
+{
+  "artifacts": {
+    "captions.srt": {
+      "bytes": 290,
+      "sha256": "fe7ca6be4cfb6a3b1430ba85347ea0e6600b9f3b42feeebc8a3be7f180ffefa8"
+    },
+    "demo.mp4": {
+      "bytes": 284551,
+      "sha256": "f03a45411e884b8f168348965e40a4b2737627a63539a7d0c7c9963bf05c80d4"
+    },
+    "demo.webm": {
+      "bytes": 108668,
+      "sha256": "016177ebccb01b1688940ad6d8ac7d1fbb36ba52faf74ec8ba6b2b73aac7919e"
+    },
+    "events.jsonl": {
+      "bytes": 2209,
+      "sha256": "2450c4223b79402f34e835660534a32102c35c285fb23678a38fec83f97e1398"
+    },
+    "poster.png": {
+      "bytes": 164240,
+      "sha256": "a59b6e085b0f41af68929e7724fd85da020b33d543b9a9f750986ad5d24e55d7"
+    }
+  },
+  "boot": {
+    "commit_full": "5bf351ba408a715b6515d83d8d3c3c5de59cfb90",
+    "healthz_verified": true,
+    "model_certification": {},
+    "verified_capabilities": [
+      "local_runtime"
+    ]
+  },
+  "captions": {
+    "count": 4,
+    "rows": [
+      {
+        "end_s": 1.063,
+        "event_type": "task_received",
+        "seq": 2,
+        "start_s": 0.663,
+        "text": "VOOL received the turn."
+      },
+      {
+        "end_s": 1.513,
+        "event_type": "task_classified",
+        "seq": 3,
+        "start_s": 1.113,
+        "text": "The turn was classified and routed."
+      },
+      {
+        "end_s": 1.963,
+        "event_type": "model_lane_proof",
+        "seq": 9,
+        "start_s": 1.563,
+        "text": "The answering lane was proven on the record: All ranked provider lanes failed."
+      },
+      {
+        "end_s": 3.963,
+        "event_type": "task_completed",
+        "seq": 10,
+        "start_s": 2.013,
+        "text": "The turn completed."
+      }
+    ],
+    "source": "/api/runtime/events (public typed events only); model_output_chunk excluded by allowlist"
+  },
+  "events": {
+    "count": 13,
+    "session_events": true,
+    "types": {
+      "model_lane_failed": 1,
+      "model_lane_proof": 1,
+      "model_lane_selected": 1,
+      "model_lane_started": 1,
+      "model_routing_failed": 1,
+      "model_routing_started": 1,
+      "runtime_attempt_completed": 1,
+      "runtime_attempt_created": 1,
+      "semantic_resolution_receipt": 1,
+      "task_classified": 1,
+      "task_completed": 1,
+      "task_received": 1,
+      "turn.trace_completed": 1
+    }
+  },
+  "focus": [
+    {
+      "box": {
+        "height": 31,
+        "width": 226,
+        "x": 592,
+        "y": 8
+      },
+      "end_s": 3.666,
+      "justified_by": {
+        "event_type": "model_lane_proof",
+        "seq": 9
+      },
+      "region": "model-control",
+      "selector": "#modelCtrl",
+      "start_s": 1.166
+    }
+  ],
+  "generated_at": "2026-09-02T23:16:11Z",
+  "honesty": {
+    "captions_source": "public typed runtime events only; model_output_chunk excluded",
+    "captured": true,
+    "model_certified": false,
+    "model_lane": "scripted_stub",
+    "ui": "real browser interactions against the served product; no scripted UI responses"
+  },
+  "journey": {
+    "expected_events": [
+      "task_received",
+      "task_completed"
+    ],
+    "id": "model_switching",
+    "spec_hash": "50f7831a9ecb703335f87fd418b419be72ee8e24c32531c72882c0c15f7cf5ca",
+    "steps": [
+      {
+        "action": "goto",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "open-chat",
+        "note": "Open the real chat page",
+        "target": "/chat",
+        "value": ""
+      },
+      {
+        "action": "click",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "menu",
+        "note": "Open the model menu",
+        "target": "#modelBtn",
+        "value": ""
+      },
+      {
+        "action": "select_model",
+        "budget_s": 30.0,
+        "expect": [],
+        "id": "pick",
+        "note": "Pin the local-only lane",
+        "target": "#modelPop",
+        "value": "nulla-local-only"
+      },
+      {
+        "action": "send_message",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "ask",
+        "note": "Type a real message into the composer and send it",
+        "target": "#input",
+        "value": "Reply with one short sentence naming your lane."
+      }
+    ],
+    "title": "Model switching"
+  },
+  "mode": "capture",
+  "product": {
+    "app_version": "0.5.0",
+    "branch": "served-reality-bench",
+    "commit": "5bf351ba408a",
+    "commit_full": "5bf351ba408a715b6515d83d8d3c3c5de59cfb90",
+    "dirty": false
+  },
+  "redaction": {
+    "counts": {},
+    "engine": "ops.demo_studio.redact.RedactionEngine",
+    "scan": "clean"
+  },
+  "render": {
+    "mp4": {
+      "bytes": 284551,
+      "path": "demo.mp4",
+      "sha256": "f03a45411e884b8f168348965e40a4b2737627a63539a7d0c7c9963bf05c80d4"
+    },
+    "poster": {
+      "bytes": 164240,
+      "path": "poster.png",
+      "sha256": "a59b6e085b0f41af68929e7724fd85da020b33d543b9a9f750986ad5d24e55d7"
+    },
+    "srt": {
+      "bytes": 290,
+      "path": "captions.srt",
+      "sha256": "fe7ca6be4cfb6a3b1430ba85347ea0e6600b9f3b42feeebc8a3be7f180ffefa8"
+    },
+    "webm": {
+      "bytes": 108668,
+      "path": "demo.webm",
+      "sha256": "016177ebccb01b1688940ad6d8ac7d1fbb36ba52faf74ec8ba6b2b73aac7919e"
+    },
+    "zoom_applied": 1,
+    "zoom_segments": [
+      {
+        "box": {
+          "height": 31,
+          "width": 226,
+          "x": 592,
+          "y": 8
+        },
+        "end_s": 3.666,
+        "justified_by": {
+          "event_type": "model_lane_proof",
+          "seq": 9
+        },
+        "region": "model-control",
+        "selector": "#modelCtrl",
+        "start_s": 1.166
+      }
+    ],
+    "zoom_windows": [
+      [
+        1.166,
+        3.6
+      ]
+    ]
+  },
+  "schema": "demo-studio/evidence-manifest@1",
+  "steps_executed": [
+    {
+      "action": "goto",
+      "id": "open-chat",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "click",
+      "id": "menu",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "select_model",
+      "id": "pick",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "send_message",
+      "id": "ask",
+      "ok": true,
+      "reason": ""
+    }
+  ],
+  "timeline": {
+    "alignment": "event created_at minus capture t0; ±0.5s against video frames",
+    "t0_epoch": 1788390898.730359,
+    "t1_epoch": 1788390971.9490979
+  },
+  "verdict": "pass",
+  "verification": {
+    "violations": []
+  }
+}

@@ -1,0 +1,15 @@
+1
+00:00:02,182 --> 00:00:03,043
+VOOL received the turn.
+
+2
+00:00:03,093 --> 00:00:03,861
+The turn was classified and routed.
+
+3
+00:00:03,911 --> 00:00:06,008
+The answering lane was proven on the record: All ranked provider lanes failed.
+
+4
+00:00:06,058 --> 00:00:08,008
+The turn completed.

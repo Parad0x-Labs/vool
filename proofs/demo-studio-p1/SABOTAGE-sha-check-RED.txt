@@ -1,0 +1,6 @@
+E       assert 'full-SHA mismatch' in "boot gate: short commit disagrees with the expected staged commit (commit='a7b78e2ab523', expected~0123456789ab…) — the daemon's identity fields are inconsistent with the staging"
+
+tests/test_demo_studio_boot_gate.py:117: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_demo_studio_boot_gate.py::test_sha_mismatch_refuses_boot_naming_both_hashes
+1 failed in 0.93s

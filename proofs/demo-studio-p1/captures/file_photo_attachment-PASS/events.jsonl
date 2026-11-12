@@ -1,0 +1,19 @@
+{"created_at": "2026-09-02T23:21:38.534021+00:00", "event_type": "attachment_staged", "message": "Attached note.txt (text, 89 B)", "seq": 1}
+{"created_at": "2026-09-02T23:21:38.879061+00:00", "event_type": "attachment_staged", "message": "Attached photo.png (image, 70 B)", "seq": 2}
+{"created_at": "2026-09-02T23:21:39.259930+00:00", "event_type": "attachment_bound", "message": "Sending note.txt (text, 89 B) with this message", "seq": 3}
+{"created_at": "2026-09-02T23:21:39.260223+00:00", "event_type": "attachment_bound", "message": "Sending photo.png (image, 70 B) with this message", "seq": 4}
+{"created_at": "2026-09-02T23:21:39.271526+00:00", "event_type": "runtime_attempt_created", "message": "Runtime attempt attempt-049423f06d6e4ba8a8bcfe1fa003cf13 created (unknown mode).", "seq": 5}
+{"created_at": "2026-09-02T23:21:39.287447+00:00", "event_type": "task_received", "message": "Received request: Briefly: what does each attachment contain?", "seq": 6}
+{"created_at": "2026-09-02T23:21:39.363925+00:00", "event_type": "task_classified", "message": "Task classified as unknown.", "seq": 7}
+{"created_at": "2026-09-02T23:21:39.408928+00:00", "event_type": "model_routing_started", "message": "Autopilot routed normalization_assist through the daily lane.", "seq": 8}
+{"created_at": "2026-09-02T23:21:39.412080+00:00", "event_type": "model_lane_selected", "message": "Selected ollama-local:qwen2.5:7b for the daily lane.", "seq": 9}
+{"created_at": "2026-09-02T23:21:39.425822+00:00", "event_type": "model_lane_started", "message": "Using ollama-local:qwen2.5:7b.", "seq": 10}
+{"created_at": "2026-09-02T23:21:39.433996+00:00", "event_type": "model_lane_failed", "message": "ollama-local:qwen2.5:7b failed; trying fallback if available.", "seq": 11}
+{"created_at": "2026-09-02T23:21:39.436490+00:00", "event_type": "model_routing_failed", "message": "All ranked provider lanes failed.", "seq": 12}
+{"created_at": "2026-09-02T23:21:39.437817+00:00", "event_type": "model_lane_proof", "message": "All ranked provider lanes failed.", "seq": 13}
+{"created_at": "2026-09-02T23:21:39.463172+00:00", "event_type": "task_completed", "message": "Completed task with final response: `qwen2.5:7b` failed before producing a usable answer. No cached or remembered text was substituted. Retry the turn.", "seq": 14}
+{"created_at": "2026-09-02T23:21:39.492022+00:00", "event_type": "semantic_resolution_receipt", "message": "Resolution: 9 gates consulted, preempted by nothing", "seq": 15}
+{"created_at": "2026-09-02T23:21:39.504488+00:00", "event_type": "runtime_attempt_completed", "message": "Runtime attempt attempt-049423f06d6e4ba8a8bcfe1fa003cf13 -> SUCCEEDED.", "seq": 16}
+{"created_at": "2026-09-02T23:21:39.530437+00:00", "event_type": "turn.trace_completed", "message": "Turn trace completed.", "seq": 17}
+{"created_at": "2026-09-02T23:21:39.564967+00:00", "event_type": "attachment_released", "message": "Released note.txt: ignored", "seq": 18}
+{"created_at": "2026-09-02T23:21:39.568129+00:00", "event_type": "attachment_released", "message": "Released photo.png: ignored", "seq": 19}

@@ -1,0 +1,4 @@
+FAILED tests/test_demo_studio_redaction.py::test_home_paths_are_redacted - As...
+FAILED tests/test_demo_studio_redaction.py::test_scan_secrets_canary_never_survives
+FAILED tests/test_demo_studio_redaction.py::test_api_keys_and_bearer_tokens_are_redacted
+3 failed in 1.26s
