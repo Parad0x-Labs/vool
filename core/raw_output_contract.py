@@ -13,6 +13,8 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from core.delivery_contract import DeliveryScope, delivery_contract_in, delivery_surface, is_reply_component
+
 # A separator INSIDE a token is not a boundary between tokens: "03:12" is one word, and so is
 # "12:30:45". `core.response_constraints` was taught this earlier (a one-word clock contract was
 # failing there for the same reason); this module kept its own counter and kept splitting, so the
@@ -61,18 +63,25 @@ _NOTHING_EXCEPT_RE = re.compile(
     r"nothing\s+(?:except|but|other\s+than)\b",
     re.IGNORECASE,
 )
+# This trigger and `_NO_EXTRA_RE` match their words anywhere in a turn ("Nothing else worked, so I
+# rebuilt the index."); `parse_raw_output_contract` lets a match bind only where
+# `core.delivery_contract` finds it addressed to this reply. `op` is the coda itself.
 _NOTHING_ELSE_RE = re.compile(
-    r"\b(?:and\s+)?noth(?:ing|in|ng)\s+else\b",
+    r"\b(?:and\s+)?(?P<op>noth(?:ing|in|ng)\s+else)\b",
     re.IGNORECASE,
 )
+# These two and `_NOTHING_EXCEPT_RE` match their words anywhere as well ("How do I return only unique
+# rows in SQL?", "Why is the answer only partially correct?"); `parse_raw_output_contract` lets a
+# match bind only where `core.delivery_contract` finds the verb said as a request, or the adverb
+# focusing the reply.
 _FINAL_ONLY_RE = re.compile(
-    r"\b(?:final\s+(?:answer|response)|answer|deliverable|result)\s+only\b|"
-    r"\bonly\s+(?:the\s+)?(?:final\s+(?:answer|response)|answer|deliverable|result)\b",
+    r"\b(?:final\s+(?:answer|response)|answer|deliverable|result)\s+(?P<after>only)\b|"
+    r"\b(?P<before>only)\s+(?:the\s+)?(?:final\s+(?:answer|response)|answer|deliverable|result)\b",
     re.IGNORECASE,
 )
 _ONLY_OUTPUT_RE = re.compile(
-    r"\b(?:only|just)\s+(?:say|output|return|print|reply(?:\s+with)?|respond(?:\s+with)?)\b|"
-    r"\b(?:output|return|print)\s+only\b",
+    r"\b(?P<adverb>only|just)\s+(?P<verb>say|output|return|print|reply(?:\s+with)?|respond(?:\s+with)?)\b|"
+    r"\b(?P<verb_first>output|return|print)\s+only\b",
     re.IGNORECASE,
 )
 _PROHIBITION_BOUNDARY = r"(?:^|[,;.!]\s*|\b(?:and|but|or)\s+)"
@@ -491,6 +500,41 @@ _LEADING_NAMED_HEADING_RE = re.compile(
     r"\A\s*#{1,6}\s+(?:final\s+answer|answer|output|result|haiku|poem|title)\s*\n+",
     re.IGNORECASE,
 )
+# Wrappers around a deliverable, from the Aug 15 final-output work. Words that carry no propositional
+# content -- acknowledgement, politeness, hand-over: a leading segment built only from these is
+# throat-clearing in front of the deliverable ("Sure! Here's the answer: 512"). `yes`, `no`, `true`
+# and `false` are deliberately absent: they are the most common one-word deliverable there is.
+_DISCOURSE_ONLY_WORDS = frozenset(
+    {
+        "sure", "certainly", "absolutely", "of", "course", "ok", "okay", "alright", "right",
+        "happy", "to", "help", "here", "s", "is", "are", "you", "go", "the", "a", "an", "your",
+        "my", "i", "ll", "will", "can", "let", "me", "give", "below", "and", "that", "requested",
+        "asked", "for", "as", "per", "request", "answer", "result", "output", "response",
+        "solution", "hi", "hello", "hey", "thanks", "thank", "please", "sorry", "apologies",
+        "just", "quick", "quickly", "moment", "gladly", "np",
+    }
+)
+# One leading segment: text up to the first sentence terminator, colon or newline. Digits are
+# content, so "It is 42." is never filler.
+_LEAD_SEGMENT_RE = re.compile(r"\A([^\n]{0,120}?[:!.?\n])")
+_SEGMENT_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+# A closing offer of further work is about the conversation, not about the question. It opens the
+# last line or a sentence in it and runs to the end of the reply.
+_CLOSING_OFFER_RE = re.compile(
+    r"\s*(?:let\s+me\s+know|just\s+(?:let\s+me\s+know|ask|say)|feel\s+free|happy\s+to|do\s+you|"
+    r"would\s+you|shall\s+i|want\s+me\s+to|need\s+anything|anything\s+else|is\s+there\s+anything)",
+    re.IGNORECASE,
+)
+# Nouns a reply uses when it talks about its own output instead of producing it. A trailing
+# parenthetical that mentions one is a note about the answer ("Bern (empty string; zero characters
+# output)"); one that mentions none may be the answer ("Smith (2019)", "CaCO3 (calcite)") and stays.
+_META_OUTPUT_NOUNS = frozenset(
+    {
+        "output", "outputs", "response", "responses", "reply", "replies", "answer", "answers",
+        "message", "string", "strings", "character", "characters", "char", "chars", "content",
+        "text", "line", "lines", "word", "words", "token", "tokens",
+    }
+)
 _SCRATCHPAD_HEADING_RE = re.compile(
     r"^\s*(?:#{1,6}\s*)?(?:analysis|reasoning|internal\s+thoughts?|scratchpad|checklist|notes?|metadata)\s*:?\s*$",
     re.IGNORECASE,
@@ -559,6 +603,9 @@ class RawOutputContract:
     #: python function"). Never used to reject a compliant reply; it only decides whether a
     #: shape-violating draft still holds something worth shipping instead of an erased answer.
     code_deliverable: bool = False
+    #: Parts of the reply the turn named and ruled out ("no commentary", "skip the explanation"),
+    #: as `core.delivery_contract` reads them.
+    forbidden_components: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -566,6 +613,10 @@ class RawOutputContract:
         if not self.json_required and not self.json_object:
             payload.pop("json_required")
             payload.pop("json_object")
+        if not self.forbidden_components:
+            payload.pop("forbidden_components")
+        else:
+            payload["forbidden_components"] = list(self.forbidden_components)
         return payload
 
 
@@ -1135,6 +1186,16 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
     if no_punctuation and _PUNCTUATION_BEARING_FORMAT_RE.search(directive_text):
         no_punctuation = False
         no_trailing_punctuation = True
+    # Exclusivity read by scope (core/delivery_contract.py): the loose triggers bind only where they
+    # address this reply, and the instructions they never matched ("Print the flag value only.",
+    # "Give the count alone.", "Name the capital of Peru. No commentary.") bind as well. Line breaks
+    # are kept for it, since a line break ends a clause and a sentence.
+    scope = DeliveryScope(delivery_surface(layout_text))
+    delivery = delivery_contract_in(scope)
+    no_extra = any(
+        scope.prohibition_in_span_restricts_reply(match.start(), match.end())
+        for match in _NO_EXTRA_RE.finditer(scope.text)
+    )
     exact_words = _match_count(_WORD_COUNT_RE, directive_text)
     exact_sentences = _match_count(_SENTENCE_COUNT_RE, directive_text, maximum=20)
     exact_lines = _match_count(_LINE_COUNT_RE, directive_text, maximum=20)
@@ -1168,14 +1229,42 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
         # "single words" governs every answer row, not the combined response. Keeping it in the
         # whole-output word count is what collapsed a three-answer batch into one word.
         exact_words = None
+    # A sentence that is only "Nothing else." closes the output shape the turn stated, if it stated
+    # one, as well as a request made before it.
+    stated_shape = (
+        exact_text is not None
+        or json_required
+        or numbers_only
+        or any(value is not None for value in (exact_words, exact_sentences, exact_lines, bullet_count, delimiter))
+    )
+    nothing_else = any(
+        scope.coda_restricts_reply(match.start("op"), match.end("op"), anchored=stated_shape)
+        for match in _NOTHING_ELSE_RE.finditer(scope.text)
+    )
+    nothing_except = any(scope.verb_restricts_reply(match.start()) for match in _NOTHING_EXCEPT_RE.finditer(scope.text))
+    final_only = any(
+        scope.reply_noun_focus_restricts_reply(
+            match.start(group), match.end(group), after_noun=group == "after"
+        )
+        for match in _FINAL_ONLY_RE.finditer(scope.text)
+        for group in ("after", "before")
+        if match.group(group)
+    )
+    only_output = any(
+        scope.verb_restricts_reply(match.start("verb"), match.start("adverb"))
+        if match.group("verb")
+        else scope.verb_restricts_reply(match.start("verb_first"))
+        for match in _ONLY_OUTPUT_RE.finditer(scope.text)
+    )
     global_output_binding = bool(
         payload_authoritative
         or raw_text_only
-        or _NOTHING_EXCEPT_RE.search(directive_text)
-        or _NOTHING_ELSE_RE.search(directive_text)
-        or _FINAL_ONLY_RE.search(directive_text)
-        or _ONLY_OUTPUT_RE.search(directive_text)
-        or _NO_EXTRA_RE.search(directive_text)
+        or nothing_except
+        or nothing_else
+        or final_only
+        or only_output
+        or no_extra
+        or delivery is not None
     )
     if _section_scoped_count(layout_text, _SENTENCE_COUNT_RE):
         exact_sentences = None
@@ -1202,11 +1291,12 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
 
     raw_only = bool(
         raw_text_only
-        or _NOTHING_EXCEPT_RE.search(directive_text)
-        or _NOTHING_ELSE_RE.search(directive_text)
-        or _FINAL_ONLY_RE.search(directive_text)
-        or _ONLY_OUTPUT_RE.search(directive_text)
-        or _NO_EXTRA_RE.search(directive_text)
+        or nothing_except
+        or nothing_else
+        or final_only
+        or only_output
+        or no_extra
+        or delivery is not None
         or json_required
         or numbers_only
         or no_markdown
@@ -1263,6 +1353,7 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
             structured_batch.allowed_values if structured_batch is not None else ()
         ),
         code_deliverable=code_deliverable,
+        forbidden_components=delivery.forbidden_components if delivery is not None else (),
     )
 
 
@@ -1318,7 +1409,21 @@ def raw_output_contract_from_metadata(metadata: dict[str, Any] | None) -> RawOut
         ),
         row_allowed_values=row_allowed_values if structured_labels else (),
         code_deliverable=bool(payload.get("code_deliverable")),
+        forbidden_components=_stored_components(payload.get("forbidden_components")),
     )
+
+
+def _stored_components(value: Any) -> tuple[str, ...]:
+    """Forbidden components read back from metadata: only names a turn can produce, since they are
+    quoted into the provider prompt."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    names: list[str] = []
+    for item in value:
+        name = " ".join(item.lower().split()) if isinstance(item, str) else ""
+        if is_reply_component(name) and name not in names:
+            names.append(name)
+    return tuple(names[:16])
 
 
 def raw_output_contract_guidance(contract: RawOutputContract) -> str:
@@ -1351,6 +1456,8 @@ def raw_output_contract_guidance(contract: RawOutputContract) -> str:
         requirements.append("without punctuation at the very end")
     if contract.no_title:
         requirements.append("without a title")
+    if contract.forbidden_components:
+        requirements.append("without any " + " or ".join(contract.forbidden_components))
     if contract.structured_labels:
         from core.structured_batch import StructuredBatchContract, structured_batch_guidance
 
@@ -1542,6 +1649,69 @@ def _contract_violations(text: str, contract: RawOutputContract) -> tuple[str, .
     return tuple(violations)
 
 
+def _strip_leading_discourse(text: str) -> tuple[str, bool]:
+    """Remove opening segments that are acknowledgement only ("Sure! Here's the answer: 512").
+
+    Repeated, because a reply commonly opens with an interjection AND a hand-over, and bounded, so a
+    reply made entirely of short filler cannot be peeled away sentence by sentence. A segment is
+    only removed when something is left after it: the last remaining segment is the answer, whatever
+    it is made of.
+    """
+    body = text
+    changed = False
+    for _ in range(3):
+        match = _LEAD_SEGMENT_RE.match(body)
+        if match is None:
+            break
+        tokens = [token.lower() for token in _SEGMENT_TOKEN_RE.findall(match.group(1))]
+        # A segment of single letters is a label or an initial ("A. cold"), not an article.
+        if not tokens or any(token not in _DISCOURSE_ONLY_WORDS for token in tokens) or all(
+            len(token) == 1 for token in tokens
+        ):
+            break
+        remainder = body[match.end() :].strip()
+        if not remainder:
+            break
+        body, changed = remainder, True
+    return body, changed
+
+
+def _strip_closing_offer(text: str) -> tuple[str, bool]:
+    """Remove a closing offer of further work ("74\n\nLet me know if you want the working shown.").
+
+    The offer starts the last line or a sentence inside it and runs to the end, so only the last line
+    is read, and each of its sentence starts once.
+    """
+    body = text.rstrip()
+    line_start = body.rfind("\n") + 1
+    starts = [line_start, *(index + 1 for index in range(line_start, len(body)) if body[index] in ".!?")]
+    for start in starts:
+        if _CLOSING_OFFER_RE.match(body, start):
+            remainder = body[:start].strip()
+            return (remainder, True) if remainder else (text, False)
+    return text, False
+
+
+def _strip_trailing_meta_parenthetical(text: str) -> tuple[str, bool]:
+    """Remove a trailing note that describes the output instead of being it: a bracketed span of at
+    most 200 characters with no bracket inside, closing the reply."""
+    body = text.rstrip()
+    if not body or body[-1] not in ")]":
+        return text, False
+    close = len(body) - 1
+    start = close
+    while start > 0 and close - start < 200 and body[start - 1] not in "()[]":
+        start -= 1
+    if start == 0 or body[start - 1] not in "([":
+        return text, False
+    words = {word.lower() for word in _WORD_RE.findall(body[start:close])}
+    if not words or words.isdisjoint(_META_OUTPUT_NOUNS):
+        return text, False
+    remainder = body[: start - 1].rstrip()
+    # A note about the answer is only removable when an answer remains before it.
+    return (remainder, True) if remainder else (text, False)
+
+
 def _strip_trailing_action_echo(text: str) -> tuple[str, bool]:
     """Remove trailing runtime action-dict echo lines, keeping the deliverable above them.
 
@@ -1655,6 +1825,18 @@ def apply_raw_output_contract(
         if stripped != clean:
             clean = stripped.strip()
             actions.append("answer_label_removed")
+
+        clean, discourse_removed = _strip_leading_discourse(clean)
+        if discourse_removed:
+            actions.append("leading_acknowledgement_removed")
+
+        clean, offer_removed = _strip_closing_offer(clean)
+        if offer_removed:
+            actions.append("closing_offer_removed")
+
+        clean, note_removed = _strip_trailing_meta_parenthetical(clean)
+        if note_removed:
+            actions.append("output_description_removed")
 
         clean, scratchpad_removed = _strip_trailing_scratchpad(clean)
         if scratchpad_removed:
