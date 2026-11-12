@@ -653,6 +653,56 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    # -- Social content manager (L14): planning and managing content across platforms selects
+    # the vool-social-content-manager skill. It seats no tool (the family is declared by that
+    # skill alone), so a match adds planning guidance and never a publishing path. Verb or
+    # noun-phrase anchored: a bare mention of "social media", "post" or one platform seats
+    # nothing, and X-only drafting stays with the editorial rules above.
+    (
+        "social_content.calendar",
+        "social_content",
+        re.compile(
+            r"\bcontent\s+calendars?\b"
+            r"|\b(?:posting|posts?|publishing|social(?:\s+media)?)\s+(?:plans?|schedules?|calendars?)\b",
+            re.I,
+        ),
+    ),
+    (
+        "social_content.campaign",
+        "social_content",
+        re.compile(
+            # A planning verb and a campaign: "plan the campaign", "make a social content
+            # campain". Campaigns that are not content work (a tabletop game, an election,
+            # a military one) are refused inside the window, not after the fact.
+            r"\b(?:plan|planning|make|run|running|manage|managing|build|create|set\s+up|organi[sz]e|"
+            r"coordinate|map\s+out|track|start|launch|prepare|draft|outline|help\s+(?:me\s+)?(?:with|plan|run))\b"
+            r"(?:(?!\b(?:d&d|dnd|dungeons?|tabletop|rpg|pathfinder|warhammer|game|gaming|"
+            r"political|election|electoral|presidential|military|bombing|vaccination)\b)[^.?!]){0,60}?"
+            r"\bcampai(?:gn|ng|n)s?\b"
+            r"(?![^.?!]{0,40}?\b(?:d&d|dnd|tabletop|rpg|pathfinder|warhammer|game|gaming|"
+            r"political|election|electoral|presidential|military)\b)",
+            re.I,
+        ),
+    ),
+    (
+        "social_content.manage",
+        "social_content",
+        re.compile(
+            r"\b(?:manage|managing|plan|run|organi[sz]e|coordinate)\b[^.?!]{0,40}?"
+            r"\bsocial(?:\s+media)?\s+(?:content|posts|channels|accounts|presence)\b",
+            re.I,
+        ),
+    ),
+    (
+        "social_content.adapt",
+        "social_content",
+        re.compile(
+            r"\b(?:adapt|repurpose|cross-?post|rework|reshape)\b[^.?!]{0,60}?\bfor\s+"
+            r"(?:linkedin|bluesky|mastodon|threads|telegram|discord|each\s+platform|every\s+platform|"
+            r"(?:all\s+)?(?:our\s+|the\s+)?(?:other\s+)?platforms)\b",
+            re.I,
+        ),
+    ),
     # -- X reads and actions with the user's own keys (core/x_api.py, core/x_actions.py) ----
     # Verb+noun anchored like the rest of this table: searching X, who called a token, an
     # account's posts, or acting on X. A passing mention of X or Twitter seats nothing. An action

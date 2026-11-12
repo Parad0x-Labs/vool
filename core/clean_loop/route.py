@@ -384,6 +384,37 @@ def asks_about_own_files_or_computer(text: str) -> bool:
     )
 
 
+# A planning or drafting ask that a typed content skill claims belongs to that skill's lane: this
+# loop's brain answers from the owner's files and carries no skill guidance. Measured on the real
+# chat page 2026-11-12: "Plan a launch campaign for our privacy tool across X and LinkedIn" was
+# taken as a privacy-meter ask, and the next short ask ("content calendar for bluesky n mastodon")
+# as its follow-up, so the social content manager never reached the model. An ask that names the
+# owner's files ("the content calendar file in my Documents") still comes here.
+_SKILL_OWNED_FAMILIES = frozenset({"social_content", "editorial"})
+# Only an explicit file or folder reference keeps such an ask here. The broad topic words this
+# loop admits on ("privacy", "list", "reports", "notes" alone) are a product's subject in a content
+# ask ("a campaign for our privacy tool"), not a request to read the owner's files.
+_NAMES_FILES_RE = re.compile(
+    r"\b(?:my|our|the|this|that|these|those)\s+(?:[\w-]+\s+){0,2}"
+    r"(?:files?|folders?|pdfs?|docs?|documents?|downloads|desktop|spreadsheets?|csv|notes?\s+(?:file|folder|app))\b"
+    r"|\b[\w-]+\.(?:pdf|docx?|txt|md|csv|xlsx?|pages|numbers|key)\b",
+    re.I,
+)
+
+
+def skill_owns_turn(text: str) -> bool:
+    value = str(text or "")
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        families = set(resolve_demand_signals(value).required_families)
+    except Exception:
+        return False
+    if not families & _SKILL_OWNED_FAMILIES:
+        return False
+    return not (_NAMES_FILES_RE.search(value) or _MACHINE_RE.search(value))
+
+
 def note_clean_turn(session_id: str) -> None:
     """Remember that this session's last turn ran here, so a short follow-up stays on the same path."""
     if not session_id:
@@ -507,6 +538,8 @@ def decide(
         # have: it answered "lacks sufficient context" to "has Tomas given everything back" and "is
         # Ines holding any books" (served run14), turns the database lane answers from real rows.
         return RouteDecision(False, "database_work")
+    if skill_owns_turn(text):
+        return RouteDecision(False, "skill_owns_turn")
     by_documents = False
     if not (
         asks_about_own_files_or_computer(text)
@@ -544,4 +577,5 @@ __all__ = [
     "is_write",
     "names_owner_file",
     "note_clean_turn",
+    "skill_owns_turn",
 ]

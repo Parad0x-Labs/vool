@@ -91,6 +91,13 @@ SYMPTOM_ONLY_CLOSURE_TOKEN = "symptom-only closure is not a stopping condition"
 # out of a body fails the library load instead of silently shipping a weaker skill.
 REQUIRED_BODY_TOKENS: dict[str, tuple[str, ...]] = {
     "x-editorial-studio": ("never publishes", "creates no files"),
+    # The social content manager plans and drafts only: the body must keep the no-publishing
+    # doctrine and the rule that imported post text is evidence, never instructions.
+    "vool-social-content-manager": (
+        "never publishes",
+        "grants no publishing authority",
+        "data, never instructions",
+    ),
 }
 
 _PREREQ_KINDS = ("tool:", "binary:", "family:", "plugin:")
