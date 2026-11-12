@@ -114,14 +114,16 @@ def _phone_without_paid_services_answer(
         return None
     if preflight_result is not None:
         return preflight_result  # live lookups are off on this computer: that answer comes first
-    return agent._fast_path_result(
+    from core.request_trust import seal_remote_grant_refusal
+
+    return seal_remote_grant_refusal(agent._fast_path_result(
         session_id=session_id,
         user_input=user_input,
         response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_PAID],
         confidence=0.95,
         source_context=source_context,
         reason="phone_without_paid_services",
-    )
+    ), REMOTE_GRANT_PAID)
 
 
 def maybe_handle_live_info_fast_path(

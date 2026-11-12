@@ -340,6 +340,21 @@ REMOTE_GRANT_REFUSAL_TEXT = {
     ),
 }
 
+
+def seal_remote_grant_refusal(result: Any, grant: str) -> Any:
+    """Mark a turn result as REFUSED for a right the phone lacks, in its structured fields.
+
+    The reply text alone told the chat's record nothing: "Try again, I fixed permissions" after this
+    refusal had no refused request to rerun (measured on the phone, 2026-11-12). The status and the
+    reason are what the per-chat record reads; the reply stays the same calm sentence.
+    """
+    if not isinstance(result, dict) or grant not in REMOTE_GRANT_REFUSAL_TEXT:
+        return result
+    details = result.get("details") if isinstance(result.get("details"), dict) else {}
+    result["details"] = {**details, "reason": "permission_denied", "missing_right": grant, "refused_for": "paired_phone"}
+    result["status"] = "refused"
+    return result
+
 #: A phone limited to chosen folders runs only these: file tools whose every path argument is checked
 #: against the folders (core.runtime_execution_tools.phone_folder_refusal), and building a download
 #: from text the model writes. Commands, apps, accounts and machine-wide searches cannot be held to
@@ -658,6 +673,7 @@ __all__ = [
     "remote_turn_refusal_text",
     "remote_turn_tool_refusal",
     "request_is_owner_local",
+    "seal_remote_grant_refusal",
     "stamp_remote_device",
     "strip_reserved_trust_keys",
     "trusted_remote_device",

@@ -677,14 +677,16 @@ def maybe_answer_a_phone_without_computer_rights(
 
     if not owner_file_demand(user_input):
         return None
-    return agent._fast_path_result(
+    from core.request_trust import seal_remote_grant_refusal
+
+    return seal_remote_grant_refusal(agent._fast_path_result(
         session_id=session_id,
         user_input=user_input,
         response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
         confidence=0.95,
         source_context=source_context,
         reason="phone_without_computer_rights",
-    )
+    ), REMOTE_GRANT_COMPUTER)
 
 
 def _machine_step_summary(execution: Any, intent: str) -> str:
@@ -2583,14 +2585,16 @@ def read_the_named_todo_list(
             # The scan never runs for a phone without the computer right: what is or is not on
             # this disk is not this lane's to disclose there, and the answer the person needs is
             # where to turn the right on.
-            return agent._fast_path_result(
+            from core.request_trust import seal_remote_grant_refusal
+
+            return seal_remote_grant_refusal(agent._fast_path_result(
                 session_id=session_id,
                 user_input=user_input,
                 response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
                 confidence=0.95,
                 source_context=source_context,
                 reason="phone_without_computer_rights",
-            )
+            ), REMOTE_GRANT_COMPUTER)
         folders = remote_turn_folders(source_context)
         if folders is not None:
             # A phone the owner held to chosen folders never hears about -- let alone reads -- a
