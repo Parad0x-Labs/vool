@@ -141,6 +141,7 @@ __all__ = [
     "load_memory_excerpt",
     "load_operator_dense_profile",
     "maybe_handle_memory_command",
+    "memory_command_owns_turn",
     "memory_entries_path",
     "memory_lifecycle_snapshot",
     "memory_path",
@@ -783,6 +784,47 @@ def _is_memory_recall_question(text: str) -> bool:
             lowered,
         )
     )
+
+
+#: Words that may stand before a forget order in a sentence: "please forget ...", "ok, forget ...", "can you forget ...".
+_FORGET_ORDER_LEAD_IN_RE = re.compile(
+    r"^(?:(?:please|pls|ok(?:ay)?|and|also|now|then|so|just)[\s,]+"
+    r"|(?:can|could|would|will)\s+you\s+(?:please\s+)?"
+    r"|(?:i\s+want|i'?d\s+like)\s+you\s+to\s+)*",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
+
+
+def memory_command_owns_turn(user_text: str) -> bool:
+    """Whether this message carries one of the memory lane's own commands: a forget order in any of its
+    sentences, a "remember that" / "note that" capture, the memory list, or a memory-scope command.
+
+    Pure: it reads and writes nothing. It is for the lanes that run ahead of the memory lane and must leave
+    these turns to it. Measured 2026-11-12 on the v0.8 candidate (clean loop on by default): "Forget my name.
+    Forget storage label MINT-84." right after a question about the owner's files was taken by the clean loop as
+    a follow-up and answered by its model; nothing was forgotten, and the reply said the forget could not be
+    verified. Save/store/keep/retain captures are left out (their object can be a file another lane writes),
+    and so are recall questions, whose words ("saved", "note") are also ordinary questions about files."""
+    text = str(user_text or "").strip()
+    if not text:
+        return False
+    for sentence in _SENTENCE_SPLIT_RE.split(text):
+        clause = _FORGET_ORDER_LEAD_IN_RE.sub("", sentence.strip(), count=1)
+        if clause and _FORGET_RE.match(clause):
+            return True
+    lowered = " ".join(text.lower().split())
+    if lowered in {"/memory", "what do you remember", "show memory"} or _MEMORY_INVENTORY_RE.fullmatch(lowered.strip(" ?.!")):
+        return True
+    if _parse_session_scope_command(text) is not None:
+        return True
+    capture = _memory_capture_match(text)
+    if capture is None:
+        return False
+    verb = " ".join(str(capture.group("verb") or "").lower().split())
+    fact = str(capture.group("fact") or "")
+    return (verb not in _OBJECT_CAPTURE_VERBS and not _ANSWER_REQUEST_RE.search(fact)
+            and not _is_a_reminiscence(fact, text))
 
 
 def _memory_recall_value(text: str) -> str:

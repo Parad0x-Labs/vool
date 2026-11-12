@@ -1,6 +1,8 @@
 """Should this turn take the clean local path? One pure decision, in a fixed order.
 
-1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default ON; 0/false/no/off turns it off).
+1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default ON; 0/false/no/off turns it off), and the turn is not one
+   of the memory lane's commands (a forget, a "remember that", the memory list), which are never the loop's,
+   not even as a short follow-up (`core.persistent_memory.memory_command_owns_turn`).
 2. The turn is not RED: no pay/send/delete/post/cancel-style verb and no money words. VOOL has no
    text-level risky-action classifier to reuse (its consent gates sit at the effect, which this loop
    never reaches), so this is a small verb floor. RED turns keep the normal ceremony. Nor is it a
@@ -426,6 +428,17 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
     return ""
 
 
+def _memory_lane_owns(text: str) -> bool:
+    """A forget, a "remember that", the memory list: the memory lane's commands. Taken here as a follow-up of
+    a files turn, a forget was answered by the loop's model and nothing was forgotten (served, 2026-11-12)."""
+    try:
+        from core.persistent_memory import memory_command_owns_turn
+    except Exception:
+        # The memory lane cannot be asked: the turn keeps the old pipeline, which owns these commands.
+        return True
+    return memory_command_owns_turn(text)
+
+
 def decide(
     text: str,
     *,
@@ -439,6 +452,8 @@ def decide(
 ) -> RouteDecision:
     if not flag_on(env):
         return RouteDecision(False, "flag_off")
+    if _memory_lane_owns(text):
+        return RouteDecision(False, "memory_command")
     if is_red(text):
         return RouteDecision(False, "red_turn")
     if is_write(text) and not changes_enabled(env):
