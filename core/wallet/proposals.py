@@ -409,6 +409,51 @@ def _cas(conn: Any, proposal_id: str, new_state: str, *, expected_state: str | N
     conn.execute("INSERT INTO wallet_proposal_events (proposal_id, state, detail_json, created_at) VALUES (?, ?, ?, ?)", (proposal_id, new_state, dumps(detail or {}), now))
 
 
+class MessageClaimedError(RuntimeError):
+    """Another proposal already claimed this exact Solana message: signed by the same key it would be the same
+    transaction, which the chain runs once while both proposals would read as paid."""
+
+    def __init__(self, other_proposal_id: str) -> None:
+        super().__init__(f"message_claimed_by:{other_proposal_id}")
+        self.other_proposal_id = str(other_proposal_id or "")
+
+
+def _message_holder(conn: Any, network: str, message_digest: str, proposal_id: str) -> str:
+    row = conn.execute("SELECT proposal_id FROM wallet_proposals WHERE network = ? AND message_digest = ? AND proposal_id <> ? LIMIT 1",
+                       (str(network), str(message_digest), str(proposal_id))).fetchone()
+    return str(row[0]) if row else ""
+
+
+def message_claimed_by(network: str, message_digest: str, proposal_id: str) -> str:
+    """The proposal (other than ``proposal_id``) that already claimed this message on this row, or ''."""
+    if not message_digest:
+        return ""
+    with connection() as conn:
+        return _message_holder(conn, network, message_digest, proposal_id)
+
+
+def _claim_message(conn: Any, proposal_id: str, *, network: str, message_digest: str) -> None:
+    """Bind the exact message a claim signs to its proposal, on the caller's connection (inside the claim's BEGIN
+    IMMEDIATE). Raises :class:`MessageClaimedError` when another proposal holds it; the unique index on
+    (network, message_digest) refuses the same race between processes. Lifecycle-only."""
+    if not message_digest:
+        return
+    holder = _message_holder(conn, network, message_digest, proposal_id)
+    if holder:
+        raise MessageClaimedError(holder)
+    try:
+        conn.execute("UPDATE wallet_proposals SET message_digest = ? WHERE proposal_id = ?", (str(message_digest), str(proposal_id)))
+    except sqlite3.IntegrityError:
+        raise MessageClaimedError(_message_holder(conn, network, message_digest, proposal_id) or "unknown") from None
+
+
+def _release_message(conn: Any, proposal_id: str) -> None:
+    """Free the message bound to a payment whose bytes never left this device and never will (ended before it was
+    handed on, or a transfer released, discarded, cancelled or revoked before dispatch), on the caller's connection:
+    an equal payment may sign that transaction now, and it is sent once. Lifecycle-only."""
+    conn.execute("UPDATE wallet_proposals SET message_digest = '' WHERE proposal_id = ?", (str(proposal_id),))
+
+
 def _transition(conn: Any, proposal_id: str, new_state: str, *, expected_state: str, detail: dict[str, Any] | None = None, **columns: Any) -> None:
     """A proposal transition on the caller's connection (the pilot transfer store's projection). Raises
     ProposalTransitionError on refusal and also accepts :data:`PILOT_ONLY_EDGES`."""

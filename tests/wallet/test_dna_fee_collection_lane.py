@@ -262,6 +262,47 @@ def test_accrued_fees_ride_the_next_native_payment_under_one_pin_and_retire_exac
     assert dna_fees.companion_outcome(pid)["state"] == "confirmed"
 
 
+def test_a_collection_equal_to_one_just_sent_never_retires_the_debt_twice(lane) -> None:
+    """The next payment's collection moves the same amount to the treasury before the chain moved on: signed by this key
+    it would be the first collection's own transaction, which the chain runs once while the debt would be retired
+    twice. The approval refuses with nothing claimed and the debt still owed; once the chain moves on, both collect."""
+    from core.wallet import dna_fees, lifecycle
+    from core.wallet.errors import WalletFault
+
+    lane.monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_BUDGET_SECONDS", 0.3)  # the simulation chain stands still until told
+    lane.monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_POLL_SECONDS", 0.05)
+    node, treasury = lane.node, lane.treasury
+    wallet = _payer(node)
+    payer = wallet["address"]
+    assert dna_fees.set_collect_min_atomic("USDC", 1_000) == 1_000
+    _bound(1, 1_000)
+    for _ in range(3):
+        _accrue(payer, 400_000)  # 1,200 µUSDC owed
+    first = _x402_payment(node, wallet, amount=50_000)
+    first_quote = _quote(first["proposal_id"])
+    collection = first_quote["fields"]["companion"]
+    assert collection is not None and collection["amount_minor"] == 1_200
+    assert _approve_with(first["proposal_id"], first_quote)["companion"]["collected"] is True
+    assert node.token_balance(treasury, USDC_MAINNET_MINT) == 1_200 and node.distinct_sends() == 2
+
+    for _ in range(3):
+        _accrue(payer, 400_000)  # the same debt again
+    second = _x402_payment(node, wallet, amount=40_000)
+    quote = _quote(second["proposal_id"])
+    assert quote["fields"]["companion"]["amount_minor"] == 1_200
+    with pytest.raises(WalletFault) as same:
+        _approve_with(second["proposal_id"], quote)
+    assert (same.value.code, same.value.context.get("reason"), same.value.context.get("other_proposal_id")) == ("wallet_quote_expired", "transaction_matches_another_payment", collection["proposal_id"])
+    assert node.distinct_sends() == 2 and node.token_balance(treasury, USDC_MAINNET_MINT) == 1_200, "nothing sent"
+    assert dna_fees.position_for(payer=payer, network=SOLANA_MAINNET, asset="USDC")["owed_atomic"] == 1_200, "the debt is still owed"
+
+    node.advance_blocks(1)
+    done = _approve_with(second["proposal_id"], _quote(second["proposal_id"]))
+    assert done["transfer"]["state"] == "confirmed" and done["companion"]["collected"] is True and node.distinct_sends() == 4
+    assert node.token_balance(treasury, USDC_MAINNET_MINT) == 2_400, "two collections on the chain, each retired once"
+    assert dna_fees.position_for(payer=payer, network=SOLANA_MAINNET, asset="USDC")["owed_atomic"] == 0
+
+
 def test_the_collection_is_deferred_below_the_threshold_over_the_cost_bound_or_without_a_bound_and_the_payment_goes_alone(lane) -> None:
     from core.wallet import dna_fees
 

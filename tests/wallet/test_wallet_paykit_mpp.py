@@ -353,6 +353,37 @@ def test_an_mpp_challenge_parked_for_a_request_already_paid_never_rebinds_it(env
     assert binding["proposal_id"] == parked.proposal_id
 
 
+@pytest.mark.parametrize("sponsored", [True, False], ids=["server-pays-fee", "wallet-pays-fee"])
+def test_a_charge_that_repeats_a_paid_charges_transaction_is_never_delivered_or_counted_twice(env, sponsored):
+    """The site repeats its offer (the same order id, payee and amount) for another request before the chain moved on:
+    pay-kit builds, byte for byte, the transaction this wallet already paid, and the same key signs it with the same
+    signature. It never leaves: the request is not delivered, the hold returns and nothing is counted twice. Once the
+    chain moved on, the request is paid with a transaction of its own."""
+    from core.wallet import limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    with ScriptedMppResource(env["rpc"], sponsored=sponsored) as resource:
+        first = _park(resource, profile, body=b'{"question": "q3 revenue"}')
+        paid = _approve(first.proposal_id)
+        assert paid.state == proposals.STATE_CONFIRMED and len(resource.paid_requests) == 1
+        second = _park(resource, profile, body=b'{"question": "q4 revenue"}')
+        with pytest.raises(WalletFault) as repeated:
+            _approve(second.proposal_id)
+        assert (repeated.value.code, repeated.value.context.get("reason"), repeated.value.context.get("other_proposal_id")) == (
+            "wallet_duplicate_payment", "transaction_matches_another_payment", first.proposal_id)
+        assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1, "the repeated transaction never left"
+        assert proposals.get_proposal(second.proposal_id).state == proposals.STATE_REJECTED and limits.reservation_state(second.proposal_id) == "released"
+        assert limits.reservation_state(first.proposal_id) == "settled"
+
+        env["rpc"].advance_blockhash()
+        again = _park(resource, profile, body=b'{"question": "q4 revenue"}')
+        assert again.proposal_id != second.proposal_id
+        receipt = _approve(again.proposal_id)
+        assert receipt.state == proposals.STATE_CONFIRMED and receipt.tx_signature != paid.tx_signature
+        assert len(resource.paid_requests) == 2 and len(env["rpc"].transactions) == 2 and resource.paid_requests[1]["body"] == b'{"question": "q4 revenue"}'
+
+
 @pytest.mark.parametrize("state", ["broadcast", "confirmed"])
 def test_a_late_mpp_challenge_cannot_replace_an_unknown_or_paid_request(env, monkeypatch, state):
     """The MPP lane's version of the late challenge: a charge paid (confirmed) or left unknown (broadcast), and a second

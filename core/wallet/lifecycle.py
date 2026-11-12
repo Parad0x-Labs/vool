@@ -25,6 +25,7 @@ import ssl
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -161,6 +162,19 @@ def classify_broadcast_failure(exc: BaseException) -> BroadcastFate:
 
 _CONFIRM_BUDGET_SECONDS = 20.0
 _CONFIRM_POLL_SECONDS = 0.25
+
+#: A wallet-built Solana message is a pure function of the payer, the payee, the amount and the recent blockhash. Two
+#: payments that agree on all four are byte-identical: signed by one key they are ONE transaction, which the chain runs
+#: once, while both proposals would read as paid and both would count against the limits. No proposal claims a message
+#: another proposal claimed (the unique index on wallet_proposals(network, message_digest)); the claim reads the chain
+#: again until its next blockhash makes this payment distinct, for at most this long, then refuses with nothing held.
+REASON_SAME_TRANSACTION = "transaction_matches_another_payment"
+_DISTINCT_MESSAGE_BUDGET_SECONDS = 4.0
+_DISTINCT_MESSAGE_POLL_SECONDS = 0.4
+
+
+def _svm_message_digest(message: Any) -> str:
+    return hashlib.sha256(bytes(message)).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -490,6 +504,36 @@ class PaymentLifecycle:
     def _message_for(self, proposal: proposals.TransactionProposal, payer_pubkey: str, *, rpc: RpcClient | None = None, create_recipient_account: bool = False) -> Any:
         return _build_message(proposal, payer_pubkey, (rpc or self._rpc_for(proposal.network)).latest_blockhash(), create_recipient_account=create_recipient_account)
 
+    def _until_distinct(self, proposal: proposals.TransactionProposal, build: Callable[[], Any], bind: Callable[[Any], Any]) -> tuple[Any, Any]:
+        """Build the message this proposal signs and bind it with ``bind`` (a claim, or a bind of its own), never one
+        another payment holds (see :data:`REASON_SAME_TRANSACTION`). ``bind`` raises :class:`proposals.MessageClaimedError`
+        with its transaction rolled back when another payment holds an equal message; the message is then built again
+        on the chain's next blockhash, for up to :data:`_DISTINCT_MESSAGE_BUDGET_SECONDS`. A refusal ``bind`` makes for
+        any other reason (a spend limit) answers at once. When the chain does not move on in time nothing is claimed or
+        held, and the refusal says so; approving again a moment later sends it. Returns the message and what ``bind``
+        returned."""
+        deadline = time.monotonic() + _DISTINCT_MESSAGE_BUDGET_SECONDS
+        while True:
+            message = build()
+            try:
+                return message, bind(message)
+            except proposals.MessageClaimedError as taken:
+                if time.monotonic() + _DISTINCT_MESSAGE_POLL_SECONDS > deadline:
+                    # filed only now, once the claim's write lock is free for its record
+                    raise self._fault("wallet_quote_expired", proposal, reason=REASON_SAME_TRANSACTION, other_proposal_id=taken.other_proposal_id) from None
+            time.sleep(_DISTINCT_MESSAGE_POLL_SECONDS)
+
+    @staticmethod
+    def _bind_message(proposal: proposals.TransactionProposal, message: bytes) -> None:
+        """Bind the exact Solana message this proposal signs to it, in its own transaction (see
+        :data:`REASON_SAME_TRANSACTION`). Raises :class:`proposals.MessageClaimedError`, nothing written, when another
+        payment already holds that message."""
+        from core.wallet.store import connection
+
+        with connection() as conn:
+            limits._begin_immediate(conn)
+            proposals._claim_message(conn, proposal.proposal_id, network=proposal.network, message_digest=hashlib.sha256(bytes(message)).hexdigest())
+
     # -- stage 1: prepare -------------------------------------------------------------------------
     def prepare(self, proposal_id: str) -> proposals.TransactionProposal:
         """proposed -> simulated -> limits_checked -> pending_approval (or a typed terminal refusal)."""
@@ -586,6 +630,9 @@ class PaymentLifecycle:
         self._require_names_a_request(proposal)
         from core.wallet.store import connection
 
+        # the exact Solana message this claim signs (a pocket or external-signer transfer): bound to this proposal in the
+        # claim's own transaction, so no other proposal can ever sign or count the same transaction
+        svm_digest = _svm_message_digest(payer_message) if payer_message is not None else ""
         # The approval and its hold are ONE transaction. The hold is what the spend limits count, so an approved payment
         # always holds its amount and its fee: a stop or a store error before the commit leaves it awaiting approval with
         # nothing held, and a ceiling ends it with its receipt in the same transaction.
@@ -609,6 +656,10 @@ class PaymentLifecycle:
                 if not verdict.ok:
                     end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", expected_state=proposals.STATE_APPROVED,
                                 detail={"limit": verdict.limit, "reason": verdict.reason}, conn=conn, limit=verdict.limit, reason=verdict.reason)
+                else:
+                    # after the limits, which answer at once: an equal message another payment holds raises
+                    # MessageClaimedError and rolls this whole claim back, still awaiting approval, nothing held
+                    proposals._claim_message(conn, proposal.proposal_id, network=proposal.network, message_digest=svm_digest)
         if claimed is None:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_claimed_by_another_approval")
         proposal = claimed
@@ -696,8 +747,11 @@ class PaymentLifecycle:
             # the canonical Solana x402 payment: pay-kit builds it, the resource's fee payer settles it. This wallet never
             # broadcasts a transfer of its own for it, so it never reaches the message below.
             return self._execute_paykit(proposal, profile, paykit_binding, decision=decision, device_signer=device_signer, rpc=rpc, approved=challenge)
-        message = self._message_for(proposal, profile.public_key, rpc=rpc)
-        proposal, effects = self._claim(proposal, profile, method=decision.method, payer_message=message, fee_minor=max(_reserved_fee_for(challenge.binding_view()), _svm_fee_for(proposal)), chain=spec_network(proposal.network))
+        pending, fee_minor = proposal, max(_reserved_fee_for(challenge.binding_view()), _svm_fee_for(proposal))
+        message, (proposal, effects) = self._until_distinct(
+            pending, lambda: self._message_for(pending, profile.public_key, rpc=rpc),
+            lambda built: self._claim(pending, profile, method=decision.method, payer_message=built, fee_minor=fee_minor, chain=spec_network(pending.network)),
+        )
         try:
             signer = device_signer or signers.signer_for(profile, pin=decision.pin_unlock or None, proposal_id=proposal.proposal_id)
             self._begin_attempt(effects["sign"])  # consume immediately BEFORE the signing execution
@@ -946,6 +1000,28 @@ class PaymentLifecycle:
             raise
 
     def _revalidate_svm(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any], *, companion: dict[str, Any] | None = None) -> dict[str, Any]:
+        """:meth:`_revalidate_svm_once`, read again until the messages this approval signs (the payment and, when
+        planned, the fee collection) are ones no other payment claimed (see :data:`REASON_SAME_TRANSACTION`). When the
+        chain does not move on in time the quote is superseded and nothing is claimed. A pay-kit payment is exempt here:
+        pay-kit builds its own message, bound when it is signed (:meth:`_claim_sign_and_deliver_paykit`)."""
+        from core.wallet import quotes
+
+        deadline = time.monotonic() + _DISTINCT_MESSAGE_BUDGET_SECONDS
+        while True:
+            fresh = self._revalidate_svm_once(proposal, profile, spec, quote, companion=companion)
+            if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
+                return fresh
+            holder = proposals.message_claimed_by(proposal.network, _svm_message_digest(fresh["message"]), proposal.proposal_id)
+            if not holder and companion and fresh.get("companion_message") is not None:
+                holder = proposals.message_claimed_by(companion["proposal"].network, _svm_message_digest(fresh["companion_message"]), companion["proposal"].proposal_id)
+            if not holder:
+                return fresh
+            if time.monotonic() >= deadline:
+                quotes.supersede_quote(quote["quote_id"], reason=REASON_SAME_TRANSACTION)
+                raise self._fault("wallet_quote_expired", proposal, reason=REASON_SAME_TRANSACTION, quote_id=quote["quote_id"], other_proposal_id=holder)
+            time.sleep(_DISTINCT_MESSAGE_POLL_SECONDS)
+
+    def _revalidate_svm_once(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any], *, companion: dict[str, Any] | None = None) -> dict[str, Any]:
         """Fresh chain facts right before the claim, while no key exists: the endpoint proves the row's chain, the
         blockhash has enough validity left for the claim and the send, and the balance still covers the maximum
         debit of EVERY transaction the approval covers (the payment and, when planned, the fee collection) with a
@@ -1117,11 +1193,22 @@ class PaymentLifecycle:
         everything back, so the quote stays open, the proposal stays approvable and the collection stays offered; only
         a fetched x402 payment that no longer owns its request is ended there, with its receipt, before anything is
         consumed or held."""
+        fields = quote["fields"]
+        now = time.time()
+        try:
+            return self._claim_pilot_in_transaction(proposal, profile, spec, quote, challenge, baseline, fresh, companion=companion, fields=fields, now=now)
+        except proposals.MessageClaimedError as taken:
+            # the claim transaction rolled back (the quote stays open, nothing is held); the fault is filed only now,
+            # once the store's write lock is free for its record
+            raise self._fault("wallet_quote_expired", proposal, reason=REASON_SAME_TRANSACTION, quote_id=quote["quote_id"], other_proposal_id=taken.other_proposal_id) from None
+
+    def _claim_pilot_in_transaction(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any], challenge: Any,
+                                    baseline: dict[str, Any], fresh: dict[str, Any], *, companion: dict[str, Any] | None, fields: dict[str, Any], now: float) -> dict[str, Any]:
+        """The one BEGIN IMMEDIATE of :meth:`_claim_pilot`. A message another payment holds raises
+        :class:`proposals.MessageClaimedError` out of it, after the rollback."""
         from core.wallet import controls, environment, quotes, settlement, transfers
         from core.wallet.store import connection
 
-        fields = quote["fields"]
-        now = time.time()
         with connection() as conn:
             limits._begin_immediate(conn)
             from core.mobile_companion.payments import execution_guard
@@ -1150,6 +1237,13 @@ class PaymentLifecycle:
                 quotes._consume(conn, quote["quote_id"], quote["digest"], now)
             except quotes.QuoteConsumeError:
                 raise self._fault("wallet_quote_expired", proposal, reason="quote_no_longer_open", quote_id=quote["quote_id"]) from None
+            if spec.is_svm and str(proposal.origin) not in proposals.PAYKIT_ORIGINS and fresh.get("message") is not None:
+                # the exact messages this approval signs, bound in this transaction: a race another approval won in the
+                # same slot rolls everything back here, so the quote stays open and nothing is held
+                proposals._claim_message(conn, proposal.proposal_id, network=proposal.network, message_digest=_svm_message_digest(fresh["message"]))
+                if companion and fresh.get("companion_message") is not None:
+                    proposals._claim_message(conn, companion["proposal"].proposal_id, network=companion["proposal"].network,
+                                             message_digest=_svm_message_digest(fresh["companion_message"]))
             authorization = str(proposal.origin) == proposals.ORIGIN_X402_SDK
             if spec.is_svm:
                 identity: dict[str, Any] = {"blockhash": fresh["blockhash"], "blockhash_slot": fresh["slot"], "last_valid_block_height": fresh["last_valid"]}
@@ -1434,6 +1528,9 @@ class PaymentLifecycle:
                 own = b58encode(bytes(guarded.signature))
                 with connection() as conn:
                     limits._begin_immediate(conn)
+                    # the message pay-kit built and this key signed: another payment's identical message (a challenge that
+                    # repeats its terms, its memo and its blockhash) is that payment's transaction, with the same signature
+                    proposals._claim_message(conn, pid, network=proposal.network, message_digest=hashlib.sha256(bytes(guarded.signed_message)).hexdigest())
                     transfers.transition(
                         conn, pid, transfers.STATE_SIGNED, expected_state=transfers.STATE_CLAIMED, now=time.time(), owner_token=claimed["owner_token"],
                         tx_id=own if payer_pays_fee else None, payer_signature=own, lease_until=time.time() + settlement.SIGNER_BUDGET_SECONDS,
@@ -1447,6 +1544,12 @@ class PaymentLifecycle:
                     raise self._fault("wallet_approval_rejected", proposal, reason="owner_cancelled_before_signing") from None
                 settlement.release_claimed(pid, reason=f"sign_cas_lost:{exc}")
                 raise self._fault("wallet_duplicate_payment", proposal, reason=f"sign_cas_lost:{exc}") from None
+            except proposals.MessageClaimedError as taken:
+                # it never leaves twice: the SIGNED transaction rolled back, nothing left, so the claim is released
+                for effect in effects.values():
+                    self._cancel_effect(effect, reason=REASON_SAME_TRANSACTION)
+                settlement.release_claimed(pid, reason=REASON_SAME_TRANSACTION)
+                raise self._fault("wallet_duplicate_payment", proposal, reason=REASON_SAME_TRANSACTION, other_proposal_id=taken.other_proposal_id) from None
             except WalletFault as exc:
                 for effect in effects.values():
                     self._cancel_effect(effect, reason=exc.code)
@@ -2068,8 +2171,11 @@ class PaymentLifecycle:
         if chains.resolve_network(proposal.network).is_evm:
             return self._request_evm_signature(proposal, profile)
         rpc = self._prove_before_claim(proposal)
-        message = self._message_for(proposal, profile.public_key, rpc=rpc)
-        proposal, effects = self._claim(proposal, profile, method="external_signer", payer_message=message, fee_minor=_svm_fee_for(proposal), chain=spec_network(proposal.network))
+        pending = proposal
+        message, (proposal, effects) = self._until_distinct(
+            pending, lambda: self._message_for(pending, profile.public_key, rpc=rpc),
+            lambda built: self._claim(pending, profile, method="external_signer", payer_message=built, fee_minor=_svm_fee_for(pending), chain=spec_network(pending.network)),
+        )
         try:
             self._begin_attempt(effects["sign"])  # the signing execution starts when the bytes leave for the wallet
             record = external_signing.open_signing_request(proposal, public_key=profile.public_key, message=bytes(message), unsigned_transaction=_serialize(message, ZERO_SIGNATURE))
@@ -2093,7 +2199,9 @@ class PaymentLifecycle:
         self._require_held(proposal)
         if chains.resolve_network(proposal.network).is_evm:
             return self._request_evm_signature_opened(proposal, profile)
-        message = self._message_for(proposal, profile.public_key)
+        # the claim's message was never handed out; the one handed out now is bound to this proposal in its place. A
+        # refusal here keeps the payment approved and held, as an unopened request does, for the next resume
+        message, _ = self._until_distinct(proposal, lambda: self._message_for(proposal, profile.public_key), lambda built: self._bind_message(proposal, bytes(built)))
         try:
             record = external_signing.open_signing_request(proposal, public_key=profile.public_key, message=bytes(message), unsigned_transaction=_serialize(message, ZERO_SIGNATURE))
         except Exception as exc:
@@ -2612,6 +2720,14 @@ class PaymentLifecycle:
             raise self._fault("wallet_signing_unavailable", proposal, reason=reason) from None
         self._close_effect(effects["sign"], ok=True, reason="signed")
         effect = effects["transaction"]
+        try:
+            self._bind_message(proposal, guarded.signed_message)
+        except proposals.MessageClaimedError as taken:
+            # pay-kit built a message another payment already claimed (a challenge that repeats its terms, its memo and its
+            # blockhash): signed by this key it IS that payment's transaction, with the same signature. It never leaves
+            # and the hold goes: this payment was already made, never twice.
+            self._abort_before_broadcast(proposal, {"transaction": effect}, state=proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", reason=REASON_SAME_TRANSACTION)
+            raise self._fault("wallet_duplicate_payment", proposal, reason=REASON_SAME_TRANSACTION, other_proposal_id=taken.other_proposal_id) from None
         if limits.is_frozen():
             # the brake landed between the signature and the request: the signed payment never leaves, the hold goes.
             # It ends while the payment is still the approved one this approval claimed, before it is marked signed.
@@ -2904,6 +3020,8 @@ def end_claimed(proposal_id: str, state: str, *, fault_code: str, reason: str, e
         if ended is not None:
             with contextlib.suppress(limits.HoldStateConflictError):
                 limits._release(conn, ended.proposal_id)
+            # nothing it claimed left this device: an equal payment may sign the same transaction now
+            proposals._release_message(conn, ended.proposal_id)
     if ended is not None and evidence:
         reconciliation.resolve_payment_effect(ended.proposal_id, applied=False, evidence=evidence, source="mechanical")
     return ended

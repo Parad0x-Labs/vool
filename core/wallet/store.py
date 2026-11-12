@@ -179,6 +179,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_spend_ledger", "settled_at", "REAL NOT NULL DEFAULT 0"),
     # PA Contacts: the recipient snapshot a proposal was resolved to ('' = none named)
     ("wallet_proposals", "recipient_json", "TEXT NOT NULL DEFAULT ''"),
+    # the sha256 of the exact Solana message this proposal's claim signs ('' = none claimed yet, or not a Solana
+    # message): two payments never claim one message, so the chain never runs them as one transaction
+    ("wallet_proposals", "message_digest", "TEXT NOT NULL DEFAULT ''"),
     # an x402 SDK payment's EIP-3009 authorization: {kind, token, from_block} at the claim, plus its nonce and window
     # once signed. Such a row takes no account nonce ('' = not an authorization row)
     ("wallet_transfers", "authorization_json", "TEXT NOT NULL DEFAULT ''"),
@@ -191,6 +194,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
 #: Statements that depend on added columns: they run after ``_ensure_columns`` on every connection, so an upgraded
 #: database gains them in the same pass that gains the columns.
 POST_MIGRATION: tuple[str, ...] = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_proposals_message ON wallet_proposals(network, message_digest) WHERE message_digest <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_profiles_creation_key ON wallet_profiles(network, creation_key) WHERE creation_key <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_quotes_open ON wallet_quotes(proposal_id) WHERE state = 'open'",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_profiles_agent ON wallet_profiles(agent_id, network) WHERE agent_id <> '' AND setup_state <> 'cancelled'",

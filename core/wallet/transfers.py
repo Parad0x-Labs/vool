@@ -214,6 +214,8 @@ LIVE_STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_SIGNED, STATE_SIGNED_REVOKE
 NONCE_STATES: tuple[str, ...] = (*LIVE_STATES, STATE_CONFIRMED, STATE_FAILED_ON_CHAIN)
 NEVER_SENT_STATES: tuple[str, ...] = (STATE_RELEASED, STATE_DISCARDED, STATE_CANCELLED)
 TERMINAL_STATES: tuple[str, ...] = (STATE_CONFIRMED, STATE_FAILED_ON_CHAIN, *NEVER_SENT_STATES, STATE_STOPPED_WAITING)
+#: rows whose signed bytes never left this device and never will: the message their proposal bound is freed
+UNSENT_STATES: tuple[str, ...] = (STATE_SIGNED_REVOKED, *NEVER_SENT_STATES)
 #: rows the approve gate treats as in flight for an EVM account (a stopped transfer no longer blocks the account)
 IN_FLIGHT_STATES: tuple[str, ...] = LIVE_STATES
 
@@ -738,6 +740,9 @@ def transition(conn: Any, proposal_id: str, new_state: str, *, expected_state: s
         if projection.authorization_only and not row.get("authorization_json"):
             raise TransferTransitionError(f"edge_not_allowed:{expected_state}->{new_state}")
         raise TransferTransitionError("cancel_requested")
+    if new_state in UNSENT_STATES:
+        # these bytes never left and never will: an equal payment may now build and send the same transaction
+        proposals._release_message(conn, str(proposal_id))
     row = get_transfer(conn, proposal_id) or {}
     if projection.proposal_edge is not None:
         extra_columns: dict[str, Any] = {"tx_signature": row.get("tx_id") or ""} if projection.tx_signature_from_row else {}

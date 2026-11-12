@@ -86,6 +86,8 @@ def test_s2_sabotaged_limit_check_lets_an_over_cap_payment_through(wallet_env):
 def test_s3_sabotaged_idempotency_lets_the_same_invoice_pay_twice(wallet_env):
     from core.wallet import custody, idempotency, proposals
 
+    # a real chain moves on between payments; equal payments inside one blockhash are test_wallet_one_transaction_per_payment's
+    wallet_env["rpc"].blockhash_moves_every_read = True
     profile = _pocket(custody)
     kwargs = dict(wallet_id=profile.wallet_id, destination=DESTINATION, amount_minor=9, asset="SOL", origin="model", idempotency_key="inv-9")
     first = proposals.propose_transaction(**kwargs)
@@ -132,6 +134,8 @@ def test_s5_sabotaged_external_verification_accepts_a_substituted_signature(wall
     from core.wallet.errors import WalletFault
     from tests.wallet._rig import ExtensionSigner
 
+    # a real chain moves on between payments; equal payments inside one blockhash are test_wallet_one_transaction_per_payment's
+    wallet_env["rpc"].blockhash_moves_every_read = True
     with ExtensionSigner() as ext, ExtensionSigner() as stranger:
         profile = custody.register_external_signer_wallet(ext.public_key, label="phantom")
         engine = lifecycle.default_lifecycle()
@@ -163,6 +167,8 @@ def test_s6_sabotaged_reservation_lets_concurrent_approvals_escape_the_daily_cei
 
     from core.wallet import approval, custody, lifecycle, limits, proposals
 
+    # a real chain moves on between payments; equal payments inside one blockhash are test_wallet_one_transaction_per_payment's
+    wallet_env["rpc"].blockhash_moves_every_read = True
     profile = _pocket(custody)
     limits.set_limits(profile.wallet_id, "SOL", limits.SpendLimits(per_tx_minor=10_000, daily_minor=18_000, per_destination_daily_minor=18_000))
     counter = {"n": 0}

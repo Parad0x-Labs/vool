@@ -91,6 +91,8 @@ def test_reservation_is_released_when_signing_or_broadcast_fails(wallet_env):
 def test_concurrent_distinct_proposals_cannot_escape_the_daily_ceiling(wallet_env):
     from core.wallet import approval, custody, lifecycle, limits, proposals
 
+    # a real chain moves on between payments; equal payments inside one blockhash are test_wallet_one_transaction_per_payment's
+    wallet_env["rpc"].blockhash_moves_every_read = True
     profile = _pocket(custody)
     limits.set_limits(profile.wallet_id, "SOL", limits.SpendLimits(per_tx_minor=10_000, daily_minor=30_000, per_destination_daily_minor=30_000))
     ids = [_prepared(proposals, lifecycle, profile.wallet_id, 3_000, memo=f"n{i}").proposal_id for i in range(6)]
@@ -218,6 +220,8 @@ def test_effect_budget_binds_the_wallet_transaction_class_through_the_gateway(wa
     eb.reset_effect_budget_process_state()
     token = eb.grant_operator_budget_authority("wallet budget proof")  # outside any effect scope, as the contract demands
     eb.apply_operator_adjustment(token, [eb.BudgetAdjustment(budget_class=CONTRACT_TRANSACTION, scope=eb.SCOPE_SESSION, new_limit=1, window_seconds=0.0, note="one transaction per session")])
+    # a real chain moves on between payments; equal payments inside one blockhash are test_wallet_one_transaction_per_payment's
+    wallet_env["rpc"].blockhash_moves_every_read = True
     profile = _pocket(custody)
     first = _prepared(proposals, lifecycle, profile.wallet_id, 100, memo="one")
     second = _prepared(proposals, lifecycle, profile.wallet_id, 100, memo="two")

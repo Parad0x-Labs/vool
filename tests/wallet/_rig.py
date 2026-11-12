@@ -22,6 +22,8 @@ OTHER_DESTINATION = "Vote111111111111111111111111111111111111111"
 #: The public cluster genesis hashes (getGenesisHash), verified live on 2026-09-14.
 DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
 MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+#: The recent blockhash getLatestBlockhash answers until a test moves the cluster on (:meth:`ScriptedRpc.advance_blockhash`).
+RIG_BLOCKHASH = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
 
 
 class ScriptedRpc:
@@ -41,6 +43,16 @@ class ScriptedRpc:
         self.fee_for_message: int | None = 5_000
         self.rent_minimum = 650_240
         self.slot = 1
+        #: the recent blockhash getLatestBlockhash answers. A real cluster moves on every slot (about 400 ms); this one
+        #: stands still, so payments made in one test share it, unless the test moves it on (:meth:`advance_blockhash`),
+        #: sets ``blockhash_moves_after_reads`` (the cluster moves on once that many more reads were answered) or sets
+        #: ``blockhash_moves_every_read`` (the cluster moves on after every read, as a real one does between payments
+        #: that each take several round trips to it)
+        self.blockhash = RIG_BLOCKHASH
+        self.blockhash_moves_after_reads = 0
+        self.blockhash_moves_every_read = False
+        self.blockhash_reads = 0
+        self._blockhash_generation = 0
         self.block_height = 50
         self.finalized_block_height = 50
         self.last_valid_block_height = 100
@@ -90,7 +102,7 @@ class ScriptedRpc:
                 method = body.get("method")
                 params = body.get("params") or []
                 if method == "getLatestBlockhash":
-                    result: Any = {"context": {"slot": rpc.slot}, "value": {"blockhash": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi", "lastValidBlockHeight": rpc.last_valid_block_height}}
+                    result: Any = {"context": {"slot": rpc.slot}, "value": {"blockhash": rpc._read_blockhash(), "lastValidBlockHeight": rpc.last_valid_block_height}}
                 elif method == "getFeeForMessage":
                     result = {"context": {"slot": rpc.slot}, "value": rpc.fee_for_message}
                 elif method == "getMinimumBalanceForRentExemption":
@@ -241,6 +253,30 @@ class ScriptedRpc:
         with self._lock:
             raws = list(self.sent)
         return {str(Transaction.from_bytes(raw).signatures[0]) for raw in raws}
+
+    def advance_blockhash(self) -> str:
+        """The cluster moves on to its next slot's recent blockhash (a new valid 32-byte hash), as a real one does
+        about every 400 ms. Returns it."""
+        import hashlib
+
+        from solders.hash import Hash
+
+        with self._lock:
+            self._blockhash_generation += 1
+            self.blockhash = str(Hash(hashlib.sha256(f"scripted-rpc-blockhash-{self._blockhash_generation}".encode()).digest()))
+            return self.blockhash
+
+    def _read_blockhash(self) -> str:
+        with self._lock:
+            self.blockhash_reads += 1
+            moves = self.blockhash_moves_after_reads
+            if moves > 0:
+                self.blockhash_moves_after_reads = moves - 1
+            answer = self.blockhash
+            every = self.blockhash_moves_every_read
+        if moves == 1 or every:
+            self.advance_blockhash()
+        return answer
 
     def send_count(self) -> int:
         with self._lock:
