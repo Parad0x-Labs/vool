@@ -31,6 +31,28 @@ PYTHONPATH=. python3 -m tools.generate_localization_handoff    # config/localiza
 lists missing pages, if public-section pages are missing from SUMMARY.md (an unlisted page
 never publishes), or if the build/gate does not pass.
 
+## Translations
+
+The docs come in the app's languages under `docs/translations/<code>/`, each with its own
+SUMMARY.md (Arabic and Hebrew pages are built right to left). A translated page links pages
+of its own language in that language and every other page in English, marked as such. Rules
+for translators are in `docs/translations/TRANSLATOR_RULES.md`; the agreed words per language
+are in `docs/translations/GLOSSARY.md`, generated from `tools/docs/translation_glossary.json`
+and the app catalogs.
+
+```bash
+python3 tools/docs/check_translations.py                  # every translation against its English page
+python3 tools/docs/check_translations.py status           # pages per language: machine, reviewed, out of date
+python3 tools/docs/check_translations.py stamp de getting-started/install.md   # after translating a page
+python3 tools/docs/check_translations.py glossary --write  # after changing the glossary or a catalog
+```
+
+A translation whose English page changed after it was stamped is out of date. The build still
+publishes it, with a notice in its language that links the English page, and lists it in the
+build log and under `out_of_date` in `build.json`. `tests/test_docs_translations.py` runs the
+checker (allowing out-of-date pages), checks that GLOSSARY.md is current, and builds the site to
+check the notices, the links to English pages and right-to-left pages.
+
 ## Publishing — two documented options, both deliberate
 
 1. **Approved-branch automation (preferred once public).** Push `.gitbook.yaml` and `docs/` to
