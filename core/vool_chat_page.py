@@ -4049,6 +4049,15 @@ function pumpKnownQueuedChats() {
     if (isChatBusy(chatId)) continue;
     pumpQueue(chatId);
   }
+  // An approved turn whose pump found the chat's slot held on the server is still waiting to
+  // resume, and no turn of this page is running to resume it at its end. Pump that chat again:
+  // the claim runs a queued message first (its release resumes the approved turn), comes back
+  // empty with the slot free and resumes it, or finds the slot still held and leaves it for the
+  // next tick.
+  for (const chatId of Object.keys(chatStates)) {
+    const st = chatStates[chatId];
+    if (st.resumeApprovedTurn && st.approvalResume && !isChatBusy(chatId)) pumpQueue(chatId);
+  }
 }
 
 // Background deliveries are transcript artifacts, not new user/model turns.
@@ -9229,9 +9238,17 @@ async function pumpQueue(forChatId) {
       // tab's -- the server's live-turn registry is the truth here). Do not spin against it:
       // the running turn's completion pumps this queue again, and the sidebar heartbeat is the
       // fallback wakeup when that tab is gone. Nothing is lost -- the item stays pending in the
-      // durable queue and this page's record of it was just refreshed.
+      // durable queue and this page's record of it was just refreshed. An approved turn waiting
+      // to resume is not sent into that held slot either (the server would refuse it); the
+      // heartbeat pumps this chat again while it waits (pumpKnownQueuedChats).
       if (res && res.turn_active) { owner.pumpHold = false; refreshQueue(chatId); reflectComposer(); return; }
-      owner.pumpHold = false; refreshQueue(chatId); reflectComposer(); return;
+      owner.pumpHold = false; refreshQueue(chatId); reflectComposer();
+      // An approval granted while this empty claim held the slot found the chat busy and left its
+      // resume to whoever frees the slot next: that is this pump. Without this the grant was spent
+      // and the approved action never ran. Only a grant resolvePermission recorded (approvalResume
+      // names the turn that asked) is resumed here.
+      if (owner.resumeApprovedTurn && owner.approvalResume) resumeApprovedTurn(chatId);
+      return;
     }
     refreshQueue(chatId);
     // The attachments the queued item owns, by the ids the server stored; names come from this

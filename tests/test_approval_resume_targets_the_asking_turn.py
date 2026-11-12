@@ -32,6 +32,7 @@ APPROVAL = {
 GATES = """
 const __gate = { resolve: null, claim: null };
 let __queued = [];
+let __slotHeld = 0;   // claims the server answers "this chat's slot is still held" before it frees
 const __netFetch = globalThis.fetch;
 globalThis.fetch = async (url, opts) => {
   const u = String(url), o = opts || {};
@@ -47,6 +48,10 @@ globalThis.fetch = async (url, opts) => {
   }
   if (u === '/api/chat/queue' && body.op === 'claim') {
     if (__gate.claim) await __gate.claim.promise;
+    if (__slotHeld > 0) {
+      __slotHeld--;
+      return { ok: true, status: 200, json: async () => ({ ok: true, item: null, turn_active: true }) };
+    }
     const item = __queued.shift() || null;
     return { ok: true, status: 200, json: async () => ({ ok: true, item }) };
   }
@@ -139,6 +144,77 @@ out({{ askingTurn, queuedPost, posts: __posts.map(postView) }});
     assert resumed["last_user"] == ASK, f"the resume re-sent the wrong message: {resumed}"
     assert resumed["turn_id"] == data["askingTurn"] and resumed["approval_token"] == "appr-1", resumed
     assert OTHER not in resumed["users"], resumed
+
+
+def test_an_allow_that_lands_while_an_empty_claim_holds_the_slot_still_resumes() -> None:
+    """The asking turn ends with nothing queued; its pump holds the chat's slot across an empty claim.
+
+    The Allow answered inside that claim finds the chat busy and leaves the resume to whoever frees
+    the slot next. That is the empty claim itself: without it the grant was spent and the approved
+    action never ran.
+    """
+    data = _drive(_ask_first(close=False) + f"""
+__gate.claim = hold();
+__streams['{A}'].close();                                // turn 1 ends; the pump starts its claim
+await tick(8);
+document.getElementById('permOnce').__click();           // Allow while the claim is on the wire
+await tick(8);
+const whileClaiming = {{ posts: __posts.length, pending: snapshot('{A}').resumeApproved }};
+__gate.claim.release();                                  // nothing queued: the claim comes back empty
+await tick(12);
+const resumed = {{ posts: __posts.map(postView), token: approvalTokenFor('{A}') }};
+__streams['{A}'].push(chunk('Created ~/Desktop/vool_test.'));
+__streams['{A}'].close();
+await tick(12);
+out({{ askingTurn, whileClaiming, resumed, posts: __posts.length, tokenAfter: approvalTokenFor('{A}'),
+       history: snapshot('{A}').history }});
+""")
+    assert data["whileClaiming"] == {"posts": 1, "pending": True}, data["whileClaiming"]
+    posts = data["resumed"]["posts"]
+    assert len(posts) == 2, f"the approved turn never resumed after the empty claim: {posts}"
+    resumed = posts[1]
+    assert resumed["last_user"] == ASK and resumed["turn_id"] == data["askingTurn"], resumed
+    assert resumed["approval_token"] == "appr-1", resumed
+    assert data["resumed"]["token"] == "appr-1"
+    assert data["tokenAfter"] == "" and data["posts"] == 2
+    assert data["history"][-1] == ["assistant", "Created ~/Desktop/vool_test."]
+
+
+def test_an_allow_that_meets_a_slot_still_held_on_the_server_resumes_once_it_frees() -> None:
+    """Same window, but the server answers the claim with the chat's slot still held (the asking
+    turn's worker is finishing, or another window's turn holds it). The resume is not sent into
+    that slot, where the server would refuse it; the queue's heartbeat pumps the chat again while
+    the approved turn waits, and the claim that finds the slot free resumes it, once.
+    """
+    data = _drive(_ask_first(close=False) + f"""
+__gate.claim = hold();
+__slotHeld = 1;
+__streams['{A}'].close();                                // turn 1 ends; the pump starts its claim
+await tick(8);
+document.getElementById('permOnce').__click();           // Allow while the claim is on the wire
+await tick(8);
+__gate.claim.release();                                  // the server still holds the chat's slot
+await tick(12);
+const whileHeld = {{ posts: __posts.length, pending: snapshot('{A}').resumeApproved, busy: isChatBusy('{A}') }};
+await refreshSidebarActivity();                          // the heartbeat; the slot is free by now
+await tick(12);
+const afterTick = {{ posts: __posts.map(postView) }};
+__streams['{A}'].push(chunk('Created ~/Desktop/vool_test.'));
+__streams['{A}'].close();
+await tick(12);
+await refreshSidebarActivity();                          // a later tick must not resume it again
+await tick(12);
+out({{ askingTurn, whileHeld, afterTick, posts: __posts.length, pending: snapshot('{A}').resumeApproved,
+       history: snapshot('{A}').history }});
+""")
+    assert data["whileHeld"] == {"posts": 1, "pending": True, "busy": False}, data["whileHeld"]
+    posts = data["afterTick"]["posts"]
+    assert len(posts) == 2, f"the approved turn never resumed once the slot was free: {posts}"
+    resumed = posts[1]
+    assert resumed["last_user"] == ASK and resumed["turn_id"] == data["askingTurn"], resumed
+    assert resumed["approval_token"] == "appr-1", resumed
+    assert data["posts"] == 2 and data["pending"] is False, "the approved turn was resumed more than once"
+    assert data["history"][-1] == ["assistant", "Created ~/Desktop/vool_test."]
 
 
 def test_a_refused_resume_does_not_leave_its_grant_for_the_next_message() -> None:

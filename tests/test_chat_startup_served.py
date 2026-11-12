@@ -303,6 +303,123 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
             daemon.stop()
 
 
+def _pending_approvals(home: Path) -> dict:
+    """The daemon's durable mirror of its pending approvals (exactly the pending set), by id."""
+    found = list(home.rglob("pending_approvals.json"))
+    assert len(found) <= 1, found
+    stored = json.loads(found[0].read_text("utf-8")) if found else {}
+    return {str(entry.get("approval_id") or key): entry for key, entry in stored.items()}
+
+
+def test_an_allow_answered_inside_the_post_turn_claim_window_still_runs_the_action(tmp_path):
+    """The asking turn ends, and its post-release pump holds the chat's slot across a queue claim.
+    Allow once is answered inside that window: the resolve finds the chat busy and leaves the
+    resume to whoever frees the slot next, which is that claim, empty because nothing is queued.
+    The approved turn must resume in the same chat with its grant and the file must land with the
+    requested bytes. Before this was fixed the daemon answered the resolve 200, the claim freed
+    the slot without resuming, and the write never happened.
+
+    In Manual mode the daemon itself mints the approval for a one-file write into an isolated
+    workspace. The claim is held at the queue seam until the resolve has been answered, then goes
+    to the real queue door.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    name, content = "lantern.txt", "harbor light"
+    target = workspace / name
+    with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
+                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                                             "VOOL_WORKSPACE_ROOT": str(workspace)})
+        try:
+            daemon.start(timeout=60)
+            certification = daemon.certify(timeout=30)
+            assert certification.get("state") == "verified", certification
+            manager, browser = served_browser.launch_chromium()
+            try:
+                page = browser.new_page()
+                errors = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                chat_posts, resolves = [], []
+                page.on("request", lambda request: chat_posts.append(json.loads(request.post_data or "{}"))
+                        if request.url == daemon.base_url + "/api/chat" and request.method == "POST" else None)
+                page.on("response", lambda response: resolves.append(response)
+                        if response.url == daemon.base_url + "/api/mode" and response.request.method == "POST"
+                        and "resolve_approval" in (response.request.post_data or "") else None)
+                page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
+                           else route.abort())
+                daemon.assert_running(context="initial browser navigation")
+                with daemon.evidence_on_failure("initial browser navigation"):
+                    page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                page.wait_for_selector("#input", timeout=5000)
+                assert page.evaluate("view.mode") == "manual", "a fresh chat must start in Manual mode"
+                # The first claim after the asking turn's release is held at the queue seam until
+                # the test lets it go, then answered by the real queue door.
+                page.evaluate("""() => {
+                    const original = queueOp;
+                    const trace = [];
+                    window.__queueTrace = trace;
+                    window.__holdNextClaim = true;
+                    queueOp = async function(op, chatId, extra) {
+                        if (op === 'claim' && window.__holdNextClaim) {
+                            window.__holdNextClaim = false;
+                            trace.push('claim held');
+                            await new Promise((resolve) => { window.__releaseClaim = resolve; });
+                            const res = await original(op, chatId, extra);
+                            trace.push('claim answered ' + JSON.stringify(res));
+                            return res;
+                        }
+                        const res = await original(op, chatId, extra);
+                        trace.push(op);
+                        return res;
+                    };
+                }""")
+                page.locator("#input").fill(f"create {name} containing {content}")
+                page.locator("#send").click()
+                page.wait_for_selector("#permOnce", state="visible", timeout=30000)
+                approval = page.evaluate("chatState(displayedChat).pendingApproval")
+                approval_id = str((approval or {}).get("approval_id") or "")
+                assert approval_id, approval
+                assert _pending_approvals(daemon.home).get(approval_id, {}).get("intent") == "workspace.write_file"
+                asking_turn = page.evaluate("chatState(displayedChat).pendingApprovalRun.turnId")
+                # The asking turn ended and its pump's claim is now on the wire, holding the slot.
+                page.wait_for_function("view.run && view.run.released", timeout=15000)
+                page.wait_for_function("window.__queueTrace.includes('claim held')", timeout=5000)
+                assert len(chat_posts) == 1 and not target.exists()
+
+                page.locator("#permOnce").click(timeout=5000)
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and not resolves:
+                    page.wait_for_timeout(50)
+                assert resolves and resolves[0].status == 200, (resolves and resolves[0].status)
+                page.wait_for_function("chatState(displayedChat).resumeApprovedTurn === true", timeout=5000)
+                assert len(chat_posts) == 1, "the resume must wait for the slot the claim holds"
+                page.evaluate("window.__releaseClaim()")
+
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline and not target.exists():
+                    page.wait_for_timeout(100)
+                if not target.exists():
+                    print("APPROVAL_CLAIM_WINDOW_DIAGNOSTIC", page.evaluate("window.__queueTrace"),
+                          "POSTS", len(chat_posts), "ERRORS", errors, daemon.log_tail(30), flush=True)
+                assert target.exists(), "the approved write never landed"
+                assert target.read_text("utf-8") == content
+                resumed = chat_posts[1]
+                assert resumed.get("turn_id") == asking_turn, (resumed.get("turn_id"), asking_turn)
+                assert resumed.get("approval_token") == approval_id, resumed.get("approval_token")
+                page.wait_for_function("view.run && view.run.released", timeout=15000)
+                assert approval_id not in _pending_approvals(daemon.home)
+                assert page.locator("#permOnce").is_hidden(), "an approved write must not ask again"
+                assert len(chat_posts) == 2, f"the approved turn ran {len(chat_posts) - 1} times"
+                assert sorted(p.name for p in workspace.iterdir()) == [name]
+                assert not errors, errors
+            finally:
+                browser.close()
+                manager.stop()
+        finally:
+            daemon.stop()
+
+
 # The companion pet against the chat controls: the hit-area law, driven like a user drives it.
 _PET_BOX = "(() => { const r = document.querySelector('#companionLayer .vool-ninja').getBoundingClientRect();" \
            " return {left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height}; })()"
