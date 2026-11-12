@@ -1088,11 +1088,15 @@ def looks_like_agentic_build_request(user_input: str) -> bool:
     # ("create notes.txt containing hello in this project") names where, not what, and used to
     # promote a literal one-file write into the multi-file scaffolder under an OPEN scope.
     from core.agent_runtime.builder.mutation_scope import object_phrase_widens
+    from core.agent_runtime.builder.named_file_build import looks_like_named_file_edit_request
 
     # Admission is clause-scoped: a later request to report expected versus actual
     # results does not turn an earlier imperative project build into deliberation.
-    return object_phrase_widens(str(user_input or "")) or (
-        strong and not build_request_intent.is_deliberation(lowered)
+    # A change to a named source file ("update board.html so ...") is the same lane's work.
+    return (
+        looks_like_named_file_edit_request(str(user_input or ""))
+        or object_phrase_widens(str(user_input or ""))
+        or (strong and not build_request_intent.is_deliberation(lowered))
     )
 
 
@@ -1833,7 +1837,20 @@ def maybe_handle_folder_overview_request(
     text = " ".join(str(user_input or "").split()).strip()
     if not text:
         return None
-    if looks_like_agentic_build_request(text):
+    from core.agent_runtime import build_request_intent
+    from core.agent_runtime.builder.named_file_build import looks_like_named_file_build_request
+
+    # The folder is the destination of a file-creation instruction, not its requested answer.
+    # Whole-project scaffolding is only one kind of write: the shared artifact intent also covers
+    # "in this project, create a task board page", which names no file for the read guard below to
+    # see and was answered with the empty-folder listing, and the named-file lane covers "within
+    # this repo, put together a scoreboard.html ...".
+    overview_root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "")
+    if (
+        looks_like_agentic_build_request(text)
+        or build_request_intent.is_build_instruction(user_input, scope="artifact")
+        or looks_like_named_file_build_request(text, workspace_root=overview_root)
+    ):
         return None
     # A request for a poem or a story names its subject, and a scope such as "in this project" is part
     # of that subject, not a question about the folder (`grounded_mode.creative_writing_remainder`).

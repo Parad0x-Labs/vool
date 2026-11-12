@@ -140,7 +140,10 @@ def test_the_search_arm_declines_a_turn_another_domain_owns(search_arm, text):
 
     planned = plan_tool_workflow(user_text=text, task_class="file_inspection", executed_steps=[],
                                  source_context=search_arm.context)
-    assert (planned.next_payload or {}).get("intent") == "workspace.search_text", "the arm would claim this turn"
+    # The creation-routing repair removed location-only search admission. The old
+    # count payload now correctly declines even before consulting the registry.
+    expected = None if text == NOTES_SEARCH_PAYLOAD else "workspace.search_text"
+    assert (planned.next_payload or {}).get("intent") == expected
     assert search_arm.claim(text) is None
     assert search_arm.ran == [], "no workspace search runs for another domain's request"
 
@@ -162,7 +165,9 @@ def test_a_registry_fault_keeps_the_search_arms_claim(search_arm, monkeypatch):
         raise RuntimeError("registry unavailable")
 
     monkeypatch.setattr(ownership, "registered_owner_ahead_of", unavailable)
-    result = search_arm.claim(NOTES_SEARCH_PAYLOAD)
+    # Exercise a genuine search-shaped payload: bare project location no longer
+    # establishes search intent, even when the registry is unavailable.
+    result = search_arm.claim('append to my Apple note "Ideas" with "search the codebase for TODO"')
     assert result is not None and result["reason"] == "workspace_runtime_fast_path"
 
 

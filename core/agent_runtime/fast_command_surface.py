@@ -2263,6 +2263,11 @@ def action_fast_path_result(
         # checkpoint this same function just marked says failed. The verdict this result was
         # built from must ride the result.
         "success": bool(success),
+        # The outcome the caller declared rides the result too. run_once reads it to close a turn
+        # that paused for the operator's approval as WAITING_APPROVAL; without it a builder
+        # approval pause (success=False) was recorded as FAILED_PROVIDER, and lanes had to stamp
+        # it back on by hand after this call. Callers that declare none keep their old payload.
+        **({"task_outcome": str(task_outcome)} if task_outcome else {}),
         "confidence": float(confidence),
         "understanding_confidence": 1.0,
         "interpreted_input": user_input,

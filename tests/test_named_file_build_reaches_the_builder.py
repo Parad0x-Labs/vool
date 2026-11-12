@@ -73,6 +73,9 @@ def test_a_bare_filename_is_a_build_noun(prompt: str) -> None:
         f"whip up {WS}/x/slug.py that slugifies a title",
         "i want retry.py with an exponential backoff helper",
         "throw together cache.py with a simple LRU",
+        # The contraction of "would like". Measured on the v0.8 candidate a3648b5f: answered with
+        # the folder listing instead of a build.
+        "In this workspace, I'd like a notes.html page that autosaves drafts to localStorage.",
     ],
 )
 def test_a_build_asked_for_without_an_imperative_verb(prompt: str) -> None:
@@ -94,6 +97,7 @@ def test_a_build_asked_for_without_an_imperative_verb(prompt: str) -> None:
         "i need to read parser.py first",
         "would you say i need a requirements.txt?",
         "i need to decide between calc.py and math_utils.py",
+        "In this repo, I'd like to know what main.py does.",
     ],
 )
 def test_the_need_route_is_not_a_way_around_the_restraint(prompt: str) -> None:

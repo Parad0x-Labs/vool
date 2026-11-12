@@ -2484,6 +2484,21 @@ def imperative_step(text: str) -> bool:
 
 
 def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) -> list[DemandUnit]:
+    from core.agent_runtime.build_request_intent import is_preservation_constraint
+
+    # "Keep the existing tasks and behavior intact" constrains the edit beside it. Read per whole
+    # sentence, before conjunction splitting: neither "keep the existing tasks" nor "behavior
+    # intact" carries the predicate alone, and as separate units the first was taken as a request
+    # to remember something.
+    slice_bounds: dict[str, tuple[int, int]] = {}
+    for _, start, end, slice_id in fragments:
+        first, last = slice_bounds.get(slice_id, (start, end))
+        slice_bounds[slice_id] = (min(first, start), max(last, end))
+    preservation_slices = {
+        slice_id
+        for slice_id, (start, end) in slice_bounds.items()
+        if is_preservation_constraint(value[start:end])
+    }
     literal_spans = _literal_spans(value)
     # A comparison distributed over coordinated attributes asks for EACH attribute: the items
     # `_unit_spans` split out of that shape are demands of their own, not list members folding
@@ -2563,7 +2578,12 @@ def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) 
             # of its own and never folds. Kept as an enumeration so the request's execution text
             # carries both parts.
             kind = KIND_ENUMERATION
-        elif is_prohibition_unit(text) or _CONSTRAINT_OPENER_RE.match(lowered) or _is_output_shape_unit(text):
+        elif (
+            is_prohibition_unit(text)
+            or _CONSTRAINT_OPENER_RE.match(lowered)
+            or _is_output_shape_unit(text)
+            or slice_id in preservation_slices
+        ):
             kind = KIND_CONSTRAINT
         elif last_request is not None and _says_how_to_answer(text):
             # "how many pdf files are in my Documents folder? just the count": how to answer the

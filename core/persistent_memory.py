@@ -2432,6 +2432,12 @@ def maybe_handle_memory_command(
     if capture_match and _ANSWER_REQUEST_RE.search(capture_match.group("fact")):
         return False, ""
     if capture_match:
+        # "Keep the existing tasks intact. Change only index.html." constrains an edit; it does not
+        # ask to store a fact. Stored, the edit was answered with "I'll remember that" and no edit.
+        from core.agent_runtime.build_request_intent import is_preservation_constraint
+
+        if is_preservation_constraint(re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]):
+            return False, ""
         # A saved contact is the Contacts owner's object, read by that owner. A "save X as a contact" request
         # must reach the model's contacts tools (bounded by request provenance), never the memory lane -- not
         # even when memory access is unavailable, which used to claim the turn with a refusal instead.

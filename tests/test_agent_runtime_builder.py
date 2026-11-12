@@ -434,6 +434,7 @@ def test_builder_never_hands_reasoning_to_the_file_writer() -> None:
         assert generate("list the files") == ""
 
     # A monologue that leaked into content is not the answer either.
+    generate = controller.build_ollama_generate_fn(base_url="http://127.0.0.1:11434", model_tag="qwen3:4b")
     with mock.patch(
         "requests.post",
         return_value=_chat_response(content='Wait, the user might be confused.\n</think>\n\n["todo.py"]'),
@@ -441,19 +442,34 @@ def test_builder_never_hands_reasoning_to_the_file_writer() -> None:
         assert generate("list the files") == '["todo.py"]'
 
 
-def test_builder_retries_once_when_reasoning_ate_the_whole_token_budget() -> None:
-    # done_reason=length + empty content = the model reasoned past its budget and never answered.
-    responses = [
-        _chat_response(content="", thinking="thinking hard...", done_reason="length"),
-        _chat_response(content='["todo.py"]'),
-    ]
+def test_builder_stops_when_reasoning_ate_the_whole_token_budget() -> None:
+    # Revised contract: the prior doubled retry consumed minutes without output
+    # in the owner's Auto demo. Exhaustion now stops with a typed cause.
+    for content in ("", "<html>unfinished"):
+        generate = controller.build_ollama_generate_fn(base_url="http://127.0.0.1:11434", model_tag="qwen3:4b")
+        with mock.patch("requests.post", return_value=_chat_response(
+            content=content, thinking="private reasoning", done_reason="length")) as post, mock.patch.object(
+                controller, "_emit_builder_model_event") as emit:
+            assert generate("create the file") == ""
+            assert generate("a later file in the same build") == ""
+        assert post.call_count == 1
+        assert post.call_args.kwargs["json"]["options"]["num_predict"] == 6144
+        assert post.call_args.kwargs["timeout"] <= 120
+        assert generate.budget.failure_code == "builder_output_limit"
+        assert [c.args[1] for c in emit.call_args_list] == ["model.call_started", "model.call_failed"]
+        assert emit.call_args.kwargs["retryable"] is False
+
+
+def test_builder_timeout_has_a_safe_reason_and_never_retries() -> None:
+    import requests
     generate = controller.build_ollama_generate_fn(base_url="http://127.0.0.1:11434", model_tag="qwen3:4b")
-
-    with mock.patch("requests.post", side_effect=responses) as post:
-        assert generate("list the files") == '["todo.py"]'
-
-    assert post.call_count == 2
-    assert [call.kwargs["json"]["options"]["num_predict"] for call in post.call_args_list] == [6144, 12288]
+    with mock.patch("requests.post", side_effect=requests.Timeout("secret URL must not leak")) as post:
+        assert generate("file") == ""
+        assert generate("file") == ""
+    assert post.call_count == 1
+    assert generate.budget.failure_code == "builder_generation_timeout"
+    assert "120-second" in generate.budget.last_error
+    assert "secret" not in generate.budget.last_error
 
 
 def test_builder_does_not_retry_a_model_that_simply_answered_nothing() -> None:
@@ -617,3 +633,90 @@ def test_builder_loop_emits_permission_preview_with_exact_approval_payload() -> 
     assert preview["ok"] is False
     assert preview["approval_request"]["token"] == "[redacted]"
     assert "approval-token" not in repr(preview)
+
+
+def test_auto_builder_ranks_registered_coding_models_instead_of_bundle_default():
+    from storage.model_provider_manifest import ModelProviderManifest
+
+    def manifest(name, role, capabilities, **overrides):
+        return ModelProviderManifest(
+            provider_name="ollama-local", model_name=name, source_type="http",
+            license_name="Apache-2.0", license_reference="https://example.org/license",
+            runtime_dependency="ollama", capabilities=capabilities,
+            metadata={"bundle_role": role, "cost_class": "free_local"},
+            **overrides,
+        )
+
+    utility = manifest("qwen3:4b", "lightweight_utility", ["code_basic", "summarize"])
+    coder = manifest("qwen2.5:7b", "general", ["code_basic", "code_complex", "long_context"])
+    disabled = manifest("coder:32b", "coding", ["code_complex", "long_context"], enabled=False)
+    remote = coder.model_copy(update={"model_name": "remote-code", "metadata": {"cost_class": "paid_cloud", "bundle_role": "coding"}})
+    registry = SimpleNamespace(list_manifests=lambda **kwargs: [utility, disabled, remote, coder])
+    agent = SimpleNamespace(memory_router=SimpleNamespace(registry=registry))
+    assert controller.select_auto_builder_manifest(agent) is coder
+    registry.list_manifests = lambda **kwargs: [disabled, remote]
+    assert controller.select_auto_builder_manifest(agent) is None
+    # No model-name special case: another enabled coding lane wins by the same law.
+    other = coder.model_copy(update={"model_name": "another-local:9b"})
+    registry.list_manifests = lambda **kwargs: [utility, other]
+    assert controller.select_auto_builder_manifest(agent) is other
+    basic = coder.model_copy(update={"capabilities": ["code_basic"]})
+    registry.list_manifests = lambda **kwargs: [basic]
+    assert controller.select_auto_builder_manifest(agent) is basic
+
+
+def test_builder_approval_resume_reuses_exact_checkpoint_proposal():
+    import copy
+    checkpoint = {"state": {}}
+    agent = SimpleNamespace(_runtime_checkpoint_id=lambda ctx: "builder-checkpoint",
+                            _get_runtime_checkpoint=lambda key: copy.deepcopy(checkpoint))
+    ctx = {"workspace": "/tmp/project-one"}
+    calls = []
+    def generate(prompt):
+        calls.append(prompt)
+        return ("first proposal\n" if len(calls) == 1 else "different proposal\n") * 200
+    generate.budget = controller.BuilderGenerationBudget()
+    def persist(key, *, state):
+        checkpoint["state"].update(copy.deepcopy(state))
+    with mock.patch("core.runtime_continuity.update_runtime_checkpoint", side_effect=persist):
+        first = controller.checkpointed_builder_generation(agent, ctx, request="create file", model="local:coder", generate_fn=generate)
+        reviewed = first("file content prompt")
+        resumed = controller.checkpointed_builder_generation(agent, {**ctx, "runtime_checkpoint_resumed": True}, request="create file", model="local:coder", generate_fn=generate)
+        assert resumed("file content prompt") == reviewed
+        assert len(calls) == 1
+        # Corrupted or scrubbed stored bytes must never be written or silently regenerated.
+        for proposal in checkpoint["state"]["builder_proposals"]["proposals"].values():
+            proposal["content"] += "changed"
+        corrupted = controller.checkpointed_builder_generation(agent, {**ctx, "runtime_checkpoint_resumed": True}, request="create file", model="local:coder", generate_fn=generate)
+        assert corrupted("file content prompt") == ""
+        assert generate.budget.failure_code == "builder_saved_proposal_changed"
+        assert len(calls) == 1
+
+
+def test_builder_proposals_do_not_cross_request_model_workspace_or_fresh_turn():
+    import copy
+    checkpoint = {"state": {}}
+    agent = SimpleNamespace(_runtime_checkpoint_id=lambda ctx: "builder-checkpoint",
+                            _get_runtime_checkpoint=lambda key: copy.deepcopy(checkpoint))
+    ctx = {"workspace": "/tmp/project-one"}
+    def generate(prompt):
+        return "original"
+    generate.budget = controller.BuilderGenerationBudget()
+    def persist(key, *, state):
+        checkpoint["state"].update(copy.deepcopy(state))
+    with mock.patch("core.runtime_continuity.update_runtime_checkpoint", side_effect=persist):
+        controller.checkpointed_builder_generation(agent, ctx, request="first", model="local:coder", generate_fn=generate)("same prompt")
+    original = copy.deepcopy(checkpoint)
+    for changed_ctx, request, model in (
+        (ctx, "first", "local:coder"),
+        ({**ctx, "runtime_checkpoint_resumed": True}, "new request", "local:coder"),
+        ({**ctx, "runtime_checkpoint_resumed": True}, "first", "local:other"),
+        ({"workspace": "/tmp/project-two", "runtime_checkpoint_resumed": True}, "first", "local:coder"),
+    ):
+        checkpoint = copy.deepcopy(original)
+        fresh = mock.Mock(return_value="new proposal")
+        fresh.budget = controller.BuilderGenerationBudget()
+        with mock.patch("core.runtime_continuity.update_runtime_checkpoint", side_effect=persist):
+            wrapped = controller.checkpointed_builder_generation(agent, changed_ctx, request=request, model=model, generate_fn=fresh)
+            assert wrapped("same prompt") == "new proposal"
+            fresh.assert_called_once()

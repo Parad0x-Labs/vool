@@ -384,3 +384,47 @@ def test_the_failed_row_under_an_unanswered_browser_step_names_the_step() -> Non
             assert failure.startswith("You said no to opening " + url)
         else:
             assert "try again" in row and failure == narration
+
+
+def test_an_action_lane_approval_pause_reads_as_waiting_not_failed() -> None:
+    """A builder that stops for the operator's approval returns through this action result.
+
+    run_once closes the attempt as WAITING_APPROVAL only when the result says
+    task_outcome=pending_approval. The result used to drop it, so the pause was recorded as
+    FAILED_PROVIDER, the chat stream ended on a "Stopped safely" terminal event and the follow-up
+    state read the pause as a failure.
+    """
+    from core.conversation_state import NEEDS_ANSWER, outcome_of
+    from core.web.api.runtime import _final_task_event
+
+    agent = _build_agent()
+    with mock.patch.object(agent, "_emit_runtime_event"), mock.patch.object(agent, "_finalize_runtime_checkpoint"):
+        paused = agent._action_fast_path_result(
+            task_id="task-approval",
+            session_id="session-approval",
+            user_input="In this project, create index.html with a task board.",
+            response="Waiting for your approval to write index.html.",
+            confidence=0.9,
+            source_context={"surface": "api", "_owner_local": True},
+            reason="builder_controller_pending_approval",
+            success=False,
+            mode_override="tool_preview",
+            task_outcome="pending_approval",
+        )
+        undeclared = agent._action_fast_path_result(
+            task_id="task-plain",
+            session_id="session-approval",
+            user_input="refresh the models catalog",
+            response="I could not reach openrouter.ai.",
+            confidence=0.9,
+            source_context={"surface": "api", "_owner_local": True},
+            reason="catalog_refresh_intent",
+            success=False,
+        )
+
+    assert paused["task_outcome"] == "pending_approval"
+    assert _final_task_event(paused) is None, "an approval pause is not a terminal stream event"
+    assert outcome_of(paused)[0] == NEEDS_ANSWER
+    # A caller that declares no outcome keeps its payload exactly as before.
+    assert "task_outcome" not in undeclared
+    assert _final_task_event(undeclared)["type"] == "task.failed"

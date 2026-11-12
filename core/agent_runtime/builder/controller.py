@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import json
 import shlex
 import sys
 import time
@@ -19,9 +20,9 @@ from core.runtime_task_events import emit_runtime_event
 
 _BUILDER_NUM_PREDICT = 6144
 _BUILDER_NUM_CTX = 8192
-_BUILDER_CALL_TIMEOUT_SECONDS = 300.0
+_BUILDER_CALL_TIMEOUT_SECONDS = 120.0
 # One build can issue 1 plan + 16 files + 3 fix rounds x 16 = up to 65 sequential generations. At the
-# 300s per-call timeout that is 5.4 hours of silence with no way for the operator to tell a working
+# old 300s per-call timeout that was 5.4 hours of silence with no way for the operator to tell a working
 # build from a wedged one. The aggregate ceiling is what makes the worst case finite; the per-call
 # timeout never could, because it applies 65 times.
 _BUILDER_TOTAL_WALL_CLOCK_SECONDS = 900.0
@@ -80,6 +81,10 @@ class BuilderGenerationBudget:
     # every generation could only report "0 files written". Recorded here so the operator is told
     # whether their model was unreachable, unauthorized or simply silent.
     last_error: str = ""
+    # The typed cause once a LOCAL generation fails (timeout, transport, output limit, empty
+    # answer). Set once, it stops every later generation of the same build: a build that cannot
+    # write one file completely must not go on to write a partial batch.
+    failure_code: str = ""
 
     def elapsed(self) -> float:
         return max(0.0, time.monotonic() - self.started_monotonic)
@@ -156,6 +161,7 @@ def build_finished_successfully(
     tests_passed: bool,
     budget_exhausted_reason: str = "",
     proof_failed: bool = False,
+    generation_failure_code: str = "",
 ) -> bool:
     """Whether a build actually finished. A ceiling that stopped it means it did not.
 
@@ -166,9 +172,14 @@ def build_finished_successfully(
     `proof_failed` inverts the usual reading for one case. When the operator asked for a test that
     proves a bug BY FAILING, a green suite is the failure: it means the claimed bug was not
     reproduced. Scoring that as success is how a fabricated finding gets reported as verified.
+
+    `generation_failure_code` is a local generation that stopped the build (timeout, transport,
+    output limit, empty answer): files written before it are an incomplete batch, not a result.
     """
 
     if str(budget_exhausted_reason or "").strip():
+        return False
+    if str(generation_failure_code or "").strip():
         return False
     if proof_failed:
         return False
@@ -247,6 +258,124 @@ def builder_ollama_base_url(env: Mapping[str, str]) -> str:
     return raw.rstrip("/")
 
 
+def select_auto_builder_manifest(agent: Any) -> Any | None:
+    """The enabled local Ollama model that writes an unpinned build's files, chosen for coding.
+
+    The bundle's installed default says which model was installed, not which enabled model should
+    author source files: a 4B utility model wrote the build while a 7B coding-capable model sat
+    enabled next to it. The choice goes through the shared ranking, so its locality, license,
+    trust and paid-fallback exclusions bind here exactly as they do for a chat turn. Only a model
+    that declares the coding capability itself is a candidate: a long-context or summarization
+    claim is not coding support. This generator speaks native Ollama; any other backend stays
+    available by selecting it for the chat (the pinned lane). None means no eligible model.
+    """
+    from core.model_selection_policy import ModelSelectionRequest, rank_providers
+
+    registry = agent.memory_router.registry
+    manifests = [
+        manifest
+        for manifest in registry.list_manifests(enabled_only=True)
+        if str(getattr(manifest, "runtime_dependency", "") or "") == "ollama"
+    ]
+    for task_kind, capability in (("coding_help_complex", "code_complex"), ("coding_help_basic", "code_basic")):
+        candidates = [manifest for manifest in manifests if capability in (manifest.capabilities or ())]
+        ranked = rank_providers(
+            candidates,
+            ModelSelectionRequest(
+                task_kind=task_kind,
+                output_mode="plain_text",
+                local_only=True,
+                allow_paid_fallback=False,
+            ),
+        )
+        if ranked:
+            return ranked[0]
+    return None
+
+
+def _registered_local_ollama_lanes(agent: Any) -> bool:
+    """Whether this runtime registered any local Ollama lane, turned on or off."""
+    try:
+        manifests = agent.memory_router.registry.list_manifests(enabled_only=False)
+    except Exception:
+        return False
+    return any(str(getattr(manifest, "runtime_dependency", "") or "") == "ollama" for manifest in manifests)
+
+
+def checkpointed_builder_generation(
+    agent: Any,
+    ctx: dict[str, Any],
+    *,
+    request: str,
+    model: str,
+    generate_fn: Callable[[str], str],
+) -> Callable[[str], str]:
+    """Reuse the file proposals the operator reviewed when an approved build resumes.
+
+    Approving a write resumes the same turn, and the build used to generate every file again: a
+    model rarely returns the same bytes twice, so the resumed write no longer matched what was
+    approved and asked for approval again. Proposals are kept on the turn's own runtime
+    checkpoint, keyed by the generation prompt, and only a resumed checkpoint for the same
+    request, model and workspace reads them back. This stores proposals, never permissions:
+    every write still crosses the byte-exact approval gate. A stored proposal that no longer
+    matches its digest is never written and never silently regenerated; the build stops with a
+    typed cause instead.
+    """
+    from core.runtime_continuity import update_runtime_checkpoint
+
+    checkpoint_id = agent._runtime_checkpoint_id(ctx)
+    if not checkpoint_id:
+        return generate_fn
+    checkpoint = agent._get_runtime_checkpoint(checkpoint_id) or {}
+    binding = hashlib.sha256(
+        json.dumps(
+            {
+                "request": request,
+                "model": model,
+                "workspace": str(ctx.get("workspace") or ctx.get("workspace_root") or ""),
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    saved = dict((checkpoint.get("state") or {}).get("builder_proposals") or {})
+    proposals: dict[str, Any] = (
+        dict(saved.get("proposals") or {})
+        if ctx.get("runtime_checkpoint_resumed") and saved.get("binding") == binding
+        else {}
+    )
+
+    budget = getattr(generate_fn, "budget", None)
+
+    def generate(prompt: str) -> str:
+        key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        if key in proposals:
+            entry = dict(proposals[key] or {})
+            content = str(entry.get("content") or "")
+            if hashlib.sha256(content.encode("utf-8")).hexdigest() != entry.get("sha256"):
+                if budget is not None:
+                    budget.failure_code = "builder_saved_proposal_changed"
+                    budget.last_error = "the file you reviewed could not be restored unchanged"
+                return ""
+            return content
+        content = generate_fn(prompt)
+        if content:
+            proposals[key] = {
+                "content": content,
+                "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            }
+            update_runtime_checkpoint(
+                checkpoint_id,
+                state={"builder_proposals": {"binding": binding, "proposals": proposals}},
+            )
+        return content
+
+    if budget is not None:
+        generate.budget = budget  # type: ignore[attr-defined]
+    if getattr(generate_fn, "context_tokens", None):
+        generate.context_tokens = generate_fn.context_tokens  # type: ignore[attr-defined]
+    return generate
+
+
 def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUILDER_NUM_PREDICT) -> dict[str, Any]:
     """The /api/chat body for one builder generation.
 
@@ -303,7 +432,13 @@ def build_ollama_generate_fn(
     so a build's 65 possible generations were invisible to the operator — every other model lane
     emits `model.call_started` / `.call_completed` / `.call_failed` through
     `core/memory_first_router.py`, and this one did not. `budget` bounds them in aggregate: the
-    per-call 300s timeout applies 65 times over and so bounds nothing.
+    per-call timeout applies to every call and alone cannot bound the whole build.
+
+    One attempt per generation. A thinking model that spends the whole output budget reasoning
+    used to be retried on a doubled budget; measured live, qwen3:4b spent 276.7s, returned nothing
+    usable (done_reason=length), and the retry then started a second, twice-as-long generation
+    while the activity line had already called the first one complete. A failed generation now
+    records a typed cause on the budget, emits `model.call_failed`, and stops the build.
     """
     import requests
 
@@ -384,6 +519,15 @@ def build_ollama_generate_fn(
         except Exception as exc:
             elapsed = time.monotonic() - started
             budget.seconds_spent += elapsed
+            timed_out = isinstance(exc, requests.Timeout)
+            budget.failure_code = "builder_generation_timeout" if timed_out else "builder_generation_transport_failed"
+            # The class, never the message: an exception body can carry a URL or a payload
+            # fragment, and this text reaches the operator's chat and event stream.
+            budget.last_error = (
+                f"{model_tag} did not finish within the {timeout:.0f}-second generation limit"
+                if timed_out
+                else f"{model_tag} could not complete the generation ({type(exc).__name__})"
+            )
             _emit_builder_model_event(
                 source_context,
                 "model.call_failed",
@@ -391,9 +535,9 @@ def build_ollama_generate_fn(
                 provider_id="ollama:builder",
                 model_id=model_tag,
                 locality="local",
-                # The class, not the message: an exception body can carry a URL or a payload
-                # fragment, and this reaches the operator's event stream.
                 reason=type(exc).__name__,
+                failure_code=budget.failure_code,
+                retryable=False,
                 call_index=call_index,
                 seconds=round(elapsed, 1),
             )
@@ -406,6 +550,33 @@ def build_ollama_generate_fn(
         message = dict(payload.get("message") or {})
         content = app_builder.strip_reasoning_monologue(str(message.get("content") or ""))
         truncated = str(payload.get("done_reason") or "").strip() == "length"
+        if truncated or not content.strip():
+            # Cut off at the output limit (a file that stops mid-way is not a file) or nothing
+            # usable at all. Either way this call did not complete, and saying so is the only
+            # truthful activity line: `model.call_completed` here is what told the operator a
+            # 276-second empty generation had finished.
+            budget.failure_code = "builder_output_limit" if truncated else "builder_empty_output"
+            budget.last_error = (
+                f"{model_tag} reached its {num_predict}-token output limit before completing usable file contents"
+                if truncated
+                else f"{model_tag} returned no usable file contents"
+            )
+            _emit_builder_model_event(
+                source_context,
+                "model.call_failed",
+                budget.last_error + ". No automatic retry.",
+                provider_id="ollama:builder",
+                model_id=model_tag,
+                locality="local",
+                reason=budget.failure_code,
+                failure_code=budget.failure_code,
+                retryable=False,
+                call_index=call_index,
+                seconds=round(elapsed, 1),
+                characters=len(content),
+                truncated=truncated or None,
+            )
+            return "", truncated
         _emit_builder_model_event(
             source_context,
             "model.call_completed",
@@ -422,15 +593,16 @@ def build_ollama_generate_fn(
         return content, truncated
 
     def generate_fn(prompt: str) -> str:
-        content, truncated = generate_once(prompt, num_predict=_BUILDER_NUM_PREDICT)
-        if content.strip() or not truncated:
-            return content
-        # A thinking model spent the entire budget reasoning and never reached its answer. Retry once
-        # on a doubled budget rather than write out an empty file.
-        content, _ = generate_once(prompt, num_predict=_BUILDER_NUM_PREDICT * 2)
+        if budget.failure_code:
+            # An earlier generation of this build already failed; its cause stands.
+            return ""
+        content, _ = generate_once(prompt, num_predict=_BUILDER_NUM_PREDICT)
         return content
 
     generate_fn.budget = budget  # type: ignore[attr-defined]
+    # The whole window one generation has, prompt and answer together. An edit sends the current
+    # file in and gets it back whole, so the build lane checks a file fits before asking.
+    generate_fn.context_tokens = _BUILDER_NUM_CTX  # type: ignore[attr-defined]
     return generate_fn
 
 
@@ -1028,6 +1200,75 @@ def workspace_build_response(
     return "\n".join(lines)
 
 
+def _interrupted_build_result(
+    agent: Any,
+    *,
+    execution: Any,
+    intent: str,
+    task_id: str,
+    session_id: str,
+    effective_input: str,
+    source_context: dict[str, Any],
+    written_paths: list[str],
+) -> dict[str, Any]:
+    """The answer for a model build its own tool door stopped: an approval pause or a refusal.
+
+    A pause follows the rule the scaffold lane already keeps: it is not the turn's answer, so it is
+    kept out of the conversation log while the approval card carries it, and the approved resume
+    records the one final result. A refusal is the answer, and it names what already reached disk.
+    """
+    mode = str(getattr(execution, "mode", "") or "")
+    status = str(getattr(execution, "status", "") or "")
+    execution_details = dict(getattr(execution, "details", {}) or {})
+    pending = mode == "tool_preview" or status == "pending_approval"
+    details: dict[str, Any] = {
+        "builder_controller": {
+            "mode": "model_build",
+            "stop_reason": "tool_preview:pending_approval" if pending else f"tool_failed:{status or 'refused'}",
+            "tool_steps": [intent] if intent else [],
+            "files_written": list(written_paths),
+        }
+    }
+    if execution_details.get("approval_request"):
+        # The approval token is a capability; it never rides into the audit log or event stream.
+        details["approval_request"] = redact_tool_arguments(execution_details["approval_request"])
+    stated = str(getattr(execution, "response_text", "") or "").strip()
+    if pending:
+        pending_context = dict(source_context)
+        pending_context["persist_memory"] = False
+        return agent._action_fast_path_result(
+            task_id=task_id,
+            session_id=session_id,
+            user_input=effective_input,
+            response=stated or "Waiting for your approval before writing the files.",
+            confidence=0.95,
+            source_context=pending_context,
+            reason="builder_controller_pending_approval",
+            success=False,
+            details=details,
+            mode_override="tool_preview",
+            task_outcome="pending_approval",
+        )
+    on_disk = (
+        "Already saved before it stopped: " + ", ".join(f"`{path}`" for path in written_paths) + "."
+        if written_paths
+        else "Nothing was saved."
+    )
+    return agent._action_fast_path_result(
+        task_id=task_id,
+        session_id=session_id,
+        user_input=effective_input,
+        response=f"{stated or 'Saving the files was refused.'} The build stopped there. {on_disk}",
+        confidence=0.9,
+        source_context=source_context,
+        reason="builder_model_build_tool_failed",
+        success=False,
+        details=details,
+        mode_override="advice_only",
+        task_outcome="failed",
+    )
+
+
 def _run_model_build(
     agent: Any,
     *,
@@ -1045,7 +1286,6 @@ def _run_model_build(
     import os
 
     from core.agent_runtime.builder import app_builder, mutation_scope, pinned_generation
-    from core.runtime_provider_defaults import default_runtime_model_tag
 
     ctx = dict(source_context or {})
     # Resolved HERE as well as in the profile, not threaded through it. This lane is the last thing
@@ -1062,17 +1302,15 @@ def _run_model_build(
         target_rel = scope.root_dir
     else:
         target_rel = str(target.get("root_dir") or "generated/app").strip().strip("/") or "generated/app"
-    base_url = builder_ollama_base_url(os.environ)
-    model_tag = str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b"
 
     # One budget for the whole build, so the 65 possible generations share a single ceiling, and one
     # source_context, so every one of them is announced on the operator's event stream.
     generation_budget = BuilderGenerationBudget()
 
     # WHO GENERATES THE FILES. Selecting a model changes who reasons, and a build is reasoning that
-    # ends in source code -- so a pinned turn's files must come from the pinned model. The local
-    # lane below hardcodes the runtime's own Ollama tag, which is right when nothing is pinned and a
-    # silent substitution the moment something is.
+    # ends in source code -- so a pinned turn's files must come from the pinned model. When nothing
+    # is pinned, the local lane below ranks the enabled local Ollama models for coding
+    # (`select_auto_builder_manifest`); a pin bypasses that choice and is never silently substituted.
     #
     # This used to be settled by refusing the whole turn (`_should_run_builder_controller` returned
     # False for a pinned model). Measured on the installed build, the refusal did not produce a
@@ -1100,7 +1338,10 @@ def _run_model_build(
             task_outcome="failed",
             mode_override="advice_only",
         )
+    # Which model writes this build's files; reviewed proposals are bound to it on resume.
+    generation_model = ""
     if pinned_manifest is not None:
+        generation_model = str(getattr(pinned_manifest, "provider_id", "") or "")
         generate_fn = pinned_generation.build_pinned_generate_fn(
             agent,
             manifest=pinned_manifest,
@@ -1127,12 +1368,56 @@ def _run_model_build(
                 source_context=ctx,
                 reason="builder_local_lane_disabled",
             )
-        generate_fn = build_ollama_generate_fn(
-            base_url=base_url,
-            model_tag=model_tag,
-            source_context=ctx,
-            budget=generation_budget,
-        )
+        selected = select_auto_builder_manifest(agent)
+        if selected is None and not _registered_local_ollama_lanes(agent):
+            # No local lane has been registered on this runtime at all (boot registers the
+            # bundle's models, so this is a runtime that never ran that step). There is nothing to
+            # rank and nothing the operator turned off: the runtime's own default local model
+            # builds, exactly as before the ranking existed.
+            from core.runtime_provider_defaults import default_runtime_model_tag
+
+            default_tag = str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b"
+            generation_model = f"ollama-local:{default_tag}"
+            generate_fn = build_ollama_generate_fn(
+                base_url=builder_ollama_base_url(os.environ),
+                model_tag=default_tag,
+                source_context=ctx,
+                budget=generation_budget,
+            )
+        elif selected is None:
+            # Local lanes exist, but none that is turned on declares coding support. Say so and
+            # offer the two ways forward -- never fall back to a model the operator turned off.
+            return agent._action_fast_path_result(
+                task_id=task.task_id,
+                session_id=session_id,
+                user_input=effective_input,
+                response=(
+                    "No local model that can write code is turned on, so I didn't start this build. "
+                    "Turn one on in Settings → Models & Providers → Local models, or choose a model "
+                    "above the chat, then send the request again."
+                ),
+                confidence=0.9,
+                source_context=ctx,
+                reason="builder_local_model_unavailable",
+                success=False,
+                task_outcome="failed",
+                mode_override="advice_only",
+            )
+        else:
+            generation_model = str(selected.provider_id)
+            selected_base_url = str((selected.runtime_config or {}).get("base_url") or "").strip()
+            if selected_base_url and not selected_base_url.startswith(("http://", "https://")):
+                selected_base_url = f"http://{selected_base_url}"
+            generate_fn = build_ollama_generate_fn(
+                # The chosen lane's own endpoint, so the model is asked where it was registered.
+                base_url=(selected_base_url or builder_ollama_base_url(os.environ)).rstrip("/"),
+                model_tag=str(selected.model_name),
+                source_context=ctx,
+                budget=generation_budget,
+            )
+    generate_fn = checkpointed_builder_generation(
+        agent, ctx, request=effective_input, model=generation_model, generate_fn=generate_fn
+    )
 
     # The rest of this build's workspace plan, so the permission controller can offer ONE bounded
     # grant for it instead of a prompt per file. The build lane fills this in before its first
@@ -1154,6 +1439,17 @@ def _run_model_build(
                 del pending_plan[index]
                 return [dict(item) for item in pending_plan]
         return []
+
+    class _ToolInterrupted(Exception):
+        """Carries a write that is waiting for approval, or was refused, out of the build."""
+
+        def __init__(self, result: Any, intent: str) -> None:
+            super().__init__(str(getattr(result, "response_text", "") or ""))
+            self.result = result
+            self.intent = intent
+
+    # What actually reached the disk, so a build stopped part-way says which files exist.
+    written_paths: list[str] = []
 
     def run_tool_fn(
         intent: str, arguments: dict[str, Any], *, trusted_local_only: bool = False
@@ -1188,10 +1484,25 @@ def _run_model_build(
             observation=dict((getattr(result, "details", {}) or {}).get("observation") or {}),
             approval_request=dict((getattr(result, "details", {}) or {}).get("approval_request") or {}),
         )
+        if (
+            str(getattr(result, "mode", "") or "") == "tool_preview"
+            or str(getattr(result, "status", "") or "") == "pending_approval"
+            or (
+                intent in {"workspace.ensure_directory", "workspace.write_file"}
+                and not bool(getattr(result, "ok", False))
+            )
+        ):
+            # Generated bytes that wait for the operator's approval, or that the permission door
+            # refused, are not a model failure. Carrying on dropped the approval and reported the
+            # file as simply "not written"; stop the build here and answer with that cause.
+            raise _ToolInterrupted(result, intent)
+        if intent == "workspace.write_file" and bool(getattr(result, "ok", False)):
+            written_paths.append(str(arguments.get("path") or ""))
         return app_builder.ToolOutcome(
             ok=bool(getattr(result, "ok", False)),
             response_text=str(getattr(result, "response_text", "") or ""),
             details=dict(getattr(result, "details", {}) or {}),
+            status=str(getattr(result, "status", "") or ""),
         )
 
     # "Prove the bug -- write the smallest failing test and run it" wants a test that FAILS. Without
@@ -1202,18 +1513,50 @@ def _run_model_build(
     from core.agent_runtime.build_request_intent import looks_like_test_artifact_request
 
     proving_a_bug = looks_like_test_artifact_request(effective_input)
-    build_report = app_builder.build_app_from_spec(
-        request=effective_input,
-        target_rel=target_rel,
-        source_context=ctx,
-        generate_fn=generate_fn,
-        run_tool_fn=run_tool_fn,
-        announce_plan_fn=announce_plan_fn,
-        expected_test_outcome="fail" if proving_a_bug else "unspecified",
-        subject_paths=_audited_subject_paths(ctx),
-        scope=scope,
-    )
+    try:
+        build_report = app_builder.build_app_from_spec(
+            request=effective_input,
+            target_rel=target_rel,
+            source_context=ctx,
+            generate_fn=generate_fn,
+            run_tool_fn=run_tool_fn,
+            announce_plan_fn=announce_plan_fn,
+            expected_test_outcome="fail" if proving_a_bug else "unspecified",
+            subject_paths=_audited_subject_paths(ctx),
+            scope=scope,
+        )
+    except _ToolInterrupted as interrupted:
+        return _interrupted_build_result(
+            agent,
+            execution=interrupted.result,
+            intent=interrupted.intent,
+            task_id=task.task_id,
+            session_id=session_id,
+            effective_input=effective_input,
+            source_context=ctx,
+            written_paths=[path for path in written_paths if path],
+        )
     response = app_builder.render_app_build_response(build_report)
+    if generation_budget.failure_code:
+        # A local generation failed (timeout, transport, output limit, empty answer). Say what
+        # stopped, what is on disk, and what the operator can do -- never a silent retry, and never
+        # a switch to another model or a paid lane on their behalf.
+        saved = (
+            "File writing did not start."
+            if not build_report.files_written
+            else f"{len(build_report.files_written)} file(s) were written before the failure; the build is incomplete."
+        )
+        response = (
+            f"Build stopped: {generation_budget.last_error}. {saved} "
+            "Your request remains in this chat. No automatic retry or model switch was made. "
+            "Select a different model and resend the request, or resend it to deliberately retry with the same model."
+            + (
+                " To continue in the cloud, open the model selector above the chat, choose a connected cloud "
+                "provider and model, then resend this request. Any required price and spending approval still applies."
+                if pinned_manifest is None
+                else ""
+            )
+        )
     # Name the absolute destination: the operator must never have to ask where a build went.
     _ws_root = str(ctx.get("workspace") or ctx.get("workspace_root") or "").strip().rstrip("/")
     _target_dir = str(build_report.target_dir or "").strip("/")
@@ -1227,6 +1570,7 @@ def _run_model_build(
         tests_passed=build_report.tests_passed,
         budget_exhausted_reason=generation_budget.exhausted_reason,
         proof_failed=build_report.proof_failed,
+        generation_failure_code=generation_budget.failure_code,
     )
     note = early_stop_note(
         generation_budget.exhausted_reason, files_written=build_report.files_written
@@ -1301,6 +1645,8 @@ def _run_model_build(
                 "generations": generation_budget.calls,
                 "generation_seconds": round(generation_budget.seconds_spent, 1),
                 "budget_exhausted": generation_budget.exhausted_reason or "",
+                "generation_error": generation_budget.last_error,
+                "failure_code": generation_budget.failure_code,
             }
         },
         mode_override="tool_executed" if build_report.files_written else "advice_only",

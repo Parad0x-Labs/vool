@@ -173,10 +173,14 @@ def test_the_budget_stops_the_build_instead_of_running_65_more_calls(captured) -
 
 
 def test_a_calls_timeout_is_clipped_to_what_is_left() -> None:
-    """Otherwise the last call can overrun the ceiling by a further 300 seconds."""
+    """Otherwise the last call can overrun the ceiling by a further full per-call timeout."""
+
+    from core.agent_runtime.builder.controller import _BUILDER_CALL_TIMEOUT_SECONDS
 
     budget = BuilderGenerationBudget(total_seconds=900.0)
-    assert budget.call_timeout() == pytest.approx(300.0)
+    # 120s since the L23 bounded-generation repair (it was 300s): one local generation that has
+    # produced nothing usable in two minutes stops with a typed cause instead of waiting five.
+    assert budget.call_timeout() == pytest.approx(_BUILDER_CALL_TIMEOUT_SECONDS) == pytest.approx(120.0)
 
     budget.started_monotonic -= 880.0
     assert 0 < budget.call_timeout() <= 21.0
@@ -186,7 +190,7 @@ def test_a_calls_timeout_is_clipped_to_what_is_left() -> None:
 
 
 def test_the_default_ceiling_is_far_below_the_unbounded_worst_case() -> None:
-    """65 sequential calls at the 300s per-call timeout is 5.4 hours."""
+    """65 sequential calls at the 120s per-call timeout is 2.2 hours; the ceiling is 15 minutes."""
 
     from core.agent_runtime.builder.controller import (
         _BUILDER_CALL_TIMEOUT_SECONDS,
@@ -194,7 +198,7 @@ def test_the_default_ceiling_is_far_below_the_unbounded_worst_case() -> None:
     )
 
     unbounded_worst_case = 65 * _BUILDER_CALL_TIMEOUT_SECONDS
-    assert unbounded_worst_case / 10 > _BUILDER_TOTAL_WALL_CLOCK_SECONDS
+    assert unbounded_worst_case > 8 * _BUILDER_TOTAL_WALL_CLOCK_SECONDS
 
 
 def test_a_build_stopped_by_the_ceiling_is_not_reported_as_success() -> None:
@@ -217,6 +221,9 @@ def test_a_build_stopped_by_the_ceiling_is_not_reported_as_success() -> None:
         )
         is False
     ), "a build the ceiling stopped is not a build that finished"
+    # A local generation that failed (timeout, transport, output limit, empty answer) stopped the
+    # build the same way: what it wrote before the failure is an incomplete batch.
+    assert build_finished_successfully(**finished, generation_failure_code="builder_output_limit") is False
 
     # And the pre-existing rules still hold on their own.
     assert build_finished_successfully(files_written=[], tests_ran=False, tests_passed=False) is False

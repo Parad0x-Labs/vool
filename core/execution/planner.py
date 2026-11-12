@@ -1054,15 +1054,30 @@ _CODE_SEARCH_VERB_RE = re.compile(
     r"|\breferences?\s+to\b"
     r"|\bwhere\s+(?:is|are)\b[^.\n]{0,60}?\b(?:defined|declared|implemented|wired|used|set|called)\b"
     r"|\bwhere\b[^.\n]{0,40}?\bis\s+used\b"
+    r"|\bwhere\s+(?:does|do)\s+[^\s.?!]+\s+come\s+from\b"
     r"|\b(?:which|what)\s+files?\s+(?:mention|contain|use|reference|have)\b"
     r"|\blook\s+for\s+the\s+(?:string|text|symbol|function|class|constant|name)\b"
     r"|\bhunt\s+(?:down|for)\b",
     re.IGNORECASE,
 )
-# Naming the repository is enough on its own -- "hunt down X in the repo".
+# Workspace context can qualify a search, but cannot establish search intent.
 _IN_THE_CODEBASE_RE = re.compile(
     r"\bin\s+(?:this|the|my|our)\s+(?:workspace|repo(?:sitory)?|project|codebase|code\s?base|source)\b"
     r"|\bin\s+(?:the\s+)?code\b",
+    re.IGNORECASE,
+)
+# A lookup that is only a search once it names the repository. "Find parse_config in this project",
+# "what calls renderBoard in this codebase?" and "which file in this workspace defines renderBoard?"
+# carry no search verb above, and lost their search when the location stopped counting as one on its
+# own. The location still never makes the request: "in this project, create index.html ...
+# localStorage" asks for a file and "explain how cache_key is computed in this codebase" for an
+# explanation, and neither has a lookup in it.
+_LOCATED_LOOKUP_RE = re.compile(
+    r"\b(?:find|locate|look\s+(?:for|up)|track\s+down)\b"
+    r"|\b(?:any)?where\b"
+    r"|\b(?:which|what)\s+(?:files?|modules?|functions?|methods?|class(?:es)?|components?|places?|lines?)\b"
+    r"|\bwhat\s+(?:calls|uses|imports|references|reads|writes|sets|defines|mentions)\b"
+    r"|\bhow\s+many\s+(?:places|call\s?sites|callers|references|times)\b",
     re.IGNORECASE,
 )
 # A question about the internet is not a question about this checkout.
@@ -1107,13 +1122,34 @@ _CODE_NEEDLE_STOPWORDS = frozenset(
 )
 
 
+def _instructs_a_build_or_edit(text: str) -> bool:
+    """True when the sentence tells the runtime to make or change files, by the builder's own gates."""
+    from core.agent_runtime import build_request_intent
+    from core.agent_runtime.builder.named_file_build import (
+        looks_like_named_file_build_request,
+        looks_like_named_file_edit_request,
+    )
+
+    return (
+        build_request_intent.is_build_instruction(text, scope="artifact")
+        or looks_like_named_file_build_request(text)
+        or looks_like_named_file_edit_request(text)
+    )
+
+
 def _code_search_query(normalized: str) -> str:
     """The identifier or phrase a code-search sentence is hunting for, else ''."""
 
     if _SEARCH_MEANS_THE_WEB_RE.search(normalized):
         return ""
-    if not (_CODE_SEARCH_VERB_RE.search(normalized) or _IN_THE_CODEBASE_RE.search(normalized)):
-        return ""
+    if not _CODE_SEARCH_VERB_RE.search(normalized):
+        # A location plus an identifier is also how a creation request reads: "in this project,
+        # create index.html ... save tasks in localStorage" was answered with a search for
+        # localStorage. Without a search verb, the sentence needs a lookup, the repository it is
+        # looked up in, and no instruction to make or change something there.
+        located = _IN_THE_CODEBASE_RE.search(normalized) and _LOCATED_LOOKUP_RE.search(normalized)
+        if not located or _instructs_a_build_or_edit(normalized):
+            return ""
     quoted = _QUOTED_TOKEN_RE.search(normalized)
     if quoted:
         return _trim_search_query(str(quoted.group("token") or ""))
