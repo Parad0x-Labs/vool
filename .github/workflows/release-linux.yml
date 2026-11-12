@@ -5,12 +5,16 @@ on:
   pull_request:
     paths:
       - 'installer/bundle/build_linux_bundle.sh'
+      - 'installer/bundle/build_linux_deb.py'
       - 'installer/bundle/linux/**'
       - 'installer/build_update_payload.py'
       - 'core/updater/archive.py'
       - 'installer/stamp_build_source.py'
       - 'ops/linux_bundle_smoke.py'
+      - 'ops/linux_deb_smoke.py'
+      - 'ops/update_preservation.py'
       - 'tests/test_linux_bundle_packaging.py'
+      - 'tests/test_linux_deb_package.py'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'requirements*.txt'
@@ -37,7 +41,7 @@ jobs:
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Installer and packaging regression
         run: |
-          uv run --no-project --with pytest==9.2.0 --with pyyaml python -m pytest --noconftest -q tests/test_linux_bundle_packaging.py
+          uv run --no-project --with pytest==9.2.0 --with pyyaml python -m pytest --noconftest -q tests/test_linux_bundle_packaging.py tests/test_linux_deb_package.py
       - name: Build self-contained Linux x86_64 tarball
         run: bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/linux-release"
       - name: In-app update payload for installed packages (the same package, zipped for the signed feed)
@@ -51,12 +55,18 @@ jobs:
           (cd "$GITHUB_WORKSPACE" && python3 -m installer.build_update_payload --platform linux-x64-bundle \
             --version "$version" --source "$RUNNER_TEMP/package-extract/${tarball%.tar.gz}" --out "$RUNNER_TEMP/linux-release")
           for f in *-package-update.zip; do sha256sum "$f" > "$f.sha256"; done
+      - name: The .deb around the same package (apt puts it in /opt/vool/package; each person's copy stays their own)
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          python3 installer/bundle/build_linux_deb.py --package "$(ls "$RUNNER_TEMP"/linux-release/vool-*-linux-x86_64.tar.gz)"
       - uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64-package
           path: |
             ${{ runner.temp }}/linux-release/vool-*-linux-x86_64.tar.gz*
             ${{ runner.temp }}/linux-release/vool-*-linux-x86_64-package-update.zip*
+            ${{ runner.temp }}/linux-release/vool-*-linux-x86_64.deb*
           if-no-files-found: error
 
   smoke:
@@ -76,6 +86,14 @@ jobs:
         with:
           name: linux-x86_64-package
           path: ${{ runner.temp }}/linux-release
+      - name: Install the .deb with apt, open VOOL as a person, chat, remove the .deb, the person's copy and chats stay
+        env:
+          EXPECTED_COMMIT: ${{ needs.build.outputs.source }}
+        run: |
+          cd "$RUNNER_TEMP/linux-release"
+          sha256sum -c vool-*-linux-x86_64.deb.sha256
+          sudo apt-get update -q
+          python "$GITHUB_WORKSPACE/ops/linux_deb_smoke.py" --deb "$(find "$RUNNER_TEMP/linux-release" -name '*.deb' -print -quit)" --scratch "$RUNNER_TEMP/linux-deb-smoke" --expected-commit "$EXPECTED_COMMIT"
       - name: Verify download, install, answer, stop, and uninstall
         env:
           EXPECTED_COMMIT: ${{ needs.build.outputs.source }}
@@ -90,6 +108,8 @@ jobs:
           path: |
             ${{ runner.temp }}/linux-smoke/runtime.log
             ${{ runner.temp }}/linux-smoke/response.json
+            ${{ runner.temp }}/linux-deb-smoke/runtime.log
+            ${{ runner.temp }}/linux-deb-smoke/response.json
           if-no-files-found: warn
 
   release:
@@ -117,7 +137,7 @@ jobs:
           # compared with this build's and both are reported. Only missing assets are uploaded.
           existing="$(gh release view "$RELEASE_TAG" --json assets -q '.assets[].name')"
           missing=()
-          for f in assets/*.tar.gz assets/*-package-update.zip assets/*.sha256; do
+          for f in assets/*.tar.gz assets/*-package-update.zip assets/*.deb assets/*.sha256; do
             name="$(basename "$f")"
             if ! grep -Fxq "$name" <<<"$existing"; then
               missing+=("$f")

@@ -3,4 +3,9 @@ set -euo pipefail
 # Resolve the ~/.local/bin symlink without requiring system Python.
 SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
 ROOT="$(dirname "${SELF}")"
+# Installed from the .deb: a newer system copy (from an apt upgrade) is set up for this person first, at most once.
+if [[ -z "${VOOL_SYSTEM_COPY_SET_UP:-}" ]] && "${ROOT}/python/bin/python3" -B -I "${ROOT}/system_copy.py" "${ROOT}" "$@"; then
+  VOOL_SYSTEM_COPY_SET_UP=1 exec "$(dirname "$(dirname "${ROOT}")")/current/vool" "$@"
+fi
+unset VOOL_SYSTEM_COPY_SET_UP
 exec "${ROOT}/python/bin/python3" -B -E -s "${ROOT}/launch.py" "$@"

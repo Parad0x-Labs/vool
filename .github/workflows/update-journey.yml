@@ -10,6 +10,10 @@ name: In-app update journey
 #                Then the release a person has now (the latest published one, or from_tag) updated to that
 #                build, or in gate mode (to_tag) to the draft's exact Linux update ZIP bytes: once with the
 #                usual profile and once with the pre-rename ~/.nulla_runtime profile, which must stay in use.
+#                The .deb around each build: a person who installed it with apt opens VOOL from the menu, updates
+#                in-app, opens it again (the older copy apt installed must not come back) and removes the .deb
+#                (their own copy and chats stay); and a person whose next open after an apt upgrade must get
+#                the newer copy, with all their data.
 # mac (live)     the previous published release updated from the LIVE feed and its real publisher key.
 # mac (gate)     with to_tag (a draft release holding the new Mac update ZIPs): the previous release updated
 #                to those exact ZIP bytes through a throwaway-key test feed, before anything is published.
@@ -29,6 +33,7 @@ on:
       - 'core/updater/**'
       - 'config/release/update_feed.json'
       - 'installer/build_update_payload.py'
+      - 'installer/bundle/build_linux_deb.py'
       - 'installer/bundle/linux/**'
       - 'ops/update_journey.py'
       - 'ops/update_preservation.py'
@@ -94,6 +99,23 @@ jobs:
           uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
             --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz" --feed "$RUNNER_TEMP/feed-payload-broken" \
             --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey-broken" --broken-update
+      - name: The .deb around each build
+        run: |
+          set -euo pipefail
+          python3 installer/bundle/build_linux_deb.py --package "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz"
+          python3 installer/bundle/build_linux_deb.py --package "$RUNNER_TEMP/new/vool-$NEW_VERSION-beta-linux-x86_64.tar.gz"
+          sudo apt-get update -q
+      - name: Journey - .deb from apt, opened from the menu, in-app update kept on the next open, apt remove keeps the person's copy and chats
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux-deb \
+            --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.deb" --feed "$RUNNER_TEMP/feed-payload" \
+            --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey-deb"
+      - name: Journey - .deb upgraded with apt, the next open from the menu sets up the newer copy, data kept
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux-deb \
+            --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.deb" \
+            --apt-upgrade "$RUNNER_TEMP/new/vool-$NEW_VERSION-beta-linux-x86_64.deb" \
+            --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey-deb-upgrade"
       - name: The release a person has now, and in gate mode the draft's exact Linux update ZIP
         env:
           GH_TOKEN: ${{ github.token }}
