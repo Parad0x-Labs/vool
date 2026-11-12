@@ -195,3 +195,46 @@ def test_the_lookup_itself_is_fenced_for_a_remote_turn(home: Path) -> None:
     result = _guessed_path_lookup("machine.read_file", {"path": "guest_list.txt"},
                                   workspace_root=Path.cwd(), source_context=dict(REMOTE))
     assert result is not None and not result.ok and GUEST_LIST not in result.response_text
+
+
+# The Mac find-before-read job's word-order cases (M-find-before-read, 0f50fb29): a guessed name whose
+# words sit in another order on disk is the same file; a typed `machine.find_file` keeps its plain test.
+@pytest.mark.parametrize(("intent", "guess", "on_disk"), (
+    ("machine.read_file", "~/Desktop/garden notes.txt", "notes-garden.txt"),
+    ("workspace.read_file", "list final guest.txt", "Guest_List_Final.txt"),
+    ("machine.read_file", "~/Documents/2027 roof budget.txt", "roof-budget-2027.txt"),
+))
+def test_a_guess_in_another_word_order_is_read(intent: str, guess: str, on_disk: str, home: Path) -> None:
+    (home / "Downloads" / on_disk).write_text("MARK-WORD-ORDER", encoding="utf-8")
+    execution = _run(intent, guess)
+    assert execution.ok, execution.response_text
+    assert "MARK-WORD-ORDER" in execution.response_text
+    assert f"I found `~/Downloads/{on_disk}` and read that" in execution.response_text
+
+
+def test_words_in_another_order_with_two_files_ask_which(home: Path) -> None:
+    for name in ("notes-quilt-spring.txt", "Quilt_Notes_Autumn.txt"):
+        (home / "Documents" / name).write_text(name, encoding="utf-8")
+    execution = _run("machine.read_file", "~/Desktop/quilt notes.txt")
+    assert execution.status == "ambiguous_path", execution.response_text
+    assert "- ~/Documents/notes-quilt-spring.txt" in execution.response_text
+    assert "- ~/Documents/Quilt_Notes_Autumn.txt" in execution.response_text
+
+
+def test_a_word_inside_another_word_is_not_a_match(home: Path) -> None:
+    (home / "Downloads" / "notes-gardening-tools.txt").write_text("x", encoding="utf-8")
+    (home / "Downloads" / "lagarden-notes.txt").write_text("y", encoding="utf-8")
+    execution = _run("machine.read_file", "~/Desktop/notes garden.txt")
+    assert execution.status == "ambiguous_path" or execution.ok, execution.response_text
+    assert "lagarden-notes.txt" not in execution.response_text
+
+
+def test_a_typed_find_keeps_its_plain_name_test(home: Path) -> None:
+    (home / "Downloads" / "notes-garden.txt").write_text("x", encoding="utf-8")
+    execution = execute_tool_intent(
+        {"intent": "machine.find_file", "arguments": {"name": "garden notes"}},
+        task_id="t-guess", session_id="s-guess",
+        source_context={**OWNER, "workspace": str(Path.cwd()), "workspace_root": str(Path.cwd())},
+        hive_activity_tracker=HiveActivityTracker(config=HiveActivityTrackerConfig(enabled=False, watcher_api_url=None)),
+    )
+    assert "notes-garden.txt" not in execution.response_text

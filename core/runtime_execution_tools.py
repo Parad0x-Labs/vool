@@ -1238,13 +1238,22 @@ def _squeezed_word_match(squeezed_needle: str, lowered_name: str) -> bool:
     return any("".join(words[index:]).startswith(squeezed_needle) for index in range(len(words)))
 
 
+def _all_words_in_name(needle_words: list[str], lowered_name: str) -> bool:
+    """Every word of ``"garden notes"`` starts a word of ``notes-garden.txt``, in any order."""
+    words = [word for word in re.split(r"[^0-9a-z]+", lowered_name) if word]
+    return all(any(word.startswith(wanted) for word in words) for wanted in needle_words)
+
+
 def _walk_safe_roots_for_files(
-    name: str, *, workspace_root: Path | None = None
+    name: str, *, workspace_root: Path | None = None, any_word_order: bool = False
 ) -> tuple[list[str], list[Any], int, bool] | None:
     """The `machine.find_file` walk: (matches, roots searched, folders scanned, timed out), or None
     when no safe root is readable. Shared with the read-only readers' guessed-path lookup, so a
-    reader looks a file up by exactly the rules a find does."""
+    reader looks a file up by exactly the rules a find does. ``any_word_order`` also takes a name
+    that carries every word of ``name`` in another order (a guessed "garden notes.txt" is the file
+    on disk as "notes-garden.txt"); the readers' lookup asks for it, a typed find does not."""
     needle = name.lower()
+    needle_words = [word for word in re.split(r"[^0-9a-z]+", needle) if word]
     # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
     squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
     roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
@@ -1298,7 +1307,7 @@ def _walk_safe_roots_for_files(
                         continue
                     if needle in lowered_name or (
                         len(squeezed_needle) >= 2 and _squeezed_word_match(squeezed_needle, lowered_name)
-                    ):
+                    ) or (any_word_order and len(needle_words) > 1 and _all_words_in_name(needle_words, lowered_name)):
                         if not _first_visit(entry.path):
                             continue
                         matches.append(entry.path)
@@ -3488,7 +3497,7 @@ def _guessed_path_lookup(
     words = " ".join(w for w in re.split(r"[^0-9A-Za-z]+", stem) if w)
     if not words:
         return None
-    walked = _walk_safe_roots_for_files(words, workspace_root=workspace_root)
+    walked = _walk_safe_roots_for_files(words, workspace_root=workspace_root, any_word_order=True)
     roots = list(walked[1]) if walked else [root for root in _safe_machine_roots()]
     found: list[Path] = []
     for match in (walked[0] if walked else []):
