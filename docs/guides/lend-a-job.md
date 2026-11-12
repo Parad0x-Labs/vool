@@ -1,7 +1,5 @@
 # Lend a job to a friend
 
-Planned for v0.7.6, not released yet.
-
 **Not reviewed yet. Use test files only.** Lending uses Drop, whose session
 protocol has not had an independent security review. Both switches start off.
 

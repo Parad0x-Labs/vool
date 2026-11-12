@@ -97,6 +97,7 @@ MACOS_ONLY_FILES = frozenset({
     "tests/lend/test_failures.py",
     "tests/lend/test_control.py",
     "tests/lend/test_browser.py",
+    "tests/lend/test_lend077_local_revoke.py",
 })
 
 #: CI installs ``.[dev,browser,companion,evm]``; these modules decide whether

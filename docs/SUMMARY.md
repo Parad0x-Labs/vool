@@ -26,7 +26,7 @@
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Contacts](guides/contacts.md)
-* [Lend a job (planned for 0.7.6)](guides/lend-a-job.md)
+* [Lend a job](guides/lend-a-job.md)
 
 ## Reference
 

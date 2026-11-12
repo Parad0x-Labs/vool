@@ -249,6 +249,7 @@ jobs:
               "tests/lend/test_failures.py",
               "tests/lend/test_control.py",
               "tests/lend/test_browser.py",
+              "tests/lend/test_lend077_local_revoke.py",
               "tests/test_macos_app_packaging.py",
               "tests/updater/test_e2e_sandbox.py",
               "tests/updater/test_boot_api_ui.py",
@@ -355,6 +356,7 @@ jobs:
           tests/lend/test_failures.py
           tests/lend/test_control.py
           tests/lend/test_browser.py
+          tests/lend/test_lend077_local_revoke.py
           tests/test_macos_app_packaging.py
           tests/updater/test_e2e_sandbox.py
           tests/updater/test_boot_api_ui.py
