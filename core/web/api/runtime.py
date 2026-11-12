@@ -3135,6 +3135,7 @@ def _memory_recall_response(
     # never the settings-derived identity answer.
     values: dict[str, str] = {}
     revoked_clauses: tuple[str, ...] = ()
+    forgotten_elsewhere: tuple[str, ...] = ()
     try:
         from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
         from core.vool_memory import VoolMemory
@@ -3156,7 +3157,12 @@ def _memory_recall_response(
                     revoked_clauses = revoked_memory_recall_clauses(
                         user_text, revoked_tokens=tokens
                     )
-            if not private_recall and not revoked_clauses:
+                if not revoked_clauses:
+                    forgotten_elsewhere = _forgotten_in_another_chat_clauses(
+                        user_text, chat_id=chat_id, runtime_home=runtime_home, memory=memory,
+                        this_chat_tokens=tokens,
+                    )
+            if not private_recall and not revoked_clauses and not forgotten_elsewhere:
                 return None
             values = _private_memory_values(
                 memory,
@@ -3167,7 +3173,7 @@ def _memory_recall_response(
             )
     except Exception:
         values = {}
-    if not private_recall and not revoked_clauses:
+    if not private_recall and not revoked_clauses and not forgotten_elsewhere:
         return None
     identity_response = None
     if identity.asks_user_identity:
@@ -3251,6 +3257,16 @@ def _memory_recall_response(
             "web_calls": 0,
             "_memory_recall_clauses": revoked_clauses,
         }
+    if forgotten_elsewhere:
+        return {
+            "response": FORGOTTEN_IN_ANOTHER_CHAT_REPLY,
+            "confidence": 0.95,
+            "source": "local_private_memory",
+            "route_reason": "completed_erasure_other_chat",
+            "model_calls": 0,
+            "web_calls": 0,
+            "_memory_recall_clauses": forgotten_elsewhere,
+        }
     if not any(values.values()):
         return None
     response = _format_private_memory_recall(values, user_text=user_text)
@@ -3262,6 +3278,63 @@ def _memory_recall_response(
         "source": "local_private_memory",
         "_memory_recall_clauses": answered_clauses,
     }
+
+
+#: NO RECORD = REFUSE after a forget, asked from another chat (Codex Oct 20 thread, 2026-11-12): after "Forget PL-7731"
+#: in one chat, "What do you remember about PL-7731?" in a second chat went to the model, because the revocations are
+#: read per chat and that question shape is left to the memory lanes, which hold nothing any more.
+FORGOTTEN_IN_ANOTHER_CHAT_REPLY = "I have no record of that; it was forgotten."
+
+#: How far back this chat's own record is read for the person saying the forgotten words again here.
+_OWN_RECORD_LOOKBACK_TURNS = 200
+
+
+def _forgotten_in_another_chat_clauses(
+    user_text: str, *, chat_id: str, runtime_home: str | None, memory: Any, this_chat_tokens: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Memory recall questions whose subject a completed forget in ANOTHER chat revoked, and that nothing holds again.
+
+    The forget law is per chat: in a new chat the person may tell VOOL the words again, and then this chat's own
+    record and any new saved entry are theirs. So a clause is claimed only when no saved entry carries the words
+    and the person never stated them in this chat (their own recall questions and forget commands are not
+    statements). Any doubt (an unreadable ledger, an erasure still running, an unreadable record) claims nothing
+    and leaves the turn to the lanes after this one."""
+    try:
+        from core.memory.carriers import carries
+        from core.memory.revocation import revoked_tokens
+        from core.memory_recall_intent import revoked_memory_recall_clauses
+        from core.persistent_memory import _FORGET_RE, _is_memory_recall_question
+
+        elsewhere = tuple(token for token in revoked_tokens(None, runtime_home, owner_memory=memory)
+                          if token not in set(this_chat_tokens))
+        if not elsewhere:
+            return ()
+        # Only the questions put to memory itself ("what do you remember about ...?", "do you have notes about
+        # ...?"): the other-chat search answers a plain question ("what is the harbor access code?") with its own
+        # no-record reply and never sends it to the model, but leaves these to the memory lanes.
+        claimed = tuple(clause for clause in revoked_memory_recall_clauses(user_text, revoked_tokens=elsewhere)
+                        if _is_memory_recall_question(clause))
+        if not claimed:
+            return ()
+        named = tuple(token for token in elsewhere if any(carries(clause, token) for clause in claimed)) or elsewhere
+        from core.memory.entries import list_memory_entries
+
+        saved = list_memory_entries(chat_id=chat_id, limit=100000)
+        if any(carries(str(row.get("text") or ""), token) for row in saved for token in named):
+            return ()
+        from storage.dialogue_memory import recent_dialogue_turns
+
+        asked = " ".join(str(user_text or "").split())
+        for turn in recent_dialogue_turns(chat_id, limit=_OWN_RECORD_LOOKBACK_TURNS, speaker_roles=("user",)):
+            said = " ".join(str(turn.get("raw_input") or turn.get("normalized_input") or "").split())
+            if not said or said == asked or _FORGET_RE.match(said):
+                continue
+            if any(carries(said, token) for token in named) and not revoked_memory_recall_clauses(
+                    said, revoked_tokens=named):
+                return ()
+        return claimed
+    except Exception:
+        return ()
 
 
 def _recent_user_texts(chat_id: str, *, limit: int = 4) -> tuple[str, ...]:
