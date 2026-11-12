@@ -8280,11 +8280,14 @@ def _run_command(
         error_text = without_local_paths(
             str(result.get("error") or f"Command could not run: {status}"), workspace_root=workspace_root
         )
+        # When the runner has words for the person (a computer that cannot run any command), the
+        # reply is those words; the engineering error stays in the details and the trace.
+        person_text = str(result.get("user_text") or "").strip()
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status=status,
-            response_text=error_text,
+            response_text=person_text or error_text,
             details={
                 **dict(result),
                 "error": error_text,

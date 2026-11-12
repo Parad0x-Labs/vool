@@ -67,6 +67,37 @@ class HardLinkedWritableRootError(ValueError):
     """
 
 
+def isolation_unavailable_for_person() -> str:
+    """What the person reads when no command can run on this computer: one plain sentence and the
+    one thing to do. The engineering detail (`JobRunner._no_kernel_isolation_message`) stays in the
+    tool's error and the turn trace.
+
+    App bugs 2026-11-12 (real app, Linux without bubblewrap): every command turn answered with a
+    paragraph about "OS-level filesystem confinement", bwrap, sandbox-exec, util-linux and
+    `network_isolation_mode`.
+    """
+    box = "VOOL runs each command inside a safety box"
+    if _is_windows_platform():
+        return (
+            f"I can't run commands on Windows yet: {box}, and Windows has none built in. "
+            "Running VOOL in WSL2 (Linux on Windows) lets commands run."
+        )
+    if sys.platform == "darwin":
+        return f"I can't run commands on this Mac right now: {box}, and the one macOS provides isn't working here."
+    if sys.platform.startswith("linux"):
+        if shutil.which("bwrap") is None:
+            return (
+                f"I can't run commands on this computer yet: {box}, and that needs bubblewrap, a small free "
+                "tool. Install it (on Ubuntu or Debian: sudo apt install bubblewrap), then ask again."
+            )
+        return (
+            f"I can't run commands on this computer yet: {box}, and this system stops bubblewrap, the "
+            "tool that builds it, from starting. The section \"Commands in chat on Linux\" in VOOL's "
+            "install guide has the one-time fix."
+        )
+    return f"I can't run commands on this computer: {box}, and this system has none VOOL can use."
+
+
 class KernelIsolationUnavailableError(ValueError):
     """No isolation backend on this host can actually enforce no-egress.
 

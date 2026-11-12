@@ -15,6 +15,7 @@ from sandbox.job_runner import (
     HardLinkedWritableRootError,
     JobRunner,
     KernelIsolationUnavailableError,
+    isolation_unavailable_for_person,
 )
 from sandbox.network_guard import command_uses_network, parse_command
 from sandbox.resource_limits import ExecutionPolicy, path_args_within_roots, path_within_roots
@@ -334,7 +335,12 @@ class SandboxRunner:
             # own status. "this host cannot isolate" is not "policy refused your command", and it is
             # certainly not "your command failed" -- which is what the operator used to be told, for
             # every command, on any host where the namespace syscall is denied.
-            return {"error": f"Sandbox isolation unavailable: {e!s}", "status": "sandbox_unavailable"}
+            return {
+                "error": f"Sandbox isolation unavailable: {e!s}",
+                "status": "sandbox_unavailable",
+                # The words the person reads; the error above stays for the trace.
+                "user_text": isolation_unavailable_for_person(),
+            }
         except ValueError as e:
             return {"error": f"Sandbox execution blocked: {e!s}", "status": "blocked_by_policy"}
         except OSError as e:
