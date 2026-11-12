@@ -194,7 +194,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
 #: Statements that depend on added columns: they run after ``_ensure_columns`` on every connection, so an upgraded
 #: database gains them in the same pass that gains the columns.
 POST_MIGRATION: tuple[str, ...] = (
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_proposals_message ON wallet_proposals(network, message_digest) WHERE message_digest <> ''",
+    # one claimed message, one proposal, on the message alone: its blockhash names the cluster, while a proposal keeps the
+    # spelling of its chain it was made with (an earlier per-spelling index, where present, is implied by this one)
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_proposals_message_digest ON wallet_proposals(message_digest) WHERE message_digest <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_profiles_creation_key ON wallet_profiles(network, creation_key) WHERE creation_key <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_quotes_open ON wallet_quotes(proposal_id) WHERE state = 'open'",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_profiles_agent ON wallet_profiles(agent_id, network) WHERE agent_id <> '' AND setup_state <> 'cancelled'",

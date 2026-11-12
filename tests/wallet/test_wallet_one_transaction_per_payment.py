@@ -314,6 +314,38 @@ def test_one_signer_registered_as_two_wallets_never_signs_one_transaction_for_bo
     assert _counted() == {first.proposal_id: (AMOUNT, "settled")}
 
 
+def test_two_spellings_of_one_chain_never_bind_one_transaction_twice(chain, short_wait):
+    """A proposal keeps the spelling of its chain it was made with: this wallet's Solana Devnet as its legacy name, and as
+    its CAIP-2 id (the form a 402 names it in). Two equal payments, one under each spelling, before the chain moved on,
+    are the same transaction: the second is refused as that transaction, never sent and counted as a second payment."""
+    from core.wallet import chains, lifecycle, proposals
+    from core.wallet.errors import WalletFault
+
+    wallet = _pocket()
+    caip2 = chains.resolve_network(wallet.network).network
+    assert wallet.network == DEVNET and caip2 != DEVNET
+    legacy = proposals.propose_transaction(wallet_id=wallet.wallet_id, destination=DESTINATION, amount_minor=AMOUNT, asset="SOL", origin=proposals.ORIGIN_USER,
+                                           idempotency_key="invoice-legacy-name")
+    named = proposals.propose_transaction(wallet_id=wallet.wallet_id, destination=DESTINATION, amount_minor=AMOUNT, asset="SOL", origin=proposals.ORIGIN_USER,
+                                          idempotency_key="invoice-caip2-id", network=caip2)
+    assert (legacy.network, named.network) == (DEVNET, caip2)
+    for proposal in (legacy, named):
+        assert lifecycle.default_lifecycle().prepare(proposal.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+
+    paid = _approve(legacy.proposal_id)
+    assert paid.state == proposals.STATE_CONFIRMED and chain.send_count() == 1
+    with pytest.raises(WalletFault) as refused:
+        _approve(named.proposal_id)
+    _same_transaction(refused.value, legacy.proposal_id)
+    assert proposals.get_proposal(named.proposal_id).state == proposals.STATE_PENDING_APPROVAL and chain.send_count() == 1
+    assert _counted() == {legacy.proposal_id: (AMOUNT, "settled")}
+
+    chain.advance_blockhash()
+    again = _approve(named.proposal_id)
+    assert again.state == proposals.STATE_CONFIRMED and again.tx_signature != paid.tx_signature
+    assert chain.distinct_transactions() == chain.send_count() == 2
+
+
 # --- the store an earlier release wrote -----------------------------------------------------------------------------
 
 def test_a_wallet_store_from_before_the_binding_gains_it_and_pays_a_proposal_it_already_held(chain):
@@ -327,7 +359,7 @@ def test_a_wallet_store_from_before_the_binding_gains_it_and_pays_a_proposal_it_
     waiting = _pending(_pocket().wallet_id, "before-the-upgrade")
     raw = _raw_conn()  # the wallet store as the previous release left it: no message_digest column, no index on it
     try:
-        raw.execute("DROP INDEX idx_wallet_proposals_message")
+        raw.execute("DROP INDEX idx_wallet_proposals_message_digest")
         raw.execute("ALTER TABLE wallet_proposals DROP COLUMN message_digest")
         raw.commit()
         assert "message_digest" not in {row[1] for row in raw.execute("PRAGMA table_info(wallet_proposals)").fetchall()}
@@ -338,7 +370,7 @@ def test_a_wallet_store_from_before_the_binding_gains_it_and_pays_a_proposal_it_
         columns = {row[1] for row in conn.execute("PRAGMA table_info(wallet_proposals)").fetchall()}
         unique = {row[1]: int(row[2]) for row in conn.execute("PRAGMA index_list(wallet_proposals)").fetchall()}
         kept = conn.execute("SELECT message_digest FROM wallet_proposals WHERE proposal_id = ?", (waiting.proposal_id,)).fetchone()[0]
-    assert "message_digest" in columns and unique.get("idx_wallet_proposals_message") == 1 and kept == ""
+    assert "message_digest" in columns and unique.get("idx_wallet_proposals_message_digest") == 1 and kept == ""
 
     assert _approve(waiting.proposal_id).state == proposals.STATE_CONFIRMED and chain.send_count() == 1
     with connection() as conn:

@@ -166,7 +166,7 @@ _CONFIRM_POLL_SECONDS = 0.25
 #: A wallet-built Solana message is a pure function of the payer, the payee, the amount and the recent blockhash. Two
 #: payments that agree on all four are byte-identical: signed by one key they are ONE transaction, which the chain runs
 #: once, while both proposals would read as paid and both would count against the limits. No proposal claims a message
-#: another proposal claimed (the unique index on wallet_proposals(network, message_digest)); the claim reads the chain
+#: another proposal claimed (the unique index on wallet_proposals(message_digest)); the claim reads the chain
 #: again until its next blockhash makes this payment distinct, for at most this long, then refuses with nothing held.
 REASON_SAME_TRANSACTION = "transaction_matches_another_payment"
 _DISTINCT_MESSAGE_BUDGET_SECONDS = 4.0
