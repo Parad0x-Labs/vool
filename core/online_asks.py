@@ -7,7 +7,9 @@ One reading for every door that has to agree on it:
 * the tool-demand authority seats web.search for it (`core.tool_demand_signals`): with Web lookups on
   the model can look it up, and with them off the front door says so before any model call (and the
   entity check, which skips a turn any tool family is seated for, never asks it back);
-* the reasoning lane's web-off note reads it too (`turn_reasoning._asks_about_something_that_changes`).
+* the reasoning lane's web-off note reads it too (`turn_reasoning._asks_about_something_that_changes`);
+* the local file lane never searches this computer for one (`machine_present_file_intent`): "find the
+  cheapest flights to oslo next week" is not a file named "cheapest flights".
 
 Measured on the v0.8 line, desktop, Web lookups off (red team round 3, R3-08, 2026-11-12): "is the
 warsaw zoo open on mondays in winter?" was answered "typically open on Mondays during winter", "whats
@@ -28,9 +30,11 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-# The person's own bookings, payments, files and records.
+# The person's own bookings, payments, files and records, and a reminder they ask for ("remind me to
+# call the bank when it opens tomorrow" sets a reminder; "remind me what time the louvre closes" asks).
 _OWNER_RE = re.compile(
     r"\b(?:my|our|mine|ours)\b"
+    r"|\bremind\s+(?:me|us)\b(?!\s+(?:what|how|where|who|which|whether|if)\b)"
     r"|\b(?:i|we)\s+(?:paid|booked|bought|saved|have|had|got|ordered|spent|keep|kept|wrote|noted|told|said|"
     r"mentioned|put|stored|owe|need|asked|talked|discussed|spoke|chatted|decided|agreed|planned)\b"
     r"|\byou\s+(?:said|told|mentioned|wrote|suggested|found|showed)\b"
@@ -49,16 +53,23 @@ _FROM_RECORDS_RE = re.compile(
 _LOCAL_THING_RE = re.compile(
     r"\b(?:files?|folders?|pdfs?|docs?|documents?|downloads?|desktop|screenshots?|photos?|pictures?|images?|"
     r"(?<!release\s)(?<!patch\s)notes|notebooks?|journal|diary|e-?mails?|mail|inbox|messages?|texts?|chats?|"
-    r"conversations?|invoices?|"
+    r"conversations?|invoices?|spreadsheets?|csvs?|xlsx|xls|txt|presentations?|attachments?|"
     r"receipts?|statements?|backups?|commits?|branch(?:es)?|builds?|logs?|tabs?|windows?|apps?|ports?|"
     r"processes|disk|drive|repo(?:sitory)?|reminders?|calendar|to-?dos?|records|"
     r"this\s+(?:computer|mac|laptop|machine|chat|project|folder))\b",
     re.IGNORECASE,
 )
 
-# Fresh information: what is new, latest or current.
+# Fresh information: what is new, latest or current. "Latest" alone is not enough: it has to be
+# the latest of something the world publishes (news, a version, a release, a score) or "the latest
+# on" a subject. "Explain why a stack removes its newest item first" is a question about stacks
+# (measured 2026-11-12: it seated a web search next to a reminder and the reminder turn failed).
 _FRESH_RE = re.compile(
-    r"\b(?:latest|newest|most\s+recent)\b"
+    r"\b(?:latest|newest|most\s+recent)\s+(?:[\w'’.-]+\s+){0,3}?"
+    r"(?:news|headlines?|versions?|releases?|updates?|patch(?:es)?|firmware|models?|episodes?|seasons?|"
+    r"albums?|singles?|trailers?|scores?|standings|rankings?|polls?|forecasts?|prices?|rates?|figures|"
+    r"statistics|developments|guidance|regulations|apis?|sdks?|frameworks?)\b"
+    r"|\b(?:the\s+)?latest\s+(?:on|about|from|regarding|with)\b"
     r"|\bnews\s+(?:on|about|from|regarding|of|for|in)\b|\bany\s+news\b"
     r"|\bwhat'?s\s+new\s+(?:in|with|on|at|from)\b"
     r"|\bcurrent\s+(?:version|release|status|price|prices|rate|rates|record|population)\s+(?:of|for)\b",
@@ -75,6 +86,7 @@ _OPENING_RE = re.compile(
     r"\b(?:opening|closing|business|visiting)\s+(?:hours|times|time)\b"
     r"|\b(?:when|what\s+time)\s+(?:does|do|is|are|will)\s+(?:the\s+)?(?:[\w'’.-]+\s+){0,5}?"
     r"(?:open|opens|close|closes|shut|shuts)\b"
+    r"|\b(?:when|what\s+time)\s+(?:the\s+)?(?:[\w'’.-]+\s+){0,5}?(?:opens|closes|shuts)\b"
     r"|\b(?:is|are|will)\s+(?:the\s+)?(?:[\w'’.-]+\s+){0,5}?(?:be\s+)?(?:open|closed)\b"
     r"|\b(?:open|closed)\s+(?:on|today|tonight|tomorrow|now|until|till|late|during|over)\b",
     re.IGNORECASE,

@@ -51,6 +51,10 @@ NEW_WORDINGS = (
     "what's the latest version of python?",
     "release notes for firefox 140",
     "what's new in ios 26?",
+    "what's the latest on the rail strike in france?",
+    "look up when the ikea in krakow opens tomorrow",
+    "find the cheapest flights to oslo next week",
+    "remind me what time the louvre closes today",
 )
 NOT_ONLINE = (
     "when is my flight to Lisbon?",
@@ -74,6 +78,18 @@ NOT_ONLINE = (
     "An example request would be: how much is a ticket to the vatican museums?",
     "Summarize the following:\nField log, week 41. The weather today was dry, the latest news from the council: "
     "the permit is still pending.",
+    # "Latest" of something nobody publishes (measured 2026-11-12: the stack question seated a web
+    # search beside a reminder and the reminder turn failed).
+    "Remind me to review the orchard inventory in 60 seconds. Separately, explain why a stack removes its "
+    "newest item first.",
+    "what's the newest item in the queue?",
+    "show me the latest test results",
+    'Traceback (most recent call last):\n  File "app.py", line 3, in <module>',
+    # A reminder the person sets, and a file with prices in its name.
+    "remind me to call the bank when it opens tomorrow",
+    "remind me tomorrow at 9 to check if the post office is open",
+    "open the ticket prices spreadsheet",
+    "pull up the flight prices csv",
 )
 
 ON = {route.FLAG_ENV: "1"}
@@ -161,3 +177,71 @@ def test_the_clock_does_not_answer_when_something_closes_or_leaves(text):
 
     assert date_time_fast_path(None, text, source_surface="api") is None
     assert "Current time in Paris" in str(date_time_fast_path(None, "what time is it in paris", source_surface="api"))
+
+
+# The local file lane read "open" as "open a file" and the words after it as a file's name: "is the
+# post office open tomorrow?" was answered with a disk search for a file named "tomorrow" (measured
+# 2026-11-12 on the newest candidate, 28fc78dd, Web lookups off; on a Mac the reply is "I couldn't find
+# a file matching 'tomorrow'"), and "find the cheapest flights to oslo next week" with a search for a
+# file named "cheapest flights".
+OPEN_SAID_OF_A_PLACE = (
+    "is the post office open tomorrow?",
+    "is the bank open tomorrow?",
+    "is the library open tomorrow morning?",
+    "when does the bank open tomorrow?",
+    "will the museum open tomorrow after the strike?",
+    "are the shops open today in krakow?",
+    "what's open late tonight near the main station in krakow?",
+    "is the ikea in krakow open now?",
+    "does the pool open tomorrow at 7?",
+    "can you check if the post office is open tomorrow",
+)
+FOUND_ON_THE_WEB = (
+    "find the cheapest flights to oslo next week",
+    "pull up the current price of a eurostar ticket to paris",
+)
+FILES_TO_OPEN = (
+    ("open the plumber invoice", ("", ("plumber", "invoice"), "")),
+    ("can you open the bank csv", ("csv", ("bank",), "")),
+    ("could you please open my tax return pdf", ("pdf", ("tax", "return"), "")),
+    ("is there a way to open the plumber invoice?", ("", ("plumber", "invoice"), "")),
+    ("let's open the plumber invoice", ("", ("plumber", "invoice"), "")),
+    ("would you open the school play video", ("video", ("school", "play"), "")),
+    ("open the open day flyer", ("", ("open", "day", "flyer"), "")),
+    ("pull up the flight prices csv", ("csv", ("flight", "prices"), "")),
+    ("open the ticket prices spreadsheet", ("", ("ticket", "prices", "spreadsheet"), "")),
+    ("show me the late fee invoice", ("", ("late", "fee", "invoice"), "")),
+)
+
+
+@pytest.mark.parametrize("text", [*OPEN_SAID_OF_A_PLACE, *FOUND_ON_THE_WEB, "add a reminder: pharmacy is open tomorrow until 8"])
+def test_open_said_of_a_place_or_a_fact_on_the_web_is_not_a_file_to_open(text):
+    from core.execution.constants import machine_present_file_intent
+
+    assert machine_present_file_intent(text) is None
+
+
+@pytest.mark.parametrize(("text", "expected"), FILES_TO_OPEN)
+def test_a_file_the_person_asks_to_open_is_still_looked_up_by_its_name(text, expected):
+    from core.execution.constants import machine_present_file_intent
+
+    ask = machine_present_file_intent(text)
+    assert ask is not None
+    assert (str(ask.kind), tuple(ask.words), str(ask.place)) == expected
+    assert asks_for_online_facts(text) is False
+
+
+@pytest.mark.parametrize("text", [*OPEN_SAID_OF_A_PLACE[:5], *FOUND_ON_THE_WEB])
+def test_with_web_lookups_off_open_said_of_a_place_names_the_switch_not_a_file(text):
+    result = _turn(text, "openclaw:8234567890abcdef0003")
+    response = str(result.get("response") or "").lower()
+    assert "web lookups are off" in response and "settings" in response, response
+    assert "local folders" not in response and "find a file" not in response, response
+    assert (result.get("model_execution") or {}).get("source") == "fast_path", result
+
+
+@pytest.mark.parametrize("text", ["remind me to call the bank when it opens tomorrow",
+                                  "remind me tomorrow at 9 to check if the post office is open"])
+def test_a_reminder_about_a_place_is_not_refused_as_an_online_ask(text):
+    result = _turn(text, "openclaw:8234567890abcdef0004")
+    assert "web lookups are off, so i can't look this up" not in str(result.get("response") or "").lower(), result

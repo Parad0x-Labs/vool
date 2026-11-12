@@ -1423,6 +1423,51 @@ _PRESENT_FAULT_WORDS = frozenset({
     "out", "why", "fix", "solution", "answer",
 })
 
+# "Is the post office open tomorrow?", "when does the bank open on monday?", "what's open late
+# tonight?": "open" said OF a place, with the place in front of the word and the time after it.
+# Measured 2026-11-12 on the v0.8 candidate (red team R3-08 rerun, Web lookups off): "is the post
+# office open tomorrow?" was answered with a disk search for a file named "tomorrow". A file is
+# opened BY the person or by VOOL ("open the plumber invoice", "can you open the bank csv", "is
+# there a way to open it"), so an "open" whose subject is anything else is not this lane's cue.
+_OPEN_AUXILIARY_RE = re.compile(
+    r"\b(?:is|are|was|were|isn't|aren't|wasn't|weren't|be|been|being|stay|stays|stayed|remain|remains|remained|"
+    r"do|does|did|don't|doesn't|didn't|will|won't|would|wouldn't|can|can't|could|couldn't|should|shall|might|"
+    r"may|must)(?![\w'’])",
+    re.IGNORECASE,
+)
+_OPEN_COPULAS = frozenset({
+    "is", "are", "was", "were", "isn't", "aren't", "wasn't", "weren't", "be", "been", "being",
+    "stay", "stays", "stayed", "remain", "remains", "remained",
+})
+# "what's open", "the bank's open", "they're open" -- but "let's open the invoice" is the person's.
+_OPEN_CONTRACTED_COPULA_RE = re.compile(
+    r"(?:(?<!\blet)['’](?:s|re)|\b(?:whats|thats|wheres|everythings|theyre))\s*$", re.IGNORECASE
+)
+# Words that make the person or VOOL the one opening, or put "open" in a request of its own.
+_OPENER_WORDS = frozenset({
+    "you", "u", "ya", "yourself", "i", "we", "me", "us", "vool", "to", "please", "pls", "if", "and", "then", "so",
+})
+
+
+def _open_is_said_of_something_else(before: str) -> bool:
+    """Whether the "open" right after ``before`` is said of a place or thing, not done to a file.
+
+    The nearest auxiliary in the clause decides: "is the post office open", "when does the bank
+    open" and "will the museum open" put another subject between it and "open"; "can you open",
+    "is there a way to open" and "you can open" leave the opening to the person or VOOL.
+    """
+    clause = re.split(r"[.?!;,:]", before)[-1]
+    if _OPEN_CONTRACTED_COPULA_RE.search(clause):
+        return True
+    auxiliaries = list(_OPEN_AUXILIARY_RE.finditer(clause))
+    if not auxiliaries:
+        return False
+    nearest = auxiliaries[-1]
+    between = [word.strip("'\"’").lower() for word in clause[nearest.end():].split()]
+    if not between:
+        return nearest.group(0).lower() in _OPEN_COPULAS  # "the bank is open", never "you can open"
+    return not any(word in _OPENER_WORDS for word in between)
+
 
 class PresentFileAsk(NamedTuple):
     """A file asked for by the words of its name: "pull up the plumber invoice"."""
@@ -1438,12 +1483,26 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     The object is 1-4 words the file's name holds, with an optional kind word ("the bank csv")
     and an optional trailing place ("in my downloads"). Another action on the file in the rest of
     the sentence (send, read, delete...), a mutating verb, an app or site instead of a file, or a
-    folder noun all stand down -- those keep their own lanes.
+    folder noun all stand down -- those keep their own lanes. So does "open" said of a place ("is
+    the post office open tomorrow?"), and a public fact that changes ("find the cheapest flights to
+    oslo next week"): that is the web's to answer (`core.online_asks`, the one reading the clean
+    loop, the web seating and the web-off note share), never a disk search for "cheapest flights".
     """
     raw = " ".join(str(text or "").split())
     if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()) or _FILE_NOT_THIS_DISK_RE.search(raw):
         return None
-    match = _PRESENT_FILE_CUE_RE.search(raw)
+    from core.online_asks import asks_for_online_facts
+
+    if asks_for_online_facts(raw):
+        return None
+    match = next(
+        (
+            found
+            for found in _PRESENT_FILE_CUE_RE.finditer(raw)
+            if found.group("cue").lower() != "open" or not _open_is_said_of_something_else(raw[: found.start()])
+        ),
+        None,
+    )
     if match is None:
         return None
     kept: list[str] = []
