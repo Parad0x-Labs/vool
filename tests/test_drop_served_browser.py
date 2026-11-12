@@ -258,6 +258,38 @@ def test_junk_in_the_shared_folder_never_fails_a_delete_or_hides_memory(homes):
     assert all(path.exists() for path in left)
 
 
+def test_a_stuck_drop_folder_fails_the_delete_but_never_hides_other_memory(homes):
+    import secrets
+
+    from core.context_namespace import ensure_chat_namespace
+    from core.memory import entries
+
+    app, a, b, relay = homes
+    sid = connect(homes)
+    assert send(homes, sid)[0] == 200
+    ok(app, b, "poll")
+    fact = "The boiler service is booked for Tuesday, reference " + secrets.token_hex(4)
+    _remember(b, fact)
+    drop_fact = "The parcel from the Drop holds sample " + secrets.token_hex(4)
+    runtime_paths.configure_runtime_home(b)
+    ensure_chat_namespace(sid, grant_current_receipts=False)
+    assert entries.add_memory_fact(drop_fact, session_id=sid,
+                                   access_policy=entries.resolve_memory_access_policy(chat_id=sid))
+    listed = _memory_listing(app, b)
+    assert fact in listed and drop_fact in listed
+    stuck = b / "drop" / sid / "unexpected-directory"
+    stuck.mkdir()  # a real local cleanup failure
+    assert call(app, b, "delete", sid=sid) == (409, {"ok": False, "error": "DROP_FORGET_INCOMPLETE"})
+    listed = _memory_listing(app, b)
+    assert fact in listed and drop_fact not in listed
+    assert call(app, b, "show", sid=sid)[1]["error"] == "DROP_REVOKED"
+    assert [d["status"] for d in ok(app, b, "list")["drops"]] == ["incomplete"]
+    stuck.rmdir()
+    assert ok(app, b, "delete", sid=sid)["state"] == "deleted"
+    listed = _memory_listing(app, b)
+    assert fact in listed and drop_fact not in listed
+
+
 @pytest.fixture
 def pages(homes, monkeypatch):
     from urllib.parse import parse_qs, urlsplit

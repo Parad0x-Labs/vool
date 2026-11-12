@@ -555,8 +555,9 @@ def test_a_deleted_note_does_not_linger_in_the_database_journals(pair, tmp_path)
 
 
 def test_other_drops_wait_while_one_deletion_is_unfinished(tmp_path, monkeypatch):
-    """A pending forget barrier withholds every Drop in the home. Frames that arrive for the
-    other Drops meanwhile wait in the folder; they used to be consumed and lost."""
+    """A memory store that cannot finish its own forget keeps the home-wide barrier, which
+    withholds every Drop in the home. Frames that arrive for the other Drops meanwhile wait in
+    the folder; they used to be consumed and lost."""
     monkeypatch.setenv("VOOL_DROP", "1")
     relay = tmp_path / "relay"
     LocalRelay(relay, create=True)
@@ -564,9 +565,9 @@ def test_other_drops_wait_while_one_deletion_is_unfinished(tmp_path, monkeypatch
         stuck_sid = b.join(a.invite(b.fingerprint), a.fingerprint)
         other = b.join(a.invite(b.fingerprint), a.fingerprint)
         assert a.poll() == ["received", "received"]
-        stuck = b.root / stuck_sid / "unexpected-directory"
-        stuck.parent.mkdir(mode=0o700, exist_ok=True)
-        stuck.mkdir()  # a real cleanup failure, no mocked exception
+        summaries = b.home / "data" / "session_summaries.jsonl"
+        summaries.unlink()
+        summaries.mkdir()  # a memory store that really cannot be rewritten, no mocked exception
         with pytest.raises(DropError, match="DROP_FORGET_INCOMPLETE"):
             b.delete(stuck_sid)
         selected = tmp_path / "f.bin"
@@ -575,7 +576,46 @@ def test_other_drops_wait_while_one_deletion_is_unfinished(tmp_path, monkeypatch
         outcomes = b.poll()
         assert "rejected" not in outcomes and set(outcomes) == {"held"}
         assert len(a.relay.messages(b.fingerprint)) == 2
-        stuck.rmdir()
+        summaries.rmdir()
+        summaries.write_text("")
         b.delete(stuck_sid)  # the owner tries again; the barrier lifts
         assert b.poll() == ["received", "received"]
         assert b.show(other)["note"] == "for the other Drop" and b.show(other)["status"] == "ready"
+
+
+def test_a_stuck_drop_folder_hides_only_that_drop(pair, tmp_path):
+    """The memory part of a delete finishes first, so a Drop folder that cannot be cleaned
+    leaves that Drop 'incomplete' and never served, while every other chat's memory keeps
+    serving. Pressing Delete again finishes the Drop's own cleanup."""
+    import secrets
+
+    from core.drop.session import fresh_id
+
+    a, b, sid, _ = pair
+    selected = tmp_path / "selected.txt"
+    selected.write_text("Scoped file.")
+    marker = secrets.token_hex(6)
+    a.send_packet(sid, marker, selected)
+    b.poll()
+    drop_refs = seed_real_derivatives(b, sid, marker)
+    other_chat, other_marker = fresh_id(), secrets.token_hex(6)
+    other_refs = seed_real_derivatives(b, other_chat, other_marker)
+    families = ("entries", "node", "semantic", "source", "summary", "session_summaries", "logs", "receipts")
+    before = real_readers(b, other_chat, other_refs)
+    assert all(other_marker in str(before[family]) for family in families)
+    stuck = b.root / sid / "unexpected-directory"
+    stuck.mkdir()  # a real cleanup failure, no mocked exception
+    with pytest.raises(DropError, match="DROP_FORGET_INCOMPLETE"):
+        b.delete(sid)
+    assert b._row(sid)["status"] == "incomplete"
+    with b.scope(), pytest.raises(DropError, match="DROP_REVOKED"):
+        b._live(sid)
+    assert marker not in str(real_readers(b, sid, drop_refs))
+    after = real_readers(b, other_chat, other_refs)
+    assert [family for family in families if other_marker not in str(after[family])] == []
+    stuck.rmdir()
+    b.delete(sid)
+    assert b._row(sid)["status"] == "deleted"
+    assert not (b.root / sid).exists()
+    assert marker not in str(real_readers(b, sid, drop_refs))
+    assert other_marker in str(real_readers(b, other_chat, other_refs)["entries"])

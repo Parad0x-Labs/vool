@@ -285,6 +285,7 @@ class DropHome:
             CREATE TABLE IF NOT EXISTS invites (
                 token TEXT PRIMARY KEY, prekey TEXT NOT NULL UNIQUE, peer TEXT NOT NULL,
                 expires INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS memory_erased (sid TEXT PRIMARY KEY);
         """)
         self.db.commit()
         os.chmod(self.root / "drops.db", 0o600)
@@ -788,27 +789,17 @@ class DropHome:
                 raise
 
     def _forget(self, sid, state):
-        from core.context_retrieval import forget_session_memory
-        from core.memory import entries, revocation
-        from core.vool_memory import VoolMemory
-
         row = self._row(sid)
         if row["status"] in {"deleted", "expired"}:
             return
-        # Publish before *any* destructive action. Even an incomplete file/DB
-        # sweep must make old memory/receipt copies stop serving immediately.
-        # Existing semantic rows use hashed scope ids while other stores use
-        # raw ids. A home-wide fence covers both representations immediately.
-        # In this isolated lab, incomplete cleanup withholds the whole home;
-        # the completed token revokes only carriers containing this Drop id.
-        operation = revocation.begin("", sid, self.home)
-        memory = VoolMemory(runtime_home=self.home)
-        owner_operation = memory.begin_erasure(sid, sid)
+        # Memory first, then the Drop's own state. A retry after the memory part
+        # finished goes straight to the Drop's own cleanup.
+        if self.db.execute("SELECT 1 FROM memory_erased WHERE sid=?", (sid,)).fetchone() is None:
+            self._erase_memory(sid)
         try:
-            self.db.execute(
-                "UPDATE drops SET status='incomplete',note='',manifest='',task='',result='',task_id='',task_state='' WHERE sid=?",
-                (sid,))
-            self.db.commit()
+            # The Drop's own state: session keys and inbox, received files, queued
+            # frames. If this cannot finish, the Drop stays 'incomplete' (never served,
+            # Delete offered again) and the rest of the home's memory keeps serving.
             self.client.forget_session(sid)
             folder = self.root / sid
             if folder.exists():
@@ -834,6 +825,41 @@ class DropHome:
                     if _names_drop(path, sid):
                         with contextlib.suppress(OSError):
                             path.unlink()
+            self.db.execute("UPDATE drops SET status=? WHERE sid=?", (state, sid))
+            self.db.commit()
+            # Both databases run in WAL mode: the erased note, task, inbox copy and session
+            # state stay readable in their -wal files until a checkpoint. Empty them now.
+            with contextlib.suppress(sqlite3.Error, DropError):
+                self.client.checkpoint()
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        except Exception as exc:
+            # Not a successful deletion: the Drop stays 'incomplete' and is never served.
+            raise DropError("DROP_FORGET_INCOMPLETE") from exc
+
+    def _erase_memory(self, sid):
+        from core.context_retrieval import forget_session_memory
+        from core.memory import entries, revocation
+        from core.vool_memory import VoolMemory
+
+        # Publish before *any* destructive action. Even an incomplete file/DB
+        # sweep must make old memory/receipt copies stop serving immediately.
+        # Existing semantic rows use hashed scope ids while other stores use
+        # raw ids, and some readers check the reader's chat rather than the
+        # row's origin, so only a home-wide fence covers every representation.
+        # The fence is kept short instead: it ends as soon as every memory store
+        # is erased, before the Drop's own cleanup. The completed token keeps
+        # withholding anything that still names this Drop.
+        operation = revocation.begin("", sid, self.home)
+        memory = VoolMemory(runtime_home=self.home)
+        owner_operation = memory.begin_erasure(sid, sid)
+        try:
+            self.db.execute(
+                "UPDATE drops SET status='incomplete',note='',manifest='',task='',result='',task_id='',task_state='' WHERE sid=?",
+                (sid,))
+            self.db.commit()
+            # A memory store that cannot finish its own forget keeps the home-wide
+            # fence pending until Delete succeeds: nothing can tell which stored
+            # copies still carry this Drop's words.
             status = {}
             forget_session_memory(sid, sid, source_context={"runtime_home": str(self.home), "chat_id": sid},
                                   store_status=status)
@@ -847,13 +873,8 @@ class DropHome:
             memory.record_revocation(sid, chat_id=sid)
             memory.complete_erasure(owner_operation)
             revocation.complete(operation, self.home)
-            self.db.execute("UPDATE drops SET status=? WHERE sid=?", (state, sid))
+            self.db.execute("INSERT OR IGNORE INTO memory_erased(sid) VALUES(?)", (sid,))
             self.db.commit()
-            # Both databases run in WAL mode: the erased note, task, inbox copy and session
-            # state stay readable in their -wal files until a checkpoint. Empty them now.
-            with contextlib.suppress(sqlite3.Error, DropError):
-                self.client.checkpoint()
-                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
         except Exception as exc:
             # Keep both independently persisted barriers pending. Do not call
             # cleanup failure a successful deletion or re-enable a reader.
