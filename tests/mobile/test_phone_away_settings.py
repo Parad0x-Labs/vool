@@ -58,6 +58,11 @@ def test_away_switch_in_chromium_puts_the_address_in_the_pairing_code(desktop, t
             assert away.HIDDEN_HOST.fullmatch(address) and tor.running
             status, pairing = http(base, "/api/mobile/pairing/start", {})
             assert status == 200 and pairing["qr_uri"].endswith("&away=" + address)
+            # The pairing page draws its own code: that one must carry the away address too.
+            import urllib.request
+            with urllib.request.urlopen(base + pairing["pairing_page"], timeout=10) as reply:
+                drawn = reply.read().decode()
+            assert '"away": "' + address + '"' in drawn and '"&away=" + payload.away' in drawn
             shots = Path(os.environ.get("VOOL_PHONE_SHOTS_DIR") or tmp_path)
             shots.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(shots / "phone-settings-away-on.png"), full_page=True)

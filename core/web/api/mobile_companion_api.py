@@ -1870,7 +1870,8 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   if (payload.status === "missing") return;
   var uri = "vool-pair://" + (payload.companion_host || window.location.host)
     + "?fp=" + payload.fp + "&pid=" + payload.pid
-    + "&code=" + payload.code + "&exp=" + payload.exp;
+    + "&code=" + payload.code + "&exp=" + payload.exp
+    + (/^[a-z2-7]{56}[.]onion$/.test(payload.away || "") ? "&away=" + payload.away : "");
   var qr = qrcode(0, "M");
   qr.addData(uri);
   qr.make();
@@ -1991,7 +1992,14 @@ def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runti
             "exp": int(float(session.get("expires_at_epoch") or 0)),
             "status": str(session.get("status") or "waiting"),
             "companion_host": str(session.get("companion_host") or ""),
+            "away": "",
         }
+        # The code drawn on this page carries the away address too, as the one from pairing/start does.
+        from core.mobile_companion.listener import listener_for
+
+        away = listener_for(runtime).away
+        if away is not None and re.fullmatch(r"[a-z2-7]{56}\.onion", away.host or ""):
+            payload["away"] = away.host
         return _html_pairing_page(payload)
 
     if path == "/api/mobile/receipts":
