@@ -125,7 +125,22 @@ def database_catalog_block(max_chars: int = 1800) -> str:
                     "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name"
                 ).fetchall()[:20]:
                     columns = [row[1] for row in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
-                    tables.append("%s(%s)" % (table, ", ".join(columns[:30])))
+                    flags = []
+                    for column in columns[:30]:
+                        if column.lower() == "id" or column.lower().endswith("_id"):
+                            continue
+                        try:
+                            seen = [
+                                r[0]
+                                for r in conn.execute(
+                                    'select distinct "%s" from "%s" limit 4' % (column.replace('"', ""), table.replace('"', ""))
+                                )
+                            ]
+                        except Exception:
+                            continue
+                        if 0 < len(seen) <= 3 and all(isinstance(v, int) for v in seen):
+                            flags.append("%s in {%s}" % (column, ",".join(str(v) for v in sorted(seen))))
+                    tables.append("%s(%s)%s" % (table, ", ".join(columns[:30]), (" [values: " + "; ".join(flags) + "]") if flags else ""))
                     shapes[table] = columns
                 for table, columns in shapes.items():
                     for column in columns:

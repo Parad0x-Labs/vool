@@ -333,6 +333,29 @@ from core.tool_use_retry import TOOL_USE_RETRY_KEY, needed_tool_intents, tool_us
 
 _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
 
+_DATABASE_NO_ANSWER_RE = re.compile(
+    r"(?:\bdon'?t have access\b|\bdo not have access\b|\bnot (?:mentioned|specified|provided|stated)\b|\bdoes not (?:mention|include|specify)\b|"
+    r"\bplease (?:provide|clarify|specify)\b|\bcould you (?:please )?(?:clarify|specify|provide)\b|\bunclear\b|"
+    r"\bcannot determine\b|\bcan'?t determine\b|\bno (?:information|data|record)s? (?:about|on|of)\b)",
+    re.IGNORECASE,
+)
+
+
+def _is_database_no_answer(text: str) -> bool:
+    """A reply that gives up or asks what is meant instead of answering."""
+    return bool(_DATABASE_NO_ANSWER_RE.search(str(text or "")))
+
+
+def _database_work_turn(text: str, source_context: dict[str, Any] | None) -> bool:
+    """The turn asks for database work, or sits in a chat where the database is at work. Never raises."""
+    try:
+        from core.database_work_state import active_database_work_intents
+        from core.tool_demand_signals import asks_for_database_work
+
+        return bool(asks_for_database_work(str(text or "")) or active_database_work_intents(source_context))
+    except Exception:
+        return False
+
 
 def _completes_turn(intent: str) -> bool:
     """Whether a successful call of this tool is the whole answer (contract `completes_turn`)."""
@@ -1697,6 +1720,7 @@ class ResearchToolLoopFacadeMixin:
         code_completion_corrections = 0
         # One retry per turn for a needs-a-tool ask the model answered in prose (see below).
         tool_use_retry_spent = False
+        database_no_tool_corrections = 0
         # Per-turn tool candidate fingerprint.  Reset each turn so a fresh
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
@@ -1919,6 +1943,39 @@ class ResearchToolLoopFacadeMixin:
                             )
                             continue
                     direct_message = self._tool_intent_direct_message(tool_decision.structured_output)
+                    if (
+                        selected_response
+                        and direct_message is not None
+                        and database_no_tool_corrections < 1
+                        and _is_database_no_answer(direct_message)
+                        and not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
+                        and _database_work_turn(effective_input, loop_source_context)
+                    ):
+                        # Run 16d: "list the members, newest first" / "has Tomas given everything back" were
+                        # answered "I don't have access ..." with the database tools in hand and no call made.
+                        # One nudge, then the model's reply stands.
+                        database_no_tool_corrections += 1
+                        executed_steps.append(
+                            {
+                                "tool_name": "respond.direct",
+                                "correction": True,
+                                "ok": False,
+                                "status": "database_not_consulted",
+                                "observation": (
+                                    "You answered without looking. The person's own database is available: call "
+                                    "vool-database.query (or vool-database.schema first) using the exact table and column "
+                                    "names you were given, then answer from the rows. Do not say you have no access."
+                                ),
+                            }
+                        )
+                        self._emit_runtime_event(
+                            loop_source_context,
+                            event_type="database_not_consulted",
+                            message="A database question was answered without a database call; asking the model to look.",
+                            status="database_not_consulted",
+                            step_count=len(executed_steps),
+                        )
+                        continue
                     if direct_message is not None:
                         # K-05 MODEL-PROSE-NOT-EVIDENCE: a bound obligation set
                         # with pending machine-effect intents blocks prose

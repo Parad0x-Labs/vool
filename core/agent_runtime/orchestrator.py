@@ -289,6 +289,37 @@ def _command_observation_message(executed_steps: list[dict[str, Any]]) -> str:
     return "\n\n".join(lines)
 
 
+def _database_observation_message(executed_steps: list[dict[str, Any]]) -> str:
+    """The rows a database query returned, rendered from the tool's own observation, when no model wrote the answer.
+
+    Measured 2026-11-12 (Database run 16d, qwen3:8b): the query ran and returned the person's loans, the
+    synthesis round failed, and the person got "1 of 3 tool steps succeeded. Last result: Plugin
+    `vool-database.query` returned output". The rows are the tool's evidence, never model text."""
+    for step in reversed(executed_steps):
+        name = str(step.get("tool_name") or "")
+        if not name.startswith("vool-database."):
+            continue
+        observation = step.get("observation")
+        if name == "vool-database.query" and _step_succeeded(step) and isinstance(observation, dict):
+            columns = [str(c) for c in list(observation.get("columns") or [])]
+            rows = [list(r) for r in list(observation.get("rows") or []) if isinstance(r, (list, tuple))]
+            if not rows:
+                return "The query ran and found no matching rows in the database."
+            if len(rows) == 1 and len(columns) == 1:
+                return f"{columns[0]}: {rows[0][0]}"
+            lines = [f"The database returned {len(rows)} row(s):"]
+            for row in rows[:20]:
+                lines.append("- " + ", ".join(f"{col}: {val}" for col, val in zip(columns, row)))
+            if observation.get("truncated"):
+                lines.append("(More rows matched than are shown.)")
+            return "\n".join(lines)
+        if not _step_succeeded(step):
+            detail = str(step.get("summary") or step.get("status") or "").strip()
+            return "The database query did not work: " + (detail or "it was refused") + " Nothing was changed."
+        return ""
+    return ""
+
+
 def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]) -> str:
     structured = getattr(synthesis, "structured_output", None)
     if isinstance(structured, dict):
@@ -319,6 +350,9 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
         command_message = _command_observation_message(executed_steps)
         if command_message:
             return command_message
+        database_message = _database_observation_message(executed_steps)
+        if database_message:
+            return database_message
         completed = sum(_step_succeeded(step) for step in executed_steps)
         return (
             f"{completed} of {len(executed_steps)} tool steps succeeded. "
