@@ -250,6 +250,37 @@ def test_checker_catches_drift(tmp_path: Path, case: str) -> None:
     assert all(p.startswith("de/help/troubleshooting.md") for p in problems), problems
 
 
+JA_README = """---
+description: VOOL はデスクトップの AI アシスタントです。
+translation: machine
+---
+
+# VOOL
+
+[トラブルシューティング](../../help/troubleshooting.md)を読んでください。
+"""
+
+
+@pytest.mark.parametrize("old, new", [
+    ("を読んでください", "を読ん\nでください"),
+    ("troubleshooting.md)を", "troubleshooting.md)\nを"),
+], ids=["mid-sentence", "after a link"])
+def test_checker_catches_a_line_break_that_shows_as_a_space_in_japanese(
+        tmp_path: Path, old: str, new: str) -> None:
+    """Japanese and Chinese put no spaces between words, but a browser shows a line break
+    inside a paragraph as a space, so a wrapped line leaves a gap mid-sentence."""
+    ct, docs = _mini_docs(tmp_path)
+    ja = docs / "translations" / "ja"
+    ja.mkdir()
+    (ja / "SUMMARY.md").write_text("# 目次\n\n* [VOOL](README.md)\n", encoding="utf-8")
+    (ja / "README.md").write_text(JA_README, encoding="utf-8")
+    assert ct.main(["stamp", "ja", "README.md"]) == 0
+    assert ct.check_all().blocking("ja") == []
+    _edit(ja / "README.md", old, new)
+    problems = ct.check_all().blocking("ja")
+    assert any("show as a space" in p for p in problems), problems
+
+
 def test_checker_rejects_a_summary_that_lists_an_untranslated_page(tmp_path: Path) -> None:
     root = _copy_docs(tmp_path)
     summary = root / "docs" / "translations" / "de" / "SUMMARY.md"

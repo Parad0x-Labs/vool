@@ -32,6 +32,8 @@ has the why):
     or as a multi-word phrase is written exactly as the app shows it in that
     language (core/i18n/catalogs), and macOS words exactly as Apple writes them
     (tools/docs/translation_glossary.json);
+  * in Chinese and Japanese, no line break between two characters of a paragraph
+    (a browser shows it as a space in the middle of the sentence);
   * no machine paths.
 
 A translated SUMMARY.md lists only translated pages, in the English order and
@@ -42,6 +44,7 @@ import argparse
 import collections
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 import re
@@ -81,6 +84,9 @@ _QUOTED = re.compile(r'"([^"\n]+)"|\u201c([^\u201d\n]+)\u201d')
 _PATH_SEP = re.compile(r"\s*(?:\u2192|>)\s*")
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 STATUSES = ("machine", "reviewed")
+# Chinese and Japanese put no spaces between words, but a browser shows a line break inside a
+# paragraph as a space: 接続することも⏎できます reads 接続することも できます.
+UNSPACED_LANGS = ("ja", "zh")
 
 
 # ---------------------------------------------------------------------------
@@ -457,10 +463,43 @@ def _check_page(lang, src, translated, labels, en_section, report):
             bad.append("app/macOS label %r must read %r in this language" % (label, local))
     if _MACHINE_PATH.search("\n".join(tr.prose)) and not _MACHINE_PATH.search("\n".join(en.prose)):
         bad.append("contains a machine path (/Users/, /home/, /Volumes/ or C:\\Users\\)")
+    if lang in UNSPACED_LANGS:
+        breaks = spaced_breaks(tr.prose)
+        if breaks:
+            bad.append("%d line break(s) inside a paragraph show as a space between two "
+                       "characters; join the lines at %s" % (len(breaks), ", ".join(breaks[:3])))
 
     for b in bad:
         report.add(lang, "%s: %s" % (where, b))
     return status if not bad else "fails"
+
+
+def _wide(ch):
+    return unicodedata.east_asian_width(ch) in ("W", "F")
+
+
+def _shown(line):
+    """A line as a reader sees its ends: link targets and the marks of emphasis, code and
+    brackets do not show."""
+    return _LINK.sub(lambda m: m.group(2), line).strip().strip("*_`[]")
+
+
+def spaced_breaks(prose):
+    """Line breaks inside a paragraph that fall between two wide (CJK) characters, which a
+    browser shows as a space, as "before⏎after" snippets. A new block (heading, list item,
+    table row, hint) and a hard break (two trailing spaces) start a new line instead."""
+    found = []
+    for a, b in itertools.pairwise(prose):
+        if not a.strip() or not b.strip() or a.endswith("  "):
+            continue
+        if _HEADING.match(a) or _HEADING.match(b) or _LIST_ITEM.match(b):
+            continue
+        if a.lstrip().startswith(("|", "{%")) or b.lstrip().startswith(("|", "{%")):
+            continue
+        last, first = _shown(a)[-1:], _shown(b)[:1]
+        if last and first and _wide(last) and _wide(first):
+            found.append("%s⏎%s" % (a.rstrip()[-8:], b.lstrip()[:8]))
+    return found
 
 
 def _names_label(text, local, all_locals):

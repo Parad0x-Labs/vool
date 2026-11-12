@@ -63,19 +63,22 @@ If you change `tools/docs/translation_glossary.json` or an app catalog, run
 6. **The Mac's own words.** macOS buttons, menus and folders are written exactly as Apple
    writes them in that language (GLOSSARY.md, "macOS" rows).
 7. **No machine paths**, usernames or personal names on a page.
+8. **No line breaks inside a Chinese or Japanese sentence.** A browser shows a line break in a
+   paragraph as a space, so a wrapped line puts a gap between two characters. Keep each
+   paragraph on one line.
 
 ## Judgment rules (reviewed)
 
-8. **Say only what the English says.** No new features, limits, dates, links or support
+9. **Say only what the English says.** No new features, limits, dates, links or support
    claims. If something reads wrong in English, fix the English first.
-9. **Warnings keep their weight.** "Never", "only", "off by default" and every security
-   statement read as firmly as in English.
-10. **One thing, one word.** Use the GLOSSARY.md term everywhere in a language. Where the app
+10. **Warnings keep their weight.** "Never", "only", "off by default" and every security
+    statement read as firmly as in English.
+11. **One thing, one word.** Use the GLOSSARY.md term everywhere in a language. Where the app
     already has a word for something, use the app's word.
-11. **Speak the way the app speaks.** Plain and direct, with the form of address the app
+12. **Speak the way the app speaks.** Plain and direct, with the form of address the app
     uses in that language: for example `du` in German, the plural imperative in Hebrew,
     `vous` in French.
-12. **Names stay names.** VOOL, Parad0x Labs, product, platform and hardware names stay in
+13. **Names stay names.** VOOL, Parad0x Labs, product, platform and hardware names stay in
     Latin letters, as in the GLOSSARY.md table "Never translated".
 
 ## Special cases
