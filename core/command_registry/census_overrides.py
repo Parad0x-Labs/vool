@@ -360,7 +360,7 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/models/local/pull": "model registry read feed (recommended model download progress)",
     "http:GET:/api/cloud/spend-limits": "effect-budget lane read feed (spend limits)",
     "http:GET:/api/addons": "add-on lane read feed (bundled and installed catalogue)",
-    "http:POST:/api/addons": "add-on lane operator surface family (review/install/risk acceptance, Eyebrow key and scan consent; its own loopback and approval gates)",
+    "http:POST:/api/addons": "add-on lane operator surface family (review/install/risk acceptance, plugin and scan consent; its own loopback and approval gates)",
     "http:POST:/api/models/local/register": "model registry operator action (local model registration)",
     "http:POST:/api/models/local/pull": "model registry operator action (recommended local model download)",
     "http:POST:/api/plugins/rescan": "plugin catalog operator action (rescan)",

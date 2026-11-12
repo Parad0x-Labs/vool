@@ -2,7 +2,6 @@
 
 from core.price_safety_fragment import _GATE_JS
 from tests.chat_page_js_harness import DOM, run_node, script
-from tests.test_usepod_selection_to_dispatch_ui import WIDGET
 
 
 def test_duplicate_price_review_is_one_stable_decision():
@@ -55,58 +54,8 @@ out({requests,second});
     assert result["requests"] == 1 and not result["second"]
 
 
-def test_budget_form_sends_ordinary_usdc_as_explicit_renewing_scope():
-    result = run_node(
-        DOM
-        + r"""
-const state={focusPart:'spend'};const $=s=>document.getElementById(s.slice(1));
-const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;};
-const d={lane:{transport_mode:'prepaid_token'},credential:{configured:true},authorities:{},approved_routes:{},spend_approval:null};
-const getJSON=async()=>d;const posts=[];
-fetch=async(url,opts)=>{posts.push({url,body:JSON.parse(opts.body)});return {ok:true,status:200,json:async()=>({ok:true})}};
-const stack=el('div');const all=n=>[n,...n.children.flatMap(all)];const find=cls=>all(stack).find(n=>String(n.className||'').split(' ').includes(cls));
-"""
-        + WIDGET
-        + r"""
-widgetUsePod(stack);for(let i=0;i<5;i++)await new Promise(r=>setImmediate(r));
-find('usepod-spend-total').value='3.25';find('usepod-spend-percall').value='';find('usepod-budget-mode').value='daily';
-await find('usepod-spend-propose').__on.click();out({posts,hasPriceWait:!!find('usepod-price-wait')});
-"""
-    )
-    assert result["hasPriceWait"]
-    assert result["posts"] == [
-        {
-            "url": "/api/cloud/usepod/spend-approval/propose",
-            "body": {
-                "per_call_atomic": 3250000,
-                "max_total_atomic": 3250000,
-                "expiry_epoch": 0,
-                "budget_mode": "daily",
-            },
-        }
-    ]
 
 
-def test_send_with_target_queues_original_draft_and_never_calls_chat_before_eligibility():
-    result = run_node(
-        DOM
-        + script()
-        + r"""
-await new Promise(r=>setImmediate(r));setDisplayedChat('openclaw:aaaaaaaaaaaaaaaaaaaa');setModelValue('usepod:model');inputEl.value='Please do this task';
-const posts=[];pumpQueue=async()=>{};refreshQueue=async()=>{};renderAttachStrip=()=>{};
-fetch=async(url,opts)=>{if(opts && opts.body)posts.push({url,body:JSON.parse(opts.body)});
- if(url.includes('/discovery'))return {ok:true,json:async()=>({spend_readiness:{available:true,budget_scope:'provider'}})};
- if(url.includes('/balance'))return {ok:true,json:async()=>({state:'reported',usdc_balance_microunits:3000000})};
- if(url.includes('/price-wait/check'))return {ok:true,json:async()=>({enabled:true,ready:false})};
- if(url==='/api/chat/queue')return {ok:true,json:async()=>({item:{queue_item_id:'queued'}})};
- return {ok:true,json:async()=>({})};};
-await send();out({posts,draft:inputEl.value});
-"""
-    )
-    assert result["draft"] == ""
-    assert not any(row["url"] == "/api/chat" for row in result["posts"])
-    queued = next(row["body"] for row in result["posts"] if row["url"] == "/api/chat/queue")
-    assert queued["text"] == "Please do this task" and queued["price_wait_model"] == "model"
 
 
 def test_claimed_price_task_keeps_its_model_after_chat_selection_changes():

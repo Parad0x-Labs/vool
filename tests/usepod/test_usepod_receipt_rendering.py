@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from adapters.usepod_adapter import call_receipt
+from core.usepod.legacy_adapter import call_receipt
 from tests.chat_page_js_harness import DOM, run_node, script
 
 PAGE = script()

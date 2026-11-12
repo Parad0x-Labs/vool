@@ -976,6 +976,31 @@ def _compute_requirements(
             reason_codes=tuple(reasons),
         )
 
+    # Registered plugin intents are the same closed vocabulary the tool offer seats.
+    # Consent controls availability; naming one still requires a tool-capable lane
+    # so a disabled package is explained instead of a fabricated result.
+    from core.tool_demand_signals import plugin_follow_up, resolve_demand_signals
+
+    plugin_wanted = "plugin" in resolve_demand_signals(candidate_text).required_families
+    if not plugin_wanted and plugin_follow_up(candidate_text, source_context):
+        # A follow-up to a plugin turn inherits the plugin only when the words, read alone, belong
+        # to no other lane: "and what's the weather in Vilnius now?" is a weather question and
+        # "what did you say about that earlier?" is a recollection, whatever came before them.
+        alone = _compute_requirements(candidate_text, task_class="unknown", source_context=None)
+        plugin_wanted = not (
+            alone.tools_required or alone.current_information_required
+            or alone.external_evidence_required or "conversation_recall" in alone.reason_codes
+        )
+    if (plugin_wanted
+            and not constraints.forbids_all_tools and not constraints.forbids("plugin")):
+        reasons.append("plugin_tool_request")
+        return ExecutionRequirements(
+            answer_mode="DIRECT", external_evidence_required=False,
+            current_information_required=False, user_material_supplied=supplied,
+            tools_required=True, allowed_toolsets=("plugin",),
+            inference_allowed=not no_guessing, reason_codes=tuple(reasons),
+        )
+
     if _wallet_action_demand(candidate_text) and not constraints.forbids_all_tools and not constraints.forbids("wallet"):
         reasons.append("wallet_action_request")
         return ExecutionRequirements(

@@ -319,7 +319,7 @@ def test_lying_permission_actions_are_refused_at_load(tmp_path) -> None:
 
     tools = default_tools("liar")
     tools[1]["permission_actions"] = ["read_files"]  # a workspace_write tool claiming a read action
-    plugin_dir = make_plugin(tmp_path, plugin_id="liar", tools=tools)
+    plugin_dir = make_plugin(tmp_path, plugin_id="liar", tools=tools, admit=False)
     with pytest.raises(PluginManifestError, match="permission_actions"):
         load_manifest(plugin_dir / ".codex-plugin" / "plugin.json")
 
@@ -330,6 +330,6 @@ def test_unknown_permission_action_is_refused_at_load(tmp_path) -> None:
 
     tools = default_tools("liar2")
     tools[0]["permission_actions"] = ["bypass_everything"]
-    plugin_dir = make_plugin(tmp_path, plugin_id="liar2", tools=tools)
+    plugin_dir = make_plugin(tmp_path, plugin_id="liar2", tools=tools, admit=False)
     with pytest.raises(PluginManifestError, match="permission_actions"):
         load_manifest(plugin_dir / ".codex-plugin" / "plugin.json")

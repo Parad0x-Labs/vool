@@ -1433,6 +1433,16 @@ def model_visible_specs(
                 for intent in owner_file_intents(user_text):
                     if intent not in explicit:
                         explicit.append(intent)
+        if not signals.required_families and not signals.explicit_intents:
+            from core.tool_demand_signals import plugin_follow_up
+
+            if plugin_follow_up(user_text, source_context):
+                from core.execution_requirements import _compute_requirements
+
+                # Offered only where the turn is also routed as a plugin turn, so the two cannot
+                # disagree. The pure computation: reading it here must not freeze the turn's record.
+                if tuple(_compute_requirements(user_text, source_context=source_context).allowed_toolsets) == ("plugin",):
+                    _add_family("plugin")
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())

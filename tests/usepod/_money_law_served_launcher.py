@@ -22,6 +22,11 @@ MODEL = "meridian-synth-chat"
 def main() -> None:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
+    # Same order as the daemon: move keys out of the starting environment first, so the restart
+    # that does it happens before the grant below (the token path's name reads as a key).
+    from core.secret_env import shed_starting_secrets
+
+    shed_starting_secrets()
     from core.effect_budget import grant_operator_budget_authority
 
     operator = grant_operator_budget_authority(note=GRANT_NOTE)

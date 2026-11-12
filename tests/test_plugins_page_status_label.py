@@ -44,10 +44,10 @@ globalThis.togglePlugin = function () {};
 _GERMAN = {"built_in": "Integriert", "installed": "Installiert", "on": "Ein", "off": "Aus", "unknown": "Status unbekannt"}
 
 
-def _render(plugins: list[dict]) -> dict[str, dict]:
+def _render(plugins: list[dict], *, nothing_added_yet: bool = False) -> dict[str, dict]:
     """Run the real renderPlugins over `plugins`; returns id -> {status, muted} per card."""
     html = render_vool_chat_html()
-    start = html.index("function renderPlugins(d, query) {")
+    start = html.index("function _storageNotice(d) {" if nothing_added_yet else "function renderPlugins(d, query) {")
     end = html.index("function renderSkills(d, query) {")
     node = shutil.which("node")
     if not node:
@@ -56,7 +56,9 @@ def _render(plugins: list[dict]) -> dict[str, dict]:
         _DOM_STUB
         + html[start:end]
         + "\n"
-        + "renderPlugins({ installed: true, plugin_count: " + str(len(plugins)) + ", skill_count: 0, plugins: "
+        + ("renderPlugins({ installed: false, storage: { state: 'missing' }, reason: 'Nothing added yet.', plugin_count: "
+           if nothing_added_yet else "renderPlugins({ installed: true, plugin_count: ")
+        + str(len(plugins)) + ", skill_count: 0, plugins: "
         + json.dumps(plugins)
         + " }, '');\n"
         + """
@@ -111,3 +113,14 @@ def test_the_status_words_resolve_through_the_catalog() -> None:
     cards = _render([{"id": "a", "name": "Ordinary", "version": "1", "enabled": True, "origin": "installed"}])
     assert "Enabled" not in cards["Ordinary"]["status"]
     assert _GERMAN["on"] in cards["Ordinary"]["status"]
+
+
+def test_built_in_plugins_are_listed_before_anything_else_is_installed() -> None:
+    """A fresh install has no plugins folder yet; the plugins that come with VOOL must still
+    be on the page, or they could not be seen or switched off until something else is added."""
+    cards = _render(
+        [{"id": "d", "name": "Bundled", "version": "1", "enabled": True, "origin": "bundled", "first_party": True}],
+        nothing_added_yet=True,
+    )
+    assert cards["Bundled"]["status"] == f"{_GERMAN['built_in']} · {_GERMAN['on']}"
+    assert _render([], nothing_added_yet=True) == {}

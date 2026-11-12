@@ -130,6 +130,7 @@ class LoadedPlugin:
     skills: tuple[dict[str, Any], ...] = ()
     warnings: tuple[str, ...] = field(default_factory=tuple)
     enabled: bool = True
+    vool: dict[str, Any] = field(default_factory=dict)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -332,12 +333,19 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
     version = str(raw.get("version") or "0.0.0").strip()
     root = Path(path).resolve().parent.parent
 
-    tools = raw.get("tools")
+    from core.plugin_manifest import validate_manifest
+
+    try:
+        extension = validate_manifest(raw, root=root)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise PluginManifestError(str(exc)) from None
+
+    tools = extension.get("tools", raw.get("tools"))
     if not tools:
         # The two installed plugins are exactly this: valid, loadable, no runtime tools yet.
-        return LoadedPlugin(plugin_id=plugin_id, version=version, root=root)
+        return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, vool=extension)
 
-    runtime = raw.get("runtime")
+    runtime = raw.get("runtime", {"contract_version": CONTRACT_VERSION} if extension else None)
     _require(
         isinstance(runtime, dict),
         f"{plugin_id}: a manifest that declares `tools` must also declare a `runtime` block",
@@ -351,9 +359,8 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
     )
     _require(isinstance(tools, list), f"{plugin_id}: `tools` must be a list")
 
-    contracts = tuple(
-        contract_from_tool(item, plugin_id=plugin_id, version=version) for item in tools
-    )
+    contracts = tuple(_manifest_contract(item, plugin_id=plugin_id, version=version,
+                                        extension=extension) for item in tools)
     seen: set[str] = set()
     for contract in contracts:
         _require(
@@ -361,7 +368,24 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
             f"{plugin_id}: {contract.intent!r} is declared twice in this manifest",
         )
         seen.add(contract.intent)
-    return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, contracts=contracts)
+    return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, contracts=contracts, vool=extension)
+
+
+def _manifest_contract(spec: dict, *, plugin_id: str, version: str, extension: dict) -> RuntimeToolContract:
+    if not extension or spec.get("handler", {}).get("kind") != "mcp":
+        return contract_from_tool(spec, plugin_id=plugin_id, version=version)
+    handler = dict(spec["handler"])
+    pin = spec.get("trust")
+    normalized = {**spec, "handler": {"kind": "subprocess", "entry":
+        extension["mcpServers"][handler["server"]]["command"]}}
+    normalized["side_effect_class"] = pin["side_effect_class"] if pin else "read_only"
+    normalized["permission_actions"] = pin["permission_actions"] if pin else []
+    normalized["approval_requirement"] = "none" if normalized["side_effect_class"] == "read_only" else "runtime_policy"
+    contract = contract_from_tool(normalized, plugin_id=plugin_id, version=version)
+    if not pin:
+        contract = replace(contract, side_effect_class="external_unpinned", permission_actions=(),
+                           approval_requirement="explicit_user_opt_in")
+    return replace(contract, handler=json.dumps(handler, sort_keys=True))
 
 
 def _owner_disabled(plugin_id: str) -> bool:
@@ -405,6 +429,65 @@ def lifecycle_reason(plugin_id: str) -> str:
     )
 
 
+def _plugin_tools_setting_path() -> Path:
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "config" / "plugin_tools.json"
+
+
+def plugin_tools_setting() -> bool:
+    """The owner's "Let chats use plugin tools" choice. Off unless the owner turned it on."""
+    try:
+        return json.loads(_plugin_tools_setting_path().read_text()).get("enabled") is True
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def set_plugin_tools_setting(enabled: bool) -> bool:
+    import os
+    import uuid
+
+    path = _plugin_tools_setting_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + "." + uuid.uuid4().hex)
+    try:
+        with temp.open("x", encoding="utf-8") as handle:
+            os.chmod(temp, 0o600)
+            json.dump({"enabled": enabled is True}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+    return plugin_tools_setting()
+
+
+def plugin_tools_on() -> bool:
+    """The owner's setting, or the plugin-tools feature switch set for the whole process."""
+    from core.runtime_flags import flag_enabled
+
+    return flag_enabled("plugin_runtime_tools") or plugin_tools_setting()
+
+
+def runtime_lane_open(plugin_id: str) -> bool:
+    """Plugin tools switched on, and for a v1 package also its verified, enabled consent.
+
+    The owner's setting covers v1 packages, which carry reviewed access declarations. Legacy
+    packages still need the process-wide feature switch.
+    """
+    from core.runtime_flags import flag_enabled
+
+    try:
+        from core.plugin_lifecycle import is_available, record_for
+
+        record = record_for(plugin_id)
+        if record and load_manifest(Path(record.root) / ".codex-plugin/plugin.json").vool:
+            return bool(plugin_tools_on() and is_available(plugin_id))
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return flag_enabled("plugin_runtime_tools")
+
+
 def register_plugin(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...]:
     """Register a loaded plugin's tools atomically, honouring the owner's enabled state.
 
@@ -427,11 +510,13 @@ def _available_contracts(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...
     contracts = plugin.contracts
     from core.plugin_lifecycle import is_available
 
-    if not is_available(plugin.plugin_id, root=Path(plugin.root)):
-        reason = lifecycle_reason(plugin.plugin_id)
-        contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
-    elif not plugin.enabled or _owner_disabled(plugin.plugin_id):
+    # The owner's off switch is named first: turning a plugin off also withdraws its lifecycle
+    # consent, and the reason should say what the owner did, not what followed from it.
+    if not plugin.enabled or _owner_disabled(plugin.plugin_id):
         reason = disabled_reason(plugin.plugin_id)
+        contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
+    elif not is_available(plugin.plugin_id, root=Path(plugin.root)):
+        reason = lifecycle_reason(plugin.plugin_id)
         contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
     return contracts
 
@@ -511,7 +596,9 @@ def plugin_scratch_dir(plugin_id: str) -> Path:
 
     override = str(os.environ.get("VOOL_PLUGIN_SCRATCH_ROOT") or "").strip()
     base = Path(override) if override else runtime_child_scratch_root("plugin")
-    return base / str(plugin_id)
+    from core.plugin_paths import child_of
+
+    return child_of(base, str(plugin_id))
 
 
 def confinement_mode() -> str:
@@ -521,12 +608,22 @@ def confinement_mode() -> str:
     return mode if mode in {"auto", "heuristic_only"} else "auto"
 
 
-def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, Any]):
+def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, Any], *, source_context=None):
     """Run a registered plugin contract's handler. Returns a `PluginToolResult`; never raises."""
 
     from core import plugin_lifecycle as lifecycle
     from core.plugin_executor import PluginToolResult, run_plugin_tool
+    from core.plugin_network import EgressProxy, NetworkRefused, network_available
     from core.plugin_package import PackageError, capture_package, execution_directory
+    from core.plugin_processes import InvocationStopped, invocation
+    from core.plugin_services import ServiceRefused, credential_values, safe_data
+    from core.request_trust import request_is_owner_local
+
+    context = dict(source_context or {})
+    surface = str(context.get("surface") or context.get("platform") or "").lower()
+    if not request_is_owner_local(context) or surface in {"mobile_companion", "phone", "telegram", "discord", "web_companion", "openclaw"}:
+        return PluginToolResult(ok=False, status="plugin_owner_local_required",
+                                error="Use the local VOOL app to run installed plugins. Remote and phone turns cannot use them.")
 
     intent = str(contract.intent)
     plugin_id = str(contract.source or "")[len("plugin:"):]
@@ -539,6 +636,13 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
             observation={"intent": intent},
         )
     def current() -> bool:
+        token = context.get("cancel_event") or context.get("cancellation_token")
+        if token is not None:
+            try:
+                if token.is_set() if hasattr(token, "is_set") else token() if callable(token) else bool(token):
+                    return False
+            except Exception:
+                return False
         return bool(contract.supported and not _owner_disabled(plugin_id)
                     and lifecycle.is_available(plugin_id, root=root))
 
@@ -615,18 +719,56 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                 lifecycle.note_invocation(plugin_id, intent, expected_approval=approved_approval,
                                           dependency_approvals=dependency_pins)
 
-            result = run_plugin_tool(
-                intent=intent, arguments=dict(arguments or {}), handler=handler,
-                schema=dict(contract.json_schema or {}), plugin_root=snapshot,
-                env_allowlist=tuple(str(x) for x in (handler.get("env_allowlist") or ())),
-                scratch_dir=str(scratch), timeout_seconds=timeout_seconds,
-                allow_network=bool(handler.get("network", False)), confinement="auto",
-                read_only=contract.side_effect_class == "read_only", immutable_package=True,
-                package_dependencies=dependency_copies, before_start=before_start,
-            )
-            return replace(result, observation={**result.observation,
+            from contextlib import ExitStack
+
+            if not current():
+                raise PackageError("package authority changed before execution")
+            with invocation(plugin_id, current) as call, ExitStack() as resources:
+                is_mcp = handler.get("kind") == "mcp"
+                names = (reviewed.vool["mcpServers"][handler["server"]].get("env", {}) if is_mcp else
+                         handler.get("env_allowlist", [])) if reviewed.vool else ()
+                credentials = credential_values(plugin_id, reviewed.vool, names)
+                wants_network = bool(reviewed.vool.get("network")) and (is_mcp or handler.get("network") is True)
+                if wants_network:
+                    from core.remote_fetch_policy import remote_fetch_forbidden
+                    from core.turn_prohibitions import FAMILY_TOOLS, FAMILY_WEB, conserved_request_prohibitions
+
+                    prohibitions = conserved_request_prohibitions(context)
+                    if (remote_fetch_forbidden() or context.get("allow_remote_fetch") is False
+                            or prohibitions.prohibits_family(FAMILY_WEB) or prohibitions.prohibits_family(FAMILY_TOOLS)):
+                        raise NetworkRefused("Network access is off right now. The plugin was not connected.")
+                # Where the device cannot limit a process to its declared hosts, the tool
+                # still runs, with no network at all, as the consent sheet says.
+                keyed = bool(credentials) and is_mcp
+                wants_network = wants_network and network_available(private_environment=keyed)
+                proxy = resources.enter_context(EgressProxy(reviewed.vool["network"], call)) if wants_network else None
+                before_start()
+                if is_mcp:
+                    from core.execution.mcp_bridge import execute_plugin_mcp
+
+                    result = execute_plugin_mcp(reviewed, contract, dict(arguments or {}), scratch=scratch,
+                                                dependencies=dependency_copies, call=call,
+                                                credentials=credentials, proxy=proxy)
+                else:
+                    result = run_plugin_tool(
+                        intent=intent, arguments=dict(arguments or {}), handler=handler,
+                        schema=dict(contract.json_schema or {}), plugin_root=snapshot,
+                        secrets=credentials, extra_env=proxy.environment if proxy else None,
+                        scratch_dir=str(scratch), timeout_seconds=timeout_seconds,
+                        allow_network=False, confinement="auto", proxy_port=proxy.port if proxy else 0,
+                        read_only=contract.side_effect_class == "read_only", immutable_package=True,
+                        isolate_process_tree=bool(reviewed.vool),
+                        package_dependencies=dependency_copies, call=call,
+                    )
+                call.check()
+            return replace(result, text=safe_data(result.text), error=safe_data(result.error),
+                           resolved_target=safe_data(result.resolved_target),
+                           observation={**safe_data(result.observation), "trust": "untrusted_external",
                 "package_sha256": approved_digest, "approval_sha256": approved_approval,
                 "dependency_sha256": dependency_packages, "dependency_approval_sha256": dependency_pins})
+    except (NetworkRefused, InvocationStopped, ServiceRefused) as exc:
+        return PluginToolResult(ok=False, status="plugin_refused", error=str(exc),
+                                observation={"intent": intent, "trust": "untrusted_external"})
     except (PackageError, PluginManifestError, lifecycle.LifecycleError, OSError, ValueError, TypeError, RecursionError) as exc:
         return PluginToolResult(ok=False, status="package_integrity_failed", error=str(exc),
                                 observation={"intent": intent, "package_sha256": approved_digest})

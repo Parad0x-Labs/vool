@@ -211,17 +211,14 @@ def price_review_journey(tmp_path_factory):
     ).start()
     daemon = _SealedUsePodDaemon(tmp_path_factory.mktemp("recovery-usepod") / "home")
     try:
+        daemon.seed_legacy_profile(origin=service.origin, token=token)
         daemon.start()
-        status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-        assert status == 200, saved
-        status, _probe = daemon.call("POST", "/api/cloud/test", {"provider": "usepod"})
+        status, _probe = daemon.call("POST", "/api/cloud/usepod/balance", {"max_age_seconds": 0})
         assert status == 200
         status, _refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
         assert status == 200
         status, policy = daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
         assert status == 200, policy
-        status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-        assert status == 200 and pinned.get("ok") is True, pinned
         yield SimpleNamespace(service=service, daemon=daemon, token=token)
     finally:
         daemon.stop()

@@ -51,25 +51,25 @@ _SEALED_CALL_SITES = (
         "adapters/openai_compatible_adapter.py",
         "OpenAICompatibleAdapter._invoke_openai_compatible",
         "seal_provider_invocation(",
-        "requests.post(",
+        "self._http().post(",
     ),
     _CallSite(
         "adapters/openai_compatible_adapter.py",
         "OpenAICompatibleAdapter._invoke_ollama_chat",
         "seal_provider_invocation(",
-        "requests.post(",
+        "self._http().post(",
     ),
     _CallSite(
         "adapters/openai_compatible_adapter.py",
         "OpenAICompatibleAdapter._stream_openai_compatible",
         "seal_provider_invocation(",
-        "requests.post(",
+        "self._http().post(",
     ),
     _CallSite(
         "adapters/openai_compatible_adapter.py",
         "OpenAICompatibleAdapter._stream_ollama_chat",
         "seal_provider_invocation(",
-        "requests.post(",
+        "self._http().post(",
     ),
     _CallSite(
         "adapters/local_subprocess_adapter.py",
@@ -190,7 +190,7 @@ _SEALED_CALL_SITES = (
         "adapters/openai_compatible_adapter.py",
         "OpenAICompatibleAdapter.prewarm",
         "seal_direct_provider_invocation(",
-        "requests.post(",
+        "self._http().post(",
     ),
 )
 

@@ -16,16 +16,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.usepod._served_daemon import CENTRAL
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
 from tests.usepod.test_usepod_funded_journey_served import (
     _evidence_dir,
-    _open_receipt_in_activity,
     _page,
-    _pick_in_chat,
-    _usepod_panel,
 )
 from tests.usepod.test_usepod_served_flow import MARKET, MARKET_ID, MODEL, _keep
-from tests.usepod.test_usepod_settings_ui import CENTRAL
 from tests.usepod.test_usepod_x402_composed_served import (
     PIN,
     WalletServedDaemon,
@@ -96,7 +93,7 @@ def test_a_paid_turn_waits_on_the_crypto_pilot_card_and_answers_with_a_readable_
     page = _page(journey, "/chat")
     try:
         page.wait_for_selector("#input", timeout=30000)
-        _pick_in_chat(page, MODEL)
+        _restore_retained_model(page, MODEL)
         sends, quotes_before = node.distinct_sends(), len(service.requests_to(X402_PATH))
         previous = page.evaluate("() => (view.run && view.run.turnId) || ''")
         page.fill("#input", "Name one reason harbours build breakwaters.")
@@ -194,7 +191,7 @@ def test_a_paid_turn_whose_answer_is_lost_says_paid_result_unknown_and_resumes_o
     service.faults["drop_paid_retry"] = True
     try:
         page.wait_for_selector("#input", timeout=30000)
-        _pick_in_chat(page, MODEL)
+        _restore_retained_model(page, MODEL)
         sends, quotes_before = node.distinct_sends(), len(service.requests_to(X402_PATH))
         previous = page.evaluate("() => (view.run && view.run.turnId) || ''")
         page.fill("#input", "Name one reason tugboats guide ships into a berth.")
@@ -231,22 +228,31 @@ def test_a_paid_turn_whose_answer_is_lost_says_paid_result_unknown_and_resumes_o
     waiting = [item for item in (listed or {}).get("operations") or [] if item.get("resumable")]
     assert status == 200 and len(waiting) == 1 and waiting[0]["liability_state"] == "unknown", listed
     operation_id = waiting[0]["operation_id"]
-    panel = _usepod_panel(journey)
-    try:
-        row = panel.locator(f".usepod-x402-operation[data-operation='{operation_id}']")
-        row.wait_for(state="visible", timeout=30000)
-        row.locator("button.usepod-x402-resume").click()
-        said = panel.wait_for_function(
-            "() => { const m = document.body.innerText.match(/(Resumed: the paid call answered|Not resumed)[^\\n]*/); return m ? m[0] : false; }",
-            timeout=180000,
-        ).json_value()
-        if _evidence_dir():
-            panel.screenshot(path=str(Path(_evidence_dir()) / "x402_settings_resumed.png"), full_page=True)
-    finally:
-        panel.close()
-    _keep("x402_chat_lost_answer_resumed.json", {"said": said})
-    assert str(said).startswith("Resumed: the paid call answered") and "synthetic reply" in str(said), said
+    status, resumed = daemon.call("POST", "/api/cloud/usepod/x402/resume", {"operation_id": operation_id}, timeout=180.0)
+    _keep("x402_chat_lost_answer_resumed.json", {"status": status, "resumed": resumed})
+    assert status == 200 and "synthetic reply" in str(resumed), resumed
     # the resume resent the recorded request once and paid nothing again
     assert node.distinct_sends() == sends + 1 and len(service.requests_to(X402_PATH)) - quotes_before == 3
     status, listed = daemon.call("GET", "/api/cloud/usepod/x402/unresolved")
     assert status == 200 and all(item["operation_id"] != operation_id for item in listed.get("operations") or []), listed
+
+
+def _open_receipt_in_activity(page) -> str:
+    """Open Activity and expand the finished turn's work log the way a person does (the page's own Expand all),
+    then read what is visible. A finished turn collapses to one line, so the receipt sits behind a disclosure."""
+    page.click("#panelBtn")
+    expand = page.locator('button[data-activity-action="expand"]').first
+    expand.wait_for(state="visible", timeout=30000)
+    expand.click()
+    page.wait_for_function("() => /UsePod receipt/.test(document.body.innerText)", timeout=30000)
+    return page.inner_text("body")
+
+
+
+def _restore_retained_model(page, model_id: str) -> None:
+    """Fixture setup: restore a typed historical lane after removing the built-in menu.
+
+    All send, payment review, Decide later, PIN approval and receipt interactions
+    remain real page actions. New model selection is proven by the plugin journey.
+    """
+    page.evaluate("model => setModelValue(model)", f"usepod-byok:{model_id}")
