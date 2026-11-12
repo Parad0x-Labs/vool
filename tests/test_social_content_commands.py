@@ -169,3 +169,25 @@ def test_palette_form_text_inputs_are_read_as_names_not_letters(clean_store):
         "project_id": "p-form", "objective": "Third", "audience": "builders", "platforms": "myspace",
     })
     assert not refused.ok and refused.fault and refused.fault.code == "usage"
+
+
+def test_each_decision_command_records_only_its_own_verb(clean_store):
+    """draft.reject shared draft.approve's handler and took the decision from the input, so
+    draft.reject with decision "approved" approved the draft without the approve command."""
+    from storage import social_content_store as store
+
+    campaign = store.create_campaign(project_id="p-verb", objective="o", audience="a")
+    draft = store.save_draft(campaign_id=campaign["campaign_id"], platform="x", body="exact bytes")
+    ref = {"draft_id": draft["draft_id"], "draft_version": 1}
+
+    smuggled = execute_command("draft.reject", {**ref, "decision": "approved"})
+    assert not smuggled.ok and smuggled.fault and smuggled.fault.code == "usage"
+    assert _ok(execute_command("draft.inspect", {"draft_id": draft["draft_id"]}))["approved"] is False
+
+    wrong_way = execute_command("draft.approve", {**ref, "decision": "refused"})
+    assert not wrong_way.ok and wrong_way.fault and wrong_way.fault.code == "usage"
+
+    rejected = _ok(execute_command("draft.reject", {**ref, "reason": "tone"}))
+    assert rejected["decision"] == "refused"
+    approved = _ok(execute_command("draft.approve", ref))
+    assert approved["content_hash"] == draft["content_hash"]

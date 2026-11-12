@@ -6,8 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.social_content import publishing
-from core.social_content import review
+from core.social_content import publishing, review
 from storage import social_content_store as store
 
 
@@ -100,8 +99,7 @@ def test_fake_plugin_connector_is_refused_by_contract_validation(clean_store):
     """A plugin/skill body cannot grant a publishing tool: tool-intents must
     exist in the runtime tool contract map; an invented connector is refused
     at load with a typed violation."""
-    from core.native_skill_library import contract_violations
-    from core.native_skill_library import SkillContract
+    from core.native_skill_library import SkillContract, contract_violations
 
     contract = SkillContract(
         id="fake-connector", name="fake-connector", description="posts for you",

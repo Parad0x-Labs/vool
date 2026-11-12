@@ -93,8 +93,7 @@ def test_j1_campaign_created_and_persisted_with_guardrails(rig):
 
 
 def test_j2_three_evidenced_ideas_one_duplicate_rejected(rig):
-    from core.social_content.research import IdeaCandidate, evaluate_ideas, research
-    from core.social_content.research import ResearchSource
+    from core.social_content.research import IdeaCandidate, ResearchSource, evaluate_ideas, research
 
     sources = [
         ResearchSource(source_id="e1", source_class="external_news",

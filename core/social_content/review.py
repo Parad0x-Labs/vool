@@ -17,7 +17,6 @@ import re
 from typing import Any
 
 from core.social_content import adaptation
-from core.social_content.platform_policy import VALIDATION_UNKNOWN
 
 # receipt-state vocabulary this lane distinguishes locally; external states
 # (dispatch attempted / acknowledged / verified / unknown) belong to the

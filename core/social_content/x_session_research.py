@@ -212,7 +212,6 @@ def observe_session(
         collected_at=now if now is not None else time.time(),
     )
     seen: set[str] = set()
-    started = now if now is not None else time.time()
     for page in range(1, bounds.max_pages + 1):
         posts = authority.visible_posts(grant, page=page)
         observation.pages_read = page

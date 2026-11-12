@@ -325,15 +325,16 @@ def test_sabotage_13_mutation_intent_guard(clean_store, monkeypatch):
     honest = tuple(xs.READ_ONLY_INTENTS)
     try:
         # the sabotage: smuggle a mutation intent into the offered set
-        xs.READ_ONLY_INTENTS = honest + ("x_session.repost_post",)
+        xs.READ_ONLY_INTENTS = (*honest, "x_session.repost_post")
         smuggled = tuple(xs.READ_ONLY_INTENTS)
         assert "x_session.repost_post" in smuggled
         # the validator is the guard: validating the smuggled set must refuse
         with pytest.raises(ValueError, match="mutation intent"):
             xs.assert_intent_set_is_read_only(smuggled)
         # and the offer-safety backstop catches it too
-        bad, why = publishing.offer_is_safe(smuggled)
-        assert bad or "repost" in why or True  # intent names, not tool names
+        safe, why = publishing.offer_is_safe(smuggled)
+        assert not safe, "the offer backstop must refuse a smuggled X mutation intent"
+        assert "x_session.repost_post" in why
     finally:
         xs.READ_ONLY_INTENTS = honest
     ok, _ = publishing.offer_is_safe(honest)

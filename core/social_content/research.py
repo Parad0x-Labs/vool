@@ -19,8 +19,9 @@ Deterministic, hermetic and authority-respecting:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 from urllib.parse import urlparse
 
 from core.social_source_policy import evaluate_social_source

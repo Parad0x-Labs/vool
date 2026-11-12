@@ -6,7 +6,6 @@ import pytest
 
 from core.social_content import x_session_research as xs
 
-
 NOW = 5_000_000.0
 
 

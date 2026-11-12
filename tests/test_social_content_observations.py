@@ -165,8 +165,8 @@ def test_no_pb01_write_from_engagement(clean_store):
 
 
 def _pb01_shard_count() -> int:
-    from core.runtime_paths import active_data_dir
-
     import pathlib
+
+    from core.runtime_paths import active_data_dir
     learning = pathlib.Path(active_data_dir()) / "learning" / "procedures"
     return len(list(learning.glob("*.json"))) if learning.exists() else 0

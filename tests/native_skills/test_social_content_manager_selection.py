@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.native_skills.test_native_selection import library_world  # noqa: F401  (fixture re-export)
+from tests.native_skills.test_native_selection import library_world
 
 SKILL_ID = "vool-social-content-manager"
 
@@ -64,7 +64,7 @@ def _select(user_text: str, task_class: str = ""):
     return select_native_skills(task_class=task_class, user_text=user_text)
 
 
-def _contract(library_world):  # noqa: ANN001 (fixture)
+def _contract(library_world):
     from core.native_skill_library import load_native_library
 
     contracts = {c.id: c for c in load_native_library().contracts}

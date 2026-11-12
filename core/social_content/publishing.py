@@ -128,9 +128,18 @@ _FORBIDDEN_OFFER_TOKENS = (
 
 
 def offer_is_safe(tool_names: tuple[str, ...]) -> tuple[bool, str]:
+    """Backstop over the offered names: no publishing connector, and no X session intent that
+    could act on the account (the read-only rule of core.social_content.x_session_research)."""
+    from core.social_content.x_session_research import assert_intent_set_is_read_only
+
     for name in tool_names:
         low = str(name).lower()
         for token in _FORBIDDEN_OFFER_TOKENS:
             if token in low:
                 return False, f"tool {name!r} looks like a publishing connector smuggled into the offer"
+        if low.startswith("x_session."):
+            try:
+                assert_intent_set_is_read_only((low,))
+            except ValueError as exc:
+                return False, f"intent {name!r} would act on the X account: {exc}"
     return True, ""

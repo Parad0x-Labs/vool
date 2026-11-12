@@ -5,13 +5,12 @@ import pytest
 
 from core.social_content import adaptation, platform_policy
 
-
 # ---------------------------------------------------------------- policy truth
 
 
 def test_policy_facts_are_versioned_and_sourced():
     assert platform_policy.PLATFORM_POLICY_VERSION == "social-platform-2026-09"
-    for platform, facts in platform_policy.PLATFORM_FACTS.items():
+    for facts in platform_policy.PLATFORM_FACTS.values():
         for f in facts:
             assert f.retrieved and f.source_url
             assert f.status in ("documented", "validation_unknown", "delegated")

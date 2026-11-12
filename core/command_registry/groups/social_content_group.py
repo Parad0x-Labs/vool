@@ -10,15 +10,15 @@ authority, never through this group).
 """
 from __future__ import annotations
 
+import dataclasses
 import re
-
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from core.command_registry.spec import (
     ApprovalDecision,
     ApprovalGate,
-    Availability,
     AuthorityDecision,
+    Availability,
     CommandSpec,
     FaultBinding,
     GroupSpec,
@@ -28,7 +28,6 @@ from core.command_registry.spec import (
     NextAction,
     OperatorAuthority,
 )
-
 
 # ---------------------------------------------------------------- probes + gates
 
@@ -127,7 +126,7 @@ class DraftSaveInput:
 class DraftDecisionInput:
     draft_id: str
     draft_version: int
-    decision: str
+    decision: str = ""
     reason: str = ""
     destination: str = ""
 
@@ -298,6 +297,28 @@ def _handle_draft_save(inp, ctx):
                    "version": doc["version"],
                    "content_hash": doc["content_hash"]},),
     )
+
+
+def _handle_draft_approve(inp, ctx):
+    """draft.approve only approves: its verb, not a free input field, decides."""
+    if str(inp.decision or "").strip().lower() not in ("", "approved"):
+        return HandlerFault(
+            fault_code="usage",
+            summary=f"draft.approve records an approval, not {inp.decision!r}; use draft.reject",
+        )
+    return _handle_draft_decide(dataclasses.replace(inp, decision="approved"), ctx)
+
+
+def _handle_draft_reject(inp, ctx):
+    """draft.reject never approves: an 'approved' decision sent here is refused, so an approval
+    always passes the review fence in draft.approve."""
+    decision = str(inp.decision or "").strip() or "refused"
+    if decision.lower() == "approved":
+        return HandlerFault(
+            fault_code="usage",
+            summary="draft.reject cannot approve; use draft.approve",
+        )
+    return _handle_draft_decide(dataclasses.replace(inp, decision=decision), ctx)
 
 
 def _handle_draft_decide(inp, ctx):
@@ -569,7 +590,7 @@ def register(reg) -> None:
             model_offerable=True,
         )
     )
-    for verb, decision in (("approve", "approved"), ("reject", "refused")):
+    for verb, handler_name in (("approve", "_handle_draft_approve"), ("reject", "_handle_draft_reject")):
         reg.add(
             CommandSpec(
                 command_id=f"draft.{verb}",
@@ -582,7 +603,7 @@ def register(reg) -> None:
                     kind="social_content.mutate",
                     verifier="core.command_registry.groups.social_content_group:_gate_operator",
                 ),
-                handler=Handler("core.command_registry.groups.social_content_group:_handle_draft_decide"),
+                handler=Handler(f"core.command_registry.groups.social_content_group:{handler_name}"),
                 availability=Availability("core.command_registry.groups.social_content_group:_probe_store"),
                 fault_bindings=_MUTATING_FAULTS,
                 exit_codes=(0, 2, 21, 30),

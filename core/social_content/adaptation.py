@@ -19,11 +19,9 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlparse
 
 from core.social_content.platform_policy import (
     VALIDATION_UNKNOWN,
-    fact,
     length_limit_with_certainty,
 )
 
@@ -217,8 +215,6 @@ def platform_supports_thread_split(platform: str) -> bool:
 
 def unknown_limits_for(platform: str) -> list[dict[str, str]]:
     rows = []
-    for f in (globals().get("PLATFORM_FACTS", {}) or {}).get(platform, ()):  # pragma: no cover
-        pass
     from core.social_content.platform_policy import PLATFORM_FACTS
 
     for f in PLATFORM_FACTS.get(platform, ()):
