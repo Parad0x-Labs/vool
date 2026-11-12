@@ -378,22 +378,31 @@ def _coverage_of(observations: list[dict[str, Any]]) -> dict[str, Any]:
     derived_failed = sum(1 for row in derived if not row.get("ok"))
     unbound = sum(1 for row in derived if row.get("ok") and not row.get("bound"))
     noun = "lookup" if total == 1 else "lookups"
+    # Each part carries its catalog key and placeholder values beside the English, so the chip
+    # can say it in the app language; the English label is exactly the parts joined.
     if total == 0:
-        label = "no lookups"
+        parts = [_label_part("proof.coverage.none", "no lookups")]
     elif pending:
-        label = f"{pending} of {total} {noun} pending"
+        parts = [_label_part("proof.coverage.pending", f"{pending} of {total} {noun} pending", n=pending, total=total)]
     elif failed:
-        label = f"{failed} of {total} {noun} failed"
+        parts = [_label_part("proof.coverage.failed", f"{failed} of {total} {noun} failed", n=failed, total=total)]
     else:
-        label = f"{ok_count}/{total} {noun}"
+        parts = [_label_part("proof.coverage.done", f"{ok_count}/{total} {noun}", n=ok_count, total=total)]
     # A derived step that FAILED (or never ran) is named as failed, distinct from one that ran
     # but whose operand is not a lookup of this turn (unbound). The two were conflated: a
     # deadline-expired derivation counted as "unbound", which reads as a provenance gap rather
     # than an unanswered ask.
     if derived_failed:
-        label += f" · {derived_failed} of {len(derived)} derived step{'s' if len(derived) != 1 else ''} failed"
+        parts.append(_label_part(
+            "proof.coverage.derived_failed",
+            f"{derived_failed} of {len(derived)} derived step{'s' if len(derived) != 1 else ''} failed",
+            n=derived_failed, total=len(derived),
+        ))
     if unbound:
-        label += f" · {unbound} derived step{'s' if unbound != 1 else ''} unbound"
+        parts.append(_label_part(
+            "proof.coverage.unbound", f"{unbound} derived step{'s' if unbound != 1 else ''} unbound", n=unbound
+        ))
+    label = " · ".join(part["text"] for part in parts)
     return {
         "observations": {"total": total, "succeeded": ok_count, "failed": failed, "cached": cached, "pending": pending},
         "derived": {
@@ -403,7 +412,12 @@ def _coverage_of(observations: list[dict[str, Any]]) -> dict[str, Any]:
             "failed": derived_failed,
         },
         "label": label,
+        "label_parts": parts,
     }
+
+
+def _label_part(key: str, text: str, **params: int) -> dict[str, Any]:
+    return {"key": key, "params": params, "text": text}
 
 
 #: Stage windows read from event identities the runtime already emits. Each window is the span
@@ -808,7 +822,7 @@ def build_turn_proof(
     if projections["claims"] and projections["claims"].get("evidence_set_id"):
         receipts.append("evidence_set:" + str(projections["claims"]["evidence_set_id"]))
 
-    from core.response_usage_details import usage_display_segments
+    from core.response_usage_details import usage_display_parts, usage_display_segments
 
     proof = {
         "schema": SCHEMA,
@@ -829,10 +843,12 @@ def build_turn_proof(
                 "tokens": projections["tokens"],
                 "usd": None,
                 "display": " · ".join(usage_display_segments(projections["usage_details"])),
+                "parts": usage_display_parts(projections["usage_details"]),
                 "source": "provider_usage_events" if projections["tokens"] is not None else "",
             },
             "state": state,
             "state_label": "Record " + state.lower(),
+            "state_key": "proof.state." + state.lower(),
             "coverage": projections["coverage"],
         },
         "expanded": {
