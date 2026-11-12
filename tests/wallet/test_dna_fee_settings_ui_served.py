@@ -1,17 +1,27 @@
-"""Served proof: the DNA fee collection threshold is set from the wallet section of Settings and the door stores what the
-page sent; the page holds the OWNER's saved value and says when an operator override outranks it; the owner's explicit
-there is no "collect now": accrued fees ride the next native payment's approval, and the page says so.
+"""Served proof: the DNA fee line and its collection threshold in the wallet section of Settings.
 
-Real Chromium against a real ``apps.vool_api_server``. Assertions are on what the daemon STORES and on the page's
-rendered words for the two facts a user must not confuse: what they saved and what is in force. The 0.1% rate and the
-treasury have no control here, by design (``core.wallet.dna_fees`` constants; a page cannot reach them).
+The DNA service fee was charged only on UsePod's paid answers, and UsePod has stopped, so the panel says nothing about
+a DNA fee to a person with none on record. A person with fees on record (from earlier UsePod use) sees the line and
+sets the collection threshold from the page: the door stores what the page sent; the page holds the OWNER's saved
+value and says when an operator override outranks it; there is no "collect now": accrued fees ride the next native
+payment's approval, and the page says so.
+
+Real Chromium against a real ``apps.vool_api_server``. A fee is put on record the way one was ever written: one
+accepted UsePod x402 payment settled by the production money law in the daemon's own store, through the owner's CLI
+(a child interpreter with the daemon's home; no HTTP door writes money). Assertions are on what the daemon STORES and
+on the page's rendered words for the two facts a user must not confuse: what they saved and what is in force. The
+0.1% rate and the treasury have no control here, by design (``core.wallet.dna_fees`` constants; a page cannot reach
+them).
 """
 from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -39,6 +49,59 @@ def _get(base: str, path: str) -> dict:
 def _text(page, selector: str) -> str:
     node = page.query_selector(selector)
     return (node.text_content() or "").strip() if node else ""
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+FEE_BASIS_ATOMIC = 400_000  # one earlier accepted payment of 0.40 USDC: its 0.1% fee is 400 atomic units
+
+
+def _shot(page, name: str) -> None:
+    """The wallet panel itself (Settings scrolls inside its own pane, so a page shot would show only its top)."""
+    folder = os.environ.get("VOOL_DNA_FEE_PANEL_SHOTS")
+    if folder:
+        page.locator("#vwStatus").screenshot(path=os.path.join(folder, name))
+
+
+def _put_a_fee_on_record(daemon) -> None:
+    """A DNA fee on record in the daemon's own store, written the way one ever was: one accepted UsePod x402 payment of
+    0.40 USDC on Solana Mainnet, reserved, claimed, dispatched and settled by the production money law, which accrues
+    the 0.1% fee in the settling transaction. The owner's CLI writes it (a child interpreter with the daemon's home and
+    environment); no HTTP door writes money. Synthetic figures and a synthetic payer; nothing touches any chain."""
+    script = f"""
+import time, uuid
+from solders.keypair import Keypair
+from core.effect_budget import grant_operator_budget_authority
+from core.effect_budget_money import AssetIdentity, MoneyGrantSpec, grant_money_authority
+from core.service_fee_ledger import fee_ceiling_atomic
+from core.usepod.money_law import EffectBudgetMonetaryAuthority
+from core.usepod.monetary import EXACT_COST_NOT_SUPPLIED, ProviderLiability, SettlementEvidence
+network, model, note, amount = {SOLANA_MAINNET!r}, "synthetic-model", "synthetic test funds: dna fee panel proof", {FEE_BASIS_ATOMIC}
+payer = str(Keypair().pubkey())
+ceiling = amount + fee_ceiling_atomic(amount, 10)
+grant_money_authority(grant_operator_budget_authority(note=note), MoneyGrantSpec(
+    kind="single_payment", operation_kinds=("inference_x402",), provider_id="usepod", asset=AssetIdentity(network=network, asset="USDC", decimals=6),
+    max_total_atomic=ceiling, per_operation_max_atomic=ceiling, models=(model,), routes=("marketplace",), network=network, payer_account=payer,
+    fee_asset=AssetIdentity(network=network, asset="SOL", decimals=9), max_fee_total_atomic=50_000, per_operation_max_fee_atomic=50_000,
+    expires_epoch=time.time() + 3600.0, credit_liquidity="not_required", approval_ref="synthetic:" + uuid.uuid4().hex[:8], note=note))
+liability = ProviderLiability(
+    operation_id="upo_" + uuid.uuid4().hex, provider_id="usepod", transport_mode="x402", asset="USDC", unit="usdc_microunit", account_kind="x402_payer_wallet",
+    account_ref=payer, network=network, max_amount_atomic=amount, model_id=model, route_approval_id="apr", envelope_binding_sha256="c" * 64,
+    basis={{"route_class": "marketplace", "quote_id": "q-" + uuid.uuid4().hex[:6], "pay_to": "PayTo" + "9" * 39, "fee_network": network, "fee_asset": "SOL", "fee_decimals": 9,
+           "fee_max_atomic": 5_000, "principal_balance_atomic": 500_000_000, "fee_balance_atomic": 20_000_000, "wallet_authority_label": "synthetic"}})
+authority = EffectBudgetMonetaryAuthority()
+reservation = authority.reserve(liability)
+authority.claim(reservation, executor="synthetic")
+authority.mark_dispatched(reservation)
+authority.settle(reservation, SettlementEvidence(operation_id=liability.operation_id, outcome="completed", http_status=200, usage={{}}, input_tokens=None, output_tokens=None,
+                                                 upper_bound_cost_atomic=None, exact_cost_atomic=None, exact_cost_state=EXACT_COST_NOT_SUPPLIED, route={{}}, balance_remaining_raw=None, usage_exceeds_liability_bound=False))
+"""
+    env = daemon.env()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run([sys.executable, "-B", "-c", script], env=env, cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stderr[-3000:]
+    identities = _get(daemon.base_url, "/api/wallet/dna-fees")["dna_fees"]["identities"]
+    assert [(row["asset"], row["owed_atomic"]) for row in identities] == [("USDC", FEE_BASIS_ATOMIC // 1000)], identities
 
 
 def _prove_owner(page) -> None:
@@ -82,6 +145,7 @@ def test_the_threshold_is_saved_from_the_page_and_the_door_stores_it(tmp_path):
     provider, daemon = _served(tmp_path, collect_min_override="")
     manager, browser = launch_chromium()
     try:
+        _put_a_fee_on_record(daemon)  # the threshold is shown to a person with DNA fees on record
         page = browser.new_page()
         page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
         page.wait_for_selector("#vwDnaFeeSave", state="visible", timeout=20000)
@@ -146,6 +210,7 @@ def test_an_operator_override_is_said_beside_the_saved_value_and_never_shown_as_
     provider, daemon = _served(tmp_path, collect_min_override="3")
     manager, browser = launch_chromium()
     try:
+        _put_a_fee_on_record(daemon)  # the threshold is shown to a person with DNA fees on record
         page = browser.new_page()
         page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
         page.wait_for_selector("#vwDnaFeeSave", state="visible", timeout=20000)
@@ -169,6 +234,38 @@ def test_an_operator_override_is_said_beside_the_saved_value_and_never_shown_as_
             timeout=20000,
         )
         assert page.input_value("#vwDnaFeeMin") == "9", "the box holds the owner's value, not the override"
+    finally:
+        browser.close()
+        manager.stop()
+        daemon.stop()
+        provider.__exit__(None, None, None)
+
+
+@pytest.mark.timeout(600)
+def test_a_wallet_with_no_dna_fee_on_record_shows_none_and_one_on_record_shows_the_line(tmp_path):
+    """UsePod's paid answers were the only payments that carried the DNA fee. The wallet panel of a person with no fee on
+    record says nothing about one: no fee line, no threshold control. Once a fee is on record (earlier UsePod use), the
+    same panel shows the line with what is owed, and the threshold control."""
+    from tests.served_browser import launch_chromium
+
+    provider, daemon = _served(tmp_path, collect_min_override="")
+    manager, browser = launch_chromium()
+    try:
+        page = browser.new_page()
+        page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+        page.wait_for_selector("#vwLimits", state="visible", timeout=20000)
+        assert _get(daemon.base_url, "/api/wallet/dna-fees")["dna_fees"]["identities"] == []
+        assert page.locator("#vwDnaFeesLine").count() == 0 and page.locator("#vwDnaFees").count() == 0
+        assert "DNA" not in page.locator("#vwStatus").inner_text()
+        _shot(page, "dna-fee-panel-nothing-on-record.png")
+
+        _put_a_fee_on_record(daemon)
+        page.reload(wait_until="networkidle")
+        page.wait_for_selector("#vwDnaFeeSave", state="visible", timeout=20000)
+        line = _text(page, "#vwDnaFeesLine")
+        assert line.startswith("DNA service fee 0.1% on native x402 payments · 0.0004 USDC owed"), line
+        assert page.input_value("#vwDnaFeeMin") == "100000"
+        _shot(page, "dna-fee-panel-fee-on-record.png")
     finally:
         browser.close()
         manager.stop()

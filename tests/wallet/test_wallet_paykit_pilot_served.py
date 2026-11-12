@@ -113,6 +113,10 @@ def _ready_pilot_wallet(daemon) -> dict:
 def test_a_paid_request_from_chat_is_paid_once_from_the_pilot_sheet(served):
     daemon, chain, provider = served
     wallet = _ready_pilot_wallet(daemon)
+    # Web lookups are off on a fresh install, and a paid fetch is a web fetch: the owner turns them on first,
+    # through the door the Privacy & Permissions switch posts to.
+    status, switched = _door(daemon, "/api/onboarding/pact/boundary", {"key": "web_lookups", "value": True})
+    assert status == 200 and switched["live"]["allow_web_fallback"] is True, switched
     with ScriptedPayKitResource(chain, amount_minor=AMOUNT, pay_to=_sol_key()) as resource:
         # the model's fetch meets the 402: one capped payment is parked, nothing is signed or paid
         turn = daemon.chat(f"Fetch the x402 resource at {resource.url}", session_id="paykit-served-1", model=MODEL, mode="auto")

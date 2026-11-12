@@ -10,7 +10,7 @@ import contextlib
 import json
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -190,6 +190,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_spend_ledger", "settled_at", "REAL NOT NULL DEFAULT 0"),
     # PA Contacts: the recipient snapshot a proposal was resolved to ('' = none named)
     ("wallet_proposals", "recipient_json", "TEXT NOT NULL DEFAULT ''"),
+    # the sha256 of the exact Solana message this proposal's claim signs ('' = none claimed yet, or not a Solana
+    # message): two payments never claim one message, so the chain never runs them as one transaction
+    ("wallet_proposals", "message_digest", "TEXT NOT NULL DEFAULT ''"),
     # an x402 SDK payment's EIP-3009 authorization: {kind, token, from_block} at the claim, plus its nonce and window
     # once signed. Such a row takes no account nonce ('' = not an authorization row)
     ("wallet_transfers", "authorization_json", "TEXT NOT NULL DEFAULT ''"),
@@ -202,6 +205,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
 #: Statements that depend on added columns: they run after ``_ensure_columns`` on every connection, so an upgraded
 #: database gains them in the same pass that gains the columns.
 POST_MIGRATION: tuple[str, ...] = (
+    # one claimed message, one proposal, on the message alone: its blockhash names the cluster, while a proposal keeps the
+    # spelling of its chain it was made with (an earlier per-spelling index, where present, is implied by this one)
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_proposals_message_digest ON wallet_proposals(message_digest) WHERE message_digest <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_profiles_creation_key ON wallet_profiles(network, creation_key) WHERE creation_key <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_quotes_open ON wallet_quotes(proposal_id) WHERE state = 'open'",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_profiles_agent ON wallet_profiles(agent_id, network) WHERE agent_id <> '' AND setup_state <> 'cancelled'",
@@ -237,11 +243,38 @@ def _raw_conn() -> sqlite3.Connection:
     return runtime_conn()
 
 
+#: this thread's open wallet connections, and the records waiting for the last of them to close
+_OPEN = threading.local()
+
+
+def after_connections_close(filing: Callable[[], Any]) -> bool:
+    """Run ``filing`` once this thread's wallet connections are all closed; False, with nothing kept, when none is open.
+
+    A refusal raised inside a claim's BEGIN IMMEDIATE is filed on another connection to the same database: filed
+    there and then, it waited for the claim's own write lock until the busy timeout ran out, and was lost. Kept until
+    the claim's transaction ended, it is filed at once, before the refusal reaches the caller."""
+    if not getattr(_OPEN, "depth", 0):
+        return False
+    _OPEN.pending = [*getattr(_OPEN, "pending", []), filing]
+    return True
+
+
+def _closed() -> None:
+    _OPEN.depth -= 1
+    if _OPEN.depth:
+        return
+    pending, _OPEN.pending = list(getattr(_OPEN, "pending", [])), []
+    for filing in pending:
+        with contextlib.suppress(Exception):  # observability never fails the refusal it records
+            filing()
+
+
 @contextmanager
 def connection() -> Iterator[sqlite3.Connection]:
     """A migrated connection with the wallet schema present. Commits on clean exit."""
     with LOCK:
         conn = _raw_conn()
+        _OPEN.depth = getattr(_OPEN, "depth", 0) + 1
         try:
             for statement in SCHEMA:
                 conn.execute(statement)
@@ -255,4 +288,7 @@ def connection() -> Iterator[sqlite3.Connection]:
                 conn.rollback()
             raise
         finally:
-            conn.close()
+            try:
+                conn.close()
+            finally:
+                _closed()

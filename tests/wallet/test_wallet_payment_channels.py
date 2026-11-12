@@ -241,6 +241,8 @@ def test_payments_no_channel_carries_pay_with_every_channel_off(wallet_env):
     """The owner's own transfers and a model's request are not paid requests: the channel switches never touch them."""
     from core.wallet import channels, lifecycle, proposals
 
+    # a real chain moves on between payments; equal payments inside one blockhash are test_wallet_one_transaction_per_payment's
+    wallet_env["rpc"].blockhash_moves_every_read = True
     profile = _pocket()
     for channel in channels.CHANNELS:
         channels.set_on(channel.channel_id, False)

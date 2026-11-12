@@ -534,3 +534,34 @@ def test_a_payment_whose_answer_was_lost_is_settled_from_the_chain_and_not_deliv
         assert (result["transfer"]["state"], result["transfer"]["tx_id"]) == ("confirmed", resource.landed[0])
         assert x402.binding_for_proposal(parked.proposal_id)["state"] == x402.BINDING_PAID and paykit_x402.delivered_body(parked.proposal_id) is None
         assert len(resource.paid_requests) == 1
+
+
+@pytest.mark.parametrize("sponsored", [True, False], ids=["site-pays-fee", "wallet-pays-fee"])
+def test_a_charge_that_repeats_a_paid_charges_transaction_is_never_delivered_or_left_held(capped, sponsored):
+    """The site repeats its offer (the same order id, payee and amount) for another request before the chain moved on:
+    pay-kit builds, over the blockhash the lane read, byte for byte the transaction this wallet already paid. It never
+    leaves: the request is not delivered, the claim is released and nothing is counted twice. Once the chain moved on,
+    the request is paid with a transaction of its own."""
+    from core.wallet import proposals
+    from core.wallet.errors import WalletFault
+
+    node = capped
+    wallet = _ready_pilot_wallet()
+    with ScriptedMppResource(node, amount_minor=AMOUNT, recipient=_sol_key(), sponsored=sponsored) as resource:
+        first = _park(resource, wallet, method="POST", body=b'{"q": 1}')
+        paid = _approve(first.proposal_id, _quote(first.proposal_id))
+        assert paid["paykit"]["delivered"] is True and len(resource.landed) == 1
+        second = _park(resource, wallet, method="POST", body=b'{"q": 2}')
+        with pytest.raises(WalletFault) as repeated:
+            _approve(second.proposal_id, _quote(second.proposal_id))
+        assert (repeated.value.code, repeated.value.context.get("reason")) == ("wallet_duplicate_payment", "transaction_matches_another_payment")
+        assert len(resource.paid_requests) == 1 and len(resource.landed) == 1, "the repeated transaction never left"
+        assert _row(second.proposal_id)["state"] == "released" and _hold(second.proposal_id)[2] == "released"
+        assert proposals.get_proposal(second.proposal_id).state != proposals.STATE_CONFIRMED
+        assert _hold(first.proposal_id) == (AMOUNT, 0 if sponsored else node.transaction_fee, "settled")
+
+        node.advance_blockhash()
+        again = _park(resource, wallet, method="POST", body=b'{"q": 2}')
+        result = _approve(again.proposal_id, _quote(again.proposal_id))
+        assert result["paykit"]["delivered"] is True and result["transfer"]["tx_id"] != paid["transfer"]["tx_id"]
+        assert len(resource.paid_requests) == 2 and len(set(resource.landed)) == 2 and resource.paid_requests[1]["body"] == b'{"q": 2}'

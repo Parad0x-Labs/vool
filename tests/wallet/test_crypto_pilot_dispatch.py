@@ -176,6 +176,148 @@ def test_a_second_transfer_to_another_recipient_with_another_amount_settles_inde
     assert _hold(first.proposal_id) == (700_000, node.transaction_fee, "settled") and _hold(second.proposal_id) == (650_500, node.transaction_fee, "settled")
 
 
+def test_a_transfer_equal_to_one_just_sent_waits_for_the_chain_or_asks_for_a_fresh_preview(pilot, monkeypatch):
+    """The same amount to the same recipient again before the chain moved on: signed by this key it would be the first
+    transfer's own transaction, which the chain runs once. The approval reads the chain again until its next blockhash
+    makes this transfer distinct; when none comes in time the preview is replaced and nothing is claimed, held or sent."""
+    from core.wallet import lifecycle, proposals, quotes, transfers
+
+    monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_BUDGET_SECONDS", 0.3)  # the scripted chain stands still until told
+    monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_POLL_SECONDS", 0.05)
+    node = pilot
+    wallet = _ready_pilot_wallet()
+    payee = _sol_key()
+    engine, first = _pending(wallet, destination=payee)
+    sent = _approve(engine, first.proposal_id, _quote(first.proposal_id))["transfer"]
+    assert sent["state"] == "confirmed" and node.send_count() == 1
+
+    _, second = _pending(wallet, destination=payee)
+    stale = _quote(second.proposal_id)
+    with pytest.raises(WalletFault) as same:
+        _approve(engine, second.proposal_id, stale)
+    assert (same.value.code, same.value.context.get("reason"), same.value.context.get("other_proposal_id")) == ("wallet_quote_expired", "transaction_matches_another_payment", first.proposal_id)
+    assert quotes.get_quote(stale["quote_id"])["state"] == quotes.STATE_SUPERSEDED, "the sheet asks for a fresh preview"
+    assert _hold(second.proposal_id) is None and transfers.get_transfer_by_id(second.proposal_id) is None, "nothing claimed or held"
+    assert proposals.get_proposal(second.proposal_id).state == proposals.STATE_PENDING_APPROVAL and node.send_count() == 1
+
+    holders: list[str] = []
+    lookup = proposals.message_claimed_by
+
+    def recorded(network: str, message_digest: str, proposal_id: str) -> str:
+        holders.append(lookup(network, message_digest, proposal_id))
+        return holders[-1]
+
+    monkeypatch.setattr(proposals, "message_claimed_by", recorded)
+    fresh = _quote(second.proposal_id)
+    node.blockhash_moves_after_reads = 1  # the cluster moves on just after the approval's first read
+    again = _approve(engine, second.proposal_id, fresh)["transfer"]
+    assert holders == [first.proposal_id, ""], "the approval read the chain again until the transfer was its own"
+    assert again["state"] == "confirmed" and again["tx_id"] != sent["tx_id"]
+    assert node.recorded_signatures() == {sent["tx_id"], again["tx_id"]} and node.distinct_transactions() == node.send_count() == 2
+    assert _hold(first.proposal_id) == _hold(second.proposal_id) == (AMOUNT, node.transaction_fee, "settled"), "two transfers, each counted once"
+
+
+def test_two_approvals_racing_for_one_transfer_bind_it_once_and_the_other_quote_stays_open(pilot, monkeypatch):
+    """Two equal transfers approved at once, both past the read-ahead before either claims (forced here): the claim's
+    own write transaction binds the message to one of them; the other rolls back whole, so its quote stays open, nothing
+    is held or sent for it, and its refusal is filed."""
+    import threading
+
+    from core.wallet import lifecycle, proposals, quotes, transfers
+    from core.wallet.store import connection
+
+    monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_BUDGET_SECONDS", 0.3)
+    monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_POLL_SECONDS", 0.05)
+    both_read = threading.Barrier(2, timeout=30)
+    first_read = threading.local()
+    lookup = proposals.message_claimed_by
+
+    def read_together(network: str, message_digest: str, proposal_id: str) -> str:
+        holder = lookup(network, message_digest, proposal_id)
+        if not getattr(first_read, "done", False):
+            first_read.done = True
+            both_read.wait()
+        return holder
+
+    monkeypatch.setattr(proposals, "message_claimed_by", read_together)
+    node = pilot
+    wallet = _ready_pilot_wallet()
+    payee = _sol_key()
+    racing = [_pending(wallet, destination=payee) for _ in range(2)]
+    quoted = {proposal.proposal_id: _quote(proposal.proposal_id) for _, proposal in racing}
+    outcomes: dict[str, object] = {}
+
+    def approve(engine, proposal) -> None:
+        try:
+            outcomes[proposal.proposal_id] = _approve(engine, proposal.proposal_id, quoted[proposal.proposal_id])["transfer"]["state"]
+        except WalletFault as exc:
+            outcomes[proposal.proposal_id] = exc
+
+    threads = [threading.Thread(target=approve, args=pair) for pair in racing]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+    winners = [pid for pid, outcome in outcomes.items() if outcome == "confirmed"]
+    losers = [pid for pid, outcome in outcomes.items() if isinstance(outcome, WalletFault)]
+    assert len(winners) == 1 and len(losers) == 1, outcomes
+    lost = outcomes[losers[0]]
+    assert (lost.code, lost.context.get("reason"), lost.context.get("other_proposal_id")) == ("wallet_quote_expired", "transaction_matches_another_payment", winners[0])
+    assert quotes.get_quote(quoted[losers[0]]["quote_id"])["state"] == quotes.STATE_OPEN, "the claim rolled back whole"
+    assert _hold(losers[0]) is None and transfers.get_transfer_by_id(losers[0]) is None and proposals.get_proposal(losers[0]).state == proposals.STATE_PENDING_APPROVAL
+    assert node.send_count() == 1 and _hold(winners[0]) == (AMOUNT, node.transaction_fee, "settled")
+    with connection() as conn:
+        filed = [json.loads(row[0]) for row in conn.execute("SELECT context_json FROM fault_records WHERE code = 'wallet_quote_expired'").fetchall()]
+    assert [entry.get("reason") for entry in filed if entry.get("proposal_id") == losers[0]] == ["transaction_matches_another_payment"], "filed, not lost behind the claim's lock"
+
+
+def test_a_signed_transfer_revoked_before_it_left_keeps_its_transaction_until_it_is_released(pilot, monkeypatch):
+    """The first transfer is signed, then refused before its bytes leave (revoked). Its signed bytes still hold their
+    transaction id until its blockhash expires, so an equal transfer approved before the chain moved on is refused as
+    the same transaction, its quote replaced and still the owner's to approve, never claimed, signed and dropped. Once
+    the chain moves on it is paid with a transaction of its own; the revoked one frees its message when it is released."""
+    import core.runtime_continuity as continuity
+    from core.wallet import lifecycle, proposals, quotes, settlement, transfers
+    from core.wallet.store import connection
+
+    monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_BUDGET_SECONDS", 0.3)  # the scripted chain stands still until told
+    monkeypatch.setattr(lifecycle, "_DISTINCT_MESSAGE_POLL_SECONDS", 0.05)
+    node = pilot
+    wallet = _ready_pilot_wallet()
+    payee = _sol_key()
+
+    def bound(proposal_id: str) -> str:
+        with connection() as conn:
+            return str(conn.execute("SELECT message_digest FROM wallet_proposals WHERE proposal_id = ?", (proposal_id,)).fetchone()[0])
+
+    engine, first = _pending(wallet, destination=payee)
+    mark = continuity.mark_effect_dispatched
+    monkeypatch.setattr(continuity, "mark_effect_dispatched", lambda **_kwargs: False)  # the send guard refuses after signing
+    with pytest.raises(WalletFault) as unsent:
+        _approve(engine, first.proposal_id, _quote(first.proposal_id))
+    monkeypatch.setattr(continuity, "mark_effect_dispatched", mark)
+    assert (unsent.value.code, unsent.value.context.get("reason")) == ("wallet_broadcast_failed", "signed_not_sent:effect_mark_refused")
+    revoked = transfers.get_transfer_by_id(first.proposal_id)
+    assert revoked["state"] == transfers.STATE_SIGNED_REVOKED and revoked["tx_id"] and node.send_count() == 0
+    assert bound(first.proposal_id), "its signed bytes still hold their transaction"
+
+    _, second = _pending(wallet, destination=payee)
+    stale = _quote(second.proposal_id)
+    with pytest.raises(WalletFault) as same:
+        _approve(engine, second.proposal_id, stale)
+    assert (same.value.code, same.value.context.get("reason"), same.value.context.get("other_proposal_id")) == ("wallet_quote_expired", "transaction_matches_another_payment", first.proposal_id)
+    assert quotes.get_quote(stale["quote_id"])["state"] == quotes.STATE_SUPERSEDED and transfers.get_transfer_by_id(second.proposal_id) is None
+    assert proposals.get_proposal(second.proposal_id).state == proposals.STATE_PENDING_APPROVAL and _hold(second.proposal_id) is None and node.send_count() == 0
+
+    node.advance_blockhash()
+    paid = _approve(engine, second.proposal_id, _quote(second.proposal_id))["transfer"]
+    assert paid["state"] == "confirmed" and paid["tx_id"] != revoked["tx_id"] and node.send_count() == 1
+
+    node.block_height = int(revoked["last_valid_block_height"]) + 1  # the revoked bytes' blockhash expired: they can never land
+    released = settlement.recover_once(transfers.get_transfer_by_id(first.proposal_id))
+    assert released["state"] == transfers.STATE_RELEASED and bound(first.proposal_id) == "", "released, it frees its message as it frees its transaction id"
+
+
 def test_a_wrong_pin_counts_one_refusal_sends_nothing_and_the_right_pin_then_sends_once(pilot):
     from core.wallet import proposals, quotes
 
