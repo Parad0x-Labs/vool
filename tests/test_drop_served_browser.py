@@ -344,6 +344,21 @@ def browser_send(a, b):
     assert b.evaluate("window.receivedExecuted") is None
 
 
+def test_browser_refused_send_keeps_the_drop_ready(pages):
+    """A refused send (a file over 10 MiB) says why and leaves the chosen Drop and its Send button in place."""
+    from playwright.sync_api import expect
+
+    a, b, _ = pages
+    sid = browser_pair(pages)
+    a.locator(".vd-file").set_input_files(
+        {"name": "too-big.bin", "mimeType": "application/octet-stream", "buffer": b"\0" * (10 * 1024 * 1024 + 1)})
+    a.get_by_role("button", name="Send", exact=True).click()
+    expect(a.locator(".vd-status")).to_have_text("Choose one file of at most 10 MiB.")
+    expect(a.get_by_role("button", name="Send", exact=True)).to_be_visible()
+    assert a.locator(".vd-select").input_value() == sid
+    browser_send(a, b)
+
+
 def test_browser_full_two_home_flow_and_delete(pages, homes, tmp_path):
     from playwright.sync_api import expect
 
