@@ -1019,3 +1019,17 @@ def test_files_and_mentions_are_not_web_reads(said):
     from core.agent_runtime.fast_paths_web import url_read_request
 
     assert url_read_request(said) is None
+
+
+def test_a_completed_change_is_not_claimed_when_only_a_preview_ran(monkeypatch):
+    authorship = _gate_with(monkeypatch, ["vool-database.migrate.preview", "vool-database.schema"],
+                            ["vool-database.migrate.preview", "vool-database.migrate.apply", "vool-database.schema"])
+    reply = "The column 'phone' has been successfully added to the 'members' table.\n- Previewed the migration on a copy."
+    text, payload = authorship._unrun_listed_intents(reply, {"session_id": "s"})
+    assert "successfully added" not in text and "This change has not been made" in text
+    assert payload["publication"] == "unrun_completion_claim_corrected"
+
+
+def test_a_completed_change_stands_when_the_change_ran(monkeypatch):
+    authorship = _gate_with(monkeypatch, ["vool-database.migrate.apply"], ["vool-database.migrate.apply"])
+    assert authorship._unrun_listed_intents("The column has been added.", {"session_id": "s"}) is None

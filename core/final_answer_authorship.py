@@ -1549,6 +1549,13 @@ _CHANGING_INTENT_RE = re.compile(
     r"(?:^|[._-])(?:apply|write|delete|remove|drop|insert|update|create|send|reply|move|rename|execute|run|migrate\.apply)$",
     re.IGNORECASE,
 )
+_COMPLETION_CLAIM_RE = re.compile(
+    r"\b(?:has|have)\s+(?:now\s+)?(?:been\s+)?(?:successfully\s+)?(?:added|created|deleted|removed|updated|applied|"
+    r"inserted|dropped|renamed|moved|sent|saved|changed|migrated)\b|\bi\s+(?:have\s+|'ve\s+)?(?:successfully\s+)?"
+    r"(?:added|created|deleted|removed|updated|applied|inserted|dropped|renamed|migrated)\b|\bsuccessfully\s+(?:added|created|"
+    r"deleted|removed|updated|applied|migrated)\b",
+    re.IGNORECASE,
+)
 _ACTION_LEAD_RE = re.compile(
     r"^\s*(?:i(?:'ve|\s+have)?\s+|i'?m\s+|now\s+)?(?:adding|added|applying|applied|creating|created|deleting|deleted|"
     r"removing|removed|updating|updated|inserting|inserted|dropping|dropped|sending|sent|writing|wrote|renaming|renamed|"
@@ -1577,6 +1584,17 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     lines = text.split("\n")
     unrun: list[str] = []
     removed: set[int] = set()
+    # A reply that says a change was MADE when only reads or previews ran this turn. Measured on
+    # database run 7 (2026-11-12): "The column 'email' has been successfully added" after only
+    # vool-database.migrate.preview ran; the table was unchanged.
+    changing_ran_any = any(_CHANGING_INTENT_RE.search(i) for i in executed)
+    if executed and not changing_ran_any:
+        claimed = [i for i, line in enumerate(lines) if _COMPLETION_CLAIM_RE.search(line)]
+        if claimed:
+            for index in claimed:
+                lines[index] = "This change has not been made: only a preview ran, nothing was applied."
+            body = "\n".join(dict.fromkeys(lines)).strip()
+            return body, {"execution_claims": ["completion_claim"], "publication": "unrun_completion_claim_corrected"}
     for index, line in enumerate(lines):
         match = _LISTED_INTENT_LINE_RE.match(line)
         if not match:

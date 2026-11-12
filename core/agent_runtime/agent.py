@@ -2661,6 +2661,23 @@ class VoolAgent(
                         record_user_turn=False,
                     )
 
+        # A short follow-up that repeats the chat's last task for a new object ("meadow?" after a
+        # translation) or redoes it with a change ("one friend can't come, redo it") carries that
+        # task in its text from here on, so no lane or model reads it on its own
+        # (core.agent_runtime.task_continuation; 0.7.8 sweep blocks 1c/1e).
+        with contextlib.suppress(Exception):
+            from core.agent_runtime.task_continuation import compose_continuation, last_task_request
+
+            _carried = compose_continuation(effective_input, last_task_request(session_id))
+            if _carried:
+                effective_input = _carried
+                interpreted = adapt_user_input(
+                    effective_input,
+                    session_id=session_id,
+                    turn_id=turn_request.turn_id,
+                    record_user_turn=False,
+                )
+
         # Currency identity is stable local knowledge; currency VALUE is an observation.  Enforce
         # that boundary before the conductor, planner, or model can turn an unavailable rate into
         # plausible prose.  The same seam resolves a terse "local only" follow-up against the

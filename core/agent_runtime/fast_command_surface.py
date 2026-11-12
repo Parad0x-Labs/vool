@@ -2423,10 +2423,32 @@ def help_capabilities_text(agent: Any) -> str:
         lines.append("")
         lines.append("Not available or switched off here:")
         for entry in unsupported_entries:
-            reason = str(entry.get("unsupported_reason") or entry.get("claim") or "").strip()
+            reason = _plain_reason(str(entry.get("unsupported_reason") or entry.get("claim") or "").strip())
             if reason:
                 lines.append(f"- {reason}")
-    return "\n".join(lines)
+    # One line per thing: several capabilities share one reason ("X is not connected…" thirteen
+    # times on the 0.7.8 sweep), and a repeated line tells the person nothing new.
+    return "\n".join(_dedupe_lines(lines))
+
+
+def _plain_reason(reason: str) -> str:
+    """A capability reason without the runtime's configuration names (environment variables and
+    policy keys in parentheses), which mean nothing to the person reading the chat."""
+    import re as _re
+
+    clean = _re.sub(r"\s*\((?:set\s+)?[^()]*\b(?:VOOL_[A-Z_]+|[a-z]+\.[a-z_]+_enabled)\b[^()]*\)", "", reason)
+    return " ".join(clean.split())
+
+
+def _dedupe_lines(lines: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for line in lines:
+        if line.startswith("- ") and line in seen:
+            continue
+        seen.add(line)
+        out.append(line)
+    return out
 
 
 def compact_capabilities_text(agent: Any) -> str:
