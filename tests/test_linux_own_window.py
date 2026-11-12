@@ -290,7 +290,9 @@ def test_the_build_writes_hashed_requirements_and_checks_the_folder_against_them
 def test_the_package_build_installs_window_lib_by_digest_and_checks_it():
     build = (ROOT / "installer/bundle/build_linux_bundle.sh").read_text()
     install = build[build.index('--target "${BUNDLE}/window-lib"') - 200:build.index("requirements-window.txt\"", build.index('--target "${BUNDLE}/window-lib"'))]
-    for flag in ("--no-deps", "--no-build", "--require-hashes", "--no-config"):
+    # --link-mode=copy: window-lib shares packages with the server's set; linked from one uv cache they were
+    # hard links in the tarball, which the .deb build refuses.
+    for flag in ("--no-deps", "--no-build", "--require-hashes", "--no-config", "--link-mode=copy"):
         assert flag in install
     assert 'linux_window_lib.py" check' in build
     assert "from installer.bundle import vool_window" in build  # the window's imports, on the system python3

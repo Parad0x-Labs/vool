@@ -66,8 +66,10 @@ uv pip sync --python "${BUNDLE}/python/bin/python3" --no-build --require-hashes 
   --out "${STAGE}/requirements-window.txt"
 # --no-config: the project's resolver floors ([tool.uv] constraint-dependencies) are for the server's set;
 # applied here they made uv refuse the hashed install over packages this folder does not carry.
-uv pip install --no-config --python "${BUNDLE}/python/bin/python3" --target "${BUNDLE}/window-lib" --no-deps \
-  --no-build --require-hashes --no-compile-bytecode --find-links "${STAGE}/window-wheels" \
+# --link-mode=copy: the server's packages above are hard-linked from the same uv cache, so a package in both
+# sets (typing_extensions) became one file under two names, a hard link in the tarball the .deb build refuses.
+uv pip install --no-config --link-mode=copy --python "${BUNDLE}/python/bin/python3" --target "${BUNDLE}/window-lib" \
+  --no-deps --no-build --require-hashes --no-compile-bytecode --find-links "${STAGE}/window-wheels" \
   -r "${STAGE}/requirements-window.txt"
 # Never used by the Linux window: bottle's command-line script, the Windows WebView2 and Android
 # binaries pywebview's one wheel carries for its other platforms, and uv's install lock.
