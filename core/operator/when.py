@@ -497,15 +497,23 @@ def _resolve_word_date(
                 problem=f"{target:%A %d %B %Y} is not {day_word.group(1)}. Which day did you mean?",
             )
     time_match = _TIME_RE.search(rest)
-    if time_match is None:
-        return WhenResolution(ok=False, problem=f"Which time on {said}? Give me a clock time too (for example '{said} at 9:00').", tz_name=tz_name)
-    try:
-        hour, minute = _read_clock(time_match, text)
-    except ValueError as exc:
-        return WhenResolution(ok=False, problem=str(exc))
+    if time_match is not None:
+        try:
+            hour, minute = _read_clock(time_match, text)
+        except ValueError as exc:
+            return WhenResolution(ok=False, problem=str(exc))
+        time_basis = time_match.group(0).strip()
+    else:
+        # A part of the day said with the date ("5 March at noon", "March 5th in the morning")
+        # reads as that part's hour, as it does after "the 5th" and after a day word.
+        part_match = _part_of_day_match(rest)
+        if part_match is None:
+            return WhenResolution(ok=False, problem=f"Which time on {said}? Give me a clock time too (for example '{said} at 9:00').", tz_name=tz_name)
+        hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
+        time_basis = str(part_match.group(0)).strip()
     return _resolve_wall(
         target.year, target.month, target.day, hour, minute,
-        zone, tz_name, basis=f"{target.day} {target:%B %Y} {time_match.group(0).strip()}", now=now, kind="absolute",
+        zone, tz_name, basis=f"{target.day} {target:%B %Y} {time_basis}", now=now, kind="absolute",
     )
 
 

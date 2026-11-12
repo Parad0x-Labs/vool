@@ -1287,6 +1287,19 @@ _MONTH_WORDS = (
     r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
     r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?"
 )
+#: A calendar date as the when-reader reads one (core.operator.when): an ISO date with an optional
+#: clock, "5 March", "the 5th of March", "March 5th", each with an optional year ("5 March 2027",
+#: "March 5th, 2027"), or a bare ordinal ("the 5th"). The subject cut must take the WHOLE date: a
+#: year or an "of" it did not know stranded the date in the subject, and the due time was then
+#: read from the clock alone, i.e. tomorrow ("remind me to call the bank on 5 March 2027 at 9am"
+#: was due the next morning).
+_DATE_YEAR = r"(?:,?\s+20\d{2}\b(?!:))?"
+_DATE_PHRASE = (
+    r"(?:20\d{2}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2})?"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*(?:of\s+)?" + _MONTH_WORDS + _DATE_YEAR
+    + r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b" + _DATE_YEAR
+    + r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b)"
+)
 #: Job 6d (Fix 2): the head of a when-tail -- a preposition followed by a when-word. The DUE time is the LAST when-expression of
 #: the ask, so the subject cut lands on the RIGHT-MOST head and everything from it to the end
 #: leaves; an earlier when-expression inside the subject ("the Friday at 10 workshop") is a
@@ -1295,16 +1308,26 @@ _MONTH_WORDS = (
 #: Friday").
 _WHEN_TAIL_HEAD_RE = re.compile(
     r"\s+(?:at|on|in|by)\s+("
-    r"(?:20\d{2}-\d{2}-\d{2})(?:[ T]\d{1,2}:\d{2})?"
-    r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
-    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b"
-    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b"
+    + _DATE_PHRASE
+    + r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b"
     r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?(?:half|quarter))?"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)?\b"
     r"|(?:at\s+)?(?:noon|midday|midnight)\b"
     r")",
     re.IGNORECASE | re.DOTALL,
+)
+
+#: A when-tail head that names a day, not a clock or a delay.
+_DAY_HEAD_RE = re.compile(
+    r"(?:" + _DATE_PHRASE + r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b)\s*$",
+    re.IGNORECASE,
+)
+#: A clock left at the END of the subject when the day after it was cut ("... at 9am" from
+#: "... at 9am on 5 March"): the due time's own clock, never the thing to do.
+_CLOCK_BEFORE_DAY_RE = re.compile(
+    r"[\s,]+at\s+(?:\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)?|noon|midday|midnight)[\s,]*$",
+    re.IGNORECASE,
 )
 
 #: Job 6d (Fix 2): a day phrase left at the END of the subject by the when-tail cut directly
@@ -1316,15 +1339,11 @@ _WHEN_TAIL_HEAD_RE = re.compile(
 _CARRIED_DAY_TAIL_RE = re.compile(
     r"[\s,]+(?:on\s+)?(?:"
     r"yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)"
-    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*" + _MONTH_WORDS + r""
-    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?"
-    r")"
+    r"|" + _DATE_PHRASE
+    + r")"
     r"(?:[\s,]+(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday"
-    r"|saturday|sunday|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)"
-    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*" + _MONTH_WORDS + r""
-    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?"
-    r"))*"
+    r"|saturday|sunday|" + _DATE_PHRASE
+    + r"))*"
     r"[\s,]*$",
     re.IGNORECASE,
 )
@@ -1340,6 +1359,8 @@ _EARLIER_WHEN_HINT_RE = re.compile(
 _LEADING_WHEN_RE = re.compile(
     r"^(?:"
     r"(?:on|at|in|by|every|next|this)\s+"
+    # "in the morning" after a day or a date ("on 5 March in the morning to ...").
+    r"|the\s+(?=(?:morning|afternoon|evening|night)\b)"
     r"|(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
     r"|morning|afternoon|evening|noon|midday|midnight|daily|weekly|day|week)\b[\s,]*"
     r"|20\d{2}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2})?[\s,]*"
@@ -1473,6 +1494,11 @@ def _reminder_note_from_text(text: str) -> str:
         cut = note[: heads[-1].start()].strip()
         if cut:
             note = cut
+            stranded = _CLOCK_BEFORE_DAY_RE.search(note) if _DAY_HEAD_RE.match(heads[-1].group(1)) else None
+            if stranded and note[: stranded.start()].strip():
+                # "call the bank at 9am on 5 March 2027": the cut took the day, and the clock it
+                # pairs with sits straight before it. Both are the due time, so both leave.
+                note = note[: stranded.start()].strip()
             carried = _CARRIED_DAY_TAIL_RE.search(note)
             if carried:
                 rest = note[: carried.start()].strip()
