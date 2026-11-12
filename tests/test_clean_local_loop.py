@@ -678,6 +678,49 @@ def test_orders_money_and_general_asks_stay_out(ask, reason):
     assert (decision.admit, decision.reason) == (False, reason)
 
 
+@pytest.mark.parametrize(
+    "ask",
+    [
+        # The wordings the wire-core review found admitted on bb35ff83 (V-048): the read-only loop
+        # took them for machine-health asks, and the command never ran.
+        "Run the tests and show me the errors",
+        "Run the linter on my project and fix the errors",
+        "Run the build in the background",
+        "run pytest and show me the logs",
+        "Run the slow job script in my project with python3",
+        # New wordings of the same orders.
+        "can you run the tests and show me the errors",
+        "ok please rerun the build and just show me the log",
+        "could you execute backup.sh in my Documents folder",
+        "is it ok to run the cleanup script on my laptop",
+        "launch the export script and tell me if it errors",
+    ],
+)
+def test_orders_to_run_something_go_to_the_command_lane(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON, file_words=_NAMES)
+    assert not decision.admit
+    assert decision.reason == "run_turn", decision.reason
+    assert route.is_run_order(ask)
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "whats running in the background on my laptop",
+        "is anything running slow on this mac",
+        "show me the logs of the last run",
+        "which apps run at startup on my computer",
+        "are we going to run out of disk space",
+        "when does ilse's passport run out?",
+        "what did the build log say",
+    ],
+)
+def test_run_as_a_noun_or_a_question_is_not_an_order(ask):
+    assert not route.is_run_order(ask)
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON, file_words=_NAMES)
+    assert decision.reason != "run_turn"
+
+
 def test_file_words_reads_names_only_and_skips_links_and_hidden(tmp_path):
     from core.clean_loop.tools import file_words
 

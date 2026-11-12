@@ -272,6 +272,27 @@ def is_write(text: str) -> bool:
     return bool(_PERMISSION_RE.search(value)) or not is_question(value)
 
 
+# An order to run something ("Run the tests and show me the errors", "run pytest and show me the logs",
+# "Run the build in the background") belongs to the command lane: this loop only reads, so it would
+# answer about errors and logs while the command never ran (wire-core review 2026-11-12, V-048). The
+# machine-health words in such an order ("errors", "logs", "background") must not pull it in. "run" is
+# an order only where an order starts; "the last run", "my passport runs out" and "which apps run at
+# startup" are not orders.
+_RUN_RE = re.compile(
+    r"\b(?:re-?run|run|execute|launch|compile)\b(?!\s+(?:out|low|short|late|hot|slow|into|over|across)\b)",
+    re.I,
+)
+
+
+def is_run_order(text: str) -> bool:
+    value = str(text or "")
+    for match in _RUN_RE.finditer(value):
+        before = _LEAD_IN_RE.sub("", value[: match.start()], count=1)
+        if _ORDER_START_RE.search(before) or _PERMISSION_RE.search(before):
+            return True
+    return False
+
+
 def change_reply(text: str) -> str:
     """"yes", "no" or "undo" for a bare reply to a change card; "" for anything else."""
     value = _bare(text)
@@ -391,6 +412,8 @@ def decide(
         return RouteDecision(False, "red_turn")
     if is_write(text) and not changes_enabled(env):
         return RouteDecision(False, "write_turn")
+    if is_run_order(text):
+        return RouteDecision(False, "run_turn")
     if browser_turn:
         return RouteDecision(False, "browser_turn")
     blocked = _owner_context_blocks(dict(source_context or {}), session_id)
@@ -430,6 +453,7 @@ __all__ = [
     "is_privacy_ask",
     "is_question",
     "is_red",
+    "is_run_order",
     "is_write",
     "names_owner_file",
     "note_clean_turn",
