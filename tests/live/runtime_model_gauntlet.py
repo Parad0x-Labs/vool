@@ -46,6 +46,9 @@ GENERIC_FAILURES = (
     "i couldn't produce a normal chat response",
     "i couldn't get a usable model response",
     "did not return a usable reply",
+    # The plain-words no-answer notices (core/agent_runtime/memory_runtime.py NO_ANSWER_LEAD).
+    "i couldn't get an answer this time",
+    "i couldn't finish this answer",
     "i couldn't map that cleanly to a real action",
     "i couldn't resolve that cleanly",
     "model synthesis failed",

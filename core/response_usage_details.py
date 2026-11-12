@@ -71,17 +71,27 @@ def _response_usage_details(response: Any, *, cost_class: str = "") -> dict[str,
     return result
 
 
-def usage_display_segments(details: list[dict[str, Any]]) -> list[str]:
-    """Combine this turn's uniquely recorded calls; unknown calls prevent an exact total."""
+def _usage_part(key: str, text: str, **params: str) -> dict[str, Any]:
+    return {"key": key, "params": params, "text": text}
+
+
+def usage_display_parts(details: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The usage line as keyed parts: each carries its catalog key, the values the key's
+    placeholders take, and the English text, so the page can show it in the app language.
+
+    ``text`` is the English source; ``usage_display_segments`` is exactly those texts. The
+    numbers are formatted here once, so every language shows the same figures.
+    """
     if not details:
         return []
-    segments: list[str] = []
+    parts: list[dict[str, Any]] = []
     timed = [d for d in details if d.get("request_seconds") and d.get("output_tokens") is not None]
     if len(timed) == len(details):
         seconds = sum(d["request_seconds"] for d in timed)
         output = sum(d["output_tokens"] for d in timed)
         if seconds > 0:
-            segments.append(f"{output / seconds:.1f} output tok/s (request time)")
+            rate = f"{output / seconds:.1f}"
+            parts.append(_usage_part("proof.usage.rate", f"{rate} output tok/s (request time)", rate=rate))
     groups: dict[str, list[dict[str, Any]]] = {}
     unknown = any(d.get("cost_state") == "unreported" for d in details)
     for d in details:
@@ -92,13 +102,25 @@ def usage_display_segments(details: list[dict[str, Any]]) -> list[str]:
         text = format(amount, '.8f').rstrip('0').rstrip('.') or '0'
         bounded = any(d["cost_state"] == "upper_bound" for d in rows)
         prefix = "reported calls " if unknown else ""
-        segments.append(f"{prefix}{'≤' if bounded else ''}{text} {currency}" + (" (upper bound)" if bounded else " charged"))
+        key = "proof.usage." + ("upper_bound" if bounded else "charged") + ("_partial" if unknown else "")
+        english = f"{prefix}{'≤' if bounded else ''}{text} {currency}" + (" (upper bound)" if bounded else " charged")
+        parts.append(_usage_part(key, english, amount=text, currency=currency))
         if len(rows) == len(details) and all("input_bound" in d and "output_bound" in d for d in rows):
-            axes = []
+            axes = {}
             for axis in ("input", "output"):
                 value = sum(Decimal(d[axis + "_bound"]) for d in rows)
-                axes.append(f"{axis} ≤{format(value.quantize(Decimal('0.00000001'), rounding=ROUND_CEILING), 'f').rstrip('0').rstrip('.') or '0'}")
-            segments.append(' / '.join(axes) + ' ' + currency + ' (at approved rates)')
+                axes[axis] = format(value.quantize(Decimal('0.00000001'), rounding=ROUND_CEILING), 'f').rstrip('0').rstrip('.') or '0'
+            parts.append(_usage_part(
+                "proof.usage.approved_rates",
+                f"input ≤{axes['input']} / output ≤{axes['output']} {currency} (at approved rates)",
+                input=axes["input"], output=axes["output"], currency=currency,
+            ))
     if unknown:
-        segments.append("some call costs unreported" if groups else "cost unreported")
-    return segments
+        parts.append(_usage_part("proof.usage.unreported_some", "some call costs unreported") if groups
+                     else _usage_part("proof.usage.unreported", "cost unreported"))
+    return parts
+
+
+def usage_display_segments(details: list[dict[str, Any]]) -> list[str]:
+    """Combine this turn's uniquely recorded calls; unknown calls prevent an exact total."""
+    return [part["text"] for part in usage_display_parts(details)]

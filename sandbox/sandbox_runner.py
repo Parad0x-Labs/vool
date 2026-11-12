@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import shutil
 import subprocess
@@ -14,6 +15,7 @@ from sandbox.job_runner import (
     HardLinkedWritableRootError,
     JobRunner,
     KernelIsolationUnavailableError,
+    isolation_unavailable_for_person,
 )
 from sandbox.network_guard import command_uses_network, parse_command
 from sandbox.resource_limits import ExecutionPolicy, path_args_within_roots, path_within_roots
@@ -333,8 +335,26 @@ class SandboxRunner:
             # own status. "this host cannot isolate" is not "policy refused your command", and it is
             # certainly not "your command failed" -- which is what the operator used to be told, for
             # every command, on any host where the namespace syscall is denied.
-            return {"error": f"Sandbox isolation unavailable: {e!s}", "status": "sandbox_unavailable"}
+            return {
+                "error": f"Sandbox isolation unavailable: {e!s}",
+                "status": "sandbox_unavailable",
+                # The words the person reads; the error above stays for the trace.
+                "user_text": isolation_unavailable_for_person(),
+            }
         except ValueError as e:
             return {"error": f"Sandbox execution blocked: {e!s}", "status": "blocked_by_policy"}
+        except OSError as e:
+            # The process never started: its folder or its program is not there, or the system
+            # refused it. Said in words, with no machine path and no error number (measured
+            # 2026-11-12 on the real app: the person read "Sandbox execution failure: [Errno 2] No
+            # such file or directory: '.../workspace/workspace'").
+            logging.getLogger(__name__).warning("sandbox command could not start: %r", e)
+            reason = str(e.strerror or "the system refused to start it").rstrip(".").lower()
+            missing = Path(str(e.filename)).name if getattr(e, "filename", None) else ""
+            return {
+                "error": f"The command could not start: {reason}" + (f" ({missing})." if missing else "."),
+                "status": "failed_to_start",
+            }
         except Exception as e:
-            return {"error": f"Sandbox execution failure: {e!s}"}
+            logging.getLogger(__name__).warning("sandbox command could not start: %r", e)
+            return {"error": "The command could not start.", "status": "failed_to_start"}

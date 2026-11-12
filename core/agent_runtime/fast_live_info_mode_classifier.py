@@ -41,7 +41,10 @@ from .fast_live_info_mode_markers import (
 # castrated ram) is likewise excluded; the words that ARE here are not words in English.
 _WEATHER_WORD = r"(?:weather|wheather|weater|weathr|wetaher|weahter|wheter|wather)"
 
+from core.weather_phrasing import FEEL_ASK as _FEEL_ASK
+from core.weather_phrasing import OUTSIDE_ASK as _OUTSIDE_ASK
 from core.weather_phrasing import PLACE as _PLACE
+from core.weather_phrasing import PLACE_FIRST_AT_START as _PLACE_FIRST_AT_START
 from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END
 from core.weather_phrasing import WEATHER_VERB as _WEATHER_VERB
 
@@ -79,9 +82,13 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     # "how cold is it in oslo right now", "how warm is it in tallinn this minute": the air at a
     # place, asked by how it feels (0.7.8 sweep block 2c: reached the records lane and a
     # clarifier). A named place after in/at is required: "how hot is it in the oven" (an article)
-    # and "how hot is the sun" (no in/at) stay out.
-    r"|how\s+(?:cold|warm|hot|chilly|freezing|windy|humid|sunny|rainy|wet|snowy)\s+(?:is\s+it|it\s+is|it'?s)\s+"
-    r"(?:(?:out|over|up|down)\s+)?(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
+    # and "how hot is the sun" (no in/at) stay out. The shape lives in `core.weather_phrasing`, so
+    # the place scanner in `tools.web.web_research` reads the same asks this branch claims (app
+    # bugs 2026-11-12: "how cold is it in paris today" was claimed here and found no place there).
+    rf"|{_FEEL_ASK}"
+    # "what's it like outside in paris right now": the same air at a place, asked by what it is
+    # like out there; "outside"/"out" is required, so "what's it like living in paris" stays out.
+    rf"|{_OUTSIDE_ASK}"
     # The verb form of sunset/sunrise: "what time does the sun set in oslo today", "when will the sun
     # come up in lisbon" (red team R1-16: answered from memory with web off, and wrong).
     r"|(?:when|what\s+time)\s+(?:does|did|will|is|'s)\s+(?:the\s+)?sun\s+(?:going\s+to\s+)?"
@@ -120,7 +127,12 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     # The place-first form ("lisbon weather right now", "oslo forecast tomorrow"): the word
     # before the weather word must not be a function word, an adjective of the weather itself or
     # a time word, so "nice weather today" and "the weather today" are not lookups here.
-    rf"|(?<![\w'])\b{_PLACE}\s+(?:{_WEATHER_WORD}|forecast)\s+{_TIME_ANCHOR_AT_END}",
+    rf"|(?<![\w'])\b{_PLACE}\s+(?:{_WEATHER_WORD}|forecast)\s+{_TIME_ANCHOR_AT_END}"
+    # The search-box ask with no time word ("paris weather", "tokyo weather pls"): a line that
+    # STARTS with the place and closes its clause at the weather word. Line-anchored (`(?m:`), so
+    # a sentence that only mentions the weather ("I love this weather") never matches. App bugs
+    # 2026-11-12: both asks reached the model setup notice instead of a reading.
+    rf"|(?m:{_PLACE_FIRST_AT_START})",
     re.IGNORECASE,
 )
 

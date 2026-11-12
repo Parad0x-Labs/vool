@@ -76,8 +76,10 @@ class _FakeWebview:
 
 
 @pytest.fixture()
-def api():
+def api(monkeypatch):
     module = _load_window_module()
+    # Fake windows have no Cocoa run loop; dispatch is proven separately.
+    monkeypatch.setattr(module.pet_native, "on_main_thread", lambda fn: fn())
     bridge = module._WindowApi()
     fake = _FakeWebview()
     bridge.set_window(_FakeWindow("VOOL", module.URL), fake)
@@ -286,3 +288,23 @@ def test_the_shortcut_binder_gives_up_after_its_bounded_attempts(monkeypatch) ->
     finally:
         if previous is not None:
             app.setMainMenu_(previous)
+
+
+def test_legacy_closed_event_releases_settings_handle(api) -> None:
+    """The shipped pywebview 3.x exposes closed directly, without .events."""
+    _module, bridge, fake = api
+    create = fake.create_window
+
+    def legacy_create(*args, **kwargs):
+        win = create(*args, **kwargs)
+        win.closed = win.events.closed
+        del win.events
+        return win
+
+    fake.create_window = legacy_create
+    bridge.open_settings()
+    first = bridge._settings_window
+    first.closed.fire()
+    assert bridge._settings_window is None
+    assert bridge.open_settings()['mode'] == 'created'
+    assert bridge._settings_window is not first

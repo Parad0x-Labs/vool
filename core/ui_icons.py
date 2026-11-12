@@ -61,6 +61,7 @@ _ICONS: dict[str, str] = {
     "lock": "<rect x='3.5' y='7' width='9' height='6.5' rx='1'/><path d='M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7'/>",
     "globe": "<circle cx='8' cy='8' r='5.5'/><path d='M2.5 8h11M8 2.5c1.6 1.6 2.3 3.5 2.3 5.5S9.6 11.9 8 13.5C6.4 11.9 5.7 10 5.7 8S6.4 4.1 8 2.5z'/>",
     "wallet": "<path d='M2.5 5a1.5 1.5 0 0 1 1.5-1.5h7.5v2'/><rect x='2.5' y='5.5' width='11' height='7.5' rx='1.2'/><circle cx='10.8' cy='9.2' r='.7'/>",
+    "phone": "<rect x='4.5' y='1.5' width='7' height='13' rx='1.5'/><path d='M7.2 12.2h1.6'/>",
     "smile": "<circle cx='8' cy='8' r='5.5'/><path d='M5.6 9.6a3 3 0 0 0 4.8 0'/><path d='M6 6.4v.1M10 6.4v.1'/>",
     "retry": "<path d='M13 8a5 5 0 1 1-1.5-3.6'/><path d='M13 2.5v3h-3'/>",
     "copy": "<rect x='5.5' y='5.5' width='8' height='8' rx='1.2'/><path d='M10.5 5.5V3.7a1.2 1.2 0 0 0-1.2-1.2H3.7a1.2 1.2 0 0 0-1.2 1.2v5.6a1.2 1.2 0 0 0 1.2 1.2h1.8'/>",

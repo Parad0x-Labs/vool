@@ -931,13 +931,21 @@ def _install_settings_shortcut(attempts: int = 40, delay_s: float = 0.25) -> Non
 
 
 def _focus_window(window: object) -> None:
-    """Raise an existing pywebview window. On macOS ``show()`` already does
-    makeKeyAndOrderFront_ + activateIgnoringOtherApps_, which IS focus; restore() covers a
-    minimised window on the other backends."""
-    with contextlib.suppress(Exception):
+    """Restore and raise on the backend's UI thread.
+
+    Cocoa's pywebview restore calls NSWindow.deminiaturize_ directly, unlike show
+    which schedules its own main-thread callback. Bridge/menu callbacks arrive on
+    workers: restoring there aborts the process, even for an unminimized window.
+    Use the existing native dispatcher for the whole ordered focus operation.
+    """
+    def _raise() -> None:
         window.restore()
-    with contextlib.suppress(Exception):
         window.show()
+
+    if sys.platform == "darwin":
+        pet_native.on_main_thread(_raise)
+    else:
+        _raise()
 
 
 # The exact keyword arguments the pixel Companion's native window is created with. Defined once,
@@ -1068,7 +1076,9 @@ class _WindowApi:
             # the exact trap documented for the main window's close-to-Dock behaviour above, which
             # is why that one is hooked at the Cocoa window level instead.
             with contextlib.suppress(Exception):
-                created.events.closed += self._on_settings_closed
+                # pywebview 3 exposes events directly; newer releases use .events.
+                events = getattr(created, "events", created)
+                events.closed += self._on_settings_closed
             _log("settings window created")
             return {"ok": True, "mode": "created"}
         except Exception as exc:
@@ -1135,7 +1145,8 @@ class _WindowApi:
                 raise RuntimeError("native setup window was not created")
             self._setup_window = created
             with contextlib.suppress(Exception):
-                created.events.closed += self._on_setup_closed
+                events = getattr(created, "events", created)
+                events.closed += self._on_setup_closed
             _log("setup window created")
             return {"ok": True, "mode": "created"}
         except Exception as exc:

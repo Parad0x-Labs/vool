@@ -141,6 +141,32 @@ The runtime and lean dependencies are included; Ollama/models and optional
 training/native GTK capabilities are separate. Supported package test targets:
 Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.5.
 
+### Commands in chat on Linux
+
+VOOL runs every command you ask for in chat inside a safety box, so a command can only
+touch your workspace. On Linux that box is built by bubblewrap. Everything else in VOOL
+works without it; without it, VOOL says that it can't run commands yet.
+
+```bash
+sudo apt install bubblewrap
+```
+
+Ubuntu 24.04 and newer also stop bubblewrap from starting until it is allowed to create
+its own user namespace. This one-time AppArmor profile allows that for bubblewrap only
+(the rest of the system keeps the restriction):
+
+```bash
+sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}
+PROFILE
+sudo apparmor_parser -r /etc/apparmor.d/bwrap
+```
+
 From 0.7.5 on, the tarball install updates inside VOOL. With "Go online on its own" on
 (Settings > Privacy & Permissions), VOOL checks for a new version when it starts and once a
 day, and shows a notice. Press Update. The new version is installed next to

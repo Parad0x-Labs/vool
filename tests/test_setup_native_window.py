@@ -68,8 +68,10 @@ class _FakeWebview:
 
 
 @pytest.fixture()
-def api():
+def api(monkeypatch):
     module = _load_window_module()
+    # Fake windows have no Cocoa run loop; dispatch is proven separately.
+    monkeypatch.setattr(module.pet_native, "on_main_thread", lambda fn: fn())
     bridge = module._WindowApi()
     fake = _FakeWebview()
     bridge.set_window(_FakeWindow("VOOL", module.URL), fake)
@@ -135,3 +137,22 @@ def test_no_native_backend_reports_itself_instead_of_raising(api) -> None:
     module, _bridge, _fake = api
     bare = module._WindowApi()
     assert bare.open_setup() == {"ok": False, "error": "native_window_unavailable"}
+
+
+def test_legacy_closed_event_releases_setup_handle(api) -> None:
+    _module, bridge, fake = api
+    create = fake.create_window
+
+    def legacy_create(*args, **kwargs):
+        win = create(*args, **kwargs)
+        win.closed = win.events.closed
+        del win.events
+        return win
+
+    fake.create_window = legacy_create
+    bridge.open_setup()
+    first = bridge._setup_window
+    first.closed.fire()
+    assert bridge._setup_window is None
+    assert bridge.open_setup()['mode'] == 'created'
+    assert bridge._setup_window is not first

@@ -234,6 +234,61 @@ def _mailbox_observation_message(executed_steps: list[dict[str, Any]]) -> str:
         return "\n".join(lines)
     return ""
 
+#: How much of a command's own output a reply written without a model shows inline. Longer output
+#: stays whole in the turn's saved command output.
+_COMMAND_OUTPUT_INLINE_CHARS = 3000
+
+
+def _command_output_block(text: str) -> str:
+    body = str(text or "").rstrip()
+    if len(body) > _COMMAND_OUTPUT_INLINE_CHARS:
+        body = body[:_COMMAND_OUTPUT_INLINE_CHARS].rstrip() + "\n… (shortened here; the full output is saved with this turn)"
+    return "```\n" + body.replace("```", "'''") + "\n```"
+
+
+def _command_observation_message(executed_steps: list[dict[str, Any]]) -> str:
+    """What the last command did and printed, from its own result, when no model wrote the reply.
+
+    Measured 2026-11-12 (served chat, v0.8 line): `python3 build.py` ran, no model wrote the reply,
+    and the person got "1 of 1 tool steps succeeded. Last result: Command executed in `.`:" -- the
+    first line of the tool's report, cut at its colon, without the output they asked about. The
+    command, its exit code and its output are the tool's own evidence, so they are the reply. A
+    command that never started (no exit code) keeps the generic line.
+    """
+    last = executed_steps[-1] if executed_steps else {}
+    if str(last.get("tool_name") or "") != "sandbox.run_command":
+        return ""
+    observation = last.get("observation")
+    if not isinstance(observation, dict):
+        return ""
+    command = " ".join(str(observation.get("command") or "").split()).strip()
+    returncode = observation.get("returncode")
+    if not command or returncode is None or isinstance(returncode, bool):
+        return ""
+    try:
+        code = int(returncode)
+    except (TypeError, ValueError):
+        return ""
+    stdout = str(observation.get("stdout") or observation.get("stdout_excerpt") or "").rstrip()
+    stderr = str(observation.get("stderr") or observation.get("stderr_excerpt") or "").rstrip()
+    outcome = "It finished without errors" if code == 0 else f"It stopped with an error (exit code {code})"
+    lines: list[str] = []
+    if len(executed_steps) > 1:
+        completed = sum(_step_succeeded(step) for step in executed_steps)
+        lines.append(f"{completed} of {len(executed_steps)} steps succeeded.")
+    if stdout:
+        lines.append(f"I ran `{command}`. {outcome} and printed:")
+        lines.append(_command_output_block(stdout))
+    elif stderr:
+        lines.append(f"I ran `{command}`. {outcome}.")
+    else:
+        lines.append(f"I ran `{command}`. {outcome} and printed nothing.")
+    if stderr:
+        lines.append("Its error output:")
+        lines.append(_command_output_block(stderr))
+    return "\n\n".join(lines)
+
+
 def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]) -> str:
     structured = getattr(synthesis, "structured_output", None)
     if isinstance(structured, dict):
@@ -261,6 +316,9 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
         mailbox_message = _mailbox_observation_message(executed_steps)
         if mailbox_message:
             return mailbox_message
+        command_message = _command_observation_message(executed_steps)
+        if command_message:
+            return command_message
         completed = sum(_step_succeeded(step) for step in executed_steps)
         return (
             f"{completed} of {len(executed_steps)} tool steps succeeded. "

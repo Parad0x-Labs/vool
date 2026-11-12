@@ -783,6 +783,18 @@ def ownership_table() -> list[dict[str, Any]]:
     return rows
 
 
+def _registry_command_ids() -> set[str]:
+    """The registry's command ids: the set ``vool commands --check`` hands the census in-process.
+
+    The census binds every generated adapter to a registry command. Run on its own with an empty
+    set, every one of those bindings read as "broken" and the CLI printed "census FAILED" while
+    ``vool commands --check`` said the census was ok (TDL-L33, 2026-11-12: 149 false findings).
+    """
+    from core.command_registry.execute import registry_default
+
+    return {spec.command_id for spec in registry_default().commands()}
+
+
 def main(argv: list[str] | None = None) -> int:
     import sys
 
@@ -818,7 +830,7 @@ def main(argv: list[str] | None = None) -> int:
         for cls in CLASSIFICATIONS:
             print(f"  {cls}: {totals[cls]}")
         return 0
-    report = census_check(set())  # registry ids filled by caller in-process
+    report = census_check(_registry_command_ids())
     for finding in report.findings:
         print(finding)
     print("census ok" if report.ok else "census FAILED")

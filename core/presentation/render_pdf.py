@@ -26,20 +26,49 @@ _FONT_LOCK = threading.Lock()
 _DECORATIVE_RANGES = (
     (0x1F000, 0x1FFFF),
     (0x2600, 0x27BF),
+    # Tag characters: the invisible letters inside a subdivision flag sequence.
+    (0xE0020, 0xE007F),
 )
 _INVISIBLE_CODEPOINTS = frozenset({0xFE00, 0xFE01, 0xFE02, 0xFE03, 0xFE04, 0xFE05, 0xFE06,
                                    0xFE07, 0xFE08, 0xFE09, 0xFE0A, 0xFE0B, 0xFE0C, 0xFE0D,
                                    0xFE0E, 0xFE0F, 0x200D, 0x20E3})
+#: Emoji that live OUTSIDE the two blocks above (Unicode's emoji list, Basic Multilingual Plane):
+#: the star, the clocks and hourglasses, the arrows and squares a model writes as emoji. App bugs
+#: 2026-11-12: "Top pick ⭐" and "Alarm ⏰ at 7" still refused the whole document, the same shape
+#: as the Nov 5 diet plan. Only ones the font cannot draw are ever touched: the font draws most.
+_DECORATIVE_EXTRA = frozenset({
+    0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x2139, *range(0x2194, 0x219A), 0x21A9, 0x21AA,
+    0x231A, 0x231B, 0x2328, 0x23CF, *range(0x23E9, 0x23F4), *range(0x23F8, 0x23FB), 0x24C2,
+    0x25AA, 0x25AB, 0x25B6, 0x25C0, *range(0x25FB, 0x25FF), 0x2934, 0x2935,
+    *range(0x2B05, 0x2B08), 0x2B1B, 0x2B1C, 0x2B50, 0x2B55, 0x3030, 0x303D, 0x3297, 0x3299,
+})
+#: Emoji that MEAN something in a document, with a plain mark the font does draw. A comparison
+#: table of ✅ and ❌ lost both columns when they were stripped as decoration (app bugs
+#: 2026-11-12: "| Offline | ✅ | ❌ |" came out as a row with two empty cells), and "⭐⭐⭐" is a
+#: rating. Used only when the font lacks the emoji and has the mark.
+_DRAWABLE_EQUIVALENTS = {
+    0x2705: "✔",   # white heavy check mark -> heavy check mark
+    0x2611: "✔",   # ballot box with check (when the font lacks it)
+    0x274C: "✗",   # cross mark -> ballot x
+    0x274E: "✗",   # negative squared cross mark -> ballot x
+    0x2B50: "★",   # white medium star -> black star
+    0x1F31F: "★",  # glowing star -> black star
+    0x2757: "!",        # heavy exclamation mark
+    0x2755: "!",        # white exclamation mark
+    0x2753: "?",        # black question mark ornament
+    0x2754: "?",        # white question mark ornament
+}
 
 
 def _is_decorative(codepoint: int) -> bool:
-    if codepoint in _INVISIBLE_CODEPOINTS:
+    if codepoint in _INVISIBLE_CODEPOINTS or codepoint in _DECORATIVE_EXTRA:
         return True
     return any(low <= codepoint <= high for low, high in _DECORATIVE_RANGES)
 
 
 def _sanitize_to_font(text: str, font) -> str:
-    """Drop decorative characters the font cannot draw; keep everything else.
+    """Draw a meaningful emoji as its plain mark, drop decorative characters the font cannot draw,
+    keep everything else.
 
     The per-glyph coverage law below still refuses the document when any surviving
     character lacks a glyph — decoration removal must never become content removal.
@@ -51,6 +80,10 @@ def _sanitize_to_font(text: str, font) -> str:
         codepoint = ord(c)
         if c.isspace() or codepoint in font.face.charToGlyph:
             kept.append(c)
+            continue
+        equivalent = _DRAWABLE_EQUIVALENTS.get(codepoint)
+        if equivalent is not None and all(ord(e) in font.face.charToGlyph for e in equivalent):
+            kept.append(equivalent)
         elif _is_decorative(codepoint):
             continue
         else:

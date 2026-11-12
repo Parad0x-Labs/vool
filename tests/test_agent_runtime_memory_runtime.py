@@ -178,8 +178,12 @@ def test_set5_repeated_length_failure_names_model_and_bounded_repair() -> None:
     )
 
     assert "qwen3:4b" in response
-    assert "output limit" in response
-    assert "bounded repair" in response
+    # Plain words (app bugs 2026-11-12): the limit and the one extra try are said as a person
+    # would say them, the model name is plain text, and nothing reads like a log line.
+    assert "length limit" in response
+    assert "one more try stopped at the same limit" in response
+    assert "Nothing was made up in its place." in response
+    assert "`" not in response and "Retry the turn" not in response
     assert "usable model response" not in response
 
 
@@ -211,8 +215,9 @@ def test_set5_timeout_chain_is_typed_model_specific_and_secret_safe() -> None:
         agent, model_execution, user_input="Explain how to boil water."
     )
 
-    assert "qwen3:4b" in response and "timed out" in response
-    assert "qwen2.5:7b" in response and "memory-safety" in response
+    assert "qwen3:4b took too long to reply" in response
+    assert "then qwen2.5:7b could not start because this computer was short on free memory" in response
+    assert "admission gate" not in response and "`" not in response
     assert secret not in response
     assert "127.0.0.1" not in response
     assert "live model response" not in response

@@ -12,6 +12,9 @@ class _FakeWindow:
         self.hidden = 0
         self.scripts: list[str] = []
 
+    def restore(self) -> None:
+        pass
+
     def show(self) -> None:
         self.shown += 1
 
@@ -122,7 +125,10 @@ def test_non_native_surface_refuses_desktop_claim() -> None:
     }
 
 
-def test_settings_appearance_opens_only_the_owning_chat_controls() -> None:
+def test_settings_appearance_opens_only_the_owning_chat_controls(monkeypatch) -> None:
+    # This fake has no Cocoa run loop; the native dispatch test covers that boundary.
+    from installer.bundle import pet_native
+    monkeypatch.setattr(pet_native, "on_main_thread", lambda fn: fn())
     api = _WindowApi()
     assert api.open_companion_appearance() == {"ok": False, "error": "chat_unavailable"}
 

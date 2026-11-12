@@ -158,6 +158,11 @@ def install(package: Path, home: Path) -> None:
                 root.rmdir()
     print(f"Installed VOOL at {root}; launch {binary} (add its directory to PATH if needed).")
     print(f"Uninstall: bash {root}/current/uninstall.sh (runtime profiles are preserved).")
+    if shutil.which("bwrap") is None:
+        # VOOL runs commands from chat only inside a kernel sandbox, which on Linux is bubblewrap.
+        # Said once here, in plain words, so the first command turn is not where it is learned.
+        print("To let VOOL run commands from chat, install bubblewrap (on Ubuntu or Debian: "
+              "sudo apt install bubblewrap). Everything else works without it.")
 
 
 def uninstall(home: Path) -> None:

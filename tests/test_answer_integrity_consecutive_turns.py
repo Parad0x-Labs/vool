@@ -619,7 +619,8 @@ def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) 
             # own no-answer notice.
             f3 = daemon.chat_stream(WALLET_QUESTION, session_id=session, model="stub-chat:2b")
             answer3 = _answer(f3)
-            assert "output limit" in answer3, answer3[:300]
+            assert "length limit" in answer3, answer3[:300]
+            assert assistant_text_is_runtime_failure_notice(answer3), answer3[:300]
             assert "Risk 1" not in answer3
 
             # T3b -- a plain conversational multi-part question that truncates: the partial is
@@ -650,6 +651,7 @@ def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) 
             chat_call = model_calls[-1]
             joined = " ".join(str(m.get("content") or "") for m in chat_call.get("messages") or [])
             assert "No cached or remembered text was substituted" not in joined
+            assert "length limit" not in joined and "Nothing was made up in its place" not in joined
             assert FAILED_EXCHANGE_NOTICE in joined
             # The truncated-but-real partial stays history (its own bytes, not a marker).
             assert "Supplies for the first week" in joined

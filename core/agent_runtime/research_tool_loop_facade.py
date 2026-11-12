@@ -2827,6 +2827,24 @@ class ResearchToolLoopFacadeMixin:
         except Exception:
             pass
         synthesis_context = {key: value for key, value in loop_source_context.items() if key != "runtime_event_stream_id"}
+        # The answer-writing call: its prompt says the observed actions already ran
+        # (core.prompt_normalizer._runtime_tool_observation_message), never "continue the tool actions".
+        synthesis_context["tool_loop_terminal_synthesis"] = loop_stop_reason or "completed"
+        # M3/M2: BIND what this loop retrieved into the call that is about to write the answer.
+        #
+        # Measured on the isolated daemon (2026-09-01): a current-information question routed
+        # here rather than to the grounded lane, ran a real keyed Brave retrieval (4 sources,
+        # receipt `lifecycle=succeeded`), handed the results to the model -- and left no record
+        # anywhere that any of it reached the answering call. The receipt says a search ran; only
+        # a binding says the answer was made of what it found, and the difference is the whole
+        # fabrication class. Every other retrieving lane already binds; this one did not, so the
+        # publication gate had nothing to judge its answers against.
+        #
+        # M2's own contract is used verbatim -- `mint_evidence_set`, `binding_record`,
+        # `emit_evidence_bound` -- so the ids, the turn scope and the `proves="prompt_entry"`
+        # claim are identical to the grounded lane's. The rows are a PROJECTION of the steps this
+        # loop already executed into the note shape those functions take; nothing is
+        # re-extracted, re-judged or re-worded.
         with suppress(Exception):
             _bind_tool_step_evidence(
                 synthesis_context, executed_steps, query=str(effective_input or ''),
@@ -2937,6 +2955,11 @@ class ResearchToolLoopFacadeMixin:
             reject_reason = "claims_pending_tool"
         elif is_ungrounded(synthesis_text, synthesis_observations):
             reject_reason = "ungrounded"
+        elif _mail_listing_cut_short(synthesis_text, executed_steps):
+            # The answer about the person's mail stopped before it finished ("Here's who they're
+            # from (newest first):" and nothing under it, measured 2026-11-06). The read's own rows
+            # are on this machine and complete, so they are the answer instead of half a list.
+            reject_reason = "incomplete_mail_listing"
         if renders_final:
             # This contract publishes its complete, already-redacted runtime result.
             # A one-line activity summary is not the requested report or PR body.
@@ -3043,6 +3066,25 @@ class ResearchToolLoopFacadeMixin:
                 from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
 
                 rendered = browser_synthesis_failed_reply() or rendered
+        if reject_reason and not renders_final:
+            # No model wrote these bytes: runtime code composed them from the executed steps'
+            # own results. They are minted as such, so the publication gate reads them as backed
+            # runtime output (measured 2026-11-12, served chat: a command ran under a model not
+            # certified to write answers, and the gate refused the runtime's own report of it).
+            try:
+                from core.final_answer_authorship import record_runtime_support
+
+                record_runtime_support(
+                    loop_source_context,
+                    support_rows=[{
+                        "summary": rendered,
+                        "intent": "tool_loop_composed_result",
+                        "source": "tool_loop_composed_result",
+                    }],
+                    request_text=str(effective_input or ""),
+                )
+            except Exception:
+                pass
         # A turn that ends by narrating a FAILED tool's typed refusal is a truthful answer, not a
         # completed effect: the evidence reaches the user, but the turn never claims the tool's
         # work succeeded (never convert a failed tool into success merely to get narration).
@@ -3315,3 +3357,13 @@ class ResearchToolLoopFacadeMixin:
             return False
         hints = {str(item).lower() for item in getattr(interpretation, "topic_hints", []) or []}
         return bool({"news", "weather", "web", "telegram", "discord", "integration"} & hints)
+
+
+def _mail_listing_cut_short(text: str, executed_steps: list[dict[str, Any]]) -> bool:
+    """A model answer that stops before it finished, in a turn whose mail read can be listed whole."""
+    from core.agent_runtime.orchestrator import _mailbox_observation_message
+    from core.incomplete_answer import inspect_answer_completeness
+
+    if not inspect_answer_completeness(text).incomplete:
+        return False
+    return bool(_mailbox_observation_message(executed_steps))

@@ -335,6 +335,13 @@ def _looks_like_news_query(query: str) -> bool:
 
 
 def _extract_weather_location(query: str) -> str:
+    # A place named in one of the shared clause shapes is read by the same scanner the live-data
+    # plan uses, so this research fallback and the typed lane never look up two different places
+    # for one ask. App bugs 2026-11-12: "paris weather, gold price, and the time in new york pls"
+    # reached the lookup below as "new york pls" (the last "in ..." on the line), not Paris.
+    named = _extract_weather_locations(query)
+    if named:
+        return named[0]
     clean = re.sub(r"[\?\!\.,]+", " ", str(query or "")).strip()
     clean = re.sub(r"\s+", " ", clean)
     lowered = clean.lower()
@@ -365,21 +372,12 @@ def _extract_weather_location(query: str) -> str:
             location = location.replace(token, " ")
 
     tokens = [item for item in location.split() if item]
-    trailing_noise = {
-        "today",
-        "tomorrow",
-        "tonight",
-        "now",
-        "currently",
-        "current",
-        "forecast",
-        "please",
-        "right",
-        "this",
-        "week",
-        "weekend",
-    }
-    while tokens and tokens[-1] in trailing_noise:
+    # The plural scanner's trailing words, its politeness words, and the article and preposition a
+    # stripped time phrase leaves behind ("paris at the moment" -> "paris at the" -> "paris").
+    # App bugs 2026-11-12: this lane kept "paris at the moment" and "tokyo pls" whole and sent
+    # them to the provider as place names.
+    trailing_noise = _WEATHER_TRAILING_NOISE | _TRAILING_FILLER | {"the"}
+    while tokens and (tokens[-1] in trailing_noise or tokens[-1] in _WEATHER_DANGLING_PREPOSITIONS):
         tokens.pop()
     # Drop leading question/filler words so "what is the weather?" resolves to IP
     # geolocation instead of extracting "what is the" as a bogus place name.
@@ -800,6 +798,9 @@ def _is_geographic_qualifier(segment: str) -> bool:
 _WEATHER_TRAILING_NOISE = {
     "today", "tomorrow", "tonight", "now", "currently", "current", "forecast",
     "please", "right", "this", "week", "weekend",
+    # "right now" in chat shorthand and its longer forms: "paris rn", "paris atm", "paris at the
+    # moment", "paris right this minute". None of these words ends a place name.
+    "rn", "atm", "moment", "minute",
     # A forward-looking qualifier is built from these too. Without them "for next week" strips to
     # "for next", which jams the loop and discards the whole candidate -- and with it the entire
     # live-data plan, so a request that names its city is answered as if it named none.
@@ -1209,7 +1210,11 @@ def _split_weather_candidates(clause: str) -> list[tuple[str, bool]]:
 
 #: The clause shapes that tie a weather trigger word to what it is the weather OF. Named once and
 #: shared by the singular and plural scanners below, so the two can never drift apart.
+from core.weather_phrasing import FEEL_ASK as _FEEL_ASK
+from core.weather_phrasing import NOT_A_TIME as _NOT_A_TIME
+from core.weather_phrasing import OUTSIDE_ASK as _OUTSIDE_ASK
 from core.weather_phrasing import PLACE as _PLACE
+from core.weather_phrasing import PLACE_FIRST_AT_START as _PLACE_FIRST_AT_START
 from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END
 from core.weather_phrasing import WEATHER_VERB as _WEATHER_VERB
 
@@ -1218,7 +1223,7 @@ _WEATHER_CLAUSE_PATTERNS = (
     # `_WEATHER_LIVE_REQUEST_RE` in `fast_live_info_mode_classifier.py`, which documents
     # the same production incident ("weather only for Berlin and Copenhagen" was measured to miss
     # the classifier entirely without this filler support).
-    rf"\b(?:{_WEATHER_WORD_RE}|forecast|temperature|{_WEATHER_VERB}|wind|humidity)\s+(?:only\s+|just\s+|specifically\s+|like\s+|looking\s+|going\s+to\s+be\s+)?(?:in|for|at)\s+(.+)$",
+    rf"\b(?:{_WEATHER_WORD_RE}|forecast|temperature|{_WEATHER_VERB}|wind|humidity)\s+(?:only\s+|just\s+|specifically\s+|like\s+|looking\s+|going\s+to\s+be\s+)?(?:in|for|at)\s+{_NOT_A_TIME}(.+)$",
     r"\b(?:what is|what's|tell me|show me)\s+the\s+(?:weather|forecast)\s+(?:in|for|at)\s+(.+)$",
     # An INLINE colon label sharing its line with its list ("Weather: Kaunas/Tallinn/Warsaw."),
     # as distinct from `_WEATHER_HEADER_RE`'s bare-header-then-list-below shape. The trigger
@@ -1249,6 +1254,16 @@ _WEATHER_CLAUSE_PATTERNS = (
     rf"(?<!from )(?<!by )(?<!to )"
     rf"\b(?:{_WEATHER_WORD_RE}|forecast)\s+({_PLACE})\s+{_TIME_ANCHOR_AT_END}",
     rf"(?<![\w'])\b({_PLACE})\s+(?:{_WEATHER_WORD_RE}|forecast)\s+{_TIME_ANCHOR_AT_END}",
+    # The search-box ask with no time word at all: the line STARTS with the place and ends its
+    # clause at the weather word ("paris weather", "tokyo weather pls", "paris weather, gold price
+    # and ..."). App bugs 2026-11-12: these reached the model with no place and no reading.
+    _PLACE_FIRST_AT_START,
+    # The air at a place asked by how it feels ("how cold is it in paris today"). Same app bugs
+    # sweep: the classifier saw a weather ask, this list saw no clause, and nothing was looked up.
+    rf"\b{_FEEL_ASK}(.+)$",
+    # "what's it like outside in paris right now" (app bugs 2026-11-12 rerun): the classifier's
+    # branch for the same shape, read from the same definition.
+    rf"\b{_OUTSIDE_ASK}(.+)$",
 )
 
 
@@ -2437,16 +2452,195 @@ def _tzdb_city_table() -> dict[str, tuple[float, float]]:
 def _tzdb_coords_for(requested_norm: str) -> tuple[float, float] | None:
     """Coordinates for the requested city, tolerating the typo the provider itself tolerated."""
 
+    leaf = _tzdb_leaf_for(requested_norm)
+    return _tzdb_city_table()[leaf] if leaf else None
+
+
+def _tzdb_leaf_for(requested_norm: str) -> str:
+    """The tzdb city leaf the request names (casefolded), typo-tolerant; "" when none does."""
+
     table = _tzdb_city_table()
     if requested_norm in table:
-        return table[requested_norm]
+        return requested_norm
     budget = 1 if len(requested_norm) <= 4 else 2
-    for leaf, coords in table.items():
+    for leaf in table:
         if abs(len(leaf) - len(requested_norm)) <= budget and _within_edit_distance(
             requested_norm, leaf, budget
         ):
-            return coords
-    return None
+            return leaf
+    return ""
+
+
+@_functools_lru_cache(maxsize=1)
+def _tzdb_city_names() -> dict[str, str]:
+    """City-leaf (casefolded) -> the city's name as tzdb writes it ("new york" -> "New York",
+    "port-au-prince" -> "Port-au-Prince"), for labelling a reading with the city that was asked."""
+
+    import pathlib
+    import zoneinfo
+
+    names: dict[str, str] = {}
+    for root in zoneinfo.TZPATH:
+        tab = pathlib.Path(root) / "zone.tab"
+        if not tab.exists():
+            continue
+        for line in tab.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) < 3:
+                continue
+            leaf = parts[2].rsplit("/", 1)[-1].replace("_", " ")
+            names[leaf.casefold()] = leaf
+        break
+    return names
+
+
+#: How far a provider's weather station may sit from the place that was asked about and still be
+#: that place's reading. wttr.in answers with its NEAREST STATION, and the station is routinely a
+#: district of the city (Paris -> "Saint-Merri", 2 km; New York -> "Long Island City", 6 km;
+#: Warsaw -> "Powisle", 2 km) -- or somewhere else entirely: measured 2026-11-12, "Tokyo" resolves
+#: to Shikinejima, an island 155 km south of the city, and was served as Tokyo's weather. 50 km
+#: keeps every district and suburb station of a big city and refuses an island, a neighbouring
+#: town's airport or the next city over.
+_SAME_PLACE_KM = 50.0
+
+
+@dataclass(frozen=True)
+class _PlacePoint:
+    """Where a named place is and what it is called, from tzdb (offline) or the geocoder."""
+
+    name: str
+    country: str
+    latitude: float
+    longitude: float
+
+
+def _open_meteo_geocode(name: str, *, timeout_s: float) -> _PlacePoint | None:
+    """The place open-meteo's geocoder resolves `name` to (population-ranked), or None.
+
+    One keyless GET through `_open_remote`, so web-call accounting and the outbound veto hold. It
+    reads a qualified name the way a person means it ("Paris, Texas" is the Texan one) and answers
+    "no such place" with no results rather than a fuzzy neighbour.
+    """
+    if not _normalize_place(name):
+        return None
+    geo_url = (
+        "https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name="
+        + urllib.parse.quote(str(name).strip())
+    )
+    geo_request = urllib.request.Request(geo_url, headers={"User-Agent": "VOOL-WEATHER/1.0"})
+    with _open_remote(geo_request, timeout=min(max(timeout_s, 3.0), 12.0)) as response:
+        geo_payload = json.loads(response.read(120000).decode("utf-8", errors="ignore"))
+    results = list(geo_payload.get("results") or []) if isinstance(geo_payload, dict) else []
+    if not results:
+        return None
+    hit = results[0] or {}
+    try:
+        return _PlacePoint(
+            name=str(hit.get("name") or name).strip(),
+            country=str(hit.get("country") or "").strip(),
+            latitude=float(hit["latitude"]),
+            longitude=float(hit["longitude"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _tzdb_place_point(leaf: str) -> _PlacePoint:
+    lat, lon = _tzdb_city_table()[leaf]
+    return _PlacePoint(name=_tzdb_city_names().get(leaf, leaf.title()), country="", latitude=lat, longitude=lon)
+
+
+def _requested_place_point(requested: str, *, timeout_s: float) -> _PlacePoint | None:
+    """Where the ASKED-FOR place is: a tzdb zone city by its exact name offline, else the
+    geocoder, else a tzdb city one typo away ("pariss").
+
+    The typo reading comes last on purpose: "Turin" is two edits from "Tunis", and measuring a
+    Turin station against Tunis would decline a correct reading. None when nobody knows the place
+    (or the geocoder could not be reached): the caller then has no point to measure against.
+    """
+    req = _normalize_place(requested)
+    if not req:
+        return None
+    if "," in str(requested):
+        # A qualified name ("Paris, Texas") is the geocoder's to read: tzdb knows one Paris and
+        # would measure Texas against France.
+        try:
+            return _open_meteo_geocode(requested, timeout_s=timeout_s)
+        except Exception:
+            return None
+    if req in _tzdb_city_table():
+        return _tzdb_place_point(req)
+    try:
+        point = _open_meteo_geocode(requested, timeout_s=timeout_s)
+    except Exception:
+        point = None
+    if point is not None:
+        return point
+    leaf = _tzdb_leaf_for(req)
+    return _tzdb_place_point(leaf) if leaf else None
+
+
+def _join_place(name: str, country: str) -> str:
+    name, country = str(name or "").strip(), str(country or "").strip()
+    if not country or country.lower() == name.lower():
+        return name
+    return f"{name}, {country}"
+
+
+def _weather_reading_label(
+    requested: str,
+    area_name: str,
+    country_name: str,
+    latitude: object = None,
+    longitude: object = None,
+    *,
+    timeout_s: float = 8.0,
+) -> str | None:
+    """The place a provider reading is labelled with, or None when it is not the asked place's reading.
+
+    Runs AFTER `_weather_place_corresponds` (which declines an outright contradiction). The reading
+    is for the provider's nearest station, so its name is the asker's place only when the names
+    agree (a typo the provider fixed, "Talinn" -> "Tallinn", keeps the provider's spelling). When
+    they do not, the station is measured against where the asked place really is: within
+    `_SAME_PLACE_KM` it is that city's reading and carries the CITY's name ("Saint-Merri, France"
+    was served for Paris: the person asked about Paris and could not place the district); farther
+    out it is another place's weather and is declined, so the next provider answers instead. A
+    place nobody can locate keeps the provider's own name: a label is never invented.
+    """
+    return _station_verdict(requested, area_name, country_name, latitude, longitude, timeout_s=timeout_s)[0]
+
+
+def _station_verdict(
+    requested: str,
+    area_name: str,
+    country_name: str,
+    latitude: object = None,
+    longitude: object = None,
+    *,
+    timeout_s: float = 8.0,
+) -> tuple[str | None, _PlacePoint | None]:
+    """`_weather_reading_label`'s answer, plus where the asked place is when that was measured.
+
+    (label, None): the reading stands under `label`. (None, point): the station is farther than
+    `_SAME_PLACE_KM` from `point`, the asked place, so a caller that can ask its provider again by
+    coordinates knows exactly where to ask.
+    """
+    req = _normalize_place(requested)
+    if not req or _place_names_correspond(requested, area_name):
+        return _join_place(area_name, country_name), None
+    try:
+        station = (float(latitude), float(longitude))
+    except (TypeError, ValueError):
+        # Nothing to measure: the provider's own name stands, and no lookup is spent finding out.
+        return _join_place(area_name, country_name), None
+    asked = _requested_place_point(requested, timeout_s=timeout_s)
+    if asked is None:
+        return _join_place(area_name, country_name), None
+    if _rough_km(station, (asked.latitude, asked.longitude)) > _SAME_PLACE_KM:
+        return None, asked
+    return _join_place(asked.name, asked.country or country_name), None
 
 
 def _rough_km(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -2580,13 +2774,18 @@ def _weather_fallback(
         # to an unrelated nearest-area). A failed match is not an answer -- decline rather than
         # report a confident wrong city.
         return None
+    place = _weather_reading_label(
+        location, area_name, country_name, area.get("latitude"), area.get("longitude"), timeout_s=timeout_s
+    )
+    if place is None:
+        # The station is somewhere else (an island off Tokyo): not this place's weather.
+        return None
     observed = str(current.get("localObsDateTime") or current.get("observation_time") or "").strip()
     weather_desc = _first_nested_value(current.get("weatherDesc")) or "Conditions unavailable"
     temp_c = str(current.get("temp_C") or "?").strip()
     feels_c = str(current.get("FeelsLikeC") or "?").strip()
     humidity = str(current.get("humidity") or "?").strip()
     wind_kmph = str(current.get("windspeedKmph") or "?").strip()
-    place = area_name if not country_name or country_name.lower() == area_name.lower() else f"{area_name}, {country_name}"
     summary = (
         f"{place}: {weather_desc}, {temp_c} C (feels like {feels_c} C), "
         f"humidity {humidity}%, wind {wind_kmph} km/h."
@@ -2747,31 +2946,33 @@ def _open_meteo_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -
     )
 
 
-def _wttr_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -> WeatherResult | None:
-    """The wttr.in reading for an already-validated place, or None -- first provider."""
-    page_url = "https://wttr.in/" + urllib.parse.quote(clean_location)
-    api_url = page_url + "?format=j1"
+def _wttr_payload(query: str, *, timeout_s: float, coordinates: bool = False) -> tuple[str, dict[str, Any]]:
+    """(page url, the `data` object) of one wttr.in j1 answer for a place name, or for a
+    "lat,lon" pair (`coordinates=True`, sent as written: wttr.in reads the comma literally)."""
+    page_url = "https://wttr.in/" + (query if coordinates else urllib.parse.quote(query))
     # Reporting used to happen here, because this was the one path that had been fixed (2026-08-13:
     # a Local Only turn quoting live wttr.in data while its trace reported `web_calls: 0`). It now
     # happens in `_open_remote`, which every outbound path in this module goes through -- keeping
     # the explicit call as well would count this fetch twice and break the same account from the
     # other direction.
-    request = urllib.request.Request(api_url, headers={"User-Agent": "VOOL-WEATHER/1.0"})
+    request = urllib.request.Request(page_url + "?format=j1", headers={"User-Agent": "VOOL-WEATHER/1.0"})
     with _open_remote(request, timeout=min(max(timeout_s, 3.0), 12.0)) as response:
         payload = json.loads(response.read(300000).decode("utf-8", errors="ignore"))
+    return page_url, dict((payload.get("data") or payload) if isinstance(payload, dict) else {})
 
-    root_payload = dict((payload.get("data") or payload) if isinstance(payload, dict) else {})
-    current_items = list(root_payload.get("current_condition") or [])
+
+def _wttr_area(root_payload: dict[str, Any]) -> dict[str, Any]:
     nearest_items = list(root_payload.get("nearest_area") or [])
-    daily_items = list(root_payload.get("weather") or [])
-    if not current_items:
+    return dict(nearest_items[0] or {}) if nearest_items else {}
+
+
+def _wttr_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -> WeatherResult | None:
+    """The wttr.in reading for an already-validated place, or None -- first provider."""
+    page_url, root_payload = _wttr_payload(clean_location, timeout_s=timeout_s)
+    if not list(root_payload.get("current_condition") or []):
         return None
 
-    current = current_items[0] or {}
-    area = nearest_items[0] if nearest_items else {}
-    # wttr.in's `weather` array is the daily forecast, one entry per day starting today --
-    # `weather[0]` is today's own forecast, distinct from `current_condition` (the live reading).
-    today = daily_items[0] if daily_items else {}
+    area = _wttr_area(root_payload)
     area_name = _first_nested_value(area.get("areaName")) or clean_location
     country_name = _first_nested_value(area.get("country"))
     if not _weather_place_corresponds(
@@ -2783,7 +2984,38 @@ def _wttr_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -> Weat
         area.get("longitude"),
     ):
         return None
-    place = area_name if not country_name or country_name.lower() == area_name.lower() else f"{area_name}, {country_name}"
+    # Labelled with the place that was asked about, not the provider's station district
+    # ("Saint-Merri, France" for Paris).
+    place, asked = _station_verdict(
+        clean_location, area_name, country_name, area.get("latitude"), area.get("longitude"), timeout_s=timeout_s
+    )
+    if place is None:
+        if asked is None:
+            return None
+        # The station by NAME is somewhere else (measured 2026-11-12: "Tokyo" -> Shikinejima, an
+        # island 155 km out, 20 C while the city read 12 C). Asked again by the city's own
+        # coordinates, wttr.in answers from a station in the city (Kabukicho); one more call to
+        # the same provider instead of serving an island's weather or giving up.
+        page_url, root_payload = _wttr_payload(
+            f"{asked.latitude:.4f},{asked.longitude:.4f}", timeout_s=timeout_s, coordinates=True
+        )
+        area = _wttr_area(root_payload)
+        try:
+            station = (float(area.get("latitude")), float(area.get("longitude")))
+        except (TypeError, ValueError):
+            return None
+        if (
+            not list(root_payload.get("current_condition") or [])
+            or _rough_km(station, (asked.latitude, asked.longitude)) > _SAME_PLACE_KM
+        ):
+            return None
+        place = _join_place(asked.name, asked.country or _first_nested_value(area.get("country")) or country_name)
+
+    current = next(iter(root_payload.get("current_condition") or [{}])) or {}
+    # wttr.in's `weather` array is the daily forecast, one entry per day starting today --
+    # `weather[0]` is today's own forecast, distinct from `current_condition` (the live reading).
+    daily_items = list(root_payload.get("weather") or [])
+    today = daily_items[0] if daily_items else {}
 
     def _numeric(value: Any) -> float | None:
         try:

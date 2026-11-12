@@ -86,7 +86,10 @@ def test_an_unusable_backend_is_not_reported_as_a_failed_command(monkeypatch, tm
     assert result.status == "sandbox_unavailable", (
         f"an unusable sandbox reported {result.status!r}; 'command_failed' blames the command"
     )
-    assert "isolation" in result.response_text.lower()
+    # The person reads one plain sentence that it is this computer, not the command; the
+    # engineering detail stays in the tool's error for the trace (app bugs 2026-11-12).
+    assert result.response_text.startswith("I can't run commands on this "), result.response_text
+    assert "isolation" in str(result.details.get("error") or "").lower()
     job_runner.reset_isolation_backend_probe_cache()
 
 

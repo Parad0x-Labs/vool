@@ -7577,6 +7577,14 @@ class MemoryFirstRouter:
             "Selected model could not run; no substitution was attempted.",
             **proof,
         )
+        # Whether the pinned model runs on this computer, so its failure is never explained as a
+        # cloud key problem (memory_runtime._local_model_refusal_hint reads it).
+        selected_model_local = False
+        with contextlib.suppress(Exception):
+            for candidate in self.registry.list_manifests(enabled_only=True):
+                if requested_model in {candidate.provider_id, candidate.model_name}:
+                    selected_model_local = _manifest_is_local(candidate)
+                    break
         pin_route_evidence = {}
         if isinstance(source_context, dict):
             for key, entry in dict(source_context.get("_pin_failure_route_evidence") or {}).items():
@@ -7597,6 +7605,7 @@ class MemoryFirstRouter:
                 "model_was_attempted": bool(dispatched),
                 "provider_failure": dict((source_context or {}).get("_last_provider_failure") or {}),
                 "requested_model": requested_model,
+                **({"selected_model_local": True} if selected_model_local else {}),
                 "provider_role": provider_role,
                 "ranked_candidates": [],
                 "provider_inventory": _provider_inventory_snapshot(self.registry),
@@ -8057,6 +8066,9 @@ def _record_attempt_timing(
     Rounded to milliseconds because this travels into turn truth and a full float there is noise.
     `timeout_seconds` is the ceiling this attempt actually ran under -- the fallback budget caps a
     candidate's own timeout, so the manifest's configured value is not what bound it.
+    `local` marks a model that runs on this computer, so a failure is never explained to the person
+    as a cloud account or API key problem (app bugs 2026-11-12: a 401 from a local model was told
+    "no cloud model could run this turn ... Check the key in Settings → API Keys").
     """
     entry = {
         "provider_id": str(getattr(manifest, "provider_id", "") or ""),
@@ -8065,6 +8077,7 @@ def _record_attempt_timing(
         "outcome": str(outcome or ""),
         "timeout_seconds": round(max(0.0, float(timeout_seconds)), 3),
         **({"error": error} if error else {}),
+        **({"local": True} if _manifest_is_local(manifest) else {}),
     }
     timings.append(entry)
     return entry

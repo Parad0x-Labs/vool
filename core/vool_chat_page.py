@@ -1021,6 +1021,10 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 .tc-report { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
 .tc-report:hover { color:var(--ink); border-color:var(--accent); }
 body.vool-offline .tc-report { display:none; }
+/* "Try again" on a failed turn: the way forward, so it reads as the main action of the row. */
+.tc-retry { background:transparent; color:var(--accent); border:1px solid var(--accent); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
+.tc-retry:hover { background:var(--field); }
+body.vool-offline .tc-retry { display:none; }
 /* One calm line while the VOOL service cannot be reached; it clears itself when VOOL is back. */
 .offline-bar { display:flex; align-items:center; gap:10px; flex-shrink:0; padding:7px 16px; border-bottom:1px solid var(--border); background:var(--field); color:var(--ink); font-size:13px; }
 .offline-bar[hidden] { display:none; }
@@ -2744,11 +2748,11 @@ function showLoadFailed(chatId) {
 function showEmpty() {
   // Time-aware greeting + a rotating opener so a new chat never opens on a blank screen.
   const h = new Date().getHours();
-  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?', ['🌙', '🦉']] : h < 12 ? ['first_run.greet_morning', 'Good morning', ['👋', '☀️', '☕']]
-    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon', ['👋', '🙂']] : h < 22 ? ['first_run.greet_evening', 'Good evening', ['👋', '🌆']] : ['first_run.greet_working_late', 'Working late?', ['🌙', '🦉']];
-  // A friendly emoji once in a while (not every open) — Codex-style "Good morning 👋".
-  let greet = emptyT(period[0], period[1]);
-  if (Math.random() < 0.45) greet += ' ' + period[2][Math.floor(Math.random() * period[2].length)];
+  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?'] : h < 12 ? ['first_run.greet_morning', 'Good morning']
+    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon'] : h < 22 ? ['first_run.greet_evening', 'Good evening'] : ['first_run.greet_working_late', 'Working late?'];
+  // The greeting is the same words every time for the same hour: no colour emoji (VOOL's own text
+  // carries none), and nothing left to chance.
+  const greet = emptyT(period[0], period[1]);
   const openers = [
     ['first_run.opener_1', 'What are we working on today?'], ['first_run.opener_2', 'What’s the task?'],
     ['first_run.opener_3', 'What are you thinking about?'], ['first_run.opener_4', 'What should we build?'],
@@ -5472,22 +5476,32 @@ async function mountProofChip(host, chatId, requestId, presentationSelection, fi
   head.className = 'proof-chip-head';
   head.title = pageT('msg.run_record_title', 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim');
   const cost = (typeof compact.cost === 'object' && compact.cost) || {};
-  const costText = cost.display ? String(cost.display) : cost.usd != null ? ('$' + Number(cost.usd).toFixed(4)) : (cost.tokens != null ? (compact.cost.tokens + ' tok') : 'cost not recorded');
+  // Every word on the chip is said in the app language: the server sends its usage line and its
+  // coverage as keyed parts beside its own English (measured 2026-10-12: a Japanese answer sat
+  // over an English line of tokens, tok/s, cost, sources, lookups and "Record verified").
+  const costText = proofPartsText(cost.parts) || (cost.display ? String(cost.display) : cost.usd != null ? ('$' + Number(cost.usd).toFixed(4)) : (cost.tokens != null ? pageTF('proof.tokens_count', '{n} tok', { n: cost.tokens }) : pageT('proof.cost_not_recorded', 'cost not recorded')));
   const seg = (cls, text) => { const span = document.createElement('span'); span.className = cls; span.textContent = text; return span; };
-  head.appendChild(seg('pc-actions', String(compact.actions == null ? 0 : compact.actions) + ' action' + (compact.actions === 1 ? '' : 's')));
+  const actionCount = compact.actions == null ? 0 : compact.actions;
+  const sourceCount = compact.sources == null ? 0 : compact.sources;
+  head.appendChild(seg('pc-actions', pageTF('activity.rollup.actions', actionCount === 1 ? '{n} action' : '{n} actions', { n: actionCount })));
   head.appendChild(seg('pc-sep', '·'));
-  head.appendChild(seg('pc-sources', String(compact.sources == null ? 0 : compact.sources) + ' source' + (compact.sources === 1 ? '' : 's')));
+  head.appendChild(seg('pc-sources', pageTF('proof.sources_count', sourceCount === 1 ? '{n} source' : '{n} sources', { n: sourceCount })));
   head.appendChild(seg('pc-sep', '·'));
   head.appendChild(seg('pc-cost', costText));
   head.appendChild(seg('pc-sep', '·'));
-  head.appendChild(seg('pc-state pc-state-' + String(state).toLowerCase(), String(compact.state_label || ('Record ' + state.toLowerCase()))));
+  const stateKey = /^proof\.state\.[a-z]+$/.test(String(compact.state_key || '')) ? String(compact.state_key) : ('proof.state.' + state.toLowerCase());
+  // The server's stock label for its state ("Record verified") is said in the app language; any
+  // other label the server sends is its own words and is shown exactly as sent, as text.
+  const stockStateLabel = 'Record ' + state.toLowerCase();
+  const serverStateLabel = String(compact.state_label || stockStateLabel);
+  head.appendChild(seg('pc-state pc-state-' + String(state).toLowerCase(), serverStateLabel === stockStateLabel ? pageT(stateKey, serverStateLabel) : serverStateLabel));
   // Coverage, verbatim from the server: what this turn looked up and whether every derived step
   // was fed by those lookups. The state word above certifies the bytes; this names their scope.
   // A projection without the field renders no segment -- the page never invents coverage.
   const coverage = (typeof compact.coverage === 'object' && compact.coverage) || null;
   if (coverage && coverage.label) {
     head.appendChild(seg('pc-sep', '·'));
-    head.appendChild(seg('pc-coverage', String(coverage.label)));
+    head.appendChild(seg('pc-coverage', proofPartsText(coverage.label_parts) || String(coverage.label)));
   }
   const body = document.createElement('div');
   body.className = 'proof-chip-body';
@@ -5504,8 +5518,32 @@ async function mountProofChip(host, chatId, requestId, presentationSelection, fi
 }
 
 function _proofRow(label, value) {
-  return '<div class="pc-row"><b>' + esc(label) + ':</b> ' + (value == null || value === '' ? '<span class="pc-none">not recorded</span>' : value) + '</div>';
+  return '<div class="pc-row"><b>' + esc(label) + ':</b> ' + (value == null || value === '' ? '<span class="pc-none">' + esc(pageT('proof.not_recorded', 'not recorded')) + '</span>' : value) + '</div>';
 }
+
+// Server-written chip text arrives as keyed parts, {key, params, text}: the key names a catalog
+// message, the params fill its placeholders, and `text` is the server's own English, shown when
+// the app language has no such message. Only proof.* keys are looked up.
+function proofPartsText(parts) {
+  if (!Array.isArray(parts) || !parts.length) return '';
+  const said = [];
+  for (const part of parts) {
+    if (!part || typeof part !== 'object') continue;
+    const text = String(part.text || '');
+    const key = String(part.key || '');
+    const params = (part.params && typeof part.params === 'object') ? part.params : {};
+    said.push(/^proof\.[a-z_.]+$/.test(key) ? pageTF(key, text, params) : text);
+  }
+  return said.filter(Boolean).join(' · ');
+}
+
+const PROOF_VERIFICATION_EXPLANATION = 'Checks saved output integrity and recorded execution evidence. These checks do not independently verify every factual or numerical claim.';
+const PROOF_STAGE_WORDS = Object.freeze({
+  total: ['run.total_word', 'total'],
+  classification: ['proof.stage.classification', 'classification'],
+  retrieval: ['proof.stage.retrieval', 'retrieval'],
+  synthesis: ['proof.stage.synthesis', 'synthesis'],
+});
 
 function _proofElapsed(ms) {
   if (ms == null) return '';
@@ -5517,14 +5555,15 @@ function _proofElapsed(ms) {
 function renderProofChipBody(body, proof, presentationSelection) {
   const expanded = (proof && typeof proof.expanded === 'object' && proof.expanded) || {};
   const reasons = Array.isArray(proof.state_reasons) ? proof.state_reasons : [];
-  let html = _proofRow('Verification scope', esc(String(proof.verification_explanation ||
-    'Checks saved output integrity and recorded execution evidence. These checks do not independently verify every factual or numerical claim.')));
+  const explanation = String(proof.verification_explanation || PROOF_VERIFICATION_EXPLANATION);
+  let html = _proofRow(pageT('proof.verification_scope', 'Verification scope'), esc(explanation === PROOF_VERIFICATION_EXPLANATION
+    ? pageT('proof.verification_explanation', PROOF_VERIFICATION_EXPLANATION) : explanation));
   // C19 presentation-selection provenance, read-only beside the proof. The
   // record travels in this message's own display_metadata — a turn without
   // one (legacy row, replay) renders nothing here and never borrows.
   const selection = (presentationSelection && typeof presentationSelection === 'object' && presentationSelection.schema) ? presentationSelection : null;
   if (selection) {
-    html += '<div class="pc-head">Presentation</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_presentation', 'Presentation')) + '</div>';
     const shape = selection.disabled_by
       ? 'not elected (' + esc(String(selection.disabled_by)) + ')'
       : esc(String(selection.elected || 'prose')) + (selection.gap_detected ? ' (elected against prose)' : '');
@@ -5532,74 +5571,75 @@ function renderProofChipBody(body, proof, presentationSelection) {
       ? ' · trigger ' + esc(String(selection.trigger))
       : (selection.trigger === 'none_justified' ? ' · no shape justified' : '');
     const fell = selection.fallback ? ' · ' + esc(String(selection.fallback)) : '';
-    html += _proofRow('Automatic', shape + why + fell);
+    html += _proofRow(pageT('proof.automatic', 'Automatic'), shape + why + fell);
   }
-  html += _proofRow('Model', esc([expanded.provider, expanded.model].filter(Boolean).join(' / ')));
+  html += _proofRow(pageT('proof.model_row', 'Model'), esc([expanded.provider, expanded.model].filter(Boolean).join(' / ')));
   const actions = Array.isArray(expanded.actions) ? expanded.actions : [];
   if (actions.length) {
-    html += '<div class="pc-head">Actions</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_actions', 'Actions')) + '</div>';
     for (const action of actions) {
       html += '<div class="pc-row">' + esc(action.name || 'unnamed') + ' — <span>' + esc(action.outcome || (action.ok ? 'executed' : 'failed')) + '</span>'
         + (action.status && action.status !== action.outcome ? ' <span>(' + esc(action.status) + ')</span>' : '') + '</div>';
     }
   } else {
-    html += '<div class="pc-head">Actions</div><div class="pc-row pc-none">no tool or effect ran on this turn</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_actions', 'Actions')) + '</div><div class="pc-row pc-none">' + esc(pageT('proof.no_actions', 'no tool or effect ran on this turn')) + '</div>';
   }
   const sources = Array.isArray(expanded.sources) ? expanded.sources : [];
   if (sources.length) {
-    html += '<div class="pc-head">Sources</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_sources', 'Sources')) + '</div>';
     for (const source of sources) {
-      html += '<div class="pc-row">' + esc(source.host || 'local source') + (source.operation ? ' — ' + esc(source.operation) : '') + (source.status ? ' <span>(' + esc(source.status) + ')</span>' : '') + '</div>';
+      html += '<div class="pc-row">' + esc(source.host || pageT('proof.local_source', 'local source')) + (source.operation ? ' — ' + esc(source.operation) : '') + (source.status ? ' <span>(' + esc(source.status) + ')</span>' : '') + '</div>';
     }
   }
   const timeline = Array.isArray(expanded.timeline) ? expanded.timeline : [];
   if (timeline.length) {
     // Stage windows from the turn's own event stamps -- no first-token time is invented.
-    html += '<div class="pc-head">Timing</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_timing', 'Timing')) + '</div>';
     for (const row of timeline) {
-      html += '<div class="pc-row">' + esc(row.stage || 'stage') + ' — <span>' + (row.ms == null ? 'not recorded' : _proofElapsed(row.ms)) + '</span></div>';
+      const stageWord = PROOF_STAGE_WORDS[row.stage] ? pageT(PROOF_STAGE_WORDS[row.stage][0], PROOF_STAGE_WORDS[row.stage][1]) : (row.stage || 'stage');
+      html += '<div class="pc-row">' + esc(stageWord) + ' — <span>' + (row.ms == null ? esc(pageT('proof.not_recorded', 'not recorded')) : _proofElapsed(row.ms)) + '</span></div>';
     }
   }
   const lookups = Array.isArray(expanded.observations) ? expanded.observations : [];
   if (lookups.length) {
-    html += '<div class="pc-head">Lookups</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_lookups', 'Lookups')) + '</div>';
     for (const row of lookups) {
       let outcome;
-      if (row.pending) outcome = 'pending';
-      else if (!row.ok) outcome = 'failed' + (row.failure_code ? ' (' + esc(String(row.failure_code)) + ')' : '');
-      else if (row.kind === 'derived') outcome = row.bound ? 'bound to this turn\'s lookups' : 'unbound — an operand is not a lookup of this turn';
-      else outcome = 'observed';
+      if (row.pending) outcome = esc(pageT('proof.lookup.pending', 'pending'));
+      else if (!row.ok) outcome = esc(pageT('proof.lookup.failed', 'failed')) + (row.failure_code ? ' (' + esc(String(row.failure_code)) + ')' : '');
+      else if (row.kind === 'derived') outcome = row.bound ? esc(pageT('proof.lookup.bound', 'bound to this turn\'s lookups')) : esc(pageT('proof.lookup.unbound', 'unbound — an operand is not a lookup of this turn'));
+      else outcome = esc(pageT('proof.lookup.observed', 'observed'));
       const where = row.kind === 'derived'
-        ? (Array.isArray(row.depends_on) && row.depends_on.length ? 'from ' + esc(row.depends_on.join(', ')) : 'self-contained')
-        : esc(row.host || 'no external source');
+        ? (Array.isArray(row.depends_on) && row.depends_on.length ? esc(pageTF('proof.lookup.from', 'from {nodes}', { nodes: row.depends_on.join(', ') })) : esc(pageT('proof.lookup.self_contained', 'self-contained')))
+        : esc(row.host || pageT('proof.lookup.no_source', 'no external source'));
       const took = (typeof row.duration_s === 'number') ? ' · ' + _proofElapsed(Math.round(row.duration_s * 1000)) : '';
       html += '<div class="pc-row">' + esc(row.operation || row.node_id || 'node') + ' — ' + where + ' — <span>' + outcome + '</span>' + took + '</div>';
     }
   }
   const claims = (typeof expanded.claims === 'object' && expanded.claims) || null;
   if (claims) {
-    html += '<div class="pc-head">Claims</div>';
-    html += _proofRow('Supported by bound evidence', String(claims.supported_claim_count == null ? '' : claims.supported_claim_count));
+    html += '<div class="pc-head">' + esc(pageT('proof.head_claims', 'Claims')) + '</div>';
+    html += _proofRow(pageT('proof.supported_by_evidence', 'Supported by bound evidence'), String(claims.supported_claim_count == null ? '' : claims.supported_claim_count));
     const withheld = Array.isArray(claims.withheld_claims) ? claims.withheld_claims.filter(Boolean) : [];
-    if (withheld.length) html += _proofRow('Withheld (unsupported)', esc(withheld.join('; ')));
+    if (withheld.length) html += _proofRow(pageT('proof.withheld', 'Withheld (unsupported)'), esc(withheld.join('; ')));
   }
   const refusals = Array.isArray(expanded.refusals) ? expanded.refusals : [];
   if (refusals.length) {
-    html += '<div class="pc-head">Refusals</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_refusals', 'Refusals')) + '</div>';
     for (const refusal of refusals) html += '<div class="pc-row">' + esc(refusal.name || 'unnamed') + ' — ' + esc(refusal.status || 'refused') + '</div>';
   }
-  html += _proofRow('Elapsed', esc(_proofElapsed(expanded.elapsed_ms)));
+  html += _proofRow(pageT('proof.elapsed', 'Elapsed'), esc(_proofElapsed(expanded.elapsed_ms)));
   const finalization = (typeof expanded.finalization === 'object' && expanded.finalization) || {};
   if (finalization.finalization_id) {
-    html += _proofRow('Finalization', '<code>' + esc(finalization.finalization_id) + '</code>'
+    html += _proofRow(pageT('proof.finalization', 'Finalization'), '<code>' + esc(finalization.finalization_id) + '</code>'
       + (finalization.availability && finalization.availability !== 'available' ? ' <span>(' + esc(finalization.availability) + ')</span>' : ''));
   }
   const witness = (typeof expanded.witness === 'object' && expanded.witness) || {};
-  if (witness.consistent === false) html += _proofRow('Ledger witness', '<span>inconsistent — ' + esc((witness.missing || []).join(', ')) + '</span>');
-  if (reasons.length) html += _proofRow('Why ' + esc(String(proof.state)), esc(reasons.join(', ')));
+  if (witness.consistent === false) html += _proofRow(pageT('proof.ledger_witness', 'Ledger witness'), '<span>inconsistent — ' + esc((witness.missing || []).join(', ')) + '</span>');
+  if (reasons.length) html += _proofRow(pageTF('proof.why_state', 'Why {state}', { state: String(proof.state) }), esc(reasons.join(', ')));
   const receipts = Array.isArray(expanded.receipts) ? expanded.receipts.filter(Boolean) : [];
   if (receipts.length) {
-    html += '<div class="pc-head">Receipts</div>';
+    html += '<div class="pc-head">' + esc(pageT('proof.head_receipts', 'Receipts')) + '</div>';
     for (const receipt of receipts) html += '<div class="pc-row"><code>' + esc(receipt) + '</code></div>';
   }
   body.innerHTML = html;
@@ -6069,7 +6109,7 @@ function buildCard(run, host) {
     + '</div>'
     + '<div class="tc-meta"><span class="tc-elapsed"></span><span class="tc-tokens"></span><span class="tc-steps"></span><span class="tc-cost"></span></div>'
     + '<div class="tc-recent"></div><div class="tc-last"></div><div class="tc-summary"></div>'
-    + '<div class="tc-actions"><button type="button" class="tc-view">View activity</button></div>'
+    + '<div class="tc-actions"><button type="button" class="tc-view">' + esc(pageT('run.view_activity', 'View activity')) + '</button></div>'
     + '<span class="sr-only"></span>';
   // One container per turn: append the status card INTO the assistant message (host), not as a
   // separate sibling in the log. So the answer + its live status/collapsed metadata are one block.
@@ -6078,6 +6118,9 @@ function buildCard(run, host) {
   const refs = { card, mark: q('.tc-mark'), title: q('.tc-titletext'), stage: q('.tc-stage'), mode: q('.tc-mode'), model: q('.tc-model'), recent: q('.tc-recent'),
     stop: q('.tc-stop'), elapsed: q('.tc-elapsed'), tokens: q('.tc-tokens'), steps: q('.tc-steps'), cost: q('.tc-cost'), last: q('.tc-last'),
     summary: q('.tc-summary'), view: q('.tc-view'), sr: q('.sr-only') };
+  // The Stop button's English is in the markup above; it is said in the app language here.
+  refs.stop.textContent = pageT('run.stop', 'Stop');
+  refs.stop.title = pageT('run.stop_title', 'Stop this turn — cancels the running task on your machine and stops the answer.');
   // The stopping look: the button says so and cannot be pressed again, and the mark holds. Kept
   // on the run, so a card re-built while the stop is being decided shows it too.
   const showStopping = () => {
@@ -6318,15 +6361,22 @@ function setRunReviewState(run, state) {
 }
 function reviewStatePresentation(value) {
   const state = normalizeRunReviewState(value);
+  // Said in the app language; the English beside each key is the fallback and the source text.
+  const T = pageT;
+  const running = T('run.review.label.running', 'Model review running');
+  const unavailable = T('run.review.label.unavailable', 'Model review unavailable');
+  const flagged = T('run.review.label.flagged', 'Review flagged');
+  const degraded = T('run.review.label.degraded', 'Model review degraded');
+  const failedToRun = T('run.review.label.runtime_failed', 'Model review failed to run');
   const presentations = {
     not_run: { cls: '', icon: '', label: '', evidence: '', detail: '', meta: '' },
-    running: { cls: 'run', icon: '»', label: 'Model review running', evidence: 'Model review running', detail: 'no reviewer verdict recorded yet', meta: 'model review running' },
-    passed: { cls: 'ok', icon: '✓', label: 'Independent review passed', evidence: 'Model-reviewed — passed', detail: 'reviewer model returned PASS — this is not validation or answer proof', meta: 'model review passed' },
-    flagged: { cls: 'fail', icon: '⚠', label: 'Review flagged', evidence: 'Review flagged', detail: 'reviewer executed and returned a flagged verdict — this is not validation proof', meta: 'review flagged' },
-    blocked: { cls: 'fail', icon: '⚠', label: 'Model review unavailable', evidence: 'Model review unavailable', detail: 'review was blocked before a reviewer verdict was produced', meta: 'model review blocked' },
-    degraded: { cls: 'fail', icon: '⚠', label: 'Model review degraded', evidence: 'Model review degraded', detail: 'review path was degraded or unavailable; no reviewer verdict was produced', meta: 'model review degraded' },
-    runtime_failed: { cls: 'fail', icon: '⚠', label: 'Model review failed to run', evidence: 'Model review failed to run', detail: 'review execution failed before producing a valid verdict', meta: 'model review failed to run' },
-    unavailable: { cls: 'fail', icon: '⚠', label: 'Model review unavailable', evidence: 'Model review unavailable', detail: 'legacy review evidence is ambiguous; no reviewer verdict can be inferred', meta: 'model review unavailable' },
+    running: { cls: 'run', icon: '»', label: running, evidence: running, detail: T('run.review.detail.running', 'no reviewer verdict recorded yet'), meta: T('run.review.meta.running', 'model review running') },
+    passed: { cls: 'ok', icon: '✓', label: T('run.review.label.passed', 'Independent review passed'), evidence: T('run.review.evidence.passed', 'Model-reviewed — passed'), detail: T('run.review.detail.passed', 'reviewer model returned PASS — this is not validation or answer proof'), meta: T('run.review.meta.passed', 'model review passed') },
+    flagged: { cls: 'fail', icon: '⚠', label: flagged, evidence: flagged, detail: T('run.review.detail.flagged', 'reviewer executed and returned a flagged verdict — this is not validation proof'), meta: T('run.review.meta.flagged', 'review flagged') },
+    blocked: { cls: 'fail', icon: '⚠', label: unavailable, evidence: unavailable, detail: T('run.review.detail.blocked', 'review was blocked before a reviewer verdict was produced'), meta: T('run.review.meta.blocked', 'model review blocked') },
+    degraded: { cls: 'fail', icon: '⚠', label: degraded, evidence: degraded, detail: T('run.review.detail.degraded', 'review path was degraded or unavailable; no reviewer verdict was produced'), meta: T('run.review.meta.degraded', 'model review degraded') },
+    runtime_failed: { cls: 'fail', icon: '⚠', label: failedToRun, evidence: failedToRun, detail: T('run.review.detail.runtime_failed', 'review execution failed before producing a valid verdict'), meta: T('run.review.meta.runtime_failed', 'model review failed to run') },
+    unavailable: { cls: 'fail', icon: '⚠', label: unavailable, evidence: unavailable, detail: T('run.review.detail.unavailable', 'legacy review evidence is ambiguous; no reviewer verdict can be inferred'), meta: T('run.review.meta.unavailable', 'model review unavailable') },
   };
   return presentations[state] || presentations.unavailable;
 }
@@ -6343,10 +6393,10 @@ function reviewPanelRow(run) {
 // test state can be shown alongside it rather than being hidden behind one generic verdict.
 function evidenceLabels(run) {
   const labels = [];
-  if (run.tests && run.tests.total > 0) labels.push(run.tests.failed ? 'Tested — issues found' : 'Tested — passed');
+  if (run.tests && run.tests.total > 0) labels.push(run.tests.failed ? pageT('run.evidence.tested_issues', 'Tested — issues found') : pageT('run.evidence.tested_passed', 'Tested — passed'));
   const review = reviewStatePresentation(reviewStateForRun(run));
   if (review.evidence) labels.push(review.evidence);
-  if (run.steps.some((step) => step.status === 'completed')) labels.push('Tool action completed');
+  if (run.steps.some((step) => step.status === 'completed')) labels.push(pageT('run.evidence.tool_completed', 'Tool action completed'));
   return labels;
 }
 function hasMeaningfulActivity(run) {
@@ -6362,7 +6412,7 @@ function applyResultSummary(run) {
   const evidence = evidenceLabels(run);
   run.resultLabelText = evidence.join(' · ');
   const bits = [];
-  if (actions) bits.push(actions + ' action' + (actions === 1 ? '' : 's'));
+  if (actions) bits.push(pageTF('activity.rollup.actions', actions === 1 ? '{n} action' : '{n} actions', { n: actions }));
   // Only authoritative locality may move model identity into the cloud-emphasis summary.
   if (run.model && String(run.model.locality || '').toLowerCase() === 'cloud') bits.push(modelProviderPresentation(run.model));
   const usd = fmtUsd(run.cost);
@@ -6372,7 +6422,7 @@ function applyResultSummary(run) {
     // beside "Model review unavailable" read as the review's price (2026-09-15 incident).
     const reviewState = reviewStateForRun(run);
     const reviewRan = reviewState === 'passed' || reviewState === 'flagged';
-    bits.push(usd + (reviewRan ? ' on answer + review' : ' on the model answer'));
+    bits.push(reviewRan ? pageTF('run.cost_on_answer_review', '{cost} on answer + review', { cost: usd }) : pageTF('run.cost_on_answer', '{cost} on the model answer', { cost: usd }));
   }
   const parts = evidence.concat(bits).filter(Boolean);
   run.resultParts = parts;
@@ -6382,7 +6432,7 @@ function applyResultSummary(run) {
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';
   // A failed or stopped turn is never announced as "Done".
-  r.sr.textContent = parts.join(' · ') || (run.status === 'failed' ? (run.endSummary || "Didn't finish") : run.status === 'cancelled' ? 'Stopped' : pageT('run.sr_done', 'Done'));
+  r.sr.textContent = parts.join(' · ') || (run.status === 'failed' ? (run.endSummary || pageT('run.sr_didnt_finish', "Didn't finish")) : run.status === 'cancelled' ? pageT('run.status_stopped', 'Stopped') : pageT('run.sr_done', 'Done'));
   // Routing, approval, failure, review and ledger events are meaningful even when no tool completed.
   const hasActivity = hasMeaningfulActivity(run);
   if (r.view) r.view.style.display = hasActivity ? '' : 'none';
@@ -6392,6 +6442,22 @@ function applyResultSummary(run) {
 // End a run. The STATE half (status, end time, summary) is applied to the run and its owning chat
 // unconditionally; only the paint half is gated on that chat being on screen. A completion in a
 // background chat therefore lands in full, and touches nothing the displayed chat owns.
+// The closing words the server writes on a turn's last event are English sentences from a short,
+// fixed set; each is said in the app language here. Any other summary is shown as it came.
+const RUN_SUMMARY_KEYS = Object.freeze({
+  'Complete': 'run.complete',
+  'Stopped safely': 'run.summary.stopped_safely',
+  'Stopped safely after an internal error': 'run.summary.stopped_internal',
+  'Cancelled': 'run.summary.cancelled',
+  'Cancelled before publication': 'run.summary.cancelled_unpublished',
+  'No model was available to answer this message.': 'run.summary.no_model',
+  'Task did not meet its completion requirements.': 'run.summary.unfulfilled',
+});
+function runSummaryWords(text) {
+  const said = String(text || '');
+  const key = Object.prototype.hasOwnProperty.call(RUN_SUMMARY_KEYS, said.trim()) ? RUN_SUMMARY_KEYS[said.trim()] : '';
+  return key ? pageT(key, said) : said;
+}
 function finishRun(run, kind, summaryText, tsIso) {
   if (run.ended) return; run.ended = true; run.status = kind;
   // A run that was not refused held the chat's slot itself: no other holder is known now.
@@ -6400,7 +6466,7 @@ function finishRun(run, kind, summaryText, tsIso) {
   // carried one, else the instant this client-detected end (stream close, abort, fetch error) is
   // actually happening right now -- never a re-guess for a message that finished earlier.
   run.endedAt = tsIso || new Date().toISOString();
-  run.endSummary = summaryText || '';
+  run.endSummary = runSummaryWords(summaryText);
   // Stamp the transcript entry too, so re-opening this chat later shows the same completion time
   // the bubble showed live rather than losing it to the re-render.
   const _owner = ownerOf(run);
@@ -6476,6 +6542,22 @@ function paintFinishedCard(run) {
   if (kind !== 'awaiting_approval') applyResultSummary(run);
   if (kind === 'failed' && !run.card.dataset.brWired) {
     run.card.dataset.brWired = '1';
+    // A failed turn offers its way forward in plain sight: Try again sends the same question once
+    // more through the ordinary composer (the same rules, approvals, caps and receipts as any typed
+    // message), exactly as the answer's own Try again does. App bugs 2026-11-12: after a fault
+    // that persisted, the only buttons were View activity and Report a problem.
+    const again = document.createElement('button');
+    again.type = 'button';
+    again.className = 'tc-retry';
+    again.textContent = pageT('msg.retry', 'Try again');
+    again.title = pageT('msg.retry_title', 'Ask the same question again as a new message');
+    again.addEventListener('click', () => {
+      const anchor = (run.userMsgEl && run.userMsgEl.isConnected) ? run.userMsgEl : (run.assistantMsgEl || run.card);
+      resendFromBubble(anchor, true);
+    });
+    const actionsRow = run.card.querySelector('.tc-actions');
+    if (actionsRow) actionsRow.insertBefore(again, actionsRow.firstChild);   // the way forward comes first
+    else run.card.appendChild(again);
     const link = document.createElement('button');
     link.type = 'button';
     link.className = 'tc-report';
@@ -6564,7 +6646,7 @@ function applyTaskEvent(run, ev) {
     case 'verification.completed': {
       const reviewState = setRunReviewState(run, reviewStateFromEvent(ev));
       const review = reviewStatePresentation(reviewState);
-      run.last = review.label || 'Model review outcome unavailable';
+      run.last = review.label || pageT('run.review.outcome_unavailable', 'Model review outcome unavailable');
       // The reviewer's OWN cause, when the event carried one: "Verifier was required, but no
       // verifier lane was available." is the fact the operator can act on, and the typed state
       // alone ("blocked") does not say which of the blocked shapes it was. A verdict state
@@ -9713,7 +9795,7 @@ async function runTurn(text, queueItemId, opts) {
         inputEl.value = text;
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       }
-      finishRun(run, 'failed', "Couldn't reach VOOL");
+      finishRun(run, 'failed', pageT('run.couldnt_reach', "Couldn't reach VOOL"));
     }
     else {
       run.error = (e && e.message ? e.message : String(e));
