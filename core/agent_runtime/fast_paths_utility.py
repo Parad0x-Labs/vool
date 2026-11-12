@@ -2071,6 +2071,13 @@ _ASKS_DATE_RE = re.compile(
 )
 
 
+_SKY_EVENT_RE = re.compile(
+    r"\bsun\s*(?:set|rise|down|up)s?\b|\b(?:dawn|dusk|twilight|golden\s+hour|moon\s*(?:rise|set)s?)\b"
+    r"|\bsun\s+(?:go(?:es)?|come(?:s)?)\s+(?:down|up)\b|\b(?:get|gets|getting)\s+dark\b",
+    re.IGNORECASE,
+)
+
+
 def date_time_fast_path(
     agent: Any,
     normalized_input: str,
@@ -2093,6 +2100,11 @@ def date_time_fast_path(
     if not phrase:
         return None
     cleaned = phrase.strip(" \t\r\n?!.,")
+    # "what time does the sun set in oslo today" asks when an EVENT happens, not what the clock says:
+    # answered "Current time in Oslo is 16:06" (red team R1-16, 2026-11-12). Sunrise, sunset, dawn,
+    # dusk and the moon's times are looked up, never read off the clock.
+    if _SKY_EVENT_RE.search(cleaned):
+        return None
     # A SUPPLIED absolute time ("what time is it in Tokyo when it is 3:00 PM on a Tuesday in New
     # York during standard time?") is a conversion, not a clock read. Measured through this seam
     # 2026-08-15: the machinery below claimed that turn and answered the MACHINE's current local

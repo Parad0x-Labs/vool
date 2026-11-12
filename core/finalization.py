@@ -226,7 +226,12 @@ _NOT_A_DEMAND_RE = __import__("re").compile(
     r"|^\s*(?:according\s+to|as\s+per|per|from|on|in)\s+(?:the\s+)?[\w .'-]{1,40}?[\s,:]*$"
     # How to answer, not something to answer: "just the count", "only the number", "short answer".
     r"|^\s*(?:just|only)\s+(?:the\s+|a\s+)?(?:count|number|total|names?|list|answer|yes\s+or\s+no)(?:\s+please|\s+pls)?[\s.!]*$"
-    r"|^\s*(?:(?:keep\s+it\s+)?short|brief(?:ly)?|one\s+word|no\s+explanation|count\s+only)[\s.!]*$",
+    r"|^\s*(?:(?:keep\s+it\s+)?short|brief(?:ly)?|one\s+word|no\s+explanation|count\s+only)[\s.!]*$"
+    # A status remark that comes with the ask: "i turned on web, whats the tallest building in europe"
+    # (red team R1-17 listed "i turned on web" under Could not be answered).
+    r"|^\s*(?:ok(?:ay)?[,\s]+)?(?:i(?:'ve|\s+have)?\s+)?(?:turned|switched|put)\s+(?:on|off)\s+(?:the\s+)?[\w ]{1,30}?[\s,.!]*$"
+    r"|^\s*(?:ok(?:ay)?[,\s]+)?(?:i(?:'ve|\s+have)?\s+)?(?:fixed|enabled|allowed|granted)\s+(?:the\s+)?[\w ]{1,30}?[\s,.!]*$"
+    r"|^\s*(?:ok(?:ay)?[,\s]+)?(?:the\s+)?(?:web|internet|it|tools?|access|permissions?)\s+(?:is|are)\s+(?:on|off|fixed|enabled)(?:\s+now)?[\s,.!]*$",
     __import__("re").IGNORECASE,
 )
 

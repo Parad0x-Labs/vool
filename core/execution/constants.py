@@ -2957,7 +2957,7 @@ _KNOWN_USER_FOLDERS = {
 }
 _LISTING_KIND_WORDS = {
     "pic": "image", "pics": "image", "picture": "image", "pictures": "image", "photo": "image",
-    "photos": "image", "image": "image", "images": "image", "screenshot": "image", "screenshots": "image",
+    "photos": "image", "image": "image", "images": "image", "screenshot": "screenshot", "screenshots": "screenshot",
     "jpg": "image", "jpgs": "image", "jpeg": "image", "jpegs": "image", "png": "image", "pngs": "image",
     "video": "video", "videos": "video", "clip": "video", "clips": "video",
     "pdf": "pdf", "pdfs": "pdf", "song": "audio", "songs": "audio", "mp3": "audio", "mp3s": "audio",
@@ -2995,7 +2995,7 @@ _POINTS_BACK_AT_THE_FOLDER_RE = re.compile(
     r"|\b(?:newest|latest|recent|oldest|biggest|largest)\b[^.?!]{0,20}\bthere\b",
     re.IGNORECASE,
 )
-_LISTING_KIND_LABELS_FOR_HINT = frozenset({"image", "video", "audio", "pdf", "document", "spreadsheet"})
+_LISTING_KIND_LABELS_FOR_HINT = frozenset({"image", "video", "audio", "pdf", "document", "spreadsheet", "screenshot"})
 
 
 def machine_kind_listing_intent(

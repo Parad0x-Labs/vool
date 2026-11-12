@@ -1648,3 +1648,35 @@ def test_a_stated_count_is_not_an_announced_list():
     assert _announced_item_count("There are 3 PDF files in your Documents folder.") == 0
     assert _announced_item_count("There are 3 options:\n- a\n- b") == 3
     assert _announced_item_count("Here are 3 options") == 3
+
+
+@pytest.mark.parametrize("asked", ["what time does the sun set in oslo today", "when does it get dark in riga", "sunrise tomorrow in tokyo"])
+def test_a_sky_event_is_not_a_clock_read(asked):
+    from core.agent_runtime.fast_paths_utility import _SKY_EVENT_RE
+
+    assert _SKY_EVENT_RE.search(asked)
+
+
+@pytest.mark.parametrize("text", ["i turned on web", "web is on now", "i fixed permissions", "ok i've switched on the tools"])
+def test_a_status_remark_is_not_a_demand(text):
+    from core.finalization import _is_a_demand
+
+    assert not _is_a_demand(text)
+
+
+def test_screenshots_are_their_own_kind():
+    from core.execution.constants import machine_kind_listing_intent
+
+    assert machine_kind_listing_intent("list the screenshots in my downloads pls")["kind"] == "screenshot"
+
+
+@pytest.mark.parametrize("reply, claim", [
+    ("Visible entries under ~/Desktop:\n- in progress/\n- notes.txt", False),
+    ("The weather is fine. One moment of sun around noon.", False),
+    ("One moment, let me check.", True),
+    ("Audit in progress — one moment.", True),
+])
+def test_only_vools_own_activity_is_a_progress_claim(reply, claim):
+    from core.agent_runtime.action_honesty_validator import _FALSE_PROGRESS_CLAIM_RE
+
+    assert bool(_FALSE_PROGRESS_CLAIM_RE.search(reply)) is claim

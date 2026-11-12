@@ -246,11 +246,14 @@ _HONEST_NO_BUILD_RESPONSE = (
 # A fabricated "in progress / working on it / one moment / still running" claim when NO task actually
 # ran this turn -- the "audit in progress after it already completed" failure. Runtime state, not the
 # model, decides whether something is running.
+# Claims about VOOL's OWN activity only. A bare "in progress" anywhere in the reply matched a folder
+# named "in progress" in a Desktop listing, and "one moment" inside a sentence matched ordinary
+# replies: both were replaced by "Nothing is running right now" (red team R1-09, 2026-11-12). A
+# holding line counts only when the reply opens with it.
 _FALSE_PROGRESS_CLAIM_RE = re.compile(
-    r"\b(?:audit|analysis|scan|review|task|research|work)\s+(?:is\s+)?(?:in\s+progress|underway|running|ongoing)\b"
-    r"|\bin\s+progress\b"
-    r"|\b(?:one\s+moment|just\s+a\s+(?:sec|second|moment)|hold\s+on|please\s+wait|working\s+on\s+it)\b"
-    r"|\bstill\s+(?:working|running|in\s+progress|analy[sz]ing|auditing)\b"
+    r"\b(?:the\s+|my\s+|your\s+|this\s+)?(?:audit|analysis|scan|review|task|research|work)\s+(?:is\s+)?(?:in\s+progress|underway|running|ongoing)\b"
+    r"|^\s*(?:ok(?:ay)?[,!.]?\s*)?(?:one\s+moment|just\s+a\s+(?:sec|second|moment)|hold\s+on|please\s+wait|(?:i'?m\s+)?working\s+on\s+it)\b"
+    r"|\bi'?m\s+still\s+(?:working|running|analy[sz]ing|auditing)\b"
     r"|\bi'?ll\s+(?:now\s+)?(?:begin|start)\s+(?:the\s+)?(?:audit|analysis|inspect\w*|scan\w*|review\w*)\b",
     re.IGNORECASE,
 )

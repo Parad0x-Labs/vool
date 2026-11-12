@@ -5225,10 +5225,12 @@ _LISTING_KIND_SUFFIXES: dict[str, tuple[str, ...]] = {
     "pdf": (".pdf",),
     "document": (".pdf", ".doc", ".docx", ".txt", ".md", ".rtf", ".pages", ".odt"),
     "spreadsheet": (".xlsx", ".xls", ".csv", ".numbers", ".ods"),
+    # Screenshots are pictures whose name says so ("Screenshot 2026-11-10 at 14.02.11.png").
+    "screenshot": (".png", ".jpg", ".jpeg", ".heic", ".webp"),
 }
 _LISTING_KIND_LABELS = {
     "image": "Pictures", "video": "Videos", "audio": "Audio files", "pdf": "PDFs",
-    "document": "Documents", "spreadsheet": "Spreadsheets",
+    "document": "Documents", "spreadsheet": "Spreadsheets", "screenshot": "Screenshots",
 }
 
 
@@ -5325,6 +5327,7 @@ def _list_machine_directory(
         if not child.name.startswith(".") and child.name not in hidden_names
         and not (directories_only and not child.is_dir())
         and not (kind_suffixes and (child.is_dir() or not child.name.lower().endswith(kind_suffixes)))
+        and not (kind == "screenshot" and not re.search(r"screen\s?_?shot", child.name, re.IGNORECASE))
     ]
     if newest_first:
         def _mtime(item: Path) -> float:

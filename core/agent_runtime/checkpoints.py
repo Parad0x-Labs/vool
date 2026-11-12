@@ -163,12 +163,23 @@ def prepare_runtime_checkpoint(
                 "retry_failure_text": str((failed or {}).get("failure_text") or ""),
                 "retry_outcome": failed_outcome,
             }
-        return {
-            "state": "missing_resume",
-            "checkpoint": None,
-            "effective_input": effective_input,
-            "source_context": base_source_context,
-        }
+        # The chat's own record of its last request (core.conversation_state) may still hold
+        # something to rerun -- a request refused for Web lookups off or a phone right, which leaves
+        # no failed checkpoint. Then the turn goes on as an ordinary turn and the follow-up resolver
+        # reruns it; "nothing to retry" here pre-empted it (red/blue team 2026-11-12).
+        try:
+            from core import conversation_state
+
+            _recorded = conversation_state.load(session_id)
+        except Exception:
+            _recorded = None
+        if _recorded is None:
+            return {
+                "state": "missing_resume",
+                "checkpoint": None,
+                "effective_input": effective_input,
+                "source_context": base_source_context,
+            }
     checkpoint_source_context = dict(base_source_context)
     if not text_carries_no_request(raw_user_input):
         checkpoint_source_context[REQUEST_PROVENANCE_KEY] = (
