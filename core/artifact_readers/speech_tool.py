@@ -315,7 +315,10 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
             )
         if "unreadable-audio" in detail:
             raise ReaderFailed("The audio could not be opened for reading.", code="decoder_failed", fmt="audio")
-        raise ReaderFailed(f"The audio could not be read: {detail}", code="decoder_failed", fmt="audio")
+        # The helper's own output goes to the log: the message is shown to the person as written
+        # (the chat page shows dictation's typed words), so it carries no tool output.
+        _LOG.warning("speech helper could not read the audio: %s", detail)
+        raise ReaderFailed("The audio could not be read.", code="decoder_failed", fmt="audio")
     try:
         payload = json.loads(result.stdout.decode("utf-8", "replace") or "{}")
     except ValueError as exc:

@@ -3,8 +3,8 @@
 Pins the leftovers the first job listed under "Still broken", on the served page source:
 
 * the session transfer pane's export/preview/import refusals render one keyed sentence --
-  the server's own ``d.error``/``sj.error`` words go to ``console.warn`` and nowhere else;
-* the model-select failure (toast and row hint) is one keyed sentence, raw detail to console;
+  the server's own ``d.error``/``sj.error`` words are not shown;
+* the model-select failure (toast and row hint) is one keyed sentence, raw detail not shown;
 * the bug-report failure's FIRST sentence is keyed; technical detail stays in the disclosure;
 * the export dialog never shows the app's raw refusal (``e.fromApp`` / server ``j.message``);
 * the gone-document notice carries no HTTP status;
@@ -14,6 +14,12 @@ Pins the leftovers the first job listed under "Still broken", on the served page
 
 Every English fallback here is the CLAIMS contract value, so the page and the catalogs
 (agent C) can be held to the same words.
+
+On the v0.8 line the raw detail goes nowhere: the chat page writes nothing to the browser console
+(Requirement 9, tests/test_bug_report_chat_ui.py), so the train's console.warn lines are gone and
+these tests pin that each failure site writes none. A dictation refusal shows the server's typed
+words (reason, then remedy) as v0.8 pins (tests/test_dictation_ui_states.py); only a refusal
+without them reads the keyed sentence, and none reads a status code.
 """
 
 from __future__ import annotations
@@ -62,6 +68,14 @@ def _fn(name: str, end_marker: str) -> str:
     return slice_source(SCRIPT, name, end_marker)
 
 
+_CONSOLE_CALL = re.compile(r"console\.(?:log|debug|info|warn|error|trace|table|dir|assert|count|group|profile|time)\(")
+
+
+def _writes_to_console(source: str) -> bool:
+    """Whether ``source`` calls the browser console, which the v0.8 chat page never does."""
+    return bool(_CONSOLE_CALL.search(source))
+
+
 def test_the_session_transfer_refusals_are_keyed_sentences() -> None:
     """d.error/sj.error from the bundle API never reach the pane; one keyed line does."""
     for key in ("chat.session_export_failed", "chat.session_preview_failed", "chat.session_import_failed"):
@@ -74,14 +88,10 @@ def test_the_session_transfer_refusals_are_keyed_sentences() -> None:
         "sbStatus(sbImportStatus, d.error || 'Import refused",
     ):
         assert gone not in SCRIPT, f"the raw server refusal still renders: {gone!r}"
-    # the refusal detail rides console.warn lines instead
-    for warn in (
-        "console.warn('chat bundle export refused', d.error || 'Export refused.')",
-        "console.warn('chat bundle upload refused', sj.error || 'Could not stage the file.')",
-        "console.warn('chat bundle preview refused', d.error || 'Preview refused.')",
-        "console.warn('chat bundle import refused', d.error || 'Import refused.')",
-    ):
-        assert warn in SCRIPT, f"the refusal detail left the console: {warn!r}"
+    # and the refusal detail is not moved to the browser console either
+    for warn in ("chat bundle export refused", "chat bundle upload refused",
+                 "chat bundle preview refused", "chat bundle import refused"):
+        assert warn not in SCRIPT, f"the refusal detail went to the console: {warn!r}"
 
 
 def test_no_server_error_field_reaches_an_sbstatus_line() -> None:
@@ -94,27 +104,23 @@ def test_no_server_error_field_reaches_an_sbstatus_line() -> None:
 def test_the_model_select_failure_is_one_keyed_sentence() -> None:
     body = _fn("async function performCloudModelSwitch", "async function switchAutoFreeModel")
     assert _pageT_call("chat.model_switch_failed") in body, "the model-select failure is not keyed"
-    assert "console.warn('cloud model switch failed', e)" in body, "the raw switch detail left the console"
+    assert not _writes_to_console(body), "the raw switch detail went to the console"
     assert "e.message || 'Could not select this model. Try again.'" not in SCRIPT, (
         "the bare exception text still feeds the model-select toast/hint"
     )
     # the row hint and its dataset carrier hold the keyed sentence (the hint renders both
     # here and from dataset.selectionError in the 'Not pinned.' sibling), never raw detail;
-    # the old refusal words survive only inside the throw that feeds the console.warn above
+    # the old refusal words survive only inside the throw the catch above replaces
     assert "rowEl.dataset.selectionError = message;" in body
     assert "const message = pageT('chat.model_switch_failed'" in body
 
 
 def test_the_bug_report_failure_first_sentence_is_keyed() -> None:
     body = _fn("function brRenderFailed(", "if (bugReportOverlay)")
-    # the first sentence reads through the catalog; the caller's raw message is console-only
+    # the first sentence reads through the catalog; the caller's raw message is not shown
     assert "pageT('chat.try_again', 'Couldn’t do that just now. Try again.')" in body
-    warns = [m.start() for m in re.finditer(re.escape("failure.message"), body)]
-    assert warns, "brRenderFailed no longer logs the submission's raw failure message"
-    for at in warns:
-        line_start = body.rfind("\n", 0, at) + 1
-        line = body[line_start : body.find("\n", at)]
-        assert "console.warn" in line, f"failure.message renders outside a console line: {line!r}"
+    assert "failure.message" not in body, "brRenderFailed still reads the submission's raw failure message"
+    assert not _writes_to_console(body)
     # the technical diagnostic stays in the expandable disclosure, not the first sentence
     assert "techBits.length" in body and "br-tech" in body
 
@@ -123,8 +129,7 @@ def test_the_export_dialog_never_shows_the_apps_raw_refusal() -> None:
     body = _fn("async function runExport()", "btn.addEventListener('click', openExport)")
     assert "? e.message" not in body, "the app's raw refusal message still renders on export"
     assert "msg = j.message" not in body, "the server's raw export message still renders"
-    assert "console.warn('chat export refused by the app', e.message)" in body
-    assert "console.warn('chat export refused', j.message)" in body
+    assert not _writes_to_console(body), "the export refusal went to the console"
     assert "pageT('chat.try_again', 'Couldn’t do that just now. Try again.')" in body
     # e.fromApp survives only as a condition/flag, never as the shown text
     for occurrence in [m.start() for m in re.finditer("e.fromApp", body)]:
@@ -140,7 +145,7 @@ def test_the_gone_document_notice_carries_no_http_status() -> None:
         "This document is no longer available (HTTP {status})",
     ):
         assert gone not in SCRIPT, f"the gone-document notice still composes status text: {gone!r}"
-    assert "console.warn('attachment preview unavailable', r.status)" in SCRIPT
+    assert "attachment preview unavailable" not in SCRIPT, "the preview status went to the console"
 
 
 def test_the_failed_send_paints_one_keyed_sentence_on_the_transcript_row() -> None:
@@ -153,7 +158,7 @@ def test_the_failed_send_paints_one_keyed_sentence_on_the_transcript_row() -> No
         assert gone not in SCRIPT, f"raw exception text still reaches the transcript row: {gone!r}"
     # run.error stays a machine field (cross-tab/queue state reads it) -- kept, never rendered
     assert "run.error = (e && e.message ? e.message : String(e));" in SCRIPT
-    assert "console.warn('chat send failed', e)" in SCRIPT
+    assert "chat send failed" not in SCRIPT, "the raw exception went to the console"
 
 
 def test_the_offline_retry_toast_is_keyed() -> None:
@@ -171,18 +176,17 @@ def test_the_failed_upload_chip_is_one_keyed_sentence() -> None:
         "Upload failed (HTTP {status})",
     ):
         assert gone not in body, f"the upload chip still composes raw failure text: {gone!r}"
-    assert "console.warn('attachment upload refused', data.message)" in body
+    assert not _writes_to_console(body), "the upload refusal went to the console"
 
 
 def test_the_dictation_failure_carries_no_status_code() -> None:
     assert "dictT('failed_http', 'Dictation did not work. Try again.')" in SCRIPT
     body = _fn("recorder.onstop = async () =>", "dictationRecorder = recorder;")
-    for gone in (
-        "Dictation failed (HTTP ",
-        "data.message + (data.remediation",
-    ):
-        assert gone not in body, f"the dictation error still shows raw detail: {gone!r}"
-    assert "console.warn('dictation failed'" in body
+    for gone in ("Dictation failed (HTTP ", "res.status"):
+        assert gone not in body, f"the dictation error still shows a status code: {gone!r}"
+    # the server's typed words (reason, then remedy) or the keyed sentence, nothing else
+    assert "setDictationError(typed || dictT('failed_http', 'Dictation did not work. Try again.'))" in body
+    assert not _writes_to_console(body)
 
 
 def test_the_key_test_rejection_reads_the_catalog_sentence() -> None:
@@ -192,11 +196,11 @@ def test_the_key_test_rejection_reads_the_catalog_sentence() -> None:
         "Copy it fresh from the service’s own page and save it here again.'"
     ) in SCRIPT
     assert "OpenRouter rejected the key (HTTP " not in SCRIPT
-    assert "console.warn('cloud key test refused'" in SCRIPT
+    assert "cloud key test refused" not in SCRIPT, "the key test status went to the console"
 
 
 def test_the_refused_turn_is_one_keyed_sentence() -> None:
-    """A refused turn answers with keyed words; the typed reason rides run.error + console."""
+    """A refused turn answers with keyed words; the typed reason rides run.error alone."""
     assert "pageT('run.refused_reason', 'VOOL did not run this turn.')" in SCRIPT
     assert "pageT('run.refused_status', 'VOOL did not run this turn.')" in SCRIPT
     body = _fn("// Any other refusal", "const reader = res.body.getReader()")
@@ -209,7 +213,7 @@ def test_the_refused_turn_is_one_keyed_sentence() -> None:
         assert gone not in body, f"the refused turn still interpolates raw detail: {gone!r}"
     # the machine field keeps the typed truth for cross-tab/queue state, never rendered
     assert "run.error = reason || String(res.status);" in body
-    assert "console.warn('turn refused', reason || '', res.status)" in body
+    assert not _writes_to_console(body), "the refusal went to the console"
 
 
 # ---- Round three: the job-level scan's raw-detail sites (throw carriers included) ----
@@ -236,9 +240,9 @@ GONE_CODE_SHAPES = (
 
 
 def test_the_runtime_state_read_carriers_are_plain() -> None:
-    """The shared bounded-read helpers warn the status and throw keyed words."""
-    for warn in ("console.warn('runtime state read refused'", "console.warn('runtime state post refused'"):
-        assert warn in SCRIPT
+    """The shared bounded-read helpers throw keyed words and write no status anywhere."""
+    for warn in ("runtime state read refused", "runtime state post refused"):
+        assert warn not in SCRIPT, f"the read status went to the console: {warn!r}"
     reads = SCRIPT.count("throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'))")
     assert reads >= 2, "the bounded-read carriers no longer throw keyed words"
 
@@ -251,36 +255,37 @@ def test_the_raw_detail_code_shapes_are_gone() -> None:
 def test_the_pdf_export_status_is_one_keyed_sentence() -> None:
     body = _fn("msg-export-pdf", "actions.appendChild(button); host.appendChild(status);")
     assert "label('msg.pdf_failed', 'PDF export failed. Try again.')" in body
-    assert "console.warn('pdf export failed', error)" in body
-    assert "console.warn('pdf export refused'" in body
+    assert not _writes_to_console(body), "the PDF export refusal went to the console"
 
 
 def test_the_balance_blocker_carries_no_status_or_code() -> None:
     body = _fn("function usepodBalanceBlocker(", "async function checkUsePodSpending")
     assert "' (HTTP '" not in body and "balance.error_code ?" not in body
-    assert "console.warn('usepod balance unavailable'" in body
+    assert not _writes_to_console(body), "the balance status went to the console"
     assert "pageT('usepod.unavailable', 'UsePod did not confirm your balance')" in body
 
 
 def test_the_dictation_availability_note_is_keyed() -> None:
     body = _fn("async function probeDictationAvailability()", "// ---- Voice conversation")
     assert "dictT('unavailable', 'Dictation is not available on this machine. Type instead.')" in body
-    assert "console.warn('dictation unavailable'" in body
+    # the probe says what the failed recording says: the typed reason and remedy when sent
+    assert "String(j.message) + (j.remediation ? ' ' + j.remediation : '')" in body
+    assert not _writes_to_console(body)
 
 
 def test_the_mode_and_bypass_failures_are_keyed() -> None:
     body = _fn("async function postMode(", "async function setModeController(")
-    assert "throw err;" in body and "console.warn('mode change refused'" in body
+    assert "throw err;" in body and not _writes_to_console(body)
     bypass = _fn("async function confirmBypass()", "async function revokeBypass()")
     assert ": e.message" not in bypass, "the bypass dialog still paints the raw exception"
     assert "const detail = refusal ? pageT('bypass.readiness.' + String(refusal), plain) : plain;" in bypass
-    assert "console.warn('bypass activation failed', e)" in bypass
+    assert not _writes_to_console(bypass)
     # the mode-change toast interpolates the keyed sentence, never err.message
     assert "{ error: pageT('chat.try_again', 'Couldn’t do that just now. Try again.') }" in SCRIPT
-    assert "console.warn('mode change failed', err)" in SCRIPT
+    assert "mode change failed" not in SCRIPT, "the mode change error went to the console"
 
 
 def test_the_auto_fallback_tooltip_carries_no_server_message() -> None:
     body = _fn("async function switchAutoFreeModel(", "function makeCloudRow(")
     assert "selectEl.title = ''" in body
-    assert "console.warn('auto fallback set'" in body
+    assert not _writes_to_console(body), "the server's confirmation words went to the console"
