@@ -1550,7 +1550,7 @@ function paintSwitchState(button, value) {
   word.classList.toggle('on', on);
   word.classList.toggle('off', !on);
   const text = word.lastChild;
-  if (text && text.nodeType === 3) text.textContent = on ? 'On' : 'Off';
+  if (text && text.nodeType === 3) text.textContent = on ? T('settings.switch.on', 'On') : T('settings.switch.off', 'Off');
 }
 
 /* Writes whose outcome is unknown (VOOL did not answer), by row id -> the value that was sent.

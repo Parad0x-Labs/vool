@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Serre de verre",
     "toybox.skin_glasshouse_description": "Une serre de fer et de verre dont la vigne pousse à chaque réponse achevée.",
     "toybox.skin_dawn-circuit_name": "Circuit de l'aube",
-    "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs."
+    "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs.",
+    "settings.switch.on": "Activé",
+    "settings.switch.off": "Désactivé"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

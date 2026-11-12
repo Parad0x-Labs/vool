@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Gewächshaus",
     "toybox.skin_glasshouse_description": "Ein Gewächshaus aus Eisen und Glas, dessen Ranke mit jeder fertigen Antwort wächst.",
     "toybox.skin_dawn-circuit_name": "Morgenkreis",
-    "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern."
+    "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern.",
+    "settings.switch.on": "Ein",
+    "settings.switch.off": "Aus"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

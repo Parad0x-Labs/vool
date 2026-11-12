@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Nhà kính",
     "toybox.skin_glasshouse_description": "Nhà kính sắt và thủy tinh có dây leo lớn lên sau mỗi câu trả lời hoàn tất.",
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
-    "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm."
+    "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm.",
+    "settings.switch.on": "Bật",
+    "settings.switch.off": "Tắt"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

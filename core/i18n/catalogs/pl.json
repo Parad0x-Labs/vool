@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Szklarnia",
     "toybox.skin_glasshouse_description": "Żelazno-szklana szklarnia, w której pnącze rośnie z każdą ukończoną odpowiedzią.",
     "toybox.skin_dawn-circuit_name": "Obwód świtu",
-    "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami."
+    "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami.",
+    "settings.switch.on": "Włączone",
+    "settings.switch.off": "Wyłączone"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

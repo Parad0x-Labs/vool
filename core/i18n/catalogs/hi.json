@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "काँच का बगीचा",
     "toybox.skin_glasshouse_description": "लोहे और काँच का बगीचा जहाँ हर पूरे जवाब के साथ बेल बढ़ती है।",
     "toybox.skin_dawn-circuit_name": "भोर का परिपथ",
-    "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।"
+    "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।",
+    "settings.switch.on": "चालू",
+    "settings.switch.off": "बंद"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
