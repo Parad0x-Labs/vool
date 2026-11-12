@@ -2935,6 +2935,22 @@ def _email_work_owns_folder_references(session_id: str, source_context: dict[str
     return email_work_owns_follow_up_references(dict(source_context or {}), session_id=session_id)
 
 
+def _reads_a_notes_store(text: str) -> bool:
+    """Whether the operator parser reads the ask as a read of the Apple Notes store (one note, or the notes), or as a
+    topic search of VOOL's notes ("find my notes about packaging"). "pull up my meeting notes" names a document, which
+    the parser leaves to the file lanes."""
+    from core.operator.parser import parse_operator_action_intent
+
+    try:
+        intent = parse_operator_action_intent(text)
+    except Exception:
+        return False
+    if intent is None:
+        return False
+    return intent.kind in {"apple_note_read", "apple_note_list"} or (
+        intent.kind == "find_notes" and bool(str(intent.target_label or "").strip()))
+
+
 def maybe_handle_direct_machine_read_request(
     agent: Any,
     user_input: str,
@@ -2944,6 +2960,14 @@ def maybe_handle_direct_machine_read_request(
     source_context: dict[str, object] | None,
 ) -> dict[str, Any] | None:
     if source_surface not in {"channel", "openclaw", "api"}:
+        return None
+    # A read of the person's notes is the Notes lane's. The Apple Notes app's notes are not files on this disk, and a
+    # folder or account the ask names is a Notes folder or account: measured at 1d58a641, 'find my Apple note "Plan" in
+    # the On My Mac account' searched the machine for a file named "apple", and "find my Apple notes in the Travel
+    # folder" walked the machine for a folder named Travel (the run stalled inside it for 11 minutes). A topic search of
+    # VOOL's notes is no file name either: measured on the v0.8 line, "find my notes about packaging" searched the
+    # machine for files named "notes".
+    if _reads_a_notes_store(user_input):
         return None
     # A display token in bound material is not a host fact. An explicit host step
     # in a mixed request is planner-owned so its result can be synthesized with

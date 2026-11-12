@@ -10,3 +10,9 @@
 - **Runtime status:** NOT REGISTERED (tests only)
 
 Vault copy is PRESERVATION only — NOT imported or registered by the runtime (guarded by tests/test_recovery_vault_isolation.py). Identity/machine paths scrubbed.
+
+## Ported 2026-11-12
+
+- The store reading these tests describe is implemented: `core.operator.apple_notes.names_apple_notes` (the store words, outside quotes, data values and paths, "apple" with one typo) and `note_read_object` (what a read verb takes), used by `core.operator.parser._apple_notes_read` and by `parse_notes_destination`.
+- Both test files now live in tests/ (tests/test_apple_notes_object_names_the_store.py, tests/pa_beta_gate/test_served_apple_notes_object_reading.py). The census helper stays here only.
+- The served run also needed two front-door stand-downs: the machine read lane and the web-off lookup refusal leave notes reads to the Notes lane.

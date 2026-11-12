@@ -141,8 +141,8 @@
       "maturity": "SPEC ONLY (tests written first; the fix was never written)",
       "hist_wired": "no",
       "hist_tested": "these are the tests",
-      "current_equiv": "gap still open: an Apple note named with find/search/look up, or a singular 'Apple note' create, still goes to the workspace",
-      "rec": "P1 fix: implement the store reading these tests describe, then move them into tests/.",
+      "current_equiv": "PORTED 2026-11-12: core/operator/apple_notes.py names_apple_notes and note_read_object, core/operator/parser.py _apple_notes_read; both test files now live in tests/",
+      "rec": "Done: the store reading is implemented and the two test files moved into tests/. This copy stays as the historical spec.",
       "status": "NOT REGISTERED"
     }
   },
