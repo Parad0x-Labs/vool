@@ -70,13 +70,62 @@ class CrossChatRecall:
 
 
 
+#: Common chat shorthand, read as the words it stands for wherever it appears: an abbreviation
+#: must not decide whether a saved fact is found (0.7.8 sweep block 1c: the short forms missed
+#: facts the long forms found). General vocabulary, not tied to any one question.
+_CHAT_SHORTHAND: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rf"\b{short}\b", re.IGNORECASE), full)
+    for short, full in (
+        (r"fav(?:e|ourite|orite)?", "favourite"), (r"nr\.?(?=\s|$|\?)", "number"), (r"num", "number"),
+        (r"no\.(?=\s*\w)", "number"), (r"ref", "reference"), (r"refs", "references"), (r"bday", "birthday"),
+        (r"b-day", "birthday"), (r"addr", "address"), (r"appt", "appointment"), (r"acct", "account"),
+        (r"pwd|pw", "password"), (r"tmrw|tmr|tmw", "tomorrow"), (r"ur", "your"), (r"r(?=\s+(?:my|the|we|you)\b)", "are"),
+        (r"msg", "message"), (r"info", "information"), (r"reso|resv", "reservation"), (r"conf", "confirmation"),
+    )
+)
+
+#: The kinds of thing a person keeps a record of and later asks for by name alone ("car rental
+#: reference?", "gym locker code?"). A bare noun phrase ending in one of these, asked as the first
+#: message of a chat, is a question about the person's own record.
+_RECORD_NOUN_RE = re.compile(
+    r"\b(?:code|number|reference|id|pin|password|booking|reservation|confirmation|ticket|address|"
+    r"birthday|date|day|time|appointment|account|plate|permit|locker|seat|gate|flight|room)s?\b",
+    re.IGNORECASE,
+)
+_BARE_ASK_RE = re.compile(r"^(?!(?:and|or|plus|what\s+about|how\s+about|but|so|then)\b)[a-z0-9][\w' -]{1,60}\?$", re.IGNORECASE)
+_VERBISH_RE = re.compile(
+    r"\b(?:is|are|was|were|do|does|did|can|could|will|would|should|have|has|had|be|get|make|go|need|want)\b",
+    re.IGNORECASE,
+)
+
+
+def bare_record_ask(text: str) -> str:
+    """ "car rental reference?" -> "what's my car rental reference?"; "" when the text is not one."""
+    clean = " ".join(str(text or "").split())
+    if (not _BARE_ASK_RE.match(clean) or _VERBISH_RE.search(clean) or len(clean.split()) > 7
+            or _QUESTION_HEAD_RE.match(clean) or re.match(r"(?:what|which|who|where|when|how|why)\b", clean, re.IGNORECASE)):
+        return ""
+    head = re.split(r"\s+(?:for|of|from|at|in|on)\s+", clean.rstrip("? "), maxsplit=1)[0]
+    if not _RECORD_NOUN_RE.search(head.split()[-1] if head.split() else ""):
+        return ""
+    return "what's my " + clean.rstrip("? ") + "?"
+
+
 def as_question(text: str) -> str:
     """The ask as the recall grammar reads it: "whats my gym locker number" -> "what's my gym locker number?".
 
     People type questions without the mark and with "whats"; a sentence that OPENS like a question
     is read as one, so a missing "?" never turns an own-fact question into a world question."""
     clean = " ".join(str(text or "").split())
+    # Chat shorthand reads as the words it stands for (0.7.8 sweep block 1c: "whats my fav
+    # bakery" and "parking permit nr for Tallinn?" missed facts that the long forms found).
+    for pattern, full in _CHAT_SHORTHAND:
+        clean = pattern.sub(full, clean)
+    clean = re.sub(r"[\s,]+(?:pls|plz|please|thx|thanks|ty)\s*([?.!]?)$", r"\1", clean, flags=re.IGNORECASE)
     clean = re.sub(r"^(?:whats|wats|whta's|whats')\b", "what's", clean, flags=re.IGNORECASE)
+    # "Your test hotel booking code?" -- the person's own thing, asked the way people talk to
+    # an assistant about it ("your" from the assistant's side).
+    clean = re.sub(r"^your\s+((?!(?:name|model|opinion|view|take|guess)\b)[^?.!]{2,60}?)\s*\?$", r"what's my \1?", clean, flags=re.IGNORECASE)
     clean = re.sub(r"\bu\b", "you", clean, flags=re.IGNORECASE)
     clean = re.sub(
         r"^(?:do|did)\s+you\s+(?:remember|know|recall|have)\s+(?:what\s+)?(?:is\s+)?((?:my|the)\s+.+?)\s*\??$",
@@ -425,7 +474,8 @@ def accept_pending_offer(text: str, *, session_id: str) -> str:
 #: know / recall ...", "can you find my ...", "did I tell you ...".
 _EXPLICIT_RECALL_RE = re.compile(
     r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?(?:remind\s+me(?!\s+(?:to|in|at|on|tomorrow|tonight|later|every)\b)|"
-    r"(?:do|did)\s+(?:you|u)\s+(?:remember|recall|know|have)\b|(?:find|get|look\s+up)\s+my\b|did\s+i\s+(?:tell|mention|give)\b)",
+    r"(?:do|did)\s+(?:you|u)\s+(?:remember|recall|know|have)\b|(?:find|get|look\s+up)\s+my\b|did\s+i\s+(?:tell|mention|give)\b|"
+    r"i\s+(?:saved|stored|kept|noted|wrote\s+down|put)\s+(?:a|an|the|my)\s+[^?.!]{2,60}?\b(?:somewhere|earlier|before)\b)",
     re.IGNORECASE,
 )
 
@@ -461,6 +511,12 @@ def cross_chat_recall(
         return None
     explicit_recall = bool(_EXPLICIT_RECALL_RE.match(text))
     text = as_question(text)
+    if not _chat_has_owner_statements(source_context):
+        # A first message that names a record by itself ("car rental reference?") asks for the
+        # person's own record; later in a chat the same words are a follow-up the model answers.
+        bare = bare_record_ask(text)
+        if bare:
+            text, explicit_recall = bare, True
     # Questions ABOUT memory or this chat ("what do you remember about me?", "what did I say in
     # this chat?") belong to the memory-command and transcript lanes, which answer inventories
     # and same-chat recall exactly.
@@ -537,14 +593,14 @@ def cross_chat_recall(
     )
     if closest:
         response = (
-            f"I don't have exactly that saved, and I couldn't find it in any of your {chats}{projects}. "
-            "The closest thing I have saved:\n" + "\n".join(f"- {row}" for row in closest[:3])
+            f"I don't have exactly that saved, and I looked through your other chats and projects "
+            f"({chats}{projects}) without finding it. The closest thing I have saved:\n" + "\n".join(f"- {row}" for row in closest[:3])
             + "\n\nIf that's not it, tell me and I'll remember it."
         )
     else:
         response = (
-            f"I don't have that saved, and I couldn't find it in any of your {chats}{projects}. "
-            "Tell me and I'll remember it."
+            f"I don't have that saved, and I looked through your other chats and projects ({chats}{projects}) "
+            "without finding it. If you tell me, I'll remember it for every chat."
         )
     return CrossChatRecall(response=response, found=False, chats_searched=result.chats_searched)
 

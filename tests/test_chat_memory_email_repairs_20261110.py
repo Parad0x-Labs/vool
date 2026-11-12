@@ -940,3 +940,51 @@ def test_boot_check_skips_a_model_too_big_for_this_computer_and_stops_once_one_i
     )
     assert checked == ["qwen2.5:7b"]  # 27b never loaded; after the first check a model was ready
     assert rows[0] == {"model": "qwen3.8:27b", "readiness": "too_large_for_this_computer"}
+
+
+# --- sweep block 1c (2026-11-12): general recall grammar, not the sweep's words ------------------
+
+
+@pytest.mark.parametrize(
+    "said,read",
+    [("whats my fave cafe", "what's my favourite cafe?"), ("my gym membership nr pls", "my gym membership number"),
+     ("your locker pw?", "what's my locker password?"), ("ur dentist appt?", "what's my dentist appointment?")],
+)
+def test_chat_shorthand_reads_as_the_full_words(said, read):
+    from core.agent_runtime.cross_chat_recall import as_question
+
+    assert as_question(said) == read
+
+
+@pytest.mark.parametrize("said", ["train seat number?", "storage unit pin?", "dentist appointment time?"])
+def test_a_bare_record_name_as_a_first_message_asks_for_the_persons_record(said):
+    from core.agent_runtime.cross_chat_recall import as_question, bare_record_ask
+
+    assert bare_record_ask(as_question(said)) == "what's my " + said.rstrip("?") + "?"
+
+
+@pytest.mark.parametrize("said", ["and pencil?", "plus 50?", "capital of Peru?", "weather in Riga?", "what day is it?"])
+def test_continuations_and_world_questions_are_not_record_asks(said):
+    from core.agent_runtime.cross_chat_recall import as_question, bare_record_ask
+
+    assert bare_record_ask(as_question(said)) == ""
+
+
+def test_i_saved_it_somewhere_is_a_recall():
+    from core.agent_runtime.cross_chat_recall import _EXPLICIT_RECALL_RE
+
+    assert _EXPLICIT_RECALL_RE.match("i stored a wifi password somewhere for the cabin, what was it")
+
+
+@pytest.mark.parametrize("reply", ["Got it — we’re one more. Let me adjust that.", "Okay, noted. I'll recalculate the split."])
+def test_an_acknowledged_promise_to_redo_the_math_is_incomplete(reply):
+    from core.incomplete_answer import _only_a_plan
+
+    assert _only_a_plan(reply)
+
+
+@pytest.mark.parametrize("reply", ["Got it — 7 people now. That makes 25.71 each.", "Yes, it is Venus."])
+def test_an_acknowledged_answer_with_content_is_not_a_plan(reply):
+    from core.incomplete_answer import _only_a_plan
+
+    assert not _only_a_plan(reply)

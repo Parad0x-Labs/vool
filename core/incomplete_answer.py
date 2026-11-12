@@ -324,7 +324,8 @@ _ANNOUNCED_ACTION_RE = re.compile(
     r"i'?m\s+about\s+to)\s+"
     r"(?:now\s+|first\s+|quickly\s+|go\s+(?:ahead\s+and\s+)?|help\s+(?:you\s+)?)?"
     r"(?:open|navigate|go\s+to|click|search|look\s+(?:up|for|at)|check|visit|browse|read|fetch|scroll|find|"
-    r"follow|load|access|pull\s+up|start\s+by|begin\s+by|head\s+to|try|connect|inspect|list|query|run|count)\b",
+    r"follow|load|access|pull\s+up|start\s+by|begin\s+by|head\s+to|try|connect|inspect|list|query|run|count|"
+    r"adjust|recalculate|recompute|redo|rework|update|calculate|compute|work\s+(?:that|it|this)\s+out)\b",
     re.IGNORECASE,
 )
 _PLAN_STEP_RE = re.compile(
@@ -366,6 +367,11 @@ _PERMISSION_ASK_RE = re.compile(
 def _only_a_plan(text: str) -> bool:
     sentences = [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?…])\s+)", str(text or "")) if part.strip()]
     substantive = [part for part in sentences if not _FILLER_SENTENCE_RE.fullmatch(part)]
+    # A short acknowledgement before the announcement carries no answer either ("Got it — we're
+    # one more. Let me adjust that." -- 0.7.8 sweep block 1c, no number ever came).
+    while (len(substantive) > 1 and not _ANNOUNCED_ACTION_RE.match(substantive[0])
+           and len(substantive[0].split()) <= 6 and not re.search(r"\d", substantive[0])):
+        substantive = substantive[1:]
     if not substantive or not _ANNOUNCED_ACTION_RE.match(substantive[0]):
         return False
     planned = sum(

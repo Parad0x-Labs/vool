@@ -2871,6 +2871,20 @@ class VoolAgent(
                         confidence=1.0, source_context=runtime_source_context, reason=_CROSS_CHAT_LANE,
                     )
                     return _guard_final_result(saved_result)
+            from core.agent_runtime.previous_reply_count import LANE_ID as _COUNT_LANE
+            from core.agent_runtime.previous_reply_count import previous_reply_count, previous_result_arithmetic
+
+            counted = previous_reply_count(effective_input, session_id=session_id) or previous_result_arithmetic(
+                effective_input, session_id=session_id
+            )
+            if counted is not None:
+                count_result = self._fast_path_result(
+                    session_id=session_id, user_input=effective_input, response=counted,
+                    confidence=1.0, source_context=runtime_source_context, reason=_COUNT_LANE,
+                )
+                count_result.update({"route": _COUNT_LANE, "route_skips": ["model", "web", "tool_loop"],
+                                     "fast_path_hit": True})
+                return _guard_final_result(count_result)
             cross_recall = cross_chat_recall(effective_input, session_id=session_id, source_context=runtime_source_context)
             if cross_recall is not None:
                 recall_result = self._fast_path_result(
@@ -6337,6 +6351,25 @@ class VoolAgent(
                 )
             except Exception:
                 prior_events = []
+            # The chat itself settles the referent: an elliptical continuation ("and harbor?",
+            # "what about the second one") or a question about something the person already
+            # talked about in this chat ("what day is piano" after "my piano lesson moved to
+            # Thursday") is answered from the conversation, never asked back as a world
+            # ambiguity. Measured on the 0.7.8 sweep (2026-11-12, block 1c): both got clarifiers.
+            if prior_events:
+                import re as _re
+
+                from core.chat_housekeeping import query_terms as _terms
+
+                if _re.match(r"\s*(?:and|or|plus|also|but|so|then|what\s+about|how\s+about)\b", question, _re.IGNORECASE):
+                    return None
+                asked = set(_terms(question))
+                for _event in prior_events:
+                    _said = " ".join(
+                        str((_event or {}).get(key) or "") for key in ("user", "assistant", "content", "text")
+                    ) if isinstance(_event, dict) else str(_event or "")
+                    if asked & set(_terms(_said)):
+                        return None
             from core.local_compute_budget import local_compute_seconds
             from core.provider_call_deadline import bind_provider_deadline
 
