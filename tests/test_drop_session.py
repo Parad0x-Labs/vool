@@ -246,3 +246,12 @@ def test_unknown_key_algorithms_and_an_empty_receiving_chain_are_bounded_refusal
              "dh": prekey["bundle"]["body"]["x"], "box": box}
     with pytest.raises(DropError, match="INVALID_COUNTER"):
         receive_draft(state, frame, NOW)
+
+
+def test_deleting_works_after_any_number_of_earlier_deletions(clients):
+    a, b, sid = _session(clients)
+    for _ in range(1100):  # more Drops than the reference profile's lifetime tombstone cap
+        a.forget_session(b64(os.urandom(16)))
+    a.forget_session(sid)
+    with pytest.raises(DropError, match="SESSION_REVOKED"):
+        a.send(session=sid, plaintext=b"after forget", now=NOW)
