@@ -95,6 +95,28 @@ def test_tor_that_cannot_reach_the_network_fails_the_private_web_user_only(runti
     assert runtime.running and runtime.users() == {"phone_away"}
 
 
+def test_a_tor_stuck_while_connecting_is_restarted_and_connects(runtime, monkeypatch) -> None:
+    monkeypatch.setenv("FAKE_TOR_BOOTSTRAP", "stall-once")
+    monkeypatch.setattr(tor_runtime, "BOOTSTRAP_STALL_SECONDS", 1.0)
+    first = runtime._process
+    port = runtime.start("private_web", timeout=10)
+    assert runtime.bootstrapped() and runtime.socks_port == port and _greets(port)
+    assert runtime._process is not first and runtime.users() == {"private_web"}
+
+
+def test_a_tor_serving_an_onion_is_not_restarted_while_connecting(runtime, monkeypatch) -> None:
+    monkeypatch.setenv("FAKE_TOR_BOOTSTRAP", "stall-once")
+    monkeypatch.setattr(tor_runtime, "BOOTSTRAP_STALL_SECONDS", 0.5)
+    runtime.start("phone_away", wait_for_network=False)
+    process = runtime._process
+    made = runtime.add_onion("", 8765)
+    with pytest.raises(TorUnavailable, match="in time"):
+        runtime.start("private_web", timeout=2)
+    assert runtime._process is process, "the phone's onion address stays up"
+    assert runtime.users() == {"phone_away"}
+    runtime.remove_onion(made.address)
+
+
 def test_how_far_tor_has_connected_is_shown_while_it_connects(runtime, monkeypatch) -> None:
     from core import private_web_service
 
