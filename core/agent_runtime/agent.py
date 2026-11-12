@@ -3663,6 +3663,14 @@ class VoolAgent(
         if turn_has_provider_search(source_context):
             # Live prices and weather are the pinned cloud model's to look up with its own search.
             return None
+        from core.remote_fetch_policy import effective_web_available
+
+        if not effective_web_available(source_context):
+            # Web lookups are off, or this chat is Offline: this lane's whole job is a public
+            # fetch, so it does not run. Measured 2026-11-11 on the Mac: with Web lookups off the
+            # typed weather lane still fetched wttr.in, because only the search lanes read the
+            # switch. The front door serves the plain refusal instead.
+            return None
         if dict((source_context or {}).get("raw_output_contract") or {}).get(
             "structured_labels"
         ):

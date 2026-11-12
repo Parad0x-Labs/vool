@@ -370,3 +370,63 @@ def test_bind_turn_stamps_offline_only_for_the_offline_lane() -> None:
     assert bind_turn(web, SELECTOR_VALUE) is True
     assert turn_is_local_only(web)
     assert not web.get(OFFLINE_KEY) and not web.get(OFFLINE_SELECTED_KEY)
+
+
+# ── the user-facing refusal names the reason and the way out (Mac run 2026-11-11) ──
+
+
+def test_the_live_refusal_names_offline_the_switch_or_the_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core import policy_engine
+    from core.agent_runtime.fast_live_info_runtime_results import web_unavailable_text
+
+    monkeypatch.setattr(policy_engine, "local_only_mode", lambda: False)
+    offline = web_unavailable_text(_local_only_context())
+    assert "this chat is Offline" in offline and "Computer + web" in offline
+    switch = web_unavailable_text(_computer_web_context())
+    assert "Web lookups are switched off" in switch and "Settings" in switch
+    monkeypatch.setattr(policy_engine, "local_only_mode", lambda: True)
+    assert "keep everything on this computer" in web_unavailable_text(_computer_web_context())
+
+
+def test_the_typed_live_data_lane_does_not_run_when_the_turn_has_no_web(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Measured on the Mac: Web lookups off, and the weather lane still fetched wttr.in.
+
+    The lane's planning step is the probe: with the web available it is reached (the control
+    that keeps this non-vacuous), with the web off it never is.
+    """
+    import core.execution_requirements as requirements
+    from core import policy_engine
+    from core.agent_runtime.agent import VoolAgent
+
+    reached: list[str] = []
+
+    class _Stop(Exception):
+        pass
+
+    def _probe(text, **kwargs):
+        reached.append(text)
+        raise _Stop
+
+    monkeypatch.setattr(requirements, "requirements_for", _probe)
+    monkeypatch.setattr(policy_engine, "local_only_mode", lambda: False)
+    agent = VoolAgent.__new__(VoolAgent)
+    context = {**_computer_web_context(), "surface": "api", "platform": "web_companion"}
+
+    def _ask() -> None:
+        try:
+            agent._maybe_answer_live_data_turn(
+                effective_input="what's the weather in Vilnius right now?",
+                session_id="web-switch", source_context=dict(context),
+            )
+        except _Stop:
+            pass
+
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True)
+    _ask()
+    assert reached, "control: with the web on the lane never reached its planning step"
+    reached.clear()
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: False)
+    _ask()
+    assert reached == [], "the live-data lane planned a fetch with Web lookups off"

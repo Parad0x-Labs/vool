@@ -5,6 +5,43 @@ from typing import Any
 from core.turn_contract import LaneProposal
 
 
+#: What the user is told when a live question (weather, prices, news) cannot be looked up this
+#: turn. One sentence per cause, each naming the way out, so the reply never reads as an outage.
+#: The opening words are kept stable ("Live web lookup is ...") for log and test readers.
+WEB_OFF_TEXT = (
+    "Live web lookup is off: Web lookups are switched off, so I can't check current weather, "
+    "prices or news. You can turn them on in Settings, Privacy & Permissions."
+)
+OFFLINE_TEXT = (
+    "Live web lookup is off because this chat is Offline: nothing leaves this computer, so I "
+    "can't check current weather, prices or news. To let me look it up, choose Computer + web "
+    "or Local first in the model menu."
+)
+MACHINE_OFFLINE_TEXT = (
+    "Live web lookup is off because VOOL is set to keep everything on this computer, so I can't "
+    "check current weather, prices or news."
+)
+
+
+def web_unavailable_text(source_context: dict[str, object] | None) -> str:
+    """The refusal for THIS turn's reason: machine-wide offline, an Offline chat, or the switch."""
+    try:
+        from core.policy_engine import local_only_mode
+
+        if local_only_mode():
+            return MACHINE_OFFLINE_TEXT
+    except Exception:
+        pass
+    try:
+        from core.auto_local_only_mode import turn_is_offline
+
+        if turn_is_offline(dict(source_context or {})):
+            return OFFLINE_TEXT
+    except Exception:
+        pass
+    return WEB_OFF_TEXT
+
+
 def _frontdoor_live_info_proposal(source_context: dict[str, object] | None) -> LaneProposal | None:
     """The typed claim this turn's live-info fast path recorded, if any (M3)."""
     from core.turn_contract import TURN_PROPOSALS_KEY
@@ -33,10 +70,7 @@ def disabled_live_info_result(
     user_input: str,
     source_context: dict[str, object] | None,
 ) -> dict[str, Any]:
-    disabled_response = (
-        "Live web lookup is disabled on this runtime, so I can't verify current prices, "
-        "weather, or latest-news requests honestly."
-    )
+    disabled_response = web_unavailable_text(source_context)
     _reason, confidence = _route_metadata(agent, source_context, 0.82)
     result = agent._fast_path_result(
         session_id=session_id,
