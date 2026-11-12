@@ -10,7 +10,7 @@ import contextlib
 import json
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -230,11 +230,38 @@ def _raw_conn() -> sqlite3.Connection:
     return runtime_conn()
 
 
+#: this thread's open wallet connections, and the records waiting for the last of them to close
+_OPEN = threading.local()
+
+
+def after_connections_close(filing: Callable[[], Any]) -> bool:
+    """Run ``filing`` once this thread's wallet connections are all closed; False, with nothing kept, when none is open.
+
+    A refusal raised inside a claim's BEGIN IMMEDIATE is filed on another connection to the same database: filed
+    there and then, it waited for the claim's own write lock until the busy timeout ran out, and was lost. Kept until
+    the claim's transaction ended, it is filed at once, before the refusal reaches the caller."""
+    if not getattr(_OPEN, "depth", 0):
+        return False
+    _OPEN.pending = [*getattr(_OPEN, "pending", []), filing]
+    return True
+
+
+def _closed() -> None:
+    _OPEN.depth -= 1
+    if _OPEN.depth:
+        return
+    pending, _OPEN.pending = list(getattr(_OPEN, "pending", [])), []
+    for filing in pending:
+        with contextlib.suppress(Exception):  # observability never fails the refusal it records
+            filing()
+
+
 @contextmanager
 def connection() -> Iterator[sqlite3.Connection]:
     """A migrated connection with the wallet schema present. Commits on clean exit."""
     with LOCK:
         conn = _raw_conn()
+        _OPEN.depth = getattr(_OPEN, "depth", 0) + 1
         try:
             for statement in SCHEMA:
                 conn.execute(statement)
@@ -248,4 +275,7 @@ def connection() -> Iterator[sqlite3.Connection]:
                 conn.rollback()
             raise
         finally:
-            conn.close()
+            try:
+                conn.close()
+            finally:
+                _closed()
