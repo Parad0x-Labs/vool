@@ -9,6 +9,7 @@ import sys
 import pytest
 
 from tests import _reader_served_rig as rig
+from tests.disclosure import usepod_plugin
 from tests.disclosure.test_served_preview import _json, _provider_context, _resource
 from tests.disclosure.test_served_rules import recording_daemon
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
@@ -19,12 +20,12 @@ from adapters.base_adapter import ModelRequest
 from core.disclosure.usepod_replay import ReplayBinding,ReplayCheckedTransport
 from core.disclosure.wire import DisclosureRefused
 from core.model_registry import ModelRegistry
-from core.runtime_provider_defaults import register_chat_cloud_model
+from core.usepod.legacy_registration import register_model
 from core.remote_fetch_policy import remote_fetch_policy_scope
 import threading
 from core.usepod.transport import UsePodTransportError
 model,chat,project,operation=sys.argv[1:]
-register_chat_cloud_model('usepod',model)
+register_model(model)
 registry=ModelRegistry()
 adapter=registry.build_adapter(registry.get_manifest('usepod-byok',model))
 request=ModelRequest('chat','Synthetic public specification.',max_output_tokens=64,
@@ -74,7 +75,8 @@ def test_served_privacy_change_refuses_the_identical_reviewed_usepod_envelope(tm
     model = 'recovery-privacy-scripted'
     outside = StrictUsePodService(models={model: [Listing('marketplace', 'recovery-market', 420000, 1260000)]})
     process = None
-    with _provider_context(outside), recording_daemon(tmp_path) as (daemon, _, _):
+    with _provider_context(outside), recording_daemon(tmp_path, env_extra=usepod_plugin.plugin_paths(tmp_path)) as (daemon, _, _):
+        usepod_plugin.switch_on(daemon)
         _json(daemon.base_url+'/api/cloud/usepod/lane',
               {'protocol': 'openai', 'transport_mode': 'x402', 'origin': outside.origin})
         _json(daemon.base_url+'/api/cloud/usepod/route-policy', {'mode': 'marketplace-only'})

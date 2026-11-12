@@ -15,10 +15,25 @@ def refused(text, code):
     assert caught.value.code == code, (text, caught.value.code)
 
 
-def test_the_safe_places_are_the_ones_vools_file_moves_use():
-    from core.runtime_execution_tools import _SAFE_MACHINE_DIRECTORY_NAMES
+def test_the_safe_places_are_the_ones_vools_file_moves_use(person):
+    from core.routines.folders import safe_roots
+    from core.runtime_execution_tools import _safe_machine_roots
+    from core.safe_folder_names import ENGLISH_DIR_NAMES, ROOT_KEYS
 
-    assert tuple(SAFE_NAMES) == tuple(_SAFE_MACHINE_DIRECTORY_NAMES)
+    assert tuple(SAFE_NAMES) == tuple(ENGLISH_DIR_NAMES[key] for key in ROOT_KEYS)
+    assert safe_roots() == _safe_machine_roots()
+
+
+def test_a_desktop_in_another_language_is_the_routine_folder_too(person, monkeypatch):
+    import core.safe_folder_names as names
+
+    monkeypatch.setattr(names, "_platform", lambda: "linux")
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    (person / "Schreibtisch").mkdir()
+    (person / ".config").mkdir(exist_ok=True)
+    (person / ".config" / "user-dirs.dirs").write_text('XDG_DESKTOP_DIR="$HOME/Schreibtisch"\n', encoding="utf-8")
+    assert admit(str(person / "Schreibtisch")) == (person / "Schreibtisch").resolve()
+    refused(str(person / "Desktop"), "bad_folder")
 
 
 def test_desktop_downloads_documents_and_folders_inside_them(person):

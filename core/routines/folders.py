@@ -10,14 +10,16 @@ from pathlib import Path
 
 from core.routines.model import RoutineError
 
-#: The same three names core.runtime_execution_tools._SAFE_MACHINE_DIRECTORY_NAMES gives VOOL's
-#: file moves (tests/routines/test_folders.py keeps the two lists equal).
+#: The English names of the three folders (core.safe_folder_names.ENGLISH_DIR_NAMES). On Linux the
+#: folders on disk follow xdg-user-dirs ("~/Schreibtisch"), so the roots come from safe_roots().
 SAFE_NAMES = ("Desktop", "Downloads", "Documents")
 
 
 def safe_roots() -> tuple[Path, ...]:
-    home = Path.home().resolve()
-    return tuple((home / name).resolve() for name in SAFE_NAMES)
+    """The same roots VOOL's own file moves use (core.safe_folder_names.safe_root_paths)."""
+    from core.safe_folder_names import safe_root_paths
+
+    return safe_root_paths(Path.home().resolve())
 
 
 def admit(raw: str) -> Path:

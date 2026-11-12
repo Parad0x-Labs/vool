@@ -5,6 +5,7 @@ import select
 import subprocess
 import sys
 
+from tests.disclosure import usepod_plugin
 from tests.disclosure.test_served_preview import _json, _provider_context, _resource
 from tests.disclosure.test_served_rules import recording_daemon
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
@@ -14,7 +15,8 @@ def test_served_route_revocation_invalidates_prepared_network_consent_without_a_
     model = 'network-preview-scripted'
     outside = StrictUsePodService(models={model: [Listing('marketplace', 'network-market', 420000, 1260000)]})
     process = None
-    with _provider_context(outside), recording_daemon(tmp_path) as (daemon, _, _):
+    with _provider_context(outside), recording_daemon(tmp_path, env_extra=usepod_plugin.plugin_paths(tmp_path)) as (daemon, _, _):
+        usepod_plugin.switch_on(daemon)
         _json(daemon.base_url+'/api/cloud/usepod/lane',
               {'protocol': 'openai', 'transport_mode': 'x402', 'origin': outside.origin})
         _json(daemon.base_url+'/api/cloud/usepod/route-policy', {'mode': 'marketplace-only'})
@@ -25,9 +27,9 @@ import json, sys
 from adapters.base_adapter import ModelRequest
 from core.disclosure.wire import DisclosureRefused
 from core.model_registry import ModelRegistry
-from core.runtime_provider_defaults import register_chat_cloud_model
+from core.usepod.legacy_registration import register_model
 model = sys.argv[1]
-register_chat_cloud_model('usepod', model)
+register_model(model)
 registry = ModelRegistry()
 manifest = registry.get_manifest('usepod-byok', model)
 adapter = registry.build_adapter(manifest)

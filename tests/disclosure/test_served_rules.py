@@ -13,7 +13,7 @@ from tests.disclosure.test_served_preview import CloudDaemon, _json, _provider_c
 
 
 @contextmanager
-def recording_daemon(tmp_path, reply_fn=None):
+def recording_daemon(tmp_path, reply_fn=None, *, env_extra=None):
     raw = []
     provider = rig.CapturingProvider(reply_fn=reply_fn or (lambda body: 'The public specification describes a repair workshop.'))
     handler = provider._server.RequestHandlerClass
@@ -56,7 +56,7 @@ def recording_daemon(tmp_path, reply_fn=None):
 
     handler.do_GET, handler.do_POST = inventory, capture
     daemon = CloudDaemon(tmp_path / 'home', provider=provider, model='disclosure-recording:scripted',
-                         provider_name='disclosure-recording')
+                         provider_name='disclosure-recording', env_extra=env_extra)
     with _provider_context(provider):
         try:
             daemon.start()
