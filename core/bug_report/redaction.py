@@ -15,6 +15,16 @@ Redaction is privacy-first: it would rather over-mask than leak. Structure that
 reproduction needs (file names, function names, line numbers, timestamps, log levels,
 lane/tool/model ids) is preserved because the rules only bind to value shapes, not to
 code identifiers.
+
+ALIASED REPORT MARKERS. Bug reports redact with an :class:`AliasScope` so one report's
+repeated references stay readable and distinct: the same email is always ``[EMAIL_1]``,
+two different people are ``[PERSON_1]`` and ``[PERSON_2]``, and every removed secret
+(credentials, labelled secrets, card and bank numbers, PINs, high-entropy runs) is the
+uniform ``[SECRET_REMOVED]``. Secrets are never given distinct aliases: numbering them
+would say how many there were and invite correlation. The scope holds the only
+value-to-marker map, lives in memory while its report is open for editing, and is never
+serialized: the exported report carries the markers, never the map that could reverse them.
+Without a scope the classic ``[redacted-*]`` markers are written, exactly as before.
 """
 from __future__ import annotations
 
@@ -26,24 +36,37 @@ from core.bug_report.schema import RedactionSummary
 from core.secret_redaction import redact_personal_secrets as _backstop_redact_personal
 from core.secret_redaction import redact_secrets as _backstop_redact
 
+#: The identity families an AliasScope numbers. Secrets are deliberately absent: they all
+#: collapse to the one uniform [SECRET_REMOVED].
+ALIAS_FAMILIES = ("EMAIL", "PERSON", "LOCAL_PATH", "IP", "PHONE", "WALLET_ADDRESS", "HOST", "PERSONAL")
+_ALIAS_FAMILY_ALT = "|".join(ALIAS_FAMILIES)
+SECRET_REMOVED = "[SECRET_REMOVED]"
+
+#: A value that is already a marker, in either vocabulary, is never masked again: the
+#: classic [redacted-*] markers, the uniform [SECRET_REMOVED], and the numbered aliases.
+#: The scanner shares the patterns below, so this is also what keeps a redacted report
+#: from reading as a leak.
+_MARKER_AHEAD = r"\[(?:redacted|SECRET_REMOVED\]|(?:" + _ALIAS_FAMILY_ALT + r")_\d+\])"
+
 # --- header families (whole-value masking; label kept so the report stays readable).
-# The (?![ \t]*\[redacted) guard after the colon keeps matching idempotent: an already-
-# masked "Cookie: [redacted]" must not match again (the scanner shares these patterns),
-# and placing it directly after the colon closes the zero-width backtracking path.
+# The marker guard after the colon keeps matching idempotent: an already-masked
+# "Cookie: [redacted]" or "Cookie: [SECRET_REMOVED]" must not match again (the scanner
+# shares these patterns), and placing it directly after the colon closes the zero-width
+# backtracking path.
 
 _COOKIE_HEADER_RE = re.compile(
-    r"(?i)(?<![a-z0-9-])(set-cookie|cookie)\s*:(?![ \t]*\[redacted)\s*[^\r\n]+"
+    r"(?i)(?<![a-z0-9-])(set-cookie|cookie)\s*:(?![ \t]*" + _MARKER_AHEAD + r")\s*[^\r\n]+"
 )
 _AUTH_HEADER_RE = re.compile(
     r"(?i)(?<![a-z0-9-])(authorization|proxy-authorization|x-api-key|api-key|x-auth-token|x-session-token)"
-    r"\s*:(?![ \t]*\[redacted)\s*[^\r\n]+"
+    r"\s*:(?![ \t]*" + _MARKER_AHEAD + r")\s*[^\r\n]+"
 )
 
 # --- home paths / usernames -------------------------------------------------------------
 # /Users/<name>, /home/<name>, C:\Users\<name>, C:/Users/<name>: mask just the username
-# segment; the project-relative remainder is what reproduction needs.
+# segment (group 3); the project-relative remainder is what reproduction needs.
 _HOME_SEGMENT_RE = re.compile(
-    r"(?i)([a-z]:)?[\\/](users|home)[\\/][A-Za-z0-9._-]+"
+    r"(?i)([a-z]:)?[\\/](users|home)[\\/]([A-Za-z0-9._-]+)"
 )
 _TILDE_HOME_RE = re.compile(r"(?<![A-Za-z0-9])~(?=/|\\|\s|$)")
 _HOME_ENV_RE = re.compile(r"(?<![A-Za-z0-9])\$HOME\b", re.IGNORECASE)
@@ -70,7 +93,7 @@ _BR_SECRET_LABEL = (
 )
 _BR_LABELED_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])((?:[A-Za-z0-9]+[_-])*(?:" + _BR_SECRET_LABEL + r")(?:[_-][A-Za-z0-9]+)*)"
-    r"\s*[:=]\s*[\"']?(?!\[redacted)([^\s\"']{4,})[\"']?"
+    r"\s*[:=]\s*[\"']?(?!" + _MARKER_AHEAD + r")([^\s\"']{4,})[\"']?"
 )
 _BR_LABELED_IS_RE = re.compile(
     r"(?i)\b(password|secret|passphrase|token|api[_-]?key)\s+is\s+[\"']?([A-Za-z0-9+=/_-]{4,})[\"']?(?![\w-])"
@@ -90,7 +113,7 @@ _PIN_LABEL = (
     r"|one[- ]time\s+(?:code|password|pin)|verification\s+code|2fa\s+code|sms\s+code"
 )
 _PIN_LABELED_RE = re.compile(
-    r"(?i)\b(" + _PIN_LABEL + r")\b(\s*(?:is|was|=|:|#|-)?\s*)(?!\[redacted)([A-Za-z0-9]{3,12})\b"
+    r"(?i)\b(" + _PIN_LABEL + r")\b(\s*(?:is|was|=|:|#|-)?\s*)(?!" + _MARKER_AHEAD + r")([A-Za-z0-9]{3,12})\b"
 )
 # Phone numbers: an international "+" number (8-15 digits with spaces, dashes, dots or
 # brackets), or a labelled local number ("phone 612 34567", "call me on 0612-345-67").
@@ -197,6 +220,64 @@ def _is_v6_candidate(match_text: str) -> bool:
     return any(any(ch in "abcdefABCDEF" for ch in g) for g in groups)
 
 
+#: Every marker this module can write, in either mode. The outbound scanner blanks these
+#: before its secret backstop, so a redacted report never reads as a leaked secret.
+ALIAS_MARKER_RE = re.compile(
+    r"\[redacted[a-z0-9_-]*\]|\[SECRET_REMOVED\]|\[(?:" + _ALIAS_FAMILY_ALT + r")_\d+\]"
+)
+#: A numbered alias and its parts (family, index): what a later edit continues above.
+ALIAS_INDEX_RE = re.compile(r"\[(" + _ALIAS_FAMILY_ALT + r")_(\d+)\]")
+#: The classic secret markers (the shared masker's and this module's), folded into the
+#: uniform [SECRET_REMOVED] at the end of an aliased pass.
+_CLASSIC_MARKER_RE = re.compile(r"\[redacted(?:-[a-z0-9_]+)*\]")
+
+
+class AliasScope:
+    """One report's alias namespace: the same value always maps to the same marker.
+
+    Families are :data:`ALIAS_FAMILIES`, numbered per distinct value in order of first
+    appearance, so the same report always gets the same markers. Secrets are not aliased:
+    every removed secret is the uniform ``[SECRET_REMOVED]``. The scope is the only place
+    the value-to-marker map exists; it lives in memory while its report is open (see
+    ``core.bug_report.service``) and is never serialized, exported or logged, so a report's
+    markers cannot be reversed from anything it leaves behind.
+    """
+
+    __slots__ = ("_families", "_next")
+
+    def __init__(self) -> None:
+        self._families: dict[str, dict[str, str]] = {}
+        self._next: dict[str, int] = {}
+
+    def marker(self, family: str, value: str) -> str:
+        family = str(family or "").strip().upper()
+        if family not in ALIAS_FAMILIES:
+            return SECRET_REMOVED
+        key = str(value)
+        family_map = self._families.setdefault(family, {})
+        existing = family_map.get(key)
+        if existing is not None:
+            return existing
+        index = self._next.get(family, 0) + 1
+        self._next[family] = index
+        marker = f"[{family}_{index}]"
+        family_map[key] = marker
+        return marker
+
+    def continue_after(self, texts) -> AliasScope:
+        """Start this scope's numbers above every alias already present in ``texts`` (a
+        draft's retained fields), so a later edit can never mint a marker whose number
+        already means a different value elsewhere in the same report."""
+        for text in texts:
+            for match in ALIAS_INDEX_RE.finditer(str(text or "")):
+                family, index = match.group(1), int(match.group(2))
+                self._next[family] = max(self._next.get(family, 0), index)
+        return self
+
+    def __repr__(self) -> str:  # never print the map
+        return f"AliasScope(families={sorted(self._next)})"
+
+
 def normalize_text(text: str) -> str:
     """NFKC-normalize and strip control characters, ANSI escapes, and bidi overrides."""
     value = unicodedata.normalize("NFKC", str(text))
@@ -206,8 +287,14 @@ def normalize_text(text: str) -> str:
     return value
 
 
-def redact_text(text: str) -> tuple[str, RedactionSummary]:
-    """Return (sanitized text, per-rule replacement counts). Deterministic; never raises."""
+def redact_text(text: str, *, aliases: AliasScope | None = None) -> tuple[str, RedactionSummary]:
+    """Return (sanitized text, per-rule replacement counts). Deterministic; never raises.
+
+    With an :class:`AliasScope`, identity values become the report's consistent aliases
+    (``[EMAIL_1]``, ``[PERSON_2]``, ``[LOCAL_PATH_1]``, ``[IP_1]``, ``[PHONE_1]``,
+    ``[WALLET_ADDRESS_1]``) and every secret family ends as the uniform
+    ``[SECRET_REMOVED]``. The rules and their counts are the same in both modes.
+    """
     counts: dict[str, int] = {}
     total = 0
 
@@ -225,6 +312,14 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
     value = normalize_text(text)
     if not value:
         return value, RedactionSummary()
+    if aliases is not None:
+        # The secret rules (and the shared masker's own guards) recognise the classic
+        # marker as "already masked"; an aliased pass works in that vocabulary and folds
+        # it into [SECRET_REMOVED] at the end, so re-redacting aliased text changes nothing.
+        value = value.replace(SECRET_REMOVED, "[redacted]")
+
+    def alias_or(family: str, raw: str, classic: str) -> str:
+        return aliases.marker(family, raw) if aliases is not None else classic
 
     # Layer 0 -- the repo-wide high-confidence vendor secret masker, FIRST, so precise
     # token shapes (ghp_/sk-/AKIA/JWT/PEM/Bearer) are attributed to secret_vendor and
@@ -245,22 +340,33 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
 
     def _home_sub(m: re.Match) -> str:
         drive = m.group(1) or ""
-        return f"{drive}/{m.group(2)}/[redacted-user]"
+        return f"{drive}/{m.group(2)}/{alias_or('PERSON', m.group(3), '[redacted-user]')}"
+
+    # ~ and $HOME name the same place (this machine's home): one key, one marker.
+    def _local_home_sub(_m: re.Match) -> str:
+        return alias_or("LOCAL_PATH", "home", "[redacted-home]")
 
     apply("home_path", _HOME_SEGMENT_RE, _home_sub)
-    apply("home_path", _TILDE_HOME_RE, "[redacted-home]")
-    apply("home_path", _HOME_ENV_RE, "[redacted-home]")
+    apply("home_path", _TILDE_HOME_RE, _local_home_sub)
+    apply("home_path", _HOME_ENV_RE, _local_home_sub)
 
     def _username_sub(m: re.Match) -> str:
-        return f"{m.group(1)}: [redacted-user]"
+        return f"{m.group(1)}: {alias_or('PERSON', m.group(2), '[redacted-user]')}"
 
     apply("username_label", _USERNAME_LABEL_RE, _username_sub)
-    apply("email", _EMAIL_RE, "[redacted-email]")
+
+    def _email_sub(m: re.Match) -> str:
+        return alias_or("EMAIL", m.group(0), "[redacted-email]")
+
+    apply("email", _EMAIL_RE, _email_sub)
+
+    def _ip_sub(m: re.Match) -> str:
+        return alias_or("IP", m.group(0), "[redacted-ip]")
 
     def _ipv6_sub(m: re.Match) -> str:
-        return "[redacted-ip]" if _is_v6_candidate(m.group(0)) else m.group(0)
+        return _ip_sub(m) if _is_v6_candidate(m.group(0)) else m.group(0)
 
-    apply("ip_v4", _IPV4_RE, "[redacted-ip]")
+    apply("ip_v4", _IPV4_RE, _ip_sub)
     v6_hits = sum(1 for m in _IPV6_CANDIDATE_RE.finditer(value) if _is_v6_candidate(m.group(0)))
     value = _IPV6_CANDIDATE_RE.sub(_ipv6_sub, value)
     bump("ip_v6", v6_hits)
@@ -287,7 +393,17 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
         value = pattern.sub(_sub, value)
         bump(rule, hits)
 
-    _conditional("wallet_address", _EVM_ADDRESS_RE, lambda m: True, "[redacted-address]")
+    def _address_sub(m: re.Match) -> str:
+        return alias_or("WALLET_ADDRESS", m.group(0), "[redacted-address]")
+
+    def _phone_sub(m: re.Match) -> str:
+        return alias_or("PHONE", _digits_of(m.group(0)), "[redacted-phone]")
+
+    def _labeled_phone_sub(m: re.Match) -> str:
+        marker = alias_or("PHONE", _digits_of(m.group(3)), "[redacted-phone]")
+        return f"{m.group(1)}{m.group(2) or ' '}{marker}"
+
+    _conditional("wallet_address", _EVM_ADDRESS_RE, lambda m: True, _address_sub)
     _conditional("card_number", _CARD_CANDIDATE_RE, lambda m: _is_card_number(m.group(0)), "[redacted-card]")
     _conditional("iban", _IBAN_CANDIDATE_RE, lambda m: _is_iban(m.group(0)), "[redacted-iban]")
     # The value must carry a digit: "the pin is 4433" is a PIN, "the pin is set" is prose.
@@ -295,13 +411,10 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
         "pin_code", _PIN_LABELED_RE, lambda m: any(c.isdigit() for c in m.group(3)),
         lambda m: f"{m.group(1)}{m.group(2) or ' '}[redacted-pin]",
     )
-    _conditional("phone", _PHONE_INTL_RE, lambda m: _is_intl_phone(m.group(0)), "[redacted-phone]")
-    _conditional(
-        "phone", _PHONE_LABELED_RE, lambda m: _is_labeled_phone(m.group(3)),
-        lambda m: f"{m.group(1)}{m.group(2) or ' '}[redacted-phone]",
-    )
-    _conditional("wallet_address", _BECH32_ADDRESS_RE, lambda m: True, "[redacted-address]")
-    _conditional("wallet_address", _BASE58_ADDRESS_RE, lambda m: _is_base58_address(m.group(0)), "[redacted-address]")
+    _conditional("phone", _PHONE_INTL_RE, lambda m: _is_intl_phone(m.group(0)), _phone_sub)
+    _conditional("phone", _PHONE_LABELED_RE, lambda m: _is_labeled_phone(m.group(3)), _labeled_phone_sub)
+    _conditional("wallet_address", _BECH32_ADDRESS_RE, lambda m: True, _address_sub)
+    _conditional("wallet_address", _BASE58_ADDRESS_RE, lambda m: _is_base58_address(m.group(0)), _address_sub)
 
     apply("labeled_secret", _BR_LABELED_RE, _labeled_sub)
     apply("labeled_secret", _BR_LABELED_IS_RE, _labeled_is_sub)
@@ -323,7 +436,20 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
     value = _ENTROPY_RUN_RE.sub(_entropy_sub, value)
     bump("high_entropy", entropy_hits)
 
+    if aliases is not None:
+        # Every secret marker, this module's and the shared masker's, becomes the one
+        # uniform marker: never numbered, never telling one secret from another.
+        value = _CLASSIC_MARKER_RE.sub(SECRET_REMOVED, value)
+
     return value, RedactionSummary(rule_counts=counts, total_replacements=total)
 
 
-__all__ = ["normalize_text", "redact_text"]
+__all__ = [
+    "ALIAS_FAMILIES",
+    "ALIAS_INDEX_RE",
+    "ALIAS_MARKER_RE",
+    "SECRET_REMOVED",
+    "AliasScope",
+    "normalize_text",
+    "redact_text",
+]

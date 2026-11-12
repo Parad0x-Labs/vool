@@ -1,4 +1,7 @@
-# Use VOOL from your phone
+# Use VOOL from your phone (engineering notes)
+
+These notes describe the phone companion as built. They stay out of the public docs site
+until the phone owner writes the public, plain-words phone guide.
 
 Your computer keeps the chats, models, wallet and receipts. Your phone connects to that computer. Wallet setup, recovery, key entry, terminal access, the file browser, add-ons and model downloads stay on the computer.
 

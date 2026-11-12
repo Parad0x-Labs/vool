@@ -90,7 +90,8 @@ def test_draft_endpoint_creates_sanitized_local_draft() -> None:
     assert report_id.startswith("br_")
     body_text = json.dumps(payload)
     assert SECRET not in body_text
-    assert "[redacted" in body_text
+    # A draft speaks the aliased report vocabulary: the removed key is the uniform marker.
+    assert payload["draft"]["actual"] == "crash after key [SECRET_REMOVED]"
     assert payload["draft"]["fingerprint"]
     assert payload["draft"]["destination_repo"] == "example-owner/example-repo"
 

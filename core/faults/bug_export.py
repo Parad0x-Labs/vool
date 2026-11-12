@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from core.faults.catalog import FAULT_SCHEMA
+from core.faults.catalog import FAULT_SCHEMA, get_spec
 from core.faults.recorder import faults_for_turn
 
 
@@ -31,6 +31,7 @@ def fault_evidence_export(*, turn_key: str = "", session_id: str = "", limit: in
             {
                 "fault_id": row.fault_id,
                 "code": row.code,
+                "title": get_spec(row.code).title,
                 "schema_version": row.schema_version,
                 "severity": row.severity,
                 "retry": row.retry,

@@ -245,7 +245,8 @@ def test_phrase_bearing_report_previews_clean_with_the_phrase_masked(tmp_path) -
     preview = service.preview(draft.report_id)
     outbound = json.dumps(preview.issue, ensure_ascii=False)
     assert phrase not in outbound
-    assert "[redacted-mnemonic]" in outbound
+    # the whole phrase is one removed secret, in the report's uniform marker
+    assert "daemon crashed after the owner pasted [SECRET_REMOVED]" in outbound
 
 
 def test_public_publisher_refuses_while_phrase_protection_is_down(tmp_path, monkeypatch) -> None:
@@ -295,7 +296,8 @@ def test_publisher_recovers_in_process_and_keeps_genuine_findings(tmp_path, monk
     preview = service.preview(draft.report_id)
     outbound = json.dumps(preview.issue, ensure_ascii=False)
     assert phrase not in outbound
-    assert "[redacted-mnemonic]" in outbound
+    # the whole phrase is one removed secret, in the report's uniform marker
+    assert "daemon crashed after the owner pasted [SECRET_REMOVED]" in outbound
     # genuine findings are NOT suppressed by recovery: a real vendor token still fails closed
     from core.bug_report.schema import SanitizedMaterial
 

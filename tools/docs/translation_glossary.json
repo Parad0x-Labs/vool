@@ -1,0 +1,584 @@
+{
+  "version": "2026-11-12.1",
+  "identity": [
+    [
+      "VOOL",
+      "The product name. Never translated or transliterated: Latin letters in every script."
+    ],
+    [
+      "Parad0x Labs",
+      "The company name, spelled with a zero. Never translated."
+    ],
+    [
+      "OpenRouter, OpenClaw, Hermes, LoCoMo, GPT-4o, Discord, GitHub",
+      "Names of other products and services. Never translated."
+    ],
+    [
+      "Apple, Mac, macOS, Apple Silicon, Intel, Linux, Ubuntu, Windows, PowerShell, MacBook Pro",
+      "Platform and hardware names. Never translated; chip names such as Apple M1 stay as Apple writes them."
+    ],
+    [
+      "Python, PyTorch, LoRA, glibc, DMG, SHA-256, sudo, GPU, CPU",
+      "Technical names. Never translated."
+    ]
+  ],
+  "never_translate": "anything inside code blocks or `inline code`, URLs, commands, file and folder names, version numbers, port numbers and checksums. Digits stay Western digits (0-9); a language that writes a decimal comma may use it for measured values such as 82,7 %, never in a version number.",
+  "sources": [
+    "App labels come from the app's own catalog for the language in `core/i18n/catalogs/`, looked up by key, so a page uses exactly the words the app shows. If the English text behind a key changes, the checker stops until this glossary is updated.",
+    "macOS labels are Apple's own localized wording, read on 2026-11-12 from Apple's localized support pages: \"Open a Mac app from an unknown developer\" (Mac User Guide, current macOS and macOS 14), \"Install and uninstall apps\" and \"Identify your Mac model\". Spanish follows Spain, Portuguese follows Brazil, Chinese is Simplified Chinese.",
+    "macOS has no Lithuanian interface, so Lithuanian pages keep Apple's English words. Apple's Hindi pages keep About This Mac in English, so Hindi pages do too.",
+    "The Done and Cancel buttons of the macOS warning are not listed: Apple's localized words for them were not verified, so a translation says to close the message instead of naming a button.",
+    "Certify is the 0.7.7 button, which the app showed in English in every language. When the English pages switch to 0.8 and name Use this model instead, translations use the catalog words for `settings.local_models.use`.",
+    "Terms are the words these docs chose once per language; where the app already has a word for the concept, the term follows the app."
+  ],
+  "languages": {
+    "ar": {
+      "catalog": "ar",
+      "note": "Written right to left; code, commands and paths stay left to right."
+    },
+    "de": {
+      "catalog": "de",
+      "note": "Addresses the reader as du, like the app and Apple."
+    },
+    "es": {
+      "catalog": "es",
+      "note": "Spanish as in Spain (Apple es-ES), addressing the reader as tú like the app."
+    },
+    "fr": {
+      "catalog": "fr",
+      "note": "Addresses the reader as vous, like the app and Apple."
+    },
+    "he": {
+      "catalog": "he",
+      "note": "Written right to left. Addresses the reader in the plural (בחרו, לחצו) like the app."
+    },
+    "hi": {
+      "catalog": "hi"
+    },
+    "ja": {
+      "catalog": "ja",
+      "note": "Polite desu/masu style."
+    },
+    "ko": {
+      "catalog": "ko"
+    },
+    "lt": {
+      "catalog": "lt",
+      "note": "macOS has no Lithuanian interface: its words stay in English."
+    },
+    "pl": {
+      "catalog": "pl"
+    },
+    "pt": {
+      "catalog": "pt",
+      "note": "Brazilian Portuguese (Apple pt-BR), addressing the reader as você like the app."
+    },
+    "ru": {
+      "catalog": "ru",
+      "note": "Addresses the reader as вы, like the app."
+    },
+    "tr": {
+      "catalog": "tr"
+    },
+    "uk": {
+      "catalog": "uk",
+      "note": "Addresses the reader as ви, like the app."
+    },
+    "vi": {
+      "catalog": "vi"
+    },
+    "zh": {
+      "catalog": "zh-Hans",
+      "note": "Simplified Chinese."
+    }
+  },
+  "app_labels": [
+    {
+      "en": "Settings",
+      "key": "sidebar.settings"
+    },
+    {
+      "en": "Models & Providers",
+      "key": "settings.group.models.title"
+    },
+    {
+      "en": "Local models",
+      "key": "settings.row.local_models.label"
+    },
+    {
+      "en": "API Keys",
+      "key": "settings.group.keys.title"
+    },
+    {
+      "en": "Privacy & Permissions",
+      "key": "settings.group.permissions.title"
+    },
+    {
+      "en": "Go online on its own",
+      "key": "settings.row.automatic_checks.label"
+    },
+    {
+      "en": "Check for updates",
+      "key": "update.action_check"
+    },
+    {
+      "en": "Use this model",
+      "key": "settings.local_models.use"
+    },
+    {
+      "en": "Local",
+      "key": "header.cloud_local"
+    },
+    {
+      "en": "Auto",
+      "key": "header.cloud_auto"
+    },
+    {
+      "en": "Cloud",
+      "key": "header.lane_cloud"
+    },
+    {
+      "en": "Where should it think?",
+      "key": "setup.step.thinking.title"
+    },
+    {
+      "en": "Pick a folder",
+      "key": "setup.step.folder.title"
+    },
+    {
+      "en": "What may it do alone?",
+      "key": "setup.step.permissions.title"
+    },
+    {
+      "en": "What should it call you?",
+      "key": "setup.step.name.title"
+    },
+    {
+      "en": "+ Project",
+      "key": "sidebar.new_project"
+    },
+    {
+      "en": "Certify",
+      "fixed": "Certify",
+      "note": "0.7.7 button, shown in English in every language"
+    }
+  ],
+  "os_labels": {
+    "System Settings": {
+      "ar": "إعدادات النظام",
+      "de": "Systemeinstellungen",
+      "es": "Ajustes del Sistema",
+      "fr": "Réglages Système",
+      "he": "הגדרות המערכת",
+      "hi": "सिस्टम सेटिंग्ज़",
+      "ja": "システム設定",
+      "ko": "시스템 설정",
+      "lt": null,
+      "pl": "Ustawienia systemowe",
+      "pt": "Ajustes do Sistema",
+      "ru": "Системные настройки",
+      "tr": "Sistem Ayarları",
+      "uk": "Системні параметри",
+      "vi": "Cài đặt hệ thống",
+      "zh": "系统设置"
+    },
+    "Privacy & Security": {
+      "ar": "الخصوصية والأمن",
+      "de": "Datenschutz & Sicherheit",
+      "es": "Privacidad y seguridad",
+      "fr": "Confidentialité et sécurité",
+      "he": "פרטיות ואבטחה",
+      "hi": "गोपनीयता और सुरक्षा",
+      "ja": "プライバシーとセキュリティ",
+      "ko": "개인정보 보호 및 보안",
+      "lt": null,
+      "pl": "Prywatność i ochrona",
+      "pt": "Privacidade e Segurança",
+      "ru": "Конфиденциальность и безопасность",
+      "tr": "Gizlilik ve Güvenlik",
+      "uk": "Приватність і безпека",
+      "vi": "Quyền riêng tư & Bảo mật",
+      "zh": "隐私与安全"
+    },
+    "Open Anyway": {
+      "ar": "فتح على أية حال",
+      "de": "Dennoch öffnen",
+      "es": "Abrir igualmente",
+      "fr": "Ouvrir quand même",
+      "he": "פתיחה בכל זאת",
+      "hi": "फिर भी खोलें",
+      "ja": "このまま開く",
+      "ko": "그래도 열기",
+      "lt": null,
+      "pl": "Otwórz mimo to",
+      "pt": "Abrir Mesmo Assim",
+      "ru": "Все равно открыть",
+      "tr": "Yine de Aç",
+      "uk": "Все одно відкрити",
+      "vi": "Vẫn mở",
+      "zh": "仍要打开"
+    },
+    "Open": {
+      "ar": "فتح",
+      "de": "Öffnen",
+      "es": "Abrir",
+      "fr": "Ouvrir",
+      "he": "פתח",
+      "hi": "खोलें",
+      "ja": "開く",
+      "ko": "열기",
+      "lt": null,
+      "pl": "Otwórz",
+      "pt": "Abrir",
+      "ru": "Открыть",
+      "tr": "Aç",
+      "uk": "Відкрити",
+      "vi": "Mở",
+      "zh": "打开"
+    },
+    "About This Mac": {
+      "ar": "حول هذا الـ Mac",
+      "de": "Über diesen Mac",
+      "es": "Acerca de este Mac",
+      "fr": "À propos de ce Mac",
+      "he": "מידע על Mac זה",
+      "hi": null,
+      "ja": "このMacについて",
+      "ko": "이 Mac에 관하여",
+      "lt": null,
+      "pl": "Ten Mac",
+      "pt": "Sobre Este Mac",
+      "ru": "Об этом Mac",
+      "tr": "Bu Mac Hakkında",
+      "uk": "Про цей компʼютер",
+      "vi": "Giới thiệu về máy Mac này",
+      "zh": "关于本机"
+    },
+    "Applications": {
+      "ar": "التطبيقات",
+      "de": "Programme",
+      "es": "Aplicaciones",
+      "fr": "Applications",
+      "he": "יישומים",
+      "hi": "ऐप्लिकेशन",
+      "ja": "アプリケーション",
+      "ko": "응용 프로그램",
+      "lt": null,
+      "pl": "Aplikacje",
+      "pt": "Aplicativos",
+      "ru": "Программы",
+      "tr": "Uygulamalar",
+      "uk": "Програми",
+      "vi": "Ứng dụng",
+      "zh": "应用程序"
+    }
+  },
+  "terms": {
+    "en": {
+      "local_model": "local model",
+      "cloud_model": "cloud model",
+      "provider": "provider",
+      "api_key": "API key",
+      "indicator": "mode indicator",
+      "project_folder": "project folder",
+      "workspace": "workspace",
+      "memory": "memory (what VOOL remembers)",
+      "ram": "memory (RAM)",
+      "tool_call": "tool call",
+      "runtime": "local runtime",
+      "checksum": "checksum",
+      "notarized": "notarized (by Apple)",
+      "profile": "profile (where chats and settings live)",
+      "apple_menu": "Apple menu",
+      "control_click": "Control-click"
+    },
+    "ar": {
+      "local_model": "نموذج محلي",
+      "cloud_model": "نموذج سحابي",
+      "provider": "مزوّد",
+      "api_key": "مفتاح API",
+      "indicator": "مؤشر الوضع",
+      "project_folder": "مجلد المشروع",
+      "workspace": "مساحة العمل",
+      "memory": "الذاكرة",
+      "ram": "ذاكرة الوصول العشوائي (RAM)",
+      "tool_call": "استدعاء أداة",
+      "runtime": "بيئة تشغيل محلية",
+      "checksum": "المجموع الاختباري",
+      "notarized": "موثَّق من Apple",
+      "profile": "ملف التعريف",
+      "apple_menu": "قائمة Apple",
+      "control_click": "النقر مع الضغط على Control"
+    },
+    "de": {
+      "local_model": "lokales Modell",
+      "cloud_model": "Cloud-Modell",
+      "provider": "Anbieter",
+      "api_key": "API-Schlüssel",
+      "indicator": "Modusanzeige",
+      "project_folder": "Projektordner",
+      "workspace": "Arbeitsbereich",
+      "memory": "Gedächtnis",
+      "ram": "Arbeitsspeicher",
+      "tool_call": "Werkzeugaufruf",
+      "runtime": "lokale Laufzeitumgebung",
+      "checksum": "Prüfsumme",
+      "notarized": "von Apple notariell beglaubigt",
+      "profile": "Profil",
+      "apple_menu": "Apple-Menü",
+      "control_click": "bei gedrückter ctrl-Taste klicken"
+    },
+    "es": {
+      "local_model": "modelo local",
+      "cloud_model": "modelo en la nube",
+      "provider": "proveedor",
+      "api_key": "clave API",
+      "indicator": "indicador de modo",
+      "project_folder": "carpeta del proyecto",
+      "workspace": "espacio de trabajo",
+      "memory": "memoria",
+      "ram": "memoria RAM",
+      "tool_call": "llamada a una herramienta",
+      "runtime": "entorno de ejecución local",
+      "checksum": "suma de verificación",
+      "notarized": "notarizada por Apple",
+      "profile": "perfil",
+      "apple_menu": "menú Apple",
+      "control_click": "hacer clic con la tecla Control pulsada"
+    },
+    "fr": {
+      "local_model": "modèle local",
+      "cloud_model": "modèle cloud",
+      "provider": "fournisseur",
+      "api_key": "clé API",
+      "indicator": "indicateur de mode",
+      "project_folder": "dossier de projet",
+      "workspace": "espace de travail",
+      "memory": "mémoire",
+      "ram": "mémoire vive",
+      "tool_call": "appel d’outil",
+      "runtime": "moteur local",
+      "checksum": "somme de contrôle",
+      "notarized": "notarisée par Apple",
+      "profile": "profil",
+      "apple_menu": "menu Apple",
+      "control_click": "cliquer en maintenant la touche Contrôle enfoncée"
+    },
+    "he": {
+      "local_model": "מודל מקומי",
+      "cloud_model": "מודל ענן",
+      "provider": "ספק",
+      "api_key": "מפתח API",
+      "indicator": "מחוון המצב",
+      "project_folder": "תיקיית הפרויקט",
+      "workspace": "סביבת עבודה",
+      "memory": "זיכרון",
+      "ram": "זיכרון RAM",
+      "tool_call": "קריאה לכלי",
+      "runtime": "סביבת הרצה מקומית",
+      "checksum": "סכום ביקורת",
+      "notarized": "עבר אישור נוטריוני של Apple",
+      "profile": "פרופיל",
+      "apple_menu": "תפריט Apple",
+      "control_click": "לחיצה תוך כדי הקשה על Control"
+    },
+    "hi": {
+      "local_model": "स्थानीय मॉडल",
+      "cloud_model": "क्लाउड मॉडल",
+      "provider": "प्रदाता",
+      "api_key": "API कुंजी",
+      "indicator": "मोड संकेतक",
+      "project_folder": "प्रोजेक्ट फ़ोल्डर",
+      "workspace": "वर्कस्पेस",
+      "memory": "स्मृति",
+      "ram": "मेमोरी (RAM)",
+      "tool_call": "टूल कॉल",
+      "runtime": "स्थानीय रनटाइम",
+      "checksum": "चेकसम",
+      "notarized": "Apple से नोटराइज़्ड",
+      "profile": "प्रोफ़ाइल",
+      "apple_menu": "Apple मेनू",
+      "control_click": "कंट्रोल-क्लिक"
+    },
+    "ja": {
+      "local_model": "ローカルモデル",
+      "cloud_model": "クラウドモデル",
+      "provider": "プロバイダ",
+      "api_key": "APIキー",
+      "indicator": "モード表示",
+      "project_folder": "プロジェクトフォルダ",
+      "workspace": "ワークスペース",
+      "memory": "メモリー",
+      "ram": "メモリ",
+      "tool_call": "ツール呼び出し",
+      "runtime": "ローカルランタイム",
+      "checksum": "チェックサム",
+      "notarized": "Appleによる公証",
+      "profile": "プロファイル",
+      "apple_menu": "Appleメニュー",
+      "control_click": "Controlキーを押しながらクリック"
+    },
+    "ko": {
+      "local_model": "로컬 모델",
+      "cloud_model": "클라우드 모델",
+      "provider": "공급자",
+      "api_key": "API 키",
+      "indicator": "모드 표시",
+      "project_folder": "프로젝트 폴더",
+      "workspace": "작업 공간",
+      "memory": "메모리",
+      "ram": "메모리(RAM)",
+      "tool_call": "도구 호출",
+      "runtime": "로컬 런타임",
+      "checksum": "체크섬",
+      "notarized": "Apple 공증",
+      "profile": "프로필",
+      "apple_menu": "Apple 메뉴",
+      "control_click": "Control-클릭"
+    },
+    "lt": {
+      "local_model": "vietinis modelis",
+      "cloud_model": "debesijos modelis",
+      "provider": "tiekėjas",
+      "api_key": "API raktas",
+      "indicator": "režimo indikatorius",
+      "project_folder": "projekto aplankas",
+      "workspace": "darbo sritis",
+      "memory": "atmintis",
+      "ram": "operatyvioji atmintis (RAM)",
+      "tool_call": "įrankio iškvietimas",
+      "runtime": "vietinė vykdymo aplinka",
+      "checksum": "kontrolinė suma",
+      "notarized": "Apple notarizuota",
+      "profile": "profilis",
+      "apple_menu": "Apple meniu (Apple menu)",
+      "control_click": "spustelėti laikant Control"
+    },
+    "pl": {
+      "local_model": "model lokalny",
+      "cloud_model": "model w chmurze",
+      "provider": "dostawca",
+      "api_key": "klucz API",
+      "indicator": "wskaźnik trybu",
+      "project_folder": "folder projektu",
+      "workspace": "obszar roboczy",
+      "memory": "pamięć",
+      "ram": "pamięć RAM",
+      "tool_call": "wywołanie narzędzia",
+      "runtime": "lokalne środowisko uruchomieniowe",
+      "checksum": "suma kontrolna",
+      "notarized": "poświadczona notarialnie przez Apple",
+      "profile": "profil",
+      "apple_menu": "menu Apple",
+      "control_click": "kliknąć, trzymając naciśnięty klawisz Control"
+    },
+    "pt": {
+      "local_model": "modelo local",
+      "cloud_model": "modelo na nuvem",
+      "provider": "provedor",
+      "api_key": "chave de API",
+      "indicator": "indicador de modo",
+      "project_folder": "pasta do projeto",
+      "workspace": "espaço de trabalho",
+      "memory": "memória",
+      "ram": "memória RAM",
+      "tool_call": "chamada de ferramenta",
+      "runtime": "ambiente de execução local",
+      "checksum": "soma de verificação",
+      "notarized": "notarizado pela Apple",
+      "profile": "perfil",
+      "apple_menu": "menu Apple",
+      "control_click": "Controle + clique"
+    },
+    "ru": {
+      "local_model": "локальная модель",
+      "cloud_model": "облачная модель",
+      "provider": "провайдер",
+      "api_key": "ключ API",
+      "indicator": "индикатор режима",
+      "project_folder": "папка проекта",
+      "workspace": "рабочее пространство",
+      "memory": "память",
+      "ram": "оперативная память",
+      "tool_call": "вызов инструмента",
+      "runtime": "локальная среда выполнения",
+      "checksum": "контрольная сумма",
+      "notarized": "нотариально заверено Apple",
+      "profile": "профиль",
+      "apple_menu": "меню Apple",
+      "control_click": "нажать, удерживая клавишу Control"
+    },
+    "tr": {
+      "local_model": "yerel model",
+      "cloud_model": "bulut modeli",
+      "provider": "sağlayıcı",
+      "api_key": "API anahtarı",
+      "indicator": "mod göstergesi",
+      "project_folder": "proje klasörü",
+      "workspace": "çalışma alanı",
+      "memory": "hafıza",
+      "ram": "bellek (RAM)",
+      "tool_call": "araç çağrısı",
+      "runtime": "yerel çalışma ortamı",
+      "checksum": "sağlama toplamı",
+      "notarized": "Apple tarafından onaylanmış (noter tasdikli)",
+      "profile": "profil",
+      "apple_menu": "Apple menüsü",
+      "control_click": "Kontrol tuşuna basarak tıklamak"
+    },
+    "uk": {
+      "local_model": "локальна модель",
+      "cloud_model": "хмарна модель",
+      "provider": "провайдер",
+      "api_key": "ключ API",
+      "indicator": "індикатор режиму",
+      "project_folder": "папка проєкту",
+      "workspace": "робочий простір",
+      "memory": "памʼять",
+      "ram": "оперативна памʼять",
+      "tool_call": "виклик інструмента",
+      "runtime": "локальне середовище виконання",
+      "checksum": "контрольна сума",
+      "notarized": "нотаризовано Apple",
+      "profile": "профіль",
+      "apple_menu": "меню Apple",
+      "control_click": "клацнути, утримуючи клавішу Control"
+    },
+    "vi": {
+      "local_model": "mô hình cục bộ",
+      "cloud_model": "mô hình đám mây",
+      "provider": "nhà cung cấp",
+      "api_key": "khóa API",
+      "indicator": "chỉ báo chế độ",
+      "project_folder": "thư mục dự án",
+      "workspace": "không gian làm việc",
+      "memory": "bộ nhớ",
+      "ram": "bộ nhớ RAM",
+      "tool_call": "lệnh gọi công cụ",
+      "runtime": "môi trường chạy cục bộ",
+      "checksum": "mã kiểm tra (checksum)",
+      "notarized": "được Apple công chứng",
+      "profile": "hồ sơ",
+      "apple_menu": "menu Apple",
+      "control_click": "giữ Control khi bấm"
+    },
+    "zh": {
+      "local_model": "本地模型",
+      "cloud_model": "云端模型",
+      "provider": "提供方",
+      "api_key": "API 密钥",
+      "indicator": "模式指示",
+      "project_folder": "项目文件夹",
+      "workspace": "工作区",
+      "memory": "记忆",
+      "ram": "内存",
+      "tool_call": "工具调用",
+      "runtime": "本地运行时",
+      "checksum": "校验和",
+      "notarized": "Apple 公证",
+      "profile": "用户资料目录",
+      "apple_menu": "苹果菜单",
+      "control_click": "按住 Control 键点按"
+    }
+  }
+}

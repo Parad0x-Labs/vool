@@ -27,18 +27,20 @@ curl http://localhost:11434/api/tags
 
 If that returns nothing, the runtime is not up.
 
-## The OpenRouter connection does not come back to the app
-
-The callback page hands control to VOOL through a `vool://` link. If the browser does
-nothing, VOOL is not installed or not running. Start VOOL and connect again from
-**Settings → Models & Providers**.
-
 ## Responses are slow
 
 Usually model size against available memory. See
 [Run a local model](../guides/local-models.md).
 
+## An error shows a code
+
+Every failure has a stable code. [Errors and error codes](../reference/errors.md) explains
+how to read one, and the [Error Book](../ERROR_BOOK.md) says for each code what happened,
+what may already have happened and what to do next.
+
 ## Starting clean
 
-Quit VOOL and remove the configuration directory listed in
-[Configuration](../reference/configuration.md). Workspace files are not touched.
+Quit VOOL and remove the runtime home folder listed in
+[Configuration](../reference/configuration.md). This deletes your chats, memory, settings,
+saved keys and any wallet VOOL keeps on this computer, so save what you need first: see
+[Backup and recovery](backup-and-recovery.md). Workspace files are not touched.

@@ -6,7 +6,10 @@ description: How VOOL protects your files and API keys — workspace boundaries,
 
 ## Boundaries
 
-* **The workspace** bounds file access. Outside it, the runtime cannot read or write.
+* **Folder limits** bound file access. VOOL reads and changes files in the chat's project
+  folder. Outside it, VOOL can read your visible home folders and change files only in
+  Desktop, Downloads and Documents; hidden folders, app and system data and VOOL's own data
+  are never read. See [Workspaces](../concepts/workspaces.md).
 * **The credential store** holds keys. Keys are not written into config files or logs.
 * **Tool confirmation** bounds changes. In Manual mode every change asks first; in Auto mode
   everyday edits and commands can run automatically, while deleting, overwriting, installing,
@@ -33,9 +36,17 @@ owner's Discord messages get the same limits as another device on the network.
 
 ## Keys
 
-Your provider key is stored in the macOS Keychain on a Mac; on Linux and Windows it is kept
-in an encrypted vault file in your VOOL profile. It is used from your machine to reach your provider. It is not sent to
-Parad0x Labs, and there is no Parad0x-operated endpoint in the request path.
+VOOL keeps your provider keys in an encrypted file in its runtime home on this computer
+(see [Configuration](../reference/configuration.md)), readable only by your user account.
+Keys that VOOL already kept in the macOS Keychain on a Mac stay readable there. A key is used
+from your machine to reach your provider. It is not sent to Parad0x Labs, and there is no
+Parad0x-operated endpoint in the request path.
+
+{% hint style="info" %}
+The encrypted file is protected by your user account's file permissions, not by a separate
+password. Keep disk encryption on (FileVault on a Mac) so a lost or stolen disk does not
+expose your keys.
+{% endhint %}
 
 ## Plugins
 

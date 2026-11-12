@@ -58,6 +58,8 @@ SEC_WALLET_ENVIRONMENT_INACTIVE = "SEC_WALLET_ENVIRONMENT_INACTIVE"
 SEC_WALLET_CALLER_REFUSED = "SEC_WALLET_CALLER_REFUSED"
 SEC_WALLET_UNLOCK_THROTTLED = "SEC_WALLET_UNLOCK_THROTTLED"
 SEC_WALLET_BACKUP_UNAVAILABLE = "SEC_WALLET_BACKUP_UNAVAILABLE"
+SEC_WALLET_EXPORT_UNAVAILABLE = "SEC_WALLET_EXPORT_UNAVAILABLE"
+SEC_WALLET_EXPORT_PIN_NOT_ACCEPTED = "SEC_WALLET_EXPORT_PIN_NOT_ACCEPTED"
 SEC_WALLET_QUOTE_MISMATCH = "SEC_WALLET_QUOTE_MISMATCH"
 SEC_WALLET_RECOVERY_REFUSED = "SEC_WALLET_RECOVERY_REFUSED"
 
@@ -149,7 +151,7 @@ _WALLET_SEC_SPECS: tuple[SecSpec, ...] = (
     SecSpec(sec_code=SEC_WALLET_LEGACY_SURFACE_RETIRED, fault_code="wallet_legacy_surface_retired", severity="high", resource_class="payment",
             source="core.wallet.authority", summary="A retired money surface was called and refused; the canonical wallet lifecycle is the only path."),
     SecSpec(sec_code=SEC_WALLET_EXPORT_REFUSED, fault_code="wallet_export_refused", severity="high", resource_class="wallet_key",
-            source="core.wallet.authority", summary="A private-key export was refused; no export door exists."),
+            source="core.wallet.authority", summary="A private-key export through a retired path was refused; nothing was revealed."),
     SecSpec(sec_code=SEC_WALLET_CHAIN_IDENTITY_MISMATCH, fault_code="wallet_chain_identity_mismatch", severity="high", resource_class="payment",
             source="core.wallet.chains", summary="A chain endpoint did not prove the network identity it claimed; nothing was signed or sent."),
     SecSpec(sec_code=SEC_WALLET_OUTBOUND_REFUSED, fault_code="wallet_outbound_refused", severity="high", resource_class="payment",
@@ -166,6 +168,10 @@ _WALLET_SEC_SPECS: tuple[SecSpec, ...] = (
             source="core.wallet.quotes", summary="An approval that did not match its open transfer quote was refused before any claim, signature or send."),
     SecSpec(sec_code=SEC_WALLET_RECOVERY_REFUSED, fault_code="wallet_recovery_refused", severity="high", resource_class="wallet_key",
             source="core.wallet.pilot_custody", summary="A wallet recovery proof did not fit the wallet (a backup for another address, a malformed or inconsistent key, or a stale device challenge) and was refused before any write."),
+    SecSpec(sec_code=SEC_WALLET_EXPORT_UNAVAILABLE, fault_code="wallet_export_unavailable", severity="high", resource_class="wallet_key",
+            source="core.wallet.custody", summary="A private-key export was asked of a wallet that holds no exportable key here (watch-only, not a VOOL Wallet on this machine, a Crypto Pilot whose backup was shown once, or a key that does not fit the chosen wallet app); nothing was revealed."),
+    SecSpec(sec_code=SEC_WALLET_EXPORT_PIN_NOT_ACCEPTED, fault_code="wallet_export_pin_not_accepted", severity="high", resource_class="wallet_key",
+            source="core.wallet.custody", summary="A private-key export request carried a PIN, password or passphrase and was refused before the credential was consulted; export unlocks only by device authentication."),
 )
 _SEC_SPECS = (*_SEC_SPECS, *_WALLET_SEC_SPECS)
 

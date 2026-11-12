@@ -36,7 +36,7 @@
     },
     {
       "key": "fault.evm_pocket_custody_unavailable.message",
-      "english": "EVM keys cannot be held on this device: use watch-only or an external wallet signer. Nothing was created.",
+      "english": "A legacy pocket, the phrase-based wallet, holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For an EVM network, create a VOOL Wallet on that network in Settings, Crypto, add the account watch-only, or connect your own EVM wallet.",
       "parameters": [],
       "context": "Shown when the failure classified as 'evm_pocket_custody_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
@@ -87,6 +87,12 @@
       "english": "One or more statements were not supported by the retrieved sources and were withheld.",
       "parameters": [],
       "context": "Shown when the failure classified as 'unsupported_claim' reaches the user. Effect state 'local' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_acknowledgement_required.message",
+      "english": "This step needs your acknowledgement first, so nothing was signed or sent. Read what the wallet says this action does, acknowledge it exactly, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_acknowledgement_required' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
       "key": "fault.wallet_amount_invalid.message",
@@ -149,8 +155,20 @@
       "context": "Shown when the failure classified as 'wallet_dependency_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
+      "key": "fault.wallet_device_auth_denied.message",
+      "english": "Touch ID or your Mac password was declined or did not open this wallet, so nothing was created, changed, unlocked, revealed, signed or sent. Try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_device_auth_denied' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_device_auth_unavailable.message",
+      "english": "Touch ID or your Mac password is not available for this wallet here, so nothing was created, changed, unlocked, revealed, signed or sent. Try again once it is available.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_device_auth_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
       "key": "fault.wallet_disabled.message",
-      "english": "The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again.",
+      "english": "The wallet is switched off, so no payment was proposed or sent. Turn on Enable Crypto in Settings, Crypto, then try again.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_disabled' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
@@ -167,10 +185,22 @@
       "context": "Shown when the failure classified as 'wallet_environment_inactive' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
+      "key": "fault.wallet_export_pin_not_accepted.message",
+      "english": "Export never unlocks with a PIN, password or passphrase, only with device authentication (Touch ID or your Mac password), so nothing was revealed. Try again without the PIN or password.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_export_pin_not_accepted' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
       "key": "fault.wallet_export_refused.message",
-      "english": "Private keys are never exported by this runtime. The recovery phrase is shown once at creation and nowhere else. Nothing was revealed.",
+      "english": "That way of exporting a private key is retired, so nothing was revealed. A wallet that allows export has an Export private key button in Settings, Crypto, which opens only with Touch ID or your Mac password.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_export_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_export_unavailable.message",
+      "english": "This wallet cannot be exported that way: it is watch-only or holds no key on this machine, its one backup was shown at setup and it never exports, VOOL does not export to the wallet app you chose, or it is a legacy pocket from an earlier version that must be restored from its recovery phrase before it exports to MetaMask. Nothing was revealed.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_export_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
       "key": "fault.wallet_insufficient_funds.message",
@@ -207,6 +237,12 @@
       "english": "That request was not allowed to leave the wallet's approved endpoints, so no connection was made.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_outbound_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_password_invalid.message",
+      "english": "The password did not meet the policy or did not unlock the wallet, so nothing was signed or changed. Check the password and try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_password_invalid' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
       "key": "fault.wallet_paykit_unavailable.message",

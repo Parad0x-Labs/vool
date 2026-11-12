@@ -12,8 +12,10 @@
 
 * [Local and cloud](concepts/local-and-cloud.md)
 * [Workspaces](concepts/workspaces.md)
+* [Chats and attachments](concepts/chats-and-attachments.md)
 * [Memory](concepts/memory.md)
 * [Tools](concepts/tools.md)
+* [Permissions](concepts/permissions.md)
 * [Receipts](concepts/receipts.md)
 
 ## Guides
@@ -53,4 +55,5 @@
 
 * [FAQ](help/faq.md)
 * [Troubleshooting](help/troubleshooting.md)
+* [Backup and recovery](help/backup-and-recovery.md)
 * [Changelog](help/changelog.md)

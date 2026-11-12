@@ -39,6 +39,7 @@ from core.bug_report.redaction import (
     _PIN_LABELED_RE,
     _TILDE_HOME_RE,
     _USERNAME_LABEL_RE,
+    ALIAS_MARKER_RE,
     _is_base58_address,
     _is_card_number,
     _is_iban,
@@ -54,7 +55,10 @@ _DIGEST_FIELD_RE = re.compile(
     r'"(?:source_sha|fingerprint|payload_sha256|sha256|prev_hash|event_hash)"\s*:\s*"[0-9a-fA-F]{8,64}"'
 )
 _FINGERPRINT_MARKER_RE = re.compile(r"bug-report-fingerprint: [0-9a-f]{8,64}")
-_MARKER_RE = re.compile(r"\[redacted[a-z0-9_-]*\]")
+#: Redaction markers in EITHER vocabulary (the classic [redacted-*] markers and a report's
+#: aliases [EMAIL_1] / [PERSON_2] / [SECRET_REMOVED] ...) are pipeline output, not leaks;
+#: they are blanked before the secret backstop judges.
+_MARKER_RE = ALIAS_MARKER_RE
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,14 @@ def _dynamic_patterns() -> list[tuple[str, re.Pattern]]:
 
 
 _LOCAL_REPLACEMENTS = {"local_home": "[redacted-home]", "local_username": "[redacted-user]", "local_hostname": "[redacted-host]"}
+#: The alias family (and key) each machine-local identifier takes in an aliased report: the
+#: home folder is the same place ~ and $HOME name, the account name is the same person a
+#: home path names, so each keeps the one marker the redaction pass already gave it.
+_LOCAL_ALIASES = {
+    "local_home": ("LOCAL_PATH", lambda _value: "home"),
+    "local_username": ("PERSON", lambda value: value),
+    "local_hostname": ("HOST", lambda value: value.casefold()),
+}
 
 
 def _personal_profile_values() -> list[str]:
@@ -128,21 +140,32 @@ def _personal_profile_values() -> list[str]:
     return values
 
 
-def mask_local_identifiers(text: str) -> tuple[str, int]:
+def mask_local_identifiers(text: str, *, aliases=None) -> tuple[str, int]:
     """Replace this machine's own identifiers (home path, account name, hostname) and the
     owner's personal profile values with markers. Redaction proper is machine-independent by
     design; this is the machine-LOCAL pass, applied to the user's prose and to quoted answer
-    text so the scanner's dynamic checks pass on a clean report instead of refusing it."""
+    text so the scanner's dynamic checks pass on a clean report instead of refusing it.
+
+    With the report's :class:`~core.bug_report.redaction.AliasScope`, each identifier takes
+    its alias (``[PERSON_1]``, ``[LOCAL_PATH_1]``, ``[HOST_1]``, ``[PERSONAL_1]``) from the
+    same scope as the rest of the report, so one person is one marker everywhere."""
     value = str(text or "")
     if not value:
         return value, 0
     hits = 0
     for rule, pattern in _dynamic_patterns():
-        value, count = pattern.subn(_LOCAL_REPLACEMENTS.get(rule, "[redacted]"), value)
+        if aliases is not None and rule in _LOCAL_ALIASES:
+            family, key = _LOCAL_ALIASES[rule]
+            value, count = pattern.subn(lambda m, f=family, k=key: aliases.marker(f, k(m.group(0))), value)
+        else:
+            value, count = pattern.subn(_LOCAL_REPLACEMENTS.get(rule, "[redacted]"), value)
         hits += count
     for personal in _personal_profile_values():
         pattern = re.compile(rf"(?i)(?<![A-Za-z0-9]){re.escape(personal)}(?![A-Za-z0-9])")
-        value, count = pattern.subn("[redacted-personal]", value)
+        if aliases is not None:
+            value, count = pattern.subn(lambda _m, p=personal: aliases.marker("PERSONAL", p.casefold()), value)
+        else:
+            value, count = pattern.subn("[redacted-personal]", value)
         hits += count
     return value, hits
 

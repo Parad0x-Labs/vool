@@ -16,10 +16,16 @@ index.
 """
 
 import glob
+import html
 import json
 import os
 import re
 import sys
+
+
+def _ids(page_html):
+    """Every id="..." on a page (heading anchors, the main landmark)."""
+    return {html.unescape(i) for i in re.findall(r'\sid="([^"]+)"', page_html)}
 
 FEATURES = [
     ("<table>", "tables"),
@@ -57,6 +63,7 @@ def main(root, base="/docs"):
             return fh.read()
 
     pages = {f: _read(f) for f in files}
+    ids = {f: _ids(s) for f, s in pages.items()}
     fails = []
 
     for f, s in pages.items():
@@ -91,13 +98,21 @@ def main(root, base="/docs"):
             fails.append("feature never rendered anywhere: %s" % name)
 
     for f, s in pages.items():
-        for href in re.findall(r'href="(%s[^"#]*)"' % re.escape(base or "/"), s):
-            if href.endswith(("search.json", "sitemap.xml")):
+        # Links that carry a #fragment are checked too: the page must exist and
+        # the fragment must be an id on it (a link to a renamed heading is broken).
+        for href in re.findall(r'href="(%s[^"]*)"' % re.escape(base or "/"), s):
+            path, _, frag = html.unescape(href).partition("#")
+            if path.endswith(("search.json", "sitemap.xml")):
                 continue
-            rel = href[len(base):].strip("/") if base else href.strip("/")
+            rel = path[len(base):].strip("/") if base else path.strip("/")
             target = os.path.join(rel, "index.html") if rel else "index.html"
             if not os.path.isfile(target) and not os.path.isfile(rel):
                 fails.append("broken internal link: %s -> %s" % (f, href))
+            elif frag and target in pages and frag not in ids[target]:
+                fails.append("link to a missing section: %s -> %s" % (f, href))
+        for frag in re.findall(r'href="#([^"]+)"', s):
+            if html.unescape(frag) not in ids[f]:
+                fails.append("link to a missing section: %s -> #%s" % (f, frag))
 
     for f, s in pages.items():
         for href in re.findall(r'<link rel="alternate" hreflang="[a-z-]+" href="[^"]*?(%s[^"]*)"'
