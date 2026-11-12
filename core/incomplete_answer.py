@@ -320,10 +320,11 @@ def _table_truncation_reasons(text: str) -> list[str]:
 #: Settings") are an answer and are never matched: only the first person promising to act is.
 _ANNOUNCED_ACTION_RE = re.compile(
     r"^\s*(?:(?:sure|okay|ok|alright|great|got\s+it)[,!.]?\s+)?(?:(?:first|now|next)[,]?\s+)?"
-    r"(?:i'?ll|i\s+will|let\s+me|i'?m\s+going\s+to|i\s+am\s+going\s+to|i\s+need\s+to|i'?m\s+about\s+to)\s+"
-    r"(?:now\s+|first\s+|quickly\s+|go\s+(?:ahead\s+and\s+)?)?"
+    r"(?:i'?ll|i\s+will|let\s+me|let'?s|let\s+us|we'?ll|i'?m\s+going\s+to|i\s+am\s+going\s+to|i\s+need\s+to|"
+    r"i'?m\s+about\s+to)\s+"
+    r"(?:now\s+|first\s+|quickly\s+|go\s+(?:ahead\s+and\s+)?|help\s+(?:you\s+)?)?"
     r"(?:open|navigate|go\s+to|click|search|look\s+(?:up|for|at)|check|visit|browse|read|fetch|scroll|find|"
-    r"follow|load|access|pull\s+up|start\s+by|begin\s+by|head\s+to|try)\b",
+    r"follow|load|access|pull\s+up|start\s+by|begin\s+by|head\s+to|try|connect|inspect|list|query|run|count)\b",
     re.IGNORECASE,
 )
 _PLAN_STEP_RE = re.compile(
@@ -351,12 +352,26 @@ _FILLER_SENTENCE_RE = re.compile(
 )
 
 
+#: Asking leave to do the announced step is part of the plan, not an answer: database run 3
+#: (2026-11-12, installed-line source) replied "Let's connect to your database and list the
+#: tables. Would you like me to proceed?" five times while no tool ran.
+_PERMISSION_ASK_RE = re.compile(
+    r"(?:would\s+you\s+like\s+me\s+to|do\s+you\s+want\s+me\s+to|shall\s+i|should\s+i)\s+"
+    r"(?:proceed|go\s+ahead|continue|do\s+(?:that|it|this|so)|start|begin|run\s+it)"
+    r"(?:\s+with\s+(?:that|it|this))?\s*[?.!]*",
+    re.IGNORECASE,
+)
+
+
 def _only_a_plan(text: str) -> bool:
     sentences = [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?…])\s+)", str(text or "")) if part.strip()]
     substantive = [part for part in sentences if not _FILLER_SENTENCE_RE.fullmatch(part)]
     if not substantive or not _ANNOUNCED_ACTION_RE.match(substantive[0]):
         return False
-    planned = sum(1 for part in substantive if _ANNOUNCED_ACTION_RE.match(part) or _PLAN_STEP_RE.match(part))
+    planned = sum(
+        1 for part in substantive
+        if _ANNOUNCED_ACTION_RE.match(part) or _PLAN_STEP_RE.match(part) or _PERMISSION_ASK_RE.fullmatch(part)
+    )
     return planned * 3 >= len(substantive) * 2
 
 def inspect_answer_completeness(text: str, *, question: str | None = None) -> AnswerCompleteness:

@@ -765,3 +765,26 @@ def test_a_personal_fact_question_is_still_the_cross_chat_lanes():
     from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
 
     assert not _owned_by_another_lane(as_question("where is my test parking spot at work"))
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["Let's connect to your database and list the tables. Would you like me to proceed?",
+     "I'll help you check your orders database. First, let's connect to it and inspect the structure. Would you like me to proceed with that?",
+     "Let's connect to your database and check the `orders` table to see how many orders are shipped. Would you like me to proceed?"],
+)
+def test_a_plan_that_asks_leave_to_start_is_incomplete(reply):
+    from core.incomplete_answer import _only_a_plan
+
+    assert _only_a_plan(reply)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["There are 4 shipped orders. Would you like me to proceed with the cancelled ones too?",
+     "Let's see: 46 × 19 = 874. So the answer is 874."],
+)
+def test_an_answer_that_offers_a_next_step_is_not_a_plan(reply):
+    from core.incomplete_answer import _only_a_plan
+
+    assert not _only_a_plan(reply)
