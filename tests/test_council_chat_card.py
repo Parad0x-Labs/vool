@@ -185,6 +185,21 @@ globalThis.fetch = async function (url, init) {
           reason: 'Council in session: it owns the machine model pin until the run ends.' }
       : { ok: true, locked: false, run_id: '', state: '', reason: '' });
   }
+  if (u.indexOf('/api/coordinator/') === 0) {
+    // The standing coordinator as the served routes answer: a status read is 404 until the
+    // team is watched; watch and unwatch say ok unless a refusal is staged.
+    var co = globalThis.__coordinator = globalThis.__coordinator || { watched: false, watching: false, posted: [] };
+    if (u.indexOf('/api/coordinator/status') === 0) {
+      if (!co.watched) return reply(404, { ok: false, error: 'this team is not watched' });
+      return reply(200, { ok: true, watching: co.watching });
+    }
+    var coBody = {};
+    try { coBody = JSON.parse((init && init.body) || '{}'); } catch (e) { coBody = {}; }
+    co.posted.push({ url: u, body: coBody });
+    if (globalThis.__watchRefusal) return reply(404, globalThis.__watchRefusal);
+    if (u === '/api/coordinator/watch') { co.watched = true; co.watching = true; return reply(200, { ok: true, created: true }); }
+    if (u === '/api/coordinator/unwatch') { co.watching = false; return reply(200, { ok: true, ended: true }); }
+  }
   if (u.indexOf('/api/council/runs') === 0) return reply(200, { ok: true, runs: RUNS });
   if (u.indexOf('/api/council/convene') === 0) return reply(200, { ok: true, run_id: '__RUN__', max_rounds: 5 });
   return reply(200, { ok: true, sessions: [], messages: [], pins: [], models: [], events: [],
@@ -1181,3 +1196,100 @@ def test_a_finished_council_neither_claims_spending_nor_offers_cancel(terminal):
     result = _stop_probe(_state(state=terminal))
     assert result["hasStop"] is False, f"{terminal} still offered a cancel"
     assert "spending" not in result["head"].lower(), result["head"]
+
+
+# =====================================================================================
+# Watch: the standing coordinator watches a run the operator asks it to, so a stuck seat, a
+# pause that needs them and the end of the run reach the bell with this chat closed.
+# =====================================================================================
+
+
+def _watch_probe(state: dict, *, before: str = "", clicks: int = 0, switch: bool = False) -> dict:
+    return drive(
+        before + """
+      setDisplayedChat('""" + CHAT + """');
+      renderChat('""" + CHAT + """');
+      window.VoolCouncilCard.adopt('""" + CHAT + """', '""" + RUN + """');
+      await window.VoolCouncilCard.refresh('""" + RUN + """');
+      await sleep(20);
+      if (""" + ("true" if switch else "false") + """) {
+        setDisplayedChat('""" + OTHER + """');
+        renderChat('""" + OTHER + """');
+        await window.VoolCouncilCard.refresh('""" + RUN + """');
+        setDisplayedChat('""" + CHAT + """');
+        renderChat('""" + CHAT + """');
+        await window.VoolCouncilCard.refresh('""" + RUN + """');
+        await sleep(20);
+      }
+      var card = cardFor('""" + RUN + """');
+      var labels = [];
+      for (var i = 0; i < """ + str(clicks) + """; i++) {
+        var button = one(card, cls('vcx-watch-btn'));
+        if (!button) break;
+        button.click();
+        await sleep(30);
+        labels.push(textOf(one(card, cls('vcx-watch-btn'))));
+      }
+      var watchBtn = one(card, cls('vcx-watch-btn'));
+      var note = one(card, cls('vcx-watch-note'));
+      out({
+        hasWatch: !!watchBtn,
+        watchControls: all(card, cls('vcx-watch')).length,
+        stops: all(card, cls('vcx-stop')).length,
+        label: textOf(watchBtn),
+        labels: labels,
+        note: note && !note.hidden ? textOf(note) : '',
+        seatControls: all(card, cls('vcx-act')).length,
+        posted: ((globalThis.__coordinator || {}).posted || []),
+      });
+    """,
+        status=state,
+    )
+
+
+def test_a_live_council_offers_a_watch_and_says_watching_only_after_the_server_confirms():
+    result = _watch_probe(_state(), clicks=1)
+    assert result["hasWatch"] is True, "a live council offered no way to have it watched"
+    assert result["posted"] == [{"url": "/api/coordinator/watch",
+                                 "body": {"team_id": "council:" + RUN, "session_id": CHAT}}], result["posted"]
+    assert result["labels"] == ["Stop watching"], result["labels"]
+    assert "under the bell" in result["note"], result["note"]
+    assert result["seatControls"] == 0, "the watch control must not be counted as a seat decision"
+
+
+def test_stop_watching_unwatches_through_the_same_door():
+    result = _watch_probe(_state(), clicks=2)
+    assert [row["url"] for row in result["posted"]] == ["/api/coordinator/watch", "/api/coordinator/unwatch"]
+    assert result["posted"][1]["body"] == {"team_id": "council:" + RUN}
+    assert result["labels"] == ["Stop watching", "Watch this run"], result["labels"]
+    assert result["note"] == ""
+
+
+def test_a_run_the_server_already_watches_shows_it_without_a_click():
+    staged = "globalThis.__coordinator = { watched: true, watching: true, posted: [] };\n"
+    result = _watch_probe(_state(), before=staged)
+    assert result["label"] == "Stop watching" and "under the bell" in result["note"], result
+    assert result["posted"] == []
+
+
+def test_a_refused_watch_is_shown_in_the_servers_words_and_never_claimed():
+    staged = "globalThis.__watchRefusal = { ok: false, error: 'no such team: council:x' };\n"
+    result = _watch_probe(_state(), before=staged, clicks=1)
+    assert result["labels"] == ["Watch this run"], result["labels"]
+    assert result["note"] == "no such team: council:x", result["note"]
+
+
+def test_a_paused_council_can_still_be_watched():
+    assert _watch_probe(_state(state="needs_attention"))["hasWatch"] is True
+
+
+@pytest.mark.parametrize("terminal", ["converged", "stopped", "crashed", "no_convergence", "failed"])
+def test_a_finished_council_offers_no_watch(terminal):
+    assert _watch_probe(_state(state=terminal))["hasWatch"] is False
+
+
+def test_a_card_rebuilt_after_a_chat_switch_keeps_one_stop_and_one_watch():
+    result = _watch_probe(_state(), switch=True)
+    assert result["stops"] == 1, "the rebuilt card lost (or doubled) its Stop control"
+    assert result["watchControls"] == 1, "the rebuilt card lost (or doubled) its Watch control"
+

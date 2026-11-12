@@ -10,7 +10,8 @@ Order inside one tick, highest first:
   2. waiting agents: answered from a live standing decision, else put to the user in one
      batched question (a request is asked once; a new one re-sends the open list);
   3. stalled agents: nudged up to ``max_nudges`` times, then escalated to the user once
-     with a pause recommendation (or paused, when the policy says so);
+     with a pause recommendation (or paused, when the policy says so); a team whose port
+     cannot pause gets a stop recommendation and is never paused;
   4. milestones: agents that finished since the last report, in one report;
   5. the team: when every agent has ended, a final report and the watch ends;
   6. a periodic digest, only when something changed since the last report.
@@ -234,15 +235,21 @@ def plan(team: TeamSnapshot, policy: WatchPolicy, store: CoordinatorStore, now: 
                 continue
             if cannot or now - last_at >= policy.nudge_gap_seconds:
                 tried = "it cannot take a message mid-task" if cannot else f"{count} nudge(s) changed nothing"
-                advice = "I paused it." if policy.auto_pause_stalled else "I recommend pausing it."
+                pausing = policy.auto_pause_stalled and team.pause_supported
+                if not team.pause_supported:
+                    # Never "I paused it" (or a pause recommendation) for a team with no pause.
+                    advice, recommendation = "It cannot be paused from here, so stop it if it stays stuck.", "stop"
+                else:
+                    advice = "I paused it." if pausing else "I recommend pausing it."
+                    recommendation = "pause"
                 actions.append(Action(
                     key=f"escalate:{tid}:{agent.agent_id}:{_mark(mark)}", kind="escalate", team_id=tid,
                     agent_id=agent.agent_id, section="needs",
                     text=(f"{_name(agent)} has made no progress for {_minutes(quiet)} min and {tried}. "
                           f"{advice} Its spend so far: ${agent.spend.cost_usd:.2f}."),
-                    payload={"title": "An agent is stuck", "recommendation": "pause"},
+                    payload={"title": "An agent is stuck", "recommendation": recommendation},
                 ))
-                if policy.auto_pause_stalled:
+                if pausing:
                     actions.append(Action(key=f"pause:{tid}:{agent.agent_id}:{_mark(mark)}", kind="pause",
                                           team_id=tid, agent_id=agent.agent_id))
 

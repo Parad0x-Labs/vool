@@ -11,8 +11,9 @@ watch can be resolved to its port after a restart without any other state.
 Ports registered here:
   * ``council`` — council runs, from :mod:`core.standing_coordinator.council_port`;
     registered on first resolve.
-  * ``team`` — Agent Teams (``core/agent_team/``). DEPENDENCY: that package is not on
-    main yet; it registers its port on import with ``register_port("team", ...)``.
+  * ``team`` — Agent Teams (``core/agent_team/``), from
+    :mod:`core.standing_coordinator.team_port`; registered on first resolve. A chat's team
+    is watched from the moment its agents start (``core.agent_team.service.start``).
 """
 
 from __future__ import annotations
@@ -70,6 +71,10 @@ def _builtin(prefix: str) -> Callable[[], TeamPort] | None:
         from core.standing_coordinator.council_port import CouncilRunPort
 
         return CouncilRunPort
+    if prefix == "team":
+        from core.standing_coordinator.team_port import AgentTeamPort
+
+        return AgentTeamPort
     return None
 
 

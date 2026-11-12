@@ -838,13 +838,13 @@ rows:
   - id: standing-coordinator
     title: A standing coordinator watches long agent work
     area: tools
-    ui: []
+    ui: ["chat"]
     wired: ["/api/coordinator/watches", "/api/coordinator/status", "/api/coordinator/decisions", "/api/coordinator/watch", "/api/coordinator/unwatch", "/api/coordinator/decide", "/api/coordinator/forget"]
     default: []
-    tests: [tests/test_standing_coordinator.py, tests/test_standing_coordinator_council.py, tests/test_standing_coordinator_routes.py]
+    tests: [tests/test_standing_coordinator.py, tests/test_standing_coordinator_council.py, tests/test_standing_coordinator_routes.py, tests/test_standing_coordinator_agent_teams.py, tests/test_council_chat_card.py]
     label: IMPLEMENTED
     target_release: unknown
-    note: Runs in the background of the app and watches council runs; agent teams join once they register their team port. No page control; its questions and reports land in the notification centre.
+    note: Runs in the background of the app. Agent teams a chat starts are watched from their start; a council run is watched from the Watch this run button on its card. Questions and reports land in the notification centre.
   - id: orchestration
     title: Queen, coder and verifier orchestration
     area: tools

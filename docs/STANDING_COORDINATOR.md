@@ -8,6 +8,14 @@ and tells you only what changed.
 It is plain code in `core/standing_coordinator/`. It makes no model call of its own, so
 watching a team costs no model tokens however long the task takes.
 
+## What it watches
+
+- Agents a chat starts: watched from the moment they start, with no step from you. Agents
+  the same chat starts while that watch is open join it; a start after it ended gets its
+  own watch and its own final report.
+- A council run: when you press **Watch this run** on its card. **Stop watching** ends it.
+  The card says "Watching" only after the coordinator confirms the watch.
+
 ## What it does on each tick (every 30 s)
 
 | Situation | What happens |
@@ -17,7 +25,7 @@ watching a team costs no model tokens however long the task takes.
 | An agent is waiting on a question you already answered and asked to remember | It gets that answer, with the decision it came from. You are not asked again. |
 | An agent is waiting on anything else | One question card lists every open question in the team. A new question re-sends the open list; nothing is asked twice. |
 | An agent made no progress for 10 min | A status-check message into its own chat, up to 2 times, 5 min apart. |
-| Still no progress after that | One notice that it is stuck, with a pause recommendation (or it is paused, if the watch says so). |
+| Still no progress after that | One notice that it is stuck, with a pause recommendation (or it is paused, if the watch says so). A team that cannot be paused from here (agent teams, council runs) is never paused; the notice says to stop it if it stays stuck. |
 | Agents finish | One update listing them and their own reports. |
 | Every agent has ended | One final report, labelled partial when any agent did not finish; the watch ends. |
 | Otherwise | A progress line at most every 15 min, and only when something changed. |
@@ -69,9 +77,13 @@ repeats a nudge, an answer or a notice. An action a crash interrupted is marked
 (`max_calls`, `max_tokens`, `max_cost_usd`, `wall_clock_seconds`). Unknown fields are
 refused.
 
-Team ids name their registry: `team:<id>` for agent teams, `council:<run_id>` for council
-runs. A council run is watched as one agent; it can be stopped, while its seat retries and
-resumes stay on the council card.
+Team ids name their registry: `team:<folder>` for a chat's agent team (`<folder>` is its
+16-character folder under `agent_teams/`) or `team:<folder>:<n>` for the agents one start
+added (planned at or after the team's event `n`), and `council:<run_id>` for council runs.
+An agent team's agents can be answered (the agent runs again with your answer) and stopped
+(an agent waiting on a question has the question withdrawn); an agent cannot take a message
+mid-task and is not paused from here. A council run is watched as one agent; it can be
+stopped, while its seat retries and resumes stay on the council card.
 
 Set `VOOL_STANDING_COORDINATOR=0` to keep the background loop off.
 

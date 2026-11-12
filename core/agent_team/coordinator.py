@@ -759,16 +759,32 @@ class TeamCoordinator:
                                     conflict_id=conflict["conflict_id"], how="kept agent finished")
 
     # ================================================================ public API
+    def _stop_waiting(self, row: dict[str, Any]) -> None:
+        """An agent waiting on a decision runs nothing: stopping it withdraws its question.
+
+        Its last report is kept in the record; the state becomes ``stopped`` so the question is
+        no longer put to the user and the agent is never relaunched with an answer."""
+        result = dict(row.get("result") or {})
+        result["relay"] = f"{row['display_name']}: stopped. It was waiting for a decision; that question is withdrawn."
+        result["withdrawn_question"] = str(result.pop("question", "") or "")
+        self.registry.update_agent(row["agent_id"], state="stopped", result=result)
+        self.registry.event(self.team_id, "decision_withdrawn", row["agent_id"], state="stopped",
+                            relay=result["relay"])
+
     def stop(self, agent: str = "") -> dict[str, Any]:
-        """Stop one agent (by display name, title or key) or, with no name, every live agent."""
+        """Stop one agent (by display name, title or key) or, with no name, every live agent.
+
+        An agent waiting on a decision counts as live here: stopping it withdraws the question."""
         with self._lock:
-            targets = [r for r in self.registry.agents((*LIVE_STATES, "launching")) if
+            targets = [r for r in self.registry.agents((*LIVE_STATES, "launching", "needs_decision")) if
                        not agent or agent in (r["display_name"], r["title"], r["key"], r["agent_id"])]
             if agent and not targets:
                 return {"ok": False, "error": f"no running agent is called {agent!r}"}
             stopped = []
             for row in targets:
-                if row["state"] == "pending":
+                if row["state"] == "needs_decision":
+                    self._stop_waiting(row)
+                elif row["state"] == "pending":
                     self._finish(row["agent_id"], forced_state="stopped", note="stopped before it started")
                 elif row["contract"].get("kind") == "model":
                     self._stopping.add(row["agent_id"])

@@ -117,6 +117,7 @@ class CouncilRunPort:
             started_at=started_at,
             title=f"Council: {problem[0][:80]}" if problem else "Council run",
             session_id=str(state.get("chat_session") or ""),
+            pause_supported=False,
         )
 
     def nudge(self, team_id: str, agent_id: str, text: str) -> PortReceipt:
