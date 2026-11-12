@@ -2772,7 +2772,8 @@ class VoolAgent(
             )
             if isinstance(runtime_source_context, dict):
                 runtime_source_context["_conversation_request"] = (
-                    _resolution.request if _resolution.kind == "retry" else effective_input
+                    _resolution.request if _resolution.kind == "retry"
+                    else _resolution.text if _resolution.kind == "retry_changed" else effective_input
                 )
                 if _resolution.slots:
                     runtime_source_context["_conversation_slots"] = dict(_resolution.slots)
@@ -2780,7 +2781,9 @@ class VoolAgent(
                     runtime_source_context["conversation_state_note"] = _resolution.note
                 if _resolution.kind == "referent_unresolved":
                     runtime_source_context["unresolved_referent"] = True
-            _carried = _resolution.request if _resolution.kind == "retry" else compose_continuation(
+                if _resolution.kind == "retry_changed":
+                    runtime_source_context["_conversation_changed"] = True
+            _carried = _resolution.text if _resolution.kind in {"retry", "retry_changed"} else compose_continuation(
                 effective_input, last_task_request(session_id)
             )
             if _carried:

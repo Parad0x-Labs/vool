@@ -1859,6 +1859,11 @@ def maybe_handle_direct_machine_read_request(
         kind_hint=str(((source_context or {}).get("_conversation_slots") or {}).get("kind") or ""),
     )
     if kind_listing is not None:
+        if (source_context or {}).get("_conversation_changed"):
+            # A retry with a change: the recorded slots with the change applied (core.conversation_state.apply_change)
+            # win over re-reading the composed sentence.
+            recorded = dict((source_context or {}).get("_conversation_slots") or {})
+            kind_listing.update({k: recorded[k] for k in ("path", "kind", "limit", "newest_first") if k in recorded})
         if isinstance(source_context, dict):
             source_context["_conversation_kind_listing"] = dict(kind_listing)
         execution = execute_authorized_runtime_tool(

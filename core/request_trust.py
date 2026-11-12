@@ -43,6 +43,15 @@ HTTP_INGRESS_KEY = "_http_ingress"
 RESERVED_TRUST_KEYS = (
     OWNER_LOCAL_KEY,
     HTTP_INGRESS_KEY,
+    # core.conversation_state / the turn spine write these; a caller-supplied one would rewrite its own transcript row
+    # or claim a recorded folder.
+    "_typed_user_text",
+    "_conversation_request",
+    "_conversation_slots",
+    "_conversation_kind_listing",
+    "_conversation_changed",
+    "unresolved_referent",
+    "conversation_state_note",
     # M2: the typed turn contract is SERVER-authored at the run_once intake. An inbound
     # body carrying this key is stripped here; only core.turn_contract writes it.
     "turn_request",

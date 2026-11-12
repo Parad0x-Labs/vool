@@ -50,10 +50,18 @@ class PendingRequest:
 
 @dataclass(frozen=True)
 class Resolution:
-    kind: str  # "retry" | "referent_unresolved" | "none"
+    kind: str  # "retry" | "retry_changed" | "referent_unresolved" | "none"
     request: str = ""
     slots: dict[str, Any] = field(default_factory=dict)
     note: str = ""
+    change: str = ""
+
+    @property
+    def text(self) -> str:
+        """The text the turn is ROUTED as. The transcript keeps what the user typed (persistent_memory)."""
+        if self.kind == "retry_changed":
+            return f"{self.request} (change: {self.change})"
+        return self.request
 
 
 def _conn():
@@ -259,10 +267,10 @@ def _read_only(pending: PendingRequest) -> bool:
 def resolve(session_id: str, text: str, *, pending: PendingRequest | None = None, arbiter: Any = None) -> Resolution:
     """Decide what a message is against the chat's record: retry / referent_unresolved / none.
 
-    ``arbiter(request, reason, message) -> "retry" | "new" | "dismiss" | None`` is the model arbitration
+    ``arbiter(request, reason, message) -> "again" | "changed" | "neither" | None`` is the model arbitration
     (core.intent_arbiter.arbitrate_followup). It is asked only when the record is refused/failed and fresh, and the message
     is short with no task of its own and no closing word: the cases a retry-word list cannot decide. Its answer is honoured
-    only as "retry" for a request that only reads; any other answer, an error or None is "not a retry" (fail closed).
+    (again -> retry, changed -> retry with the change) only for a request that only reads; any other answer, an error or None is "not a retry" (fail closed).
     """
     compact = " ".join(str(text or "").split())
     if not compact:
@@ -285,13 +293,35 @@ def resolve(session_id: str, text: str, *, pending: PendingRequest | None = None
                     verdict = arbiter(pending.request, pending.reason or pending.outcome, compact)
                 except Exception:
                     verdict = None
-                if verdict == "retry" and _read_only(pending):
-                    return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+                if verdict in ("again", "changed") and _read_only(pending):
+                    if verdict == "again":
+                        return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+                    return Resolution("retry_changed", pending.request, apply_change(pending.slots, compact), _note(pending), change=compact)
         elif not own_task and has_cue and pending.turns_since <= _CUE_MAX_AGE and pending.outcome == DONE:
             return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
     if _ANAPHORIC_FOLDER_RE.search(compact) and not (pending and pending.slots.get("path")):
         return Resolution("referent_unresolved", note=("The message points at a folder this chat has not resolved; ask which folder. " + (_note(pending) if pending else "")).strip())
     return Resolution("none", slots=dict(pending.slots) if pending else {}, note=_note(pending) if pending else "")
+
+
+def apply_change(slots: dict[str, Any], change: str) -> dict[str, Any]:
+    """The recorded slots with the user's change applied where it names a folder, a kind of file, a count or an order."""
+    from core.execution import constants as c
+
+    out = dict(slots or {})
+    folder = c._KNOWN_FOLDER_RE.search(change)
+    if folder:
+        out["path"] = c._KNOWN_USER_FOLDERS[folder.group(1).lower()]
+    kind = c._KIND_WORD_RE.search(change)
+    if kind and (not folder or kind.span(1) != folder.span(1)):
+        out["kind"] = c._LISTING_KIND_WORDS[kind.group(1).lower()]
+    count = c._NEWEST_COUNT_RE.search(change)
+    if count:
+        out["newest_first"] = True
+        digits = count.group(1) or count.group(2)
+        if digits:
+            out["limit"] = max(1, min(int(digits), 200))
+    return out
 
 
 def _note(pending: PendingRequest) -> str:

@@ -406,21 +406,34 @@ def _parse_decision(content: str, *, options: list[str], claims: list[IntentClai
 # brings no task of its own (core.conversation_state.resolve). It exists because "is this a retry?" cannot be decided by
 # listing retry wordings. Same lane as `arbitrate`: the smallest local model, sealed provider permit, the call ledger,
 # the circuit breaker. Anything but a clean one-word decision is None, and None is never a retry (fail closed).
-FOLLOWUP_RETRY, FOLLOWUP_NEW, FOLLOWUP_DISMISS = "retry", "new", "dismiss"
+FOLLOWUP_AGAIN, FOLLOWUP_CHANGED, FOLLOWUP_NEITHER = "again", "changed", "neither"
+_FOLLOWUP_LETTERS = {"A": FOLLOWUP_AGAIN, "B": FOLLOWUP_CHANGED, "C": FOLLOWUP_NEITHER}
 
 
 def _followup_prompt(request: str, reason: str, message: str) -> str:
+    """Asks what the new message DOES. The earlier request is context, never the expected answer; C is the default."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
     return "\n".join([
-        "A request from the user did not get done.",
-        f'Request: "{" ".join(str(request or "").split())[:300]}"',
-        f"Why it did not get done: {str(reason or 'it failed').strip()[:80]}",
-        f'The user now writes: "{" ".join(str(message or "").split())[:200]}"',
-        "Decide what the new message is:",
-        "- RETRY: the user wants that same request run again (they fixed or changed something, or say go, again, try, "
-        "check, in any wording or typos), with nothing else asked.",
-        "- NEW: the user asks for something different, or changes the request.",
-        "- DISMISS: the user drops it, thanks, chats, or asks something unrelated.",
-        'Reply with ONLY this JSON: {"decision": "RETRY"} or {"decision": "NEW"} or {"decision": "DISMISS"}',
+        "An assistant could not finish something a user asked. The user has now written a new message.",
+        "Say what the new message does. Answer with one letter:",
+        "A = it says the problem is gone, or asks to go again, and asks for nothing else.",
+        "B = it asks for the earlier thing again but with a change (other folder, file type, count, order, place).",
+        "C = neither: an acknowledgement, a reaction, a thanks, small talk, a question, a request for something else entirely, or anything unclear.",
+        "When unsure, answer C. Most short messages are C.",
+        "",
+        'Earlier request: "show the spreadsheets in my documents folder" (not done: blocked)',
+        'New message: "the block is lifted, run it" -> {"answer": "A"}',
+        'New message: "same but the presentations" -> {"answer": "B"}',
+        'New message: "nice one" -> {"answer": "C"}',
+        'New message: "what is the capital of Peru" -> {"answer": "C"}',
+        'New message: "ugh" -> {"answer": "C"}',
+        'New message: "now translate this paragraph to French" -> {"answer": "C"}',
+        'New message: "ok it is switched on now, your turn" -> {"answer": "A"}',
+        'New message: "only the ones from this year" -> {"answer": "B"}',
+        "",
+        f'Earlier request: "{flat(request, 300)}" (not done: {flat(reason or "it failed", 80)})',
+        f'New message: "{flat(message, 200)}" ->',
+        'Reply with ONLY JSON like {"answer": "C"}',
     ])
 
 
@@ -433,7 +446,7 @@ def arbitrate_followup(
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
 ) -> str | None:
-    """``"retry"`` / ``"new"`` / ``"dismiss"``, or None (disabled, no model, breaker open, error, unparseable)."""
+    """``"again"`` / ``"changed"`` / ``"neither"``, or None (disabled, no model, breaker open, error, unparseable)."""
     _LAST_FAILURE["reason"] = ""
     if not arbiter_enabled():
         _LAST_FAILURE["reason"] = "disabled"
@@ -500,7 +513,7 @@ def arbitrate_followup(
 
 
 def parse_followup_decision(content: str) -> str | None:
-    """Strict: one JSON object whose ``decision`` is exactly RETRY / NEW / DISMISS; anything else is None."""
+    """Strict: one JSON object whose ``answer`` is exactly A / B / C; anything else is None."""
     try:
         raw = json.loads(content)
     except (json.JSONDecodeError, TypeError):
@@ -511,8 +524,8 @@ def parse_followup_decision(content: str) -> str | None:
             raw = json.loads(match.group(0))
         except json.JSONDecodeError:
             return None
-    value = str(raw.get("decision") or "").strip().lower() if isinstance(raw, dict) else ""
-    return value if value in {FOLLOWUP_RETRY, FOLLOWUP_NEW, FOLLOWUP_DISMISS} else None
+    value = raw.get("answer") if isinstance(raw, dict) else None
+    return _FOLLOWUP_LETTERS.get(value.strip().upper()) if isinstance(value, str) else None
 
 
 def prewarm_async() -> None:

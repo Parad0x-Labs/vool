@@ -208,11 +208,11 @@ WRITE = {"status": "blocked_by_mode", "success": False, "mode": "tool_failed",
 def test_a_wording_no_list_covers_is_decided_by_the_arbiter(message):
     _seed(READ)
     calls = []
-    assert cs.resolve("s1", message, arbiter=_fake("retry", calls)).kind == "retry"
+    assert cs.resolve("s1", message, arbiter=_fake("again", calls)).kind == "retry"
     assert calls and calls[0][2] == message and calls[0][0] == ASK
 
 
-@pytest.mark.parametrize("verdict", ["new", "dismiss", None, RuntimeError("model down")])
+@pytest.mark.parametrize("verdict", ["neither", None, RuntimeError("model down")])
 def test_anything_but_retry_from_the_arbiter_is_not_a_retry(verdict):
     _seed(READ)
     assert cs.resolve("s1", "hmm ok so", arbiter=_fake(verdict)).kind == "none"
@@ -220,31 +220,56 @@ def test_anything_but_retry_from_the_arbiter_is_not_a_retry(verdict):
 
 def test_a_write_request_is_never_retried_on_the_arbiter_say_so():
     _seed(WRITE, "delete my note called plans")
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("retry")).kind == "none"
+    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again")).kind == "none"
 
 
 def test_an_unknown_tool_counts_as_not_read_only():
     _seed(READ | {"tool_receipts": [{"tool_name": "mystery.tool", "execution": {"ok": False, "status": "blocked_by_mode"}}]})
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("retry")).kind == "none"
+    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again")).kind == "none"
 
 
 def test_the_arbiter_is_not_asked_for_normal_turns():
     calls = []
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("retry", calls)).kind == "none"  # nothing recorded
+    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again", calls)).kind == "none"  # nothing recorded
     _seed(LISTED)
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("retry", calls)).kind == "none"  # finished request
+    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again", calls)).kind == "none"  # finished request
     _seed(READ, small_talk=2)
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("retry", calls)).kind == "none"  # not fresh
+    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again", calls)).kind == "none"  # not fresh
     _seed(READ)
     for closing in ["thanks anyway", "never mind", "no", "later maybe"]:
-        assert cs.resolve("s1", closing, arbiter=_fake("retry", calls)).kind == "none"
+        assert cs.resolve("s1", closing, arbiter=_fake("again", calls)).kind == "none"
     assert calls == []
 
 
 def test_the_arbiter_decision_is_parsed_strictly():
     from core.intent_arbiter import parse_followup_decision
 
-    assert parse_followup_decision('{"decision": "RETRY"}') == "retry"
-    assert parse_followup_decision('noise {"decision": "dismiss"} noise') == "dismiss"
-    for bad in ["RETRY", '{"decision": "maybe"}', '{"decision": ["RETRY"]}', "", "[]", None]:
+    assert parse_followup_decision('{"answer": "A"}') == "again"
+    assert parse_followup_decision('noise {"answer": "b"} noise') == "changed"
+    assert parse_followup_decision('{"answer": "C"}') == "neither"
+    for bad in ["A", '{"answer": "D"}', '{"answer": ["A"]}', '{"decision": "RETRY"}', "", "[]", None]:
         assert parse_followup_decision(bad) is None
+
+
+def test_a_retry_with_a_change_reruns_the_request_with_the_change_and_updates_the_slots():
+    _seed(READ | {"details": {"path": "/Users/x/Downloads"}}, "list the pics in my downloads")
+    got = cs.resolve("s1", "same but only the newest 5 from my desktop", arbiter=_fake("changed"))
+    assert got.kind == "retry_changed" and got.request == "list the pics in my downloads"
+    assert got.text == "list the pics in my downloads (change: same but only the newest 5 from my desktop)"
+    assert got.slots["path"] == "~/Desktop" and got.slots["limit"] == 5 and got.slots["newest_first"] is True
+
+
+def test_a_changed_write_request_is_not_rerun_on_the_arbiter_say_so():
+    _seed(WRITE, "delete my note called plans")
+    assert cs.resolve("s1", "same but the other note", arbiter=_fake("changed")).kind == "none"
+
+
+def test_the_transcript_keeps_what_the_user_typed():
+    from core.memory.entries import recent_conversation_events
+    from core.persistent_memory import append_conversation_event
+
+    sid = "typed-row-chat"
+    ctx = {"_typed_user_text": "retry pls"}
+    append_conversation_event(session_id=sid, user_input="list the pics in my downloads", assistant_output="here", source_context=ctx, persist_now=True)
+    rows = recent_conversation_events(sid, limit=2)
+    assert rows and rows[-1]["user"] == "retry pls", rows
