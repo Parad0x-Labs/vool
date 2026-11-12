@@ -94,6 +94,25 @@ def test_drafting_and_a_connected_x_are_left_alone(isolated_home, monkeypatch):
     assert x_connect_hint.reply_if_not_connected(Agent(), ASKS[0], session_id='s', source_context={}) is None
 
 
+def test_campaign_work_that_names_x_is_left_to_the_social_content_manager(isolated_home):
+    """A plan or campaign that mentions X keeps the plan, the other platforms and the owner's exact
+    line: the social content manager answers it (a publish ask gets its typed unavailable outcome
+    and copy-ready text). A bare X read or post ask still gets the plain connect reply."""
+    from core import x_connect_hint
+
+    class Agent:
+        def _fast_path_result(self, **kwargs):
+            return dict(kwargs)
+
+    for ask in ('Manage our campaign and publish the approved post to X and LinkedIn',
+                'Check X trends and plan the campaign post around this exact line: `A budget it cannot '
+                'talk its way past.`',
+                'build a content calendar for X and Bluesky and post the first one on X'):
+        assert x_connect_hint.reply_if_not_connected(Agent(), ask, session_id='s', source_context={}) is None, ask
+    for ask in (ASKS[0], 'post a tweet for me saying hello world'):
+        assert x_connect_hint.reply_if_not_connected(Agent(), ask, session_id='s', source_context={}) is not None, ask
+
+
 def test_the_reply_is_in_all_17_catalogs_and_names_the_settings_page_words():
     from core.i18n.catalog import placeholders_of, source_catalog_sha256
     from core.x_connect_hint import X_NOT_CONNECTED_KEY

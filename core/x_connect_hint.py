@@ -177,8 +177,25 @@ def asks_for_x_read(text: str) -> bool:
     return "x" in signals.required_families and not (explicit and explicit <= {"x.action.propose"})
 
 
+def _social_content_turn(text: str) -> bool:
+    """Campaign or content-calendar work: the social content manager owns the turn.
+
+    That skill answers a publish ask with a typed unavailable outcome and copy-ready text, and an X
+    trend ask inside a plan as a separately sourced claim, so the plan, the other platforms and the
+    owner's exact lines are kept. Answering such a turn with the X line alone dropped all of it.
+    """
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        return "social_content" in set(resolve_demand_signals(str(text or "")).required_families)
+    except Exception:
+        return False
+
+
 def reply_if_not_connected(agent: Any, text: str, *, session_id: str, source_context: dict[str, Any] | None):
     """A finished chat result for an X read asked while X is not connected; None otherwise."""
+    if _social_content_turn(text):
+        return None
     reading = asks_for_x_read(text)
     posting = not reading and asks_to_post_on_x(text)
     if not (reading or posting) or x_connected():
