@@ -28,6 +28,7 @@
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Contacts](guides/contacts.md)
+* [X integration](guides/x-integration.md)
 
 ## Reference
 
