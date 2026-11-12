@@ -1373,6 +1373,27 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/pet-cosmetics": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/pet-cosmetics",
+      "note": "yard lane read feed (local inert media choices)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/pet-yard": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/pet-yard",
+      "note": "yard lane read feed (validated local document)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/pet-yard/lifeform": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/pet-yard/lifeform",
+      "note": "yard lane read feed (verified public appearance)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/plugins": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/plugins",
@@ -1713,6 +1734,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /null-browser",
       "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/pet-yard": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /pet-yard",
+      "note": "yard lane local page (offline cosmetic play)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2577,6 +2605,20 @@
       "registry_command_id": "first_run.choice.local_only",
       "surface": "http"
     },
+    "http:POST:/api/pet-cosmetics/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/pet-cosmetics/*",
+      "note": "yard lane operator actions (guarded data-only imports and choices)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/pet-yard": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/pet-yard",
+      "note": "yard lane operator actions (guarded local saves and foreground growth)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/plugins/enable": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/plugins/enable",
@@ -3266,7 +3308,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 317,
+    "EXTERNAL_TRANSPORT_ONLY": 323,
     "GENERATED_ADAPTER": 140,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

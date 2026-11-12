@@ -1,12 +1,12 @@
-"""Original pixel mascots and a moon-gate console for the Dawn Circuit skin."""
+"""Original pixel mascots and a moon-gate console, shared with the local yard."""
 from __future__ import annotations
 
 from core.i18n.catalog import load_catalog_data
+from core.pet_world.anime_art import EXPRESSIONS as EXPRESSIONS
+from core.pet_world.anime_art import MASCOTS as MASCOTS
+from core.pet_world.anime_art import mascot_pixels as mascot_pixels
+from core.pet_world.anime_art import mascot_svg
 from core.toybox import _example
-from core.toybox_anime_art import EXPRESSIONS as EXPRESSIONS
-from core.toybox_anime_art import MASCOTS as MASCOTS
-from core.toybox_anime_art import mascot_pixels as mascot_pixels
-from core.toybox_anime_art import mascot_svg
 
 
 def artwork(identifier, p):

@@ -17,7 +17,6 @@ all reveals queue behind operator invocation; no notifications exist.
 from __future__ import annotations
 
 import hashlib
-import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -97,13 +96,16 @@ def _signing_key() -> bytes:
 
 def _witness_evidence() -> tuple[int, int]:
     """READ-ONLY census of the fact ledger (never written by this feature)."""
+    from core.runtime_continuity import _runtime_db_path
     from storage.db import get_connection
 
-    conn = get_connection()
+    conn = get_connection(_runtime_db_path())
     try:
         row = conn.execute(
             "SELECT COUNT(*) AS n, COUNT(DISTINCT turn_key) AS t "
-            "FROM execution_facts"
+            "FROM execution_facts WHERE ok=1 AND length(trim(fact_id))>0 AND length(trim(turn_key))>0 "
+            "AND lower(status) NOT LIKE '%fail%' AND lower(status) NOT LIKE '%refus%' "
+            "AND lower(status) NOT LIKE '%cancel%'"
         ).fetchone()
     except Exception:
         return 0, 0  # ledger absent: a fresh home, honestly empty
@@ -148,6 +150,13 @@ def _genome_card(doc: dict, state: dict, manifest: str) -> str:
 
 
 def _handle_egg(inp, ctx):
+    from core.pet_world.lifeform_bridge import serialized
+
+    with serialized():
+        return _mint_egg(inp, ctx)
+
+
+def _mint_egg(inp, ctx):
     from core.companion.lifeform import (
         evidence_gate,
         genesis_seed,
@@ -171,7 +180,9 @@ def _handle_egg(inp, ctx):
     seed = genesis_seed(owner, lifeform_id)
     doc = new_lifeform_v1(lifeform_id, owner, seed, _utc_today())
     doc_json = to_json(doc)
-    snapshot = progression.sign_snapshot([], _signing_key(), _SIGNING_KEY_ID, seed)
+    from core.pet_world.lifeform_bridge import signing_key
+
+    snapshot = progression.sign_snapshot([], signing_key(), _SIGNING_KEY_ID, seed)
     lifeform_store.save_lifeform(doc_json, [], snapshot, _utcnow_iso())
     return HandlerOk(
         data={"lifeform_id": lifeform_id, "genesis_seed": seed, "existing": False},
@@ -180,34 +191,22 @@ def _handle_egg(inp, ctx):
 
 
 def _handle_inspect(inp, ctx):
-    from core.companion.lifeform import appearance, progression
-    from core.companion.lifeform.schema import from_json
-    from storage import lifeform_store
+    from core.pet_world.lifeform_bridge import inspect, refresh
 
-    owner = _owner_id()
-    existing = lifeform_store.load_for_owner(owner)
-    if not existing:
+    refresh()
+    result = inspect(full=True)
+    if not result['exists']:
         return HandlerOk(
             data={"exists": False},
             summary="No lifeform on this home yet — run /egg (it mints from "
                     "evidence of real work, never from nothing).")
-    doc = from_json(json.dumps(existing["doc"]))
-    state = progression.reduce_events(existing["event_log"], doc.genesis_seed)
-    genome = state.get("genome") or {}
-    spec = appearance.render_spec(
-        doc, stage=state["stage"], genesis_seed=doc.genesis_seed,
-        archetype=genome.get("archetype"), lineage=genome.get("lineage"),
-        rings=len(doc.lineage.get("growth_rings") or []))
-    manifest = appearance.manifest(spec)
-    ok, problems = (True, [])
-    if existing.get("snapshot"):
-        ok, problems = progression.verify_snapshot(
-            existing["snapshot"], existing["event_log"], {_SIGNING_KEY_ID: _signing_key()},
-            doc.genesis_seed)
-    status_line = "ledger verified" if ok else "snapshot discarded — rebuilt from the log: " + "; ".join(problems)
+    if 'state' not in result:
+        return HandlerOk(data={"verify_ok": False}, summary="Growth record could not be verified. Your saved record is kept.")
+    state, manifest = result['state'], result['manifest']
+    status_line = "ledger verified" if result['verified'] else "growth record could not be verified; showing the last verified appearance"
     return HandlerOk(
-        data={"state": state, "manifest": manifest, "verify_ok": ok},
-        summary=_genome_card({"display_name": doc.display_name, "lineage": doc.lineage},
+        data={"state": state, "manifest": manifest, "verify_ok": result['verified']},
+        summary=_genome_card({"display_name": result['display_name'], "lineage": {"growth_rings": state['growth_rings']}},
                              state, manifest) + f"\n{status_line}")
 
 
@@ -246,7 +245,10 @@ def register(reg: CommandRegistry) -> None:
             description="Inspect your lifeform: stage, genome, growth rings, ledger state",
             aliases=("lifeform",),
             input_schema=_EmptyInput,
-            effects="read_only",
+            effects="idempotent_write",
+            permission=egg_permission,
+            availability=Availability(
+                probe="core.command_registry.groups.lifeform_group:_probe_lifeform_store"),
             handler=Handler("core.command_registry.groups.lifeform_group:_handle_inspect"),
             exit_codes=(0, 2),
         )

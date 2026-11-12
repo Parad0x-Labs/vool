@@ -27,6 +27,10 @@ _ICONS: dict[str, str] = {
         "-1.6-.5-1.2.7-.4 1.6H6.9l-.4-1.6-1.2-.7-1.6.5-1.1-1.9 1.2-1.1V7.3L2.6 6.2l1.1-1.9 1.6.5 1.2-.7z'/>"
     ),
     "report": "<path d='M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z'/>",
+    "paw": (
+        "<ellipse cx='8' cy='10.6' rx='3.2' ry='2.6'/><circle cx='4' cy='6.8' r='1.2'/>"
+        "<circle cx='6.6' cy='4.3' r='1.2'/><circle cx='9.4' cy='4.3' r='1.2'/><circle cx='12' cy='6.8' r='1.2'/>"
+    ),
     "pin": "<path d='M6 2.5h4l-.5 4 2 2h-7l2-2z'/><path d='M8 8.5v5'/>",
     "pin-filled": "<path d='M6 2.5h4l-.5 4 2 2h-7l2-2z' fill='black'/><path d='M8 8.5v5'/>",
     "chevron-left": "<path d='M10 3.5 5.5 8l4.5 4.5'/>",

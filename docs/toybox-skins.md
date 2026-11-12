@@ -80,8 +80,58 @@ header faces mirror the same companion reducer as the other skins; unreviewed co
 stays unknown, and approval or reduced motion stops drawing. The original mascot grammar
 also defines love, joy, surprise, sparring, working, waving and resting expressions.
 Display text uses the installed monospace stack, with native fallbacks for other scripts;
+the artwork itself is authored on a 48-square grid with crisp SVG edges.
+
+## Pet Yard and personal companions
+
+Open **Pet Yard** from the chat's Home menu or Settings → Toybox. The Yard is a built-in local page: the native skill loader carries instructions and tool contracts, and does not host application pages.
+
+Choose up to four roster or imported pets, plus the home's own lifeform. Click a tile, use arrow keys, or use the on-screen direction buttons. Shift-drag pans the camera; touch dragging pans, and a tap chooses a destination. Zoom uses integer steps. In build modes, arrow keys move the tile cursor and Enter places the selected block or decoration. Erase removes decorations before blocks. Unsupported placements leave the current Yard intact. Undo and redo retain up to 100 edits. Save is explicit; reload warns about unsaved work. A stale save is refused rather than overwriting another window.
+
+Click a pet for a reaction; a nearby pointer can draw it into a brief follow. Roster sprites use a 2× pixel scale, cached at their authored 48-pixel resolution. Selected skins theme the Yard chrome; the block materials retain their own colors.
+
+The 24 by 24 Yard supports eight block levels, sixteen block materials and twenty original decorations. Everything is already free. Fetch follows a reachable path out and back. Race uses a connected, unbranched track of at least two tiles and a fixed seed; one participant is a time trial. Dig selects an existing finished decoration and opens its palette. Games never write work facts or growth events. Reduced motion removes autonomous movement and makes travel immediate. Hidden or unfocused pages stop their animation and polling loops.
+
+**Pets and sounds** in Toybox imports a `.voolpet` or JSON pack after validation and an artwork/author preview. Importing does not select the pet or enable audio. Choose a built-in or imported companion and save to use it in web chat. Current companion follows the existing character picker; another Toybox choice overrides that picker in web chat. The same custom library supplies the Yard roster. The detached desktop pet keeps its existing roster.
+
+Sounds start off. Enable them and save, then use a pointer or key gesture to unlock playback. Original short bright and deep adult voices are included in English, Japanese and Chinese. Each pet can assign a reaction and clip for a lifecycle state or a work category. A verified completion may celebrate; an unverified completion remains unknown. Unknown, failed and cancelled states cannot be assigned a success expression. Automatic voices play briefly, at most one at a time with a four-second cooldown. Hidden pages stop playback. There are no runtime speech-provider calls.
+
+User WAV or MP3 clips must be at most five seconds and two channels; the browser decodes and resamples them to mono 24 kHz PCM WAV. The server independently validates, bounds and attenuates the samples. Failed imports keep prior choices. Media is served from the local runtime by its content hash. Damaged assets give a neutral fallback; they are never executed. Removing a pet still used by the saved Yard is refused. Remove it from the Yard, save, then remove it from the library.
+
+### Create a pet
+
+The native `create-pet` skill uses existing permissioned workspace and sandbox tools to draw original rectangle art, run the pack builder and provide a preview. It grants no additional permissions. The builder is also available directly:
+
+```sh
+python -m core.pet_cosmetics_creator --workspace . --source drawing.json --output moon-moth.voolpet
+```
+
+The source contains `id`, `name`, `author`, `license`, `description`, `palette`, `base`, `states`, and `bindings`. Palette values use `#RRGGBBAA`. Rectangles are `[x,y,width,height,palette_id]` inside a 48 by 48 canvas. `base` has up to 128 rectangles. Every state contains one to eight frames, each containing up to 128 overlay rectangles. The builder refuses paths outside the workspace and existing outputs. It writes an importable pack and PNG contact sheet, then validates the pack through the same importer. This workflow repeats its poses for front, left and right; directional artists can supply distinct atlas indices in a pack.
+
+### Pack contract
+
+A pack has exactly these top-level fields:
+
+```json
+{
+  "schema": "vool.pet.v1", "version": 1,
+  "id": "moon-moth", "name": "Moon Moth", "author": "sls_0x",
+  "license": "CC0-1.0", "description": "An original moon moth",
+  "atlas": {"cell": 48, "png": "base64 PNG bytes"},
+  "frames": {}, "clips": {}, "bindings": {}
+}
+```
+
+`frames` requires idle, starting, thinking, tool, waiting, approval, success, failure, cancelled, unknown and retry. Each maps to `{front:[indices],left:[indices],right:[indices]}` with one to eight indices per direction. Optional expressions are love, happy, surprise, spar, nap, work and wave. Indices address 48-pixel cells in row order. PNG dimensions must be cell multiples, at most 16 columns and 32 rows, and at most one million pixels. The PNG is decoded and rewritten without metadata.
+
+Up to sixteen named `clips` contain `{name,wav}` with base64 mono 24 kHz PCM16 WAV. `bindings` maps lifecycle states, read/search/code/test/git/run, or the four emotes to `{expression,sound}`. In a pack, `sound` is a local clip identifier or an empty string. Toybox assignments additionally offer bundled voices and standalone imports. No URLs, scripts, CSS or executable files are supported. Pack JSON is bounded to four MiB, with the HTTP transport's four-MiB envelope still applying. The library holds up to sixteen pets, thirty-two standalone sounds and thirty-two MiB of media.
+
+### Growth boundaries
+
+The egg gate counts successful facts and distinct turn keys. Growth is checked in a foreground operation when the Yard opens, when Continue is chosen, or through `/lifeform`. Read-only appearance requests never feed growth. Facts before birth, failed/refused/cancelled facts, future timestamps and replayed facts give no credit. The existing kernel owns caps, event reduction, stages and signatures. The bridge verifies the chain and canonical stage before appending and never writes execution tables. A damaged record stays intact; a separately verified prior appearance is shown when available. Restoring an old valid local backup cannot be detected by this local scheme.
 
 The Dawn Circuit display role embeds the unmodified Silkscreen Regular pixel font offline
 ([upstream source and OFL licence](https://github.com/google/fonts/tree/main/ofl/silkscreen)).
-The licence text is embedded alongside the font bytes in `core/toybox_font.py`, so an installed
-package keeps it. CJK and other unsupported glyphs fall back to the local system stack.
+The licence text ships in `core/pet_world/licenses/silkscreen-OFL.txt` and is embedded alongside
+the font bytes in `core/toybox_font.py`, so an installed package keeps it. CJK and other unsupported
+glyphs fall back to the local system stack; a complete CJK bitmap font is not bundled.

@@ -390,6 +390,7 @@ window.VoolStage={
    if(mapped==='success'&&!completedViews.has(view)){completedViews.add(view);leafCount++;root.style.setProperty('--tb-leaves',Math.min(leafCount,24));}
    else if(state!=='PASS')completedViews.delete(view);
    if(state==='MIDDLE')mapped=['RUNNING_TOOLS','READING_FILES','APPLYING_CHANGES','GIT_INSPECTION','TESTING_CI','WEB_RESEARCH'].includes(resolved.category)?'tool':resolved.category==='WAITING_QUEUED'?'waiting':'thinking';
+   window.VoolPetCosmetics?.activity(mapped,chatId,resolved.category);
    const now=performance.now();
    const active=streaming&&!['approval','waiting','success','failure','cancelled','unknown'].includes(mapped);
    activity(active?'streaming':mapped,active?Math.min(1,100/Math.max(20,now-chunkAt)):0);chunkAt=now;
