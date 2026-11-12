@@ -151,7 +151,7 @@ _WALLET_SEC_SPECS: tuple[SecSpec, ...] = (
     SecSpec(sec_code=SEC_WALLET_LEGACY_SURFACE_RETIRED, fault_code="wallet_legacy_surface_retired", severity="high", resource_class="payment",
             source="core.wallet.authority", summary="A retired money surface was called and refused; the canonical wallet lifecycle is the only path."),
     SecSpec(sec_code=SEC_WALLET_EXPORT_REFUSED, fault_code="wallet_export_refused", severity="high", resource_class="wallet_key",
-            source="core.wallet.authority", summary="A private-key export was refused; no export door exists."),
+            source="core.wallet.authority", summary="A private-key export through a retired path was refused; nothing was revealed."),
     SecSpec(sec_code=SEC_WALLET_CHAIN_IDENTITY_MISMATCH, fault_code="wallet_chain_identity_mismatch", severity="high", resource_class="payment",
             source="core.wallet.chains", summary="A chain endpoint did not prove the network identity it claimed; nothing was signed or sent."),
     SecSpec(sec_code=SEC_WALLET_OUTBOUND_REFUSED, fault_code="wallet_outbound_refused", severity="high", resource_class="payment",

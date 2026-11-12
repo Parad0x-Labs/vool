@@ -36,7 +36,7 @@
     },
     {
       "key": "fault.evm_pocket_custody_unavailable.message",
-      "english": "A VOOL Wallet holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For that network, create a Crypto Pilot wallet, add the account watch-only, or connect your own EVM wallet.",
+      "english": "A legacy pocket, the phrase-based wallet, holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For an EVM network, create a VOOL Wallet on that network in Settings, Crypto, add the account watch-only, or connect your own EVM wallet.",
       "parameters": [],
       "context": "Shown when the failure classified as 'evm_pocket_custody_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
@@ -168,7 +168,7 @@
     },
     {
       "key": "fault.wallet_disabled.message",
-      "english": "The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again.",
+      "english": "The wallet is switched off, so no payment was proposed or sent. Turn on Enable Crypto in Settings, Crypto, then try again.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_disabled' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
@@ -192,13 +192,13 @@
     },
     {
       "key": "fault.wallet_export_refused.message",
-      "english": "Private keys are never exported by this runtime. The recovery phrase is shown once at creation and nowhere else. Nothing was revealed.",
+      "english": "That way of exporting a private key is retired, so nothing was revealed. A wallet that allows export has an Export private key button in Settings, Crypto, which opens only with Touch ID or your Mac password.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_export_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
       "key": "fault.wallet_export_unavailable.message",
-      "english": "This wallet cannot be exported that way: it is watch-only or holds no key on this machine, it is a Crypto Pilot whose backup was shown once at setup, VOOL does not export to the wallet app you chose, or it is an older wallet that must be restored before it exports to MetaMask. Nothing was revealed.",
+      "english": "This wallet cannot be exported that way: it is watch-only or holds no key on this machine, its one backup was shown at setup and it never exports, VOOL does not export to the wallet app you chose, or it is a legacy pocket from an earlier version that must be restored from its recovery phrase before it exports to MetaMask. Nothing was revealed.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_export_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },

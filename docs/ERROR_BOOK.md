@@ -7,7 +7,7 @@ messages and next steps below are exactly what the app shows.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `51f048b82009b55258f8b61bcca8484aec6cb1286345adb831d9ad5b601f8fb3`
+- **Catalog digest:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
 - **Fault count:** 58
 
 Each code is stable and never reused for a different meaning. Every code has its own
@@ -30,7 +30,7 @@ VOOL: check which version showed it, or report it with the code as written.
 | [`wallet_chain_identity_mismatch`](#wallet-chain-identity-mismatch) | Chain endpoint identity unproven | high | A request reached an external service; no payment moved |
 | [`wallet_environment_inactive`](#wallet-environment-inactive) | Wrong network environment | medium | Nothing was sent, signed or changed |
 | [`wallet_export_pin_not_accepted`](#wallet-export-pin-not-accepted) | Export unlocks only by device authentication | high | Nothing was sent, signed or changed |
-| [`wallet_export_refused`](#wallet-export-refused) | Private key export refused | high | Nothing was sent, signed or changed |
+| [`wallet_export_refused`](#wallet-export-refused) | Old export path retired | high | Nothing was sent, signed or changed |
 | [`wallet_export_unavailable`](#wallet-export-unavailable) | Export unavailable for this wallet | high | Nothing was sent, signed or changed |
 | [`wallet_legacy_surface_retired`](#wallet-legacy-surface-retired) | Legacy money path retired | high | Nothing was sent, signed or changed |
 | [`wallet_network_disabled`](#wallet-network-disabled) | Network not declared for this wallet | high | Nothing was sent, signed or changed |
@@ -53,7 +53,7 @@ VOOL: check which version showed it, or report it with the code as written.
 
 | Code | Title | Severity | What may already have happened |
 |---|---|---|---|
-| [`evm_pocket_custody_unavailable`](#evm-pocket-custody-unavailable) | VOOL Wallet is Solana only | low | Nothing was sent, signed or changed |
+| [`evm_pocket_custody_unavailable`](#evm-pocket-custody-unavailable) | Legacy pocket is Solana only | low | Nothing was sent, signed or changed |
 | [`permission_denied`](#permission-denied) | Permission denied | medium | Nothing was sent, signed or changed |
 | [`wallet_acknowledgement_required`](#wallet-acknowledgement-required) | Acknowledgement required | low | Nothing was sent, signed or changed |
 | [`wallet_amount_invalid`](#wallet-amount-invalid) | Amount not exact for this coin | low | Nothing was sent, signed or changed |
@@ -162,11 +162,11 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 ### evm_pocket_custody_unavailable
 
-**VOOL Wallet is Solana only**
+**Legacy pocket is Solana only**
 
-- **What happened:** A VOOL Wallet holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For that network, create a Crypto Pilot wallet, add the account watch-only, or connect your own EVM wallet.
+- **What happened:** A legacy pocket, the phrase-based wallet, holds only a Solana key, so it cannot be created or restored on an EVM network. Nothing was created. For an EVM network, create a VOOL Wallet on that network in Settings, Crypto, add the account watch-only, or connect your own EVM wallet.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** The older VOOL Wallet seals one Solana seed. On an EVM network, use a Crypto Pilot wallet sealed on this device, a watch-only account, or an external EVM wallet (EIP-1193) that keeps its own key.
+- **What to do next:** The legacy pocket seals one Solana seed from its recovery phrase. On an EVM network, use a Crypto Pilot wallet (Create wallet on that network in Settings, Crypto, Networks and wallets), a watch-only account, or an external EVM wallet (EIP-1193) that keeps its own key.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** low · **Category:** policy
 
@@ -322,7 +322,7 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 - **What happened:** The payment could not be broadcast. Check its status before retrying.
 - **What may already have happened:** Outcome unknown — check state before retrying
-- **What to do next:** Check the test-network RPC and the proposal's receipt; the spend was not recorded as sent.
+- **What to do next:** Check the network's RPC endpoint and the proposal's receipt; the spend was not recorded as sent.
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
 
@@ -428,9 +428,9 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 **Wallet is switched off**
 
-- **What happened:** The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again.
+- **What happened:** The wallet is switched off, so no payment was proposed or sent. Turn on Enable Crypto in Settings, Crypto, then try again.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Enable the wallet explicitly (VOOL_WALLET_ENABLED=1) only if payments are wanted on this install.
+- **What to do next:** Turn on Enable Crypto in Settings, Crypto only if you want payments on this install. When the VOOL_WALLET_ENABLED variable is set, it turns the wallet on or off whatever the switch says.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
@@ -474,11 +474,11 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 ### wallet_export_refused
 
-**Private key export refused**
+**Old export path retired**
 
-- **What happened:** Private keys are never exported by this runtime. The recovery phrase is shown once at creation and nowhere else. Nothing was revealed.
+- **What happened:** That way of exporting a private key is retired, so nothing was revealed. A wallet that allows export has an Export private key button in Settings, Crypto, which opens only with Touch ID or your Mac password.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Recover a VOOL Wallet from the phrase written down at creation; there is no export door to enable.
+- **What to do next:** Use Export private key in Settings, Crypto, Other accounts: only a legacy pocket exports, and only with Touch ID or the Mac password. A Crypto Pilot wallet never exports; it recovers from the backup shown at setup.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
@@ -488,9 +488,9 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 **Export unavailable for this wallet**
 
-- **What happened:** This wallet cannot be exported that way: it is watch-only or holds no key on this machine, it is a Crypto Pilot whose backup was shown once at setup, VOOL does not export to the wallet app you chose, or it is an older wallet that must be restored before it exports to MetaMask. Nothing was revealed.
+- **What happened:** This wallet cannot be exported that way: it is watch-only or holds no key on this machine, its one backup was shown at setup and it never exports, VOOL does not export to the wallet app you chose, or it is a legacy pocket from an earlier version that must be restored from its recovery phrase before it exports to MetaMask. Nothing was revealed.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Export works only for a VOOL Wallet sealed on this machine, to Phantom or MetaMask. A Crypto Pilot recovers from the backup shown at setup. An older wallet exports to MetaMask after it is restored from its recovery phrase.
+- **What to do next:** Only a legacy pocket sealed on this machine exports, to Phantom or MetaMask, and only with Touch ID or the Mac password. A Crypto Pilot wallet recovers from the backup shown at setup. A legacy pocket from an earlier version exports to MetaMask after it is restored from its recovery phrase.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
@@ -730,7 +730,7 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 - **What happened:** This wallet cannot sign from here: it is watch-only or its external signer is not connected. Nothing was sent; connect a signer, then try again.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Connect the external wallet, or create a VOOL Wallet after reading its warning.
+- **What to do next:** Connect the external wallet, or create a VOOL Wallet on that network in Settings, Crypto.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
 
@@ -742,7 +742,7 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 - **What happened:** The payment did not pass simulation, so it was not sent. Check the balance and destination, then try again.
 - **What may already have happened:** A request reached an external service; no payment moved
-- **What to do next:** Check the balance, the destination and the test-network RPC, then propose again.
+- **What to do next:** Check the balance, the destination and the network's RPC endpoint, then propose again.
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
 
