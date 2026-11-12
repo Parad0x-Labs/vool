@@ -229,6 +229,9 @@ INTENT_ONLY_KINDS = frozenset(
         "list_tools", "inspect_services", "inspect_disk_usage", "cleanup_temp_files", "list_reminders",
         "cancel_reminder", "complete_reminder", "edit_reminder", "list_calendars", "search_calendar_event",
         "archive_note", "restore_note", "show_note",
+        # The folder-create lane: the parser sets the name, the place, the approval and the id; the
+        # handler (core.operator.handlers.handle_make_directory) reads only those fields.
+        "make_directory",
     }
 )
 

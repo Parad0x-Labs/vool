@@ -88,6 +88,8 @@ def dispatch_operator_action(
         return _handle_cleanup_temp_files(intent, task_id=task_id, session_id=session_id)
     if intent.kind == "move_path":
         return _handle_move_path(intent, task_id=task_id, session_id=session_id)
+    if intent.kind == "make_directory":
+        return _handle_make_directory(intent, task_id=task_id, session_id=session_id)
     if intent.kind == "schedule_calendar_event":
         # An approval id that names a PROVIDER proposal/update/cancel belongs to that lane;
         # only ids with no provider row fall through to the local .ics draft handler. An
@@ -309,6 +311,84 @@ def _handle_move_path(
     )
 
 
+def _folder_target(place: str, name: str) -> Path:
+    """The folder a make_directory ask names: exactly ``<home>/<place>/<name>``, or ValueError in plain words.
+
+    The operator lane's own authority (the move lane's class of guard, not the generic machine-tool
+    one): the target is CONSTRUCTED inside the owner's own home root from a place on the fixed
+    root list and a name with no path separators, then verified to have stayed there; the denied
+    paths list and this runtime's own state directories refuse it. The generic tool authority's
+    protected-state probe also covers the active database's parent directory, which on the test
+    rig (and any runtime that keeps its database beside the person's folders) is an ancestor of
+    the person's own home -- there it would refuse every owner-local folder, so it is not the
+    authority this lane resolves through.
+    """
+    roots = {"Desktop": "Desktop", "Downloads": "Downloads", "Documents": "Documents"}
+    root = roots.get(str(place or ""))
+    clean_name = str(name or "").strip(" '\"")
+    if root is None or not clean_name:
+        raise ValueError("Tell me the folder's name and where it belongs (Desktop, Downloads, or Documents).")
+    if re.search(r"[/\\\x00]", clean_name) or clean_name in {".", ".."} or clean_name.startswith("."):
+        raise ValueError(f"I won't use \"{name}\" as a folder name: it is not a plain folder name.")
+    home = Path.home().resolve()
+    outside = f"I can only set a folder up inside your own Desktop, Downloads, or Documents, not \"{name}\"."
+    # Every check reads the real place: a Desktop that is a link elsewhere (into this runtime's own state, or
+    # anywhere outside the home) is followed first, and both the root and the folder must stay in the home.
+    root_dir = (home / root).resolve()
+    if root_dir == home or not str(root_dir).startswith(str(home) + os.sep):
+        raise ValueError(outside)
+    unresolved = root_dir / clean_name
+    if unresolved.is_symlink():
+        raise ValueError(f"I won't use \"{name}\": something with that name is already there and points elsewhere.")
+    resolved = unresolved.resolve()
+    if resolved.parent != root_dir or not str(resolved).startswith(str(root_dir) + os.sep):
+        raise ValueError(outside)
+    if _path_is_denied(resolved):
+        raise ValueError(f"I won't create folders at \"{_home_label(resolved)}\": that path is on this computer's denied list.")
+    from core import runtime_paths
+
+    for state_root in (runtime_paths.active_data_dir(), runtime_paths.active_config_home_dir()):
+        try:
+            state_form = Path(state_root).resolve()
+        except Exception:
+            continue
+        if str(resolved).startswith(str(state_form) + os.sep) or str(state_form).startswith(str(resolved) + os.sep):
+            raise ValueError(
+                f"{_home_label(resolved)} is this runtime's own state, so I won't put a person's folder there; nothing was touched."
+            )
+    return resolved
+
+
+def _handle_make_directory(
+    intent: OperatorActionIntent,
+    *,
+    task_id: str,
+    session_id: str,
+) -> OperatorActionResult:
+    def _resolve(previewed_path: str, write: bool = True) -> Path:
+        # The preview stored the exact target; the same authority re-resolves it at execution time.
+        scope_place = ""
+        scope_name = ""
+        candidate = Path(str(previewed_path or ""))
+        if candidate.name and candidate.parent.name in {"Desktop", "Downloads", "Documents"}:
+            scope_place = candidate.parent.name
+            scope_name = candidate.name
+        return _folder_target(scope_place, scope_name)
+
+    return operator_handlers.handle_make_directory(
+        intent,
+        task_id=task_id,
+        session_id=session_id,
+        load_pending_action_fn=_load_pending_action,
+        create_pending_action_fn=_create_pending_action,
+        mark_action_executed_fn=_mark_action_executed,
+        evaluate_local_action_fn=ExecutionGate.evaluate_local_action,
+        resolve_machine_directory_fn=lambda raw, write=True: _resolve(raw),
+        home_label_fn=_home_label,
+        audit_log_fn=audit_logger.log,
+    )
+
+
 def resolve_everyday_move(text: str) -> dict[str, str] | str | None:
     """The one file "move the cat photo from Pictures to my Desktop" means, as a move request.
 
@@ -385,18 +465,46 @@ def _home_label(path: Path) -> str:
 
 
 _BARE_GO_AHEAD = frozenset({"ok", "okay", "sure", "yes move it", "move it", "ok move it", "yes go", "yep", "yeah", "y"})
-_OFFERED_MOVE_RE = re.compile(r"Reply with: approve move (?P<id>[0-9a-f][0-9a-f\-]{7,63})\s*$", re.IGNORECASE)
+# The approval line each staged preview ends with, and the staged kind it belongs to.
+_OFFERED_PREVIEW_KINDS = (
+    ("move_path", re.compile(r"Reply with: approve move (?P<id>[0-9a-f][0-9a-f\-]{7,63})\s*$", re.IGNORECASE),
+     "Move preview ready.", "move"),
+    ("make_directory", re.compile(r"Reply with: approve folder (?P<id>[0-9a-f][0-9a-f\-]{7,63})\s*$", re.IGNORECASE),
+     "Folder preview ready.", "folder"),
+)
+
+
+def _served_last_assistant_text(session_id: str) -> str:
+    """The last reply THIS server showed this chat, from its own dialogue record.
+
+    A client that sends no conversation history of its own still answers a preview this server
+    showed in the same chat; the served store (dialogue_turns, speaker_role="assistant") is the
+    record of that preview. Read-only, and only the text — every approval condition (pending in
+    this chat, offered recently, preview-shaped) is still checked by the caller.
+    """
+    try:
+        from storage.dialogue_memory import recent_dialogue_turns
+
+        rows = recent_dialogue_turns(str(session_id or ""), speaker_roles=("assistant",), limit=1)
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    return str(rows[0].get("raw_input") or rows[0].get("normalized_input") or "").strip()
 
 
 def approval_the_answer_offered(
     text: str, *, session_id: str, source_context: dict[str, Any] | None = None
 ) -> OperatorActionIntent | None:
-    """A bare "yes please" right after the move preview this chat just showed approves THAT move.
+    """A bare "yes please" right after the preview this chat just showed approves THAT staged action.
 
     Measured in the 2026-10-27 audit: the person answered the preview with "yes please" and nothing moved, because
     only "approve move <id>" was read. Only a whole message that is a go-ahead counts, only when the answer the chat shows
-    last is a move preview ending in its approval line, and only while that action is still
+    last is a staged preview ending in its approval line, and only while that action is still
     pending in this chat and was offered in the last 15 minutes; anything else is not an approval.
+    When the client sent no conversation history at all, the record of what this server itself
+    showed in this chat (the served dialogue store) stands in as that answer — the same conditions
+    are checked against it.
     """
     from core.agent_runtime.proceed_intent_support import _PROCEED_PATTERNS
 
@@ -415,15 +523,19 @@ def approval_the_answer_offered(
         history = history[:-1]  # the window may send this very message along
     last = history[-1] if history else {}
     answer = str(last.get("content") or "").strip() if last.get("role") == "assistant" else ""
-    offered = _OFFERED_MOVE_RE.search(answer)
-    if offered is None or not answer.startswith("Move preview ready."):
-        return None
-    action_id = offered.group("id")
-    pending = _load_pending_action(session_id=session_id, action_kind="move_path", action_id=action_id)
-    if pending is None or not _offered_recently(pending):
-        return None
-    return OperatorActionIntent(kind="move_path", approval_requested=True, action_id=action_id,
-                                raw_text=f"approve move {action_id}")
+    if not answer and not history:
+        answer = _served_last_assistant_text(session_id)
+    for kind, offered_re, preview_prefix, word in _OFFERED_PREVIEW_KINDS:
+        offered = offered_re.search(answer)
+        if offered is None or not answer.startswith(preview_prefix):
+            continue
+        action_id = offered.group("id")
+        pending = _load_pending_action(session_id=session_id, action_kind=kind, action_id=action_id)
+        if pending is None or not _offered_recently(pending):
+            return None
+        return OperatorActionIntent(kind=kind, approval_requested=True, action_id=action_id,
+                                    raw_text=f"approve {word} {action_id}")
+    return None
 
 
 def _offered_recently(pending: dict[str, Any], *, minutes: int = 15) -> bool:

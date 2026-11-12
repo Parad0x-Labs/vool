@@ -6,10 +6,10 @@ while VOOL's runtime home stays a different directory. Each test pins LANE OWNER
 on-disk / on-state outcome, never one canned reply string keyed to the visible wording.
 
 Ported to v0.8 from fastpath-capture-tests 987722a8. Two defects that suite pinned as strict
-xfails are fixed on v0.8 (the slow-laptop temp cleanup reaches the cleanup lane; "switch on web
-search" no longer pretends a web check), so those tests now run as plain tests. Two stay strict
-xfails because v0.8 still has them, the same as the 0.7.7 train head: moving a photo from
-Pictures to the Desktop, and making a folder on the Desktop from "set up a folder called ...".
+xfails were already fixed on v0.8 (the slow-laptop temp cleanup reaches the cleanup lane; "switch
+on web search" no longer pretends a web check). The other two (moving a photo from Pictures to the
+Desktop, and making a folder on the Desktop from "set up a folder called ...") are fixed by
+desktop-files-077 (29406722), so every test here runs as a plain test.
 """
 from __future__ import annotations
 
@@ -97,10 +97,6 @@ def test_slow_laptop_temp_cleanup_ask_reaches_cleanup_lane_not_governor(person_e
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="defect: 'move the cat photo from Pictures to my Desktop' is refused by the write guard as an unresolvable target; no move is ever staged, so the two-turn approval cannot complete",
-)
 def test_move_photo_two_turn_approval_completes_inside_home(person_env, monkeypatch):
     env = person_env
     photo = env["person_home"] / "Pictures" / "cat.jpg"
@@ -124,10 +120,6 @@ def test_move_photo_two_turn_approval_completes_inside_home(person_env, monkeypa
     assert "bounded local write lane" not in lowered2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="defect: 'set up a folder called Invoices on my desktop' ends in a toolless model reply; no folder is created anywhere",
-)
 def test_invoices_folder_created_on_person_desktop_never_in_vool_home(person_env, monkeypatch):
     env = person_env
     bind_person_home(monkeypatch, env)
@@ -211,3 +203,72 @@ def test_new_emails_ask_with_model_lane_down_is_never_the_well_known_answer_text
         # not prose about email in general.
         lowered = text.lower()
         assert any(word in lowered for word in ("mailbox", "inbox", "email account", "email"))
+
+
+def _drive_yes_and_finish(agent, env, first_reply: str):
+    if _pending_operator_action_count() > 0 or "reply with" in first_reply.lower():
+        return turn(agent, "yes please", session="person-chat")
+    return None
+
+
+@pytest.mark.parametrize(
+    "ask,seed_room,seed_name,expect_room,expect_name",
+    [
+        # Fresh wordings of the same two families (a move between the person's own folders,
+        # a new folder on one of the person's own roots): none of the sentences the defects
+        # were written from, same on-disk contract.
+        ("can you move the receipt scan from Downloads to Documents?",
+         "Downloads", "receipt-scan.pdf", "Documents", "receipt-scan.pdf"),
+        ("move the holiday pic from Pictures to Downloads",
+         "Pictures", "holiday-pic.png", "Downloads", "holiday-pic.png"),
+        ("please set up a folder named Projects on the desktop",
+         None, None, "Desktop", "Projects"),
+        ("can you make a folder called Receipts in my Documents?",
+         None, None, "Documents", "Receipts"),
+    ],
+)
+def test_fresh_wordings_complete_inside_the_person_home(
+    person_env, monkeypatch, ask, seed_room, seed_name, expect_room, expect_name
+):
+    env = person_env
+    seeded = None
+    if seed_room:
+        seeded = env["person_home"] / seed_room / seed_name
+        seeded.write_bytes(b"seeded-bytes")
+    bind_person_home(monkeypatch, env)
+    agent = make_agent()
+
+    first = turn(agent, ask)
+    second = _drive_yes_and_finish(agent, env, reply(first))
+    text2 = reply(second) if second is not None else ""
+
+    expected = env["person_home"] / expect_room / expect_name
+    assert expected.exists(), f"{expect_name} must land at {expect_room}: {reply(first)!r} {text2!r}"
+    if seeded is not None:
+        assert not seeded.exists(), f"{seed_name} must leave {seed_room}"
+    else:
+        assert expected.is_dir(), "the ask ends in a real folder on disk"
+        assert not list(Path(env["home"]).rglob(expect_name)), "never inside VOOL's own runtime home"
+    combined = (reply(first) + " " + text2).lower()
+    assert _MODEL_UNAVAILABLE not in combined
+    assert "bounded local write lane" not in combined
+
+
+def test_move_into_system_or_another_users_home_is_refused(person_env, monkeypatch):
+    env = person_env
+    photo = env["person_home"] / "Pictures" / "cat.jpg"
+    photo.write_bytes(b"cat-photo-bytes")
+    bind_person_home(monkeypatch, env)
+    agent = make_agent()
+
+    for destination in ("/System/Library", "/Users/somebodyelse/Desktop"):
+        before = _pending_operator_action_count()
+        result = turn(agent, f'move "~/Pictures/cat.jpg" to "{destination}"')
+        text = reply(result)
+
+        # Nothing moved, nothing staged, and the person is told the refusal in plain words.
+        assert photo.exists(), "the photo must stay in Pictures"
+        assert _pending_operator_action_count() == before, "no move may be staged for approval"
+        lowered = text.lower()
+        assert "move finished" not in lowered
+        assert "won't move" in lowered or "can't move" in lowered or "nothing was moved" in lowered

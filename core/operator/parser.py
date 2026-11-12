@@ -581,10 +581,14 @@ _APPROVAL_WORDS_RE = re.compile(
 )
 _APPROVE_WORD_RE = re.compile(r"\bapprove\b", re.IGNORECASE)
 _APPROVAL_ID_RE = re.compile(
-    r"\b(?:approve|cleanup|clean|schedule|calendar|meeting|move|archive)\s+([0-9a-f]{8}-[0-9a-f-]{27,})\b",
+    r"\b(?:approve|cleanup|clean|schedule|calendar|meeting|move|archive|folder)\s+([0-9a-f]{8}-[0-9a-f-]{27,})\b",
     re.IGNORECASE,
 )
 _MOVE_WORD_RE = re.compile(r"\b(?:move|relocate|archive)\b", re.IGNORECASE)
+# The folder noun, as the approval arm's action word: "approve folder <id>" approves, "don't approve folder <id>" does not.
+_FOLDER_NOUN_RE = re.compile(r"\bfolder\b", re.IGNORECASE)
+# The kind word of the folder preview's own approval line ('approve folder <id>'), right before the id.
+_FOLDER_BEFORE_ID_RE = re.compile(r"\bfolder\s+(?=[0-9a-f]{8}-[0-9a-f-]{27,}\b)", re.IGNORECASE)
 # "move the cat photo from Pictures to my Desktop": a file the owner names or describes, between two of their own
 # folders. The handler finds the one file (core.local_operator_actions.resolve_everyday_move) and previews the move.
 EVERYDAY_MOVE_RE = re.compile(
@@ -596,6 +600,25 @@ EVERYDAY_MOVE_RE = re.compile(
     re.IGNORECASE,
 )
 _QUOTED_PATH_RE = re.compile(r"""["']([^"']+)["']""")
+# "set up a folder called Invoices on my desktop", "make a Taxes 2026 folder in Documents": one new
+# folder on one of the owner's own home roots, named in everyday words. Two name shapes (after a
+# "called/named" connector, or between the verb and the folder noun); the PLACE is required —
+# without one of the owner's own roots named there is no safe target and this lane stays out
+# (nothing is ever created in VOOL's own runtime home). The handler
+# (core.operator.handlers.handle_make_directory) resolves the exact path through the machine write
+# authority, previews it, and asks first.
+_EVERYDAY_FOLDER_VERB_RE = r"(?:set\s+up|setup|set\-up|make|create|new)"
+_EVERYDAY_FOLDER_PLACE_RE = r"(?P<place>desktop|downloads|documents|docs)"
+EVERYDAY_MAKE_FOLDER_RE = re.compile(
+    rf"\b{_EVERYDAY_FOLDER_VERB_RE}\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:new\s+)?"
+    rf"(?:"
+    rf"(?:folder|directory)\s+(?:called|named|titled)\s+[\"']?(?P<name_after>[A-Za-z0-9][\w'’ \-]*?)[\"']?"
+    rf"|"
+    rf"[\"']?(?P<name_before>[A-Za-z0-9][\w'’ \-]*?)[\"']?\s+(?:new\s+)?(?:folder|directory)"
+    rf")"
+    rf"\s+(?:on|in|under|inside|within|onto|into)\s+(?:my\s+|the\s+|our\s+|your\s+)?{_EVERYDAY_FOLDER_PLACE_RE}\b",
+    re.IGNORECASE,
+)
 _WINDOWS_PATH_RE = re.compile(r"\b([A-Za-z]:\\[^\n\r\"']*)")
 _POSIX_PATH_RE = re.compile(r"\b(?:in|on|under|at)\s+(/[^?\n\r]+)")
 _SPACE_WORD_RE = re.compile(r"\bspace\b")
@@ -859,6 +882,23 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             raw_text=text,
         )
 
+    everyday_folder = _everyday_make_folder(text)
+    # The approval the folder preview itself offers is 'approve folder <id>'. Read as words, "approve folder"
+    # names a folder called "approve" and the approve word is masked as that value, so the approval is read on
+    # the line with the kind word before the id dropped: "approve <id>" approves, "don't approve <id>" does not.
+    folder_approval_text = _FOLDER_BEFORE_ID_RE.sub("", text) if action_id else text
+    if everyday_folder is not None or (
+        action_id and "folder" in lowered and _says_approve(folder_approval_text)
+    ):
+        return OperatorActionIntent(
+            kind="make_directory",
+            target_label=(everyday_folder or {}).get("name"),
+            destination_path=(everyday_folder or {}).get("place"),
+            approval_requested=_approval_requested(folder_approval_text, action=_FOLDER_NOUN_RE),
+            action_id=action_id,
+            raw_text=text,
+        )
+
     if (target_path and _MOVE_WORD_RE.search(lowered)) or (
         action_id and any(token in lowered for token in ("move", "archive")) and _says_approve(text)
     ) or (not target_path and not action_id and _everyday_move(text)):
@@ -941,6 +981,46 @@ def _everyday_move(text: str) -> bool:
     if rest and re.search(r"\b(?:and|then|also|after|but)\b|[,;]", rest, re.IGNORECASE):
         return False
     return not re.search(r"\b(?:don'?t|do\s+not|never)\b", text, re.IGNORECASE)
+
+
+def _everyday_make_folder(text: str) -> dict[str, str] | None:
+    """A request to make ONE new folder on one of the owner's own home roots, and nothing else in the message.
+
+    Returns ``{"name", "place"}`` (place is Desktop/Downloads/Documents in root-label case) or ``None``. Not a
+    how-to, not a question about a folder that was or is being made (the created-folder question law the
+    directory-create planners already follow), not a request that also moves or deletes anything, never a folder
+    with no owner-root place named, and never a name that is a path.
+    """
+    from core.execution.constants import _DIRECTORY_CREATE_QUESTION_RE
+    from core.instructional_request import asks_for_instructions_not_execution
+
+    if re.search(r"\b(?:move|archive|delete|remove|rename|empty|wipe)\b", text, re.IGNORECASE):
+        return None
+    if _DIRECTORY_CREATE_QUESTION_RE.search(text) or asks_for_instructions_not_execution(text):
+        return None
+    match = EVERYDAY_MAKE_FOLDER_RE.search(text)
+    if match is None:
+        return None
+    name = (match.group("name_after") or match.group("name_before") or "").strip(" '\"")
+    place = (match.group("place") or "").strip().lower()
+    if not name or not place:
+        return None
+    # A bare article read back as the name ("make a folder on my desktop" -> name "a"): no real
+    # request names its folder that, and the ask stays out of this lane.
+    if name.lower() in {"a", "an", "the", "new", "another", "one", "some", "it", "that", "this", "me"}:
+        return None
+    if re.search(r"[/\\\n]", name) or name.startswith("."):
+        return None
+    rest = re.sub(
+        r"^[\s,]*(?:(?:and\s+)?go\s+ahead|please|pls|thanks|thank\s+you|now|for\s+me|would\s+you|could\s+you|can\s+you|if\s+you\s+would)?[\s,.!?]*$",
+        "", text[match.end():], flags=re.IGNORECASE,
+    ).strip(" .!?")
+    if rest and re.search(r"\b(?:and|then|also|after|but)\b|[,;]", rest, re.IGNORECASE):
+        return None
+    if re.search(r"\b(?:don'?t|do\s+not|never)\b", text, re.IGNORECASE):
+        return None
+    return {"name": name, "place": {"desktop": "Desktop", "downloads": "Downloads",
+                                    "documents": "Documents", "docs": "Documents"}.get(place, "")}
 
 
 def _approval_requested(text: str, *, data: tuple[str, ...] = (), action: re.Pattern[str] | None = None) -> bool:
