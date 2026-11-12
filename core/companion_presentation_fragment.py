@@ -1511,6 +1511,10 @@ function vnRenderPopover(chatId) {
 function vnBindDrag(el) {
   el.addEventListener("pointerdown", function (e) {
     if (vnPos.hidden) return;
+    // Only the primary button drags or taps. On macOS and Linux the context menu opens on
+    // the press, so a right-button release read as a tap opened the status card over the
+    // pet menu the same instant, and the menu could not be reached with the mouse.
+    if (typeof e.button === "number" && e.button !== 0) return;
     const start = { x: e.clientX, y: e.clientY, ox: parseFloat(el.style.left) || 0, oy: parseFloat(el.style.top) || 0, moved: false };
     vnDrag = start;
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
