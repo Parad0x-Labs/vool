@@ -210,25 +210,16 @@ async function main() {
     "journey needs pre-seeded approval ids (VOOL_JOURNEY_APPROVAL_IDS)");
   const approvalId = seededIds.allow;
   const refuseId = seededIds.deny;
+  // The desktop raised these: the phone neither lists them (security review 2026-10-29: they name paths and
+  // carry diff previews) nor answers them (sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
   const pending = await client.pendingApprovals();
-  const row = pending.find((a) => a.approval_id === approvalId);
-  assert.ok(row, "seeded approval must be pending");
-  assert.equal(row.intent, "workspace.write_file");
-  assert.ok(Array.isArray(row.planned_actions) || row.planned_action_count !== undefined || true);
-  log("needs-approval", `intent=${row.intent} reversible=${row.reversible}`);
-  const resolved = await client.resolveApproval(approvalId, "allow", "once");
-  assert.equal(resolved.status, "approved");
-  const afterResolve = await client.pendingApprovals();
-  assert.ok(!afterResolve.some((a) => a.approval_id === approvalId), "resolved approval leaves the pending list");
-  log("approval", `allowed ${row.intent}`);
-
-  // The REFUSE leg: the second typed action, refused from the phone.
-  const refuseRow = (await client.pendingApprovals()).find((a) => a.approval_id === refuseId);
-  assert.ok(refuseRow, "second approval must be pending");
-  const refused = await client.resolveApproval(refuseId, "deny");
-  assert.equal(refused.status, "denied");
-  assert.equal(refused.scope, "once", "a denial never widens scope");
-  log("approval", `refused ${refuseRow.intent}`);
+  assert.ok(!pending.some((a) => a.approval_id === approvalId || a.approval_id === refuseId),
+    "the computer's approvals are not listed on the phone");
+  for (const [id, decision] of [[approvalId, "allow"], [refuseId, "deny"]]) {
+    await assert.rejects(client.resolveApproval(id, decision, "once"),
+      (exc) => exc instanceof CompanionError && exc.code === "approve_on_computer");
+  }
+  log("approval", "desktop approvals stay on the computer");
 
   // -- 8. Completion/failure notification ---------------------------------------
   // Runtime events are per-session: the phone polls ITS chat session (turn
@@ -238,11 +229,11 @@ async function main() {
   const approvalFeed = await client.pollNotifications(0, seededSession, 100);
   const seen = [...chatFeed.events, ...approvalFeed.events];
   assert.ok(seen.length > 0, "notification feed must carry at least one event");
-  const approvalNotice = seen.find((e) => e.event_type === "permission_approved" && e.mobile_kind === "completion");
-  assert.ok(approvalNotice, "the approval decision must arrive as a completion notification");
+  const completionNotice = chatFeed.events.find((e) => e.mobile_kind === "completion");
+  assert.ok(completionNotice, "the finished chat turn must arrive as a completion notification");
   const poller = new NotificationPoller(client, { onEvent: () => {} }, () => Promise.resolve(), 0);
   poller.stop();
-  log("notifications", `${seen.length} events; approval notice mobile_kind=completion`);
+  log("notifications", `${seen.length} events; ${completionNotice.event_type} mobile_kind=completion`);
 
   // -- 9. SABOTAGE: replay the exact signed request -----------------------------
   const replayBody = await captureOneSignedRequest();
@@ -252,6 +243,46 @@ async function main() {
   assert.equal(replay.status, 409);
   assert.equal(replay.body.code, "replay_detected");
   log("sabotage: replayed request refused", "first=200 replay=409 replay_detected");
+
+  // -- 9b. PHONE-INITIATED UNPAIR: a second phone unpairs ITSELF -----------------
+  // A scratch device pairs, unpairs from the phone side (the devices.unpair
+  // action), and must lose authority with its very next request. The journey
+  // device stays live for the legs below.
+  {
+    const scratchKey = generateDeviceKeypair();
+    const scratchStart = await post("/api/mobile/pairing/start", { device_hint: "scratch phone" });
+    assert.equal(scratchStart.status, 200);
+    const scratchChallenge = await fetchPairingChallenge(BASE, scratchStart.body.pairing_id);
+    const { claim: scratchClaim } = await claimPairing(BASE, {
+      pairingId: scratchStart.body.pairing_id,
+      code: scratchStart.body.code,
+      deviceName: "Scratch Phone",
+      platform: "android",
+      deviceSeedHex: scratchKey.seedHex,
+      devicePublicKeyHex: scratchKey.publicKeyHex,
+      challenge: scratchChallenge,
+    });
+    const scratchClient = new MobileCompanionClient(credentialsFromClaim(BASE, scratchClaim, scratchKey.seedHex));
+    assert.equal((await scratchClient.devicesMe()).device_id, scratchClaim.device_id);
+
+    const unpaired = await scratchClient.unpair();
+    assert.equal(unpaired.device_id, scratchClaim.device_id);
+    assert.equal(unpaired.status, "revoked");
+
+    let unpairedError = null;
+    try {
+      await scratchClient.devicesMe();
+    } catch (exc) {
+      unpairedError = exc;
+    }
+    assert.ok(unpairedError instanceof CompanionError);
+    assert.equal(unpairedError.code, "device_revoked");
+    assert.equal(unpairedError.status, 401);
+
+    // The journey device is untouched after the scratch phone unpaired itself.
+    assert.equal((await client.devicesMe()).device_id, claim.device_id);
+    log("unpair", `scratch device ${scratchClaim.device_id.slice(0, 12)}… unpaired itself; next request 401`);
+  }
 
   // -- 10. SABOTAGE: desktop revokes the device ---------------------------------
   const revoke = await post("/api/mobile/devices/revoke", { device_id: claim.device_id, reason: "journey end" });
@@ -272,8 +303,8 @@ async function main() {
   assert.equal(receipts.status, 200);
   assert.equal(receipts.body.chain_verified, true);
   const kinds = receipts.body.receipts.map((r) => r.kind);
-  for (const expected of ["pairing.started", "pairing.claimed", "attachment.uploaded", "approval.decided",
-    "security.replay_detected", "device.revoked", "security.revoked_device_attempt"]) {
+  for (const expected of ["pairing.started", "pairing.claimed", "attachment.uploaded", "approval.kept_for_computer",
+    "security.replay_detected", "device.unpaired", "device.revoked", "security.revoked_device_attempt"]) {
     assert.ok(kinds.includes(expected), `receipt ${expected} must exist`);
   }
   log("receipts", `${receipts.body.receipts.length} rows, chain verified`);

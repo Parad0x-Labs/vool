@@ -162,6 +162,12 @@ _WORKSPACE_CONTENT_QUESTION_RE = re.compile(
 )
 _FILE_LINE_RE = re.compile(r"(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+):(?P<line>\d+)")
 _SAFE_MACHINE_DIRECTORY_NAMES = ("Desktop", "Downloads", "Documents")
+# Read-only reach adds the owner's media folders. Audit 2026-10-27: "show me the photos from my lisbon trip"
+# and "find the pic of the cat on the sofa" could not see ~/Pictures at all. Writes stay in the three above.
+_READABLE_MACHINE_DIRECTORY_NAMES = (*_SAFE_MACHINE_DIRECTORY_NAMES, "Pictures", "Movies", "Music")
+# App libraries inside those folders (Photos, Music) are the apps' own data, and opening them raises a
+# macOS privacy prompt: never walked.
+_APP_LIBRARY_SUFFIXES = (".photoslibrary", ".musiclibrary", ".tvlibrary", ".photolibrary", ".aplibrary")
 
 
 @dataclass
@@ -1254,7 +1260,7 @@ def _machine_find_file(
     needle = name.lower()
     # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
     squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
-    roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
+    roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="unavailable",
@@ -1292,7 +1298,7 @@ def _machine_find_file(
             with os.scandir(current) as entries:
                 for entry in entries:
                     lowered_name = entry.name.lower()
-                    if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                    if lowered_name in _FIND_FOLDER_SKIP_DIRS or lowered_name.endswith(_APP_LIBRARY_SUFFIXES):
                         continue
                     if lowered_name.startswith(".") and not needle.startswith("."):
                         continue  # hidden files and folders only when the person names one
@@ -1395,7 +1401,7 @@ _FIND_FOLDER_STOPWORDS = frozenset(
         "am", "are", "be", "been", "being", "can", "could", "did", "do", "does", "give", "had",
         "has", "have", "he", "i", "kept", "lives", "look", "may", "might", "must", "name", "peek",
         "see", "she", "should", "sitting", "stashed", "stored", "stuff", "tell", "they", "things",
-        "walk", "was", "we", "were", "will", "would", "you",
+        "walk", "was", "we", "were", "will", "would", "you", "find", "locate",
         # Discourse fillers. "ok and where is the foldeR?!" (measured live 2026-09-18) reduced to
         # the folder name `ok` and the runtime answered a where-question with a whole-disk search
         # for folders named "ok". An acknowledgement can never name a folder either.
@@ -1412,6 +1418,25 @@ _FIND_FOLDER_SCOPE_HINTS = {
     "documents": "~/Documents",
     "home": "~",
 }
+
+
+_FIND_FOLDER_PICTURE_WORDS = frozenset({"pics", "pictures", "photos", "pix"})
+
+
+def _folder_name_matches(lowered_name: str, needle: str, needle_sep: str) -> bool:
+    """Whether a folder name matches the reduced name: as one run of words, or word by word.
+
+    Word by word because people say the words in their own order: "lisbon holiday" is the folder
+    "Holiday Lisbon 2026". Each word of three or more letters must appear in the folder name, a
+    plural matching its singular ("holidays" finds "Holiday").
+    """
+    compact = re.sub(r"[\s_\-]+", "", lowered_name)
+    if needle in lowered_name or (needle_sep and needle_sep in compact):
+        return True
+    words = [w for w in re.split(r"[^\w]+", needle) if len(w) >= 3]
+    if len(words) < 2:
+        return False
+    return all(w in compact or (len(w) > 4 and w.endswith("s") and w[:-1] in compact) for w in words)
 
 
 def _find_folder_name_from_phrase(text: str) -> tuple[str, str]:
@@ -1434,7 +1459,7 @@ def _find_folder_name_from_phrase(text: str) -> tuple[str, str]:
     if _resolved_existing_directory(raw) is not None or "/" in raw or os.sep in raw:
         return raw, ""
     words = [w for w in re.split(r"[^\w\-]+", raw.lower()) if w]
-    if not words or not any(w in _FIND_FOLDER_STOPWORDS for w in words):
+    if not words or not any(w in _FIND_FOLDER_STOPWORDS or w in _FIND_FOLDER_PICTURE_WORDS for w in words):
         return raw, ""
 
     scope = ""
@@ -1442,6 +1467,17 @@ def _find_folder_name_from_phrase(text: str) -> tuple[str, str]:
         if word in _FIND_FOLDER_SCOPE_HINTS:
             scope = _FIND_FOLDER_SCOPE_HINTS[word]
             break
+    # "my lisbon holiday pics" names the Lisbon holiday folder and says it holds pictures: the
+    # picture word is where to look first, not part of the name (measured 2026-10-28: the search
+    # looked for a folder literally called "my lisbon holiday pics" and missed
+    # ~/Pictures/Holiday Lisbon 2026). Alone ("find my photos folder") it stays the name.
+    picture_words = [w for w in words if w in _FIND_FOLDER_PICTURE_WORDS]
+    if picture_words and any(
+        w not in _FIND_FOLDER_STOPWORDS and w not in _FIND_FOLDER_SCOPE_HINTS
+        and w not in _FIND_FOLDER_PICTURE_WORDS for w in words
+    ):
+        words = [w for w in words if w not in _FIND_FOLDER_PICTURE_WORDS]
+        scope = scope or "~/Pictures"
     # A scope word is also a location, so drop it from the name only when it is not the only
     # thing left — "what is on the desktop" genuinely means the Desktop itself.
     meaningful = [w for w in words if w not in _FIND_FOLDER_STOPWORDS and w not in _FIND_FOLDER_SCOPE_HINTS]
@@ -1577,8 +1613,9 @@ def _machine_find_folder(
                             continue
                         if _is_other_git_project(Path(entry.path), workspace_root=workspace_root):
                             continue
-                        compact = re.sub(r"[\s_\-]+", "", entry.name.lower())
-                        if needle_sep_probe and needle_sep_probe in compact:
+                        if needle_sep_probe and _folder_name_matches(
+                            entry.name.lower(), phrase_name.lower(), needle_sep_probe
+                        ):
                             return RuntimeExecutionResult(
                                 handled=True, ok=True, status="executed",
                                 response_text=f"Found 1 folder matching '{name}':\n- {entry.path}",
@@ -1662,7 +1699,20 @@ def _machine_find_folder(
         seen.add(key)
         return True
 
-    queue: deque[tuple[str, int]] = deque((root, 0) for root in roots if _first_visit(root))
+    # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
+    # breadth-first spent the budget on system and app folders before it reached the user's own.
+    home = str(Path.home())
+    if os.path.isdir(home):
+        # The drive that holds the home folder is searched through the home folder only. Audit
+        # 2026-10-27: "check my Invoices folder" walked / to depth 6 (system and app folders, every
+        # other account) and each protected place it touched could raise a macOS "allow access"
+        # prompt. Other drives (an external disk, D:\) are still searched whole.
+        roots = [root for root in roots if not _path_holds(root, home)]
+        first = [home]
+    else:
+        first = []
+    home_library = os.path.join(home, "Library")  # macOS app data (Mail, Messages, Safari): not the user's folders
+    queue: deque[tuple[str, int]] = deque((root, 0) for root in [*first, *roots] if _first_visit(root))
     while queue:
         if _time.monotonic() > deadline:
             timed_out = True
@@ -1678,7 +1728,15 @@ def _machine_find_folder(
                         continue
                     entry_name = entry.name
                     lowered_name = entry_name.lower()
-                    if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                    if (
+                        lowered_name in _FIND_FOLDER_SKIP_DIRS
+                        or entry.path == home_library
+                        or lowered_name.endswith(_APP_LIBRARY_SUFFIXES)
+                    ):
+                        continue
+                    if lowered_name.startswith(".") and not wants_hidden:
+                        # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
+                        # or walked unless the person names a dot-folder themselves.
                         continue
                     if lowered_name.startswith(".") and not wants_hidden:
                         # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
@@ -1689,7 +1747,7 @@ def _machine_find_folder(
                     if not _first_visit(entry.path):
                         continue
                     scanned_dirs += 1
-                    if needle in lowered_name or (needle_sep and needle_sep in re.sub(r"[\s_\-]+", "", lowered_name)):
+                    if _folder_name_matches(lowered_name, needle, needle_sep):
                         matches.append(entry.path)
                         if len(matches) >= _FIND_FOLDER_MAX_MATCHES:
                             queue.clear()
@@ -1698,7 +1756,7 @@ def _machine_find_folder(
                         queue.append((entry.path, depth + 1))
         except OSError:
             continue
-    scope = ", ".join(roots)
+    scope = ", ".join(["your home folder"] * bool(first) + roots)
     observation = _tool_observation(
         intent="machine.find_folder",
         tool_surface="machine",
@@ -1707,7 +1765,7 @@ def _machine_find_folder(
         query=name,
         match_count=len(matches),
         scanned_dirs=scanned_dirs,
-        searched_roots=roots,
+        searched_roots=[*first, *roots],
         timed_out=timed_out,
         truncated=len(matches) >= _FIND_FOLDER_MAX_MATCHES,
     )
@@ -1725,16 +1783,56 @@ def _machine_find_folder(
             details={"matches": matches, "observation": observation},
         )
     not_found = [
-        f"No folder matching '{name}' found on {scope} "
+        f"No folder matching '{name}' found in {scope} "
         f"(searched to depth {_FIND_FOLDER_MAX_DEPTH}; system folders skipped)."
     ]
     if timed_out:
         not_found.append("The search hit its time limit before covering everything, so a deeper folder could exist.")
+    # "check my Invoices folder" when the invoices are loose files: say where they are.
+    files = _files_named_like(name, workspace_root=workspace_root)
+    if files:
+        not_found.append("These files match the name:\n" + "\n".join(f"- {path}" for path in files))
     return RuntimeExecutionResult(
         handled=True, ok=True, status="executed",
         response_text=" ".join(not_found),
-        details={"matches": [], "observation": observation},
+        details={"matches": [], "file_matches": files, "observation": observation},
     )
+
+
+def _path_holds(root: str, path: str) -> bool:
+    try:
+        return os.path.commonpath([os.path.realpath(root), os.path.realpath(path)]) == os.path.realpath(root)
+    except ValueError:  # different drives on Windows
+        return False
+
+
+def _files_named_like(name: str, *, workspace_root: Path | None) -> list[str]:
+    """Files in the safe folders whose name matches a folder name that was not found (plural or not)."""
+
+    stem = str(name or "").strip().lower()
+    stem = stem[:-3] + "y" if stem.endswith("ies") else stem[:-1] if stem.endswith("s") and not stem.endswith("ss") else stem
+    if len(stem) < 3:
+        return []
+    try:
+        result = _machine_find_file({"name": stem}, workspace_root=workspace_root)
+    except Exception:
+        return []
+    if not getattr(result, "ok", False):
+        return []
+    home = str(_machine_home()).rstrip("/\\")
+    matches = [str(path) for path in list((result.details or {}).get("matches") or [])[:5]]
+    return ["~" + path[len(home):] if home and path.startswith(home + os.sep) else path for path in matches]
+
+
+def _largest_size_text(entry: dict[str, Any]) -> str:
+    """GB from 1 GB up; below that MB or KB ("0.0 GB" for a 6 MB zip read as nothing)."""
+    size_gb = float(entry.get("size_gb") or 0)
+    size_bytes = entry.get("size_bytes")
+    if size_gb >= 1 or not isinstance(size_bytes, int):
+        return f"{entry.get('size_gb')} GB"
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    return f"{max(1, round(size_bytes / 1024))} KB"
 
 
 def _machine_find_largest(
@@ -1830,17 +1928,24 @@ def _machine_find_largest(
                 "observation": _tool_observation(intent="machine.find_largest", tool_surface="machine", ok=False, status="no_results", root=root, hidden_other_project_results=hidden_count),
             },
         )
+    # The delete-safety notes answer "what can I safely get rid of?"; a plain size question
+    # ("what's the biggest file in my downloads?") is not that ask, and a delete warning on every
+    # row answered a question nobody asked. The caller marks a cleanup ask (freeing space,
+    # deleting, clearing up); the classes stay in the details either way.
+    cleanup_context = bool(str((arguments or {}).get("cleanup_context") or "").lower() not in ("", "false", "0", "no"))
     lines = [f"Largest {noun} on {root} (measured, largest first):"]
     for entry in entries:
         partial = "" if entry.get("complete") else " (partial — scan hit its time limit)"
+        safety = f" · {entry['delete_safety']}" if cleanup_context else ""
         lines.append(
-            f"- {entry['name']} — {entry['size_gb']} GB [{entry['kind']}]{partial} · {entry['delete_safety']}"
+            f"- {entry['name']} — {_largest_size_text(entry)} [{entry['kind']}]{partial}{safety}"
         )
     if not result.get("complete"):
         lines.append("Some folders were not fully measured within the time budget; sizes marked (partial) are a lower bound.")
     if hidden_note:
         lines.append(hidden_note.strip(" ()"))
-    lines.append("I won't delete anything without your explicit go-ahead on a specific path.")
+    if cleanup_context:
+        lines.append("I won't delete anything without your explicit go-ahead on a specific path.")
     return RuntimeExecutionResult(
         handled=True, ok=True, status="executed",
         response_text="\n".join(lines),
@@ -3444,6 +3549,8 @@ def _dispatch_runtime_tool(
             return _covered(lambda: _machine_move_path(arguments, workspace_root=workspace_root))
         if intent == "machine.read_file":
             return _read_machine_file(arguments)
+        if intent == "machine.send_to_phone":
+            return _machine_send_to_phone(arguments, source_context=source_context)
         if intent == "machine.ensure_directory":
             return _covered(lambda: _ensure_machine_directory(arguments))
         if intent == "machine.write_file":
@@ -3743,6 +3850,78 @@ def _dispatch_runtime_tool(
     )
 
 
+def _phone_path_target(kind: str, raw: Any, *, source_context: dict[str, Any] | None) -> Path:
+    """Where the dispatch below will resolve ``raw``, by the same resolver it uses."""
+
+    if kind == "workspace":
+        return _resolve_workspace_path(raw, workspace_root=_workspace_root(source_context)).resolve()
+    if kind == "machine":
+        return _resolve_safe_machine_directory(raw).resolve()
+    candidate = Path(str(raw or "").strip()).expanduser()
+    if not candidate.is_absolute():
+        raise ValueError("relative path")
+    return candidate.resolve()
+
+
+def _in_workspace(target: Path, source_context: dict[str, Any] | None) -> bool:
+    root = _workspace_root(source_context).resolve()
+    return target == root or root in target.parents
+
+
+def phone_folder_refusal(intent: str, arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> str:
+    """``""`` unless this turn is a phone and the tool's path reaches past what the phone may use.
+
+    Every path the tool names (its ``path``, or the default it falls back to) is resolved the way
+    its handler resolves it, symlinks followed. It must never be the system or the home Library, and
+    for a phone held to chosen folders it must sit inside one of them. A path that cannot be resolved
+    the same way is refused.
+    """
+
+    from core.mobile_companion.policy import system_area
+    from core.request_trust import (
+        PHONE_PATH_TOOLS,
+        PHONE_SYSTEM_AREA_TEXT,
+        phone_folders_text,
+        remote_turn_folders,
+        turn_is_remote,
+    )
+
+    if not turn_is_remote(source_context):
+        return ""
+    kind = PHONE_PATH_TOOLS.get(str(intent or "").strip())
+    if kind is None:
+        # file.deliver builds a download from text; it reads nothing on this computer. Every other
+        # tool a phone runs was already admitted by the remote-turn fence for its class.
+        return ""
+    args = arguments if isinstance(arguments, dict) else {}
+    folders = remote_turn_folders(source_context)
+    refused = PHONE_SYSTEM_AREA_TEXT if folders is None else phone_folders_text(folders)
+    pattern = str(args.get("glob") or "")
+    if ".." in Path(pattern).parts or pattern.startswith(("/", "~")):
+        return refused
+    try:
+        target = _phone_path_target(kind, args.get("path"), source_context=source_context)
+    except (ValueError, OSError, RuntimeError):
+        # The workspace and machine handlers use this same resolver and refuse the path in their own
+        # words; a PDF path the check cannot resolve is one its handler would resolve differently.
+        return "" if folders is None and kind != "absolute" else refused
+    from core.runtime_state_protection import refusal as _protected_refusal
+
+    if _protected_refusal(target, write=False):
+        return refused
+    if system_area(target) and not (folders is None and _in_workspace(target, source_context)):
+        return PHONE_SYSTEM_AREA_TEXT
+    if folders is None:
+        return ""
+    for folder in folders:
+        # Stored resolved when the owner chose it; compared as stored, so a folder later swapped
+        # for a symlink cannot widen what the phone reaches.
+        root = Path(folder)
+        if target == root or root in target.parents:
+            return ""
+    return refused
+
+
 def execute_runtime_tool(
     intent: str,
     arguments: dict[str, Any],
@@ -3772,7 +3951,7 @@ def execute_runtime_tool(
     # Remote-turn fence: a turn the server stamped as NOT the owner's own session (a request from
     # another device on the network, a paired phone, a channel) can chat and read public
     # information, never reach this computer's files, notes, mail, accounts or settings.
-    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+    from core.request_trust import remote_turn_refusal_text, remote_turn_tool_refusal
 
     remote_refusal = remote_turn_tool_refusal(intent, source_context)
     if remote_refusal:
@@ -3780,7 +3959,7 @@ def execute_runtime_tool(
             handled=True,
             ok=False,
             status=remote_refusal,
-            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            response_text=remote_turn_refusal_text(intent, source_context),
             details={
                 "reason": remote_refusal,
                 "executed": False,
@@ -3790,6 +3969,26 @@ def execute_runtime_tool(
                     ok=False,
                     status=remote_refusal,
                     reason=remote_refusal,
+                ),
+            },
+        )
+
+    folder_refusal = phone_folder_refusal(intent, arguments, source_context=source_context)
+    if folder_refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="phone_folders_only",
+            response_text=folder_refusal,
+            details={
+                "reason": "phone_folders_only",
+                "executed": False,
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="owner_local_gate",
+                    ok=False,
+                    status="phone_folders_only",
+                    reason="phone_folders_only",
                 ),
             },
         )
@@ -4784,6 +4983,13 @@ def _safe_machine_roots() -> tuple[Path, ...]:
     return tuple((home / name).resolve() for name in _SAFE_MACHINE_DIRECTORY_NAMES)
 
 
+def _readable_machine_roots() -> tuple[Path, ...]:
+    """The folders a read may look in: the safe write roots, then Pictures, Movies and Music."""
+    home = _machine_home().resolve()
+    media = (name for name in _READABLE_MACHINE_DIRECTORY_NAMES if name not in _SAFE_MACHINE_DIRECTORY_NAMES)
+    return tuple(dict.fromkeys((*_safe_machine_roots(), *((home / name).resolve() for name in media))))
+
+
 def _machine_home() -> Path:
     try:
         return Path.home()
@@ -4807,7 +5013,7 @@ def _expand_machine_user(raw: str) -> Path:
 
 def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
     """A safe machine directory path, refused when it is this runtime's own state (or, for a write, its running code)."""
-    target = _resolve_safe_machine_directory(raw_path)
+    target = _resolve_safe_machine_directory(raw_path, write=write)
     from core.runtime_state_protection import refusal as _protected_refusal
 
     reason = _protected_refusal(target, write=write)
@@ -4816,7 +5022,8 @@ def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> 
     return target
 
 
-def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
+def _resolve_safe_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
+    roots = _safe_machine_roots() if write else _readable_machine_roots()
     raw = str(raw_path or "").strip()
     if not raw:
         return _safe_machine_roots()[0]
@@ -4832,6 +5039,11 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         "my documents": "Documents",
         "~/documents": "Documents",
         "docs": "Documents",
+        **({} if write else {
+            "pictures": "Pictures", "my pictures": "Pictures", "~/pictures": "Pictures",
+            "movies": "Movies", "my movies": "Movies", "~/movies": "Movies",
+            "music": "Music", "my music": "Music", "~/music": "Music",
+        }),
     }
     if lowered in alias_map:
         return (_machine_home() / alias_map[lowered]).resolve()
@@ -4840,10 +5052,10 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         candidate = (_machine_home() / candidate).resolve()
     else:
         candidate = candidate.resolve()
-    for root in _safe_machine_roots():
+    for root in roots:
         if candidate == root or root in candidate.parents:
             return candidate
-    allowed = ", ".join(_home_relative_label(root) for root in _safe_machine_roots())
+    allowed = ", ".join(_home_relative_label(root) for root in roots)
     raise ValueError(f"I can only inspect safe local directories in this lane: {allowed}.")
 
 
@@ -5462,6 +5674,64 @@ def _list_machine_directory(
                 truncated=bool(dropped),
                 directories_only=directories_only,
                 entries=entries,
+            ),
+        },
+    )
+
+
+def _machine_send_to_phone(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Copy one file from a safe local folder for the owner's paired phone to save.
+
+    A phone turn sends to the phone that asked (its folder fence already checked the path); the
+    owner's own session sends to the one paired phone. Nothing leaves this computer until that
+    phone fetches it (core.mobile_companion.outgoing_files).
+    """
+    from core.mobile_companion import outgoing_files
+    from core.request_trust import remote_turn_device, turn_is_remote
+
+    def refused(status: str, text: str) -> RuntimeExecutionResult:
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status=status, response_text=text,
+            details={"observation": _tool_observation(intent="machine.send_to_phone", tool_surface="machine", ok=False, status=status)},
+        )
+
+    if not policy_engine.get("filesystem.allow_read_workspace", True):
+        return refused("disabled", "Safe local file reads are disabled by policy.")
+    if turn_is_remote(source_context):
+        device = remote_turn_device(source_context)
+        if device is None:
+            return refused("no_phone", "Files can only be sent to a paired VOOL phone app.")
+    else:
+        device = outgoing_files.paired_phone()
+        if device is None:
+            return refused("no_phone", "No phone is paired. Pair the VOOL app on your phone in Settings, then ask again."
+                           if not outgoing_files.paired_phones() else
+                           "More than one phone is paired. Ask from the phone that should get it.")
+    try:
+        target = _resolve_machine_directory(arguments.get("path"))
+    except ValueError:
+        requested = " ".join(str(arguments.get("path") or "").split())[:200] or "that file"
+        return refused("not_allowed", f"I can't send `{requested}`: it is outside the folders I may read.")
+    if not target.is_file():
+        return refused("not_found", f"There is no file at `{_home_relative_label(target)}`.")
+    try:
+        sent = outgoing_files.send(str(device.get("device_id") or ""), target,
+                                   session_id=str((source_context or {}).get("session_id") or ""))
+    except outgoing_files.SendRefused as refusal:
+        return refused(refusal.code, refusal.message)
+    size = int(sent["size_bytes"])
+    shown = f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{max(1, size // 1024)} KB"
+    phone = str(device.get("label") or device.get("name") or "your phone")
+    return RuntimeExecutionResult(
+        handled=True,
+        ok=True,
+        status="executed",
+        response_text=f"Sent {sent['name']} ({shown}) to {phone}. Open Files from your computer in the VOOL app to save it.",
+        details={
+            "sent": sent,
+            "observation": _tool_observation(
+                intent="machine.send_to_phone", tool_surface="machine", ok=True, status="executed",
+                path=_home_relative_label(target), name=sent["name"], size_bytes=size, sha256=sent["sha256"],
             ),
         },
     )
@@ -7637,10 +7907,16 @@ def _run_command(
     from core.agent_runtime.audit_policy import isolated_proof_read_roots
 
     proof_reads = isolated_proof_read_roots(source_context)
+    from core.request_trust import turn_is_remote
+
+    # A command a turn from another device runs (a phone with "Use tools on my computer") never gets
+    # the relaxed test-runner isolation: with the network open it could call VOOL's own loopback API
+    # as the owner and change its own rights or settings.
+    network_mode = None if turn_is_remote(source_context) else _trusted_local_network_mode(command, arguments=arguments)
     runner = SandboxRunner(
         ExecutionGate(),
         str(workspace_root),
-        network_isolation_mode=_trusted_local_network_mode(command, arguments=arguments),
+        network_isolation_mode=network_mode,
         **({"read_roots": tuple(Path(root) for root in proof_reads)} if proof_reads else {}),
     )
     # The operator's stop button reaches INTO the command: the turn's cancel signal (and, for a

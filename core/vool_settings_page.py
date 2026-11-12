@@ -940,6 +940,22 @@ def _settings_groups() -> list[dict]:
             ],
         },
         {
+            "id": "phone",
+            "icon": "",
+            "title": "Phone and chat apps",
+            "blurb": "Connect to your own computer. You decide what each device may do.",
+            "rows": [
+                _row(
+                    id="phone_access",
+                    label="Use VOOL from my phone",
+                    kind="custom", widget="phone_access",
+                    help="Off by default. Choose your home or private network, then pair your phone. Turning this off closes phone access.",
+                    read={"url": "/api/mobile/settings"},
+                    keywords="phone mobile companion network pair revoke telegram discord",
+                ),
+            ],
+        },
+        {
             "id": "advanced",
             "icon": "⌥",
             "title": "Advanced",
@@ -1079,6 +1095,24 @@ html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; overflow:hidden; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
 
+.phone-device {border-top:1px solid var(--line); margin-top:22px; padding-top:18px;}
+.phone-rights {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; margin:16px 0;}
+.phone-right {display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere;}
+.phone-cap {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,180px); align-items:center; gap:12px; margin:10px 0;}
+.phone-settings-panel, .phone-device, .phone-rights > *, .phone-cap > * {min-width:0;}
+.phone-settings-panel input.inp, .phone-settings-panel select.inp {box-sizing:border-box; width:100%; min-width:0; max-width:100%;}
+.phone-expiry {display:grid; min-width:0;}
+.phone-actions {display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.phone-quick {display:grid; gap:12px; margin:14px 0;}
+.phone-quick-group {border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:grid; gap:8px; min-width:0;}
+.phone-quick-lead {font-weight:600;}
+.phone-quick textarea {width:100%; box-sizing:border-box; resize:vertical;}
+.phone-quick > .btn.primary {justify-self:start; min-width:140px;}
+.phone-advanced {margin-top:10px;}
+.phone-advanced > summary {cursor:pointer;}
+.phone-unfreeze {display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+.phone-settings-panel > .inp {margin:10px 0;}
+@media(max-width:650px) {.phone-rights{grid-template-columns:1fr}.phone-cap{grid-template-columns:1fr}}
 /* ---- sidebar ---- */
 #side { flex:0 0 248px; width:248px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 /* App-language control: top-left, above everything else in the nav. Compact (globe + the
@@ -1937,6 +1971,7 @@ function renderWidget(row, host) {
   if (w === 'live_browser') return widgetLiveBrowser(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
+  if (w === 'phone_access') return widgetPhoneAccess(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -5376,6 +5411,294 @@ function widgetAutomaticChecks(stack) {
     noteKey: 'settings.row.automatic_checks.local_only_note',
     retryKey: 'settings.row.automatic_checks.retry_note',
   });
+}
+
+let phoneSettingsNode = null, phoneSettingsReady = false, phoneSettingsLanguage = '';
+const phoneBotPairing = {};
+/* Set when the pairing page hands over a phone that was just paired: its setup opens first. */
+let setupFor = (()=>{try{return new URLSearchParams(location.search).get('phone_setup') || '';}catch(_){return '';}})();
+const phonePrepared = {};
+function redrawPhoneSettings() {
+  const host = phoneSettingsNode && phoneSettingsNode.parentElement;
+  if (host) {phoneSettingsNode=null; host.replaceChildren(); widgetPhoneAccess(host);}
+}
+function widgetPhoneAccess(host) {
+  const url = '/api/mobile/settings';
+  const src = state.sources[url];
+  const language = document.documentElement.lang;
+  if (src && phoneSettingsNode && phoneSettingsReady && phoneSettingsLanguage === language) {host.appendChild(phoneSettingsNode);return;}
+  const stack = el('div', 'phone-settings-panel'); host.appendChild(stack);
+  phoneSettingsNode=stack; phoneSettingsReady=!!src && !state.sourceErr[url]; phoneSettingsLanguage=language;
+  if (!src || state.sourceErr[url]) {
+    stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return;
+  }
+  const network = el('select', 'inp');
+  network.setAttribute('aria-label', T('phone.network', 'Network address'));
+  const addresses = [...new Set([src.address, ...(src.addresses || [])].filter(Boolean))];
+  addresses.forEach(a => { const option = el('option', '', a); option.value = a; network.appendChild(option); });
+  if (src.address) network.value = src.address;
+  network.disabled = !!src.enabled;
+  stack.appendChild(network);
+  const line = el('div', 'inline');
+  const toggle = el('button', 'sw'); toggle.type = 'button'; toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-label', T('settings.row.phone_access.label', 'Use VOOL from my phone'));
+  toggle.setAttribute('aria-checked', src.enabled ? 'true' : 'false'); line.appendChild(toggle);
+  const pair = el('button', 'btn', T('phone.pair', 'Pair a phone')); pair.type = 'button'; pair.disabled = !src.running;
+  line.appendChild(pair); stack.appendChild(line);
+  const note = el('div', 'state idle'); note.setAttribute('role', 'status'); stack.appendChild(note);
+  // Away from home: off until the owner switches it on. It adds a private route; home stays as it is.
+  const awayLine = el('div', 'inline');
+  const awayToggle = el('button', 'sw'); awayToggle.type = 'button'; awayToggle.setAttribute('role', 'switch');
+  awayToggle.setAttribute('aria-label', T('phone.away.label', 'Also use VOOL away from home'));
+  awayToggle.setAttribute('aria-checked', src.away ? 'true' : 'false'); awayToggle.disabled = !src.running || src.mode === 'relay';
+  awayLine.appendChild(awayToggle); awayLine.appendChild(el('span', '', T('phone.away.label', 'Also use VOOL away from home')));
+  stack.appendChild(awayLine);
+  stack.appendChild(el('p', 'help', src.away && !src.away_address
+    ? T('phone.away.failed', 'The private route could not start. Home Wi-Fi still works. Switch this off and on to try again.')
+    : T('phone.away.help', 'Your phone reaches this computer over mobile data through a private route. Nothing to set up: switch it on, then pair or scan the code again. Messages stay sealed. The first connection away from home takes a little longer.')));
+  awayToggle.onclick = async () => {
+    awayToggle.disabled = true;
+    try {
+      const wanted = !src.away;
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:true,address:src.address,port:src.port,away:wanted})});
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error();
+      state.sources[url] = await getJSON(url); redrawPhoneSettings();
+    } catch (_) {note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); awayToggle.disabled = false;}
+  };
+  toggle.onclick = async () => {
+    toggle.disabled = true;
+    try {
+      const wanted = !src.enabled;
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:wanted,address:network.value,away:!!src.away})});
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error();
+      const back = await getJSON(url);
+      if (back.enabled !== wanted) throw new Error();
+      state.sources[url] = back; redrawPhoneSettings();
+    } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); toggle.disabled = false; }
+  };
+  const refresh = el('button','btn',T('phone.refresh','Refresh permissions')); refresh.type='button'; stack.appendChild(refresh);
+  refresh.onclick=async()=>{refresh.disabled=true;try{state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(e){console.warn(e);note.textContent=T('fault.unknown.message','Something went wrong on this machine while handling that. You can try again.');refresh.disabled=false;}};
+  const frozen = el('button', 'btn', src.frozen ? T('phone.unfreeze', 'Unfreeze payments') : T('phone.freeze', 'Freeze payments'));
+  frozen.type = 'button'; stack.appendChild(frozen);
+  const accounts = (src.wallet_accounts || []).filter(a => a.seal_policy === 'pilot-v3' && a.setup_state === 'ready');
+  function accountSelect(value) {
+    const select = el('select', 'inp'); select.setAttribute('aria-label', T('phone.account', 'Wallet account'));
+    accounts.forEach(a => {const option = el('option', '', (a.label || a.display_network || a.network) + ' · ' + (a.native_asset || '')); option.value = a.wallet_id; select.appendChild(option);});
+    if (value) select.value = value;
+    return select;
+  }
+  // A failed phone-settings action shows the server's own reason when it sent one, else one keyed sentence;
+  // the raw error only goes to the console.
+  const phoneFailWords=(e,key,fallback)=>{console.warn(e);return (e&&e.plain)||T(key||'settings.switch.no_answer',fallback||'Not saved \u2014 VOOL did not answer.');};
+  const phoneFail=(said)=>{const err=new Error(said||'not saved');err.plain=said||'';return err;};
+  async function save(body) {
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j = await r.json(); if (!r.ok || !j.ok) throw phoneFail(j.error);
+    state.sources[url] = await getJSON(url); redrawPhoneSettings();
+  }
+  const chatApps=el('details','phone-bot-connect'); stack.appendChild(chatApps);
+  chatApps.appendChild(el('summary','',T('phone.bot_connect','Connect chat app')));
+  chatApps.appendChild(el('p','help',T('phone.bot_privacy','Telegram and Discord can read messages sent through them. Use a private conversation.')));
+  const botPlatform=el('select','inp'); ['Telegram','Discord'].forEach(name=>{const option=el('option','',name);option.value=name.toLowerCase();botPlatform.appendChild(option);});chatApps.appendChild(botPlatform);
+  const botTokenLabel=el('label','phone-cap',T('phone.bot_token','Bot key (from Telegram or Discord)'));const botToken=el('input','inp');botToken.type='password';botToken.autocomplete='off';botTokenLabel.appendChild(botToken);chatApps.appendChild(botTokenLabel);
+  const dmLabel=el('label','phone-cap',T('phone.bot_dm','Private Discord conversation link'));const dmLink=el('input','inp');dmLabel.appendChild(dmLink);chatApps.appendChild(dmLabel);dmLabel.hidden=true;
+  botPlatform.onchange=()=>{dmLabel.hidden=botPlatform.value!=='discord';};
+  const connectBot=el('button','btn',T('phone.bot_connect','Connect chat app'));connectBot.type='button';connectBot.disabled=!src.enabled;chatApps.appendChild(connectBot);
+  connectBot.onclick=async()=>{const token=botToken.value;botToken.value='';connectBot.disabled=true;try {
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform:botPlatform.value,token,channel_link:dmLink.value})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
+    phoneBotPairing[j.platform]={code:j.code,expires:Date.now()+j.expires_in*1000};state.sources[url]=await getJSON(url);redrawPhoneSettings();
+  }catch(e){note.textContent=phoneFailWords(e);connectBot.disabled=false;}};
+  const relayForm=el('details','phone-relay'); stack.appendChild(relayForm);
+  relayForm.appendChild(el('summary','',T('phone.relay_title','Connect away from home (advanced)')));
+  relayForm.appendChild(el('p','help',T('phone.relay_help','Your own server passes encrypted messages between phone and computer. It can see when they connect. Pair at home first.')));
+  function relayInput(key, fallback, value, secret) {
+    const label=el('label','phone-cap',T(key,fallback)); const input=el('input','inp');
+    input.type=secret?'password':'text'; input.autocomplete='off'; input.value=value || ''; label.appendChild(input); relayForm.appendChild(label); return input;
+  }
+  const relayAddress=relayInput('phone.relay_address','Server address',src.relay_endpoint);
+  const relayRoom=relayInput('phone.relay_room','Room code',src.relay_room);
+  const relayToken=relayInput('phone.relay_token','Computer key','',true);
+  const relayEnable=el('button','btn',T('phone.relay_enable','Connect through my server')); relayEnable.type='button';
+  relayEnable.disabled=!(src.devices || []).some(d=>d.status==='active'); relayForm.appendChild(relayEnable);
+  relayEnable.onclick=()=>{const token=relayToken.value; relayToken.value=''; relayEnable.disabled=true;
+    save({operation:'relay',endpoint:relayAddress.value,room:relayRoom.value,token}).catch(e=>{note.textContent=phoneFailWords(e);relayEnable.disabled=false;});};
+  if (src.mode==='relay') relayForm.appendChild(el('p','help',T('phone.relay_phone','Phone connection address')+': '+src.relay_endpoint+'/rooms/'+src.relay_room));
+  frozen.onclick = () => {
+    if (!src.frozen) {frozen.disabled = true; save({operation:'freeze'}).catch(e => {note.textContent=phoneFailWords(e); frozen.disabled=false;}); return;}
+    const form = el('div', 'phone-unfreeze'); const account = accountSelect(); const credential = el('input', 'inp');
+    credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential', 'Wallet PIN or password');
+    const button = el('button','btn',T('phone.unfreeze','Unfreeze payments')); button.type='button'; form.append(account, credential, button); stack.appendChild(form);
+    button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=phoneFailWords(e);button.disabled=false;});};
+  };
+  const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
+    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
+    computer_tools:'Use tools on my computer', paid_services:'Look things up online'};
+  const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
+    task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
+    desktop_inbox:'New item in your computer’s inbox',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model price offer',model_market:'New model available',market_watch:'Market watch'};
+  function botNotices(row,device) {
+    const choices=JSON.parse(JSON.stringify(device.notification_preferences));
+    const section=el('fieldset','phone-bot-notifications');section.appendChild(el('legend','',T('phone.right.alerts','Alerts')));row.appendChild(section);
+    const preset=el('select','inp');preset.setAttribute('aria-label',T('phone.right.alerts','Alerts'));
+    ['everything','important','off','custom'].forEach(value=>{const option=el('option','',T('phone.event.preset_'+value,{everything:'Everything',important:'Important only',off:'Off',custom:'Custom'}[value]));option.value=value;preset.appendChild(option);});
+    preset.value=choices.preset;section.appendChild(preset);
+    const boxes={};Object.entries(choices.types).forEach(([kind,value])=>{
+      const line=el('label','phone-right');const box=el('input');box.type='checkbox';box.checked=value.enabled;box.dataset.notificationType=kind;boxes[kind]=box;
+      line.append(box,document.createTextNode(' '+T('phone.event.'+kind,noticeNames[kind]||kind)));section.appendChild(line);box.onchange=()=>{preset.value='custom';};
+    });
+    preset.onchange=()=>{const configured=src.notification_presets[preset.value];if(configured)Object.entries(boxes).forEach(([kind,box])=>{box.checked=configured.types[kind].enabled;});};
+    function quietSwitch(key,label) {const line=el('label','phone-right');const box=el('input');box.type='checkbox';box.checked=choices.quiet[key];line.append(box,document.createTextNode(' '+T('phone.event.'+label[0],label[1])));section.appendChild(line);return box;}
+    const quiet=quietSwitch('enabled',['quiet','Quiet hours']);
+    function quietTime(key,label) {const line=el('label','phone-expiry',T('phone.event.quiet_'+key,label));const input=el('input','inp');input.type='time';input.value=choices.quiet[key];line.appendChild(input);section.appendChild(line);return input;}
+    const start=quietTime('start','Quiet hours start'),end=quietTime('end','Quiet hours end');
+    const approvals=quietSwitch('approvals_through',['approvals_through','Allow approvals through']);
+    const payments=quietSwitch('payments_through',['payments_through','Allow payments through']);
+    const button=el('button','btn',T('notif.save','Save'));button.type='button';section.appendChild(button);
+    button.onclick=async()=>{
+      const preferences={quiet:{enabled:quiet.checked,start:start.value,end:end.value,offset_minutes:-new Date().getTimezoneOffset(),approvals_through:approvals.checked,payments_through:payments.checked}};
+      if(preset.value==='custom')preferences.types=Object.fromEntries(Object.entries(boxes).map(([kind,box])=>[kind,{enabled:box.checked}]));else preferences.preset=preset.value;
+      section.disabled=true;try {
+        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_notifications',device_id:device.device_id,preferences})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
+        device.notification_preferences=j.preferences;section.remove();botNotices(row,device);
+      }catch(e){note.textContent=phoneFailWords(e);section.disabled=false;}
+    };
+  }
+  /* Quick setup: models, files, payments, then Done. Saved through the same device_rules door as Advanced. */
+  function phoneQuickSetup(device) {
+    const rules=device.rules || {}, until=device.right_expiry || {};
+    const on=name=>!!rules[name] && !(until[name] && until[name]*1000<=Date.now());
+    const box=el('div','phone-quick');
+    if(setupFor===device.device_id) box.appendChild(el('p','phone-quick-lead',T('phone.setup.connected','Your phone is connected. Choose what it may do, then press Done.')));
+    let groupCount=0;
+    function group(title,choices,current) {
+      const set=el('fieldset','phone-quick-group'); set.appendChild(el('legend','',title)); box.appendChild(set);
+      const name='phone-quick-'+device.device_id+'-'+(groupCount++); const radios={};
+      choices.forEach(([value,label])=>{const line=el('label','phone-right');const radio=el('input');radio.type='radio';radio.name=name;radio.value=value;radio.checked=value===current;radios[value]=radio;line.append(radio,document.createTextNode(' '+label));set.appendChild(line);});
+      return {set,radios,value:()=>Object.keys(radios).find(k=>radios[k].checked)};
+    }
+    function field(set,label,input,wide) {const line=el('label',wide?'phone-expiry':'phone-cap',label);line.appendChild(input);set.appendChild(line);return line;}
+    const models=group(T('phone.setup.models','Online lookups'),[['local',T('phone.setup.models_local','Off')],['cloud',T('phone.setup.models_cloud','Look things up online')]],on('paid_services')?'cloud':'local');
+    models.set.appendChild(el('p','help',T('phone.setup.models_help','Lookups use free web sources only. Your paid models and keys are only used from the computer itself.')));
+    const scope=device.file_scope || {};
+    const files=group(T('phone.setup.files','Files'),[['none',T('phone.setup.files_none','None')],['folders',T('phone.setup.files_folders','Only the folders I choose')],['all',T('phone.setup.files_all','Everything on this computer')]],
+      !on('computer_tools')?'none':(scope.mode==='folders'?'folders':'all'));
+    const folders=el('textarea','inp');folders.rows=3;folders.value=(scope.folders || []).join('\n');folders.placeholder='~/Documents';
+    folders.setAttribute('aria-label',T('phone.setup.folders','Folders, one per line'));
+    const folderLine=field(files.set,T('phone.setup.folders','Folders, one per line'),folders,true);
+    const quickAdd=el('div','phone-actions');['~/Documents','~/Desktop','~/Downloads'].forEach(path=>{const add=el('button','btn',path);add.type='button';add.onclick=()=>{const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.includes(path))list.push(path);folders.value=list.join('\n');};quickAdd.appendChild(add);});
+    files.set.appendChild(quickAdd);
+    files.set.appendChild(el('p','help',T('phone.setup.files_help','Only the folders I choose: the phone can open and change files there, and nothing else. Everything: files, apps, commands and your accounts on this computer.')));
+    const pays=group(T('phone.setup.payments','Payments'),[['off',T('phone.setup.payments_off','Off')],['on',T('phone.setup.payments_on','On, with limits')]],on('payment_propose')?'on':'off');
+    const payBox=el('div','phone-quick-pay');pays.set.appendChild(payBox);
+    const payAccount=accountSelect((device.payment_cap || {}).wallet_id);payBox.appendChild(payAccount);
+    const cap=device.payment_cap_display || {};
+    function amountInput(label,value){const input=el('input','inp');input.inputMode='decimal';input.value=value || '';field(payBox,label,input);return input;}
+    const per=amountInput(T('phone.per_payment','Per-payment maximum'),cap.per_payment), daily=amountInput(T('phone.per_day','Daily maximum'),cap.daily);
+    const pin=el('input','inp');pin.type='password';pin.autocomplete='off';pin.placeholder=T('phone.credential','Wallet PIN or password');payBox.appendChild(pin);
+    payBox.appendChild(el('p','help',T('phone.setup.payments_help','Payments start in the phone’s Wallet tab and are approved on this computer. Your wallet PIN confirms the limits.')));
+    function sync(){folderLine.hidden=quickAdd.hidden=files.value()!=='folders';payBox.hidden=pays.value()!=='on';}
+    [models,files,pays].forEach(g=>Object.values(g.radios).forEach(r=>r.addEventListener('change',sync)));sync();
+    box.appendChild(el('p','help',T('phone.setup.basics','Chat, chat history, attachments and alerts are switched on with Done. Change any single permission under Advanced.')));
+    const prepared=phonePrepared[device.device_id];
+    if(prepared){
+      const report=el('div','phone-quick-ready');report.setAttribute('role','status');box.appendChild(report);
+      if(prepared.checking)report.appendChild(el('p','help',T('phone.setup.checking','Checking the folders. If your computer asks whether VOOL may use a folder, press Allow, so your phone never has to wait for it.')));
+      else if(prepared.failed)report.appendChild(el('p','help',T('phone.setup.check_failed','VOOL could not check the folders. Press Done again to retry.')));
+      else {
+        const waiting=(prepared.folders || []).filter(f=>f.state!=='ready');
+        report.appendChild(el('p','help',waiting.length?T('phone.setup.not_ready','These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Done again:'):T('phone.setup.ready','Saved. Your phone is ready.')));
+        waiting.forEach(f=>report.appendChild(el('p','help',f.folder)));
+      }
+    }
+    const done=el('button','btn primary',T('phone.setup.done','Done'));done.type='button';box.appendChild(done);
+    const say=el('div','state idle');say.setAttribute('role','status');box.appendChild(say);
+    done.onclick=()=>{
+      say.textContent='';
+      const payOn=pays.value()==='on', cloud=models.value()==='cloud', fileChoice=files.value();
+      const body={operation:'device_rules',device_id:device.device_id,expected_permission_revision:device.permission_revision || 0,
+        rules:{chat:true,history:true,attachments:true,alerts:true,paid_services:cloud,computer_tools:fileChoice!=='none',payment_propose:payOn,wallet_view:payOn || on('wallet_view')}};
+      if(fileChoice==='all')body.file_scope={mode:'all'};
+      if(fileChoice==='folders'){const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.length){say.textContent=T('phone.setup.need_folder','Add at least one folder.');return;}body.file_scope={mode:'folders',folders:list};}
+      if(payOn && (!on('payment_propose') || per.value!==(cap.per_payment || '') || daily.value!==(cap.daily || '') || payAccount.value!==((device.payment_cap || {}).wallet_id || '') || pin.value)){
+        const selected=accounts.find(a=>a.wallet_id===payAccount.value);if(!selected){say.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        body.credential=pin.value;body.payment_cap_human={wallet_id:payAccount.value,network:selected.network,per_payment:per.value,daily:daily.value};
+      }
+      pin.value='';done.disabled=true;
+      save(body).then(async()=>{
+        setupFor='';
+        if(fileChoice==='none')return;
+        phonePrepared[device.device_id]={checking:true};redrawPhoneSettings();
+        try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'prepare_folders',device_id:device.device_id})});const j=await r.json();
+          phonePrepared[device.device_id]=r.ok&&j.ok?{folders:j.folders}:{failed:true};}catch(_){phonePrepared[device.device_id]={failed:true};}
+        redrawPhoneSettings();
+      }).catch(e=>{say.textContent=phoneFailWords(e);done.disabled=false;});
+    };
+    return box;
+  }
+  (src.devices || []).forEach(device => {
+    const row=el('section','phone-device'); row.dataset.device=device.device_id;
+    const isBot=device.kind==='bot';
+    row.appendChild(el('h3','',device.name || T('phone.device','Phone')));
+    row.appendChild(el('p','help', T('phone.paired','Paired') + ': ' + (device.paired_at ? new Date(device.paired_at).toLocaleString() : '') + ' · ' + T('phone.last_seen','Last seen') + ': ' + (device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '')));
+    if (device.status !== 'active') {row.appendChild(el('p','help',T('phone.unpaired','Unpaired'))); stack.appendChild(row); return;}
+    /* A phone opens on the three plain choices; every single right stays under Advanced. */
+    const holder=isBot?row:el('details','phone-advanced');
+    if(!isBot){row.appendChild(phoneQuickSetup(device));holder.appendChild(el('summary','',T('phone.setup.advanced','Advanced')));row.appendChild(holder);}
+    const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
+    if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
+    const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
+      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
+      const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
+      /* An expired right shows as off, so saving anything else never sends it back on. */
+      const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());
+      box.dataset.right=name; box.disabled=name==='tool_approval' || name==='payment_approve'; boxes[name]=box;
+      line.append(box, document.createTextNode(' '+T('phone.right.'+name,label))); rightsGrid.appendChild(line);
+      const expiry=el('input','inp');expiry.type='datetime-local';expiry.setAttribute('aria-label',T('phone.right_expiry','Expires')+' · '+T('phone.right.'+name,label));
+      const epoch=(device.right_expiry || {})[name];if(epoch)expiry.value=new Date(epoch*1000-new Date(epoch*1000).getTimezoneOffset()*60000).toISOString().slice(0,16);
+      expiry.dataset.initial=expiry.value;
+      expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
+    });
+    if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Online lookups: free web sources only — your paid models and paid search never run from the phone. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
+    holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));
+    if(isBot)botNotices(row,device);
+    const account=accountSelect((device.payment_cap || {}).wallet_id); holder.appendChild(account);
+    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); holder.appendChild(line); return input;}
+    const cap=device.payment_cap_display || {};
+    const per=amount(T('phone.per_payment','Per-payment maximum'),cap.per_payment);
+    const daily=amount(T('phone.per_day','Daily maximum'),cap.daily);
+    holder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s own currency. Both limits must be lower than your wallet’s limits.')));
+    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); holder.appendChild(credential);
+    const saveActions=el('div','phone-actions'); holder.appendChild(saveActions);
+    const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; saveActions.appendChild(saveButton);
+    const actions=el('div','phone-actions'); row.appendChild(actions);
+    saveButton.onclick=()=> {
+      const rules=Object.fromEntries(Object.entries(boxes).map(([k,v])=>[k,v.checked]));
+      const body={operation:'device_rules',device_id:device.device_id,rules,expected_permission_revision:device.permission_revision || 0};
+      const changedExpiry={};Object.entries(expiryInputs).forEach(([name,input])=>{if(input.value!==input.dataset.initial)changedExpiry[name]=input.value?new Date(input.value).getTime()/1000:0;});
+      if(Object.keys(changedExpiry).length)body.right_expiry=changedExpiry;
+      if (rules.payment_propose) {
+        const selected=accounts.find(a=>a.wallet_id===account.value); if (!selected) {note.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        body.credential=credential.value; body.payment_cap_human={wallet_id:account.value,network:selected.network,per_payment:per.value,daily:daily.value};
+      }
+      credential.value=''; saveButton.disabled=true;
+      save(body).catch(e=>{note.textContent=phoneFailWords(e);saveButton.disabled=false;});
+    };
+    const revoke=el('button','btn',isBot?T('phone.bot_disconnect','Disconnect chat app'):T('phone.revoke','Unpair this phone')); revoke.type='button'; actions.appendChild(revoke);
+    revoke.onclick=async()=>{revoke.disabled=true;try {const r=await fetch(isBot?url:'/api/mobile/devices/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isBot?{operation:'bot_disconnect',platform:device.platform}:{device_id:device.device_id})});if(!r.ok)throw new Error();delete phoneBotPairing[device.platform];state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(_){note.textContent=T('settings.switch.no_answer','Not saved — VOOL did not answer.');revoke.disabled=false;}};
+    stack.appendChild(row);
+    if(setupFor===device.device_id) setTimeout(()=>row.scrollIntoView({block:'start'}),0);
+  });
+  pair.onclick = async () => {
+    pair.disabled = true;
+    try {
+      const r = await fetch('/api/mobile/pairing/start', {method:'POST', headers:{'Content-Type':'application/json'},body:'{}'});
+      const j = await r.json(); if (!r.ok || !j.pairing_page) throw new Error();
+      window.open(j.pairing_page, '_blank', 'noopener');
+    } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    finally { pair.disabled = !src.running; }
+  };
 }
 
 function widgetAnswerLanguage(stack) {

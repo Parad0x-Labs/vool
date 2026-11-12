@@ -1194,7 +1194,7 @@ def _dispatch_get(
     if normalized_path.startswith("/api/mobile/"):
         from core.web.api.mobile_companion_api import handle_mobile_companion_get
 
-        return handle_mobile_companion_get(normalized_path, query, runtime=runtime, model_name=model_name, client_host=client_host)
+        return handle_mobile_companion_get(normalized_path, query, runtime=runtime, model_name=model_name, client_host=client_host, headers=headers)
     if normalized_path.startswith("/api/zcash/"):
         from core.zcash.page import handle_zcash_get
 
@@ -3375,8 +3375,10 @@ def dispatch_post(
     # ---- Command registry projection (owner command centre): the one dispatch ----
     if normalized_path == "/api/commands/dispatch":
         from core.command_registry.api import handle_commands_dispatch
+        from core.mobile_companion.runtime_context import runtime_scope
 
-        status, payload = handle_commands_dispatch(body, client_host=client_host, headers=headers)
+        with runtime_scope(runtime):
+            status, payload = handle_commands_dispatch(body, client_host=client_host, headers=headers)
         return apply_runtime_headers(json_response(status, payload), runtime)
     # ---- Signed-updater operations (2026-09-01 amendment): one authority, two presses.
     if normalized_path == "/api/update/check":
@@ -4714,6 +4716,9 @@ def _dispatch_post_inner(
     if normalized_path.startswith("/api/mobile/"):
         from core.web.api.mobile_companion_api import handle_mobile_companion_post
 
+        if not is_loopback_host(client_host):
+            return json_response(403, {"ok": False, "code": "companion_listener_required",
+                                       "error": "Use the paired phone connection."})
         return handle_mobile_companion_post(
             normalized_path,
             body,
@@ -8253,6 +8258,11 @@ def _dispatch_post_inner(
         from core.request_trust import TURN_AUTHOR_KEY, turn_author_from_request
 
         source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
+        # A paired phone's turn names its device (server-stamped, never from the body) so the phone's
+        # rights on the computer decide what its tools may do (core.request_trust.remote_turn_has_grant).
+        from core.request_trust import stamp_remote_device
+
+        stamp_remote_device(source_context)
         source_context["chat_id"] = context_namespace.chat_id
         # The page's app language, server-read from its cookie (never a body field): a reply VOOL
         # writes itself, such as a private chat switch, answers in it (core.private_chat_languages).

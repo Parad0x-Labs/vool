@@ -11,7 +11,7 @@ from core.execution.constants import local_fact_capability_required
 from core.memory_first_router import apply_verifier_draft_caveat, execution_visibility
 from core.reasoning_engine import inspect_user_response_shape
 from core.remote_fetch_policy import explicit_remote_fetch_disabled
-from core.request_trust import turn_is_remote
+from core.request_trust import REMOTE_GRANT_PAID, remote_turn_lacks
 from core.token_usage_receipt import append_token_usage_receipt
 from storage.shard_reuse_outcomes import record_shard_reuse_outcomes
 
@@ -762,7 +762,7 @@ def execute_grounded_turn(
     # "Use the model's own tools": VOOL's own web exploration stays off too.
     _model_own_tools = _model_own_tools_turn(source_context)
     _remote_fetch_disabled = (
-        action_forbidden or turn_is_remote(source_context) or explicit_remote_fetch_disabled(source_context) or _model_own_tools
+        action_forbidden or remote_turn_lacks(source_context, REMOTE_GRANT_PAID) or explicit_remote_fetch_disabled(source_context) or _model_own_tools
     )
     # Don't run curiosity (a live web search) before answering a high-confidence local/memory/
     # exact-recall/personal question — that turned a ~3s memory recall into a ~40s turn. Explicit
@@ -798,7 +798,7 @@ def execute_grounded_turn(
                 "action_policy_forbidden"
                 if action_forbidden
                 else "owner_local_required"
-                if turn_is_remote(source_context)
+                if remote_turn_lacks(source_context, REMOTE_GRANT_PAID)
                 else "model_own_tools"
                 if _model_own_tools
                 else "remote_fetch_disabled"

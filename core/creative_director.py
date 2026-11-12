@@ -173,6 +173,15 @@ def detect_creative_brief(user_text: str) -> CreativeBrief | None:
     # prompt you wrote", "write me a new prompt like the one you made").
     if _RECALL_FRAME_RE.search(low) and not (low.startswith(_PREFIXES) or enhance or want):
         return None
+    # Asking for a picture or video the owner already HAS ("I need the picture from yesterday's
+    # meeting, it's somewhere in my downloads", "give me the photos in my downloads folder") is a
+    # file lookup: measured 2026-10-27, that sentence got this prompt-director persona and an image
+    # prompt instead of the file. Only an explicit prefix or the word "prompt" keeps it a brief.
+    if not (low.startswith(_PREFIXES) or prompt_word):
+        from core.tool_demand_signals import owner_file_demand
+
+        if owner_file_demand(text):
+            return None
     return CreativeBrief(medium=_resolve_medium(low), idea=_strip_prefix(text), raw_text=text)
 
 

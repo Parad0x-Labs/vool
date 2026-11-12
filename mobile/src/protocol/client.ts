@@ -8,16 +8,21 @@
 // The fetch transport is injectable so the headless Node journey and the React
 // Native app share literally this code.
 import { canonicalBytes } from "./canonical.ts";
+import {connectionAddress} from './connection.ts';
 import { hmacSha256, randomBytes, toHex } from "./sha256.ts";
 import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
+import { reportLink, resetLink } from "./linkState.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
-  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord,
+  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences, SentFile,
 } from "./models.ts";
 
 export interface DeviceCredentials {
   baseUrl: string;
+  /** A second way to the same computer for when the phone is away from home (its relay room or
+   *  private-network address). Optional; the computer's pinned key is the same on both. */
+  awayUrl?: string;
   deviceId: string;
   grantId: string;
   grantSecret: string;
@@ -26,9 +31,54 @@ export interface DeviceCredentials {
   deviceSeedHex: string;
   desktopFingerprint: string;
   pairedAt: string;
+  approvalKeyAlias?: string;
 }
 
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<{ status: number; json(): Promise<unknown> }>;
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) => Promise<{ status: number; json(): Promise<unknown> }>;
+
+/** A chat turn on a local model can take minutes; the 30-second wait of other requests cut the phone off
+ *  while the computer was still answering (real-model test 2026-10-28). A resend with the same key never
+ *  runs the turn twice: the computer answers "still working" or the finished reply. */
+export const CHAT_TURN_TIMEOUT_MS = 240000;
+/** How long one "which way is open?" question may take before the other way is tried. */
+export const ROUTE_PROBE_TIMEOUT_MS = 5000;
+/** The away address is reached over the private route, which first has to connect: allow it time. */
+export const AWAY_PROBE_TIMEOUT_MS = 90000;
+/** Requests over the private route take longer end to end than on the home network. */
+export const AWAY_REQUEST_TIMEOUT_MS = 60000;
+
+/** The private route (Tor inside the app). The app registers it at start; tests register a fake. */
+export interface PrivateRoute {
+  fetch: FetchLike;
+  /** Wake the route and wait until it can carry a request. A request is signed with the time it
+   *  was made, so it is only made once the route is up. */
+  ready(timeoutMs: number): Promise<void>;
+  /** Called when the home address answers again, so the route can rest. */
+  stop(): void;
+}
+/** Any address whose host ends in .onion, whatever else it carries: such a request never uses the normal network. */
+const HIDDEN_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*\.onion\.?(?::\d*)?(?:[/?#]|$)/i;
+let privateRoute: PrivateRoute | null = null;
+export function setPrivateRoute(route: PrivateRoute | null) {privateRoute = route;}
+
+/** Pairing from anywhere: reach the pairing address at home first; when the home network does not
+ *  answer and the pairing code carried an away address, use that. Returns the address that answered
+ *  and the challenge. A refusal from the computer is an answer and is never retried the other way. */
+export async function reachForPairing(homeUrl: string, awayUrl: string, pairingId: string, fetchImpl: FetchLike = defaultFetch): Promise<{base: string; challenge: PairingChallenge}> {
+  const home = homeUrl.replace(/\/$/, "");
+  const away = awayUrl.replace(/\/$/, "");
+  if (!away || !HIDDEN_URL.test(away)) return {base: home, challenge: await fetchPairingChallenge(home, pairingId, fetchImpl)};
+  try {
+    // With another way available, the home try is kept short.
+    const quick: FetchLike = (url, init) => fetchImpl(url, {...init, timeoutMs: ROUTE_PROBE_TIMEOUT_MS});
+    return {base: home, challenge: await fetchPairingChallenge(home, pairingId, quick)};
+  } catch (error) {
+    if (error instanceof CompanionError || !privateRoute) throw error;
+  }
+  await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
+  const patient: FetchLike = (url, init) => fetchImpl(url, {...init, timeoutMs: AWAY_PROBE_TIMEOUT_MS});
+  return {base: away, challenge: await fetchPairingChallenge(away, pairingId, patient)};
+}
 
 export interface ClientOptions {
   fetchImpl?: FetchLike;
@@ -45,8 +95,17 @@ export class CompanionError extends Error {
   }
 }
 
+/** True when the failure is a verified refusal from the paired computer, not silence or a reply
+ *  that could not be checked as its own. */
+function answered(error: unknown): boolean {
+  return error instanceof CompanionError && error.code !== "sealed_response_invalid" && error.code !== "sealed_authentication_failed";
+}
+
+/** True when the computer simply did not answer (as opposed to answering with a refusal). */
+export function isNoAnswer(error: unknown): boolean {return !answered(error);}
+
 export class MobileCompanionClient {
-  private readonly creds: DeviceCredentials;
+  private creds: DeviceCredentials;
   private readonly doFetch: FetchLike;
   private readonly now: () => Date;
   private nonceCounter = 0;
@@ -54,7 +113,7 @@ export class MobileCompanionClient {
   private readonly keypair: ReturnType<typeof keypairFromSeed>;
 
   constructor(credentials: DeviceCredentials, options: ClientOptions = {}) {
-    this.creds = credentials;
+    this.creds = {...credentials};
     this.doFetch = options.fetchImpl ?? defaultFetch;
     this.now = options.now ?? (() => new Date());
     this.keypair = keypairFromSeed(credentials.deviceSeedHex);
@@ -63,8 +122,73 @@ export class MobileCompanionClient {
   get deviceId(): string { return this.creds.deviceId; }
   get baseUrl(): string { return this.creds.baseUrl; }
   get desktopFingerprint(): string { return this.creds.desktopFingerprint; }
+  get awayUrl(): string { return this.creds.awayUrl || ""; }
+  /** Which way the last answer came: over the home address or the away one. */
+  get route(): "home" | "away" { return this.away && this.creds.awayUrl ? "away" : "home"; }
+  setConnectionAddress(value: string) {this.creds = {...this.creds, baseUrl: connectionAddress(value)}; this.away = false;}
+  setAwayAddress(value: string) {
+    const next = {...this.creds};
+    if (value.trim()) next.awayUrl = connectionAddress(value); else delete next.awayUrl;
+    this.creds = next; this.away = false;
+  }
+  private away = false;
+  /** Why the last try over the away address failed ("" when it worked or was not tried). */
+  awayProblem = "";
+  private finding: Promise<"home" | "away" | null> | null = null;
+  private address(away = this.away): string { return (away && this.creds.awayUrl ? this.creds.awayUrl : this.creds.baseUrl).replace(/\/$/, ""); }
 
-  private async request<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
+  /** Find which way reaches the computer now: home first, then away. Each try is a small signed
+   *  question with its own one-time number, so nothing is ever sent twice. Null when neither answers. */
+  findRoute(): Promise<"home" | "away" | null> {
+    if (!this.creds.awayUrl) return Promise.resolve(null);
+    if (this.finding) return this.finding;
+    this.finding = (async () => {
+      try {
+        for (const away of [false, true]) {
+          try {
+            if (away) this.awayProblem = "";
+            if (away && HIDDEN_URL.test(this.address(true))) {
+              if (!privateRoute) {this.awayProblem = "private route unavailable"; continue;}
+              await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
+            }
+            await this.send<DeviceInfo>(this.address(away), "devices.me", {}, away ? AWAY_PROBE_TIMEOUT_MS : ROUTE_PROBE_TIMEOUT_MS);
+            this.away = away; reportLink(true);
+            if (!away) privateRoute?.stop();
+            return away ? "away" as const : "home" as const;
+          } catch (error) {
+            if (away) this.awayProblem = error instanceof Error ? error.message : String(error);
+            // A refusal is still an answer from this computer: the way works.
+            if (answered(error)) {this.away = away; if (!away) privateRoute?.stop(); return away ? "away" as const : "home" as const;}
+          }
+        }
+        return null;
+      } finally {this.finding = null;}
+    })();
+    return this.finding;
+  }
+
+  protected async request<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
+    // While the app is finding out which way is open, wait for the answer instead of guessing.
+    if (this.finding) await this.finding.catch(() => null);
+    try {
+      const result = await this.send<T>(this.address(), action, params);
+      reportLink(true);
+      return result;
+    } catch (error) {
+      if (!answered(error)) {
+        // No answer, or an answer that could not be verified as this computer's.
+        // With an away address there is still another way to try: the app is looking, not cut off.
+        // Only when neither way answers does it say the computer is out of reach.
+        if (this.creds.awayUrl) {
+          resetLink();
+          void this.findRoute().then(found => {if (!found) reportLink(false);}).catch(() => reportLink(false));
+        } else reportLink(false);
+      } else reportLink(true);
+      throw error;
+    }
+  }
+
+  private async send<T>(address: string, action: string, params: Record<string, unknown>, timeoutMs?: number): Promise<T> {
     const nonce = toHex(randomBytes(16)) + "-" + (++this.nonceCounter);
     const timestamp = this.now().toISOString();
     const payload = {
@@ -96,10 +220,13 @@ export class MobileCompanionClient {
       signature,
       device_signature: deviceSignature,
     };
-    const response = await this.doFetch(this.creds.baseUrl.replace(/\/$/, "") + "/api/mobile/companion", {
+    // The sealed transport only resolves for a reply it authenticated.
+    const response = await this.doFetch(address + "/api/mobile/companion", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
+      ...(action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
+      ...(timeoutMs ? {timeoutMs} : {}),
     });
     const parsed = (await response.json()) as CompanionResponse<T>;
     if (!parsed || parsed.ok !== true) {
@@ -112,10 +239,18 @@ export class MobileCompanionClient {
   // -- actions ---------------------------------------------------------------
 
   devicesMe(): Promise<DeviceInfo> { return this.request<DeviceInfo>("devices.me"); }
+
+  /** Phone-initiated unpair: revokes THIS device on the desktop (the server
+   *  ignores any device_id in params — only the calling device is targeted).
+   *  After it resolves, every later request fails device_revoked. */
+  unpair(): Promise<{ device_id: string; status: string; revoked_at?: string }> {
+    return this.request<{ device_id: string; status: string; revoked_at?: string }>("devices.unpair");
+  }
+
   statusSnapshot(): Promise<StatusSnapshot> { return this.request<StatusSnapshot>("status.snapshot"); }
 
-  async listChats(): Promise<ChatSummary[]> {
-    const r = await this.request<{ chats: ChatSummary[]; total: number }>("chats.list");
+  async listChats(search = ""): Promise<ChatSummary[]> {
+    const r = await this.request<{ chats: ChatSummary[]; total: number }>("chats.list", search ? {search} : {});
     return r.chats;
   }
 
@@ -128,18 +263,27 @@ export class MobileCompanionClient {
     return r.messages;
   }
 
-  sendMessage(chatId: string | null, message: string, attachments: string[] = []): Promise<SendResult> {
+  sendMessage(chatId: string | null, message: string, attachments: string[] = [], idempotencyKey?: string): Promise<SendResult> {
     const params: Record<string, unknown> = { message };
     if (chatId) params.chat_id = chatId;
     if (attachments.length) params.attachments = attachments;
+    if (idempotencyKey) params.idempotency_key = idempotencyKey;
     return this.request<SendResult>("chats.send", params);
+  }
+
+  turnProgress(key: string, after = 0): Promise<{events: NotificationEvent[]; next_after: number}> {
+    return this.request("chats.progress", {idempotency_key: key, after});
+  }
+
+  cancelTurn(key: string): Promise<{state: string}> {
+    return this.request("chats.cancel", {idempotency_key: key});
   }
 
   attachmentLimits(): Promise<Record<string, unknown>> {
     return this.request<Record<string, unknown>>("attachments.limits");
   }
 
-  async uploadAttachment(chatId: string, filename: string, bytes: Uint8Array, opts: { mediaType?: string; kind?: "photo" | "file" } = {}): Promise<AttachmentRecord> {
+  async uploadAttachment(chatId: string, filename: string, bytes: Uint8Array, opts: { mediaType?: string; kind?: "photo" | "file"; ability?: "camera" | "photos" } = {}): Promise<AttachmentRecord> {
     let binary = "";
     for (const b of bytes) binary += String.fromCharCode(b);
     const b64 = btoa(binary);
@@ -149,8 +293,38 @@ export class MobileCompanionClient {
       content_b64: b64,
       media_type: opts.mediaType ?? "",
       kind: opts.kind ?? "file",
+      ability: opts.ability,
     });
     return r.attachment;
+  }
+
+  async listSentFiles(): Promise<SentFile[]> {
+    const r = await this.request<{ files: SentFile[] }>("files.list");
+    return r.files ?? [];
+  }
+
+  /** The whole file the computer sent, as base64: pieces are a multiple of 3 bytes, so they join as text. */
+  async fetchSentFile(fileId: string): Promise<{ file: SentFile; base64: string }> {
+    let offset = 0;
+    const parts: string[] = [];
+    for (;;) {
+      const r = await this.request<{ file: SentFile; content_b64: string; next_offset: number; done: boolean }>(
+        "files.fetch", {file_id: fileId, offset});
+      parts.push(r.content_b64);
+      if (r.done || r.next_offset <= offset) return { file: r.file, base64: parts.join("") };
+      offset = r.next_offset;
+    }
+  }
+
+  checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
+    return this.request("abilities.check", {ability});
+  }
+  dictate(bytes: Uint8Array): Promise<{text:string}> {
+    let binary = ""; for (const b of bytes) binary += String.fromCharCode(b);
+    return this.request("abilities.dictate", {content_b64:btoa(binary),media_type:"audio/mp4"});
+  }
+  locationDraft(latitude:number, longitude:number): Promise<{text:string}> {
+    return this.request("abilities.location", {latitude:latitude.toFixed(6),longitude:longitude.toFixed(6)});
   }
 
   async pendingApprovals(): Promise<PendingApproval[]> {
@@ -169,16 +343,63 @@ export class MobileCompanionClient {
     return this.request<{ proof: TurnProof }>("proof.get", { chat_id: chatId, request_id: requestId }).then(r => r.proof);
   }
 
-  async pollNotifications(after = 0, session?: string, limit = 60): Promise<{ events: NotificationEvent[]; nextAfter: number }> {
+  async pollNotifications(after = 0, session?: string, limit = 60): Promise<{ events: NotificationEvent[]; nextAfter: number; badge?: number; attention?: boolean }> {
     const params: Record<string, unknown> = { after, limit };
     if (session) params.session = session;
     const r = await this.request<PollResult>("notifications.poll", params);
-    return { events: r.events, nextAfter: r.next_after };
+    return { events: r.events, nextAfter: r.next_after,
+      ...(typeof r.badge === "number" ? {badge: r.badge, attention: r.attention} : {})};
   }
+
+  notificationPreferences(): Promise<{preferences: NotificationPreferences; types: string[]; mandatory: string[]; alerts_allowed: boolean}> {
+    return this.request("notifications.preferences.get");
+  }
+  setNotificationPreferences(change: Record<string, unknown>): Promise<{preferences: NotificationPreferences; mandatory: string[]}> {
+    return this.request("notifications.preferences.set", change);
+  }
+  notificationFeed(before = 0): Promise<{events: NotificationEvent[]; badge: number; next_before?: number}> {
+    return this.request("notifications.feed", {records: true, before});
+  }
+  markNotificationsRead(): Promise<{badge: number}> {return this.request("notifications.read");}
+
+  walletStatus(): Promise<{status: {enabled: boolean; accounts?: {wallet_id: string; label: string; network: string}[];
+    pending?: {proposal_id: string; mobile_owned?: boolean; amount_human?: string; display_symbol?: string; destination: string; network: string; state: string}[]}; frozen: boolean}> {
+    return this.request("wallet.status");
+  }
+  walletBalance(walletId: string): Promise<{state: string; balance_human?: string; asset?: string; reason?: string}> {
+    return this.request("wallet.balances", {wallet_id: walletId});
+  }
+  walletReceipts(): Promise<{receipts: Record<string, unknown>[]}> {return this.request("wallet.receipts");}
+  walletContacts(search: string): Promise<{contacts: {display_name: string}[]}> {return this.request("wallet.contacts", {search});}
+  previewPayment(params: {destination:string; amount:string; idempotency_key:string}): Promise<import("./paymentDraft.ts").PaymentReview> {
+    return this.request("wallet.preview", params);
+  }
+  proposePayment(params: {destination: string; amount: string; idempotency_key: string; review_token: string; warnings_acknowledged: string[]}): Promise<{proposal: {proposal_id: string}; display_amount: string; asset: string; message: string}> {
+    return this.request("wallet.propose", params);
+  }
+  declinePayment(proposalId: string): Promise<{cancelled?: boolean; already_sent?: boolean; reason?: string}> {
+    return this.request("wallet.decline", {proposal_id: proposalId});
+  }
+  freezePayments(): Promise<{frozen: boolean; message: string}> {return this.request("wallet.freeze");}
+  pauseRights(rights: string[]): Promise<{rules: Record<string, boolean>}> {return this.request("devices.switch_off", {rights});}
+  lostComputer(): Promise<{clear_credentials: boolean}> {return this.request("devices.lost_computer");}
 }
 
-function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }) {
-  return fetch(url, init);
+export async function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) {
+  if (HIDDEN_URL.test(url)) {
+    // A hidden address is only ever reached over the private route. It never goes to the phone's
+    // normal network, where even looking the name up would give it away.
+    if (!privateRoute) throw new Error("private route unavailable");
+    return privateRoute.fetch(url, {...init, timeoutMs: Math.max(init.timeoutMs ?? 0, AWAY_REQUEST_TIMEOUT_MS)});
+  }
+  const controller = new AbortController();
+  const {timeoutMs, ...request} = init;
+  const timer = setTimeout(() => controller.abort(), timeoutMs ?? 30000);
+  try {
+    const response = await fetch(url, {...request, signal: controller.signal, redirect: "error"});
+    const body: unknown = await response.json();
+    return {status: response.status, json: async () => body};
+  } finally {clearTimeout(timer);}
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +421,7 @@ export async function fetchPairingChallenge(baseUrl: string, pairingId: string, 
 }
 
 export interface ClaimPairingArgs {
+  approvalKey?: Record<string, unknown> | null;
   pairingId: string;
   code: string;
   deviceName: string;
@@ -233,6 +455,7 @@ export async function claimPairing(baseUrl: string, opts: ClaimPairingArgs): Pro
       platform: opts.platform,
       device_public_key: opts.devicePublicKeyHex,
       device_proof: { algorithm: "ed25519", signature: proof },
+      approval_key: opts.approvalKey || null,
     }),
   });
   const parsed = (await response.json()) as PairingClaimResponse | { ok: false; error?: string; code?: string };

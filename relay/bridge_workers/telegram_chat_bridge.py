@@ -224,3 +224,11 @@ __all__ = ["TelegramChatBridge"]
 
 if __name__ == "__main__":
     TelegramChatBridge().run_forever()
+
+# Settings uses this strict managed lane. Legacy CLI compatibility remains
+# isolated above until its frozen trust-on-first-use contract can be retired.
+from core.mobile_companion.bot_runtime import ManagedBot
+
+
+class ManagedTelegramChatBridge(ManagedBot):
+    platform = 'telegram'

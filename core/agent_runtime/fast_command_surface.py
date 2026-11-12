@@ -1352,6 +1352,82 @@ _CLOUD_SUBJECT_RE = re.compile(
 )
 
 
+# "can you switch to a faster smaller model?" names no model, so the switch above falls through, and
+# the model then answered "Done, I've switched to a faster, smaller model" with nothing changed
+# (measured 2026-10-28 on qwen3:8b, the phone and the PC alike). A request to change the model
+# without naming one is answered with what is true and where the person changes it.
+_GENERIC_MODEL_CHANGE_RE = re.compile(
+    r"\b(?:switch|change|swap|move|go|use|try|pick|get)\b(?:\s+(?:me|us|over|it))?(?:\s+(?:to|for|on))?"
+    r"\s+(?:a|an|another|the|some|your)?\s*(?:(?:different|other|faster|quicker|smaller|lighter|bigger|larger"
+    r"|smarter|better|stronger|cheaper|new|simpler|lighter-weight)[\s,]+(?:and\s+|or\s+)?){1,3}(?:ai\s+)?model\b",
+    re.IGNORECASE,
+)
+_GENERIC_MODEL_CHANGE_ASK_RE = re.compile(
+    r"\b(?:can|could|would|will)\s+(?:you|u)\b|\b(?:please|pls|plz)\b|^\W*(?:ok\W+|so\W+|hey\W+|just\W+)?"
+    r"(?:switch|change|swap|use|try|pick|go)\b|\blet'?s\b|\bi\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\b",
+    re.IGNORECASE,
+)
+_GENERIC_MODEL_ELSEWHERE_RE = re.compile(
+    r"\b(?:apps?|project|website|site|bot|program|function|api|config|game|class|layers?|neural|train(?:ing)?"
+    r"|dataset|pytorch|tensorflow|car|plane|kit|3d|lego)\b",
+    re.IGNORECASE,
+)
+GENERIC_MODEL_CHANGE_REPLY = (
+    "I can't change the model myself, so nothing was switched. To use a faster one, click Model at the "
+    "top of the chat on your computer and pick a smaller one, or choose one in Settings under Models & Providers."
+)
+
+
+def _only_remarks_beside_the_model_change(text: str) -> bool:
+    """Whether every other part of the message is a remark ("youre kinda slow today"), never a second ask.
+
+    The front door claims a whole turn only when it holds one request; a remark beside this one is read as a
+    unit of its own, so the turn would otherwise reach the model and its false "I've switched". Any part
+    that asks for something ("and explain entropy", a question mark) leaves the turn to the lanes that answer
+    every part.
+    """
+    try:
+        from core.agent_runtime.answer_coverage import interpret_request
+        from core.turn_ir import ClauseKind, classify_clause_kind
+
+        units = [u for u in interpret_request(text).units if u.kind == "request"]
+    except Exception:
+        return False
+    match = _GENERIC_MODEL_CHANGE_RE.search(text)
+    if match is None:
+        return False
+    # The request may be cut into pieces at a comma ("change to a bigger, smarter model"): every unit the
+    # request's own words overlap belongs to it.
+    others = [u for u in units if not (u.start < match.end() and match.start() < u.end)]
+    for unit in others:
+        part = str(unit.text or "")
+        if "?" in part or classify_clause_kind(part) is not ClauseKind.UNKNOWN:
+            return False
+    return True
+
+
+def maybe_handle_generic_model_change_ask(user_input: str, *, owner_local: bool = False) -> dict[str, Any] | None:
+    """A request to change the model that names no model: say what is true, never claim a switch."""
+    del owner_local  # the same answer on the computer and on a phone: nothing is changed either way
+    text = " ".join(str(user_input or "").split())
+    if not text or len(text) > 160:
+        return None
+    if not _GENERIC_MODEL_CHANGE_RE.search(text) or not _GENERIC_MODEL_CHANGE_ASK_RE.search(text):
+        return None
+    # A model in the person's own work ("write a script that switches my app to a smaller model") is a task.
+    if _OPENROUTER_CODING_GUARD_RE.search(text) or _GENERIC_MODEL_ELSEWHERE_RE.search(text):
+        return None
+    if not _only_remarks_beside_the_model_change(text):
+        return None
+    return {
+        "response": GENERIC_MODEL_CHANGE_REPLY,
+        "success": False,
+        "advice_only": True,
+        "reason": "generic_model_change_unnamed",
+        "details": {},
+    }
+
+
 def maybe_handle_cloud_switch_intent(user_input: str, *, owner_local: bool = False) -> dict[str, Any] | None:
     """"lets go with HY3" / "switch to gemma" — REALLY switch the cloud model, or say why not.
 

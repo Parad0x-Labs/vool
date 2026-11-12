@@ -386,10 +386,14 @@ def test_a_name_the_person_did_not_say_is_not_searched(monkeypatch):
     import core.authorized_tool_execution as ate
     from core.agent_runtime import turn_frontdoor as frontdoor
 
-    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda *a, **k: pytest.fail("searched the menu's words"))
+    searched: list[tuple[str, dict]] = []
+    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda intent, args, **k: searched.append((intent, args)))
     result = frontdoor._execute_arbitrated_family(
         SimpleNamespace(), decision=SimpleNamespace(family="find_folder", argument="the folder name"),
         effective_input="find the folder with my lisbon holiday pics", session_id="chat-x", source_surface="api",
         source_context={},
     )
     assert result is None
+    # The menu's words are never searched; the phone branch reads the person's own words ("lisbon holiday",
+    # the picture word saying where to look) and searches those.
+    assert searched in ([], [("machine.find_folder", {"name": "lisbon holiday"})]), searched

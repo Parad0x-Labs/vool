@@ -410,7 +410,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="inspect grounded host specs, drive space, recent system errors, and running processes on this machine",
             supported=read_enabled,
             unsupported_reason="Local machine inspection is disabled on this runtime.",
-            input_schema={"drive": "string optional", "top": "integer optional", "kind": "string optional (files|folders|both)"},
+            input_schema={"drive": "string optional", "top": "integer optional", "kind": "string optional (files|folders|both)", "cleanup_context": "boolean optional — true when the ask is about freeing space or deleting; adds the delete-safety notes to the rows"},
             output_schema={"entries": "list[largest_entry]", "complete": "boolean"},
             side_effect_class="read_only",
             approval_requirement="none",
@@ -517,6 +517,32 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             artifact_emission="none",
             error_contract="returns_structured_error_result",
             claim=ToolClaim(target_argument="path", resolved_target_key="path"),
+        ),
+        RuntimeToolContract(
+            intent="machine.send_to_phone",
+            description=(
+                "Send one file from this computer (Desktop, Downloads, Documents and the other safe folders) to the "
+                "owner's paired VOOL phone app, where it shows under \"From your computer\" to save. Use it when the "
+                "user asks to send, get or move a file to their phone. Find the file first with machine.find_file."
+            ),
+            tool_surface="machine",
+            capability_id="filesystem.read",
+            capability_claim="send a file from a safe local folder to the owner's paired phone",
+            supported=read_enabled,
+            unsupported_reason="Safe local file reads are disabled on this runtime.",
+            input_schema={"path": "string"},
+            output_schema={"name": "string", "size_bytes": "integer", "sha256": "string", "phone": "string"},
+            # Reads one file and copies it into VOOL's own data folder for the owner's paired phone
+            # (same class as a saved note); nothing leaves this computer until that phone pulls it
+            # over its sealed link (core.mobile_companion.outgoing_files). Permission-wise a read.
+            side_effect_class="creative_state",
+            permission_actions=("read_files",),
+            approval_requirement="none",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            claim=ToolClaim(target_argument="path", resolved_target_key="path", asserts_action=True),
         ),
         RuntimeToolContract(
             intent="machine.ensure_directory",

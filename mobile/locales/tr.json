@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "Bu sohbete bir fotoğraf ekleyin. Gönder’e dokunana kadar ileti gönderilmez.",
+  "NSMicrophoneUsageDescription": "Bilgisayarınızın yazıya dökmesi için kısa bir not kaydedin. Göndermeden önce metni gözden geçirin.",
+  "NSLocationWhenInUseUsageDescription": "Gözden geçirmek için geçerli konumunuzu ileti kutusuna ekleyin. Arka planda konum kullanılmaz.",
+  "NSFaceIDUsageDescription": "VOOL kilidini aç",
+  "NSCameraUsageDescription": "Eşleştirme QR kodunu tara. Fotoğraf çek."
+}

@@ -34,6 +34,10 @@ def maybe_handle_resource_hog_question(user_input: str, *, owner_local: bool) ->
     text = " ".join(str(user_input or "").split())
     if not text or not _HOG_QUESTION_RE.search(text):
         return None
+    from core.operator.parser import _DELETE_TEMP_FILES_RE
+
+    if _DELETE_TEMP_FILES_RE.search(text):
+        return None  # "my laptop is slow, can you clear out my temp files?" asks for the cleanup
     if not owner_local:
         return "Machine diagnostics are owner-only, so I can't report this host's numbers from here."
     try:

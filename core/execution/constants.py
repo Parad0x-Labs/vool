@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import NamedTuple
 from collections.abc import Sequence
 from typing import Any
 
@@ -620,8 +621,12 @@ _STORAGE_CAPACITY_ASK_RE = re.compile(
     rf"(?:\S+\s+){{0,2}}?{_STORAGE_SUBJECT}\b"
     # FULLNESS -- "how full is my disk", "is my drive nearly full", "how much of my disk is used",
     # "percentage of disk used". The device noun is required: "how full is the venue" is not this.
+    # "how full is my computers storage rn?", "is my disk gonna fill up soon" (phone audit 2026-10-29).
     rf"|\bhow\s+full\s+(?:is|are)\s+(?:my|the|this)?\s*{_STORAGE_DEVICE}\b"
     rf"|\b(?:my|the|this)\s+{_STORAGE_DEVICE}\b(?:\s+\S+){{0,3}}?\s+(?:full|filling\s+up)\b"
+    # "how full is my computers storage rn?", "is my disk gonna fill up soon" (phone audit 2026-10-29).
+    rf"|\bhow\s+full\s+(?:is|are)\s+(?:my|this)\s+(?:computer|mac|laptop|pc|machine)(?:'?s)?\s+{_STORAGE_DEVICE}\b"
+    rf"|\b(?:my|this)\s+{_STORAGE_DEVICE}\b(?!\s+(?:units?|rooms?|lockers?|boxe?s?|sheds?|facilit))(?:\s+\S+){{0,3}}?\s+fill\s+up\b"
     rf"|\bhow\s+much\s+of\s+(?:my|the|this)\s+{_STORAGE_DEVICE}\b(?:\s+\S+){{0,3}}?\s+used\b"
     rf"|\b(?:percentage|percent|%)\s+of\s+(?:my\s+|the\s+|this\s+)?{_STORAGE_DEVICE}\b(?:\s+\S+){{0,2}}?\s*used\b"
     # FIT -- "do i have room for a 50gb download", "have i got enough disk for a 20gb video". A
@@ -1035,10 +1040,13 @@ _FILE_DESCRIBED_ON_DISK_RE = re.compile(
 )
 _ON_THIS_COMPUTER_RE = re.compile(r"\bon\s+(?:my|this)\s+(?:mac|computer|laptop|pc|machine|imac|macbook)\b", re.IGNORECASE)
 _FILE_DESCRIBED_STOPWORDS = frozenset(
-    ["a", "an", "the", "my", "that", "this", "those", "these", "of", "from", "in", "on", "at", "with", "for", "to", "by", "about", "i", "me", "you", "u", "we", "it", "its", "it's", "is", "was", "are", "were", "be", "been", "called", "named", "titled", "made", "saved", "took", "taken", "got", "get", "have", "had", "go", "went", "gone", "can", "could", "would", "please", "pls", "find", "locate", "where", "where'd", "where's", "which", "what", "whats", "what's", "grab", "need", "show", "pull", "up", "dig", "hunt", "track", "down", "look", "looking", "for", "search", "there", "here", "some", "any", "one", "ones", "somewhere", "anywhere", "computer", "mac", "laptop", "machine", "pc", "imac", "macbook", "disk", "drive", "desktop", "downloads", "documents", "download", "photos", "pictures", "folder", "yesterday", "today", "last", "week", "month", "year", "ago", "recent", "recently", "old", "new", "latest", "earlier", "again", "think", "just", "or", "and", "file", "files", "doc", "docs", "stored", "kept", "put", "located", "placed", "moved", "written", "created", "downloaded", "sent"]
+    ["a", "an", "the", "my", "that", "this", "those", "these", "of", "from", "in", "on", "at", "with", "for", "to", "by", "about", "i", "me", "you", "u", "we", "it", "its", "it's", "is", "was", "are", "were", "be", "been", "called", "named", "titled", "made", "saved", "took", "taken", "got", "get", "have", "had", "go", "went", "gone", "can", "could", "would", "please", "pls", "find", "locate", "where", "where'd", "where's", "which", "what", "whats", "what's", "grab", "need", "show", "pull", "up", "dig", "hunt", "track", "down", "look", "looking", "for", "search", "there", "here", "some", "any", "one", "ones", "somewhere", "anywhere", "computer", "mac", "laptop", "machine", "pc", "imac", "macbook", "disk", "drive", "desktop", "downloads", "documents", "download", "photos", "pictures", "folder", "yesterday", "today", "last", "week", "month", "year", "ago", "recent", "recently", "old", "new", "latest", "newest", "oldest", "most", "earlier", "again", "think", "just", "or", "and", "file", "files", "doc", "docs", "stored", "kept", "put", "located", "placed", "moved", "written", "created", "downloaded", "sent"]
 )
 _FILE_DESCRIBED_REJECT_RE = re.compile(
-    r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b",
+    r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b"
+    # "the cheapest pdf editor" is an app to get, not a file to find.
+    r"|\b(?:pdf|photo|picture|image|video|music|audio|mp3|mp4)\s+(?:editors?|readers?|viewers?|converters?|apps?|tools?|"
+    r"software|programs?|makers?|players?|compressors?)\b",
     re.IGNORECASE,
 )
 # "find day4.png" / "where is invoice.pdf": a search verb and a name with a known extension.
@@ -1083,8 +1091,141 @@ _FILE_NOT_THIS_DISK_RE = re.compile(
 
 def _named_place(raw: str) -> str:
     lowered = raw.lower()
-    return next((label for word, label in (("downloads", "Downloads"), ("desktop", "Desktop"), ("documents", "Documents"))
+    return next((label for word, label in (("downloads", "Downloads"), ("desktop", "Desktop"), ("documents", "Documents"),
+                                           ("pictures", "Pictures"))
                  if re.search(r"\b" + word + r"\b", lowered)), "")
+
+
+_WHERE_DID_I_RE = re.compile(r"\bwhere\s+did\s+i\s+(?:save|put|download|leave|store|move|keep)\b", re.IGNORECASE)
+_LOOSE_KIND = r"(?P<kind>pdf|picture|photo|image|screenshot|document|doc|file|video|spreadsheet|presentation|recording)"
+_LOOSE_FILE_SEARCHES = (
+    # "find my taxes pdf", "where is the wedding video"
+    re.compile(
+        r"\b(?:find|locate|where\s+is|where's|look\s+for|search\s+for|get\s+me|fetch)\s+(?:my|the)\s+"
+        r"(?P<name>[A-Za-z0-9][\w\-]*(?:\s+[\w\-]+){0,3}?)\s+" + _LOOSE_KIND + r"s?"
+        r"(?=\s*(?:[?.!,]|$)|\s+(?:in|on|from|inside|somewhere|anywhere|please|pls|for\s+me)\b)",
+        re.IGNORECASE,
+    ),
+    # "where did I save the invoice", "where did I put my resume from last week"
+    re.compile(
+        r"\bwhere\s+did\s+i\s+(?:save|put|download|leave|store|move|keep)\s+(?:the|my|that)\s+"
+        r"(?P<name>[A-Za-z0-9][\w\-]*(?:\s+[\w\-]+){0,3}?)(?:\s+" + _LOOSE_KIND + r")?"
+        r"(?=\s+(?:from|yesterday|today|last|on|in|to|at)\b|\s*[?.!,]|\s*$)",
+        re.IGNORECASE,
+    ),
+    # "look for a file with 77 in the name"
+    re.compile(r"\bfiles?\s+with\s+(?P<name>[\w\-.]{2,40})\s+in\s+(?:the|its|their)\s+names?\b", re.IGNORECASE),
+)
+_LOOSE_NAME_STOPWORDS = frozenset({
+    "latest", "newest", "last", "recent", "big", "biggest", "largest", "old", "oldest", "all", "new", "first",
+    "same", "other", "next", "best", "right", "wrong", "whole", "entire", "most", "this", "that", "these", "those",
+})
+
+
+# "find my resume pdf": a kind noun the person also calls the file by (the merged 0.7.6 kind words made
+# these nouns, so the loose lookup refused them as a bare kind).
+_FILE_NOUNS_THAT_NAME_IT = frozenset({"resume", "cv"})
+
+
+def _loose_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
+    """The same lookup said without "named": "find my taxes pdf", "where did I save the invoice"."""
+    for shape in _LOOSE_FILE_SEARCHES:
+        match = shape.search(raw)
+        if match is None:
+            continue
+        name = match.group("name").strip(" .'\"-")
+        words = name.lower().split()
+        if (
+            not words or words[0] in _LOOSE_NAME_STOPWORDS
+            or (name.lower() in _FILE_KIND_WORDS and name.lower() not in _FILE_NOUNS_THAT_NAME_IT)
+            or name.lower() in _FILE_NAME_FILLERS or any(word in ("folder", "folders", "directory") for word in words)
+        ):
+            return None
+        asked = re.sub(_WHERE_DID_I_RE, "where", raw[: match.start("name")] + " " + raw[match.end("name"):])
+        if _FILE_OTHER_ACTION_RE.search(asked) or _FILE_NOT_THIS_DISK_RE.search(asked):
+            return None
+        kind = _FILE_KIND_WORDS.get(str(match.groupdict().get("kind") or "").lower(), "")
+        return (kind, (name,), _named_place(raw[: match.start()] + " " + raw[match.end():]))
+    return None
+
+
+class DescribedSearch(NamedTuple):
+    """A file the owner DESCRIBES instead of naming ("my boarding pass", "a pic of the cat on the sofa")."""
+
+    kind: str
+    words: tuple[str, ...]
+    place: str
+
+
+_DESCRIBED_STOP = frozenset(
+    ["the", "a", "an", "my", "our", "your", "of", "on", "in", "at", "for", "from", "to", "with", "and", "or", "some", "any", "that", "this", "it", "its", "i", "me", "im", "is", "was", "be", "been", "saved", "save", "took", "taken", "kept", "have", "had", "find", "look", "looking", "can", "cant", "could", "you", "u", "please", "pls", "sure", "somewhere", "anywhere", "point", "time", "thing", "things", "stuff", "one", "ones", "file", "files", "folder", "folders"]
+)
+_DESCRIBED_EVENT = frozenset({"trip", "holiday", "holidays", "vacation", "journey", "visit", "weekend", "getaway"})
+_DESCRIBED_KIND = {"pic": "image", "pics": "image", "picture": "image", "pictures": "image", "photo": "image",
+                   "photos": "image", "image": "image", "images": "image", "screenshot": "image",
+                   "screenshots": "image", "video": "video", "videos": "video", "pdf": "pdf"}
+_DESCRIBED_END = r"(?=\s+(?:for|from|at|that|which|i|on\s+my|in\s+my|somewhere|anywhere|please|pls|last|yesterday)\b|\s*[?.!,]|\s*$)"
+_DESCRIBED_SHAPES = (
+    # "cant find my boarding pass for the flight", "where is my passport scan"
+    re.compile(
+        r"\b(?:can'?t\s+find|cannot\s+find|lost|find|locate|look(?:ing)?\s+for|where(?:'s|\s+is|\s+are))\s+(?:my|the|our)\s+"
+        r"(?P<desc>[a-z0-9][\w'\-]*(?:\s+[\w'\-]+){0,4}?)" + _DESCRIBED_END,
+        re.IGNORECASE,
+    ),
+    # "i saved a pic of the cat on the sofa at some point, find it?"
+    re.compile(
+        r"\b(?:a|the|that|some)\s+(?P<kind>pic|picture|photo|image|screenshot|video)s?\s+of\s+"
+        r"(?P<desc>(?:the\s+|a\s+|my\s+)?[a-z0-9][\w'\-]*(?:\s+[\w'\-]+){0,4}?)"
+        r"(?=\s+(?:at\s+some|some\s+time|somewhere|from|that|which|i|last|yesterday)\b|\s*[?.!,]|\s*$)",
+        re.IGNORECASE,
+    ),
+    # "show me the photos from my lisbon trip"
+    re.compile(
+        r"\b(?P<kind>pics|pictures|photos|images|videos)\s+(?:from|of)\s+(?:my|our|the)\s+"
+        r"(?P<desc>[a-z0-9][\w'\-]*(?:\s+[\w'\-]+){0,3}?)(?=\s*[?.!,]|\s*$|\s+(?:please|pls|on|in)\b)",
+        re.IGNORECASE,
+    ),
+)
+_DESCRIBED_CUE_RE = re.compile(
+    r"\b(?:find|locate|where|look(?:ing)?\s+for|show|see|lost|can'?t\s+find|cannot\s+find|do\s+i\s+(?:still\s+)?have|"
+    r"got|get\s+me|fetch|pull\s+up|any)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_described_file_intent(text: str) -> DescribedSearch | None:
+    """A lookup for a file the owner describes in words ("my boarding pass", "the photos from my lisbon trip").
+
+    Only for asks that are already about the owner's own files (``owner_file_demand``); another action on
+    the file (send, copy, delete...) is not a lookup. The caller answers only when something matches.
+    """
+    from core.tool_demand_signals import owner_file_demand
+
+    raw = " ".join(str(text or "").split())
+    if not raw or not owner_file_demand(raw) or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    if not _DESCRIBED_CUE_RE.search(raw) or _FILE_NOT_THIS_DISK_RE.search(raw):
+        return None
+    for shape in _DESCRIBED_SHAPES:
+        match = shape.search(raw)
+        if match is None:
+            continue
+        asked = raw[: match.start("desc")] + " " + raw[match.end("desc"):]
+        if _FILE_OTHER_ACTION_RE.search(re.sub(r"\bsaved?\b", "", asked, flags=re.IGNORECASE)):
+            return None
+        tokens = re.findall(r"[a-z0-9]+", match.group("desc").lower().replace("'", ""))
+        kind = _DESCRIBED_KIND.get(str(match.groupdict().get("kind") or "").lower(), "")
+        for token in tokens:
+            kind = kind or _DESCRIBED_KIND.get(token, "")
+        words = tuple(dict.fromkeys(
+            token for token in tokens
+            if token not in _DESCRIBED_STOP and token not in _DESCRIBED_EVENT and token not in _DESCRIBED_KIND
+            and len(token) >= 3
+        ))
+        if not words or any(token in ("folder", "folders", "directory") for token in tokens):
+            return None
+        return DescribedSearch(kind, words[:4], _named_place(asked))
+    return None
 
 
 def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | None:
@@ -1092,16 +1233,16 @@ def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | 
 
     ``kind`` is ``"image"``, ``"pdf"``, ``"video"``, ``"audio"``, a named type such as ``"jpg"``, or
     ``""``; ``names`` are the alternatives the user gave ("daily 4 or day 4"); ``place`` is
-    Desktop/Downloads/Documents when the message names one, else ``""``. A mutating verb suppresses the match.
+    Desktop/Downloads/Documents/Pictures when the message names one, else ``""``. A mutating verb suppresses the match.
     """
     raw = " ".join(str(text or "").split())
     if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
         return None
-    return _named_file_search(raw) or _described_file_search(raw)
+    return _named_file_search(raw) or _loose_file_search(raw) or _described_file_search(raw)
 
 
 def _passes_lookup_checks(asked: str) -> bool:
-    asked = re.sub(r"\bwhere\s+did\s+i\s+(?:save|put)\b", "where", asked, flags=re.IGNORECASE)
+    asked = re.sub(_WHERE_DID_I_RE, "where", asked)
     asked = re.sub(r"\b(?:external|usb|hard|thumb|flash)\s+drive\b", "disk", asked, flags=re.IGNORECASE)
     return bool(_FILE_LOOKUP_CUE_RE.search(asked)) and not _FILE_OTHER_ACTION_RE.search(asked) and not (
         _FILE_NOT_THIS_DISK_RE.search(asked))
@@ -1167,6 +1308,936 @@ def _named_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
     if not names:
         return None
     return (kind, tuple(dict.fromkeys(names)), _named_place(raw))
+
+
+# "Pull up the plumber invoice", "open the bank csv": a file asked for by the WORDS in its name,
+# behind cue verbs the lookup families do not read. Measured 2026-10-29 (audit F42, PC and
+# phone): "pull up the plumber invoice for me please" was answered "I can't access files" while
+# the invoice sat in Downloads -- no lane claimed the shape, so the model lane said what it could
+# not do. The object words are what the file's name holds; a kind word ("the bank csv") names the
+# type and is not a search word.
+_PRESENT_FILE_CUE_RE = re.compile(
+    r"\b(?P<cue>pull\s+up|bring\s+up|show\s+me|look\s+at|open|find)\b"
+    r"(?:\s+(?:the|my|that|a|an))?"
+    r"(?P<obj>(?:\s+[\w.'-]+){1,5})",
+    re.IGNORECASE,
+)
+# Words that never name a file: determiners, request scaffolding, question words. A selector
+# ("the biggest file") ranks files instead of naming one, so it ends the object -- "show me the
+# newest photo" then stays with the newest-of-a-kind lane that answers it.
+_PRESENT_OBJECT_STOP = frozenset({
+    "a", "an", "the", "my", "that", "this", "these", "those", "of", "for", "to", "please", "pls",
+    "me", "you", "i", "want", "look", "at", "it", "in", "on", "from", "with", "into", "and", "or",
+    "but", "by", "about", "as", "what", "which", "who", "where", "when", "how", "why", "whose",
+    "biggest", "largest", "smallest", "newest", "latest", "oldest", "first", "last",
+})
+# A kind word in the object names the TYPE, not the file: "the bank csv" is a csv named bank.
+# Values are the kind keys the resolver filters file extensions by.
+_PRESENT_KIND_WORDS = {
+    "pdf": "pdf", "pdfs": "pdf", "csv": "csv", "doc": "doc", "docs": "doc", "document": "doc",
+    "documents": "doc", "txt": "txt", "text": "txt", "md": "md", "video": "video", "videos": "video",
+    "photo": "image", "photos": "image", "picture": "image", "pictures": "image", "image": "image",
+    "images": "image", "recording": "audio", "recordings": "audio", "song": "audio", "songs": "audio",
+    "file": "", "files": "",
+}
+# An app, a site or a window opens in its own lane; it is not a file read off this disk.
+# "open chrome" answered with a disk search for "chrome" would answer a question nobody asked.
+_PRESENT_APP_WORDS = frozenset({
+    "chrome", "safari", "firefox", "edge", "brave", "opera", "spotify", "netflix", "calendar",
+    "contacts", "maps", "settings", "bluetooth", "wifi", "terminal", "calculator", "finder",
+    "preview", "notes.app", "app", "apps", "application", "website", "site", "page", "link",
+    "url", "tab", "window",
+})
+# A folder noun makes the object a folder search ("open the invoices folder"), which the
+# named-folder lanes own.
+_PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir"})
+# "find my phone" is not a file lookup (the loose search stands down on it too): the object names
+# a device the owner owns, not words a file's name carries.
+_PRESENT_DEVICE_WORDS = frozenset({
+    "phone", "phones", "laptop", "laptops", "computer", "computers", "pc", "mac", "tv", "tablet", "tablets",
+})
+# "show me the event called School play" asks the calendar for a row, and "pull up my dentist
+# appointment" or "show me the reminder about bins" ask VOOL's own lists: the object names a
+# calendar or list item, not words a file's name carries, so those lanes keep it.
+_PRESENT_ORGANIZER_WORDS = frozenset({
+    "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
+    "calendar", "calendars", "schedule", "agenda", "booking", "bookings", "contact", "birthday", "birthdays",
+})
+# ...unless the ask also names a document: "pull up my meeting notes", "the booking confirmation pdf".
+_PRESENT_DOCUMENT_WORDS = frozenset({
+    "notes", "minutes", "slides", "deck", "invoice", "receipt", "ticket", "tickets", "confirmation", "invite",
+})
+# "find disk bloat in <folder>" asks the storage scan what takes the space; the object names the
+# disk or the clutter, never words a file's name carries, so the cleanup lane keeps it.
+_PRESENT_STORAGE_WORDS = frozenset({
+    "disk", "disks", "drive", "drives", "ssd", "storage", "space", "bloat", "junk", "clutter", "temp", "cache",
+})
+
+
+class PresentFileAsk(NamedTuple):
+    """A file asked for by the words of its name: "pull up the plumber invoice"."""
+
+    kind: str  # "", image, video, pdf, audio, csv, doc, txt or md -- a kind word from the ask
+    words: tuple[str, ...]  # 1-4 lowercase words the file's name must contain
+    place: str  # "Desktop"/"Downloads"/"Documents"/"Pictures" when the ask names one, else ""
+
+
+def machine_present_file_intent(text: str) -> PresentFileAsk | None:
+    """``(kind, words, place)`` for "pull up / open / show me / bring up / find <words>", else ``None``.
+
+    The object is 1-4 words the file's name holds, with an optional kind word ("the bank csv")
+    and an optional trailing place ("in my downloads"). Another action on the file in the rest of
+    the sentence (send, read, delete...), a mutating verb, an app or site instead of a file, or a
+    folder noun all stand down -- those keep their own lanes.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()) or _FILE_NOT_THIS_DISK_RE.search(raw):
+        return None
+    match = _PRESENT_FILE_CUE_RE.search(raw)
+    if match is None:
+        return None
+    kept: list[str] = []
+    offset = match.start("obj")
+    for token in match.group("obj").split():
+        word = token.strip(" .'\"-").lower()
+        if not word or word in _PRESENT_OBJECT_STOP:
+            break
+        kept.append(word)
+        offset = raw.find(token, offset) + len(token)
+    if not kept:
+        return None  # "show me what you found" names nothing to search for
+    if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
+           or word in _PRESENT_STORAGE_WORDS for word in kept):
+        return None
+    names_a_document = any(word in _PRESENT_KIND_WORDS or word in _PRESENT_DOCUMENT_WORDS for word in kept)
+    if not names_a_document and any(word in _PRESENT_ORGANIZER_WORDS for word in kept):
+        return None
+    rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
+    if _FILE_OTHER_ACTION_RE.search(rest):
+        return None  # "open the invoice and send it" is a send, not a lookup
+    kind = ""
+    words: list[str] = []
+    for word in kept:
+        if word in _PRESENT_KIND_WORDS:
+            kind = kind or _PRESENT_KIND_WORDS[word]
+            continue
+        words.extend(part for part in re.findall(r"[0-9a-z]+", word) if len(part) >= 3)
+    if not words:
+        return None  # "show me the biggest file" ranks files; it does not name one
+    return PresentFileAsk(kind, tuple(dict.fromkeys(words))[:4], _named_place(raw[offset:]))
+
+
+# "Which of my videos is the biggest, the trailer or the school play?": a size COMPARE of files
+# named by their words, or the biggest of a whole kind. Measured 2026-10-29 (audit F27): the ask
+# was answered "Could you tell me where your videos are stored?" -- nothing read the
+# alternatives, and the largest-files scan cannot filter by words or kind. A ranking word outside
+# the size family ("the scariest") is not a compare, and a place-scoped "biggest file in my
+# downloads" keeps the largest-files lane that already answers it.
+_COMPARE_KIND_WORDS = {
+    "video": "video", "videos": "video", "photo": "image", "photos": "image", "picture": "image",
+    "pictures": "image", "image": "image", "images": "image", "pdf": "pdf", "pdfs": "pdf",
+    "song": "audio", "songs": "audio", "recording": "audio", "recordings": "audio",
+    "file": "", "files": "", "document": "doc", "documents": "doc", "doc": "doc", "docs": "doc",
+}
+_COMPARE_KIND_ALT = "|".join(sorted(_COMPARE_KIND_WORDS, key=len, reverse=True))
+_COMPARE_WHICH_RE = re.compile(
+    r"\bwhich\s+(?:of\s+(?:my|the)\s+(?P<knoun>" + _COMPARE_KIND_ALT + r")\s+)?is\s+(?:the\s+)?"
+    r"(?:biggest|largest|bigger|larger)\s*,?\s*(?P<alts>[^?!.]+)",
+    re.IGNORECASE,
+)
+_COMPARE_OF_MINE_RE = re.compile(
+    r"\b(?:the\s+)?(?:biggest|largest)(?:\s+one)?\s+(?:of|among|out\s+of)\s+(?:my|the)\s+"
+    r"(?P<knoun>" + _COMPARE_KIND_ALT + r")\b",
+    re.IGNORECASE,
+)
+_COMPARE_MY_RE = re.compile(
+    r"\bmy\s+(?:biggest|largest)\s+(?P<knoun>" + _COMPARE_KIND_ALT + r")\b",
+    re.IGNORECASE,
+)
+_COMPARE_ALT_SPLIT_RE = re.compile(r"\s+(?:or|and|vs\.?|versus)\s+", re.IGNORECASE)
+_COMPARE_ALT_STOP = frozenset({"the", "a", "an", "my", "one", "ones", "please", "pls"})
+
+
+class CompareAsk(NamedTuple):
+    """A size compare: named alternatives, or the biggest of a kind (``names`` empty)."""
+
+    kind: str  # "", video, image, pdf, audio or doc -- the kind noun from the ask
+    names: tuple[tuple[str, ...], ...]  # 2+ alternatives of 1-3 words; () for "biggest of my <kind>s"
+    place: str  # "Desktop"/"Downloads"/"Documents"/"Pictures" when the ask names one, else ""
+
+
+def machine_named_compare_intent(text: str) -> CompareAsk | None:
+    """``(kind, names, place)`` for a biggest/largest compare, else ``None``.
+
+    "which of my videos is the biggest, the trailer or the school play" carries its alternatives;
+    "whats the biggest of my videos" and "my biggest video" ask for the largest of a kind. A
+    place-scoped ask with neither alternatives nor "of my <kind>" ("whats the biggest file in my
+    downloads?") is the largest-files scan's, so it returns None here.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    which = _COMPARE_WHICH_RE.search(raw)
+    if which is not None:
+        names = []
+        for part in _COMPARE_ALT_SPLIT_RE.split(which.group("alts")):
+            words = [
+                word for word in re.findall(r"[0-9a-z]+", part.lower().replace("'", ""))
+                if word not in _COMPARE_ALT_STOP and len(word) >= 3
+            ]
+            if words:
+                names.append(tuple(dict.fromkeys(words[:3])))
+        if len(names) < 2:
+            return None  # "which of my videos is the biggest" is a ranking, not a compare
+        # The kind noun is not a place ("of my documents" is a kind, not the Documents folder),
+        # so the place is read from the rest of the sentence.
+        place = _named_place(raw[: which.start("knoun")] + " " + raw[which.end("knoun"):]) \
+            if which.group("knoun") else _named_place(raw)
+        return CompareAsk(
+            _COMPARE_KIND_WORDS.get(str(which.group("knoun") or "").lower(), ""),
+            tuple(names),
+            place,
+        )
+    whole = _COMPARE_OF_MINE_RE.search(raw)
+    if whole is not None:
+        place = _named_place(raw[: whole.start("knoun")] + " " + raw[whole.end("knoun"):])
+        return CompareAsk(
+            _COMPARE_KIND_WORDS.get(str(whole.group("knoun") or "").lower(), ""), (), place
+        )
+    mine = _COMPARE_MY_RE.search(raw)
+    if mine is not None:
+        # "what's my biggest video?" names no place; the resolver reads every allowed root.
+        return CompareAsk(_COMPARE_KIND_WORDS.get(str(mine.group("knoun") or "").lower(), ""), (), "")
+    return None
+
+
+# "Is that invoice from this month?" right after a file was named: a question about the FILE's
+# date. Measured 2026-10-29 (audit F46): the follow-up was refused as needing current
+# information while the changed date sat on the file. The words re-name the file the reply just
+# showed; () means the file itself (that / it / the one). Future words (tomorrow, next month)
+# are not file dates, and neither is an ask about somewhere that is not this disk.
+_FILE_DATE_PERIOD = r"(?P<period>this\s+month|this\s+week|this\s+year|today|yesterday)"
+_FILE_DATE_FROM_RE = re.compile(
+    r"\bis\s+(?P<det>that|this|the|those|these|my|it)\s*(?P<name>[\w'\- ]*?)\s*from\s+" + _FILE_DATE_PERIOD + r"\b",
+    re.IGNORECASE,
+)
+_FILE_DATE_WHEN_RE = re.compile(
+    r"\bwhen\s+did\s+i\s+(?:get|save|download|receive|grab|put\s+down)\s+"
+    r"(?:(?:the|that|my|this)\s+)?(?P<name>[\w'\-]+(?:\s+[\w'\-]+){0,3}?)"
+    r"(?:\s+one)?\s*(?:please|pls|again)?\s*[?.!]*$",
+    re.IGNORECASE,
+)
+_FILE_DATE_BARE_RE = re.compile(
+    r"\b(?:what\s+date|which\s+day|when)\s+(?:was|is|did)\s+(?:that|it)\b"
+    r"|\bhow\s+old\s+is\s+(?:that|it|this\s+file)\b",
+    re.IGNORECASE,
+)
+_FILE_DATE_FUTURE_RE = re.compile(r"\b(?:tomorrow|next\s+(?:week|month|year))\b", re.IGNORECASE)
+_FILE_DATE_STOP = frozenset({
+    "a", "an", "the", "my", "that", "this", "these", "those", "it", "its", "one", "ones", "please",
+    "pls", "of", "from", "in", "on", "at", "for", "to", "i", "me", "you",
+})
+
+
+class FileDateQuestion(NamedTuple):
+    """A date question about a file the conversation just named."""
+
+    words: tuple[str, ...]  # content words naming the file; () when the ask says only that/it/one
+    period: str  # "this month"/"this week"/"this year"/"today"/"yesterday", or "" for a bare when-did ask
+
+
+def _file_date_name_words(name: str) -> tuple[str, ...]:
+    """The content words of a file's name; determiners, kind words and scaffolding are not name words."""
+    words = [
+        word for word in re.findall(r"[0-9a-z]+", str(name or "").lower().replace("'", ""))
+        if word not in _FILE_DATE_STOP and word not in _PRESENT_KIND_WORDS and len(word) >= 3
+    ]
+    return tuple(dict.fromkeys(words))[:4]
+
+
+def machine_file_date_question(text: str) -> FileDateQuestion | None:
+    """``(words, period)`` for a file-date ask, else ``None``.
+
+    "is that invoice from this month?", "when did i get the invoice one?", "what date was that?"
+    and "how old is that". The answer comes from the file the previous reply named (its changed
+    date, or a date written inside it); this reader only says WHICH file and WHICH period.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _FILE_NOT_THIS_DISK_RE.search(raw) or _FILE_DATE_FUTURE_RE.search(raw):
+        return None
+    from_ask = _FILE_DATE_FROM_RE.search(raw)
+    if from_ask is not None:
+        return FileDateQuestion(_file_date_name_words(from_ask.group("name")),
+                                " ".join(from_ask.group("period").lower().split()))
+    when = _FILE_DATE_WHEN_RE.search(raw)
+    if when is not None:
+        return FileDateQuestion(_file_date_name_words(when.group("name")), "")
+    if _FILE_DATE_BARE_RE.search(raw):
+        return FileDateQuestion((), "")
+    return None
+
+
+# "all the pictures in the Downloads folder, up to two days old": a KIND of file in a folder (or in
+# all three of Desktop, Downloads and Documents), optionally by age, size and order. Measured on a
+# phone 2026-10-27: nothing owned this shape, so find_folder walked the whole disk for a folder
+# named "all pictures in downloads"; "what files did I change today" was answered "Web lookups are
+# off"; "find all mp3 files" and "how many pictures are in my downloads" waited for a model.
+_KIND_WORDS = {
+    "pictures": "image", "picture": "image", "photos": "image", "photo": "image", "images": "image",
+    "image": "image", "pics": "image", "pic": "image", "screenshots": "image", "screenshot": "image",
+    "pdfs": "pdf", "pdf files": "pdf", "pdf file": "pdf", "pdf": "pdf", "videos": "video", "video": "video",
+    "movies": "video", "movie": "video", "clips": "video", "recordings": "audio", "recording": "audio",
+    "songs": "audio", "song": "audio", "music files": "audio", "music": "audio", "files": "", "file": "",
+    "documents": "document", "document": "document", "docs": "document",
+}
+_KIND_EXTENSIONS = (
+    "mp3", "m4a", "wav", "jpeg", "jpg", "png", "heic", "gif", "docx", "doc", "xlsx", "xls", "pptx", "csv", "txt",
+    "mov", "mp4", "zip", "dmg",
+)
+_KIND_PATTERN = (
+    r"(?:(?P<ext>" + "|".join(_KIND_EXTENSIONS) + r")(?:s|\s+(?:files?|photos?|pictures?|images?|videos?|songs?))?"
+    r"|(?P<word>" + "|".join(re.escape(word) for word in sorted(_KIND_WORDS, key=len, reverse=True)) + r"))"
+)
+_PLACE_PATTERN = r"(?:the\s+|my\s+)?(?P<place>downloads|desktop|documents|pictures)\b"
+_COMPUTER_PATTERN = r"(?:my|this|the)\s+(?:computer|mac|macbook|imac|pc|laptop|machine|disk|drive)\b"
+_LISTING_SHAPES = (
+    # "the pictures in my Downloads", "videos on the desktop"
+    re.compile(r"\b" + _KIND_PATTERN + r"\b(?:\s+[\w.]+){0,4}?\s+(?:in|from|on|inside|under)\s+" + _PLACE_PATTERN, re.IGNORECASE),
+    # "did i save any photos to downloads recently" (audit 2026-10-27)
+    re.compile(
+        r"\b(?:did|have)\s+i\s+(?:just\s+|recently\s+)?(?P<verb>save|saved|put|download|downloaded)\s+(?:any\s+|some\s+)?"
+        + _KIND_PATTERN + r"\s+(?:to|in|into|on)\s+" + _PLACE_PATTERN,
+        re.IGNORECASE,
+    ),
+    # "what pictures did I download today", "files I changed this week"
+    re.compile(
+        r"\b" + _KIND_PATTERN + r"\s+(?:that\s+)?(?:did\s+i|i(?:'ve|\s+have)?|have\s+i)\s+(?:just\s+|recently\s+)?"
+        r"(?P<verb>download|change|modif(?:y|ied)|edit|save|create|make|made|work(?:ed)?\s+on)(?:e?d)?\b",
+        re.IGNORECASE,
+    ),
+    # "show me videos on my computer"
+    re.compile(r"\b" + _KIND_PATTERN + r"\b\s+(?:on|in)\s+" + _COMPUTER_PATTERN, re.IGNORECASE),
+    # "find all mp3 files", "list my music files"
+    re.compile(r"\b(?:all|every|my)\s+(?:the\s+|of\s+my\s+|my\s+)?" + _KIND_PATTERN + r"\b", re.IGNORECASE),
+    # "what did I download recently"
+    re.compile(r"\bwhat\s+(?:have\s+i|did\s+i|i(?:'ve)?)\s+(?:just\s+|recently\s+)?(?P<verb>download)(?:ed)?\b", re.IGNORECASE),
+    # "sort my downloads by size"
+    re.compile(r"\b(?:sort|order)\s+" + _PLACE_PATTERN + r"(?:\s+folder)?\s+by\s+(?P<by>size|date|age|time)\b", re.IGNORECASE),
+    # "in my Pictures folder, anything from the last few days only?" (phone audit 2026-10-29)
+    re.compile(
+        r"\b(?:in|inside|on)\s+" + _PLACE_PATTERN + r"(?:\s+folder)?[\s,]+(?:is\s+there\s+|got\s+)?(?:anything|any\s+files)\b",
+        re.IGNORECASE,
+    ),
+    # "anything new in my downloads from today?"
+    re.compile(
+        r"\b(?:anything|any\s+files)\s+(?:new\s+|recent\s+)?(?:in|inside|on)\s+" + _PLACE_PATTERN, re.IGNORECASE,
+    ),
+    # "i took some screenshots last week i think, where are they?" (phone audit 2026-10-29): a listing only
+    # when "where are they" follows, see _WHERE_ARE_THEY_RE.
+    re.compile(
+        r"\bi\s+(?:just\s+|recently\s+)?(?P<verb>took|made|saved|grabbed|downloaded)\s+"
+        r"(?:some\s+|a\s+few\s+|a\s+couple(?:\s+of)?\s+|a\s+bunch\s+of\s+|loads\s+of\s+|\d+\s+)?" + _KIND_PATTERN + r"\b",
+        re.IGNORECASE,
+    ),
+)
+# Shapes that are a listing ask by themselves, with no "find"/"show" cue before them.
+_SELF_CUED_LISTING_SHAPES = _LISTING_SHAPES[-3:]
+# "...where are they", "...can you find them": what turns "i took some screenshots" into a listing.
+_WHERE_ARE_THEY_RE = re.compile(
+    r"\bwhere\s+(?:are|did|have|do)\s+(?:they|those|these|it|i\s+(?:put|save|keep)\s+(?:them|those|it))\b"
+    r"|\b(?:find|locate|show\s+me)\s+(?:them|those|these)\b",
+    re.IGNORECASE,
+)
+_WHERE_ARE_THEY_CLAUSE_RE = re.compile(
+    r"^(?:so\s+|but\s+)?(?:(?:can|could)\s+you\s+)?(?:" + _WHERE_ARE_THEY_RE.pattern + r")(?:\s+\w+){0,3}?(?:\s+please)?$",
+    re.IGNORECASE,
+)
+_KIND_LISTING_CUE_RE = re.compile(
+    r"\b(?:find|show|list|give|get|fetch|grab|see|what|which|any|are\s+there|do\s+i\s+have|look|how\s+many|count|"
+    r"where\s+are|sort|order)\b",
+    re.IGNORECASE,
+)
+_SUPERLATIVE_RE = re.compile(
+    r"\b(?P<rank>newest|latest|most\s+recent|last|oldest|biggest|largest)\s+(?:\w+\s+)?" + _KIND_PATTERN + r"\b",
+    re.IGNORECASE,
+)
+_SIZE_FILTER_RE = re.compile(
+    r"\b(?:bigger|larger|over|more|above|greater)\s+(?:than\s+)?(?P<size>\d+(?:\.\d+)?)\s*(?P<unit>kb|mb|gb)\b", re.IGNORECASE
+)
+_AGE_NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                "ten": 10, "fourteen": 14, "thirty": 30, "few": 3, "couple": 2, "couple of": 2}
+_AGE_RE = re.compile(
+    r"\b(?:up\s+to|within|from|in|of|over|for)?\s*(?:the\s+)?(?:last|past)?\s*"
+    r"(?P<count>\d{1,3}|a|an|one|two|three|four|five|six|seven|ten|fourteen|thirty|few|couple(?:\s+of)?)\s+"
+    r"(?P<unit>hours?|days?|weeks?)\b(?:\s+old)?",
+    re.IGNORECASE,
+)
+_AGE_WORDS_RE = re.compile(r"\b(?:today|yesterday|recently|recent|lately|(?:last|past|this)\s+(?:day|week|month))\b", re.IGNORECASE)
+
+
+class KindListing(NamedTuple):
+    """What a kind listing asks for. ``place`` ``""`` means Desktop, Downloads and Documents."""
+
+    kind: str
+    place: str
+    max_age_days: float | None
+    order: str = "newest"
+    limit: int | None = None
+    min_bytes: int | None = None
+    #: A word the file name must hold: "the newest screenshot" is a screenshot, not the newest picture of any
+    #: kind (measured 2026-10-28: a cat photo would have answered for it).
+    name_contains: str = ""
+
+
+def _listing_match(text: str) -> re.Match[str] | None:
+    # "in my Pictures folder, anything ..." first: "my Pictures folder" alone reads as a folder.
+    shapes = (*_LISTING_SHAPES[-3:-1], *_LISTING_SHAPES)
+    return next((match for shape in shapes if (match := shape.search(text)) is not None), None)
+
+
+def _kind_of(match: re.Match[str]) -> str:
+    groups = match.groupdict()
+    if groups.get("ext"):
+        ext = groups["ext"].lower()
+        return ".jpg" if ext == "jpeg" else f".{ext}"
+    return _KIND_WORDS.get(str(groups.get("word") or "").lower(), "")
+
+
+def _age_days(text: str) -> float | None:
+    age = _AGE_RE.search(text)
+    lowered = text.lower()
+    if age is not None:
+        count = age.group("count").lower()
+        number = float(_AGE_NUMBERS.get(count, 0) or (int(count) if count.isdigit() else 0))
+        unit = age.group("unit").lower()
+        if number > 0:
+            return number / 24 if unit.startswith("hour") else number * 7 if unit.startswith("week") else number
+    if (single := re.search(r"\b(?:last|past|this)\s+(day|week|month)\b", lowered)) is not None:
+        return {"day": 1.0, "week": 7.0, "month": 31.0}[single.group(1)]
+    if re.search(r"\btoday\b", lowered):
+        return 1.0
+    if re.search(r"\byesterday\b", lowered):
+        return 2.0
+    if re.search(r"\b(?:recently|recent|lately)\b", lowered):
+        return 7.0
+    return None
+
+
+def machine_kind_listing_ask(text: str) -> KindListing | None:
+    """A listing of one KIND of file ("the pictures in my Downloads from the last 2 days"), else ``None``.
+
+    ``kind`` is image/pdf/video/audio/document, a ``.ext`` the user named, or ``""`` (any file).
+    A file asked for BY NAME is machine_file_search_intent's; another action on the files (copy,
+    send, delete...) is not a listing; "biggest file" stays with the largest-files scan.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or re.search(r"\b(?:named|called|titled)\b", raw, re.IGNORECASE):
+        return None
+    match = _listing_match(raw)
+    if match is None:
+        return None
+    if match.re is _LISTING_SHAPES[-1]:
+        if not _WHERE_ARE_THEY_RE.search(raw[match.end():]):
+            return None  # "i took some photos, what should i call the album" is not a listing
+    elif match.re not in _SELF_CUED_LISTING_SHAPES and not _KIND_LISTING_CUE_RE.search(raw[: match.start()] or raw):
+        return None
+    # The verb that makes it a listing ("files I EDITED today") is not an action on the files.
+    checked = (raw[: match.start("verb")] + raw[match.end("verb"):]) if match.groupdict().get("verb") else raw
+    if _MACHINE_DIAG_WRITE_RE.search(checked.lower()) or _FILE_OTHER_ACTION_RE.search(checked) or _FILE_NOT_THIS_DISK_RE.search(checked):
+        return None
+    groups = match.groupdict()
+    kind_end = match.end("ext") if groups.get("ext") else match.end("word") if groups.get("word") else -1
+    if kind_end >= 0 and re.match(r"\s+(?:folders?|director(?:y|ies)|dirs?)\b", raw[kind_end:], re.IGNORECASE):
+        return None  # "find my pictures folder" is a folder
+    if match.re is _LISTING_SHAPES[3] and str(groups.get("word") or "").lower() in ("documents", "docs"):
+        return None  # "what's in my documents" is the Documents folder
+    verb = str(groups.get("verb") or "").lower()
+    place = str(groups.get("place") or "").capitalize()
+    if not place and verb.startswith("download"):
+        place = "Downloads"
+    kind = _kind_of(match) if (groups.get("ext") or groups.get("word")) else ""
+    order, limit = "newest", None
+    if groups.get("by"):
+        order = "largest" if groups["by"].lower() == "size" else "newest"
+    superlative = _SUPERLATIVE_RE.search(raw)
+    if superlative is not None:
+        word = superlative.group("rank").lower()
+        if word in ("biggest", "largest"):
+            return None  # machine.find_largest measures sizes
+        order = "oldest" if word == "oldest" else "newest"
+        limit = None if superlative.group(0).split()[-1].lower().endswith("s") else 1  # "the newest file"
+    min_bytes = None
+    if (size := _SIZE_FILTER_RE.search(raw)) is not None:
+        min_bytes = int(float(size.group("size")) * {"kb": 1024, "mb": 1024**2, "gb": 1024**3}[size.group("unit").lower()])
+    word = str(groups.get("word") or "").lower()
+    listing = KindListing(kind, place, _age_days(raw), order, limit, min_bytes,
+                          "screenshot" if word.startswith("screenshot") else "")
+    if not kind and listing[2:6] == (None, "newest", None, None) and not groups.get("by"):
+        # Plain "files" with nothing to filter by: "what are the folders and files on my desktop"
+        # is the folder listing's, and "can you see my files?" asks what VOOL can do.
+        return None
+    return listing
+
+
+_LISTING_CLAUSE_SPLIT_RE = re.compile(r"[.!?;]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+and\s+(?:then\s+)?", re.IGNORECASE)
+_AGE_FILLER_RE = re.compile(
+    r"\b(?:please|pls|only|just|old|ones?|that\s+are|which\s+are|are|newer\s+than|not\s+older\s+than|"
+    r"no\s+older\s+than|recent|from|the|of|at\s+most|at\s+the\s+most|max(?:imum)?|tops|or\s+(?:less|newer|younger))\b",
+    re.IGNORECASE,
+)
+_RESULTS_CLAUSE_RE = re.compile(
+    r"^(?:please\s+)?(?:fetch|show|give|list|get|bring)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?"
+    r"(?:results?|them|those|the\s+list|list|it)(?:\s+(?:please|here|to\s+me))?$",
+    re.IGNORECASE,
+)
+_PICK_LATER_CLAUSE_RE = re.compile(
+    r"^(?:then\s+)?(?:i\s+will|i'll|i\s+can|i\s+want\s+to)\s+(?:tell|let\s+you\s+know|pick|choose|say)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_kind_listing_covers_turn(text: str) -> bool:
+    """True when the kind listing IS the whole message, so it may answer before the conductor.
+
+    "Find me all the pictures in the Downloads folder on my Mac, up to two days old and fetch me
+    the results. I will tell you which one I need" is ONE ask. Planned by the conductor it was cut
+    at the comma: the listing ran without its age and "up to two days old and fetch me the results"
+    was refused as a part nothing could answer. Every clause here must be the listing itself, its
+    age, a "show me the results", or the user saying they will pick one later; anything else keeps
+    the turn on the conductor.
+    """
+    raw = " ".join(str(text or "").split())
+    if machine_kind_listing_ask(raw) is None:
+        return False
+    listing_seen = False
+    whole = _listing_match(raw)
+    if whole is not None and "," in whole.group(0):
+        # "in my Pictures folder, anything from ..." is one listing across its comma.
+        raw = raw[: whole.start()] + " _listing_ " + raw[whole.end():]
+    for clause in _LISTING_CLAUSE_SPLIT_RE.split(raw):
+        clause = clause.strip(" ,")
+        if not clause:
+            continue
+        if ("_listing_" in clause or _listing_match(clause)) and not listing_seen:
+            listing_seen = True
+            continue
+        if _RESULTS_CLAUSE_RE.match(clause) or _PICK_LATER_CLAUSE_RE.match(clause) or _WHERE_ARE_THEY_CLAUSE_RE.match(clause):
+            continue
+        if _AGE_RE.search(clause) or _AGE_WORDS_RE.search(clause):
+            rest = _AGE_WORDS_RE.sub(" ", _AGE_RE.sub(" ", clause))
+            if not _AGE_FILLER_RE.sub(" ", rest).strip(" ,"):
+                continue
+        return False
+    return listing_seen
+
+
+class SendToPhone(NamedTuple):
+    """A file to send to the owner's phone: a direct path, a named-file search, or the newest of a kind."""
+
+    path: str = ""
+    search: tuple[str, tuple[str, ...], str] | None = None
+    listing: KindListing | None = None
+
+
+_SEND_LEAD_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|can\s+you|could\s+you|would\s+you|vool)[\s,]+)*"
+    r"(?P<verb>send|get|move|copy|put|transfer|share|forward|bring|text|airdrop)\s+(?P<me>me\s+)?",
+    re.I,
+)
+_TO_PHONE_RE = re.compile(
+    r"[\s,]*\b(?:to|onto|on|over\s+to|into)\s+(?:my|the|this)\s+(?:phone|iphone|android|mobile|cell(?:\s*phone)?|smartphone)\b",
+    re.I,
+)
+_SEND_TAIL_RE = re.compile(r"[\s,.!?]*(?:please|pls|thanks|thank\s+you|now|asap)?[\s,.!?]*$", re.I)
+_SEND_PATH_RE = re.compile(r"^(?:~|/)[^\s]*$")
+
+
+_OPEN_NEWEST_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|can\s+you|could\s+you|would\s+you|vool)[\s,]+)*"
+    r"(?:open|view|display|pull\s+up|bring\s+up|show(?:\s+me)?)\s+(?:up\s+)?(?:the\s+|my\s+)?"
+    r"(?P<rank>newest|latest|most\s+recent|last|recent)\s+"
+    r"(?P<word>screenshot|screen\s+shot|photo|picture|pic|image|pdf|video|document|doc|file|recording)"
+    r"(?P<rest>(?:\s+(?:i\s+(?:took|saved|made|downloaded|got)))?(?:\s+(?:in|on|from|inside)\s+(?:the\s+|my\s+)?\w+)?(?:\s+folder)?)"
+    r"[\s,.!?]*(?:please|pls|thanks|thank\s+you|now)?[\s,.!?]*$",
+    re.IGNORECASE,
+)
+
+
+def machine_open_newest_intent(text: str) -> KindListing | None:
+    """The newest file of one kind for "open the newest screenshot", "show me the latest photo on my desktop".
+
+    ``place`` ``""`` when no folder is named. Measured 2026-10-28 on qwen3:8b: after listing the Desktop,
+    "open the newest screenshot" went to the model, which said "I'll open the newest screenshot for you"
+    and ran nothing.
+    """
+    raw = " ".join(str(text or "").split())
+    match = _OPEN_NEWEST_RE.match(raw)
+    if match is None:
+        return None
+    word = re.sub(r"\s+", "", match.group("word").lower())
+    rest = str(match.group("rest") or "")
+    named = machine_kind_listing_ask(f"show me the newest {word}{rest}") if rest.strip() else None
+    if named is not None:
+        return named._replace(limit=1, order="newest", max_age_days=None)
+    if re.search(r"\b(?:in|on|from|inside)\b", rest, re.IGNORECASE):
+        return None  # a place this reader does not know is not guessed
+    kind = _KIND_WORDS.get(word, "") if word not in ("file", "screenshot") else ("image" if word == "screenshot" else "")
+    return KindListing(kind, "", None, "newest", 1, None, "screenshot" if word == "screenshot" else "")
+
+
+_OPEN_NEWEST_ONE_RE = re.compile(
+    r"^\s*(?:(?:please|pls|ok|okay|and|now|can\s+you|could\s+you)[\s,]+)*"
+    r"(?:open|view|display|pull\s+up|show(?:\s+me)?|send(?:\s+me)?)\s+(?:up\s+)?(?:the\s+)?"
+    r"(?:newest|latest|most\s+recent|last)\s+one[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*$",
+    re.IGNORECASE,
+)
+_LISTED_PLACE_RE = re.compile(r"(?:under|in)\s+`?~/(?P<place>Desktop|Downloads|Documents|Pictures)`?", re.IGNORECASE)
+
+
+def machine_open_newest_one_followup(text: str, previous_reply: str) -> KindListing | None:
+    """"open the latest one" right after VOOL listed a folder: the newest file in that folder.
+
+    Measured 2026-10-28: after "show me whats on my desktop", "open the latest one" was read as a request for the
+    latest news and answered that web lookups are off. Only the folder the previous reply listed is used; with
+    none, nothing is guessed.
+    """
+    if not _OPEN_NEWEST_ONE_RE.match(" ".join(str(text or "").split())):
+        return None
+    listed = _LISTED_PLACE_RE.search(str(previous_reply or "").split("\n", 1)[0])
+    if listed is None:
+        return None
+    return KindListing("", listed.group("place").capitalize(), None, "newest", 1, None, "")
+
+
+_NAMED_FOLDER_CONTENTS_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|so|can\s+you|could\s+you|vool)[\s,]+)*"
+    r"(?:what(?:'s|s|\s+is)?\s+(?:inside|in)|what\s+do\s+i\s+have\s+in|show\s+me(?:\s+what(?:'s|s|\s+is)\s+(?:inside|in))?"
+    r"|list|open|look\s+(?:inside|in))\s+(?:the\s+|my\s+|that\s+)?"
+    r"(?P<name>[\w][\w'\-]*(?:\s+[\w][\w'\-]*){0,3}?)\s+folder[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*$",
+    re.IGNORECASE,
+)
+_NAMED_FOLDER_NOT_A_NAME = frozenset({
+    "desktop", "downloads", "download", "documents", "docs", "pictures", "photos", "home", "this", "current",
+    "project", "workspace", "the", "my", "that", "a", "an", "same", "other", "new", "old", "music", "movies",
+    "videos", "applications", "trash", "bin", "temp", "tmp",
+})
+
+
+def machine_named_folder_contents_intent(text: str) -> str | None:
+    """The folder name in "whats inside the lisbon folder?", for a folder found by name and then listed.
+
+    Measured 2026-10-28 on qwen3:8b: "whats inside the lisbon folder?" was answered with "Are you referring to the
+    city of Lisbon, the album by The Kinks, or the film?" while ~/Pictures/Holiday Lisbon 2026 sat on the disk.
+    The home folders VOOL already knows by place (Desktop, Downloads...) and "this folder" are not names.
+    """
+    match = _NAMED_FOLDER_CONTENTS_RE.match(" ".join(str(text or "").split()))
+    if match is None or refers_to_current_scope(text):  # "the work folder" is the folder we are in
+        return None
+    name = match.group("name").strip()
+    words = [w.lower() for w in name.split()]
+    if not words or all(w in _NAMED_FOLDER_NOT_A_NAME for w in words) or words[0] in {"this", "current", "project", "workspace"}:
+        return None
+    return name
+
+
+def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> SendToPhone | None:
+    """What to send when the WHOLE message asks for a file on this computer to go to the owner's phone.
+
+    "send day4.jpg to my phone", "get the picture named day4 in downloads onto my phone", "send me
+    the newest screenshot from my downloads to my phone"; on a turn that came from the phone itself,
+    "send me day4.jpg" too. Anything more ("... and tell bob") is not this.
+    """
+    raw = " ".join(str(text or "").split())
+    lead = _SEND_LEAD_RE.match(raw)
+    if not lead:
+        return None
+    rest = raw[lead.end():]
+    to_phone = _TO_PHONE_RE.search(rest)
+    if to_phone:
+        rest = rest[: to_phone.start()] + " " + rest[to_phone.end():]
+    elif not (phone_turn and lead.group("me") and lead.group("verb").lower() in {"send", "get", "bring", "forward"}):
+        return None
+    rest = _SEND_TAIL_RE.sub("", rest).strip(" ,")
+    if not rest or re.search(r"\b(?:and|then|also)\b", rest, re.I):
+        return None
+    if _SEND_PATH_RE.match(rest):
+        return SendToPhone(path=rest)
+    search = machine_file_search_intent("find " + rest)
+    if search is not None:
+        return SendToPhone(search=search)
+    listing = machine_kind_listing_ask("show me " + rest)
+    if listing is not None and listing.limit == 1:
+        return SendToPhone(listing=listing)
+    return None
+
+
+_FOLDER_SIZE_RE = re.compile(
+    r"\b(?:how\s+(?:big|large|heavy)\s+(?:is|are)|(?:what(?:'s|\s+is)\s+)?the\s+size\s+of|"
+    r"how\s+much\s+(?:space|room|storage|disk)\s+(?:does|do|is)|how\s+many\s+(?:gb|mb|gigabytes|megabytes)\s+(?:is|are|does))\s+"
+    + _PLACE_PATTERN + r"(?:\s+folder)?",
+    re.IGNORECASE,
+)
+
+
+def machine_folder_size_intent(text: str) -> str | None:
+    """``Downloads`` for "how big is my downloads folder", else ``None``."""
+    raw = " ".join(str(text or "").split())
+    match = _FOLDER_SIZE_RE.search(raw)
+    if match is None or _FILE_OTHER_ACTION_RE.search(raw):
+        return None
+    return match.group("place").capitalize()
+
+
+_PLACE_FILE_READ_RE = re.compile(
+    r"\b(?:read|open|show(?:\s+me)?|cat|print|quote|what(?:'s|\s+is)\s+(?:in|inside)|what\s+does|"
+    r"tell\s+me\s+what(?:'s|\s+is)?\s+in|see)\b.*?"
+    r"(?P<name>[\w][\w .()\-]{0,80}?\.[A-Za-z0-9]{1,5})\s+(?:in|on|from|inside)\s+(?:the\s+|my\s+)?"
+    r"(?P<place>downloads|desktop|documents)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_place_file_read_path(text: str) -> str | None:
+    """``~/Documents/notes.txt`` for "read notes.txt in my documents", else ``None``.
+
+    The workspace read lane took these and answered that the PROJECT has no notes.txt, while the
+    user had named the folder it is in. Only a read: a write, copy, send or delete keeps its lane.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    if re.search(r"\b(?:copy|move|rename|send|email|upload|delete|remove|zip|compress|convert|translate|summari[sz]e|edit)\b", raw, re.IGNORECASE):
+        return None
+    match = _PLACE_FILE_READ_RE.search(raw)
+    if match is None:
+        return None
+    name = re.sub(r"^(?:the|my|file|called|named)\s+", "", match.group("name").strip(), flags=re.IGNORECASE)
+    name = re.sub(r"^(?:the|my|file|called|named)\s+", "", name, flags=re.IGNORECASE)
+    if "/" in name or not name:
+        return None
+    return f"~/{match.group('place').capitalize()}/{name}"
+
+
+class TodoListRead(NamedTuple):
+    """A read of the owner's to-do list: ``place`` is the folder the ask itself named, if any."""
+
+    place: str | None
+
+
+# The noun only. "to do" as two bare words is a verb phrase ("what do I have to do today"), not a
+# list, so the two-word form counts only when "list" follows it; the one-word spellings (todo,
+# to-do, to_do) and "checklist" / "list of things to do" are always the noun.
+_TODO_LIST_NOUN_RE = re.compile(
+    r"\bto[\s\-_]?dos?\s+lists?\b"
+    r"|\bto[\-_]dos?\b"
+    r"|\btodos?\b"
+    r"|\bchecklists?\b"
+    r"|\blists?\s+of\s+things\s+to\s+do\b",
+    re.IGNORECASE,
+)
+_TODO_LIST_READ_CUE_RE = re.compile(
+    r"\bwhat(?:'s|’s|s| is| was)?\s+(?:on|in)\b"
+    r"|\bwhat\s+(?:do|did|have)\s+i\s+(?:got\s+)?(?:on|in)\b"
+    r"|\bread\s+(?:me|my|the|us)\b"
+    r"|\bshow\s+(?:me\s+)?(?:my|the|us)\b"
+    r"|\bopen\s+(?:my|the)\b"
+    r"|\bcheck\s+(?:my|the)\b"
+    r"|\bremind\s+me\s+what\b"
+    r"|\btell\s+me\s+what\b"
+    r"|\bsee\s+(?:my|the|what)\b"
+    r"|\blook\s+at\s+(?:my|the)\b"
+    r"|\bgo\s+(?:over|through)\s+(?:my|the)\b"
+    r"|\bpull\s+up\s+(?:my|the)\b"
+    r"|\bwhat\s+did\s+i\s+(?:put|write)\s+(?:on|in)\b",
+    re.IGNORECASE,
+)
+# Reads only. An ask that edits the list ("add milk to my todo list", "make me a to do list",
+# "cross off the first one") keeps the lane it has today; this family never writes.
+_TODO_LIST_WRITE_RE = re.compile(
+    r"\b(?:add|adds|adding|append|tick|check\s+off|cross\s+(?:off|out)|mark|update|edit|write|"
+    r"create|make|makes|making|new|start|begin|copy|move|rename|send|e-?mail|upload|delete|"
+    r"remove|clear|finish|complete|share|print|save|reorder|sort|prioriti[sz]e)\b",
+    re.IGNORECASE,
+)
+
+
+class SpreadsheetQuestion(NamedTuple):
+    """A totals question about the owner's own table file ("how much did i spend in october, not
+    counting the salary, in my bank csv").
+
+    ``file_words`` are name stems to look for in the file's name (empty = the newest CSV wins);
+    ``month`` is a full month name; ``year`` only when the ask named one (else the file's own dates
+    decide); ``date_from``/``date_to`` are ISO dates or both ``None``; ``direction`` is "out"
+    (spend), "in" (came in) or "both" (a total); ``exclude`` are stems whose rows are left out.
+    """
+
+    file_words: tuple[str, ...]
+    month: str | None
+    year: int | None
+    date_from: str | None
+    date_to: str | None
+    direction: str
+    exclude: tuple[str, ...]
+
+
+# The ask must NAME the table thing it means: a csv/spreadsheet file, or the bank's own words for
+# one. A bare "statement"/"export" names no file and stays with the lanes that read or make one.
+_SPREADSHEET_THING_RE = re.compile(
+    r"\b(?:csv|spread\s?sheets?|(?:bank|card)\s+(?:statement|thing|export)|transactions?|"
+    r"my\s+(?:bank\s+)?export|the\s+export)\b",
+    re.IGNORECASE,
+)
+# ... and it must ASK for money, not for the file itself. "how much" alone is enough of a question.
+_SPREADSHEET_MONEY_RE = re.compile(
+    r"\b(?:how\s+much|how\s+many|total(?:s|led)?|spend|spent|spending|paid|pay|payments?|withdraw\w*|"
+    r"came\s+in|coming\s+in|come\s+in|went\s+out|goes\s+out|gone\s+out|income|earned|earnings?|deposits?|"
+    r"received|money\s+(?:in|out)|incoming?s?|outgoing?s?|expenses?)\b",
+    re.IGNORECASE,
+)
+# Another action on the file keeps its own lane (write/convert/send/find-by-name).
+_SPREADSHEET_OTHER_ACTION_RE = re.compile(
+    r"\b(?:make|create|write|build|generate|convert|send|email|share|upload|delete|remove|rename|"
+    r"copy|move|edit|fix|clean|sort|merge|split|plot|graph|chart|visuali[sz]e|open|read|print|"
+    r"find|locate|search|named|called|titled|summari[sz]e|summari[sz]ing)\b",
+    re.IGNORECASE,
+)
+# "how much" about the FILE itself (its size, its rows) is not a money question.
+_SPREADSHEET_NOT_MONEY_RE = re.compile(
+    r"\b(?:space|storage|size|sizes|big|bigger|biggest|large|larger|largest|disk|ram|memory|"
+    r"rows?|lines?|columns?|fields?|cells?|entries?)\b",
+    re.IGNORECASE,
+)
+_SPREADSHEET_MONTHS = {"jan": "january", "feb": "february", "mar": "march", "apr": "april", "may": "may",
+                       "jun": "june", "jul": "july", "aug": "august", "sep": "september", "sept": "september",
+                       "oct": "october", "nov": "november", "dec": "december"}
+_SPREADSHEET_MONTH_RE = re.compile(
+    r"\b(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|"
+    r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(?:of\s+|in\s+)?(?P<year>20\d{2}))?\b",
+    re.IGNORECASE,
+)
+_SPREADSHEET_DATE = r"(?:20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})"
+_SPREADSHEET_RANGE_RE = re.compile(
+    r"\b(?:from\s+|between\s+)?(?P<from>" + _SPREADSHEET_DATE + r")\s+(?:to|until|till|through|up\s+to|and)\s+"
+    r"(?P<to>" + _SPREADSHEET_DATE + r")\b",
+    re.IGNORECASE,
+)
+_SPREADSHEET_ON_DATE_RE = re.compile(r"\b(?:on|for|at)\s+(?P<date>" + _SPREADSHEET_DATE + r")\b", re.IGNORECASE)
+# "not counting the salary", "leaving out the gym membership": the words after the phrase are the
+# rows to leave out, up to a month, a date word, a connector or the end of the ask.
+_SPREADSHEET_EXCLUDE_RE = re.compile(
+    r"\b(?:not\s+counting|not\s+count|don'?t\s+count|not\s+including|excluding|leaving\s+out|left\s+out|"
+    r"but\s+not\s+the|except\s+(?:for\s+)?(?:the\s+)?|minus\s+the|without\s+(?:the\s+|my\s+)?)\s+"
+    r"(?P<what>(?:the\s+|my\s+|any\s+)?[a-z][\w'-]*(?:\s+[\w'-]+){0,2}?)"
+    r"(?=\s+(?:in|during|for|from|to|until|and|or|but|please|plus)\b|\s+(?:jan|feb|mar|apr|may|jun|jul|aug|"
+    r"sep|oct|nov|dec)[a-z]*\b|[?.!,;]|\s*$)",
+    re.IGNORECASE,
+)
+_SPREADSHEET_STOPWORDS = frozenset({
+    "the", "my", "a", "an", "any", "all", "of", "for", "from", "to", "until", "and", "or", "but", "please", "plus",
+    "thing", "file", "files", "csv", "spreadsheet", "bank", "statement", "statements", "transaction",
+    "transactions", "export", "exports", "much", "many", "how", "did", "do", "does", "i", "you", "we", "me",
+    "spend", "spent", "spending", "total", "totals", "totaled", "came", "come", "coming", "in", "out", "in-out",
+    "money", "month", "year", "day", "days", "counting", "count", "include", "including", "leave", "leaving",
+    "left", "except", "minus", "not", "don't",
+})
+_SPREADSHEET_FILE_WORD_RE = re.compile(
+    r"\b(?:bank|card|transaction|transactions|statement|statements|export|exports|invoice|invoices|"
+    r"shop|shopping|store|amazon|paypal|revolut|cash|budget|spending|expenses?|account|salary|wage|"
+    r"wages|checking|savings|credit|debit|groceries|utility|utilities|rent|mortgage)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_todo_list_read_intent(text: str) -> TodoListRead | None:
+    """The to-do list ask ("what's on my to do list again?") when the whole message reads it.
+
+    Measured on the phone parity audit 2026-10-29: that ask reached a model seated with no file
+    tool at all and was answered "I don't have access to your personal to-do list" while
+    ~/Desktop/todo.txt sat on the disk, and "what was on that todo list on my desktop again?"
+    was answered with a directory listing of the Desktop. The noun names a FILE here, not a
+    folder and not a concept; the caller resolves it to a real file and reads it.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return None
+    if _TODO_LIST_WRITE_RE.search(raw):
+        return None
+    if _TODO_LIST_NOUN_RE.search(raw) is None or _TODO_LIST_READ_CUE_RE.search(raw) is None:
+        return None
+    return TodoListRead(place=(_named_place(raw) or None))
+
+
+def _spreadsheet_month(text: str) -> tuple[str | None, int | None]:
+    match = _SPREADSHEET_MONTH_RE.search(text)
+    if match is None:
+        return None, None
+    month = _SPREADSHEET_MONTHS[match.group("month").lower()[:3]]
+    year = int(match.group("year")) if match.group("year") else None
+    return month, year
+
+
+def _spreadsheet_iso(raw: str) -> str:
+    """One date the person wrote, as ISO yyyy-mm-dd (dd/mm assumed, 2-digit years completed)."""
+    from datetime import datetime
+
+    for order in ("%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y", "%d-%m-%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(raw, order).date().isoformat()
+        except ValueError:
+            continue
+    return ""
+
+
+def spreadsheet_question_intent(text: str) -> SpreadsheetQuestion | None:
+    """A totals question about a table file the owner names in words ("how much did i spend in
+    october in my bank csv"), else ``None``.
+
+    The ask must name the table thing (a csv/spreadsheet, the bank statement, the transactions
+    export) AND ask for money. Making, converting, sending or finding the file by name keeps its
+    own lane; so does an ask with no month, range or money words at all.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    if not _SPREADSHEET_THING_RE.search(raw) or not _SPREADSHEET_MONEY_RE.search(raw):
+        return None
+    if _SPREADSHEET_NOT_MONEY_RE.search(raw):
+        return None
+    if _SPREADSHEET_OTHER_ACTION_RE.search(raw) or _FILE_NOT_THIS_DISK_RE.search(raw):
+        return None
+    month, year = _spreadsheet_month(raw)
+    date_from = date_to = None
+    if (span := _SPREADSHEET_RANGE_RE.search(raw)) is not None:
+        date_from, date_to = _spreadsheet_iso(span.group("from")), _spreadsheet_iso(span.group("to"))
+        if not date_from or not date_to:
+            return None
+    elif (single := _SPREADSHEET_ON_DATE_RE.search(raw)) is not None:
+        date_from = date_to = _spreadsheet_iso(single.group("date")) or None
+        if date_from is None:
+            return None
+    # The excluded rows are spoken after the ask's real question; scan direction and file words on
+    # the ask with the exclusion clause lifted out, so "not counting the salary" never reads as
+    # money IN or steers the file pick toward a salary.csv.
+    without_exclusions = _SPREADSHEET_EXCLUDE_RE.sub(" ", raw)
+    exclude: list[str] = []
+    for phrase in _SPREADSHEET_EXCLUDE_RE.finditer(raw):
+        for word in re.findall(r"[a-z'][a-z'-]*", phrase.group("what").lower()):
+            stem = word[:-1] if len(word) > 4 and word.endswith("s") and not word.endswith("ss") else word
+            if len(stem) >= 3 and stem not in _SPREADSHEET_STOPWORDS and stem not in exclude:
+                exclude.append(stem)
+    # "how much did i get paid" is money IN even though it says "paid"; the passive forms are
+    # lifted out before the outgoing scan so they cannot flip the direction.
+    passive_paid = re.compile(r"\b(?:get|got|was|were|be|being)\s+paid\b", re.IGNORECASE)
+    outgoing = re.search(r"\b(?:spend|spent|spending|paid|pay|payments?|withdraw\w*|money\s+out|"
+                         r"outgoing?s?|expenses?|went\s+out|goes\s+out|gone\s+out)\b",
+                         passive_paid.sub(" ", without_exclusions), re.IGNORECASE)
+    incoming = re.search(r"\b(?:came\s+in|coming\s+in|come\s+in|went\s+in|goes\s+in|income|earned|earnings?|"
+                         r"deposits?|received|money\s+in|incoming?s?|salary|wages?|credits?)\b",
+                         without_exclusions, re.IGNORECASE) or passive_paid.search(without_exclusions)
+    direction = "both" if outgoing and incoming else "out" if outgoing else "in" if incoming else "both"
+    file_words = tuple(dict.fromkeys(word.lower() for word in _SPREADSHEET_FILE_WORD_RE.findall(
+        without_exclusions)))[:3]
+    return SpreadsheetQuestion(file_words, month, year, date_from, date_to, direction, tuple(exclude[:4]))
 
 
 # A size ask about ONE NAMED thing ("how big is the holiday photos zip"). The disk family above
@@ -1844,6 +2915,21 @@ _AUTHORING_NOT_MEASURING_RE = re.compile(
 )
 
 
+# "my laptop has been proper sluggish today, whats slowing it down?" (phone audit 2026-10-29): the owner's own
+# machine named as slow, and a question about the cause. The model asked what was meant; the process list answers.
+_SLOW_OWN_MACHINE_RE = re.compile(
+    r"\b(?:my|this)\s+(?:laptop|computer|mac|macbook(?:\s+(?:air|pro))?|imac|pc|machine|desktop)\b[^.?!\n]{0,40}?"
+    r"\b(?:slow|slower|sluggish|laggy|lagging|crawling|struggling|freezing|hanging)\b"
+    r"|\b(?:slowing|bogging|lagging)\s+(?:down\s+)?(?:my|this)\s+(?:laptop|computer|mac|macbook|imac|pc|machine|desktop)\b",
+    re.IGNORECASE,
+)
+_SLOWNESS_CAUSE_RE = re.compile(
+    r"\b(?:what(?:'s|s|\s+is)?|why|which)\b[^.?!\n]{0,40}?\b(?:slow\w*|lag\w*|making|causing|hogging|eating|bogging|wrong)\b"
+    r"|\bwhy\s+is\b",
+    re.IGNORECASE,
+)
+
+
 def machine_live_load_intent(text: str) -> str | None:
     """Map a "what is consuming this machine right now" question to ``machine.list_processes``.
 
@@ -1885,6 +2971,8 @@ def machine_live_load_intent(text: str) -> str | None:
     ranked_by_resource = bool(
         _PROCESS_RANKING_RE.search(lowered) and _PROCESS_RESOURCE_WORD_RE.search(lowered)
     )
+    if _SLOW_OWN_MACHINE_RE.search(lowered) and _SLOWNESS_CAUSE_RE.search(lowered):
+        return "machine.list_processes"
     if not asks_runtime_for_a_fact(text, _PROCESS_TOPIC_RE, also_anchored=ranked_by_resource):
         return None
     if (
@@ -2126,6 +3214,11 @@ def explicit_path_in(text: str) -> str:
     candidate = match.group(0).rstrip(".,;:!?)")
     if len(candidate) <= 1:
         return ""
+    # "Documents/Taxes" is ~/Documents/Taxes. Read from the slash it was "/Taxes", a folder at the
+    # root of the disk, and the listing was refused as outside the home folders.
+    home_folder = re.search(r"(?<![\w/~.])(Desktop|Downloads|Documents)$", cleaned[: match.start()], re.IGNORECASE)
+    if home_folder is not None and candidate.startswith("/"):
+        candidate = f"~/{home_folder.group(1).capitalize()}{candidate}"
     return _extend_path_over_spaces(cleaned, candidate, match.end())
 
 
@@ -2474,6 +3567,12 @@ _IMAGE_REQUEST_VERB_RE = re.compile(
 )
 
 
+_IMAGE_FETCH_VERB_RE = re.compile(
+    r"^\s*(?:(?:please|pls|can\s+you|could\s+you|would\s+you)[\s,]+)*(?:give|get|send|show|find|fetch|grab|bring|pull\s+up)\b",
+    re.IGNORECASE,
+)
+
+
 def image_generation_intent(text: str) -> str | None:
     """Return a requested image prompt; mentions of creating images are information."""
     from core.instructional_request import requested_action_clauses
@@ -2484,6 +3583,14 @@ def image_generation_intent(text: str) -> str | None:
         # description inside the depicted subject does not cancel the request.
         if _IMAGE_GEN_ADVISORY_RE.match(raw) or _IMAGE_GEN_FIGURATIVE_RE.match(raw):
             continue
+        # "give me the photos from my downloads folder" asks for pictures the owner HAS: measured
+        # 2026-10-27, it asked to generate an image of "from my downloads folder". A retrieval verb
+        # on the owner's own files is a file ask; "draw / make / give me a picture of my dog" is not.
+        if _IMAGE_FETCH_VERB_RE.match(raw):
+            from core.tool_demand_signals import owner_file_demand
+
+            if owner_file_demand(raw):
+                continue
         prompt = ""
         if _IMAGE_GEN_ACTION_RE.search(raw):
             match = _IMAGE_GEN_PROMPT_RE.search(raw)

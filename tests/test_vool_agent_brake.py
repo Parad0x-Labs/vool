@@ -53,10 +53,15 @@ def _wire(monkeypatch, state: _State, *, fail_save: bool = False) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _canonical_thawed():
-    limits.set_frozen(False)
+def _canonical_thawed(monkeypatch):
+    # A remote freeze keeps the wallet PIN needed to undo it; teardown proves a stand-in PIN.
+    # Test edit approved by sls 23:32Z Oct 26 (msg cmsg_01X3gr1q2Su5cd4H7D7ngLHWEqgwGLj8yTqenLGRut8jG7).
+    from core.wallet import pilot_custody
+
+    monkeypatch.setattr(pilot_custody, "prove_credential", lambda *_a, **_k: None)
+    limits.set_frozen(False, wallet_id="w", credential="x")
     yield
-    limits.set_frozen(False)
+    limits.set_frozen(False, wallet_id="w", credential="x")
 
 
 def _call(text: str, *, consent=lambda _reason: True):
@@ -253,6 +258,7 @@ def test_freeze_allowed_from_any_surface(monkeypatch) -> None:
     result = maybe_handle_agent_brake("/stopx402", "s", wallet_fn=None, owner_local=False)
     assert result is not None and result["intent"] == "agent_brake_stop"
     assert state.policy.frozen is True and limits.is_frozen() is True
+    assert "wallet PIN" in str(result)
 
 
 def test_stopall_variants_all_fire() -> None:

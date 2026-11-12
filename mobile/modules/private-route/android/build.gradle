@@ -1,0 +1,72 @@
+apply plugin: 'com.android.library'
+group = 'systems.vool'
+version = '0.1.0'
+def expoModulesCorePlugin = new File(project(':expo-modules-core').projectDir.absolutePath, 'ExpoModulesCorePlugin.gradle')
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useDefaultAndroidSdkVersions()
+android { namespace 'systems.vool.privateroute' }
+
+// Tor for Android by the Guardian Project (BSD 3-Clause), with the Tor Project's tor inside.
+// Its published package cannot be used as an ordinary dependency by this app's build tools: the
+// classes are built for a newer Java (class version 68) and the package is marked for a newer
+// Android build kit (37; this app builds with 35). So the two published files are taken from
+// Maven Central, checked against the hashes below, and used directly: the native tor library as
+// it is, and the small Java service (two source files) compiled here with the app's own tools.
+def torVersion = '0.4.9.14'
+def torPins = [
+  aar    : '28ff2bb6d4d42eabe57183dedd7a97fce77e8ce4b6f5af6fa03993b3ca054edd',
+  sources: '095118a41782a91b9002038461c4c6a65f5c41bc6f5a37323362eceaf0088a2b',
+]
+def torDir = layout.buildDirectory.dir('tor-android')
+def torAbis = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').toString().split(',')*.trim()
+
+configurations {
+  torPackage { transitive = false; canBeConsumed = false }
+  torSources { transitive = false; canBeConsumed = false }
+}
+dependencies {
+  torPackage "info.guardianproject:tor-android:${torVersion}@aar"
+  torSources "info.guardianproject:tor-android:${torVersion}:sources@jar"
+}
+
+def pinned = { File file, String wanted ->
+  def digest = java.security.MessageDigest.getInstance('SHA-256')
+  file.withInputStream { stream ->
+    def buffer = new byte[1 << 16]
+    for (int read = stream.read(buffer); read > 0; read = stream.read(buffer)) digest.update(buffer, 0, read)
+  }
+  def found = digest.digest().encodeHex().toString()
+  if (found != wanted) throw new GradleException("${file.name} does not match its pinned hash (got ${found})")
+}
+
+def unpackTor = tasks.register('unpackTor', Sync) {
+  def packed = configurations.torPackage
+  def sources = configurations.torSources
+  inputs.property('pins', torPins)
+  inputs.property('abis', torAbis)
+  from({ zipTree(packed.singleFile) }) {
+    torAbis.each { include "jni/${it}/libtor.so" }
+  }
+  from({ zipTree(sources.singleFile) }) {
+    include 'org/torproject/jni/*.java'
+    into 'java'
+  }
+  into torDir
+  doFirst {
+    pinned(packed.singleFile, torPins.aar)
+    pinned(sources.singleFile, torPins.sources)
+  }
+}
+tasks.named('preBuild') { dependsOn unpackTor }
+android.sourceSets.main.jniLibs.srcDir(torDir.map { it.dir('jni') })
+android.sourceSets.main.java.srcDir(torDir.map { it.dir('java') })
+
+dependencies {
+  // What Tor for Android itself needs.
+  implementation 'info.guardianproject:jtorctl:0.4.5.7'
+  implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
+  // Same version React Native ships; no second copy.
+  implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+}

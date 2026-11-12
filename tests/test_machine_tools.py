@@ -269,6 +269,8 @@ def test_largest_entries_measures_and_sorts(monkeypatch) -> None:
 
 
 def test_find_largest_tool_renders_measured_list_with_safety(monkeypatch) -> None:
+    # The delete-safety notes belong to a cleanup ask (freeing space, deleting); a plain size
+    # question must not carry a delete warning on every row (named-file-find audit F26).
     monkeypatch.setattr(md, "largest_entries", lambda root, **kw: {
         "root": root,
         "complete": True,
@@ -278,11 +280,16 @@ def test_find_largest_tool_renders_measured_list_with_safety(monkeypatch) -> Non
         ],
     })
     with mock.patch("core.runtime_execution_tools._is_windows_platform", return_value=True):
-        result = execute_runtime_tool("machine.find_largest", {"drive": "C:\\"})
-    assert result is not None and result.ok and result.status == "executed"
-    assert "bigfile.iso" in result.response_text and "6.0 GB" in result.response_text
-    assert "system-managed (do not delete)" in result.response_text
-    assert "won't delete anything without your explicit go-ahead" in result.response_text
+        cleanup = execute_runtime_tool("machine.find_largest", {"drive": "C:\\", "cleanup_context": True})
+        plain = execute_runtime_tool("machine.find_largest", {"drive": "C:\\"})
+    assert cleanup is not None and cleanup.ok and cleanup.status == "executed"
+    assert "bigfile.iso" in cleanup.response_text and "6.0 GB" in cleanup.response_text
+    assert "system-managed (do not delete)" in cleanup.response_text
+    assert "won't delete anything without your explicit go-ahead" in cleanup.response_text
+    assert plain is not None and plain.ok and plain.status == "executed"
+    assert "bigfile.iso" in plain.response_text and "6.0 GB" in plain.response_text
+    assert "review before deleting" not in plain.response_text
+    assert "won't delete anything" not in plain.response_text
 
 
 def test_machine_diagnostics_intent_routes_drive_questions() -> None:

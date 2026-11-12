@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "Pridėkite vieną nuotrauką prie šio pokalbio. Žinutė nebus išsiųsta, kol nepaliesite Siųsti.",
+  "NSMicrophoneUsageDescription": "Įrašykite trumpą pastabą, kurią kompiuteris pavers tekstu. Prieš siųsdami peržiūrėkite tekstą.",
+  "NSLocationWhenInUseUsageDescription": "Pridėkite dabartinę vietą į žinutės lauką peržiūrai. Vieta fone nenaudojama.",
+  "NSFaceIDUsageDescription": "Atrakinti VOOL",
+  "NSCameraUsageDescription": "Nuskaityti susiejimo QR kodą. Fotografuoti."
+}
