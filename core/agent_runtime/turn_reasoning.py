@@ -2225,6 +2225,15 @@ def _asks_about_something_that_changes(
     try:
         from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
 
-        return bool(live_info_mode(None, str(text or ""), interpretation=None))
+        if live_info_mode(None, str(text or ""), interpretation=None):
+            return True
+    except Exception:
+        pass
+    # Opening hours, fares, ticket prices and "right now" counts: the same reading that keeps them
+    # out of the clean loop and seats a web search for them (`core.online_asks`, red team R3-08).
+    try:
+        from core.online_asks import asks_for_online_facts
+
+        return asks_for_online_facts(str(text or ""))
     except Exception:
         return False

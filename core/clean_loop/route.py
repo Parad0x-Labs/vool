@@ -332,8 +332,18 @@ def is_privacy_ask(text: str) -> bool:
 
 
 def is_online_ask(text: str) -> bool:
+    """Whether the ask needs the web: the words above, or a public fact that changes and fresh
+    information as `core.online_asks` reads them (one reading with the tool-demand authority and
+    the web-off note). Red team round 3 (R3-08, 2026-11-12, Web lookups off): "is the warsaw zoo
+    open on mondays in winter?" was admitted here and this loop's brain answered it from memory."""
     value = str(text or "")
-    return bool(_ONLINE_RE.search(value)) and not is_privacy_ask(value)
+    if is_privacy_ask(value):
+        return False
+    if _ONLINE_RE.search(value):
+        return True
+    from core.online_asks import asks_for_online_facts
+
+    return asks_for_online_facts(value)
 
 
 def is_notes_ask(text: str) -> bool:

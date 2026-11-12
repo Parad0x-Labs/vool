@@ -2151,6 +2151,16 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     if _MCP_FAMILY_PATTERN.search(cleaned) and "mcp" not in families and len(families) < MAX_REQUIRED_FAMILIES:
         families.append("mcp")
 
+    # A public fact that changes or fresh information ("latest OpenClaw release notes", "is the
+    # warsaw zoo open on mondays in winter?") needs the web as much as "search the web for ..." does.
+    # Skills audit 2026-11-12: with Web lookups on, only the explicit wording seated a web tool. The
+    # reading is `core.online_asks`, the clean loop's and the web-off note's too; with the web off
+    # the seat is filtered as disabled and the front door says so before any model call.
+    from core.online_asks import asks_for_online_facts
+
+    if asks_for_online_facts(cleaned):
+        _note("web.search", "web")
+
     return DemandSignals(
         explicit_intents=tuple(intents),
         required_families=tuple(families),

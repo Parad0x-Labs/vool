@@ -2139,6 +2139,18 @@ _SKY_EVENT_RE = re.compile(
 )
 
 
+# "what time does the louvre close today?" and "what time does the last tram leave tonight" ask when
+# something happens, not what the clock says: both were answered "Current time is 19:15 UTC."
+# (measured 2026-11-12 in-process on the v0.8 candidate, rechecking red team R3-08). The time a place
+# opens or closes, or a tram leaves, is looked up or recalled, never read off the clock.
+_WHEN_SOMETHING_HAPPENS_RE = re.compile(
+    r"\b(?:what\s+time|when)\s+(?:does|do|did|will|is|are)\s+(?!it\b)(?:[\w'\u2019.-]+\s+){1,6}?"
+    r"(?:open|opens|close|closes|shut|shuts|start|starts|begin|begins|end|ends|finish|finishes|"
+    r"leave|leaves|depart|departs|arrive|arrives|land|lands)\b",
+    re.IGNORECASE,
+)
+
+
 def date_time_fast_path(
     agent: Any,
     normalized_input: str,
@@ -2164,7 +2176,7 @@ def date_time_fast_path(
     # "what time does the sun set in oslo today" asks when an EVENT happens, not what the clock says:
     # answered "Current time in Oslo is 16:06" (red team R1-16, 2026-11-12). Sunrise, sunset, dawn,
     # dusk and the moon's times are looked up, never read off the clock.
-    if _SKY_EVENT_RE.search(cleaned):
+    if _SKY_EVENT_RE.search(cleaned) or _WHEN_SOMETHING_HAPPENS_RE.search(cleaned):
         return None
     # A SUPPLIED absolute time ("what time is it in Tokyo when it is 3:00 PM on a Tuesday in New
     # York during standard time?") is a conversion, not a clock read. Measured through this seam
