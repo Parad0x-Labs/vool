@@ -541,7 +541,6 @@ __all__ = [
     "ask_words",
     "asks_about_own_files_or_computer",
     "asks_explicitly_about_own_things",
-    "own_content_words",
     "change_reply",
     "changes_enabled",
     "decide",
@@ -554,4 +553,5 @@ __all__ = [
     "is_write",
     "names_owner_file",
     "note_clean_turn",
+    "own_content_words",
 ]

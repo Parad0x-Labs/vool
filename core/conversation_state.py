@@ -690,4 +690,4 @@ def _note(pending: PendingRequest) -> str:
     return f"Earlier in this chat the user asked: “{pending.request}”. It ended {pending.outcome}{why}.{where}"
 
 
-__all__ = ["is_social_only", "PendingRequest", "Resolution", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
+__all__ = ["PendingRequest", "Resolution", "is_social_only", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]

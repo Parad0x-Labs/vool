@@ -3610,7 +3610,7 @@ def maybe_answer_exact_read_first(
     lanes that answer them). Anything else stays with the loop. None changes nothing.
     """
     from core.agent_runtime.fast_paths_pdf import maybe_handle_pdf_read, pdf_read_request
-    from core.execution.constants import machine_kind_listing_intent, points_back_at_the_folder
+    from core.execution.constants import machine_kind_listing_intent
 
     text = str(user_input or "")
     slots = dict((source_context or {}).get("_conversation_slots") or {})
