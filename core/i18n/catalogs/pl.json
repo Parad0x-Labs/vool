@@ -4373,6 +4373,8 @@
     "yard.worlds": "Światy",
     "settings.switch.on": "Włączone",
     "settings.switch.off": "Wyłączone",
+    "liveinfo.web_off.not_checked": "Wyszukiwanie w sieci jest wyłączone, więc nic nie zostało wyszukane i nie mogę zweryfikować aktualnej odpowiedzi. Możesz je włączyć w Ustawienia → Prywatność i uprawnienia → Wyszukiwanie w sieci.",
+    "liveinfo.web_off.not_checked_started_off": "Wyszukiwanie w sieci jest wyłączone, więc nic nie zostało wyszukane i nie mogę zweryfikować aktualnej odpowiedzi.",
     "proof.sources_count": "{n, plural, one {{n} źródło} few {{n} źródła} many {{n} źródeł} other {{n} źródła}}",
     "proof.tokens_count": "{n} tokenów",
     "proof.usage.rate": "{rate} tokenów wyjścia/s (czas żądania)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Oto Twój post jako szkic, który możesz skopiować i opublikować samodzielnie:",
     "x.not_connected.post_ask": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Napisz, co ma zawierać post, a przygotuję szkic do skopiowania."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

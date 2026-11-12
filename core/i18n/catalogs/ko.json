@@ -4373,6 +4373,8 @@
     "yard.worlds": "월드",
     "settings.switch.on": "켜짐",
     "settings.switch.off": "꺼짐",
+    "liveinfo.web_off.not_checked": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변을 확인할 수 없습니다. 설정 → 개인정보와 권한 → 웹 검색에서 켤 수 있습니다.",
+    "liveinfo.web_off.not_checked_started_off": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변을 확인할 수 없습니다.",
     "proof.sources_count": "{n, plural, other {출처 {n}개}}",
     "proof.tokens_count": "{n} 토큰",
     "proof.usage.rate": "출력 {rate} 토큰/초 (요청 시간)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X가 연결되어 있지 않아 아무것도 게시되지 않았습니다. 연결하려면 {settings} > {keys} > {x_row}에서 {connect} 버튼을 누르고 안내에 따라 진행하세요. 복사해서 직접 게시할 수 있는 초안은 다음과 같습니다:",
     "x.not_connected.post_ask": "X가 연결되어 있지 않아 아무것도 게시되지 않았습니다. 연결하려면 {settings} > {keys} > {x_row}에서 {connect} 버튼을 누르고 안내에 따라 진행하세요. 게시물에 담을 내용을 알려 주시면 복사할 수 있는 초안을 써 드릴게요."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

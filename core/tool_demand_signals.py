@@ -39,11 +39,15 @@ class DemandSignals:
     ``required_families``   capability families the request needs (may be several)
     ``write_demand``        the request asks to change something (proposal only; the
                             permission controller still decides execution)
+    ``web_by_online_reading_only``  the web was seated only because the ask is a public fact
+                            that changes or fresh information (``core.online_asks``), not
+                            because the person asked for the web in so many words
     """
 
     explicit_intents: tuple[str, ...] = ()
     required_families: tuple[str, ...] = ()
     write_demand: bool = False
+    web_by_online_reading_only: bool = False
 
 
 # Market-watch evidence (used by the watch.* rules below). An address is an EVM address or a
@@ -2515,10 +2519,24 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     if _MCP_FAMILY_PATTERN.search(cleaned) and "mcp" not in families and len(families) < MAX_REQUIRED_FAMILIES:
         families.append("mcp")
 
+    # A public fact that changes or fresh information ("latest OpenClaw release notes", "is the
+    # warsaw zoo open on mondays in winter?") needs the web as much as "search the web for ..." does.
+    # Skills audit 2026-11-12: with Web lookups on, only the explicit wording seated a web tool. The
+    # reading is `core.online_asks`, the clean loop's and the web-off note's too; with the web off
+    # the seat is filtered as disabled and the front door says so before any model call.
+    from core.online_asks import asks_for_online_facts
+
+    web_by_online_reading_only = False
+    if asks_for_online_facts(cleaned):
+        asked_for_the_web = "web" in families
+        _note("web.search", "web")
+        web_by_online_reading_only = not asked_for_the_web and "web" in families
+
     return DemandSignals(
         explicit_intents=tuple(intents),
         required_families=tuple(families),
         write_demand=write_demand,
+        web_by_online_reading_only=web_by_online_reading_only,
     )
 
 

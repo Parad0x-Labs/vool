@@ -2266,6 +2266,53 @@ class VoolAgent(
                 semantic_source=SemanticSource.FAST_PATH,
                 route_id="empty_turn_fast_path",
             )
+        # Retained inline text is supplied material. Its example commands must not become
+        # independent planner tasks; answer it with its document in one reasoning context.
+        inline_document_turn = False
+        if not private_turn and not forget_turn:
+            # Only a turn that may use the chat's documents gets its runtime session id here; private
+            # and forget turns keep the context their caller sent, as before the document change.
+            runtime_source_context["runtime_session_id"] = session_id
+            from core import chat_attachments as _inline_documents
+
+            _inline_origin = str(
+                runtime_source_context.get("attachment_turn_id")
+                or runtime_source_context.get("cancel_turn_id")
+                or turn_request.turn_id
+            )
+            try:
+                _inline_bound = _inline_documents.retain_inline_message(
+                    session_id=session_id, turn_id=_inline_origin, text=user_input,
+                )
+            except _inline_documents.AttachmentRefused as exc:
+                return _seal_semantic_result(
+                    self._fast_path_result(
+                        session_id=session_id, user_input=user_input, response=exc.message,
+                        confidence=0.9, source_context=runtime_source_context,
+                        reason="inline_document_refused",
+                    ),
+                    session_id=session_id, user_input=user_input, effective_input=user_input,
+                    source_context=runtime_source_context,
+                    semantic_source=SemanticSource.REFUSAL_POLICY,
+                    route_id="inline_document_refused",
+                )
+            if _inline_bound is not None:
+                from core.inline_payload import turn_supplies_its_own_content
+
+                inline_document_turn = turn_supplies_its_own_content(
+                    user_input, source_context=runtime_source_context,
+                )
+                runtime_source_context["attachment_turn_id"] = _inline_origin
+                _other_evidence = [
+                    item for item in (runtime_source_context.get("external_evidence") or [])
+                    if not isinstance(item, dict) or item.get("origin") != "chat_attachment"
+                ]
+                runtime_source_context["external_evidence"] = bounded_evidence_items([
+                    *_other_evidence,
+                    *_inline_documents.evidence_items_for_turn(
+                        session_id=session_id, turn_id=_inline_origin, question=user_input,
+                    ),
+                ])
         runtime_source_context["conversation_history"] = _augment_history_from_session_log(
             runtime_source_context.get("conversation_history"),
             session_id=session_id,
@@ -3055,7 +3102,7 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = None if browser_turn or parts_single_request else self._maybe_answer_conductor_turn(
+        conductor_result = None if (browser_turn or parts_single_request or inline_document_turn) else self._maybe_answer_conductor_turn(
             effective_input=parts_effective_input,
             raw_input=parts_raw_text,
             # Named only when there is one: every other turn calls the conductor exactly as before.
@@ -3078,7 +3125,7 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = None if browser_turn or parts_single_request else self._maybe_answer_demand_owned_turn(
+        demand_owned_result = None if (browser_turn or parts_single_request or inline_document_turn) else self._maybe_answer_demand_owned_turn(
             effective_input=parts_effective_input,
             raw_input=parts_raw_text,
             session_id=session_id,
@@ -3095,7 +3142,7 @@ class VoolAgent(
         # multi-city weather clause ended up losing its own boundary. Returns None for anything
         # that is not LIVE_DATA-classified, or when the typed plan itself finds nothing to answer
         # -- the ordinary planner and every existing lane are untouched below.
-        live_data_result = None if browser_turn else self._maybe_answer_live_data_turn(
+        live_data_result = None if (browser_turn or inline_document_turn) else self._maybe_answer_live_data_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -3106,7 +3153,7 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = None if browser_turn or parts_single_request else self._maybe_answer_planned_turn(
+        planned_result = None if (browser_turn or parts_single_request or inline_document_turn) else self._maybe_answer_planned_turn(
             effective_input=parts_effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
@@ -3418,6 +3465,10 @@ class VoolAgent(
                 return None
             coverage = demand_coverage(demand_text)
             if not coverage.mixed:
+                return None
+            from core.agent_runtime.demand_ownership import one_file_computation_owns_turn
+
+            if one_file_computation_owns_turn(demand_text, source_context, coverage=coverage):
                 return None
             # The turn's clause decomposition (one model reading, already asked by the conductor)
             # read every clause as ONE request: answer it as one. Measured on the live agent-team run

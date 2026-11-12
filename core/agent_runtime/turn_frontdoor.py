@@ -397,7 +397,7 @@ _ASKS_FROM_OWN_RECORDS_RE = re.compile(
 
 def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
     """Why this turn cannot check a live rate, in the person's words."""
-    from core.remote_fetch_policy import WEB_OFF_TEXT, web_unavailable_reason
+    from core.remote_fetch_policy import WEB_FORCED_OFF_TEXT, WEB_OFF_TEXT, web_unavailable_reason
 
     reason = web_unavailable_reason(dict(source_context or {}))
     if reason == WEB_OFF_TEXT:
@@ -405,6 +405,8 @@ def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
             "A current exchange rate is a live observation, and Web lookups are off, so I can't "
             "check it. You can turn them on in Settings, Privacy & Permissions."
         )
+    elif reason == WEB_FORCED_OFF_TEXT:
+        reason = "A current exchange rate is a live observation, and Web lookups are off, so I can't check it."
     else:
         reason = "A current exchange rate is a live observation. " + reason
     return reason + " I won't guess a rate from memory."
@@ -2145,12 +2147,26 @@ def handle_turn_frontdoor(
         if home_read is not None:
             return {"result": home_read}
 
+    # One computation over one file at hand ("Compute the total in tally.csv, per group, and who owes
+    # whom if shared equally.") is the read lane's whole turn: it reads the file into evidence and
+    # the model answers every part (`one_file_computation_owns_turn` holds the measurement).
+    _one_file_computation = False
+    if _read_lane_claims_part_of_this_turn:
+        try:
+            from core.agent_runtime.demand_ownership import one_file_computation_owns_turn
+
+            _one_file_computation = one_file_computation_owns_turn(
+                str(raw_user_input or effective_input), source_context
+            )
+        except Exception:
+            _one_file_computation = False
     workspace_runtime = None if (
         action_forbidden
         or mixed_turn
         or (
             _read_lane_claims_part_of_this_turn
             and not _lane_may_finalize("workspace_read_fast_path")
+            and not _one_file_computation
         )
     ) else agent._maybe_handle_direct_workspace_runtime_request(
         effective_input,
@@ -2375,6 +2391,25 @@ def handle_turn_frontdoor(
                 # Measured in the running app: "look up the X account @..." was refused as a web
                 # lookup while X was connected and the read was switched on.
                 _ask_needs_web = _ask_is_live_data = False
+            if _ask_needs_web or _ask_is_live_data:
+                # The same holds for text the person gave VOOL. A turn that pastes what it asks about
+                # ("Summarize the following: ... the weather today was dry ...") is about that text,
+                # and a question a document kept in this chat answers ("who leads the quarry team?")
+                # is answered from it. Measured 2026-11-12 on the v0.8 candidate: both were refused
+                # as lookups, the first after 58 model calls. Live weather and prices stay refused
+                # unless the turn itself carries the text: a kept document is no current reading.
+                try:
+                    from core.inline_payload import supplied_material_answers
+
+                    _supplied = supplied_material_answers(
+                        effective_input, session_id=str(session_id or ""), source_context=source_context,
+                    )
+                    if _supplied == "turn":
+                        _ask_needs_web = _ask_is_live_data = False
+                    elif _supplied == "document" and not _ask_is_live_data:
+                        _ask_needs_web = False
+                except Exception:
+                    pass
             _plain = ""
             _plain_reason = ""
             if _ask_is_live_data:

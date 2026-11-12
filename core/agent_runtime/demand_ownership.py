@@ -1696,6 +1696,61 @@ def lane_may_claim_whole_turn(text: str, lane_id: str) -> bool:
     return len(coverage.lane_unit_ids(lane_id)) == coverage.unit_count
 
 
+_CONTINUATION_OPENING_RE = re.compile(r"^\s*(?:and|then|also|plus)\b", re.IGNORECASE)
+
+
+def one_file_computation_owns_turn(
+    text: str, source_context: dict[str, object] | None, *, coverage: DemandCoverage | None = None
+) -> bool:
+    """Whether a multi-unit turn is ONE computation over ONE file at hand, its later units continuing it.
+
+    "Compute the total in tally.txt, per group, and who owes whom if shared equally." mints two
+    units: the read lane claims the first and nothing claims "and who owes whom if shared equally.",
+    so the turn read as mixed. The splitter cut it in two, the second part ran without the file, and
+    the merge answered "I could not answer any part of this message"; with the splitter held back,
+    the finalize law above still kept the read lane off the turn, and the model answered without the
+    file (both measured 2026-11-12 in-process on the v0.8 line, re-landing prompt cache bench B2).
+    For a question worked out from a file the read lane ends nothing: it hands the file and the
+    totals computed in code to ONE model call, which sees every part of the message. So the read lane
+    owns the turn when it names exactly one file, that file is attached or in the chat's folder, every
+    unit the read lane claims asks for something worked out from the file, no other lane claims any
+    unit, and every unit the read lane does not claim opens as a continuation ("and ...", "then ...")
+    naming no file of its own. A missing file keeps the split, so a "no file" answer never stands in
+    for a separate ask beside it, and a part another lane serves ("what time is it in Tokyo?",
+    "37 x 19") stays its own part.
+    """
+    try:
+        from core.agent_runtime.fast_paths_utility import (
+            _FILE_TOKEN,
+            _direct_workspace_read_requests,
+            named_file_is_at_hand,
+        )
+        from core.agent_runtime.tabular_evidence import file_question_requires_synthesis
+
+        coverage = coverage if coverage is not None else demand_coverage(text)
+        if coverage.unit_count < 2:
+            return False
+        paths = {str(request.get("path") or "") for request in _direct_workspace_read_requests(text)}
+        if len({path.casefold() for path in paths}) != 1:
+            return False
+        path = next(iter(paths))
+        if not named_file_is_at_hand(path, source_context):
+            return False
+        claimed_any = False
+        for (_unit_id, unit_text), lanes in zip(coverage.units, coverage.per_unit_lanes, strict=True):
+            if lanes:
+                # Each part the read lane claims asks for something worked out from the file: a
+                # plain "Read tally.csv" beside a separate ask is still a read of its own.
+                if set(lanes) != {LANE_WORKSPACE_READ} or not file_question_requires_synthesis(unit_text, path):
+                    return False
+                claimed_any = True
+            elif not _CONTINUATION_OPENING_RE.match(unit_text) or re.search(_FILE_TOKEN, unit_text, re.IGNORECASE):
+                return False
+        return claimed_any
+    except Exception:
+        return False
+
+
 # =====================================================================
 # P0 MIXED-DEMAND — the per-demand execution ledger.
 #
@@ -2117,6 +2172,7 @@ __all__ = [
     "executor_capability",
     "is_coverage_capability",
     "lane_may_claim_whole_turn",
+    "one_file_computation_owns_turn",
     "registered_lane_for",
     "registered_owner_ahead_of",
     "scoped_coverage_capabilities",

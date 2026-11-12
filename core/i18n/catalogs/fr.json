@@ -4373,6 +4373,8 @@
     "yard.worlds": "Mondes",
     "settings.switch.on": "Activé",
     "settings.switch.off": "Désactivé",
+    "liveinfo.web_off.not_checked": "Les recherches web sont désactivées : je n’ai donc pas cherché sur le web et je ne peux pas vérifier de réponse à jour. Vous pouvez les activer dans Réglages → Confidentialité et permissions → Recherches web.",
+    "liveinfo.web_off.not_checked_started_off": "Les recherches web sont désactivées : je n’ai donc pas cherché sur le web et je ne peux pas vérifier de réponse à jour.",
     "proof.sources_count": "{n, plural, one {{n} source} many {{n} sources} other {{n} sources}}",
     "proof.tokens_count": "{n} jetons",
     "proof.usage.rate": "{rate} jetons de sortie/s (durée de la requête)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Voici votre post en brouillon, à copier et publier vous-même :",
     "x.not_connected.post_ask": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Dites-moi ce que le post doit dire et je vous écrirai un brouillon à copier."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

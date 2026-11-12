@@ -1499,6 +1499,18 @@ def execute_grounded_turn(
             })
             source_context["response_control"] = control
 
+    # Name the check that set the model reply aside (codes only) on the turn's response control,
+    # which the API payload and the terminal trace carry, and on the durable run audit below.
+    from core.agent_runtime.reply_rejection import reply_rejection_receipt
+
+    reply_rejection = reply_rejection_receipt(
+        model_execution, rendered_via=rendered_via, response_reason=response_reason,
+    )
+    if reply_rejection is not None and isinstance(source_context, dict):
+        control = dict(source_context.get("response_control") or {})
+        control["reply_rejection"] = reply_rejection
+        source_context["response_control"] = control
+
     # Verifier gate -> visible caveat: if an independent verifier flagged this answer
     # (needs_review set by the router), prepend a short draft caveat so the user knows
     # it did not pass verification. Non-blocking; a passing / verifier-unavailable /
@@ -1724,7 +1736,7 @@ def execute_grounded_turn(
             from core.remote_fetch_policy import effective_web_available
 
             if not effective_web_available(source_context) and _asks_about_something_that_changes(
-                effective_input, _requirements, source_context
+                effective_input, _requirements, source_context, session_id=str(session_id or "")
             ) and "web lookups" not in str(response or "").lower():
                 response = (
                     f"{str(response or '').rstrip()}\n\n"
@@ -2065,6 +2077,7 @@ def execute_grounded_turn(
             "adaptive_research_uncertainty": adaptive_research.admitted_uncertainty,
             "source_surface": (source_context or {}).get("surface"),
             "source_platform": (source_context or {}).get("platform"),
+            **({"reply_rejection": reply_rejection} if reply_rejection is not None else {}),
         },
     )
 
@@ -2113,6 +2126,7 @@ def execute_grounded_turn(
         task_id=task.task_id,
         task_class=str(classification.get("task_class") or "unknown"),
         **({"fulfillment_outcome": terminal_outcome.to_dict()} if terminal_outcome.is_unfulfilled else {}),
+        **({"reply_rejection": reply_rejection} if reply_rejection is not None else {}),
     )
     agent._finalize_runtime_checkpoint(
         source_context,
@@ -2206,32 +2220,65 @@ def execute_grounded_turn(
     }
 
 
-def _asks_about_something_that_changes(text: str, requirements: Any, source_context: Any = None) -> bool:
+def _asks_about_something_that_changes(
+    text: str, requirements: Any, source_context: Any = None, *, session_id: str = "",
+) -> bool:
     """A question whose true answer can change from day to day (the requirement authority's own
-    reading, or the live-information classifier), and not one the chat's own records answer."""
+    reading, or the live-information classifier), and not one the chat's own records answer.
+
+    Nor one the person's own material answers: text the turn pastes, or a document this chat keeps
+    that holds the question (measured 2026-11-12 on the v0.8 candidate: "Who leads the quarry team,
+    and where does it assemble indoors?" about a kept crew document came back labelled "from what I
+    already know and may be out of date")."""
     try:
         from core.agent_runtime.turn_frontdoor import _ASKS_FROM_OWN_RECORDS_RE
 
         if _ASKS_FROM_OWN_RECORDS_RE.search(str(text or "")):
             return False
+        from core.inline_payload import supplied_material_answers
+
+        ctx = source_context if isinstance(source_context, dict) else {}
+        if supplied_material_answers(
+            text, session_id=session_id or str(ctx.get("runtime_session_id") or ""),
+            source_context=ctx or None,
+        ):
+            return False
         from core.bootstrap_context import admitted_capsule_evidence_text
         from core.memory_grounding import question_names_someone_in_the_records
 
-        ctx = source_context if isinstance(source_context, dict) else {}
         if question_names_someone_in_the_records(
             str(text or ""), admitted_capsule_evidence_text(ctx, str(ctx.get("session_id") or ""))
         ):
             return False
     except Exception:
         pass
+    try:
+        from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+
+        if live_info_mode(None, str(text or ""), interpretation=None):
+            return True
+    except Exception:
+        pass
     if requirements is not None and (
         bool(getattr(requirements, "current_information_required", False))
         or bool(getattr(requirements, "external_evidence_required", False))
     ):
-        return True
-    try:
-        from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+        # The authority reads "right now" or "release notes" in any sentence, but no web page knows
+        # whether port 8080 is open on this computer or what this project's release notes should
+        # say (measured 2026-11-12 on the v0.8 candidate: both came back "from what I already know
+        # and may be out of date", Web lookups off). A question about this computer, this chat or
+        # this project gets no web-off line; weather, news and fresh lookups were read above.
+        try:
+            from core.online_asks import asks_about_this_computer_or_project
 
-        return bool(live_info_mode(None, str(text or ""), interpretation=None))
+            return not asks_about_this_computer_or_project(str(text or ""))
+        except Exception:
+            return True
+    # Opening hours, fares, ticket prices and "right now" counts: the same reading that keeps them
+    # out of the clean loop and seats a web search for them (`core.online_asks`, red team R3-08).
+    try:
+        from core.online_asks import asks_for_online_facts
+
+        return asks_for_online_facts(str(text or ""))
     except Exception:
         return False

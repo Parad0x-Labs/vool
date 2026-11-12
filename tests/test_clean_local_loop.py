@@ -162,20 +162,22 @@ def test_route_does_not_take_minutes_as_a_files_topic(ask):
 
 
 @pytest.mark.parametrize(
-    "ask",
+    ("ask", "reason"),
     [
-        "how much r tickets for the champions league final this year",
-        "how much is a ticket for the louvre these days? going in december",
-        "whats the cheapest flight from krakow to rome in january",
-        "do flights to oslo get cheaper in spring?",
+        ("how much r tickets for the champions league final this year", "online_ask"),
+        ("how much is a ticket for the louvre these days? going in december", "online_ask"),
+        ("whats the cheapest flight from krakow to rome in january", "online_ask"),
+        ("do flights to oslo get cheaper in spring?", "not_about_own_files"),
     ],
 )
-def test_route_leaves_prices_and_timetables_to_the_web(ask):
+def test_route_leaves_prices_and_timetables_to_the_web(ask, reason):
     """Tickets and flights are the owner's only when the ask says so; these are web asks the loop
-    answered from files (red3 wordings, 2026-11-12). A follow-up must not ride in after them either."""
+    answered from files (red3 wordings, 2026-11-12). A follow-up must not ride in after them either.
+    A price or fare that changes is an online ask (`core.online_asks`, red team R3-08); a general
+    question about prices is simply not about the owner's files."""
     route.note_clean_turn("sess-travel")
     decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
-    assert (decision.admit, decision.reason) == (False, "not_about_own_files"), ask
+    assert (decision.admit, decision.reason) == (False, reason), ask
 
 
 @pytest.mark.parametrize(

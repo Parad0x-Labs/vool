@@ -4373,6 +4373,8 @@
     "yard.worlds": "Welten",
     "settings.switch.on": "Ein",
     "settings.switch.off": "Aus",
+    "liveinfo.web_off.not_checked": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und kann keine aktuelle Antwort überprüfen. Du kannst sie unter Einstellungen → Privatsphäre & Berechtigungen → Websuchen einschalten.",
+    "liveinfo.web_off.not_checked_started_off": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und kann keine aktuelle Antwort überprüfen.",
     "proof.sources_count": "{n, plural, one {{n} Quelle} other {{n} Quellen}}",
     "proof.tokens_count": "{n} Token",
     "proof.usage.rate": "{rate} Ausgabe-Token/s (Anfragezeit)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Hier ist dein Beitrag als Entwurf, den du kopieren und selbst posten kannst:",
     "x.not_connected.post_ask": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Sag mir, was im Beitrag stehen soll, und ich schreibe dir einen Entwurf zum Kopieren."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

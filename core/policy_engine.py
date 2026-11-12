@@ -369,6 +369,13 @@ def _env_is_truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def web_forced_off_by_environment(env: dict[str, str] | None = None) -> bool:
+    """Whether `VOOL_DISABLE_WEB` (or its alias `VOOL_NO_WEB`) holds web lookups off. The Settings
+    switch cannot turn them back on then, so no reply sends the person there."""
+    env_map = os.environ if env is None else env
+    return _env_is_truthy(env_map.get("VOOL_DISABLE_WEB")) or _env_is_truthy(env_map.get("VOOL_NO_WEB"))
+
+
 def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = None) -> dict[str, Any]:
     """Apply explicit, documented environment overrides on top of file/default policy.
 
@@ -401,7 +408,7 @@ def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = No
         if not bool(system.get("local_only_mode", config.get("system", {}).get("local_only_mode"))):
             system["allow_web_fallback"] = True
         config["system"] = system
-    if _env_is_truthy(env_map.get("VOOL_DISABLE_WEB")) or _env_is_truthy(env_map.get("VOOL_NO_WEB")):
+    if web_forced_off_by_environment(env_map):
         system = dict(config.get("system") or {})
         system["allow_web_fallback"] = False
         config["system"] = system

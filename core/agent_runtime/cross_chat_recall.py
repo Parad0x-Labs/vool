@@ -199,6 +199,16 @@ _LIVE_DOMAIN_RE = re.compile(
     r"today|tomorrow|tonight|this\s+(?:week|month|morning|afternoon|evening)|next\s+week|now)\b",
     re.IGNORECASE,
 )
+#: Writing the owner keeps (VOOL's notes, a journal, a notes file in a project): "what's in my notes?"
+#: reads those, never "I don't have that saved" (v0.8 line 247124ed, 2026-11-12). A fact asked
+#: "according to my notes" is still a records question, and this lane answers it: it searches every
+#: chat and project and says plainly when nothing is saved (served: "How many tonnes does the yard
+#: currently hold according to my notes?" went to a web lookup once the notes words alone sent it away).
+_OWN_WRITING_RE = re.compile(r"\b(?:notes|notebooks?|journal|diary)\b", re.IGNORECASE)
+_RECORDS_SOURCE_RE = re.compile(
+    r"\b(?:according\s+to|based\s+on|per|going\s+by)\s+(?:my|our|the)\s+(?:notes|notebooks?|journal|diary)\b",
+    re.IGNORECASE,
+)
 
 
 #: A question about what the person attached to this turn ("Is anything said in the attached video?")
@@ -221,8 +231,23 @@ def _agent_turn(session_id: str) -> bool:
         return False
 
 
-def _owned_by_another_lane(text: str) -> bool:
+def _owned_by_another_lane(text: str, asked: str = "") -> bool:
     if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
+        return True
+    if _OWN_WRITING_RE.search(_RECORDS_SOURCE_RE.sub(" ", text)):
+        return True
+    typed = asked or text
+    try:
+        # Read as typed, before the recall grammar's rewrite: "show me my notes" lists the notes
+        # (the operator's find_notes), and "find my chat about X" is the saved-chat search. Both
+        # were rewritten to "what's my ...?" and answered "I don't have that saved" (v0.8 line
+        # 247124ed; in-process on the v0.8 candidate fa4fcc92, 2026-11-12).
+        from core.agent_runtime.housekeeping_lane import covers_unit
+        from core.operator.parser import parse_operator_action_intent
+
+        if parse_operator_action_intent(typed) is not None or covers_unit(typed):
+            return True
+    except Exception:
         return True
     try:
         # Files on this computer ("which pdfs are in my documents", "find my tax folder") are the
@@ -290,6 +315,19 @@ def _operator_store_ask(text: str) -> bool:
         return parse_operator_action_intent(text) is not None
     except Exception:
         return False
+def _names_a_project_file(text: str, source_context: dict[str, Any] | None) -> bool:
+    """The question names a file in the folder this chat is bound to, so it is that file's question.
+
+    Measured 2026-11-12 on the v0.8 candidate, project chats: "What do my dentist notes say?" with
+    dentist_notes.md in the project was answered "I don't have that saved" by this lane. A failed
+    check declines too, as every other ownership check here does: the ordinary path still answers.
+    """
+    try:
+        from core.agent_runtime.workspace_question_evidence import question_names_project_file
+
+        return question_names_project_file(text, dict(source_context or {}))
+    except Exception:
+        return True
 
 
 def _covers(terms: tuple[str, ...], found: tuple[str, ...] | list[str]) -> bool:
@@ -646,10 +684,12 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if _owned_by_another_lane(text) or _operator_store_ask(typed):
+    if _owned_by_another_lane(text, " ".join(str(question or "").split())) or _operator_store_ask(typed):
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them
+    if _names_a_project_file(text, source_context):
+        return None  # "what do my dentist notes say?" with dentist_notes.md in this chat's project
     if not explicit_recall and _chat_works_on_a_data_store(source_context):
         return None
     from core.chat_housekeeping import query_terms, search_chats

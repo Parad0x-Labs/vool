@@ -4373,6 +4373,8 @@
     "yard.worlds": "Dünyalar",
     "settings.switch.on": "Açık",
     "settings.switch.off": "Kapalı",
+    "liveinfo.web_off.not_checked": "Web aramaları kapalı; bu yüzden web'de arama yapmadım ve güncel bir yanıtı doğrulayamıyorum. Bunları Ayarlar → Gizlilik ve İzinler → Web aramaları bölümünden açabilirsiniz.",
+    "liveinfo.web_off.not_checked_started_off": "Web aramaları kapalı; bu yüzden web'de arama yapmadım ve güncel bir yanıtı doğrulayamıyorum.",
     "proof.sources_count": "{n, plural, one {{n} kaynak} other {{n} kaynak}}",
     "proof.tokens_count": "{n} jeton",
     "proof.usage.rate": "{rate} çıktı jetonu/sn (istek süresi)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Kopyalayıp kendiniz paylaşabileceğiniz taslak şu:",
     "x.not_connected.post_ask": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Gönderide ne yazması gerektiğini söyleyin, size kopyalayabileceğiniz bir taslak yazayım."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

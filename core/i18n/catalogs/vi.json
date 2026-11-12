@@ -4373,6 +4373,8 @@
     "yard.worlds": "Thế giới",
     "settings.switch.on": "Bật",
     "settings.switch.off": "Tắt",
+    "liveinfo.web_off.not_checked": "Tra cứu web đang tắt, nên tôi không tìm trên web và không thể xác minh câu trả lời mới. Bạn có thể bật trong Cài đặt → Riêng tư và Quyền → Tra cứu web.",
+    "liveinfo.web_off.not_checked_started_off": "Tra cứu web đang tắt, nên tôi không tìm trên web và không thể xác minh câu trả lời mới.",
     "proof.sources_count": "{n, plural, one {{n} nguồn} other {{n} nguồn}}",
     "proof.tokens_count": "{n} token",
     "proof.usage.rate": "{rate} token đầu ra/giây (thời gian yêu cầu)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Đây là bài đăng của bạn dưới dạng bản nháp để bạn sao chép và tự đăng:",
     "x.not_connected.post_ask": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Hãy cho tôi biết bài đăng nên nói gì, tôi sẽ viết bản nháp để bạn sao chép."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -423,6 +423,27 @@ def looks_like_public_entity_lookup_request(text: str) -> bool:
     return bool(has_lookup_marker and (has_web_or_social_cue or has_public_context))
 
 
+#: Endings that make "name.ext" a file the person keeps, not a website: "read notes.txt" and "read
+#: tally.csv" were refused as web lookups with Web lookups off (measured 2026-11-12 on the v0.8
+#: candidate). Endings that are also busy web domains (.io, .ai, .rs, .sh, .co, .me ...) are left out.
+_FILE_NAME_ENDINGS = frozenset({
+    "txt", "text", "csv", "tsv", "json", "md", "markdown", "pdf", "doc", "docx", "xls", "xlsx", "xlsm",
+    "ppt", "pptx", "odt", "ods", "odp", "rtf", "log", "yaml", "yml", "toml", "ini", "cfg", "conf", "xml",
+    "png", "jpg", "jpeg", "gif", "webp", "heic", "bmp", "tiff", "mp3", "mp4", "m4a", "wav", "mov", "mkv",
+    "zip", "epub", "ics", "vcf", "eml", "py", "js", "ts", "tsx", "jsx", "ipynb", "sqlite", "db",
+})
+_DOMAIN_LIKE_RE = re.compile(r"(?<![\w/.-])(?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,63}\b")
+
+
+def _names_a_site(lowered: str) -> bool:
+    """A web address written without a scheme ("read example.com"); a file name is not one."""
+    for match in _DOMAIN_LIKE_RE.finditer(lowered):
+        token = match.group(0)
+        if token.startswith("www.") or token.rsplit(".", 1)[-1] not in _FILE_NAME_ENDINGS:
+            return True
+    return False
+
+
 def looks_like_explicit_lookup_request(text: str) -> bool:
     from core.retrieval_constraints import analyze_retrieval_constraints
     from core.stipulated_frame import stipulated_frame_forbids_retrieval
@@ -454,7 +475,7 @@ def looks_like_explicit_lookup_request(text: str) -> bool:
         re.search(r"\b(?:look\s+up|lookup|search\s+online|check\s+online|browse)\b", lowered)
         or (
             re.search(r"\b(?:fetch|read|summarize|summarise)\b", lowered)
-            and re.search(r"\b(?:website|webpage|https?)\b|\b(?:[a-z0-9-]+\.)+[a-z]{2,63}\b", lowered)
+            and (re.search(r"\b(?:website|webpage|https?)\b", lowered) or _names_a_site(lowered))
             and not re.search(r"\bhow\s+(?:to|do|can|should|would)\b|\b(?:explain|teach|show)\s+(?:me\s+)?how\b", lowered)
         )
         # "find [me] [the] official <thing>" is an explicit retrieval demand for an external,

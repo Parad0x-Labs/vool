@@ -379,7 +379,13 @@ def should_keep_ai_first_chat_lane(
     # the model answered "Let me fetch the Wikipedia page ... give me a sec" while nothing ran.
     from core.tool_demand_signals import resolve_demand_signals
 
-    if "web" in resolve_demand_signals(user_input).required_families:
+    # A fresh lookup the live-information lane serves ("latest telegram bot api updates") stays: that
+    # lane retrieves inside this one, as it did before the online reading seated web.search for it
+    # (red team R3-08, 2026-11-12); the person's own "search the web for ..." still leaves.
+    _demand = resolve_demand_signals(user_input)
+    if "web" in _demand.required_families and not (
+        _demand.web_by_online_reading_only and agent._live_info_mode(user_input, interpretation=interpretation)
+    ):
         return False
     # An ask the person's connected X account answers needs the X tools this lane cannot offer.
     # Measured 2026-11-12 in the running app (X connected, account read on): "Look up the X

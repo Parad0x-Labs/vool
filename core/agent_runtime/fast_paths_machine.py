@@ -2449,6 +2449,23 @@ def _names_the_bound_workspace(name: str, source_context: dict | None) -> bool:
     return squashed(Path(root).name) == squashed(name)
 
 
+def _names_a_bound_project_file(user_input: str, source_context: dict | None) -> bool:
+    """The ask names a file in the folder this chat is bound to (see `question_names_project_file`).
+
+    Only a chat bound to a project or a chosen folder lists anything here; a failed check keeps the
+    computer-wide lanes, as before.
+    """
+    context = dict(source_context or {})
+    if str(context.get("workspace_binding") or "") not in {"project", "explicit"} and not context.get("project_id"):
+        return False
+    try:
+        from core.agent_runtime.workspace_question_evidence import question_names_project_file
+
+        return question_names_project_file(user_input, context)
+    except Exception:
+        return False
+
+
 def list_named_folder(name: str, *, source_context: dict | None) -> Any:
     """Find a folder by a word of its name and list it when exactly one folder matches.
 
@@ -3117,6 +3134,15 @@ def maybe_handle_direct_machine_read_request(
 ) -> dict[str, Any] | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
+    # A turn that PASTES the content it asks about is self-contained, as the workspace lane already
+    # holds (MF-17): words inside the paste ("my notes from the site visit") are no file to look for
+    # on this computer. Measured 2026-11-12 in-process on the v0.8 line: "Here are my notes from the site
+    # visit. What are the open issues?" followed by the notes was answered "None of the searchable
+    # local folders are readable right now."
+    from core.inline_payload import turn_supplies_its_own_content
+
+    if turn_supplies_its_own_content(user_input, source_context=source_context):
+        return None
     # A display token in bound material is not a host fact. An explicit host step
     # in a mixed request is planner-owned so its result can be synthesized with
     # that material; no lower machine-spec fallback may reclaim the whole turn.
@@ -3404,7 +3430,15 @@ def maybe_handle_direct_machine_read_request(
     # answers WHERE a file is, and before this lane the model answered from no file at all (phone
     # parity audit F17: "Since I can't access files directly, I'll need to guide you").
     spreadsheet_q = spreadsheet_question_intent(user_input)
+    # A question naming a table in the folder this chat is bound to is that table's question, read
+    # by the project lanes: this lane searches Desktop, Downloads and Documents for a bank export
+    # (measured 2026-11-12 on the v0.8 candidate, project chat: "What were the total expenses in
+    # expenses_2026_q3.csv?" answered "None of the searchable local folders are readable"). Asked
+    # only when this lane would take the turn; the to-do and file finders below reuse the answer.
+    project_file_named: bool | None = None
     if spreadsheet_q is not None:
+        project_file_named = _names_a_bound_project_file(user_input, source_context)
+    if spreadsheet_q is not None and not project_file_named:
         answered = answer_spreadsheet_question(spreadsheet_q, source_context=source_context)
         if answered is not None:
             return _machine_tool_fast_path_result(
@@ -3569,14 +3603,21 @@ def maybe_handle_direct_machine_read_request(
     # no file tool that answered "I don't have access to your personal to-do list". While email
     # work owns the folder references of this session, the same stand-down its file neighbours
     # take applies: a list ask mid-email-thread is the mailbox's to answer.
-    todo_read = None if email_owns_folder_reference else read_the_named_todo_list(
+    # In a chat bound to a project folder, a file the question names there is that file: the
+    # project lanes read it. Measured 2026-11-12 on the v0.8 candidate, project chats: "whats in my
+    # moving checklist?" (moving_checklist.md in the project) went to this to-do finder, which
+    # looked on the Desktop, and "What were the total expenses in expenses_2026_q3.csv?" searched
+    # the whole computer. An ask that names a place on the computer was read above.
+    if project_file_named is None:
+        project_file_named = _names_a_bound_project_file(user_input, source_context)
+    todo_read = None if email_owns_folder_reference or project_file_named else read_the_named_todo_list(
         agent, user_input, session_id=session_id, source_context=source_context
     )
     if todo_read is not None:
         return todo_read
     # A FILE asked for by name ("a picture named daily 4 in Downloads") is found as a file, before the
     # folder search below can read "Downloads folder" as the thing being looked for.
-    file_search = None if email_owns_folder_reference else machine_file_search_intent(user_input)
+    file_search = None if email_owns_folder_reference or project_file_named else machine_file_search_intent(user_input)
     if file_search is not None:
         found = find_named_files(file_search, source_context=source_context)
         if found is not None and getattr(found, "ok", False) and not (getattr(found, "details", None) or {}).get("matches"):
@@ -3602,7 +3643,7 @@ def maybe_handle_direct_machine_read_request(
     # no file tools that answered "I can't access files" (audit F42, PC and phone).
     from core.execution.constants import machine_present_file_intent
 
-    present_ask = machine_present_file_intent(user_input)
+    present_ask = None if project_file_named else machine_present_file_intent(user_input)
     named_file = _BARE_FILE_NAME_RE.search(" ".join(str(user_input or "").split()))
     if (present_ask is not None and not present_ask.place and named_file is not None
             and _the_bound_project_holds(named_file.group("name"), source_context)):
@@ -3632,7 +3673,8 @@ def maybe_handle_direct_machine_read_request(
                 reason="machine_read_fast_path",
             )
     # A file DESCRIBED in words ("cant find my boarding pass", "the photos from my lisbon trip").
-    described = None if email_owns_folder_reference or file_search is not None else machine_described_file_intent(user_input)
+    described = (None if email_owns_folder_reference or file_search is not None or project_file_named
+                 else machine_described_file_intent(user_input))
     if described is not None:
         found = find_described_files(described, source_context=source_context)
         if found is not None:

@@ -4373,6 +4373,8 @@
     "yard.worlds": "ワールド",
     "settings.switch.on": "オン",
     "settings.switch.off": "オフ",
+    "liveinfo.web_off.not_checked": "ウェブ検索がオフなので、ウェブは検索しておらず、最新の答えを確認できません。設定 → プライバシーと権限 → ウェブ検索 でオンにできます。",
+    "liveinfo.web_off.not_checked_started_off": "ウェブ検索がオフなので、ウェブは検索しておらず、最新の答えを確認できません。",
     "proof.sources_count": "{n, plural, other {{n} 件のソース}}",
     "proof.tokens_count": "{n} トークン",
     "proof.usage.rate": "出力 {rate} トークン/秒（リクエスト時間）",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。コピーしてご自身で投稿できる下書きはこちらです:",
     "x.not_connected.post_ask": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。投稿の内容を教えていただければ、コピーできる下書きを書きます。"
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

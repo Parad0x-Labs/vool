@@ -2595,6 +2595,11 @@ class ResearchToolLoopFacadeMixin:
                         executed_steps=executed_steps,
                         effective_input=effective_input,
                         source_context=loop_source_context,
+                    ) or self._web_step_refused_for_pasted_material(
+                        execution=execution,
+                        executed_steps=executed_steps,
+                        effective_input=effective_input,
+                        source_context=loop_source_context,
                     ):
                         return None
 
@@ -3148,6 +3153,35 @@ class ResearchToolLoopFacadeMixin:
         # The user's own words, not the task class: `has_explicit_tool_intent_request` answers yes
         # for any research-labelled turn, which is exactly the misrouted kind this net is for.
         return not _ASKS_FOR_THE_WEB_RE.search(str(effective_input or ""))
+
+    def _web_step_refused_for_pasted_material(
+        self,
+        *,
+        execution: Any,
+        executed_steps: list[dict[str, Any]],
+        effective_input: str,
+        source_context: dict[str, Any] | None,
+    ) -> bool:
+        """Whether this failure is only a web step refused because the web is off, in a turn that
+        pastes the material it asks about, whose own instruction did not ask for the web: the picker
+        read words inside the material ("the latest news from the council") as a web request. The
+        material is the answer's source, so the turn is answered on the ordinary path from it.
+        Measured 2026-11-12 in-process on the v0.8 line: "Here are my notes from the site visit. What
+        are the open issues?" followed by such notes was answered "No. Web lookups are off."
+        """
+        if bool(getattr(execution, "ok", False)):
+            return False
+        if any(str(step.get("mode") or "") == "tool_executed" for step in executed_steps or []):
+            return False
+        tool = str(getattr(execution, "tool_name", "") or "").strip().lower()
+        if tool.split(".", 1)[0] not in {"web", "browser"}:
+            return False
+        if str(getattr(execution, "status", "") or "").strip().lower() != "disabled":
+            return False
+        from core.inline_payload import supplied_instruction
+
+        instruction = supplied_instruction(effective_input, source_context=source_context)
+        return instruction is not None and not _ASKS_FOR_THE_WEB_RE.search(instruction)
 
     def _should_fallback_after_tool_failure(
         self,

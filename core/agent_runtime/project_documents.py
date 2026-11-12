@@ -6,6 +6,14 @@ service date", "what's on my packing list?" went to cross-chat recall, the code 
 machine-wide finder, a wrong read_file path or a plain model reply, and none read the project. This
 lane searches the bound project's own text files (names and contents, bounded) and answers with the
 file it read. Contributor: sls_0x.
+
+Secrets never come out of this lane (measured 2026-11-12 on the v0.8 candidate, served project
+chats: "read my ledger backup file" printed a 12-word recovery phrase and "what's on my passwords
+list?" printed the passwords; the memory extraction call and the next turn's model request then
+carried them). A file whose name says it holds secrets is never opened, and a file whose text is
+secret-shaped (a recovery phrase, a password or key field, a card or ID number) is never shown: the
+reply names the file and says why. The rules are the project evidence lane's
+(`workspace_question_evidence`), so both project lanes refuse the same files.
 """
 from __future__ import annotations
 
@@ -35,7 +43,9 @@ _STOP = {
     "what", "what's", "whats", "is", "are", "on", "in", "find", "search", "for", "a", "an", "and", "to", "it", "please",
     "pls", "can", "you", "u", "that", "this", "there", "plan", "budget",
 }
-_WORD_RE = re.compile(r"[a-z0-9][a-z0-9'-]*")
+# Words in any script: "what's in my 购物 file?" found no file when only ASCII words counted
+# (measured 2026-11-12 on the v0.8 candidate).
+_WORD_RE = re.compile(r"[^\W_][\w'-]*")
 
 
 def _project_root(session_id: str, source_context: dict[str, Any] | None) -> Path | None:
@@ -55,10 +65,18 @@ def _project_root(session_id: str, source_context: dict[str, Any] | None) -> Pat
 def _terms(text: str) -> list[str]:
     seen: list[str] = []
     for word in _WORD_RE.findall(text.lower()):
-        word = word.strip("'-")
-        if len(word) >= 3 and word not in _STOP and word not in seen:
+        word = word.strip("'-_")
+        # Two letters are a word in a script without spaces between words (购物, 메모).
+        long_enough = len(word) >= 3 or (len(word) == 2 and not word.isascii())
+        if long_enough and word not in _STOP and word not in seen:
             seen.append(word)
     return seen
+
+
+def _name_form(term: str) -> str:
+    """A term as a file name is compared: "shopping-cn" names shopping-cn.txt, whose name is read
+    as "shopping cn" (measured 2026-11-12: "read my shopping-cn file" said no file mentions it)."""
+    return term.replace("_", " ").replace("-", " ")
 
 
 def _text_files(root: Path) -> list[Path]:
@@ -95,27 +113,40 @@ def project_document_answer(question: str, *, session_id: str, source_context: d
     terms = _terms(text)
     if not terms:
         return None
-    scored: list[tuple[int, int, Path, str]] = []
+    from core.agent_runtime.workspace_question_evidence import never_autoread, secret_shaped_content
+
+    rel = lambda p: str(p.relative_to(root))  # noqa: E731
+    # (name hits, content hits, path, text, why withheld: "" | "name" | "content")
+    scored: list[tuple[int, int, Path, str, str]] = []
     for path in _text_files(root):
         name = path.stem.lower().replace("_", " ").replace("-", " ")
-        body = _read(path)
+        name_hits = sum(1 for term in terms if _name_form(term) in name)
+        # A secret file is matched by its name alone: its text is never searched, quoted or shown.
+        withheld = "name" if never_autoread(path.relative_to(root).as_posix()) else ""
+        body = "" if withheld else _read(path)
+        if body and secret_shaped_content(body):
+            body, withheld = "", "content"
         lowered = body.lower()
-        name_hits = sum(1 for term in terms if term in name)
         body_hits = sum(1 for term in terms if term in lowered)
         if name_hits or body_hits:
-            scored.append((name_hits, body_hits, path, body))
-    rel = lambda p: str(p.relative_to(root))  # noqa: E731
+            scored.append((name_hits, body_hits, path, body, withheld))
     if not scored:
         return (f"I looked through the {len(_text_files(root))} text files in this project and none of them "
                 f"mentions {', '.join(terms[:3])}.")
     scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
     asks_which = re.search(r"\bwhich\s+(?:of\s+)?(?:my|the|our)\s+(?:files?|notes?|docs?|documents?)\b", text, re.IGNORECASE)
     if asks_which:
-        names = [rel(path) for _, hits, path, _ in scored if hits]
+        names = [rel(path) for _, hits, path, _, _ in scored if hits]
         if not names:
             names = [rel(scored[0][2])]
         return "These files in this project mention it:\n" + "\n".join(f"- {name}" for name in names[:10])
-    best_name_hits, _, best, body = scored[0]
+    best_name_hits, _, best, body, withheld = scored[0]
+    if withheld == "name":
+        return (f"I didn't open **{rel(best)}**: its name says it holds passwords, keys or other secrets, and "
+                "VOOL never shows those in a chat. You can open it yourself from the project folder.")
+    if withheld:
+        return (f"I won't show **{rel(best)}** here: it looks like it holds a password, a key or a recovery "
+                "phrase, and VOOL never shows those in a chat. You can open it yourself from the project folder.")
     if re.search(r"\bwhere\s+(?:did|have)\s+i\b", text, re.IGNORECASE) or not best_name_hits:
         lines = [line.strip() for line in body.splitlines() if any(term in line.lower() for term in terms)]
         shown = "\n".join(f"> {line}" for line in lines[:5]) or "> " + body.strip()[:300]

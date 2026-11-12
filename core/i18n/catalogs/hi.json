@@ -4373,6 +4373,8 @@
     "yard.worlds": "दुनियाएँ",
     "settings.switch.on": "चालू",
     "settings.switch.off": "बंद",
+    "liveinfo.web_off.not_checked": "वेब खोज बंद है, इसलिए मैंने वेब पर नहीं खोजा और मैं कोई ताज़ा जवाब सत्यापित नहीं कर सकता। आप इसे सेटिंग्स → गोपनीयता और अनुमतियाँ → वेब खोज में चालू कर सकते हैं।",
+    "liveinfo.web_off.not_checked_started_off": "वेब खोज बंद है, इसलिए मैंने वेब पर नहीं खोजा और मैं कोई ताज़ा जवाब सत्यापित नहीं कर सकता।",
     "proof.sources_count": "{n, plural, one {{n} स्रोत} other {{n} स्रोत}}",
     "proof.tokens_count": "{n} टोकन",
     "proof.usage.rate": "{rate} आउटपुट टोकन/से (अनुरोध समय)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "X कनेक्ट नहीं है, इसलिए कुछ भी पोस्ट नहीं हुआ। इसे कनेक्ट करने के लिए {settings} > {keys} > {x_row} खोलें, {connect} चुनें और चरणों का पालन करें। यह रहा आपकी पोस्ट का ड्राफ़्ट, जिसे आप कॉपी करके खुद पोस्ट कर सकते हैं:",
     "x.not_connected.post_ask": "X कनेक्ट नहीं है, इसलिए कुछ भी पोस्ट नहीं हुआ। इसे कनेक्ट करने के लिए {settings} > {keys} > {x_row} खोलें, {connect} चुनें और चरणों का पालन करें। बताइए पोस्ट में क्या लिखना है, मैं आपके लिए कॉपी करने लायक ड्राफ़्ट लिख दूँगा।"
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

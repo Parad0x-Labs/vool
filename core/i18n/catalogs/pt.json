@@ -4373,6 +4373,8 @@
     "yard.worlds": "Mundos",
     "settings.switch.on": "Ativado",
     "settings.switch.off": "Desativado",
+    "liveinfo.web_off.not_checked": "As pesquisas na web estão desativadas, então não pesquisei na web e não consigo verificar uma resposta atual. Você pode ativá-las em Configurações → Privacidade e permissões → Pesquisas na web.",
+    "liveinfo.web_off.not_checked_started_off": "As pesquisas na web estão desativadas, então não pesquisei na web e não consigo verificar uma resposta atual.",
     "proof.sources_count": "{n, plural, one {{n} fonte} many {{n} fontes} other {{n} fontes}}",
     "proof.tokens_count": "{n} tokens",
     "proof.usage.rate": "{rate} tokens de saída/s (tempo da solicitação)",
@@ -4551,7 +4553,7 @@
     "x.not_connected.post_draft": "O X não está conectado, então nada foi publicado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Aqui está seu post como rascunho para você copiar e publicar:",
     "x.not_connected.post_ask": "O X não está conectado, então nada foi publicado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Diga o que o post deve dizer e eu escrevo um rascunho para você copiar."
   },
-  "source_catalog_sha256": "d1231dde9b92a988c34cbe8520d89ba0716261cce9b37aa3a88c3e14007f4b21",
+  "source_catalog_sha256": "867e0fce8ea69698c4a35e0e98755a457b582f03a1e1c5554862c3d820ee501a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
