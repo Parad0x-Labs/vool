@@ -285,6 +285,27 @@ def _cached_free_vram_gb() -> float | None:
     return _FREE_VRAM_GB_CACHE
 
 
+_INSTALLED_CACHE: tuple[float, frozenset[str]] | None = None
+
+
+def _installed_local_model_names_cached() -> frozenset[str]:
+    """Installed Ollama model names, read at most every 30 s; empty when unknown."""
+    global _INSTALLED_CACHE
+    import time as _time
+
+    now = _time.monotonic()
+    if _INSTALLED_CACHE is not None and now - _INSTALLED_CACHE[0] < 30.0:
+        return _INSTALLED_CACHE[1]
+    try:
+        from core.local_ollama_inventory import installed_ollama_model_names
+
+        names = frozenset(str(n).strip().lower() for n in installed_ollama_model_names(timeout_seconds=1.0) if str(n).strip())
+    except Exception:
+        names = frozenset()
+    _INSTALLED_CACHE = (now, names)
+    return names
+
+
 def _local_model_free_memory_gb() -> float | None:
     """Memory a local model could load into right now, for the primary's fit check; None if unknown.
 
@@ -6013,6 +6034,20 @@ class MemoryFirstRouter:
             and (row := routing_plan.permits(manifest.provider_id, manifest.model_name)) is not None
             and row.allowed
         ]
+        # A registered local model that is not installed can never answer: it must not be the
+        # plan's selected model. Measured on the 0.7.8 sweep (block 2): every plan named an
+        # uninstalled qwen3.5:9b while qwen3:8b wrote every answer. Unknown inventory changes
+        # nothing, and at least one local candidate is always kept.
+        _installed = _installed_local_model_names_cached()
+        if _installed:
+            from core.local_model_policy import manifest_is_local as _is_local
+
+            _kept = [
+                m for m in ranked_manifests
+                if not _is_local(m) or str(m.model_name or "").strip().lower() in _installed
+            ]
+            if any(_is_local(m) for m in _kept):
+                ranked_manifests = _kept
         capability_truth = hydrate_capability_truth_with_benchmarks(
             tuple(provider_capability_truth_for_manifest(entry) for entry in ranked_manifests)
         )
