@@ -643,6 +643,28 @@ def turn_is_owner_authored(source_context: Any) -> bool:
     return str(sc.get(TURN_AUTHOR_KEY) or "owner").strip().lower() == "owner"
 
 
+def turn_speaks_for_owner(source_context: Any, session_id: str = "") -> bool:
+    """Whether this turn's user message may teach the owner's memory anything.
+
+    Not when the request says an agent wrote it (:func:`turn_is_owner_authored`), and not when an agent team
+    holds the session right now (``core.agent_team.gate.is_agent_session``): either way the "user" side is the
+    orchestrator's brief for one of the team's agents, and a brief is not the owner speaking. Each signal alone
+    is enough, so a turn that lacks the request field is still caught by the binding, and the other way round."""
+
+    if not turn_is_owner_authored(source_context):
+        return False
+    sc = source_context if isinstance(source_context, dict) else {}
+    sid = str(session_id or sc.get("session_id") or sc.get("chat_id") or "").strip()
+    if not sid:
+        return True
+    try:
+        from core.agent_team.gate import is_agent_session
+
+        return not is_agent_session(sid)
+    except Exception:
+        return True
+
+
 __all__ = [
     "HTTP_INGRESS_KEY",
     "IN_PROCESS_OWNER_PEER",
@@ -681,4 +703,5 @@ __all__ = [
     "turn_is_owner_authored",
     "turn_is_remote",
     "turn_may_spend_owner_keys",
+    "turn_speaks_for_owner",
 ]

@@ -306,6 +306,10 @@ def _conversation_examples(*, limit: int, filters: dict[str, Any]) -> list[Adapt
             item = json.loads(line)
         except json.JSONDecodeError:
             continue
+        # A team agent's turn holds the orchestrator's brief, not the owner speaking: it teaches no adapter
+        # how the owner asks (core.persistent_memory marks those rows agent_session).
+        if not isinstance(item, dict) or item.get("agent_session"):
+            continue
         normalized = _sanitize_example(str(item.get("user") or ""), str(item.get("assistant") or ""), filters=filters)
         if normalized is None:
             continue

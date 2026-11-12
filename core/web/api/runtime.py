@@ -2507,11 +2507,12 @@ def schedule_memory_extraction(
 ) -> None:
     if not _memory_capture_allowed(source_context):
         return
-    from core.request_trust import request_is_owner_local, turn_is_owner_authored
+    from core.request_trust import request_is_owner_local, turn_speaks_for_owner
 
-    if not turn_is_owner_authored(source_context):
+    if not turn_speaks_for_owner(source_context, str(session_id or "")):
         # An agent's turn (an agent team's brief and its reply) is not the owner speaking: measured on the
         # live agent-team run (2026-10-07), an agent brief's reply format was stored as the owner's preference.
+        # A session a team holds is an agent's even when its request did not say so.
         return
     if not request_is_owner_local(source_context):
         # This legacy extractor writes user-profile blocks. Until those blocks

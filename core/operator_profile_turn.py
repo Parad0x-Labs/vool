@@ -282,8 +282,10 @@ def observe_name_beside_request(
         if not principal:
             return None
         from core.private_chat import turn_is_private
+        from core.request_trust import turn_speaks_for_owner
 
-        if turn_is_private(source_context, session_id):
+        # A team agent's brief names nobody the owner is (core.request_trust.turn_speaks_for_owner).
+        if turn_is_private(source_context, session_id) or not turn_speaks_for_owner(source_context, session_id):
             return None
         raw = str(raw_user_input or "")
         found = name_beside_request(raw)
@@ -377,10 +379,17 @@ def observe_profile_turn(
     from core.private_chat import turn_is_private
 
     private = turn_is_private(source_context, session_id)
+    # A team agent's turn (core.request_trust.turn_speaks_for_owner): its "user" side is the orchestrator's
+    # brief, not the owner speaking. The profile is still READ for it, but nothing it says is saved (no
+    # standing instruction, no profile fact, no candidate chip, no name from pasted text), and unlike a
+    # private chat it cannot forget or undo what the owner saved either: only "show" is left.
+    from core.request_trust import turn_speaks_for_owner
+
+    agent_turn = not turn_speaks_for_owner(source_context, session_id)
     # Standing instructions ("from now on …", "always …", a correction of how answers look) are saved here,
     # on the same seat as the profile, so they reach every later chat in this workspace. Owner turns only; a
     # turn that only states an instruction still gets an answer (this never claims the turn).
-    if principal and not private:
+    if principal and not private and not agent_turn:
         try:
             from core.standing_instructions import observe_turn as _observe_standing
 
@@ -392,7 +401,9 @@ def observe_profile_turn(
             pass
     try:
         proposals = interpret_profile_turn(raw_user_input)
-        if private:
+        if agent_turn:
+            proposals = [p for p in proposals if getattr(p, "action", "") == "show"]
+        elif private:
             # Showing or forgetting what is already saved still works in a private chat.
             proposals = [p for p in proposals if getattr(p, "action", "") in {"forget", "undo", "show"}]
     except Exception:
@@ -426,7 +437,7 @@ def observe_profile_turn(
             "report": f"I'll call you {unannounced.value_text}.{_where_noticed(unannounced)}",
             "category": "preferred_name", "item_id": unannounced.item_id,
         })
-    if principal and not private and not any(p.category == "preferred_name" for p in proposals):
+    if principal and not private and not agent_turn and not any(p.category == "preferred_name" for p in proposals):
         # A pasted letter that names the operator (and agrees with the name on this computer's
         # account) teaches the name without a word about it from them.
         learned = _learn_name_from_pasted(raw_user_input, principal=principal, session_id=session_id, turn_id=turn_id)

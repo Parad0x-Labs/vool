@@ -1195,15 +1195,6 @@ def _run_held_work(work: list[Any], answer: str | None = None) -> None:
             logging.getLogger(__name__).exception("work held for the transcript record failed")
 
 
-def _is_agent_session(session_id: str) -> bool:
-    try:
-        from core.agent_team.gate import is_agent_session
-
-        return is_agent_session(session_id)
-    except Exception:
-        return False
-
-
 def append_conversation_event(
     *,
     session_id: str,
@@ -1683,6 +1674,14 @@ def _write_conversation_event(
         is_image_turn = bool(image_generation_intent(redacted_user))
     except Exception:
         is_image_turn = False
+    # A team agent's turn (a session a team holds, or a request that says an agent wrote it) carries the
+    # orchestrator's brief as its "user" side, not the owner speaking. The row is logged and marked
+    # agent_session below; nothing that learns about the owner reads it: no statement index, no captured
+    # fact or shorthand, no heuristic, no feedback signal, no session summary, no dense-profile refresh
+    # (agent-team rows, 2026-11-12).
+    from core.request_trust import turn_speaks_for_owner
+
+    agent_turn = not turn_speaks_for_owner(source_context, session_id)
     # Every finalized turn retains its attributed source, including an
     # image brief. A fictional render subject remains evidence of an ask;
     # it is neither mined above nor indexed as a standing user assertion.
@@ -1695,7 +1694,7 @@ def _write_conversation_event(
             redacted_assistant,
             access_policy=resolved_policy,
             source_context=source_context,
-            index_user_statements=not is_image_turn,
+            index_user_statements=not is_image_turn and not agent_turn,
         )
         if semantic_result.get("status") == "failed":
             LOGGER.warning(
@@ -1741,8 +1740,9 @@ def _write_conversation_event(
         payload.update(extra_fields)
     # A turn in a session a team bound to one of its agents is the agent's, not the owner's: its
     # "user" side is the orchestrator's task prompt. The row says so, so search and recall never
-    # quote it back as something the owner said (agent-spending test, 2026-11-12).
-    if _is_agent_session(session_id):
+    # quote it back as something the owner said (agent-spending test, 2026-11-12). A turn whose request says an
+    # agent wrote it is marked the same way, bound or not.
+    if agent_turn:
         payload["agent_session"] = True
     # Serialize the whole write sequence: the append+trim and every downstream load-modify-rewrite
     # touch process-global shared files, so concurrent turns must not interleave.
@@ -1767,9 +1767,10 @@ def _write_conversation_event(
         append_sequenced_jsonl(path, payload)
         _trim_jsonl_file(path, max_bytes=_MAX_CONVERSATION_LOG_BYTES)
         if stopped_turn:
-            _auto_capture_memory(session_id=session_id, user_input=redacted_user, project_id=project_id)
-            _update_user_heuristics(session_id=session_id, user_input=redacted_user, project_id=project_id)
-            refresh_operator_dense_profile(session_id=session_id)
+            if not agent_turn:
+                _auto_capture_memory(session_id=session_id, user_input=redacted_user, project_id=project_id)
+                _update_user_heuristics(session_id=session_id, user_input=redacted_user, project_id=project_id)
+                refresh_operator_dense_profile(session_id=session_id)
             return
         _record_assistant_dialogue_turn(
             session_id=session_id,
@@ -1784,8 +1785,9 @@ def _write_conversation_event(
         # An image-generation turn's text describes the RENDER SUBJECT, not the user. Harvesting it
         # as a fact/preference/"recent ask" is what let an image prompt ("Rick and Morty ... 4K")
         # bleed into the operator profile and make the model confabulate the user's name. Log the
-        # turn (above) but never mine a render prompt for standing user facts.
-        if not is_image_turn:
+        # turn (above) but never mine a render prompt for standing user facts. An agent's brief is not mined
+        # either: the dialogue record and topic closure above are the agent's own session's, nothing below is.
+        if not is_image_turn and not agent_turn:
             _auto_capture_memory(
                 session_id=session_id,
                 user_input=redacted_user,
@@ -1808,7 +1810,8 @@ def _write_conversation_event(
                 project_id=project_id,
                 access_policy=resolved_policy,
             )
-        refresh_operator_dense_profile(session_id=session_id)
+        if not agent_turn:
+            refresh_operator_dense_profile(session_id=session_id)
         try:
             from core.active_context_capsule import create_shadow_capsule
 
@@ -2447,6 +2450,13 @@ def _command_erasure_fence(fn):
     return wrapped
 
 
+#: The answer to a "remember" a team agent's brief carries: the brief is not the owner speaking.
+AGENT_TURN_REMEMBER_REFUSED = (
+    "This chat belongs to a team agent, so I won't keep that. "
+    "Say it in your own chat and I'll remember it."
+)
+
+
 @_command_erasure_fence
 def maybe_handle_memory_command(
     user_text: str,
@@ -2497,6 +2507,12 @@ def maybe_handle_memory_command(
 
         if turn_is_private(source_context, session_id):
             return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+        # A team agent's turn carries the orchestrator's brief, not the owner speaking: a "remember" in it
+        # would file the brief as the owner's fact (core.request_trust.turn_speaks_for_owner).
+        from core.request_trust import turn_speaks_for_owner
+
+        if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            return True, AGENT_TURN_REMEMBER_REFUSED
     independent_groups: list[list[Any]] = []
     parsed_forget = _FORGET_RE.match(text)
     forget_arguments = _forget_command_arguments(text)
