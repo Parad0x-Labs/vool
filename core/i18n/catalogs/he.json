@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "מיומנות שנעשה בה שימוש:",
     "chat.skills_used_many": "מיומנויות שנעשה בהן שימוש:",
     "chat.skills_used_title": "ההוראות של המיומנות הזו היו חלק מהאופן שבו VOOL כתב את התשובה הזו. הפעילו או כבו מיומנויות במיומנויות ותוספים, תחת התוספים שלי.",
+    "chat.campaign_card_title": "לשמור את הקמפיין הזה?",
+    "chat.campaign_card_note": "VOOL שומר אותו במחשב הזה. שום דבר לא מתפרסם.",
+    "chat.campaign_card_goal": "מטרה",
+    "chat.campaign_card_audience": "למי זה מיועד",
+    "chat.campaign_card_platforms": "איפה (למשל X, LinkedIn)",
+    "chat.campaign_card_save": "שמירת הקמפיין",
+    "chat.campaign_card_dismiss": "לא עכשיו",
+    "chat.campaign_card_need": "הוסיפו מטרה, למי זה מיועד ולפחות מקום אחד.",
+    "chat.campaign_card_saved": "הקמפיין נשמר במחשב הזה.",
+    "chat.campaign_card_failed": "לא ניתן היה לשמור.",
     "addons.add_local": "הוסיפו את המיומנות הזו",
     "addons.scan_extra": "סרקו גם עם Eyebrow",
     "addons.local_install_note": "את המיומנות הזו יצר VOOL והיא הגיעה עם האפליקציה. לפני שהוא מוסיף אותה, VOOL בודק במחשב שלכם שהקובץ הוא אותו קובץ ש-VOOL סיפק, וקורא אותו כדי לחפש הוראות מסוכנות. לא צריך מפתח, ושום דבר לא נשלח לשום מקום.",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "פעיל",
     "settings.switch.off": "כבוי"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

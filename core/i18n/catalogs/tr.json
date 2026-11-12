@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "Kullanılan beceri:",
     "chat.skills_used_many": "Kullanılan beceriler:",
     "chat.skills_used_title": "VOOL bu yanıtı yazarken bu becerinin talimatlarını kullandı. Becerileri Beceriler ve Eklentiler içinde, Eklentilerim bölümünden açıp kapatabilirsiniz.",
+    "chat.campaign_card_title": "Bu kampanya kaydedilsin mi?",
+    "chat.campaign_card_note": "VOOL bunu bu bilgisayarda tutar. Hiçbir şey paylaşılmaz.",
+    "chat.campaign_card_goal": "Hedef",
+    "chat.campaign_card_audience": "Kimin için",
+    "chat.campaign_card_platforms": "Nerede (örneğin X, LinkedIn)",
+    "chat.campaign_card_save": "Kampanyayı kaydet",
+    "chat.campaign_card_dismiss": "Şimdi değil",
+    "chat.campaign_card_need": "Bir hedef, kimin için olduğunu ve en az bir yer ekleyin.",
+    "chat.campaign_card_saved": "Kampanya bu bilgisayara kaydedildi.",
+    "chat.campaign_card_failed": "Kaydedilemedi.",
     "addons.add_local": "Bu beceriyi ekle",
     "addons.scan_extra": "Eyebrow ile de tara",
     "addons.local_install_note": "Bu beceriyi VOOL yaptı ve uygulamayla birlikte geldi. VOOL, eklemeden önce bilgisayarınızda dosyanın VOOL'un gönderdiği dosyanın aynısı olduğunu kontrol eder ve riskli talimatlar için okur. Anahtar gerekmez ve hiçbir yere bir şey gönderilmez.",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "Açık",
     "settings.switch.off": "Kapalı"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

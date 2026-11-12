@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "Skill đã dùng:",
     "chat.skills_used_many": "Các skill đã dùng:",
     "chat.skills_used_title": "VOOL đã dựa vào hướng dẫn của skill này khi viết câu trả lời. Bật hoặc tắt skill trong Kỹ năng và Plugin, ở mục Tiện ích của tôi.",
+    "chat.campaign_card_title": "Lưu chiến dịch này?",
+    "chat.campaign_card_note": "VOOL giữ nó trên máy tính này. Không có gì được đăng.",
+    "chat.campaign_card_goal": "Mục tiêu",
+    "chat.campaign_card_audience": "Dành cho ai",
+    "chat.campaign_card_platforms": "Ở đâu (ví dụ X, LinkedIn)",
+    "chat.campaign_card_save": "Lưu chiến dịch",
+    "chat.campaign_card_dismiss": "Để sau",
+    "chat.campaign_card_need": "Thêm mục tiêu, đối tượng và ít nhất một nơi.",
+    "chat.campaign_card_saved": "Đã lưu chiến dịch trên máy tính này.",
+    "chat.campaign_card_failed": "Không lưu được.",
     "addons.add_local": "Thêm kỹ năng này",
     "addons.scan_extra": "Quét thêm bằng Eyebrow",
     "addons.local_install_note": "Kỹ năng này do VOOL làm và đi kèm ứng dụng. Trước khi thêm, VOOL kiểm tra trên máy tính của bạn rằng tệp đúng là tệp VOOL đã phát hành, và đọc nó để tìm hướng dẫn rủi ro. Không cần khóa và không có gì được gửi đi đâu cả.",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "Bật",
     "settings.switch.off": "Tắt"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

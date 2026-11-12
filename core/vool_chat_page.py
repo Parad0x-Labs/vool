@@ -131,6 +131,16 @@ img.chat-img:hover { border-color:var(--accent); }
 .chat-provenance .prov-more:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .chat-provenance .prov-raw[hidden] { display:none; }
 .chat-provenance.chat-skills-used { margin-top:6px; }
+.chat-campaign-card { margin:10px 0 0; padding:10px 12px; border:1px solid var(--border); border-radius:10px; max-width:520px; font-size:0.94em; }
+.chat-campaign-card .cc-title { margin:0 0 4px; font-weight:600; }
+.chat-campaign-card .cc-note { margin:0 0 8px; opacity:0.72; }
+.chat-campaign-card label { display:block; margin:6px 0 2px; opacity:0.85; }
+.chat-campaign-card input, .chat-campaign-card textarea { width:100%; box-sizing:border-box; font:inherit; padding:5px 7px; border:1px solid var(--border); border-radius:6px; background:transparent; color:inherit; }
+.chat-campaign-card textarea { min-height:3.2em; resize:vertical; }
+.chat-campaign-card .cc-row { display:flex; gap:8px; margin-top:10px; }
+.chat-campaign-card button { font:inherit; padding:5px 12px; border-radius:7px; border:1px solid var(--border); background:transparent; color:inherit; cursor:pointer; }
+.chat-campaign-card button.cc-save { color:var(--accent); font-weight:600; }
+.chat-campaign-card .cc-msg { margin:8px 0 0; }
 .chat-provenance.prov-open { white-space:normal; }
 .chat-provenance.prov-open .prov-raw { display:block; margin-top:4px; overflow-wrap:anywhere; }
 /* The Proof Chip: one served turn's evidence, projected read-only by the server and rendered
@@ -5241,6 +5251,101 @@ async function noteSkillsUsed(run) {
   if (!names.length) return;
   run.skillsUsed = names;
   withRunDom(run, () => { if (run.textEl) paintSkillsUsed(run.textEl, names); });
+  if (names.indexOf(CAMPAIGN_SKILL_TITLE) >= 0) {
+    const ask = (run.promptEntry && run.promptEntry.content) || '';
+    withRunDom(run, () => { if (run.textEl) paintCampaignCard(run.textEl, campaignDraftFromAsk(ask)); });
+  }
+}
+
+// ---- "Save this campaign?" card: the person saves, never the AI ----
+// Shown only under an answer the social content manager shaped. Nothing is saved until the person
+// presses Save; Save sends exactly the fields on the card to campaign.create as the person (the
+// same operator seam as the Cmd+K palette). The model has no path here: campaign.create stays
+// operator-only and refuses a model principal. The campaign is kept on this computer; nothing is
+// posted anywhere.
+const CAMPAIGN_SKILL_TITLE = 'Social content manager';
+const CAMPAIGN_PROJECT_ID = 'my-campaigns';
+const CAMPAIGN_PLATFORM_WORDS = [
+  ['x', /\bx\b|\btwitter\b/i], ['linkedin', /\blinked\s?in\b/i], ['bluesky', /\bblue\s?sky\b|\bbsky\b/i],
+  ['mastodon', /\bmastodon\b/i], ['threads', /\bthreads\b/i], ['telegram', /\btelegram\b/i],
+  ['discord', /\bdiscord\b/i], ['instagram', /\binstagram\b|\binsta\b/i], ['facebook', /\bfacebook\b/i],
+  ['tiktok', /\btik\s?tok\b/i], ['youtube', /\byou\s?tube\b/i], ['reddit', /\breddit\b/i],
+];
+// Pure and DOM-free so a test can execute it under node: the card's starting values from the ask.
+function campaignDraftFromAsk(text) {
+  const ask = String(text || '').replace(/\s+/g, ' ').trim();
+  const platforms = [];
+  for (const [name, re] of CAMPAIGN_PLATFORM_WORDS) if (re.test(ask)) platforms.push(name);
+  return { objective: ask.slice(0, 300), audience: '', platforms: platforms };
+}
+// Pure: the campaign.create request the Save button sends, from what is on the card.
+function campaignCreateRequest(fields) {
+  const f = fields || {};
+  const platforms = String(f.platforms || '').split(/[,;\n]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
+  return {
+    command_id: 'campaign.create',
+    input: { project_id: CAMPAIGN_PROJECT_ID, objective: String(f.objective || '').trim(),
+             audience: String(f.audience || '').trim(), platforms: platforms, guardrails: [] },
+  };
+}
+function paintCampaignCard(el, draft) {
+  if (!el) return;
+  const old = el.querySelector(':scope > .chat-campaign-card'); if (old) old.remove();
+  const d = draft || {};
+  const card = document.createElement('div'); card.className = 'chat-campaign-card';
+  card.setAttribute('role', 'group');
+  const title = document.createElement('p'); title.className = 'cc-title';
+  title.textContent = pageT('chat.campaign_card_title', 'Save this campaign?');
+  const note = document.createElement('p'); note.className = 'cc-note';
+  note.textContent = pageT('chat.campaign_card_note', 'VOOL keeps it on this computer. Nothing is posted.');
+  card.setAttribute('aria-label', title.textContent);
+  card.append(title, note);
+  const field = (key, label, value, multi) => {
+    const lab = document.createElement('label'); lab.textContent = label;
+    const input = document.createElement(multi ? 'textarea' : 'input');
+    input.dataset.ccField = key; input.value = value || '';
+    lab.appendChild(input); card.appendChild(lab);
+    return input;
+  };
+  field('objective', pageT('chat.campaign_card_goal', 'Goal'), d.objective, true);
+  const audience = field('audience', pageT('chat.campaign_card_audience', 'Who it is for'), d.audience, false);
+  field('platforms', pageT('chat.campaign_card_platforms', 'Where (for example X, LinkedIn)'), (d.platforms || []).join(', '), false);
+  const row = document.createElement('div'); row.className = 'cc-row';
+  const save = document.createElement('button'); save.type = 'button'; save.className = 'cc-save';
+  save.dataset.ccAction = 'save'; save.textContent = pageT('chat.campaign_card_save', 'Save campaign');
+  const skip = document.createElement('button'); skip.type = 'button';
+  skip.dataset.ccAction = 'dismiss'; skip.textContent = pageT('chat.campaign_card_dismiss', 'Not now');
+  row.append(save, skip); card.appendChild(row);
+  const msg = document.createElement('p'); msg.className = 'cc-msg'; msg.setAttribute('role', 'status'); msg.hidden = true;
+  card.appendChild(msg);
+  const show = (text) => { msg.hidden = false; msg.textContent = text; };
+  skip.addEventListener('click', () => card.remove());
+  save.addEventListener('click', async () => {
+    const values = {};
+    card.querySelectorAll('[data-cc-field]').forEach((i) => { values[i.dataset.ccField] = i.value; });
+    const req = campaignCreateRequest(values);
+    if (!req.input.objective || !req.input.audience || !req.input.platforms.length) {
+      show(pageT('chat.campaign_card_need', 'Add a goal, who it is for, and at least one place.'));
+      if (!req.input.audience) audience.focus();
+      return;
+    }
+    save.disabled = true; skip.disabled = true;
+    let env = null;
+    try {
+      const res = await fetch('/api/commands/dispatch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) });
+      env = await res.json();
+    } catch (e) { env = null; }
+    if (env && env.ok) {
+      card.querySelectorAll('[data-cc-field]').forEach((i) => { i.disabled = true; });
+      row.remove();
+      card.dataset.ccSaved = String((env.data && env.data.campaign_id) || '1');
+      show(pageT('chat.campaign_card_saved', 'Campaign saved on this computer.'));
+    } else {
+      save.disabled = false; skip.disabled = false;
+      show(pageT('chat.campaign_card_failed', 'Could not save it.') + ((env && env.summary) ? ' ' + env.summary : ''));
+    }
+  });
+  el.appendChild(card);
 }
 
 // ---- Proof Chip: one served turn's evidence, beside the answer ----

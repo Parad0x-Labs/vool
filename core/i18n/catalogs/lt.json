@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "Panaudotas įgūdis:",
     "chat.skills_used_many": "Panaudoti įgūdžiai:",
     "chat.skills_used_title": "Šio įgūdžio nurodymais VOOL rėmėsi rašydamas šį atsakymą. Įgūdžius įjunkite arba išjunkite skiltyje „Įgūdžiai ir papildiniai“, dalyje „Mano priedai“.",
+    "chat.campaign_card_title": "Išsaugoti šią kampaniją?",
+    "chat.campaign_card_note": "VOOL laiko ją šiame kompiuteryje. Niekas neskelbiama.",
+    "chat.campaign_card_goal": "Tikslas",
+    "chat.campaign_card_audience": "Kam skirta",
+    "chat.campaign_card_platforms": "Kur (pavyzdžiui, X, LinkedIn)",
+    "chat.campaign_card_save": "Išsaugoti kampaniją",
+    "chat.campaign_card_dismiss": "Ne dabar",
+    "chat.campaign_card_need": "Įrašykite tikslą, kam skirta, ir bent vieną vietą.",
+    "chat.campaign_card_saved": "Kampanija išsaugota šiame kompiuteryje.",
+    "chat.campaign_card_failed": "Nepavyko išsaugoti.",
     "addons.add_local": "Pridėti šį įgūdį",
     "addons.scan_extra": "Taip pat nuskaityti su Eyebrow",
     "addons.local_install_note": "Šį įgūdį sukūrė VOOL, ir jis pateiktas kartu su programa. Prieš jį pridėdamas, VOOL jūsų kompiuteryje patikrina, ar failas yra tas pats, kurį pateikė VOOL, ir perskaito jį ieškodamas rizikingų nurodymų. Rakto nereikia, ir niekas niekur nesiunčiama.",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "Įjungta",
     "settings.switch.off": "Išjungta"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

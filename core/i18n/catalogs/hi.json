@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "इस्तेमाल हुआ स्किल:",
     "chat.skills_used_many": "इस्तेमाल हुए स्किल:",
     "chat.skills_used_title": "VOOL ने यह जवाब लिखते समय इस स्किल के निर्देशों का इस्तेमाल किया। स्किल को कौशल और प्लगइन में, मेरे ऐड-ऑन के अंदर, चालू या बंद करें।",
+    "chat.campaign_card_title": "क्या यह अभियान सहेजें?",
+    "chat.campaign_card_note": "VOOL इसे इसी कंप्यूटर पर रखता है। कुछ भी पोस्ट नहीं होता।",
+    "chat.campaign_card_goal": "लक्ष्य",
+    "chat.campaign_card_audience": "यह किसके लिए है",
+    "chat.campaign_card_platforms": "कहाँ (जैसे X, LinkedIn)",
+    "chat.campaign_card_save": "अभियान सहेजें",
+    "chat.campaign_card_dismiss": "अभी नहीं",
+    "chat.campaign_card_need": "एक लक्ष्य, यह किसके लिए है, और कम से कम एक जगह जोड़ें।",
+    "chat.campaign_card_saved": "अभियान इस कंप्यूटर पर सहेजा गया।",
+    "chat.campaign_card_failed": "सहेजा नहीं जा सका।",
     "addons.add_local": "यह कौशल जोड़ें",
     "addons.scan_extra": "Eyebrow से भी स्कैन करें",
     "addons.local_install_note": "यह कौशल VOOL ने बनाया है और ऐप के साथ आया है। जोड़ने से पहले VOOL आपके कंप्यूटर पर जाँचता है कि फ़ाइल वही है जो VOOL ने भेजी थी, और उसे पढ़कर देखता है कि कोई जोखिम भरा निर्देश तो नहीं। किसी कुंजी की ज़रूरत नहीं है और कुछ भी कहीं नहीं भेजा जाता।",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "चालू",
     "settings.switch.off": "बंद"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

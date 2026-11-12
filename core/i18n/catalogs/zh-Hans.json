@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "用到的技能：",
     "chat.skills_used_many": "用到的技能：",
     "chat.skills_used_title": "VOOL 写这条回答时参考了这个技能的指示。可在“技能与插件”的“我的附加组件”中打开或关闭技能。",
+    "chat.campaign_card_title": "保存这个活动计划?",
+    "chat.campaign_card_note": "VOOL 只保存在这台电脑上，不会发布任何内容。",
+    "chat.campaign_card_goal": "目标",
+    "chat.campaign_card_audience": "面向谁",
+    "chat.campaign_card_platforms": "发布渠道(例如 X、LinkedIn)",
+    "chat.campaign_card_save": "保存活动计划",
+    "chat.campaign_card_dismiss": "以后再说",
+    "chat.campaign_card_need": "请填写目标、面向谁，以及至少一个渠道。",
+    "chat.campaign_card_saved": "活动计划已保存在这台电脑上。",
+    "chat.campaign_card_failed": "无法保存。",
     "addons.add_local": "添加这个技能",
     "addons.scan_extra": "也用 Eyebrow 扫描",
     "addons.local_install_note": "这个技能由 VOOL 制作，随应用一起提供。添加前，VOOL 会在你的电脑上确认这个文件就是 VOOL 发布的那个，并检查其中有没有危险的指示。不需要密钥，也不会把任何内容发送到任何地方。",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "开启",
     "settings.switch.off": "关闭"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

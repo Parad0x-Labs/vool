@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "المهارة المستخدمة:",
     "chat.skills_used_many": "المهارات المستخدمة:",
     "chat.skills_used_title": "كانت تعليمات هذه المهارة جزءًا من طريقة كتابة VOOL لهذه الإجابة. شغّل المهارات أو أوقفها من المهارات والإضافات، ضمن إضافاتي.",
+    "chat.campaign_card_title": "هل تريد حفظ هذه الحملة؟",
+    "chat.campaign_card_note": "يحتفظ بها VOOL على هذا الكمبيوتر. لا يُنشر أي شيء.",
+    "chat.campaign_card_goal": "الهدف",
+    "chat.campaign_card_audience": "لمن هي",
+    "chat.campaign_card_platforms": "أين (مثلًا X وLinkedIn)",
+    "chat.campaign_card_save": "حفظ الحملة",
+    "chat.campaign_card_dismiss": "ليس الآن",
+    "chat.campaign_card_need": "أضف هدفًا والفئة المستهدفة ومكانًا واحدًا على الأقل.",
+    "chat.campaign_card_saved": "تم حفظ الحملة على هذا الكمبيوتر.",
+    "chat.campaign_card_failed": "تعذّر الحفظ.",
     "addons.add_local": "أضف هذه المهارة",
     "addons.scan_extra": "افحصها أيضًا باستخدام Eyebrow",
     "addons.local_install_note": "صنع VOOL هذه المهارة وجاءت مع التطبيق. قبل إضافتها، يتحقق VOOL على جهازك من أن الملف هو نفسه الذي أصدره VOOL، ويقرؤه بحثًا عن تعليمات خطرة. لا حاجة إلى مفتاح، ولا يُرسل أي شيء إلى أي مكان.",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "مفعل",
     "settings.switch.off": "معطل"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

@@ -2920,6 +2920,16 @@
     "chat.skills_used_one": "Compétence utilisée :",
     "chat.skills_used_many": "Compétences utilisées :",
     "chat.skills_used_title": "Les instructions de cette compétence ont servi à VOOL pour écrire cette réponse. Activez ou désactivez les compétences dans Compétences et plugins, sous Mes modules.",
+    "chat.campaign_card_title": "Enregistrer cette campagne ?",
+    "chat.campaign_card_note": "VOOL la garde sur cet ordinateur. Rien n’est publié.",
+    "chat.campaign_card_goal": "Objectif",
+    "chat.campaign_card_audience": "Pour qui",
+    "chat.campaign_card_platforms": "Où (par exemple X, LinkedIn)",
+    "chat.campaign_card_save": "Enregistrer la campagne",
+    "chat.campaign_card_dismiss": "Pas maintenant",
+    "chat.campaign_card_need": "Ajoutez un objectif, un public et au moins un endroit.",
+    "chat.campaign_card_saved": "Campagne enregistrée sur cet ordinateur.",
+    "chat.campaign_card_failed": "Impossible de l’enregistrer.",
     "addons.add_local": "Ajouter cette compétence",
     "addons.scan_extra": "Analyser aussi avec Eyebrow",
     "addons.local_install_note": "Cette compétence a été créée par VOOL et fournie avec l’application. Avant de l’ajouter, VOOL vérifie sur votre ordinateur que le fichier est bien celui livré par VOOL et le lit pour repérer des instructions risquées. Aucune clé n’est nécessaire et rien n’est envoyé nulle part.",
@@ -3311,13 +3321,14 @@
     "settings.switch.on": "Activé",
     "settings.switch.off": "Désactivé"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "003d809cf1dafc003062c15cfd5a7ca687c315ed4c324ab6542dec408a374da7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "campaign_card_addendum": "10 keys translated by the lane author (single writer)"
   }
 }
