@@ -76,6 +76,12 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     r"|(?:will\s+it|is\s+it|is\s+there|do\s+we|are\s+we)\s+(?:going\s+to\s+)?(?:be\s+)?"
     rf"{_WEATHER_VERB}(?!\s+cats\b)"
     r"|(?:rain(?:ing)?|snow(?:ing)?|wind)\s+(?:in|for|at)\s+"
+    # "how cold is it in oslo right now", "how warm is it in tallinn this minute": the air at a
+    # place, asked by how it feels (0.7.8 sweep block 2c: reached the records lane and a
+    # clarifier). A named place after in/at is required: "how hot is it in the oven" (an article)
+    # and "how hot is the sun" (no in/at) stay out.
+    r"|how\s+(?:cold|warm|hot|chilly|freezing|windy|humid|sunny|rainy|wet|snowy)\s+(?:is\s+it|it\s+is|it'?s)\s+"
+    r"(?:(?:out|over|up|down)\s+)?(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
     r")\b"
     # A labeled section header ("Weather:" followed by a list of places) carries no in/for/at
     # trigger word at all -- the request is a live-weather lookup by section structure, not by

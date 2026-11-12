@@ -1009,10 +1009,7 @@ def execute_grounded_turn(
             task_id=task.task_id,
             session_id=session_id,
             user_input=effective_input,
-            response=unavailable_current_answer(
-                effective_input, current_evidence.outcome, reason=current_evidence.reason,
-                source_context=source_context,
-            ),
+            response=unavailable_current_answer(effective_input, current_evidence.outcome),
             confidence=0.3,
             source_context=source_context,
             reason=f"current_evidence_{current_evidence.outcome}",
@@ -1658,18 +1655,27 @@ def execute_grounded_turn(
             response = _split
         else:
             response = unverified_current_answer(effective_input)
-            # A question about someone this chat's records name was answered from those records, not from a
-            # lookup: the withdrawal says the value is not in the records. So was an answer whose values the binder
-            # read against the user's own records and found unsupported (no record states them, none contradicts).
+            # Which reason the withdrawal names. A question about someone this chat's records name was answered
+            # from those records: the value is not in the records. Otherwise, with the web unreachable for this
+            # turn (the Web lookups switch, an Offline chat, a computer kept fully local), that is why nothing
+            # current was observed -- said in the run-mode authority's words (0.7.8 sweep block 2c: "look up the
+            # latest news about the olympics" was withdrawn as "not mentioned in the records"). With the web
+            # reachable, an answer whose values the binder read against the user's own records and found
+            # unsupported (no record states them, none contradicts) keeps the records notice.
             _binding = _current_claim.claim_binding or {}
             try:
                 from core.bootstrap_context import admitted_capsule_evidence_text
                 from core.memory_grounding import question_names_someone_in_the_records
+                from core.remote_fetch_policy import effective_web_available, lookup_unavailable_reason
                 from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
 
-                if (_binding.get("attempted") and not _binding.get("contradicted")) or question_names_someone_in_the_records(
+                if question_names_someone_in_the_records(
                     effective_input, admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
                 ):
+                    response = RECORDS_WITHDRAWAL_NOTICE
+                elif not effective_web_available(source_context):
+                    response = lookup_unavailable_reason(source_context)
+                elif _binding.get("attempted") and not _binding.get("contradicted"):
                     response = RECORDS_WITHDRAWAL_NOTICE
             except Exception:
                 pass

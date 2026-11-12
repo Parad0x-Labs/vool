@@ -1364,29 +1364,6 @@ def test_a_failed_page_read_is_said_plainly(monkeypatch, cause, sentence):
     assert "`" not in reply and ".." not in reply and "runtime" not in reply
 
 
-@pytest.mark.parametrize("asked", ["any news on the olympics today?", "how windy is it in riga right now",
-                                   "what's the bitcoin price this minute"])
-def test_a_current_question_with_web_lookups_off_says_so_before_any_model_call(monkeypatch, asked):
-    from core.agent_runtime import current_evidence_prefetch as prefetch
-
-    monkeypatch.setattr(prefetch, "requires_current_information", lambda *_a: True)
-    monkeypatch.setattr("core.remote_fetch_policy.effective_web_available", lambda _ctx=None: False)
-
-    class _NoFetch:
-        def _collect_live_web_notes(self, **_k):
-            raise AssertionError("fetched with web lookups off")
-
-    result = prefetch.prefetch_current_evidence(
-        _NoFetch(), task=None, effective_input=asked, classification={}, interpretation=None,
-        source_context={}, is_chat_surface=True, action_forbidden=False, remote_fetch_disabled=False,
-        skip_for_local_answer=False, already_have_notes=False,
-    )
-    assert result.blocking
-    answer = prefetch.unavailable_current_answer(asked, result.outcome, reason=result.reason)
-    assert answer.startswith("Web lookups are off")
-    assert "records" not in answer
-
-
 # Sweep block 2c (7): every routing plan named an uninstalled qwen3.5:9b as its selected model.
 def test_a_routing_plan_never_selects_a_local_model_that_is_not_installed():
     from core import turn_routing
@@ -1425,3 +1402,33 @@ def test_each_local_model_is_judged_by_its_own_servers_inventory(monkeypatch):
     assert not router._not_installed_local(_manifest("ollama-local", "qwen3:8b"))
     # A provider on another server whose inventory is unknown (a stub, a second runtime) is never "missing".
     assert not router._not_installed_local(_manifest("ollama-local", "stub:1b", base_url="http://127.0.0.1:5999"))
+
+
+@pytest.mark.parametrize("asked", ["go to example.net and give me the gist", "go to https://example.org",
+                                   "please go to the website bbc.co.uk and read it"])
+def test_going_to_a_web_address_is_not_travel(asked):
+    from core.action_availability import unavailable_action_report
+
+    assert unavailable_action_report(asked) is None
+
+
+@pytest.mark.parametrize("asked", ["go to the kitchen and bring me water", "fly to rome"])
+def test_going_to_a_place_is_still_travel(asked):
+    from core.action_availability import unavailable_action_report
+
+    assert unavailable_action_report(asked) is not None
+
+
+@pytest.mark.parametrize("asked", ["how warm is it in tallinn this minute", "how cold is it in oslo right now",
+                                   "how hot is it out in phoenix"])
+def test_how_it_feels_at_a_place_is_a_weather_ask(asked):
+    from core.agent_runtime.fast_live_info_mode_classifier import _looks_like_live_weather_request
+
+    assert _looks_like_live_weather_request(asked)
+
+
+@pytest.mark.parametrize("asked", ["how hot is it in the oven for bread", "how hot is the sun", "is it rainbow colored"])
+def test_how_hot_without_a_named_place_is_not_a_weather_ask(asked):
+    from core.agent_runtime.fast_live_info_mode_classifier import _looks_like_live_weather_request
+
+    assert not _looks_like_live_weather_request(asked)

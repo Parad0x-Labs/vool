@@ -2259,6 +2259,22 @@ def handle_turn_frontdoor(
                     )
                 except Exception:
                     _ask_needs_web = False
+            if _ask_needs_web and not _ask_is_live_data:
+                # A question about someone this chat's own records name ("When will Tim leave for
+                # Ireland?") is answered from those records, which need no web: the lookup refusal
+                # must not stand in front of it. Measured on the merged line: every record question
+                # in test_memory_records_ground_served_turn was refused as a lookup.
+                try:
+                    from core.bootstrap_context import admitted_capsule_evidence_text
+                    from core.memory_grounding import question_names_someone_in_the_records
+
+                    if question_names_someone_in_the_records(
+                        effective_input,
+                        admitted_capsule_evidence_text(source_context or {}, str(session_id or "")),
+                    ):
+                        _ask_needs_web = False
+                except Exception:
+                    pass
             _plain = ""
             _plain_reason = ""
             if _ask_is_live_data:

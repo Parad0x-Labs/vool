@@ -721,6 +721,25 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
         # and the reformatted bytes restated only what that answer had withheld.
         lead = _RE_PRESENTATION_REFUSAL_LEAD
         return lead if not subject else f'{lead} (request: "{subject[:160]}")'
+    if (
+        failed_stage == STAGE_RETRIEVED
+        and not lifecycle.retrieved_source_count
+        and not lifecycle.retrieved_notes
+        and not lifecycle.bound_notes
+        and not lifecycle.typed_observations
+        and not _records_only_support(lifecycle)
+    ):
+        # Nothing was retrieved because this turn cannot reach the web (the Web lookups switch, an
+        # Offline chat, a computer kept fully local): that is the reason, in the run-mode authority's
+        # words, not "nothing retrieved supports the answer" (0.7.8 sweep block 2c: a price, a URL
+        # read and "what does the guardian homepage show right now" with Web lookups off).
+        try:
+            from core.remote_fetch_policy import effective_web_available, lookup_unavailable_reason
+
+            if not effective_web_available():
+                return lookup_unavailable_reason()
+        except Exception:
+            pass
     if _records_only_support(lifecycle):
         if any(_records_absence_row(row) for row in lifecycle.memory_records):
             from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
