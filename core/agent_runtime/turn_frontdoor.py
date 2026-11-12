@@ -371,6 +371,17 @@ def _currency_reply(
     return reply
 
 
+#: The person asks for an answer from their own conversations or records ("Answer using the imported
+#: prior conversations", "based on what I told you"): nothing online is needed, so a web-off refusal
+#: must not stand in front of it.
+_ASKS_FROM_OWN_RECORDS_RE = re.compile(
+    r"\b(?:using|use|from|based\s+on|according\s+to|per)\s+(?:the\s+|my\s+|our\s+|these\s+|those\s+)?"
+    r"(?:(?:imported|prior|previous|past|earlier|old|saved)\s+)*"
+    r"(?:conversations?|chats?|records|notes|messages|what\s+(?:i|we)\s+(?:said|told\s+you|wrote))\b",
+    re.IGNORECASE,
+)
+
+
 def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
     """Why this turn cannot check a live rate, in the person's words."""
     from core.remote_fetch_policy import WEB_OFF_TEXT, web_unavailable_reason
@@ -2261,7 +2272,7 @@ def handle_turn_frontdoor(
                     )
                 except Exception:
                     _ask_needs_web = False
-            if _ask_needs_web and not _ask_is_live_data:
+            if _ask_needs_web or _ask_is_live_data:
                 # A question about someone this chat's own records name ("When will Tim leave for
                 # Ireland?") is answered from those records, which need no web: the lookup refusal
                 # must not stand in front of it. Measured on the merged line: every record question
@@ -2270,11 +2281,11 @@ def handle_turn_frontdoor(
                     from core.bootstrap_context import admitted_capsule_evidence_text
                     from core.memory_grounding import question_names_someone_in_the_records
 
-                    if question_names_someone_in_the_records(
+                    if _ASKS_FROM_OWN_RECORDS_RE.search(effective_input) or question_names_someone_in_the_records(
                         effective_input,
                         admitted_capsule_evidence_text(source_context or {}, str(session_id or "")),
                     ):
-                        _ask_needs_web = False
+                        _ask_needs_web = _ask_is_live_data = False
                 except Exception:
                     pass
             _plain = ""

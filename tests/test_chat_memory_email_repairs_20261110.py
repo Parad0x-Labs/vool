@@ -1432,3 +1432,19 @@ def test_how_hot_without_a_named_place_is_not_a_weather_ask(asked):
     from core.agent_runtime.fast_live_info_mode_classifier import _looks_like_live_weather_request
 
     assert not _looks_like_live_weather_request(asked)
+
+
+@pytest.mark.parametrize("asked", ["Answer using the imported prior conversations. How much does James pay?",
+                                   "based on what I told you, when is my flight?",
+                                   "how many tonnes does the yard hold according to my notes?"])
+def test_an_ask_to_answer_from_ones_own_records_is_recognized(asked):
+    from core.agent_runtime.turn_frontdoor import _ASKS_FROM_OWN_RECORDS_RE
+
+    assert _ASKS_FROM_OWN_RECORDS_RE.search(asked)
+
+
+@pytest.mark.parametrize("asked", ["according to wikipedia, how long is the danube", "search the web for the population of portugal"])
+def test_a_web_source_is_not_ones_own_records(asked):
+    from core.agent_runtime.turn_frontdoor import _ASKS_FROM_OWN_RECORDS_RE
+
+    assert not _ASKS_FROM_OWN_RECORDS_RE.search(asked)
