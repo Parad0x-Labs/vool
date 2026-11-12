@@ -99,7 +99,21 @@ def place_tor(platform: str, archive: Path, dest: Path) -> Path:
     if not binary.is_file():
         raise SystemExit(f"tor bundle {archive.name} has no tor program")
     binary.chmod(0o755)
+    _resign_on_mac(platform, [binary, *sorted(out.glob("*.dylib"))])
     return binary
+
+
+def _resign_on_mac(platform: str, files: list[Path]) -> None:
+    """The Tor Project rewrites tor's libevent path to @executable_path after linking, which
+    leaves its ad-hoc signature invalid, and Apple Silicon kills a program like that at once.
+    The pinned SHA-256 was checked on the download first; this only renews the ad-hoc seal.
+    (The app build re-signs every Mach-O in the bundle anyway; this keeps a checkout working.)"""
+    if not platform.startswith("macos") or sys.platform != "darwin":
+        return
+    codesign = shutil.which("codesign") or "/usr/bin/codesign"
+    for path in files:
+        subprocess.run([codesign, "--force", "--sign", "-", str(path)], check=True, capture_output=True)
+        subprocess.run([codesign, "--verify", "--strict", str(path)], check=True, capture_output=True)
 
 
 def build_wireproxy(platform: str, work: Path) -> Path:
@@ -128,6 +142,7 @@ def place_wireproxy(platform: str, built: Path, dest: Path) -> Path:
     if not (target.exists() and target.resolve() == built.resolve()):
         shutil.copyfile(built, target)
     target.chmod(0o755)
+    _resign_on_mac(platform, [target])
     return target
 
 
