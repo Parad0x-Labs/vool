@@ -285,6 +285,50 @@ import threading as _threading
 _BOOT_CHECK_RUNNING = _threading.Event()
 
 
+def _model_being_checked() -> str:
+    """The local model whose readiness check is running now, or ``""``."""
+    try:
+        from core.local_model_policy import manifest_is_local
+        from core.local_model_tool_certification import certification_applies, certification_status
+        from core.model_registry import ModelRegistry
+
+        for manifest in ModelRegistry().list_manifests(enabled_only=True):
+            if manifest_is_local(manifest) and certification_applies(manifest):
+                if str(certification_status(manifest).get("state") or "") == "probing":
+                    return str(manifest.model_name)
+    except Exception:
+        pass
+    return ""
+
+
+def model_in_use(boot_model: str) -> str:
+    """The local model VOOL answers with now, for what it tells the person.
+
+    Boot names its primary before the boot check has run; when that model is not ready and
+    another local model is, turns answer with the ready one, so that is the one to name.
+    """
+
+    tag = str(boot_model or "").strip()
+    try:
+        from core.final_answer_authorship import author_certification, unready_local_model_names
+        from core.local_model_policy import manifest_is_local
+        from core.model_registry import ModelRegistry
+
+        manifests = [m for m in ModelRegistry().list_manifests(enabled_only=True) if manifest_is_local(m)]
+        if not any(author_certification(m).certified for m in manifests):
+            # Nothing is ready yet. While boot (or the button) is making a model ready, that is the
+            # model VOOL is about to use, not the boot guess the check will replace.
+            return _model_being_checked() or tag
+        if tag.lower() not in unready_local_model_names(manifests):
+            return tag
+        for manifest in manifests:
+            if author_certification(manifest).certified:
+                return str(manifest.model_name)
+    except Exception:
+        pass
+    return tag
+
+
 def mark_boot_readiness_check(running: bool) -> None:
     if running:
         _BOOT_CHECK_RUNNING.set()

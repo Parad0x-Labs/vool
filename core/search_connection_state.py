@@ -120,7 +120,9 @@ def probe_search_provider(provider_id: str, *, now: float | None = None) -> dict
             keyed_or_keyless=KEYED,
         )
         try:
-            hits = run_search(cfg, _PROBE_QUERY, key, max_hits=3, timeout_s=10.0)
+            # The person pressed Test or saved this key: checking it is their own act in Settings,
+            # not a lookup made for a chat, so the Web lookups switch is not asked here.
+            hits = run_search(cfg, _PROBE_QUERY, key, max_hits=3, timeout_s=10.0, lookup=False)
         except RemoteFetchRefusedError as exc:
             # A turn-level or gateway refusal is a POLICY verdict, not a verdict
             # on the key. Kept distinct so the panel can say why nothing ran

@@ -1536,27 +1536,41 @@ def _looks_like_a_name(word: str) -> bool:
 _SYSTEM_MOUNT_PREFIXES = ("/System/", "/private/", "/boot", "/snap/", "/dev", "/proc", "/sys", "/var/", "/usr/", "/efi")
 
 
-def _find_folder_roots() -> list[str]:
-    """Home first, then every other mounted drive that is not the system's own ("/" never)."""
+def _find_folder_drives() -> list[str]:
+    """Every mounted drive that is not the system's own ("/" never) and not the home folder."""
     from core import machine_diagnostics
 
     home = str(_machine_home())
-    roots = [home] if os.path.isdir(home) else []
+    drives: list[str] = []
     for row in machine_diagnostics.disk_usage():
         mount = str(row.get("mount") or "")
-        if not mount or mount == "/" or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
+        if not mount or mount == "/" or mount == home or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
             continue
         if mount.startswith("/run/") and not mount.startswith("/run/media/"):
             continue
-        if mount not in roots:
-            roots.append(mount)
+        if mount not in drives:
+            drives.append(mount)
+    return drives
+
+
+def _find_folder_roots(include_drives: bool = False) -> list[str]:
+    """The home folder, plus the plugged-in drives only when the person asked for them."""
+    home = str(_machine_home())
+    roots = [home] if os.path.isdir(home) else []
+    if include_drives:
+        roots.extend(drive for drive in _find_folder_drives() if drive not in roots)
     return roots
+
+
+# Folders apps keep at the top of the home folder (~/Library, %USERPROFILE%\AppData): theirs, not
+# the person's. A folder search does not walk them.
+_FIND_FOLDER_HOME_APP_DIRS = frozenset({"library", "appdata", "snap"})
 
 
 def _machine_find_folder(
     arguments: dict[str, Any], *, workspace_root: Path | None = None
 ) -> RuntimeExecutionResult:
-    """Case-insensitive folder-name search across the machine's drive roots.
+    """Case-insensitive folder-name search in the home folder, and the plugged-in drives when asked.
 
     Read-only, bounded (depth/time/match caps), skips system/noise directories and
     never follows symlinks or junctions. Returns verified paths, the searched scope,
@@ -1575,6 +1589,10 @@ def _machine_find_folder(
 
     name = " ".join(str((arguments or {}).get("name") or (arguments or {}).get("query") or "").split()).strip(" .'\"")
     wants_hidden = str((arguments or {}).get("name") or (arguments or {}).get("query") or "").strip(" '\"").startswith(".")
+    from core.execution.constants import FOLDER_ON_DRIVE_RE
+
+    include_drives = (arguments or {}).get("drives") is True or bool(FOLDER_ON_DRIVE_RE.search(name))
+    name = " ".join(FOLDER_ON_DRIVE_RE.sub(" ", name).split()).strip(" .'\"")
     if not name:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="missing_argument",
@@ -1678,7 +1696,8 @@ def _machine_find_folder(
     # on both sides before comparing. (Without this, a folder plainly visible in a listing reads as
     # "not found" the moment its name uses a different separator than the query — a real reported bug.)
     needle_sep = re.sub(r"[\s_\-]+", "", needle)
-    roots = _find_folder_roots()
+    roots = _find_folder_roots(include_drives)
+    home_root = str(_machine_home())
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="no_results",
@@ -1711,7 +1730,10 @@ def _machine_find_folder(
 
     # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
     # breadth-first spent the budget on system and app folders before it reached the user's own.
-    home = str(Path.home())
+    # One home for the whole search: the roots above were picked with _machine_home(), so the
+    # home-first walk must start there too — resolving "~" again from the raw environment can
+    # point at a different folder than the one the rest of this search calls home.
+    home = str(_machine_home())
     if os.path.isdir(home):
         # The drive that holds the home folder is searched through the home folder only. Audit
         # 2026-10-27: "check my Invoices folder" walked / to depth 6 (system and app folders, every
@@ -1744,9 +1766,7 @@ def _machine_find_folder(
                         or lowered_name.endswith(_APP_LIBRARY_SUFFIXES)
                     ):
                         continue
-                    if lowered_name.startswith(".") and not wants_hidden:
-                        # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
-                        # or walked unless the person names a dot-folder themselves.
+                    if current == home_root and lowered_name in _FIND_FOLDER_HOME_APP_DIRS:
                         continue
                     if lowered_name.startswith(".") and not wants_hidden:
                         # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
@@ -1798,6 +1818,8 @@ def _machine_find_folder(
     ]
     if timed_out:
         not_found.append("The search hit its time limit before covering everything, so a deeper folder could exist.")
+    if not include_drives and _find_folder_drives():
+        not_found.append('I looked in your home folder only. Say "on my external drive" to search your other drives too.')
     # "check my Invoices folder" when the invoices are loose files: say where they are.
     files = _files_named_like(name, workspace_root=workspace_root)
     if files:
@@ -3477,7 +3499,7 @@ def _dispatch_runtime_tool(
             handled=True,
             ok=False,
             status="disabled",
-            response_text=contract.unsupported_reason,
+            response_text=_unsupported_response_text(intent, contract, source_context),
             details={
                 "observation": _tool_observation(
                     intent=intent,
@@ -4453,6 +4475,30 @@ def _marketplace_purchase_knowledge(arguments: dict[str, Any]) -> RuntimeExecuti
     )
 
 
+def _web_lookups_held(source_context: dict[str, Any] | None) -> bool:
+    from core.remote_fetch_policy import effective_web_available
+
+    return not effective_web_available(source_context)
+
+
+def _web_fetch_refused_text(url: str, source_context: dict[str, Any] | None) -> str:
+    """What the person reads when a page was not opened: the switch (or Offline) by name when
+    that is what held, else the per-turn refusal as before."""
+    if _web_lookups_held(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return web_lookups_off_text(source_context=source_context)
+    return f"Web fetch is disabled by policy for `{url}`."
+
+
+def _unsupported_response_text(intent: str, contract: Any, source_context: dict[str, Any] | None) -> str:
+    if intent in {"web.fetch", "web.search"} and _web_lookups_held(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return web_lookups_off_text(source_context=source_context)
+    return str(contract.unsupported_reason or "")
+
+
 def _remote_fetch_allowed(source_context: dict[str, Any] | None) -> bool:
     if "allow_remote_fetch" in (source_context or {}):
         return bool((source_context or {}).get("allow_remote_fetch"))
@@ -4465,6 +4511,30 @@ def _web_url(raw_url: object) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("web tools require an absolute http(s) URL")
     return url
+
+
+_CHARSET_RE = re.compile(r"charset\s*=\s*[\"']?([A-Za-z0-9._-]+)", re.IGNORECASE)
+
+
+def _fetched_page_text(raw: bytes, *, content_type: str, content_encoding: str) -> tuple[str, str, bool]:
+    """(text, title, readable) for a fetched body. An HTML page becomes the text a person reads on
+    it; any other body (JSON, plain text) is returned as sent. A compressed body is decoded first,
+    and its declared charset is honoured."""
+    from tools.web.http_fetch import _decompress
+    from tools.web.page_text import looks_like_html, readable_page
+
+    decoded = _decompress(raw, content_encoding)
+    if decoded is None:
+        return "", "", False
+    match = _CHARSET_RE.search(content_type or "")
+    try:
+        text = decoded.decode(match.group(1) if match else "utf-8", errors="replace")
+    except LookupError:
+        text = decoded.decode("utf-8", errors="replace")
+    if not looks_like_html(content_type, text):
+        return text, "", False
+    page = readable_page(text)
+    return page.text, page.title, True
 
 
 def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
@@ -4488,7 +4558,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             handled=True,
             ok=False,
             status="disabled_by_policy",
-            response_text=f"Web fetch is disabled by policy for `{url}`.",
+            response_text=_web_fetch_refused_text(url, source_context),
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4524,13 +4594,14 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
     remote_turn = turn_is_remote(source_context)
     try:
         opened = (
-            open_public_only(url, make_request=_request, timeout=timeout_seconds)
+            open_public_only(url, make_request=_request, timeout=timeout_seconds, lookup=True)
             if remote_turn
-            else open_remote(_request(url), timeout=timeout_seconds)
+            else open_remote(_request(url), timeout=timeout_seconds, lookup=True)
         )
         with opened as response:
             final_url = str(response.geturl() or url)
             content_type = str(response.headers.get("content-type") or "").strip()
+            content_encoding = str(response.headers.get("content-encoding") or "").strip()
             body = response.read(max_bytes + 1)
     except RemoteTurnTargetRefused as refused:
         return RuntimeExecutionResult(
@@ -4557,7 +4628,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             handled=True,
             ok=False,
             status="disabled_by_policy",
-            response_text=f"Web fetch is disabled by policy for `{url}`.",
+            response_text=_web_fetch_refused_text(url, source_context),
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4569,12 +4640,16 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             },
         )
     except urllib.error.HTTPError as exc:
-        status = "login_wall" if int(exc.code or 0) in {401, 403} else "error"
+        # 401 asks for a sign-in. 403 is a refusal, most often a site turning away automated
+        # readers, and was reported as "behind a login" (fresh-user test, 2026-10-29), which sent
+        # people looking for an account the page never needed.
+        code = int(exc.code or 0)
+        status = "login_wall" if code == 401 else "access_refused" if code == 403 else "error"
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status=status,
-            response_text=f"Web fetch for `{url}` failed with HTTP {int(exc.code or 0)}.",
+            response_text=f"Web fetch for `{url}` failed with HTTP {code}.",
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4582,7 +4657,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
                     ok=False,
                     status=status,
                     url=url,
-                    http_status=int(exc.code or 0),
+                    http_status=code,
                 ),
             },
         )
@@ -4604,23 +4679,13 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             },
         )
     truncated = len(body) > max_bytes
-    text = body[:max_bytes].decode("utf-8", errors="replace")
-    # A web page is read as its words, never its markup: the raw HTML (doctype, meta tags, CSS
-    # links) was shown to the person as the page's content and fed to models as tokens (0.7.8 sweep
-    # block 2c, FR-WEB-URL-01: "summarize https://www.iana.org/help/example-domains" printed
-    # `<!doctype html> <html> <head> ...`). Other content types pass through unchanged.
-    page_title = ""
-    if "html" in content_type.lower() or text.lstrip()[:15].lower().startswith(("<!doctype html", "<html")):
-        from html import unescape as _unescape_html
-
-        from core.demo_source import _html_to_text
-
-        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", text)
-        if title_match:
-            page_title = " ".join(_unescape_html(title_match.group(1)).split())
-        text = _html_to_text(text)
-        if page_title and not text.startswith(page_title):
-            text = f"{page_title}\n\n{text}"
+    # A web page is read as its words, never its markup (0.7.8 sweep block 2c, FR-WEB-URL-01:
+    # "summarize https://www.iana.org/help/example-domains" printed `<!doctype html> <html> ...`);
+    # a compressed body is decoded first and its charset honoured. Other content types pass through
+    # unchanged. The page's title leads its words, the way the summary path names the page.
+    text, title, readable = _fetched_page_text(body[:max_bytes], content_type=content_type, content_encoding=content_encoding)
+    if readable and title and not text.startswith(title):
+        text = f"{title}\n\n{text}"
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -4631,6 +4696,8 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             "final_url": final_url,
             "content_type": content_type,
             "text": text,
+            "title": title,
+            "readable_text": readable,
             "truncated": truncated,
             "observation": _tool_observation(
                 intent="web.fetch",
@@ -8304,49 +8371,189 @@ def _skill_scope_arg(arguments: dict[str, Any]) -> str:
     return str(arguments.get("scope") or "global").strip().lower()
 
 
+def _display_name(name: str) -> str:
+    """A slug such as `decline-politely` reads as the plain words `Decline politely`."""
+
+    words = re.sub(r"[-_/\s]+", " ", str(name or "").replace("`", "")).strip()
+    if not words:
+        return ""
+    return words[:1].upper() + words[1:]
+
+
 def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
-    from core.skill_tools import list_skills
+    """Which skills I have, in plain words: one row per skill, no machine paths.
+
+    The old reply printed slugs in backticks with full filesystem paths, and the same skill
+    twice when it was both staged and installed (measured 2026-10-28). Rows are now grouped
+    by what the skill means to the person, and paths stay in the result details.
+    """
+
+    from core.native_skill_library import disabled_skill_ids, skill_inventory
+    from core.skill_scopes import SCOPE_LABELS
+    from core.skill_tools import list_skills, plugins_root
 
     result = list_skills(str(arguments.get("workspace") or ""), keys=_skill_scope_keys(source_context))
 
-    def _section(title: str, rows: list[dict[str, Any]], *, show_path: bool = True) -> str:
-        if not rows:
-            return ""
-        lines = [f"**{title}** ({len(rows)})"]
-        for row in rows:
-            name = str(row.get("name") or "?")
-            desc = str(row.get("description") or "").strip()
-            path = str(row.get("path") or "")
-            scope = str(row.get("scope") or "")
-            summary = f" — {desc}" if desc else ""
-            where = f" ({scope})" if scope and scope != "global" else ""
-            if show_path and path and scope in ("", "global"):
-                lines.append(f"- `{name}`{where}{summary}\n  `{path}`")
-            else:
-                lines.append(f"- `{name}`{where}{summary}")
-        return "\n".join(lines)
+    # On/Off is read from the ONE disable store the skill picker reads (live from disk: native
+    # contracts by id, plain installed skills by name), so the list can never disagree with a
+    # turn that just seated or skipped the same skill.
+    disabled = set(disabled_skill_ids())
+    # The row's own availability: a built-in whose prerequisites or capabilities this machine
+    # cannot honour (media-studio on a fresh profile) is "not available here", never "on".
+    native_runs: dict[str, bool] = {
+        str(row.get("id") or ""): bool(row.get("available")) for row in skill_inventory()
+    }
+    # Browse rows run only while their add-on serves skills here: the same managed/available
+    # and lifecycle checks the picker applies, plus the add-on's own off switch.
+    plugin_off: set[str] = set()
+    plugin_serving: set[str] | None = None
+    try:
+        from core.addon_store import available as _addon_available
+        from core.addon_store import is_managed
+        from core.plugin_catalog import _disabled_ids, discovered_plugin_sources
+        from core.plugin_lifecycle import is_available as _plugin_is_available
+        from core.plugin_lifecycle import record_for
 
-    sections = [
-        # The skills VOOL ships with are listed too: "what skills do you have?" answered only
-        # "26 skill(s)." because this section was missing (0.7.8 sweep block 2, 2026-11-12).
-        _section("Built into VOOL", list(result.get("native_skills") or []), show_path=False),
-        _section("For this chat", list(result.get("chat_skills") or []), show_path=False),
-        _section("For this project", list(result.get("project_skills") or []), show_path=False),
-        _section("In the workspace", list(result.get("workspace_skills") or [])),
-        _section("Staged (drafted, not active)", list(result.get("staged_skills") or [])),
-        _section("Installed for all of VOOL (active)", list(result.get("installed_skills") or [])),
-    ]
-    body = "\n\n".join(section for section in sections if section)
-    total = int(result.get("total") or 0)
-    if not total:
-        scanned = str(result.get("workspace") or "").strip()
-        body = (
-            f"No skills found. I scanned {scanned or 'no workspace (none is bound to this chat)'}, "
-            "the staging area, and the installed plugins tree for SKILL.md files."
+        plugin_off = {str(pid) for pid in _disabled_ids()}
+        plugin_serving = {
+            str(pid) for pid, path in discovered_plugin_sources()
+            if (not is_managed(pid) or _addon_available(pid, path))
+            and (record_for(pid) is None or _plugin_is_available(pid, root=path))
+        }
+    except Exception:
+        plugin_serving = None
+
+    def _plain_use(row: dict[str, Any]) -> str:
+        # One line of plain words; the reply itself must never become a path listing.
+        first_line = next(
+            (line.strip() for line in str(row.get("description") or "").splitlines() if line.strip()),
+            "",
         )
-    if total and body:
-        body = f"I have {total} skill{'' if total == 1 else 's'}:\n\n" + body
-    return _skill_result("skill.list", result, response=body or f"I have {total} skill{'' if total == 1 else 's'}.")
+        text = re.sub(
+            r"\s+", " ", first_line.replace("`", "").replace(".md", "").replace("/", " ")
+        ).strip()
+        # One short phrase per row: the first sentence (or what comes before a colon) when it
+        # says enough on its own, so a list of skills does not read as a wall of instructions.
+        head = re.split(r"(?<=[^\s]):\s|\.\s", text, maxsplit=1)[0].strip().rstrip(".")
+        return head if len(head) >= 12 else text
+
+    def _state(row: dict[str, Any], *, kind: str) -> str:
+        # off beats not-available: a skill the person turned off says off even when it also
+        # could not run here. Drafts are off by nature (the section title says why).
+        if kind == "draft":
+            return "off"
+        name = str(row.get("name") or "").strip()
+        if name and name in disabled:
+            return "off"
+        if kind == "native" and name in native_runs and not native_runs[name]:
+            return "not available here"
+        if kind == "browse":
+            plugin_id = _plugin_id(row)
+            if plugin_id and plugin_id in plugin_off:
+                return "off"
+            if plugin_id and plugin_serving is not None and plugin_id not in plugin_serving:
+                return "not available here"
+        return "on"
+
+    def _row(row: dict[str, Any], state: str) -> str:
+        label = _display_name(str(row.get("name") or "?"))
+        scope = str(row.get("scope") or "")
+        if scope in ("chat", "project"):
+            label += f", for {SCOPE_LABELS.get(scope, scope)}"
+        text = f"- {label} — {state}"
+        use = _plain_use(row)
+        return f"{text} — {use}" if use else text
+
+    seen: set[str] = set()
+
+    def _section(title: str, rows: list[dict[str, Any]], *, kind: str = "own") -> tuple[str, int, int]:
+        # Every skill once across the whole reply, first section wins: a draft of an
+        # installed skill, or a Browse copy of it, must not earn a second row.
+        lines: list[str] = []
+        on_count = 0
+        for row in rows:
+            key = _display_name(str(row.get("name") or "?")).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            state = _state(row, kind=kind)
+            on_count += state == "on"
+            lines.append(_row(row, state))
+        if not lines:
+            return "", 0, 0
+        return f"**{title}** ({len(lines)})\n" + "\n".join(lines), len(lines), on_count
+
+    def _plugin_id(row: dict[str, Any]) -> str:
+        # Installed rows sit under plugins/plugins/<plugin id>/skills/<name>/SKILL.md; that
+        # first segment is the only difference between the person's own installs
+        # (local-skills) and add-ons. A path outside the tree is never counted as local.
+        try:
+            relative = Path(str(row.get("path") or "")).relative_to(plugins_root() / "plugins")
+        except ValueError:
+            return ""
+        return relative.parts[0] if relative.parts else ""
+
+    installed = list(result.get("installed_skills") or [])
+    mine_rows = [row for row in installed if _plugin_id(row) == "local-skills"]
+    # VOOL's own developer skills are not the person's: never listed unless the developer setting
+    # is on. And a workspace that is VOOL's own program folder (the 0.7.5 Linux launcher made it
+    # so) holds the built-ins' source files, which are not skills the person made.
+    from core.native_skill_library import native_skills_root, shown_to_people
+
+    native_rows = [
+        row for row in (result.get("native_skills") or [])
+        if shown_to_people(str(row.get("name") or ""))
+    ]
+    try:
+        own_library = native_skills_root().resolve()
+    except OSError:
+        own_library = None
+
+    def _from_vool_itself(row: dict[str, Any]) -> bool:
+        if own_library is None:
+            return False
+        try:
+            return own_library in Path(str(row.get("path") or "")).resolve().parents
+        except (OSError, ValueError):
+            return False
+
+    workspace_rows = [row for row in (result.get("workspace_skills") or []) if not _from_vool_itself(row)]
+    browse_rows = [row for row in installed if _plugin_id(row) != "local-skills"]
+    sections = [
+        _section("Made by you", [
+            *(result.get("chat_skills") or []),
+            *(result.get("project_skills") or []),
+            *workspace_rows,
+            *mine_rows,
+        ]),
+        _section("Built in", native_rows, kind="native"),
+        _section("Added from Browse", browse_rows, kind="browse"),
+        _section("Drafts not turned on yet", list(result.get("staged_skills") or []), kind="draft"),
+    ]
+    body = "\n\n".join(text for text, _count, _on in sections if text)
+    total = sum(count for _text, count, _on in sections)
+    if not total:
+        body = "No skills found. I looked in this chat, this project and the installed skills."
+    elif sections[1][1] and not (sections[0][1] or sections[2][1] or sections[3][1]):
+        # Only built-ins exist: say the number in one line rather than opening with a heading,
+        # counting only the ones that are really on here.
+        count, on_count = sections[1][1], sections[1][2]
+        head = (
+            f"You have {count} built-in skills on."
+            if on_count == count
+            else f"You have {count} built-in skills, {on_count} of them on."
+        )
+        body = (
+            f"{head}\n\n"
+            f"{sections[1][0]}\n\n"
+            "To make your own, ask me: make me a skill that ..."
+        )
+    if total:
+        body += (
+            "\n\nMore ready-made skills are in Skills & Plugins, under Browse. "
+            "To turn one off, open My add-ons there, or ask me."
+        )
+    return _skill_result("skill.list", result, response=body or "No skills found.")
 
 
 def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
@@ -8424,17 +8631,45 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         keys=_skill_scope_keys(source_context),
         expected_sha256=str(arguments.get("sha256") or ""),
     )
-    version = result.get("version")
-    version_text = f" as version {version}" if isinstance(version, int) else ""
-    where = f"at `{result.get('path')}`" if scope == "global" else f"for {SCOPE_LABELS.get(scope, scope)}"
+    display = _display_name(str(result.get("name") or ""))
+    where = "" if scope == "global" else f" for {SCOPE_LABELS.get(scope, scope)}"
+    try:
+        version = int(result.get("version") or 0)
+    except (TypeError, ValueError):
+        version = 0
+    # Version 2+ means a skill of this name was already installed: the person replaced it,
+    # so the reply says Updated, not Added.
+    verb = "Updated" if version >= 2 else "Added"
     return _skill_result(
         "skill.install",
         result,
         response=(
-            f"Installed `{result.get('name')}` {where}{version_text}. "
-            "It is active from the next turn."
+            f'{verb} the skill "{display}"{where}. '
+            "It is on from your next message."
         ),
     )
+
+
+def _native_built_in_display(name: str) -> str:
+    """The plain name of the built-in skill `name` refers to, or "" when it names no built-in.
+
+    Read-only: the native inventory is only consulted, never written. Any failure reading it
+    reads as "not a built-in", so the caller's own reply stands.
+    """
+    wanted = re.sub(r"[-_/\s]+", "-", str(name or "").replace("`", "").strip().lower()).strip("-")
+    if not wanted:
+        return ""
+    try:
+        from core.native_skill_library import skill_inventory
+
+        for row in skill_inventory():
+            if str(row.get("source") or "") != "native":
+                continue
+            if wanted in (str(row.get("id") or "").lower(), str(row.get("name") or "").lower()):
+                return _display_name(str(row.get("id") or row.get("name") or ""))
+    except Exception:
+        return ""
+    return ""
 
 
 def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
@@ -8446,18 +8681,24 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
         from core import skill_package
 
         name = str(arguments.get("name") or "")
-        if str(arguments.get("kind") or "").strip().lower() == "plugin":
+        wants_plugin = str(arguments.get("kind") or "").strip().lower() == "plugin"
+        if wants_plugin:
             result = skill_package.export_plugin(name)
         else:
             result = skill_package.export_skill(name, keys=keys, scope=str(arguments.get("scope") or ""))
-        return _skill_result(
-            intent,
-            result,
-            response=(
+        if wants_plugin:
+            response = (
                 f"Exported `{result.get('name')}` to `{result.get('path')}` "
                 f"({result.get('bytes')} bytes). Anyone can import that zip into their VOOL."
-            ),
-        )
+            )
+        else:
+            # The one reply that names a place on disk: the file to hand over, and its folder.
+            exported = Path(str(result.get("path") or ""))
+            response = (
+                f'Saved the skill "{_display_name(str(result.get("name") or ""))}" as the file '
+                f"{exported.name}, in this folder: {exported.parent}. Send that file to share it."
+            )
+        return _skill_result(intent, result, response=response)
     if intent == "skill.import":
         from core import skill_package
 
@@ -8474,15 +8715,17 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
             )
         else:
             response = (
-                f"Imported `{result.get('name')}` into the drafts for "
-                f"{SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}; it is not active yet."
+                f'This file holds the skill "{_display_name(str(result.get("name") or ""))}", '
+                f"ready for {SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}. "
+                "It is not on yet: say turn it on."
             )
         return _skill_result(intent, result, response=response)
     if intent == "skill.remove":
         from core.skill_tools import remove_skill
 
-        result = remove_skill(str(arguments.get("name") or ""), scope=str(arguments.get("scope") or ""), keys=keys)
-        return _skill_result(
+        name = str(arguments.get("name") or "")
+        result = remove_skill(name, scope=str(arguments.get("scope") or ""), keys=keys)
+        outcome = _skill_result(
             intent,
             result,
             response=(
@@ -8490,6 +8733,13 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
                 "Its files and versions were kept."
             ),
         )
+        # A built-in skill is not the operator's to remove, so the refused turn names it plainly
+        # instead of quoting the storage reason. Every other outcome keeps its own reply.
+        if str(result.get("status") or "") != "ok":
+            built_in = _native_built_in_display(name)
+            if built_in:
+                outcome.response_text = f"{built_in} comes with VOOL and cannot be turned off here."
+        return outcome
     from core import skill_package
 
     result = skill_package.create_plugin(
@@ -8557,7 +8807,7 @@ def _skill_package_bytes(
 
 
 def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
-    from core.skill_tools import rollback_skill, skill_history
+    from core.skill_tools import rollback_skill
 
     keys = _skill_scope_keys(source_context)
     name = str(arguments.get("skill") or arguments.get("path") or "")
@@ -8572,14 +8822,14 @@ def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | 
         )
     result = rollback_skill(name, version=version, keys=keys)
     if result.get("status") == "ok":
-        history = skill_history(name, keys)
+        # The versions and counts stay in the result details; the reply says only what happened.
         return _skill_result(
             "skill.rollback",
             result,
             response=(
-                f"Rolled `{result.get('name')}` back to version {result.get('restored_from')} "
-                f"byte for byte; it is now head version {result.get('version')} of "
-                f"{history.get('head_version')} recorded. The loader picks it up next turn."
+                f'Restored version {result.get("restored_from")} of the skill '
+                f'"{_display_name(str(result.get("name") or ""))}". '
+                "It is used from your next message."
             ),
         )
     return _skill_result(

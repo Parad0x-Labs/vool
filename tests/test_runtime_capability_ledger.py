@@ -199,12 +199,19 @@ def test_chat_surface_help_model_input_uses_grounded_capability_text() -> None:
     agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
     agent.start()
 
+    # The capability question ("what can you do") is the one grounded in the capability
+    # manifest; bare `help` split off to its own short canned reply (help_short_reply).
     with mock.patch.object(agent, "_help_capabilities_text", return_value="Wired on this runtime:\n- run live web search"):
-        model_input = agent._chat_surface_smalltalk_model_input(user_input="help", phrase="help")
+        model_input = agent._chat_surface_smalltalk_model_input(
+            user_input="what can you do", phrase="what can you do"
+        )
+        help_input = agent._chat_surface_smalltalk_model_input(user_input="help", phrase="help")
 
     assert "Ground your reply in currently wired runtime capabilities only." in model_input
     assert "run live web search" in model_input
     assert "agent_commons" not in model_input
+    assert "Ground your reply in currently wired runtime capabilities only." not in help_input
+    assert "run live web search" not in help_input
 
 
 def test_disabled_web_search_reports_unsupported_capability_honestly() -> None:

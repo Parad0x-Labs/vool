@@ -83,6 +83,26 @@ _CANCEL_CALENDAR_RE = re.compile(
 _MOVE_CALENDAR_RE = re.compile(
     r"\b(?:move|push|shift|reschedule|resched|change)\b[^\n!?.!]*\b(?:calendar|meeting|event|series|draft)\b", re.IGNORECASE
 )
+# A bare cancel whose words name no object, only a pointer back at the last thing: "cancel that
+# one", "actually cancel that", "call it off", "cancel the last one". The clause carries no noun,
+# so no noun-bearing lane above can own it; without this recognizer it fell through to the model,
+# which replied "the reminder is canceled" while the stored row stayed scheduled (audit R07,
+# 2026-10-29). The dispatch resolves the pointer against this chat's own rows and reports the
+# real outcome. The match is anchored to a WHOLE clause and the anaphor may be followed only by
+# politeness, so "cancel that flight" / "cancel that meeting" keep their own lanes (or none).
+_CANCEL_ANAPHOR = r"(?:that\s+one|this\s+one|the\s+last\s+one|the\s+previous\s+one|the\s+latest\s+one|that|this|it|them|those)"
+_CANCEL_LEAD = (
+    r"(?:\s*(?:hey|ok|okay|so|and|but|please|just|simply|really|actually|sorry|hmm|wait|no|nope|yeah|yes|"
+    r"never\s*mind|nevermind|on\s+second\s+thought|forget\s+it|can\s+you|could\s+you|would\s+you|will\s+you|"
+    r"i\s+want\s+to|i\s+need\s+to|i'?d\s+like\s+to|i\s+would\s+like\s+to))*\s*"
+)
+_CANCEL_TAIL = r"(?:\s*(?:please|now|then|instead|thanks|thank\s+you|will\s+you|would\s+you|could\s+you|for\s+me))*\s*[.!]?\s*$"
+_BARE_CANCEL_REFERENT_RE = re.compile(
+    (r"^" + _CANCEL_LEAD + r"(?:cancel|scrub)\s+" + _CANCEL_ANAPHOR + _CANCEL_TAIL)
+    + (r"|^" + _CANCEL_LEAD + r"call\s+" + _CANCEL_ANAPHOR + r"\s+off" + _CANCEL_TAIL)
+    + (r"|^" + _CANCEL_LEAD + r"call\s+off\s+" + _CANCEL_ANAPHOR + _CANCEL_TAIL),
+    re.IGNORECASE,
+)
 # The provider-backed availability lane: the request asks what is free/busy on a day or
 # calendar. Checked with the draft-calendar kinds above so "cancel the event" still wins,
 # but before the storage/process families and before _SCHEDULE_HINTS.
@@ -93,6 +113,14 @@ _AVAILABILITY_RE = re.compile(
     r"\b(?:availability|available|free|busy|open)\b[^\n!?.]*\b(?:slot|time|calendar|schedule|window)\b"
     r"|\b(?:slot|calendar|schedule)\b[^\n!?.]*\b(?:availability|available|free|busy)\b"
     r"|\b(?:check|show|what|find|look)\b[^\n!?.]*\b(?:my|the)\s+(?:calendar|schedule)\b",
+    re.IGNORECASE,
+)
+# "calendar" used as the name of a piece of code ("what does the calendar script print", "open
+# calendar.py") is a project file, not the user's calendar. Measured 2026-10-29 (re-audit coding:S2):
+# that question was read as an availability check and answered "no calendar provider is configured".
+_CALENDAR_AS_CODE_RE = re.compile(
+    r"\b(?:calendar|schedule|scheduler)(?:[\s_-]+|\.)"
+    r"(?:script|scripts|file|module|code|program|function|class|component|py|js|ts|sh)\b",
     re.IGNORECASE,
 )
 # The agenda lane: the request asks WHAT IS ON the chosen calendars on a day/range. It must
@@ -218,7 +246,14 @@ _RENAME_EVENT_RE = re.compile(
 # 2026-10-19 on 153148eb). "write" alone composes; it saves only with a storing cue (write down, titled,
 # "with:", "note:", into my notes, note to self).
 _STORE_NOTE_RE = re.compile(
-    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b", re.IGNORECASE
+    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b"
+    # "keep a note for me: the code is 5523" keeps a note; "keep the note short" is about writing one.
+    r"|\bkeep\s+(?:a\s+)?(?:quick\s+|short\s+|little\s+)?note\b(?!-)"
+    # "save this: buy zucchini", "save this one: ..." -- the words after the colon are the note (audit N6). A statement
+    # about the owner after the colon ("save this: my bike rack is spot 12") is a fact to remember, not a note.
+    r"|^\W*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:save|keep|jot\s+down)\s+(?:this|that)(?:\s+one)?(?:\s+for\s+me)?\s*:(?!\d)\s*"
+    r"(?!(?:my|i|i'm|im|i've|ive|i'd|our|we|we're|we've|mine)\b)\S",
+    re.IGNORECASE,
 )
 _RECORD_NOTE_RE = re.compile(
     r"\b(?P<verb>write|create|jot|take|make)\b(?P<between>[^\n!?.]*?)\bnote\b(?!-)(?P<after>[^\n!?.]*)", re.IGNORECASE
@@ -328,6 +363,12 @@ _RESTORE_NOTE_RE = re.compile(
     r"\b(?:restore|bring back|unarchive)\b[^\n!?.]*\bnotes?\b", re.IGNORECASE,
 )
 _APPLE_NOTE_LIST_RE = re.compile(r"\b(?:list|show)\b[^\n!?.]*\bapple\s+notes\b", re.IGNORECASE)
+# One note, named, read from the Apple Notes app: "read my note about the flat viewing in apple notes".
+# Checked before the list form above, which "show my note about X in apple notes" would otherwise match.
+_APPLE_NOTE_READ_IN_APP_RE = re.compile(
+    r"\b(?:read|show|open|display)\b(?:\s+me)?\s+(?:my|the|that)\s+note\b[^\n!?.]*\b(?:in|from)\s+(?:my\s+)?apple\s+notes\b",
+    re.IGNORECASE,
+)
 _APPLE_NOTE_READ_RE = re.compile(r"\b(?:read|show|open|display)\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_APPEND_RE = re.compile(r"\bappend\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_RENAME_RE = re.compile(r"\brename\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
@@ -401,8 +442,8 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     """ "Remind me what I told you about my landlord" asks what was said, not for a reminder.
 
     Measured 2026-10-06 on 9adff83 with pack 2 applied: it was parsed as a reminder to schedule and
-    answered "I could not read a date or time in that." A recollection that names a time is still a
-    reminder ("remind me tomorrow at 9 what I said about the rent").
+    answered "I could not read a date or time in that." A recollection that names a time is still
+    a reminder ("remind me tomorrow at 9 what I said about the rent").
     """
     from core.execution.constants import conversation_recall_remainder
     from core.operator.when import time_expression_spans
@@ -425,6 +466,35 @@ _ASKS_ABOUT_EXISTING_REMINDER_RE = re.compile(
     r"|(?:any\s+|a\s+|the\s+|my\s+)?reminders?\s+(?:for|about|to|on)\b[^.!]*\?\s*$)",
     re.IGNORECASE,
 )
+
+
+# A clause that is only discourse around the pointer ("never mind", "no wait", "yes"): it
+# carries no request of its own, so it does not stop the pointer clause from owning the turn.
+_POINTER_DISCOURSE_CLAUSE = re.compile(
+    r"^(?:(?:yes|yeah|yep|no|nope|ok|okay|please|thanks|thank\s+you|sorry|hey|wait|hmm|so|and|but|"
+    r"never\s*mind|nevermind|forget\s+it|on\s+second\s+thought|i\s+changed\s+my\s+mind|actually|just)"
+    r"(?:\s+(?:yes|no|wait|ok|okay|please|actually|sorry|hmm|hey|so))*?)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _bare_cancel_referent(words: str) -> bool:
+    """Whether the request is a whole clause that only cancels the last thing it points at.
+
+    The pointer clause must be the request's ONLY content clause: a request that also carries
+    words of its own ('yes, delete my apple note "Tax receipts 2025", cancel that') keeps its
+    own lane, where the trailing pointer withholds the approval instead of eating the request.
+    Discourse clauses ("never mind", "no wait") are not content. The pointer clause itself is
+    matched anchored, so a cancel that names a thing ("cancel that meeting draft") keeps its
+    noun lane.
+    """
+    content: list[str] = []
+    for clause in re.split(r"[,;.!?\n]+", str(words or "")):
+        cleaned = clause.strip()
+        if not cleaned or _POINTER_DISCOURSE_CLAUSE.match(cleaned):
+            continue
+        content.append(cleaned)
+    return len(content) == 1 and bool(_BARE_CANCEL_REFERENT_RE.match(content[0]))
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
@@ -470,26 +540,28 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
         return OperatorActionIntent(kind="edit_reminder", action_id=reminder_id, target_label=_reminder_edit_text(text), raw_text=text)
     if _LIST_REMINDERS_RE.search(words):
         return OperatorActionIntent(kind="list_reminders", raw_text=text)
-    if _CANCEL_CALENDAR_RE.search(words):
-        calendar_id, title = _calendar_target(text)
-        return OperatorActionIntent(kind="cancel_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
-    if _MOVE_CALENDAR_RE.search(words):
-        calendar_id, title = _calendar_target(text)
-        return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+    calendar_names_code = bool(_CALENDAR_AS_CODE_RE.search(words))
+    if not calendar_names_code:
+        if _CANCEL_CALENDAR_RE.search(words):
+            calendar_id, title = _calendar_target(text)
+            return OperatorActionIntent(kind="cancel_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+        if _MOVE_CALENDAR_RE.search(words):
+            calendar_id, title = _calendar_target(text)
+            return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
 
-    # --- Provider-backed calendar reads and proposals. Availability first: "check
-    # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
-    # with the scheduling family so "remind me to take notes" is still a reminder (the
-    # reminder regex above already claimed it).
-    if _AGENDA_RE.search(words):
-        return OperatorActionIntent(kind="show_agenda", raw_text=text)
-    if _SEARCH_CALENDAR_RE.search(words):
-        return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
-    if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
-        return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
-    if _LIST_CALENDARS_RE.search(words):
+        # --- Provider-backed calendar reads and proposals. Availability first: "check
+        # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
+        # with the scheduling family so "remind me to take notes" is still a reminder (the
+        # reminder regex above already claimed it).
+        if _AGENDA_RE.search(words):
+            return OperatorActionIntent(kind="show_agenda", raw_text=text)
+        if _SEARCH_CALENDAR_RE.search(words):
+            return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
+        if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
+            return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
+    if not calendar_names_code and _LIST_CALENDARS_RE.search(words):
         return OperatorActionIntent(kind="list_calendars", raw_text=text)
-    if _INSPECT_EVENT_RE.search(words):
+    if not calendar_names_code and _INSPECT_EVENT_RE.search(words):
         return OperatorActionIntent(
             kind="inspect_calendar_event",
             target_label=_event_label(text),
@@ -503,12 +575,20 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # PUBLIC schedule (the next bus, sunrise, an episode release) or opening hours is live-info,
     # not a calendar row, and keeps its own lanes. Checked after the search/inspect recognizers so
     # a named search ("search my calendar for dentist") keeps its own kind.
-    event_subject = _named_event_subject(words)
-    if event_subject is not None and _LIVE_SCHEDULE_SUBJECT_RE.search(event_subject) is None \
-            and _HOURS_ASK_RE.search(event_subject) is None:
-        label = _clean_event_label(event_subject)
-        if label:
-            return OperatorActionIntent(kind="search_calendar_event", target_label=label, raw_text=text)
+    if not calendar_names_code:
+        event_subject = _named_event_subject(words)
+        if event_subject is not None and _LIVE_SCHEDULE_SUBJECT_RE.search(event_subject) is None \
+                and _HOURS_ASK_RE.search(event_subject) is None:
+            label = _clean_event_label(event_subject)
+            if label:
+                return OperatorActionIntent(kind="search_calendar_event", target_label=label, raw_text=text)
+    # The pointer-only cancel: no noun anywhere, so the reminder/calendar lanes above did not
+    # match. The dispatch owns what the pointer resolves to (core.local_operator_actions).
+    if _bare_cancel_referent(words):
+        return OperatorActionIntent(kind="cancel_reminder", referent="most_recent", raw_text=text)
+
+    if _APPLE_NOTE_READ_IN_APP_RE.search(words):
+        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     if _APPLE_NOTE_LIST_RE.search(words):
         return OperatorActionIntent(kind="apple_note_list", raw_text=text)
     if _APPLE_NOTE_READ_RE.search(words):
@@ -749,8 +829,8 @@ def _apple_note_title(text: str) -> str | None:
     values = quoted_note_values(text)
     if values:
         return values[0]
-    match = re.search(r"\bnotes?\s+(?:titled|called|named|about)\s+([^\n,.]+)", str(text or ""), re.IGNORECASE)
-    return (match.group(1).strip() or None) if match else None
+    match = re.search(r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)", str(text or ""), re.IGNORECASE)
+    return _spoken_note_title(match) if match else None
 
 
 def _apple_note_append_text(text: str) -> str | None:
@@ -904,7 +984,8 @@ def _note_query(text: str) -> str | None:
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip(" .?!") or None
+        terms = _strip_title_trailer(match.group(1).strip())
+        return re.sub(r"^(?:the|my|a|an)\s+", "", terms, flags=re.IGNORECASE).strip() or None
     return None
 
 
@@ -914,9 +995,45 @@ def _note_title(text: str) -> str | None:
     if quoted:
         return quoted[0]
     match = re.search(
-        r"\bnotes?\s+(?:titled|called|named|about)\s+([^\n,.]+)",
+        r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)",
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip() or None
+        return _spoken_note_title(match)
     return None
+
+
+# What trails a spoken title without being part of it (audit N10: "read my note about the flat viewing in apple
+# notes?" looked for a note titled "the flat viewing in apple notes?"): the app or store it is in, a please, the
+# question mark. After "about" the words name a topic, so a leading article is not part of the title either.
+_TITLE_TRAILER_WORDS_RE = re.compile(
+    r"\s(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)$"
+    r"|\s(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)$",
+    re.IGNORECASE,
+)
+_TITLE_TRAILER_PUNCT = "?!.:;'\""
+
+
+def _strip_title_trailer(text: str) -> str:
+    """Drop the trailing store, please and punctuation from a spoken title, one piece at a time.
+
+    One trailing piece per pass, so a long run of spaces or marks costs one scan instead of the
+    backtracking a single repeated pattern needs (CodeQL: inefficient regular expression).
+    """
+    title = str(text or "")
+    while True:
+        end = len(title)
+        while end and (title[end - 1].isspace() or title[end - 1] in _TITLE_TRAILER_PUNCT):
+            end -= 1
+        title = title[:end]
+        trailer = _TITLE_TRAILER_WORDS_RE.search(title)
+        if trailer is None:
+            return title
+        title = title[: trailer.start()]
+
+
+def _spoken_note_title(match: re.Match[str]) -> str | None:
+    title = _strip_title_trailer(match.group("title").strip())
+    if match.group("how").lower() == "about":
+        title = re.sub(r"^(?:the|my|a|an|that|this)\s+", "", title, flags=re.IGNORECASE)
+    return title.strip() or None

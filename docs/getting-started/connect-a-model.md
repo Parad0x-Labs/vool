@@ -4,8 +4,8 @@ description: How to connect an AI model to VOOL — a local model running on you
 
 # Connect a model
 
-VOOL does not ship a model. You choose one, and the choice determines whether a request
-stays on your machine or leaves it.
+VOOL does not ship a model. It picks a local model by default, and you can choose another;
+the choice determines whether a request stays on your machine or leaves it.
 
 ## Local
 

@@ -31,8 +31,9 @@ falls back to deterministic planning mode when no local model is reachable.
 
 ## Cloud burst does nothing
 
-The cloud lane is opt-in and **off** by default. Settings → Providers → add your own key, then
-choose the burst mode. `ask` mode's per-call prompt is not wired yet in this build — see
+The cloud lane is opt-in and **off** by default. Open Settings, choose **API Keys**, and add
+your key under **Your keys**, then choose the burst mode. `ask` mode's per-call prompt is not
+wired yet in this build — see
 [STATUS](STATUS.md).
 
 ## Wallet says a network is inactive or disabled

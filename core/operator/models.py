@@ -35,6 +35,10 @@ class OperatorActionIntent:
     # A save whose words point back at the answer they follow ("yes, save it as a note") carries that
     # answer here. Only the chat lane sets it, from this chat's own log (core.operator.notes).
     note_body: str | None = None
+    # A cancel whose words name no object, only a pointer back at the last thing ("cancel that
+    # one") carries the resolution rule here. The dispatch resolves it against this chat's own
+    # rows; it never stands in for an explicit target (an id, note or title).
+    referent: str | None = None
 
 
 @dataclass

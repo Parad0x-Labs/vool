@@ -220,14 +220,24 @@ def test_reminder_lifecycle_schedule_list_move_cancel(isolated_home):
     assert "could not find a pending reminder" in again.response_text
 
 
-def test_reminder_session_isolation(isolated_home):
+def test_reminder_listing_is_owner_wide_and_never_reaches_another_device(isolated_home):
+    # A reminder is the owner's, not one chat's: listing from any chat shows every pending one,
+    # naming the chat it came from. Private chats and cancel pointers keep their own scope
+    # (tests/test_reminders_listed_everywhere.py), and a turn from another device never lists.
+    from core.request_trust import OWNER_LOCAL_KEY, remote_turn_tool_refusal
+
     sid_a, sid_b = _sid("iso-a"), _sid("iso-b")
     _run_turn("remind me to water the plants in 30 minutes", session_id=sid_a)
     _run_turn("remind me to charge the drone in 45 minutes", session_id=sid_b)
 
     _, listed_b = _run_turn("list my reminders", session_id=sid_b)
     assert "charge the drone" in listed_b.response_text
-    assert "water the plants" not in listed_b.response_text
+    water = [line for line in listed_b.response_text.splitlines() if "water the plants" in line]
+    assert len(water) == 1 and "set in" in water[0]
+    drone = [line for line in listed_b.response_text.splitlines() if "charge the drone" in line]
+    assert len(drone) == 1 and "set in" not in drone[0]
+
+    assert remote_turn_tool_refusal("operator.list_reminders", {OWNER_LOCAL_KEY: False}) == "owner_local_required"
 
     collector = _Collector()
     dispatcher = ReminderDispatcher(

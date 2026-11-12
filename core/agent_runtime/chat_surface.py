@@ -21,7 +21,11 @@ _log = logging.getLogger(__name__)
 
 def smalltalk_model_input(agent: Any, *, user_input: str, phrase: str) -> str:
     normalized_phrase = str(phrase or "").strip().lower()
-    if normalized_phrase in {"what can you do", "help"}:
+    # Only the capability question carries the capability manifest as grounding.
+    # `help` is answered canned-and-short by the fast path (help_short_reply) and,
+    # if a turn ever falls through to the model here, gets the plain companion
+    # prompt below — never the full dump.
+    if normalized_phrase in {"what can you do"}:
         capability_summary = agent._help_capabilities_text().strip()
         return (
             f"{user_input}\n\n"

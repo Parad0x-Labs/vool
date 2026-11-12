@@ -1469,28 +1469,35 @@ def _dispatch_get(
         # the page; both were wrong about the chats. Counts are computed over every chat and sent
         # alongside, keyed by project id with "" for unbound, and archived rows are excluded to
         # match what the sidebar groups.
-        every_session = list_conversation_sessions(limit=1_000_000)
-        counts: dict[str, int] = {}
-        for row in every_session:
-            if row.get("archived"):
-                continue
-            counts[str(row.get("project_id") or "")] = (
-                counts.get(str(row.get("project_id") or ""), 0) + 1
-            )
-        # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
-        # one that would otherwise fall outside the 100-row page.
-        from core.chat_housekeeping import pinned_chat_ids_from
+        # While a restart's store read can still fail, the answer is "starting" and the page
+        # retries -- an empty "no chats" list is only ever sent over a read that happened.
+        try:
+            every_session = list_conversation_sessions(limit=1_000_000)
+            counts: dict[str, int] = {}
+            for row in every_session:
+                if row.get("archived"):
+                    continue
+                counts[str(row.get("project_id") or "")] = (
+                    counts.get(str(row.get("project_id") or ""), 0) + 1
+                )
+            # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
+            # one that would otherwise fall outside the 100-row page.
+            from core.chat_housekeeping import pinned_chat_ids_from
 
-        pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
-        for row in every_session:
-            sid = str(row.get("session_id") or "")
-            row["pinned"] = sid in pinned_at
-            row["pinned_at"] = pinned_at.get(sid, "")
-        page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
+            pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
+            for row in every_session:
+                sid = str(row.get("session_id") or "")
+                row["pinned"] = sid in pinned_at
+                row["pinned_at"] = pinned_at.get(sid, "")
+            page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
+        except Exception:
+            # Fail closed with plain words: no traceback, no error text riding the body.
+            return apply_runtime_headers(json_response(503, {"ok": False, "state": "starting"}), runtime)
         return apply_runtime_headers(
             json_response(
                 200,
                 {
+                    "state": "ready",
                     "sessions": page,
                     "counts": counts,
                     "total": sum(counts.values()),
@@ -3002,6 +3009,20 @@ def _dispatch_get(
             )
             payload["turn_active_other"] = chat_slot_held_by_other(session_id, mine)
         return apply_runtime_headers(json_response(200, payload), runtime)
+
+    if normalized_path == "/api/chat/approvals":
+        # This chat's open approval prompts, so the page can offer Allow / Deny after a reload or
+        # for a turn it did not send itself. Owner-local, like the prompt it rebuilds: answering
+        # one still goes through /api/mode resolve_approval and its exact-action check.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.mode_permission_policy import pending_approvals_for_session
+
+        session_id = str((query.get("session") or [""])[0] or "").strip()
+        approvals = pending_approvals_for_session(session_id) if session_id else []
+        return apply_runtime_headers(
+            json_response(200, {"session_id": session_id, "approvals": approvals}), runtime
+        )
 
     if normalized_path == "/api/bug-report/status":
         # Bug-report draft status (owner-local read of the local store).
@@ -8166,7 +8187,20 @@ def _dispatch_post_inner(
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""
-        inbound_source_context["cancel_turn_id"] = str(body.get("turn_id") or "").strip()[:80]
+        # A caller that sends no turn id (a script, a bridge, a phone plug) still sends ONE turn, and
+        # its execution record, its approval prompts and this door's final honesty check must all name
+        # it the same way, so the request id this door already minted stands in. Measured on 1cbf433:
+        # with no turn id an Auto write recorded itself under the runtime's own turn id, the final
+        # check read the turn by request id, found no write, and the person got a bare HTTP 500 after
+        # the file was written; a Manual prompt stored with no task could never be allowed.
+        _client_turn = str(body.get("turn_id") or "").strip()[:80]
+        _request_turn = str(request_id or "").strip()
+        if not _client_turn and len(_request_turn) > 80:
+            # A request id may be longer than a turn id holds. Cut short, two ids sharing their
+            # first 80 characters would become ONE task: one's grants, cancel and follow-ups
+            # landing on the other. A digest keeps every distinct id distinct.
+            _request_turn = "rq-" + hashlib.sha256(_request_turn.encode("utf-8")).hexdigest()[:40]
+        inbound_source_context["cancel_turn_id"] = _client_turn or _request_turn
         # A question asked while a task runs in this chat is answered beside it, not after it. The
         # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
         # request for one is honoured only while this chat really has a live task (owner-local).
@@ -8237,6 +8271,21 @@ def _dispatch_post_inner(
             if bound_project_id and not requested_workspace
             else ""
         )
+        if not requested_workspace and not bound_project_id and owner_local:
+            # A chat bound to no project that NAMES one ("plan.py in the garden planner project")
+            # is bound to it here, so this turn and every follow-up work in that folder. Measured
+            # on 1cbf433: the turn ran in the default workspace and answered "There is no file at
+            # plan.py". A bound chat is never moved: project folders isolate chats from each other.
+            from core.named_project_binding import bind_chat_to_named_project
+
+            try:
+                named = bind_chat_to_named_project(session_id, user_text)
+            except Exception:
+                logging.getLogger("vool.api").exception("named project binding failed (session=%s)", session_id)
+                named = None
+            if named:
+                bound_project_id = str(named["project_id"])
+                project_workspace = str(named["root"])
         effective_workspace = requested_workspace or project_workspace or default_workspace
         workspace_binding = (
             "explicit"

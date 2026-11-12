@@ -1,13 +1,13 @@
 ---
-description: How to connect OpenRouter to VOOL so one API key reaches many cloud AI models, and what the authorization page does.
+description: How to add an OpenRouter key to VOOL so one API key reaches many cloud AI models, and what VOOL does with it.
 ---
 
 # Connect OpenRouter
 
-OpenRouter provides access to many providers behind one key. VOOL supports connecting an
-OpenRouter account.
+OpenRouter provides access to many providers behind one key. VOOL supports adding an
+OpenRouter key.
 
-## Connect
+## Add the key
 
 {% hint style="warning" %}
 One-click **Connect** / **Disconnect** for OpenRouter is planned for 0.8, not released yet.
@@ -33,6 +33,6 @@ usage may appear in VOOL's public aggregate OpenRouter statistics, but individua
 and identities are not published.
 {% endhint %}
 
-## Disconnect
+## Remove the key
 
 Remove the key under **Settings → API Keys**. Revoke the key in your OpenRouter account as well if you want it dead server-side.

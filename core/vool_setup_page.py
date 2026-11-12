@@ -49,7 +49,7 @@ COPY = {
 
 # Per-step caption: the text alternative for the animated example (the mock itself is aria-hidden).
 CAPTIONS = {
-    "thinking": "The pointer clicks “On my Mac”. A tick appears — nothing you type leaves this computer.",
+    "thinking": "The pointer clicks “On this computer”. A tick appears — nothing you type leaves this computer.",
     "folder": "The pointer clicks “+ Project”, picks the Documents folder, and the folder appears in the list.",
     "permissions": "The pointer opens the list and picks “Ask me first”. It saves right away.",
     "name": "The pointer clicks the box, types a name, and presses Save.",
@@ -296,7 +296,7 @@ const $ = (sel, root) => (root || document).querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const live = (msg) => { const l = $('#live'); if (l) l.textContent = msg; };
 // Catalog lookup: the deterministic i18n bundle resolves the key when the UI locale
-// carries it; the inline English is the honest fallback when no bundle shipped.
+// carries it; the inline English is the fallback when no bundle shipped.
 function T(key, fallback) {
   try {
     if (typeof VOOLT === 'function') { const t = VOOLT(key); if (t && t !== key) return t; }
@@ -307,11 +307,10 @@ const framed = () => { try { return window.top !== window.self; } catch (e) { re
 const reducedMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const fmt = (s, vars) => String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? '' : vars[k]));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-// Not on a Mac, the words that name "this Mac" come from their "_pc" twins ("this computer").
+// These words say "this computer" on every platform; off a Mac the catalog lookups also read
+// the "_pc" twins, which carry the same words.
 const PC = (key) => (ON_MAC ? key : key + '_pc');
-const PC_WORDS = ON_MAC
-  ? { local_title: 'On my Mac', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this Mac.', saved_thinking: 'Saved: VOOL thinks on this Mac.' }
-  : { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' };
+const PC_WORDS = { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' };
 const OFFLINE = () => T('setup.status.offline', 'VOOL isn’t running right now, so nothing was saved. Open VOOL again and try once more.');
 
 /* One visible message slot per step (#stepNote): a newer message replaces the older one instead of
@@ -320,7 +319,10 @@ view.notes = {};
 function paintNote() {
   const n = $('#stepNote'); if (!n) return;
   const step = current();
-  const note = view.summary ? null : (view.offline && !view.snap ? { kind: 'failed', text: OFFLINE() } : view.notes[step.id]);
+  // A failed state read is never "no state": one calm retry line instead of a wizard that reads as
+  // "nothing done yet" -- while VOOL restarts that would read as lost progress. Only a real
+  // failure says it; the shell paint before the first answer stays quiet.
+  const note = view.summary ? null : (!view.snap && view.loadFailed ? { kind: 'failed', text: T('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026') } : view.notes[step.id]);
   n.className = 'status note' + (note ? ' ' + note.kind : '');
   n.textContent = note ? note.text : '';
 }
@@ -384,13 +386,25 @@ async function postJSON(url, body) {
   return { ok: ok, status: r.status, json: j };
 }
 
+/* A failed state read is never "no state": until the FIRST real answer the page holds one calm
+   retry line and pulls again on a growing delay; after a first success a later transient failure
+   keeps the last good snapshot, so progress already made never reads as undone. */
+let setupRetryTimer = null;
+let setupRetryDelayMs = 1000;
+const SETUP_RETRY_MAX_MS = 15000;
+function scheduleSetupRetry() {
+  clearTimeout(setupRetryTimer);
+  setupRetryTimer = setTimeout(refresh, setupRetryDelayMs);
+  setupRetryDelayMs = Math.min(Math.round(setupRetryDelayMs * 1.6), SETUP_RETRY_MAX_MS);
+}
 async function refresh() {
   try {
-    view.snap = await getJSON('/api/setup/state'); view.offline = false;
+    view.snap = await getJSON('/api/setup/state'); view.offline = false; view.loadFailed = false;
     // VOOL answers again: a stored "VOOL isn't running" note is no longer true on any step.
     Object.keys(view.notes).forEach((id) => { const n = view.notes[id]; if (n && n.text === OFFLINE()) view.notes[id] = null; });
+    clearTimeout(setupRetryTimer); setupRetryTimer = null; setupRetryDelayMs = 1000;
   }
-  catch (e) { view.snap = null; view.offline = !!(e && e.offline); }
+  catch (e) { view.offline = !!(e && e.offline); view.loadFailed = true; if (!view.snap) scheduleSetupRetry(); }
   render();
   return view.snap;
 }
@@ -502,7 +516,7 @@ function render() {
     dots.appendChild(li);
   });
   $('#stepTitle').textContent = step.title;
-  // The page's own step model words the sentence for this computer ("this Mac" only on a Mac).
+  // The page's own step model words the sentence for this computer on every platform.
   $('#stepSentence').textContent = (STEPS.find((s) => s.id === step.id) || step).sentence;
   // The thinking example shows a click that succeeds. With no private model here, clicking the private
   // choice cannot succeed, so the example picks "Online" instead of promising it.
@@ -883,7 +897,8 @@ window.__voolSetup = {
 """
 
 
-# Keys whose words name "this Mac". Off a Mac the page uses their "_pc" twin, which says "this computer".
+# Keys that once carried "this Mac" wording. Base key and "_pc" twin now both say "this computer",
+# so the twin swap below is a no-op for the words; it stays so older catalogs resolve identically.
 _MAC_WORDED_KEYS = frozenset({"setup.step.thinking.sentence", "setup.step.name.sentence", "setup.caption.thinking"})
 # The page says "you can change this any time in {later}"; the folder step's shared wording ("the “+ Project”
 # button in the chat sidebar") does not follow "in", so the page names the place instead.

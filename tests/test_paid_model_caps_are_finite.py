@@ -63,6 +63,13 @@ def test_the_ledger_refuses_under_a_non_finite_cap(field, bad):
     assert granted == []
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_a_device_cap_that_is_not_finite_refuses(bad):
+    with pytest.raises(PermissionError, match="device_monthly_spend_cap_exceeded"):
+        reserve_spend(model_call_id="call-d", task_id="task-d", subtask_id="s", model_id="paid/model", maximum_usd=1.0,
+                      limits=_limits(spender="phone:abc", spender_monthly_usd=bad))
+
+
 def test_finite_caps_still_admit_and_bind():
     limits = _limits(daily_usd=2.0)
     reserve_spend(model_call_id="ok-1", task_id="t", subtask_id="s", model_id="paid/model", maximum_usd=1.5, limits=limits)

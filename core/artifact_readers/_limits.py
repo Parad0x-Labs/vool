@@ -118,6 +118,10 @@ SUBPROCESS_MAX_STDERR_BYTES = 2 * 1024 * 1024
 #: bound here would be a claim nothing enforces. Memory-hungry input is bounded instead by the
 #: CPU limit, the wall-clock deadline and the aggregate scratch quota below.
 SUBPROCESS_CPU_SECONDS = 60
+#: Address space one decoder may map, on Linux only (RLIMIT_AS via the shell, which Linux honours;
+#: macOS refuses it, see above). Without it a hostile file can make the decoder commit memory until
+#: the computer runs out (measured 2026-10-29 under bubblewrap: 8 GB committed, exit 0).
+SUBPROCESS_MAX_ADDRESS_SPACE_BYTES = 4 * 1024 * 1024 * 1024
 #: Open files one decoder may hold.
 #:
 #: There is deliberately no child-process ceiling: RLIMIT_NPROC is per-UID, not per-process, so a

@@ -15,9 +15,9 @@ your own.
 
 | | Bundled (ships with VOOL) | Externally installed |
 | --- | --- | --- |
-| Where it lives | Inside the app | Your plugins folder (set in Settings) |
+| Where it lives | Inside the app | Your plugins folder (managed from the plugins window in VOOL, not from Settings) |
 | Updates | With the app | When you update the pack |
-| Can be disabled | Yes — individually | Yes — individually |
+| Can be disabled | No button in the app's windows yet | Yes — from the plugins window |
 | Grants permissions | **No** | **No** |
 
 Two rules hold for both sources:
@@ -31,11 +31,24 @@ Two rules hold for both sources:
 
 ## Finding skills
 
-Skills & Plugins lists VOOL's own skills first. **Browse** comes with 53 ready VOOL
+Skills & Plugins lists VOOL's own skills first. **Browse** comes with 51 ready VOOL
 skills. They are text-only: each one is a set of instructions, bundled with the app, so
 Browse lists them without a lookup online. VOOL skills that use VOOL tools are listed in
 the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you
 enable it.
+
+## Turning a skill on or off
+
+Open **Skills & Plugins**, then **My add-ons**, then **Skills**. Each skill shows **On** or
+**Off** with an **Enable** or **Disable** button. A skill you turn off is not used in any chat
+until you turn it on again.
+
+## Skills for building VOOL
+
+The library also holds the skills the VOOL team builds VOOL with: code review, test runs,
+release checks, pipeline repair and similar. They are not listed in chat or on the Skills page,
+and they do not steer everyday answers. Developers can show and use them by starting VOOL with
+`VOOL_DEVELOPER_SKILLS=1`.
 
 ## Availability states
 
@@ -108,15 +121,5 @@ distribution, broker every internal effect or replace native wallet approval.
 
 ## Writing a skill
 
-A skill is a folder with an instruction file and any files it references:
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Draft in-app (`skill.create` stages it without activating anything), validate it, then
-install to activate — three separate steps on purpose, so authoring is never an implicit
-behaviour change. The catalogue and authoring format are still being finalised for public
-release.
+* To make a skill by asking in chat, see [Make your own skill](make-your-own-skill.md).
+* To write, lint, install and test a SKILL.md file yourself, see [Build and test a skill](build-and-test-a-skill.md).

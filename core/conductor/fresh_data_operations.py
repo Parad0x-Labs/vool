@@ -126,12 +126,13 @@ def _configured_fx_providers(ctx: NodeContext) -> tuple[Any, ...]:
 
 
 def _runtime_retrieval_allowed(ctx: NodeContext) -> bool:
-    from core import policy_engine
-    from core.remote_fetch_policy import remote_fetch_allowed_by_context
+    from core.remote_fetch_policy import effective_web_available, remote_fetch_allowed_by_context
 
+    # Web lookups AND Local Only (`effective_web_available`): the switch alone let a chat's Local
+    # Only turn send the rate provider's name to public DNS before the door refused it.
     return bool(
         remote_fetch_allowed_by_context(dict(ctx.source_context or {}))
-        and policy_engine.allow_web_fallback()
+        and effective_web_available(dict(ctx.source_context or {}))
     )
 
 
@@ -175,10 +176,17 @@ def _fx_run(node: ConductorNode, ctx: NodeContext) -> dict[str, Any]:
             "current-rate verification requires retrieval, which this turn explicitly forbids",
         )
     elif not _runtime_retrieval_allowed(ctx):
+        from core.agent_runtime.fast_live_info_runtime_results import lookup_refusal_reason
+        from core.remote_fetch_policy import effective_web_available
+
         result = unavailable_fx_quote(
             base,
             quote,
-            "current-rate retrieval is not enabled for this turn",
+            # Say what held -- Web lookups, Local Only, or "keep everything on this machine" --
+            # and where it is; an explicit per-turn veto keeps the old words.
+            lookup_refusal_reason(dict(ctx.source_context or {}))
+            if not effective_web_available(dict(ctx.source_context or {}))
+            else "current-rate retrieval is not enabled for this turn",
         )
     else:
         providers = _configured_fx_providers(ctx)

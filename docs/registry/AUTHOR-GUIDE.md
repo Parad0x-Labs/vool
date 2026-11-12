@@ -1,5 +1,7 @@
 # Creating, submitting and installing a VOOL skill
 
+Test your skill on your own VOOL first: [Build and test a skill](../guides/build-and-test-a-skill.md).
+
 An author submits instructions and their licence. Automatic checks and signed admission determine whether those exact package bytes appear in Skill Codex. Public review does not grant runtime permissions, approve spending or authorize installation.
 
 The following commands match `vool-community` and `python -m tools.community_skills`. Use tooling from a verified released VOOL build that supports this protocol. The private website, public community repositories, independent scanners and production trust anchor require separate activation; a proposed URL or a source checkout does not prove they are available.

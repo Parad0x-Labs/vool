@@ -608,7 +608,7 @@ def test_turn_result_publishes_the_terminal_lifecycle_honestly(monkeypatch):
 # ------------------------------------------- the served web lane's page transport (req 8)
 
 
-def test_served_web_lane_page_fetch_runs_the_full_lifecycle(monkeypatch):
+def test_served_web_lane_page_fetch_runs_the_full_lifecycle(monkeypatch, enable_web):
     """Req 8. `http_fetch_text` is the transport the served web lane reads
     pages through, and it opens a RAW urlopen — its fetches appear in no
     account at all. Through the door it inherits the whole lifecycle."""

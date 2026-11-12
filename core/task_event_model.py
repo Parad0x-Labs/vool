@@ -551,6 +551,7 @@ def build_task_event(event: dict[str, Any]) -> dict[str, Any] | None:
                 "task_id": str(request.get("task_id") or "")[:128],
                 "intent": str(request.get("intent") or "")[:160],
                 "action": _clip(str(request.get("action") or "")),
+                "action_plain": _clip(str(request.get("action_plain") or "")),
                 "affected_resources": [
                     _clip(str(item), limit=240)
                     for item in list(request.get("affected_resources") or [])[:12]

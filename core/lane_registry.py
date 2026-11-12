@@ -344,6 +344,7 @@ ROUTE_FAMILIES: dict[str, str] = {
     "conductor plan deadline": "conductor_multi_intent_plan",
     # the R1e demand-owned composite
     "demand_owned_mixed_turn": "demand_owned_mixed_turn",
+    "demand_owned_mixed_turn_ask": "demand_owned_mixed_turn",
     "demand_owned_mixed_turn_failed": "demand_owned_mixed_turn",
     "demand_owned_mixed_turn_degraded": "demand_owned_mixed_turn",
     # the generic model-split planner composite

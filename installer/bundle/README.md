@@ -185,10 +185,14 @@ entry opens `/chat` in the local system browser. `vool --headless --port 11435`
 serves the API only. Models/Ollama remain a separate setup step. Closing the
 browser does not stop the server; stop the launcher process when finished.
 
-`bash ~/.local/share/vool/current/uninstall.sh` removes owned package files and
-preserves runtime profiles. Installation verifies payload checksums, refuses
-unrelated files and switches an active symlink only after staging succeeds.
-Previous installed versions remain available until uninstall.
+`bash ~/.local/share/vool/current/uninstall.sh` stops a running VOOL first and
+removes nothing if it cannot stop it. It removes owned package files and keeps
+your chats and settings in `~/.vool_runtime`, and says so when it finishes; a
+fresh install finds them there again. To delete them too, delete that folder,
+or uninstall with `--remove-data`; it asks once, and `--yes` skips the question for scripts. It
+never deletes anything outside VOOL's own folders. Installation verifies payload
+checksums, refuses unrelated files and switches an active symlink only after
+staging succeeds. Previous installed versions remain available until uninstall.
 
 Updater hook: `vool_install_linux_bundle` in the package's `install.sh`.
 The updater verifies/extracts the tarball, then calls `bash install.sh`.

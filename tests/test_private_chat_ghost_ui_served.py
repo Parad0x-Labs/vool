@@ -25,7 +25,7 @@ def _send(page, text: str) -> None:
 def _wait_answers(page, count: int, timeout_ms: int = 180_000) -> None:
     page.wait_for_function(
         "n => document.querySelectorAll('#log .msg.assistant:not(.pending)').length >= n "
-        "&& !document.querySelector('#send').textContent.includes('Queue')",
+        "&& !document.querySelector('#send').textContent.includes('Wait and send')",
         arg=count,
         timeout=timeout_ms,
     )

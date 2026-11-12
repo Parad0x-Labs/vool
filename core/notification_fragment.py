@@ -99,6 +99,14 @@ var centreUnread = 0;
 var centreBusy = false;
 var centreFlight = null;
 var audioCursor = null;
+// A failed read (the fetch threw, a non-OK answer, an unreadable body) must never render as
+// "Nothing here yet." -- that reads as lost notifications. Until the FIRST real answer the list
+// holds one calm row and the read retries on a growing delay; after a first success a later
+// transient failure keeps the last good rows.
+var centreLoaded = false;   // false until the first real answer rendered the inbox
+var centreRetryTimer = null;   // at most one pending retry; cleared the moment a real answer lands
+var centreRetryDelayMs = 1000;   // grows per failed read, resets after a real answer
+var CENTRE_RETRY_MAX_MS = 15000;
 var CENTRE_POLL_MS = 3000;
 var state = loadState();   // one-time migration of the previous browser inbox
 
@@ -240,16 +248,30 @@ function marketDetails(ev){
     : source + ' (' + NTF('notif.no_source_url', 'no source URL recorded') + ')', true);
   return html;
 }
+// One calm retry while the inbox is unread: pull again on the growing delay (the poll interval
+// keeps its own slower cadence). Only runs before the first real answer.
+function centreReadFailed(){
+  if (centreLoaded) return;   // a later transient failure keeps the last good rows
+  clearTimeout(centreRetryTimer);
+  centreRetryTimer = setTimeout(pollCentre, centreRetryDelayMs);
+  centreRetryDelayMs = Math.min(Math.round(centreRetryDelayMs * 1.6), CENTRE_RETRY_MAX_MS);
+  if (!pop.hidden) paintList();
+}
 function pollCentre(){
   if (centreBusy) return centreFlight;
   centreBusy = true;
   centreFlight = fetch('/api/notifications?after=0&limit=200')
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      if (!j || !j.ok) return;
+    .then(function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return {httpOk: r.ok, body: j}; }); })
+    .then(function(answer){
+      // Render only on a real answer: an HTTP error, a broken body or a body that is not the
+      // inbox is never an empty inbox. Retry instead; after a first success the last good rows
+      // simply stay.
+      if (!answer.httpOk || !answer.body || !answer.body.ok || !Array.isArray(answer.body.items)) { centreReadFailed(); return; }
+      var j = answer.body;
+      clearTimeout(centreRetryTimer); centreRetryTimer = null; centreRetryDelayMs = 1000; centreLoaded = true;
       var previous = audioCursor;
       audioCursor = Number(j.cursor) || 0;
-      centre = Array.isArray(j.items) ? j.items : [];
+      centre = j.items;
       centreUnread = Number(j.unread) || 0;
       // The first read establishes observation, never plays historical unread items.
       if (previous !== null && audioCursor > previous && window.VoolNotificationAudio && window.VoolNotificationAudio.ready()) {
@@ -262,7 +284,7 @@ function pollCentre(){
       paintBadge();
       if (!pop.hidden) paintList();
     })
-    .catch(function(){})
+    .catch(function(){ centreReadFailed(); })
     .then(function(){ centreBusy = false; });
   return centreFlight;
 }
@@ -296,6 +318,11 @@ function centreRow(item, index){
   var acts = '';
   if (snoozable(item)) acts += '<button type="button" data-vc-act="snooze" data-vc="' + index + '">' + NTF('notif.snooze_10', 'Snooze 10 min') + '</button>';
   if (join) acts += '<a href="' + esc(join) + '" target="_blank" rel="noopener noreferrer" data-vc-join="' + index + '">' + NTF('notif.join', 'Join') + '</a>';
+  // A chat waiting for an OK is answered in that chat, where the exact action is shown with Allow
+  // and Deny; the inbox row only takes the person there (it used to offer Dismiss alone).
+  if (p.event_type === 'task_pending_approval' && item.session_id && !item.dismissed_at && typeof window.openSession === 'function') {
+    acts = '<button type="button" data-vc-review="' + index + '">' + NTF('notif.review_approval', 'Review') + '</button>' + acts;
+  }
   acts += '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   var cls = 'vf-item vf-centre' + (item.source_kind === 'calendar_catch_up' ? ' vf-warn' : '') + (item.read_at ? '' : ' vf-unread');
   return '<div class="' + cls + '">' +
@@ -344,6 +371,12 @@ function itemSection(item){
   return ['calendar_alert', 'calendar_catch_up', 'reminder'].indexOf(item.source_kind) >= 0 ? 'needs' : 'updates';
 }
 function visibleItems(){ return centre.filter(function(item){ return itemSection(item) === section; }); }
+// The empty state belongs to a real OK answer alone; an unread inbox holds one calm row instead.
+function emptyListHtml(){
+  return centreLoaded
+    ? '<div class="vf-empty">' + NTF('notif.empty', 'Nothing here yet.') + '</div>'
+    : '<div class="vf-empty">' + NTF('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026') + '</div>';
+}
 function paintList(){
   var tabs = [['needs', NTF('notif.tab.needs', 'Needs you')], ['updates', NTF('notif.tab.updates', 'Updates')], ['offers', NTF('notif.tab.offers', 'Model offers')]];
   var nav = tabs.map(function(tab){
@@ -353,7 +386,7 @@ function paintList(){
   var rows = [];
   centre.forEach(function(item, index){ if (itemSection(item) === section) rows.push(centreRow(item, index)); });
   pop.innerHTML = '<div class="vf-head">' + NTF('notif.pop_title', 'Notifications') + '</div><div class="vf-tabs" role="tablist" aria-label="' + NTF('notif.sections_aria', 'Notification sections') + '">' + nav + '</div>'
-    + (rows.join('') || '<div class="vf-empty">' + NTF('notif.empty', 'Nothing here yet.') + '</div>')
+    + (rows.join('') || emptyListHtml())
     + '<div class="vf-foot"><button type="button" data-vf-discover>' + NTF('notif.discover', 'Discover models') + '</button>'
     + (rows.length ? ' \\u00b7 ' + NTF('notif.foot_note', 'Dismiss hides an inbox item; your alerts and model choice stay unchanged.') : '') + '</div>';
 }
@@ -513,6 +546,8 @@ pop.addEventListener('click', function(ev){
   if (ev.target.closest('[data-vf-discover]')) { pop.hidden = true; if (window.VoolModelRadar) window.VoolModelRadar.open(); return; }
   var join = ev.target.closest('[data-vc-join]');
   if (join) { var joined = centre[Number(join.getAttribute('data-vc-join'))]; if (joined) centreAction(joined, 'open'); return; }
+  var review = ev.target.closest('[data-vc-review]');
+  if (review) { var asking = centre[Number(review.getAttribute('data-vc-review'))]; if (asking) { pop.hidden = true; window.openSession(asking.session_id); } return; }
   var act = ev.target.closest('[data-vc-act]');
   if (act) { ev.stopPropagation(); var item = centre[Number(act.getAttribute('data-vc'))]; if (item) centreAction(item, act.getAttribute('data-vc-act'), 10); return; }
   var row = ev.target.closest('[data-vc-open]');

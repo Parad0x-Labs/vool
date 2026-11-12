@@ -4,12 +4,13 @@ description: Which AI models work with VOOL — local models on your own hardwar
 
 # Supported models
 
-VOOL does not bundle a model. It connects to runtimes and providers you choose.
+VOOL does not bundle a model — the first local model is downloaded the first time you use
+it. It connects to runtimes and providers you choose.
 
 ## Local runtimes
 
-Any runtime exposing an OpenAI-compatible endpoint on localhost is usable. Detection is
-automatic for the common ones.
+Ollama, llama.cpp, vLLM and MLX are detected automatically. Other runtimes exposing an
+OpenAI-compatible endpoint on localhost can be pointed at by hand.
 
 ## Cloud providers
 

@@ -834,13 +834,26 @@ def inspect_unsourced_current_claim(
         from core.bootstrap_context import admitted_capsule_evidence_text
         from core.model_output_guard import unobserved_live_value_claims
 
+        _admitted_text = admitted_capsule_evidence_text(source_context or {})
         kinds = set(unobserved_live_value_claims(
             str(answer or ""), user_turn_text=str(user_turn_text or "")
         ))
         if kinds == {"measured-quantity"} and recorded_state_retention(
-            answer, admitted_capsule_evidence_text(source_context or {}),
+            answer, _admitted_text,
             question_text=user_turn_text,
         ):
+            has_evidence = True
+        elif kinds and not set(unobserved_live_value_claims(
+            str(answer or ""), user_turn_text=str(user_turn_text or ""),
+            evidence_text=_admitted_text,
+        )):
+            # Every live-value figure the reply states is a figure the user stated in the
+            # memory this turn carried (same number AND unit/currency -- the salary,
+            # offer or budget they told VOOL, matched by the guard's own recognizer).
+            # The reply retains recorded facts; it is not an unobserved current reading.
+            # Measured 2026-10-30 (org-credit job 3, fresh memory run on 411efdb2):
+            # salary answers were replaced by the live-reading notice through exactly
+            # this verdict. Kinds with no memory support keep the full guard.
             has_evidence = True
 
     # A memory answer whose every value claim is stated in, or derived from

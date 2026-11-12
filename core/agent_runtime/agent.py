@@ -3649,6 +3649,53 @@ class VoolAgent(
                     "reason": "demand_owned_mixed_turn_degraded",
                 }
 
+        if outcomes and all(outcome.needs_approval for outcome in outcomes):
+            # A turn whose every unit ended WAITING is an ask, not a failed turn. No unit
+            # answered and none errored: each stopped at an approval boundary and asked,
+            # which is the same truth of the units the branch above stamps for a mixed
+            # turn with answers ('this will delete ... reply to confirm') — the gate that
+            # publishes that route is dead code for this shape only because an asking
+            # sub-turn is never `ok`. Measured on the merged 0.7.7 head: 'yes, delete my
+            # apple note "Tax receipts 2025", cancel that' splits into a delete ask and a
+            # pointer-cancel ask, both waited, and the turn ended "I could not answer any
+            # part of this message" — an ask both children made, misread as a failure.
+            # `merged` already carries every pending unit's request and ask (the
+            # merge-honesty check above guarantees it names each non-ok outcome).
+            _ask_reason = "demand_owned_mixed_turn_ask"
+            _ask_prefix = "deterministic"
+            try:
+                if isinstance(source_context, dict):
+                    from core.turn_contract import TURN_DEMAND_EXECUTORS_KEY
+
+                    _stamped_routes = [
+                        str((row or {}).get("route_reason") or "")
+                        for row in (source_context.get(TURN_DEMAND_EXECUTORS_KEY) or {}).values()
+                        if isinstance(row, dict)
+                    ]
+                    _operator_routes = [r for r in _stamped_routes if r.startswith("operator_action_")]
+                    if _operator_routes and all(r.endswith("approval_required") for r in _operator_routes):
+                        _ask_reason = _operator_routes[0]
+                        _ask_prefix = "action"
+            except Exception:
+                pass
+            try:
+                return self._fast_path_result(
+                    session_id=session_id,
+                    user_input=effective_input,
+                    response=merged.strip() or _degraded_unit_synthesis(outcomes),
+                    confidence=0.86,
+                    source_context=source_context,
+                    reason=_ask_reason,
+                    route_prefix=_ask_prefix,
+                )
+            except Exception:
+                return {
+                    "ok": True,
+                    "response": merged.strip() or _degraded_unit_synthesis(outcomes),
+                    "confidence": 0.5,
+                    "reason": "demand_owned_mixed_turn_ask",
+                }
+
         # Every unit failed. ONE deterministic typed failure summary naming every
         # unmet unit; the external request is not retried through another lane.
         summary = _unmet_unit_summary(tasks, outcomes)
@@ -3911,6 +3958,33 @@ class VoolAgent(
                 return None
         except Exception:
             pass
+
+        # Every subtask of this lane is a live lookup, so it answers to the Web lookups switch
+        # before any plan is built. Measured on 1cbf433 with the switch off: "whats the weather in
+        # London today" and "what is the bitcoin price right now" were fetched live, because only
+        # the fast path behind this lane asked the switch. A refusal here keeps the true answer
+        # on this lane; falling through would hand the model a live question with no data. Under
+        # Local Only the lane still attempts, so the door refuses there and records it: that
+        # record is what the first-run denial demo completes from.
+        from core.remote_fetch_policy import effective_web_available, local_only_active
+
+        if not effective_web_available(source_context) and not local_only_active(source_context):
+            from core.agent_runtime.fast_live_info_runtime_results import (
+                asks_only_for_general_knowledge,
+                disabled_live_info_result,
+            )
+
+            # "Explain how the bitcoin price is determined" classifies LIVE_DATA too, but asks for
+            # no reading: with nothing to look up it is the model's to answer, offline.
+            if asks_only_for_general_knowledge(str(raw_input or effective_input)):
+                return None
+
+            return disabled_live_info_result(
+                self,
+                session_id=session_id,
+                user_input=raw_input,
+                source_context=source_context,
+            )
 
         # Checkpoint 6.5 fail-closed invariant, scoped to MULTIPART LIVE_DATA turns specifically.
         # Found live: "Market data only for Bitcoin and gold." (two assets) classified LIVE_DATA

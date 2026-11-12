@@ -368,13 +368,13 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         ),
         RuntimeToolContract(
             intent="machine.find_folder",
-            description="Search local drives for folders whose name matches a query. Case-insensitive, bounded depth/time, skips system folders, never follows links. Read-only.",
+            description="Search the home folder (and plugged-in drives when drives is true) for folders whose name matches a query. Case-insensitive, bounded depth/time, skips system folders, never follows links. Read-only.",
             tool_surface="machine",
             capability_id="filesystem.read",
             capability_claim="inspect grounded host specs, drive space, recent system errors, and running processes on this machine",
             supported=read_enabled,
             unsupported_reason="Local machine inspection is disabled on this runtime.",
-            input_schema={"name": "string"},
+            input_schema={"name": "string", "drives": "boolean optional"},
             output_schema={"matches": "list[string]"},
             side_effect_class="read_only",
             approval_requirement="none",
@@ -1410,7 +1410,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         ),
         RuntimeToolContract(
             intent="web.fetch",
-            description="Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status.",
+            description="Fetch a public web page over HTTP(S) and return bounded text plus the fetch status.",
             tool_surface="web",
             capability_id="web.fetch",
             capability_claim="fetch public web pages when web access is enabled and report policy, network, or page barriers honestly",
@@ -3044,7 +3044,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="read one Apple Notes note",
             supported=True,
             unsupported_reason="",
-            input_schema={"title": "string"},
+            input_schema={"title": "string", "folder": "string (optional)", "account": "string (optional)"},
             output_schema={"body": "string", "note": "note_row"},
             side_effect_class="read_only",
             approval_requirement="none",
@@ -3149,6 +3149,57 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             error_contract="returns_structured_error_result",
             handler="external_lane",
             permission_actions=("create_files",),
+        ),
+        RuntimeToolContract(
+            intent="operator.schedule_reminder",
+            description=(
+                "Schedule one of this runtime's own reminders from the request as written. The words go "
+                "through the same when-reading and subject parsing as the chat lane, and a due time in "
+                "the past is refused."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="schedule this runtime's own reminders from the owner's words",
+            supported=True,
+            unsupported_reason="",
+            input_schema={"text": "string (the request as written)"},
+            output_schema={"reminder_id": "string", "due_at_utc": "string"},
+            # In-app, local state: a reminder row in this runtime's own store (the same class as
+            # contacts.save). What may be written is decided by the runtime (request provenance,
+            # the past-time refusal), never by the model alone.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("create_files",),
+        ),
+        RuntimeToolContract(
+            intent="operator.cancel_reminder",
+            description=(
+                "Cancel one of this runtime's own pending reminders from the request as written. The "
+                "reminder it means is resolved exactly as the chat lane resolves it: a reminder id in "
+                "the words, or the one pending reminder; anything else is an unambiguous refusal."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="cancel this runtime's own pending reminders",
+            supported=True,
+            unsupported_reason="",
+            input_schema={"text": "string (the request as written)"},
+            output_schema={"reminder_id": "string", "cancelled": "boolean"},
+            # In-app, local state, same class as schedule_reminder: removing a row of this
+            # runtime's own store, never an outward send.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("delete_files",),
         ),
         RuntimeToolContract(
             intent="operator.propose_calendar_event",
@@ -3293,6 +3344,51 @@ def _code_task_contracts(*, write_enabled: bool) -> list[RuntimeToolContract]:
 
 def runtime_tool_contract_map() -> dict[str, RuntimeToolContract]:
     return {contract.intent: contract for contract in runtime_tool_contracts()}
+
+
+# ---- The plain-words name of what a tool does, for approval asks --------------------------------
+#
+# An approval ask a person reads must never lead with a raw dotted tool id
+# ("machine.ensure_directory needs your approval...") and never with the tool's developer
+# contract description ("Create a directory inside a safe local directory...", "Run one
+# bounded shell command..."). The words a person reads come from the ONE keyed phrase table
+# in core/approval_action_phrases.py (approval.action.<intent> in the catalogs, translated
+# in every locale), covering every intent that can REQUIRE APPROVAL; a tool without a keyed
+# phrase (a plugin, an MCP tool, anything unknown) returns "" so every caller shows its one
+# general fallback sentence -- by construction, never by enumerating third-party names, and
+# never the tool's id.
+
+_GENERAL_ACTION_LABEL = "Run this request"
+
+
+def plain_action_phrase(intent: str) -> str:
+    """What the tool DOES, in plain words a person reads: the keyed everyday phrase.
+
+    Empty when the intent has no keyed phrase: the caller then uses its general fallback, so
+    a third-party tool can neither leak its dotted id into a sentence nor be given a name
+    nobody wrote for it. The contract's developer description is never read for words a
+    person sees.
+    """
+    from core.approval_action_phrases import approval_action_phrase
+
+    return approval_action_phrase(intent)
+
+
+def plain_approval_ask(intent: str) -> str:
+    """The leading sentences of the approval ask, in English source words.
+
+    The live ask is minted per page language (and with the target named) by
+    localized_approval_ask in core/approval_action_phrases.py.
+    """
+    from core.approval_action_phrases import localized_approval_ask
+
+    return localized_approval_ask(intent, "en")
+
+
+def plain_action_label(intent: str) -> str:
+    """The approval card's action line: the plain action, or a general phrase for a tool
+    without a builtin contract. Never the tool's dotted id."""
+    return plain_action_phrase(intent) or _GENERAL_ACTION_LABEL
 
 
 _X_UNSUPPORTED = "X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on."

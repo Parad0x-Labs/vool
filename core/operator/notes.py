@@ -382,6 +382,9 @@ def parse_note_request(text: str) -> dict[str, Any]:
             # A clock time's colon ("at 10:30") is part of the words, never the separator.
             or re.search(r"\b(?:note|down)\b(?:[^:\n\"“]|(?<=\d):(?=\d)){0,40}?(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
             or re.search(r"\bnote\s+that\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # "save this: buy zucchini", "save this one for me: ..." (the parser's colon-save form).
+            or re.search(r"^\W*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:save|keep|jot\s+down)\s+(?:this|that)(?:\s+one)?"
+                         r"(?:\s+for\s+me)?\s*(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
             # "take a note to buy milk": the words are the thing to do, not a person or a place.
             or re.search(
                 r"\bnote\s+to\s+(?!(?:my|our|the|a|an|his|her|their|your|self|myself|me|him|them|us)\b)([a-z]+\b.*)$",
@@ -490,6 +493,13 @@ def with_the_answer_it_follows(
     return replace(intent, note_body=body, target_label=title or None)
 
 
+def _title_from_body(body: str, *, limit: int = 60) -> str:
+    first = " ".join(str(body or "").strip().splitlines()[0].split()) if str(body or "").strip() else ""
+    if len(first) > limit:
+        first = first[:limit].rsplit(" ", 1)[0] or first[:limit]
+    return first.strip(" .,;:!?") or "Note"
+
+
 def handle_save_note(
     intent: OperatorActionIntent,
     *,
@@ -511,7 +521,9 @@ def handle_save_note(
         body = str(intent.note_body).strip()
         title = title or str(intent.target_label or "").strip()
     if not title and body:
-        title = "Note"
+        # An untitled note is named by its own opening words, so the receipt says what was kept
+        # ("save this: buy zucchini" -> "Note saved: 'buy zucchini'"), never a bare "Note".
+        title = _title_from_body(body)
     if not body:
         return OperatorActionResult(
             ok=False,
@@ -657,8 +669,40 @@ def named_action_reference(text: str) -> tuple[str, str] | None:
 
 
 def find_notes_query(intent: OperatorActionIntent) -> str:
-    """What a notes search looks for: the parsed query, or the request with its leading 'find my notes about' removed."""
-    return intent.target_label or re.sub(r"^\s*(?:find|search|show|list)\s+(?:my\s+)?notes?\s+(?:about|on|for|containing|matching|with)?\s*", "", intent.raw_text, flags=re.IGNORECASE).strip()
+    """What a notes search looks for: the parsed query, or the request with its leading 'find my notes about' removed.
+
+    A request that names no terms ("show me my notes", "can you list all my notes?") lists every note: it used to
+    search for its own words (audit N10)."""
+    if intent.target_label:
+        return intent.target_label
+    rest = re.sub(
+        r"^\W*(?:(?:please|pls|can\s+you|could\s+you|would\s+you|will\s+you)\s+)*"
+        r"(?:find|search(?:\s+through)?|show|list|see|display|open|read)\s+(?:me\s+)?(?:all\s+(?:of\s+)?)?(?:my\s+|the\s+)?"
+        r"(?:saved\s+)?notes?\b\s*(?:(?:about|on|for|containing|matching|with)\b\s*)?",
+        "", str(intent.raw_text or ""), flags=re.IGNORECASE,
+    )
+    return _strip_query_filler(rest).strip()
+
+
+_QUERY_FILLER_RE = re.compile(r"(?:^|\s)(?:please|pls|thanks|for\s+me|now)$", re.IGNORECASE)
+
+
+def _strip_query_filler(text: str) -> str:
+    """Drop trailing please / thanks / for me / now and end marks, one piece per pass.
+
+    A single repeated pattern for this backtracks exponentially on a long run of spaces (CodeQL:
+    inefficient regular expression); one piece per pass is linear in the text.
+    """
+    rest = str(text or "")
+    while True:
+        end = len(rest)
+        while end and (rest[end - 1].isspace() or rest[end - 1] in "?!."):
+            end -= 1
+        rest = rest[:end]
+        filler = _QUERY_FILLER_RE.search(rest)
+        if filler is None:
+            return rest
+        rest = rest[: filler.start()]
 
 
 def handle_find_notes(

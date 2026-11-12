@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [build, implement, feature, add capability, new function]
 allowed-tools: [workspace.symbol_search, workspace.read_file, workspace.write_file, workspace.ensure_directory, workspace.apply_unified_diff, workspace.run_tests, workspace.run_lint]
 capabilities: [workspace.read, workspace.write, workspace.validate]

@@ -22,6 +22,7 @@ walking the tree under both names is why these searches took the better part of 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -110,8 +111,10 @@ def test_one_directory_is_reported_once_even_when_reachable_by_two_paths(tmp_pat
     monkeypatch.setattr(
         md, "disk_usage", lambda *a, **k: [{"mount": str(real)}, {"mount": str(alias)}]
     )
+    # Home is one name for the tree and a plugged-in drive the other; drives are searched on request.
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: real))
 
-    result = _machine_find_folder({"name": "needle-dir"})
+    result = _machine_find_folder({"name": "needle-dir", "drives": True})
     matches = (result.details or {}).get("matches") or []
     assert len(matches) == 1, (
         f"one directory reachable by two paths was reported {len(matches)} times: {matches}. "

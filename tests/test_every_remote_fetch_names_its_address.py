@@ -164,7 +164,7 @@ def test_a_forbidden_turn_never_reaches_the_searxng_endpoint(socket_recorder) ->
     assert socket_recorder == [], "a self-hosted endpoint must not be a way around the turn's rules"
 
 
-def test_an_allowed_turn_still_searches_and_is_recorded(socket_recorder) -> None:
+def test_an_allowed_turn_still_searches_and_is_recorded(socket_recorder, enable_web) -> None:
     with remote_fetch_policy_scope(ALLOWED):
         results = _call_web_search()
 
@@ -180,12 +180,12 @@ def test_an_allowed_turn_still_searches_and_is_recorded(socket_recorder) -> None
 # ----------------------------------------------------------------------------- sabotage
 
 
-def test_sabotage_giving_the_client_its_own_socket_restores_the_bypass(monkeypatch, socket_recorder) -> None:
+def test_sabotage_giving_the_client_its_own_socket_restores_the_bypass(monkeypatch, socket_recorder, enable_web) -> None:
     """Revert `searxng_client` to opening its own socket and the forbidden turn reaches the
     endpoint again. This is the whole defect, so it must be the thing that goes red."""
     import tools.web.searxng_client as client_module
 
-    def private_socket(request, *, timeout):
+    def private_socket(request, *, timeout, **_door_flags):
         return urllib.request.urlopen(request, timeout=timeout)
 
     monkeypatch.setattr(client_module, "open_remote", private_socket)

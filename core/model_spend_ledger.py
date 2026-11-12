@@ -140,7 +140,7 @@ def reserve_spend(
             spender_total = _committed_and_reserved(
                 conn, "spender = ? AND created_ts >= ?", (spender, month_start)
             ) if spender else 0.0
-            if not spender or spender_cap <= 0 or spender_total + amount > spender_cap + 1e-9:
+            if not spender or not _finite(spender_cap) or spender_cap <= 0 or spender_total + amount > spender_cap + 1e-9:
                 raise PermissionError("device_monthly_spend_cap_exceeded")
         # The call-count cap is checked HERE, inside the BEGIN IMMEDIATE that reserves the
         # dollars, and the row inserted below is the increment. Previously the count was read

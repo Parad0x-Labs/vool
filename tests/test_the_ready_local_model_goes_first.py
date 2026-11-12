@@ -155,3 +155,36 @@ def test_a_remote_lane_is_never_checked_on_boot() -> None:
     ran: list[str] = []
     ready_local_models([remote], status_of=lambda m: {"state": "unknown"}, run_check=lambda m: ran.append(m) or {})
     assert ran == []
+
+
+# --- the turn plan, and what VOOL says it runs, name the ready model ------------------------------
+
+
+def test_auto_ranking_puts_a_ready_local_model_before_an_unready_one(monkeypatch) -> None:
+    from core import provider_routing
+
+    ranked = [_manifest("qwen2.5:7b"), _manifest("qwen3:8b")]
+    monkeypatch.setattr(authorship, "author_certification", _ready_only("qwen3:8b"))
+    ordered = provider_routing._ready_local_models_first(ranked, certified=provider_routing._cached_ready)
+    assert [m.model_name for m in ordered] == ["qwen3:8b", "qwen2.5:7b"]
+    monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    ordered = provider_routing._ready_local_models_first(ranked, certified=provider_routing._cached_ready)
+    assert [m.model_name for m in ordered] == ["qwen2.5:7b", "qwen3:8b"]
+
+
+def test_what_vool_says_it_runs_is_the_ready_model(monkeypatch) -> None:
+    from core.local_model_readiness import model_in_use
+
+    monkeypatch.setattr(
+        "core.model_registry.ModelRegistry.list_manifests",
+        lambda self, enabled_only=False, limit=256: [_manifest(name) for name in INSTALLED],
+    )
+    monkeypatch.setattr(authorship, "author_certification", _ready_only("qwen3:8b"))
+    assert model_in_use("qwen2.5:7b") == "qwen3:8b"
+    assert model_in_use("qwen3:8b") == "qwen3:8b"
+    monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    monkeypatch.setattr("core.local_model_readiness._model_being_checked", lambda: "")
+    assert model_in_use("qwen2.5:7b") == "qwen2.5:7b"
+    # While boot is making qwen3:8b ready, that is the model named, not the boot guess.
+    monkeypatch.setattr("core.local_model_readiness._model_being_checked", lambda: "qwen3:8b")
+    assert model_in_use("qwen2.5:7b") == "qwen3:8b"

@@ -425,7 +425,7 @@ def _search_brave(search_url: str, key: str):
         return search(cfg, "example", key, max_hits=3, timeout_s=5.0)
 
 
-def test_search_client_refuses_a_redirect_to_another_origin_without_forwarding_the_key(vault_home):
+def test_search_client_refuses_a_redirect_to_another_origin_without_forwarding_the_key(vault_home, enable_web):
     from tools.web.search_api_client import SearchApiError
 
     with FakeProviderServer(_brave(BRAVE_KEY)) as elsewhere:
@@ -436,7 +436,7 @@ def test_search_client_refuses_a_redirect_to_another_origin_without_forwarding_t
         assert not _credential_arrived(elsewhere), "the search key followed a redirect to another origin"
 
 
-def test_search_client_asks_a_same_origin_redirect_target_again_with_the_key(vault_home):
+def test_search_client_asks_a_same_origin_redirect_target_again_with_the_key(vault_home, enable_web):
     want = _sha(BRAVE_KEY)
 
     def respond(record):
@@ -453,7 +453,7 @@ def test_search_client_asks_a_same_origin_redirect_target_again_with_the_key(vau
     assert ["x-subscription-token" in r["header_names"] for r in brave.requests] == [True, False, True]
 
 
-def test_search_client_reads_the_token_invalid_code_as_a_rejected_key(vault_home):
+def test_search_client_reads_the_token_invalid_code_as_a_rejected_key(vault_home, enable_web):
     from tools.web.search_api_client import SearchApiError
 
     with FakeProviderServer([(422, brave_error(422, "SUBSCRIPTION_TOKEN_INVALID"))]) as brave:
@@ -462,7 +462,7 @@ def test_search_client_reads_the_token_invalid_code_as_a_rejected_key(vault_home
     assert raised.value.reason == "unauthorized"
 
 
-def test_search_client_keeps_any_other_422_an_http_error(vault_home):
+def test_search_client_keeps_any_other_422_an_http_error(vault_home, enable_web):
     from tools.web.search_api_client import SearchApiError
 
     with FakeProviderServer([(422, brave_error(422, "VALIDATION"))]) as brave:

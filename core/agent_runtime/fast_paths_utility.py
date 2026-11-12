@@ -399,6 +399,32 @@ def build_greeting_reply(phrase: str, *, addr: str = "", want_tail: bool = True)
     return opener
 
 
+def help_short_reply(agent: Any) -> str:
+    # `help` is the front door for someone who just opened the app: a short, plain,
+    # grouped pointer to real things to type and real Settings pages. The full
+    # capability manifest stays one ask away on "what can you do"; this reply never
+    # carries it. Every typed example below is a phrasing the runtime really parses,
+    # and every page named is a real Settings card or row (core/vool_settings_page.py).
+    lines = [
+        "The short version:",
+        'Chat and files: ask in your own words — "read notes.txt", "make a file called plan.md with …", or just talk it through.',
+        'Web: say "look up …" for fresh facts — needs Web lookups on, on the Privacy & Permissions page in Settings.',
+        'Reminders and notes: "remind me to … at 9am" sets a reminder; "take a note: …" saves one.',
+        'Cloud models (your own key): say "cloud ask" or "cloud auto" to use them, "cloud status" to check; the key goes on the API Keys page in Settings.',
+        "Settings: General is how I talk, Models & Providers is which brain answers, Notifications is reminders and quiet hours.",
+    ]
+    try:
+        from core.wallet.config import wallet_enabled
+
+        wallet_on = bool(wallet_enabled())
+    except Exception:
+        wallet_on = False
+    if wallet_on:
+        lines.append("Crypto: the wallet is switched on — see the Crypto page in Settings.")
+    lines.append("Ask me in your own words; you don't need exact commands.")
+    return "\n".join(lines)
+
+
 def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: str, session_id: str) -> str | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
@@ -442,7 +468,7 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             repeat_count = note_smalltalk_turn(session_id, key="status_check")
             if repeat_count >= 2:
                 return "Still stable. Memory online, mesh ready. Give me the task."
-        msg = "Running stable. Memory online, mesh ready."
+        msg = "Running fine, everything ready."
         if with_joke:
             msg += " Caffeine level: synthetic but dangerous."
         if character:
@@ -468,10 +494,11 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
                 "- keep actions explicit: I report what I did, what failed, and what needs approval",
             ]
         )
+    if phrase == "help":
+        return help_short_reply(agent)
     if phrase in {
         "what can you do",
         "what can we do",
-        "help",
     }:
         return agent._help_capabilities_text()
     if phrase in {"kill me lol", "omfg just kill me", "omfg just kill me lol", "kms lol"}:
@@ -493,16 +520,19 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             return compact_capabilities_text(agent)
         return agent._help_capabilities_text()
     # "what can we/you/i do|build" wrapped in filler ("no idea tbh what can we", "so what can you do")
-    # — a SHORT friendly answer, not the full capability manifest (that's `help`), and never the
-    # slow model.
-    if re.search(r"\bwhat can (?:we|you|i|u)\b", phrase) or phrase in {"what now", "now what", "what next"}:
+    # — a SHORT friendly answer, not the full capability manifest (that's `what can you do`), and never the
+    # slow model. "what can you tell me about the cat_on_sofa picture" asks about a THING, not about
+    # VOOL (re-audit 2026-10-29, mailweb:M01), so a tell/say/find/see verb stands this down.
+    if re.search(
+        r"\bwhat can (?:we|you|i|u)\b(?!\s+(?:tell|say|find|see|show|figure|work|make\s+of|learn)\b)", phrase
+    ) or phrase in {"what now", "now what", "what next"}:
         return (
             "Plenty. The short version:\n"
-            "- answer questions and keep our context, locally and free on your machine\n"
-            "- read, search, and edit files in your workspace, and run bounded commands\n"
+            "- answer questions and remember our chat, locally and free on your machine\n"
+            "- read, search, and edit files in your folders\n"
             "- look things up on the web and turn pages into summaries\n"
-            "- bring your own cloud key for bigger models when you want (`cloud on`), off by default\n"
-            "Say `help` for the full list — or just tell me the task and I'll go."
+            "- bring your own cloud key for bigger models when you want (`cloud auto`), off by default\n"
+            "Say `what can you do` for the full list — or just tell me the task and I'll go."
         )
     # Bare confusion / filler — a plain human nudge instead of waking the local model, which
     # over-thinks a one-word message on modest hardware and can time out into a non-answer.
@@ -772,7 +802,7 @@ def _read_attached_file(item: dict[str, Any], read_request: dict[str, object]) -
         if (start_line - 1 + len(chunk)) < total_lines
         else ("\n\n…the attachment was longer than the runtime delivers; only its first part is shown." if item.get("truncated") else "")
     )
-    response_text = (rendered_body if verbatim else f"Attached file `{name}` ({size} bytes):\n" + rendered_body) + tail_note
+    response_text = (rendered_body if verbatim else f"Attached file {name} ({size} bytes):\n" + rendered_body) + tail_note
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -813,7 +843,7 @@ def _record_attachment_fast_read(agent: Any, source_context: dict[str, object] |
     agent._emit_runtime_event(
         source_context,
         event_type="attachment_read",
-        message=f"{name}: read by the file lane, from the attachment",
+        message=f"{name}: read from the attachment",
         attachment_id=attachment_id,
         attachment_name=name,
         kind="text",
@@ -2054,7 +2084,13 @@ _ASKS_DATE_RE = re.compile(
     # requirements below keep "wat day is the meeting" out.
     r"|(?:what|wat)\s+day\s+is\s+(?:it|today|this)\b"
     r"|(?:what|wat)(?:'?s| is)?\s+(?:the\s+)?day\s+today\b"
-    r"|\bday\s+today\b"
+    # The bare "day today" arm: a possessive or determiner directly before "day" makes it an
+    # OBJECT the sentence works on, not the clock's subject -- "organise my day today from my
+    # calendar, reminders and to-dos" was claimed here and answered "Today is Tuesday, ...",
+    # and the day-planning turn never reached the model. "what's the day today" has its own
+    # arm above; this one keeps only fragment-shaped asks ("day today?").
+    r"|(?<!\bmy\s)(?<!\byour\s)(?<!\bhis\s)(?<!\bher\s)(?<!\bits\s)(?<!\bour\s)(?<!\btheir\s)"
+    r"(?<!\bthe\s)(?<!\ba\s)(?<!\ban\s)(?<!\bthis\s)(?<!\bthat\s)\bday\s+today\b"
     r"|tell\s+me\s+(?:the\s+|today'?s\s+)*date\b"
     r"|(?:what|wat)\s+is\s+today\b"
     # "which day of the week are we on right now?" reached the model instead of the clock, and it

@@ -479,3 +479,25 @@ def set_from_description(text: str, name: str = "") -> CreativeSet:
         aspect=fields.get("aspect", "") or "16:9", mood=fields.get("mood", ""),
         story=fields.get("story", ""), negative=fields.get("negative", ""),
     )
+
+
+# "save this as a set called night owl: a tired detective in a trench coat, rainy noir city" names a creative set to
+# keep (audit N6 settings:E10, answered "Locked in. I'll remember that." by the memory lane). The noun "set" must
+# follow the storing verb's object slot and carry a name, so "set a timer called tea" or "save my settings" never match.
+_SET_SAVE_REQUEST_RE = re.compile(
+    r"^\W*(?:(?:please|pls|can\s+you|could\s+you|ok(?:ay)?|now)\W+)*(?:save|store|keep|make|create)\s+"
+    r"(?:(?:this|that|it|these|those)\s+)?(?:as\s+)?(?:(?:a|an|my|the|new)\s+)*(?:creative\s+|character\s+|story\s+)?"
+    r"set\s+(?:called|named|titled)\s+[\"'“]?(?P<name>[^:\"'”\n]{1,40}?)[\"'”]?\s*(?:(?<!\d):(?!\d)\s*(?P<desc>.+))?$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def set_save_request(text: str) -> tuple[str, str] | None:
+    """(name, description) when the text asks to save a named creative set; description is "" when none is given."""
+    match = _SET_SAVE_REQUEST_RE.match(str(text or "").strip())
+    if match is None:
+        return None
+    name = match.group("name").strip(" .,!?")
+    if not name:
+        return None
+    return name, (match.group("desc") or "").strip()

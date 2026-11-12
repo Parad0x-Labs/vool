@@ -224,7 +224,16 @@ async function open_(name, record){
   spin.style.display="inline-block"; setNav(); syncStar();
   try{
     const resp = await voolFetch("/api/web0/resolve?name=" + encodeURIComponent(name));
-    const data = await resp.json();
+    const data = await resp.json().catch(() => null);   // a body that will not parse is a failed load too
+    // A failed load must not read as "this site does not exist". Only the server's own not-found
+    // answer (404) or a real OK answer may say anything about the name; every other error status
+    // is a reach failure and gets the retry wording, same as a fetch that throws.
+    if(!data || (!resp.ok && resp.status !== 404)){
+      frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
+      ph.querySelector("h2").textContent = "Couldn't reach " + name + ".null";
+      ph.querySelector(".hint").textContent = "VOOL or the internet connection did not answer. Check that VOOL is running and you are online, then press Go again.";
+      return;
+    }
     if(!data.ok){
       frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
       ph.querySelector("h2").textContent = "Couldn't open " + name + ".null";

@@ -76,6 +76,13 @@ var seats = [];
 var pollTimer = null;
 var activeRun = null;
 var modelIds = null;
+// The past-runs read: a failed load (error status, broken body, fetch that throws) is not "no
+// runs". Until the FIRST real answer the area says so in one calm line and retries on a growing
+// delay; after a first success a later failure keeps the last list.
+var runsLoaded = false;        // false until the first real /api/council/runs answer renders
+var runsRetryTimer = null;     // at most one pending retry; cleared the moment a real answer lands
+var runsRetryDelayMs = 1000;   // grows per failure, resets to 1 s after a real answer
+var RUNS_RETRY_MAX_MS = 15000;
 
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
@@ -303,11 +310,25 @@ function poll(root){
     .catch(function(){ pollTimer = setTimeout(function(){ poll(root); }, 5000); });
 }
 
+function scheduleRunsRetry(root){
+  clearTimeout(runsRetryTimer);
+  runsRetryTimer = setTimeout(function(){ loadRuns(root); }, runsRetryDelayMs);
+  runsRetryDelayMs = Math.min(Math.round(runsRetryDelayMs * 1.6), RUNS_RETRY_MAX_MS);
+}
 function loadRuns(root){
-  fetch('/api/council/runs').then(function(r){ return r.json(); }).then(function(data){
+  fetch('/api/council/runs').then(function(r){
+    return r.json().catch(function(){ return null; }).then(function(j){ return { ok: r.ok, j: j }; });
+  }).then(function(res){
     var el = root.querySelector('#vccRuns');
-    if (!el || !data.ok) return;
-    var rows = (data.runs || []).slice(0, 5);
+    if (!el) return;
+    if (!res.ok || !res.j || res.j.ok !== true){
+      if (!runsLoaded) el.textContent = 'Can\\u2019t reach VOOL right now, trying again\\u2026';
+      scheduleRunsRetry(root);
+      return;
+    }
+    runsLoaded = true;
+    clearTimeout(runsRetryTimer); runsRetryTimer = null; runsRetryDelayMs = 1000;
+    var rows = (res.j.runs || []).slice(0, 5);
     if (!rows.length) { el.textContent = ''; return; }
     el.innerHTML = '<b style="font-size:9px;letter-spacing:.1em;color:var(--muted,#9aa1af)">PAST RUNS</b> ' +
       rows.map(function(row){
@@ -317,7 +338,11 @@ function loadRuns(root){
     el.querySelectorAll('button[data-run]').forEach(function(btn){
       btn.addEventListener('click', function(){ activeRun = btn.getAttribute('data-run'); poll(root); });
     });
-  }).catch(function(){});
+  }).catch(function(){
+    var el = root.querySelector('#vccRuns');
+    if (el && !runsLoaded) el.textContent = 'Can\\u2019t reach VOOL right now, trying again\\u2026';
+    scheduleRunsRetry(root);
+  });
 }
 
 function setConveneEnabled(root, enabled){

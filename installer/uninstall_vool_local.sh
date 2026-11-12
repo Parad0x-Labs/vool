@@ -14,6 +14,7 @@ LAUNCH_AGENT_PATH="${VOOL_LAUNCH_AGENT_PATH:-$HOME/Library/LaunchAgents/ai.vool.
 OLLAMA_MODELS_DIR="${OLLAMA_MODELS:-$HOME/.ollama/models}"
 VOOL_LLAMACPP_MODELS_DIR="${VOOL_LLAMACPP_MODELS_DIR:-${RUNTIME_HOME}/models/llamacpp}"
 AUTO_YES=0
+REMOVE_DATA=0
 
 
 say() {
@@ -27,6 +28,8 @@ Usage: $(basename "$0") [options]
 
 Options:
   --yes, -y                 Remove the local VOOL install without prompting
+  --remove-data             Also delete your saved chats and settings (asks once
+                            unless --yes is given)
   --runtime-home <path>     Override runtime home (default: ${RUNTIME_HOME})
   --install-root <path>     Override install root (default: ${INSTALL_ROOT})
   --openclaw-home <path>    Override isolated OpenClaw home (default: ${OPENCLAW_HOME})
@@ -41,6 +44,9 @@ parse_args() {
     case "$1" in
       --yes|-y)
         AUTO_YES=1
+        ;;
+      --remove-data)
+        REMOVE_DATA=1
         ;;
       --runtime-home)
         shift
@@ -113,9 +119,50 @@ remove_empty_tree() {
 }
 
 
+uninstall_python() {
+  if [[ -x "${INSTALL_ROOT}/.venv/bin/python" ]]; then
+    printf '%s\n' "${INSTALL_ROOT}/.venv/bin/python"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return 0
+  fi
+  return 1
+}
+
+
 stop_runtime_processes() {
-  pkill -f "apps.vool_api_server" >/dev/null 2>&1 || true
-  pkill -f "llama_cpp.server" >/dev/null 2>&1 || true
+  local helper="${SCRIPT_DIR}/uninstall_local_runtime.py"
+  local python_bin
+  if ! python_bin="$(uninstall_python)" || [[ ! -f "${helper}" ]]; then
+    # Without the checker nothing can be proven about a recorded server, and an
+    # uninstall must never remove files from under a process it could not check.
+    if [[ -e "${RUNTIME_HOME}/data/vool_api.pid" ]]; then
+      say "VOOL could not check whether it is still running, so nothing was removed."
+      say "Close VOOL and run this uninstall again."
+      exit 1
+    fi
+    return 0
+  fi
+  local output="" rc=0
+  output="$("${python_bin}" "${helper}" stop \
+    --runtime-home "${RUNTIME_HOME}" \
+    --install-root "${INSTALL_ROOT}" \
+    --llamacpp-models-dir "${VOOL_LLAMACPP_MODELS_DIR}" 2>&1)" || rc=$?
+  if [[ "${rc}" -ne 0 ]]; then
+    if [[ "${rc}" -eq 3 && -n "${output}" ]]; then
+      say "${output}"
+    else
+      say "VOOL could not check whether it is still running, so nothing was removed."
+      say "Close VOOL and run this uninstall again."
+    fi
+    exit 1
+  fi
+  if [[ -n "${output}" ]]; then
+    say "${output}"
+  fi
+  return 0
 }
 
 
@@ -131,12 +178,9 @@ remove_targets() {
   local linux_desktop="${HOME}/Desktop"
   local -a targets=(
     "${INSTALL_ROOT}"
-    "${RUNTIME_HOME}"
     "${OPENCLAW_HOME}"
     "${OPENCLAW_AGENT_DIR}"
     "${LAUNCH_AGENT_PATH}"
-    "${OLLAMA_MODELS_DIR}"
-    "${VOOL_LLAMACPP_MODELS_DIR}"
     "${mac_desktop}/Start_VOOL.command"
     "${mac_desktop}/Talk_To_VOOL.command"
     "${mac_desktop}/OpenClaw_VOOL.command"
@@ -147,6 +191,44 @@ remove_targets() {
   done
   remove_empty_tree "${INSTALL_ROOT}"
   remove_empty_tree "${RUNTIME_HOME}"
+}
+
+
+report_kept_data() {
+  if [[ -d "${RUNTIME_HOME}" ]]; then
+    say "Your chats and settings were kept, in: ${RUNTIME_HOME}"
+    say "A fresh VOOL install will find them there again."
+    say "To delete them too, delete that folder, or run this uninstall again with --remove-data."
+  else
+    say "No saved chats and settings were found; nothing was kept."
+  fi
+  if [[ -d "${OLLAMA_MODELS_DIR}" ]]; then
+    say "Ollama keeps its own models in: ${OLLAMA_MODELS_DIR}"
+    say "VOOL does not own that folder, so it was left alone."
+  fi
+}
+
+
+remove_profile_data() {
+  if [[ ! -e "${RUNTIME_HOME}" && ! -L "${RUNTIME_HOME}" ]]; then
+    return 0
+  fi
+  if [[ -L "${RUNTIME_HOME}" || ! -d "${RUNTIME_HOME}" ]]; then
+    say "Uninstall refused: ${RUNTIME_HOME} is not a plain VOOL data folder, so it was left alone."
+    exit 1
+  fi
+  if [[ -z "${RUNTIME_HOME}" || "${RUNTIME_HOME}" == "/" || "$(cd "${RUNTIME_HOME}" && pwd)" == "$(cd "${HOME}" && pwd)" ]]; then
+    say "Uninstall refused: ${RUNTIME_HOME} is your home folder, so it was left alone."
+    exit 1
+  fi
+  if [[ "${AUTO_YES}" -eq 0 ]]; then
+    if ! prompt_yn "Delete your saved chats and settings in ${RUNTIME_HOME} too?" "N"; then
+      say "Kept your saved chats and settings."
+      return 0
+    fi
+  fi
+  trash_or_remove "${RUNTIME_HOME}"
+  say "Deleted your saved chats and settings."
 }
 
 
@@ -165,10 +247,15 @@ main() {
       exit 0
     fi
   fi
-  stop_runtime_processes
+  # The agent goes first so its KeepAlive cannot restart what the stop step ends.
   bootout_launch_agent
+  stop_runtime_processes
   remove_targets
   say "Local VOOL install removed."
+  report_kept_data
+  if [[ "${REMOVE_DATA}" -eq 1 ]]; then
+    remove_profile_data
+  fi
 }
 
 

@@ -806,7 +806,7 @@ def test_no_execution_path_resolves_ownership_from_the_display() -> None:
     """
     runlife = _runlife_js()
     paint_only_exemptions = {
-        ": (isChatBusy(displayedChat) ? pageT('composer.queue', 'Queue') : pageT('composer.send', 'Send'));",
+        ": (isChatBusy(displayedChat) ? pageT('composer.queue', 'Wait and send') : pageT('composer.send', 'Send'));",
     }
     offenders = [
         line.strip()
