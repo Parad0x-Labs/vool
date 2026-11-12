@@ -2695,6 +2695,13 @@ class VoolAgent(
             except Exception:
                 pass
 
+        # The chat keeps the person's words as typed. Every lane below reads the normalized text
+        # ("pls" -> "please", "folder (in" -> "folder(in"), and the turn's transcript row was
+        # written from it, so the reloaded chat showed words nobody typed (red team R3-01,
+        # 2026-11-12). Taken after the secret intake, so a redacted credential stays redacted.
+        if isinstance(runtime_source_context, dict) and raw_turn_text.strip():
+            runtime_source_context.setdefault("_typed_user_text", raw_turn_text)
+
         prune_stale_hive_interaction_state(session_id)
         self._emit_runtime_event(
             source_context,
