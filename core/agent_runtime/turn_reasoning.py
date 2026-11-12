@@ -768,8 +768,12 @@ def execute_grounded_turn(
     # exact-recall/personal question — that turned a ~3s memory recall into a ~40s turn. Explicit
     # search/latest/public requests and genuinely-external questions still roam.
     from core.stipulated_frame import stipulated_frame_active
+    from core.x_api import serves_ask as _x_serves
 
-    _skip_curiosity_local = stipulated_frame_active(
+    # An ask about the person's connected X account is read through the X tools, which ask before
+    # anything goes out; it is never searched on the web first (measured 2026-11-12 with X
+    # connected and Web lookups on: "look up the X account @vool_garden" went to three search engines).
+    _skip_curiosity_local = _x_serves(effective_input) or stipulated_frame_active(
         effective_input,
         source_context=source_context,
     ) or should_skip_curiosity_for_local_answer(

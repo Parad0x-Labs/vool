@@ -17,7 +17,7 @@ from core import policy_engine
 from core.remote_fetch_policy import WEB_OFF_LOOKUP_TEXT, WEB_OFF_TEXT
 
 
-def _ask_all(questions: list[str], *, web_on: bool) -> tuple[dict[str, dict], list[str]]:
+def _ask_all(questions: list[str], *, web_on: bool, chat: str = "web-lookups-off") -> tuple[dict[str, dict], list[str]]:
     from tests.test_mixed_demand_terminal_closure_p0 import _model_stand_in
     from tests.test_turn_attempt_chain import _Harness
 
@@ -28,7 +28,7 @@ def _ask_all(questions: list[str], *, web_on: bool) -> tuple[dict[str, dict], li
         raise OSError("network is not reachable in this test")
 
     answers: dict[str, dict] = {}
-    harness = _Harness("web-lookups-off")
+    harness = _Harness(chat)
     try:
         with mock.patch.object(policy_engine, "local_only_mode", return_value=False), \
                 mock.patch.object(policy_engine, "allow_web_fallback", return_value=web_on), \
@@ -273,4 +273,34 @@ def test_switch_off_leaves_asks_about_a_connected_x_account_to_the_x_tools() -> 
         answers, public = _ask_all(asks, web_on=False)
     assert public == [], public
     for question in asks:
-        assert str(answers[question].get("response") or "") not in (WEB_OFF_TEXT, WEB_OFF_LOOKUP_TEXT), question
+        # The model (here a stand-in with the X tools) answers it, not a web lane from memory.
+        assert str(answers[question].get("response") or "").startswith("A stand-in answer."), question
+
+
+def test_with_x_connected_an_ask_about_an_x_account_is_never_searched_on_the_web() -> None:
+    """Measured 2026-11-12 in the running app with X connected: the live-information lane took "Look
+    up the X account @vool_garden", answered it from model memory with Web lookups off and, with them
+    on, sent it to three search engines; X was never asked. It is the X tools' to read. Every fetch
+    is counted at the one outbound door, where every search engine and price index passes."""
+    from core import remote_fetch_policy, x_api
+
+    def _searched(asks: list[str], *, connected: bool, chat: str) -> tuple[dict[str, dict], list[str]]:
+        door: list[str] = []
+
+        def _record(request, *args, **kwargs):
+            door.append(str(getattr(request, "full_url", request)))
+            raise OSError("network is not reachable in this test")
+
+        with mock.patch.object(x_api, "connected", return_value=connected), \
+                mock.patch.object(remote_fetch_policy, "_open_enforced", _record):
+            answers, _public = _ask_all(asks, web_on=True, chat=chat)
+        return answers, door
+
+    asks = ["look up the X account @vool_garden", "who is @vool_garden on X?"]
+    answers, door = _searched(asks, connected=True, chat="x-connected")
+    assert door == [], door
+    for question in asks:
+        assert str(answers[question].get("response") or "") == "A stand-in answer.", question
+    # Control: without X connected the same ask is an ordinary web lookup.
+    _answers, door = _searched(["look up the X account @harbor_tides"], connected=False, chat="x-not-connected")
+    assert any("harbor_tides" in url for url in door), door
