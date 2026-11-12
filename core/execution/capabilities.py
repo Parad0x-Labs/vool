@@ -80,8 +80,9 @@ def runtime_capability_ledger(
             "support_level": "supported" if web_enabled else "unsupported",
             "availability_state": "ready" if web_enabled else "unavailable",
             "unsupported_reason": (
-                "Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups. "
-                "(Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
+                # Plain words only: this sentence reaches the chat. The command-line switch is
+                # documented for the CLI, never shown to the person (0.7.8 sweep block 2).
+                "Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups."
             ),
             "intents": web_intents,
             "public_tag": "web.live_lookup",

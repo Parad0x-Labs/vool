@@ -2393,10 +2393,9 @@ def maybe_handle_mission_render_request(
 
 def help_capabilities_text(agent: Any) -> str:
     lines = [
-        "Wired on this runtime:",
-        "- plain-language reasoning, persistent memory, and rolling chat continuity",
-        "- local-first model with opt-in BYOK cloud burst: `cloud off|ask|auto` "
-        "and `cloud status` — monetary budgets apply; off by default, changeable only from your own local session",
+        "Here's what I can do on this computer:",
+        "- answer in plain language, remember what you ask me to, and keep track of the conversation",
+        "- think with a model on this computer; cloud models only if you turn them on in Settings, with a spending limit you set",
     ]
     supported_entries = [entry for entry in agent._capability_ledger_entries() if entry.get("supported")]
     partial_entries = [
@@ -2414,7 +2413,7 @@ def help_capabilities_text(agent: Any) -> str:
         lines.append(f"- {str(entry.get('claim') or '').strip()}")
     if partial_entries:
         lines.append("")
-        lines.append("Partially supported on this runtime:")
+        lines.append("Partly working here:")
         for entry in partial_entries:
             claim = str(entry.get("claim") or "").strip()
             note = str(entry.get("partial_reason") or "").strip()
@@ -2422,7 +2421,7 @@ def help_capabilities_text(agent: Any) -> str:
     lines.append("- I report real tool executions, approval previews, and failures directly instead of bluffing")
     if unsupported_entries:
         lines.append("")
-        lines.append("Not wired or not enabled here:")
+        lines.append("Not available or switched off here:")
         for entry in unsupported_entries:
             reason = str(entry.get("unsupported_reason") or entry.get("claim") or "").strip()
             if reason:

@@ -7881,6 +7881,9 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
         return "\n".join(lines)
 
     sections = [
+        # The skills VOOL ships with are listed too: "what skills do you have?" answered only
+        # "26 skill(s)." because this section was missing (0.7.8 sweep block 2, 2026-11-12).
+        _section("Built into VOOL", list(result.get("native_skills") or []), show_path=False),
         _section("For this chat", list(result.get("chat_skills") or []), show_path=False),
         _section("For this project", list(result.get("project_skills") or []), show_path=False),
         _section("In the workspace", list(result.get("workspace_skills") or [])),
@@ -7895,7 +7898,9 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             f"No skills found. I scanned {scanned or 'no workspace (none is bound to this chat)'}, "
             "the staging area, and the installed plugins tree for SKILL.md files."
         )
-    return _skill_result("skill.list", result, response=body or f"{total} skill(s).")
+    if total and body:
+        body = f"I have {total} skill{'' if total == 1 else 's'}:\n\n" + body
+    return _skill_result("skill.list", result, response=body or f"I have {total} skill{'' if total == 1 else 's'}.")
 
 
 def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
