@@ -381,7 +381,7 @@ def test_a_present_file_ask_parses(text, expected):
 
 @pytest.mark.parametrize("text", [
     "pull up my meeting notes", "show me the booking confirmation pdf", "open the dentist appointment invoice",
-    "pull up the bug report",
+    "pull up the bug report", "pull up bob's invoice",
 ])
 def test_a_document_about_an_event_is_still_a_file(text):
     from core.execution.constants import machine_present_file_intent
@@ -399,6 +399,9 @@ def test_a_document_about_an_event_is_still_a_file(text):
     # A cause or a fault to work out is not a file name (the skills merge, 2026-11-12).
     "the invoice total test started failing after my last change, find the root cause",
     "find the bug", "find out why the build broke",
+    # "what's in plan.py" asks for a file's contents: the question word is not its name, written
+    # with or without the apostrophe (the train port, 2026-11-12: it searched the disk for "what").
+    "show me what's in plan.py in the garden planner project", "show me whats in plan.py",
 ])
 def test_not_a_present_file_ask(text):
     from core.execution.constants import machine_present_file_intent

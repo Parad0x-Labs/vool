@@ -1954,6 +1954,23 @@ def _file_preview(path: str, *, source_context: dict | None) -> str:
     return "First lines:\n" + "\n".join(rows) + more
 
 
+def _the_chats_folder_holds_the_named_file(user_input: str, source_context: dict | None) -> bool:
+    """Whether the turn names a file by its file name and the chat's own folder holds that file."""
+    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
+    if not root:
+        return False
+    from core.agent_runtime.fast_paths_utility import _direct_workspace_read_request
+
+    named = _direct_workspace_read_request(user_input)
+    path = str((named or {}).get("path") or "").strip()
+    if not path:
+        return False
+    try:
+        return (Path(root).expanduser() / path).is_file()
+    except (OSError, ValueError):
+        return False
+
+
 def present_named_file(ask: Any, *, session_id: str, source_context: dict | None) -> Any:
     """``"pull up / open / show me <words>"``: resolve the words to real files and present them.
 
@@ -3478,6 +3495,12 @@ def maybe_handle_direct_machine_read_request(
     from core.execution.constants import machine_present_file_intent
 
     present_ask = machine_present_file_intent(user_input)
+    if present_ask is not None and _the_chats_folder_holds_the_named_file(user_input, source_context):
+        # "show me watering.py" in a chat that works in a project is a read of the project's own
+        # file: the workspace read lane answers with its text. Measured on the train port, the
+        # project chat's follow-up was answered "Here is the file I found: ~/Projects/garden-
+        # planner/watering.py" and nothing of the file.
+        present_ask = None
     if present_ask is not None:
         presented = present_named_file(present_ask, session_id=session_id, source_context=source_context)
         if presented is not None:

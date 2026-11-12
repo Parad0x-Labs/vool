@@ -1521,6 +1521,14 @@ _PRESENT_FAULT_WORDS = frozenset({
 })
 
 
+def _contracted(word: str) -> str:
+    """The word a contraction or its apostrophe-less spelling stands on: "what's" and "whats" read "what"."""
+    for tail in ("'s", "’s", "'re", "’re"):
+        if word.endswith(tail):
+            return word[: -len(tail)]
+    return word[:-1] if word in {"whats", "wheres", "whos", "hows"} else word
+
+
 class PresentFileAsk(NamedTuple):
     """A file asked for by the words of its name: "pull up the plumber invoice"."""
 
@@ -1547,7 +1555,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     offset = match.start("obj")
     for token in match.group("obj").split():
         word = token.strip(" .'\"-").lower()
-        if not word or word in _PRESENT_OBJECT_STOP:
+        # "what's in plan.py" opens with a question word too: a contraction reads as its word.
+        if not word or word in _PRESENT_OBJECT_STOP or _contracted(word) in _PRESENT_OBJECT_STOP:
             break
         kept.append(word)
         offset = raw.find(token, offset) + len(token)
