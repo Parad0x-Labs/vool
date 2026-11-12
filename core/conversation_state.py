@@ -264,7 +264,7 @@ _ACK_WORDS = frozenset({
     "now", "please", "pls", "plz", "thanks", "thx", "ty", "thank", "you", "ok", "okay", "k", "kk", "then", "again", "yo", "hey",
     "lol", "haha", "cool", "great", "nice", "so", "and", "it", "that", "this", "them", "go", "on", "ahead", "me", "for", "sure",
     "yes", "yep", "yeah", "alright", "right", "well", "more", "time", "one", "once", "a", "the", "same", "lot", "much", "mate",
-    "man", "bro", "dude", "buddy", "repeat", "it", "all", "yours", "mine", "ours", "can", "could", "would", "will", "u", "still", "yet", "nothing", "anything", "something", "give", "done", "try", "shot", "crack", "go",
+    "man", "bro", "dude", "buddy", "repeat", "all", "yours", "mine", "ours", "can", "could", "would", "will", "u", "still", "yet", "nothing", "anything", "something", "give", "done", "try", "shot", "crack",
 })
 #: The message reports that something changed or says it hopes it works: not a change to WHAT is run.
 _STATE_REPORT_RE = re.compile(
@@ -309,8 +309,8 @@ _WH_RE = re.compile(r"\b(?:what|whats|what's|who|whom|whose|why|how|when|where|w
 #: Function words: pronouns, auxiliaries, determiners, acknowledgements, and the "show me / see / there" of asking to look.
 _FUNCTION_WORDS = frozenset(_ACK_WORDS | _REACTION_WORDS | {
     "what", "whats", "what's", "you", "your", "got", "have", "has", "had", "there", "then", "i", "we", "me", "my", "is", "are", "was",
-    "do", "does", "did", "see", "show", "look", "its", "it's", "any", "got", "found", "up", "out", "and", "or", "be", "been", "to",
-    "let", "lemme", "gimme", "give", "so", "well", "hm", "mm", "mmm", "eh", "um", "uh", "at", "in", "of", "have", "a", "an",
+    "do", "does", "did", "see", "show", "look", "its", "it's", "any", "found", "up", "out", "and", "or", "be", "been", "to",
+    "let", "lemme", "gimme", "give", "so", "well", "hm", "mm", "mmm", "eh", "um", "uh", "at", "in", "of", "a", "an",
 })
 _AUX_START = frozenset({"is", "are", "was", "were", "does", "do", "did", "can", "could", "will", "would", "should", "has", "have", "had"})
 _PROMPT_WORDS = frozenset({"work", "works", "working", "now", "them", "those", "these", "u", "ya", "ready", "yet"})
@@ -531,7 +531,7 @@ def resolve(
     pending: PendingRequest | None = None,
     arbiter: Any = None,
     source_context: dict[str, Any] | None = None,
-    cleared: bool | None | Any = "probe",
+    cleared: bool | Any | None = "probe",
 ) -> Resolution:
     """Decide what a message is against the chat's record: retry / retry_changed / referent_unresolved / none.
 
@@ -622,4 +622,4 @@ def _note(pending: PendingRequest) -> str:
     return f"Earlier in this chat the user asked: “{pending.request}”. It ended {pending.outcome}{why}.{where}"
 
 
-__all__ = ["PendingRequest", "Resolution", "load", "record_sealed_turn", "resolve", "outcome_of", "slots_of"]
+__all__ = ["PendingRequest", "Resolution", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
