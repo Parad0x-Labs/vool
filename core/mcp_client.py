@@ -22,6 +22,7 @@ import json
 import queue
 import re
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -85,6 +86,13 @@ class MCPStdioClient:
         env_allowlist: tuple[str, ...] | list[str] | None = None,
         allow_network: bool = False,
         confinement: str = "auto",
+        immutable_package: bool = False,
+        scratch_dir: str = "",
+        readable_roots: tuple[Path, ...] = (),
+        proxy_port: int = 0,
+        call=None,
+        read_only: bool = False,
+        private_environment: bool = False,
     ) -> None:
         self.command = command
         self.args = list(args or [])
@@ -97,11 +105,21 @@ class MCPStdioClient:
         self.name = name or command
         self.allow_network = bool(allow_network)
         self.confinement_mode = str(confinement or "auto")
+        self.immutable_package = immutable_package
+        self.scratch_dir = scratch_dir
+        self.readable_roots = readable_roots
+        self.proxy_port = proxy_port
+        self.call = call
+        self.read_only = read_only
+        #: The environment carries a key that must stay private from other programs.
+        self.private_environment = private_environment
+        self._read_error = ""
         #: How the running child is confined: ``kernel:<backend>`` or ``heuristic_only``.
         self.confinement = ""
         self._proc: subprocess.Popen[str] | None = None
+        self._confined_command = None
         self._id = 0
-        self._q: queue.Queue[dict[str, Any]] = queue.Queue()
+        self._q: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=64)
         self._reader: threading.Thread | None = None
         self.server_info: dict[str, Any] = {}
         self.tools: list[MCPTool] = []
@@ -110,29 +128,67 @@ class MCPStdioClient:
     def _reader_loop(self) -> None:
         proc = self._proc
         assert proc is not None and proc.stdout is not None
-        for line in proc.stdout:  # blocking iteration in a daemon thread
+        while line := proc.stdout.readline(4 * 1024 * 1024 + 1):
+            if len(line) > 4 * 1024 * 1024:
+                self._read_error = "The connection server response exceeds the size limit."
+                return
             line = line.strip()
             if not line:
                 continue
             try:
-                self._q.put(json.loads(line))
-            except json.JSONDecodeError:
+                message = json.loads(line)
+                if not isinstance(message, dict):
+                    raise ValueError("object required")
+                self._q.put_nowait(message)
+            except queue.Full:
+                self._read_error = "The connection server sent too many unsolicited messages."
+                return
+            except (ValueError, RecursionError):
                 continue  # tolerate stray non-JSON on stdout
 
     def _send(self, msg: dict[str, Any]) -> None:
         if self._proc is None or self._proc.stdin is None:
             raise MCPError("client not started")
-        self._proc.stdin.write(json.dumps(msg) + "\n")
-        self._proc.stdin.flush()
+        encoded = json.dumps(msg) + "\n"
+        if len(encoded) > 4 * 1024 * 1024:
+            raise MCPError("The connection server request exceeds the size limit.")
+        proc = self._proc
+        failed = []
+
+        def write():
+            try:
+                proc.stdin.write(encoded)
+                proc.stdin.flush()
+            except (OSError, ValueError):
+                failed.append(True)
+
+        thread = threading.Thread(target=write, daemon=True)
+        thread.start()
+        deadline = time.monotonic() + self.timeout
+        while thread.is_alive():
+            if self.call:
+                self.call.check()
+            if time.monotonic() >= deadline:
+                self.close()
+                raise MCPError("The connection server did not accept the request in time.")
+            thread.join(0.05)
+        if failed:
+            raise MCPError("The connection server closed before accepting the request.")
 
     def _read_response(self, expect_id: int) -> dict[str, Any]:
         deadline = time.monotonic() + self.timeout
         while True:
+            if self.call:
+                self.call.check()
+            if self._read_error:
+                raise MCPError(self._read_error)
+            if self._proc is None:
+                raise MCPError("The plugin connection was stopped.")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise MCPError(f"timeout waiting for response id={expect_id} from {self.name}")
             try:
-                msg = self._q.get(timeout=min(remaining, 1.0))
+                msg = self._q.get(timeout=min(remaining, 0.1))
             except queue.Empty:
                 if self._proc is not None and self._proc.poll() is not None:
                     raise MCPError(f"{self.name} exited (code {self._proc.returncode}) before responding")
@@ -154,6 +210,8 @@ class MCPStdioClient:
 
     # --- lifecycle ---
     def start(self) -> MCPStdioClient:
+        self._read_error = ""
+        self._q = queue.Queue(maxsize=64)
         # ENVIRONMENT IS AN ALLOWLIST, NOT A FILTER. This built `{**os.environ, **self.env}` —
         # the whole environment, including every exported API key and token — and handed it to a
         # subprocess the operator configured but did not write. `core/plugin_executor.py` already
@@ -180,17 +238,40 @@ class MCPStdioClient:
         try:
             argv, self.confinement = confined_argv(
                 [self.command, *self.args],
-                writable_roots=(work_dir,),
+                writable_roots=() if self.immutable_package and self.read_only else
+                               (Path(self.scratch_dir),) if self.immutable_package and self.scratch_dir else
+                               () if self.immutable_package else (work_dir,),
                 allow_network=self.allow_network,
                 mode=self.confinement_mode,
+                working_directory=work_dir,
+                readable_roots=self.readable_roots,
+                proxy_port=self.proxy_port,
+                isolate_process_tree=self.immutable_package,
+                private_environment=self.private_environment,
+                argument_reads=not self.immutable_package,
             )
         except ConfinementUnavailableError as exc:
             raise MCPError(f"{self.name}: refusing to start unconfined ({exc})") from exc
+        self._confined_command = argv
+        from core.plugin_container import ContainerCommand
+
+        # The isolated runtime takes keys on the child's input, never in a host process's
+        # environment, where any same-user program on a Mac could read them.
+        private_input = isinstance(argv, ContainerCommand)
+        if sys.platform == "darwin" and self.env and not private_input:
+            # Outside the isolated runtime these values would sit in the server's starting
+            # environment, which any same-user program on a Mac can read (KERN_PROCARGS2).
+            raise MCPError(f"{self.name}: this server needs keys, and on a Mac a server with keys runs only "
+                           "in the isolated runtime, which is not available here")
         full_env = build_child_env(
             env_allowlist=tuple(self.env_allowlist or ()),
-            secrets=dict(self.env or {}),
-            scratch_dir=str(work_dir),
+            secrets={} if private_input else dict(self.env or {}),
+            scratch_dir=self.scratch_dir or str(work_dir),
         )
+        if self.immutable_package:
+            full_env["PYTHONDONTWRITEBYTECODE"] = "1"
+        if self.call:
+            self.call.check()
         self._proc = subprocess.Popen(
             argv,
             stdin=subprocess.PIPE,
@@ -200,13 +281,27 @@ class MCPStdioClient:
             bufsize=1,
             cwd=str(work_dir),
             env=full_env,
+            start_new_session=True,
         )
+        if self.call:
+            self.call.own(self.close)
+        if private_input:
+            try:
+                self._proc.stdin.write(ContainerCommand.private_input_line(self.env))
+                self._proc.stdin.flush()
+            except (OSError, ValueError) as exc:
+                self.close()
+                raise MCPError(f"{self.name}: the server stopped before it started") from exc
         self._reader = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader.start()
-        result = self._request(
-            "initialize",
-            {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": _CLIENT_INFO},
-        )
+        try:
+            result = self._request(
+                "initialize",
+                {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": _CLIENT_INFO},
+            )
+        except Exception:
+            self.close()
+            raise
         self.server_info = dict(result.get("serverInfo") or {})
         self._notify("notifications/initialized")
         return self
@@ -247,18 +342,31 @@ class MCPStdioClient:
         return "\n".join(p for p in parts if p)
 
     def close(self) -> None:
+        from core.plugin_processes import terminate_owned
+
         proc, self._proc = self._proc, None
         if proc is None:
+            if close := getattr(self._confined_command, "close", None):
+                close()
             return
-        with contextlib.suppress(Exception):
-            if proc.stdin:
-                proc.stdin.close()
         try:
-            proc.terminate()
+            terminate_owned(proc)
             proc.wait(timeout=5)
         except Exception:
             with contextlib.suppress(Exception):
-                proc.kill()
+                terminate_owned(proc)
+        with contextlib.suppress(Exception):
+            if proc.stdin:
+                proc.stdin.close()
+        if self._reader and threading.current_thread() is not self._reader:
+            self._reader.join(1)
+        with contextlib.suppress(Exception):
+            if proc.stdout:
+                proc.stdout.close()
+        if self.call:
+            self.call.release(self.close)
+        if close := getattr(self._confined_command, "close", None):
+            close()
 
     def __enter__(self) -> MCPStdioClient:
         return self.start()

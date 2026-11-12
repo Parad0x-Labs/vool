@@ -11,6 +11,17 @@ def manifest_authority(manifest: dict) -> dict:
     from core.plugin_tools import parse_manifest
 
     loaded = parse_manifest(manifest, path=Path(".codex-plugin/plugin.json"))
+    if loaded.vool:
+        return {
+            "permissions": sorted({action for contract in loaded.contracts for action in contract.permission_actions}),
+            "credential_bindings": [f"plugin.{loaded.plugin_id}.{slot}" for slot in loaded.vool["credentials"]],
+            "tools": [{"intent": contract.intent, "side_effect_class": contract.side_effect_class,
+                       "approval_requirement": contract.approval_requirement,
+                       "permission_actions": list(contract.permission_actions),
+                       "handler": decode(contract.handler.encode())} for contract in loaded.contracts],
+            "kind": list(loaded.vool["kind"]), "network": list(loaded.vool["network"]),
+            "credentials": loaded.vool["credentials"], "mcp_servers": list(loaded.vool.get("mcpServers", {})),
+        }
     permissions = manifest.get("permissions", [])
     credentials = manifest.get("credential_bindings", [])
     for field, values in (("permissions", permissions), ("credential bindings", credentials)):

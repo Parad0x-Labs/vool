@@ -18,15 +18,8 @@ from pathlib import Path
 
 from core.addon_catalog import CATALOG
 from core.addon_discovery import is_own
-from core.eyebrow_client import (
-    KEY_NAME,
-    AddonError,
-    fetch_bytes,
-    request_api,
-    scan_skill,
-    valid_version_report,
-    validate_report,
-)
+from core.addon_security import AddonError, fetch_bytes, validate_report
+from core.plugin_scanners import scan_skill, scanners
 
 _LOCK = threading.RLock()
 PREFIX = "discover-"
@@ -105,18 +98,18 @@ def _read(path: Path) -> dict:
 
 def _entry(identifier: str) -> dict:
     identifier = _safe_component(identifier, r"github-[a-f0-9]{24}|" + _COMPONENT_ID,
-                                 "addon_unknown", "This add-on is not in the curated catalogue.", 404)
+                                 "addon_unknown", "This add-on isn't in VOOL's list.", 404)
     if re.fullmatch(r"github-[a-f0-9]{24}", identifier):
         path = _lookup("discovered", identifier)
         if path is not None:
             value = _read(path)
             if value.get("id") != identifier:
-                raise AddonError("review_untrusted", "The saved source identity changed. Inspect it again.")
+                raise AddonError("review_untrusted", "Where this add-on comes from has changed. Check it again.")
             return value
     for entry in CATALOG:
         if entry["id"] == identifier:
             return dict(entry)
-    raise AddonError("addon_unknown", "This add-on is not in the curated catalogue.", 404)
+    raise AddonError("addon_unknown", "This add-on isn't in VOOL's list.", 404)
 
 
 def _entries() -> list[dict]:
@@ -157,7 +150,7 @@ def assert_reviewed(plugin_id: str, pack: Path) -> None:
     # The initial format has no executable/resource files. Refuse additions outside its contract.
     allowed = {".codex-plugin/plugin.json", "skills/" + record["entry"]["skill_name"] + "/SKILL.md", "LICENSE.txt"}
     if any(p.is_symlink() or (p.is_file() and p.relative_to(pack).as_posix() not in allowed) for p in pack.rglob("*")):
-        raise AddonError("addon_changed", "Files were added outside the reviewed standalone skill. A new review is required.")
+        raise AddonError("addon_changed", "Files changed after the check. Check it again.")
     if hashlib.sha256((pack / "LICENSE.txt").read_bytes()).hexdigest() != record["entry"]["license_sha256"]:
         raise AddonError("addon_changed", "The add-on’s licence file changed after review.")
 
@@ -209,7 +202,7 @@ def reviewed_skill(plugin_id: str, pack: Path):
 
 def _local_report_path(identifier: str, *, create: bool = False) -> Path:
     identifier = _safe_component(identifier, _LOCAL_REPORT_ID.pattern,
-                                 "addon_unknown", "This add-on is not in the curated catalogue.", 404)
+                                 "addon_unknown", "This add-on isn't in VOOL's list.", 404)
     found = _lookup("local-reports", identifier)
     if found is not None:
         return found
@@ -221,8 +214,8 @@ def _local_report_path(identifier: str, *, create: bool = False) -> Path:
 def local_check(identifier: str) -> dict:
     """One VOOL-local static check of the exact pinned bytes; advisory evidence only.
 
-    No Eyebrow key or call, no installation effect and no permission change. The
-    bytes come from the same integrity-checked source owner as the Eyebrow scan;
+    No remote scanner key or call, no installation effect and no permission change. The
+    bytes come from the same integrity-checked source owner as the remote scanner scan;
     bundled sources make this check entirely offline.
     """
     entry = _entry(identifier)
@@ -241,7 +234,7 @@ def local_check(identifier: str) -> dict:
 def local_report_saved(identifier: str) -> dict:
     """Show a saved local report only while it still describes the current source
     bytes AND was produced by the current scanner/ruleset; otherwise ask for a
-    recheck. Eyebrow reports, installation receipts and permissions live in
+    recheck. Remote scanner reports, installation receipts and permissions live in
     separate records and are never altered by this staleness."""
     from core import local_scan
     entry = _entry(identifier)
@@ -263,7 +256,6 @@ def local_report_saved(identifier: str) -> dict:
 
 
 def catalog() -> dict:
-    from core.credential_store import credential_is_indexed
     from core.plugin_catalog import _disabled_ids
     from core.plugin_lifecycle import record_for
     rows = []
@@ -308,23 +300,17 @@ def catalog() -> dict:
     pending.sort(key=lambda item: item["checked_at"], reverse=True)
     # VOOL's own skills come first; the rest keep their catalogue order.
     rows.sort(key=lambda row: not row["first_party"])
-    return {"entries": rows, "reviews": pending, "eyebrow": {"configured": credential_is_indexed(KEY_NAME)}, "supported": "Standalone instruction skills. Executable plugin and MCP imports are not offered yet."}
+    from core.plugin_manager import inventory
+    from core.plugin_migration import notices
+    from core.plugin_tools import plugin_tools_on
+
+    return {"entries": rows, "reviews": pending, "plugins": inventory(), "plugin_notices": notices(),
+            "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(),
+            "supported": "Skills and explicitly reviewed plugins."}
 
 
 def security_action(action: str, value: str = "") -> dict:
-    if action == "save_key":
-        raise AddonError('shared_key_setup_required','Add or replace this key in Settings → API Keys.',409)
-    if action == "remove_key":
-        from core.credential_intelligence.provider_registry import default_registry
-        from core.credential_intelligence.store import CredentialStore
-        CredentialStore(default_registry()).delete('eyebrow')
-        return {"ok": True, "message": "Eyebrow key removed."}
-    if action == "test_key":
-        report, quota = request_api("/v1/version")
-        if not valid_version_report(report):
-            raise AddonError("eyebrow_invalid_report", "Eyebrow did not return version information.")
-        return {"ok": True, "message": "Eyebrow accepted the key.", "engine": str(report["engine"].get("version", ""))[:80], "quota_remaining": quota}
-    raise AddonError("unsupported_action", "Unknown security action.")
+    raise AddonError("scanner_settings_moved", "Manage scanner plugins and their keys in My add-ons → Plugins.", 409)
 
 
 def _shipped(entry: dict) -> bool:
@@ -387,7 +373,7 @@ def _download(entry: dict, filename: str, expected: str) -> bytes:
     except AddonError:
         raise
     except Exception:
-        raise AddonError("addon_download_failed", "Could not download the pinned public add-on. Nothing was installed.", 502) from None
+        raise AddonError("addon_download_failed", "Couldn't download this add-on. Nothing was installed.", 502) from None
     if hashlib.sha256(data).hexdigest() != expected:
         raise AddonError("addon_source_changed", "Downloaded contents do not match the reviewed catalogue version. Nothing was installed.")
     return data
@@ -395,13 +381,10 @@ def _download(entry: dict, filename: str, expected: str) -> bytes:
 
 def prepare(identifier: str, *, approved: bool) -> dict:
     if approved is not True:
-        raise AddonError("scan_consent_required", "Approve downloading this public skill and sending it to Eyebrow for one scan first.")
+        raise AddonError("scan_consent_required", "Approve checking this public skill before installing it. An enabled scanner plugin may also receive its contents.")
     entry = _entry(identifier)
     if entry.get('discovery_only') or entry.get('import_ready') is False:
         raise AddonError('addon_needs_compatibility', 'Inspect this skill’s licence and compatibility before scanning. ' + entry.get('compatibility', ''))
-    from core.credential_store import has_credential
-    if not has_credential(KEY_NAME):
-        raise AddonError("eyebrow_key_missing", "Add your Eyebrow key in Settings → API Keys first.")
     content = _download(entry, "SKILL.md", entry["sha256"])
     licence = _download(entry, "LICENSE.txt", entry["license_sha256"])
     with _LOCK:
@@ -430,15 +413,15 @@ def prepare(identifier: str, *, approved: bool) -> dict:
 
 
 def _stage(review_id: str) -> Path:
-    review_id = _safe_component(review_id, r"[a-f0-9]{32}", "invalid_review", "Invalid review identity.")
+    review_id = _safe_component(review_id, r"[a-f0-9]{32}", "invalid_review", "That check can't be found. Start the check again.")
     pending = _root() / "pending"
     if pending.is_dir():
         for path in pending.iterdir():
             if path.name == review_id:   # compare only; the path itself comes from the listing
                 if path.is_symlink():
-                    raise AddonError("invalid_review", "Invalid review location.")
+                    raise AddonError("invalid_review", "That check can't be opened. Start the check again.")
                 return path
-    raise AddonError("invalid_review", "Invalid review identity.")
+    raise AddonError("invalid_review", "That check can't be found. Start the check again.")
 
 
 def reject(review_id: str) -> dict:
@@ -570,7 +553,7 @@ def _review_material(stage: Path, receipt: dict) -> tuple[bytes, bytes, dict]:
         for name, digest in (("SKILL.md", "sha256"), ("LICENSE.txt", "license_sha256")):
             path = stage / name
             if path.is_symlink():
-                raise AddonError("addon_changed", "A downloaded file was replaced with a link. Scan the original files again.")
+                raise AddonError("addon_changed", "Files changed after the check. Check it again.")
             content = path.read_bytes()
             if hashlib.sha256(content).hexdigest() != entry[digest]:
                 raise AddonError("addon_changed", "The downloaded files changed after the scan. Scan again.")
@@ -582,7 +565,7 @@ def _review_material(stage: Path, receipt: dict) -> tuple[bytes, bytes, dict]:
 
 
 def review_saved(review_id: str) -> dict:
-    """Eyebrow findings are evidence; VOOL reports its separate installation checks."""
+    """Scanner findings are evidence; VOOL reports its separate installation checks."""
     with _LOCK:
         stage = _stage(review_id)
         receipt = _read(stage / "review.json")
@@ -599,8 +582,8 @@ def review_saved(review_id: str) -> dict:
             why = "" if clear else "VOOL's local check flagged something. Adding this skill needs your separate OK."
         else:
             message = ("The scanned files are unchanged and this standalone skill can be installed."
-                       if clear else "The scanned files are unchanged and the format is supported. VOOL requires an explicit risk acceptance because the Eyebrow report is not clear.")
-            why = "" if clear else "Eyebrow reported findings or a failed scan policy. Installation requires your separate risk acceptance."
+                       if clear else "The scanned files are unchanged and the format is supported. VOOL requires an explicit risk acceptance because the scan report is not clear.")
+            why = "" if clear else "The scanner reported findings or a failed scan policy. Installation requires your separate risk acceptance."
         return {"ok": True, **receipt, "can_install": clear, "can_override": not clear,
                 "reason": why,
                 "vool_check": {"status": "passed", "code": "ready" if clear else "risk_acceptance_required", "message": message}}
@@ -617,7 +600,7 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
         receipt = _read(stage / "review.json")
         content, licence, report = _review_material(stage, receipt)
         if not report['eligible'] and not (risk_override is True and risk_acknowledged is True):
-            raise AddonError("risk_acceptance_required", "Review Eyebrow's findings and explicitly acknowledge the risks for this version before installing.")
+            raise AddonError("risk_acceptance_required", "Review the scanner's findings and explicitly acknowledge the risks for this version before installing.")
         entry = receipt["entry"]
         receipt['acceptance'] = {
             'mode': 'scan_passed' if report['eligible'] else 'risks_accepted',
@@ -648,7 +631,7 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
             (target / ".codex-plugin" / "plugin.json").write_text(json.dumps(manifest, sort_keys=True))
             receipt.update(plugin_id=plugin_id, pack_digest=lifecycle.manifest_digest(target))
             _write(_installed_receipt(plugin_id, create=True), receipt)
-            origin = "vool-bundled:" if receipt.get("check") == LOCAL_CHECK else "eyebrow-catalog:"
+            origin = "vool-bundled:" if receipt.get("check") == LOCAL_CHECK else "addon-catalog:"
             lifecycle.install(plugin_id, root=target, source=origin + safe_entry_id)
             lifecycle.verify(plugin_id, root=target, expected_digest=receipt["pack_digest"])
             lifecycle.enable(plugin_id)

@@ -4,13 +4,12 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from core import addon_store
-from core.eyebrow_client import AddonError
+from core.addon_security import AddonError
 
 
-def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int, dict]:
-    if client_host not in {"127.0.0.1", "::1", "localhost"}:
-        return 403, {"error": "owner_local_required", "message": "Use the local VOOL app to manage add-ons."}
-    lower = {str(k).lower(): str(v) for k, v in headers.items()}
+def same_origin_json_refusal(headers: dict) -> tuple[int, dict] | None:
+    """A JSON request from this app's own page, or the refusal. Shared by every add-on and plugin door."""
+    lower = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
     if "application/json" not in lower.get("content-type", "").lower():
         return 415, {"error": "json_required", "message": "A JSON request is required."}
     origin = lower.get("origin", "")
@@ -19,6 +18,14 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         return 403, {"error": "cross_origin", "message": "Cross-origin add-on changes are refused."}
     if lower.get("sec-fetch-site") == "cross-site":
         return 403, {"error": "cross_origin", "message": "Cross-site add-on changes are refused."}
+    return None
+
+
+def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int, dict]:
+    if client_host not in {"127.0.0.1", "::1", "localhost"}:
+        return 403, {"error": "owner_local_required", "message": "Use the local VOOL app to manage add-ons."}
+    if refusal := same_origin_json_refusal(headers):
+        return refusal
     action = body.get("action")
     fields = {
         "save_key": {"action", "value"}, "remove_key": {"action"}, "test_key": {"action"},
@@ -33,11 +40,30 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "registry_prepare": {"action", "id", "version", "approved"},
         "registry_install": {"action", "id", "version", "review_id", "accepted", "enable"},
         "skill_publish": {"action", "name"},
+        "plugin_prepare": {"action", "path", "update"},
+        "plugin_github_prepare": {"action", "repository", "revision", "path", "approved", "update"},
+        "plugin_install": {"action", "review_id", "digest", "accepted"},
+        "plugin_enable": {"action", "id", "accepted", "approval_digest"},
+        "plugin_disable": {"action", "id"},
+        "plugin_connect": {"action", "id", "slot", "value"},
+        "plugin_test": {"action", "id"},
+        "plugin_models": {"action", "id"},
+        "plugin_uninstall": {"action", "id", "remove_key"},
+        "plugin_notice_dismiss": {"action"},
+        "plugin_tools_setting": {"action", "enabled"},
     }
     if not isinstance(action, str) or action not in fields or set(body) - fields[action]:
         return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
     try:
-        if action == "skill_publish":
+        if action.startswith("plugin_"):
+            from core import plugin_manager
+            from core.plugin_lifecycle import LifecycleError
+
+            try:
+                result = plugin_manager.handle(action, body)
+            except LifecycleError as exc:
+                return 400, {"ok": False, "error": "plugin_refused", **plugin_manager.user_message(str(exc))}
+        elif action == "skill_publish":
             # A check on this device and a website link; nothing is sent from here.
             if not isinstance(body.get("name"), str):
                 return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
@@ -81,7 +107,10 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             result = addon_store.reject(str(body.get("review_id", "")))
         return 200, result
     except AddonError as exc:
-        return exc.status, {"ok": False, "error": exc.code, "message": exc.message}
+        from core.plugin_manager import message_key
+
+        return exc.status, {"ok": False, "error": exc.code, "message": exc.message,
+                            "message_key": "addons." + message_key(exc.message)}
     except ValueError as exc:
         from core.registry.codec import DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, NEWER_VERSION_REQUIRED, RegistryError
 
@@ -91,6 +120,10 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
                     NEWER_VERSION_REQUIRED: "registry_newer"}.get(str(exc))
             return 400, {"ok": False, "error": code or "registry_refused", "message": str(exc)}
         return 400, {"ok": False, "error": "addon_refused", "message": "The add-on input was refused."}
-    except Exception:
+    except Exception as exc:
+        # Preserve a diagnostic class without logging exception text or private values.
+        import logging
+
+        logging.getLogger(__name__).warning("Add-on operation failed (%s)", type(exc).__name__)
         # Never echo transport errors, credential values or personal storage paths.
         return 500, {"ok": False, "error": "addon_operation_failed", "message": "The add-on operation could not finish. Check storage access and review its status before retrying."}

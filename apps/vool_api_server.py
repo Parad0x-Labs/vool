@@ -36,6 +36,15 @@ if __package__ in {None, ""}:
 # Only after this checkout leads sys.path: started by path (python apps/vool_api_server.py), the first
 # `core` import would otherwise resolve through whatever other checkout the interpreter has installed
 # (an editable install of an older line), and the whole daemon would run that checkout's code.
+if __name__ == "__main__":
+    # Before anything else that reads the environment: a key in this process's starting environment
+    # is readable by any same-user program on macOS (KERN_PROCARGS2). Restart without it; see
+    # core/secret_env.py.
+    from core.secret_env import load_provider_env_secrets, shed_starting_secrets
+
+    shed_starting_secrets()
+    load_provider_env_secrets()
+
 from core.env_compat import apply_legacy_nulla_env
 
 apply_legacy_nulla_env()  # NULLA_* shells keep working; VOOL_* wins (see core/env_compat.py)

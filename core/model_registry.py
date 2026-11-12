@@ -58,12 +58,17 @@ class ModelRegistry:
         # canonical LocalModelPolicy is disabled, no local manifest may leave this listing, so
         # nothing downstream can discover, route to, prewarm or fall back onto a local provider,
         # not even rows persisted by an earlier enabled run before a restart.
-        return filter_local_manifests_for_policy(
+        from core.plugin_providers import filter_manifests
+
+        return filter_manifests(filter_local_manifests_for_policy(
             list_provider_manifests(enabled_only=enabled_only, limit=limit)
-        )
+        ))
 
     def get_manifest(self, provider_name: str, model_name: str) -> ModelProviderManifest | None:
-        return get_provider_manifest(provider_name, model_name)
+        from core.plugin_providers import filter_manifests
+
+        manifest = get_provider_manifest(provider_name, model_name)
+        return next(iter(filter_manifests([manifest])), None) if manifest else None
 
     def startup_warnings(self) -> list[str]:
         warnings: list[str] = []
@@ -182,7 +187,7 @@ class ModelRegistry:
         if adapter_type == "peft_lora_adapter":
             return PeftLoRAAdapter(manifest)
         if adapter_type == "usepod":
-            from adapters.usepod_adapter import UsePodAdapter
+            from core.usepod.legacy_adapter import UsePodAdapter
 
             return UsePodAdapter(manifest)
         raise ValueError(f"Unsupported adapter_type: {adapter_type}")

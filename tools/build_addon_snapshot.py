@@ -14,7 +14,7 @@ import tarfile
 from pathlib import Path
 
 from core.addon_discovery import _REF, inspect_source, repository_name, safe_path
-from core.eyebrow_client import fetch_bytes
+from core.addon_security import fetch_bytes
 
 
 def archive_source(raw: bytes) -> tuple[list[dict], dict[str, bytes]]:

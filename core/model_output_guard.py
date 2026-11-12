@@ -1203,6 +1203,9 @@ def answer_is_tool_invocation(text: str) -> bool:
     )
 
 _CONTENT_TOKEN_RE = re.compile(r"[a-z0-9]{5,}")
+#: One value written as short pieces joined by single separators: bytes of a fingerprint, a date,
+#: an address, a version.
+_SEPARATED_VALUE_RE = re.compile(r"[a-z0-9]{1,4}(?:[:\-._/][a-z0-9]{1,4}){2,}")
 
 
 def claims_pending_tool(text: str) -> bool:
@@ -1257,10 +1260,33 @@ def is_ungrounded(text: str, observations) -> bool:
     answer_tokens = set(_CONTENT_TOKEN_RE.findall(answer.lower()))
     if not answer_tokens:
         return False
-    obs_tokens = set(_CONTENT_TOKEN_RE.findall("\n".join(obs_list).lower()))
+    observed = "\n".join(obs_list).lower()
+    obs_tokens = set(_CONTENT_TOKEN_RE.findall(observed))
     if not obs_tokens:
         return False
-    return answer_tokens.isdisjoint(obs_tokens)
+    if not answer_tokens.isdisjoint(obs_tokens):
+        return False
+    # A value written in separated pieces ("9f:86:d0:81:...", "2026-11-11", "192.0.2.7") has no
+    # 5-character piece, so an answer that repeats it exactly shared "no token" and was refused.
+    # Measured in real chat 2026-11-12: a plugin returned a fingerprint as colon-separated bytes,
+    # the model answered with that fingerprint, and the person was shown a failure instead. The
+    # value itself is the overlap: compared with the separators taken out of both sides.
+    lowered_answer = answer.lower()
+    squeezed_answer = re.sub(r"[^a-z0-9]+", "", lowered_answer)
+    answer_runs = [re.split(r"[^a-z0-9]+", run) for run in _SEPARATED_VALUE_RE.findall(lowered_answer)]
+    for run in _SEPARATED_VALUE_RE.findall(observed):
+        pieces = re.split(r"[^a-z0-9]+", run)
+        if len("".join(pieces)) >= 8 and "".join(pieces) in squeezed_answer:
+            return False   # the whole value, with or without its separators
+        # The same pieces in the same order, when a label touched the value on one side
+        # ("md5:9f:86:..." observed, "9f:86:..." answered) or the value is short ("192.0.2.7").
+        for said in answer_runs:
+            short, long = (said, pieces) if len(said) <= len(pieces) else (pieces, said)
+            if len(short) >= 4 and len("".join(short)) >= 6 and any(
+                long[i : i + len(short)] == short for i in range(len(long) - len(short) + 1)
+            ):
+                return False
+    return True
 
 
 # --- Unobserved live-value claims -------------------------------------------------------------

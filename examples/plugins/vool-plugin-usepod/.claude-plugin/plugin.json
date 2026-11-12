@@ -1,0 +1,5 @@
+{
+  "name": "vool-plugin-usepod",
+  "version": "1.0.0",
+  "description": "Connect your own UsePod service account through a declarative model provider."
+}

@@ -276,11 +276,14 @@ def test_only_the_owners_own_requests_move_usdt(chain) -> None:
         assert caught.value.code == "wallet_network_disabled", (origin, caught.value.context)
 
 
-def test_a_usepod_requirement_in_usdt_is_not_a_lane_payment(chain) -> None:
+def test_a_usepod_requirement_in_usdt_is_not_a_lane_payment(chain, monkeypatch, tmp_path) -> None:
     import time
 
     from core.wallet import usepod
     from core.wallet.errors import WalletFault
+    from tests.usepod._legacy_profile import isolate_reference
+
+    isolate_reference(monkeypatch, tmp_path)
 
     wallet = _wallet(chain)
     pay_to = _person(chain, usdt_account=True)

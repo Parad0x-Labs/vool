@@ -497,6 +497,83 @@ def _within_turn_navigation(loop: Any) -> Any:
     return run_in_turn_scope
 
 
+_PLUGIN_OUTPUT_HEADER = re.compile(r"^\[untrusted output from MCP server '[^']*' tool '[^']*'\]\n?")
+_PLUGIN_RESULT_LIMIT = 1500
+
+
+def plugin_result_in_plain_words(executed_steps: list[dict[str, Any]]) -> str:
+    """What an added plugin returned, said plainly, for a turn whose model wording was refused.
+
+    Measured in real chat (2026-11-12, local model): the plugin ran and returned the right value,
+    the model's sentence about it was refused by an answer check, and the person was shown
+    "Incomplete -- model synthesis failed (ungrounded) ... 1 of 1 tool steps succeeded. Last result:
+    Plugin `x.y` returned output; its claims need independent verification." The result they asked
+    for was in hand and never shown. The plugin's output is still only the plugin's word, so it is
+    shown as exactly that: named as the plugin's, and said to be unchecked by VOOL.
+
+    "" unless the turn's last step is a plugin tool that ran and returned something.
+    """
+    if not executed_steps:
+        return ""
+    step = executed_steps[-1]
+    try:
+        from core import plugin_manager
+        from core.plugin_tools import plugin_id_for_intent
+
+        owners = {plugin_id_for_intent(str(each.get("tool_name") or "")) for each in executed_steps}
+        # Only a turn that was nothing but this one plugin's successful steps: with any other
+        # tool in the turn, or a failed step, the last step is not the whole answer.
+        if len(owners) != 1 or "" in owners or not all(each.get("ok") for each in executed_steps):
+            return ""
+        plugin_id = next(iter(owners))
+        try:
+            name = str(plugin_manager.inspect(plugin_id).get("name") or plugin_id)
+        except Exception:
+            name = plugin_id
+    except Exception:
+        return ""
+    body = _PLUGIN_OUTPUT_HEADER.sub("", str(step.get("response_text") or "").strip()).strip()
+    if not body:
+        return ""
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        parsed = None
+    if isinstance(parsed, dict) and parsed and all(
+        isinstance(value, (str, int, float, bool)) or value is None for value in parsed.values()
+    ):
+        body = "\n".join(f"{str(key).replace('_', ' ')}: {value}" for key, value in parsed.items())
+    if len(body) > _PLUGIN_RESULT_LIMIT:
+        body = body[:_PLUGIN_RESULT_LIMIT].rstrip() + "\n(The rest is left out here.)"
+    # Shown as literal text, never as formatting: the plugin's words must not become links,
+    # pictures or headings in the chat. A fence cannot be closed from inside once its own
+    # marker is taken out of the text.
+    body = body.replace("`", "'")
+    name = re.sub(r"[^\w .,'()-]", "", name)[:60] or "added"
+    return f"This is what the {name} plugin returned. VOOL has not checked it.\n\n```text\n{body}\n```"
+
+
+def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
+    """Everything the model was shown from this turn's tools, for judging whether its answer used it.
+
+    A step's `summary` is a one-line label for the activity list. For a tool whose label says
+    nothing of its result (a plugin's is "returned output; its claims need independent
+    verification"), judging by the label alone refused the correct answer -- "4 words and 19
+    characters" shares no word with it -- and the person was shown the label instead. The step's
+    full `response_text` is what the model actually read, so it is part of the evidence.
+    """
+    observations: list[str] = []
+    for step in executed_steps:
+        for key in ("summary", "response_text"):
+            text = str(step.get(key) or "").strip()
+            if text and text not in observations:
+                observations.append(text)
+        step_observation = step.get("observation")
+        if isinstance(step_observation, dict) and step_observation:
+            observations.append(json.dumps(step_observation, default=str))
+    return observations
+
+
 class ResearchToolLoopFacadeMixin:
     def _open_provider_search_receipt(self, source_context: dict[str, Any] | None, authority_text: str) -> bool:
         """"Use the model's own tools": open the receipt for the provider's search BEFORE synthesis.
@@ -2787,15 +2864,9 @@ class ResearchToolLoopFacadeMixin:
         # the deterministic grounded summary built from the executed steps (the same fallback the
         # echo guard already used). The fallback is itself grounded, so a conservative false reject
         # costs only fluency, never correctness.
-        synthesis_observations: list[str] = []
-        for step in executed_steps:
-            step_summary_text = str(step.get("summary") or "").strip()
-            if step_summary_text:
-                synthesis_observations.append(step_summary_text)
-            step_observation = step.get("observation")
-            if isinstance(step_observation, dict) and step_observation:
-                synthesis_observations.append(json.dumps(step_observation, default=str))
+        synthesis_observations = synthesis_grounding_observations(executed_steps)
         reject_reason = ""
+        plugin_result_shown = False
         if renders_final:
             reject_reason = ""
         elif not synthesis_text:
@@ -2837,7 +2908,18 @@ class ResearchToolLoopFacadeMixin:
                 tool_name=str(executed_steps[-1].get("tool_name") or ""),
                 status=reject_reason,
             )
-            final_message = self._tool_loop_final_message(None, executed_steps)
+            plugin_result = plugin_result_in_plain_words(executed_steps)
+            if plugin_result:
+                # The tool's own result is the answer the person asked for; only the model's
+                # wording was refused. The turn is complete, not a failed audit.
+                final_message = plugin_result
+                reject_reason = ""
+                # Runtime code composed these words, not the model: no model confidence or
+                # verifier caveat belongs to them.
+                synthesis = None
+                plugin_result_shown = True
+            else:
+                final_message = self._tool_loop_final_message(None, executed_steps)
         else:
             final_message = self._tool_loop_final_message(synthesis, executed_steps)
         _syn_provider = str(getattr(synthesis, "provider_id", "") or "")
@@ -2922,7 +3004,7 @@ class ResearchToolLoopFacadeMixin:
             "task_outcome": "failed" if (terminal_failure or narrated_failure) else "success",
             # Typed authorship declaration for the grounding lifecycle: when the last tool's
             # contract renders the final answer, runtime code composed the published bytes.
-            "runtime_rendered_final": bool(renders_final),
+            "runtime_rendered_final": bool(renders_final) or plugin_result_shown,
             "details": {
                 "tool_name": executed_steps[-1]["tool_name"],
                 "tool_provider": final_provider_id,

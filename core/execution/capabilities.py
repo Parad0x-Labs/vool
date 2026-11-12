@@ -624,8 +624,9 @@ def _plugin_available(source: str) -> bool:
         return False
     try:
         from core.plugin_lifecycle import is_available
+        from core.plugin_tools import runtime_lane_open
 
-        return bool(is_available(plugin_id))
+        return bool(is_available(plugin_id) and runtime_lane_open(plugin_id))
     except Exception:
         # An unreadable lifecycle store offers nothing. The old store failed OPEN, which on a
         # permission surface is the wrong direction.
@@ -639,14 +640,11 @@ def _plugin_tool_specs() -> list[dict[str, Any]]:
     tool is indistinguishable from a built-in — same native schema, same permission derivation,
     same execution record, same answer binding. Nothing downstream branches on where it came from.
 
-    Behind a flag and fail-soft: a broken plugin must never cost the user their built-in tools.
+    Every package needs the plugin-tools feature switch. A v1 package also needs its explicit
+    verified lifecycle consent; a broken plugin never costs the user built-in tools.
     """
 
     try:
-        from core.runtime_flags import flag_enabled
-
-        if not flag_enabled("plugin_runtime_tools"):
-            return []
         from core.tool_registry import registered_tools
 
         return [

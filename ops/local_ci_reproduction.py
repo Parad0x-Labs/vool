@@ -89,6 +89,7 @@ MACOS_ONLY_FILES = frozenset({
     "tests/test_artifact_readers_served_m2.py",
     "tests/test_audio_dictation.py",
     "tests/test_media_product_served.py",
+    "tests/test_plugin_macos_sandbox.py",
     "tests/wallet/test_wallet_approval_methods.py",
     "tests/wallet/test_wallet_device_auth_ipc.py",
     "tests/wallet/test_wallet_export_ui_served.py",

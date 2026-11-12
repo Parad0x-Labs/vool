@@ -1,25 +1,15 @@
-"""The funded-token journey a person takes, in ONE production served process.
+"""Retained monetary journey through a normal daemon and actual vault, consent and ledger.
 
-Settings Save (the composed verify-before-store intake) -> Test (a balance read) -> discovery (observed
-listing and exact prices) -> choose a genuinely listed model in the chat model menu (the price gate
-asks before the pin lands) -> a budgetless send is refused by the composer itself (reason, spend
-panel, draft kept, nothing sent) -> the served door still shows the staged refusals (route, then
-money authority) -> spend consent -> an ordinary chat turn on the pin -> the answer and an Activity
-receipt that correlates with the money law's own liability. An original and a novel model and prompt;
-a funded balance is liquidity, not permission; late changes cannot consume old authority; the token
-stays in its sealed store.
-
-SYNTHETIC PROVIDER: the strict local UsePod stand-in on loopback, a random token minted here and synthetic
-funds. The daemon is ``apps.vool_api_server`` unchanged, with the production money law (no monetary
-double) and the production credential intake. Evidence levels: the Settings, chat and Activity steps are
-browser-level (served pages in Chromium, every non-daemon URL aborted); the late-change controls and the
-leak scan use the served HTTP doors and are API-level.
+Central vendor Settings, composer preflight and price widgets were removed by TDL L35.
+Their replacement Add-ons/browser workflows live in test_plugin_served_journey.py.
+These API-level cases preserve the original observed prices, no-grant/refund refusals,
+correlated receipts, novel model and late account-change financial controls. The
+remaining provider setup and secret exposure checks still use the real browser.
+The provider and funds are synthetic; no monetary authority is substituted.
 """
 from __future__ import annotations
 
 import json
-import re
-import time
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -27,18 +17,19 @@ from types import SimpleNamespace
 import pytest
 
 from tests.served_browser import launch_chromium
+from tests.usepod._served_daemon import CENTRAL, PlainServedDaemon
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService, default_reply
 from tests.usepod.test_usepod_served_flow import (
     INFERENCE_PATHS,
     MARKET,
     MARKET_ID,
     MODEL,
+    _answer_text,
     _completed_receipts,
     _keep,
     _rejections,
     _session,
 )
-from tests.usepod.test_usepod_settings_ui import CENTRAL, PlainServedDaemon
 from tests.usepod.test_usepod_spend_approval_served import _resolve_approval
 
 NOVEL_MODEL = "meridian-synth-chat-mini"
@@ -62,7 +53,10 @@ def journey(tmp_path_factory):
     daemon = PlainServedDaemon(tmp_path_factory.mktemp("usepod-funded-journey") / "home")
     manager = browser = None
     try:
+        daemon.seed_legacy_profile(origin=service.origin, token=token, models=tuple(service.models))
         daemon.start()
+        status, policy = daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
+        assert status == 200, policy
         manager, browser = launch_chromium()
         yield SimpleNamespace(service=service, daemon=daemon, browser=browser, token=token, secrets=[token], sessions=[], state={})
     finally:
@@ -88,148 +82,24 @@ def _page(journey, path: str):
     return page
 
 
-def _usepod_panel(journey):
-    page = _page(journey, "/settings#models")
-    page.wait_for_selector(".usepod-model-search", timeout=20000)
-    # the pane paints twice (shell, then sources); drive the second draw
-    page.wait_for_timeout(600)
-    return page
 
 
-def _model_row(page, model_id: str):
-    exact = re.compile(rf"^{re.escape(model_id)}$")
-    return page.locator(".usepod-model").filter(has=page.locator("span.profile-value.mono", has_text=exact))
 
 
 def _inference_requests(service) -> int:
     return sum(len(service.requests_to(path)) for path in INFERENCE_PATHS.values())
 
 
-def _selection(model_id: str) -> str:
-    """The selection identity the chat page carries for a non-OpenRouter provider's pin: ``provider:model``."""
-    return f"usepod:{model_id}"
 
 
-def _pick_in_chat(page, model_id: str) -> list[str]:
-    """The person opens the model menu, picks the listed row, and answers the paid gate(s) the page raises.
-
-    Returns the texts of the gates the page asked (the price acceptance the operator gave before the
-    pin landed) so a journey can prove the page paused for a human decision."""
-    pins: list[dict] = []
-    problems: list[str] = []
-    page.on("response", lambda response: pins.append({"status": response.status, "url": response.url}) if "/api/cloud/model" in response.url and response.request.method == "POST" else None)
-    page.on("console", lambda message: problems.append(f"{message.type}: {message.text}"[:300]) if message.type in {"error", "warning"} else None)
-    page.on("pageerror", lambda error: problems.append(f"pageerror: {error}"[:300]))
-    page.click("#modelBtn")
-    row = page.locator(f'#modelPop .cloud-dyn.pop-item[data-model="{_selection(model_id)}"]')
-    row.wait_for(state="visible", timeout=30000)
-    row.click()
-    gates: list[str] = []
-    deadline = time.monotonic() + 45.0
-    while time.monotonic() < deadline:
-        gate = page.locator(".vg-btn.vg-danger")
-        if gate.count() and gate.first.is_visible():
-            gates.append(page.locator(".vg-btn.vg-danger").first.evaluate("b => (b.closest('[class]') || b).innerText")[:400])
-            gate.first.click()
-        if page.evaluate("() => { try { return modelValue; } catch (e) { return '<no modelValue>'; } }") == _selection(model_id):
-            return gates
-        page.wait_for_timeout(200)
-    state = {
-        "model_value": page.evaluate("() => { try { return String(modelValue); } catch (e) { return '<no modelValue>'; } }"),
-        "label": page.evaluate("() => (document.getElementById('modelLbl') || {}).textContent || ''"),
-        "pin_posts": pins, "gates_answered": gates, "problems": problems[-20:],
-        "toasts": page.evaluate("() => Array.from(document.querySelectorAll('.toast, [role=status]')).map(n => n.textContent).slice(-8)"),
-    }
-    _keep(f"journey_pick_failure_{model_id}.json", state)
-    if _evidence_dir():
-        page.screenshot(path=str(Path(_evidence_dir()) / f"journey_pick_failure_{model_id}.png"), full_page=True)
-    raise AssertionError(f"the chat page never pinned {model_id}: {json.dumps(state)[:1500]}")
 
 
-def _send_in_chat(page, text: str) -> tuple[str, dict, list[str]]:
-    """Send like a person: answer the page's own per-turn paid confirmation when it asks, then wait for THIS turn to
-    be released. Returns the visible answer, the request body and the confirmation texts the page showed."""
-    previous = page.evaluate("() => (view.run && view.run.turnId) || ''")
-    sends = _SENDS[id(page)]
-    sent_before = len(sends)
-    page.fill("#input", text)
-    page.click("#send")
-    confirmations: list[str] = []
-    released = "(prev) => !!(view.run && view.run.turnId && view.run.turnId !== prev && view.run.released)"
-    deadline = time.monotonic() + 240.0
-    while time.monotonic() < deadline:
-        gate = page.locator(".vg-btn.vg-danger")
-        if gate.count() and gate.first.is_visible():
-            confirmations.append(gate.first.evaluate("b => (b.parentElement && b.parentElement.parentElement ? b.parentElement.parentElement : b).innerText")[:600])
-            gate.first.click()
-        if page.evaluate(released, previous):
-            break
-        page.wait_for_timeout(200)
-    else:
-        state = {
-            "run": page.evaluate("() => view.run ? {turnId: view.run.turnId, status: view.run.status, released: view.run.released} : null"),
-            "requests_sent": len(sends) - sent_before, "confirmations": confirmations,
-        }
-        _keep("journey_send_timeout.json", state)
-        if _evidence_dir():
-            page.screenshot(path=str(Path(_evidence_dir()) / "journey_send_timeout.png"), full_page=True)
-        raise AssertionError(f"the turn was never released: {json.dumps(state)[:1200]}")
-    bodies = [json.loads(data) for data in sends[sent_before:] if data]
-    assert bodies, "the page sent no /api/chat request"
-    return page.locator(".msg.assistant .msg-text").last.inner_text(), bodies[-1], confirmations
 
 
-def _open_receipt_in_activity(page) -> str:
-    """Open Activity and expand the finished turn's work log the way a person does (the page's own Expand all),
-    then read what is visible. A finished turn collapses to one line, so the receipt sits behind a disclosure."""
-    page.click("#panelBtn")
-    expand = page.locator('button[data-activity-action="expand"]').first
-    expand.wait_for(state="visible", timeout=30000)
-    expand.click()
-    page.wait_for_function("() => /UsePod receipt/.test(document.body.innerText)", timeout=30000)
-    return page.inner_text("body")
 
 
-def _consent_in_panel(journey, *, per_call: int, fresh: bool) -> str:
-    page = _usepod_panel(journey)
-    try:
-        page.wait_for_selector(".usepod-spend-approval", timeout=20000)
-        if fresh:
-            # A fresh budget replaces whatever is enabled; when nothing is, there is nothing to disable.
-            disable = page.locator("button.usepod-budget-disable")
-            if disable.count() and disable.first.is_visible():
-                disable.first.click()
-                page.wait_for_selector("select.usepod-budget-mode", timeout=20000)
-        page.wait_for_selector("select.usepod-budget-mode", timeout=20000)
-        page.select_option("select.usepod-budget-mode", "total")
-        page.locator("details.usepod-budget-advanced > summary").click()
-        page.fill("input.usepod-spend-percall", f"{per_call / 1_000_000:.6f}")
-        page.fill("input.usepod-spend-total", f"{per_call / 1_000_000:.6f}")
-        page.click("button.usepod-spend-propose")
-        page.wait_for_selector("button.usepod-spend-allow", timeout=20000)
-        pending = page.inner_text(".usepod-spend-approval")
-        page.click("button.usepod-spend-allow")
-        page.wait_for_selector("button.usepod-budget-disable", timeout=20000)
-        return pending
-    finally:
-        page.close()
 
 
-def _disable_budget_in_panel(journey) -> None:
-    """The person disables the enabled UsePod budget in Settings (the real user door for revocation)."""
-    page = _usepod_panel(journey)
-    try:
-        disable = page.locator("button.usepod-budget-disable")
-        disable.wait_for(state="visible", timeout=20000)
-        disable.click()
-        # Disabled: the proposal form is back, ready for a fresh budget, and nothing is enabled.
-        page.wait_for_selector("select.usepod-budget-mode", timeout=20000)
-        page.wait_for_function(
-            "() => /No new paid requests are authorized|Budget disabled/.test(document.body.innerText)",
-            timeout=20000,
-        )
-    finally:
-        page.close()
 
 
 def _correlated_liability(journey, session_id: str, model_id: str) -> tuple[dict, dict]:
@@ -253,51 +123,20 @@ def _correlated_liability(journey, session_id: str, model_id: str) -> tuple[dict
 
 def test_save_test_and_discovery_observe_without_spending(journey) -> None:
     daemon, service, token = journey.daemon, journey.service, journey.token
-    page = _page(journey, "/settings#keys")
-    try:
-        page.wait_for_selector("select[aria-label='Provider']", timeout=20000)
-        page.wait_for_timeout(600)
-        page.select_option("select[aria-label='Provider']", "usepod")
-        page.fill("input[aria-label='UsePod token or proxy URL']", f"{service.origin}/proxy/{token}/v1")
-        page.fill("input[aria-label='Provider origin']", service.origin)
-        page.click("button.key-save")
-        page.wait_for_function("() => /Stored, sealed on this machine/.test((document.querySelector('.key-save-state') || {textContent:''}).textContent || '')", timeout=30000)
-        note = page.inner_text(".key-save-state")
-        assert service.origin in note and token not in note
-    finally:
-        page.close()
+    status, probe = daemon.call("POST", "/api/cloud/usepod/balance", {"max_age_seconds": 0})
+    assert status == 200 and probe["state"] == "reported", probe
+    status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
+    assert status == 200 and refreshed["credential"]["state"] == "observed", refreshed
     status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
     assert status == 200 and view["credential"]["configured"] is True, view["credential"]
     journey.state["fingerprint"] = view["credential"]["fingerprint"]
-
-    page = _usepod_panel(journey)
-    try:
-        page.wait_for_selector("button.usepod-test", timeout=20000)
-        page.click("button.usepod-test")
-        page.wait_for_function("() => /Connection verified/.test((document.querySelector('.usepod-test-state') || {textContent:''}).textContent || '')", timeout=30000)
-        page.click("button.usepod-refresh")
-        page.wait_for_selector(".usepod-model", timeout=30000)
-        _model_row(page, NOVEL_MODEL).wait_for(state="visible", timeout=30000)
-        text = page.inner_text("body")
-        _keep("journey_settings_after_refresh.txt", text)
-        if _evidence_dir():
-            page.screenshot(path=str(Path(_evidence_dir()) / "journey_settings_after_refresh.png"), full_page=True)
-        assert f"{MARKET[0] / 1_000_000:.6f} input / {MARKET[1] / 1_000_000:.6f} output USDC per 1M tokens" in text
-        assert f"{NOVEL_MARKET[0] / 1_000_000:.6f} input / {NOVEL_MARKET[1] / 1_000_000:.6f} output USDC per 1M tokens" in text
-        assert token not in text
-    finally:
-        page.close()
-
-    # Discovery: observed listing and exact integer prices with provenance; nothing is priced at zero.
-    status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
     rows = {row["model_id"]: row for row in view["models"]}
     assert rows[MODEL]["listed_for_this_credential"] is True and rows[NOVEL_MODEL]["listed_for_this_credential"] is True
     assert rows[NOVEL_MODEL]["marketplace"]["input_microunits_per_million"] == NOVEL_MARKET[0]
     assert all(int(row["marketplace"]["input_microunits_per_million"]) > 0 for row in rows.values() if row.get("marketplace"))
     assert view["documented_facts"], "documented capability facts are named separately from observations"
     _keep("journey_discovery.json", {"marketplace": view["marketplace"], "models": view["models"], "capabilities": view["capabilities"]})
-
-    # Save, Test and discovery read the token's balance and the public feed only: nothing was spent.
+    assert token not in json.dumps(view) + json.dumps(probe)
     assert _inference_requests(service) == 0
     assert len(service.requests_to("/proxy/{token}/balance")) >= 2
     status, liabilities = daemon.call("GET", "/api/money/liabilities")
@@ -307,111 +146,53 @@ def test_save_test_and_discovery_observe_without_spending(journey) -> None:
 def test_the_original_model_answers_in_chat_with_a_correlated_receipt(journey) -> None:
     daemon, service = journey.daemon, journey.service
     assert journey.state.get("fingerprint"), "requires the credential saved by the first journey test"
-    chat = _page(journey, "/chat")
-    try:
-        chat.wait_for_selector("#input", timeout=20000)
-        gates = _pick_in_chat(chat, MODEL)
-        # The page paused for the person's price acceptance BEFORE the paid pin landed.
-        assert gates and "Accept price" in gates[0], gates
+    status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
+    assert status == 200, approved
+    before = _inference_requests(service)
+    draft = "Write a short thank-you note to a neighbor who watered my plants."
+    session_id, _status, _answer = _chat_api(daemon, MODEL, draft)
+    assert "MONEY_AUTHORITY_INVALID" in json.dumps(daemon.events(session_id))
+    assert _inference_requests(service) == before
 
-        # No spend budget yet: the composer itself refuses the paid pin -- it names the reason,
-        # opens the spend panel and keeps the draft; no request leaves the machine.
-        before = _inference_requests(service)
-        draft = "Write a short thank-you note to a neighbor who watered my plants."
-        sent_before = len(_SENDS[id(chat)])
-        chat.fill("#input", draft)
-        chat.click("#send")
-        chat.wait_for_selector("#settingsFrameOverlay:not([hidden])", state="visible", timeout=30000)
-        chat.wait_for_function(
-            "() => ((document.getElementById('settingsFrame') || {}).src || '').indexOf('models/usepod/spend') !== -1",
-            timeout=30000,
-        )
-        chat.wait_for_timeout(1000)
-        assert len(_SENDS[id(chat)]) == sent_before, "the budgetless composer sent a request"
-        assert chat.input_value("#input") == draft, "the refused send lost the draft"
-        assert _inference_requests(service) == before
-        chat.keyboard.press("Escape")
-        chat.wait_for_selector("#settingsFrameOverlay[hidden]", state="attached", timeout=10000)
+    grant_id = _consent_api(daemon, 500_000)
+    start = len(service.requests_to(INFERENCE_PATHS["openai"]))
+    session_id, status, answer = _chat_api(daemon, MODEL, "Write a short message inviting my team to a Friday retrospective.")
+    assert status == 200, answer
+    journey.sessions.append(session_id)
+    arrived = [json.loads(request["body"]) for request in service.requests_to(INFERENCE_PATHS["openai"])[start:]]
+    assert len(arrived) == 1, "exactly one answer request reached the provider"
+    reply = default_reply(arrived[0], "openai").text
+    assert reply in _answer_text(answer), (answer, reply)
+    receipt, liability = _correlated_liability(journey, session_id, MODEL)
+    assert (receipt["route"]["class"], receipt["route"]["provider_id"]) == ("marketplace", MARKET_ID)
+    _keep("journey_original.json", {"answer": answer, "receipt": receipt, "liability": liability})
 
-        # The price acceptance at pin time IS the route approval: the operator's own two-axis
-        # ceilings bound the route, so no separate approval step exists to stage. (A route
-        # withdrawal still refuses the turn -- proven by the late-change controls below.)
-        status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
-        assert status == 200 and MODEL in (view.get("approved_routes") or {}), view
-
-        # A priced route with no spend budget still refuses at the money law: the funded balance
-        # is liquidity, not permission. Nothing reaches the provider.
-        session_id, _status, _answer = _chat_api(daemon, MODEL, draft)
-        assert "MONEY_AUTHORITY_INVALID" in json.dumps(daemon.events(session_id))
-        assert _inference_requests(service) == before
-
-        pending = _consent_in_panel(journey, per_call=500_000, fresh=False)
-        assert "0.5 USDC" in pending and journey.state["fingerprint"] in pending and "All UsePod models" in pending
-
-        start = len(service.requests_to(INFERENCE_PATHS["openai"]))
-        answer, body, asked = _send_in_chat(chat, "Write a short message inviting my team to a Friday retrospective.")
-        # The price accepted at pin time covers this chat for the day: the identical decision is
-        # not re-asked per turn (a narrower one-turn acceptance is no longer offered anywhere).
-        assert asked == [], asked
-        session_id = str(body["session_id"])
-        assert body["model"] == _selection(MODEL) and body["model_selection"] == "pin", body
-        journey.sessions.append(session_id)
-        arrived = [json.loads(request["body"]) for request in service.requests_to(INFERENCE_PATHS["openai"])[start:]]
-        assert len(arrived) == 1, "exactly one answer request reached the provider"
-        reply = default_reply(arrived[0], "openai").text
-        assert reply in answer, (answer, reply)
-
-        activity = _open_receipt_in_activity(chat)
-        assert "settled with evidence" in activity and f"money: {LAW_LABEL}" in activity
-        if _evidence_dir():
-            chat.screenshot(path=str(Path(_evidence_dir()) / "journey_chat_original_receipt.png"), full_page=True)
-        receipt, liability = _correlated_liability(journey, session_id, MODEL)
-        assert (receipt["route"]["class"], receipt["route"]["provider_id"]) == ("marketplace", MARKET_ID)
-        _keep("journey_original.json", {"answer": answer, "receipt": receipt, "liability": liability})
-
-        # A disabled budget is not standing authority: the next turn refuses before any byte.
-        after = _inference_requests(service)
-        liabilities_after = len(daemon.call("GET", "/api/money/liabilities")[1]["liabilities"])
-        _disable_budget_in_panel(journey)
-        session_id, _status, _answer = _chat_api(daemon, MODEL, "Write a two-line limerick about a cat.")
-        assert "MONEY_AUTHORITY_REVOKED" in json.dumps(daemon.events(session_id))
-        assert _inference_requests(service) == after
-        assert len(daemon.call("GET", "/api/money/liabilities")[1]["liabilities"]) == liabilities_after, "a refused turn left a liability"
-    finally:
-        chat.close()
+    after = _inference_requests(service)
+    liabilities_after = len(daemon.call("GET", "/api/money/liabilities")[1]["liabilities"])
+    status, revoked = daemon.call("POST", "/api/money/grants/revoke", {"grant_id": grant_id})
+    assert status == 200, revoked
+    session_id, _status, _answer = _chat_api(daemon, MODEL, "Write a two-line limerick about a cat.")
+    assert "MONEY_AUTHORITY_REVOKED" in json.dumps(daemon.events(session_id))
+    assert _inference_requests(service) == after
+    assert len(daemon.call("GET", "/api/money/liabilities")[1]["liabilities"]) == liabilities_after, "a refused turn left a liability"
 
 
 def test_a_novel_model_and_prompt_take_the_same_journey(journey) -> None:
     daemon, service = journey.daemon, journey.service
     assert journey.sessions, "requires the original journey"
-    chat = _page(journey, "/chat")
-    try:
-        chat.wait_for_selector("#input", timeout=20000)
-        gates = _pick_in_chat(chat, NOVEL_MODEL)
-        # A model pinned for the first time still pauses for the person's price acceptance.
-        assert gates and "Accept price" in gates[0], gates
-        # ... and that acceptance binds the novel model's route with the operator's ceilings.
-        status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
-        assert status == 200 and NOVEL_MODEL in (view.get("approved_routes") or {}), view
-        _consent_in_panel(journey, per_call=400_000, fresh=True)
-        start = len(service.requests_to(INFERENCE_PATHS["openai"]))
-        answer, body, asked = _send_in_chat(chat, "Draft three friendly subject lines for a neighborhood garden-swap newsletter.")
-        # The price acceptance given at pin time covers this chat; it is not re-asked per turn.
-        assert asked == [], asked
-        session_id = str(body["session_id"])
-        journey.sessions.append(session_id)
-        assert body["model"] == _selection(NOVEL_MODEL), body
-        arrived = [json.loads(request["body"]) for request in service.requests_to(INFERENCE_PATHS["openai"])[start:]]
-        assert len(arrived) == 1 and arrived[0]["model"] == NOVEL_MODEL, arrived
-        assert default_reply(arrived[0], "openai").text in answer
-        _open_receipt_in_activity(chat)
-        if _evidence_dir():
-            chat.screenshot(path=str(Path(_evidence_dir()) / "journey_chat_novel_receipt.png"), full_page=True)
-        receipt, liability = _correlated_liability(journey, session_id, NOVEL_MODEL)
-        assert (receipt["route"]["class"], receipt["route"]["provider_id"]) == ("marketplace", NOVEL_MARKET_ID)
-        _keep("journey_novel.json", {"answer": answer, "receipt": receipt, "liability": liability})
-    finally:
-        chat.close()
+    status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": NOVEL_MODEL})
+    assert status == 200, approved
+    _consent_api(daemon, 400_000)
+    start = len(service.requests_to(INFERENCE_PATHS["openai"]))
+    session_id, status, answer = _chat_api(daemon, NOVEL_MODEL, "Draft three friendly subject lines for a neighborhood garden-swap newsletter.")
+    assert status == 200, answer
+    journey.sessions.append(session_id)
+    arrived = [json.loads(request["body"]) for request in service.requests_to(INFERENCE_PATHS["openai"])[start:]]
+    assert len(arrived) == 1 and arrived[0]["model"] == NOVEL_MODEL, arrived
+    assert default_reply(arrived[0], "openai").text in _answer_text(answer)
+    receipt, liability = _correlated_liability(journey, session_id, NOVEL_MODEL)
+    assert (receipt["route"]["class"], receipt["route"]["provider_id"]) == ("marketplace", NOVEL_MARKET_ID)
+    _keep("journey_novel.json", {"answer": answer, "receipt": receipt, "liability": liability})
 
 
 def _chat_api(daemon, model_id: str, text: str) -> tuple[str, int, object]:
@@ -454,8 +235,8 @@ def test_late_route_or_account_changes_cannot_consume_the_consent(journey) -> No
     replacement = str(uuid.uuid4())
     journey.secrets.append(replacement)
     service.tokens[replacement] = 3_000_000
-    status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": replacement, "base_url": service.origin})
-    assert status == 200 and saved["credential_fingerprint"] != journey.state["fingerprint"], saved
+    saved = daemon.seed_legacy_profile(origin=service.origin, token=replacement, models=tuple(service.models))
+    assert saved["credential_fingerprint"] != journey.state["fingerprint"], saved
     # The replacement account's balance is observed first, so what refuses is the consent's account binding
     # itself -- not the (also correct) refusal of an account whose liquidity was never read.
     status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
@@ -471,8 +252,8 @@ def test_late_route_or_account_changes_cannot_consume_the_consent(journey) -> No
     status, against = daemon.call("GET", f"/api/money/liabilities?grant_id={grant_id}")
     assert status == 200 and against["liabilities"] == [], against
 
-    status, restored = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": token, "base_url": service.origin})
-    assert status == 200 and restored["credential_fingerprint"] == journey.state["fingerprint"], restored
+    restored = daemon.seed_legacy_profile(origin=service.origin, token=token, models=tuple(service.models))
+    assert restored["credential_fingerprint"] == journey.state["fingerprint"], restored
     session_id, status, answer = _chat_api(daemon, NOVEL_MODEL, "Suggest a name for a small community tool library.")
     journey.sessions.append(session_id)
     assert _inference_requests(service) == before + 1
@@ -498,7 +279,7 @@ def test_other_provider_setup_controls_still_work_beside_usepod(journey) -> None
             "gs => gs.map(g => [g.label, Array.from(g.querySelectorAll('option')).map(o => o.value)])",
         )
         offered = {value for _label, values in groups for value in values}
-        assert {"openrouter", "custom", "usepod"} <= offered, groups
+        assert {"openrouter", "custom"} <= offered, groups
         assert any(label == "Web search" and any("brave" in value for value in values) for label, values in groups), groups
         page.select_option("select[aria-label='Provider']", "openrouter")
         page.fill("input[aria-label='API key']", later_key)
@@ -512,8 +293,7 @@ def test_other_provider_setup_controls_still_work_beside_usepod(journey) -> None
         page.close()
     status, after = daemon.call("GET", "/api/cloud/usepod/discovery")
     assert after["credential"] == before["credential"], (before["credential"], after["credential"])
-    status, catalog = daemon.call("GET", "/api/cloud/models")
-    assert status == 200 and catalog["provider"] == "usepod", catalog.get("provider")
+    assert status == 200 and after["models"] == before["models"], (before, after)
 
 
 def test_the_tokens_appear_on_no_served_surface_log_or_file(journey) -> None:

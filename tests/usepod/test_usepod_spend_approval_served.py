@@ -1,19 +1,10 @@
-"""The trusted spend-approval user flow, served and browser-driven.
+"""Retained spend consent, settlement, denial, expiry and recovery over the normal daemon.
 
-No grant exists → the operator proposes spending from Settings (the SERVER derives account,
-asset, models and routes; the operator sets only the ceilings) → the PENDING approval lives in
-the SAME trusted store the tool gate uses → the operator ALLOWS it with the VISIBLE Allow
-control (the same trusted resolution door the chat approval buttons use) → a full page RELOAD
-between Allow and confirm (the consent survives in the state model, not the page) → Settings
-confirms → ONE grant is minted through the real operator authority → ONE synthetic local
-provider call runs, settles truthfully BOUNDED, and the money survives a restart → the spent
-single-payment consent refuses the next call until the operator consents again → a denied
-proposal mints nothing → a minted grant revokes through the existing money route. The denial
-and control tests resolve approvals through the same door over HTTP and are labelled mixed
-browser/API proof.
-
-Browser-level evidence against the served /settings page (NOT native-window acceptance). All
-funds are labelled synthetic; the provider is the SYNTHETIC strict local service.
+The central vendor budget form was removed by TDL L35. These real HTTP cases
+retain the original financial assertions through the same trusted approval
+store and operator routes. Native plugin browser workflows are covered by
+ test_plugin_served_journey.py. Funds and external provider are synthetic;
+production monetary authority is unchanged.
 """
 from __future__ import annotations
 
@@ -72,14 +63,11 @@ def served(tmp_path_factory):
     daemon = MoneyLawDaemon(root / "home")
     manager = browser = None
     try:
+        saved = daemon.seed_legacy_profile(origin=service.origin, token=token, models=tuple(service.models))
         daemon.start()
-        status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-        assert status == 200, saved
         status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
         assert status == 200 and refreshed["credential"]["state"] == "observed", refreshed
         daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
-        status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-        assert status == 200 and pinned.get("ok") is True, pinned
         status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
         assert status == 200, approved
         manager, browser = launch_chromium()
@@ -103,73 +91,57 @@ def _open_panel(served):
 
 def test_the_full_user_flow_no_grant_to_trusted_budget_to_two_settled_calls(served) -> None:
     daemon, service = served.daemon, served.service
-    page = _open_panel(served)
-    try:
-        text = page.inner_text("body")
-        # No grant exists: the panel says so, and the approval form is offered.
-        assert "NO active spend grant" in text
-        assert page.query_selector("input.usepod-spend-percall") is not None
+    # A paid turn before consent refuses with the money law's code, nothing sent.
+    before = len(service.requests_to("/proxy/{token}/v1/chat/completions"))
+    session_id = _session(f"pre-consent-{uuid.uuid4()}")
+    status, answer = _chat(daemon, "Write a short thank-you note to a neighbor who watered my plants.", session_id)
+    assert status == 200 and "MONEY_AUTHORITY_INVALID" in json.dumps(daemon.events(session_id))
+    assert len(service.requests_to("/proxy/{token}/v1/chat/completions")) == before
 
-        # A paid turn before consent refuses with the money law's code, nothing sent.
-        before = len(service.requests_to("/proxy/{token}/v1/chat/completions"))
-        session_id = _session(f"pre-consent-{uuid.uuid4()}")
-        status, answer = _chat(daemon, "Write a short thank-you note to a neighbor who watered my plants.", session_id)
-        assert status == 200 and "MONEY_AUTHORITY_INVALID" in json.dumps(daemon.events(session_id))
-        assert len(service.requests_to("/proxy/{token}/v1/chat/completions")) == before
+    # Only ceilings come from the operator; account and scope are server-derived.
+    status, proposed = daemon.call("POST", "/api/cloud/usepod/spend-approval/propose", {"per_call_atomic": 500_000, "max_total_atomic": 5_000_000, "budget_mode": "total"})
+    assert status == 200, proposed
+    facts = proposed["facts"]
+    assert (facts["max_total_atomic"], facts["per_call_atomic"], facts["account"]) == (5_000_000, 500_000, served.fingerprint)
+    assert facts["models"] == [] and facts["routes"] == [], facts
+    approval_id = proposed["approval_id"]
 
-        # The operator proposes: ceilings only; the facts come back server-derived.
-        page.select_option("select.usepod-budget-mode", "total")
-        page.locator("details.usepod-budget-advanced > summary").click()
-        page.fill("input.usepod-spend-percall", "0.5")
-        page.fill("input.usepod-spend-total", "5")
-        page.click("button.usepod-spend-propose")
-        page.wait_for_selector("button.usepod-spend-allow", timeout=20000)
-        pending_text = page.inner_text(".usepod-spend-approval")
-        assert "5 USDC" in pending_text and "0.5 USDC" in pending_text
-        assert served.fingerprint in pending_text and "All UsePod models" in pending_text
-        status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
-        approval_id = view["spend_approval"]["approval_id"]
+    # Confirm BEFORE the operator allows: refused, nothing minted.
+    status, early = daemon.call("POST", "/api/cloud/usepod/spend-approval/confirm", {"approval_id": approval_id})
+    assert status == 403 and "awaiting" in str(early.get("error", "")), early
 
-        # Confirm BEFORE the operator allows: refused, nothing minted.
-        status, early = daemon.call("POST", "/api/cloud/usepod/spend-approval/confirm", {"approval_id": approval_id})
-        assert status == 403 and "awaiting" in str(early.get("error", "")), early
+    status, allowed = _resolve_approval(daemon, approval_id, "allow")
+    assert status == 200, allowed
+    status, minted = daemon.call("POST", "/api/cloud/usepod/spend-approval/confirm", {"approval_id": approval_id})
+    assert status == 200, minted
+    # A fresh HTTP projection reads durable consent rather than page-local state.
+    status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
+    assert status == 200 and view["spend_approval"]["state"] == "minted", view
+    # Exactly one grant was minted by the explicit approval.
+    status, grants = daemon.call("GET", "/api/money/grants?active=1")
+    assert status == 200 and len(grants["grants"]) == 1, grants
+    grant = grants["grants"][0]
+    assert grant["spec"]["per_operation_max_atomic"] == "500000"
+    assert grant["spec"]["provider_account"] == served.fingerprint
+    assert grant["spec"]["approval_ref"] == approval_id
 
-        # The OPERATOR allows it with the VISIBLE Allow control, through the same trusted
-        # resolution door the chat approval buttons use.
-        page.click("button.usepod-spend-allow")
-        page.wait_for_selector("button.usepod-budget-disable", timeout=20000)
-        assert "UsePod budget enabled" in page.inner_text(".usepod-spend-approval")
+    # ONE paid call runs and settles TRUTHFULLY BOUNDED.
+    session_id = _session(f"consented-{uuid.uuid4()}")
+    status, answer = _chat(daemon, "Write a short note congratulating a colleague on finishing a marathon.", session_id)
+    assert status == 200 and "synthetic reply" in _answer_text(answer), answer
+    status, projection = daemon.call("GET", "/api/money/projection?provider_id=usepod")
+    buckets = projection["projection"]["inference_expense"]
+    assert sum(int(b.get("settled_bounded") or 0) for b in buckets.values()) > 0, buckets
+    assert sum(int(b.get("settled_exact") or 0) for b in buckets.values()) == 0, buckets
+    _keep("spend_approval_flow.json", {"grant": grant, "projection": projection})
 
-        # Approval enables the budget atomically in the UI; a reload preserves it.
-        page.reload(wait_until="networkidle")
-        page.wait_for_selector("button.usepod-budget-disable", timeout=20000)
-        assert "UsePod budget enabled" in page.inner_text(".usepod-spend-approval")
-        # Exactly one grant was minted by the explicit approval.
-        status, grants = daemon.call("GET", "/api/money/grants?active=1")
-        assert status == 200 and len(grants["grants"]) == 1, grants
-        grant = grants["grants"][0]
-        assert grant["spec"]["per_operation_max_atomic"] == "500000"
-        assert grant["spec"]["provider_account"] == served.fingerprint
-        assert grant["spec"]["approval_ref"] == approval_id
+    # The explicit total budget authorizes a second request within its remaining amount.
+    after = len(service.requests_to("/proxy/{token}/v1/chat/completions"))
+    session2 = _session(f"spent-{uuid.uuid4()}")
+    status, answer = _chat(daemon, "Write a short note welcoming a new colleague.", session2)
+    assert status == 200 and "synthetic reply" in _answer_text(answer), answer
+    assert len(service.requests_to("/proxy/{token}/v1/chat/completions")) == after + 1
 
-        # ONE paid call runs and settles TRUTHFULLY BOUNDED.
-        session_id = _session(f"consented-{uuid.uuid4()}")
-        status, answer = _chat(daemon, "Write a short note congratulating a colleague on finishing a marathon.", session_id)
-        assert status == 200 and "synthetic reply" in _answer_text(answer), answer
-        status, projection = daemon.call("GET", "/api/money/projection?provider_id=usepod")
-        buckets = projection["projection"]["inference_expense"]
-        assert sum(int(b.get("settled_bounded") or 0) for b in buckets.values()) > 0, buckets
-        assert sum(int(b.get("settled_exact") or 0) for b in buckets.values()) == 0, buckets
-        _keep("spend_approval_flow.json", {"grant": grant, "projection": projection})
-
-        # The explicit total budget authorizes a second request within its remaining amount.
-        after = len(service.requests_to("/proxy/{token}/v1/chat/completions"))
-        session2 = _session(f"spent-{uuid.uuid4()}")
-        status, answer = _chat(daemon, "Write a short note welcoming a new colleague.", session2)
-        assert status == 200 and "synthetic reply" in _answer_text(answer), answer
-        assert len(service.requests_to("/proxy/{token}/v1/chat/completions")) == after + 1
-    finally:
-        page.close()
 
 
 def test_the_grant_and_settlement_survive_restart_and_revoke(served) -> None:
@@ -255,49 +227,29 @@ def test_the_expired_consent_shows_and_recovers_after_refresh(served) -> None:
     status, dead = daemon.call("POST", "/api/cloud/usepod/spend-approval/confirm", {"approval_id": proposal["approval_id"]})
     assert status in {400, 403} and "refus" in json.dumps(dead).lower(), dead
 
-    page = _open_panel(served)
-    try:
-        body_text = page.inner_text(".usepod-spend-approval")
-        assert "expired" in body_text.lower()
-        assert "0.4 USDC" in body_text and served.fingerprint in body_text
-        assert page.is_visible("button.usepod-spend-propose"), "the expired state must offer a new budget"
-        assert page.query_selector("button.usepod-spend-confirm") is None, "no dead confirm action"
-
-        # The expired state and its recovery survive a full reload.
-        page.reload(wait_until="networkidle")
-        page.wait_for_selector("button.usepod-spend-propose", timeout=20000)
-        assert "expired" in page.inner_text(".usepod-spend-approval").lower()
-
-        # Recovery: a new budget and a fresh explicit approval; no authority carries over.
-        page.select_option("select.usepod-budget-mode", "total")
-        page.locator("details.usepod-budget-advanced > summary").click()
-        page.fill("input.usepod-spend-percall", "0.4")
-        page.fill("input.usepod-spend-total", "1.2")
-        page.click("button.usepod-spend-propose")
-        page.wait_for_selector("button.usepod-spend-allow", timeout=20000)
-        assert "Awaiting YOUR approval" in page.inner_text(".usepod-spend-approval")
-        status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
-        fresh_id = view["spend_approval"]["approval_id"]
-        assert fresh_id != proposal["approval_id"], "recovery must be a NEW consent, not a renewal"
-
-        # The new explicit operator decision enables the budget and survives reload.
-        page.click("button.usepod-spend-allow")
-        page.wait_for_selector("button.usepod-budget-disable", timeout=20000)
-        page.reload(wait_until="networkidle")
-        page.wait_for_selector("button.usepod-budget-disable", timeout=20000)
-        status, grants = daemon.call("GET", "/api/money/grants?active=1")
-        minted = [g for g in grants["grants"] if g["spec"].get("approval_ref") == fresh_id]
-        assert len(minted) == 1 and minted[0]["spec"]["per_operation_max_atomic"] == "400000", minted
-        # Both calls stay within the explicitly approved total budget.
-        session_id = _session(f"recovered-{uuid.uuid4()}")
-        status, answer = _chat(daemon, "Write a one-sentence note thanking a courier.", session_id)
-        assert status == 200 and "synthetic reply" in _answer_text(answer), answer
-        after = len(served.service.requests_to("/proxy/{token}/v1/chat/completions"))
-        session2 = _session(f"recovered-spent-{uuid.uuid4()}")
-        status, answer = _chat(daemon, "Write a one-line note to a librarian.", session2)
-        assert status == 200 and "synthetic reply" in _answer_text(answer), answer
-        assert len(served.service.requests_to("/proxy/{token}/v1/chat/completions")) == after + 1
-        # Cleanup for later files.
-        daemon.call("POST", "/api/money/grants/revoke", {"grant_id": minted[0]["grant_id"], "reason": "test cleanup"})
-    finally:
-        page.close()
+    assert view["spend_approval"]["facts"]["per_call_atomic"] == 400_000
+    assert view["spend_approval"]["facts"]["account"] == served.fingerprint
+    status, reloaded = daemon.call("GET", "/api/cloud/usepod/discovery")
+    assert status == 200 and reloaded["spend_approval"]["state"] == "expired", reloaded
+    status, fresh = daemon.call("POST", "/api/cloud/usepod/spend-approval/propose", {"per_call_atomic": 400_000, "max_total_atomic": 1_200_000, "budget_mode": "total"})
+    assert status == 200, fresh
+    fresh_id = fresh["approval_id"]
+    assert fresh_id != proposal["approval_id"], "recovery must be a NEW consent, not a renewal"
+    status, allowed = _resolve_approval(daemon, fresh_id, "allow")
+    assert status == 200, allowed
+    status, enabled = daemon.call("POST", "/api/cloud/usepod/spend-approval/confirm", {"approval_id": fresh_id})
+    assert status == 200, enabled
+    status, grants = daemon.call("GET", "/api/money/grants?active=1")
+    minted = [g for g in grants["grants"] if g["spec"].get("approval_ref") == fresh_id]
+    assert len(minted) == 1 and minted[0]["spec"]["per_operation_max_atomic"] == "400000", minted
+    # Both calls stay within the explicitly approved total budget.
+    session_id = _session(f"recovered-{uuid.uuid4()}")
+    status, answer = _chat(daemon, "Write a one-sentence note thanking a courier.", session_id)
+    assert status == 200 and "synthetic reply" in _answer_text(answer), answer
+    after = len(served.service.requests_to("/proxy/{token}/v1/chat/completions"))
+    session2 = _session(f"recovered-spent-{uuid.uuid4()}")
+    status, answer = _chat(daemon, "Write a one-line note to a librarian.", session2)
+    assert status == 200 and "synthetic reply" in _answer_text(answer), answer
+    assert len(served.service.requests_to("/proxy/{token}/v1/chat/completions")) == after + 1
+    # Cleanup for later files.
+    daemon.call("POST", "/api/money/grants/revoke", {"grant_id": minted[0]["grant_id"], "reason": "test cleanup"})
