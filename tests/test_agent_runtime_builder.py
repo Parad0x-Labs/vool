@@ -663,3 +663,60 @@ def test_auto_builder_ranks_registered_coding_models_instead_of_bundle_default()
     basic = coder.model_copy(update={"capabilities": ["code_basic"]})
     registry.list_manifests = lambda **kwargs: [basic]
     assert controller.select_auto_builder_manifest(agent) is basic
+
+
+def test_builder_approval_resume_reuses_exact_checkpoint_proposal():
+    import copy
+    checkpoint = {"state": {}}
+    agent = SimpleNamespace(_runtime_checkpoint_id=lambda ctx: "builder-checkpoint",
+                            _get_runtime_checkpoint=lambda key: copy.deepcopy(checkpoint))
+    ctx = {"workspace": "/tmp/project-one"}
+    calls = []
+    def generate(prompt):
+        calls.append(prompt)
+        return ("first proposal\n" if len(calls) == 1 else "different proposal\n") * 200
+    generate.budget = controller.BuilderGenerationBudget()
+    def persist(key, *, state):
+        checkpoint["state"].update(copy.deepcopy(state))
+    with mock.patch("core.runtime_continuity.update_runtime_checkpoint", side_effect=persist):
+        first = controller.checkpointed_builder_generation(agent, ctx, request="create file", model="local:coder", generate_fn=generate)
+        reviewed = first("file content prompt")
+        resumed = controller.checkpointed_builder_generation(agent, {**ctx, "runtime_checkpoint_resumed": True}, request="create file", model="local:coder", generate_fn=generate)
+        assert resumed("file content prompt") == reviewed
+        assert len(calls) == 1
+        # Corrupted or scrubbed stored bytes must never be written or silently regenerated.
+        for proposal in checkpoint["state"]["builder_proposals"]["proposals"].values():
+            proposal["content"] += "changed"
+        corrupted = controller.checkpointed_builder_generation(agent, {**ctx, "runtime_checkpoint_resumed": True}, request="create file", model="local:coder", generate_fn=generate)
+        assert corrupted("file content prompt") == ""
+        assert generate.budget.failure_code == "builder_saved_proposal_changed"
+        assert len(calls) == 1
+
+
+def test_builder_proposals_do_not_cross_request_model_workspace_or_fresh_turn():
+    import copy
+    checkpoint = {"state": {}}
+    agent = SimpleNamespace(_runtime_checkpoint_id=lambda ctx: "builder-checkpoint",
+                            _get_runtime_checkpoint=lambda key: copy.deepcopy(checkpoint))
+    ctx = {"workspace": "/tmp/project-one"}
+    def generate(prompt):
+        return "original"
+    generate.budget = controller.BuilderGenerationBudget()
+    def persist(key, *, state):
+        checkpoint["state"].update(copy.deepcopy(state))
+    with mock.patch("core.runtime_continuity.update_runtime_checkpoint", side_effect=persist):
+        controller.checkpointed_builder_generation(agent, ctx, request="first", model="local:coder", generate_fn=generate)("same prompt")
+    original = copy.deepcopy(checkpoint)
+    for changed_ctx, request, model in (
+        (ctx, "first", "local:coder"),
+        ({**ctx, "runtime_checkpoint_resumed": True}, "new request", "local:coder"),
+        ({**ctx, "runtime_checkpoint_resumed": True}, "first", "local:other"),
+        ({"workspace": "/tmp/project-two", "runtime_checkpoint_resumed": True}, "first", "local:coder"),
+    ):
+        checkpoint = copy.deepcopy(original)
+        fresh = mock.Mock(return_value="new proposal")
+        fresh.budget = controller.BuilderGenerationBudget()
+        with mock.patch("core.runtime_continuity.update_runtime_checkpoint", side_effect=persist):
+            wrapped = controller.checkpointed_builder_generation(agent, changed_ctx, request=request, model=model, generate_fn=fresh)
+            assert wrapped("same prompt") == "new proposal"
+            fresh.assert_called_once()

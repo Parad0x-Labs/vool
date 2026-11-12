@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import json
 import shlex
 import sys
 import time
@@ -299,6 +300,78 @@ def _registered_local_ollama_lanes(agent: Any) -> bool:
     except Exception:
         return False
     return any(str(getattr(manifest, "runtime_dependency", "") or "") == "ollama" for manifest in manifests)
+
+
+def checkpointed_builder_generation(
+    agent: Any,
+    ctx: dict[str, Any],
+    *,
+    request: str,
+    model: str,
+    generate_fn: Callable[[str], str],
+) -> Callable[[str], str]:
+    """Reuse the file proposals the operator reviewed when an approved build resumes.
+
+    Approving a write resumes the same turn, and the build used to generate every file again: a
+    model rarely returns the same bytes twice, so the resumed write no longer matched what was
+    approved and asked for approval again. Proposals are kept on the turn's own runtime
+    checkpoint, keyed by the generation prompt, and only a resumed checkpoint for the same
+    request, model and workspace reads them back. This stores proposals, never permissions:
+    every write still crosses the byte-exact approval gate. A stored proposal that no longer
+    matches its digest is never written and never silently regenerated; the build stops with a
+    typed cause instead.
+    """
+    from core.runtime_continuity import update_runtime_checkpoint
+
+    checkpoint_id = agent._runtime_checkpoint_id(ctx)
+    if not checkpoint_id:
+        return generate_fn
+    checkpoint = agent._get_runtime_checkpoint(checkpoint_id) or {}
+    binding = hashlib.sha256(
+        json.dumps(
+            {
+                "request": request,
+                "model": model,
+                "workspace": str(ctx.get("workspace") or ctx.get("workspace_root") or ""),
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    saved = dict((checkpoint.get("state") or {}).get("builder_proposals") or {})
+    proposals: dict[str, Any] = (
+        dict(saved.get("proposals") or {})
+        if ctx.get("runtime_checkpoint_resumed") and saved.get("binding") == binding
+        else {}
+    )
+
+    budget = getattr(generate_fn, "budget", None)
+
+    def generate(prompt: str) -> str:
+        key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        if key in proposals:
+            entry = dict(proposals[key] or {})
+            content = str(entry.get("content") or "")
+            if hashlib.sha256(content.encode("utf-8")).hexdigest() != entry.get("sha256"):
+                if budget is not None:
+                    budget.failure_code = "builder_saved_proposal_changed"
+                    budget.last_error = "the file you reviewed could not be restored unchanged"
+                return ""
+            return content
+        content = generate_fn(prompt)
+        if content:
+            proposals[key] = {
+                "content": content,
+                "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            }
+            update_runtime_checkpoint(
+                checkpoint_id,
+                state={"builder_proposals": {"binding": binding, "proposals": proposals}},
+            )
+        return content
+
+    if budget is not None:
+        generate.budget = budget  # type: ignore[attr-defined]
+    return generate
 
 
 def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUILDER_NUM_PREDICT) -> dict[str, Any]:
@@ -1260,7 +1333,10 @@ def _run_model_build(
             task_outcome="failed",
             mode_override="advice_only",
         )
+    # Which model writes this build's files; reviewed proposals are bound to it on resume.
+    generation_model = ""
     if pinned_manifest is not None:
+        generation_model = str(getattr(pinned_manifest, "provider_id", "") or "")
         generate_fn = pinned_generation.build_pinned_generate_fn(
             agent,
             manifest=pinned_manifest,
@@ -1295,9 +1371,11 @@ def _run_model_build(
             # builds, exactly as before the ranking existed.
             from core.runtime_provider_defaults import default_runtime_model_tag
 
+            default_tag = str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b"
+            generation_model = f"ollama-local:{default_tag}"
             generate_fn = build_ollama_generate_fn(
                 base_url=builder_ollama_base_url(os.environ),
-                model_tag=str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b",
+                model_tag=default_tag,
                 source_context=ctx,
                 budget=generation_budget,
             )
@@ -1321,6 +1399,7 @@ def _run_model_build(
                 mode_override="advice_only",
             )
         else:
+            generation_model = str(selected.provider_id)
             selected_base_url = str((selected.runtime_config or {}).get("base_url") or "").strip()
             if selected_base_url and not selected_base_url.startswith(("http://", "https://")):
                 selected_base_url = f"http://{selected_base_url}"
@@ -1331,6 +1410,9 @@ def _run_model_build(
                 source_context=ctx,
                 budget=generation_budget,
             )
+    generate_fn = checkpointed_builder_generation(
+        agent, ctx, request=effective_input, model=generation_model, generate_fn=generate_fn
+    )
 
     # The rest of this build's workspace plan, so the permission controller can offer ONE bounded
     # grant for it instead of a prompt per file. The build lane fills this in before its first
