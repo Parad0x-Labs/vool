@@ -97,6 +97,38 @@ def test_a_plain_copy_inside_another_checkout_is_unidentified_until_stamped(tmp_
     assert stamped["diff_sha256"] == worktree_diff_sha256(source)
 
 
+
+def test_a_trimmed_copy_is_stamped_and_a_later_edit_to_it_is_refused(tmp_path):
+    """The phone test VOOL is a git-archive copy without tests/docs/the phone app, served with no .git:
+    only its stamp says what it is, so the stamp must survive the trim and catch a later hand edit."""
+    source = _repo(tmp_path / "source")
+    (source / "tests").mkdir()
+    (source / "tests" / "test_app.py").write_text("def test(): pass\n")
+    _git(source, "add", "tests")
+    _git(source, "commit", "-qm", "tests")
+    head = _git(source, "rev-parse", "HEAD")
+    copy = tmp_path / "v15" / "src"
+    copy.mkdir(parents=True)
+    (copy / "app.py").write_bytes((source / "app.py").read_bytes())  # the copy leaves tests/ out
+
+    missing = _tool("stamp-copy", "--from", str(source), "--to", str(copy))
+    assert missing.returncode == 3 and "tests/test_app.py (missing in the copy)" in missing.stdout
+
+    trimmed = _tool("stamp-copy", "--from", str(source), "--to", str(copy), "--exclude", "tests")
+    assert trimmed.returncode == 0, trimmed.stdout + trimmed.stderr
+    assert "left out: tests" in trimmed.stdout
+    stamp = json.loads((copy / "config" / "build-source.json").read_text())
+    assert stamp["excluded_paths"] == ["tests"] and stamp["file_count"] == 1
+
+    manifest = tmp_path / "CURRENT-HEADS.json"
+    assert _tool("set-head", "--lane", "phone", "--commit", head, env_manifest=manifest).returncode == 0
+    ok = _tool("check-tree", str(copy), "--lane", "phone", env_manifest=manifest)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+
+    (copy / "app.py").write_text("VERSION = 'edited by hand on the Mac'\n")
+    edited = _tool("check-tree", str(copy), "--lane", "phone", env_manifest=manifest)
+    assert edited.returncode == 3 and "app.py (changed)" in edited.stdout, edited.stdout
+
 def test_check_tree_refuses_wrong_commit_unlisted_edits_and_a_stale_lane(tmp_path):
     repo = _repo(tmp_path / "repo")
     manifest = tmp_path / "CURRENT-HEADS.json"

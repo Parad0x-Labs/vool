@@ -20,7 +20,7 @@ built-in default location.
     build_identity.py show
     build_identity.py check --url http://127.0.0.1:11535 --lane phone-078
     build_identity.py check-tree <source folder> --lane chat-078
-    build_identity.py stamp-copy --from <git checkout> --to <plain copy>
+    build_identity.py stamp-copy --from <git checkout> --to <plain copy> [--exclude tests ...]
     build_identity.py set-head --lane chat-078 --commit <sha> [--based-on chat-078 ...] [--repo <checkout>]
     build_identity.py stale [--repo <checkout>]
 
@@ -30,6 +30,7 @@ Exit codes: 0 ok, 3 refused (wrong or unknown build, stale lane), 2 usage or man
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -51,6 +52,8 @@ from core.build_provenance import capture_build_source
 MANIFEST_SCHEMA = "vool-current-heads/1"
 MANIFEST_ENV = "VOOL_HEADS_MANIFEST"
 BUILD_SOURCE_RELPATH = Path("config") / "build-source.json"
+# sha256sum format ("<hash>  <path>"), so a copy can also be verified with `shasum -a 256 -c`.
+BUILD_FILES_RELPATH = Path("config") / "build-files.sha256"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_REFUSED = 3
@@ -294,19 +297,30 @@ def cmd_check_tree(args: argparse.Namespace) -> int:
     observed = tree_identity(root)
     observed["release_version"] = _release_of_tree(root.resolve())
     reasons = evaluate(observed, expected_commit=commit, expected_release=release, allowed_diffs=allowed, lane_label=label, stale=stale)
+    if observed.get("source") == "stamp":
+        reasons += stamped_file_changes(root)
     return _report(str(root), observed, reasons, args)
 
 
-def copy_differences(src: Path, dst: Path) -> list[str]:
-    """Source files that differ between a checkout and its copy: every tracked file as it is on disk
-    now (edits included, deletions must be deleted in the copy too) and every untracked, non-ignored
-    file. A stamp on a copy that drifted from its checkout would be a lie, so any difference refuses."""
+def _excluded(name: str, excludes: tuple[str, ...]) -> bool:
+    return any(name == prefix or name.startswith(prefix + "/") for prefix in excludes)
+
+
+def copy_differences(src: Path, dst: Path, excludes: tuple[str, ...] = ()) -> tuple[list[str], list[str]]:
+    """(differing, compared): source files that differ between a checkout and its copy, and every
+    file that was compared. Compared: every tracked file as it is on disk now (edits included;
+    deletions must be deleted in the copy too) and every untracked, non-ignored file, except the
+    folders named in ``excludes`` (for a trimmed copy without tests or docs). A stamp on a copy that
+    drifted from its checkout would be a lie, so any difference refuses."""
     listed = subprocess.run(
         ["git", "-C", str(src), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
         capture_output=True, timeout=60, check=True,
     ).stdout.decode("utf-8", "surrogateescape")
     differing: list[str] = []
+    compared: list[str] = []
     for name in sorted({n for n in listed.split("\0") if n}):
+        if _excluded(name, excludes):
+            continue
         a, b = src / name, dst / name
         a_exists, b_exists = a.is_file() or a.is_symlink(), b.is_file() or b.is_symlink()
         if not a_exists and not b_exists:
@@ -320,7 +334,64 @@ def copy_differences(src: Path, dst: Path) -> list[str]:
             same = False
         if not same:
             differing.append(f"{name} (content differs)")
-    return differing
+        else:
+            compared.append(name)
+    return differing, compared
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_file_list(root: Path, names: list[str]) -> str:
+    """Write config/build-files.sha256 for ``names`` under ``root``; returns the sha256 of that list."""
+    lines = []
+    for name in names:
+        path = root / name
+        if path.is_file():  # follows a symlink, as `shasum -c` does; a dangling link is left out
+            lines.append(f"{_file_sha256(path)}  {name}\n")
+    text = "".join(lines)
+    target = root / BUILD_FILES_RELPATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def stamped_file_changes(root: Path) -> list[str]:
+    """For a stamped copy: every file that changed since it was stamped. A copy has no git to say it
+    was edited, so this is what catches a hand edit (or a half-finished re-copy) before it is served."""
+    root = root.resolve()
+    try:
+        stamp = json.loads((root / BUILD_SOURCE_RELPATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    expected_list_sha = str(stamp.get("files_sha256") or "")
+    if not expected_list_sha:
+        return []  # stamped by a bundle build or an older stamp-copy: nothing to compare against
+    list_path = root / BUILD_FILES_RELPATH
+    try:
+        text = list_path.read_text(encoding="utf-8")
+    except OSError:
+        return [f"{BUILD_FILES_RELPATH} is missing, so the copy's files cannot be checked against its stamp"]
+    if hashlib.sha256(text.encode("utf-8")).hexdigest() != expected_list_sha:
+        return [f"{BUILD_FILES_RELPATH} was changed after the copy was stamped"]
+    changed: list[str] = []
+    for line in text.splitlines():
+        digest, _, name = line.partition("  ")
+        path = root / name
+        try:
+            if _file_sha256(path) != digest:
+                changed.append(f"{name} (changed)")
+        except OSError:
+            changed.append(f"{name} (missing)")
+    if not changed:
+        return []
+    shown = ", ".join(changed[:10]) + (f" and {len(changed) - 10} more" if len(changed) > 10 else "")
+    return [f"{len(changed)} file(s) differ from the stamped copy: {shown}"]
 
 
 def cmd_stamp_copy(args: argparse.Namespace) -> int:
@@ -336,7 +407,8 @@ def cmd_stamp_copy(args: argparse.Namespace) -> int:
     source = capture_build_source(src)
     if not _SHA40.fullmatch(str(source.get("commit_full") or "")):
         raise UsageError(f"Could not read the commit of {src}.")
-    differing = copy_differences(src, dst)
+    excludes = tuple(sorted({e.strip().strip("/") for e in (args.exclude or ()) if e.strip().strip("/")}))
+    differing, compared = copy_differences(src, dst, excludes)
     if differing:
         print(f"REFUSED {dst} does not hold the same files as {src}, so it cannot carry its stamp:")
         for name in differing[:20]:
@@ -344,11 +416,16 @@ def cmd_stamp_copy(args: argparse.Namespace) -> int:
         if len(differing) > 20:
             print(f"  - ... and {len(differing) - 20} more")
         return EXIT_REFUSED
+    source["files_sha256"] = write_file_list(dst, compared)
+    source["file_count"] = len(compared)
+    if excludes:
+        source["excluded_paths"] = list(excludes)
     target = dst / BUILD_SOURCE_RELPATH
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(source, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     dirty = f" with uncommitted edits {source.get('diff_sha256', '')[:12]}" if source.get("dirty_state") else ""
-    print(f"STAMPED {dst} as {source['commit_full'][:8]}{dirty}; every source file matches the checkout.")
+    left_out = f" (left out: {', '.join(excludes)})" if excludes else ""
+    print(f"STAMPED {dst} as {source['commit_full'][:8]}{dirty}; all {len(compared)} source files match the checkout{left_out}.")
     return EXIT_OK
 
 
@@ -456,6 +533,7 @@ def build_parser() -> argparse.ArgumentParser:
     stamp = sub.add_parser("stamp-copy", help="make a plain source copy identifiable")
     stamp.add_argument("--from", dest="src", required=True, help="the git checkout the copy was made from")
     stamp.add_argument("--to", dest="dst", required=True, help="the copy")
+    stamp.add_argument("--exclude", action="append", help="top folder or path the copy leaves out on purpose, e.g. tests (repeatable)")
     stamp.set_defaults(func=cmd_stamp_copy)
 
     head = sub.add_parser("set-head", help="record a lane's new head")
