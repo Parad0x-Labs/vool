@@ -250,7 +250,7 @@ def maybe_answer(
     from core.clean_loop.tools import OutsideHome, home_dir
     try:
         route_ctx = ToolContext(
-            home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or "")
+            home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""), ask=text
         )
     except OutsideHome:
         context["clean_local_loop_route"] = "home_is_root"

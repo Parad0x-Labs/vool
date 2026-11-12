@@ -42,6 +42,8 @@ class ToolContext:
     home: Path
     source_context: dict[str, Any] = field(default_factory=dict)
     task_id: str = ""
+    #: The owner's ask this turn, so a search can tell a distinguishing word from a kind word.
+    ask: str = ""
     proposals: list[dict[str, Any]] = field(default_factory=list)
     receipts: list[dict[str, Any]] = field(default_factory=list)
     # Changes rehearsed this turn (core.clean_loop.changes.Plan); the hook keeps the last one

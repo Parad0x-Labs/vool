@@ -443,6 +443,36 @@ def _unopened_note(ctx: ToolContext) -> str:
     return f" ({'; '.join(notes)}, so not everything was searched.)" if notes else ""
 
 
+#: Words that say what KIND of thing is wanted, or where, not which one: a hit that shares only these with the
+#: ask is not a match ("scan" is in passport_scan.png and in "the scan of the gym contract").
+_KIND_AND_PLACE_WORDS = frozenset({
+    "scan", "scans", "pdf", "pdfs", "photo", "photos", "picture", "pictures", "pic", "pics", "image", "images", "file", "files",
+    "doc", "docs", "document", "documents", "folder", "folders", "screenshot", "screenshots", "video", "videos", "note", "notes",
+    "copy", "version", "new", "newest", "old", "oldest", "latest", "last", "recent", "download", "downloads", "desktop", "home",
+    "mac", "computer", "laptop", "somewhere", "anywhere", "have", "saved", "stored", "kept",
+})
+
+
+def _distinguishing_words(ask: str, words: list[str]) -> list[str]:
+    """What tells one file from another in the ask (and the model's query): not a kind or place word."""
+    from core.clean_loop.route import ask_words
+
+    out: list[str] = []
+    for word in [*ask_words(ask), *words]:
+        base = word.lower()
+        if base in _KIND_AND_PLACE_WORDS or base + "s" in _KIND_AND_PLACE_WORDS or len(base) < 3 or base in out:
+            continue
+        out.append(base)
+    return out
+
+
+def _shares_a_word(line: str, distinguishing: list[str]) -> bool:
+    low = line.lower()
+    tokens = {t.rstrip("s") for t in re.findall(r"[a-z0-9]+", low)}
+    # Whole name tokens ("passport" is not "sport"); a long word may sit inside a joined name ("gymcontract").
+    return any(word.rstrip("s") in tokens or (len(word) >= 6 and word in low) for word in distinguishing)
+
+
 def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     words = _query_words(args.get("query") or args.get("name") or "")
     if not words:
@@ -457,6 +487,11 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
             if line.startswith("- ") and line not in hits:
                 hits.append(line)
     inside = [line for line in _find_in_text(words, ctx) if line.split(" (", 1)[0] not in "\n".join(hits)]
+    distinguishing = _distinguishing_words(getattr(ctx, "ask", ""), words)
+    if distinguishing:
+        # A hit must share a distinguishing word with the ask, not only a kind word: otherwise it is no match.
+        hits = [line for line in hits if _shares_a_word(line, distinguishing)]
+        inside = [line for line in inside if _shares_a_word(line, distinguishing)]
     complete = _content_index_complete(ctx)
     status = "content_search_complete" if complete else "content_search_incomplete"
     if not complete and not inside and not hits:

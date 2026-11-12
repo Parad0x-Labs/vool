@@ -1119,3 +1119,41 @@ def test_the_front_door_reading_of_a_fresh_ask_is_what_orders_it_before_the_loop
 
     assert front_door_needs_web("will it rain in berlin next weekend", {})
     assert not front_door_needs_web("what is in the folder called trip planning", {})
+
+
+# --- round 4: a match shares a distinguishing word; the owner's own file keeps its found-nothing answer ----
+
+
+def test_a_hit_that_shares_only_a_kind_word_with_the_ask_is_no_match(home):
+    (home / "Downloads" / "passport_scan.png").write_bytes(b"x" * 100)
+    ctx = ToolContext(home=home, source_context=dict(OWNER), ask="find my scan of the sports club contract")
+    outcome = _registry().tool("find").run({"query": "scan"}, ctx)
+    assert "passport_scan.png" not in outcome.text
+    assert outcome.empty
+
+
+def test_a_hit_that_shares_a_distinguishing_word_is_kept(home):
+    (home / "Downloads" / "passport_scan.png").write_bytes(b"x" * 100)
+    (home / "Downloads" / "club_contract_scan.pdf").write_bytes(b"x" * 100)
+    ctx = ToolContext(home=home, source_context=dict(OWNER), ask="find my scan of the club contract")
+    outcome = _registry().tool("find").run({"query": "scan"}, ctx)
+    assert "club_contract_scan.pdf" in outcome.text and "passport_scan.png" not in outcome.text
+
+
+def test_a_pure_kind_search_still_lists_the_kind(home):
+    (home / "Downloads" / "passport_scan.png").write_bytes(b"x" * 100)
+    ctx = ToolContext(home=home, source_context=dict(OWNER), ask="any scans anywhere")
+    assert "passport_scan.png" in _registry().tool("find").run({"query": "scan"}, ctx).text
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "do i have a pdf of my boat insurance anywhere",
+        "is there a scan of my mortgage somewhere",
+        "got any photos of our trip to the lakes",
+        "where is the manual for my dishwasher",
+    ],
+)
+def test_an_ask_naming_the_owners_own_file_is_explicit(ask):
+    assert route.asks_explicitly_about_own_things(ask), ask

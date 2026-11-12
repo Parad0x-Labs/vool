@@ -424,9 +424,12 @@ _OWN_NOUN = (
     r"(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|videos?|"
     r"invoices?|receipts?|bills?|notes?|sheets?|spreadsheets?|cv|resume|statements?|contracts?|payslips?|leases?|"
     r"tickets?|flights?|bookings?|reservations?|itinerar(?:y|ies)|reports?|recipes?|laptop|computer|mac(?:book)?|pc|machine|"
-    r"disk|drive|storage|memory|ram|cpu|screen|apps?|budget|taxes|tax\s+return)"
+    r"disk|drive|storage|memory|ram|cpu|screen|apps?|budget|taxes|tax\s+return|"
+    r"insurance|polic(?:y|ies)|manuals?|scans?|certificates?|passports?|licen[sc]es?|warrant(?:y|ies)|mortgage|loan|payslips?)"
 )
 _OWN_POSSESSIVE_RE = re.compile(rf"\b(?:my|our)\s+(?:[\w'-]+\s+){{0,3}}?{_OWN_NOUN}\b", re.I)
+# "a pdf OF MY boat insurance", "photos of our trip": the owner's possessive on what the file is about.
+_OWN_OF_RE = re.compile(rf"\b{_OWN_NOUN}\s+(?:[\w'-]+\s+){{0,2}}(?:of|for|from|about)\s+(?:my|our)\b", re.I)
 _OWN_ACT_RE = re.compile(
     rf"\b{_OWN_NOUN}\s+(?:(?:that|which)\s+)?(?:i|we)(?:'ve|\s+have)?\s+(?:\w+\s+)?(?:saved|downloaded|wrote|written|made|took|taken|put|kept|got|booked|stored|scanned|had)\b",
     re.I,
@@ -454,7 +457,7 @@ def asks_explicitly_about_own_things(text: str) -> bool:
     value = str(text or "")
     if _SELF_RE.search(value):
         return False
-    return bool(_OWN_POSSESSIVE_RE.search(value) or _OWN_ACT_RE.search(value) or _OWN_PLACE_RE.search(value) or _MACHINE_RE.search(value))
+    return bool(_OWN_POSSESSIVE_RE.search(value) or _OWN_OF_RE.search(value) or _OWN_ACT_RE.search(value) or _OWN_PLACE_RE.search(value) or _MACHINE_RE.search(value))
 
 
 def own_content_words(text: str) -> set[str]:

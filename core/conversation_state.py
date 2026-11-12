@@ -30,6 +30,9 @@ _SCHEMA = (
 )
 
 DONE, REFUSED, FAILED, NEEDS_ANSWER = "done", "refused", "failed", "needs_answer"
+#: An ask that was answered in words with no tool run and nothing refused (a plain model answer, a clean-loop answer,
+#: a recall answer). Only an explicit retry cue reruns it; the cleared-blocker branch is for refused/failed only.
+ANSWERED = "answered"
 _UNFINISHED = frozenset({REFUSED, FAILED})
 #: A bare go-ahead (no retry cue) may only answer a refusal that was the LAST thing said; with turns in between it may be
 #: answering something else (VOOL's own proposal), so it goes to the turn as written.
@@ -236,6 +239,28 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
                         "VALUES (?, ?, ?, ?, ?, 0, ?)",
                         (sid, text[:2000], outcome, reason[:200], json.dumps(slots, sort_keys=True, default=str), _now()),
                     )
+                elif _is_an_ask(text):
+                    # A question or task that was just answered in words: the next "try that again" has it to rerun.
+                    # What the chat resolved earlier (folder, printed list) rides along while it is still fresh.
+                    old = conn.execute("SELECT slots, turns_since, outcome FROM conversation_state WHERE session_id = ?", (sid,)).fetchone()
+                    if old and str(old[2]) in _UNFINISHED and int(old[1] or 0) <= _CUE_MAX_AGE:
+                        # A fresh refusal/failure keeps the record: a question asked in between only ages it, as small
+                        # talk does, so "try again" still reruns what was refused.
+                        conn.execute("UPDATE conversation_state SET turns_since = turns_since + 1 WHERE session_id = ?", (sid,))
+                        conn.commit()
+                        return
+                    carry: dict[str, Any] = {}
+                    if old and int(old[1] or 0) <= _PICK_MAX_AGE:
+                        try:
+                            before = json.loads(old[0] or "{}")
+                        except Exception:
+                            before = {}
+                        carry = {k: v for k, v in before.items() if k in {"listed", "picked", "path"}} if isinstance(before, dict) else {}
+                    conn.execute(
+                        "INSERT OR REPLACE INTO conversation_state (session_id, request, outcome, reason, slots, turns_since, updated_at) "
+                        "VALUES (?, ?, ?, '', ?, 0, ?)",
+                        (sid, text[:2000], ANSWERED, json.dumps(carry, sort_keys=True, default=str), _now()),
+                    )
                 else:
                     conn.execute("UPDATE conversation_state SET turns_since = turns_since + 1 WHERE session_id = ?", (sid,))
                 conn.commit()
@@ -243,6 +268,31 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
                 conn.close()
     except Exception:
         return
+
+
+_QUESTIONISH_RE = re.compile(
+    r"^\s*(?:please\s+|pls\s+)?(?:what|whats|what's|who|whom|whose|why|how|when|where|which|can|could|do|does|did|is|are|was|were|"
+    r"will|would|should|has|have|had|am)\b|\?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _is_an_ask(text: str) -> bool:
+    """A question or a task (the existing work-of-its-own reading, or the shape of a question), not a closing, a
+    reaction or a bare retry/go-ahead."""
+    compact = " ".join(str(text or "").split())
+    if not compact or is_social_only(compact):
+        return False
+    if _CUE_RE.search(compact) and _is_plain_remainder(_split_cue(compact)[1], {}):
+        return False
+    if _QUESTIONISH_RE.search(compact):
+        return True
+    try:
+        from core.agent_runtime.answer_coverage import asks_for_work_of_its_own
+
+        return bool(asks_for_work_of_its_own(compact))
+    except Exception:
+        return False
 
 
 # --- reading a message against the record ---------------------------------------------------------------------------
@@ -427,6 +477,8 @@ _INVERTED_QUESTION_RE = re.compile(
 def _read_only(pending: PendingRequest) -> bool:
     """Whether the recorded request only reads. An unknown tool counts as NOT read-only (fail closed), except a request
     the web switch refused: that lookup is a read by definition of the switch (no tool is named on that producer)."""
+    if pending.outcome == ANSWERED:
+        return True  # nothing ran; the request is rerun as text
     if (str(pending.reason or "") == "web_off" or str(pending.reason or "").startswith("missing_right:")) and not pending.slots.get("tool"):
         return True
     try:
@@ -638,7 +690,7 @@ def resolve(
         if re.match(r"^(?:what|who|whom|whose|why|how|when|where|which)\b", compact, re.IGNORECASE):
             has_cue = False  # a question ABOUT retrying ("how do i try again?") is not a retry
         unfinished = pending.outcome in _UNFINISHED
-        if has_cue and pending.turns_since <= _CUE_MAX_AGE and (unfinished or pending.outcome == DONE):
+        if has_cue and pending.turns_since <= _CUE_MAX_AGE and (unfinished or pending.outcome in {DONE, ANSWERED}):
             if _DISMISS_RE.search(rest) or _DISMISS_WHOLE_RE.match(rest):
                 pass
             elif _is_plain_remainder(rest, pending.slots):

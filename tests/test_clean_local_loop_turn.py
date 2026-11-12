@@ -222,3 +222,21 @@ def test_an_explicitly_own_ask_keeps_its_found_nothing_answer(turn_setup, monkey
     result = agent.run_once("is my mortgage pdf in documents", source_context={"surface": "cli", "platform": "cli"})
     assert result.get("route_reason") == "clean_local_loop", result.get("route_reason")
     assert "mortgage" in result["response"]
+
+
+def test_an_own_file_that_is_not_there_gets_the_loops_plain_found_nothing_answer(turn_setup, monkeypatch):
+    agent, fake, _home = turn_setup
+    replies = ['{"tool": "find", "query": "boat"}', '{"answer": "I found no boat insurance PDF in your files."}']
+    result = _world_turn(agent, fake, monkeypatch, replies, "do i have a pdf of my boat insurance anywhere")
+    assert result.get("route_reason") == "clean_local_loop", result.get("route_reason")
+    assert "no boat insurance" in result["response"]
+
+
+def test_a_plain_answered_question_leaves_a_record_for_the_retry(turn_setup, monkeypatch):
+    from core import conversation_state
+
+    agent, fake, _home = turn_setup
+    result = _world_turn(agent, fake, monkeypatch, ['{"answer": "Provider limits differ."}'], "how do pdf forms work")
+    pending = conversation_state.load(str(result.get("session_id") or ""))
+    assert pending is not None and pending.outcome == conversation_state.ANSWERED
+    assert pending.request == "how do pdf forms work"

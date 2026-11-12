@@ -144,7 +144,9 @@ def test_closing_and_question_messages_right_after_a_refusal_do_not_rerun_it(mes
 
 def test_a_model_written_refusal_is_not_a_refusal_record():
     cs.record_sealed_turn("m", ASK, {"mode": "chat", "response": "I can't do that because tools are off."})
-    assert cs.load("m") is None  # not covered: no structured outcome to read
+    record = cs.load("m")
+    # A reply the model wrote has no structured outcome to read: the ask is kept as answered, never as refused.
+    assert record is not None and record.outcome == "answered"
     assert cs.resolve("m", "should work now").kind == "none"
 
 
@@ -519,3 +521,38 @@ def test_a_closing_after_a_finished_read_is_not_a_retry():
 def test_social_only_is_not_a_go_or_a_request():
     for message in ("go again", "try that once more", "what about tomorrow", "list the ones from june"):
         assert not cs.is_social_only(message), message
+
+
+# --- an answered ask is recorded, so "try that again" has something to rerun -----------------------------------------
+PLAIN = {"mode": "chat", "response": "The limit depends on the provider."}
+OLD_ASK = "whats the cap on a zip upload to dropbox"
+
+
+def test_a_plain_answered_question_is_recorded_and_an_explicit_cue_reruns_it():
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    pending = cs.load("s1")
+    assert (pending.request, pending.outcome) == (OLD_ASK, cs.ANSWERED)
+    for message in ("ok pls try that again", "one more time", "same again please", "redo it"):
+        got = cs.resolve("s1", message)
+        assert (got.kind, got.request) == ("retry", OLD_ASK), message
+
+
+def test_an_answered_ask_is_not_rerun_without_a_cue_or_by_a_closing():
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    for message in ("thanks", "ok cool", "meh whatever, thanks anyway", "and what about box", "i fixed it, go on"):
+        assert cs.resolve("s1", message, cleared=True).kind in {"none"}, message
+
+
+def test_closings_and_bare_retries_never_become_the_record():
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    for message in ("thanks a lot", "lol ok", "try again", "go again pls"):
+        cs.record_sealed_turn("s1", message, {"mode": "chat", "response": "ok"})
+    assert cs.load("s1").request == OLD_ASK
+
+
+def test_a_later_answered_ask_replaces_an_earlier_one_and_a_refusal_still_wins_the_retry():
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    cs.record_sealed_turn("s1", "how many ounces in a pound", PLAIN)
+    assert cs.resolve("s1", "try that again").request == "how many ounces in a pound"
+    _seed()
+    assert cs.resolve("s1", "retry pls").request == ASK

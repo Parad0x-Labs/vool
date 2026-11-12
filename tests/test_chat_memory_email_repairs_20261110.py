@@ -1766,3 +1766,34 @@ def test_the_largest_file_scan_never_lists_voolS_own_home(tmp_path, monkeypatch)
         runtime_paths.configure_runtime_home(None)
     assert files == ["report.pdf"], files
     assert "vool" not in folders, folders
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "any photos of the lake weekend in downloads",
+        "list the pdfs from last summer in documents",
+        "show the pictures with beach in the name on my desktop",
+        "videos about the wedding in downloads",
+    ],
+)
+def test_a_kind_listing_never_drops_a_qualifier_the_ask_carries(asked):
+    """The lane filters by kind, folder and count/order only; an ask narrowed any other way is not its turn."""
+    from core.execution.constants import machine_kind_listing_intent
+
+    assert machine_kind_listing_intent(asked) is None
+
+
+@pytest.mark.parametrize(
+    "asked,path,kind",
+    [
+        ("list the pdfs in my documents folder", "~/Documents", "pdf"),
+        ("show me the 4 newest pictures in downloads", "~/Downloads", "image"),
+        ("show me photos from my desktop", "~/Desktop", "image"),
+    ],
+)
+def test_a_plain_kind_listing_still_takes_its_lane(asked, path, kind):
+    from core.execution.constants import machine_kind_listing_intent
+
+    got = machine_kind_listing_intent(asked)
+    assert got and got["path"] == path and got["kind"] == kind

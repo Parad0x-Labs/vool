@@ -4500,6 +4500,30 @@ def _folder_follow_up(clean: str, folder_hint: str) -> dict[str, Any] | None:
     return None
 
 
+#: "photos OF THE CAMPING TRIP", "pdfs FROM LAST SUMMER", "pictures WITH invoice in the name": what the listing is
+#: narrowed by beyond kind, folder and count/order. This lane cannot apply it, and listing every file of the kind
+#: would answer a different question, so such an ask is not its turn (the clean loop's find reads names and content).
+_LISTING_QUALIFIER_RE = re.compile(
+    r"\b(?:of|from|with|about|containing|featuring|showing|taken|dated|during|for|that\s+(?:mention|have|say|contain))\s+"
+    r"(?:(?:the|my|our|a|an|some)\s+)?(?P<obj>[\w'-]+)",
+    re.IGNORECASE,
+)
+_QUALIFIER_NOT = frozenset({"there", "here", "it", "them", "that", "this", "these", "those", "me", "you", "now", "today"})
+
+
+def _listing_has_a_qualifier(clean: str, kind_span: tuple[int, int]) -> bool:
+    for match in _LISTING_QUALIFIER_RE.finditer(clean):
+        if match.start() < kind_span[1]:
+            continue  # a preposition before the kind word ("count of pdfs") is not about the files' content
+        word = match.group("obj").lower()
+        if word in _QUALIFIER_NOT or word.isdigit():
+            continue
+        if any(f.start(1) >= match.start("obj") and f.start(1) < match.end("obj") for f in _KNOWN_FOLDER_RE.finditer(clean)):
+            continue
+        return True
+    return False
+
+
 def machine_kind_listing_intent(
     text: str, *, earlier_turns: Sequence[str] = (), folder_hint: str = "", kind_hint: str = ""
 ) -> dict[str, Any] | None:
@@ -4537,6 +4561,8 @@ def machine_kind_listing_intent(
         return None
     # "pictures" names both a kind of file and a folder: the word that named the kind is not also the
     # folder ("the 2 most recent pictures there" is not ~/Pictures).
+    if _listing_has_a_qualifier(clean, kind_match.span(1)):
+        return None
     kind_words = {kind_match.span(1)}
     folder = next((m for m in _KNOWN_FOLDER_RE.finditer(clean) if m.span(1) not in kind_words), None)
     path = _KNOWN_USER_FOLDERS[folder.group(1).lower()] if folder else ""
