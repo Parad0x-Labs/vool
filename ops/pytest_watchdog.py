@@ -43,14 +43,33 @@ _stack_stream = None
 _MONOTONIC = time.monotonic
 
 
-def _progress(phase: str, node: str = "") -> None:
+def _progress(phase: str, node: str = "", declared: float | None = None) -> None:
     if os.environ.get(_OWNER) != str(os.getpid()):
         return
     path = Path(os.environ[_PROGRESS])
     temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps({"pid": os.getpid(), "phase": phase,
-                                     "node": node, "at": _MONOTONIC()}))
+    payload = {"pid": os.getpid(), "phase": phase, "node": node, "at": _MONOTONIC()}
+    if declared is not None:
+        payload["declared"] = declared
+    temporary.write_text(json.dumps(payload))
     temporary.replace(path)
+
+
+def _declared_seconds(item) -> float | None:
+    """The seconds a test's ``timeout`` mark declares, in pytest-timeout's spellings
+    (``timeout(600)`` or ``timeout=600``), or None. pytest-timeout is not installed, so this
+    watchdog is the only thing that gives the mark a meaning (see ``_declared_phase_timeout``)."""
+    marker = item.get_closest_marker("timeout")
+    if marker is None:
+        return None
+    value = marker.args[0] if marker.args else marker.kwargs.get("timeout")
+    if isinstance(value, bool):
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None
+    return seconds if math.isfinite(seconds) and seconds > 0 else None
 
 
 def pytest_configure(config):
@@ -73,18 +92,18 @@ def pytest_collection_finish(session):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item):
-    _progress("setup", item.nodeid)
+    _progress("setup", item.nodeid, _declared_seconds(item))
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_call(item):
-    _progress("call", item.nodeid)
+    _progress("call", item.nodeid, _declared_seconds(item))
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_teardown(item, nextitem):
     del nextitem
-    _progress("teardown", item.nodeid)
+    _progress("teardown", item.nodeid, _declared_seconds(item))
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -129,6 +148,30 @@ def _effective_phase_timeout(base, budgets, margin, node):
     if not measured:
         return base
     return max(base, math.ceil(measured * margin))
+
+
+#: How far a test's own ``timeout`` mark can raise its phase bound. A typo such as
+#: ``timeout(60000)`` must not hold a runner for most of a day.
+_DECLARED_CEILING = 3600.0
+_TEST_PHASES = frozenset({"setup", "call", "teardown"})
+
+
+def _declared_phase_timeout(effective, progress):
+    """The bound for the phase in ``progress``, raised to the seconds its test's ``timeout`` mark
+    declares (capped at ``_DECLARED_CEILING``). A mark says how long its test may legitimately
+    take, so a phase inside that time is not a stall; it never LOWERS the bound, because a stall
+    here ends the whole run as red and incomplete, which is not the per-test failure the mark's
+    author asked for. Only a test phase carries a mark; collection and shutdown keep their bound.
+    The declared value is a length of time written in the test file, never a timestamp, so the
+    clock-authority rule above still holds: the child cannot move the supervisor's clock."""
+    if progress.get("phase") not in _TEST_PHASES:
+        return effective
+    declared = progress.get("declared")
+    if isinstance(declared, bool) or not isinstance(declared, (int, float)):
+        return effective
+    if not math.isfinite(declared) or declared <= 0:
+        return effective
+    return max(effective, min(float(declared), _DECLARED_CEILING))
 
 
 #: Floor for the pre-progress startup bound when none is given. Startup (interpreter, pytest
@@ -236,8 +279,10 @@ def main(argv=None):
                 # No progress yet: the child is still starting (see _STARTUP_FLOOR).
                 effective = startup_timeout
             else:
-                effective = _effective_phase_timeout(options.phase_timeout, budgets,
-                                                     options.budget_margin, last.get("node"))
+                effective = _declared_phase_timeout(
+                    _effective_phase_timeout(options.phase_timeout, budgets,
+                                             options.budget_margin, last.get("node")),
+                    last)
             elapsed = _MONOTONIC() - last_change
             if elapsed > effective:
                 timed_out = True

@@ -253,6 +253,70 @@ def test_budget_loading_and_effective_bounds(tmp_path):
     assert _effective_phase_timeout(600, budgets, 1.5, "") == 600
 
 
+# --- a test's own timeout mark -----------------------------------------------------------------
+# pytest-timeout is not installed, so before the watchdog read them the suite's timeout marks
+# did nothing at all: under CI's 600s phase bound, the purchase-power coordination file's
+# timeout(900) still meant a stall at 10 minutes.
+
+_MARK_CONFTEST = (
+    "def pytest_configure(config):\n"
+    "    config.addinivalue_line('markers', 'timeout(seconds): declared phase bound')\n"
+)
+
+
+def test_a_timeout_mark_lets_its_own_test_run_past_the_phase_bound(tmp_path):
+    source = "import time, pytest\n@pytest.mark.timeout(3)\ndef test_slow(): time.sleep(1.6)\n"
+    result, evidence, _ = _run(tmp_path, source, timeout=0.8, conftest=_MARK_CONFTEST)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert evidence["complete"] and not evidence["timed_out"]
+
+
+def test_a_timeout_marked_test_is_still_bounded_at_its_declared_seconds(tmp_path):
+    source = "import time, pytest\n@pytest.mark.timeout(timeout=2)\ndef test_stuck(): time.sleep(30)\n"
+    result, evidence, _ = _run(tmp_path, source, timeout=0.8, conftest=_MARK_CONFTEST)
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert evidence["timed_out"] and evidence["stalled_seconds"] < 5
+    assert "exceeded 2s" in result.stdout
+    assert evidence["last_progress"]["declared"] == 2
+
+
+def test_a_timeout_mark_raises_only_its_own_test(tmp_path):
+    source = (
+        "import time, pytest\n"
+        "@pytest.mark.timeout(30)\ndef test_a_declared_slow_one(): time.sleep(1.2)\n"
+        "def test_stuck(): time.sleep(30)\n"
+    )
+    result, evidence, _ = _run(tmp_path, source, timeout=0.8, conftest=_MARK_CONFTEST)
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert evidence["last_progress"]["node"].endswith("::test_stuck")
+    assert "declared" not in evidence["last_progress"]
+    assert "exceeded 0.8s" in result.stdout
+
+
+def test_a_timeout_mark_never_lowers_the_phase_bound(tmp_path):
+    # A stall ends the whole run red and incomplete; a mark below the bound must not turn a slow
+    # but finishing test into that.
+    source = "import time, pytest\n@pytest.mark.timeout(0.5)\ndef test_slow(): time.sleep(1.2)\n"
+    result, evidence, _ = _run(tmp_path, source, timeout=3, conftest=_MARK_CONFTEST)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert evidence["complete"] and not evidence["timed_out"]
+
+
+def test_declared_bounds_apply_to_test_phases_only_and_are_capped():
+    from ops.pytest_watchdog import _declared_phase_timeout
+
+    assert _declared_phase_timeout(600, {"phase": "call", "declared": 900}) == 900
+    assert _declared_phase_timeout(600, {"phase": "setup", "declared": 300}) == 600
+    assert _declared_phase_timeout(600, {"phase": "teardown", "declared": 10**9}) == 3600
+    # Collection and shutdown carry no test, so nothing a payload says can stretch them.
+    assert _declared_phase_timeout(600, {"phase": "collection", "declared": 900}) == 600
+    assert _declared_phase_timeout(600, {"phase": "session finish / process shutdown",
+                                         "declared": 900}) == 600
+    for junk in (True, "900", float("inf"), float("nan"), -5, 0, None):
+        assert _declared_phase_timeout(600, {"phase": "call", "declared": junk}) == 600
+    assert _declared_phase_timeout(600, {"phase": "call"}) == 600
+
+
 # --- startup has its own bound ---------------------------------------------------------------
 
 
