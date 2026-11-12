@@ -2221,18 +2221,17 @@ def handle_turn_frontdoor(
         # lanes run contained, the synthesis pass finds no certified author, and a completed
         # honest refusal is destroyed by a task-failure that was policy all along (the
         # first-run denial demo measured exactly this shape).
-        # The same holds whenever THIS turn cannot reach the web at all -- the Web lookups switch
-        # is off or the chat is Offline (2026-11-11): the typed live-data lane refuses too (see
-        # `_maybe_answer_live_data_turn`), so no lane can serve the demand and the plain refusal,
-        # which names the way out, is the honest whole answer.
+        # The same holds for an Offline chat (2026-11-11): the typed live-data lane refuses too
+        # (see `_maybe_answer_live_data_turn`), so no lane can serve the demand and the plain
+        # refusal, which names the way out, is the honest whole answer.
         from core import policy_engine as _policy_engine
-        from core.remote_fetch_policy import effective_web_available as _effective_web
+        from core.remote_fetch_policy import local_only_active as _offline
 
         if (
             bool(_policy_engine.local_only_mode())
             and not bool(_policy_engine.allow_web_fallback())
             and not bool(_policy_engine.get("network.outbound_enabled", False))
-        ) or not bool(_effective_web(source_context)):
+        ) or bool(_offline(source_context)):
             record_deferred_turn_rows(_live_info_rows)
             return {"result": live_info_status}
         live_info_status = None

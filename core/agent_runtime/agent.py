@@ -3663,13 +3663,14 @@ class VoolAgent(
         if turn_has_provider_search(source_context):
             # Live prices and weather are the pinned cloud model's to look up with its own search.
             return None
-        from core.remote_fetch_policy import effective_web_available
+        from core.remote_fetch_policy import local_only_active
 
-        if not effective_web_available(source_context):
-            # Web lookups are off, or this chat is Offline: this lane's whole job is a public
-            # fetch, so it does not run. Measured 2026-11-11 on the Mac: with Web lookups off the
-            # typed weather lane still fetched wttr.in, because only the search lanes read the
-            # switch. The front door serves the plain refusal instead.
+        if local_only_active(source_context):
+            # This chat is Offline (or the machine is kept fully local): this lane's whole job is
+            # a public fetch the door will refuse, so it does not run and the front door serves
+            # the plain Offline refusal instead. The Web lookups switch is deliberately NOT read
+            # here: it governs the search lanes, and the typed weather/price lanes answering with
+            # it off is existing, tested behaviour (owner decision pending, 2026-11-12).
             return None
         if dict((source_context or {}).get("raw_output_contract") or {}).get(
             "structured_labels"

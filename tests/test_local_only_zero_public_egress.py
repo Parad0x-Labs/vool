@@ -396,14 +396,11 @@ def test_the_live_refusal_names_offline_the_switch_or_the_machine(monkeypatch: p
         assert not answer_is_tool_invocation(text), text
 
 
-def test_the_typed_live_data_lane_does_not_run_when_the_turn_has_no_web(
+def test_the_typed_live_data_lane_does_not_run_in_an_offline_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Measured on the Mac: Web lookups off, and the weather lane still fetched wttr.in.
-
-    The lane's planning step is the probe: with the web available it is reached (the control
-    that keeps this non-vacuous), with the web off it never is.
-    """
+    """The lane's planning step is the probe: reached in a Computer + web chat (the control that
+    keeps this non-vacuous), never reached in an Offline chat, whose fetch the door would refuse."""
     import core.execution_requirements as requirements
     from core import policy_engine
     from core.agent_runtime.agent import VoolAgent
@@ -419,22 +416,21 @@ def test_the_typed_live_data_lane_does_not_run_when_the_turn_has_no_web(
 
     monkeypatch.setattr(requirements, "requirements_for", _probe)
     monkeypatch.setattr(policy_engine, "local_only_mode", lambda: False)
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True)
     agent = VoolAgent.__new__(VoolAgent)
-    context = {**_computer_web_context(), "surface": "api", "platform": "web_companion"}
 
-    def _ask() -> None:
+    def _ask(context: dict) -> None:
         try:
             agent._maybe_answer_live_data_turn(
                 effective_input="what's the weather in Vilnius right now?",
-                session_id="web-switch", source_context=dict(context),
+                session_id="offline-lane",
+                source_context={**context, "surface": "api", "platform": "web_companion"},
             )
         except _Stop:
             pass
 
-    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True)
-    _ask()
-    assert reached, "control: with the web on the lane never reached its planning step"
+    _ask(_computer_web_context())
+    assert reached, "control: a Computer + web chat never reached the lane's planning step"
     reached.clear()
-    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: False)
-    _ask()
-    assert reached == [], "the live-data lane planned a fetch with Web lookups off"
+    _ask(_local_only_context())
+    assert reached == [], "the live-data lane planned a fetch in an Offline chat"
