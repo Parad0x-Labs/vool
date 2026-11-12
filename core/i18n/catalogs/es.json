@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Usar un modelo en la nube",
     "settings.local_models.suggest.newer": "Un modelo más nuevo encaja en este ordenador:",
     "settings.local_models.suggest.download_bigger": "Descargar un modelo más grande, {model} ({gb} GB): más listo, pero más lento",
+    "settings.local_models.suggest.download_faster": "Descargar un modelo más rápido, {model} ({gb} GB): respuestas más rápidas, pero usa más memoria",
     "settings.local_models.suggest.picked_gpu": "Elegido para la tarjeta gráfica de {gb} GB de este ordenador.",
     "settings.local_models.suggest.picked_memory": "Elegido para los {gb} GB de memoria de este ordenador.",
     "settings.local_models.suggest.update_ollama": "Actualiza Ollama para obtener el modelo más nuevo {model}.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X no está conectado, así que no se publicó nada. Para conectarlo, abre {settings} > {keys} > {x_row}, elige {connect} y sigue los pasos. Aquí tienes tu publicación como borrador para copiarla y publicarla tú mismo:",
     "x.not_connected.post_ask": "X no está conectado, así que no se publicó nada. Para conectarlo, abre {settings} > {keys} > {x_row}, elige {connect} y sigue los pasos. Dime qué debe decir la publicación y te escribiré un borrador para copiar."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

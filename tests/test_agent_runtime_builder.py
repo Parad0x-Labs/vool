@@ -391,6 +391,44 @@ def test_builder_omits_think_for_a_model_that_rejects_the_flag() -> None:
     # Live: qwen2.5:7b answers HTTP 400 '"qwen2.5:7b" does not support thinking' when think is sent.
     assert "think" not in controller.builder_chat_payload("hi", model_tag="qwen2.5:7b")
     assert "think" not in controller.builder_chat_payload("hi", model_tag="vool-qwen3-30b-a3b:nothink")
+    # Qwen3's 2507 instruct release has no thinking mode: Ollama answers think:true with HTTP 400.
+    assert "think" not in controller.builder_chat_payload("hi", model_tag="qwen3:30b-instruct")
+    # The same release pulled from Hugging Face: its template has no thinking block either.
+    assert "think" not in controller.builder_chat_payload(
+        "hi", model_tag="hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M"
+    )
+
+
+def test_qwen3_instruct_releases_have_no_thinking_mode_and_their_twins_do() -> None:
+    from core.output_budget_policy import manifest_declares_reasoning
+    from core.runtime_provider_defaults import _thinking_runtime_config
+
+    for tag in (
+        "qwen3:30b-instruct",
+        "qwen3:4b-instruct",
+        "qwen3:30b-a3b-instruct-2507-q4_K_M",
+        # Pulled from Hugging Face: the model is named by the repository, the quantisation by the tag.
+        "hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M",
+        "huggingface.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
+    ):
+        assert controller.model_has_no_thinking_mode(tag), tag
+        assert not controller.is_thinking_capable_model(tag), tag
+        assert _thinking_runtime_config(tag) == {}, tag
+        assert not manifest_declares_reasoning(SimpleNamespace(model_name=tag, metadata={}, provider_name="ollama-local"))
+    # Ollama serves qwen3:30b-a3b and qwen3:30b as Thinking-2507 (their registry manifests name
+    # the same weights digest as qwen3:30b-a3b-thinking-2507-q4_K_M), and the newer families stay
+    # hybrid.
+    for tag in (
+        "qwen3:30b-a3b",
+        "qwen3:30b-thinking",
+        "qwen3:8b",
+        "qwen3.5:9b",
+        "qwen3.6:35b",
+        "hf.co/unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF:Q3_K_M",
+        "hf.co/unsloth/Qwen3-30B-A3B-GGUF:Q4_K_M",
+    ):
+        assert not controller.model_has_no_thinking_mode(tag), tag
+        assert controller.is_thinking_capable_model(tag), tag
 
 
 def test_thinking_family_rule_agrees_with_the_adapter() -> None:
@@ -406,6 +444,12 @@ def test_thinking_family_rule_agrees_with_the_adapter() -> None:
         "deepseek-r1:14b",
         "vool-qwen3-30b-a3b:nothink",
         "qwen3-no-think:8b",
+        "qwen3:30b-instruct",
+        "qwen3:30b-a3b-instruct-2507-q4_K_M",
+        "qwen3:30b-a3b",
+        "qwen3:30b-thinking",
+        "hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M",
+        "hf.co/unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF:Q3_K_M",
     ):
         adapter = OpenAICompatibleAdapter(
             SimpleNamespace(

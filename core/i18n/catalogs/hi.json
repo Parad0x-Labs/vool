@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "इसके बजाय क्लाउड मॉडल इस्तेमाल करें",
     "settings.local_models.suggest.newer": "इस कंप्यूटर पर एक नया मॉडल चल सकता है:",
     "settings.local_models.suggest.download_bigger": "बड़ा मॉडल डाउनलोड करें, {model} ({gb} GB): ज़्यादा समझदार, पर धीमा",
+    "settings.local_models.suggest.download_faster": "तेज़ मॉडल डाउनलोड करें, {model} ({gb} GB): जल्दी जवाब, पर ज़्यादा मेमोरी लेता है",
     "settings.local_models.suggest.picked_gpu": "इस कंप्यूटर के {gb} GB ग्राफ़िक्स कार्ड के लिए चुना गया।",
     "settings.local_models.suggest.picked_memory": "इस कंप्यूटर की {gb} GB मेमोरी के लिए चुना गया।",
     "settings.local_models.suggest.update_ollama": "नया {model} पाने के लिए Ollama अपडेट करें।",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X कनेक्ट नहीं है, इसलिए कुछ भी पोस्ट नहीं हुआ। इसे कनेक्ट करने के लिए {settings} > {keys} > {x_row} खोलें, {connect} चुनें और चरणों का पालन करें। यह रहा आपकी पोस्ट का ड्राफ़्ट, जिसे आप कॉपी करके खुद पोस्ट कर सकते हैं:",
     "x.not_connected.post_ask": "X कनेक्ट नहीं है, इसलिए कुछ भी पोस्ट नहीं हुआ। इसे कनेक्ट करने के लिए {settings} > {keys} > {x_row} खोलें, {connect} चुनें और चरणों का पालन करें। बताइए पोस्ट में क्या लिखना है, मैं आपके लिए कॉपी करने लायक ड्राफ़्ट लिख दूँगा।"
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

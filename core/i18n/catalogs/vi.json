@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Dùng mô hình đám mây",
     "settings.local_models.suggest.newer": "Có một mô hình mới hơn hợp với máy tính này:",
     "settings.local_models.suggest.download_bigger": "Tải mô hình lớn hơn, {model} ({gb} GB): thông minh hơn nhưng chậm hơn",
+    "settings.local_models.suggest.download_faster": "Tải mô hình nhanh hơn, {model} ({gb} GB): trả lời nhanh hơn nhưng dùng nhiều bộ nhớ hơn",
     "settings.local_models.suggest.picked_gpu": "Được chọn cho card đồ họa {gb} GB của máy tính này.",
     "settings.local_models.suggest.picked_memory": "Được chọn cho {gb} GB bộ nhớ của máy tính này.",
     "settings.local_models.suggest.update_ollama": "Cập nhật Ollama để dùng {model} mới hơn.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Đây là bài đăng của bạn dưới dạng bản nháp để bạn sao chép và tự đăng:",
     "x.not_connected.post_ask": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Hãy cho tôi biết bài đăng nên nói gì, tôi sẽ viết bản nháp để bạn sao chép."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

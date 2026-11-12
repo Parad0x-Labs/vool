@@ -36,7 +36,7 @@ from core.agent_runtime.intent_claims import (
 )
 from core.prompt_debug import dump_outbound_prompt
 from core.provider_invocation_gateway import seal_direct_provider_invocation
-from core.runtime_provider_defaults import _ollama_context_window_for_bundle_role
+from core.runtime_provider_defaults import ollama_direct_runner_options
 
 _FLAG_ENV = "VOOL_INTENT_ARBITER"
 _MODEL_ENV = "VOOL_ARBITER_MODEL"
@@ -158,8 +158,8 @@ def _local_models_disabled() -> bool:
         return False
 
 
-def _arbiter_num_ctx(model: str) -> int:
-    """The sized context this lane should load at, from the runtime's own sizing authority.
+def _arbiter_runner_options(model: str) -> dict[str, int]:
+    """The sized context (and runner keys) this lane loads at, from the runtime's own authority.
 
     Both calls in this module post straight to Ollama rather than through the provider adapter --
     which is deliberate and documented below, but it also means the adapter's `num_ctx` stamping
@@ -176,9 +176,13 @@ def _arbiter_num_ctx(model: str) -> int:
     accessor already honours the documented `VOOL_OLLAMA_CONTEXT_WINDOW` override, the persisted
     hardware bucket and the model ceiling. No new sizing policy is introduced here: the lane is
     simply told to use the one that already exists.
+
+    The thread count and GPU-layer setting come with the window, the same keys the provider
+    adapter sends: Ollama reloads a resident model whose runner options change, so a lane that
+    sized the window alone still reloaded the helper model on every alternation with the adapter.
     """
 
-    return _ollama_context_window_for_bundle_role("classifier", model_tag=str(model or ""))
+    return ollama_direct_runner_options(str(model or ""), bundle_role="classifier")
 
 
 def _build_prompt(text: str, options: list[str]) -> str:
@@ -278,11 +282,11 @@ def arbitrate(
             "think": False,
             "keep_alive": "30m",  # keep the tiny arbiter model resident: only the FIRST arbitration pays a load
             # Sized, because keep_alive makes this residency LAST: an unsized load pins the
-            # model at its native context for the full thirty minutes (see _arbiter_num_ctx).
+            # model at its native context for the full thirty minutes (see _arbiter_runner_options).
             "options": {
                 "temperature": 0,
                 "num_predict": 96,
-                "num_ctx": _arbiter_num_ctx(model),
+                **_arbiter_runner_options(model),
             },
         }
         # This call posts straight to Ollama instead of going through the provider adapter, so it was
@@ -463,7 +467,7 @@ def arbitrate_followup(
             "format": "json",
             "think": False,
             "keep_alive": "30m",
-            "options": {"temperature": 0, "num_predict": 24, "num_ctx": _arbiter_num_ctx(model)},
+            "options": {"temperature": 0, "num_predict": 24, **_arbiter_runner_options(model)},
         }
         permit = seal_direct_provider_invocation(
             provider_id="ollama",
@@ -544,7 +548,7 @@ def prewarm_async() -> None:
                 "stream": False,
                 "think": False,
                 "keep_alive": "30m",
-                "options": {"num_predict": 1, "num_ctx": _arbiter_num_ctx(model)},
+                "options": {"num_predict": 1, **_arbiter_runner_options(model)},
             }
             permit = seal_direct_provider_invocation(
                 provider_id="ollama",

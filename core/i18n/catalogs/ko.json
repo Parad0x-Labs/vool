@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "대신 클라우드 모델 사용",
     "settings.local_models.suggest.newer": "이 컴퓨터에 맞는 더 새로운 모델이 있어요:",
     "settings.local_models.suggest.download_bigger": "더 큰 모델 다운로드, {model} ({gb} GB): 더 똑똑하지만 더 느림",
+    "settings.local_models.suggest.download_faster": "더 빠른 모델 다운로드, {model} ({gb} GB): 답이 더 빠르지만 메모리를 더 씀",
     "settings.local_models.suggest.picked_gpu": "이 컴퓨터의 {gb} GB 그래픽 카드에 맞춰 골랐어요.",
     "settings.local_models.suggest.picked_memory": "이 컴퓨터의 {gb} GB 메모리에 맞춰 골랐어요.",
     "settings.local_models.suggest.update_ollama": "더 새로운 {model}을(를) 쓰려면 Ollama를 업데이트하세요.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X가 연결되어 있지 않아 아무것도 게시되지 않았습니다. 연결하려면 {settings} > {keys} > {x_row}에서 {connect} 버튼을 누르고 안내에 따라 진행하세요. 복사해서 직접 게시할 수 있는 초안은 다음과 같습니다:",
     "x.not_connected.post_ask": "X가 연결되어 있지 않아 아무것도 게시되지 않았습니다. 연결하려면 {settings} > {keys} > {x_row}에서 {connect} 버튼을 누르고 안내에 따라 진행하세요. 게시물에 담을 내용을 알려 주시면 복사할 수 있는 초안을 써 드릴게요."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

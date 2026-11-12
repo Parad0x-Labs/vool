@@ -371,12 +371,25 @@ def _derive_questions_via_model(
 
     try:
         model = recommended_ollama_model()
+        # Ollama's own chat door with the chat model's runner options: the OpenAI-compatible door
+        # this lane used takes no `num_ctx`, so the model loaded at its native context (262,144
+        # tokens for a Qwen3 30B, 42.5 GiB measured on a 24 GB Mac), and its default thinking
+        # spent the 400-token budget before any query was written.
+        from core.agent_runtime.builder.controller import is_thinking_capable_model
+        from core.runtime_provider_defaults import ollama_direct_runner_options
+
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-            "max_tokens": 400,
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "num_predict": 400,
+                **ollama_direct_runner_options(model, bundle_role="general"),
+            },
         }
+        if is_thinking_capable_model(model):
+            payload["think"] = False
         permit = seal_direct_provider_invocation(
             provider_id="ollama:brain-hive-research",
             model_id=model,
@@ -392,12 +405,12 @@ def _derive_questions_via_model(
             header_names=("Content-Type",),
         )
         resp = requests.post(
-            f"{base_url}/v1/chat/completions",
+            f"{base_url}/api/chat",
             json=permit.consume(),
             timeout=30,
         )
         resp.raise_for_status()
-        text = resp.json()["choices"][0]["message"]["content"].strip()
+        text = str((resp.json().get("message") or {}).get("content") or "").strip()
         lines = [
             line.strip().lstrip("0123456789.-) ").strip()
             for line in text.splitlines()

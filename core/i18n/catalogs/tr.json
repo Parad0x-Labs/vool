@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Bunun yerine bulut modeli kullan",
     "settings.local_models.suggest.newer": "Bu bilgisayara daha yeni bir model uyuyor:",
     "settings.local_models.suggest.download_bigger": "Daha büyük bir model indir, {model} ({gb} GB): daha akıllı ama daha yavaş",
+    "settings.local_models.suggest.download_faster": "Daha hızlı bir model indir, {model} ({gb} GB): daha hızlı yanıtlar ama daha çok bellek kullanır",
     "settings.local_models.suggest.picked_gpu": "Bu bilgisayarın {gb} GB ekran kartı için seçildi.",
     "settings.local_models.suggest.picked_memory": "Bu bilgisayarın {gb} GB belleği için seçildi.",
     "settings.local_models.suggest.update_ollama": "Daha yeni {model} için Ollama'yı güncelle.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Kopyalayıp kendiniz paylaşabileceğiniz taslak şu:",
     "x.not_connected.post_ask": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Gönderide ne yazması gerektiğini söyleyin, size kopyalayabileceğiniz bir taslak yazayım."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

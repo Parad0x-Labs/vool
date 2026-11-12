@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "代わりにクラウドモデルを使う",
     "settings.local_models.suggest.newer": "このコンピューターに合う新しいモデルがあります:",
     "settings.local_models.suggest.download_bigger": "大きいモデル {model} ({gb} GB) をダウンロード: 賢いけれど遅め",
+    "settings.local_models.suggest.download_faster": "速いモデル {model} ({gb} GB) をダウンロード: 返答が速いけれどメモリを多く使う",
     "settings.local_models.suggest.picked_gpu": "このコンピューターの {gb} GB グラフィックカード向けに選びました。",
     "settings.local_models.suggest.picked_memory": "このコンピューターの {gb} GB メモリー向けに選びました。",
     "settings.local_models.suggest.update_ollama": "新しい {model} を使うには Ollama を更新してください。",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。コピーしてご自身で投稿できる下書きはこちらです:",
     "x.not_connected.post_ask": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。投稿の内容を教えていただければ、コピーできる下書きを書きます。"
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Використати хмарну модель",
     "settings.local_models.suggest.newer": "Цьому комп’ютеру підходить новіша модель:",
     "settings.local_models.suggest.download_bigger": "Завантажити більшу модель, {model} ({gb} ГБ): розумніша, але повільніша",
+    "settings.local_models.suggest.download_faster": "Завантажити швидшу модель, {model} ({gb} ГБ): швидші відповіді, але займає більше пам’яті",
     "settings.local_models.suggest.picked_gpu": "Підібрано під відеокарту цього комп’ютера на {gb} ГБ.",
     "settings.local_models.suggest.picked_memory": "Підібрано під {gb} ГБ пам’яті цього комп’ютера.",
     "settings.local_models.suggest.update_ollama": "Оновіть Ollama, щоб отримати новішу {model}.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X не підключено, тому нічого не опубліковано. Щоб підключити його, відкрийте {settings} > {keys} > {x_row}, виберіть {connect} і виконайте кроки. Ось ваш допис як чернетка, яку можна скопіювати й опублікувати самостійно:",
     "x.not_connected.post_ask": "X не підключено, тому нічого не опубліковано. Щоб підключити його, відкрийте {settings} > {keys} > {x_row}, виберіть {connect} і виконайте кроки. Скажіть, що має бути в дописі, і я напишу чернетку, яку можна скопіювати."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

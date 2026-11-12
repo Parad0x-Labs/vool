@@ -178,10 +178,11 @@ def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float =
     base = str(ollama_url or ollama_base_url()).rstrip("/")
     # Sized: same direct-to-Ollama class as the arbiter, fact extractor and summarizer -- this
     # lane bypasses the provider adapter, so nothing else stamps num_ctx and the model would load
-    # at its native context.
-    from core.runtime_provider_defaults import _ollama_context_window_for_bundle_role
+    # at its native context. The runner keys come with the window so this lane reuses the chat
+    # model's runner instead of reloading it.
+    from core.runtime_provider_defaults import ollama_direct_runner_options
 
-    num_ctx = _ollama_context_window_for_bundle_role("general", model_tag=str(model or ""))
+    runner_options = ollama_direct_runner_options(str(model or ""), bundle_role="general")
 
     def _call(prompt: str) -> str:
         payload = {
@@ -189,7 +190,7 @@ def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float =
             "prompt": prompt,
             "stream": False,
             "think": False,
-            "options": {"temperature": 0.7, "num_ctx": num_ctx},
+            "options": {"temperature": 0.7, **runner_options},
         }
         permit = seal_direct_provider_invocation(
             provider_id="ollama:craft-upgrade",

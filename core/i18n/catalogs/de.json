@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Stattdessen ein Cloud-Modell verwenden",
     "settings.local_models.suggest.newer": "Ein neueres Modell passt zu diesem Computer:",
     "settings.local_models.suggest.download_bigger": "Größeres Modell herunterladen, {model} ({gb} GB): klüger, aber langsamer",
+    "settings.local_models.suggest.download_faster": "Schnelleres Modell herunterladen, {model} ({gb} GB): schnellere Antworten, braucht aber mehr Speicher",
     "settings.local_models.suggest.picked_gpu": "Ausgewählt für die {gb}-GB-Grafikkarte dieses Computers.",
     "settings.local_models.suggest.picked_memory": "Ausgewählt für die {gb} GB Arbeitsspeicher dieses Computers.",
     "settings.local_models.suggest.update_ollama": "Aktualisiere Ollama, um das neuere {model} zu bekommen.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Hier ist dein Beitrag als Entwurf, den du kopieren und selbst posten kannst:",
     "x.not_connected.post_ask": "X ist nicht verbunden, deshalb wurde nichts gepostet. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Sag mir, was im Beitrag stehen soll, und ich schreibe dir einen Entwurf zum Kopieren."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

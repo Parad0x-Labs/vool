@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "استخدم نموذجًا سحابيًا بدلًا من ذلك",
     "settings.local_models.suggest.newer": "يناسب هذا الحاسوب نموذج أحدث:",
     "settings.local_models.suggest.download_bigger": "نزّل نموذجًا أكبر، {model} ({gb} غيغابايت): أذكى لكنه أبطأ",
+    "settings.local_models.suggest.download_faster": "نزّل نموذجًا أسرع، {model} ({gb} غيغابايت): إجابات أسرع، لكنه يستهلك ذاكرة أكثر",
     "settings.local_models.suggest.picked_gpu": "تم اختياره لبطاقة الرسوميات بسعة {gb} غيغابايت في هذا الحاسوب.",
     "settings.local_models.suggest.picked_memory": "تم اختياره لذاكرة هذا الحاسوب البالغة {gb} غيغابايت.",
     "settings.local_models.suggest.update_ollama": "حدّث Ollama للحصول على النموذج الأحدث {model}.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. هذا منشورك كمسودة يمكنك نسخها ونشرها بنفسك:",
     "x.not_connected.post_ask": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. أخبرني بما يجب أن يقوله المنشور وسأكتب لك مسودة لتنسخها."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

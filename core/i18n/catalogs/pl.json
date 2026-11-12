@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Użyj modelu w chmurze",
     "settings.local_models.suggest.newer": "Do tego komputera pasuje nowszy model:",
     "settings.local_models.suggest.download_bigger": "Pobierz większy model, {model} ({gb} GB): mądrzejszy, ale wolniejszy",
+    "settings.local_models.suggest.download_faster": "Pobierz szybszy model, {model} ({gb} GB): szybsze odpowiedzi, ale zajmuje więcej pamięci",
     "settings.local_models.suggest.picked_gpu": "Dobrano do karty graficznej {gb} GB tego komputera.",
     "settings.local_models.suggest.picked_memory": "Dobrano do {gb} GB pamięci tego komputera.",
     "settings.local_models.suggest.update_ollama": "Zaktualizuj Ollamę, aby dostać nowszy {model}.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Oto Twój post jako szkic, który możesz skopiować i opublikować samodzielnie:",
     "x.not_connected.post_ask": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Napisz, co ma zawierać post, a przygotuję szkic do skopiowania."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

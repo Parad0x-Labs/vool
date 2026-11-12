@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "השתמשו במודל ענן במקום",
     "settings.local_models.suggest.newer": "מודל חדש יותר מתאים למחשב הזה:",
     "settings.local_models.suggest.download_bigger": "הורדת מודל גדול יותר, {model} ({gb} GB): חכם יותר, אבל איטי יותר",
+    "settings.local_models.suggest.download_faster": "הורדת מודל מהיר יותר, {model} ({gb} GB): תשובות מהירות יותר, אבל צורך יותר זיכרון",
     "settings.local_models.suggest.picked_gpu": "נבחר עבור כרטיס המסך של {gb} GB במחשב הזה.",
     "settings.local_models.suggest.picked_memory": "נבחר עבור {gb} GB הזיכרון של המחשב הזה.",
     "settings.local_models.suggest.update_ollama": "עדכנו את Ollama כדי לקבל את {model} החדש יותר.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. הנה הפוסט שלך כטיוטה שאפשר להעתיק ולפרסם בעצמך:",
     "x.not_connected.post_ask": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. ספר לי מה הפוסט צריך לומר ואכתוב לך טיוטה להעתקה."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Naudoti debesies modelį",
     "settings.local_models.suggest.newer": "Šiam kompiuteriui tinka naujesnis modelis:",
     "settings.local_models.suggest.download_bigger": "Atsisiųsti didesnį modelį, {model} ({gb} GB): protingesnis, bet lėtesnis",
+    "settings.local_models.suggest.download_faster": "Atsisiųsti greitesnį modelį, {model} ({gb} GB): greitesni atsakymai, bet naudoja daugiau atminties",
     "settings.local_models.suggest.picked_gpu": "Parinkta šio kompiuterio {gb} GB vaizdo plokštei.",
     "settings.local_models.suggest.picked_memory": "Parinkta šio kompiuterio {gb} GB atminčiai.",
     "settings.local_models.suggest.update_ollama": "Atnaujinkite Ollama, kad gautumėte naujesnį {model}.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Štai jūsų įrašas kaip juodraštis, kurį galite nukopijuoti ir paskelbti patys:",
     "x.not_connected.post_ask": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Pasakykite, ką turėtų sakyti įrašas, ir parašysiu jums juodraštį nukopijuoti."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

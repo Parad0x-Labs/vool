@@ -230,6 +230,34 @@ def _emit_builder_model_event(
 THINKING_MODEL_MARKERS = ("qwen3", "nemotron", "deepseek-r", "qwq", "reason")
 
 
+def model_has_no_thinking_mode(model_name: str) -> bool:
+    """Whether this tag names a model with no reasoning phase at all, whatever its family.
+
+    Two kinds: VOOL's own no-think builds (`:nothink`, `no-think`), and Qwen3's 2507 instruct
+    releases (`qwen3:30b-instruct`, `qwen3:4b-instruct`, `qwen3:30b-a3b-instruct-2507-q4_K_M`, and
+    the same models pulled from Hugging Face), which Qwen ships as non-thinking models. Ollama lists no thinking capability for them and
+    answers `think: true` with HTTP 400 ("does not support thinking", server/routes.go), so a
+    family marker alone (qwen3) must not read them as reasoning models. Their thinking twins
+    (`qwen3:30b-thinking`, and `qwen3:30b-a3b`, which Ollama now serves as Thinking-2507) keep
+    the family rule.
+    """
+    name = str(model_name or "").strip().lower()
+    if "nothink" in name or "no-think" in name:
+        return True
+    family, _, tag = name.partition(":")
+    if family == "qwen3" and "instruct" in tag:
+        return True
+    # The same releases pulled from Hugging Face carry the model in the repository name and the
+    # quantisation in the tag: `hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M`. The
+    # template that repository serves to Ollama has no thinking block, so Ollama lists no thinking
+    # capability for it either.
+    source, _, path = family.partition("/")
+    if source in {"hf.co", "huggingface.co"}:
+        repository = path.rsplit("/", 1)[-1]
+        return repository.startswith("qwen3-") and "-instruct" in repository
+    return False
+
+
 def is_thinking_capable_model(model_name: str) -> bool:
     """Whether this Ollama tag names a model that emits hidden reasoning.
 
@@ -239,7 +267,7 @@ def is_thinking_capable_model(model_name: str) -> bool:
     OPPOSITE directions -- see builder_chat_payload for the measurement behind the builder's choice.
     """
     name = str(model_name or "").strip().lower()
-    if "nothink" in name or "no-think" in name:
+    if model_has_no_thinking_mode(name):
         return False
     # Widened 2026-07-28 beyond qwen3. `nvidia/nemotron-3-ultra-550b-a55b` returned empty content
     # on chat turns because it reasons before answering and matched nothing here, so it was never
@@ -392,11 +420,27 @@ def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUI
         "model": model_tag,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "options": {"temperature": 0.2, "num_predict": int(num_predict), "num_ctx": _BUILDER_NUM_CTX},
+        "options": {"temperature": 0.2, "num_predict": int(num_predict), **builder_runner_options(model_tag)},
     }
     if is_thinking_capable_model(model_tag):
         payload["think"] = True
     return payload
+
+
+def builder_runner_options(model_tag: str) -> dict[str, int]:
+    """The runner keys for a builder call: the chat model's own runner whenever it has the room.
+
+    The builder writes whole files (a 6144-token output budget), so it needs a window of at least
+    8192. A fixed 8192 also named a different Ollama runner than chat whenever the model's sized
+    window was bigger (16K for a 9B on a 24 GB Mac), so a build reloaded the chat model and the next
+    chat turn reloaded it back. Where the sized window is smaller than 8192 the builder still asks
+    for 8192: there the reload is the price of a build that can finish its files.
+    """
+    from core.runtime_provider_defaults import ollama_direct_runner_options
+
+    options = ollama_direct_runner_options(model_tag, bundle_role="general")
+    options["num_ctx"] = max(_BUILDER_NUM_CTX, int(options.get("num_ctx") or 0))
+    return options
 
 
 def builder_user_visible_text(text: str) -> str:

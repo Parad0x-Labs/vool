@@ -2,7 +2,12 @@
 the "why is my Mac roaring / free up memory" chat surface."""
 from __future__ import annotations
 
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
+
+import pytest
 
 import core.resource_governor as gov
 from core.agent_runtime.fast_paths_governor import (
@@ -74,6 +79,67 @@ def test_unknown_model_size_never_blocks() -> None:
         mock.patch.object(gov, "estimated_model_gb", return_value=0.0),
     ):
         assert gov.plan_model_load("mystery:latest").ok is True
+
+
+@pytest.fixture
+def ollama_listing_two_installed_models():
+    """A real localhost origin answering /api/tags and /api/ps the way Ollama does. Sizes are the
+    registry's own: the Q3_K_M layer of unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF and qwen3:8b."""
+    seen: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            seen.append(self.path)
+            payload: dict = {"models": []}
+            if self.path == "/api/tags":
+                payload = {
+                    "models": [
+                        {"name": "hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M", "size": 14_711_847_328},
+                        {"name": "qwen3:8b", "size": 5_225_388_164},
+                    ]
+                }
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    http = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=http.serve_forever)
+    thread.start()
+    try:
+        yield {"origin": f"http://127.0.0.1:{http.server_port}", "seen": seen}
+    finally:
+        http.shutdown()
+        http.server_close()
+        thread.join()
+
+
+def test_an_installed_model_the_size_table_does_not_list_is_gated_by_its_real_size(
+    ollama_listing_two_installed_models, monkeypatch
+) -> None:
+    """The 14.7 GB Q3_K_M build of Qwen3-30B-A3B-Instruct from Hugging Face read as 30 x 0.75 =
+    22.5 GB by its name, so on a 24 GB Mac the gate wanted 24 GB free and refused a 13.7 GiB model."""
+    origin = ollama_listing_two_installed_models["origin"]
+    monkeypatch.setenv("VOOL_LOCAL_MODELS_ENABLED", "1")
+    hf_q3 = "hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M"
+
+    assert gov.estimated_model_gb(hf_q3, base_url=origin) == 13.7
+    # A listed tag keeps the table's figure (the largest build the tag may resolve to).
+    assert gov.estimated_model_gb("qwen3:8b", base_url=origin) == 5.2
+    # Not installed and not listed: the name is all there is.
+    assert gov.estimated_model_gb("hf.co/someone/Other-30B-GGUF:Q4_K_M", base_url=origin) == 22.5
+
+    with mock.patch.object(gov.sr, "snapshot", return_value=_snap(available=16.0, total=24.0)):
+        decision = gov.plan_model_load(hf_q3, base_url=origin)
+    assert decision.ok is True and decision.footprint_gb == 13.7
+    # Still a gate: 13.7 GiB plus the 1.5 GB floor does not fit into 14 GB free.
+    with mock.patch.object(gov.sr, "snapshot", return_value=_snap(available=14.0, total=24.0)):
+        assert gov.plan_model_load(hf_q3, base_url=origin).ok is False
 
 
 # ------------------------------------------------------------------ hog report + free

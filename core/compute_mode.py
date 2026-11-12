@@ -78,6 +78,21 @@ def compute_budget(
         )
 
 
+def ollama_runner_thread_count(cpu_cores: int | None = None) -> int:
+    """The `num_thread` every Ollama payload carries: fixed for this machine, never the live mode.
+
+    Ollama keys a loaded runner on its runner options, `num_thread` among them: its scheduler
+    (server/sched.go, needsReload) compares the resident runner's options with the request's and
+    reloads the model when they differ. The compute budget above switches between balanced and
+    max_push whenever the user has been away for two minutes, so a thread count read from it gave
+    the same model a new runner at every switch: the first message after a pause reloaded the chat
+    model (a 19 GB model on a Mac), and the next one reloaded it back. This is the balanced
+    budget's count, the one sent while someone is at the keyboard, kept for the life of the process.
+    """
+    cores = cpu_cores or os.cpu_count() or 2
+    return max(1, cores // 2)
+
+
 def set_active_compute_budget(budget: ComputeBudget) -> ComputeBudget:
     with _ACTIVE_BUDGET_LOCK:
         global _ACTIVE_BUDGET

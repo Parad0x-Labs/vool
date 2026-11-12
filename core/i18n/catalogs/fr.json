@@ -3555,6 +3555,7 @@
     "settings.local_models.suggest.cloud": "Utiliser plutôt un modèle cloud",
     "settings.local_models.suggest.newer": "Un modèle plus récent convient à cet ordinateur :",
     "settings.local_models.suggest.download_bigger": "Télécharger un modèle plus grand, {model} ({gb} Go) : plus intelligent, mais plus lent",
+    "settings.local_models.suggest.download_faster": "Télécharger un modèle plus rapide, {model} ({gb} Go) : réponses plus rapides, mais plus de mémoire utilisée",
     "settings.local_models.suggest.picked_gpu": "Choisi pour la carte graphique de {gb} Go de cet ordinateur.",
     "settings.local_models.suggest.picked_memory": "Choisi pour les {gb} Go de mémoire de cet ordinateur.",
     "settings.local_models.suggest.update_ollama": "Mettez Ollama à jour pour obtenir le modèle plus récent {model}.",
@@ -4215,7 +4216,7 @@
     "x.not_connected.post_draft": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Voici votre post en brouillon, à copier et publier vous-même :",
     "x.not_connected.post_ask": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Dites-moi ce que le post doit dire et je vous écrirai un brouillon à copier."
   },
-  "source_catalog_sha256": "388809dea02de7d99770c0c78cc029ab3bcb9bde06ace670eef09e77d6926068",
+  "source_catalog_sha256": "1c09900b0dac102225a6b9971e280798ba1b8ed8b2fbcf18d4c5a288fa67ffae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
