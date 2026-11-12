@@ -945,11 +945,18 @@ function vnAvoidCritical(c) {
 function vnCriticalRects() {
   const out = [];
   for (let i = 0; i < VN_CRITICAL_SELECTORS.length; i++) {
-    const el = document.querySelector(VN_CRITICAL_SELECTORS[i]);
-    if (!el || typeof el.getBoundingClientRect !== "function") continue;
-    const r = el.getBoundingClientRect();
-    if (!r || !r.width || !r.height) continue;
-    out.push(r);
+    // EVERY live instance counts. The transcript keeps one Stop per turn and every ended
+    // turn hides its own, so the first .tc-stop in document order is usually a display:none
+    // leftover with a zero rect. Reading only the first match dropped the one Stop actually
+    // on screen, and the docked home sat on it.
+    const found = document.querySelectorAll(VN_CRITICAL_SELECTORS[i]);
+    for (let j = 0; j < found.length; j++) {
+      const el = found[j];
+      if (!el || typeof el.getBoundingClientRect !== "function") continue;
+      const r = el.getBoundingClientRect();
+      if (!r || !r.width || !r.height) continue;
+      out.push(r);
+    }
   }
   return out;
 }

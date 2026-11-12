@@ -55,7 +55,13 @@ def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", None, raising=False)
     limits.set_frozen(False)
     yield tmp_path
-    limits.set_frozen(False)
+    # A /stopx402 from a non-owner surface keeps the wallet PIN needed to undo it, so teardown
+    # proves a stand-in PIN, exactly as tests/test_vool_agent_brake.py does. The stand-in is
+    # installed only here, after the test body ran with the real credential check.
+    from core.wallet import pilot_custody
+
+    monkeypatch.setattr(pilot_custody, "prove_credential", lambda *_a, **_k: None)
+    limits.set_frozen(False, wallet_id="w", credential="x")
     assert not list(tmp_path.rglob("solana_wallet.enc")), "a legacy key file was minted under the isolated home"
 
 
@@ -140,6 +146,27 @@ def test_http_startx402_from_a_non_loopback_client_stays_frozen(isolated_home):
     )
     assert resp.status in {200, 403}
     assert limits.is_frozen() is True, "a non-owner HTTP caller lifted the canonical freeze"
+
+
+def test_a_remote_freeze_needs_the_real_pin_inside_the_test_body(isolated_home):
+    """The teardown's stand-in PIN never reaches a test body. After a remote freeze, the real
+    wallet PIN check refuses a lift with no PIN AND refuses the very wallet and PIN the teardown
+    uses, so the freeze holds until teardown lifts it."""
+    from core.wallet import limits
+    from core.wallet.errors import WalletFault
+
+    _post_chat(isolated_home, "/stopx402", run_agent_provider=lambda *a, **k: {"response": "unused"})
+    assert limits.is_frozen() is True
+
+    with pytest.raises(WalletFault) as no_pin:
+        limits.set_frozen(False)
+    assert no_pin.value.context.get("reason") == "freeze_requires_wallet_pin"
+
+    with pytest.raises(WalletFault) as stand_in:
+        limits.set_frozen(False, wallet_id="w", credential="x")
+    assert stand_in.value.code == "wallet_not_found"
+
+    assert limits.is_frozen() is True, "a remote freeze was lifted without the real wallet PIN"
 
 
 # ---------------------------------------------------------------------------

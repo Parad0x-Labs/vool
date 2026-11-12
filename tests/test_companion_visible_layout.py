@@ -203,3 +203,48 @@ def test_native_bridge_replaces_chat_and_activity_snapshot(browser, unbound):
         save_evidence(page, "native-snapshot-cleared.png")
     finally:
         page.close()
+
+
+@pytest.mark.parametrize("size", [(800, 600), (390, 844)])
+def test_docked_pet_slides_clear_of_the_live_stop_not_a_hidden_one(browser, size):
+    """The transcript keeps one Stop per turn and every ended turn hides its own, so the
+    first .tc-stop in document order is a display:none leftover with a zero rect. The
+    docked home's avoidance must read EVERY live instance: reading only the first one
+    is blind to the Stop actually on screen, and the docked pet then sits on it."""
+    page = browser.new_page(viewport={"width": size[0], "height": size[1]})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        inline(page)
+        pet = rect(page, "#companionLayer .vool-ninja")
+        # The transcript shape: an ended turn's hidden Stop first in DOM order, then the
+        # live one sitting where the docked home is.
+        page.evaluate("""([pet]) => {
+            const ended = document.createElement('button');
+            ended.className = 'tc-stop'; ended.textContent = 'Stop';
+            ended.style.display = 'none';
+            document.body.prepend(ended);
+            const live = document.createElement('button');
+            live.className = 'tc-stop'; live.textContent = 'Stop';
+            live.id = 'liveStop';
+            live.style.cssText = 'position:fixed;width:48px;height:28px;'
+                + 'left:' + (pet.x + pet.width - 30) + 'px;'
+                + 'top:' + (pet.y + pet.height - 40) + 'px;';
+            document.body.append(live);
+        }""", [pet])
+        page.evaluate("VoolCompanion.applyPos();VoolCompanion.paintNow();")
+        assert page.evaluate("VoolCompanion.pos().mode") == "docked"
+        moved = rect(page, "#companionLayer .vool-ninja")
+        stop = rect(page, "#liveStop")
+        intersects = not (moved["x"] + moved["width"] <= stop["x"]
+                          or moved["x"] >= stop["x"] + stop["width"]
+                          or moved["y"] + moved["height"] <= stop["y"]
+                          or moved["y"] >= stop["y"] + stop["height"])
+        assert not intersects, {"pet": moved, "stop": stop}
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id",
+                             [stop["x"] + stop["width"] / 2, stop["y"] + stop["height"] / 2]) == "liveStop"
+        page.locator("#liveStop").click(timeout=2500)  # no force: the hit-target check must pass
+        assert not errors
+        save_evidence(page, f"inline-live-stop-clearance-{size[0]}.png")
+    finally:
+        page.close()

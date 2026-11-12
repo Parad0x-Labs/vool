@@ -1,0 +1,51 @@
+name: Change impact
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: impact-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+# Reads source and runs proofs; repository write access is unnecessary.
+permissions:
+  contents: read
+
+jobs:
+  impact:
+    # Answers what the test shards structurally cannot. They run everything and report that
+    # nothing contradicted the change; this job resolves the change to the behavioral invariants
+    # in ops/impact/invariants.yaml, runs only their proofs, and then requires that those proofs
+    # were observed entering the changed code. A green suite over code no test ever executed is
+    # the state this catches, at a fraction of a suite run, because the proof set comes from the
+    # diff rather than from the repository.
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The gate diffs against the pull request's base commit, which a shallow clone lacks.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Audit the invariant registry
+        # Runs on every event: a registry that names a proof which no longer exists, or claims a
+        # surface none of its proofs executes, is broken whether or not this push changed it.
+        run: python ops/impact/governor.py audit --format github
+      - name: Gate the change against its required proofs
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python ops/impact/governor.py gate --base "origin/${{ github.base_ref }}" --format github

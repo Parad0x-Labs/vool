@@ -59,6 +59,9 @@ DRIVER_DROP_ON_SEND = r"""
 const res = { errors: [] };
 try {
   const VC = window.VoolCompanion;
+  // The covering law reads every live instance of a control (vnCriticalRects uses the plural
+  // door); answer it with the same stub element the singular door serves.
+  document.querySelectorAll = (s) => { const el = document.querySelector(s); return el ? [el] : []; };
   const layer = document.body.children.find((c) => c.id === "companionLayer");
   const sprite = layer.children.find((c) => c.attrs && c.attrs.role === "button");  // the harness-established sprite lookup (className is not classList-synced in the stub)
   const handlers = __winH;
@@ -206,6 +209,9 @@ const rects = {
 };
 document.querySelector = (s) => rects[s] ? {getBoundingClientRect: () => rects[s]} :
   (["#send", "#permBar", "#cloudPill", ".tc-stop", ".proj-menu", "#attachStrip"].includes(s) ? null : query(s));
+// The placement law reads EVERY live instance of a control (vnCriticalRects), so the stub
+// answers the plural door with the same rect table the singular one serves.
+document.querySelectorAll = (s) => { const el = document.querySelector(s); return el ? [el] : []; };
 window.VoolCompanion.dock();
 const layer = document.body.children.find(c => c.id === "companionLayer");
 const sprite = layer.children.find(c => c.attrs && c.attrs.role === "button");
