@@ -214,8 +214,11 @@ LIVE_STATES: tuple[str, ...] = (STATE_CLAIMED, STATE_SIGNED, STATE_SIGNED_REVOKE
 NONCE_STATES: tuple[str, ...] = (*LIVE_STATES, STATE_CONFIRMED, STATE_FAILED_ON_CHAIN)
 NEVER_SENT_STATES: tuple[str, ...] = (STATE_RELEASED, STATE_DISCARDED, STATE_CANCELLED)
 TERMINAL_STATES: tuple[str, ...] = (STATE_CONFIRMED, STATE_FAILED_ON_CHAIN, *NEVER_SENT_STATES, STATE_STOPPED_WAITING)
-#: rows whose signed bytes never left this device and never will: the message their proposal bound is freed
-UNSENT_STATES: tuple[str, ...] = (STATE_SIGNED_REVOKED, *NEVER_SENT_STATES)
+#: rows whose signed bytes never left this device and never will: the message their proposal bound is freed. The same
+#: states free the row's transaction id (idx_wallet_transfers_tx). A revoked row is not one of them: its signed bytes
+#: still hold their transaction until it is released (its blockhash expired), discarded or cancelled, so an equal
+#: payment waits for the chain to move on rather than sign a transaction whose id another row still holds
+UNSENT_STATES: tuple[str, ...] = NEVER_SENT_STATES
 #: rows the approve gate treats as in flight for an EVM account (a stopped transfer no longer blocks the account)
 IN_FLIGHT_STATES: tuple[str, ...] = LIVE_STATES
 

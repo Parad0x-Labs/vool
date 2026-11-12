@@ -449,8 +449,9 @@ def _claim_message(conn: Any, proposal_id: str, *, network: str, message_digest:
 
 def _release_message(conn: Any, proposal_id: str) -> None:
     """Free the message bound to a payment whose bytes never left this device and never will (ended before it was
-    handed on, or a transfer released, discarded, cancelled or revoked before dispatch), on the caller's connection:
-    an equal payment may sign that transaction now, and it is sent once. Lifecycle-only."""
+    handed on, or a transfer released, discarded or cancelled before dispatch), on the caller's connection: an equal
+    payment may sign that transaction now, and it is sent once. A transfer revoked before dispatch keeps its message
+    until it is released, as it keeps its transaction id. Lifecycle-only."""
     conn.execute("UPDATE wallet_proposals SET message_digest = '' WHERE proposal_id = ?", (str(proposal_id),))
 
 
