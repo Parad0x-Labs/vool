@@ -99,6 +99,14 @@ def turn_setup(tmp_path, monkeypatch, make_agent):
         )
 
     monkeypatch.setattr(authorship, "author_certification", certified)
+    # The model here is an HTTP stand-in on loopback, so the load gate would size "qwen3:8b" against
+    # this machine's real free RAM and refuse it on a busy machine. The gate has its own tests; these
+    # turns must not depend on how much memory the test machine has free.
+    from core import resource_governor
+
+    monkeypatch.setattr(
+        resource_governor, "plan_model_load", lambda *_a, **_k: resource_governor.GovernorDecision(ok=True)
+    )
     agent = make_agent()
     from core.runtime_provider_defaults import register_installed_local_model
 
