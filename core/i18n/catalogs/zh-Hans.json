@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "X 尚未连接，因此没有发布任何内容。要连接，请打开{settings} > {keys} > {x_row}，选择“{connect}”并按步骤操作。告诉我帖子要写什么，我会为你写一份可以复制的草稿。",
     "xs.summary_bookmark_read": "读取你的 X 书签",
     "xs.summary_bookmark_add": "将帖子 {post} 加入你的书签",
-    "xs.summary_bookmark_remove": "将帖子 {post} 从你的书签移除"
+    "xs.summary_bookmark_remove": "将帖子 {post} 从你的书签移除",
+    "drop.chat.note": "这是你的便条，你可以自己复制：{note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

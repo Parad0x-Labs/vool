@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "O X não está conectado, então nada foi publicado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Diga o que o post deve dizer e eu escrevo um rascunho para você copiar.",
     "xs.summary_bookmark_read": "Ler seus favoritos do X",
     "xs.summary_bookmark_add": "Adicionar a publicação {post} aos seus favoritos",
-    "xs.summary_bookmark_remove": "Remover a publicação {post} dos seus favoritos"
+    "xs.summary_bookmark_remove": "Remover a publicação {post} dos seus favoritos",
+    "drop.chat.note": "Aqui está a sua nota, para que a possa copiar: {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

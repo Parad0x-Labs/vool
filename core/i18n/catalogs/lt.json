@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Pasakykite, ką turėtų sakyti įrašas, ir parašysiu jums juodraštį nukopijuoti.",
     "xs.summary_bookmark_read": "Skaityti savo X žymes",
     "xs.summary_bookmark_add": "Pridėti įrašą {post} prie savo žymių",
-    "xs.summary_bookmark_remove": "Pašalinti įrašą {post} iš savo žymių"
+    "xs.summary_bookmark_remove": "Pašalinti įrašą {post} iš savo žymių",
+    "drop.chat.note": "Štai jūsų užrašas, kad galėtumėte jį nusikopijuoti: {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

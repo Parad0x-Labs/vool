@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "X chưa được kết nối nên chưa có gì được đăng. Để kết nối, hãy mở {settings} > {keys} > {x_row}, chọn {connect} và làm theo các bước. Hãy cho tôi biết bài đăng nên nói gì, tôi sẽ viết bản nháp để bạn sao chép.",
     "xs.summary_bookmark_read": "Đọc dấu trang X của bạn",
     "xs.summary_bookmark_add": "Thêm bài đăng {post} vào dấu trang của bạn",
-    "xs.summary_bookmark_remove": "Xóa bài đăng {post} khỏi dấu trang của bạn"
+    "xs.summary_bookmark_remove": "Xóa bài đăng {post} khỏi dấu trang của bạn",
+    "drop.chat.note": "Đây là ghi chú của bạn để bạn tự sao chép: {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

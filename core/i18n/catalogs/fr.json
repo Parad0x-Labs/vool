@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Dites-moi ce que le post doit dire et je vous écrirai un brouillon à copier.",
     "xs.summary_bookmark_read": "Lire vos signets X",
     "xs.summary_bookmark_add": "Ajouter la publication {post} à vos signets",
-    "xs.summary_bookmark_remove": "Retirer la publication {post} de vos signets"
+    "xs.summary_bookmark_remove": "Retirer la publication {post} de vos signets",
+    "drop.chat.note": "Voici votre note, pour que vous puissiez la copier vous-même : {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

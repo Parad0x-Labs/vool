@@ -4296,7 +4296,8 @@
     "x.not_connected.post_ask": "X is not connected, so nothing was posted. To connect it, open {settings} > {keys} > {x_row}, choose {connect} and follow the steps. Tell me what the post should say and I will write you a draft to copy.",
     "xs.summary_bookmark_read": "Read your X bookmarks",
     "xs.summary_bookmark_add": "Bookmark the post {post}",
-    "xs.summary_bookmark_remove": "Remove the post {post} from your bookmarks"
+    "xs.summary_bookmark_remove": "Remove the post {post} from your bookmarks",
+    "drop.chat.note": "Here is your note, so you can copy it yourself: {note}"
   },
   "html_keys": [
     "bypass.modal_limits",

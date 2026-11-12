@@ -56,8 +56,13 @@ DROP_ITEM_KEY = "drop.chat.item"
 DROP_ITEM_EN = "I have not sent {item} to {target}."
 DROP_PHONE_KEY = "drop.chat.phone"
 DROP_PHONE_EN = "{drop} only works between your computers, so it cannot send anything to a phone."
+#: A note the owner dictated ("... on my phone saying buy oat milk") is handed back word for word, so the
+#: reply shows which note it was about and the owner can copy it themselves (recheck r9b D03: the reply
+#: never named the note, so nobody could tell VOOL had understood it).
+DROP_NOTE_KEY = "drop.chat.note"
+DROP_NOTE_EN = "Here is your note, so you can copy it yourself: {note}"
 KEYS = (DROP_OFF_KEY, DROP_UNPAIRED_KEY, DROP_PAIR_KEY, LEND_OFF_KEY, LEND_UNPAIRED_KEY, LEND_PAIR_KEY,
-        DROP_ITEM_KEY, DROP_PHONE_KEY)
+        DROP_ITEM_KEY, DROP_PHONE_KEY, DROP_NOTE_KEY)
 
 #: The words the reply names, read from the catalogs the Settings page itself shows.
 _PLACE_KEYS = (
@@ -106,6 +111,24 @@ _DROP_ASK = re.compile(
 )
 _PHONE = re.compile(r"\b(?:phone|iphone|android|tablet|ipad)\b", re.I)
 _YOURS = {"my": "your", "our": "your", "me": "you", "i": "you", "mine": "yours"}
+#: What the owner asks to send is a note they dictate when it names one ("a quick note", "a reminder") or is
+#: only "it", "this" or nothing ("send this to my laptop: ...").
+_NOTE_NOUN = re.compile(r"\b(?:note|notes|message|msg|text|reminder|memo|list|line|words)\b", re.I)
+_ONLY_THIS = re.compile(r"^\s*(?:it|this|that|the\s+following)?\s*$", re.I)
+#: The note's own words, right after the note or the computer: "saying buy oat milk", "that says ...",
+#: "for later saying ...", "reading ...", ": buy oat milk", " - buy oat milk".
+_NOTE_INTRO = (
+    r"(?:(?:for\s+(?:me|later|tomorrow|today)|real\s+quick|quickly|please|just)\s*,?\s+)?"
+    r"(?:saying|that\s+says|which\s+says|to\s+say|that\s+reads|with\s+the\s+(?:text|words))\b\s*[:,\-–—]?"
+)
+_NOTE_WORDS = re.compile(
+    r"^(?:\s*,?\s*" + _NOTE_INTRO + r"|\s*,?\s*reading\b\s*[:,\-–—]?|\s*:|(?P<dash>\s+[\-–—]))\s*(?P<note>\S.*)$",
+    re.I | re.S,
+)
+_QUOTED = re.compile(r"^(?P<open>[\"'“‘«„‚])(?P<inner>.+?)(?P<close>[\"'”’»“‘])[.!]?$", re.S)
+_QUOTE_PAIRS = {'"': '"', "'": "'", "“": "”", "‘": "’", "«": "»", "„": "“", "‚": "‘"}
+#: A longer text is a pasted document, not a dictated note; the reply then names only what was not sent.
+_NOTE_MAX = 2000
 #: Hand a job to another VOOL or computer.
 _LEND_ASK = re.compile(
     r"\b(?:my|the|our)\s+(?:\w+\s+)?(?:other|second)\s+vool\b"
@@ -132,9 +155,47 @@ _NEGATED = re.compile(r"\b(?:do\s+not|don(?:'|’)?t|dont|never|without)\s+(?:\w
 _FOLLOW_UP_DEVICE = re.compile(r"\b" + _DEVICE + r"\b", re.I)
 
 
+def _clean_note(words: str) -> str:
+    note = words.strip()
+    quoted = _QUOTED.match(note)
+    if quoted and _QUOTE_PAIRS.get(quoted.group("open")) == quoted.group("close"):
+        note = quoted.group("inner").strip()
+    return note if len(note) <= _NOTE_MAX else ""
+
+
+def _drop_parts(text: str) -> tuple[str, str, str, str]:
+    """(item, target, note, ask) for a Drop ask in the owner's words: what they asked to send, where to,
+    the words of a note they dictated, and the ask with those words left out; ('', '', '', text) if none."""
+    match = _DROP_ASK.search(text)
+    if not match:
+        return "", "", "", text
+    item, target = match.group("item"), match.group("target")
+    nouns = list(_NOTE_NOUN.finditer(item))
+    for noun in nouns:
+        # "send a note saying buy oat milk to my phone": the words sit inside what was asked to send.
+        words = _NOTE_WORDS.match(item[noun.end():])
+        note = _clean_note(words.group("note")) if words else ""
+        if note:
+            cut = match.start("item") + noun.end()
+            return item[:noun.end()], target, note, text[:cut] + " " + text[match.end("item"):]
+    named = bool(nouns) and not item[nouns[-1].end():].strip()  # "a quick note", never "the text file"
+    if named or _ONLY_THIS.match(item):
+        # "drop a quick note on my phone saying buy oat milk": the words follow the computer or phone.
+        # After only "it" or "this", a dash may start anything ("send it to my laptop - the invoice"), so
+        # those words count as a note only after "saying" or a colon.
+        words = _NOTE_WORDS.match(text[match.end():])
+        note = _clean_note(words.group("note")) if words and (named or words.group("dash") is None) else ""
+        if note:
+            return item, target, note, text[:match.end()]
+    return item, target, "", text
+
+
 def kind_of_ask(text: str) -> str:
     """'lend' for handing a job to another computer, 'drop' for sending a file or note to one, else ''."""
     value = str(text or "").strip()
+    # The words of a dictated note ("... saying don't forget to email the landlord") are the owner's note,
+    # not their ask, so they never make it a question, a mail ask or a "don't send".
+    value = _drop_parts(value)[3].strip()
     if not value or _QUESTION.search(value) or _OTHER_CHANNEL.search(value) or _NEGATED.search(value):
         return ""
     if _LEND_ASK.search(value):
@@ -255,15 +316,29 @@ def _owner_words(phrase: str) -> str:
 
 def drop_item(text: str) -> tuple[str, str]:
     """(what, where) the owner asked Drop to send, in their own words; ('', '') when unclear."""
-    match = _DROP_ASK.search(str(text or ""))
-    if not match:
+    item, target, _note, _ask = _drop_parts(str(text or ""))
+    if not target:
         return "", ""
-    item = re.sub(r"^(?:over|it\s+over)\s+", "", match.group("item").strip(), flags=re.I)
+    item = re.sub(r"^(?:over|it\s+over)\s+", "", item.strip(), flags=re.I)
     item = _owner_words(item)
-    target = _owner_words(match.group("target"))
+    target = _owner_words(target)
     if not item or len(item.split()) > 8:
         return "", target
     return item, target
+
+
+def drop_note(text: str) -> str:
+    """The words of a note the owner dictated for Drop to send, exactly as they wrote them; '' when none."""
+    return _drop_parts(str(text or ""))[2]
+
+
+def note_line(note: str, locale: str = "") -> str:
+    """The closing line that hands the dictated note back, in the app language."""
+    from core.i18n.catalog import catalog_for
+    from core.i18n.turn_locale import turn_locale
+
+    catalog = catalog_for(str(locale or "").strip() or turn_locale())
+    return _fill(catalog, DROP_NOTE_KEY, DROP_NOTE_EN, {"note": note})
 
 
 def drop_lead(text: str, locale: str = "") -> tuple[str, bool]:
@@ -306,6 +381,9 @@ def reply_if_unavailable(agent: Any, text: str, *, session_id: str, source_conte
     if not state:
         return None
     response = lead if phone else ((lead + " " if lead else "") + reply_text(kind, state, locale))
+    note = drop_note(text) if kind == "drop" else ""
+    if note:
+        response += "\n\n" + note_line(note, locale)
     result = agent._fast_path_result(session_id=session_id, user_input=text, response=response,
                                      confidence=1.0, source_context=source_context,
                                      reason=f"{kind}_{state}")
@@ -313,4 +391,5 @@ def reply_if_unavailable(agent: Any, text: str, *, session_id: str, source_conte
     return result
 
 
-__all__ = ["KEYS", "drop_item", "kind_of_ask", "reply_if_unavailable", "reply_text", "state_for"]
+__all__ = ["KEYS", "drop_item", "drop_note", "kind_of_ask", "note_line", "reply_if_unavailable", "reply_text",
+           "state_for"]

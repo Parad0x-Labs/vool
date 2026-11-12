@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。投稿の内容を教えていただければ、コピーできる下書きを書きます。",
     "xs.summary_bookmark_read": "自分のXのブックマークを読む",
     "xs.summary_bookmark_add": "投稿{post}をブックマークに追加する",
-    "xs.summary_bookmark_remove": "投稿{post}をブックマークから削除する"
+    "xs.summary_bookmark_remove": "投稿{post}をブックマークから削除する",
+    "drop.chat.note": "メモはこちらです。ご自身でコピーできます: {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

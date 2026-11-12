@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "X가 연결되어 있지 않아 아무것도 게시되지 않았습니다. 연결하려면 {settings} > {keys} > {x_row}에서 {connect} 버튼을 누르고 안내에 따라 진행하세요. 게시물에 담을 내용을 알려 주시면 복사할 수 있는 초안을 써 드릴게요.",
     "xs.summary_bookmark_read": "내 X 북마크 읽기",
     "xs.summary_bookmark_add": "게시물 {post}을(를) 북마크에 추가하기",
-    "xs.summary_bookmark_remove": "게시물 {post}을(를) 북마크에서 삭제하기"
+    "xs.summary_bookmark_remove": "게시물 {post}을(를) 북마크에서 삭제하기",
+    "drop.chat.note": "직접 복사할 수 있도록 메모를 적어 드립니다: {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

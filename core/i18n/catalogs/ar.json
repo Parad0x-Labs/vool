@@ -4296,9 +4296,10 @@
     "x.not_connected.post_ask": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. أخبرني بما يجب أن يقوله المنشور وسأكتب لك مسودة لتنسخها.",
     "xs.summary_bookmark_read": "قراءة إشاراتك المرجعية على X",
     "xs.summary_bookmark_add": "إضافة المنشور {post} إلى إشاراتك المرجعية",
-    "xs.summary_bookmark_remove": "إزالة المنشور {post} من إشاراتك المرجعية"
+    "xs.summary_bookmark_remove": "إزالة المنشور {post} من إشاراتك المرجعية",
+    "drop.chat.note": "إليك ملاحظتك لتنسخها بنفسك: {note}"
   },
-  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
+  "source_catalog_sha256": "907a3ea4661c0e5fa26fc32952e8c38ff3ab3cf0a2edc205c4eff7ac6ee8febd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
