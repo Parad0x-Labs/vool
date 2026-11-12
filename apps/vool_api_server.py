@@ -7,10 +7,6 @@ import legacy helpers from ``apps.vool_api_server``.
 
 from __future__ import annotations
 
-from core.env_compat import apply_legacy_nulla_env
-
-apply_legacy_nulla_env()  # NULLA_* shells keep working; VOOL_* wins (see core/env_compat.py)
-
 import argparse
 import contextlib
 import contextvars
@@ -36,6 +32,13 @@ def _prioritize_project_root_on_sys_path(*, project_root: Path = PROJECT_ROOT) -
 
 if __package__ in {None, ""}:
     _prioritize_project_root_on_sys_path()
+
+# Only after this checkout leads sys.path: started by path (python apps/vool_api_server.py), the first
+# `core` import would otherwise resolve through whatever other checkout the interpreter has installed
+# (an editable install of an older line), and the whole daemon would run that checkout's code.
+from core.env_compat import apply_legacy_nulla_env
+
+apply_legacy_nulla_env()  # NULLA_* shells keep working; VOOL_* wins (see core/env_compat.py)
 
 # Hide child-process console windows on Windows BEFORE any import that might spawn one (e.g. the
 # git-based version stamp at bootstrap). Without this the server -- though windowless itself --
