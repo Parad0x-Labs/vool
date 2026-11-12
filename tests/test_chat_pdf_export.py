@@ -69,7 +69,11 @@ def test_pdf_keeps_the_existing_availability_and_session_gate():
 @pytest.mark.parametrize('source',[
     '![image](https://example.invalid/private.png)',
     '```mermaid\nsequenceDiagram\n  participant S\n  S->>T: level\n```',
-    'Unsupported glyph: \U0001f680',
+    # A letter of a script the PDF font cannot draw: dropping it would lose a word. This case
+    # used a rocket emoji until the Nov 5 live test made emoji decoration that never refuses a
+    # whole PDF (tests/presentation/test_pdf_emoji_are_decoration.py); the rocket now exports,
+    # see test_an_emoji_in_a_chat_exports_with_every_word_kept below.
+    'Unsupported glyph: \U00013000',
 ])
 def test_unsupported_content_refuses_instead_of_shipping_an_incomplete_pdf(source):
     export._seed(assistant=source)
@@ -77,6 +81,21 @@ def test_unsupported_content_refuses_instead_of_shipping_an_incomplete_pdf(sourc
     assert response.status == 422
     assert json.loads(response.body)['error'] == 'pdf_export_refused'
     assert not response.body.startswith(b'%PDF-')
+
+
+@pytest.mark.parametrize('source,kept',[
+    ('Unsupported glyph: \U0001f680 launch day.', ['Unsupported glyph:', 'launch day.']),
+    ('Top pick ⭐ for families, alarm ⏰ at 7.', ['Top pick ★ for families', 'at 7.']),
+    ('| Feature | VOOL | Other |\n|---|---|---|\n| Offline | ✅ | ❌ |', ['Offline', '✔', '✗']),
+])
+def test_an_emoji_in_a_chat_exports_with_every_word_kept(source,kept):
+    """The export door follows the Nov 5 decision: an emoji never refuses the whole PDF. A mark
+    that means something keeps a drawable form (a check, a cross, a star); pure decoration goes;
+    every word stays."""
+    export._seed(assistant=source)
+    text = pdf_text(export._export(format='pdf'))
+    for value in kept:
+        assert value in text, (value, text)
 
 
 def test_pdf_source_ceiling_refuses_without_a_partial_download(monkeypatch):
