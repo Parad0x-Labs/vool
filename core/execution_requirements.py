@@ -1257,6 +1257,14 @@ def _compute_requirements(
     # quoted demands and every pasted line keep the as-written clause boundaries above.
     _example_stripped = _strip_reported_examples(asked_text(str(user_input or "")) if not constraints.has_prohibition else asked_text(candidate_text))
     signals = firing_signals(_example_stripped)
+    # A period that only says when the person's own output happens ("what should i post this
+    # week?") fires the temporal-markers signal alone, which wraps the very markers
+    # `answer_mode_for` stands down for it (`_period_scopes_own_output`). Every other signal
+    # keeps its say.
+    from core.agent_runtime.grounded_mode import _period_scopes_own_output
+
+    if _period_scopes_own_output(candidate_text):
+        signals = tuple(signal for signal in signals if signal.reason_code != "temporal_markers")
     # A historically anchored ask, or one whose numbers are the current input the user supplied, is
     # not a request for a present observation: the same exemptions the live-data lane honours above.
     # An own-files ask is exempt for the same reason `answer_mode_for` stands it down: its
