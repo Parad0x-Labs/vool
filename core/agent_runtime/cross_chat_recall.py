@@ -191,13 +191,20 @@ def _private(session_id: str, source_context: dict[str, Any] | None) -> bool:
 _LIVE_DOMAIN_RE = re.compile(
     r"\b(?:meetings?|appointments?|calendar|agenda|events?|schedule|reminders?|e-?mails?|mail|inbox|"
     r"messages?|files?|folders?|downloads?|desktop|disk|battery|weather|forecast|balance|wallet|price|"
-    # Writing the owner keeps (VOOL's notes, a journal, a notes file in a project): "what's in my
-    # notes?" reads those, never "I don't have that saved" (v0.8 line 247124ed, 2026-11-12).
-    r"notes|notebooks?|journal|diary|"
     # Data the owner keeps in a store a tool reads (database run 2, 2026-11-12: "whats in my orders
     # database?" was answered "I don't have that saved" by this lane).
     r"databases?|databse|datbase|db|tables?|tabel|spreadsheets?|sheets?|repo|repository|repositories|"
     r"today|tomorrow|tonight|this\s+(?:week|month|morning|afternoon|evening)|next\s+week|now)\b",
+    re.IGNORECASE,
+)
+#: Writing the owner keeps (VOOL's notes, a journal, a notes file in a project): "what's in my notes?"
+#: reads those, never "I don't have that saved" (v0.8 line 247124ed, 2026-11-12). A fact asked
+#: "according to my notes" is still a records question, and this lane answers it: it searches every
+#: chat and project and says plainly when nothing is saved (served: "How many tonnes does the yard
+#: currently hold according to my notes?" went to a web lookup once the notes words alone sent it away).
+_OWN_WRITING_RE = re.compile(r"\b(?:notes|notebooks?|journal|diary)\b", re.IGNORECASE)
+_RECORDS_SOURCE_RE = re.compile(
+    r"\b(?:according\s+to|based\s+on|per|going\s+by)\s+(?:my|our|the)\s+(?:notes|notebooks?|journal|diary)\b",
     re.IGNORECASE,
 )
 
@@ -224,6 +231,8 @@ def _agent_turn(session_id: str) -> bool:
 
 def _owned_by_another_lane(text: str, asked: str = "") -> bool:
     if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
+        return True
+    if _OWN_WRITING_RE.search(_RECORDS_SOURCE_RE.sub(" ", text)):
         return True
     typed = asked or text
     try:

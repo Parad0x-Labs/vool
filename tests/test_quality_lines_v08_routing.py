@@ -230,3 +230,16 @@ def test_reading_a_project_file_is_not_refused_as_a_web_lookup(tmp_path, text, f
 def test_reading_a_file_in_a_plain_chat_is_not_refused_as_a_web_lookup():
     _, response, _ = _turn("read notes.txt", session="openclaw:6234567890abcdef0009")
     assert "web lookups are off" not in response.lower(), response
+
+
+@pytest.mark.parametrize("text", [
+    "How many tonnes does the yard currently hold according to my notes?",
+    "what was the boiler service date according to my notes?",
+    "based on my notes, when is the gas meter reading due?",
+])
+def test_a_fact_asked_according_to_my_notes_is_still_a_records_question(text):
+    # The served records test (tests/test_live_question_is_not_answered_from_the_records.py) pins it:
+    # this lane says plainly that nothing is saved; the notes words alone sent it to a web lookup.
+    from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
+
+    assert not _owned_by_another_lane(as_question(text), text), as_question(text)
