@@ -127,8 +127,12 @@ def test_how_far_tor_has_connected_is_shown_while_it_connects(runtime, monkeypat
     monkeypatch.setattr(tor_runtime, "shared", lambda: runtime)
     monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState("tor", runtime.socks_port))
     monkeypatch.setattr(private_web_service, "_starter", type("Alive", (), {"is_alive": lambda self: True})())
+    monkeypatch.setattr(private_web_service, "_starter_kind", "tor")
     status = private_web_service.status()
     assert status["state"] == "starting" and status["detail"] == "Tor network: 14% connected."
+    # switched to "My VPN app" while that Tor start winds down: not shown as connecting
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState("system_vpn"))
+    assert private_web_service.status()["state"] == "down"
 
 
 def test_private_web_uses_the_running_tor_port(runtime, monkeypatch) -> None:

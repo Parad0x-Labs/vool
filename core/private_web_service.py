@@ -18,6 +18,7 @@ from core import private_web
 _lock = threading.RLock()
 _last_error: dict[str, str] = {}
 _starter: threading.Thread | None = None
+_starter_kind = ""
 TOR_USER = "private_web"
 
 
@@ -67,12 +68,13 @@ def set_route(kind: str, *, wait: bool = False) -> dict[str, Any]:
     kind = str(kind or "").strip().lower()
     if kind not in private_web.ROUTES:
         raise ValueError("unknown_route")
-    global _starter
+    global _starter, _starter_kind
     with _lock:
         _write_route(kind)
         _stop_helpers(except_kind=kind)
         if kind in private_web.SOCKS_ROUTES:
             _starter = threading.Thread(target=_start_helper, args=(kind,), name="private-web-start", daemon=True)
+            _starter_kind = kind
             _starter.start()
         elif kind == private_web.ROUTE_SYSTEM_VPN:
             private_web.check_system_vpn_now()
@@ -109,7 +111,9 @@ def status() -> dict[str, Any]:
 
     route = private_web.current_route()
     problem = private_web.route_problem(route) if route.active else None
-    starting = bool(_starter is not None and _starter.is_alive())
+    # Only the helper of the chosen route counts: a Tor start still winding down after a switch
+    # to "My VPN app" must not show that route as connecting.
+    starting = bool(_starter is not None and _starter.is_alive() and _starter_kind == route.kind)
     if not route.active:
         state = "off"
     elif problem is None:
@@ -143,8 +147,9 @@ def activate_at_start() -> None:
     """At app start: bring the chosen route's helper up in the background. Off does nothing."""
     route = private_web.current_route()
     if route.kind in private_web.SOCKS_ROUTES:
-        global _starter
+        global _starter, _starter_kind
         _starter = threading.Thread(target=_start_helper, args=(route.kind,), name="private-web-start", daemon=True)
+        _starter_kind = route.kind
         _starter.start()
 
 
