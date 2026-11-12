@@ -988,3 +988,14 @@ def test_an_acknowledged_answer_with_content_is_not_a_plan(reply):
     from core.incomplete_answer import _only_a_plan
 
     assert not _only_a_plan(reply)
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["who lives in Oslo in the customers table?", "which supplier is cheapest in my vendors sheet?",
+     "what does Mercury cost in our price list?"],
+)
+def test_a_question_about_the_persons_own_data_is_never_a_world_ambiguity(question):
+    from core.entity_ambiguity import single_plain_know_question
+
+    assert not single_plain_know_question(question)

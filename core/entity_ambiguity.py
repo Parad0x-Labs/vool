@@ -198,6 +198,14 @@ def render_unresolved_clarification(question: str, *, attempts: int) -> str:
     )
 
 
+_OWN_DATA_STORE_RE = re.compile(
+    r"\b(?:in|from|of|on|inside)\s+(?:my|our|the|this|that)\s+(?:[\w-]+\s+){0,3}?"
+    r"(?:tables?|tabels?|databases?|databse|db|spreadsheets?|sheets?|csv|files?|folders?|notes?|lists?|records?|"
+    r"inbox|calendar|contacts|documents?|docs?|workbook)\b",
+    re.IGNORECASE,
+)
+
+
 def single_plain_know_question(
     text: str, *, has_attachments: bool = False, source_context: Mapping[str, Any] | None = None
 ) -> bool:
@@ -239,6 +247,20 @@ def single_plain_know_question(
 
     if mailbox_retrieval_intents(message):
         return False
+    # A question that names the person's own data -- a table, database, sheet, file, folder,
+    # notes or list -- is answered from that data, never adjudicated against the world: the
+    # probe's referents are model-made, and "who lives in Oslo in the customers table?" was asked
+    # back as "Did you mean Olaf, Elin?", names that are not in the data (database run 6,
+    # 2026-11-12). Same for any ask a tool family is seated for.
+    if _OWN_DATA_STORE_RE.search(message):
+        return False
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        if resolve_demand_signals(message).required_families:
+            return False
+    except Exception:
+        pass
     # A question about the speaker's OWN facts is answered from their memory, never adjudicated
     # against the world: measured 2026-11-10 on 0.7.8 (patched build, real chat surface), after
     # "Remember that my favourite bakery is Kepykla Holy", a new chat asked "Which bakery is my
