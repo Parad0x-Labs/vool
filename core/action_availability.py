@@ -134,6 +134,13 @@ _VEHICLE_ACTION_RE = re.compile(
     r"\b(?:car|vehicle|truck|motorcycle|bike|bicycle|it)\b",
     re.IGNORECASE,
 )
+# "move the electric bill pdf into it": a file moved into a folder is a file action, not driving
+# (red/blue team, 2026-11-12: refused as "no physical body", then offered as a file move).
+_FILE_OBJECT_RE = re.compile(
+    r"\b(?:files?|folders?|director(?:y|ies)|pdfs?|docs?|documents?|photos?|pictures?|pics?|images?|"
+    r"screenshots?|videos?|spreadsheets?|downloads|desktop|txt|csv|zip|\.[a-z0-9]{2,4})\b",
+    re.IGNORECASE,
+)
 _POUR_OR_SERVE_RE = re.compile(
     r"\b(?:pour|serve|bring|hand)\b[^.!?;\n]{0,60}"
     r"\b(?:coffee|tea|water|drink|cup|glass|mug)\b",
@@ -316,7 +323,7 @@ def unavailable_action_report(text: str) -> ActionAvailabilityReport | None:
     if (
         _BODILY_ACTION_RE.search(request)
         or _PHYSICAL_CARE_RE.search(request)
-        or _VEHICLE_ACTION_RE.search(request)
+        or (_VEHICLE_ACTION_RE.search(request) and not _FILE_OBJECT_RE.search(request))
         or _POUR_OR_SERVE_RE.search(request)
     ):
         return ActionAvailabilityReport(

@@ -12,5 +12,6 @@ def refuse_if_off(agent, text, *, session_id, source_context):
     response = f'{cat.text("live.browser")}: {cat.text("live.stopped")}. [{cat.text("sidebar.settings")}](/settings#permissions)'
     result = agent._fast_path_result(session_id=session_id, user_input=text, response=response,
                                      confidence=1.0, source_context=source_context, reason="live_browser_off")
-    result.update(deterministic=True, success=False, status="web_off", task_outcome="failed")
+    result.update(deterministic=True, success=False, status="web_off", task_outcome="refused",
+                  refused_request={"reason": "live_browser_off", "request": str(text or "")})
     return result

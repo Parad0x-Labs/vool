@@ -1412,6 +1412,10 @@ _TERMINAL_ATTEMPT_STATES = {
     AttemptLifecycle.FAILED_SYNTHESIS.value,
     AttemptLifecycle.FAILED_VALIDATION.value,
     AttemptLifecycle.PENDING_RECONCILIATION.value,
+    # A request refused before it ran is finished: nothing more will happen to it until the
+    # person changes what refused it and asks again (a new attempt). It was missing here, so a
+    # refused attempt stayed open and closed with no completion event.
+    AttemptLifecycle.REFUSED_POLICY.value,
     AttemptLifecycle.CANCELLED.value,
     AttemptLifecycle.ABANDONED.value,
     AttemptLifecycle.SUPERSEDED.value,

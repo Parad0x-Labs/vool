@@ -51,8 +51,12 @@ def served(tmp_path_factory):
 
 def _ask(daemon, asked: str) -> tuple[str, float]:
     started = time.monotonic()
-    reply = _reply_text(daemon.chat(asked, session_id=rig.canonical_session("weboff-" + uuid.uuid4().hex[:8])))
-    return reply, time.monotonic() - started
+    payload = daemon.chat(asked, session_id=rig.canonical_session("weboff-" + uuid.uuid4().hex[:8]))
+    _LAST_PAYLOAD[asked] = payload
+    return _reply_text(payload), time.monotonic() - started
+
+
+_LAST_PAYLOAD: dict = {}
 
 
 @pytest.mark.parametrize("asked", ASKS)
@@ -66,3 +70,24 @@ def test_a_web_ask_with_web_lookups_off_names_the_switch(served, asked):
     for wrong in ("21 degrees", "0.42", "records i have from our conversations", "runtime", "policy", "`", ".."):
         assert wrong not in low, (wrong, reply)
     assert seconds < 60, (seconds, reply)
+
+
+def test_a_web_off_refusal_is_not_sealed_as_a_finished_answer(served):
+    import json
+
+    daemon, _provider = served
+    _ask(daemon, "any headlines about the world cup right now?")
+    sealed = json.dumps(_LAST_PAYLOAD["any headlines about the world cup right now?"])
+    import sqlite3
+
+    assert "web_off_lookup_refusal" in sealed
+    # The runtime's own record of the turn: a refusal of the request, not a finished answer.
+    conn = sqlite3.connect(f"file:{daemon.home / 'data' / 'vool_web0_v2.db'}?mode=ro", uri=True)
+    try:
+        last = conn.execute(
+            "SELECT lifecycle_state, terminal_reason FROM runtime_attempts ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert last is not None and last[0] == "REFUSED_POLICY", last
+    assert last[1] == "web_off_lookup_refusal", last

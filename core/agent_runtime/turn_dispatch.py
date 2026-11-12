@@ -400,7 +400,7 @@ def prepare_turn_task_bundle(
             dispatch_status=dispatch.status,
             details=dispatch.details,
         )
-        return {
+        _operator_result = {
             "result": agent._action_fast_path_result(
                 task_id=task.task_id,
                 session_id=session_id,
@@ -429,12 +429,22 @@ def prepare_turn_task_bundle(
                     or (dispatch.status == "reported" and _reported_read_only(operator_intent.kind))
                     else "pending_approval"
                     if dispatch.status in {"reported", "approval_required"}
+                    else "refused"
+                    if dispatch.status == "owner_local_required"
                     else "failed"
                 ),
                 learned_plan=dispatch.learned_plan,
                 workflow_summary=workflow_summary,
             )
         }
+        if dispatch.status == "owner_local_required" and isinstance(_operator_result.get("result"), dict):
+            # The remote-turn fence refused this request before anything ran: sealed as a refusal
+            # of it, with the request, so a later "try again" can find it.
+            _operator_result["result"]["status"] = dispatch.status
+            _operator_result["result"]["refused_request"] = {
+                "reason": dispatch.status, "request": str(effective_input or ""),
+            }
+        return _operator_result
 
     hive_confirm = agent._maybe_handle_hive_create_confirmation(
         effective_input,

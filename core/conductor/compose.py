@@ -434,6 +434,12 @@ def compose_answer(
             continue
 
         if outcome.state is NodeLifecycle.UNRESOLVED or node.operation == UNRESOLVED_OPERATION:
+            from core.finalization import _is_a_demand
+
+            if not _is_a_demand(subject):
+                # "thanks, what's 7 plus 8?": the courtesy is how the person asked, not a clause to
+                # answer. Listed as "Could not be answered: thanks" on database runs 8-12.
+                continue
             segment = _unserved_line(outcome)
             if bool(dict(node.arguments or {}).get("stated_refusal")):
                 stated_refusal_lines.add(segment)

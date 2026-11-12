@@ -1841,6 +1841,16 @@ class VoolAgent(
                             _m4_state.pending_approvals.append(
                                 str((result or {}).get("approval_id") or "") or "pending"
                             )
+                        # A request refused before it ran (Web lookups off, the remote-turn fence)
+                        # closes as a policy refusal of THAT request, not as a provider fault or a
+                        # finished answer; the refused request and its reason are kept with it.
+                        if str((result or {}).get("task_outcome") or "") == "refused":
+                            _refused = dict((result or {}).get("refused_request") or {})
+                            _ident = observed_context.get("_execution_identity")
+                            if isinstance(_ident, dict):
+                                _ident["refused_reason"] = str(
+                                    _refused.get("reason") or (result or {}).get("status") or "refused"
+                                )
                         from core.runtime_task_outcome import terminal_fulfillment_outcome
 
                         _terminal = terminal_fulfillment_outcome(result, source_context=observed_context)
@@ -1941,13 +1951,18 @@ class VoolAgent(
                         getattr(_turn_state, "pending_approvals", None) or []
                     ):
                         _awaiting_approval = True
+                    _refused_reason = str(_identity.get("refused_reason") or "").strip()
                     _attempt_state = (
                         "SUCCEEDED"
                         if _turn_ok
                         else (
                             AttemptLifecycle.WAITING_APPROVAL.value
                             if _awaiting_approval
-                            else ("CANCELLED" if _was_cancelled else "FAILED_PROVIDER")
+                            else (
+                                "CANCELLED"
+                                if _was_cancelled
+                                else (AttemptLifecycle.REFUSED_POLICY.value if _refused_reason else "FAILED_PROVIDER")
+                            )
                         )
                     )
                     # FULFILMENT, NOT MERELY "DID NOT RAISE" (FINDINGS F14.5 / F15): a turn
@@ -1968,7 +1983,10 @@ class VoolAgent(
                     update_runtime_attempt(
                         str(_identity["attempt_id"]),
                         lifecycle_state=_attempt_state,
-                        terminal_reason=_unfulfilled if (_turn_ok and _unfulfilled) else None,
+                        terminal_reason=(
+                            _unfulfilled if (_turn_ok and _unfulfilled)
+                            else (_refused_reason if _attempt_state == AttemptLifecycle.REFUSED_POLICY.value else None)
+                        ),
                         retryable=_provider_terminal.retryable if _provider_terminal is not None else None,
                         client_turn_id=str(observed_context.get("turn_key") or observed_context.get("client_turn_id") or ""),
                         # WAITING_APPROVAL is a resumable pause, not a terminal: the row

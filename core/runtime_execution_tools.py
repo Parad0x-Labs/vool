@@ -5395,6 +5395,12 @@ def _list_machine_directory(
         counted = folders if directories_only else total
         noun = "visible folders" if directories_only else "visible entries"
         detail = "" if directories_only else f" ({folders} folders, {files} files)"
+        if kind_suffixes:
+            # "how many pdf files are in my Documents folder?": that kind only, and said whether
+            # subfolders are included (they are not: this counts the folder itself).
+            counted = len(matched)
+            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            detail = " (not counting subfolders)"
         return RuntimeExecutionResult(
             handled=True,
             ok=True,

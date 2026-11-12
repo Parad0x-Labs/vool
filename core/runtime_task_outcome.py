@@ -630,6 +630,19 @@ def _derived_terminal_fulfillment_outcome(
                 "retryable": retryable,
             }
         )
+    if task_outcome == "refused":
+        # A request refused before it ran (Web lookups off, a phone asking for this computer's
+        # files): blocked, and retryable once the person changes what refused it. The refused
+        # request rides with it so a later "try again" can rerun exactly that.
+        refused = dict(payload.get("refused_request") or {}) if isinstance(payload.get("refused_request"), dict) else {}
+        return normalize_runtime_task_outcome(
+            {
+                "fulfillment_status": FulfillmentStatus.BLOCKED.value,
+                "failure_stage": "task_execution",
+                "failure_codes": [str(refused.get("reason") or payload.get("status") or "refused")],
+                "retryable": True,
+            }
+        )
     if task_outcome in {"blocked", "pending_approval"} or response_class == "approval_required":
         return normalize_runtime_task_outcome(
             {

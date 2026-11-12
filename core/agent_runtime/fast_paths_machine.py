@@ -641,6 +641,11 @@ def _machine_tool_fast_path_result(
     # wants one), so a pending fast-path action surfaces the SAME permission card the model route
     # would have raised, instead of silently running or silently dying.
     refused = status in REFUSAL_STATUSES
+    # The remote-turn fence (a phone or another device asking for this computer's files) refused
+    # the call before it ran. That is a refusal of THIS request, sealed as one with the request it
+    # refused, so a later "try again" can find it -- it used to seal as a successful turn whose
+    # tool merely failed (red/blue review, 2026-11-12).
+    fenced = status == "owner_local_required"
     mode = "cancelled" if status == "cancelled" else "tool_failed" if not ok else "tool_executed"
     if status == "pending_approval":
         mode = "tool_preview"
@@ -701,6 +706,11 @@ def _machine_tool_fast_path_result(
     if refused:
         result["status"] = status
         result["success"] = False
+    if fenced:
+        result["status"] = status
+        result["success"] = False
+        result["task_outcome"] = "refused"
+        result["refused_request"] = {"reason": status, "request": str(user_input or "")}
     if approval_request:
         result["approval_request"] = approval_request
         result["task_outcome"] = "pending_approval"

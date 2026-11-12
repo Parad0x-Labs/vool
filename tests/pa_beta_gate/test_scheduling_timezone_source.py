@@ -85,7 +85,9 @@ def test_the_profile_timezone_the_user_gave_is_the_scheduling_zone(home):
     assert row["tz_name"] == "Europe/Athens"
 
 
-def test_with_no_timezone_known_the_fallback_stays_utc(home):
+def test_with_no_timezone_known_the_fallback_stays_utc(home, monkeypatch):
+    # Nothing known at all: no preference, no profile, and the computer's own zone unreadable.
+    monkeypatch.setattr("core.local_operator_actions._host_timezone_name", lambda: "")
     row = _schedule("remind me tomorrow at 9am to call the bank")
     assert row["due_at_utc"].startswith("2026-10-25T09:00"), row["due_at_utc"]
 
@@ -99,8 +101,10 @@ def test_a_stored_preference_still_wins_over_the_profile(home):
     assert row["due_at_utc"].startswith("2026-10-25T13:00"), row["due_at_utc"]  # 09:00 EDT
 
 
-def test_a_paused_profile_is_not_consulted(home):
+def test_a_paused_profile_is_not_consulted(home, monkeypatch):
     from core import operator_profile
+
+    monkeypatch.setattr("core.local_operator_actions._host_timezone_name", lambda: "")
 
     _remember_zone("Europe/Athens")
     assert operator_profile.set_paused(operator_profile.OWNER_PRINCIPAL, True)
@@ -112,3 +116,10 @@ def test_a_zone_named_in_the_request_still_wins(home):
     _remember_zone("Europe/Athens")
     row = _schedule("remind me tomorrow at 9am America/New_York time to call the bank")
     assert row["due_at_utc"].startswith("2026-10-25T13:00"), row["due_at_utc"]
+
+
+def test_with_no_preference_the_computers_own_zone_is_used(home, monkeypatch):
+    # 0.7.8 sweep block 3: "remind me tomorrow at 10am" was scheduled for 10:00 UTC on a +02:00 Mac.
+    monkeypatch.setattr("core.local_operator_actions._host_timezone_name", lambda: "America/New_York")
+    row = _schedule("remind me tomorrow at 9am to call the bank")
+    assert row["due_at_utc"].startswith("2026-10-25T13:00"), row["due_at_utc"]  # 09:00 EDT

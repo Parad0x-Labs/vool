@@ -1551,3 +1551,15 @@ def test_a_multi_part_web_task_stays_with_the_conductor():
     text = ("Search the live web for the current price of BTC and gold. Once you have both, calculate the ratio.")
     sentences = [p for p in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text) if p.strip()]
     assert len(sentences) == 2
+
+
+def test_a_refused_turn_seals_as_refused_with_its_request():
+    from core.runtime_task_outcome import terminal_fulfillment_outcome
+
+    payload = {"response": "Web lookups are off, so I can't look this up online.", "success": False,
+               "status": "web_off", "task_outcome": "refused",
+               "refused_request": {"reason": "web_off_lookup_refusal", "request": "look up the olympics news"}}
+    outcome = terminal_fulfillment_outcome(payload)
+    as_dict = outcome if isinstance(outcome, dict) else getattr(outcome, "__dict__", {}) or outcome._asdict()
+    text = str(as_dict)
+    assert "blocked" in text and "web_off_lookup_refusal" in text, text

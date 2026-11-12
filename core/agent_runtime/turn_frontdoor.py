@@ -2305,16 +2305,21 @@ def handle_turn_frontdoor(
                     "offline_lookup_refusal" if _chat_is_offline else "web_off_lookup_refusal"
                 )
             if _plain:
-                return {
-                    "result": agent._fast_path_result(
-                        session_id=session_id,
-                        user_input=effective_input,
-                        response=_plain,
-                        confidence=0.95,
-                        source_context=source_context,
-                        reason=_plain_reason,
-                    )
-                }
+                _refused = agent._fast_path_result(
+                    session_id=session_id,
+                    user_input=effective_input,
+                    response=_plain,
+                    confidence=0.95,
+                    source_context=source_context,
+                    reason=_plain_reason,
+                )
+                # Sealed as a refusal of this request, with the request (it sealed as a finished,
+                # successful turn, so nothing downstream could tell it from an answer).
+                _refused.update(
+                    success=False, status="web_off", task_outcome="refused",
+                    refused_request={"reason": _plain_reason, "request": str(effective_input or "")},
+                )
+                return {"result": _refused}
 
     # The lane's conversation row is held until this door SERVES its result: a refusal or a slice
     # answer set aside below is not this message's turn, and the lane that does answer records it.

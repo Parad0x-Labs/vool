@@ -385,6 +385,7 @@ def test_a_retry_stays_on_the_turn_root_and_advances_the_generation(harness):
     assert str(child.get("attempt_role") or "") == "retry"
 
 
+@pytest.mark.usefixtures("enable_web")  # the turn drives the live-data lane, so Web lookups are on
 def test_the_turn_doors_terminal_write_targets_its_own_chain(harness):
     """Finalization/cancellation act on the chain the turn opened: the door row's
     execution identity is the chain root, and its terminal state is written there."""

@@ -2974,7 +2974,7 @@ _FOLDER_ANAPHORA_RE = re.compile(
 )
 _LISTING_ASK_RE = re.compile(
     r"\b(?:list|show|give\s+me|fetch|get|grab|find|check|see|tell\s+me|which|what(?:'s|\s+is|\s+are)?|"
-    r"are\s+there|any|latest|newest|recent|last)\b",
+    r"are\s+there|any|latest|newest|recent|last|how\s+many|count)\b",
     re.IGNORECASE,
 )
 _NEWEST_COUNT_RE = re.compile(
@@ -3017,6 +3017,9 @@ def machine_kind_listing_intent(text: str, *, earlier_turns: Sequence[str] = ())
     if not path:
         return None
     kind = _LISTING_KIND_WORDS[kind_match.group(1).lower()]
+    if re.search(r"\bhow\s+many\b|\bcount\b|\bnumber\s+of\b", clean, re.IGNORECASE):
+        # "how many pdf files are in my Documents folder? just the count"
+        return {"path": path, "kind": kind, "count_only": True}
     count = _NEWEST_COUNT_RE.search(clean)
     newest_first = count is not None
     limit = 200
