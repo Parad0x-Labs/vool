@@ -697,3 +697,43 @@ def test_a_developer_research_question_still_reads_developer_sources():
     from retrieval.web_adapter import _infer_topic_kind
 
     assert _infer_topic_kind("how do I parse json in python", task_class="research", topic_hints=[]) == "technical"
+
+
+# --- plugins run (2026-11-12) ------------------------------------------------------------------
+
+
+def _follow_up_policy(prior_user: str, current: str):
+    from core.ordinary_chat_response_guard import ordinary_chat_output_policy, prior_turn_literal_hashes
+
+    return ordinary_chat_output_policy(
+        prompt_profile="chat_minimal", output_mode="plain_text", user_text=current,
+        prior_turn_literal_hashes=prior_turn_literal_hashes(
+            [{"role": "user", "content": prior_user}, {"role": "assistant", "content": "ORBIT-7731"},
+             {"role": "user", "content": current}],
+            current_user_text=current,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "current", ["how many bytes long is that text?", "reverse the string above", "what does the previous answer mean?"]
+)
+def test_a_follow_up_about_the_previous_turns_text_may_quote_it(current):
+    from core.ordinary_chat_response_guard import (
+        inspect_ordinary_chat_output,
+        remove_unrequested_prior_turn_literals,
+    )
+
+    policy = _follow_up_policy("Run the echo plugin with ORBIT-7731.", current)
+    answer = "The text ORBIT-7731 is 10 bytes long."
+    assert inspect_ordinary_chat_output(answer, policy, current_user_text=current).allowed
+    assert remove_unrequested_prior_turn_literals(answer, policy, current_user_text=current) == answer
+
+
+def test_an_unrelated_later_turn_still_may_not_answer_with_an_old_code():
+    from core.ordinary_chat_response_guard import inspect_ordinary_chat_output
+
+    current = "Which element of [3, 1, 2] is largest?"
+    policy = _follow_up_policy("Run the echo plugin with ORBIT-7731.", current)
+    result = inspect_ordinary_chat_output("ORBIT-7731", policy, current_user_text=current)
+    assert not result.allowed and result.reasons == ("unrequested_prior_turn_literal",)
