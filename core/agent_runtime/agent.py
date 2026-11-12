@@ -1387,6 +1387,27 @@ def _conductor_conversation_context(
         return ""
 
 
+def _no_mailbox_reply(text: str) -> str | None:
+    """A mail question with no mailbox connected gets the plain truth and the way to connect one.
+
+    0.7.8 sweep block 3 (2026-11-12): with no mailbox connected the model answered "Checking email
+    inbox…" and "No new mail yet" -- actions that never ran. None when a mailbox is connected (the
+    email tools answer) or the text is not a mail question."""
+    try:
+        from core.tool_demand_signals import mailbox_retrieval_intents
+
+        if not mailbox_retrieval_intents(text):
+            return None
+        from core.email_accounts import configured_accounts
+
+        if any(bool(getattr(record, "read", False)) for record in dict(configured_accounts() or {}).values()):
+            return None
+    except Exception:
+        return None
+    return ("No mailbox is connected yet, so I can't read your email. Add one under Settings > Email accounts "
+            "(your address and an app password), then ask again.")
+
+
 class VoolAgent(
     RuntimeCheckpointSupportMixin,
     VoolBookRuntimeMixin,
@@ -2894,6 +2915,8 @@ class VoolAgent(
             counted = previous_reply_count(effective_input, session_id=session_id) or previous_result_arithmetic(
                 effective_input, session_id=session_id
             )
+            if counted is None:
+                counted = _no_mailbox_reply(effective_input)
             if counted is not None:
                 count_result = self._fast_path_result(
                     session_id=session_id, user_input=effective_input, response=counted,

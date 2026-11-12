@@ -1033,3 +1033,18 @@ def test_a_completed_change_is_not_claimed_when_only_a_preview_ran(monkeypatch):
 def test_a_completed_change_stands_when_the_change_ran(monkeypatch):
     authorship = _gate_with(monkeypatch, ["vool-database.migrate.apply"], ["vool-database.migrate.apply"])
     assert authorship._unrun_listed_intents("The column has been added.", {"session_id": "s"}) is None
+
+
+def test_a_mail_question_with_no_mailbox_gets_the_plain_truth(monkeypatch):
+    import core.email_accounts as accounts
+    from core.agent_runtime.agent import _no_mailbox_reply
+
+    monkeypatch.setattr(accounts, "configured_accounts", lambda: {})
+    assert "No mailbox is connected" in _no_mailbox_reply("any new mail from the bank today?")
+    assert _no_mailbox_reply("what is an email header?") is None
+
+
+def test_a_connected_mailbox_leaves_mail_questions_to_the_email_tools(one_account):
+    from core.agent_runtime.agent import _no_mailbox_reply
+
+    assert _no_mailbox_reply("any new mail from the bank today?") is None

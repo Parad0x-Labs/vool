@@ -624,6 +624,19 @@ _WORKSPACE_SOURCE_CUES = frozenset(
 )
 
 
+_PERSONAL_DOCUMENT_CUES = frozenset(
+    {"list", "lists", "note", "notes", "notebook", "budget", "budgets", "plan", "plans", "recipe", "recipes",
+     "letter", "letters", "document", "documents", "doc", "docs", "diary", "journal", "invoice", "receipt",
+     "spreadsheet", "csv", "txt", "md", "markdown", "wrote", "write", "written", "packing", "shopping",
+     "mentions", "mention", "my"}
+)
+_CODE_ONLY_CUES = frozenset(
+    {"code", "codebase", "function", "functions", "implementation", "implements", "implemented", "module",
+     "modules", "repository", "repo", "source", "class", "classes", "method", "test", "tests", "script",
+     "scripts", "api", "bug", "compile", "import"}
+)
+
+
 def _workspace_source_inquiry(request_text: str) -> bool:
     """True only when the clause itself names project/source scope.
 
@@ -632,7 +645,15 @@ def _workspace_source_inquiry(request_text: str) -> bool:
     """
 
     words = {token.strip(".").lower() for token in _WORD_RE.findall(str(request_text or ""))}
-    return bool(words & _WORKSPACE_SOURCE_CUES)
+    if not words & _WORKSPACE_SOURCE_CUES:
+        return False
+    # A question about the person's own documents ("read my packing list file", "which of my files
+    # mentions the boiler service?") is not a code inquiry: this source-scoped investigation drops
+    # every .txt/.md/.csv by design, so it found 0 files and the turn said it could not read files
+    # (0.7.8 sweep block 3, 2026-11-12). Those turns go to the ordinary file tools instead.
+    if words & _PERSONAL_DOCUMENT_CUES and not words & _CODE_ONLY_CUES:
+        return False
+    return True
 
 
 def _workspace_capability_accepts(clause: TurnClause) -> bool:
