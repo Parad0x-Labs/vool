@@ -2336,6 +2336,21 @@ def handle_turn_frontdoor(
                         _ask_needs_web = _ask_is_live_data = False
                 except Exception:
                     pass
+            if (_ask_needs_web or _ask_is_live_data) and not _chat_is_offline:
+                # An ask for the person's own connected X account is served by the X tools, not
+                # the web: X has its own opt-in (their keys, the features they chose, the device
+                # approval), each read asks before it goes out, and a post waits for approval in
+                # Settings. Measured in the running app: "look up the X account @..." was refused
+                # as a web lookup while X was connected and the read was switched on.
+                try:
+                    from core import x_api
+                    from core.tool_demand_signals import resolve_demand_signals as _x_demand
+
+                    if "x" in tuple(getattr(_x_demand(effective_input), "required_families", ()) or ()) \
+                            and x_api.connected():
+                        _ask_needs_web = _ask_is_live_data = False
+                except Exception:
+                    pass
             _plain = ""
             _plain_reason = ""
             if _ask_is_live_data:

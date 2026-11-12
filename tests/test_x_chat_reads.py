@@ -48,6 +48,19 @@ def test_real_asks_to_act_still_propose(text):
     assert "x.action.propose" in _x_intents(text)
 
 
-@pytest.mark.parametrize("text", ["my last 3 posts on my blog", "what did the market do today"])
+@pytest.mark.parametrize("text", [
+    "look up the X account @vool_garden",
+    "who is @vool_garden on X?",
+    "show me @vool_garden's X profile",
+    "the twitter profile of @vool_garden",
+])
+def test_asking_about_one_x_account_seats_the_account_read(text):
+    intents = _x_intents(text)
+    assert "x.user" in intents
+    assert "x.action.propose" not in intents
+
+
+@pytest.mark.parametrize("text", ["my last 3 posts on my blog", "what did the market do today",
+                                  "who is @bob", "check the box account balance"])
 def test_words_without_x_seat_no_x_tool(text):
     assert _x_intents(text) == set()

@@ -644,6 +644,10 @@ _LITERAL_SPAN_RE = re.compile(
       # "work email alex.chen@example.test" reached the runtime as "alex. chen @ example. test", so every lane read an
       # address that does not exist, and request provenance could not find the address the user typed.
       | \b[A-Za-z0-9][A-Za-z0-9._%+\-]*@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)+  # email  alex.chen@example.test
+      # A HANDLE is one literal too. Measured 2026-11-12 in the running app: "who is @vool_garden
+      # on X?" reached the front door as "who is @ vool_garden on X?", so no rule that names an
+      # account (follow @bob, what did @bob post, who is @bob on X) could see one.
+      | (?<![\w@.])@[A-Za-z0-9_]{1,64}                             # handle  @vool_garden
       # Bare hosts are literals too. Their spelling must not depend on a hand-picked
       # extension list (which omitted .ai); resolution belongs to the network owner.
       | \b(?:[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\b(?:/[^\s`"']*)?

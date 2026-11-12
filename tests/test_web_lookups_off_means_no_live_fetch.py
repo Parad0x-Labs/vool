@@ -255,3 +255,22 @@ def test_the_browser_render_uses_the_process_proxy(monkeypatch: pytest.MonkeyPat
     # NO_PROXY=* means "never the proxy" to Python, and so to the browser.
     monkeypatch.setenv("NO_PROXY", "*")
     assert not [flag for flag in _argv() if flag.startswith("--proxy")]
+
+
+def test_switch_off_leaves_asks_about_a_connected_x_account_to_the_x_tools() -> None:
+    """X is its own opt-in: with the person's X keys connected, an ask about an X account is not
+    refused as a web lookup (the X tools ask before anything goes out). Without X connected the
+    same ask still gets the plain web-off sentence."""
+    from core import x_api
+
+    asks = ["look up the X account @vool_garden", "who is @vool_garden on X?"]
+    with mock.patch.object(x_api, "connected", return_value=False):
+        answers, public = _ask_all(asks, web_on=False)
+    assert public == [], public
+    for question in asks:
+        assert str(answers[question].get("response") or "") == WEB_OFF_LOOKUP_TEXT, question
+    with mock.patch.object(x_api, "connected", return_value=True):
+        answers, public = _ask_all(asks, web_on=False)
+    assert public == [], public
+    for question in asks:
+        assert str(answers[question].get("response") or "") not in (WEB_OFF_TEXT, WEB_OFF_LOOKUP_TEXT), question
