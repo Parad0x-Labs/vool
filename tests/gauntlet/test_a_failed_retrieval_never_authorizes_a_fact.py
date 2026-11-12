@@ -94,6 +94,7 @@ def assert_states_no_reading(turn, *, forbidden_extra: tuple[str, ...] = ()) -> 
 # ------------------------------------------------------------------------- the measured failure
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_failed_weather_followup_states_no_reading():
     """The reproduction, end to end."""
     harness.SCRIPT.default = weather_fabrication("Porto")

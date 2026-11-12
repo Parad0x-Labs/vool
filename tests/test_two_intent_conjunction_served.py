@@ -111,6 +111,8 @@ def drive(tmp_path_factory):
     env_extra = {
         "PYTHONPATH": os.pathsep.join([str(SHIM), str(rig.REPO_ROOT), str(rig.READER_DEPS)]),
         "VOOL_FIXTURE_TRANSPORT_MANIFEST": str(MANIFEST),
+        # Web lookups on: the fixture transport answers every lookup, nothing leaves the machine.
+        "VOOL_ENABLE_WEB": "1",
         "VOOL_FIXTURE_TRANSPORT_LOG": str(tmp_path / "transport.log"),
         "ALLOW_BROWSER_FALLBACK": "0",
         "WEB_SEARCH_PROVIDER_ORDER": "google_html",

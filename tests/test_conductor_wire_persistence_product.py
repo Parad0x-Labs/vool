@@ -31,7 +31,7 @@ from tests.test_obligation_floor_production_dispatch import (
 
 
 @pytest.fixture()
-def dispatched(agent, fetchers, model_seams):
+def dispatched(enable_web, agent, fetchers, model_seams):
     """The decision a real turn produced, as it crosses the serialization boundary.
 
     Only the decision travels: the full result also carries the live source context, which holds a

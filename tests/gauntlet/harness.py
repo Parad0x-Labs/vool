@@ -342,6 +342,14 @@ def install(monkeypatch, *, machine: Any | None = None) -> None:
     # asserts on a list nobody writes to is not a test.
     monkeypatch.setattr(web_research, "_crypto_price_fallback_multi", _fake_crypto_multi, raising=False)
     monkeypatch.setattr(web_research, "_market_quote_fallback_multi", _fake_market_multi, raising=False)
+    # Web lookups ON: every weather and market wire is the harness's own fixture above, so nothing
+    # leaves the process, and with the switch off nothing is looked up at all (owner decision
+    # 2026-11-12) -- the gauntlet would measure the switch, not the scenario. Patched as a function,
+    # not as the policy cache, so the child's runtime bootstrap re-reading its home's policy file
+    # cannot undo it.
+    from core import policy_engine
+
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True, raising=True)
 
     # Observe the planner without changing it: wrap the real runner, record the plan it was handed
     # and the clocks it produced, then hand the call straight through.
