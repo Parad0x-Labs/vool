@@ -2631,6 +2631,18 @@ def _extend_typed_path_name(raw: str, path: str) -> str:
     return grown
 
 
+# A limit a service sets ("whats the max size of a zip i can email with gmail", "the size limit for
+# a pdf in outlook") asks about the world. Red team round 4 (2026-11-12, real app on the v0.8 head):
+# it was answered "I couldn't find a file called 'max size of a' in the folders I can look in".
+_SIZE_LIMIT_ASK_RE = re.compile(
+    r"\b(?:max(?:imum)?|biggest|largest|upper)\s+(?:file\s+|upload\s+|attachment\s+|allowed\s+)?(?:size|limit)\b"
+    r"|\b(?:size|upload|attachment|file|email|e-mail|sending)\s+(?:size\s+)?(?:limits?|caps?|restrictions?)\b"
+    r"|\b(?:i|you|we|one|people)\s+(?:can|could|may|am\s+allowed\s+to|are\s+allowed\s+to)\s+"
+    r"(?:email|e-mail|send|upload|attach|share|post|mail|text|transfer)\b",
+    re.IGNORECASE,
+)
+
+
 def machine_size_query_intent(text: str) -> tuple[str, str, str, str | None] | None:
     """``(kind, name, place, explicit_path)`` for a size ask about ONE named file/folder, else ``None``.
 
@@ -2660,6 +2672,8 @@ def machine_size_query_intent(text: str) -> tuple[str, str, str, str | None] | N
     explicit = explicit_path_in(raw)
     if explicit:
         return ("", "", _named_place(raw), _extend_typed_path_name(raw, explicit))
+    if _SIZE_LIMIT_ASK_RE.search(raw):
+        return None  # a service's size limit is a question about the world, not about a file here
     # A name WITH its extension beats the folder noun: "how big is notes.txt in my documents
     # folder" is about the file; the folder is only where it lives.
     named_file = _SIZE_NAMED_FILENAME_RE.search(raw)

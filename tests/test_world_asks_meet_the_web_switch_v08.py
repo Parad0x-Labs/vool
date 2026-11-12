@@ -60,7 +60,10 @@ def test_the_persons_own_document_is_not_an_online_ask(asked):
 
 
 def test_an_ask_the_requirement_authority_holds_to_a_lookup_is_read_as_one():
-    asked = "can i legally use a photo from a news site on my blog"  # measured W2
+    # W2 was held to a lookup by "news" naming its source; round 4 sets that reading aside (see
+    # tests/test_round4_world_asks_read_alike_v08.py). This ask is held to one by the authority alone.
+    asked = "any headlines on the rail strike?"
+    assert not asks_for_online_facts(asked)
     from core.execution_requirements import requirements_for
 
     need = requirements_for(asked, source_context={})
@@ -101,7 +104,7 @@ def _asked(question: str) -> dict:
 @pytest.mark.parametrize("asked", (
     "do i need a visa for a layover in doha",
     "do i need a visa to go to morocco from ireland?",
-    "can i legally use a photo from a news site on my blog",
+    "any headlines on the rail strike?",
     "do we need a yellow fever jab for ghana?",
 ))
 def test_the_recall_lane_leaves_a_world_ask_to_the_web_switch(searched, asked):

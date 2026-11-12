@@ -106,6 +106,15 @@ def _fresh_lookup_markers_signal(text: str) -> CurrentInformationSignal:
     return _signal("fast_live_info", "fresh_lookup_markers", bool(marker_hit or tail_hit))
 
 
+#: A news organisation named as a source or kind of thing ("from a news site", "a news photo"), not news asked for.
+_NEWS_SOURCE_RE = re.compile(
+    r"\b(?:a|an|the|this|that|some|any|one|their|its|from|on|by)\s+(?:[\w'’-]+\s+)?news(?:paper)?(?:'s)?\s+"
+    r"(?:sites?|websites?|web\s+sites?|pages?|outlets?|agenc(?:y|ies)|organi[sz]ations?|channels?|stations?|"
+    r"apps?|photographers?|photos?|pictures?|images?|logos?|anchors?|readers?|presenters?|companies|company)\b",
+    re.IGNORECASE,
+)
+
+
 def _news_signal(text: str) -> CurrentInformationSignal:
     """The news vocabulary -- BOTH existing tables, so the authority cannot know less
     than either consumer: the fast lane's marker list (``fast_live_info_mode_news_markers``)
@@ -115,7 +124,13 @@ def _news_signal(text: str) -> CurrentInformationSignal:
     from core.agent_runtime.fast_live_info_mode_classifier import _names_a_marker
     from core.agent_runtime.fast_live_info_mode_news_markers import _NEWS_MARKERS
 
-    marker_hit = _names_a_marker(" ".join(str(text or "").split()).lower(), _NEWS_MARKERS)
+    # "a photo from a news site", "a newspaper website": the news names where something came from,
+    # not news being asked for. Red team round 4 (2026-11-12, real app on the v0.8 head): "can i
+    # legally use a photo from a news site on my blog" was held to a lookup on this word alone (web
+    # off: the web-off line; web on, retried: "I didn't look anything up"), while "can i use a picture
+    # from a newspaper website on my instagram" was answered. A source named this way is set aside.
+    text = _NEWS_SOURCE_RE.sub(" ", " ".join(str(text or "").split()))
+    marker_hit = _names_a_marker(text.lower(), _NEWS_MARKERS)
     try:
         from tools.web.web_research import _looks_like_news_query
 
