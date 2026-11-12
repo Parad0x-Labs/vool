@@ -1482,8 +1482,11 @@ _PRESENT_APP_WORDS = frozenset({
     "url", "tab", "window",
 })
 # A folder noun makes the object a folder search ("open the invoices folder"), which the
-# named-folder lanes own.
-_PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir"})
+# named-folder lanes own. A project is a folder too: "open my garden planner project" binds the
+# chat to that folder at the chat door (core.workspace_from_words), and a disk search for a FILE
+# named "garden planner project" then answered "I couldn't find a file matching ..." under the
+# notice that VOOL was now working in that very folder (train port real-app run, 2026-11-12).
+_PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir", "project", "projects"})
 # "find my phone" is not a file lookup (the loose search stands down on it too): the object names
 # a device the owner owns, not words a file's name carries.
 _PRESENT_DEVICE_WORDS = frozenset({

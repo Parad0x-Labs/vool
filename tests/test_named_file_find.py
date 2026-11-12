@@ -404,6 +404,8 @@ def test_a_document_about_an_event_is_still_a_file(text):
     "show me what's in plan.py in the garden planner project", "show me whats in plan.py",
     # The notes noun alone is VOOL's notes store, which the notes lane searches and lists.
     "find my notes about pollen", "show me my notes", "pull up my note about the plumber",
+    # A project is a folder: the chat door binds it from these words (core.workspace_from_words).
+    "open my garden planner project", "pull up the garden planner project",
 ])
 def test_not_a_present_file_ask(text):
     from core.execution.constants import machine_present_file_intent
