@@ -186,8 +186,10 @@ def test_fx_default_fetcher_rides_the_door(monkeypatch):
 
     seen: dict = {}
 
-    def fake_open_url(url, *, data=None, headers=None, method="", timeout=30.0, context=None):
-        seen.update(url=url, data=data, headers=dict(headers or {}), method=method, timeout=timeout)
+    def fake_open_url(url, *, data=None, headers=None, method="", timeout=30.0, context=None, lookup=False):
+        seen.update(
+            url=url, data=data, headers=dict(headers or {}), method=method, timeout=timeout, lookup=lookup
+        )
         return FakeHTTPResponse({"base": "USD", "rates": {"EUR": 0.91}})
 
     monkeypatch.setattr(remote_fetch_policy, "open_remote_url", fake_open_url)
@@ -201,6 +203,9 @@ def test_fx_default_fetcher_rides_the_door(monkeypatch):
     assert seen["data"] is None
     assert seen["timeout"] == 4.5  # preserved
     assert seen["headers"] == {"Accept": "application/json"}
+    # A rate is a lookup: the door holds it to the Web lookups switch (and, under Local Only,
+    # refuses it before resolving the provider's name).
+    assert seen["lookup"] is True
 
 
 def test_fx_default_fetcher_veto_refuses_before_any_socket(monkeypatch):
