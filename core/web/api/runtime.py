@@ -993,6 +993,13 @@ def bootstrap_runtime_services(
         resolve_backend=True,
     )
 
+    # Build the command inventory before accepting concurrent browser reads.
+    # The first model-state read must not pay for importing the command groups
+    # and projecting their tools while the composer's bounded read is waiting.
+    from core.command_registry.registry import registry as command_registry
+
+    command_registry()
+
     # Explicit capability-graph bootstrap: index every registry contract so
     # model-visible tool discovery is family-true from the first turn instead
     # of lazily on the first query. Idempotent; raises loudly (never boots
@@ -1641,6 +1648,8 @@ def run_agent(
     is the single gate layer; the history refresh runs INSIDE the gate so a
     queued turn sees the exchange the turn ahead of it just persisted.
     """
+    from core.auto_local_only_mode import CONTEXT_KEY as LOCAL_ONLY_KEY
+    from core.auto_local_only_mode import DEVICE_ONLY_KEY, local_only_egress_scope
     from core.followup_continuity import SIDE_ANSWER_CONTEXT_KEY
     from core.session_turn_gate import hold_session_turn_gate
 
@@ -1651,12 +1660,81 @@ def run_agent(
     # one user/assistant pair, so the transcript pairing MF-15 protects stays intact.
     side_answer = isinstance(source_context, dict) and bool(source_context.get(SIDE_ANSWER_CONTEXT_KEY))
     gate_key = f"{session_id}::followup-side-answer" if (side_answer and session_id) else session_id
-    with hold_session_turn_gate(gate_key):
+    from contextlib import ExitStack
+
+    from core.context_namespace import load_chat_namespace
+    from core.context_scope import (
+        ContextAccessPolicy,
+        ContextBindingChangedError,
+        pinned_context_access_policy,
+    )
+    from core.project_store import hold_project_context, local_context_required
+
+    policy_context = dict(source_context) if isinstance(source_context, dict) else {}
+    policy_context.pop("_context_access_policy", None)
+
+    def policy_projects(policy):
+        if policy is None:
+            return set()
+        projects = {policy.project_id, *policy.imported_project_ids} - {""}
+        for chat_id in policy.imported_chat_ids:
+            namespace = load_chat_namespace(chat_id)
+            if namespace and namespace.project_id:
+                projects.add(namespace.project_id)
+        return projects
+
+    initial_policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=policy_context) if session_id else None
+    projects = policy_projects(initial_policy)
+    with ExitStack() as gates:
+        for project_id in sorted(projects):
+            gates.enter_context(hold_project_context(project_id))
+        gates.enter_context(hold_session_turn_gate(gate_key))
+        # Resolve through the same authority again after queueing. Mixing this
+        # snapshot with an independent namespace read can reject a valid policy.
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=policy_context) if session_id else None
+        if (policy_projects(policy) != projects or (policy and initial_policy
+                and ((policy.project_id, policy.namespace_state) != (initial_policy.project_id, initial_policy.namespace_state)
+                     or policy.imported_chat_ids != initial_policy.imported_chat_ids))):
+            from core.i18n import catalog_for
+            from core.private_chat_languages import UI_LOCALE_KEY
+
+            raise RuntimeError(catalog_for(str(policy_context.get(UI_LOCALE_KEY) or "en")).text("chatimport.context.moved"))
+        source_context = dict(source_context) if isinstance(source_context, dict) else {}
+        if policy is not None:
+            source_context["_context_access_policy"] = policy
+        if session_id:
+            from core.chat_import.store import context_pending
+
+            if context_pending(session_id):
+                from core.i18n import catalog_for
+                from core.private_chat_languages import UI_LOCALE_KEY
+
+                raise RuntimeError(catalog_for(str((source_context or {}).get(UI_LOCALE_KEY) or "en")).text("chatimport.error.incomplete"))
+        from core.chat_import.store import has_source_origin, reviewed_working_context
+
+        imported_context_active = (any(local_context_required(project_id) for project_id in projects)
+                                   or bool(policy and any(has_source_origin(chat_id) for chat_id in policy.imported_chat_ids))
+                                   or bool(session_id and reviewed_working_context(session_id)))
+        if imported_context_active and isinstance(source_context, dict):
+            source_context[LOCAL_ONLY_KEY] = True
+            source_context["allow_remote_fetch"] = False
+            if isinstance(caller_context, dict):
+                caller_context[LOCAL_ONLY_KEY] = True
+                caller_context["allow_remote_fetch"] = False
         if session_id and isinstance(source_context, dict):
             client_history = source_context.get("client_conversation_history")
             if isinstance(client_history, list):
+                from core.chat_import.store import continuation_history
                 from core.persistent_memory import augment_history_from_session_log
 
+                imported_prefix = continuation_history(session_id)
+                if imported_prefix:
+                    imported_context_active = True
+                    source_context[LOCAL_ONLY_KEY] = True
+                    source_context["allow_remote_fetch"] = False
+                    if isinstance(caller_context, dict):
+                        caller_context[LOCAL_ONLY_KEY] = True
+                        caller_context["allow_remote_fetch"] = False
                 try:
                     refreshed = augment_history_from_session_log(
                         [dict(item) for item in client_history if isinstance(item, dict)],
@@ -1668,16 +1746,42 @@ def run_agent(
                 if refreshed:
                     source_context = {
                         **source_context,
-                        "conversation_history": refreshed,
-                        "history_message_count": len(refreshed),
+                        "conversation_history": [*imported_prefix, *refreshed],
+                        "history_message_count": len(imported_prefix) + len(refreshed),
                     }
-        result = _run_agent_locked(
-            runtime,
-            user_text,
-            session_id=session_id,
-            source_context=source_context,
-            workspace_root_provider=workspace_root_provider,
-        )
+                    if imported_prefix:
+                        # The transcript assembler prefers a client-held history when both
+                        # carriers exist. This opted-in history was re-read and authorized by
+                        # the server: keep just that carrier so the short browser request
+                        # cannot hide the imported exchange again.
+                        source_context.pop("client_conversation_history", None)
+                        imported_context_active = True
+                        source_context[LOCAL_ONLY_KEY] = True
+                        if isinstance(caller_context, dict):
+                            caller_context[LOCAL_ONLY_KEY] = True
+        if imported_context_active:
+            source_context = dict(source_context or {})
+            source_context[LOCAL_ONLY_KEY] = True
+            source_context[DEVICE_ONLY_KEY] = True
+            source_context["allow_remote_fetch"] = False
+            if isinstance(caller_context, dict):
+                caller_context[LOCAL_ONLY_KEY] = True
+                caller_context[DEVICE_ONLY_KEY] = True
+                caller_context["allow_remote_fetch"] = False
+        try:
+            with pinned_context_access_policy(policy), local_only_egress_scope(imported_context_active, device_only=imported_context_active):
+                result = _run_agent_locked(
+                    runtime,
+                    user_text,
+                    session_id=session_id,
+                    source_context=source_context,
+                    workspace_root_provider=workspace_root_provider,
+                )
+        except ContextBindingChangedError:
+            from core.i18n import catalog_for
+            from core.private_chat_languages import UI_LOCALE_KEY
+
+            raise RuntimeError(catalog_for(str(source_context.get(UI_LOCALE_KEY) or "en")).text("chatimport.context.moved")) from None
         _publish_canonical_turn_request(source_context, caller_context)
         return result
 
@@ -1716,6 +1820,7 @@ def _run_agent_locked(
             session_id=session_id,
             source_context=base_context,
         )
+        base_context["_context_access_policy"] = access_policy
         base_context["chat_id"] = access_policy.chat_id
         if access_policy.project_id:
             base_context["_trusted_project_id"] = access_policy.project_id
@@ -1819,6 +1924,9 @@ def _run_agent_locked(
                 response_control.update(event_control)
         return links, response_control, conductor_receipt
 
+    from core.finalization import availability_read_scope
+
+    @availability_read_scope()
     def finalize_turn_trace(result: dict[str, Any]) -> dict[str, Any]:
         """Persist only link fields needed to audit one finished turn.
 

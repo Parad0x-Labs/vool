@@ -228,10 +228,13 @@ _EXTERNAL: dict[str, str] = {
     "http:POST:/api/session/bundle/import": "session-portability lane (import door over the ONE seam)",
     "http:GET:/api/chat/import/sources": "chat-import lane (which local apps exist; existence checks only)",
     "http:GET:/api/chat/import/status": "chat-import lane (progress of the one running import)",
+    "http:GET:/api/chat/import/batches": "chat-import lane (persistent batch ownership and undo status)",
     "http:UPLOAD:/api/chat/import/upload": "chat-import lane (export-zip staging door; nothing parsed until preview)",
     "http:POST:/api/chat/import/preview": "chat-import lane (reads the source the user picked, lists its chats)",
     "http:POST:/api/chat/import/start": "chat-import lane (imports the ticked chats from the preview)",
     "http:POST:/api/chat/import/discard": "chat-import lane (drops the preview and the staged file)",
+    "http:POST:/api/chat/import/undo": "chat-import lane (canonical conversation deletion with later-work refusal)",
+    "http:POST:/api/chat/import/context": "chat-import lane (explicit working-context review before any owner mutation)",
     "http:POST:/api/session/bundle/inspect-import": "session-portability lane (inspect+preview door over the ONE seam)",
     # -- certification / installer lane ------------------------------------------
     "cli-vool:install-profile": "installer lane",

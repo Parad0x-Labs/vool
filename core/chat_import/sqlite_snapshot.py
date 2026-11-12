@@ -16,11 +16,13 @@ import shutil
 import sqlite3
 import stat
 import tempfile
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
-#: The write-ahead log SQLite keeps beside a WAL database; it holds the newest rows.
-_COMPANIONS = ("-wal",)
+#: WAL holds committed new pages; a rollback journal holds the committed pages an
+#: active transaction replaced. Both are needed to read only committed state.
+_COMPANIONS = ("-wal", "-journal")
 _ATTEMPTS = 3
 
 
@@ -38,9 +40,9 @@ def _signature(paths: list[Path]) -> tuple:
         try:
             info = path.stat()
         except FileNotFoundError:
-            signature.append((path.name, None, None))
+            signature.append((path.name, None, None, None, None))
             continue
-        signature.append((path.name, info.st_size, info.st_mtime_ns))
+        signature.append((path.name, info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns))
     return tuple(signature)
 
 
@@ -101,14 +103,42 @@ def snapshot_connection(path: Path, *, max_bytes: int, work_dir: str | os.PathLi
                 break
         if not copied:
             raise SnapshotError("store_busy")
-        # The copy is ours: opening it read-write lets SQLite apply the copied write-ahead log
-        # (that is how the newest rows become visible); the connection is then made read-only.
+        # Never open the source with SQLite: even mode=ro may change its shared-memory file.
+        # Apply the captured WAL in our private copy, then use SQLite's backup API to obtain
+        # one normalized database. The only writable connections belong to this temp folder.
+        connection = None
+        captured = None
         try:
-            connection = sqlite3.connect(copy, timeout=1.0)
+            captured = sqlite3.connect(copy, timeout=1.0)
+            captured.execute("PRAGMA query_only = ON")
+            normalized = Path(temp_root) / "snapshot.db"
+            connection = sqlite3.connect(normalized, timeout=1.0)
+            deadline = time.monotonic() + 5.0
+            page_size = int(captured.execute("PRAGMA page_size").fetchone()[0])
+
+            def progress(status: int, remaining: int, total: int) -> None:
+                if time.monotonic() > deadline:
+                    raise SnapshotError("store_busy")
+                if total * page_size > max_bytes:
+                    raise SnapshotError("store_too_large")
+
+            captured.backup(connection, pages=256, progress=progress, sleep=0.01)
+            captured.close()
+            captured = None
+            if normalized.stat().st_size > max_bytes:
+                raise SnapshotError("store_too_large")
+            connection.execute("PRAGMA journal_mode = DELETE")
             connection.execute("PRAGMA query_only = ON")
             connection.execute("SELECT name FROM sqlite_master LIMIT 1").fetchall()
-        except sqlite3.DatabaseError:
+        except (sqlite3.DatabaseError, SnapshotError) as exc:
+            if connection is not None:
+                connection.close()
+            if isinstance(exc, SnapshotError):
+                raise
             raise SnapshotError("store_unreadable") from None
+        finally:
+            if captured is not None:
+                captured.close()
         try:
             yield connection
         finally:

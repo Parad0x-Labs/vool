@@ -97,7 +97,9 @@ def _record_version(skill_dir: Path, *, source: str, restored_from: int | None =
         history = _read_history(skill_dir)
         versions = list(history.get("versions") or [])
         entry = {
-            "version": len(versions) + 1,
+            "version": max([int(row["version"]) for row in versions] + [
+                int(path.stem[1:]) for path in (skill_dir / VERSIONS_DIRNAME).glob("v*.md")
+                if path.stem[1:].isdigit()] + [0]) + 1,
             "sha256": digest,
             "effective_sha256": effective,
             "instruction_sha256": instruction,
@@ -705,6 +707,123 @@ def plain_problem(problem: str) -> str:
     return text
 
 
+_IMPORT_LOCK = threading.RLock()
+
+
+def stage_imported_skill(*, name: str, body: str, batch_id: str, session_id: str, source: str) -> dict[str, Any]:
+    """Stage an instruction-only, chat-scoped draft with atomic import provenance."""
+    import os
+    import uuid
+
+    from core.chat_import.ownership import keyed_digest, origin
+    from core.memory.revocation import writing
+    from core.secret_redaction import contains_secret
+
+    if not body.strip() or len(body) > 20_000 or contains_secret(body) or contains_secret(name):
+        raise ValueError("invalid imported skill")
+    slug = "import-" + keyed_digest([batch_id, session_id, source, name, body])[:16]
+    dirs = _scoped_dirs("chat", {"chat": session_id})
+    if dirs is None:
+        raise ValueError("skill scope unavailable")
+    root = dirs[0]
+    target = root / slug
+    data = render_skill_markdown(name=slug, description=name or slug, body=body,
+                                 allowed_tools=(), triggers=()).encode()
+    data = data.replace(b"---\n", b"---\nlocal_only: true\n", 1)
+    payload = {"markdown": data.decode()}
+    marker = {"import_origin": origin(batch_id, session_id, source, payload)}
+    with writing(payload, session_id), _IMPORT_LOCK:
+        if target.exists():
+            if (target / "SKILL.md").read_bytes() == data:
+                return {"slug": slug, "staged": True, "path": str(target / "SKILL.md")}
+            raise ValueError("imported draft exists with different content")
+        root.mkdir(parents=True, exist_ok=True)
+        pending = root / (slug + ".pending-" + uuid.uuid4().hex)
+        pending.mkdir(mode=0o700)
+        try:
+            # Provenance precedes prose, including in an interrupted staging directory.
+            (pending / IMPORTED_MARK).write_text(json.dumps(marker), encoding="utf-8")
+            (pending / "SKILL.md").write_bytes(data)
+            for path in pending.iterdir():
+                path.chmod(0o600)
+                with path.open("rb") as handle:
+                    os.fsync(handle.fileno())
+            pending.rename(target)
+        finally:
+            if pending.exists():
+                shutil.rmtree(pending)
+    return {"slug": slug, "staged": True, "path": str(target / "SKILL.md")}
+
+
+def imported_skill_drafts(batch_id: str, session_id: str) -> list[dict[str, Any]]:
+    from core.chat_import.ownership import belongs, unchanged
+
+    dirs = _scoped_dirs("chat", {"chat": session_id})
+    if dirs is None:
+        return []
+    result = []
+    for root in (dirs[0], dirs[1], dirs[1].parent / "removed"):
+        if not root.is_dir():
+            continue
+        for directory in root.iterdir():
+            marker_path = directory / IMPORTED_MARK
+            if not directory.is_dir() or directory.is_symlink() or not marker_path.is_file():
+                continue
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            provenance = marker.get("import_origin")
+            if not belongs(provenance, batch_id, session_id):
+                continue
+            texts = {}
+            for path in directory.rglob("*"):
+                if path.is_symlink():
+                    raise ValueError("imported skill contains a link")
+                if path.is_file():
+                    if path.stat().st_size > 1 << 20:
+                        raise ValueError("imported skill file too large")
+                    texts[str(path.relative_to(directory))] = path.read_text(encoding="utf-8")
+            body = texts.get("SKILL.md")
+            pristine = (root == dirs[0] and set(texts) <= {"SKILL.md", IMPORTED_MARK}
+                        and (body is None or unchanged({"markdown": body}, provenance))
+                        and not (dirs[1] / directory.name / "SKILL.md").exists())
+            result.append({"id": str(directory), "payload": {key: value for key, value in texts.items()
+                                                              if key != IMPORTED_MARK}, "unchanged": pristine})
+    return result
+
+
+def purge_imported_skill_drafts(batch_id: str, session_id: str, *, token: str = "") -> int:
+    from core.memory.carriers import carries
+
+    with _IMPORT_LOCK:
+        rows = imported_skill_drafts(batch_id, session_id)
+        if not token and any(not row["unchanged"] for row in rows):
+            raise ValueError("imported drafts have new work")
+        removed = 0
+        for row in rows:
+            directory = Path(row["id"])
+            if not token:
+                shutil.rmtree(directory)
+                removed += 1
+            else:
+                erased_versions = set()
+                for relative, text in row["payload"].items():
+                    if relative == str(_history_path(directory).relative_to(directory)):
+                        continue  # Rebuild metadata from surviving snapshots below.
+                    if carries({"path": relative, "text": text}, token):
+                        path = directory / relative
+                        if path.parent.name == VERSIONS_DIRNAME and path.stem[1:].isdigit():
+                            erased_versions.add(int(path.stem[1:]))
+                        path.unlink()
+                        removed += 1
+                if erased_versions:
+                    history = _read_history(directory)
+                    versions = [entry for entry in history.get("versions", [])
+                                if entry.get("version") not in erased_versions]
+                    _write_history_atomic(directory, {
+                        "head_version": max([entry["version"] for entry in versions] + [0]),
+                        "versions": versions})
+        return removed
+
+
 def _yaml_scalar(value: str) -> str:
     """Quote a frontmatter value so a colon or a hash in a description cannot break the header."""
 
@@ -1191,8 +1310,38 @@ def install_skill(
             }
 
     source = resolve_skill_markdown(path, keys)
+    marker_path = source.parent / IMPORTED_MARK
+    imported_origin = None
+    if marker_path.is_file():
+        try:
+            imported_origin = json.loads(marker_path.read_text(encoding="utf-8")).get("import_origin")
+        except (OSError, ValueError):
+            return {"status": "refused", "reason": "the imported draft's provenance is unreadable"}
+        if imported_origin and (scope != "chat" or not keys
+                                or keys.get("chat") != imported_origin.get("session_id")):
+            return {"status": "refused", "reason": "this imported draft belongs to its original chat"}
     expected = str(expected_sha256 or "").strip().lower()
-    recorded_import = imported_mark(source.parent) if source.is_file() else None
+    recorded_import = imported_mark(source.parent) if source.is_file() and not imported_origin else None
+    if imported_origin:
+        # A skill brought in with a chat from another app goes live only as the bytes that import
+        # staged, the version reviewed with the chat: its own keyed provenance binds them, so no plain
+        # digest of the text is kept beside it for a later forget to miss. A caller that names the
+        # digest it showed must name these same bytes.
+        from core.chat_import.ownership import unchanged
+
+        try:
+            staged_text = source.read_text(encoding="utf-8")
+            staged_digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        except (OSError, UnicodeDecodeError):
+            staged_text, staged_digest = None, ""
+        if (staged_text is None or not unchanged({"markdown": staged_text}, imported_origin)
+                or (expected and expected != staged_digest)):
+            return {
+                "status": "refused",
+                "reason": "This skill changed after it was brought in with the chat, so I did not turn it on.",
+                "path": str(source),
+                "problems": ["draft differs from the version the chat import staged"],
+            }
     if recorded_import is not None:
         # Someone else's file is turned on only as the exact bytes the person was shown: the
         # digest from that showing must come with the request, and must still be the digest the
@@ -1365,6 +1514,8 @@ def install_skill(
                     "problems": ["draft digest differs from the one that was reviewed"],
                 }
             tmp.replace(destination)
+            if marker_path.is_file() and imported_origin:
+                shutil.copyfile(marker_path, destination_dir / IMPORTED_MARK)
             if scoped_dirs is None:
                 _ensure_plugin_manifest(plugins_root() / "plugins" / clean_plugin, clean_plugin)
             else:
@@ -1589,6 +1740,16 @@ def scoped_skills(keys: dict[str, str] | None) -> tuple[Any, ...]:
                 skill_md = skill_dir / "SKILL.md"
                 if not skill_md.is_file():
                     continue
+                marker = skill_dir / IMPORTED_MARK
+                if marker.is_file():
+                    from core.chat_import.ownership import visible
+
+                    try:
+                        provenance = json.loads(marker.read_text(encoding="utf-8")).get("import_origin")
+                        if not visible({"markdown": skill_md.read_text(encoding="utf-8")}, provenance):
+                            continue
+                    except (OSError, ValueError):
+                        continue
                 skill = _parse_cached(skill_md, f"{scope}-skills")
                 if skill is not None:
                     found.append(skill)

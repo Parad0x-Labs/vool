@@ -13,7 +13,7 @@ each) so the screen can show them in the user's language.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 #: The only roles an imported message can carry.
 Role = Literal["user", "assistant"]
@@ -50,6 +50,8 @@ class ImportedChat:
     updated_at: float | None = None
     messages: tuple[ImportedMessage, ...] = ()
     skipped: dict[str, int] = field(default_factory=dict)
+    #: Separately reviewed context, never an executable transcript role.
+    context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

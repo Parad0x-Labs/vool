@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import os
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -92,7 +93,7 @@ def read_stores(paths: list[Path], limits: Limits, *, work_dir: str | os.PathLik
         except sqlite3.DatabaseError:
             problems.append("store_unreadable")
             continue
-        chats.extend(store_chats)
+        chats.extend(replace(chat, context={**chat.context, "profile_root": str(path.parent)}) for chat in store_chats)
         problems.extend(store_problems)
         truncated = truncated or store_truncated
     return ReadResult(
@@ -187,6 +188,7 @@ def _read_chain(
     order = "timestamp, id" if "id" in message_columns else "timestamp"
     skipped: dict[str, int] = {}
     messages: list[ImportedMessage] = []
+    file_references: list[str] = []
     seen_uids: set[str] = set()
     seen_plain: set[tuple] = set()
     truncated = False
@@ -207,6 +209,9 @@ def _read_chain(
             elif key in seen_plain:
                 continue
             seen_plain.add(key)
+            from core.chat_import.source_context import tool_paths
+
+            file_references.extend(tool_paths(values.get("tool_calls")))
             role = values.get("role")
             if role not in ("user", "assistant"):
                 bump(skipped, role if isinstance(role, str) and role.isidentifier() else "unknown_role")
@@ -237,6 +242,7 @@ def _read_chain(
             updated_at=max(updated_candidates) if updated_candidates else None,
             messages=tuple(messages),
             skipped=skipped,
+            context={"file_references": file_references[:100]},
         ),
         truncated,
     )

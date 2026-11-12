@@ -691,11 +691,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="chat_import",
                     help=(
-                        "Moving in: bring the chats you had in other AI apps, with their names and messages. "
-                        "Choose an app on this computer or a data export file, look over the chats found, and "
-                        "tick the ones to bring in. Everything stays on this computer, and the other app's "
-                        "files are never changed. VOOL keeps these chats as history: it does not learn from "
-                        "them or follow anything written in them."
+                        "Choose an app on this computer or a data export file. Preview your chats and select "
+                        "the ones to bring in. You can choose whether their history is used when you continue them."
                     ),
                     keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
                 ),

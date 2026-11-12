@@ -94,6 +94,9 @@ SELECTED_KEY = "_auto_local_only_selected"
 OFFLINE_KEY = "offline"
 #: Server-derived provenance: the operator SELECTED the Offline lane for this turn.
 OFFLINE_SELECTED_KEY = "_auto_offline_selected"
+#: Server-derived: the turn carries reviewed imported context that must stay on this device, so
+#: only a loopback model may read it. Underscore-prefixed, so it is never accepted from a caller.
+DEVICE_ONLY_KEY = "_device_only"
 
 #: What the runtime says when Local Only cannot answer a turn honestly. One sentence, no hedging,
 #: and it names the reason class rather than inventing a partial answer.
@@ -108,6 +111,7 @@ REFUSAL_TEXT = (
 SELECTION_EXCLUSION_REASON = "not_local_in_auto_local_only_mode"
 
 _EGRESS_BLOCKED: ContextVar[bool] = ContextVar("vool_auto_local_only_egress_blocked", default=False)
+_DEVICE_EGRESS_BLOCKED: ContextVar[bool] = ContextVar("vool_device_only_egress", default=False)
 _CGNAT_V4 = ipaddress.ip_network("100.64.0.0/10")
 #: Hostnames that are local by name rather than by address, so the common case needs no resolver.
 _LOOPBACK_NAMES = frozenset({"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"})
@@ -169,6 +173,8 @@ def turn_is_local_only(source_context: dict[str, Any] | None) -> bool:
     one of them binds. Adding a source can only make a turn stricter.
     """
     context = source_context if isinstance(source_context, dict) else {}
+    if turn_is_device_only(source_context):
+        return True
     for key in (CONTEXT_KEY, SELECTED_KEY, "local_only_mode", "cloud_disabled"):
         if bool(context.get(key)):
             return True
@@ -222,6 +228,21 @@ def turn_selected_offline(source_context: dict[str, Any] | None) -> bool:
         or bool(context.get(OFFLINE_SELECTED_KEY))
         or is_offline_selection(context.get("requested_model"))
     )
+
+
+def turn_is_device_only(source_context: dict[str, Any] | None) -> bool:
+    """A deny-only ceiling for reviewed context that must stay on this device."""
+    context = source_context if isinstance(source_context, dict) else {}
+    return bool(context.get(DEVICE_ONLY_KEY)) or _DEVICE_EGRESS_BLOCKED.get()
+
+
+def manifest_is_device_local(manifest: Any) -> bool:
+    """Configured loopback inference; unknown or arbitrary subprocess lanes refuse."""
+    from core.provider_http import is_loopback_url
+
+    return (manifest_is_local(manifest)
+            and getattr(manifest, "adapter_type", "") in {"local_qwen_provider", "openai_compatible"}
+            and is_loopback_url((getattr(manifest, "runtime_config", None) or {}).get("base_url")))
 
 
 def turn_selected_local_only(source_context: dict[str, Any] | None) -> bool:
@@ -305,6 +326,11 @@ def assert_endpoint_allowed(url: Any, *, lane: str = "", source_context: dict[st
     The last seam before bytes go on the wire. It consults the endpoint, not the manifest's own
     claim about itself, so a mislabelled lane is still blocked.
     """
+    if turn_is_device_only(source_context):
+        from core.provider_http import is_loopback_url
+
+        if not is_loopback_url(url):
+            raise CloudEgressBlockedError("device_only_blocked_provider_egress")
     if not turn_is_local_only(source_context):
         return
     if endpoint_is_local(url):
@@ -316,6 +342,8 @@ def assert_endpoint_allowed(url: Any, *, lane: str = "", source_context: dict[st
 
 def assert_manifest_allowed(manifest: Any, *, source_context: dict[str, Any] | None = None) -> None:
     """Refuse to invoke a non-local manifest while Local Only is in force."""
+    if turn_is_device_only(source_context) and not manifest_is_device_local(manifest):
+        raise CloudEgressBlockedError("device_only_blocked_provider_manifest")
     if not turn_is_local_only(source_context):
         return
     if manifest_is_local(manifest):
@@ -337,18 +365,20 @@ def cloud_lane_permitted(source_context: dict[str, Any] | None = None) -> bool:
 
 
 @contextmanager
-def local_only_egress_scope(active: bool = True) -> Iterator[None]:
+def local_only_egress_scope(active: bool = True, *, device_only: bool = False) -> Iterator[None]:
     """Ambient backstop for code with no context dict to consult.
 
     Strictly additive: inside the scope more calls are refused, never fewer. It does not replace the
     stamped flag, because a ContextVar does not survive the thread-pool hop the provider calls take
     — see this module's header.
     """
-    token = _EGRESS_BLOCKED.set(bool(active) or _EGRESS_BLOCKED.get())
+    device_token = _DEVICE_EGRESS_BLOCKED.set(bool(device_only) or _DEVICE_EGRESS_BLOCKED.get())
+    token = _EGRESS_BLOCKED.set(bool(active) or _DEVICE_EGRESS_BLOCKED.get() or _EGRESS_BLOCKED.get())
     try:
         yield
     finally:
         _EGRESS_BLOCKED.reset(token)
+        _DEVICE_EGRESS_BLOCKED.reset(device_token)
 
 
 def refusal_result(reason: str = "", *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -373,6 +403,7 @@ __all__ = [
     "AUTO_SELECTOR_VALUE",
     "AUTO_SELECTOR_VALUES",
     "CONTEXT_KEY",
+    "DEVICE_ONLY_KEY",
     "OFFLINE_KEY",
     "OFFLINE_SELECTED_KEY",
     "OFFLINE_SELECTOR_VALUE",
@@ -390,8 +421,10 @@ __all__ = [
     "is_local_only_selection",
     "is_offline_selection",
     "local_only_egress_scope",
+    "manifest_is_device_local",
     "manifest_is_local",
     "refusal_result",
+    "turn_is_device_only",
     "turn_is_local_only",
     "turn_is_offline",
     "turn_selected_local_only",

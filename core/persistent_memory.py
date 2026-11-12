@@ -2830,6 +2830,16 @@ def maybe_handle_memory_command(
             # The update backups, the log files and the file undo copies kept what the live stores no longer
             # did; a rollback would have brought a forgotten fact back (red-team pass on 0.7.7, 2026-10-30).
             forget_copies(token, chat_id=resolved_session, erasures=erasures)
+            # Imported working state is held by its canonical project/rule/tool
+            # owners. They erase their own artifacts under this same writer fence.
+            try:
+                from core.chat_import.workspace_transfer import forget_artifacts
+
+                count = forget_artifacts(resolved_session, token)
+                _record_erasure_store(erasures, "imported_working_state", "verified", count)
+            except Exception as exc:
+                LOGGER.warning("imported context erasure failed: %s", type(exc).__name__)
+                _record_erasure_store(erasures, "imported_working_state", "incomplete")
             for owner, operation_store in owner_stores.items():
                 block_status: dict[str, Any] = {}
                 try:

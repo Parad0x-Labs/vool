@@ -36,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-REMINDER_STATUSES = ("scheduled", "dispatching", "delivered", "cancelled", "delivery_uncertain", "expired")
+REMINDER_STATUSES = ("scheduled", "dispatching", "delivered", "cancelled", "delivery_uncertain", "expired", "paused")
 SOURCE_KINDS = ("reminder", "calendar_alert")
 
 #: The basic repeat rules a standalone reminder may carry (row 20). The next occurrence keeps
@@ -47,6 +47,76 @@ REPEAT_EVERY_CHOICES = ("daily", "weekly")
 def _utcnow() -> str:
     from core.time_authority import CLOCK
     return CLOCK.now_utc().isoformat()
+
+
+def import_paused_task(*, note: str, source_schedule: dict, batch_id: str, session_id: str, source: str,
+                       get_connection_fn: Callable[[], Any]) -> str:
+    """Keep a source task for review; a dispatcher cannot claim this paused row."""
+    from core.chat_import.ownership import keyed_digest, origin
+    from core.memory.revocation import writing
+    from core.secret_redaction import contains_secret
+
+    payload = {"note": note, "source_schedule": source_schedule}
+    if not note or len(json.dumps(payload)) > 50_000 or contains_secret(json.dumps(payload)):
+        raise ValueError("invalid source task")
+    reminder_id = str(uuid.uuid5(uuid.NAMESPACE_URL, keyed_digest([batch_id, session_id, source, payload])))
+    provenance = origin(batch_id, session_id, source, payload)
+    with writing(payload, session_id):
+        conn = get_connection_fn()
+        try:
+            previous = conn.execute("SELECT reminder_id FROM reminder_requests WHERE reminder_id = ?", (reminder_id,)).fetchone()
+            if previous is None:
+                now = _utcnow()
+                conn.execute("""INSERT INTO reminder_requests
+                    (reminder_id, session_id, task_id, note, due_at_utc, tz_name, due_wall,
+                     status, delivery_attempts, delivered_at, last_error, created_at, updated_at,
+                     source_kind, source_ref, schedule_key, payload_json)
+                    VALUES (?, ?, '', ?, '', 'UTC', '', 'paused', 0, NULL, NULL, ?, ?, 'reminder', ?, '', ?)""",
+                             (reminder_id, session_id, note, now, now,
+                              f"chat-import:{batch_id}",
+                              json.dumps({"source_schedule": source_schedule, "import_origin": provenance})))
+                conn.commit()
+        finally:
+            conn.close()
+    return reminder_id
+
+
+def imported_paused_tasks(batch_id: str, session_id: str, *, get_connection_fn: Callable[[], Any]) -> list[dict]:
+    from core.chat_import.ownership import belongs, unchanged
+
+    conn = get_connection_fn()
+    try:
+        rows = conn.execute("SELECT * FROM reminder_requests WHERE session_id = ?", (session_id,)).fetchall()
+        result = []
+        for row in rows:
+            stored = json.loads(row["payload_json"] or "{}")
+            provenance = stored.get("import_origin")
+            if belongs(provenance, batch_id, session_id):
+                payload = {"note": row["note"], "source_schedule": stored.get("source_schedule", {})}
+                result.append({"id": row["reminder_id"], "payload": payload,
+                               "unchanged": row["status"] == "paused" and unchanged(payload, provenance)})
+        return result
+    finally:
+        conn.close()
+
+
+def purge_imported_paused_tasks(batch_id: str, session_id: str, *, token: str = "",
+                                get_connection_fn: Callable[[], Any]) -> int:
+    from core.memory.carriers import carries
+
+    rows = [row for row in imported_paused_tasks(batch_id, session_id, get_connection_fn=get_connection_fn)
+            if not token or carries(row["payload"], token)]
+    if not token and any(not row["unchanged"] for row in rows):
+        raise ValueError("imported tasks have new work")
+    conn = get_connection_fn()
+    try:
+        for row in rows:
+            conn.execute("DELETE FROM reminder_requests WHERE reminder_id = ? AND session_id = ?",
+                         (row["id"], session_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return len(rows)
 
 
 def schedule_reminder(
@@ -115,12 +185,12 @@ def list_reminders(
             rows = conn.execute(
                 """
                 SELECT * FROM reminder_requests
-                WHERE session_id = ? AND status IN ('scheduled', 'dispatching', 'delivery_uncertain')
+                WHERE session_id = ? AND status IN ('scheduled', 'dispatching', 'delivery_uncertain', 'paused')
                 ORDER BY due_at_utc ASC, created_at ASC
                 """,
                 (session_id,),
             ).fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in rows if _import_task_visible(dict(row))]
     finally:
         conn.close()
 
@@ -135,9 +205,22 @@ def load_reminder(
         row = conn.execute(
             "SELECT * FROM reminder_requests WHERE reminder_id = ? LIMIT 1", (reminder_id,)
         ).fetchone()
-        return dict(row) if row else None
+        return dict(row) if row and _import_task_visible(dict(row)) else None
     finally:
         conn.close()
+
+
+def _import_task_visible(row: dict) -> bool:
+    from core.chat_import.ownership import visible
+
+    try:
+        payload = json.loads(row.get("payload_json") or "{}")
+        provenance = payload.get("import_origin") if isinstance(payload, dict) else None
+    except (TypeError, ValueError):
+        return not str(row.get("source_ref") or "").startswith("chat-import:")
+    if str(row.get("source_ref") or "").startswith("chat-import:") and provenance is None:
+        return False
+    return visible({"note": row.get("note"), "schedule": row.get("due_at_utc")}, provenance)
 
 
 def cancel_reminder(

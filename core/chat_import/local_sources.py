@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -62,7 +62,9 @@ def _cursor_paths(home: Path, env: dict[str, str], platform: str) -> list[Path]:
 
 
 def _cursor_read(home: Path, env: dict[str, str], platform: str, limits: Limits, work_dir: str | None) -> ReadResult:
-    return local_editor_kv.read_stores(local_editor_kv.store_paths(home, env, platform), limits, work_dir=work_dir)
+    result = local_editor_kv.read_stores(local_editor_kv.store_paths(home, env, platform), limits, work_dir=work_dir)
+    return replace(result, chats=tuple(replace(chat, context={**chat.context, "profile_root": str(home / ".cursor")})
+                                       for chat in result.chats))
 
 
 SOURCES: tuple[LocalSource, ...] = (

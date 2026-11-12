@@ -16,6 +16,7 @@ code on the ``ReadResult``.
 from __future__ import annotations
 
 import abc
+import io
 import json
 import os
 import re
@@ -134,14 +135,14 @@ def _parse_document(raw: bytes, limits: Limits) -> tuple[list | None, str | None
     return parsed, None
 
 
-def _load_conversations(path: os.PathLike[str] | str, limits: Limits) -> tuple[list | None, str | None]:
+def _load_conversations(path: os.PathLike[str] | str | io.BytesIO, limits: Limits) -> tuple[list | None, str | None]:
     """Open the archive safely and parse every chat-history member; exactly one result is None.
 
     Reads happen in memory only (``zipfile`` member reads, never extraction to disk), and each
     read is bounded so a lying header cannot inflate past the cap.
     """
     try:
-        size = os.path.getsize(path)
+        size = path.getbuffer().nbytes if isinstance(path, io.BytesIO) else os.path.getsize(path)
     except OSError:
         return None, "file_unreadable"
     if size > limits.max_zip_bytes:
@@ -208,6 +209,17 @@ def read(path: os.PathLike[str] | str, *, limits: Limits = DEFAULT_LIMITS) -> Re
     code on the result instead. Nothing is written anywhere.
     """
     conversations, problem = _load_conversations(path, limits)
+    if conversations is None:
+        return refusal(problem or "file_unreadable")
+    reader = _detect_reader(conversations)
+    if reader is None:
+        return refusal("format_unknown")
+    return read_all(reader.name, conversations, limits, reader.read_chat)
+
+
+def read_bytes(data: bytes, *, limits: Limits = DEFAULT_LIMITS) -> ReadResult:
+    """Read a picked archive without persisting its raw or ignored members."""
+    conversations, problem = _load_conversations(io.BytesIO(data), limits)
     if conversations is None:
         return refusal(problem or "file_unreadable")
     reader = _detect_reader(conversations)
@@ -332,6 +344,7 @@ class _MappingTreeExportReader(FormatReader):
             updated_at=epoch_seconds(conversation.get("update_time")),
             messages=tuple(messages),
             skipped=skipped,
+            context=_mapping_context(mapping, path),
         )
         return chat, truncated
 
@@ -513,6 +526,13 @@ class _MessageListExportReader(FormatReader):
                     if isinstance(item, dict) and isinstance(item.get("file_name"), str):
                         names.append(item["file_name"])
         return unique_names(names)
+
+
+def _mapping_context(mapping: dict, path: list[str]) -> dict:
+    from core.chat_import.source_context import export_context
+
+    return export_context([mapping[key]["message"] for key in path
+                           if isinstance(mapping.get(key), dict) and isinstance(mapping[key].get("message"), dict)])
 
 
 register_reader(_MappingTreeExportReader())

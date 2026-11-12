@@ -5,7 +5,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
-from dataclasses import dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from core.context_namespace import (
@@ -132,6 +134,26 @@ _PREFERENCE_DECLARATION_RE = re.compile(
 )
 
 
+class ContextBindingChangedError(RuntimeError):
+    """A turn's namespace changed after its context authority was selected."""
+
+
+_PINNED_POLICY: ContextVar[Any] = ContextVar("pinned_context_access_policy", default=None)
+
+
+@contextmanager
+def pinned_context_access_policy(policy):
+    """Carry the same authority to readers without an explicit context mapping."""
+    if policy is None:
+        yield
+        return
+    token = _PINNED_POLICY.set(policy)
+    try:
+        yield
+    finally:
+        _PINNED_POLICY.reset(token)
+
+
 @dataclass(frozen=True)
 class ContextAccessPolicy:
     """Immutable, server-derived grants for one chat namespace."""
@@ -140,6 +162,7 @@ class ContextAccessPolicy:
     project_id: str = ""
     namespace_state: str = "active"
     grants: tuple[ContextImportGrant, ...] = ()
+    _imported_chat_bindings: tuple[tuple[str, str], ...] | None = None
 
     @classmethod
     def for_request(
@@ -164,6 +187,13 @@ class ContextAccessPolicy:
             raise ValueError("session_id is required for context access")
 
         existing = load_chat_namespace(requested_chat)
+        embedded = context.get("_context_access_policy")
+        pinned = embedded if isinstance(embedded, cls) else _PINNED_POLICY.get()
+        if isinstance(pinned, cls) and pinned.chat_id == requested_chat:
+            if (existing is None or existing.project_id != pinned.project_id
+                    or existing.lifecycle_state != pinned.namespace_state):
+                raise ContextBindingChangedError("chat context binding changed")
+            return pinned
         trusted_project = ""
         if existing is not None:
             trusted_project = existing.project_id
@@ -176,21 +206,32 @@ class ContextAccessPolicy:
             project_id=trusted_project,
             grant_confirmed_profile=trusted_private_local,
         )
-        return cls(
+        policy = cls(
             chat_id=namespace.chat_id,
             project_id=namespace.project_id,
             namespace_state=namespace.lifecycle_state,
-            grants=list_context_imports(namespace.chat_id),
+            grants=tuple(list_context_imports(namespace.chat_id)),
         )
+        bindings = []
+        for chat_id in policy.imported_chat_ids:
+            source = load_chat_namespace(chat_id)
+            if source is not None and source.lifecycle_state == "active":
+                bindings.append((chat_id, source.project_id))
+        return replace(policy, _imported_chat_bindings=tuple(sorted(bindings)))
 
     @property
     def imported_chat_ids(self) -> frozenset[str]:
         active_chat_ids: set[str] = set()
+        bindings = dict(self._imported_chat_bindings) if self._imported_chat_bindings is not None else None
         for grant in self.grants:
             if grant.scope != "chat" or not grant.source_id.startswith("chat:"):
                 continue
             source_chat_id = grant.source_id.removeprefix("chat:")
             source_namespace = load_chat_namespace(source_chat_id)
+            if bindings is not None:
+                if (source_chat_id not in bindings or source_namespace is None
+                        or source_namespace.project_id != bindings[source_chat_id]):
+                    continue
             if (
                 source_namespace is not None
                 and source_namespace.lifecycle_state == "active"
