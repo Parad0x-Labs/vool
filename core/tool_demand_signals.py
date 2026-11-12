@@ -415,6 +415,15 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             r"|\bwikipedia(?:'s)?\s+(?:says?|said|states?|lists?|claims?|article|page|entry)\b"
             r"|\bwhat\s+(?:does|did)\s+(?:the\s+)?wikipedia\s+(?:say|list|state)\b"
             r"|\b(?:on|from|in)\s+wikipedia\b"
+            # "wikipedia: what year did the titanic sink", "wiki: capital of mongolia" (a source
+            # label leading the question) and "check wiki for ...", "what does the wiki say about
+            # ..." -- "wiki" as people shorten Wikipedia (0.7.8 sweep block 2c: the first went to
+            # memory recall, the second to background-task status). "what's a wiki" and "set up a
+            # wiki for my team" name no source to read from and stay out.
+            r"|^\s*wiki(?:pedia)?\s*:\s*\S"
+            r"|\b(?:check|search|open|read|look\s+(?:it\s+)?up\s+(?:on|in))\s+(?:the\s+)?wiki\b(?!\s+(?:page\s+)?(?:for\s+)?(?:my|our|the\s+team|team))"
+            r"|\b(?:on|from|in|per|according\s+to)\s+(?:the\s+)?wiki\b(?!\s*(?:page\s+)?(?:for|of)\s+(?:my|our))"
+            r"|\bwhat\s+(?:does|did)\s+(?:the\s+)?wiki(?:pedia)?\s+(?:say|list|state)\b"
             # "look it up: …", "look this up", "check online", "search online": an explicit ask to
             # go and find out (0.7.8 sweep block 2: "look it up: what year did the berlin wall
             # fall" made no tool call).

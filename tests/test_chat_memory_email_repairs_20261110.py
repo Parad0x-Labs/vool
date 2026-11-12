@@ -1448,3 +1448,20 @@ def test_a_web_source_is_not_ones_own_records(asked):
     from core.agent_runtime.turn_frontdoor import _ASKS_FROM_OWN_RECORDS_RE
 
     assert not _ASKS_FROM_OWN_RECORDS_RE.search(asked)
+
+
+@pytest.mark.parametrize("asked", ["wikipedia: what year did the titanic sink", "check wiki for how tall kilimanjaro is",
+                                   "what does the wiki say about the eifel tower", "wiki: capital of mongolia",
+                                   "according to the wiki how old is rome"])
+def test_wiki_as_people_write_it_is_a_web_lookup(asked):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert "web" in resolve_demand_signals(asked).required_families
+
+
+@pytest.mark.parametrize("asked", ["whats a wiki", "how do I set up a wiki for my team", "search our wiki for the onboarding doc",
+                                   "put it on the wiki for my team"])
+def test_a_wiki_of_ones_own_is_not_wikipedia(asked):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert "web" not in resolve_demand_signals(asked).required_families
