@@ -3136,12 +3136,17 @@
     "phone.ui.address_away_from_home": "Ev dışı adresi",
     "phone.ui.away_address_optional_used_by_itself": "İsteğe bağlı. Ev ağınıza ulaşılamadığında VOOL bunu kendiliğinden kullanır.",
     "phone.ui.connected_from_away": "Ev dışından bağlı",
+    "phone.ui.what_can_i_help_with": "Nasıl yardımcı olabilirim?",
+    "phone.ui.what_can_you_do_for_me": "Benim için neler yapabilirsin?",
+    "phone.ui.find_a_file_on_my_computer": "Bilgisayarımda bir dosya bul",
+    "phone.ui.help_me_write_a_message": "Bir mesaj yazmama yardım et",
+    "phone.ui.plan_my_week": "Haftamı planla",
     "phone.ui.settings": "Ayarlar",
     "phone.ui.connected_over_your_home_network": "Ev ağınız üzerinden bağlı",
     "phone.ui.looking_home_and_away": "Bilgisayarınız aranıyor, evde ve dışarıda. Ev dışında bu bir dakika sürebilir.",
     "phone.ui.no_answer_home_or_away": "Bilgisayarınız evde de dışarıda da yanıt vermedi. Açık olduğunu ve VOOL’un çalıştığını kontrol edin."
   },
-  "source_catalog_sha256": "5b088d3b8c2ac43def01bb7cbbb72592715938dc17e72b6011fa2dfa7e2fa390",
+  "source_catalog_sha256": "c3dae02a61d067347a84b4942d862a08f5955468a3606b6b0a278a3ff53901ae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

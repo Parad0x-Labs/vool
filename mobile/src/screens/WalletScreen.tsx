@@ -69,7 +69,10 @@ export default function WalletScreen({client, onRevoked}: {client: MobileCompani
     catch (exc) {if ((exc as {code?:string}).code !== "review_cancelled") setError(errorText(exc)); try {setSaved(!!await draft.load());} catch {setSaved(true);}}
     finally {setBusy(false);}
   };
-  const freeze = () => void act(async () => {await client.freezePayments(); setNotice(tr("Payments are frozen."));});
+  // Freezing can only be undone on the computer with the wallet PIN, so one stray tap must not do it.
+  const freeze = () => Alert.alert(tr("Freeze payments"), tr("Payments are frozen. Unfreeze on your computer with the wallet PIN."), [
+    {text: tr("Cancel"), style: "cancel"},
+    {text: tr("Freeze payments"), style: "destructive", onPress: () => void act(async () => {await client.freezePayments(); setNotice(tr("Payments are frozen."));})}]);
   return <View>
     <Text style={soft}>{tr("Your wallet stays on your computer. Approve payments there.")}</Text>
     <Pressable style={button} disabled={busy} onPress={freeze}><Text style={text}>{tr("Freeze payments")}</Text></Pressable>
@@ -107,7 +110,7 @@ export default function WalletScreen({client, onRevoked}: {client: MobileCompani
       </View>)}
       <Pressable style={button} disabled={busy} onPress={() => void act(async () => {setReceipts((await client.walletReceipts()).receipts);})}><Text style={text}>{tr("Show receipts")}</Text></Pressable>
       {receipts.map((receipt, index) => <View key={index}>
-        <Text style={text}>{receiptStatus(String(receipt.state || receipt.status || ""))} · {String(receipt.proposal_id || "")}</Text>
+        <Text style={text}>{receiptStatus(String(receipt.state || receipt.status || ""))}</Text>
         <Text style={[text, {writingDirection: "ltr"}]}>{String(receipt.display_amount || "")} {String(receipt.asset || "")} · {String(receipt.network || "")}</Text>
         <Text style={[text, {writingDirection: "ltr"}]}>{String(receipt.destination || "")}</Text>
       </View>)}

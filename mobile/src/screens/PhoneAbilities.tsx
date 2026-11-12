@@ -139,7 +139,7 @@ export default function PhoneAbilities({client,chatId,attachmentCount,onChat,onA
   </>;
 }
 const styles=StyleSheet.create({
-  mic:{width:38,height:42,borderRadius:21,alignItems:'center',justifyContent:'center'},
-  ready:{backgroundColor:C.send,width:42},
-  live:{backgroundColor:C.bad,width:42},
+  mic:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center'},
+  ready:{backgroundColor:C.send,width:48},
+  live:{backgroundColor:C.bad,width:48},
 });

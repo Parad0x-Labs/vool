@@ -53,7 +53,7 @@ export function LinkLine() {
 }
 
 const styles = StyleSheet.create({
-  wrap: {width: 40, height: 40, alignItems: "center", justifyContent: "center"},
+  wrap: {width: 48, height: 48, alignItems: "center", justifyContent: "center"},
   line: {flexDirection: "row", alignItems: "center", gap: 8},
   lineText: {fontSize: 13},
 });

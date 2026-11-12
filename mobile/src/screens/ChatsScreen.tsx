@@ -1,4 +1,4 @@
-import {errorText, tr} from "../i18n/index.ts";
+import {errorText, rightToLeft, tr} from "../i18n/index.ts";
 import {chatUpdatedText, messageTimeText, stepTimeText} from "../i18n/time.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -7,7 +7,7 @@ import FromComputer from "./FromComputer.tsx";
 import Header from "../ui/Header.tsx";
 import {useLink} from "../ui/LinkBadge.tsx";
 import {linkState} from "../protocol/linkState.ts";
-import Icon from "../ui/Icon.tsx";
+import Icon, {type IconName} from "../ui/Icon.tsx";
 import Gears from "../ui/Gears.tsx";
 import {C, R} from "../ui/theme.ts";
 
@@ -29,6 +29,14 @@ interface Props {
 }
 
 /** The chat list, and one chat: read it, write to the computer, attach a photo or file. */
+// A first tap for someone who does not know what to ask. It fills the message box and does not send.
+const STARTERS: [IconName, () => string][] = [
+  ["help-circle-outline", () => tr("What can you do for me?")],
+  ["folder-search-outline", () => tr("Find a file on my computer")],
+  ["pencil-outline", () => tr("Help me write a message")],
+  ["lightbulb-on-outline", () => tr("Plan my week")],
+];
+
 export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, menuDot, onChats }: Props) {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
@@ -193,21 +201,33 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
       <View style={styles.screen}>
         <Header title="VOOL" big lead="menu" onLead={onMenu} onLink={onLink} dot={menuDot} />
         <ScrollView style={styles.fill} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.search}>
+          {(chats?.length || search) ? <View style={styles.search}>
             <Icon name="magnify" size={20} color={C.mute} />
-            <TextInput style={styles.searchInput} placeholder={tr("Search recent chats")} placeholderTextColor={C.faint}
+            <TextInput style={styles.searchInput} placeholder={tr("Search recent chats")} placeholderTextColor={C.mute}
               value={search} onChangeText={setSearch} />
-          </View>
+          </View> : null}
           {notice ? <Text style={styles.note}>{notice}</Text> : null}
           {queued.length ? <Text style={styles.note}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
           <FromComputer client={client} refreshKey={filesKey} />
           {chats === null && !notice ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
+          {chats?.length === 0 && !search && !notice ? <View style={styles.empty}>
+            <View style={styles.emptyMark}><Icon name="message-text-outline" size={30} color={C.soft} /></View>
+            <Text style={styles.emptyTitle}>{tr("What can I help with?")}</Text>
+            <View style={styles.starters}>
+              {STARTERS.map(([icon, text]) => <Pressable key={icon} style={styles.starter} android_ripple={{color: C.ripple}} accessibilityRole="button"
+                onPress={() => {newChat(); setDraft(text());}}>
+                <Icon name={icon} size={22} color={C.soft} />
+                <Text style={styles.starterText} numberOfLines={2}>{text()}</Text>
+                <Icon name={rightToLeft() ? "chevron-left" : "chevron-right"} size={20} color={C.mute} />
+              </Pressable>)}
+            </View>
+          </View> : null}
           {(chats || []).map((chat) => (
-            <Pressable key={chat.chat_id} style={styles.chatRow} onPress={() => void openChat(chat.chat_id)} accessibilityRole="button">
-              <Icon name="message-outline" size={20} color={C.mute} />
+            <Pressable key={chat.chat_id} style={styles.chatRow} android_ripple={{color: C.ripple}} onPress={() => void openChat(chat.chat_id)} accessibilityRole="button">
+              <View style={styles.chatMark}><Icon name="message-outline" size={20} color={C.soft} /></View>
               <View style={styles.fill}>
                 <Text style={styles.chatTitle} numberOfLines={1}>
-                  {chat.title || chat.chat_id}
+                  {chat.title || tr("New chat")}
                 </Text>
                 <Text style={styles.chatMeta}>
                   {tr("Replies: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
@@ -216,7 +236,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
             </Pressable>
           ))}
         </ScrollView>
-        <Pressable style={styles.newChat} onPress={newChat} accessibilityRole="button">
+        <Pressable style={styles.newChat} android_ripple={{color: "rgba(17,19,20,0.12)"}} onPress={newChat} accessibilityRole="button">
           <Icon name="plus" size={20} color={C.sendInk} />
           <Text style={styles.newChatText}>{tr("New chat")}</Text>
         </Pressable>
@@ -247,7 +267,6 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
                 <Text style={styles.attachmentText}>{a.name}</Text>
               </View>
             ))}
-            {m.answer_state ? <Text style={styles.answerState}>{m.answer_state}</Text> : null}
             {m.role === "user" ? <View style={styles.tick}><Icon name="check-all" size={15} color={C.mute} /></View> : null}
             {timeShown === i && messageTimeText(m.ts) ? <Text style={styles.messageTime}>{messageTimeText(m.ts)}</Text> : null}
           </Pressable>
@@ -307,12 +326,12 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
       ) : null}
       <View style={styles.composer}>
         <Pressable style={styles.plus} onPress={() => setSheet(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={tr("Add to this message")}>
-          <Icon name="plus" size={24} color={C.ink} />
+          <Icon name="plus" size={26} color={C.soft} />
         </Pressable>
         <TextInput
           style={styles.draftInput}
           placeholder={tr("Message your computer…")}
-          placeholderTextColor={C.faint}
+          placeholderTextColor={C.mute}
           value={draft}
           onChangeText={setDraft}
           multiline
@@ -322,7 +341,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
           onAttachment={id=>setAttachmentIds(previous=>[...previous,id])} onDraft={text=>setDraft(previous=>previous ? previous+"\n"+text : text)} />
         <Pressable style={[styles.sendButton, !canSend && styles.sendOff]} onPress={() => void send()} disabled={!canSend}
           accessibilityRole="button" accessibilityLabel={tr("Send")}>
-          {busy ? <ActivityIndicator color={C.sendInk} /> : <Icon name="arrow-up" size={24} color={C.sendInk} />}
+          {busy ? <ActivityIndicator color={C.sendInk} /> : <Icon name="arrow-up" size={24} color={canSend ? C.sendInk : C.mute} />}
         </Pressable>
       </View>
     </View>
@@ -339,34 +358,40 @@ const styles = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderRadius: R.pill, paddingHorizontal: 16, height: 48, marginTop: 4, marginBottom: 10 },
   searchInput: { flex: 1, color: C.ink, fontSize: 16, padding: 0 },
   note: { color: C.soft, fontSize: 13, lineHeight: 19, paddingVertical: 8 },
-  chatRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, paddingHorizontal: 4 },
-  chatTitle: { color: C.ink, fontSize: 17 },
+  chatRow: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 68, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 16, overflow: "hidden" },
+  chatMark: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.raised, alignItems: "center", justifyContent: "center" },
+  empty: { alignItems: "center", paddingTop: 56, paddingBottom: 24 },
+  emptyMark: { width: 64, height: 64, borderRadius: 32, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  emptyTitle: { color: C.ink, fontSize: 24, lineHeight: 30, fontWeight: "600", textAlign: "center", marginBottom: 24 },
+  starters: { alignSelf: "stretch", gap: 10 },
+  starter: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.panel, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: "hidden" },
+  starterText: { flex: 1, color: C.ink, fontSize: 15, lineHeight: 20 },
+  chatTitle: { color: C.ink, fontSize: 16, fontWeight: "500" },
   chatMeta: { color: C.mute, fontSize: 13, marginTop: 3 },
-  newChat: { position: "absolute", right: 18, bottom: 22, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 54, elevation: 6 },
+  newChat: { position: "absolute", right: 18, bottom: 22, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 56, elevation: 6, overflow: "hidden" },
   newChatText: { color: C.sendInk, fontSize: 16, fontWeight: "600" },
   threadContent: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18 },
-  userBubble: { alignSelf: "flex-end", maxWidth: "86%", backgroundColor: C.pill, borderRadius: R.bubble, borderBottomRightRadius: 6, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, marginTop: 14 },
+  userBubble: { alignSelf: "flex-end", maxWidth: "82%", backgroundColor: C.pill, borderRadius: R.bubble, borderBottomEndRadius: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, marginTop: 16 },
   blockedBubble: { borderWidth: 1, borderColor: C.bad },
-  agentBlock: { alignSelf: "stretch", marginTop: 14 },
-  userText: { color: C.ink, fontSize: 17, lineHeight: 24 },
-  agentText: { color: C.ink, fontSize: 17, lineHeight: 26 },
+  agentBlock: { alignSelf: "stretch", marginTop: 16 },
+  userText: { color: C.ink, fontSize: 16, lineHeight: 23 },
+  agentText: { color: C.ink, fontSize: 17, lineHeight: 27 },
   tick: { alignSelf: "flex-end", marginTop: -1, marginRight: -4 },
   attachmentTag: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   attachmentText: { color: C.soft, fontSize: 13 },
-  messageTime: { color: C.mute, fontSize: 12, marginTop: 6 },
-  answerState: { color: C.mute, fontSize: 11, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  messageTime: { color: C.soft, fontSize: 12, marginTop: 6 },
   waitText: { color: C.mute, fontSize: 12, textAlign: "right", marginTop: 4 },
   blocked: { alignItems: "flex-end", gap: 8, marginTop: 6 },
   blockedText: { color: C.bad, fontSize: 13, textAlign: "right" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.pill, borderRadius: R.pill, paddingHorizontal: 14, height: 36 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.pill, borderRadius: R.pill, paddingHorizontal: 16, height: 44 },
   chipText: { color: C.ink, fontSize: 14 },
   working: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 18 },
   workingText: { flex: 1, color: C.soft, fontSize: 14 },
   proof: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   proofText: { color: C.mute, fontSize: 12 },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 6, backgroundColor: C.raised, borderRadius: R.pill, borderWidth: 1, borderColor: C.line, marginHorizontal: 12, marginBottom: 12, marginTop: 6, padding: 7 },
-  plus: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.pill, alignItems: "center", justifyContent: "center" },
-  draftInput: { flex: 1, color: C.ink, fontSize: 16, lineHeight: 22, maxHeight: 132, minHeight: 42, paddingHorizontal: 4, paddingTop: 10, paddingBottom: 10, textAlignVertical: "center" },
-  sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.send, alignItems: "center", justifyContent: "center" },
-  sendOff: { opacity: 0.35 },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 6, backgroundColor: C.raised, borderRadius: 26, borderWidth: 1, borderColor: C.line, marginHorizontal: 12, marginBottom: 10, marginTop: 6, padding: 6, minHeight: 60 },
+  plus: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+  draftInput: { flex: 1, color: C.ink, fontSize: 16, lineHeight: 22, maxHeight: 132, minHeight: 48, paddingHorizontal: 4, paddingTop: 13, paddingBottom: 13, textAlignVertical: "center" },
+  sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.send, alignItems: "center", justifyContent: "center" },
+  sendOff: { backgroundColor: C.pill },
 });

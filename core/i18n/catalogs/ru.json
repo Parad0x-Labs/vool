@@ -3136,12 +3136,17 @@
     "phone.ui.address_away_from_home": "Адрес вне дома",
     "phone.ui.away_address_optional_used_by_itself": "Необязательно. VOOL сам использует его, когда домашняя сеть недоступна.",
     "phone.ui.connected_from_away": "Подключено вне дома",
+    "phone.ui.what_can_i_help_with": "Чем помочь?",
+    "phone.ui.what_can_you_do_for_me": "Что ты можешь для меня сделать?",
+    "phone.ui.find_a_file_on_my_computer": "Найди файл на моём компьютере",
+    "phone.ui.help_me_write_a_message": "Помоги написать сообщение",
+    "phone.ui.plan_my_week": "Спланируй мою неделю",
     "phone.ui.settings": "Настройки",
     "phone.ui.connected_over_your_home_network": "Подключено через домашнюю сеть",
     "phone.ui.looking_home_and_away": "Ищем ваш компьютер, дома и вне дома. Вне дома это может занять минуту.",
     "phone.ui.no_answer_home_or_away": "Ваш компьютер не ответил ни дома, ни вне дома. Проверьте, что он включён и VOOL открыт."
   },
-  "source_catalog_sha256": "5b088d3b8c2ac43def01bb7cbbb72592715938dc17e72b6011fa2dfa7e2fa390",
+  "source_catalog_sha256": "c3dae02a61d067347a84b4942d862a08f5955468a3606b6b0a278a3ff53901ae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

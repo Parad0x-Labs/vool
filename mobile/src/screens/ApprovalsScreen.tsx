@@ -80,8 +80,7 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
     <ScrollView>
       {approvals.map((a) => (
         <View key={a.approval_id} style={styles.card}>
-          <Text style={styles.intent}>{a.intent || "action"}</Text>
-          {a.action ? <Text style={styles.action}>{a.action}</Text> : null}
+          <Text style={styles.intent}>{a.intent || tr("VOOL needs an approval")}</Text>
           {(a.affected_resources || []).slice(0, 4).map((r) => (
             <Text key={r} style={styles.resource} numberOfLines={1}>
               {r}

@@ -14,5 +14,7 @@ export const C = {
   bad: "#d86a56",
   send: "#edece7",
   sendInk: "#111314",
+  badBg: "#2a1b18",
+  ripple: "rgba(237,236,231,0.10)",
 } as const;
 export const R = {pill: 28, card: 16, bubble: 20} as const;

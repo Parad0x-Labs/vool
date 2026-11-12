@@ -6,6 +6,8 @@ import { CompanionError, type MobileCompanionClient } from "../protocol/client.t
 import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../protocol/models.ts";
 import {connectionAddress} from "../protocol/connection.ts";
 import {useLink} from "../ui/LinkBadge.tsx";
+import Icon from "../ui/Icon.tsx";
+import {C} from "../ui/theme.ts";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { parsePairingUri } from "../protocol/pairing.ts";
 
@@ -30,6 +32,8 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   const link = useLink();
   useEffect(() => {setRoute(client.route);}, [client, link, snapshot]);
   const [scanning, setScanning] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   // Which way reaches the computer is asked when this page opens and after every address change.
   const [looking, setLooking] = useState<"" | "looking" | "none">("");
   const probe = useCallback(() => {
@@ -87,21 +91,29 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
     }
   }, [client, guard]);
 
-  const connectionForm = <View style={styles.card}>
-    <Text style={styles.label}>{tr("Phone connection address")}</Text>
-    <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Phone connection address")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
-    <Pressable style={styles.proofButton} onPress={() => {void (async () => {
-      try {await onConnection?.(connectionAddress(connection));}
-      catch {setError(tr("Could not complete this. Check your computer."));}
-    })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
+  const stateLine = looking === "looking" ? tr("Looking for your computer, at home and away. Away from home this can take a minute.")
+    : link === "connected" ? (client.awayUrl ? (route === "away" ? tr("Connected from away") : tr("Connected over your home network")) : tr("Connected to your computer"))
+    : link === "connecting" ? tr("Connecting to your computer…")
+    : client.awayUrl ? tr("Your computer did not answer at home or away. Check that it is on and VOOL is open.")
+    : tr("Can't reach your computer. Check that it is on and VOOL is open.");
+  const stateColor = link === "connected" ? C.ok : link === "offline" && looking !== "looking" ? C.bad : C.wait;
+
+  // One block for the connection: how it stands, and one button. A scanned code saves itself.
+  const computerCard = <View style={styles.card}>
+    <View style={styles.stateRow}>
+      <Icon name={link === "offline" && looking !== "looking" ? "monitor-off" : "monitor"} size={22} color={stateColor} />
+      <Text style={[styles.stateText, {color: stateColor}]}>{stateLine}</Text>
+    </View>
+    {snapshot ? <Text style={styles.detail}>{snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")} · {snapshot.model.cloud_state === "ok" ? tr("Cloud connected") : tr("Local")}</Text> : null}
+    {saved ? <Text style={[styles.detail, {color: C.ok}]}>{tr("Saved. Your phone is ready.")}</Text> : null}
     {/* The computer moved to a new address: its pairing QR carries the new one. Only a QR from the
         SAME computer (its pinned fingerprint) may change where this phone connects. */}
-    <Pressable style={styles.proofButton} onPress={() => {void (async () => {
+    <Pressable style={styles.proofButton} accessibilityRole="button" onPress={() => {void (async () => {
       if (!cameraPermission?.granted && !(await requestCameraPermission()).granted) {
         setError(tr("Camera permission is needed to scan your computer’s pairing QR."));
         return;
       }
-      setScanning(true);
+      setSaved(false); setScanning(true);
     })();}}><Text style={styles.proofButtonText}>{tr("Scan pairing QR")}</Text></Pressable>
     {scanning && <View style={styles.scanBox}>
       <CameraView style={StyleSheet.absoluteFill} barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({data}) => {
@@ -116,54 +128,37 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         void (async () => {
           try {const next = connectionAddress(address); await onConnection?.(next); setConnection(next); setError("");
             if (parsed.awayAddress) {await onAwayConnection?.(parsed.awayAddress); setAway(parsed.awayAddress);}
-            probe();}
+            setSaved(true); probe();}
           catch {setError(tr("Could not complete this. Check your computer."));}
         })();
       }} />
       <Pressable style={styles.scanCancel} onPress={() => setScanning(false)}><Text style={styles.proofButtonText}>{tr("Cancel")}</Text></Pressable>
     </View>}
-    <Text style={[styles.label, {marginTop: 18}]}>{tr("Address away from home")}</Text>
-    <Text style={[styles.detail, {marginTop: 0, marginBottom: 8}]}>{tr("Optional. VOOL uses it by itself when your home network is out of reach.")}</Text>
-    <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Address away from home")} autoCapitalize="none" autoCorrect={false} value={away} onChangeText={setAway}/>
-    <Pressable style={styles.proofButton} onPress={() => {void (async () => {
-      try {const next = away.trim() ? connectionAddress(away) : ""; await onAwayConnection?.(next); setAway(next); setError(""); probe();}
-      catch {setError(tr("Could not complete this. Check your computer."));}
-    })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
-    {looking === "looking" ? <Text style={styles.detail}>{tr("Looking for your computer, at home and away. Away from home this can take a minute.")}</Text>
-      : looking === "none" ? <Text style={styles.detail}>{tr("Your computer did not answer at home or away. Check that it is on and VOOL is open.")}{client.awayProblem ? "\n(" + client.awayProblem.slice(0, 120) + ")" : ""}</Text>
-      : client.awayUrl && link === "connected" ? <Text style={styles.detail}>{route === "away" ? tr("Connected from away") : tr("Connected over your home network")}</Text> : null}
+    {error ? <Text style={styles.error}>{error}</Text> : null}
   </View>;
-  if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
-  if (!snapshot) {
-    return <View><ActivityIndicator style={styles.center} color="#868b90" />{connectionForm}</View>;
-  }
 
-  const cloudOn = snapshot.model.cloud_state === "ok";
-
-  return (
-    <ScrollView>
-      {connectionForm}
-      <Text style={styles.section}>{tr("Your computer")}</Text>
-      <View style={styles.card}>
-        <Text style={styles.label}>
-          {snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")}
-        </Text>
-        <View style={styles.row}>
-          <View style={[styles.pill, cloudOn ? styles.pillGreen : styles.pillGrey]}>
-            <Text style={styles.pillText}>{cloudOn ? tr("Cloud connected") : tr("Local")}</Text>
-          </View>
-          {snapshot.relay.enabled ? <View style={[styles.pill, styles.pillAmber]}>
-            <Text style={styles.pillText}>{snapshot.relay.mode}</Text>
-          </View> : null}
-        </View>
-        <Text style={styles.fingerprint}>{tr("Computer check code")}: {snapshot.desktop.short_fingerprint}</Text>
-        {snapshot.model.cloud_state && snapshot.model.cloud_state !== "ok" ? (
-          <Text style={styles.detail}>{tr("Cloud untested")}</Text>
-        ) : null}
-      </View>
-
-      <Text style={styles.section}>{tr("Activity")}</Text>
-      <View style={styles.card}>
+  // The addresses are filled in by the scan. They stay out of the way for the rare manual change.
+  const advanced = <View>
+    <Pressable style={styles.advancedRow} accessibilityRole="button" accessibilityState={{expanded: showAdvanced}} onPress={() => setShowAdvanced(value => !value)}>
+      <Text style={styles.label}>{tr("Advanced")}</Text>
+      <Icon name={showAdvanced ? "chevron-up" : "chevron-down"} size={22} color={C.mute} />
+    </Pressable>
+    {showAdvanced ? <View style={styles.card}>
+      <Text style={styles.fieldLabel}>{tr("Computer’s address on your home network")}</Text>
+      <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Computer’s address on your home network")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
+      <Text style={[styles.fieldLabel, {marginTop: 14}]}>{tr("Address away from home")}</Text>
+      <Text style={styles.footnote}>{tr("Optional. VOOL uses it by itself when your home network is out of reach.")}</Text>
+      <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left", marginTop: 6}]} accessibilityLabel={tr("Address away from home")} autoCapitalize="none" autoCorrect={false} value={away} onChangeText={setAway}/>
+      <Pressable style={styles.proofButton} accessibilityRole="button" onPress={() => {void (async () => {
+        try {
+          const home = connectionAddress(connection); const next = away.trim() ? connectionAddress(away) : "";
+          await onConnection?.(home); setConnection(home);
+          await onAwayConnection?.(next); setAway(next);
+          setError(""); setSaved(true); probe();
+        } catch {setSaved(false); setError(tr("Could not complete this. Check your computer."));}
+      })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
+      <Text style={[styles.fingerprint, {marginTop: 14}]}>{tr("Computer check code")}: {snapshot?.desktop.short_fingerprint || client.desktopFingerprint.slice(0, 24)}</Text>
+      {snapshot ? <View style={{marginTop: 12}}>
         {proof ? (
           <View>
             <Text style={styles.label}>{tr("Latest reply")}</Text>
@@ -185,23 +180,11 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
             <Text style={styles.proofButtonText}>{tr("Refresh")}</Text>
           </Pressable>
         )}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </View>
+      </View> : null}
+    </View> : null}
+  </View>;
 
-      <Text style={styles.detail}>{tr("Change this phone’s permissions on your computer.")}</Text>
-      {Object.entries(device?.rules || {}).map(([right,value])=><Text key={right} style={styles.detail}>
-        {permissionText(right)}: {value && (!(device?.right_expiry?.[right]) || (device.right_expiry[right] > Date.now()/1000)) ? tr("On") : tr("Off")}
-        {device?.right_expiry?.[right] ? " · "+tr("Expires")+" "+new Date(device.right_expiry[right]*1000).toLocaleString() : ""}
-      </Text>)}
-      <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
-      <View style={styles.segment}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
-        style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
-        <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
-      </Pressable>)}</View>
-      <Text style={styles.section}>{tr("This device")}</Text>
-      <View style={styles.card}>
-        <Text style={styles.detail}>{client.deviceId}</Text>
-        <Text style={styles.detail}>{tr("Computer check code")}: {client.desktopFingerprint.slice(0, 24)}…</Text>
+  const danger = <View style={{marginTop: 18}}>
         <Pressable
           style={styles.unpairButton}
           onPress={() => {
@@ -249,7 +232,35 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
           })();}}])}>
           <Text style={styles.unpairButtonText}>{tr("My computer is lost")}</Text>
         </Pressable>
-      </View>
+  </View>;
+
+  if (!snapshot) return <ScrollView keyboardShouldPersistTaps="handled">
+    <Text style={styles.section}>{tr("Your computer")}</Text>
+    {computerCard}
+    {!error && link !== "offline" ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
+    {advanced}
+    {danger}
+  </ScrollView>;
+
+  return (
+    <ScrollView keyboardShouldPersistTaps="handled">
+      <Text style={styles.section}>{tr("Your computer")}</Text>
+      {computerCard}
+
+      <Text style={styles.section}>{tr("This device")}</Text>
+      <Text style={styles.detail}>{tr("Change this phone’s permissions on your computer.")}</Text>
+      {Object.entries(device?.rules || {}).map(([right,value])=><Text key={right} style={styles.detail}>
+        {permissionText(right)}: {value && (!(device?.right_expiry?.[right]) || (device.right_expiry[right] > Date.now()/1000)) ? tr("On") : tr("Off")}
+        {device?.right_expiry?.[right] ? " · "+tr("Expires")+" "+new Date(device.right_expiry[right]*1000).toLocaleString() : ""}
+      </Text>)}
+      <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
+      <View style={styles.segment}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
+        style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
+        <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
+      </Pressable>)}</View>
+
+      {advanced}
+      {danger}
     </ScrollView>
   );
 }
@@ -268,10 +279,10 @@ const styles = StyleSheet.create({
   pillText: { color: "#edece7", fontSize: 12, fontWeight: "600" },
   fingerprint: { color: "#868b90", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   detail: { color: "#bfc2c4", fontSize: 13, lineHeight: 19, marginTop: 4 },
-  footnote: { color: "#5d6166", fontSize: 11, marginTop: 10, lineHeight: 16 },
-  proofButton: { backgroundColor: "#26292c", borderRadius: 24, padding: 12, alignItems: "center", marginTop: 8 },
+  footnote: { color: "#868b90", fontSize: 12, marginTop: 10, lineHeight: 16 },
+  proofButton: { backgroundColor: "#26292c", borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12 },
   segment: { flexDirection: "row", backgroundColor: "#1f2224", borderRadius: 24, padding: 4, gap: 4 },
-  segmentItem: { flex: 1, borderRadius: 20, paddingVertical: 10, alignItems: "center" },
+  segmentItem: { flex: 1, borderRadius: 20, minHeight: 48, justifyContent: "center", alignItems: "center" },
   segmentOn: { backgroundColor: "#edece7" },
   segmentOnText: { color: "#111314" },
   proofButtonText: { color: "#edece7", fontWeight: "600" },
@@ -280,5 +291,9 @@ const styles = StyleSheet.create({
   unpairButton: { backgroundColor: "#2a1b18", borderRadius: 24, padding: 13, alignItems: "center", marginTop: 12 },
   unpairButtonText: { color: "#d86a56", fontWeight: "600" },
   error: { color: "#d86a56", fontSize: 13, marginTop: 8 },
+  stateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
+  stateText: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 21 },
+  advancedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, marginTop: 18, paddingHorizontal: 4 },
+  fieldLabel: { color: "#bfc2c4", fontSize: 13, marginBottom: 6 },
   address: { color: "#edece7", fontSize: 14, backgroundColor: "#111314", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
 });

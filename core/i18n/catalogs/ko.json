@@ -3136,12 +3136,17 @@
     "phone.ui.address_away_from_home": "외출 시 주소",
     "phone.ui.away_address_optional_used_by_itself": "선택 사항입니다. 집 네트워크에 닿지 않을 때 VOOL이 알아서 사용합니다.",
     "phone.ui.connected_from_away": "외부에서 연결됨",
+    "phone.ui.what_can_i_help_with": "무엇을 도와드릴까요?",
+    "phone.ui.what_can_you_do_for_me": "무엇을 해 줄 수 있나요?",
+    "phone.ui.find_a_file_on_my_computer": "내 컴퓨터에서 파일 찾기",
+    "phone.ui.help_me_write_a_message": "메시지 작성 도와줘",
+    "phone.ui.plan_my_week": "이번 주 계획 세워줘",
     "phone.ui.settings": "설정",
     "phone.ui.connected_over_your_home_network": "집 네트워크로 연결됨",
     "phone.ui.looking_home_and_away": "집과 외부에서 컴퓨터를 찾고 있습니다. 외부에서는 1분 정도 걸릴 수 있습니다.",
     "phone.ui.no_answer_home_or_away": "컴퓨터가 집에서도 외부에서도 응답하지 않았습니다. 컴퓨터가 켜져 있고 VOOL이 열려 있는지 확인하세요."
   },
-  "source_catalog_sha256": "5b088d3b8c2ac43def01bb7cbbb72592715938dc17e72b6011fa2dfa7e2fa390",
+  "source_catalog_sha256": "c3dae02a61d067347a84b4942d862a08f5955468a3606b6b0a278a3ff53901ae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

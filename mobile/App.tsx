@@ -23,7 +23,7 @@ import {deleteApprovalKey, requestPrivateTyping, setNativePrivateSession} from "
 import {OsPreferenceStore} from "./src/notifications/preference.ts";
 import {clearIdleMinutes} from "./src/security/idlePreference.ts";
 import {credentialIdentity} from './src/protocol/connection.ts';
-import {resetLink} from "./src/protocol/linkState.ts";
+import {reportLink, resetLink} from "./src/protocol/linkState.ts";
 import type {ChatSummary} from "./src/protocol/models.ts";
 import Header from "./src/ui/Header.tsx";
 import Frame from "./src/ui/Frame.tsx";
@@ -39,7 +39,7 @@ installPrivateRoute();
 
 type Tab = "chats" | "approvals" | "notifications" | "wallet" | "status";
 const TAB_LABELS = {chats: "Chats", approvals: "Approvals", notifications: "Alerts", wallet: "Wallet", status: "Settings"};
-const TAB_ICONS = {chats: "message-outline", approvals: "shield-check-outline", notifications: "bell-outline", wallet: "wallet-outline", status: "tune-variant"} as const;
+const TAB_ICONS = {chats: "message-outline", approvals: "shield-check-outline", notifications: "bell-outline", wallet: "wallet-outline", status: "cog-outline"} as const;
 const TABS: Tab[] = ["chats", "approvals", "notifications", "wallet", "status"];
 // The status bar is drawn over the app on Android; keep the first row below it.
 
@@ -95,7 +95,7 @@ function Root() {
     async (next: DeviceCredentials) => {
       await store.saveDeviceCredentials(next);
       setCreds(next);
-      setStartTab("status");
+      setStartTab("chats");
     },
     [store],
   );
@@ -181,7 +181,8 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
 
   // Home or away: ask which way reaches the computer when the app opens and each time it comes back to the front.
   useEffect(() => {
-    void client.findRoute().catch(() => {});
+    // Neither way answered at start: say so plainly instead of staying on "connecting".
+    void client.findRoute().then(found => {if (!found && client.awayUrl) reportLink(false);}).catch(() => {});
     const sub = AppState.addEventListener("change", state => {if (state === "active") void client.findRoute().catch(() => {});});
     return () => sub.remove();
   }, [client]);
@@ -264,10 +265,10 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
           </ScrollView>
         </>}
-      <KeyboardTip />
+      {recent.length > 0 && <KeyboardTip />}
       <Drawer open={menu} onClose={() => setMenu(false)} items={items} active={tab}
         onSelect={key => {selectTab(key as Tab); setMenu(false);}}
-        chats={recent.slice(0, 12).map(chat => ({id: chat.chat_id, title: chat.title || chat.chat_id}))}
+        chats={recent.slice(0, 12).map(chat => ({id: chat.chat_id, title: chat.title || tr("New chat")}))}
         onChat={openChat} onNewChat={() => openChat(null)} />
     </Frame>
   );

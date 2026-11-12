@@ -31,9 +31,9 @@ export default function Header({title, lead, onLead, onLink, dot, big}: Props) {
 }
 
 const styles = StyleSheet.create({
-  bar: {flexDirection: "row", alignItems: "center", paddingHorizontal: 10, height: 56, gap: 6},
-  lead: {width: 40, height: 40, alignItems: "center", justifyContent: "center"},
-  dot: {position: "absolute", right: 5, top: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: C.bad, borderWidth: 1.5, borderColor: C.bg},
+  bar: {flexDirection: "row", alignItems: "center", paddingHorizontal: 6, height: 60, gap: 4},
+  lead: {width: 48, height: 48, alignItems: "center", justifyContent: "center"},
+  dot: {position: "absolute", right: 9, top: 11, width: 9, height: 9, borderRadius: 5, backgroundColor: C.bad, borderWidth: 1.5, borderColor: C.bg},
   title: {flex: 1, color: C.ink, fontSize: 18, fontWeight: "600"},
   big: {fontSize: 24, fontWeight: "700", letterSpacing: 1},
 });
