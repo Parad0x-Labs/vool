@@ -29,7 +29,9 @@ NOT_OURS = ('email the invoice in my downloads to my accountant', 'send the invo
             'my other computer is a mac, which charger fits it', 'is my laptop fast enough for this model',
             'put this on my calendar', 'send a text message to my phone saying hi',
             "don't send it to my laptop yet", 'send my regards to the team', 'write a note saying buy oat milk',
-            'move the meeting to friday', 'the macbook, yes')
+            'move the meeting to friday', 'the macbook, yes',
+            # The Desktop folder on this computer is the file lane's, not another computer.
+            'move the cat photo from Pictures to my Desktop?', 'put the report on the desktop')
 ENGINEERING = ('relay', 'session', 'token', 'sha-256', 'digest', 'api', 'vool_drop', 'drop_disabled',
                'lend_disabled', 'posix', 'capability', 'nothing is running', "i'll pass", 'i will pass')
 CATALOGS = Path(__file__).resolve().parents[2] / 'core' / 'i18n' / 'catalogs'
@@ -144,6 +146,8 @@ def test_the_door_does_not_take_other_asks():
     assert [kind_of_ask(ask) for ask in LEND_ASKS] == ['lend'] * 3
     for ask in NOT_OURS:
         assert kind_of_ask(ask) == '', ask
+    # A desktop computer is still a computer.
+    assert kind_of_ask('send the bank csv to my desktop computer') == 'drop'
 
 
 def test_an_email_ask_is_not_answered_by_the_door(drop_off):

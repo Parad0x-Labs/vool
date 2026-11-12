@@ -93,8 +93,10 @@ _WARNINGS = {"drop": ("drop.warning", "Not reviewed. Do not use for real message
              "lend": ("lend.warning", "Not reviewed yet. Use test files only.")}
 
 #: One of the owner's own computers or phones ("my laptop", "the big machine downstairs", "my other computer").
+#: A bare "desktop" is the Desktop folder ("move the cat photo from Pictures to my Desktop" is a move on this
+#: computer, which the file lane does); "my desktop computer" or "my desktop pc" still names a computer.
 _DEVICE = (
-    r"(?:laptop|computer|pc|mini\s*pc|mac(?:book)?(?:\s+(?:pro|air|mini))?|imac|desktop|phone|iphone|"
+    r"(?:laptop|computer|pc|mini\s*pc|mac(?:book)?(?:\s+(?:pro|air|mini))?|imac|phone|iphone|"
     r"android|tablet|ipad|machine|device|workstation|rig)"
 )
 _MINE = r"(?:my|the|our)\s+(?:[\w'-]+\s+){0,3}?" + _DEVICE + r"\b"
