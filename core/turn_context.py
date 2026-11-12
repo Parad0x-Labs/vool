@@ -637,6 +637,32 @@ RELEVANCE_THRESHOLD = 0.1
 # ── A8 availability gates ────────────────────────────────────────────────────
 
 
+_EXCHANGE_REPLY_OPEN = "\n[/user]\n[assistant]\n"
+_EXCHANGE_REPLY_CLOSE = "\n[/assistant]"
+
+
+def _exchange_without_no_answer(content: str) -> str:
+    """A chat-exchange page whose reply is the runtime's no-answer notice, served with the person's words only.
+
+    The page keeps its bytes (erase and forget still find them); only the served text changes. A page an
+    older build admitted carries the notice ("I can't publish this answer: ...") as the reply, and it was
+    served as "assistant said" beside a later question (Database run 14a, 2026-11-12). Fail-open: a reply
+    the runtime's own recognizer does not know is an answer and is served whole.
+    """
+    head, opened, tail = content.partition(_EXCHANGE_REPLY_OPEN)
+    if not opened:
+        return content
+    reply = tail.split(_EXCHANGE_REPLY_CLOSE, 1)[0]
+    try:
+        from core.context_history_authority import assistant_text_is_no_answer
+
+        if assistant_text_is_no_answer(reply.strip()):
+            return head + opened.rstrip("\n") + _EXCHANGE_REPLY_CLOSE
+    except Exception:
+        _log.debug("no-answer check skipped for an exchange page", exc_info=True)
+    return content
+
+
 def _a8_exclusion(record: dict[str, Any], content: str | None) -> str | None:
     """The A8 availability verdict for one admission, or None when servable.
 
@@ -777,6 +803,8 @@ def compile_turn_context(
             continue
         # A page admitted before secrets were masked at write keeps its bytes; it is served masked.
         content = _secrets_withheld(content)
+        if str(record["source_kind"] or "") == "chat_exchange":
+            content = _exchange_without_no_answer(content)
         title = _secrets_withheld(str(record["title"] or ""))
         pinned = (
             _active_pin_count(str(record["page_hash"])) > 0

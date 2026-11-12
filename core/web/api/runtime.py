@@ -2463,6 +2463,13 @@ def _admit_turn_context_page(
 
         user_part = str(user_text or "").strip()
         assistant_part = str(assistant_output or "").strip()
+        from core.context_history_authority import assistant_text_is_no_answer
+
+        if assistant_text_is_no_answer(assistant_part):
+            # The runtime's word that no answer existed is not the exchange. Served from this page as
+            # "assistant said", it stood beside a later question and the model answered that it had no
+            # context (Database run 14a, 2026-11-12). The person's words are kept.
+            assistant_part = ""
         if not user_part and not assistant_part:
             return
         content = f"[user]\n{user_part}\n[/user]\n[assistant]\n{assistant_part}\n[/assistant]"
@@ -2962,6 +2969,8 @@ def _messages_for_memory_extraction(
     assistant_output: str,
     source_context: dict[str, Any] | None,
 ) -> list[dict[str, str]]:
+    from core.context_history_authority import assistant_text_is_no_answer
+
     context = dict(source_context or {})
     history = list(context.get("conversation_history") or context.get("client_conversation_history") or [])
     messages: list[dict[str, str]] = []
@@ -2972,13 +2981,14 @@ def _messages_for_memory_extraction(
         if role not in {"user", "assistant"}:
             continue
         content = message_text(item.get("content") or "")
-        if content:
+        # A refusal or no-answer notice is the runtime's own word, not a fact to learn from.
+        if content and not (role == "assistant" and assistant_text_is_no_answer(content)):
             messages.append({"role": role, "content": content})
     clean_user = str(user_text or "").strip()
     if clean_user and (not messages or messages[-1] != {"role": "user", "content": clean_user}):
         messages.append({"role": "user", "content": clean_user})
     clean_assistant = str(assistant_output or "").strip()
-    if clean_assistant:
+    if clean_assistant and not assistant_text_is_no_answer(clean_assistant):
         messages.append({"role": "assistant", "content": clean_assistant})
     return messages[-20:]
 

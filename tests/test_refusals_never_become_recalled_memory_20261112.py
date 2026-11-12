@@ -249,3 +249,68 @@ def test_a_summary_written_before_this_is_served_without_the_refusal(home):
     assert served(CHAT) == ["Recent asks: which loans are overdue in the library database."], served(CHAT)
     # The control: a real last outcome is still served.
     assert served("chat-earlier-answer") == [answered], served("chat-earlier-answer")
+
+
+# The door the served reproduction reached (Relevant Context): each turn's exchange page (C09), and the
+# memory extractor that reads the same exchange.
+ANSWERED = ("has Tomas given everything back", "I couldn't find Tomas in the loans table, so nothing he borrowed is still out.")
+
+
+def _owner_turn(turn_id: str) -> dict:
+    return {"_owner_local": True, "surface": "openclaw", "platform": "openclaw", "chat_id": CHAT,
+            "_canonical_user_turn_id": turn_id, "request_id": f"req-{turn_id}"}
+
+
+def _served_pages(question: str) -> str:
+    from core.turn_context import compile_turn_context
+
+    compiled = compile_turn_context("owner_local", CHAT, query_text=question)
+    return "\n".join(item.content for item in compiled.items)
+
+
+@pytest.mark.parametrize("family", ["authorship refusal", "no model set up", "grounding refusal", "no model response"])
+def test_a_turn_page_keeps_the_persons_words_and_never_the_notice(home, family):
+    from core.web.api.runtime import _admit_turn_context_page
+
+    notice = _no_answer_texts()[family]
+    _admit_turn_context_page(user_text="can you add a notes column to the books table", assistant_output=notice,
+                             session_id=CHAT, source_context=_owner_turn("turn-refused"))
+    _admit_turn_context_page(user_text=ANSWERED[0], assistant_output=ANSWERED[1], session_id=CHAT,
+                             source_context=_owner_turn("turn-answered"))
+    served = _served_pages("notes column books table, Tomas everything back")
+    assert "can you add a notes column to the books table" in served, served
+    assert ANSWERED[1] in served, served  # the control: an answer stays on its page
+    assert notice.strip().splitlines()[0][:60] not in served, f"the {family} was served from a turn page: {served}"
+
+
+def test_a_turn_page_an_older_build_wrote_serves_the_persons_words_only(home):
+    from core.turn_context import TurnScope, admit_turn_context
+
+    admit_turn_context(f"[user]\n{ANSWERED[0]}\n[/user]\n[assistant]\n{_authorship_refusal()}\n[/assistant]",
+                       scope=TurnScope(principal="owner_local", session_id=CHAT, turn_id="turn-old"),
+                       source_kind="chat_exchange", title=ANSWERED[0], origin="inferred",
+                       retention_class="PERSISTENT", trust_class="TRUSTED")
+    admit_turn_context(f"[user]\n{LOAN}\n[/user]\n[assistant]\nNoted.\n[/assistant]",
+                       scope=TurnScope(principal="owner_local", session_id=CHAT, turn_id="turn-loan"),
+                       source_kind="chat_exchange", title=LOAN, origin="inferred",
+                       retention_class="PERSISTENT", trust_class="TRUSTED")
+    served = _served_pages(QUESTION + " Tomas everything back")
+    assert ANSWERED[0] in served and "Dune" in served, served
+    assert not [mark for mark in REFUSAL_MARKS if mark in served], served
+
+
+def test_the_memory_extractor_never_reads_a_no_answer_notice():
+    from core.web.api.runtime import _messages_for_memory_extraction
+
+    history = [{"role": "user", "content": LOAN}, {"role": "assistant", "content": "Noted."},
+               {"role": "user", "content": "can you add a notes column to the books table"},
+               {"role": "assistant", "content": _authorship_refusal()}]
+    for notice in _no_answer_texts().values():
+        messages = _messages_for_memory_extraction(user_text=ANSWERED[0], assistant_output=notice,
+                                                   source_context={"conversation_history": history})
+        assert [m["content"] for m in messages if m["role"] == "user"] == [
+            LOAN, "can you add a notes column to the books table", ANSWERED[0]], messages
+        assert [m["content"] for m in messages if m["role"] == "assistant"] == ["Noted."], messages
+    answered = _messages_for_memory_extraction(user_text=ANSWERED[0], assistant_output=ANSWERED[1],
+                                               source_context={"conversation_history": history})
+    assert answered[-1] == {"role": "assistant", "content": ANSWERED[1]}, answered
