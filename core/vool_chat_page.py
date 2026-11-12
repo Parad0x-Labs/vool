@@ -5370,7 +5370,11 @@ async function mountProofChip(host, chatId, requestId, presentationSelection) {
   head.appendChild(seg('pc-cost', costText));
   head.appendChild(seg('pc-sep', '·'));
   const stateKey = /^proof\.state\.[a-z]+$/.test(String(compact.state_key || '')) ? String(compact.state_key) : ('proof.state.' + state.toLowerCase());
-  head.appendChild(seg('pc-state pc-state-' + String(state).toLowerCase(), pageT(stateKey, String(compact.state_label || ('Record ' + state.toLowerCase())))));
+  // The server's stock label for its state ("Record verified") is said in the app language; any
+  // other label the server sends is its own words and is shown exactly as sent, as text.
+  const stockStateLabel = 'Record ' + state.toLowerCase();
+  const serverStateLabel = String(compact.state_label || stockStateLabel);
+  head.appendChild(seg('pc-state pc-state-' + String(state).toLowerCase(), serverStateLabel === stockStateLabel ? pageT(stateKey, serverStateLabel) : serverStateLabel));
   // Coverage, verbatim from the server: what this turn looked up and whether every derived step
   // was fed by those lookups. The state word above certifies the bytes; this names their scope.
   // A projection without the field renders no segment -- the page never invents coverage.
@@ -5981,7 +5985,7 @@ function buildCard(run, host) {
     + TC_MARK_SVG
     + '<div class="tc-headtext"><div class="tc-title"><span class="tc-dot"></span> <span class="tc-titletext">VOOL is working</span></div><div class="tc-stage"></div></div>'
     + '<span class="tc-badges"><span class="tc-mode"></span><span class="tc-model"></span></span>'
-    + '<button type="button" class="tc-stop" title="' + esc(pageT('run.stop_title', 'Stop this turn — cancels the running task on your machine and stops the answer.')) + '">' + esc(pageT('run.stop', 'Stop')) + '</button>'
+    + '<button type="button" class="tc-stop" title="Stop this turn — cancels the running task on your machine and stops the answer.">Stop</button>'
     + '</div>'
     + '<div class="tc-meta"><span class="tc-elapsed"></span><span class="tc-tokens"></span><span class="tc-steps"></span><span class="tc-cost"></span></div>'
     + '<div class="tc-recent"></div><div class="tc-last"></div><div class="tc-summary"></div>'
@@ -5994,6 +5998,9 @@ function buildCard(run, host) {
   const refs = { card, mark: q('.tc-mark'), title: q('.tc-titletext'), stage: q('.tc-stage'), mode: q('.tc-mode'), model: q('.tc-model'), recent: q('.tc-recent'),
     stop: q('.tc-stop'), elapsed: q('.tc-elapsed'), tokens: q('.tc-tokens'), steps: q('.tc-steps'), cost: q('.tc-cost'), last: q('.tc-last'),
     summary: q('.tc-summary'), view: q('.tc-view'), sr: q('.sr-only') };
+  // The Stop button's English is in the markup above; it is said in the app language here.
+  refs.stop.textContent = pageT('run.stop', 'Stop');
+  refs.stop.title = pageT('run.stop_title', 'Stop this turn — cancels the running task on your machine and stops the answer.');
   // The stopping look: the button says so and cannot be pressed again, and the mark holds. Kept
   // on the run, so a card re-built while the stop is being decided shows it too.
   const showStopping = () => {

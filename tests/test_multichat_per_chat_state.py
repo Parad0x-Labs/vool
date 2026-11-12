@@ -138,6 +138,7 @@ globalThis.VoolCore = class {
 };
 globalThis.esc = (t) => String(t == null ? '' : t);
 globalThis.pageT = (_key, fallback) => fallback;
+globalThis.pageTF = (_key, fallback, params) => String(fallback).replace(/\\{(\\w+)\\}/g, (_, k) => ((params && params[k] != null) ? params[k] : ''));
 globalThis.fmtElapsed = () => '0s';
 globalThis.fmtUsd = () => '';
 globalThis.stepsRollupText = (steps) => String(steps.length);
