@@ -8212,7 +8212,8 @@ def _pdf_result(intent: str, result: dict[str, Any], *, verb: str) -> RuntimeExe
             f"\n\n{text}"
         )
     else:
-        response = f"Could not read `{result.get('path')}`: {result.get('reason') or status}."
+        reason = str(result.get("reason") or "").strip().rstrip(".").rstrip()
+        response = f"Could not read `{result.get('path')}`: {reason or status}."
     return RuntimeExecutionResult(
         handled=True,
         ok=ok,

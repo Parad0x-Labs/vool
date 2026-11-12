@@ -193,9 +193,11 @@ def _uses_pdfkit() -> bool:
 
 
 def _too_large(size: int, limit: int) -> dict[str, Any]:
+    # Its own status, not "unreadable": that one means "not PDF data", and a chat reply built on it
+    # told the owner a 300 MB PDF was a renamed text file (real chat on Linux, 2026-11-12).
     megabytes = max(1, -(-int(size) // (1024 * 1024)))
     return {
-        "status": "unreadable",
+        "status": "too_large",
         "reason": (
             f"the PDF is {megabytes} MB, over the {limit // (1024 * 1024)} MB this computer's PDF reader "
             "takes; split it into smaller files or paste the part you need"
@@ -217,6 +219,44 @@ def _copy_bounded(source: Path, target: Path, limit: int) -> int | None:
                 return None
             writer.write(chunk)
     return copied
+
+
+def _no_sandbox() -> dict[str, Any]:
+    """Why no PDF opens on this computer, in words the owner can act on.
+
+    The reader's own sentence ("needs an external decoder ... untrusted document parsers
+    unconfined") is written for logs; this one is what a chat reply shows. ``cause`` tells the
+    two Linux cases apart: installing bubblewrap fixes the first, and changes nothing for the second.
+    """
+    from core.artifact_readers import _sandbox
+
+    if platform.system() == "Linux" and not _sandbox._bwrap():
+        return {
+            "status": "missing_dependency",
+            "cause": "sandbox_not_installed",
+            "reason": (
+                "VOOL opens PDFs only inside a protective sandbox (bubblewrap), which is not installed "
+                "here. Install it (for example: sudo apt install bubblewrap) and try again, or paste "
+                "the text instead"
+            ),
+        }
+    if platform.system() == "Linux":
+        return {
+            "status": "missing_dependency",
+            "cause": "sandbox_blocked",
+            "reason": (
+                "VOOL opens PDFs only inside a protective sandbox (bubblewrap), and this system does "
+                "not let it start. Paste the text instead"
+            ),
+        }
+    return {
+        "status": "missing_dependency",
+        "cause": "sandbox_unavailable",
+        "reason": (
+            "VOOL opens PDFs only inside a protective sandbox, and this computer has none it can "
+            "use. Paste the text instead"
+        ),
+    }
 
 
 def _extract_portable(
@@ -248,10 +288,15 @@ def _extract_portable(
             )
     except ReaderError as exc:
         code = str(getattr(exc, "code", "") or "")
-        if code in {"confinement_unavailable", "pdf_decoder_unavailable"}:
+        if code == "confinement_unavailable":
+            return _no_sandbox()
+        if code == "pdf_decoder_unavailable":
             status = "missing_dependency"
+        elif code in {"pdf_unreadable", "not_a_pdf"}:
+            status = "unreadable"  # what the PDFKit route says about a file it cannot open as a PDF
         elif code in {"decoder_timeout", "extraction_timeout"}:
-            status = "timeout"  # the same word the PDFKit route uses when its helper runs out of time
+            # The same status and words the PDFKit route uses when its helper runs out of time.
+            return {"status": "timeout", "reason": f"PDF read exceeded {seconds}s"}
         else:
             status = "error"
         reason = " ".join(part for part in (str(exc), str(getattr(exc, "remediation", "") or "")) if part)
@@ -306,6 +351,19 @@ def ocr(path: str, *, max_pages: int = 0, scale: float = 2.0, timeout: float = 1
     resolved, problem = _resolve(path)
     if problem is not None:
         return {**problem, "path": str(path), "source": "vision", "text": "", "characters": 0}
+    if not _uses_pdfkit():
+        # Recognition runs on Apple's Vision. Off macOS there is no on-device recogniser yet, and
+        # the macOS helper started here only reports a missing Python module (real chat on Linux,
+        # 2026-11-12: "ModuleNotFoundError: No module named 'objc'").
+        return {
+            "status": "missing_dependency",
+            "cause": "ocr_not_available",
+            "reason": "reading text from scanned pages is not available on this computer yet",
+            "path": str(resolved),
+            "source": "none",
+            "text": "",
+            "characters": 0,
+        }
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
     clamped_scale = max(1.0, min(float(scale or 2.0), 4.0))
     result = _run_helper(

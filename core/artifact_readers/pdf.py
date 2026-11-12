@@ -212,6 +212,15 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path, start_page: 
     except (ValueError, IndexError) as exc:
         raise ReaderRefused("The PDF could not be read by the fallback decoder.", code="pdf_unreadable", fmt="pdf") from exc
     error = str(payload.get("error") or "")
+    if error == "pypdf_unavailable":
+        # The confined interpreter could not import the decoder: a gap in this install, not a
+        # damaged file, so it must not be reported as one.
+        raise ReaderUnavailable(
+            "No PDF decoder is available on this machine, so the PDF was not read.",
+            code="pdf_decoder_unavailable",
+            remediation="Paste the text from the PDF into your message instead.",
+            fmt="pdf",
+        )
     if error == "password_protected":
         raise ReaderRefused(
             "The PDF is password-protected; its contents were not read.",

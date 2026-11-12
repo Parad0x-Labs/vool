@@ -2273,7 +2273,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             unsupported_reason="Local file reading is disabled on this runtime.",
             input_schema={"path": "string", "start_page": "integer optional", "max_pages": "integer optional"},
             output_schema={
-                "status": "ok|no_text_layer|not_found|unreadable|missing_dependency|timeout|error",
+                "status": "ok|no_text_layer|not_found|unreadable|too_large|missing_dependency|timeout|error",
                 "text": "string",
                 "pages_total": "integer",
                 "pages_read": "integer",
