@@ -295,6 +295,11 @@ def test_served_daemon_base_sepolia_x402_v2_chat_and_browser_journey(daemon, bro
     networks = {c["network"] for c in discovered["capabilities"] if c["verified"]}
     assert {"eip155:84532", "eip155:11155111"} <= networks
 
+    # Web lookups are off on a fresh install, and a paid fetch is a web fetch: the owner turns them on first,
+    # through the door the Privacy & Permissions switch posts to.
+    code, switched = _http_json(base, "/api/onboarding/pact/boundary", {"key": "web_lookups", "value": True})
+    assert code == 200 and switched["live"]["allow_web_fallback"] is True, switched
+
     with EvmExtensionSigner() as signer, X402V2Resource(facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, rpc=base_rpc) as resource:
 
         _manager, chromium = browser
