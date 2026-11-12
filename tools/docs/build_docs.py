@@ -82,6 +82,16 @@ def slugify(text):
     return s or "section"
 
 
+def heading_label(title):
+    """A heading as plain words for the page outline and the search index: markup,
+    emphasis and code markers removed, but an underscore INSIDE a word kept, so an
+    error code heading (wallet_pin_invalid) reads and searches as written."""
+    s = re.sub(r"<[^>]+>", "", title)
+    s = re.sub(r"[*`]", "", s)
+    s = re.sub(r"(?<!\w)_+|_+(?!\w)", "", s)
+    return s.strip()
+
+
 class Inline:
     """Inline-level markdown. Code spans are pulled out first so their
     contents are never touched by emphasis or link rules."""
@@ -483,7 +493,7 @@ class Markdown:
                 title = m.group(2)
                 slug = self._slug(title)
                 if lvl in (2, 3):
-                    self.toc.append((lvl, slug, re.sub(r"[*`_]", "", title)))
+                    self.toc.append((lvl, slug, heading_label(title)))
                 out.append('<h%d id="%s">%s<a class="anchor" href="#%s" '
                            'aria-label="%s">#</a></h%d>'
                            % (lvl, slug, self.inline(title), slug,
@@ -739,6 +749,8 @@ def split_front_matter(text):
 
 def plain_text(html_str, limit=None):
     t = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html_str, flags=re.S | re.I)
+    # the "#" link every heading carries is chrome, not text (it leaked into snippets)
+    t = re.sub(r'<a class="anchor"[^>]*>.*?</a>', " ", t, flags=re.S)
     t = re.sub(r"<[^>]+>", " ", t)
     t = html.unescape(t)
     t = re.sub(r"\s+", " ", t).strip()
@@ -1196,7 +1208,7 @@ tbody tr:last-child td{border-bottom:0}
 .toc-head{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--mut);margin-bottom:9px}
 .toc a{display:block;padding:4px 0 4px 11px;font-size:13px;color:var(--mut);
-  text-decoration:none;border-left:1.5px solid var(--line)}
+  text-decoration:none;border-left:1.5px solid var(--line);overflow-wrap:anywhere}
 .toc a:hover{color:var(--ink)}
 .toc a.active{color:var(--ink);border-left-color:var(--red)}
 .toc .toc-l3{padding-left:24px;font-size:12.5px}
@@ -1386,6 +1398,27 @@ DOCS_JS = r"""(function(){
     });
   }
 
+  /* ---- arriving at a section link (#anchor) ----
+     The browser scrolls to the anchor while the page is still settling (fonts, tables),
+     and a smooth scroll keeps its first target, so on a long page such as the Error Book
+     it stopped hundreds of pixels short of the section. Jump again, instantly, once the
+     fonts are in and the layout is final. */
+  function toHash(){
+    var id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+    var el = id && document.getElementById(id);
+    if (!el) return;
+    var prev = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    el.scrollIntoView({ block: "start" });
+    root.style.scrollBehavior = prev;
+  }
+  if (location.hash) {
+    var settled = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    window.addEventListener("load", function(){
+      settled.then(function(){ requestAnimationFrame(toHash); });
+    });
+  }
+
   /* ---- on-page TOC highlighting ---- */
   var links = [].slice.call(document.querySelectorAll(".toc a"));
   if (links.length && "IntersectionObserver" in window) {
@@ -1427,14 +1460,24 @@ DOCS_JS = r"""(function(){
     var words = term.split(/\s+/).filter(Boolean);
     var hits = [];
     index.forEach(function(p){
-      var hay = (p.t + " " + p.s + " " + p.b).toLowerCase(), score = 0, ok = true;
+      var anchors = p.a || [];
+      var heads = anchors.map(function(x){ return x[1] + " " + x[0]; }).join(" ");
+      var hay = (p.t + " " + p.s + " " + p.b + " " + heads).toLowerCase(), score = 0, ok = true;
       words.forEach(function(w){
         if (hay.indexOf(w) === -1) { ok = false; return; }
         if (p.t.toLowerCase().indexOf(w) !== -1) score += 12;
         if (p.s.toLowerCase().indexOf(w) !== -1) score += 4;
         score += 1;
       });
-      if (ok) hits.push({ p: p, score: score });
+      if (!ok) return;
+      /* the first section whose heading holds every word: the result opens there */
+      var at = null;
+      for (var i = 0; i < anchors.length && !at; i++) {
+        var head = (anchors[i][1] + " " + anchors[i][0]).toLowerCase();
+        if (words.every(function(w){ return head.indexOf(w) !== -1; })) at = anchors[i];
+      }
+      if (at) score += 8;
+      hits.push({ p: p, score: score, at: at });
     });
     hits.sort(function(a, b){ return b.score - a.score; });
     hits = hits.slice(0, 8);
@@ -1447,7 +1490,9 @@ DOCS_JS = r"""(function(){
     panel.innerHTML = hits.map(function(h){
       var i = h.p.b.toLowerCase().indexOf(words[0]);
       var snip = i > -1 ? h.p.b.slice(Math.max(0, i - 34), i + 96) : h.p.b.slice(0, 120);
-      return '<a href="' + esc(h.p.u) + '" role="option"><b>' + esc(h.p.t) +
+      var href = h.at ? h.p.u + "#" + h.at[0] : h.p.u;
+      var head = h.at ? h.p.t + " \u203a " + h.at[1] : h.p.t;
+      return '<a href="' + esc(href) + '" role="option"><b>' + esc(head) +
              "</b><span>" + esc(snip) + "</span></a>";
     }).join("");
     panel.hidden = false;
@@ -1585,8 +1630,14 @@ def build(src, out, base, site_url, edit_base):
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             with open(dest, "w", encoding="utf-8") as fh:
                 fh.write(page)
+            # "a": the page's section anchors as [id, heading]. The body text is capped
+            # at 1400 characters, so a long page (the Error Book's per-code sections)
+            # would otherwise be unsearchable past its first screen; a heading is exactly
+            # what a reader types (an error code IS its section heading), and the anchor
+            # lets a result open that section instead of the top of the page.
             search.append({"t": e.title, "s": e.section, "u": e.url,
-                           "b": plain_text(e.body, 1400)})
+                           "b": plain_text(e.body, 1400),
+                           "a": [[slug, label] for _lvl, slug, label in e.toc]})
 
         os.makedirs(outdir, exist_ok=True)
         with open(os.path.join(outdir, "search.json"), "w", encoding="utf-8") as fh:

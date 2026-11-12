@@ -428,7 +428,7 @@ function exportControls(st){
     btn.disabled = true; setMsg('Confirm with Touch ID or your Mac password…');
     postJson('/api/wallet/export', { wallet_id: st.wallet_id, target: target.value }).then(function(res){
       btn.disabled = false;
-      if (!res.ok) { setMsg((res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.remediation) || res.data.error)) || 'Not exported.', true); return; }
+      if (!res.ok) { setMsg(failText(res, 'Not exported.'), true); return; }
       setMsg(''); showExport(res.data.export || {});
     }).catch(function(){ btn.disabled = false; setMsg('The export request did not complete.', true); });
   });
@@ -523,7 +523,7 @@ function limitsControls(st){
     postJson('/api/wallet/limits', body).then(function(res){
       save.disabled = false; if (secret) secret.value = '';
       if (!res.ok && res.data && res.data.fault && res.data.fault.context && res.data.fault.context.reason === 'credential_required') { setMsg('Raising a cap needs your wallet ' + secretWord + '. Type it above and save again.', true); return; }
-      if (!res.ok) { setMsg((res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.remediation) || res.data.error)) || 'Caps not saved.', true); return; }
+      if (!res.ok) { setMsg(failText(res, 'Caps not saved.'), true); return; }
       setMsg('Spending caps saved.');
       renderStatus();
     }).catch(function(){ save.disabled = false; if (secret) secret.value = ''; setMsg('The caps request did not complete.', true); });
@@ -566,7 +566,7 @@ function approvalControls(st){
     save.disabled = true;
     postJson('/api/wallet/approval-method', body).then(function(res){
       save.disabled = false; nw.value = ''; cur.value = '';
-      if (!res.ok) { setMsg((res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.remediation) || res.data.error)) || 'Approval method not changed.', true); return; }
+      if (!res.ok) { setMsg(failText(res, 'Approval method not changed.'), true); return; }
       setMsg('Payment approval now uses ' + (METHOD_LABELS[m] || m) + '.');
       renderStatus();
     }).catch(function(){ save.disabled = false; nw.value = ''; cur.value = ''; setMsg('The approval-method request did not complete.', true); });
@@ -755,6 +755,13 @@ var SETUP_TEXT = {
   generating: 'setup in progress'
 };
 function cxMsg(node, text, isErr){ node.textContent = text || ''; node.className = 'vw-msg' + (isErr ? ' err' : ''); }
+// A refusal's catalog sentence, then the producer's specific next step when it names one (the same
+// code is refused from several flows, so the sentence stays true for all of them and the step adds the detail).
+function failText(res, fallback){
+  var d = res && res.data, msg = (d && d.message) || '', ctx = d && d.fault && d.fault.context, rem = (ctx && ctx.remediation) || '';
+  if (rem && msg.indexOf(rem) === -1) msg = msg ? msg + ' ' + rem : rem;
+  return msg || (d && d.error) || fallback;
+}
 function faultMessage(res, fallback){ return (res && res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.reason) || res.data.error)) || fallback; }
 function mountCrypto(host){
   // The Settings page repaints its pane whenever another widget's source arrives; the live surface (an open create
