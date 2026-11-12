@@ -216,7 +216,7 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path, start_page: 
         # The confined interpreter could not import the decoder: a gap in this install, not a
         # damaged file, so it must not be reported as one.
         raise ReaderUnavailable(
-            "No PDF decoder is available on this machine, so the PDF was not read.",
+            "This computer is missing what VOOL needs to read PDFs, so the PDF was not read.",
             code="pdf_decoder_unavailable",
             remediation="Paste the text from the PDF into your message instead.",
             fmt="pdf",
