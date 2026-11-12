@@ -1,5 +1,5 @@
 {
-  "intent_count": 154,
+  "intent_count": 157,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -117,6 +117,9 @@
     "skill.remove",
     "skill.rollback",
     "skill.validate",
+    "things.match",
+    "things.prepare",
+    "things.search",
     "token.flow",
     "token.launches",
     "token.performance",
@@ -156,7 +159,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 154,
+  "native_definition_count": 157,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -11307,6 +11310,279 @@
         },
         "required": [
           "path"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "things.match": {
+      "arguments": [
+        "text"
+      ],
+      "description": "Match label text the owner supplied against saved model and serial identifiers, showing exact evidence. Ambiguous results require a choice.",
+      "native_name": "things__match",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "string (label text from the owner's message)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "things.prepare": {
+      "arguments": [
+        "id",
+        "issue",
+        "kind",
+        "observed"
+      ],
+      "description": "Prepare a draft return or repair request, warranty check or specification comparison for one saved thing named by the owner. Never sends anything.",
+      "native_name": "things__prepare",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "string (matched thing id)",
+            "type": "string"
+          },
+          "issue": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "string (return|repair|warranty|fits|delivery)",
+            "type": "string"
+          },
+          "observed": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "issue",
+          "observed"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "things.search": {
+      "arguments": [
+        "query"
+      ],
+      "description": "Find only saved household things matching words the owner used in this turn. Never lists all private records.",
+      "native_name": "things__search",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "description": "string (at least four characters, from the owner's message)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
         ],
         "type": "object"
       },

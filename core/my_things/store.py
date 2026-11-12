@@ -1,0 +1,356 @@
+"""Encrypted household records. No memory, model admission, network or retained plaintext.
+
+SQLite contains only random record ids and authenticated ciphertext references. Each record's
+metadata and attached bytes are sealed together through the existing encrypted blob API. Updates
+commit a new reference before collecting old ciphertext; interrupted writes are collected on the
+next mutation. Downloads are returned in memory; the runtime keeps no export or packet cache.
+"""
+from __future__ import annotations
+
+import base64
+import io
+import json
+import os
+import re
+import shutil
+import sqlite3
+import unicodedata
+import uuid
+import zipfile
+from contextlib import contextmanager
+from datetime import date
+from pathlib import Path
+
+from core.runtime_paths import active_data_dir, active_vool_home
+from storage.blackbox.cas import EncryptedBlobStore
+
+FIELDS = ("name", "maker", "model", "serial", "bought_on", "bought_from", "price", "warranty_end", "notes", "specs", "order_items")
+MAX_FILE_BYTES = 8 * 1024 * 1024
+MAX_RECORD_BYTES = 24 * 1024 * 1024
+MAX_FILES = 12
+
+
+class ThingsError(ValueError):
+    def __init__(self, code: str, message: str, status: int = 400):
+        super().__init__(message)
+        self.code, self.message, self.status = code, message, status
+
+
+def _private(path: Path, mode: int) -> None:
+    if path.is_symlink():
+        raise ThingsError("unsafe_storage", "Your things could not be opened safely.", 503)
+    os.chmod(path, mode)
+
+
+def _sync_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _id(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
+        raise ThingsError("bad_id", "Choose a saved thing.")
+    return value
+
+
+def clean_fields(fields: dict) -> dict:
+    if not isinstance(fields, dict) or set(fields) - set(FIELDS):
+        raise ThingsError("bad_fields", "Check the details and try again.")
+    clean = {}
+    for field in FIELDS:
+        value = fields.get(field, "")
+        if not isinstance(value, str) or len(value) > (6000 if field in {"notes", "specs", "order_items"} else 250):
+            raise ThingsError("bad_fields", "One of the details is too long or could not be read.")
+        clean[field] = value.strip()
+    if not clean["name"]:
+        raise ThingsError("name_required", "Give this thing a name.")
+    for field in ("bought_on", "warranty_end"):
+        if clean[field]:
+            try:
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", clean[field]):
+                    raise ValueError("use a full date")
+                clean[field] = date.fromisoformat(clean[field]).isoformat()
+            except ValueError:
+                raise ThingsError("bad_date", "Use a full date, or leave it empty if you do not know it.") from None
+    return clean
+
+
+def file_payload(name: str, data: bytes, kind: str, *, strip_metadata: bool = True) -> dict:
+    if not isinstance(kind, str) or kind not in {"receipt", "manual", "photo", "note"}:
+        raise ThingsError("bad_kind", "Choose a receipt, manual, photo or note.")
+    if not isinstance(name, str) or not name.strip() or len(name) > 180 or any(ord(c) < 32 or ord(c) == 127 or c in "/\\" for c in name):
+        raise ThingsError("bad_filename", "Choose a file with a simple name.")
+    if not data or len(data) > MAX_FILE_BYTES:
+        raise ThingsError("file_size", "Choose a file smaller than 8 MB that is not empty.")
+    if strip_metadata:
+        from core.chat_attachments import strip_image_metadata
+
+        media_type = "image/png" if data.startswith(b"\x89PNG\r\n") else "image/jpeg" if data.startswith(b"\xff\xd8\xff") else "image/webp" if data.startswith(b"RIFF") and data[8:12] == b"WEBP" else ""
+        if media_type:
+            try:
+                data = strip_image_metadata(data, media_type)
+            except ValueError:
+                raise ThingsError("bad_image", "This photo could not be saved safely. Try a different copy.") from None
+    payload = {"id": uuid.uuid4().hex, "name": name, "kind": kind, "data": base64.b64encode(data).decode("ascii"), "size": len(data)}
+    if strip_metadata:
+        from core.my_things.reading import read_local
+
+        reading = read_local(data, name)
+        payload["extracted_text"] = reading.get("text", "")
+        payload["text_state"] = reading["state"]
+    return payload
+
+
+class ThingsStore:
+    def __init__(self, *, runtime_home: str | Path | None = None):
+        data = Path(runtime_home).resolve() / "data" if runtime_home is not None else active_data_dir()
+        self.home = Path(runtime_home).resolve() if runtime_home is not None else active_vool_home().resolve()
+        if self.home != active_vool_home().resolve():
+            raise ThingsError("home_changed", "Your active profile changed. Open My things again before continuing.", 409)
+        self.root = data / "my_things"
+
+    @contextmanager
+    def _tx(self):
+        if self.home != active_vool_home().resolve():
+            raise ThingsError("home_changed", "Your active profile changed. Open My things again before continuing.", 409)
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _private(self.root, 0o700)
+        path = self.root / "records.sqlite3"
+        if path.is_symlink():
+            raise ThingsError("unsafe_storage", "Your things could not be opened safely.", 503)
+        conn = sqlite3.connect(path, timeout=10)
+        _private(path, 0o600)
+        try:
+            conn.execute("PRAGMA secure_delete=ON")
+            conn.execute("PRAGMA journal_mode=DELETE")
+            conn.execute("CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, ref TEXT NOT NULL, revision INTEGER NOT NULL)")
+            conn.execute("CREATE TABLE IF NOT EXISTS preferences (id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL)")
+            conn.execute("BEGIN IMMEDIATE")
+            yield conn
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _cas(self, thing_id: str):
+        from core.my_things.keys import resolve
+
+        keys = resolve(self.root)
+        if keys is None:
+            raise ThingsError("locked", "Your private storage is unavailable. Nothing was saved.", 503)
+        objects = self.root / "objects"
+        folder = objects / _id(thing_id)
+        for path in (objects, folder):
+            if path.is_symlink():
+                raise ThingsError("unsafe_storage", "Your things could not be opened safely.", 503)
+            path.mkdir(parents=True, exist_ok=True, mode=0o700)
+            _private(path, 0o700)
+        for path in folder.rglob("*"):
+            if path.is_symlink():
+                raise ThingsError("unsafe_storage", "Your things could not be opened safely.", 503)
+        return EncryptedBlobStore(folder, keys)
+
+    def _enabled(self, conn):
+        row = conn.execute("SELECT enabled FROM preferences WHERE id=1").fetchone()
+        return row is None or bool(row[0])
+
+    def preferences(self) -> dict:
+        if not (self.root / "records.sqlite3").exists():
+            return {"enabled": True}
+        with self._tx() as conn:
+            return {"enabled": self._enabled(conn)}
+
+    def set_enabled(self, enabled: bool) -> dict:
+        if not isinstance(enabled, bool):
+            raise ThingsError("bad_setting", "Choose on or off.")
+        with self._tx() as conn:
+            conn.execute("INSERT OR REPLACE INTO preferences VALUES (1,?)", (int(enabled),))
+        return {"enabled": enabled}
+
+    def _require_enabled(self, conn):
+        if not self._enabled(conn):
+            raise ThingsError("disabled", "My things is turned off. Turn it on in Settings to continue.", 409)
+
+    def _load(self, conn, thing_id: str) -> dict:
+        row = conn.execute("SELECT ref,revision FROM records WHERE id=?", (_id(thing_id),)).fetchone()
+        if row is None:
+            raise ThingsError("missing", "This thing is no longer saved.", 404)
+        record = json.loads(self._cas(thing_id).get(row[0]))
+        return {**record, "id": thing_id, "revision": row[1]}
+
+    def _public(self, record):
+        return {**record, "files": [{k: v for k, v in file.items() if k not in {"data", "extracted_text", "text_state"}} for file in record["files"]]}
+
+    def list(self) -> list[dict]:
+        if not (self.root / "records.sqlite3").exists():
+            return []
+        with self._tx() as conn:
+            self._require_enabled(conn)
+            return [self._public(self._load(conn, row[0])) for row in conn.execute("SELECT id FROM records ORDER BY id").fetchall()]
+
+    def get(self, thing_id: str, *, with_files=False):
+        with self._tx() as conn:
+            self._require_enabled(conn)
+            record = self._load(conn, thing_id)
+            return record if with_files else self._public(record)
+
+    def _write(self, conn, thing_id, record, revision):
+        content = {k: v for k, v in record.items() if k not in {"id", "revision"}}
+        raw = json.dumps(content, ensure_ascii=False).encode()
+        if len(raw) > MAX_RECORD_BYTES:
+            raise ThingsError("record_size", "These files are too large together. Use smaller files.")
+        ref, _ = self._cas(thing_id).put(raw, max_bytes=MAX_RECORD_BYTES)
+        # The CAS creates private files; tighten intermediate directories as well.
+        for path in (self.root / "objects").rglob("*"):
+            _private(path, 0o700 if path.is_dir() else 0o600)
+        _private(self.root / "objects", 0o700)
+        conn.execute("INSERT OR REPLACE INTO records VALUES (?,?,?)", (thing_id, ref, revision))
+
+    def _collect(self):
+        with self._tx() as conn:
+            live = dict(conn.execute("SELECT id,ref FROM records"))
+            objects = self.root / "objects"
+            if not objects.exists():
+                return
+            _private(objects, 0o700)
+            for folder in objects.iterdir():
+                _id(folder.name)
+                _private(folder, 0o700)
+                if folder.name not in live:
+                    shutil.rmtree(folder)
+                    _sync_directory(objects)
+                else:
+                    cas = self._cas(folder.name)
+                    current = cas.path_for_id(live[folder.name])
+                    # Interrupted atomic CAS writes may leave a sealed temporary file.
+                    # It is an obsolete copy too, even though iter_ids excludes it.
+                    changed = set()
+                    for path in folder.rglob("*"):
+                        if path.is_file() and path != current:
+                            path.unlink()
+                            changed.add(path.parent)
+                    for directory in changed:
+                        _sync_directory(directory)
+
+    def save(self, fields: dict, *, thing_id: str = "", revision: int = 0, files: list[dict] | None = None) -> dict:
+        clean = clean_fields(fields)
+        if not isinstance(thing_id, str):
+            raise ThingsError("bad_id", "Choose a saved thing or add a new one.")
+        if type(revision) is not int or revision < 0 or (not thing_id and revision != 0):
+            raise ThingsError("bad_revision", "Open the thing again before saving.")
+        with self._tx() as conn:
+            self._require_enabled(conn)
+            if thing_id:
+                record = self._load(conn, thing_id)
+                if not isinstance(revision, int) or revision != record["revision"]:
+                    raise ThingsError("stale", "This thing changed. Open it again before saving.", 409)
+                if files is not None:
+                    raise ThingsError("bad_files", "Attach files separately when editing.")
+                clean["files"] = record["files"]
+                revision += 1
+            else:
+                thing_id, revision = uuid.uuid4().hex, 1
+                clean["files"] = files or []
+            if len(clean["files"]) > MAX_FILES:
+                raise ThingsError("too_many_files", "Keep at most 12 files with one thing.")
+            self._write(conn, thing_id, clean, revision)
+        self._collect()
+        return self.get(thing_id)
+
+    def attach(self, thing_id, revision, file):
+        if type(revision) is not int or revision < 1:
+            raise ThingsError("bad_revision", "Open the thing again before attaching a file.")
+        with self._tx() as conn:
+            self._require_enabled(conn)
+            record = self._load(conn, thing_id)
+            if record["revision"] != revision:
+                raise ThingsError("stale", "This thing changed. Open it again before attaching a file.", 409)
+            if len(record["files"]) >= MAX_FILES:
+                raise ThingsError("too_many_files", "Keep at most 12 files with one thing.")
+            record["files"].append(file)
+            self._write(conn, thing_id, record, revision + 1)
+        self._collect()
+        return self.get(thing_id)
+
+    def delete(self, thing_id, revision):
+        if type(revision) is not int or revision < 1:
+            raise ThingsError("bad_revision", "Open the thing again before deleting.")
+        with self._tx() as conn:
+            record = self._load(conn, thing_id)
+            if record["revision"] != revision:
+                raise ThingsError("stale", "This thing changed. Open it again before deleting.", 409)
+            conn.execute("DELETE FROM records WHERE id=?", (thing_id,))
+        self._collect()
+        return {"deleted": True}
+
+    def matching(self, token: str) -> list[dict]:
+        """Read saved text without deleting, collecting objects or reading files again."""
+        needle = self._forget_needle(token)
+        if not (self.root / "records.sqlite3").exists():
+            return []
+        with self._tx() as conn:
+            return self._forget_matches(conn, needle)
+
+    @staticmethod
+    def _forget_needle(token):
+        if not isinstance(token, str) or len(token.strip()) < 2:
+            raise ThingsError("bad_target", "Give the exact words to forget.")
+        return unicodedata.normalize("NFKC", token.strip()).casefold()
+
+    def _forget_matches(self, conn, needle):
+        def carries(value):
+            return isinstance(value, str) and needle in unicodedata.normalize("NFKC", value).casefold()
+
+        matches = []
+        for (thing_id,) in conn.execute("SELECT id FROM records ORDER BY id").fetchall():
+            record = self._load(conn, thing_id)
+            matched = any(carries(record.get(key, "")) for key in FIELDS)
+            matched = matched or any(carries(f.get("name", "")) or carries(f.get("extracted_text", "")) for f in record["files"])
+            if matched:
+                matches.append({"id": thing_id, "revision": record["revision"], "name": record["name"]})
+        return matches
+
+    def forget(self, token: str, *, confirm: bool = False, expected: list[dict] | None = None) -> dict:
+        """Preview or confirm deletion of person-made records, using only saved text.
+
+        This is the record owner's explicit action, not chat-memory Forget. The exact
+        revisioned preview must be confirmed; a broad word never deletes by itself.
+        Unreadable files remain attached unless their saved name/details match. They
+        do not turn an unrelated memory erasure into an endless incomplete operation.
+        """
+        needle = self._forget_needle(token)
+        matches = []
+        if (self.root / "records.sqlite3").exists():
+            with self._tx() as conn:
+                matches = self._forget_matches(conn, needle)
+                if matches and confirm is True:
+                    if json.dumps(expected, sort_keys=True) != json.dumps(matches, sort_keys=True):
+                        raise ThingsError("stale", "The matching things changed. Review them again before deleting.", 409)
+                    for item in matches:
+                        conn.execute("DELETE FROM records WHERE id=?", (item["id"],))
+        confirmed = confirm is True
+        if (confirmed or not matches) and (self.root / "records.sqlite3").exists():
+            self._collect()
+        removed = len(matches) if confirmed else 0
+        return {"status": "verified" if confirmed or not matches else "confirmation_required",
+                "removed": removed, "matches": matches, "requires_confirmation": bool(matches and not confirmed),
+                "removed_things": matches if confirmed else [], "scope": "saved_details_names_and_extracted_text",
+                "message": (f"Removed {removed} saved thing{'s' if removed != 1 else ''}: " + ", ".join(m["name"] for m in matches) + ".")
+                if removed else "Review the matching things and their files before deleting." if matches else "No saved things matched these words."}
+
+    def export(self) -> bytes:
+        with self._tx() as conn:
+            self._require_enabled(conn)
+            records = [self._load(conn, row[0]) for row in conn.execute("SELECT id FROM records").fetchall()]
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("things.json", json.dumps([self._public(r) for r in records], ensure_ascii=False, indent=2))
+            for record in records:
+                for file in record["files"]:
+                    archive.writestr(record["id"] + "/" + file["id"] + "-" + file["name"], base64.b64decode(file["data"], validate=True))
+        return out.getvalue()
