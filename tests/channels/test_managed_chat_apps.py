@@ -139,7 +139,7 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
     from playwright.sync_api import sync_playwright
     desktop,hosts=bots;base=desktop[0];token=secrets.token_urlsafe(40)
     with sync_playwright() as playwright:
-        browser=playwright.chromium.launch(executable_path=os.environ['VOOL_TEST_CHROMIUM'])
+        browser=playwright.chromium.launch(executable_path=os.environ.get('VOOL_TEST_CHROMIUM'))
         try:
             page=browser.new_page(viewport={'width':1280,'height':1050});page.goto(base+'/settings#phone');page.locator('[data-group="phone"]').click()
             page.locator('.phone-bot-connect summary').click();page.get_by_label('Bot key (from Telegram or Discord)',exact=True).fill(token)

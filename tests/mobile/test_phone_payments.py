@@ -193,7 +193,7 @@ def test_pc_approval_rechecks_phone_controls_before_any_signer(money, monkeypatc
     assert status == 403 and refused["error"] in {"wallet_approval_rejected", "wallet_limit_exceeded"}, refused
 
 
-def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money):
+def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money, tmp_path):
     import os
     from pathlib import Path
 
@@ -201,7 +201,7 @@ def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money):
 
     desktop, phone, _, _, _ = money
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(executable_path=os.environ["VOOL_TEST_CHROMIUM"])
+        browser = playwright.chromium.launch(executable_path=os.environ.get("VOOL_TEST_CHROMIUM"))
         try:
             page = browser.new_page(viewport={"width": 1280, "height": 1000})
             page.goto(desktop[0] + "/settings#phone")
@@ -230,7 +230,7 @@ def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money):
             page.wait_for_function("document.querySelector('.phone-device input[data-right=payment_propose]').checked")
             saved = http(desktop[0], "/api/mobile/settings")[1]["devices"]
             assert call(*phone, "wallet.status")[0] == 200, [(d["rules"], d["right_expiry"]) for d in saved]
-            shots = Path(os.environ["VOOL_PHONE_SHOTS_DIR"])
+            shots = Path(os.environ.get("VOOL_PHONE_SHOTS_DIR") or tmp_path)
             page.screenshot(path=str(shots / 'phone-owner-permissions.png'), full_page=True)
             page.get_by_role('button', name='Freeze payments', exact=True).click()
             page.get_by_role('button', name='Unfreeze payments', exact=True).wait_for()
