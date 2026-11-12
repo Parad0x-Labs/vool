@@ -14645,6 +14645,18 @@ async function setupLineLoad() {
     const d = await r.json();
     noModelState = (d && d.cloud_default && typeof d.cloud_default === 'object') ? d.cloud_default : null;
     const show = !!(d && d.show_chat_line);
+    /* A model choice was cleared because its service left VOOL: say that, not only "needs a model". */
+    const lineText = document.getElementById('noModelLineText');
+    if (lineText) {
+      const key = (d && d.retired_model_notice) ? 'chat.no_model.line_text_retired' : 'chat.no_model.line_text';
+      if (lineText.dataset.i18n !== key) {
+        lineText.dataset.i18n = key;
+        const said = (typeof VOOLT === 'function') ? VOOLT(key) : key;
+        lineText.textContent = (said && said !== key) ? said
+          : (d && d.retired_model_notice) ? 'UsePod is no longer part of VOOL, so no model is chosen here. Choosing another takes about two minutes.'
+          : 'VOOL needs an AI model before it can answer. Setting one up takes about two minutes.';
+      }
+    }
     setupLineWanted = show;   // the no-model notice (noModelLinePaint, below) may take this line over
     const text = document.getElementById('setupLineText');
     if (text && d && typeof d.done_count === 'number' && d.done_count > 0) {

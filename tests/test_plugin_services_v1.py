@@ -23,9 +23,9 @@ def https_service(tmp_path, request):
     ca_key, ca = tmp_path / "ca.key", tmp_path / "ca.pem"
     server_key, csr, certificate = tmp_path / "server.key", tmp_path / "server.csr", tmp_path / "server.pem"
     extensions = tmp_path / "extensions.txt"
-    extensions.write_text("subjectAltName=DNS:api.example.org,DNS:api.usepod.ai,DNS:api.eyebrow.cc,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n")
+    extensions.write_text("subjectAltName=DNS:api.example.org,DNS:api.usepod.ai,DNS:api.eyebrow.cc,IP:127.0.0.1\nextendedKeyUsage=serverAuth\nauthorityKeyIdentifier=keyid,issuer\n")
     commands = [
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=Disposable service fixture CA", "-keyout", str(ca_key), "-out", str(ca)],
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-addext", "keyUsage=critical,keyCertSign,cRLSign", "-subj", "/CN=Disposable service fixture CA", "-keyout", str(ca_key), "-out", str(ca)],
         ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=api.example.org", "-keyout", str(server_key), "-out", str(csr)],
         ["openssl", "x509", "-req", "-in", str(csr), "-CA", str(ca), "-CAkey", str(ca_key), "-CAcreateserial", "-days", "1", "-extfile", str(extensions), "-out", str(certificate)],
     ]
@@ -278,3 +278,76 @@ def test_provider_transport_stop_interrupts_real_tls_before_headers(package, htt
         stop.join(timeout=4)
     assert time.monotonic() - start < 2
     assert len(https_service["log"].read_text().splitlines()) == 1
+
+
+def test_a_paid_call_through_a_provider_plugin_is_held_against_the_owners_limits(package, https_service, monkeypatch, tmp_path):
+    """Owner requirement 2026-11-12: a service brings its own plugin and its paid calls work the way
+    a key-based cloud provider's do. A plugin's model is a paid cloud model whatever price the
+    service reports, so its call is reserved against the owner's limits before anything is sent:
+    refused for anyone but the owner, refused past the per-call and the daily limit, and booked
+    in the same spend ledger. Nothing here reaches the service's chat door."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from core import cloud_escalation_policy as cep
+    from core import os_consent_gate, plugin_providers, plugin_services, runtime_paths
+    from core.model_registry import ModelRegistry
+    from core.model_selection_policy import is_verified_free_cloud_manifest, provider_cost_class
+    from core.model_spend_ledger import get_spend_reservation
+    from core.paid_call_reservation import release_owner_pick_paid_call, reserve_owner_pick_paid_call, spend_limits
+    from storage.db import configure_default_db_path
+
+    enabled_provider(package, https_service)
+    transport = plugin_services.native_request
+
+    def routed(*args, **kwargs):
+        return transport(*args, **kwargs, _connector=https_service["connector"], _tls_context=https_service["context"])
+
+    monkeypatch.setattr(plugin_services, "native_request", routed)
+    monkeypatch.setattr(plugin_providers, "native_request", routed)
+    plugin_providers.refresh_models("sample-provider")
+    model = ModelRegistry().get_manifest("plugin-sample-provider", "fixture-model")
+    # The service reports a price of 0. That is the service's word, not a receipt: still paid.
+    assert model.metadata["plugin_reported_pricing"] == {"prompt": "0", "completion": "0"}
+    assert provider_cost_class(model) == "paid_cloud" and not is_verified_free_cloud_manifest(model)
+
+    home = tmp_path / "ledger-home"
+    monkeypatch.setenv("VOOL_HOME", str(home))
+    runtime_paths.configure_runtime_home(home)
+    configure_default_db_path(home / "data" / "test.db")
+    os_consent_gate.set_consent_override_for_tests(lambda reason: False)
+    try:
+        cep.save_policy(replace(cep.load_policy(), mode="off", daily_cap=25))
+        limits = spend_limits()
+        owner = {"_owner_local": True, "session_id": "s"}
+
+        def ask(context, *, prompt_tokens=200, task_id=None):
+            denial: dict[str, str] = {}
+            task = SimpleNamespace(task_id=task_id or "task-" + secrets.token_hex(6), prompt_tokens=prompt_tokens,
+                                   max_output_tokens=400)
+            return reserve_owner_pick_paid_call(manifest=model, task=task, source_context=dict(context),
+                                                task_kind="chat", denial=denial), denial.get("reason", "")
+
+        granted, reason = ask({"_owner_local": False, "session_id": "s"})   # a phone or a chat app, not the owner's own session
+        assert granted is None and reason == "not_owner_local"
+        granted, reason = ask(owner)
+        assert granted is not None, reason
+        held = get_spend_reservation(granted.model_call_id)
+        assert held.status == "reserved" and held.reserved_usd >= limits.per_call_usd > 0
+        release_owner_pick_paid_call(granted, reason="call_failed")
+        assert get_spend_reservation(granted.model_call_id).status != "reserved"
+        # Holds stand until settled or released: the day's limit bounds them.
+        standing, last = [], ""
+        for _ in range(int(limits.daily_usd / limits.per_call_usd) + 2):
+            granted, last = ask(owner)
+            if granted is None:
+                break
+            standing.append(granted)
+        assert last in {"daily_spend_cap_exceeded", "monthly_spend_cap_exceeded"} and standing
+        assert len(standing) <= int(limits.daily_usd / limits.per_call_usd)
+    finally:
+        os_consent_gate.set_consent_override_for_tests(None)
+        configure_default_db_path(None)
+        runtime_paths.configure_runtime_home(None)
+    paths = [json.loads(line)["path"] for line in https_service["log"].read_text().splitlines()]
+    assert "/v1/chat/completions" not in paths

@@ -234,7 +234,20 @@ def snapshot(locale: str = "en") -> dict[str, Any]:
         # with no provenance is not presented as a choice)
         "autonomy_mode": autonomy_mode,
         "cloud_default": _cloud_default_snapshot(),
+        # A model choice was cleared because its service left VOOL: the chat page says that in
+        # place of the plain no-model line, until the owner closes the notice.
+        "retired_model_notice": _retired_model_notice(),
     }
+
+
+def _retired_model_notice() -> bool:
+    try:
+        from core.plugin_migration import migrate_selections, selection_notice
+
+        migrate_selections()
+        return selection_notice() is not None
+    except Exception:
+        return False
 
 
 def _cloud_default_snapshot() -> dict[str, Any]:

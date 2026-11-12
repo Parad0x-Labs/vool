@@ -47,8 +47,12 @@ def test_upgrade_notice_and_fallback_preserve_original_keys_and_explicit_choices
     key = secrets.token_urlsafe(32)
     original = upgrade_profile(key)
     notices = migration.notices()
-    assert any('UsePod now comes as a plugin' in n['message'] for n in notices)
-    assert any('Eyebrow now comes as a plugin' in n['message'] for n in notices)
+    # Owner decision 2026-11-12: both services are retired. Said once, calmly; nothing to install.
+    said = [n['message'] for n in notices]
+    assert 'UsePod is no longer part of VOOL. Your saved UsePod key stays on this computer and VOOL does not use it.' in said
+    assert 'Eyebrow is no longer part of VOOL. Your saved Eyebrow key stays on this computer and VOOL does not use it.' in said
+    assert not any('Install' in message or 'plugin' in message.lower() for message in said)
+    assert all(n.get('dismissible') for n in notices)
     assert lifecycle.records() == []
     assert get_credential('llm.cloud.usepod') == key
     assert get_credential('security.eyebrow') == key
@@ -212,3 +216,24 @@ def test_path_token_provider_lists_and_streams_through_existing_pin_path(package
     assert records[0]['path_auth'] and not records[0]['authorization_header']
     assert any(r['path'] == '/v1/marketplace/models' and not r['authorized'] for r in records)
     assert https_service['access'] not in json.dumps(manager.inventory()) + https_service['log'].read_text()
+
+
+def test_got_it_closes_the_retired_service_notices_and_keeps_every_key(package, https_service):
+    key = secrets.token_urlsafe(32)
+    upgrade_profile(key)
+    assert len(migration.notices()) == 3            # two retired services and the cleared model choice
+    assert migration.dismiss_selection_notice()
+    assert migration.notices() == []
+    assert not migration.dismiss_selection_notice()
+    assert get_credential('llm.cloud.usepod') == key and get_credential('security.eyebrow') == key
+    assert not https_service['log'].exists()
+
+
+def test_a_cleared_model_choice_is_said_on_the_chat_page_until_closed(package, https_service):
+    from core import setup_progress
+
+    assert setup_progress._retired_model_notice() is False
+    upgrade_profile(secrets.token_urlsafe(32))
+    assert setup_progress._retired_model_notice() is True
+    migration.dismiss_selection_notice()
+    assert setup_progress._retired_model_notice() is False

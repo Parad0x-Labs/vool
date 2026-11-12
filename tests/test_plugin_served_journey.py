@@ -258,8 +258,8 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
     page.set_default_timeout(10000)
     try:
         plugins_page(page, daemon)
-        page.get_by_text("UsePod now comes as a plugin. Install it to keep using it; your saved key will be reused.", exact=True).wait_for()
-        page.get_by_text("Eyebrow now comes as a plugin. Install it to keep using it; your saved key will be reused.", exact=True).wait_for()
+        page.get_by_text("UsePod is no longer part of VOOL. Your saved UsePod key stays on this computer and VOOL does not use it.", exact=True).wait_for()
+        page.get_by_text("Eyebrow is no longer part of VOOL. Your saved Eyebrow key stays on this computer and VOOL does not use it.", exact=True).wait_for()
         assert page.get_by_text("No plugins installed.", exact=True).is_visible()
         assert not daemon.routes.exists() and not https_service["log"].exists()
         page.screenshot(path=str(tmp_path / "upgrade-notices.png"), full_page=True)

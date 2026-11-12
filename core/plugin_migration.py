@@ -7,9 +7,14 @@ SERVICES = (
     {"id": "vool-plugin-usepod", "name": "UsePod", "slot": "llm.cloud.usepod",
      "origin_slot": "llm.cloud.usepod_origin", "origin": "https://api.usepod.ai", "kind": "model_provider",
      "rebind": False,
+     # UsePod is retired (owner decision 2026-11-12): VOOL offers no UsePod plugin and says so
+     # once. The saved key stays where it is and nothing uses it. The reference package and the
+     # retained lane behind it are still in the tree until their removal is reviewed on its own.
+     "retired": True,
      "digests": frozenset({"fe7fedb6881f6ba74df98b36ae25f818feab79a34c373ccf6acba87e9c820b54"})},
     {"id": "vool-plugin-eyebrow", "name": "Eyebrow", "slot": "security.eyebrow",
      "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner", "rebind": True,
+     "retired": True,   # owner decision 2026-11-12, as for UsePod: no Eyebrow plugin is offered
      "digests": frozenset({"2e03c9975c55d7ccc2e41cef92385b65770343f981b0acc8279b7d20791e0540"})},
 )
 
@@ -40,12 +45,19 @@ def notices() -> list[dict]:
 
     migrate_selections()
     fallback = selection_notice()
-    result = [fallback] if fallback else []
+    result = []
     for service in SERVICES:
         if not any(credential_is_indexed(slot) for slot in (service["slot"], service["origin_slot"]) if slot):
             continue
         record = record_for(service["id"])
         installed = bool(record and record.stage != STAGE_UNINSTALLED)
+        if service.get("retired") and not installed:
+            # Said once, plainly, until the owner closes it: nothing to install, nothing to do.
+            if not _retired_notice_closed(service["id"]):
+                result.append({"plugin_id": service["id"], "dismissible": True,
+                               "message": RETIRED_KEY.format(name=service["name"]),
+                               "message_key": "plugin_migration_" + service["id"].removeprefix("vool-plugin-")})
+            continue
         if installed and record.enabled and (not service["rebind"]
                                              or credential_is_indexed("plugin." + service["id"] + ".access")):
             continue
@@ -57,7 +69,21 @@ def notices() -> list[dict]:
             message = "Your saved " + service["name"] + " key is kept. Enable the plugin to keep using it through your wallet approvals."
         result.append({"plugin_id": service["id"], "message": message,
                        "message_key": "plugin_migration_" + service["id"].removeprefix("vool-plugin-") + ("_installed" if installed else "")})
+    if fallback:
+        result.append(fallback)
     return result
+
+
+RETIRED_KEY = "{name} is no longer part of VOOL. Your saved {name} key stays on this computer and VOOL does not use it."
+SELECTION_CLEARED = ("Chats that used a UsePod model have no model selected now, and Auto won't switch to a cloud model "
+                     "in those chats. Pick a model before you send another message there.")
+
+
+def _retired_notice_closed(plugin_id: str) -> bool:
+    from core import cloud_escalation_policy as policy
+
+    saved = policy._read_raw().get("plugin_migration", {})
+    return isinstance(saved, dict) and plugin_id in (saved.get("retired_closed") or [])
 
 
 def bind_on_enable(plugin_id: str) -> bool:
@@ -129,17 +155,21 @@ def selection_notice() -> dict | None:
     if not isinstance(saved, dict) or not saved.get("notice_open"):
         return None
     return {"plugin_id": "vool-plugin-usepod", "message_key": "plugin_migration_model_fallback", "dismissible": True,
-            "message": "UsePod now comes as a plugin. Chats that used a UsePod model have no model selected now, "
-                       "and Auto won't switch to a cloud model in those chats. Pick a model before you send another message there."}
+            "message": SELECTION_CLEARED}
 
 
 def dismiss_selection_notice() -> bool:
+    """"Got it": closes the cleared-model notice and the retired-service notice together."""
     from core import cloud_escalation_policy as policy
 
     with policy._COUNTER_LOCK, policy._counter_file_lock():
         raw = policy._read_raw()
         saved = raw.get("plugin_migration")
-        if not isinstance(saved, dict) or not saved.get("notice_open"):
+        if not isinstance(saved, dict):
+            saved = raw["plugin_migration"] = {}
+        retired = sorted(service["id"] for service in SERVICES if service.get("retired"))
+        if not saved.get("notice_open") and saved.get("retired_closed") == retired:
             return False
         saved["notice_open"] = False
+        saved["retired_closed"] = retired
         return policy._write_raw(raw)
