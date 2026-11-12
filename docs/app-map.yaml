@@ -55,6 +55,16 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: 8 files per turn, 10 MB each, 25 MB per turn; the raw upload door /api/chat/attachments/upload is served outside the route census.
+  - id: import-chats
+    title: Bring chats, projects and instructions in from other AI apps
+    area: chat-models
+    ui: []
+    wired: ["/api/chat/import/batches", "/api/chat/import/context", "/api/chat/import/discard", "/api/chat/import/preview", "/api/chat/import/sources", "/api/chat/import/start", "/api/chat/import/status", "/api/chat/import/undo", "/api/chat/import/upload"]
+    default: []
+    tests: [tests/test_chat_import_served.py, tests/test_chat_import_migration.py, tests/test_chat_import_local_sources.py, tests/test_chat_import_working_state.py, tests/test_chat_import_privacy.py]
+    label: TESTED
+    target_release: unknown
+    note: Settings lists an export file and the apps found on this computer; a review shows what comes in; an import whose chats were not continued can be undone. Due in 0.8.
   - id: export-a-chat
     title: Export a chat as Markdown, text or PDF
     area: chat-models
@@ -1247,20 +1257,50 @@ rows:
     ui: []
     wired: ["/api/x/setup"]
     default: []
-    tests: [tests/test_x_guided_setup.py]
+    tests: [tests/test_x_guided_setup.py, tests/test_x_guided_setup_browser.py]
     label: TESTED
     target_release: 0.7.0
-    note: The keys feed a trend lane that stays off; no visible effect.
+    note: A Bearer Token or the four account keys, each checked with one read before it is saved. Reads in chat use them once features are chosen.
+  - id: x-features-and-spending
+    title: Choose the short-post network features VOOL may call, with spending limits
+    area: settings
+    ui: []
+    wired: ["/api/x/capabilities", "x.api.catalog", "x.api.receipts"]
+    default: []
+    tests: [tests/test_x_full_integration.py, tests/test_x_more_calls.py, tests/test_x_api_reads.py]
+    label: TESTED
+    target_release: unknown
+    note: Off with nothing allowed on a fresh install; turning features on or changing them needs this device's approval. Due in 0.8.
   - id: posting-to-x
-    title: Posting directly to the short-post network
+    title: Post, reply, like, repost and follow on the short-post network after approval
     area: other
     ui: []
-    wired: []
+    wired: ["/api/x/activity"]
     default: []
-    tests: []
-    label: PROPOSED
+    tests: [tests/test_x_actions_approval.py, tests/test_x_full_integration.py, tests/test_x_chat_reads.py]
+    label: TESTED
     target_release: unknown
-    note: Settings says it is not in this version.
+    note: The chat only proposes; each action waits in Settings and is sent once after Approve. Due in 0.8.
+  - id: x-bookmarks
+    title: Read and change short-post network bookmarks after a separate sign-in
+    area: settings
+    ui: []
+    wired: ["/api/x/oauth", "/api/x/oauth/callback"]
+    default: []
+    tests: [tests/test_x_bookmarks_oauth2.py, tests/test_x_bookmarks_served.py]
+    label: TESTED
+    target_release: unknown
+    note: Every bookmark request, reading included, waits for approval. Due in 0.8.
+  - id: drop
+    title: Send a note and files to another VOOL with Drop
+    area: other
+    ui: []
+    wired: ["/api/drop", "/api/drop/send"]
+    default: []
+    tests: [tests/test_drop.py, tests/test_drop_session.py, tests/test_drop_served_browser.py]
+    label: TESTED
+    target_release: unknown
+    note: Off until switched on in Settings; the other VOOL is checked by its fingerprint, and what arrives runs only after the person there approves it. Due in 0.8.
   - id: chat-bridges
     title: Chat bridges to messaging apps
     area: other
