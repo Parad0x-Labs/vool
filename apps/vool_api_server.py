@@ -712,6 +712,15 @@ def main() -> int:
             start_default_poller()
         except Exception:
             logger.exception("market watch poller failed to start; server continues without watch alerts")
+        # Standing coordinator: watches helper-agent teams (and long council runs), nudges stalled
+        # agents and files questions and reports in the notification centre. With nothing watched
+        # a tick reads one empty table. Fail-soft; VOOL_STANDING_COORDINATOR=0 keeps it off.
+        try:
+            from core.standing_coordinator.daemon import start_default_daemon
+
+            start_default_daemon()
+        except Exception:
+            logger.exception("standing coordinator failed to start; server continues without it")
         # Calendar alerts: the bounded background sync of opted-in calendars (a few accounts per tick, each
         # refreshed every 10 minutes, never on chat turns). Fail-soft like the dispatcher.
         try:
@@ -787,6 +796,12 @@ def main() -> int:
             from core.market_watch import stop_default_poller
 
             stop_default_poller()
+        except Exception:
+            pass
+        try:
+            from core.standing_coordinator.daemon import stop_default_daemon
+
+            stop_default_daemon()
         except Exception:
             pass
         try:

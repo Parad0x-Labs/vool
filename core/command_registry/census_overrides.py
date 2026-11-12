@@ -23,6 +23,14 @@ _ADAPTERS: dict[str, str] = {
     "chat-repl:/status": "status.show",
     # vool CLI leaves
     "cli-vool:summary": "status.show",
+    # standing coordinator routes
+    "http:GET:/api/coordinator/watches": "coordinator.watches",
+    "http:GET:/api/coordinator/status": "coordinator.status",
+    "http:GET:/api/coordinator/decisions": "coordinator.decisions",
+    "http:POST:/api/coordinator/watch": "coordinator.watch",
+    "http:POST:/api/coordinator/unwatch": "coordinator.unwatch",
+    "http:POST:/api/coordinator/decide": "coordinator.decide",
+    "http:POST:/api/coordinator/forget": "coordinator.forget",
     # council routes
     "http:GET:/api/council/runs": "council.runs",
     "http:GET:/api/council/status": "council.status",

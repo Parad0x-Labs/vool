@@ -2526,6 +2526,25 @@ def _dispatch_get(
             preferences = {}
         return apply_runtime_headers(json_response(200, {"ok": True, "preferences": preferences}), runtime)
 
+    if normalized_path in {"/api/coordinator/watches", "/api/coordinator/status", "/api/coordinator/decisions"}:
+        # Standing coordinator reads: the watched teams, one team's agents/spend/questions, and
+        # the decisions it remembers. Owner-local: they name agents, spend and the owner's answers.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.command_registry.legacy import forward as _cr_forward
+
+        if normalized_path == "/api/coordinator/status":
+            _co_team = str((query.get("team") or [""])[0] or "").strip()
+            if not _co_team:
+                return apply_runtime_headers(json_response(400, {"ok": False, "error": "missing team parameter"}), runtime)
+            _co_status, _co_payload = _cr_forward("coordinator.status", {"team_id": _co_team})
+        elif normalized_path == "/api/coordinator/decisions":
+            _co_all = str((query.get("all") or ["0"])[0] or "0").strip() == "1"
+            _co_status, _co_payload = _cr_forward("coordinator.decisions", {"include_superseded": _co_all})
+        else:
+            _co_status, _co_payload = _cr_forward("coordinator.watches", {})
+        return apply_runtime_headers(json_response(_co_status, _co_payload), runtime)
+
     if normalized_path in {
         "/api/council/runs", "/api/council/status", "/api/council/events",
         "/api/council/lock", "/api/council/scorecard",
@@ -6319,6 +6338,30 @@ def _dispatch_post_inner(
 
         _cm_status, _cm_payload = _cr_forward("models.pin", {"payload": dict(body)}, client_host=client_host, headers=headers)
         return apply_runtime_headers(json_response(_cm_status, _cm_payload), runtime)
+
+    if normalized_path in {
+        "/api/coordinator/watch", "/api/coordinator/unwatch",
+        "/api/coordinator/decide", "/api/coordinator/forget",
+    }:
+        # Standing coordinator controls: watch or unwatch a team, answer a waiting agent (optionally
+        # remembered for later agents), forget a remembered decision. Owner-local plus the POST guards;
+        # the authority refuses unknown fields itself.
+        from core.web.api.runtime import host_header_allowed as _co_host_allowed
+
+        _co_headers = {str(k).lower(): str(v or "") for k, v in (headers or {}).items()}
+        _co_ct = _co_headers.get("content-type", "").lower()
+        if _co_ct and "json" not in _co_ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        _co_origin = _co_headers.get("origin", "").strip()
+        if _co_origin and not _co_host_allowed(_co_origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.command_registry.legacy import forward as _cr_forward
+
+        _co_command = "coordinator." + normalized_path.rsplit("/", 1)[-1]
+        _co_status, _co_payload = _cr_forward(_co_command, {"payload": dict(body)})
+        return apply_runtime_headers(json_response(_co_status, _co_payload), runtime)
 
     if normalized_path in {
         "/api/council/convene", "/api/council/stop",

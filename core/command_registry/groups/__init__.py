@@ -18,6 +18,7 @@ _GROUP_MODULES = (
     "core.command_registry.groups.archaeology_group",
     "core.command_registry.groups.models",
     "core.command_registry.groups.council",
+    "core.command_registry.groups.coordinator_group",
     "core.command_registry.groups.approvals",
     "core.command_registry.groups.update_group",
     "core.command_registry.groups.faults_group",
