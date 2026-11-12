@@ -708,6 +708,12 @@ const VN_TITLE_DROP = { the: 1, a: 1, an: 1, my: 1, me: 1, our: 1, your: 1, plea
   plz: 1, thanks: 1, thank: 1, thx: 1, some: 1 };
 const VN_TITLE_TAIL = { and: 1, or: 1, but: 1, to: 1, in: 1, on: 1, at: 1, of: 1, for: 1, with: 1,
   from: 1, about: 1, it: 1, then: 1, the: 1, a: 1, an: 1, by: 1, into: 1, is: 1, are: 1 };
+/* A token that is only an operator is part of what was asked ("Calculate 23 * 19", "5 + 3",
+   "x = 2"): it stays when it sits between two kept words. The word trim below empties it, which
+   made the bubble say "Calculate 23 19" while the chat list said "Calculate 23 * 19" (v0.8 Linux
+   window run, 2026-11-12). A bullet at the start ("* buy milk", "- buy milk") and a mark at the
+   end still go. */
+const VN_TITLE_OPERATOR = /^[*+\-\/=<>^%×÷±−≠≤≥≈]+$/u;
 function vnTaskTitle(text) {
   const strip = function (v) {
     for (let i = 0; i < 12; i++) {
@@ -721,13 +727,18 @@ function vnTaskTitle(text) {
   // Greetings go before the clause split, so "hi! how do I ..." names the question, not "hi".
   s = strip(s.split(/\n/)[0].replace(/\s+/g, " ").trim());
   s = strip(s.split(/[.!?;,](?:\s|$)|:\s/)[0].trim());
-  let words = s.split(" ").map(function (w) { return w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""); })
-    .filter(function (w) { return w && !VN_TITLE_DROP[w.toLowerCase()]; });
+  let words = [];
+  s.split(" ").forEach(function (token) {
+    const w = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    if (w) { if (!VN_TITLE_DROP[w.toLowerCase()]) words.push(w); return; }
+    // An operator after a kept word stays; a trailing one is popped below with the connectors.
+    if (words.length && VN_TITLE_OPERATOR.test(token)) words.push(token);
+  });
   // A clause of "X and Y" keeps X: the title names the first thing asked.
   const cut = words.findIndex(function (w, i) { return i > 1 && /^(?:and|then)$/i.test(w); });
   if (cut > 0) words = words.slice(0, cut);
   words = words.slice(0, VN_TASK_TITLE_WORDS);
-  while (words.length && VN_TITLE_TAIL[words[words.length - 1].toLowerCase()]) words.pop();
+  while (words.length && (VN_TITLE_TAIL[words[words.length - 1].toLowerCase()] || VN_TITLE_OPERATOR.test(words[words.length - 1]))) words.pop();
   if (!words.length) return "";
   const title = words.join(" ");
   return title.charAt(0).toUpperCase() + title.slice(1);
