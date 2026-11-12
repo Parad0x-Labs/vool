@@ -26,6 +26,11 @@ Feeds:
 ``--broken-update`` expects the opposite ending: the new version never comes up healthy, the app restores
 the previous version by itself, and the old commit is serving again.
 
+On Linux the person then closes VOOL and opens it again: the version now serving must start cold and still
+show everything. ``--legacy-profile`` starts the person from the pre-rename profile (``~/.nulla_runtime``;
+``~/Library/Application Support/NULLA/runtime`` on a Mac), which every version reuses in place: the update
+(and on Linux the cold start) must keep using it, and no second, empty VOOL profile may appear beside it.
+
 Linux packages run here directly. Mac DMGs run on a Mac (``--platform macos``); the app relaunch after a
 swap uses macOS ``open``, so a Mac run uses the real login HOME of a disposable machine (a CI runner).
 Writes ``journey.json`` (every step, pass/fail, timings, the feed request log) into ``--scratch``.
@@ -138,9 +143,14 @@ def write_test_feed(feed_dir: Path, base_url: str) -> None:
 
 
 class LinuxPackage:
-    def __init__(self, archive: Path, scratch: Path):
+    def __init__(self, archive: Path, scratch: Path, *, legacy_profile: bool = False):
         self.home = scratch / "home"
         self.home.mkdir()
+        # The pre-rename profile folder: a person who used VOOL before its rename has only this one.
+        self.profile = self.home / (".nulla_runtime" if legacy_profile else ".vool_runtime")
+        self.second_profile = self.home / ".vool_runtime"
+        if legacy_profile:
+            self.profile.mkdir()
         extracted = scratch / "extracted"
         extracted.mkdir()
         with tarfile.open(archive) as tar:
@@ -158,7 +168,7 @@ class LinuxPackage:
         return self.root / "current/app/config/release/update_feed.json"
 
     def data_dir(self) -> Path:
-        return self.home / ".vool_runtime/data"
+        return self.profile / "data"
 
     def person_home(self) -> Path:
         return self.home
@@ -177,7 +187,15 @@ class LinuxPackage:
 
 
 class MacApp:
-    def __init__(self, dmg: Path, scratch: Path):
+    def __init__(self, dmg: Path, scratch: Path, *, legacy_profile: bool = False):
+        support = Path.home() / "Library/Application Support"
+        self.profile = support / ("NULLA/runtime" if legacy_profile else "VOOL/runtime")
+        self.second_profile = support / "VOOL/runtime"
+        if legacy_profile:
+            if self.second_profile.exists():
+                raise JourneyFailure(f"{self.second_profile} already exists: the pre-rename journey needs a Mac "
+                                     "that never ran VOOL (a fresh CI runner)")
+            self.profile.mkdir(parents=True)
         attached = subprocess.run(["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-plist", str(dmg)],
                                   check=True, capture_output=True)
         mount = next(Path(e["mount-point"]) for e in plistlib.loads(attached.stdout)["system-entities"]
@@ -197,7 +215,7 @@ class MacApp:
         return self.app / "Contents/Resources/app/config/release/update_feed.json"
 
     def data_dir(self) -> Path:
-        return Path.home() / "Library/Application Support/VOOL/runtime/data"
+        return self.profile / "data"
 
     def person_home(self) -> Path:
         return Path.home()
@@ -221,7 +239,8 @@ def journey(args: argparse.Namespace) -> None:
     scratch = args.scratch
     scratch.mkdir(parents=True, exist_ok=False)
     log = Log(scratch)
-    target = LinuxPackage(args.old, scratch) if args.platform == "linux" else MacApp(args.old, scratch)
+    target = (LinuxPackage(args.old, scratch, legacy_profile=args.legacy_profile) if args.platform == "linux"
+              else MacApp(args.old, scratch, legacy_profile=args.legacy_profile))
     old_commit = target.current_commit()
     log.step("old package installed", bool(old_commit), {"commit": old_commit})
 
@@ -336,6 +355,22 @@ def journey(args: argparse.Namespace) -> None:
                                   text=True, timeout=60)
         log.step("opening VOOL again reaches the running app", relaunch.returncode == 0,
                  relaunch.stderr.strip()[-300:])
+        # Closed and opened again: the version now serving starts cold and must find the same profile.
+        target.stop()
+        wait_for("VOOL to close", lambda: not health(), 120)
+        target.start()
+        wait_for("VOOL to open again", lambda: (health().get("runtime") or {}).get("commit_full") == expect, 300)
+        try:
+            seen_again = update_preservation.person_view(ORIGIN)
+        except update_preservation.PreservationFailure as exc:
+            log.step("closed and opened again, the person still sees everything", False, str(exc))
+        lost_again = update_preservation.view_losses(seen_before, seen_again)
+        log.step("closed and opened again, the person still sees everything", not lost_again,
+                 lost_again or {"chats": len(seen_again["chats"]), "commit": expect})
+    if args.legacy_profile:
+        log.step("the pre-rename profile is still the one in use, with no second profile beside it",
+                 not target.second_profile.exists() and (target.data_dir() / "update_v2").is_dir(),
+                 {"profile": str(target.profile), "second_profile_made": target.second_profile.exists()})
     if server is not None:
         log.step("feed requests", True, log.requests)
     target.stop()
@@ -391,6 +426,8 @@ def main() -> int:
     parser.add_argument("--new-commit", required=True, help="the build commit the updated app must report")
     parser.add_argument("--expect-notice", choices=("auto", "press"), default="auto")
     parser.add_argument("--broken-update", action="store_true")
+    parser.add_argument("--legacy-profile", action="store_true",
+                        help="the person's profile is the pre-rename one (~/.nulla_runtime, or NULLA/runtime on a Mac)")
     parser.add_argument("--notice-timeout", type=float, default=180)
     parser.add_argument("--install-timeout", type=float, default=900)
     parser.add_argument("--scratch", type=Path, required=True)

@@ -7,9 +7,13 @@ name: In-app update journey
 #
 # linux-package  this commit as the installed package, updated to the same commit one patch version
 #                higher through a throwaway-key test feed; plus a broken update that must restore itself.
+#                Then the release a person has now (the latest published one, or from_tag) updated to that
+#                build, or in gate mode (to_tag) to the draft's exact Linux update ZIP bytes: once with the
+#                usual profile and once with the pre-rename ~/.nulla_runtime profile, which must stay in use.
 # mac (live)     the previous published release updated from the LIVE feed and its real publisher key.
 # mac (gate)     with to_tag (a draft release holding the new Mac update ZIPs): the previous release updated
 #                to those exact ZIP bytes through a throwaway-key test feed, before anything is published.
+#                Each Mac runs twice: the usual profile, and the pre-rename NULLA/runtime profile.
 
 on:
   workflow_dispatch:
@@ -27,6 +31,7 @@ on:
       - 'installer/build_update_payload.py'
       - 'installer/bundle/linux/**'
       - 'ops/update_journey.py'
+      - 'ops/update_preservation.py'
       - '.github/workflows/update-journey.yml'
 
 permissions:
@@ -89,6 +94,57 @@ jobs:
           uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
             --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz" --feed "$RUNNER_TEMP/feed-payload-broken" \
             --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey-broken" --broken-update
+      - name: The release a person has now, and in gate mode the draft's exact Linux update ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_TAG: ${{ inputs.from_tag }}
+          TO_TAG: ${{ inputs.to_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FROM_TAG" ]]; then
+            FROM_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=10" \
+              -q '[.[] | select(.draft == false and .prerelease == false)][0].tag_name')"
+          fi
+          mkdir "$RUNNER_TEMP/published"
+          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" --pattern "vool-*-linux-x86_64.tar.gz" \
+            --dir "$RUNNER_TEMP/published"
+          feed="$RUNNER_TEMP/feed-payload" version="$NEW_VERSION" commit="$NEW_COMMIT"
+          if [[ -n "$TO_TAG" ]]; then
+            mkdir "$RUNNER_TEMP/draft"
+            gh release download "$TO_TAG" --repo "$GITHUB_REPOSITORY" --pattern "vool-*-linux-x86_64-package-update.zip" \
+              --dir "$RUNNER_TEMP/draft"
+            zip="$(ls "$RUNNER_TEMP"/draft/*-package-update.zip)"
+            read_package_file() {
+              python3 -c 'import sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          name = next(n for n in z.namelist() if n.count("/") == 1 and n.endswith("/" + sys.argv[2]))
+          print(z.read(name).decode().strip().removesuffix("-beta"))' "$zip" "$1"
+            }
+            version="$(read_package_file VERSION)" commit="$(read_package_file SOURCE_COMMIT)"
+            uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py make-feed \
+              --out "$RUNNER_TEMP/feed-draft" --version "$version" --commit "$commit" --artifact "linux-x64-bundle=$zip"
+            feed="$RUNNER_TEMP/feed-draft"
+          fi
+          notice="$(python3 -c 'import sys; v = tuple(int(p) for p in sys.argv[1].removeprefix("v").split("-")[0].split("."))
+          print("press" if v < (0, 7, 5) else "auto")' "$FROM_TAG")"
+          {
+            echo "PUBLISHED=$(ls "$RUNNER_TEMP"/published/vool-*-linux-x86_64.tar.gz)"
+            echo "PUBLISHED_NOTICE=$notice"
+            echo "RELEASE_FEED=$feed"
+            echo "RELEASE_VERSION=$version"
+            echo "RELEASE_COMMIT=$commit"
+          } >> "$GITHUB_ENV"
+          echo "from $FROM_TAG to $version ($commit) via $feed"
+      - name: Journey - from the published release, data kept
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
+            --old "$PUBLISHED" --feed "$RELEASE_FEED" --new-version "$RELEASE_VERSION" --new-commit "$RELEASE_COMMIT" \
+            --expect-notice "$PUBLISHED_NOTICE" --scratch "$RUNNER_TEMP/journey-published"
+      - name: Journey - from the published release, for a person whose profile predates the rename
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
+            --old "$PUBLISHED" --feed "$RELEASE_FEED" --new-version "$RELEASE_VERSION" --new-commit "$RELEASE_COMMIT" \
+            --expect-notice "$PUBLISHED_NOTICE" --legacy-profile --scratch "$RUNNER_TEMP/journey-published-legacy"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -108,9 +164,19 @@ jobs:
           - runner: macos-15
             arch: arm64
             key: macos-arm64
+            profile: usual
+          - runner: macos-15
+            arch: arm64
+            key: macos-arm64
+            profile: pre-rename
           - runner: macos-15-intel
             arch: x86_64
             key: macos-x64
+            profile: usual
+          - runner: macos-15-intel
+            arch: x86_64
+            key: macos-x64
+            profile: pre-rename
     steps:
       - uses: actions/checkout@v7
       - name: Pick the releases
@@ -159,19 +225,25 @@ jobs:
             --artifact "${{ matrix.key }}=$(ls "$RUNNER_TEMP"/new/*-update.zip)"
           echo "FEED=$RUNNER_TEMP/feed" >> "$GITHUB_ENV"
           echo "PY=$RUNNER_TEMP/venv/bin/python" >> "$GITHUB_ENV"
-      - name: Journey on ${{ matrix.arch }} - notice, one Update press, restart on the new build, data kept
+      - name: Journey on ${{ matrix.arch }} (${{ matrix.profile }} profile) - notice, one Update press, restart on the new build, data kept
+        env:
+          PROFILE: ${{ matrix.profile }}
         run: |
           set -euo pipefail
+          legacy=()
+          if [[ "$PROFILE" == "pre-rename" ]]; then legacy=(--legacy-profile); fi
           "${PY:-/usr/bin/python3}" ops/update_journey.py --platform macos --old "$(ls "$RUNNER_TEMP"/old/*.dmg)" \
             --feed "${FEED:-live}" --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" \
-            --expect-notice "$EXPECT_NOTICE" --scratch "$RUNNER_TEMP/journey"
+            --expect-notice "$EXPECT_NOTICE" "${legacy[@]}" --scratch "$RUNNER_TEMP/journey"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: update-journey-${{ matrix.arch }}
+          name: update-journey-${{ matrix.arch }}-${{ matrix.profile }}
           path: |
             ${{ runner.temp }}/journey/journey.json
             ${{ runner.temp }}/journey/app.log
             ~/Library/Application Support/VOOL/runtime/data/update_v2/transactions/
             ~/Library/Application Support/VOOL/runtime/data/update_v2/workers/*/worker.log
+            ~/Library/Application Support/NULLA/runtime/data/update_v2/transactions/
+            ~/Library/Application Support/NULLA/runtime/data/update_v2/workers/*/worker.log
           if-no-files-found: warn
