@@ -6,10 +6,10 @@ while VOOL's runtime home stays a different directory. Each test pins LANE OWNER
 on-disk / on-state outcome, never one canned reply string keyed to the visible wording.
 
 Ported to v0.8 from fastpath-capture-tests 987722a8. Two defects that suite pinned as strict
-xfails are fixed on v0.8 (the slow-laptop temp cleanup reaches the cleanup lane; "switch on web
-search" no longer pretends a web check), so those tests now run as plain tests. Two stay strict
-xfails because v0.8 still has them, the same as the 0.7.7 train head: moving a photo from
-Pictures to the Desktop, and making a folder on the Desktop from "set up a folder called ...".
+xfails were already fixed on v0.8 (the slow-laptop temp cleanup reaches the cleanup lane; "switch
+on web search" no longer pretends a web check). The other two (moving a photo from Pictures to the
+Desktop, and making a folder on the Desktop from "set up a folder called ...") are fixed by
+desktop-files-077 (29406722), so every test here runs as a plain test.
 """
 from __future__ import annotations
 
