@@ -677,3 +677,23 @@ def test_the_not_yet_checked_model_refusal_leads_with_plain_words():
     for term in ("certified to author", "runtime", "ollama-local:", "`"):
         assert term not in plain and term not in remedy
     assert details.startswith("Details:") and "not certified to author" in details
+
+
+@pytest.mark.parametrize(
+    "question", ["according to wikipedia, when was the eiffel tower finished?",
+                 "Who wrote the novel Solaris? Check Wikipedia.", "who built the eiffel tower"],
+)
+def test_an_ordinary_research_question_does_not_search_developer_docs(question):
+    from core.source_reputation import profiles_for_topic, render_query
+    from retrieval.web_adapter import _infer_topic_kind
+
+    kind = _infer_topic_kind(question, task_class="research", topic_hints=[])
+    assert kind == "general"
+    queries = " ".join(render_query(profile, question) for profile in profiles_for_topic(kind, question))
+    assert "docs.python.org" not in queries and "github.com" not in queries
+
+
+def test_a_developer_research_question_still_reads_developer_sources():
+    from retrieval.web_adapter import _infer_topic_kind
+
+    assert _infer_topic_kind("how do I parse json in python", task_class="research", topic_hints=[]) == "technical"

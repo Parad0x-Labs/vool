@@ -560,15 +560,31 @@ def _canonical_note_key(note: dict[str, Any]) -> str:
     return f"{title}|{summary[:120]}"
 
 
+def _has_word(lowered: str, words: tuple[str, ...]) -> bool:
+    return any(re.search(rf"\b{re.escape(word)}\b", lowered) for word in words)
+
+
 def _infer_topic_kind(query_text: str, *, task_class: str, topic_hints: list[str]) -> str:
+    """Which source profile family a search leads with.
+
+    Whole words, not substrings: "ui" was found in "built" and "bot" in "both", so "who built the
+    Eiffel tower" counted as a design question. And `research` is a class for ANY question that
+    wants sources, not a technical one: mapping every research turn to "technical" sent "according
+    to wikipedia, when was the eiffel tower finished?" to site:docs.python.org and site:github.com
+    first, and read those pages (57-86 s answers, private-web test 2026-11-11). A research turn is
+    technical only when the question itself is developer-flavoured."""
+    from core.source_reputation import _looks_developer_flavoured
+
     lowered = f"{query_text} {' '.join(str(item) for item in topic_hints)}".lower()
-    if any(token in lowered for token in ("news", "headline", "current events", "breaking")):
+    if _has_word(lowered, ("news", "headline", "headlines", "current events", "breaking")):
         return "news"
-    if any(token in lowered for token in ("telegram", "discord", "bot", "api", "webhook", "integration")):
+    if _has_word(lowered, ("telegram", "discord", "bot", "bots", "api", "apis", "webhook", "webhooks", "integration")):
         return "integration"
-    if any(token in lowered for token in ("design", "ux", "ui", "layout", "theme")):
+    if _has_word(lowered, ("design", "ux", "ui", "layout", "theme")):
         return "design"
-    if task_class in {"research", "system_design", "dependency_resolution", "config", "integration_orchestration"}:
+    if task_class == "research":
+        return "technical" if _looks_developer_flavoured(lowered) else "general"
+    if task_class in {"system_design", "dependency_resolution", "config", "integration_orchestration"}:
         return "technical"
     return "general"
 
