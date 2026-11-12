@@ -2735,11 +2735,11 @@ function showLoadFailed(chatId) {
 function showEmpty() {
   // Time-aware greeting + a rotating opener so a new chat never opens on a blank screen.
   const h = new Date().getHours();
-  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?', ['🌙', '🦉']] : h < 12 ? ['first_run.greet_morning', 'Good morning', ['👋', '☀️', '☕']]
-    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon', ['👋', '🙂']] : h < 22 ? ['first_run.greet_evening', 'Good evening', ['👋', '🌆']] : ['first_run.greet_working_late', 'Working late?', ['🌙', '🦉']];
-  // A friendly emoji once in a while (not every open) — Codex-style "Good morning 👋".
-  let greet = emptyT(period[0], period[1]);
-  if (Math.random() < 0.45) greet += ' ' + period[2][Math.floor(Math.random() * period[2].length)];
+  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?'] : h < 12 ? ['first_run.greet_morning', 'Good morning']
+    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon'] : h < 22 ? ['first_run.greet_evening', 'Good evening'] : ['first_run.greet_working_late', 'Working late?'];
+  // The greeting is the same words every time for the same hour: no colour emoji (VOOL's own text
+  // carries none), and nothing left to chance.
+  const greet = emptyT(period[0], period[1]);
   const openers = [
     ['first_run.opener_1', 'What are we working on today?'], ['first_run.opener_2', 'What’s the task?'],
     ['first_run.opener_3', 'What are you thinking about?'], ['first_run.opener_4', 'What should we build?'],
