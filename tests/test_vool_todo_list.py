@@ -353,7 +353,8 @@ class TestTheFolderAndMetadata:
         turn(agent, "tick off buy milk")
         turn(agent, "remove call the bank from my to-do list")
         text = _list_file().read_text(encoding="utf-8")
-        assert "- [x] buy milk" in text and "call the bank" not in text
+        assert "- [x] buy milk" in text
+        assert "- [ ] call the bank" not in text and "- [x] call the bank" not in text  # taken off: gone
 
     def test_the_folder_is_not_where_the_file_lane_looks(self, someone: Path) -> None:
         """VOOL's own copy must never come back as 'a to-do file' the person wrote."""

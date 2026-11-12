@@ -700,12 +700,16 @@ def _sync_folder():
         return None
 
 
+# The name a chat has before anything names it: not a name worth keeping on an item.
+_PLACEHOLDER_CHAT_NAMES = frozenset({"new chat", "untitled", "untitled chat", "chat"})
+
+
 def _chat_name(session_id: str, text: str) -> str:
     try:
         from core.persistent_memory import load_session_meta
 
         custom = str((load_session_meta().get(session_id) or {}).get("title") or "").strip()
-        if custom:
+        if custom and custom.lower() not in _PLACEHOLDER_CHAT_NAMES:
             return custom
     except Exception:
         pass
@@ -713,8 +717,9 @@ def _chat_name(session_id: str, text: str) -> str:
         from core.memory.entries import list_conversation_sessions
 
         for row in list_conversation_sessions(limit=200):
-            if str(row.get("session_id") or "") == session_id and str(row.get("title") or "").strip():
-                return str(row["title"]).strip()
+            title = str(row.get("title") or "").strip()
+            if str(row.get("session_id") or "") == session_id and title and title.lower() not in _PLACEHOLDER_CHAT_NAMES:
+                return title
     except Exception:
         pass
     return " ".join(str(text or "").split())[:80]
