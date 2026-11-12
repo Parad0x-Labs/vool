@@ -122,6 +122,22 @@ def _address_is_shown_not_asked_for(text: str, url_start: int) -> bool:
     return False
 
 
+#: Text pasted below the ask is SHOWN too: "Turn this into an X article:" and then the article. Its
+#: words are not this turn's verbs ("easy to read", "check the shelf" met the read markers) and its
+#: links are not destinations: the lane fetched the article's first link, so the model never saw
+#: the article (Article trials on 0.7.3, 2026-10-24; again on the 0.8 candidate 28fc78dd,
+#: 2026-11-12). A short line below the ask stays the ask ("read this:" and the address under it).
+_PASTED_TEXT_MIN_CHARS = 600
+
+
+def _address_is_in_pasted_text(text: str, url_start: int) -> bool:
+    """Whether the matched address lies in a long text pasted below the ask's first line."""
+    first_line_end = text.find("\n")
+    if first_line_end < 0 or url_start < first_line_end:
+        return False
+    return len(text[first_line_end:].strip()) >= _PASTED_TEXT_MIN_CHARS
+
+
 def url_read_request(text: str) -> dict[str, Any] | None:
     """`{"url": ...}` when the message asks for a web address to be read, else None."""
     raw = str(text or "").strip()
@@ -158,7 +174,7 @@ def url_read_request(text: str) -> dict[str, Any] | None:
     # written down yet. Cost, accepted deliberately: "read `https://example.com`" with the address
     # in backticks no longer fetches. Every genuine ask in this module's own corpus writes the
     # address bare, which is also how people actually paste a link.
-    if _address_is_shown_not_asked_for(raw, match.start()):
+    if _address_is_shown_not_asked_for(raw, match.start()) or _address_is_in_pasted_text(raw, match.start()):
         return None
     # A message that names an address AND forbids reading it is not a fetch request, however
     # read-shaped its verbs are. This lane fired on the verb alone, so "Summarize this JSON strictly
