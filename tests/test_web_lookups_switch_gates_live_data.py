@@ -10,6 +10,11 @@ while exchange rates and news on the same install refused. The typed live-data l
 switch, and the web-research door it fetched through did not ask it either. These tests drive the
 real turn and watch every way out -- the door, `urlopen`, openers, DNS and sockets -- so they hold
 whichever lane a later change routes a lookup to.
+
+On v0.8 the refusals are the run modes' own sentences (core.remote_fetch_policy), so these tests
+read them from there: the switch, an Offline chat, or "keep everything on this computer". The
+v0.8 Computer + web lane (the old Local Only) keeps cloud models off but follows the Web lookups
+switch for the web; that lane is covered by tests/test_local_only_zero_public_egress.py.
 """
 
 from __future__ import annotations
@@ -20,7 +25,13 @@ import urllib.request
 import pytest
 
 from core.effect_gateway import current_effect_ledger
-from core.remote_fetch_policy import remote_fetch_attempt_count, remote_fetch_policy_scope
+from core.remote_fetch_policy import (
+    MACHINE_OFFLINE_TEXT,
+    OFFLINE_TEXT,
+    WEB_OFF_TEXT,
+    remote_fetch_attempt_count,
+    remote_fetch_policy_scope,
+)
 from tools.web import web_research as wr
 
 _LOOPBACK = {"127.0.0.1", "::1", "localhost", ""}
@@ -111,8 +122,8 @@ def test_a_live_ask_with_web_lookups_off_never_goes_online(ask, went_online) -> 
 
     assert went_online == [], f"went online with Web lookups off: {went_online}"
     # The person is told why nothing was looked up and where the switch is.
-    assert "Web lookups are off" in response
-    assert "Settings > Privacy & Permissions" in response
+    assert WEB_OFF_TEXT in response
+    assert "Web lookups are switched off" in response and "Settings, Privacy & Permissions" in response
     for leaked in ("wttr.in", "CoinGecko", "USD "):
         assert leaked not in response
 
@@ -221,17 +232,18 @@ def test_a_question_that_needs_no_reading_is_not_refused(went_online) -> None:
     assert went_online == []
 
 
-def test_local_only_for_this_chat_names_local_only_not_the_web_switch(enable_web, went_online) -> None:
-    """Web lookups on, but Local Only chosen for the chat: the refusal names what actually held,
-    and the Local Only record is kept on the ledger."""
+def test_an_offline_chat_names_offline_not_the_web_switch(enable_web, went_online) -> None:
+    """Web lookups on, but Offline chosen for the chat: the refusal names what actually held and
+    the model-menu way out, and the Offline record is kept on the ledger."""
 
-    response = _ask("whats the weather in London today", session="sess-web-on-local-only", source_context={"local_only": True})
+    response = _ask("whats the weather in London today", session="sess-web-on-offline", source_context={"offline": True})
 
     assert went_online == []
-    assert "Local Only is on" in response
-    assert "VOOL Auto instead of VOOL Auto Local Only" in response
+    assert OFFLINE_TEXT in response
+    assert "this chat is Offline" in response and "Computer + web or Local first" in response
+    assert "Web lookups are switched off" not in response
     assert "wttr.in" not in response
-    with remote_fetch_policy_scope({"allow_remote_fetch": True, "local_only": True}):
+    with remote_fetch_policy_scope({"allow_remote_fetch": True, "offline": True}):
         with pytest.raises(wr.RemoteFetchRefusedError):
             wr._open_remote(urllib.request.Request("https://wttr.in/london?format=j1"), timeout=5)
         assert _denials() == ["remote_fetch_policy.local_only_egress"]
@@ -247,8 +259,9 @@ def test_keep_everything_on_this_machine_offers_no_switch_that_cannot_be_used(mo
     response = _ask("whats the weather in London today", session="sess-machine-local-only")
 
     assert went_online == []
-    assert "keep everything on this machine" in response
-    assert "turn on Web lookups" not in response and "VOOL Auto instead" not in response
+    assert MACHINE_OFFLINE_TEXT in response
+    assert "keep everything on this computer" in response
+    assert "Settings" not in response and "model menu" not in response
 
 
 def test_a_refused_lookup_in_a_table_reads_as_words_not_a_code() -> None:
