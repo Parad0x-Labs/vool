@@ -212,6 +212,11 @@ def test_u2_runtime_event_and_checkpoint_writers_cannot_resurrect_after_erase(a8
         update_runtime_checkpoint,
     )
 
+    # The checkpoint leg's writer exists BEFORE the erase: that is what makes its write stale.
+    # Erase lineage (owner decision 2026-11-12): a checkpoint opened after the erase is a new
+    # writer and may hold the same words (test_an_erasure_binds_to_its_writers_not_to_text.py).
+    ckpt = create_runtime_checkpoint(session_id="s-u2", request_text="resume u2")
+
     # event leg: parked pre-erase verdict must not durably land erased bytes
     gate = _make_delay_gate("sha256:" + _sha_hex(P))
     outcome: dict = {}
@@ -240,7 +245,6 @@ def test_u2_runtime_event_and_checkpoint_writers_cannot_resurrect_after_erase(a8
     assert hit == 0, "RESURRECTION: erased message appended after completed sweep"
 
     # checkpoint leg: durable-boundary veto refuses the late stale write
-    ckpt = create_runtime_checkpoint(session_id="s-u2", request_text="resume u2")
     with pytest.raises(CheckpointTransitionRefused):
         update_runtime_checkpoint(ckpt["checkpoint_id"], final_response=P, status="completed")
     assert str(get_runtime_checkpoint(ckpt["checkpoint_id"])["final_response"] or "") != P
