@@ -957,7 +957,8 @@ def resolve(
                         return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
     folder_pointer = _ANAPHORIC_FOLDER_RE.search(compact)
     if folder_pointer and not (pending and pending.slots.get("path")) and (
-        _NAMES_A_FOLDER_RE.search(folder_pointer.group(0)) or _record_is_about_files(pending)
+        _NAMES_A_FOLDER_RE.search(folder_pointer.group(0))
+        or (_record_is_about_files(pending) and not _database_chat(source_context))
     ):
         return Resolution("referent_unresolved", note=("The message points at a folder this chat has not resolved; ask which folder. " + (_note(pending) if pending else "")).strip())
     if is_closing(compact):
@@ -974,6 +975,16 @@ _LOOKS_BACK_RE = re.compile(
     r"stuck|retry|redo|same)\b",
     re.IGNORECASE,
 )
+
+
+def _database_chat(source_context) -> bool:
+    """A chat where the person's database is at work: "in there" means the database (run 16d)."""
+    try:
+        from core.database_work_state import active_database_work_intents
+
+        return bool(active_database_work_intents(source_context))
+    except Exception:
+        return False
 
 
 def _record_is_about_files(pending: PendingRequest | None) -> bool:

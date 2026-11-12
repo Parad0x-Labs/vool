@@ -849,6 +849,20 @@ def tool_schema(args):
     }
     if missing_table:
         observation["requested_table_not_found"] = missing_table
+    others = ""
+    if table_filter:
+        # A schema call for one table still names the rest, so a question about the people or
+        # loans in the same database is not answered "no access" (run16d).
+        rest = {
+            table: [col["name"] for col in shape["columns"]]
+            for table, shape in snapshot.items()
+            if table != table_filter
+        }
+        if rest:
+            observation["other_tables"] = rest
+            others = " Other tables in this database: %s." % "; ".join(
+                "%s(%s)" % (table, ", ".join(cols)) for table, cols in rest.items()
+            )
     return (
         ("There is no table %r; here is the whole database. " % missing_table if missing_table else "")
         + "Schema of %r: %d table(s)%s. Potential PII columns to review: %s."
@@ -857,7 +871,8 @@ def tool_schema(args):
             len(tables),
             "" if not table_filter else " (filtered to %r)" % table_filter,
             ", ".join(sorted(set(pii_columns))) or "none flagged",
-        ),
+        )
+        + others,
         observation,
         "sqlite:" + name,
     )

@@ -235,3 +235,47 @@ def test_a_follow_up_with_no_database_word_still_gets_the_skill_and_the_real_nam
     assert "loans(id, member, returned)" in guidance.text
     other = skill_guidance_for(text, source_context={"session_id": "s-other", "runtime_session_id": "s-other"})
     assert "loans(id, member, returned)" not in other.text
+
+
+RUN16D_ASKS = [  # asks with a table word; the name-only ones are covered by the session tests
+    "ok and how many are still out on loan",
+    "list the members, newest first",
+    "hey what's the oldest book in there",
+    "which member joined most recently",
+]
+
+
+def test_every_library_ask_of_run16d_seats_the_skill_with_all_the_tables(world, tmp_path, monkeypatch) -> None:
+    import sqlite3
+
+    from core.plugin_tools import plugin_scratch_dir
+    from core.tool_demand_signals import _VOCAB_CACHE
+    from core.tool_offer_assembly import skill_guidance_for
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    root = plugin_scratch_dir("vool-database") / "databases"
+    root.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(root / "library.sqlite")
+    c.executescript(
+        "create table books(id integer primary key, title text, author text, year int);"
+        "create table members(id integer primary key, name text, joined text);"
+        "create table loans(id integer primary key, book_id int, member_id int, returned int);"
+    )
+    c.commit(); c.close()
+    _VOCAB_CACHE.clear()
+    for text in RUN16D_ASKS:
+        guidance = skill_guidance_for(text, source_context={"session_id": "s-fresh", "runtime_session_id": "s-fresh"})
+        assert "members(id, name, joined)" in guidance.text and "loans(id, book_id, member_id, returned)" in guidance.text, text
+
+
+def test_in_there_is_the_database_not_a_folder_in_a_database_chat(world, tmp_path, monkeypatch) -> None:
+    from core.conversation_state import resolve
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    ctx = {"session_id": "s-db-7", "runtime_session_id": "s-db-7"}
+    assert resolve("s-db-7", "hey what's the oldest book in there", source_context=dict(ctx)).kind == "referent_unresolved"
+    from core.database_work_state import note_database_demand
+
+    note_database_demand(ctx)
+    assert resolve("s-db-7", "anything by Austen in there?", source_context=dict(ctx)).kind == "none"
+    assert resolve("s-db-7", "what is in that folder", source_context=dict(ctx)).kind == "referent_unresolved"

@@ -119,14 +119,26 @@ def database_catalog_block(max_chars: int = 1800) -> str:
             conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
             try:
                 tables = []
+                links: list[str] = []
+                shapes: dict[str, list[str]] = {}
                 for (table,) in conn.execute(
                     "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name"
                 ).fetchall()[:20]:
                     columns = [row[1] for row in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
                     tables.append("%s(%s)" % (table, ", ".join(columns[:30])))
+                    shapes[table] = columns
+                for table, columns in shapes.items():
+                    for column in columns:
+                        stem = column[:-3] if column.lower().endswith("_id") else ""
+                        target = next((t for t in (stem, stem + "s", stem + "es") if stem and t in shapes and t != table), "")
+                        if target:
+                            links.append("%s.%s = %s.id" % (table, column, target))
             finally:
                 conn.close()
-            lines.append("- database `%s`: %s" % (path.stem, "; ".join(tables) or "no tables"))
+            lines.append(
+                "- database `%s`: %s%s"
+                % (path.stem, "; ".join(tables) or "no tables", ("; joins: " + ", ".join(links[:8])) if links else "")
+            )
         if not lines:
             return ""
         text = (
