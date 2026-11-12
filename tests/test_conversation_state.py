@@ -363,3 +363,79 @@ def test_the_transcript_keeps_what_the_user_typed():
 def test_an_auxiliary_first_prompt_about_the_pending_thing_is_still_a_retry_when_cleared(message):
     _seed(READ)
     assert cs.resolve("s1", message, cleared=True, arbiter=_arb("no")).kind == "retry"
+# --- v5b: ordinal picks against a recorded printed list, and a bare yes to an open read request -----------------------
+
+PRINTED = [{"name": f"pic{i}.jpg", "path": f"/h/Pictures/pic{i}.jpg"} for i in range(1, 7)]
+
+
+def _printed(age=0):
+    return cs.PendingRequest("list my pictures", "done", "", {"listed": PRINTED, "tool": "machine.list_directory"}, age)
+
+
+@pytest.mark.parametrize("message, expect", [
+    ("open the second one", ["/h/Pictures/pic2.jpg"]),
+    ("grab the last two pls", ["/h/Pictures/pic5.jpg", "/h/Pictures/pic6.jpg"]),
+    ("whats number 3", ["/h/Pictures/pic3.jpg"]),
+    ("zip the first 3", ["/h/Pictures/pic1.jpg", "/h/Pictures/pic2.jpg", "/h/Pictures/pic3.jpg"]),
+    ("the 4th one looks right", ["/h/Pictures/pic4.jpg"]),
+])
+def test_an_ordinal_pointer_resolves_against_the_printed_list(message, expect):
+    got = cs.resolve("o", message, pending=_printed(), cleared=None)
+    assert got.kind == "pick" and got.slots["picked"] == expect
+    assert all(path in got.text for path in expect)
+
+
+def test_an_ordinal_with_no_printed_list_asks_which_list():
+    assert cs.resolve("o", "open the second one", pending=None).kind == "referent_unresolved"
+    assert cs.resolve("o", "open the second one", pending=cs.PendingRequest("hi", "done", "", {}, 0)).kind == "referent_unresolved"
+
+
+def test_an_ordinal_outside_the_list_or_long_after_it_does_not_guess():
+    assert cs.resolve("o", "the 9th one", pending=_printed(), cleared=None).kind == "referent_unresolved"
+    assert cs.resolve("o", "open the second one", pending=_printed(age=9), cleared=None).kind == "referent_unresolved"
+
+
+@pytest.mark.parametrize("message", ["i saw it the last time we talked", "both are fine by me", "what was the first thing you said about rain"])
+def test_ordinal_words_that_are_not_a_pointer_are_left_alone(message):
+    got = cs.resolve("o", message, pending=_printed(), cleared=None)
+    assert got.kind != "pick" or "first thing" in message
+
+
+def test_a_picked_delete_is_still_a_fresh_turn_so_approval_applies():
+    # the pick only names the item; routing and authorisation happen on the rewritten text like any typed request
+    got = cs.resolve("o", "delete the second one", pending=_printed(), cleared=None)
+    assert got.kind == "pick" and got.text.startswith("delete ")
+
+
+def test_a_printed_list_is_recorded_from_the_tool_details_not_the_reply_text():
+    result = {"success": True, "status": "executed", "response_text": "1. nothing here",
+              "tool_receipts": [{"tool_name": "machine.list_directory", "execution": {"ok": True, "status": "executed"}}],
+              "details": {"entries": [{"name": "a.jpg", "path": "/p/a.jpg"}, {"name": "b.jpg", "path": "/p/b.jpg"}]}}
+    cs.record_sealed_turn("l", "list my pics", result)
+    got = cs.load("l")
+    assert [i["path"] for i in got.slots["listed"]] == ["/p/a.jpg", "/p/b.jpg"]
+    assert cs.resolve("l", "the last one", cleared=None).slots["picked"] == ["/p/b.jpg"]
+
+
+OFFER = cs.PendingRequest("list my downloads", "needs_answer", "pending_approval", {"tool": "machine.list_directory"}, 0)
+
+
+@pytest.mark.parametrize("message", ["yes do it", "go ahead", "sure", "ok yes pls"])
+def test_a_bare_yes_after_an_open_read_request_runs_it(message):
+    assert cs.resolve("y", message, pending=OFFER, cleared=None).kind == "retry"
+
+
+@pytest.mark.parametrize("message", ["no", "what is it for", "yes but only jpgs please make a list"])
+def test_a_no_or_a_question_after_an_open_request_does_not_run_it(message):
+    assert cs.resolve("y", message, pending=OFFER, cleared=None).kind != "retry"
+
+
+def test_a_bare_yes_never_runs_an_open_request_that_changes_things():
+    delete = cs.PendingRequest("delete my downloads", "needs_answer", "pending_approval", {"tool": "machine.delete_path"}, 0)
+    assert cs.resolve("y", "yes do it", pending=delete, cleared=None).kind == "none"
+
+
+@pytest.mark.parametrize("message", ["random number 1 to 10", "give me a number between 1 and 10", "my number is 5"])
+def test_the_word_number_without_a_pointer_frame_is_not_an_ordinal(message):
+    assert cs.resolve("o", message, pending=_printed(), cleared=None).kind == "none"
+    assert cs.resolve("o", message, pending=None).kind == "none"

@@ -49,7 +49,7 @@ class PendingRequest:
 
 @dataclass(frozen=True)
 class Resolution:
-    kind: str  # "retry" | "retry_changed" | "referent_unresolved" | "none"
+    kind: str  # "retry" | "retry_changed" | "pick" | "referent_unresolved" | "none"
     request: str = ""
     slots: dict[str, Any] = field(default_factory=dict)
     note: str = ""
@@ -60,6 +60,8 @@ class Resolution:
         """The text the turn is ROUTED as. The transcript keeps what the user typed (persistent_memory)."""
         if self.kind == "retry_changed":
             return f"{self.request} (change: {self.change})"
+        if self.kind == "pick":
+            return self.request
         return self.request
 
 
@@ -166,6 +168,28 @@ def outcome_of(result: dict[str, Any] | None) -> tuple[str, str, bool]:
     return DONE, "", False
 
 
+_LIST_KEYS = ("entries", "matches", "items")
+_LISTED_MAX = 50
+
+
+def listed_of(details: dict[str, Any]) -> list[dict[str, str]]:
+    """The ordered list a tool result printed, as ``[{"name","path"}]`` (structured fields only; the reply text is not read)."""
+    for key in _LIST_KEYS:
+        raw = details.get(key)
+        if not isinstance(raw, list) or not raw:
+            continue
+        out: list[dict[str, str]] = []
+        for item in raw[:_LISTED_MAX]:
+            if isinstance(item, str) and item.strip():
+                out.append({"name": item.strip().replace("\\", "/").rsplit("/", 1)[-1], "path": item.strip()})
+            elif isinstance(item, dict) and (item.get("path") or item.get("name")):
+                path = str(item.get("path") or item.get("name"))
+                out.append({"name": str(item.get("name") or path.replace("\\", "/").rsplit("/", 1)[-1]), "path": path})
+        if out:
+            return out
+    return []
+
+
 def slots_of(result: dict[str, Any] | None) -> dict[str, Any]:
     """The folder / kind / count / order a turn resolved, from its tool details."""
     details = dict((result or {}).get("details") or {})
@@ -178,6 +202,9 @@ def slots_of(result: dict[str, Any] | None) -> dict[str, Any]:
     receipts = [r for r in ((result or {}).get("tool_receipts") or []) if isinstance(r, dict)]
     if receipts and str(receipts[0].get("tool_name") or "").strip():
         slots["tool"] = str(receipts[0]["tool_name"]).strip()
+    listed = listed_of(details)
+    if listed:
+        slots["listed"] = listed
     arguments = details.get("arguments") if isinstance(details.get("arguments"), dict) else {}
     for key in ("path", "kind", "limit", "newest_first"):
         if key in arguments and arguments[key] not in (None, ""):
@@ -407,6 +434,52 @@ def _is_plain_remainder(rest: str, base_slots: dict[str, Any]) -> bool:
     return bool(_STATE_REPORT_RE.search(rest) or _GO_RE.search(rest))
 
 
+_ORD = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+        "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5}
+_COUNT = {"two": 2, "three": 3, "four": 4, "five": 5, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10}
+_PICK_RE = re.compile(
+    r"\b(?:the\s+)?(?P<edge>first|last)\s+(?P<n>two|three|four|five|\d{1,2})(?:\s+(?:ones|items|results|files|folders|pics|pictures))?\b"
+    r"|\b(?:the\s+)?(?P<ord>first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last|\d{1,2}(?:st|nd|rd|th))(?!\s+(?:time|week|year|night|month|day|few))(?:\s+(?:one|result|item|file|folder|pic|picture))?\b"
+    r"|(?:^|\b(?:the|open|show|get|grab|pick|take|whats|what's|is|on|at|with|me)\s+)(?P<nm>(?:number|no\.?)\s*(?P<num>\d{1,2}))\b|#\s*(?P<num2>\d{1,2})\b|\b(?:both|all\s+of\s+them)\b",
+    re.IGNORECASE,
+)
+_PICK_MAX_AGE = 3
+#: A bare yes: the closed class of affirmation words. Used only against a structured offer (an open approval request).
+_AFFIRM_WORDS = frozenset({"yes", "yep", "yeah", "yup", "y", "sure", "ok", "okay", "k", "do", "it", "go", "ahead", "please", "pls",
+                           "proceed", "confirm", "approve", "approved", "sounds", "good", "fine", "that", "works", "then", "alright"})
+
+
+def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
+    """An ordinal pointer ("the second one", "the last two", "number 3") against the list the chat printed last."""
+    m = _PICK_RE.search(compact)
+    if not m:
+        return None
+    listed = (pending.slots.get("listed") if pending else None) or []
+    if not listed or (pending and pending.turns_since > _PICK_MAX_AGE):
+        return Resolution("referent_unresolved", note="The message points at an item of a list this chat has not printed (or printed long ago); ask which list or which item.")
+    n = len(listed)
+    if m.group("edge"):
+        k = _COUNT[m.group("n").lower()]
+        picked = listed[:k] if m.group("edge").lower() == "first" else listed[-k:]
+    elif m.group("ord"):
+        o = m.group("ord").lower()
+        k = _ORD.get(o) or (int(re.sub(r"\D", "", o)) if o != "last" else 0)
+        picked = [listed[-1]] if o == "last" else ([listed[k - 1]] if 1 <= k <= n else [])
+    elif m.group("num") or m.group("num2"):
+        i = int(m.group("num") or m.group("num2"))
+        picked = [listed[i - 1]] if 1 <= i <= n else []
+    elif n == 2:
+        picked = list(listed)
+    else:
+        return None  # "both" / "all of them" only points when the printed list has exactly two items
+    if not picked:
+        return Resolution("referent_unresolved", note=f"The list printed earlier has {n} item(s); the pointer is outside it. Ask which one.")
+    names = ", ".join(f"“{i['path']}”" for i in picked)
+    a, b = m.span("nm") if m.group("nm") else m.span()
+    rewritten = (compact[:a] + names + compact[b:]).strip()
+    return Resolution("pick", rewritten, {"picked": [i["path"] for i in picked]}, f"“{compact}” points at: {names} (from the list printed earlier in this chat).")
+
+
 def resolve(
     session_id: str,
     text: str,
@@ -433,6 +506,14 @@ def resolve(
     if not compact:
         return Resolution("none")
     pending = pending if pending is not None else load(session_id)
+    picked = _pick(compact, pending)
+    if picked is not None:
+        return picked
+    if pending is not None and pending.outcome == NEEDS_ANSWER and pending.turns_since == 0 and _read_only(pending):
+        toks = _tokens(compact)
+        if toks and len(toks) <= 5 and all(t in _AFFIRM_WORDS for t in toks):
+            # "yes do it" after VOOL's own open request: the offered read runs again as a fresh turn (approval applies again)
+            return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
     # `core.attempt_followup` has already had its turn (it runs before this resolver in the turn spine).
     if pending is not None and len(compact.split()) <= 14:
         has_cue, rest = _split_cue(compact)
