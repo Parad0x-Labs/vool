@@ -102,6 +102,9 @@ def account_view(entry: dict[str, Any], spec: chains.ChainIdentity, *, shared_ro
         "network": entry.get("network", ""), "row": spec.network, "mode": mode, "mode_label": MODE_LABELS.get(mode, mode),
         "setup_state": setup_state, "can_sign": mode != "watch_only", "approval_method": entry.get("approval_method", ""),
         "same_address_on_other_networks": sorted(shared_rows), "agent_id": str(entry.get("agent_id") or ""),
+        # the person's own wallets by role (core.wallet.wallet_roles): main / everyday / burner, "" for an agent's
+        "kind": str(entry.get("kind") or ""), "is_main": bool(entry.get("is_main")), "burner_used": bool(entry.get("burner_used")),
+        "keychain_backup": bool(entry.get("keychain_backup")),
     }
 
 

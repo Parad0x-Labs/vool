@@ -929,6 +929,33 @@ rows:
     tests: [tests/wallet/test_agent_allowances.py, tests/wallet/test_agent_wallets.py, tests/wallet/test_agent_pay_x402_sdk.py, tests/wallet/test_agent_settings_api.py, tests/wallet/test_agent_spending_served.py]
     label: TESTED
     target_release: unknown
+  - id: wallet-named-wallets
+    title: Named wallets (Main per network, everyday and burner wallets, rename, make main, delete)
+    area: crypto
+    ui: [vwCx]
+    wired: ["/api/wallet/wallets/name", "/api/wallet/wallets/main", "/api/wallet/wallets/remove", "/api/wallet/setup/create"]
+    default: []
+    tests: [tests/wallet/test_wallet_roles.py]
+    label: TESTED
+    target_release: 0.8.0
+  - id: wallet-keychain-backup
+    title: Wallet backup key sealed with a backup password in the computer's secure store (Keychain), forgot-PIN restore, bring back a deleted wallet
+    area: crypto
+    ui: [vwCx, vwKeychainRestore]
+    wired: ["/api/wallet/keychain", "/api/wallet/keychain/save", "/api/wallet/keychain/recover", "/api/wallet/keychain/restore", "/api/wallet/keychain/forget"]
+    default: []
+    tests: [tests/wallet/test_wallet_keychain_backup.py]
+    label: TESTED
+    target_release: 0.8.0
+  - id: wallet-addons-wallet
+    title: Skills & plugins wallet (a separate wallet, each plugin ticked with its own limits)
+    area: crypto
+    ui: [vwAddons]
+    wired: ["/api/wallet/addons/allowance", "/api/wallet/agents", "/api/wallet/agents/wallet", "/api/wallet/agents/allowance/state"]
+    default: []
+    tests: [tests/wallet/test_addon_wallet.py]
+    label: TESTED
+    target_release: 0.8.0
   - id: wallet-receive-balance
     title: Receive address, QR code and balance
     area: crypto

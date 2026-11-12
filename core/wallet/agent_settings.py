@@ -10,7 +10,17 @@ import dataclasses
 import time
 from typing import Any
 
-from core.wallet import agent_pay, agent_wallets, allowances, amounts, chains, custody, environment, limits
+from core.wallet import (
+    addon_wallet,
+    agent_pay,
+    agent_wallets,
+    allowances,
+    amounts,
+    chains,
+    custody,
+    environment,
+    limits,
+)
 from core.wallet.security import wallet_fault
 
 AUTHORITY = "core.wallet.agent_settings"
@@ -48,6 +58,8 @@ _REFUSAL_TEXT = {
     "unknown_agent": "Choose one of the listed agents.",
     "not_an_agent_wallet": "That wallet is not an agent's wallet.",
     "network_not_active": "That network is not in the active network environment.",
+    "unknown_addon": "That plugin is not installed, or it does not ask to pay. Nothing was allowed.",
+    "no_addons_wallet": "Create the Skills & plugins wallet on this network first.",
 }
 
 
@@ -174,7 +186,8 @@ def _recent(limit: int = 20) -> list[dict[str, Any]]:
                 asset = _asset(view["network"], view["asset"])
             except Exception:
                 asset = None
-        rows.append({"agent": AGENTS.get(entry["agent_id"], entry["agent_id"]), "service": entry["origin"], "paid": entry["decision"] == allowances.DECISION_PAY,
+        agent_name = AGENTS.get(entry["agent_id"]) or (addon_wallet.name_of(entry["agent_id"]) if allowances.is_addon_agent(entry["agent_id"]) else entry["agent_id"])
+        rows.append({"agent": agent_name, "service": entry["origin"], "paid": entry["decision"] == allowances.DECISION_PAY,
                      "amount": _human(entry["amount_minor"], asset) if asset is not None else "", "asset": str(view["asset"]) if view and asset is not None else "",
                      "why": agent_pay.explain(entry["reason"]), "at": float(entry["created_at"] or 0)})
     return rows
@@ -186,6 +199,7 @@ def overview(*, now: float | None = None) -> dict[str, Any]:
     owner = custody.owner_proof_wallet()
     wallets = agent_wallets.list_agent_wallets()
     names = {spec.network: spec.display_name for spec in chains.all_networks()}
+    addons = _addons(wallets, names, now=moment)
     agents = []
     for agent_id, name in AGENTS.items():
         mine = [{**wallet, "network_name": names.get(wallet["network"], wallet["network"])} for wallet in wallets if wallet["agent_id"] == agent_id]
@@ -199,7 +213,73 @@ def overview(*, now: float | None = None) -> dict[str, Any]:
         "owner_wallet": owner is not None, "owner_wallet_label": (owner.label or "your first wallet") if owner else "",
         "owner_method": custody.shown_approval_method(""), "frozen": frozen, "agents": agents, "networks": _networks(),
         "waiting": _waiting({wallet["wallet_id"] for wallet in wallets}), "recent": _recent(), "periods": list(PERIODS), "default_days": DEFAULT_DAYS, "max_days": MAX_DAYS,
+        "addons": addons,
     }
+
+
+def _addons(wallets: list[dict[str, Any]], names: dict[str, str], *, now: float) -> dict[str, Any]:
+    """The Skills & plugins wallet block: its wallets, and every plugin that asks to pay with its tick and limits."""
+    mine = [{**wallet, "network_name": names.get(wallet["network"], wallet["network"])} for wallet in wallets if wallet["agent_id"] == addon_wallet.ADDONS]
+    listed = []
+    for item in addon_wallet.requesters():
+        view = addon_wallet.allowance_for(item["addon_id"], now=now)
+        shown = _allowance_shown(view, now=now) if view else None
+        if shown is not None and not shown.get("unreadable"):
+            shown["period_payments"] = int(view.get("window_payments") or 0)
+            shown["period_payments_used"] = int(view.get("window_payments_used") or 0)
+        listed.append({**item, "allowed": shown is not None and shown.get("state") in (allowances.STATE_ACTIVE, allowances.STATE_PAUSED), "allowance": shown})
+    return {"agent_id": addon_wallet.ADDONS, "name": addon_wallet.WALLET_NAME, "wallets": mine, "plugins": listed}
+
+
+def save_addon(body: dict[str, Any], *, now: float | None = None, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Tick a plugin with its limits, or change them. Only a plugin that declared it pays, only the services it
+    declared, only from the Skills & plugins wallet. Ticking and loosening are the owner's act (their own wallet's
+    PIN or password); tightening is saved as typed. Unticking is ``set_state`` with ``end``."""
+    moment = float(now if now is not None else time.time())
+    addon_id = str(body.get("addon_id") or "").strip().lower()
+    declared = addon_wallet.requester(addon_id)
+    if declared is None:
+        raise _refuse("unknown_addon", source_context=source_context)
+    current = addon_wallet.allowance_for(addon_id, now=moment)
+    wallet = None
+    if current is not None and not current.get("unreadable"):
+        wallet = agent_wallets.agent_wallet(current["wallet_id"])
+        asset_symbol = current["asset"]
+    else:
+        current = None
+        wanted = str(body.get("wallet_id") or "")
+        wallet = next((w for w in addon_wallet.wallets() if w["wallet_id"] == wanted), None) if wanted else next(iter(addon_wallet.wallets()), None)
+        asset_symbol = str(body.get("asset") or "")
+    if wallet is None or wallet["agent_id"] != addon_wallet.ADDONS:
+        raise _refuse("no_addons_wallet", source_context=source_context)
+    asset = _asset(wallet["network"], asset_symbol)
+    period = str(body.get("period") or "day").strip().lower()
+    if period not in PERIODS:
+        raise SettingsRefused("Choose an hour, a day, a week or a month as the period.")
+    per_payment = _minor(body.get("per_payment"), asset, "one payment")
+    period_amount = _minor(body.get("period_amount"), asset, "the period")
+    days = _whole(body.get("days"), "The number of days", default=DEFAULT_DAYS, least=1, most=MAX_DAYS)
+    periods_in_life = max(1, (days * allowances.DAY) // PERIODS[period])
+    # the total is what the period amount allows over the whole life unless the owner typed less
+    total = _minor(body.get("total"), asset, "the total", optional=True) or period_amount * periods_in_life
+    period_payments = _whole(body.get("period_payments"), "The number of payments per period", default=0, least=0, most=100000)
+    max_payments = _whole(body.get("max_payments"), "The number of payments in all", default=max(period_payments * periods_in_life, 100), least=1, most=10**7)
+    spec = allowances.AllowanceSpec(
+        agent_id=addon_id, wallet_id=wallet["wallet_id"], network=wallet["network"], asset=asset.symbol, per_payment_minor=per_payment,
+        window_seconds=PERIODS[period], window_minor=period_amount, total_minor=total, max_payments=max_payments,
+        min_interval_seconds=_whole(body.get("min_gap_seconds"), "The pause between payments", default=0, least=0, most=allowances.DAY),
+        expires_at=moment + days * allowances.DAY, services=tuple(allowances.ServiceRule(origin=origin, total_minor=total) for origin in declared["services"]),
+        ask_above_minor=_minor(body.get("ask_above"), asset, "the ask-first amount", optional=True), window_payments=period_payments)
+    credential = str(body.get("credential") or "")
+    if current is not None:
+        if not str(body.get("days") or "").strip():
+            spec = dataclasses.replace(spec, expires_at=float(current["expires_at"]))
+        allowances.change_allowance(current["allowance_id"], spec, credential=credential, now=moment, source_context=source_context)
+        allowance_id = current["allowance_id"]
+    else:
+        allowance_id = allowances.create_allowance(spec, credential=credential, now=moment, source_context=source_context)
+    view = allowances.allowance_view(allowance_id, now=moment) or {"allowance_id": allowance_id, "unreadable": True}
+    return {"allowance": _allowance_shown(view, now=moment)}
 
 
 def balances_of(wallet_id: str, *, source_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -220,13 +300,14 @@ def balances_of(wallet_id: str, *, source_context: dict[str, Any] | None = None)
 def create_wallet(body: dict[str, Any], *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create the agent's wallet and show its backup key once, on one proof of the owner."""
     agent_id = str(body.get("agent_id") or agent_pay.ASSISTANT_AGENT).strip().lower()
-    if agent_id not in AGENTS:
+    if agent_id not in AGENTS and agent_id != addon_wallet.ADDONS:
         raise _refuse("unknown_agent", source_context=source_context)
     network = str(body.get("network") or "")
     if network not in {row["network"] for row in _networks()}:
         raise _refuse("network_not_active" if network else "unknown_network", source_context=source_context)
     credential = str(body.get("credential") or "")
-    wallet = agent_wallets.create_agent_wallet(agent_id, network=network, credential=credential, source_context=source_context)
+    wallet = agent_wallets.create_agent_wallet(agent_id, network=network, credential=credential, source_context=source_context,
+                                               label=addon_wallet.WALLET_NAME if agent_id == addon_wallet.ADDONS else "")
     backup = agent_wallets.reveal_backup(wallet["wallet_id"], credential=credential, source_context=source_context)
     return {"wallet": agent_wallets.agent_wallet(wallet["wallet_id"]), "backup": backup}
 
@@ -327,4 +408,4 @@ def set_state(body: dict[str, Any], *, source_context: dict[str, Any] | None = N
     return {"allowance": _allowance_shown(view, now=time.time()) if view else None}
 
 
-__all__ = ["AGENTS", "SettingsRefused", "balances_of", "create_wallet", "overview", "refusal_text", "save_allowance", "set_state", "show_backup"]
+__all__ = ["AGENTS", "SettingsRefused", "balances_of", "create_wallet", "overview", "refusal_text", "save_addon", "save_allowance", "set_state", "show_backup"]

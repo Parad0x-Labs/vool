@@ -13,6 +13,7 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2775,8 +2776,13 @@ def _wallet_balances(source_context: dict[str, Any] | None) -> dict[str, Any]:
     with ThreadPoolExecutor(max_workers=min(6, len(accounts))) as pool:
         rows = sorted((row for answer in pool.map(read, accounts) for row in answer), key=lambda r: (r["chain_order"], r["display_name"], r["label"], r["token"]))
 
+    # a wallet's name tells wallets on the SAME network apart; with one wallet there it adds nothing (every person's
+    # first wallet is named Main, core.wallet.wallet_roles)
+    per_network = Counter(spec.network for _entry, spec in accounts)
+
     def name(row: dict[str, Any], *, with_token: bool = True) -> str:
-        label = row["display_name"] + (f" ({row['label']})" if row["label"] and row["label"] != row["display_name"] else "")
+        named = row["label"] and row["label"] != row["display_name"] and per_network[row["network"]] > 1
+        label = row["display_name"] + (f" ({row['label']})" if named else "")
         return f"{label} {row.get('asset')}" if with_token and row["token"] else label
 
     held = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) > 0]

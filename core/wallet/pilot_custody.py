@@ -416,7 +416,7 @@ def _journal(kind: str, payload: dict[str, Any], *, source_context: dict[str, An
 
 def create_pilot_wallet(
     *, network: str, method: str, credential: str = "", credential_confirmation: str = "", creation_key: str = "",
-    label: str = "", source_context: dict[str, Any] | None = None, agent_id: str = "", agent_return_address: str = "",
+    label: str = "", source_context: dict[str, Any] | None = None, agent_id: str = "", agent_return_address: str = "", kind: str = "",
 ) -> dict[str, Any]:
     """Reserve, generate, seal. Returns the public setup view; never key material.
 
@@ -449,18 +449,33 @@ def create_pilot_wallet(
     if not key:
         raise _fault("wallet_setup_state_invalid", reason="creation_key_required", source_context=source_context)
 
+    from core.wallet import wallet_roles
+
+    wanted_kind = str(kind or "").strip().lower() or wallet_roles.KIND_EVERYDAY
+    if not agent_id and wanted_kind not in wallet_roles.CREATABLE_KINDS:
+        raise _fault("wallet_setup_state_invalid", reason="unknown_wallet_kind", kinds=list(wallet_roles.CREATABLE_KINDS), source_context=source_context)
     wallet_id = f"wallet-{uuid.uuid4().hex[:16]}"
     now = utcnow()
     with connection() as conn:
         limits._begin_immediate(conn)
         existing = conn.execute("SELECT wallet_id FROM wallet_profiles WHERE network = ? AND creation_key = ?", (spec.network, key)).fetchone()
         if existing is None:
+            name = wallet_roles.clean_name(label) if not agent_id else str(label or "")[:80]
+            if not agent_id:
+                # today's Main and default are pinned BEFORE this wallet exists, so a wallet added later never takes them
+                wallet_roles.freeze(conn)
+                if not name:
+                    first_here = not wallet_roles.main_wallet_id(spec.network, conn=conn)
+                    name = wallet_roles.DEFAULT_MAIN_NAME if first_here and wanted_kind != wallet_roles.KIND_BURNER else wanted_kind.capitalize()
             conn.execute(
                 "INSERT INTO wallet_profiles (wallet_id, mode, network, public_key, label, created_at, approval_method, is_default,"
                 " seal_policy, setup_state, creation_key, setup_updated_at, agent_id, agent_return_address) VALUES (?, ?, ?, '', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)",
-                (wallet_id, custody.MODE_POCKET_SEALED, spec.network, str(label or "")[:80], now, chosen, SEAL_POLICY, STATE_GENERATING, key, now,
+                (wallet_id, custody.MODE_POCKET_SEALED, spec.network, name, now, chosen, SEAL_POLICY, STATE_GENERATING, key, now,
                  str(agent_id or ""), str(agent_return_address or "")),
             )
+            if not agent_id:
+                wallet_roles.record_new_wallet(conn, wallet_id, kind=wanted_kind)
+                wallet_roles.freeze(conn)
     if existing is not None:
         return _view(_load(existing[0]) or {})
 
@@ -537,6 +552,9 @@ def import_solana_pilot_wallet(
                 raise _fault("wallet_setup_state_invalid", reason="import_conflicts_with_existing_wallet", source_context=source_context)
             wallet_id = existing[0][0]
         else:
+            from core.wallet import wallet_roles
+
+            wallet_roles.freeze(conn)  # an imported wallet never takes today's Main or default either
             conn.execute(
                 "INSERT INTO wallet_profiles (wallet_id, mode, network, public_key, label, created_at, approval_method, is_default, "
                 "sealed_blob, seal_kind, seal_policy, setup_state, creation_key, revealed_at, setup_updated_at) "
@@ -544,6 +562,8 @@ def import_solana_pilot_wallet(
                 (wallet_id, custody.MODE_POCKET_SEALED, spec.network, address, str(label or "")[:80], now, method,
                  sealed_blob, SEAL_POLICY, SEAL_POLICY, STATE_READY, key, now, now),
             )
+            wallet_roles.record_new_wallet(conn, wallet_id, kind=wallet_roles.KIND_EVERYDAY)
+            wallet_roles.freeze(conn)
     if existing:
         prove_credential(wallet_id, credential, source_context=source_context)
     else:

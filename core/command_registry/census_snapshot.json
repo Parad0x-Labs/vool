@@ -1639,6 +1639,13 @@
       "registry_command_id": "wallet.dna_fees.status",
       "surface": "http"
     },
+    "http:GET:/api/wallet/keychain": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/keychain",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.keychain.status",
+      "surface": "http"
+    },
     "http:GET:/api/wallet/pocket/terms": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/pocket/terms",
@@ -2892,6 +2899,13 @@
       "registry_command_id": "update.rollback",
       "surface": "http"
     },
+    "http:POST:/api/wallet/addons/allowance": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/addons/allowance",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.addons.allowance.set",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/agents/allowance": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/agents/allowance",
@@ -2995,6 +3009,34 @@
       "name": "POST /api/wallet/facilitators",
       "note": "delegated route forwards through execute_command",
       "registry_command_id": "wallet.facilitators.list",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/keychain/forget": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/keychain/forget",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.keychain.forget",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/keychain/recover": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/keychain/recover",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.keychain.recover",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/keychain/restore": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/keychain/restore",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.keychain.restore",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/keychain/save": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/keychain/save",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.keychain.save",
       "surface": "http"
     },
     "http:POST:/api/wallet/limits": {
@@ -3128,6 +3170,27 @@
       "name": "POST /api/wallet/usepod/topup",
       "note": "delegated route forwards through execute_command",
       "registry_command_id": "wallet.usepod.topup",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/wallets/main": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/wallets/main",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.wallets.main",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/wallets/name": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/wallets/name",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.wallets.name",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/wallets/remove": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/wallets/remove",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.wallets.remove",
       "surface": "http"
     },
     "http:POST:/api/wallet/watch-only": {
@@ -3470,7 +3533,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 335,
-    "GENERATED_ADAPTER": 151,
+    "GENERATED_ADAPTER": 160,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

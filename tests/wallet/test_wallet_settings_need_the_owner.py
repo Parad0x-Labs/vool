@@ -160,7 +160,9 @@ def test_a_wallet_another_process_makes_never_proves_the_owner(app, stored_envir
     status, answer = _post(app, "/api/wallet/pocket/create", {"acknowledged_warning": True, "pin": "135790", "network": DEVNET,
                                                               "confirmation_phrase": custody.POCKET_CONFIRMATION_PHRASE})
     assert status == 200, answer
-    assert custody.default_wallet().wallet_id not in {owner, theirs}  # the newest older-style wallet is the default now
+    # before Main wallets (2026-11-12) the newest older-style wallet became the default; now the first stays Main and
+    # default, and the owner proof never followed the default either way
+    assert custody.default_wallet().wallet_id == owner
 
     channel = channels.CHANNELS[0].channel_id
     status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": False})  # off never asks

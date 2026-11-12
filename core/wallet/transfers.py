@@ -107,6 +107,10 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
             continue
         if str(entry.get("setup_state") or "") not in {"", "ready"}:
             continue
+        if not wanted_wallet and (str(entry.get("agent_id") or "") or str(entry.get("kind") or "") == "burner"):
+            # VOOL picks only the person's own wallets by itself (core.wallet.wallet_roles): an agent's wallet, the
+            # Skills & plugins wallet and a burner pay only when the person names them
+            continue
         native = chains.native_asset(spec.network)
         row_symbols = {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}
         sent, sent_decimals = native.symbol, native.decimals
@@ -154,11 +158,18 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
             fault.user_message = (f"{symbol} can be sent only on Mainnet ({where}), and the wallet is set to test networks. Nothing was sent. "
                                   f"To send real {symbol}, switch to Mainnet in Settings, Crypto, Developer options.")
         raise fault
-    if len(candidates) > 1 and not wanted_wallet and not any(c["token"] for c in candidates):
-        # (a token request on several chains is never settled by the default account: the owner says which chain)
-        # the owner's designated account settles a request that several accounts fit; a default on another row does not
-        default = custody.default_wallet()
-        preferred = [c for c in candidates if default is not None and c["wallet_id"] == default.wallet_id]
+    if len(candidates) > 1 and not wanted_wallet:
+        preferred: list[dict[str, Any]] = []
+        if not any(c["token"] for c in candidates):
+            # (a token request on several chains is never settled by the default account: the owner says which chain)
+            # the owner's designated account settles a request that several accounts fit; a default on another row does not
+            default = custody.default_wallet()
+            preferred = [c for c in candidates if default is not None and c["wallet_id"] == default.wallet_id]
+        if not preferred and len({c["network"] for c in candidates}) == 1:
+            # several of the person's wallets on ONE network: its Main settles it, never the newest (core.wallet.wallet_roles)
+            from core.wallet import wallet_roles
+
+            preferred = [c for c in candidates if wallet_roles.main_wallet_id(c["network"]) == c["wallet_id"]]
         if preferred:
             candidates = preferred
     if len(candidates) > 1:

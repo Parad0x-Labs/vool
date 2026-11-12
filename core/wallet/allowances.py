@@ -88,6 +88,7 @@ REASON_REPEAT_UNCONFIRMED = "repeat_payment_unconfirmed"
 REASON_TOO_SOON = "too_soon"
 REASON_COUNT_USED = "payment_count_used"
 REASON_WINDOW_USED = "window_used"
+REASON_WINDOW_COUNT_USED = "window_payment_count_used"
 REASON_TOTAL_USED = "total_used"
 REASON_SERVICE_TOTAL_USED = "service_total_used"
 REASON_INVALID_REQUEST = "invalid_request"
@@ -99,6 +100,23 @@ PAUSE_BREAKER_UNDELIVERED = "breaker_undelivered"
 
 #: Requests that look like an attack or a loop rather than a spent budget. Only these feed the breaker.
 _STRIKE_REASONS = frozenset({REASON_RECIPIENT_CHANGED, REASON_PRICE_JUMP, REASON_TOO_SOON, REASON_REPEAT_UNCONFIRMED, REASON_OVER_PER_PAYMENT})
+
+#: The Skills & plugins wallet (core.wallet.addon_wallet): one wallet of its own, carrying one allowance per plugin
+#: or skill the owner ticked. It never carries the assistant's or a helper's allowance, and they never carry its.
+ADDONS_AGENT = "addons"
+ADDON_PREFIXES = ("plugin:", "skill:")
+
+
+def is_addon_agent(agent_id: str) -> bool:
+    clean = str(agent_id or "").strip().lower()
+    return clean.startswith(ADDON_PREFIXES) and len(clean) > len("skill:")
+
+
+def _carries(wallet_agent: str, agent_id: str) -> bool:
+    """Whether a wallet that belongs to ``wallet_agent`` may carry ``agent_id``'s allowance."""
+    if wallet_agent == ADDONS_AGENT:
+        return is_addon_agent(agent_id)
+    return bool(wallet_agent) and wallet_agent == agent_id and not is_addon_agent(agent_id)
 
 _AGENT_ID = re.compile(r"^[a-z0-9][a-z0-9:_.\-]{0,63}$")
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -128,6 +146,9 @@ class AllowanceSpec:
     services: tuple[ServiceRule, ...]
     #: Above this a payment asks even inside every other limit. 0: no such threshold.
     ask_above_minor: int = 0
+    #: At most this many payments inside one window (the same hour, day, week or month as ``window_minor``). 0: no
+    #: count per window, only ``max_payments`` in all.
+    window_payments: int = 0
 
 
 @dataclass(frozen=True)
@@ -167,6 +188,7 @@ class _Row:
     strikes_refused: int
     strikes_undelivered: int
     services: dict[str, tuple[int, str]] = field(default_factory=dict)
+    window_payments: int = 0
 
 
 class AllowanceRefused(ValueError):
@@ -232,6 +254,8 @@ def _validated(spec: AllowanceSpec, *, now: float) -> AllowanceSpec:
     window_minor = _positive(spec.window_minor, "window_minor")
     total = _positive(spec.total_minor, "total_minor")
     max_payments = _positive(spec.max_payments, "max_payments")
+    if isinstance(spec.window_payments, bool) or not isinstance(spec.window_payments, int) or not 0 <= spec.window_payments <= max_payments:
+        raise AllowanceRefused("payments per window must be a whole number no larger than the payments in all")
     if spec.window_seconds not in WINDOWS:
         raise AllowanceRefused("window_seconds must be an hour, a day, a week or a month")
     if isinstance(spec.min_interval_seconds, bool) or not isinstance(spec.min_interval_seconds, int) or not 0 <= spec.min_interval_seconds <= MONTH:
@@ -274,7 +298,7 @@ def _validated(spec: AllowanceSpec, *, now: float) -> AllowanceSpec:
     return AllowanceSpec(agent_id=agent, wallet_id=str(spec.wallet_id), network=network, asset=asset, per_payment_minor=per_payment,
                          window_seconds=int(spec.window_seconds), window_minor=window_minor, total_minor=total, max_payments=max_payments,
                          min_interval_seconds=int(spec.min_interval_seconds), expires_at=expires, services=tuple(services.values()),
-                         ask_above_minor=int(spec.ask_above_minor))
+                         ask_above_minor=int(spec.ask_above_minor), window_payments=int(spec.window_payments))
 
 
 def _ask_ceiling(value: int) -> int:
@@ -286,7 +310,8 @@ def _loosens(current: _Row, wanted: AllowanceSpec) -> bool:
     if (wanted.per_payment_minor > current.per_payment_minor or wanted.window_minor > current.window_minor or wanted.total_minor > current.total_minor
             or wanted.max_payments > current.max_payments or wanted.min_interval_seconds < current.min_interval_seconds
             or wanted.window_seconds < current.window_seconds or wanted.expires_at > current.expires_at
-            or _ask_ceiling(wanted.ask_above_minor) > _ask_ceiling(current.ask_above_minor)):
+            or _ask_ceiling(wanted.ask_above_minor) > _ask_ceiling(current.ask_above_minor)
+            or _ask_ceiling(wanted.window_payments) > _ask_ceiling(current.window_payments)):
         return True
     for rule in wanted.services:
         held = current.services.get(rule.origin)
@@ -308,7 +333,7 @@ def _begin_immediate(conn: Any) -> None:
 
 
 _COLUMNS = ("allowance_id, parent_id, agent_id, wallet_id, network, asset, state, pause_reason, per_payment_minor, window_seconds, window_minor, "
-            "total_minor, max_payments, min_interval_seconds, ask_above_minor, expires_at, strikes_refused, strikes_undelivered")
+            "total_minor, max_payments, min_interval_seconds, ask_above_minor, expires_at, strikes_refused, strikes_undelivered, window_payments")
 
 
 def _whole(value: Any) -> int:
@@ -328,6 +353,7 @@ def _load(conn: Any, where: str, params: tuple[Any, ...]) -> _Row | None:
         asset=str(found[5]), state=str(found[6]), pause_reason=str(found[7] or ""), per_payment_minor=_whole(found[8]), window_seconds=_whole(found[9]),
         window_minor=_whole(found[10]), total_minor=_whole(found[11]), max_payments=_whole(found[12]), min_interval_seconds=_whole(found[13]),
         ask_above_minor=_whole(found[14]), expires_at=float(found[15]), strikes_refused=_whole(found[16]), strikes_undelivered=_whole(found[17]),
+        window_payments=_whole(found[18]),
     )
     if row.state not in (STATE_ACTIVE, STATE_PAUSED, STATE_REVOKED) or row.window_seconds not in WINDOWS or row.expires_at != row.expires_at:
         raise ValueError("unknown state, window or expiry")
@@ -354,9 +380,9 @@ def _insert(conn: Any, spec: AllowanceSpec, *, parent_id: str = "") -> str:
     now = utcnow()
     conn.execute(
         "INSERT INTO wallet_agent_allowances (allowance_id, parent_id, agent_id, wallet_id, network, asset, state, per_payment_minor, window_seconds, window_minor, "
-        "total_minor, max_payments, min_interval_seconds, ask_above_minor, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "total_minor, max_payments, min_interval_seconds, ask_above_minor, expires_at, created_at, updated_at, window_payments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (allowance_id, parent_id, spec.agent_id, spec.wallet_id, spec.network, spec.asset, STATE_ACTIVE, spec.per_payment_minor, spec.window_seconds, spec.window_minor,
-         spec.total_minor, spec.max_payments, spec.min_interval_seconds, spec.ask_above_minor, spec.expires_at, now, now),
+         spec.total_minor, spec.max_payments, spec.min_interval_seconds, spec.ask_above_minor, spec.expires_at, now, now, int(spec.window_payments)),
     )
     _write_services(conn, allowance_id, spec.services)
     return allowance_id
@@ -393,7 +419,7 @@ def create_allowance(spec: AllowanceSpec, *, credential: str = "", now: float | 
     except AllowanceRefused as exc:
         raise _refused("invalid_allowance", source_context=source_context, detail=str(exc)) from None
     _require_paying_wallet(clean.wallet_id, source_context=source_context)
-    if custody.agent_of(clean.wallet_id) != clean.agent_id:
+    if not _carries(custody.agent_of(clean.wallet_id), clean.agent_id):
         # the owner's own wallets sign nothing unattended: an allowance is carried by the agent's own wallet
         # (core.wallet.agent_wallets), so what it can lose is what the owner put there
         raise _refused("allowance_needs_the_agents_own_wallet", source_context=source_context, agent_id=clean.agent_id)
@@ -435,9 +461,9 @@ def change_allowance(allowance_id: str, spec: AllowanceSpec, *, credential: str 
             raise _refused("credential_required", source_context=source_context)
         conn.execute(
             "UPDATE wallet_agent_allowances SET per_payment_minor = ?, window_seconds = ?, window_minor = ?, total_minor = ?, max_payments = ?, min_interval_seconds = ?, "
-            "ask_above_minor = ?, expires_at = ?, updated_at = ? WHERE allowance_id = ?",
+            "ask_above_minor = ?, expires_at = ?, window_payments = ?, updated_at = ? WHERE allowance_id = ?",
             (clean.per_payment_minor, clean.window_seconds, clean.window_minor, clean.total_minor, clean.max_payments, clean.min_interval_seconds,
-             clean.ask_above_minor, clean.expires_at, utcnow(), allowance_id),
+             clean.ask_above_minor, clean.expires_at, int(clean.window_payments), utcnow(), allowance_id),
         )
         _write_services(conn, allowance_id, clean.services, keep_pins=stored.services)
         # helpers' slices were cut from the old terms: they end here and are cut again, on the new terms, when next needed
@@ -664,9 +690,14 @@ def _held(conn: Any, root_or_slice: str, *, since: float | None = None, origin: 
     return int(conn.execute(sql, params).fetchone()[0] or 0)
 
 
-def _held_count(conn: Any, root_or_slice: str, *, own_only: bool = False) -> int:
+def _held_count(conn: Any, root_or_slice: str, *, own_only: bool = False, since: float | None = None) -> int:
     column = "allowance_id" if own_only else "root_id"
-    return int(conn.execute(f"SELECT COUNT(*) FROM wallet_agent_spends WHERE {column} = ? AND state IN (?, ?)", (root_or_slice, *_HELD)).fetchone()[0] or 0)
+    sql = f"SELECT COUNT(*) FROM wallet_agent_spends WHERE {column} = ? AND state IN (?, ?)"
+    params: list[Any] = [root_or_slice, *_HELD]
+    if since is not None:
+        sql += " AND spent_at >= ?"
+        params.append(float(since))
+    return int(conn.execute(sql, params).fetchone()[0] or 0)
 
 
 def _log(conn: Any, *, agent_id: str, allowance_id: str, proposal_id: str, origin: str, pay_to: str, amount_minor: int, decision: str, reason: str, now: float) -> None:
@@ -769,6 +800,8 @@ def authorize(conn: Any, *, agent_id: str, proposal_id: str, wallet_id: str, net
         in_window = _held(conn, scope.allowance_id, since=moment - scope.window_seconds, own_only=own_only)
         if in_window + amount > scope.window_minor:
             return answer(DECISION_ASK_OWNER, REASON_WINDOW_USED, row)
+        if scope.window_payments and _held_count(conn, scope.allowance_id, own_only=own_only, since=moment - scope.window_seconds) + 1 > scope.window_payments:
+            return answer(DECISION_ASK_OWNER, REASON_WINDOW_COUNT_USED, row)
         in_total = _held(conn, scope.allowance_id, own_only=own_only)
         if in_total + amount > scope.total_minor:
             return answer(DECISION_ASK_OWNER, REASON_TOTAL_USED, row)
@@ -849,6 +882,7 @@ def allowance_view(allowance_id: str, *, now: float | None = None) -> dict[str, 
         used_window = _held(conn, row.allowance_id, since=moment - row.window_seconds, own_only=own_only)
         used_total = _held(conn, row.allowance_id, own_only=own_only)
         payments = _held_count(conn, row.allowance_id, own_only=own_only)
+        window_payments_used = _held_count(conn, row.allowance_id, own_only=own_only, since=moment - row.window_seconds)
         services = [
             {"origin": origin, "total_minor": total, "used_minor": _held(conn, row.allowance_id, origin=origin, own_only=own_only), "pay_to": pay_to, "pinned": bool(pay_to)}
             for origin, (total, pay_to) in sorted(row.services.items())
@@ -859,6 +893,7 @@ def allowance_view(allowance_id: str, *, now: float | None = None) -> dict[str, 
         "pause_reason": row.pause_reason, "per_payment_minor": row.per_payment_minor, "window_seconds": row.window_seconds, "window_minor": row.window_minor,
         "window_used_minor": used_window, "total_minor": row.total_minor, "total_used_minor": used_total, "max_payments": row.max_payments, "payments": payments,
         "min_interval_seconds": row.min_interval_seconds, "ask_above_minor": row.ask_above_minor, "expires_at": row.expires_at, "services": services,
+        "window_payments": row.window_payments, "window_payments_used": window_payments_used,
     }
 
 

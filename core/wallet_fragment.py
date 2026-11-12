@@ -811,6 +811,7 @@ function drawCrypto(st){
     box.appendChild(el('div', 'vw-cx-env', 'Accounts on the other network environment stay listed with their own network; changing the environment moves nothing.'));
     inactiveWithAccounts.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
   }
+  box.appendChild(keychainRestoreBlock(cp));
   box.appendChild(channelControls(cp));
   box.appendChild(paidAiControls(cp));
   box.appendChild(agentControls(cp));
@@ -1103,6 +1104,7 @@ function agentControls(cp){
       held.className = 'vw-cx-balance read'; held.setAttribute('data-agent-balance', 'read');
     }).catch(function(){ held.textContent = 'What is in it could not be read right now (this does not mean it is empty).'; held.setAttribute('data-agent-balance', 'unavailable'); });
     card.appendChild(el('div', 'vw-cx-env', 'To fill it, send coins to this address from your own wallet. Send only what you are willing to let VOOL spend: that amount is the most this wallet can ever lose. Its backup key lets you take the money back out with any wallet app.'));
+    if (agent.agent_id === 'addons') return card;  // its limits are per plugin, in the list below it
     var network = (d.networks || []).filter(function(n){ return n.network === w.network; })[0];
     var coins = network ? network.coins : [];
     var mine = (agent.allowances || []).filter(function(a){ return a.wallet_id === w.wallet_id; });
@@ -1125,9 +1127,14 @@ function agentControls(cp){
     body.textContent = '';
     if (d.frozen) body.appendChild(el('div', 'vw-cx-warn', 'Payments are frozen, so nothing is paid on any allowance until the freeze is lifted.'));
     if (!d.owner_wallet) { var need = el('div', 'vw-cx-env', 'Create your own wallet above first. An agent\'s wallet is created with your wallet\'s PIN or password, so only you can set this up.'); need.id = 'vwAgentsNeedOwner'; body.appendChild(need); return; }
-    (d.agents || []).forEach(function(agent){
+    (d.agents || []).forEach(function(agent){ body.appendChild(agentBlock(d, agent)); });
+    if (d.addons) body.appendChild(addonsBlock(d));
+    drawTail(d);
+  }
+  function agentBlock(d, agent){
+    {
       var block = el('div', 'vw-cx-agent'); block.setAttribute('data-agent', agent.agent_id);
-      block.appendChild(el('div', 'vw-line', agent.name));
+      if (agent.agent_id !== 'addons') block.appendChild(el('div', 'vw-line', agent.name));  // the Skills & plugins box has its own title
       (agent.wallets || []).forEach(function(w){ block.appendChild(walletCard(d, agent, w)); });
       var has = (agent.wallets || []).map(function(w){ return w.network; });
       var open = (d.networks || []).filter(function(n){ return has.indexOf(n.network) < 0; });
@@ -1150,8 +1157,106 @@ function agentControls(cp){
         row.appendChild(pick); row.appendChild(create); block.appendChild(row);
         if (!(agent.wallets || []).length) block.appendChild(el('div', 'vw-cx-env', 'It has no wallet yet, so it pays nothing on its own. Creating one needs your wallet ' + secretWord(d) + ' and moves no money.'));
       }
-      body.appendChild(block);
+      return block;
+    }
+  }
+  function addonsBlock(d){
+    // the Skills & plugins wallet: its own wallet, and per plugin a tick and that plugin's own limits
+    var a = d.addons;
+    var box = el('div', 'vw-cx-addons'); box.id = 'vwAddons';
+    box.appendChild(el('div', 'vw-cx-title', 'Skills & plugins wallet'));
+    box.appendChild(el('div', 'vw-cx-env', 'A separate wallet for skills and plugins that pay for services. Your own wallets and the assistant\'s wallet are never used for them. Nothing is allowed until you tick it, and each plugin gets its own limits. A skill that is only instructions cannot pay by itself.'));
+    box.appendChild(agentBlock(d, { agent_id: 'addons', name: a.name || 'Skills & plugins', wallets: a.wallets || [], allowances: [] }));
+    var list = el('div', 'vw-cx-addon-list'); list.id = 'vwAddonList'; box.appendChild(list);
+    var plugins = a.plugins || [];
+    if (!plugins.length) { list.appendChild(el('div', 'vw-cx-env', 'No installed plugin asks to pay right now.')); return box; }
+    var ready = (a.wallets || []).filter(function(w){ return w.ready; });
+    plugins.forEach(function(p){ list.appendChild(addonRow(d, p, ready)); });
+    return box;
+  }
+  function addonRow(d, p, ready){
+    var row = el('div', 'vw-cx-channel vw-cx-addon'); row.setAttribute('data-addon', p.addon_id); row.setAttribute('data-allowed', p.allowed ? 'true' : 'false');
+    var head = el('label', 'vw-line vw-cx-addon-head');
+    var tick = el('input'); tick.type = 'checkbox'; tick.checked = !!p.allowed; tick.id = 'vwAddonTick_' + p.addon_id.replace(/[^a-z0-9]/gi, '_'); tick.setAttribute('data-addon-tick', p.addon_id);
+    head.appendChild(tick); head.appendChild(document.createTextNode(' ' + p.name + (p.kind === 'skill' ? ' (skill)' : ' (plugin)')));
+    row.appendChild(head);
+    row.appendChild(el('div', 'vw-cx-env', 'Pays: ' + (p.services || []).join(', ') + ((p.skills || []).length ? ' · skills inside: ' + p.skills.join(', ') : '')));
+    var al = p.allowance;
+    if (al && !al.unreadable) {
+      var word = AGENT_PERIOD_WORD[al.period] || al.period; var now = al.period === 'day' ? 'today' : 'this ' + word;
+      var stateText = al.state === 'active' ? 'Allowed' : (al.state === 'paused' ? 'Paused' : 'Ended');
+      var facts = el('div', 'vw-cx-env', stateText + ' · up to ' + al.per_payment + ' ' + al.asset + ' a payment · ' + al.period_used + ' of ' + al.period_amount + ' ' + al.asset + ' ' + now
+        + (al.period_payments ? ' · ' + al.period_payments_used + ' of ' + al.period_payments + ' payments ' + now : '') + ' · ' + al.days_left + (al.days_left === 1 ? ' day left' : ' days left') + (al.ask_above ? ' · asks you above ' + al.ask_above + ' ' + al.asset : ''));
+      facts.setAttribute('data-addon-facts', p.addon_id); row.appendChild(facts);
+      if (al.state === 'paused') row.appendChild(el('div', 'vw-cx-warn', (AGENT_PAUSE_TEXT[al.pause_reason] || 'It is paused.') + ' It pays nothing until you turn it back on.'));
+    }
+    var acts = el('div', 'vw-cx-actions'); row.appendChild(acts);
+    function state(action, okText){
+      return (action === 'resume' ? proved : postJson)('/api/wallet/agents/allowance/state', { allowance_id: al.allowance_id, action: action }).then(function(res){ after(res, okText, 'Nothing was changed.'); })
+        .catch(function(){ cxMsg(msg, 'The request did not complete. Nothing was changed.', true); });
+    }
+    tick.addEventListener('change', function(){
+      if (!tick.checked && al && !al.unreadable) { tick.disabled = true; state('end', p.name + ' can no longer pay. Its limits were removed.'); return; }
+      if (tick.checked) { tick.checked = false; if (!row.querySelector('[data-agent-form]')) row.appendChild(addonForm(d, p, ready, null)); }
     });
+    if (al && !al.unreadable && (al.state === 'active' || al.state === 'paused')) {
+      var change = el('button', 'vw-btn', 'Change limits'); change.type = 'button'; change.setAttribute('data-addon-action', 'change');
+      change.addEventListener('click', function(){ var open = row.querySelector('[data-agent-form]'); if (open) { open.remove(); return; } row.appendChild(addonForm(d, p, ready, al)); });
+      acts.appendChild(change);
+      var pr = el('button', 'vw-btn', al.state === 'active' ? 'Pause' : 'Turn back on'); pr.type = 'button'; pr.setAttribute('data-addon-action', al.state === 'active' ? 'pause' : 'resume');
+      pr.addEventListener('click', function(){ pr.disabled = true; state(al.state === 'active' ? 'pause' : 'resume', al.state === 'active' ? 'Paused.' : 'On again.'); });
+      acts.appendChild(pr);
+    }
+    return row;
+  }
+  function addonForm(d, p, ready, current){
+    var key = current ? current.allowance_id : p.addon_id;
+    var form = el('div', 'vw-form vw-cx-agent-form'); form.setAttribute('data-agent-form', key);
+    if (!current && !ready.length) { form.appendChild(el('div', 'vw-cx-warn', 'Create the Skills & plugins wallet above and save its backup key first. Then come back and allow this plugin.')); return form; }
+    var walletPick = null, coin = null;
+    if (!current) {
+      var ww = el('div', 'vw-cx-agent-field'); var wl = el('label', null, 'Wallet'); wl.setAttribute('for', 'vwAdWallet_' + key); ww.appendChild(wl);
+      walletPick = el('select', 'vw-limit'); walletPick.id = 'vwAdWallet_' + key;
+      ready.forEach(function(w){ var o = el('option', null, (w.label || 'Skills & plugins') + ' · ' + (w.network_name || w.network)); o.value = w.wallet_id; walletPick.appendChild(o); });
+      ww.appendChild(walletPick); form.appendChild(ww);
+      var cw = el('div', 'vw-cx-agent-field'); var cl = el('label', null, 'Coin'); cl.setAttribute('for', 'vwAdCoin_' + key); cw.appendChild(cl);
+      coin = el('select', 'vw-limit'); coin.id = 'vwAdCoin_' + key; cw.appendChild(coin); form.appendChild(cw);
+      var fillCoins = function(){
+        coin.textContent = '';
+        var w = ready.filter(function(x){ return x.wallet_id === walletPick.value; })[0] || ready[0];
+        var net = (d.networks || []).filter(function(n){ return n.network === w.network; })[0];
+        ((net && net.coins) || []).forEach(function(c){ var o = el('option', null, c.symbol); o.value = c.symbol; coin.appendChild(o); });
+      };
+      walletPick.addEventListener('change', fillCoins); fillCoins();
+    }
+    var per = field(form, 'vwAdPer_' + key, 'Most for one payment', 'e.g. 0.05', current && current.per_payment);
+    var pw = el('div', 'vw-cx-agent-field'); var pl = el('label', null, 'Most per'); pl.setAttribute('for', 'vwAdPeriod_' + key); pw.appendChild(pl);
+    var period = el('select', 'vw-limit'); period.id = 'vwAdPeriod_' + key;
+    ['hour', 'day', 'week'].forEach(function(x){ var o = el('option', null, AGENT_PERIOD_WORD[x] || x); o.value = x; period.appendChild(o); });
+    period.value = (current && current.period) || 'day'; pw.appendChild(period);
+    var amount = el('input', 'vw-limit'); amount.type = 'text'; amount.id = 'vwAdAmount_' + key; amount.autocomplete = 'off'; amount.placeholder = 'e.g. 1'; amount.setAttribute('aria-label', 'most in that period');
+    amount.value = (current && current.period_amount) || ''; pw.appendChild(amount); form.appendChild(pw);
+    var count = field(form, 'vwAdCount_' + key, 'Most payments in that period', 'e.g. 20', current && current.period_payments ? String(current.period_payments) : '');
+    var days = field(form, 'vwAdDays_' + key, current ? 'Days from now until it ends (leave empty to keep the end date)' : 'Days until it ends (1 to ' + (d.max_days || 90) + ')', String(d.default_days || 30), '');
+    var ask = field(form, 'vwAdAsk_' + key, 'Always ask me above (optional)', 'e.g. 0.5', current && current.ask_above);
+    form.appendChild(el('div', 'vw-cx-env', 'It may pay only: ' + (p.services || []).join(', ') + '. The address each service is paid at is fixed when you approve its first payment.'));
+    var acts = el('div', 'vw-cx-actions');
+    var save = el('button', 'vw-btn primary', current ? 'Save limits' : 'Allow ' + p.name); save.type = 'button'; save.id = 'vwAdSave_' + key.replace(/[^a-z0-9]/gi, '_');
+    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
+    acts.appendChild(save); acts.appendChild(cancel); form.appendChild(acts);
+    cancel.addEventListener('click', function(){ form.remove(); cxMsg(msg, ''); });
+    save.addEventListener('click', function(){
+      var payload = { addon_id: p.addon_id, per_payment: per.value, period: period.value, period_amount: amount.value, period_payments: count.value, days: days.value, ask_above: ask.value };
+      if (!current) { payload.wallet_id = walletPick.value; payload.asset = coin.value; }
+      save.disabled = true;
+      proved('/api/wallet/addons/allowance', payload).then(function(res){
+        save.disabled = false;
+        after(res, current ? 'Saved.' : p.name + ' may now pay its services inside these limits.', 'Nothing was allowed.');
+      }).catch(function(){ save.disabled = false; cxMsg(msg, 'The request did not complete. Nothing was changed.', true); });
+    });
+    return form;
+  }
+  function drawTail(d){
     if ((d.waiting || []).length) {
       var wait = el('div', 'vw-cx-agent-waiting'); wait.id = 'vwAgentsWaiting';
       wait.appendChild(el('div', 'vw-line', 'Waiting for your approval'));
@@ -1214,6 +1319,12 @@ function rowCard(r, cp, st){
     create.setAttribute('aria-label', 'create a VOOL wallet on ' + r.display_name);
     create.addEventListener('click', function(){ openCreateFlow(card, r, cp, msg, create); });
     card.appendChild(create);
+  } else if (r.active && caps.create && caps.create.available && readyPilot.length && !inProgress.length) {
+    // another wallet of the person's on this network: its own key, backup and PIN; Main stays where it is
+    var more = el('button', 'vw-btn vw-cx-add-wallet', 'Add another wallet'); more.type = 'button';
+    more.setAttribute('aria-label', 'add another VOOL wallet on ' + r.display_name);
+    more.addEventListener('click', function(){ openCreateFlow(card, r, cp, msg, more, { more: true }); });
+    card.appendChild(more);
   } else if (r.active && !(caps.create && caps.create.available) && !accounts.length) {
     card.appendChild(el('div', 'vw-cx-env', 'Create wallet is unavailable here: ' + (CAP_REASONS[(caps.create || {}).reason] || (caps.create || {}).reason || 'unavailable') + '.'));
   }
@@ -1223,9 +1334,16 @@ function rowCard(r, cp, st){
 function accountCard(a, r, cp, st){
   var box = el('div', 'vw-cx-account'); box.setAttribute('data-wallet', a.wallet_id); box.setAttribute('data-setup-state', a.setup_state || 'ready'); box.setAttribute('data-mode', a.mode || '');
   var line = el('div');
-  line.appendChild(el('span', 'vw-line', (a.label ? a.label + ' · ' : '') + (a.agent_id ? 'an agent\'s own wallet (see Agent spending below)' : (a.mode_label || a.mode))));
+  line.appendChild(el('span', 'vw-line', (a.label ? a.label + ' · ' : '') + (a.agent_id ? (a.agent_id === 'addons' ? 'the Skills & plugins wallet (see below)' : 'an agent\'s own wallet (see Agent spending below)') : (a.mode_label || a.mode))));
   if (a.agent_id) box.setAttribute('data-agent', a.agent_id);
+  if (a.kind) {
+    box.setAttribute('data-kind', a.kind);
+    var badge = el('span', 'vw-badge vw-cx-kind', a.kind === 'main' ? 'Main' : (a.kind === 'burner' ? (a.burner_used ? 'Burner, used' : 'Burner') : 'Everyday'));
+    badge.setAttribute('data-kind', a.kind);
+    line.appendChild(badge);
+  }
   box.appendChild(line);
+  if (a.kind) box.appendChild(el('div', 'vw-cx-env vw-cx-kind-note', KIND_NOTES[a.kind === 'burner' && a.burner_used ? 'burner_used' : a.kind] || ''));
   var addr = el('div', 'vw-cx-address', a.address || ''); box.appendChild(addr);
   var setupState = a.setup_state || 'ready';
   var stateLine = el('div', 'vw-cx-env', 'State: ' + (SETUP_TEXT[setupState] || setupState)); stateLine.className += ' vw-cx-state'; box.appendChild(stateLine);
@@ -1272,6 +1390,7 @@ function accountCard(a, r, cp, st){
     actions.appendChild(history);
     if (a.mode === 'pocket_sealed' && !a.agent_id) { var forgot = forgotLink(a.wallet_id, 'Forgot PIN or password?'); forgot.className += ' vw-cx-forgot'; actions.appendChild(forgot); }
     box.appendChild(actions); box.appendChild(historyBox);
+    if (!a.agent_id && a.kind) box.appendChild(walletRoleControls(a, cp, msg));
   } else {
     // a Crypto Pilot setup that has not finished: exactly the actions its durable state allows
     if (a.agent_id) cxMsg(msg, 'Finish this wallet under Agent spending below.'); else setupActions(actions, msg, a, r, cp);
@@ -1279,6 +1398,171 @@ function accountCard(a, r, cp, st){
   }
   box.appendChild(msg);
   return box;
+}
+var KIND_NOTES = {
+  main: 'Your main wallet on this network. Payments VOOL starts for you (contacts, top-ups, chat payments) come from here unless you name another wallet.',
+  everyday: 'A separate wallet with its own key and backup. VOOL uses it only when you name it.',
+  burner: 'A wallet for one-off payments. VOOL never uses it by itself. Empty it and delete it whenever you like.',
+  burner_used: 'This burner has made a payment. Send what is left to another wallet and delete it whenever you like.'
+};
+function keychainControls(a, cp, msg){
+  // the backup key sealed with a backup password the person chooses, kept in this computer's secure store
+  var box = el('div', 'vw-cx-keychain'); box.setAttribute('data-keychain', a.keychain_backup ? 'saved' : 'none');
+  box.appendChild(el('div', 'vw-cx-env', a.keychain_backup
+    ? 'Backup saved in this computer\'s Keychain, locked with your backup password. If you forget the PIN or reinstall VOOL, it brings this wallet back.'
+    : 'No Keychain backup yet. You can keep this wallet\'s backup key in this computer\'s Keychain, locked with a backup password only you know. Writing the backup key down on paper is still the safest second copy.'));
+  var bar = el('div', 'vw-cx-actions'); box.appendChild(bar);
+  function form(title, fields, goText, door, extra, okText){
+    var f = el('div', 'vw-cx-form'); f.hidden = true;
+    f.appendChild(el('div', 'vw-line', title));
+    var inputs = {};
+    fields.forEach(function(x){
+      var id = 'vwKc' + x[0] + '-' + a.wallet_id; var l = el('label', null, x[1]); l.setAttribute('for', id); f.appendChild(l);
+      var i = el('input'); i.type = 'password'; i.id = id; i.autocomplete = 'new-password'; f.appendChild(i); inputs[x[0]] = i;
+    });
+    var creds = extra === 'new' ? credentialPrompt(f, 'vwKcNew-' + a.wallet_id, cp) : null;
+    var row = el('div', 'vw-sheet-actions'); var go = el('button', 'vw-btn primary', goText); go.type = 'button'; var back = el('button', 'vw-btn', 'Cancel'); back.type = 'button';
+    row.appendChild(go); row.appendChild(back); f.appendChild(row);
+    function clear(){ Object.keys(inputs).forEach(function(k){ inputs[k].value = ''; }); if (creds) creds.clear(); }
+    back.addEventListener('click', function(){ clear(); f.hidden = true; });
+    go.addEventListener('click', function(){
+      var body = { wallet_id: a.wallet_id };
+      Object.keys(inputs).forEach(function(k){ body[k] = inputs[k].value; });
+      if (creds) { body.method = creds.method.value; body.credential = creds.cred.value; body.credential_confirmation = creds.conf.value; }
+      clear(); go.disabled = true; cxMsg(msg, 'Working… this takes a moment.');
+      postJson(door, body).then(function(res){
+        body = null; go.disabled = false;
+        if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing changed.'), true); return; }
+        cxMsg(msg, okText); renderCrypto();
+      }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+    });
+    return f;
+  }
+  if (!a.keychain_backup) {
+    var save = el('button', 'vw-btn vw-cx-keychain-save', 'Save backup in Keychain'); save.type = 'button'; bar.appendChild(save);
+    var sf = form('Choose a backup password (at least 12 characters). It is different from your PIN and is never stored. Without it nobody, not even VOOL, can open the backup.',
+      [['credential', 'This wallet\'s PIN or password'], ['backup_password', 'Backup password'], ['backup_password_confirmation', 'Repeat the backup password']],
+      'Save the backup', '/api/wallet/keychain/save', null, 'The backup is saved in this computer\'s Keychain.');
+    save.addEventListener('click', function(){ sf.hidden = !sf.hidden; });
+    box.appendChild(sf);
+  } else {
+    var rec = el('button', 'vw-btn vw-cx-keychain-recover', 'Forgot PIN? Use the Keychain backup'); rec.type = 'button'; bar.appendChild(rec);
+    var rf = form('Type the backup password, then choose a new PIN or password for this wallet.', [['backup_password', 'Backup password']],
+      'Restore access', '/api/wallet/keychain/recover', 'new', 'Done. Use the new PIN or password from now on.');
+    rec.addEventListener('click', function(){ rf.hidden = !rf.hidden; });
+    box.appendChild(rf);
+    var forget = el('button', 'vw-btn vw-cx-keychain-forget', 'Remove the Keychain backup'); forget.type = 'button'; bar.appendChild(forget);
+    forget.addEventListener('click', function(){
+      forget.disabled = true;
+      postJson('/api/wallet/keychain/forget', { wallet_id: a.wallet_id }).then(function(res){ forget.disabled = false; if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not removed.'), true); return; } cxMsg(msg, 'The Keychain backup was removed.'); renderCrypto(); })
+        .catch(function(){ forget.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+    });
+  }
+  return box;
+}
+function keychainRestoreBlock(cp){
+  // backups in the secure store whose wallet is not on this computer now (deleted, or a new install)
+  var box = el('div', 'vw-cx-row vw-cx-keychain-restore'); box.id = 'vwKeychainRestore'; box.hidden = true;
+  getJson('/api/wallet/keychain').then(function(j){
+    var k = (j && j.keychain) || {}; var rows = k.restorable || [];
+    if (!rows.length) return;
+    box.hidden = false;
+    box.appendChild(el('div', 'vw-cx-title', 'Wallets you can bring back from the Keychain'));
+    rows.forEach(function(r){
+      var line = el('div', 'vw-cx-account'); line.setAttribute('data-restore', r.address);
+      line.appendChild(el('div', 'vw-line', (r.label || 'Wallet') + ' · ' + chainLabel(r.network)));
+      line.appendChild(el('div', 'vw-cx-address', r.address));
+      var msg = el('div', 'vw-msg');
+      if (!r.can_restore) { line.appendChild(el('div', 'vw-cx-env', 'Restoring this one here is not available yet. Use its backup key.')); box.appendChild(line); return; }
+      var f = el('div', 'vw-cx-form');
+      var l = el('label', null, 'Backup password'); var pid = 'vwKcRestore-' + r.address; l.setAttribute('for', pid); f.appendChild(l);
+      var pw = el('input'); pw.type = 'password'; pw.id = pid; pw.autocomplete = 'off'; f.appendChild(pw);
+      var creds = credentialPrompt(f, 'vwKcRestoreNew-' + r.address, cp);
+      var go = el('button', 'vw-btn primary', 'Bring it back'); go.type = 'button'; f.appendChild(go);
+      go.addEventListener('click', function(){
+        var body = { network: r.network, address: r.address, label: r.label, backup_password: pw.value, method: creds.method.value, credential: creds.cred.value, credential_confirmation: creds.conf.value };
+        pw.value = ''; creds.clear(); go.disabled = true; cxMsg(msg, 'Working… this takes a moment.');
+        postJson('/api/wallet/keychain/restore', body).then(function(res){ body = null; go.disabled = false; if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing changed.'), true); return; } cxMsg(msg, 'The wallet is back.'); renderCrypto(); })
+          .catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+      });
+      line.appendChild(f); line.appendChild(msg); box.appendChild(line);
+    });
+  }).catch(function(){});
+  return box;
+}
+function walletRoleControls(a, cp, msg){
+  // rename (no PIN: it loosens nothing) and Make main (this wallet's own PIN or password)
+  var host = el('div', 'vw-cx-roles'); host.setAttribute('data-wallet', a.wallet_id);
+  var bar = el('div', 'vw-cx-actions');
+  var renameBtn = el('button', 'vw-btn vw-cx-rename', 'Rename'); renameBtn.type = 'button';
+  bar.appendChild(renameBtn);
+  var form = el('div', 'vw-cx-form vw-cx-rename-form'); form.hidden = true;
+  var nLabel = el('label', null, 'Wallet name'); var nId = 'vwCxName-' + a.wallet_id; nLabel.setAttribute('for', nId); form.appendChild(nLabel);
+  var name = el('input', 'vw-cx-name'); name.type = 'text'; name.id = nId; name.maxLength = 40; name.autocomplete = 'off'; name.value = a.label || ''; form.appendChild(name);
+  var saveRow = el('div', 'vw-sheet-actions');
+  var save = el('button', 'vw-btn primary vw-cx-rename-save', 'Save name'); save.type = 'button';
+  var back = el('button', 'vw-btn', 'Cancel'); back.type = 'button';
+  saveRow.appendChild(save); saveRow.appendChild(back); form.appendChild(saveRow);
+  renameBtn.addEventListener('click', function(){ form.hidden = !form.hidden; if (!form.hidden) name.focus(); });
+  back.addEventListener('click', function(){ name.value = a.label || ''; form.hidden = true; });
+  save.addEventListener('click', function(){
+    save.disabled = true; cxMsg(msg, 'Saving…');
+    postJson('/api/wallet/wallets/name', { wallet_id: a.wallet_id, name: name.value }).then(function(res){
+      save.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not renamed. Nothing changed.'), true); return; }
+      cxMsg(msg, 'Renamed.'); renderCrypto();
+    }).catch(function(){ save.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  // Delete: the person's own wallet, at any time; this wallet's own PIN and a confirmed backup (or an empty wallet)
+  var delBtn = el('button', 'vw-btn vw-cx-remove', 'Delete wallet'); delBtn.type = 'button';
+  var dForm = el('div', 'vw-cx-form vw-cx-remove-form'); dForm.hidden = true;
+  dForm.appendChild(el('div', 'vw-cx-warn', 'Deleting removes this wallet and its key from this computer. Coins still in it stay at its address, and only its backup key can reach them again. Move them to another wallet first if you want to keep them.'));
+  var okWrap = el('label', 'vw-line'); var ok = el('input'); ok.type = 'checkbox'; ok.className = 'vw-cx-remove-ok';
+  okWrap.appendChild(ok); okWrap.appendChild(document.createTextNode(' I have this wallet\'s backup key, or it is empty')); dForm.appendChild(okWrap);
+  var dCreds = a.mode === 'pocket_sealed' ? credentialPrompt(dForm, 'vwCxDel-' + a.wallet_id, cp, { single: true }) : null;
+  var dRow = el('div', 'vw-sheet-actions');
+  var dGo = el('button', 'vw-btn primary vw-cx-remove-go', 'Delete this wallet'); dGo.type = 'button';
+  var dBack = el('button', 'vw-btn', 'Cancel'); dBack.type = 'button';
+  dRow.appendChild(dGo); dRow.appendChild(dBack); dForm.appendChild(dRow);
+  delBtn.addEventListener('click', function(){ dForm.hidden = !dForm.hidden; });
+  dBack.addEventListener('click', function(){ if (dCreds) dCreds.clear(); ok.checked = false; dForm.hidden = true; });
+  dGo.addEventListener('click', function(){
+    dGo.disabled = true; cxMsg(msg, 'Checking…');
+    var body = { wallet_id: a.wallet_id, credential: dCreds ? dCreds.cred.value : '', backup_confirmed: !!ok.checked }; if (dCreds) dCreds.clear();
+    postJson('/api/wallet/wallets/remove', body).then(function(res){
+      body = null; dGo.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not deleted. Nothing changed.'), true); return; }
+      cxMsg(msg, 'The wallet was deleted from this computer.'); renderCrypto();
+    }).catch(function(){ body = null; dGo.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  bar.appendChild(delBtn);
+  if (a.mode === 'pocket_sealed') host.appendChild(keychainControls(a, cp, msg));
+  if (a.kind === 'everyday' && a.mode === 'pocket_sealed' && (a.setup_state || 'ready') === 'ready') {
+    var mainBtn = el('button', 'vw-btn vw-cx-make-main', 'Make main'); mainBtn.type = 'button';
+    bar.appendChild(mainBtn);
+    var mForm = el('div', 'vw-cx-form vw-cx-main-form'); mForm.hidden = true;
+    mForm.appendChild(el('div', 'vw-line', 'Payments VOOL starts for you on this network will come from this wallet. Type this wallet\'s own PIN or password.'));
+    var creds = credentialPrompt(mForm, 'vwCxMain-' + a.wallet_id, cp, { single: true });
+    var mRow = el('div', 'vw-sheet-actions');
+    var go = el('button', 'vw-btn primary vw-cx-make-main-go', 'Make this my main wallet'); go.type = 'button';
+    var mBack = el('button', 'vw-btn', 'Cancel'); mBack.type = 'button';
+    mRow.appendChild(go); mRow.appendChild(mBack); mForm.appendChild(mRow);
+    mainBtn.addEventListener('click', function(){ mForm.hidden = !mForm.hidden; if (!mForm.hidden) creds.cred.focus(); });
+    mBack.addEventListener('click', function(){ creds.clear(); mForm.hidden = true; });
+    go.addEventListener('click', function(){
+      go.disabled = true; cxMsg(msg, 'Checking…');
+      var body = { wallet_id: a.wallet_id, credential: creds.cred.value }; creds.clear();
+      postJson('/api/wallet/wallets/main', body).then(function(res){
+        body = null; go.disabled = false;
+        if (!res.ok) { cxMsg(msg, faultMessage(res, 'Refused. Nothing changed.'), true); return; }
+        cxMsg(msg, 'This is now your main wallet on this network.'); renderCrypto();
+      }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+    });
+    host.appendChild(bar); host.appendChild(form); host.appendChild(mForm); host.appendChild(dForm);
+    return host;
+  }
+  host.appendChild(bar); host.appendChild(form); host.appendChild(dForm);
+  return host;
 }
 function credentialPrompt(host, prefix, cp, opts){
   // the credential fields for one action; cleared by the caller after every request
@@ -1332,14 +1616,15 @@ function showBackup(wallet, backup, onDone){
   });
   saved.focus();
 }
-function openCreateFlow(card, r, cp, msg, createBtn){
+function openCreateFlow(card, r, cp, msg, createBtn, opts){
+  var more = !!(opts && opts.more);
   if (cryptoOpenForm) { cryptoOpenForm.remove(); cryptoOpenForm = null; }
   createBtn.hidden = true;
   var form = el('div', 'vw-cx-form'); form.id = 'vwCxCreateForm'; form.setAttribute('data-network', r.network);
   cryptoOpenForm = form;
   // step 1: the warning, then a choice; closing here changes nothing
   var warn = el('div', 'vw-cx-warn'); warn.id = 'vwCxWarning';
-  warn.textContent = 'Pilot feature. Keep small test amounts and do not use this as a main wallet. The backup is shown once, right after creation, and must be saved offline. The wallet lives on ' + r.display_name + ' (' + (r.badge || '') + ') and sends its native coin only.';
+  warn.textContent = (more ? 'Another wallet, fully separate: its own key, its own backup and its own PIN or password. Your main wallet stays your main wallet. ' : '') + 'Pilot feature. Keep small test amounts and do not use this as a main wallet. The backup is shown once, right after creation, and must be saved offline. The wallet lives on ' + r.display_name + ' (' + (r.badge || '') + ') and sends its native coin only.';
   form.appendChild(warn);
   var step1 = el('div', 'vw-sheet-actions');
   var cont = el('button', 'vw-btn primary', 'Continue'); cont.id = 'vwCxContinue'; cont.type = 'button';
@@ -1352,8 +1637,15 @@ function openCreateFlow(card, r, cp, msg, createBtn){
     step1.hidden = true; step2.hidden = false;
     step2.appendChild(el('div', 'vw-line', 'Choose how you will approve payments. The wallet key is created only after this credential is confirmed, and is sealed with it from the start.'));
     var creds = credentialPrompt(step2, 'vwCx', cp);
-    var lLabel = el('label', null, 'Label (optional)'); lLabel.setAttribute('for', 'vwCxLabel'); step2.appendChild(lLabel);
-    var label = el('input'); label.type = 'text'; label.id = 'vwCxLabel'; label.autocomplete = 'off'; step2.appendChild(label);
+    var lLabel = el('label', null, more ? 'Wallet name' : 'Wallet name (optional)'); lLabel.setAttribute('for', 'vwCxLabel'); step2.appendChild(lLabel);
+    var label = el('input'); label.type = 'text'; label.id = 'vwCxLabel'; label.autocomplete = 'off'; label.maxLength = 40; step2.appendChild(label);
+    var kind = null;
+    if (more) {
+      var kLabel = el('label', null, 'What is it for?'); kLabel.setAttribute('for', 'vwCxKind'); step2.appendChild(kLabel);
+      kind = el('select', 'vw-chain'); kind.id = 'vwCxKind';
+      [['everyday', 'Everyday: used only when you name it'], ['burner', 'Burner: for one-off payments, delete it when done']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; kind.appendChild(opt); });
+      step2.appendChild(kind);
+    }
     var row = el('div', 'vw-sheet-actions');
     var create = el('button', 'vw-btn primary', 'Create wallet'); create.id = 'vwCxCreate'; create.type = 'button';
     var cancel = el('button', 'vw-btn', 'Cancel'); cancel.id = 'vwCxCancel'; cancel.type = 'button';
@@ -1366,7 +1658,7 @@ function openCreateFlow(card, r, cp, msg, createBtn){
       if (method !== 'device' && creds.cred.value !== creds.conf.value) { cxMsg(state, 'The two entries differ. Type the same PIN or password twice.', true); return; }
       create.disabled = true; cxMsg(state, 'Creating the wallet…');
       var credential = creds.cred.value;
-      var body = { network: r.network, method: method, credential: credential, credential_confirmation: creds.conf.value, creation_key: cryptoCreationKeys[r.network], label: label.value || '' };
+      var body = { network: r.network, method: method, credential: credential, credential_confirmation: creds.conf.value, creation_key: cryptoCreationKeys[r.network], label: label.value || '', kind: kind ? kind.value : '' };
       postJson('/api/wallet/setup/create', body).then(function(res){
         body = null;
         if (!res.ok) { create.disabled = false; creds.clear(); cxMsg(state, faultMessage(res, 'Not created. Nothing changed.'), true); return null; }
