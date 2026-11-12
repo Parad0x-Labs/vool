@@ -125,9 +125,13 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
     errors = []
     with sync_playwright() as manager:
         browser_home = homes[0].parent/'chromium'
+        # Same test seam as tests/served_browser.py: a machine whose playwright browser lives
+        # elsewhere names it here. No product code reads this.
+        override = os.environ.get('VOOL_TEST_CHROMIUM_EXECUTABLE', '').strip()
         context = manager.chromium.launch_persistent_context(str(browser_home), headless=True,
                      accept_downloads=True, viewport={'width':1280, 'height':1000},
-                     args=['--disable-background-networking'])
+                     args=['--disable-background-networking'],
+                     **({'executable_path': override} if override else {}))
         browser = context.browser
         cdp = browser.new_browser_cdp_session()
         browser_pids = [item['id'] for item in cdp.send('SystemInfo.getProcessInfo')['processInfo']
