@@ -5565,7 +5565,43 @@ _ANSWER_FRAME_OPEN_RE = re.compile(
 _ANSWER_FRAME_OBJECT_RE = re.compile(
     r"\b(?:answer(?:s|ing)?|respon(?:d|se|ses)|repl(?:y|ies)|say|know|sure|"
     r"unsure|certain|brief(?:ly)?|concise(?:ly)?|short|final|format|"
-    r"sentences?|words?)\b",
+    r"sentences?|words?|lines?|paragraphs?|bullets?)\b",
+    re.IGNORECASE,
+)
+#: A bare shape of the reply, with no verb: "Two sentences.", "In one line.", "Short answer.",
+#: "50 words max.", "A sentence or two please.", "Briefly." Measured 2026-11-12 in the real app
+#: on the v0.8 head (auto model selection run 1, qwen3.5:4b): "What is a good way to keep basil
+#: alive on a windowsill? Two sentences." was planned as two requests and the reply ended in
+#: "Could not be answered: Two sentences." -- the directive grammar only knew verb-led
+#: directives ("Keep it to one sentence."). Matched on the WHOLE sentence only, so a sentence
+#: that says anything else ("Two sentences were missing from the report.") stays content.
+_REPLY_SHAPE_COUNT = (
+    r"(?:an?|one|two|three|four|five|six|seven|eight|nine|ten|a\s+few|a\s+couple(?:\s+of)?|"
+    r"couple\s+of|single|\d{1,3})"
+)
+_REPLY_SHAPE_NOUN = r"(?:sentences?|lines?|words?|paragraphs?|bullets?|bullet\s+points?)"
+_REPLY_SHAPE_LIMIT = (
+    r"(?:in|within|under|at\s+most|max(?:imum)?|no\s+more\s+than|not\s+more\s+than|less\s+than|"
+    r"fewer\s+than|up\s+to)"
+)
+_REPLY_SHAPE_ADJ = r"(?:short|brief|quick|simple|plain|concise)"
+_BARE_REPLY_SHAPE_RE = re.compile(
+    r"^(?:(?:please|pls|plz|just|only)\s*,?\s+)?"
+    r"(?:"
+    # "two sentences", "in one line", "max 50 words", "a short paragraph"
+    r"(?:" + _REPLY_SHAPE_LIMIT + r"\s+)?" + _REPLY_SHAPE_COUNT + r"[\s\-]+(?:" + _REPLY_SHAPE_ADJ + r"\s+)?"
+    + _REPLY_SHAPE_NOUN +
+    # "in short sentences", "in bullet points"
+    r"|" + _REPLY_SHAPE_LIMIT + r"\s+(?:" + _REPLY_SHAPE_ADJ + r"\s+)?" + _REPLY_SHAPE_NOUN +
+    # "bullet points please"
+    r"|" + _REPLY_SHAPE_NOUN + r"(?=\s+(?:please|pls|plz|only)\b)"
+    # "short answer", "a one-word answer", "two-sentence reply"
+    r"|(?:" + _REPLY_SHAPE_COUNT + r"[\s\-]+)?(?:" + _REPLY_SHAPE_ADJ + r"|"
+    r"(?:one|two|three|single)[\s\-](?:sentence|line|word|paragraph))\s+(?:answer|reply|response)"
+    r"|briefly|concisely|in\s+(?:short|brief)"
+    r")"
+    r"(?:\s+(?:or\s+(?:two|three|so|less|fewer)|max(?:imum)?|tops|at\s+most|only|each|please|pls|plz))*"
+    r"\s*[.!]*$",
     re.IGNORECASE,
 )
 _ANSWER_FRAME_CONDITION_RE = re.compile(r"^(?:if|when|unless)\b[^,]{1,160},\s*", re.IGNORECASE)
@@ -5622,6 +5658,9 @@ _ANSWER_FRAME_VOCABULARY = frozenset({
     "exactly", "plain", "simple", "simply", "clear", "clearly", "sentence",
     "sentences", "word", "words", "line", "lines", "phrase", "paragraph",
     "bullet", "bullets", "list", "yes", "date", "day", "month", "year",
+    "paragraphs", "point", "points", "two", "three", "four", "five",
+    "six", "seven", "eight", "nine", "ten", "couple", "max", "maximum",
+    "most", "under", "within", "each",
     "time", "name", "number", "amount", "place", "location",
     # where the reply may come from
     "conversation", "conversations", "chat", "chats", "message", "messages",
@@ -5668,6 +5707,8 @@ def _sentence_is_answer_frame(sentence: str) -> bool:
     text = str(sentence or "").strip()
     if not text or text.endswith("?") or _INTERROGATIVE_OPEN_RE.match(text):
         return False
+    if _BARE_REPLY_SHAPE_RE.match(text):
+        return True
     if re.search(r"[0-9\"“”:]", text):
         return False
     words = re.findall(r"[A-Za-z][A-Za-z'\-]*", text)

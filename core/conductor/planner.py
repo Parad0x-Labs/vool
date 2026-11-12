@@ -346,9 +346,21 @@ def _without_clauses_that_ask_nothing(
         return list(clauses)
     # A constraint can be a deliverable the planner is right to plan ("and show the working", "say
     # exactly what cannot be determined"), so of the constraints only a remark on what the assistant
-    # knows asks nothing; every context statement does.
+    # knows asks nothing; every context statement does. A sentence that only shapes the reply ("Two
+    # sentences.", "Keep it to one line.") asks nothing either, whatever kind it was read as:
+    # measured 2026-11-12 in the real app on the v0.8 head, "What is a good way to keep basil alive
+    # on a windowsill? Two sentences." was planned as two requests and the reply ended in "Could not
+    # be answered: Two sentences." The directive grammar is the retrieval lane's, its one owner.
+    try:
+        from core.context_retrieval import _sentence_is_answer_frame
+    except Exception:  # pragma: no cover - the grammar is part of the same build
+        def _sentence_is_answer_frame(_sentence: str) -> bool:
+            return False
+
     def _asks_nothing(unit: Any) -> bool:
         if unit.kind == "context":
+            return True
+        if _sentence_is_answer_frame(str(unit.text or "")):
             return True
         return unit.kind == "constraint" and bool(_REMARK_ON_WHAT_YOU_KNOW_RE.fullmatch(
             " ".join(str(unit.text or "").split()).strip(" .,!?")))
@@ -2601,6 +2613,7 @@ def plan_conductor_turn(
         _subject_without_answer_frame,
         recall_question_needs_no_planner,
         turn_may_hold_several_requests,
+        without_reply_directives,
     )
     from core.plain_task_routing import is_ordinary_multi_part_plain_task
 
@@ -2673,6 +2686,11 @@ def plan_conductor_turn(
     if plain_shaped and not _turn_requires_live_evidence(original):
         return None
     if not turn_may_hold_several_requests(original):
+        return None
+    # A turn that is one request plus sentences that only shape the reply ("Two sentences.") can
+    # only plan as that one request once those sentences are dropped (above), so the planner call
+    # is not spent on it: measured at 38 s of a 79 s turn on qwen3.5:4b (2026-11-12).
+    if not turn_may_hold_several_requests(without_reply_directives(original)):
         return None
     # One question about the speaker's own facts is one reader call from memory. A planner call
     # here returns a single clause (and so None) at the price of a whole model call; the joiner

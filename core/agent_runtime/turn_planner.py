@@ -216,6 +216,31 @@ def _subject_without_answer_frame(text: str) -> str:
     return subject if subject.strip() else raw
 
 
+def without_reply_directives(text: str) -> str:
+    """The turn minus the sentences that only shape the reply ("Two sentences.", "Keep it short.").
+
+    Unlike `_subject_without_answer_frame` this keeps no question requirement: "Explain how a heat
+    pump works. Two sentences." is one request whichever way it is asked. Such a sentence is never
+    a request (the conductor prompt says so itself), yet its sentence boundary made a one-request
+    turn look like several: measured 2026-11-12 in the real app on the v0.8 head, "What is a good
+    way to keep basil alive on a windowsill? Two sentences." spent a planner call, was split in
+    two, and the reply ended in "Could not be answered: Two sentences." Only decides whether a
+    planner call is worth spending; the turn itself is never rewritten. The grammar is the
+    retrieval lane's (`core.context_retrieval._sentence_is_answer_frame`). Fails toward the turn.
+    """
+    raw = str(text or "")
+    try:
+        from core.context_retrieval import _sentence_is_answer_frame
+
+        parts = [part for part in re.split(r"(?<=[.!?])\s+|\n+", raw) if part.strip()]
+        kept = [part for part in parts if not _sentence_is_answer_frame(part)]
+    except Exception:
+        return raw
+    if len(parts) < 2 or not kept or len(kept) == len(parts):
+        return raw
+    return " ".join(part.strip() for part in kept)
+
+
 def parse_plan(raw: str) -> list[PlannedTask]:
     """Parse the planner's reply. Returns [] for anything not a usable plan.
 
@@ -316,6 +341,9 @@ def plan_turn(
     # calculation and title into sub-turns buys an extra model call and loses the one response-level
     # completeness guard. Keep that family in the single plain answering lane.
     if is_ordinary_multi_part_plain_task(text) or not turn_may_hold_several_requests(text):
+        return []
+    # Sentences that only shape the reply are not requests (see `without_reply_directives`).
+    if not turn_may_hold_several_requests(without_reply_directives(text)):
         return []
     # A STIPULATED turn supplies the premises for ONE computation: its bullet list is that
     # computation's parts, never several independent requests. Measured live 2026-09-16: a
