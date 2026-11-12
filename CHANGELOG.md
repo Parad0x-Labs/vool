@@ -18,9 +18,9 @@ history is not republished here.
 - A skill's name can no longer write text outside its own block in VOOL's instructions, and each skill's text is marked with where it came from.
 - VOOL's developer skills no longer join everyday requests because of words like "test" or "feature", and a built-in skill cannot be installed as a copy.
 
-## [0.7.8] — 2026-11-04
+## [0.8.0] — unreleased (in testing)
 
-A patch release about the two things a chat app must never do: forget what you just said, and
+The first part of 0.8, about the two things a chat app must never do: forget what you just said, and
 die instead of answering.
 
 ### Fixed
@@ -64,7 +64,7 @@ die instead of answering.
 ### Updating
 - **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own"
   is on. Press Update.
-- **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.8 and install it
+- **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.8.0 and install it
   over your current version. Your chats and settings stay in your profile.
 
 ## [0.7.7-beta] — 2026-11-02
