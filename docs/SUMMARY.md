@@ -35,6 +35,7 @@
 * [Pay for web resources (x402)](guides/paid-resources.md)
 * [Private invoices with Zcash](guides/zcash-invoices.md)
 * [Contacts](guides/contacts.md)
+* [X integration](guides/x-integration.md)
 
 ## Reference
 
