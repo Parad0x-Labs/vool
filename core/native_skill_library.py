@@ -1076,6 +1076,34 @@ def _unmet_capabilities(contract: SkillContract) -> tuple[str, ...]:
         return tuple(contract.capabilities)
 
 
+#: The plain sentence for a skill that needs something this computer does not have, when no
+#: more specific sentence names it. The typed reason (``reason``) stays for developers.
+_PLAIN_UNAVAILABLE_TEXT = "It needs a part of VOOL that isn't on this computer yet."
+
+
+def plain_unavailable_reason(unmet: Any = (), absent_capabilities: Any = ()) -> str:
+    """Why a skill cannot run here, in words a person reads ("" when nothing is missing).
+
+    ``reason`` keeps the internal form ("unavailable capabilities: ('media.video.split (unknown
+    capability id)', ...)"), which is what a developer needs and what the selection records hold.
+    That form reached people through the skill list, skill.inspect and the Skills catalog; this is
+    what those show instead. Media (the media-studio skill on a computer without ffmpeg or the
+    nebula-media worker, which includes every packaged app today) names the media tools.
+    """
+    needs = [str(item) for item in (*tuple(unmet or ()), *tuple(absent_capabilities or ()))]
+    if not needs:
+        return ""
+    if any(item.startswith("media.") or "ffmpeg" in item or "ffprobe" in item or item.startswith("tool:media.")
+           for item in needs):
+        try:
+            from core.media_capabilities import media_unavailable_text
+
+            return media_unavailable_text()
+        except Exception:
+            return "Video editing needs VOOL's media tools (ffmpeg), which aren't on this computer yet."
+    return _PLAIN_UNAVAILABLE_TEXT
+
+
 def _unmet_prerequisites(contract: SkillContract) -> list[str]:
     unmet: list[str] = []
     for prereq in contract.prerequisites:
@@ -1149,6 +1177,7 @@ def inspect_skill(skill_id: str) -> dict[str, Any]:
         "enabled": not disabled,
         "available": available,
         "reason": reason,
+        "plain_reason": "" if disabled else plain_unavailable_reason(unmet, absent_capabilities),
         "contract": contract_to_dict(contract),
     }
 
@@ -1186,6 +1215,7 @@ def skill_inventory(root: Path | None = None) -> list[dict[str, Any]]:
                 "enabled": not is_disabled,
                 "available": available,
                 "reason": reason,
+                "plain_reason": "" if is_disabled else plain_unavailable_reason(unmet, absent_capabilities),
                 "task_families": list(contract.task_families),
                 "capability_families": list(contract.capability_families),
             }
@@ -1942,6 +1972,7 @@ __all__ = [
     "mcp_lexical_skills",
     "native_skills_root",
     "parse_skill_text",
+    "plain_unavailable_reason",
     "reset_contract_caches",
     "select_native_skills",
     "set_skill_enabled",

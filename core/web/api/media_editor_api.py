@@ -263,7 +263,14 @@ def _ok(payload: dict[str, Any]):
 def _fail(code: str, message: str, status_code: int = 400):
     from core.web.api.service import json_response
 
-    return json_response(status_code, {"ok": False, "error": code, "message": message})
+    payload = {"ok": False, "error": code, "message": message}
+    if code == "worker_unavailable" or "not found on PATH" in str(message or ""):
+        # The editor shows `message`: plain words for missing media tools, the worker's own text
+        # ("set NEBULA_MEDIA_HOME") kept under `detail`.
+        from core.media_capabilities import media_unavailable_text
+
+        payload.update(message=media_unavailable_text(), detail=message)
+    return json_response(status_code, payload)
 
 
 def handle_media_editor_page() -> Any:
