@@ -220,13 +220,32 @@ def _forget(proposal: ProfileProposal, *, principal: str, session_id: str) -> pr
         items = [item for item in items if item.category == proposal.category]
     if not items:
         label = "anything" if proposal.category == "*" else profile.CATEGORIES.get(proposal.category, {}).get("label", proposal.category)
-        return profile.ProfileChange("unchanged", f"Nothing saved for {label}, so there is nothing to forget.")
+        report = f"Nothing saved for {label}, so there is nothing to forget."
+        if proposal.category == "*":
+            report = _with_todo_question(report, session_id)
+        return profile.ProfileChange("unchanged", report)
     reports = []
     last: profile.ProfileChange | None = None
     for item in items:
         last = profile.forget_item(item.item_id, actor="chat", reason=f"forget: {proposal.clause[:120]}")
         reports.append(last.report.split(". Say 'undo")[0])
-    return profile.ProfileChange("forgotten", "; ".join(reports) + ". Say 'undo that' to restore.", item=last.item if last else None, previous=last.previous if last else None)
+    report = "; ".join(reports) + ". Say 'undo that' to restore."
+    if proposal.category == "*":
+        report = _with_todo_question(report, session_id)
+    return profile.ProfileChange("forgotten", report, item=last.item if last else None, previous=last.previous if last else None)
+
+
+def _with_todo_question(report: str, session_id: str) -> str:
+    """A whole erase ("forget everything you know about me") also asks about the person's to-do
+    list, when there is one: delete it too, or keep it for later (sls 2026-11-12). The list is not
+    profile data, so it is never erased without that answer (core/todo_list_turn.py)."""
+    try:
+        from core.todo_list_turn import erase_followup
+
+        extra = erase_followup(session_id)
+    except Exception:
+        extra = ""
+    return f"{report} {extra}" if extra else report
 
 
 def _undo(principal: str, session_id: str) -> profile.ProfileChange:

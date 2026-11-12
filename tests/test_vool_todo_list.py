@@ -320,3 +320,120 @@ def test_a_paired_phone_sees_and_changes_the_same_list(someone: Path, monkeypatc
     shown = turn(agent, "what's on my to do list?", session="phone-chat", **phone)
     assert "1. buy milk\n2. call mum" in reply(shown)
     assert "to-do file" not in reply(shown)  # the phone is never told what files this disk holds
+
+
+# ----------------------------------------------------------------------------------------------
+# metadata, the to-do folder, and the question a whole erase asks (sls 2026-11-12)
+# ----------------------------------------------------------------------------------------------
+
+
+def _list_file() -> Path:
+    from core import pa_tasks
+
+    return pa_tasks.folder_path() / pa_tasks.LIST_FILE_NAME
+
+
+class TestTheFolderAndMetadata:
+    def test_each_item_keeps_when_where_and_why(self, someone: Path) -> None:
+        from core import pa_tasks
+
+        agent = make_agent()
+        turn(agent, "add a new kettle to my to-do list because the old one leaks", session="kitchen-chat")
+        task = pa_tasks.list_tasks()[0]
+        assert task["title"] == "a new kettle"
+        assert task["notes"] == "the old one leaks"
+        assert task["added_in"]  # the chat's name (its first message when it has no name yet)
+        text = _list_file().read_text(encoding="utf-8")
+        assert "- [ ] a new kettle" in text and "why: the old one leaks" in text
+        assert f"added {task['created_at'][:10]}" in text
+
+    def test_the_folder_follows_every_change(self, someone: Path) -> None:
+        agent = make_agent()
+        turn(agent, "add buy milk, call the bank to my to-do list")
+        turn(agent, "tick off buy milk")
+        turn(agent, "remove call the bank from my to-do list")
+        text = _list_file().read_text(encoding="utf-8")
+        assert "- [x] buy milk" in text and "call the bank" not in text
+
+    def test_the_folder_is_not_where_the_file_lane_looks(self, someone: Path) -> None:
+        """VOOL's own copy must never come back as 'a to-do file' the person wrote."""
+        from core import pa_tasks
+
+        turn(make_agent(), "add buy milk to my to-do list")
+        assert _list_file().exists()
+        for room in ("Desktop", "Documents", "Downloads"):
+            assert someone / room not in pa_tasks.folder_path().parents
+
+    def test_where_is_my_to_do_list_names_the_folder(self, someone: Path) -> None:
+        agent = make_agent()
+        turn(agent, "add buy milk to my to-do list")
+        result = turn(agent, "where is my to-do list kept?")
+        assert _route(result) == LANE
+        assert str(_list_file()) in reply(result)
+
+
+class TestAWholeErase:
+    """The erase side: on 28fc78dd the only whole erase in code is the profile forget-all
+    (core/operator_profile_turn._forget, category "*"), and in chat the memory lane answers
+    "forget everything you know about me" before it. So the question is armed here the way that
+    erase arms it (``erase_followup``), and the answers run through the real turn."""
+
+    def _erase(self, session: str = "person-chat") -> str:
+        from core.todo_list_turn import erase_followup
+
+        return erase_followup(session)
+
+    def test_the_profile_forget_all_reply_carries_the_question(self, someone: Path) -> None:
+        from core import operator_profile as profile
+        from core.operator_profile_interpretation import ProfileProposal
+        from core.operator_profile_turn import _forget
+
+        turn(make_agent(), "add buy milk to my to-do list")
+        change = _forget(
+            ProfileProposal("*", "", "explicit", action="forget", clause="forget everything you know about me"),
+            principal=profile.OWNER_PRINCIPAL, session_id="person-chat",
+        )
+        assert "You also have 1 thing on your to-do list" in change.report
+        assert _open_titles() == ["buy milk"]
+
+    def test_delete_deletes_the_list_and_its_file(self, someone: Path) -> None:
+        agent = make_agent()
+        turn(agent, "add buy milk, call the bank to my to-do list")
+        assert "You also have 2 things on your to-do list" in self._erase()
+        assert _open_titles() == ["buy milk", "call the bank"]  # nothing touched until the answer
+        unsure = turn(agent, "yes")
+        assert "Nothing changed yet" in reply(unsure) and len(_open_titles()) == 2
+        done = turn(agent, "delete it")
+        assert "Deleted your to-do list (2 items)" in reply(done)
+        from core import pa_tasks
+
+        assert pa_tasks.list_tasks(include_done=True) == []
+        assert not _list_file().exists()
+
+    def test_keep_keeps_the_list_and_the_folder(self, someone: Path) -> None:
+        agent = make_agent()
+        turn(agent, "add buy milk to my to-do list")
+        self._erase()
+        kept = turn(agent, "keep it for later")
+        assert "Kept your to-do list" in reply(kept)
+        assert _open_titles() == ["buy milk"] and _list_file().exists()
+
+    def test_the_question_lapses_on_any_other_turn(self, someone: Path) -> None:
+        agent = make_agent()
+        turn(agent, "add buy milk to my to-do list")
+        self._erase()
+        turn(agent, "what's 2 + 2?")
+        later = turn(agent, "delete it")
+        assert _route(later) != LANE
+        assert _open_titles() == ["buy milk"]
+
+    def test_the_answer_counts_only_in_the_chat_that_was_asked(self, someone: Path) -> None:
+        agent = make_agent()
+        turn(agent, "add buy milk to my to-do list")
+        self._erase("person-chat")
+        other = turn(agent, "delete it", session="another-chat")
+        assert _route(other) != LANE
+        assert _open_titles() == ["buy milk"]
+
+    def test_no_list_no_question(self, someone: Path) -> None:
+        assert self._erase() == ""

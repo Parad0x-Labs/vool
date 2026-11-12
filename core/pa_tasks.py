@@ -21,10 +21,12 @@ chat id, and removing an item is how the person deletes it.
 """
 from __future__ import annotations
 
+import contextlib
 import re
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 STATUS_OPEN = "open"
@@ -44,7 +46,9 @@ _SCHEMA = (
         due_at_utc TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        completed_at TEXT
+        completed_at TEXT,
+        added_in TEXT NOT NULL DEFAULT '',
+        project TEXT NOT NULL DEFAULT ''
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_user_tasks_status ON user_tasks(status, created_at ASC)",
@@ -66,6 +70,11 @@ def ensure_table(conn: Any) -> None:
     cheap enough to run on every open, so a store deleted and made again never loses it)."""
     for statement in _SCHEMA:
         conn.execute(statement)
+    # Columns added after the first 0.8 build: the chat and project an item was added in.
+    have = {str(row[1]) for row in conn.execute("PRAGMA table_info(user_tasks)").fetchall()}
+    for column in ("added_in", "project"):
+        if column not in have:
+            conn.execute(f"ALTER TABLE user_tasks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
@@ -90,6 +99,8 @@ def _row_public(row: Any) -> dict[str, Any]:
         "created_at": str(row.get("created_at") or ""),
         "updated_at": str(row.get("updated_at") or ""),
         "completed_at": str(row.get("completed_at") or ""),
+        "added_in": str(row.get("added_in") or ""),
+        "project": str(row.get("project") or ""),
     }
 
 
@@ -102,9 +113,13 @@ def create_task(
     title: str,
     notes: str = "",
     due_at_utc: str = "",
+    added_in: str = "",
+    project: str = "",
     now_fn: Callable[[], str] = _now_iso,
     get_connection_fn: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
+    """``notes`` holds why the person added it, when they said; ``added_in`` and ``project`` name
+    the chat and project it was added in (names only, never a chat id)."""
     title = clean_title(title)
     if not title:
         raise ValueError("a task needs a title")
@@ -114,10 +129,12 @@ def create_task(
     try:
         conn.execute(
             """
-            INSERT INTO user_tasks (task_id, title, notes, status, due_at_utc, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO user_tasks
+                (task_id, title, notes, status, due_at_utc, created_at, updated_at, added_in, project)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (task_id, title, str(notes or "")[:5000], STATUS_OPEN, str(due_at_utc or ""), now, now),
+            (task_id, title, str(notes or "")[:5000], STATUS_OPEN, str(due_at_utc or ""), now, now,
+             clean_title(added_in)[:200], clean_title(project)[:200]),
         )
         conn.commit()
     finally:
@@ -242,6 +259,17 @@ def remove_task(
         conn.close()
 
 
+def remove_all_tasks(*, get_connection_fn: Callable[[], Any] | None = None) -> int:
+    """Delete every item, open and done (the person chose "delete" when they erased). Returns the count."""
+    conn = _open(get_connection_fn)
+    try:
+        count = conn.execute("DELETE FROM user_tasks").rowcount
+        conn.commit()
+        return int(count or 0)
+    finally:
+        conn.close()
+
+
 def get_task(
     task_id: str,
     *,
@@ -316,8 +344,90 @@ __all__ = [
     "create_task",
     "ensure_table",
     "find_open_tasks",
+    "folder_path",
     "get_task",
     "has_any_task",
     "list_tasks",
+    "remove_all_tasks",
     "remove_task",
+    "write_folder",
 ]
+
+
+# ------------------------------------------------------------------------------------------------
+# The to-do folder: one place a person, or a new VOOL agent, finds the kept list as a plain file.
+# ------------------------------------------------------------------------------------------------
+
+FOLDER_NAME = "To-do"
+LIST_FILE_NAME = "To-do list.md"
+
+
+def folder_path() -> Path:
+    """``<VOOL home>/To-do``: outside the protected ``data``/``config`` state, and outside the
+    Desktop/Documents/Downloads folders the to-do FILE lane scans, so VOOL's own copy is never
+    mistaken for a to-do file the person wrote."""
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / FOLDER_NAME
+
+
+def _day(iso: str) -> str:
+    return str(iso or "")[:10]
+
+
+def _meta_line(task: dict[str, Any]) -> str:
+    bits = [f"added {_day(task['created_at'])}"]
+    if task.get("added_in"):
+        bits.append(f"in chat “{task['added_in']}”")
+    if task.get("project"):
+        bits.append(f"project {task['project']}")
+    if task.get("notes"):
+        bits.append(f"why: {task['notes']}")
+    if task.get("completed_at"):
+        bits.append(f"ticked off {_day(task['completed_at'])}")
+    return "; ".join(bits)
+
+
+def render_list_file(tasks: list[dict[str, Any]], *, now: str) -> str:
+    open_tasks = [t for t in tasks if t["status"] == STATUS_OPEN]
+    done = [t for t in tasks if t["status"] == STATUS_DONE]
+    lines = [
+        "# To-do list",
+        "",
+        f"Kept by VOOL. Updated {now[:16].replace('T', ' ')} UTC. Change it in chat "
+        "(“add … to my to-do list”, “tick off …”); edits to this file are not read back.",
+        "",
+        "## Open",
+        "",
+    ]
+    lines += [f"- [ ] {t['title']}  \n  {_meta_line(t)}" for t in open_tasks] or ["Nothing open."]
+    lines += ["", "## Ticked off", ""]
+    lines += [f"- [x] {t['title']}  \n  {_meta_line(t)}" for t in done] or ["Nothing ticked off yet."]
+    return "\n".join(lines) + "\n"
+
+
+def write_folder(*, now_fn: Callable[[], str] = _now_iso) -> Path | None:
+    """Rewrite ``To-do list.md`` from the store (atomic replace). With no items at all the file is
+    removed. Returns the file path, or None when there is nothing to keep."""
+    import os
+    import tempfile
+
+    tasks = list_tasks(include_done=True)
+    target = folder_path() / LIST_FILE_NAME
+    if not tasks:
+        if target.exists():
+            target.unlink()
+        return None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = render_list_file(tasks, now=now_fn())
+    fd, tmp = tempfile.mkstemp(prefix=".todo-", suffix=".md", dir=str(target.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, target)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+    return target
+

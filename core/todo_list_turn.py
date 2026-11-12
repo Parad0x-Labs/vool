@@ -133,6 +133,15 @@ _UNSUPPORTED_RE = re.compile(
     re.I,
 )
 
+_REASON_RE = re.compile(
+    r"[\s,]+(?:because|cause|'cause|since|so\s+that|so\s+(?:i|we)\s+(?:can|don'?t|won'?t))\s+(?P<why>.+)$", re.I
+)
+_WHERE_RE = re.compile(
+    r"\bwhere\s+(?:is|are|do\s+you\s+keep|did\s+you\s+(?:put|save|keep))\b|\bwhere'?s\b"
+    r"|\b(?:which|what)\s+folder\b|\bfolder\s+(?:for|with|of)\b",
+    re.I,
+)
+
 _ORDINALS = {
     "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
     "eighth": 8, "ninth": 9, "tenth": 10, "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5,
@@ -152,12 +161,13 @@ _ITEM_QUOTES = "\"'“”‘’`"
 
 @dataclass(frozen=True)
 class TodoAsk:
-    kind: str  # "add" | "done" | "remove" | "list" | "unsupported"
+    kind: str  # "add" | "done" | "remove" | "list" | "where" | "unsupported"
     target: str  # "vool" | "file" | "plain"
     items: tuple[str, ...] = field(default_factory=tuple)
     words: str = ""
     include_done: bool = False
     noun_named: bool = False
+    reason: str = ""
 
 
 def _clean_turn(text: str) -> str:
@@ -207,15 +217,19 @@ def read_turn(text: str) -> TodoAsk | None:
         return None
     noun = bool(_NOUN_RE.search(raw) or _KEPT_LIST_RE.search(raw))
     target = _target(raw)
+    # "add X to my to-do list because the old one broke": the reason is kept with the item.
+    why = _REASON_RE.search(raw)
+    add_text = raw[: why.start()].rstrip(" ,") if why is not None else raw
+    reason = _strip_item(why.group("why")) if why is not None else ""
     for pattern in _ADD_RES:
-        match = pattern.match(raw)
+        match = pattern.match(add_text)
         if match is not None:
-            whole_list = raw[: match.start("item")] + raw[match.end("item"):]
+            whole_list = add_text[: match.start("item")] + add_text[match.end("item"):]
             items = _split_items(match.group("item"))
             if not items:
                 return None
             named = bool(_NOUN_RE.search(whole_list) or _VOOL_CUE_RE.search(whole_list))
-            return TodoAsk("add", _target(whole_list), items=items, noun_named=named)
+            return TodoAsk("add", _target(whole_list), items=items, noun_named=named, reason=reason[:300])
     for kind, patterns in (("done", _DONE_RES), ("remove", _REMOVE_RES)):
         for pattern in patterns:
             match = pattern.match(raw)
@@ -227,6 +241,8 @@ def read_turn(text: str) -> TodoAsk | None:
                 return TodoAsk(kind, _target(tail), words=words, noun_named=bool(_NOUN_RE.search(tail)))
     if not noun:
         return None
+    if _WHERE_RE.search(raw) and target != "file":
+        return TodoAsk("where", "vool", noun_named=True)
     if _UNSUPPORTED_RE.match(raw):
         return TodoAsk("unsupported", target, words=raw.split()[0].lower(), noun_named=True)
     if _BARE_RE.match(raw) or _READ_CUE_RE.search(raw):
@@ -451,8 +467,22 @@ def _not_found_reply(words: str, open_tasks: list[dict[str, Any]], session_id: s
     )
 
 
-def _answer(ask: TodoAsk, *, session_id: str, who: str, source_context: Mapping[str, Any] | None) -> str | None:
+def _answer(
+    ask: TodoAsk, *, session_id: str, who: str, source_context: Mapping[str, Any] | None, text: str = "",
+) -> str | None:
     in_use = pa_tasks.has_any_task()
+    if ask.kind == "where":
+        if not in_use:
+            return "You don't have a to-do list in VOOL yet. Say \"add milk to my to-do list\" to start one."
+        if who != "owner":
+            return "I keep your to-do list inside VOOL on your computer. Ask \"what's on my to-do list\" to see it."
+        path = _sync_folder()
+        if path is None:
+            return "I keep your to-do list inside VOOL. Ask \"what's on my to-do list\" to see it."
+        return (
+            f"I keep your to-do list inside VOOL, and a copy with when, where and why each item was added "
+            f"is in {path}. Change it in chat; edits to that file are not read back."
+        )
     if ask.kind == "list":
         if ask.target == "file" or (ask.target == "plain" and not in_use):
             return None
@@ -482,7 +512,10 @@ def _answer(ask: TodoAsk, *, session_id: str, who: str, source_context: Mapping[
             if key in open_keys:
                 already.append(title)
                 continue
-            created = pa_tasks.create_task(title=title)
+            created = pa_tasks.create_task(
+                title=title, notes=ask.reason, added_in=_chat_name(session_id, text),
+                project=_project_name(source_context),
+            )
             _remember_last(session_id, created["task_id"])
             open_keys.add(key)
             added.append(title)
@@ -499,6 +532,9 @@ def _answer(ask: TodoAsk, *, session_id: str, who: str, source_context: Mapping[
                 parts.append(f"{', '.join(_q(a) for a in already)} are already on it.")
         if not parts:
             return None
+        if added:
+            _note_write(source_context, "todo.add", len(added))
+            _sync_folder()
         parts.append(f"{open_count} thing{'s' if open_count != 1 else ''} on it now.")
         return " ".join(parts)
     # done / remove
@@ -539,11 +575,161 @@ def _answer(ask: TodoAsk, *, session_id: str, who: str, source_context: Mapping[
             return f"{_q(task['title'])} is already ticked off. {_left_line(len(pa_tasks.list_tasks()))}"
         if not result.get("ok"):
             return _not_found_reply(ask.words, pa_tasks.list_tasks(), session_id)
+        _note_write(source_context, "todo.complete")
+        _sync_folder()
         return f"Ticked off {_q(task['title'])}. {_left_line(len(pa_tasks.list_tasks()))}"
     result = pa_tasks.remove_task(task["task_id"])
     if not result.get("ok"):
         return _not_found_reply(ask.words, pa_tasks.list_tasks(), session_id)
+    _note_write(source_context, "todo.remove")
+    _sync_folder()
     return f"Took {_q(task['title'])} off your to-do list. {_left_line(len(pa_tasks.list_tasks()))}"
+
+
+# --------------------------------------------------------------------------------------------
+# after a whole erase: delete the to-do list too, or keep it?
+# --------------------------------------------------------------------------------------------
+
+_ERASE_TTL_S = 1800.0
+_ERASE_PENDING: OrderedDict[str, float] = OrderedDict()
+_ERASE_DELETE_RE = re.compile(
+    r"^(?:yes|yeah|yep|ok|okay|sure)?[\s,]*(?:please\s+)?(?:delete|remove|erase|wipe|clear|bin|trash|get\s+rid\s+of)"
+    r"(?:\s+(?:it|them|that|those|this|all|everything|the\s+list|the\s+items|the\s+to-?do\s+list|my\s+to-?do\s+list|it\s+all|them\s+all))?"
+    r"(?:\s+(?:too|as\s+well|also))?$",
+    re.I,
+)
+_ERASE_KEEP_RE = re.compile(
+    r"^(?:no|nope|nah)?[\s,]*(?:please\s+)?(?:keep|save|leave|hold\s+on\s+to)"
+    r"(?:\s+(?:it|them|that|those|this|the\s+list|the\s+items|the\s+to-?do\s+list|my\s+to-?do\s+list))?"
+    r"(?:\s+(?:for\s+later|for\s+future\s+use|for\s+now|please))?$",
+    re.I,
+)
+_ERASE_BARE_RE = re.compile(r"^(?:yes|yeah|yep|no|nope|ok|okay|sure)$", re.I)
+
+
+def erase_followup(session_id: str) -> str:
+    """The question a whole erase adds when the person has a to-do list, or "" when it is empty.
+
+    Called by the erase lane (core/operator_profile_turn.py, forget-all). The list is never erased
+    without the answer; until it comes, nothing about the list changes."""
+    tasks = pa_tasks.list_tasks(include_done=True)
+    if not tasks:
+        return ""
+    open_count = sum(1 for t in tasks if t["status"] == pa_tasks.STATUS_OPEN)
+    if session_id:
+        with _SHOWN_LOCK:
+            _ERASE_PENDING[session_id] = _now_mono()
+            _ERASE_PENDING.move_to_end(session_id)
+            while len(_ERASE_PENDING) > 256:
+                _ERASE_PENDING.popitem(last=False)
+    what = (
+        f"{open_count} thing{'s' if open_count != 1 else ''} on your to-do list"
+        if open_count else "a to-do list with only ticked-off items"
+    )
+    return (
+        f"You also have {what}. I haven't touched it. Should I delete it too, or keep it for later? "
+        "Say \"delete it\" or \"keep it\"."
+    )
+
+
+def _now_mono() -> float:
+    import time
+
+    return time.monotonic()
+
+
+def _erase_pending(session_id: str) -> bool:
+    with _SHOWN_LOCK:
+        seen = _ERASE_PENDING.get(session_id)
+    return seen is not None and _now_mono() - seen < _ERASE_TTL_S
+
+
+def _clear_erase_pending(session_id: str) -> None:
+    with _SHOWN_LOCK:
+        _ERASE_PENDING.pop(session_id, None)
+
+
+def _erase_answer(text: str, session_id: str, source_context: Mapping[str, Any] | None = None) -> str | None:
+    """The reply to "delete it" / "keep it" right after the erase question, else None."""
+    if not session_id or not _erase_pending(session_id):
+        return None
+    raw = _clean_turn(text)
+    if _ERASE_DELETE_RE.match(raw):
+        _clear_erase_pending(session_id)
+        count = pa_tasks.remove_all_tasks()
+        _note_write(source_context, "todo.delete_all", count)
+        _sync_folder()
+        with _SHOWN_LOCK:
+            _SHOWN.pop(session_id, None)
+            _LAST.pop(session_id, None)
+        return f"Deleted your to-do list ({count} item{'s' if count != 1 else ''}). It can't be brought back."
+    if _ERASE_KEEP_RE.match(raw):
+        _clear_erase_pending(session_id)
+        path = _sync_folder()
+        where = f" It's also saved as a file in {path.parent}." if path is not None else ""
+        return f"Kept your to-do list for later. Ask \"what's on my to-do list\" any time.{where}"
+    if _ERASE_BARE_RE.match(raw):
+        return "Should I delete your to-do list too, or keep it for later? Say \"delete it\" or \"keep it\". Nothing changed yet."
+    # Anything else: the question lapses and the list stays as it is.
+    _clear_erase_pending(session_id)
+    return None
+
+
+def _note_write(source_context: Mapping[str, Any] | None, tool: str, count: int = 1) -> None:
+    """Record that this turn really changed the list, in the turn's own receipts: the reply says
+    "Added", "Ticked off" or "Deleted", and the action-honesty check holds such words to an executed
+    receipt of this turn."""
+    if not isinstance(source_context, dict):
+        return
+    receipt = {
+        "tool_name": tool,
+        "mode": "tool_executed",
+        "status": "executed",
+        "execution": {"executed": True, "ok": True, "status": "executed"},
+        "lane": ROUTE_REASON,
+        "count": int(count),
+    }
+    source_context["tool_receipts"] = [*list(source_context.get("tool_receipts") or []), receipt]
+
+
+def _sync_folder():
+    """Rewrite the to-do folder's file from the store; a failure never undoes or hides the change."""
+    try:
+        return pa_tasks.write_folder()
+    except Exception:
+        return None
+
+
+def _chat_name(session_id: str, text: str) -> str:
+    try:
+        from core.persistent_memory import load_session_meta
+
+        custom = str((load_session_meta().get(session_id) or {}).get("title") or "").strip()
+        if custom:
+            return custom
+    except Exception:
+        pass
+    try:
+        from core.memory.entries import list_conversation_sessions
+
+        for row in list_conversation_sessions(limit=200):
+            if str(row.get("session_id") or "") == session_id and str(row.get("title") or "").strip():
+                return str(row["title"]).strip()
+    except Exception:
+        pass
+    return " ".join(str(text or "").split())[:80]
+
+
+def _project_name(source_context: Mapping[str, Any] | None) -> str:
+    project_id = str((source_context or {}).get("_trusted_project_id") or "").strip()
+    if not project_id:
+        return ""
+    try:
+        from core.project_store import get_project
+
+        return str((get_project(project_id) or {}).get("name") or "").strip()
+    except Exception:
+        return ""
 
 
 def maybe_answer(
@@ -554,14 +740,21 @@ def maybe_answer(
     source_context: Mapping[str, Any] | None,
 ) -> dict[str, Any] | None:
     """The turn's answer from the VOOL to-do list, or ``None`` to keep the lanes it has."""
-    ask = read_turn(text)
-    if ask is None:
-        return None
     who = _who(source_context)
     if not who:
         return None
+    response = None
     try:
-        response = _answer(ask, session_id=str(session_id or ""), who=who, source_context=source_context)
+        response = _erase_answer(text, str(session_id or ""), source_context)
+    except Exception:
+        response = "I couldn't reach your to-do list just now, so nothing changed. Please try again."
+    if response is None:
+        ask = read_turn(text)
+        if ask is None:
+            return None
+    try:
+        if response is None:
+            response = _answer(ask, session_id=str(session_id or ""), who=who, source_context=source_context, text=text)
     except Exception:
         # The store could not be read or written: say so plainly, never claim a change.
         response = "I couldn't reach your to-do list just now, so nothing changed. Please try again."
@@ -577,4 +770,4 @@ def maybe_answer(
     )
 
 
-__all__ = ["PRIVATE_ADD_TEXT", "ROUTE_REASON", "UNSUPPORTED_TEXT", "TodoAsk", "maybe_answer", "read_turn"]
+__all__ = ["PRIVATE_ADD_TEXT", "ROUTE_REASON", "UNSUPPORTED_TEXT", "TodoAsk", "erase_followup", "maybe_answer", "read_turn"]
