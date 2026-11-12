@@ -222,3 +222,27 @@ def test_wrong_vault_key_and_unsafe_store_are_refused(tmp_path):
     (tmp_path / "link").symlink_to(tmp_path / "home")
     with pytest.raises(DropError, match="UNSAFE_STORE_PATH"):
         DropClient(tmp_path / "link", key)
+
+
+def test_unknown_key_algorithms_and_an_empty_receiving_chain_are_bounded_refusals():
+    from core.drop.session import (
+        fingerprint,
+        identity,
+        initiate_draft,
+        make_prekey,
+        public_identity,
+        public_key,
+    )
+
+    alice, bob = identity(), identity()
+    prekey = make_prekey(bob, NOW)
+    state, _ = initiate_draft(alice, prekey["bundle"], fingerprint(public_identity(bob)), b"hi", NOW)
+    unknown = bytearray(unb64(prekey["bundle"]["body"]["x"], 44))
+    unknown[8] = 0x63
+    with pytest.raises(DropError, match="INVALID_KEY"):
+        public_key(b64(bytes(unknown)), "x25519")
+    box = {"nonce": b64(os.urandom(12)), "body": b64(os.urandom(16)), "tag": b64(os.urandom(16))}
+    frame = {"profile": "DROP-HYBRID-1", "type": "message", "sid": state["sid"], "pn": 0, "n": 0,
+             "dh": prekey["bundle"]["body"]["x"], "box": box}
+    with pytest.raises(DropError, match="INVALID_COUNTER"):
+        receive_draft(state, frame, NOW)

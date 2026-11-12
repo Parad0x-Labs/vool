@@ -80,7 +80,10 @@ def _read(path, limit):
         raise DropError("INPUT_UNAVAILABLE") from exc
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > limit:
         raise DropError("INPUT_LIMIT")
-    data = path.read_bytes()
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise DropError("INPUT_UNAVAILABLE") from exc
     if len(data) > limit:
         raise DropError("INPUT_LIMIT")
     return data
@@ -127,8 +130,15 @@ class LocalRelay:
             return []
         _private_directory(mailbox)
         # Oldest first and bounded: a flooded mailbox delays later frames but
-        # never stops this home from reading the ones it can process.
-        return sorted(mailbox.glob("*.wire"))[:1024]
+        # never stops this home from reading the ones it can process. Only regular
+        # files count: a directory or link someone left can never be consumed, so it
+        # must not take a place in the window.
+        frames = []
+        for path in mailbox.glob("*.wire"):
+            with contextlib.suppress(OSError):
+                if stat.S_ISREG(path.lstat().st_mode):
+                    frames.append(path)
+        return sorted(frames)[:1024]
 
 
 # Authenticated payloads or frames that are not acceptable here. Each one is
@@ -144,6 +154,11 @@ _REJECTED = frozenset({
     "INVALID_TASK", "TASK_CONFLICT", "INVALID_RESULT", "UNSUPPORTED_PAYLOAD",
     "ADMISSION_CONFLICT", "FILE_INTEGRITY", "INVALID_BASE64",
 })
+
+
+# This home's own queues are full. The frame is left in the folder for a later
+# poll; it never stops the frames behind it and is never consumed unread.
+_HELD = frozenset({"STORE_LIMIT", "ADMISSION_QUOTA"})
 
 
 # Authentic frames that arrived ahead of the frame they depend on (a synced
@@ -406,7 +421,8 @@ class DropHome:
 
     def poll(self):
         """Read this home's mailbox. Returns one outcome per frame processed:
-        ``received``, ``duplicate`` or ``rejected`` (consumed without effect)."""
+        ``received``, ``duplicate``, ``rejected`` (consumed without effect) or
+        ``held`` (left in the folder because this home's queue is full)."""
         with self.scope():
             self._expire()
             self._flush()
@@ -428,6 +444,9 @@ class DropHome:
                 try:
                     record = self._open_wire(raw, digest)
                 except DropError as exc:
+                    if exc.code in _HELD:
+                        results.append("held")
+                        continue
                     if exc.code not in _REJECTED:
                         raise
                     _discard(path)

@@ -487,3 +487,50 @@ def test_unfinished_expiry_cleanup_never_stops_the_home_from_opening(pair, tmp_p
         (reopened.root / sid / "unexpected-directory").rmdir()
         reopened.delete(sid)  # retried by the owner
         assert reopened._row(sid)["status"] == "deleted"
+
+
+def test_frames_anyone_can_forge_are_consumed_and_never_stop_later_frames(tmp_path, monkeypatch):
+    """DROP.md: a forged, replayed, late or malformed frame is consumed without effect, so it
+    never blocks the frames behind it. Each of these used to stop every later poll."""
+    from core.drop.session import decode, encode, fresh_id
+
+    monkeypatch.setenv("VOOL_DROP", "1")
+    relay = tmp_path / "relay"
+    LocalRelay(relay, create=True)
+    with DropHome(tmp_path / "a", relay) as a, DropHome(tmp_path / "b", relay) as b:
+        link = a.invite(b.fingerprint)
+        invite = decode((relay / "invites" / (link.rsplit("/", 1)[1] + ".invite")).read_bytes())
+        sid = b.join(link, a.fingerprint)
+        assert a.poll() == ["received"]
+        box = {"nonce": b64(os.urandom(12)), "body": b64(os.urandom(40)), "tag": b64(os.urandom(16))}
+        frame = {"profile": "DROP-HYBRID-1", "type": "message", "sid": sid, "pn": 0, "n": 0, "box": box}
+        unknown_key = bytearray(unb64(invite["body"]["x"], 44))
+        unknown_key[8] = 0x63  # same size, an algorithm no library knows
+        mailbox = relay / b.fingerprint
+        mailbox.mkdir(mode=0o700, exist_ok=True)
+        for index, data in enumerate([
+            encode({**frame, "dh": invite["body"]["x"]}),  # the invite's public one-time key
+            encode({**frame, "dh": b64(bytes(unknown_key))}),
+            b"[" * 100000,
+        ]):
+            _write(mailbox / f"{index:020d}-{fresh_id()}-forged.wire", data)
+        for index in range(1100):  # entries that can never be consumed must not fill the window
+            (mailbox / f"{index:020d}-{fresh_id()}-left.wire").mkdir()
+        selected = tmp_path / "f.bin"
+        selected.write_bytes(os.urandom(300))
+        a.send_packet(sid, "the real packet", selected)
+        outcomes = b.poll()
+        assert outcomes.count("rejected") == 3 and outcomes.count("received") == 2
+        assert b.show(sid)["status"] == "ready"
+
+
+def test_a_full_receive_queue_holds_frames_without_stopping_the_poll(pair):
+    a, b, sid, relay = pair
+    with a.scope():
+        for index in range(257):  # chunks with no packet: every one waits in the shared queue
+            a._send(sid, {"type": "chunk", "index": index, "data": b64(b"x")})
+    outcomes = b.poll()
+    assert outcomes.count("deferred") >= 256 and "held" in outcomes
+    held = len(a.relay.messages(b.fingerprint))
+    assert held >= 1  # left in the folder, never consumed unread
+    assert b.poll().count("held") == held
