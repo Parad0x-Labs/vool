@@ -31,6 +31,8 @@ Two further properties this buys, both deliberate:
 
 Scanned pages chain on their own: `extract_text` reporting `no_text_layer` is not an answer a user
 can use, it is the tool naming its own successor, so the fast path runs `pdf.ocr` and says it did.
+That holds on macOS only. Elsewhere there is no recogniser, `pdf.ocr` is not offered, and a scan is
+answered in plain words without calling it.
 """
 from __future__ import annotations
 
@@ -432,7 +434,12 @@ def maybe_handle_pdf_read(
             intent, {"path": str(path)}, source_context=dict(source_context or {})
         )
 
-    intent = "pdf.ocr" if request.get("wants_ocr") else "pdf.extract_text"
+    from core.pdf_tools import ocr_available
+
+    # Off macOS there is no recogniser and pdf.ocr is not offered: an OCR ask reads the text layer
+    # instead, and a scan is answered plainly below, never with a tool this computer lacks.
+    can_ocr = ocr_available()
+    intent = "pdf.ocr" if request.get("wants_ocr") and can_ocr else "pdf.extract_text"
     execution = run(intent)
     if execution is None:
         return None
@@ -440,6 +447,13 @@ def maybe_handle_pdf_read(
 
     # A scanned page is the one case where the tool's own answer names the next tool. Chaining it
     # here is what turns "no_text_layer" from a dead end into the text the user asked for.
+    if status == "no_text_layer" and not can_ocr:
+        return plain(
+            f"`{shown}` has no text layer, so it is a scanned PDF, and reading text from "
+            f"scanned pages is not available on this computer yet. Paste the text instead, or "
+            f"send a copy with selectable text.",
+            reason="pdf_read_scanned_ocr_not_available",
+        )
     if status == "no_text_layer":
         ocr_execution = run("pdf.ocr")
         ocr_status = str(getattr(ocr_execution, "status", "") or "") if ocr_execution is not None else ""

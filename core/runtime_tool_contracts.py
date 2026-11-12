@@ -256,6 +256,9 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
 
     wallet_tools_enabled = _wallet_enabled()
     media_studio_enabled = bool(policy_engine.get("media.studio_enabled", True))
+    from core.pdf_tools import ocr_available as _ocr_available
+
+    ocr_available = _ocr_available()
     return [
         RuntimeToolContract(
             intent="workspace.list_tree",
@@ -2265,7 +2268,11 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             intent="pdf.extract_text",
             description=(
                 "Read the text a PDF already carries, page by page. Exact and instant. Returns "
-                "no_text_layer for a scanned PDF, which pdf.ocr can read instead."
+                + (
+                    "no_text_layer for a scanned PDF, which pdf.ocr can read instead."
+                    if ocr_available
+                    else "no_text_layer for a scanned PDF; reading scanned pages is not available on this computer."
+                )
             ),
             tool_surface="pdf",
             capability_id="pdf.read",
@@ -2298,8 +2305,14 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             tool_surface="pdf",
             capability_id="pdf.read",
             capability_claim="recognise text on a scanned PDF on this machine, without sending it anywhere",
-            supported=read_enabled,
-            unsupported_reason="Local file reading is disabled on this runtime.",
+            # Vision is macOS only. Off macOS the tool is not offered at all, so the model is never
+            # handed a tool that can only answer "not available" (ledger V-043).
+            supported=read_enabled and ocr_available,
+            unsupported_reason=(
+                "Local file reading is disabled on this runtime."
+                if not read_enabled
+                else "Reading text from scanned PDFs needs macOS; it is not available on this computer yet."
+            ),
             input_schema={
                 "path": "string",
                 "max_pages": "integer optional",
