@@ -556,17 +556,17 @@ def _audit(event: str, args: tuple[Any, ...]) -> None:
             return
         if isinstance(host, str) and not _is_ip_literal(host) and _name_stays_local(host):
             return
-        raise PrivateWebBlocked(f"Private web is on: a direct connection to {host} was stopped")
+        raise PrivateWebBlocked(f"Private web is switched on, so a direct connection to {host} was stopped")
     if event in ("socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyname_ex"):
         host = args[0] if args else None
         if _name_stays_local(host):
             return
-        raise PrivateWebBlocked("Private web is on: a direct DNS lookup was stopped")
+        raise PrivateWebBlocked("Private web is switched on, so a direct DNS lookup was stopped")
     if event == "socket.gethostbyaddr":
         host = args[0] if args else None
         if isinstance(host, str) and (_ip_stays_local(host) or _name_stays_local(host) and not _is_ip_literal(host)):
             return
-        raise PrivateWebBlocked("Private web is on: a direct DNS lookup was stopped")
+        raise PrivateWebBlocked("Private web is switched on, so a direct DNS lookup was stopped")
 
 
 _guard_installed = False

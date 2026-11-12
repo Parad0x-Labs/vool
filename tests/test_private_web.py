@@ -467,3 +467,44 @@ def test_the_vpn_check_reads_the_route_the_computer_would_use(platform_name, out
     monkeypatch.setattr(system_vpn_check, "_run", lambda argv: output)
     assert system_vpn_check.default_route_interface() == expected
     assert system_vpn_check.is_tunnel_interface(expected) == expected.startswith(("utun", "wg"))
+
+
+def test_a_weather_question_while_the_route_is_down_says_so_plainly(route, monkeypatch) -> None:
+    """Measured on the Mac: with Tor down, "weather in Berlin" answered "no current conditions
+    found", as if VOOL had looked. It must say the route is down and nothing was sent."""
+    from core import policy_engine
+    from core.agent_runtime.fast_live_info_runtime_preflight import prepare_live_info_request
+
+    class Agent:
+        def _live_info_mode(self, text, interpretation=None):
+            return "weather"
+
+        def _recover_price_lookup_query(self, text, source_context=None):
+            return ""
+
+        def _normalize_live_info_query(self, text, mode=""):
+            return text
+
+        def _requires_ultra_fresh_insufficient_evidence(self, text):
+            return False
+
+        def _fast_path_result(self, **kwargs):
+            return dict(kwargs)
+
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True)
+    question = "What is the weather in Berlin right now?"
+
+    route("tor", 0)
+    mode, _query, result = prepare_live_info_request(
+        Agent(), question, session_id="s", source_context={}, interpretation=None
+    )
+    assert mode == "weather" and result is not None
+    assert result["live_info_refusal"] is True
+    assert result["response"].startswith("Private web through Tor is not running, so nothing was sent.")
+    assert "Settings" in result["response"]
+
+    route("off")
+    mode, query, result = prepare_live_info_request(
+        Agent(), question, session_id="s", source_context={}, interpretation=None
+    )
+    assert mode == "weather" and query and result is None, "with Private web off the lookup goes ahead"
