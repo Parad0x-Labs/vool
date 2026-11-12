@@ -464,12 +464,17 @@ class BlackboxStore:
         recoverable = [t for t in effect_turns if not t.pruned]
         scan_intended: dict[str, str] = {}
         scan_closed: set[str] = set()
+        command_turn_roots: set[tuple[str, str]] = set()
+        committed: set[tuple[str, str]] = set()
         for entry in entries:
             kind = str(entry.get("kind") or "")
             if kind == "coverage_scan_intended":
                 scan_intended[str(entry.get("effect_id") or "")] = str(entry.get("turn_id") or "")
+                command_turn_roots.add((str(entry.get("turn_id") or ""), str(entry.get("root") or "")))
             elif kind == "coverage_scan_terminal":
                 scan_closed.add(str(entry.get("effect_id") or ""))
+            elif kind == "rollback_committed":
+                committed.add((str(entry.get("rollback_of_turn") or ""), str(entry.get("root") or "")))
         return {
             "store": str(self.root),
             "journal_entries": len(entries),
@@ -490,6 +495,9 @@ class BlackboxStore:
             "command_effects_total": len(scan_intended),
             "command_effects_open": sorted(effect for effect in scan_intended if effect not in scan_closed),
             "command_turns": len({turn for turn in scan_intended.values() if turn}),
+            # A command turn the operator rolled back: without it the figures above read "0 rolled
+            # back" after a command-run undo, because turns_rolled_back counts file-effect turns only.
+            "command_turns_rolled_back": len({turn for turn, root in command_turn_roots & committed if turn}),
             "blob_count": sum(1 for _ in self.blobs.iter_sha256()),
             "blob_bytes": self.blobs.total_bytes(),
             "limits": {

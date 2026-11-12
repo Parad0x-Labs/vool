@@ -88,7 +88,7 @@ class TestCommandRunTurns:
         assert set(command_effects[0]["paths"]) == {"keep.txt", "out/deep/made.txt"}
         status = default_store().status()
         assert status["command_effects_total"] == 1 and status["command_turns"] == 1
-        assert status["command_effects_open"] == []
+        assert status["command_effects_open"] == [] and status["command_turns_rolled_back"] == 0
 
         result = _rollback("cmd-1", workspace)
         assert result.ok, result.response_text
@@ -101,6 +101,7 @@ class TestCommandRunTurns:
         assert not (workspace / "out").exists(), "the tree the command created goes with it"
         assert [e["rollback_of_turn"] for e in _kinds("rollback_committed")] == ["cmd-1"]
         assert {t["turn_id"]: t for t in list_turns(workspace_root=workspace)}["cmd-1"]["rolled_back"] is True
+        assert default_store().status()["command_turns_rolled_back"] == 1, "status counts the command turn it undid"
 
         again = _rollback("cmd-1", workspace)
         assert again.status == "already_rolled_back", again.response_text
