@@ -190,6 +190,41 @@ def _needle_found(text: str, needle: str) -> bool:
     return False
 
 
+#: Whitespace beside a character that is neither a word character nor whitespace. VOOL's input
+#: normalizer (`core.input_normalizer._join_tokens`) rejoins a request with English spacing: every
+#: such character is its own token and the rejoin puts a space before it, after it, or both. The
+#: normalized request is what the run history records (a checkpoint's ``request_text``, the
+#: "Received request: ..." session event), so a word typed as "Sea​Lark", "pa$$word" or "R&D"
+#: is kept there as "Sea ​ Lark", "pa $ $ word" or "R & D".
+_SET_APART_SPACING_RE = re.compile(r"\s*([^\w\s])\s*")
+#: A character the full fold removes, beside whitespace: the one way the re-spacing parts a word whose
+#: needle has no punctuation ("Sea ​ Lark" for "SeaLark").
+_INVISIBLE_BESIDE_SPACE_RE = re.compile(r"\s[­​‍⁠﻿]|[­​‍⁠﻿]\s")
+_PUNCTUATION_RE = re.compile(r"[^\w\s]")
+
+
+def _respaced_form(text: str) -> str:
+    """``text`` with the input normalizer's spacing taken back, then in the full fold. The spacing goes
+    first: the fold removes the soft hyphen and the zero-width characters the spaces stand beside."""
+    return _spelling_forms(_SET_APART_SPACING_RE.sub(r"\1", text))[1]
+
+
+@functools.lru_cache(maxsize=4096)
+def _needle_has_punctuation(needle: str) -> bool:
+    return _PUNCTUATION_RE.search(normalized_forget_text(needle)) is not None
+
+
+def _respaced_needle_found(text: str, needle: str) -> bool:
+    """Whether ``needle`` stands in ``text`` once the input normalizer's re-spacing is taken back on both
+    sides. Tried last, and only where the re-spacing can part the needle: the needle holds a set-apart
+    character, or the text holds an invisible one beside a space. A needle of letters, digits and
+    separators never spans a visible punctuation mark, so moving the spaces around one adds no match."""
+    if not (_needle_has_punctuation(needle)
+            or (not text.isascii() and _INVISIBLE_BESIDE_SPACE_RE.search(text) is not None)):
+        return False
+    return _needle_found(_respaced_form(text), _respaced_form(needle))
+
+
 def forget_needle_in(hay: Any, needle: str) -> bool:
     """Whether a forget needle occurs in a text.
 
@@ -211,13 +246,21 @@ def forget_needle_in(hay: Any, needle: str) -> bool:
     ASCII, a hyphen or dash variant, a soft hyphen or zero-width character) is also compared folded, in the
     first fold and then the full one. The folds only add matches: a text that matched as written, or in
     the first fold, still matches, and plain ASCII on both sides is compared exactly as before.
+
+    Last, both sides are compared with the input normalizer's re-spacing taken back
+    (`_respaced_needle_found`): the run history keeps the normalized request, which sets every
+    punctuation mark and invisible character apart with spaces ("Sea ​ Lark", "pa $ $ word"), so a
+    forget of the word as typed must find it there too (measured 2026-11-12 on a served build: after
+    "Forget SeaLark" applied, a checkpoint and a session event still held "Sea ​ Lark").
     """
     needle = str(needle or "")
     text = fold_forget_text(hay)
     if _needle_found(text, needle):
         return True
-    return any(_needle_found(folded_text, folded_needle)
-               for _, folded_text, folded_needle in _spelling_passes(text, needle))
+    if any(_needle_found(folded_text, folded_needle)
+           for _, folded_text, folded_needle in _spelling_passes(text, needle)):
+        return True
+    return _respaced_needle_found(text, needle)
 
 
 def _own_number(text: str, start: int, end: int, digit_first: bool, digit_last: bool) -> bool:

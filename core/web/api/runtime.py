@@ -1467,6 +1467,50 @@ def normalize_chat_history(messages: list[dict[str, Any]]) -> list[dict[str, str
     return history
 
 
+def history_without_forgotten_words(
+    history: list[dict[str, str]], *, chat_id: str, current_user_text: str = ""
+) -> list[dict[str, str]]:
+    """The page's re-sent messages without the ones that carry a word this chat forgot.
+
+    The chat page keeps every earlier message on screen and sends them all back with each turn. After
+    "Forget X" the messages that held X came back with the next turn and were written into its
+    checkpoint (the source context and the loop state): the forgotten words were in the runtime
+    database again one turn after "Forget applied", and the checkpoint, refused at finalization for
+    carrying an erased answer, stayed "running" with them (measured 2026-11-12 on a served build driven
+    through the chat page). The prompt already drops such messages (``core.bootstrap_context``, forget
+    law F14-01); this drops them at the door, before anything records the turn.
+
+    The current message is the person's new words and stays. When the forget list cannot be read only
+    the current message stays: unknown is "may carry", as in the prompt.
+    """
+    items = [dict(item) for item in list(history or []) if isinstance(item, dict)]
+    if not items:
+        return items
+    last = items[-1]
+    current = (
+        last
+        if str(last.get("role") or "") == "user"
+        and str(last.get("content") or "").strip() == str(current_user_text or "").strip()
+        else None
+    )
+    earlier = items[:-1] if current is not None else items
+    try:
+        from core.context_retrieval import revoked_tokens_for_chat, text_carries_revoked_token
+
+        revoked = revoked_tokens_for_chat(str(chat_id or ""))
+        kept = [
+            item for item in earlier
+            if not text_carries_revoked_token(str(item.get("content") or ""), revoked)
+        ]
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "page history kept to the current message: the forget list could not be read (%s)",
+            type(exc).__name__,
+        )
+        kept = []
+    return [*kept, *([current] if current is not None else [])]
+
+
 def extract_user_message(messages: list[dict[str, Any]]) -> str:
     for message in reversed(normalize_chat_history(messages)):
         if message.get("role") == "user":
