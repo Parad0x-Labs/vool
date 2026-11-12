@@ -2845,6 +2845,7 @@
     "live.down": "नीचे",
     "live.download": "डाउनलोड",
     "live.failed": "पेज पूरा नहीं हो सका। पता जाँचें या फिर कोशिश करें।",
+    "live.destination_refused": "यह ब्राउज़र केवल सार्वजनिक वेब पते खोलता है, इस कंप्यूटर या आपके लोकल नेटवर्क के पते नहीं।",
     "live.fill": "भरें",
     "live.note": "एक अलग, निजी ब्राउज़र। पेज अपनी तस्वीरों और स्टाइल के साथ खुलते हैं; पेज स्क्रिप्ट बंद रहती हैं। भुगतान आपके वॉलेट से होते हैं।",
     "live.open": "खोलें",
@@ -3269,7 +3270,7 @@
     "activity.tool.finished.browser": "ब्राउज़र चरण पूरा हुआ",
     "live.card_paused": "आपने नियंत्रण ले लिया"
   },
-  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
+  "source_catalog_sha256": "39b4a3f0406967a7a234a9766b5a5c238371784865ed507741a6addc4bdec94a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -267,3 +267,71 @@ def test_controls_are_named_as_a_person_would_name_them(world):
     labels = [n['label'] for n in item.nodes]
     assert labels == ['Later trains', 'Timetable archive', 'maps.example/riga/station', '#top', 'Search trains', 'Next page'], labels
     assert 'a' not in labels and all(label == label.strip() for label in labels)
+
+
+def test_the_pane_says_why_a_private_address_stays_closed(world, tmp_path):
+    """Real pane, owner typing: a private or local address is refused before anything opens, and
+    the pane says why. Real chat on a gated v0.8 build (2026-11-12) showed the generic "could not
+    finish. Check the address or try again." for 192.168.1.1, which sends the owner to fix a typo."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlsplit
+
+    from playwright.sync_api import expect, sync_playwright
+
+    from core.i18n import catalog_for
+    from core.vool_browser.engine import find_engine_binary, isolation_launch_flags
+    from core.web.api.service import dispatch_get, dispatch_post
+
+    rig, item, origin, requests = world
+    refused = catalog_for('en').text('live.destination_refused')
+    assert refused and refused != catalog_for('en').text('live.failed')
+
+    class App(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def send_result(self, response):
+            self.send_response(response.status)
+            self.send_header('Content-Type', response.content_type)
+            for key, value in response.headers.items():
+                self.send_header(key, value)
+            self.send_header('Content-Length', str(len(response.body or b'')))
+            self.end_headers()
+            self.wfile.write(response.body or b'')
+
+        def do_GET(self):
+            parts = urlsplit(self.path)
+            self.send_result(dispatch_get(path=parts.path, query=parse_qs(parts.query), runtime=rig.runtime,
+                                          model_name='vool', client_host='127.0.0.1', headers=dict(self.headers)))
+
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            self.send_result(dispatch_post(path=self.path, body=body, headers=dict(self.headers), runtime=rig.runtime,
+                                           model_name='vool', client_host='127.0.0.1',
+                                           workspace_root_provider=lambda: tmp_path))
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), App)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    flags = [f for f in isolation_launch_flags(profile_dir=str(tmp_path / 'viewer')) if not f.startswith('--user-data-dir=')]
+    try:
+        with sync_playwright() as driver:
+            browser = driver.chromium.launch(executable_path=find_engine_binary(), headless=True, args=flags)
+            page = browser.new_page(viewport={'width': 1100, 'height': 800})
+            page.goto(f'http://127.0.0.1:{server.server_port}/browser?chat=live-test')
+            for typed in ('192.168.1.1', 'http://localhost:8080/admin'):
+                page.locator('#address').fill(typed)
+                page.locator('#address').press('Enter')
+                expect(page.locator('#status')).to_have_text(refused)
+            # Refused before anything opened: no page, no load, nothing waiting for a decision.
+            assert requests == [] and not item.url and item.snapshot()['pending'] is None, requests
+            # The pane is not stuck: a public page still opens afterwards.
+            page.locator('#address').fill(origin + '/')
+            page.locator('#address').press('Enter')
+            expect(page.locator('#status')).to_have_text(catalog_for('en').text('live.ready'), timeout=20000)
+            assert paths(requests)[0] == '/', requests
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()

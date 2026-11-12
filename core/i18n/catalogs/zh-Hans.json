@@ -2845,6 +2845,7 @@
     "live.down": "向下",
     "live.download": "下载",
     "live.failed": "网页未能完成处理。请检查地址或重试。",
+    "live.destination_refused": "此浏览器只打开公共网址，不会打开这台电脑或你的本地网络上的地址。",
     "live.fill": "填写",
     "live.note": "独立的私密浏览器。网页会连同图片和样式一起加载，网页脚本保持关闭。付款通过你的钱包。",
     "live.open": "打开",
@@ -3269,7 +3270,7 @@
     "activity.tool.finished.browser": "浏览器步骤已完成",
     "live.card_paused": "你已接管"
   },
-  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
+  "source_catalog_sha256": "39b4a3f0406967a7a234a9766b5a5c238371784865ed507741a6addc4bdec94a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

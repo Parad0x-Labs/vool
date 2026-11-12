@@ -2845,6 +2845,7 @@
     "live.down": "아래로",
     "live.download": "다운로드",
     "live.failed": "페이지 작업을 완료하지 못했습니다. 주소를 확인하거나 다시 시도하세요.",
+    "live.destination_refused": "이 브라우저는 공개 웹 주소만 엽니다. 이 컴퓨터나 로컬 네트워크의 주소는 열지 않습니다.",
     "live.fill": "입력",
     "live.note": "별도의 비공개 브라우저입니다. 페이지는 이미지와 스타일과 함께 열리고, 페이지 스크립트는 계속 꺼져 있습니다. 결제는 지갑을 통합니다.",
     "live.open": "열기",
@@ -3269,7 +3270,7 @@
     "activity.tool.finished.browser": "브라우저 단계 완료",
     "live.card_paused": "직접 조작으로 전환했습니다"
   },
-  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
+  "source_catalog_sha256": "39b4a3f0406967a7a234a9766b5a5c238371784865ed507741a6addc4bdec94a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2863,6 +2863,7 @@
     "live.empty_body": "Type an address above, or ask VOOL in chat to open a page. VOOL asks you before it does anything here.",
     "live.empty_title": "Browse with VOOL",
     "live.failed": "The page could not finish. Check the address or try again.",
+    "live.destination_refused": "This browser opens public web addresses only, not ones on this computer or your local network.",
     "live.fields": "Fields",
     "live.file_ready": "Your file is ready.",
     "live.fill": "Fill",

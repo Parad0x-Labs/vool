@@ -2845,6 +2845,7 @@
     "live.down": "Nach unten",
     "live.download": "Herunterladen",
     "live.failed": "Die Seite konnte nicht fertig geladen werden. Prüfen Sie die Adresse oder versuchen Sie es erneut.",
+    "live.destination_refused": "Dieser Browser öffnet nur öffentliche Webadressen, keine auf diesem Computer oder in Ihrem lokalen Netzwerk.",
     "live.fill": "Ausfüllen",
     "live.note": "Ein separater, privater Browser. Seiten laden mit Bildern und Gestaltung, Seitenskripte bleiben aus. Zahlungen laufen über Ihre Wallet.",
     "live.open": "Öffnen",
@@ -3269,7 +3270,7 @@
     "activity.tool.finished.browser": "Browserschritt erledigt",
     "live.card_paused": "Du hast übernommen"
   },
-  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
+  "source_catalog_sha256": "39b4a3f0406967a7a234a9766b5a5c238371784865ed507741a6addc4bdec94a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

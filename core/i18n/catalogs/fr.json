@@ -2845,6 +2845,7 @@
     "live.down": "Descendre",
     "live.download": "Télécharger",
     "live.failed": "La page n’a pas pu terminer. Vérifiez l’adresse ou réessayez.",
+    "live.destination_refused": "Ce navigateur n’ouvre que des adresses web publiques, pas celles de cet ordinateur ni de votre réseau local.",
     "live.fill": "Remplir",
     "live.note": "Un navigateur séparé et privé. Les pages se chargent avec leurs images et leurs styles ; les scripts des pages restent désactivés. Les paiements passent par votre portefeuille.",
     "live.open": "Ouvrir",
@@ -3269,7 +3270,7 @@
     "activity.tool.finished.browser": "Étape du navigateur terminée",
     "live.card_paused": "Vous avez pris la main"
   },
-  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
+  "source_catalog_sha256": "39b4a3f0406967a7a234a9766b5a5c238371784865ed507741a6addc4bdec94a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

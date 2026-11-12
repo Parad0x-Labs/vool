@@ -24,6 +24,7 @@ _KEYS = (
     "failed", "back", "forward", "reload", "go", "asks", "check_send", "op_click", "op_type", "op_scroll",
     "seconds_left", "empty_title", "empty_body", "closed_body", "off_body", "driving", "elements",
     "no_elements", "send", "save_file", "file_ready", "more", "links", "fields", "buttons", "redirect",
+    "destination_refused",
 )
 
 
@@ -232,7 +233,7 @@ $('note').textContent=L.note; $('frame').alt=L.browser; $('chat').value=cfg.chat
 async function post(path,extra={}) {
   try {
     const r=await fetch('/api/browser/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:$('chat').value,...extra})});
-    const j=await r.json(); error=r.ok?'':(j.error==='web_off'?L.web_off:L.failed); await poll(); return j;
+    const j=await r.json(); error=r.ok?'':(j.error==='web_off'?L.web_off:j.error==='destination_refused'?L.destination_refused:L.failed); await poll(); return j;
   } catch(e) { error=L.failed; paintStatus(); }
 }
 // The pane's own steps run at once; the server still answers a form, upload or download with a review.
