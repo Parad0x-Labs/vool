@@ -90,6 +90,9 @@ def _world(tmp_path, monkeypatch):
     # The ONE disable store and the skill-origin record live in this test's own home.
     monkeypatch.delenv("VOOL_MCP_CONFIG", raising=False)
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    # This test's own plugin lifecycle store: a "local-skills" pack another test admitted at its
+    # own root in the session-wide store would hide the skill this test writes.
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
 
 
 @pytest.fixture()

@@ -18,6 +18,9 @@ def installed(vault_home, tmp_path, monkeypatch):
     from core import policy_engine
     from core.runtime_flags import override
     monkeypatch.setenv('VOOL_PLUGINS_DIR', str(tmp_path / 'plugins'))
+    # This test's own plugin lifecycle store: the "local-skills" pack it admits must not stay in the
+    # session-wide store, where it would hide the "local-skills" folder a later test writes.
+    monkeypatch.setenv('VOOL_PLUGIN_LIFECYCLE_PATH', str(tmp_path / 'plugin_lifecycle.json'))
     make_plugin(tmp_path / 'plugins', plugin_id='local-skills', skills={'social-manager':
         '---\nname: social-manager\ndescription: orchard social-manager workflow\n'
         'triggers: [orchard, social-manager]\nallowed-tools: [' + ', '.join(TOOLS) +

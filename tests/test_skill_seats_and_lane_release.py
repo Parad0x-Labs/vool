@@ -52,6 +52,9 @@ def _world(tmp_path, monkeypatch):
     (tmp_path / "plugins").mkdir()
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    # This test's own plugin lifecycle store: a "local-skills" pack another test admitted at its
+    # own root in the session-wide store would hide the skill this test writes.
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
 
 
 @pytest.fixture()

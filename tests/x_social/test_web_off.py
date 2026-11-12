@@ -23,6 +23,9 @@ def press(vault_home, tmp_path, monkeypatch):
     from core.runtime_flags import override
     monkeypatch.setenv('VOOL_PLUGINS_DIR', str(tmp_path / 'plugins'))
     monkeypatch.delenv('VOOL_ENABLE_WEB', raising=False)
+    # This test's own plugin lifecycle store: the "local-skills" pack it admits must not stay in the
+    # session-wide store, where it would hide the "local-skills" folder a later test writes.
+    monkeypatch.setenv('VOOL_PLUGIN_LIFECYCLE_PATH', str(tmp_path / 'plugin_lifecycle.json'))
     make_plugin(tmp_path / 'plugins', plugin_id='local-skills', skills={'press-pr-manager':
         '---\nname: press-pr-manager\ndescription: orchard press pitch research\n'
         'triggers: [press-pr-manager, pitch]\nallowed-tools: [operator.save_note, operator.find_notes, web.search, web.fetch]\n'
