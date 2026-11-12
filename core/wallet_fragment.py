@@ -1127,7 +1127,7 @@ function agentControls(cp){
   function agentBlock(d, agent){
     {
       var block = el('div', 'vw-cx-agent'); block.setAttribute('data-agent', agent.agent_id);
-      block.appendChild(el('div', 'vw-line', agent.name));
+      if (agent.agent_id !== 'addons') block.appendChild(el('div', 'vw-line', agent.name));  // the Skills & plugins box has its own title
       (agent.wallets || []).forEach(function(w){ block.appendChild(walletCard(d, agent, w)); });
       var has = (agent.wallets || []).map(function(w){ return w.network; });
       var open = (d.networks || []).filter(function(n){ return has.indexOf(n.network) < 0; });
@@ -1176,10 +1176,10 @@ function agentControls(cp){
     row.appendChild(el('div', 'vw-cx-env', 'Pays: ' + (p.services || []).join(', ') + ((p.skills || []).length ? ' · skills inside: ' + p.skills.join(', ') : '')));
     var al = p.allowance;
     if (al && !al.unreadable) {
-      var word = AGENT_PERIOD_WORD[al.period] || al.period;
+      var word = AGENT_PERIOD_WORD[al.period] || al.period; var now = al.period === 'day' ? 'today' : 'this ' + word;
       var stateText = al.state === 'active' ? 'Allowed' : (al.state === 'paused' ? 'Paused' : 'Ended');
-      var facts = el('div', 'vw-cx-env', stateText + ' · up to ' + al.per_payment + ' ' + al.asset + ' a payment · ' + al.period_used + ' of ' + al.period_amount + ' ' + al.asset + ' this ' + word
-        + (al.period_payments ? ' · ' + al.period_payments_used + ' of ' + al.period_payments + ' payments this ' + word : '') + ' · ' + al.days_left + (al.days_left === 1 ? ' day left' : ' days left') + (al.ask_above ? ' · asks you above ' + al.ask_above + ' ' + al.asset : ''));
+      var facts = el('div', 'vw-cx-env', stateText + ' · up to ' + al.per_payment + ' ' + al.asset + ' a payment · ' + al.period_used + ' of ' + al.period_amount + ' ' + al.asset + ' ' + now
+        + (al.period_payments ? ' · ' + al.period_payments_used + ' of ' + al.period_payments + ' payments ' + now : '') + ' · ' + al.days_left + (al.days_left === 1 ? ' day left' : ' days left') + (al.ask_above ? ' · asks you above ' + al.ask_above + ' ' + al.asset : ''));
       facts.setAttribute('data-addon-facts', p.addon_id); row.appendChild(facts);
       if (al.state === 'paused') row.appendChild(el('div', 'vw-cx-warn', (AGENT_PAUSE_TEXT[al.pause_reason] || 'It is paused.') + ' It pays nothing until you turn it back on.'));
     }

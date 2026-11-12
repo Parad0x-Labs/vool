@@ -113,26 +113,27 @@ def test_a_chain_name_and_a_decimal_amount_pick_the_pilot_account_on_that_row_an
     assert result.ok and _proposal(result).amount_minor == 12345
 
 
-def test_two_accounts_that_fit_are_settled_by_the_default_account_or_refused_naming_them(nodes):
+def test_two_accounts_that_fit_on_one_network_are_settled_by_its_main_never_by_the_newest(nodes):
+    """Owner 2026-11-12: the first wallet is Main; a wallet added later never takes its place (before, the newest
+    wallet was the default and settled such a request)."""
+    from core.wallet import wallet_roles
+
     _env("testnet")
     first = _pilot(BASE_SEPOLIA, "spending")
     second = _pilot(BASE_SEPOLIA, "savings")
-    # the owner's default account (the latest created, here) is one of the fits: it settles the request
+    result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "chain": "base"})
+    assert result.ok and _proposal(result).wallet_id == first["wallet_id"], (result.status, result.response_text)
+    # a wallet on another network moves nothing: the Base request is still settled by the Base Main
+    _pilot(SOLANA_DEVNET, "sol pocket")
+    result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "chain": "base"})
+    assert result.ok and _proposal(result).wallet_id == first["wallet_id"], (result.status, result.response_text)
+    # the owner makes the other wallet Main with its own PIN: requests follow it
+    wallet_roles.make_main(second["wallet_id"], credential=PIN)
     result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "chain": "base"})
     assert result.ok and _proposal(result).wallet_id == second["wallet_id"], (result.status, result.response_text)
-    # the default moves to another row: the two Base accounts are an ambiguity the request must settle itself
-    _pilot(SOLANA_DEVNET, "sol pocket")
-    before = _count()
-    result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "chain": "base"})
-    assert result.handled and not result.ok and result.status == "wallet_request_ambiguous", (result.status, result.response_text)
-    fault = result.details["fault"]
-    assert fault["context"]["reason"] == "several_accounts_fit"
-    assert {c["wallet_id"]: c["label"] for c in fault["context"]["candidates"]} == {first["wallet_id"]: "spending", second["wallet_id"]: "savings"}
-    assert "Nothing was signed and nothing was sent." in result.response_text
-    assert _count() == before, "an ambiguous request writes nothing"
-    # the same request with the account named
-    result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "wallet_id": second["wallet_id"]})
-    assert result.ok and _proposal(result).wallet_id == second["wallet_id"]
+    # the same request with the other account named
+    result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "wallet_id": first["wallet_id"]})
+    assert result.ok and _proposal(result).wallet_id == first["wallet_id"]
     # an account id that is not one of the fits is nothing, not the other account
     result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "wallet_id": "wallet-nope"})
     assert not result.ok and result.status == "wallet_not_found"
