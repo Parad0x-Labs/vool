@@ -60,7 +60,7 @@ def two_enabled_packages(tmp_path, monkeypatch):
     tool_registry.reset()
     from core import tool_demand_signals
 
-    tool_demand_signals._PLUGIN_REMOVED.clear()
+    tool_demand_signals.reset_plugin_spoken_memory()
     try:
         for plugin_id, name, description, tool, tool_description in (
             ("acme-text-digest", "Text digest example", "Compute the SHA-256 digest of supplied text.",
@@ -193,7 +193,15 @@ def test_a_refused_wording_still_shows_what_the_plugin_returned(two_enabled_pack
             "summary": "Plugin `acme-word-count.count` returned output; its claims need independent verification.",
             "response_text": "[untrusted output from MCP server 'acme-word-count' tool 'count']\n{\"words\": 4, \"characters\": 19}"}
     said = plugin_result_in_plain_words([step])
-    assert said == "This is what the Word count plugin returned. VOOL has not checked it.\n\nwords: 4\ncharacters: 19"
+    # Shown as literal text inside a fence, so a plugin's words never become links or headings.
+    assert said == "This is what the Word count plugin returned. VOOL has not checked it.\n\n```text\nwords: 4\ncharacters: 19\n```"
+    marked = plugin_result_in_plain_words([dict(step, response_text="```\n[click](http://x.example)\n# Title")])
+    assert marked.count("```") == 2 and marked.endswith("```")            # the fence cannot be closed from inside
+    # Another tool in the turn, or a failed step before it: the last step is not the whole answer.
+    assert plugin_result_in_plain_words([{"tool_name": "search_web", "ok": True, "response_text": "x"}, step]) == ""
+    assert plugin_result_in_plain_words([dict(step, ok=False), step]) == ""
+    other = dict(step, tool_name="acme-text-digest.sha256")
+    assert plugin_result_in_plain_words([other, step]) == ""
     assert plugin_result_in_plain_words([dict(step, ok=False)]) == ""
     assert plugin_result_in_plain_words([dict(step, tool_name="search_web")]) == ""
     assert plugin_result_in_plain_words([]) == ""
@@ -218,3 +226,71 @@ def test_a_short_follow_up_keeps_the_plugin_on_offer(two_enabled_packages) -> No
     assert not plugin_follow_up("and characters?", None)
     wanted = requirements_for("and characters?", source_context=chat(first, "and characters?"))
     assert wanted.tools_required and wanted.allowed_toolsets == ("plugin",)
+
+
+def test_a_follow_up_is_only_a_continuation_of_the_plugin_turn(two_enabled_packages) -> None:
+    """Review 2026-11-12: any short turn after a plugin turn was pulled to the plugin, so
+    "tell me a joke about cats" was forced through a tool call."""
+    from core.execution_requirements import requirements_for
+    from core.tool_demand_signals import plugin_follow_up, plugin_follow_up_targets
+
+    def chat(*said):
+        return {"conversation_history": [m for text in said for m in ({"role": "user", "content": text}, {"role": "assistant", "content": "ok"})][:-1]}
+
+    first = "count the words in: red green blue"
+    for ordinary in ("tell me a joke about cats", "and what is the capital of France?", "ok", "thanks!",
+                     "how are you today"):
+        assert not plugin_follow_up(ordinary, chat(first, ordinary)), ordinary
+    for continued in ("ok now do the same for vx-22", "same for: one two three", "and characters?",
+                      "do it again for alpha beta"):
+        assert plugin_follow_up_targets(continued, chat(first, continued)) == ("acme-word-count",), continued
+    # An acknowledgement in between is stepped over; an ordinary turn in between ends it.
+    assert plugin_follow_up("and characters?", chat(first, "ok thanks", "and characters?"))
+    assert not plugin_follow_up("same for vx-22", chat(first, "tell me a joke about cats", "same for vx-22"))
+    # A follow-up another rule owns stays with that rule.
+    weather = "and what is the weather in Vilnius tomorrow?"
+    wanted = requirements_for(weather, source_context=chat(first, weather))
+    assert wanted.allowed_toolsets != ("plugin",)
+
+
+def test_a_removed_plugin_is_named_only_when_the_person_named_it(two_enabled_packages) -> None:
+    """Review 2026-11-12: after a removal, an everyday sentence sharing one word with the removed
+    plugin's description was answered with "that plugin was removed"."""
+    from core.agent_runtime import fast_paths_plugin as lane
+    from core.plugin_tools import set_plugin_tools_setting
+    from core.tool_demand_signals import removed_plugins_named_in_words
+
+    set_plugin_tools_setting(True)
+    assert lane.unavailable_plugin_notice("count the words in: red green blue") == ""     # seen while present
+    manager.uninstall("acme-word-count", remove_key=True)
+    assert removed_plugins_named_in_words("use the word count plugin on: red green blue") == ("Word count",)
+    for everyday in ("how many words should a cover letter have?", "what characters are in Hamlet?",
+                     "count me in for friday"):
+        assert removed_plugins_named_in_words(everyday) == (), everyday
+        assert lane.unavailable_plugin_notice(everyday) == "", everyday
+
+
+def test_a_follow_up_to_a_plugin_that_was_turned_off_is_explained(two_enabled_packages) -> None:
+    """Review 2026-11-12: the notice read only the turn's own words, so "and characters?" after
+    the plugin was turned off went to the model with no tool and no explanation."""
+    from core.agent_runtime import fast_paths_plugin as lane
+    from core.plugin_tools import set_plugin_tools_setting
+
+    set_plugin_tools_setting(True)
+    first = "count the words in: red green blue"
+    context = {"conversation_history": [{"role": "user", "content": first}, {"role": "assistant", "content": "3"},
+                                        {"role": "user", "content": "and characters?"}]}
+    assert lane.unavailable_plugin_notice("and characters?", context) == ""
+    manager.disable("acme-word-count")
+    assert lane.unavailable_plugin_notice("and characters?", context) == lane.TURNED_OFF.format(name="Word count")
+    assert lane.unavailable_plugin_notice("thanks!", context) == ""
+
+
+def test_a_labelled_or_short_value_from_the_tool_counts_as_grounded() -> None:
+    """Review 2026-11-12: "md5:<hex>" and a dotted address repeated exactly were refused."""
+    value = "9e:10:7d:9d:37:2b:b6:82:6b:d8:1d:35:42:a4:19:d6"
+    shown = ['[untrusted output]\n{"sum": "md5:' + value + '", "ip": "10.0.12.7"}']
+    assert not is_ungrounded(f"The value it gave back is {value} for that text.", shown)
+    assert not is_ungrounded("The value it gave back is 10.0.12.7 for that host.", shown)
+    assert is_ungrounded("The value it gave back is 10.0.99.7 for that host.", shown)
+    assert is_ungrounded("The value it gave back is 9e:10:7d:9d:00:00:00:00 for that text.", shown)

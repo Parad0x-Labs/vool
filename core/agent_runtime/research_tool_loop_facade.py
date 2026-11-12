@@ -516,15 +516,16 @@ def plugin_result_in_plain_words(executed_steps: list[dict[str, Any]]) -> str:
     if not executed_steps:
         return ""
     step = executed_steps[-1]
-    if not step.get("ok"):
-        return ""
     try:
         from core import plugin_manager
         from core.plugin_tools import plugin_id_for_intent
 
-        plugin_id = plugin_id_for_intent(str(step.get("tool_name") or ""))
-        if not plugin_id:
+        owners = {plugin_id_for_intent(str(each.get("tool_name") or "")) for each in executed_steps}
+        # Only a turn that was nothing but this one plugin's successful steps: with any other
+        # tool in the turn, or a failed step, the last step is not the whole answer.
+        if len(owners) != 1 or "" in owners or not all(each.get("ok") for each in executed_steps):
             return ""
+        plugin_id = next(iter(owners))
         try:
             name = str(plugin_manager.inspect(plugin_id).get("name") or plugin_id)
         except Exception:
@@ -544,7 +545,12 @@ def plugin_result_in_plain_words(executed_steps: list[dict[str, Any]]) -> str:
         body = "\n".join(f"{str(key).replace('_', ' ')}: {value}" for key, value in parsed.items())
     if len(body) > _PLUGIN_RESULT_LIMIT:
         body = body[:_PLUGIN_RESULT_LIMIT].rstrip() + "\n(The rest is left out here.)"
-    return f"This is what the {name} plugin returned. VOOL has not checked it.\n\n{body}"
+    # Shown as literal text, never as formatting: the plugin's words must not become links,
+    # pictures or headings in the chat. A fence cannot be closed from inside once its own
+    # marker is taken out of the text.
+    body = body.replace("`", "'")
+    name = re.sub(r"[^\w .,'()-]", "", name)[:60] or "added"
+    return f"This is what the {name} plugin returned. VOOL has not checked it.\n\n```text\n{body}\n```"
 
 
 def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
@@ -2794,6 +2800,7 @@ class ResearchToolLoopFacadeMixin:
         # costs only fluency, never correctness.
         synthesis_observations = synthesis_grounding_observations(executed_steps)
         reject_reason = ""
+        plugin_result_shown = False
         if renders_final:
             reject_reason = ""
         elif not synthesis_text:
@@ -2841,6 +2848,10 @@ class ResearchToolLoopFacadeMixin:
                 # wording was refused. The turn is complete, not a failed audit.
                 final_message = plugin_result
                 reject_reason = ""
+                # Runtime code composed these words, not the model: no model confidence or
+                # verifier caveat belongs to them.
+                synthesis = None
+                plugin_result_shown = True
             else:
                 final_message = self._tool_loop_final_message(None, executed_steps)
         else:
@@ -2921,7 +2932,7 @@ class ResearchToolLoopFacadeMixin:
             "task_outcome": "failed" if (terminal_failure or narrated_failure) else "success",
             # Typed authorship declaration for the grounding lifecycle: when the last tool's
             # contract renders the final answer, runtime code composed the published bytes.
-            "runtime_rendered_final": bool(renders_final),
+            "runtime_rendered_final": bool(renders_final) or plugin_result_shown,
             "details": {
                 "tool_name": executed_steps[-1]["tool_name"],
                 "tool_provider": final_provider_id,

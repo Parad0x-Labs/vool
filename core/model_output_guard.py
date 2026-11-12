@@ -1271,11 +1271,21 @@ def is_ungrounded(text: str, observations) -> bool:
     # Measured in real chat 2026-11-12: a plugin returned a fingerprint as colon-separated bytes,
     # the model answered with that fingerprint, and the person was shown a failure instead. The
     # value itself is the overlap: compared with the separators taken out of both sides.
-    squeezed_answer = re.sub(r"[^a-z0-9]+", "", answer.lower())
+    lowered_answer = answer.lower()
+    squeezed_answer = re.sub(r"[^a-z0-9]+", "", lowered_answer)
+    answer_runs = [re.split(r"[^a-z0-9]+", run) for run in _SEPARATED_VALUE_RE.findall(lowered_answer)]
     for run in _SEPARATED_VALUE_RE.findall(observed):
-        value = re.sub(r"[^a-z0-9]+", "", run)
-        if len(value) >= 8 and value in squeezed_answer:
-            return False
+        pieces = re.split(r"[^a-z0-9]+", run)
+        if len("".join(pieces)) >= 8 and "".join(pieces) in squeezed_answer:
+            return False   # the whole value, with or without its separators
+        # The same pieces in the same order, when a label touched the value on one side
+        # ("md5:9f:86:..." observed, "9f:86:..." answered) or the value is short ("192.0.2.7").
+        for said in answer_runs:
+            short, long = (said, pieces) if len(said) <= len(pieces) else (pieces, said)
+            if len(short) >= 4 and len("".join(short)) >= 6 and any(
+                long[i : i + len(short)] == short for i in range(len(long) - len(short) + 1)
+            ):
+                return False
     return True
 
 

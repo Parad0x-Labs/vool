@@ -809,7 +809,18 @@ def _plugin_word_forms(word: str) -> set[str]:
 _PluginWords = tuple[tuple[str, frozenset[str], frozenset[str], frozenset[str], frozenset[str]], ...]
 _PLUGIN_SPOKEN_CACHE: tuple[tuple, _PluginWords] | None = None
 #: A plain ask for a quantity. Grammar, not a topic: what is being counted comes from the plugin's own name.
-_PLUGIN_QUANTITY_ASK = re.compile(r"(?i)\bhow\s+many\b|\bnumber\s+of\b|\bhow\s+much\b")
+_PLUGIN_QUANTITY_ASK = re.compile(r"\b(?:how\s+many|number\s+of)\s+([a-z0-9-]+)\b[^:?!.]{0,40}:\s*\S+\s+\S")
+
+
+def _quantity_of(lowered: str, name_words: frozenset[str]) -> bool:
+    """ "how many words are in: red green blue" -- the counted thing is a word of the plugin's name
+    AND the material is handed over after a colon. "how many words should a cover letter have?"
+    hands nothing over and stays an ordinary question."""
+    match = _PLUGIN_QUANTITY_ASK.search(lowered)
+    if not match:
+        return False
+    counted = match.group(1)
+    return counted in name_words or (counted.endswith("s") and counted[:-1] in name_words)
 _PLUGIN_DISPLAY: dict[str, str] = {}
 _PLUGIN_REMOVED: dict[str, tuple[str, tuple]] = {}
 
@@ -877,17 +888,20 @@ def _plugin_spoken_vocabulary() -> _PluginWords:
         for word in _PLUGIN_WORD.findall(display.lower()):
             forms = _plugin_word_forms(word)
             if not forms & _PLUGIN_ORDINARY_WORDS:
-                name_words |= {f.rstrip("s") for f in forms if len(f) >= 4}
+                name_words |= {f for f in forms if len(f) >= 4}
         rows.append((record.plugin_id, frozenset(names), frozenset(terms), frozenset(shared - terms), frozenset(name_words)))
         _PLUGIN_DISPLAY[record.plugin_id] = display or record.plugin_id
     # A plugin that was here a moment ago and is now uninstalled is still what the person may ask
     # for. Its words are remembered for as long as the app runs, only to say that it was removed.
     present = {row[0] for row in rows}
     if _PLUGIN_SPOKEN_CACHE is not None:
+        still_installed = {record.plugin_id for record in installed}
         for row in _PLUGIN_SPOKEN_CACHE[1]:
-            if row[0] not in present:
+            # Gone from the lifecycle records, not merely unreadable: a plugin whose files
+            # changed is still installed and has its own "review it again" notice.
+            if row[0] not in present and row[0] not in still_installed:
                 _PLUGIN_REMOVED[row[0]] = (_PLUGIN_DISPLAY.get(row[0], row[0]), row)
-    for plugin_id in present:
+    for plugin_id in {record.plugin_id for record in installed}:
         _PLUGIN_REMOVED.pop(plugin_id, None)
     _PLUGIN_SPOKEN_CACHE = (key, tuple(rows))
     return _PLUGIN_SPOKEN_CACHE[1]
@@ -917,16 +931,29 @@ def plugins_named_in_words(text: str) -> tuple[str, ...]:
 
 
 def removed_plugins_named_in_words(text: str) -> tuple[str, ...]:
-    """Display names of plugins uninstalled while the app has been running that the words ask for."""
+    """Display names of plugins uninstalled while the app has been running that the words NAME.
+
+    Stricter than the offer: this decides a ready-made reply, so only the plugin's own name or a
+    digit-bearing term of its ("sha-256") counts. Ordinary words it shared ("count", "words")
+    do not, or every later question about words would be answered with "was removed".
+    """
     try:
         _plugin_spoken_vocabulary()
     except Exception:
         return ()
     rows = {plugin_id: row for plugin_id, (_display, row) in _PLUGIN_REMOVED.items()}
-    return tuple(_PLUGIN_REMOVED[plugin_id][0] for plugin_id in _plugins_matching(text, tuple(rows.values())))
+    return tuple(_PLUGIN_REMOVED[plugin_id][0] for plugin_id in _plugins_matching(text, tuple(rows.values()), named_only=True))
 
 
-def _plugins_matching(text: str, vocabulary) -> tuple[str, ...]:
+def reset_plugin_spoken_memory() -> None:
+    """Forget the remembered vocabulary (a different profile, or a test's own plugins)."""
+    global _PLUGIN_SPOKEN_CACHE
+    _PLUGIN_SPOKEN_CACHE = None
+    _PLUGIN_DISPLAY.clear()
+    _PLUGIN_REMOVED.clear()
+
+
+def _plugins_matching(text: str, vocabulary, *, named_only: bool = False) -> tuple[str, ...]:
     if not vocabulary:
         return ()
     from difflib import SequenceMatcher
@@ -950,13 +977,18 @@ def _plugins_matching(text: str, vocabulary) -> tuple[str, ...]:
             for candidate in candidates
         )
 
+    lowered = text.lower()
     named: list[str] = []
-    quantity_ask = bool(_PLUGIN_QUANTITY_ASK.search(text))
     for plugin_id, names, terms, shared, name_words in vocabulary:
         hits = {term for term in terms if term in said or near(term, said)}
+        by_name = any(name in runs or near(name, runs) for name in names)
+        if named_only:
+            if by_name or any(any(ch.isdigit() for ch in term) for term in hits):
+                named.append(plugin_id)
+            continue
         if (
-            any(name in runs or near(name, runs) for name in names)
-            or (quantity_ask and bool(name_words & {word.rstrip("s") for word in said}))
+            by_name
+            or _quantity_of(lowered, name_words)
             or any(len(term) >= _PLUGIN_TELLING_LENGTH or any(ch.isdigit() for ch in term) for term in hits)
             or len({term.rstrip("s") for term in hits | {term for term in shared if term in said}}) >= 2
         ):
@@ -964,51 +996,53 @@ def _plugins_matching(text: str, vocabulary) -> tuple[str, ...]:
     return tuple(named)
 
 
-#: Words that point back at what was just said. A closed class of grammar, not a topic list.
-_FOLLOW_UP_POINTERS = frozenset(
-    "same again another also too that this it those these them one and now about instead next".split()
+#: "Do that once more, for this other thing." Closed grammar; names no topic.
+_FOLLOW_UP_REPEAT = re.compile(
+    r"(?i)\b(?:the\s+)?same(?:\s+thing)?(?:\s+again)?\s*(?:for|with|on|to|:)"
+    r"|\bdo\s+(?:it|that|this)\s+(?:again|for|with|on)\b"
+    r"|\bagain\s+(?:for|with|on)\b"
+    r"|\b(?:another|one\s+more)\s+one\b"
 )
-_FOLLOW_UP_THANKS = re.compile(
-    r"(?i)^\s*(?:ok(?:ay)?|thanks?|thank\s+you|thx|ty|great|nice|cool|perfect|got\s+it|good|cheers)\b[^?]*$"
+#: "and characters?" -- a continuation that adds one thing to the request before it.
+_FOLLOW_UP_OPENING = re.compile(r"(?i)^\s*(?:ok(?:ay)?[,.!]?\s+|great[,.!]?\s+|cool[,.!]?\s+|thanks?[,.!]?\s+)?(?:and|now|also|what\s+about|how\s+about)\b")
+#: A turn that is only an acknowledgement; a later follow-up reaches back over it.
+_FOLLOW_UP_ACK = re.compile(
+    r"(?i)^\s*(?:ok(?:ay)?|thanks?|thank\s+you|thx|ty|great|nice|cool|perfect|got\s+it|good|cheers)"
+    r"(?:[\s,.!]+(?:that\s+helps|thanks?|thank\s+you|a\s+lot|very\s+much|mate))*[\s.!]*$"
 )
 _FOLLOW_UP_WORDS = 14
 _FOLLOW_UP_REACH = 4
 
 
-def plugin_follow_up(text: str, source_context) -> bool:
-    """Whether a short follow-up continues a turn that asked an added plugin for something.
+def plugin_follow_up_targets(text: str, source_context) -> tuple[str, ...]:
+    """The added plugins a short follow-up continues to ask; () when it is not such a follow-up.
 
     Measured in real chat (2026-11-12): after "count the words in ...", the follow-up "and
     characters?" was not offered the plugin, and the model asked what "characters" meant; "now do
     the same for ..." produced an invented result. Each turn's words were read alone, and a
     follow-up names nothing by itself.
 
-    True only when this turn asks for nothing of its own, is short, points back ("same", "that",
-    "and", "now" ...), is not just thanks, and the nearest earlier request in this chat (stepping
-    over other such follow-ups, a few turns at most) asked for an added plugin. It only widens
-    what the model is OFFERED; whether a tool runs is still the model's call and the owner's
-    permissions.
+    Deliberately narrow, because the turn before it does not own everything said next. The turn
+    must ask for nothing of its own and be short, and it must be one of two shapes: a repeat
+    ("same for ...", "do that for ...", "again with ..."), or a continuation ("and ...", "what
+    about ...") that uses a word the earlier plugin's own name or description uses ("characters"
+    after a word count). "and what is the capital of France?" is neither. The nearest earlier
+    request in this chat -- stepping over acknowledgements and other such follow-ups, a few turns
+    at most -- must have asked for an added plugin. This only widens what the model is OFFERED;
+    whether a tool runs is still the model's call and the owner's permissions.
     """
     current = " ".join(str(text or "").split())
     if not current or not isinstance(source_context, dict):
-        return False
-
-    def shaped(candidate: str) -> bool:
-        words = re.findall(r"[a-z0-9'\-]+", candidate.lower())
-        return (
-            0 < len(words) <= _FOLLOW_UP_WORDS
-            and bool(_FOLLOW_UP_POINTERS.intersection(words))
-            and not _FOLLOW_UP_THANKS.match(candidate)
-        )
-
-    def own_demand(candidate: str) -> DemandSignals:
-        return resolve_demand_signals(candidate)
-
-    if not shaped(current):
-        return False
-    signals = own_demand(current)
+        return ()
+    words = _PLUGIN_WORD.findall(current.lower().replace("_", " "))
+    if not 0 < len(words) <= _FOLLOW_UP_WORDS or _FOLLOW_UP_ACK.match(current):
+        return ()
+    repeat = bool(_FOLLOW_UP_REPEAT.search(current))
+    if not repeat and not _FOLLOW_UP_OPENING.match(current):
+        return ()
+    signals = resolve_demand_signals(current)
     if signals.explicit_intents or signals.required_families:
-        return False
+        return ()
     earlier = [
         " ".join(str(message.get("content") or "").split())
         for message in list(source_context.get("conversation_history") or [])
@@ -1016,15 +1050,41 @@ def plugin_follow_up(text: str, source_context) -> bool:
     ]
     if earlier and earlier[-1].casefold() == current.casefold():
         earlier.pop()   # the turn being read is usually the last message of its own history
+    asked: tuple[str, ...] = ()
     for previous in reversed(earlier[-_FOLLOW_UP_REACH:]):
-        if not previous:
+        if not previous or _FOLLOW_UP_ACK.match(previous):
             continue
-        signals = own_demand(previous)
+        signals = resolve_demand_signals(previous)
         if "plugin" in signals.required_families:
-            return True
-        if signals.explicit_intents or signals.required_families or not shaped(previous):
-            return False
-    return False
+            from core.plugin_tools import plugin_id_for_intent
+
+            asked = tuple(dict.fromkeys(
+                [p for p in (plugin_id_for_intent(i) for i in signals.explicit_intents) if p]
+                or plugins_named_in_words(previous)
+            ))
+            break
+        if signals.explicit_intents or signals.required_families:
+            return ()
+        if not (_FOLLOW_UP_REPEAT.search(previous) or _FOLLOW_UP_OPENING.match(previous)):
+            return ()   # an ordinary turn in between: the plugin request is no longer the subject
+    if not asked or repeat:
+        return asked
+    said: set[str] = set()
+    for word in words:
+        said |= {form.rstrip("s") for form in _plugin_word_forms(word)}
+    try:
+        vocabulary = _plugin_spoken_vocabulary()
+    except Exception:
+        return ()
+    continued = [
+        row[0] for row in vocabulary
+        if row[0] in asked and said & {w.rstrip("s") for w in (row[2] | row[3] | row[4])}
+    ]
+    return tuple(continued)
+
+
+def plugin_follow_up(text: str, source_context) -> bool:
+    return bool(plugin_follow_up_targets(text, source_context))
 
 
 def _browser_lane_intents(text: str) -> tuple[str, ...]:
@@ -1480,6 +1540,8 @@ __all__ = [
     "DemandSignals",
     "mailbox_retrieval_intents",
     "plugin_follow_up",
+    "plugin_follow_up_targets",
+    "reset_plugin_spoken_memory",
     "removed_plugins_named_in_words",
     "resolve_demand_signals",
 ]

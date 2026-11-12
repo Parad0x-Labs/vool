@@ -36,23 +36,35 @@ REMOVED = (
 )
 
 
-def unavailable_plugin_notice(text: str) -> str:
-    """The sentence for a turn that asks only for plugins that cannot run; "" otherwise."""
-    from core.tool_demand_signals import plugins_named_in_words, resolve_demand_signals
+def unavailable_plugin_notice(text: str, source_context: dict[str, Any] | None = None) -> str:
+    """The sentence for a turn that asks only for plugins that cannot run; "" otherwise.
+
+    With the chat's context, a short follow-up to such an ask ("and characters?") gets the same
+    sentence: read alone it names nothing, and a model with no tool would invent the result.
+    """
+    from core.tool_demand_signals import plugin_follow_up_targets, plugins_named_in_words, resolve_demand_signals
 
     signals = resolve_demand_signals(text)
+    asked: list[str] = []
     if not signals.required_families and not signals.explicit_intents:
         from core.tool_demand_signals import removed_plugins_named_in_words
 
         removed = removed_plugins_named_in_words(text)
         if removed:
             return REMOVED.format(name=removed[0])
-    if tuple(signals.required_families) != ("plugin",):
-        return ""   # nothing asked of a plugin, or another tool family owns the turn
+        if source_context is not None:
+            from core.execution_requirements import _compute_requirements
+
+            if tuple(_compute_requirements(text, source_context=source_context).allowed_toolsets) == ("plugin",):
+                asked = list(plugin_follow_up_targets(text, source_context))
+        if not asked:
+            return ""
+    elif tuple(signals.required_families) != ("plugin",):
+        return ""   # another tool family owns the turn
     from core import plugin_manager
     from core.plugin_tools import plugin_id_for_intent, plugin_tools_on
 
-    asked = [plugin_id_for_intent(intent) for intent in signals.explicit_intents] or list(plugins_named_in_words(text))
+    asked = asked or [plugin_id_for_intent(intent) for intent in signals.explicit_intents] or list(plugins_named_in_words(text))
     states: list[dict[str, Any]] = []
     for plugin_id in dict.fromkeys(p for p in asked if p):
         try:
@@ -80,7 +92,7 @@ def maybe_explain_unavailable_plugin(
     source_context: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     try:
-        notice = unavailable_plugin_notice(user_input)
+        notice = unavailable_plugin_notice(user_input, source_context)
     except Exception:
         return None
     if not notice:
