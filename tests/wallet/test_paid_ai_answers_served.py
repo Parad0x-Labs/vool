@@ -126,7 +126,7 @@ def served(tmp_path_factory):
 
 def _add(daemon, resource, *, label: str, max_price: str) -> dict:
     status, added = _door(daemon, "/api/wallet/ai-endpoints", {"action": "add", "label": label, "base_url": resource.url.split("/paid/")[0] + "/v1",
-                                                                "model": ASKED_MODEL, "max_price": max_price})
+                                                                "model": ASKED_MODEL, "max_price": max_price, "credential": PIN})
     assert status == 200, added
     return next(e for e in added["ai_endpoints"] if e["label"] == label)
 
