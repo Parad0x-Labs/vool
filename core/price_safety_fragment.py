@@ -386,10 +386,32 @@ function saveReviewedMaxima(ctx, maxima){
       error: T('pay.err_save', 'Could not reach the server to save these price limits; nothing was saved.') };
   });
 }
+// Whether the dialog can name a price at all. The server's own codes say so first; otherwise a
+// catalog row with at least one per-token rate is a known price. While the rates load the usual
+// words stay (the buttons are disabled then), so a slow read never flashes "no known price".
+function priceKnown(ctx, row){
+  if (ctx.code === 'MODEL_COST_UNKNOWN' || ctx.code === 'PAID_STATUS_UNKNOWN') return false;
+  if (ctx.code === 'price_above_accepted' || ctx._loading) return true;
+  return !!row && (Number(row.prompt_usd_per_m || 0) > 0 || Number(row.completion_usd_per_m || 0) > 0);
+}
+// The two accept buttons never say "Accept price" when there is no price to accept.
+function confirmLabel(ctx, known){
+  if (ctx.kind === 'review') return T('pay.btn_save_limits', 'Save price limits');
+  if (ctx.kind === 'per-send') {
+    return known ? T('pay.btn_accept_send', 'Accept price and send') : T('pay.btn_send_price_unknown', 'Send without a known price');
+  }
+  return known ? T('pay.btn_accept_select', 'Accept price and select') : T('pay.btn_select_price_unknown', 'Select without a known price');
+}
+function conversationLabel(known){
+  return known
+    ? T('pay.btn_accept_chat', 'Accept price for this chat (24 hours)')
+    : T('pay.btn_chat_price_unknown', 'Allow for this chat without a known price (24 hours)');
+}
 function paint(ctx, memo){
   var parts = selectionParts(ctx.id, ctx.provider);
   if (memo.provider !== parts.provider) memo = { at: 0, age: null, rows: {}, provider: parts.provider };
   var row = memo.rows[parts.id] || null;
+  var known = priceKnown(ctx, row);
   headEl.textContent = titleFor(ctx);
   bodyEl.innerHTML =
     '<p><b>' + esc(ctx.label || ctx.id) + '</b> \\u2014 ' + esc(reasonFor(ctx)) + '</p>' +
@@ -406,6 +428,9 @@ function paint(ctx, memo){
   if (ctx._actionsMounted) {
     actionsEl.children[0].disabled = !!ctx._loading;
     actionsEl.children[1].disabled = !!ctx._loading;
+    // The rates arrive after the buttons mount: their words follow what the dialog now knows.
+    actionsEl.children[0].textContent = confirmLabel(ctx, known);
+    actionsEl.children[1].textContent = conversationLabel(known);
     return;
   }
   ctx._actionsMounted = true;
@@ -413,7 +438,7 @@ function paint(ctx, memo){
   var confirmBtn = document.createElement('button');
   confirmBtn.className = 'vg-btn vg-danger vg-confirm';
   confirmBtn.disabled = !!ctx._loading;
-  confirmBtn.textContent = ctx.kind === 'review' ? T('pay.btn_save_limits', 'Save price limits') : (ctx.kind === 'per-send' ? T('pay.btn_accept_send', 'Accept price and send') : T('pay.btn_accept_select', 'Accept price and select'));
+  confirmBtn.textContent = confirmLabel(ctx, known);
   confirmBtn.addEventListener('click', function(){
     if (ctx._loading || ctx._saving) return;
     var maxima = collectReviewedMaxima(ctx);
@@ -440,7 +465,7 @@ function paint(ctx, memo){
   var conversationBtn = document.createElement('button');
   conversationBtn.className = 'vg-btn vg-danger vg-conversation';
   conversationBtn.disabled = !!ctx._loading;
-  conversationBtn.textContent = T('pay.btn_accept_chat', 'Accept price for this chat (24 hours)');
+  conversationBtn.textContent = conversationLabel(known);
   conversationBtn.addEventListener('click', function(){
     if (ctx._loading || ctx._saving) return;
     var maxima = collectReviewedMaxima(ctx);

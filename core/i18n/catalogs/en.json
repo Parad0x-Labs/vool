@@ -3385,7 +3385,10 @@
     "run.review.outcome_unavailable": "Model review outcome unavailable",
     "run.evidence.tested_issues": "Tested — issues found",
     "run.evidence.tested_passed": "Tested — passed",
-    "run.evidence.tool_completed": "Tool action completed"
+    "run.evidence.tool_completed": "Tool action completed",
+    "pay.btn_select_price_unknown": "Select without a known price",
+    "pay.btn_send_price_unknown": "Send without a known price",
+    "pay.btn_chat_price_unknown": "Allow for this chat without a known price (24 hours)"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -3385,9 +3385,12 @@
     "run.review.outcome_unavailable": "モデル確認の結果は利用できません",
     "run.evidence.tested_issues": "テスト済み — 問題あり",
     "run.evidence.tested_passed": "テスト済み — 合格",
-    "run.evidence.tool_completed": "ツールの操作が完了"
+    "run.evidence.tool_completed": "ツールの操作が完了",
+    "pay.btn_select_price_unknown": "価格不明のまま選択",
+    "pay.btn_send_price_unknown": "価格不明のまま送信",
+    "pay.btn_chat_price_unknown": "価格不明のままこのチャットで許可（24時間）"
   },
-  "source_catalog_sha256": "4bdea2f8bc27f464425ce2eaa8a9a2bc2f54668c80161b6407067628a4907fe9",
+  "source_catalog_sha256": "8f67708b23ebfbfb3959f4b1f115357c7ce2411a229f740febccdc4e645eef31",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3395,6 +3398,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "answer_line_addendum": "76 keys translated by the lane author (single writer)"
+    "answer_line_addendum": "76 keys translated by the lane author (single writer)",
+    "tdl_l30_132_price_unknown_addendum": "3 keys translated by the lane author (single writer)"
   }
 }
