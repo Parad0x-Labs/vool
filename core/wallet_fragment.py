@@ -815,6 +815,7 @@ function drawCrypto(st){
     inactiveWithAccounts.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
   }
   box.appendChild(keychainRestoreBlock(cp));
+  box.appendChild(usbRestoreBlock(cp));
   box.appendChild(channelControls(cp));
   box.appendChild(paidAiControls(cp));
   box.appendChild(agentControls(cp));
@@ -1493,6 +1494,99 @@ function keychainRestoreBlock(cp){
   }).catch(function(){});
   return box;
 }
+function usbDateText(iso){ var d = new Date(iso || ''); return isNaN(d.getTime()) ? '' : d.toLocaleDateString(); }
+function usbControls(a, cp, msg){
+  // the same sealed backup as the Keychain one, written to a USB stick the person keeps offline
+  var box = el('div', 'vw-cx-usb'); box.setAttribute('data-usb', a.usb_backup ? 'saved' : 'none');
+  var u = a.usb_backup || null;
+  box.appendChild(el('div', 'vw-cx-env', u
+    ? 'Backup saved on the USB stick "' + u.drive + '"' + (usbDateText(u.saved_at) ? ' on ' + usbDateText(u.saved_at) : '') + ', locked with your backup password. Keep the stick away from this computer.'
+    : 'No USB backup yet. You can keep this wallet\'s backup on a USB stick in a drawer, locked with a backup password only you know.'));
+  var bar = el('div', 'vw-cx-actions'); box.appendChild(bar);
+  var open = el('button', 'vw-btn vw-cx-usb-save', u ? 'Save to a USB stick again' : 'Save backup to a USB stick'); open.type = 'button'; bar.appendChild(open);
+  var f = el('div', 'vw-cx-form vw-cx-usb-form'); f.hidden = true; box.appendChild(f);
+  f.appendChild(el('div', 'vw-line', 'Plug in a USB stick. Choose a backup password (at least 12 characters). It is different from your PIN and is never stored. Without it nobody, not even VOOL, can open the backup.'));
+  var dl = el('label', null, 'USB stick'); var did = 'vwUsbDrive-' + a.wallet_id; dl.setAttribute('for', did); f.appendChild(dl);
+  var drive = el('select', 'vw-chain vw-cx-usb-drive'); drive.id = did; f.appendChild(drive);
+  var none = el('div', 'vw-cx-env vw-cx-usb-none', 'No USB stick found. Plug one in, then press Look again.'); none.hidden = true; f.appendChild(none);
+  var again = el('button', 'vw-btn vw-cx-usb-rescan', 'Look again'); again.type = 'button'; f.appendChild(again);
+  var inputs = {};
+  [['credential', 'This wallet\'s PIN or password'], ['backup_password', 'Backup password'], ['backup_password_confirmation', 'Repeat the backup password']].forEach(function(x){
+    var id = 'vwUsb' + x[0] + '-' + a.wallet_id; var l = el('label', null, x[1]); l.setAttribute('for', id); f.appendChild(l);
+    var i = el('input'); i.type = 'password'; i.id = id; i.autocomplete = 'new-password'; f.appendChild(i); inputs[x[0]] = i;
+  });
+  var row = el('div', 'vw-sheet-actions'); var go = el('button', 'vw-btn primary vw-cx-usb-go', 'Save to the USB stick'); go.type = 'button';
+  var back = el('button', 'vw-btn', 'Cancel'); back.type = 'button'; row.appendChild(go); row.appendChild(back); f.appendChild(row);
+  function clear(){ Object.keys(inputs).forEach(function(k){ inputs[k].value = ''; }); }
+  function scan(){
+    while (drive.firstChild) drive.removeChild(drive.firstChild); go.disabled = true;
+    getJson('/api/wallet/usb').then(function(j){
+      var rows = ((j && j.usb) || {}).drives || [];
+      rows.forEach(function(d){ var o = el('option'); o.value = d.drive_id; o.textContent = d.name; drive.appendChild(o); });
+      none.hidden = rows.length > 0; drive.hidden = rows.length === 0; go.disabled = rows.length === 0;
+    }).catch(function(){ none.hidden = false; drive.hidden = true; });
+  }
+  open.addEventListener('click', function(){ f.hidden = !f.hidden; if (!f.hidden) scan(); });
+  again.addEventListener('click', scan);
+  back.addEventListener('click', function(){ clear(); f.hidden = true; });
+  go.addEventListener('click', function(){
+    var body = { wallet_id: a.wallet_id, drive_id: drive.value };
+    Object.keys(inputs).forEach(function(k){ body[k] = inputs[k].value; });
+    clear(); go.disabled = true; cxMsg(msg, 'Working… this takes a moment.');
+    postJson('/api/wallet/usb/save', body).then(function(res){
+      body = null; go.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing was saved.'), true); return; }
+      cxMsg(msg, 'Saved on the USB stick. Keep it somewhere safe, away from this computer.'); renderCrypto();
+    }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  return box;
+}
+var USB_STATES = {
+  on_this_computer: 'This wallet is on this computer. Forgot its PIN? Open the backup and choose a new one.',
+  can_bring_back: 'This wallet is not on this computer. Open the backup to bring it back.',
+  use_backup_key: 'Bringing this one back here is not available yet. Use its backup key.'
+};
+function usbRestoreBlock(cp){
+  // VOOL backups on the USB sticks plugged in now: forgot PIN, or bring a wallet back (new computer, deleted wallet)
+  var box = el('div', 'vw-cx-row vw-cx-usb-restore'); box.id = 'vwUsbRestore';
+  box.appendChild(el('div', 'vw-cx-title', 'Backups on a USB stick'));
+  var lead = el('div', 'vw-cx-env', 'Plug in the USB stick with your VOOL backup, then press Look on USB sticks.'); box.appendChild(lead);
+  var look = el('button', 'vw-btn vw-cx-usb-look', 'Look on USB sticks'); look.type = 'button'; box.appendChild(look);
+  var list = el('div', 'vw-cx-usb-list'); box.appendChild(list);
+  function render(rows){
+    while (list.firstChild) list.removeChild(list.firstChild);
+    if (!rows.length) { list.appendChild(el('div', 'vw-cx-env vw-cx-usb-empty', 'No VOOL backup found on a USB stick.')); return; }
+    rows.forEach(function(r){
+      var line = el('div', 'vw-cx-account'); line.setAttribute('data-usb-file', r.address); line.setAttribute('data-usb-state', r.state);
+      line.appendChild(el('div', 'vw-line', (r.label || 'Wallet') + ' · ' + chainLabel(r.network) + ' · on "' + r.drive + '"' + (usbDateText(r.saved_at) ? ' · saved ' + usbDateText(r.saved_at) : '')));
+      line.appendChild(el('div', 'vw-cx-address', r.address));
+      line.appendChild(el('div', 'vw-cx-env', USB_STATES[r.state] || ''));
+      var msg = el('div', 'vw-msg');
+      if (r.state === 'use_backup_key') { line.appendChild(msg); list.appendChild(line); return; }
+      var f = el('div', 'vw-cx-form');
+      var l = el('label', null, 'Backup password'); var pid = 'vwUsbOpen-' + r.address; l.setAttribute('for', pid); f.appendChild(l);
+      var pw = el('input'); pw.type = 'password'; pw.id = pid; pw.autocomplete = 'off'; f.appendChild(pw);
+      var creds = credentialPrompt(f, 'vwUsbOpenNew-' + r.address, cp);
+      var go = el('button', 'vw-btn primary vw-cx-usb-open', r.state === 'on_this_computer' ? 'Set the new PIN' : 'Bring it back'); go.type = 'button'; f.appendChild(go);
+      go.addEventListener('click', function(){
+        var body = { file_id: r.file_id, label: r.label, backup_password: pw.value, method: creds.method.value, credential: creds.cred.value, credential_confirmation: creds.conf.value };
+        pw.value = ''; creds.clear(); go.disabled = true; cxMsg(msg, 'Working… this takes a moment.');
+        postJson('/api/wallet/usb/open', body).then(function(res){
+          body = null; go.disabled = false;
+          if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing changed.'), true); return; }
+          cxMsg(msg, r.state === 'on_this_computer' ? 'Done. Use the new PIN or password from now on.' : 'The wallet is back.'); renderCrypto();
+        }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+      });
+      line.appendChild(f); line.appendChild(msg); list.appendChild(line);
+    });
+  }
+  look.addEventListener('click', function(){
+    look.disabled = true; while (list.firstChild) list.removeChild(list.firstChild);
+    getJson('/api/wallet/usb').then(function(j){ look.disabled = false; render(((j && j.usb) || {}).backups || []); })
+      .catch(function(){ look.disabled = false; list.appendChild(el('div', 'vw-cx-env', 'The USB sticks could not be read.')); });
+  });
+  return box;
+}
 function walletRoleControls(a, cp, msg){
   // rename (no PIN: it loosens nothing) and Make main (this wallet's own PIN or password)
   var host = el('div', 'vw-cx-roles'); host.setAttribute('data-wallet', a.wallet_id);
@@ -1539,7 +1633,7 @@ function walletRoleControls(a, cp, msg){
     }).catch(function(){ body = null; dGo.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
   });
   bar.appendChild(delBtn);
-  if (a.mode === 'pocket_sealed') host.appendChild(keychainControls(a, cp, msg));
+  if (a.mode === 'pocket_sealed') { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); }
   if (a.kind === 'everyday' && a.mode === 'pocket_sealed' && (a.setup_state || 'ready') === 'ready') {
     var mainBtn = el('button', 'vw-btn vw-cx-make-main', 'Make main'); mainBtn.type = 'button';
     bar.appendChild(mainBtn);

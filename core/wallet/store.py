@@ -128,6 +128,9 @@ SCHEMA = (
     # which wallets have a password-sealed backup in the computer's secure store (core.wallet.keychain_backup); no key here
     """CREATE TABLE IF NOT EXISTS wallet_keychain_backups (
         wallet_id TEXT PRIMARY KEY, network TEXT NOT NULL, address TEXT NOT NULL, saved_at TEXT NOT NULL)""",
+    # which wallets VOOL last wrote a password-sealed backup for to a USB stick (core.wallet.usb_backup); no key, no path
+    """CREATE TABLE IF NOT EXISTS wallet_usb_backups (
+        wallet_id TEXT PRIMARY KEY, network TEXT NOT NULL, address TEXT NOT NULL, drive_name TEXT NOT NULL, saved_at TEXT NOT NULL)""",
 )
 
 TABLES: tuple[str, ...] = (
@@ -135,7 +138,7 @@ TABLES: tuple[str, ...] = (
     "wallet_card_tokens", "wallet_receipts", "wallet_signing_requests", "wallet_x402_bindings", "wallet_controls",
     "wallet_facilitators", "wallet_unlock_attempts", "wallet_quotes", "wallet_transfers", "wallet_usepod_operations",
     "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions", "wallet_agent_helper_terms",
-    "wallet_roles", "wallet_main", "wallet_keychain_backups",
+    "wallet_roles", "wallet_main", "wallet_keychain_backups", "wallet_usb_backups",
 )
 
 #: Columns added after a table first shipped. Additive, idempotent, checked on every connection.

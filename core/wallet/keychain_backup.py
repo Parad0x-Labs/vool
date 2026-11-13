@@ -275,7 +275,6 @@ def restore(network: str, address: str, *, password: str, method: str, credentia
             source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Bring a wallet back from its Keychain copy onto this computer (after deleting it, or on a new install). Solana
     wallets today; it is imported as an everyday wallet under a new PIN or password, and never takes Main."""
-    from core.wallet import pilot_custody
 
     custody.require_enabled(source_context=source_context)
     spec = chains.resolve_network(network)
@@ -283,13 +282,30 @@ def restore(network: str, address: str, *, password: str, method: str, credentia
     if not spec.is_svm and removed is None:
         raise _fault("restore_not_supported_on_this_network", source_context=source_context)
     envelope = _envelope_for(spec.network, address, source_context=source_context)
-    scopes = ((f"keychain:{spec.network}:{address}", pilot_custody.WALLET_LOCK_AFTER), (pilot_custody.RECOVERY_APP_SCOPE, pilot_custody.APP_LOCK_AFTER))
-    pilot_custody._reserve_attempt(f"keychain:{spec.network}:{address}", source_context=source_context, scopes=scopes)
+    view = restore_from_envelope(envelope, spec, address, removed=removed, password=password, method=method, credential=credential,
+                                 credential_confirmation=credential_confirmation, label=label, scope_prefix="keychain",
+                                 creation_key=f"keychain-restore:{address}", source_context=source_context)
+    with connection() as conn:
+        conn.execute("INSERT INTO wallet_keychain_backups (wallet_id, network, address, saved_at) VALUES (?, ?, ?, ?) "
+                     "ON CONFLICT(wallet_id) DO UPDATE SET saved_at = excluded.saved_at", (view["wallet_id"], spec.network, address, utcnow()))
+    return view
+
+
+def restore_from_envelope(envelope: str, spec: chains.ChainIdentity, address: str, *, removed: dict[str, Any] | None, password: str, method: str,
+                          credential: str, credential_confirmation: str, label: str, scope_prefix: str, creation_key: str,
+                          source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """Open a sealed backup copy (Keychain or a USB stick) through the recovery throttle and bring its wallet back:
+    the deleted row comes back with its history, or a Solana wallet is imported as an everyday wallet. Never Main."""
+    from core.wallet import pilot_custody
+
+    scope = f"{scope_prefix}:{spec.network}:{address}"
+    scopes = ((scope, pilot_custody.WALLET_LOCK_AFTER), (pilot_custody.RECOVERY_APP_SCOPE, pilot_custody.APP_LOCK_AFTER))
+    pilot_custody._reserve_attempt(scope, source_context=source_context, scopes=scopes)
     backup_value = unseal(envelope, password=str(password or ""), network=spec.network, address=address)
     if backup_value is None:
-        pilot_custody._settle_attempt(f"keychain:{spec.network}:{address}", "failure", scopes=scopes)
+        pilot_custody._settle_attempt(scope, "failure", scopes=scopes)
         raise _fault("backup_password_wrong", code="wallet_recovery_refused", source_context=source_context)
-    pilot_custody._settle_attempt(f"keychain:{spec.network}:{address}", "refund", scopes=scopes)
+    pilot_custody._settle_attempt(scope, "refund", scopes=scopes)
     if removed is not None:
         # the person deleted this wallet here earlier: the same row comes back, with its name and its history
         try:
@@ -297,16 +313,15 @@ def restore(network: str, address: str, *, password: str, method: str, credentia
                            source_context=source_context)
         finally:
             del backup_value
+    if not spec.is_svm:
+        del backup_value
+        raise _fault("restore_not_supported_on_this_network", source_context=source_context)
     try:
-        view = pilot_custody.import_solana_pilot_wallet(network=spec.network, backup_value=backup_value, expected_address=address, method=method, credential=credential,
-                                                        credential_confirmation=credential_confirmation, creation_key=f"keychain-restore:{address}",
+        return pilot_custody.import_solana_pilot_wallet(network=spec.network, backup_value=backup_value, expected_address=address, method=method, credential=credential,
+                                                        credential_confirmation=credential_confirmation, creation_key=creation_key,
                                                         backup_saved=True, label=label or "Restored", source_context=source_context)
     finally:
         del backup_value
-    with connection() as conn:
-        conn.execute("INSERT INTO wallet_keychain_backups (wallet_id, network, address, saved_at) VALUES (?, ?, ?, ?) "
-                     "ON CONFLICT(wallet_id) DO UPDATE SET saved_at = excluded.saved_at", (view["wallet_id"], spec.network, address, utcnow()))
-    return view
 
 
 def _removed_row(network: str, address: str) -> dict[str, Any] | None:
@@ -370,4 +385,5 @@ def overview() -> dict[str, Any]:
     return {"available": available(), "store": store_name(), "min_password": MIN_PASSWORD, "restorable": restorable(), "checked_at": time.time()}
 
 
-__all__ = ["MIN_PASSWORD", "SERVICE", "available", "forget", "overview", "recover", "restorable", "restore", "save", "saved_for", "seal", "unseal"]
+__all__ = ["MIN_PASSWORD", "SERVICE", "available", "forget", "overview", "recover", "restorable", "restore", "restore_from_envelope", "save", "saved_for", "seal",
+           "unseal"]

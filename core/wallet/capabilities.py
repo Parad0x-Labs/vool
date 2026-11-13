@@ -105,6 +105,8 @@ def account_view(entry: dict[str, Any], spec: chains.ChainIdentity, *, shared_ro
         # the person's own wallets by role (core.wallet.wallet_roles): main / everyday / burner, "" for an agent's
         "kind": str(entry.get("kind") or ""), "is_main": bool(entry.get("is_main")), "burner_used": bool(entry.get("burner_used")),
         "keychain_backup": bool(entry.get("keychain_backup")),
+        # where VOOL last wrote this wallet's sealed backup on a USB stick: the stick's name and when, never a path
+        "usb_backup": entry.get("usb_backup") if isinstance(entry.get("usb_backup"), dict) else None,
     }
 
 

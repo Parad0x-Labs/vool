@@ -101,13 +101,20 @@ _ROLE_REFUSALS = {
     "no_backup_in_secure_store": "There is no backup of this wallet in this computer's secure store.",
     "backup_password_wrong": "That backup password does not open this backup. Nothing changed.",
     "restore_not_supported_on_this_network": "Restoring from the secure store works for Solana wallets for now. Use the backup key for this one.",
+    "usb_drive_not_found": "That USB stick is not plugged in any more. Plug it in and try again. Nothing changed.",
+    "usb_write_failed": "VOOL could not write to that USB stick. Check that it is not locked or full, then try again. Nothing was saved.",
+    "usb_readback_failed": "The backup on the USB stick could not be read back, so it was removed. Try again or use another stick.",
+    "usb_backup_not_found": "That backup is no longer on the USB stick. Nothing changed.",
 }
 
 
 def _fault(exc: WalletFault) -> Any:
     payload: dict[str, Any] = {"ok": False, "error": exc.code, "message": exc.user_message, "fault": exc.to_dict()}
-    said = _ROLE_REFUSALS.get(str(exc.context.get("reason") or ""))
-    if said and exc.code == "wallet_setup_state_invalid":
+    reason = str(exc.context.get("reason") or "")
+    said = _ROLE_REFUSALS.get(reason)
+    # a wrong backup password (Keychain or USB stick) is a recovery refusal: say it in its own words, not the
+    # generic "that recovery proof does not fit" text written for a typed backup key
+    if said and (exc.code == "wallet_setup_state_invalid" or (exc.code == "wallet_recovery_refused" and reason == "backup_password_wrong")):
         payload["message"] = said
     if exc.code == "wallet_confirmation_required":
         payload["warning"] = custody.POCKET_WARNING_TEXT
@@ -243,6 +250,11 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
         from core.wallet import keychain_backup
 
         return _json(200, {"ok": True, "keychain": keychain_backup.overview()}, headers=_NO_STORE)
+    if path == "/api/wallet/usb":
+        # the USB sticks plugged in now and the VOOL backups on them, by opaque id: never a path
+        from core.wallet import usb_backup
+
+        return _json(200, {"ok": True, "usb": usb_backup.overview()}, headers=_NO_STORE)
     if path == "/api/wallet/agents":
         # Settings, Crypto, Agent spending: each agent's own wallet, its allowance and use, what waits for the owner
         from core.wallet import agent_settings
@@ -399,6 +411,19 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             else:
                 answer = kb.forget(wid, source_context=source_context)
             return _json(200, {"ok": True, "keychain": answer}, headers=_NO_STORE)
+        if path in ("/api/wallet/usb/save", "/api/wallet/usb/open"):
+            # the same sealed backup as the Keychain one, written to a USB stick the person keeps offline
+            from core.wallet import usb_backup
+
+            pw = str(body.get("backup_password") or "")
+            if path == "/api/wallet/usb/save":
+                answer = usb_backup.save(str(body.get("wallet_id") or ""), drive_id=str(body.get("drive_id") or ""), credential=str(body.get("credential") or ""),
+                                         password=pw, confirmation=str(body.get("backup_password_confirmation") or ""), source_context=source_context)
+            else:
+                answer = usb_backup.open_backup(str(body.get("file_id") or ""), password=pw, method=str(body.get("method") or "pin"),
+                                                credential=str(body.get("credential") or ""), credential_confirmation=str(body.get("credential_confirmation") or ""),
+                                                label=str(body.get("label") or ""), source_context=source_context)
+            return _json(200, {"ok": True, "usb": answer}, headers=_NO_STORE)
         if path == "/api/wallet/wallets/remove":
             from core.wallet import wallet_roles
 

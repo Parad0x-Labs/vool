@@ -299,12 +299,13 @@ def describe(entry: dict[str, Any], *, conn: Any) -> dict[str, Any]:
     """The role fields a wallet listing carries: kind, is_main, burner_used."""
     wallet_id = str(entry.get("wallet_id") or "")
     if str(entry.get("agent_id") or ""):
-        return {"kind": "", "is_main": False, "burner_used": False, "keychain_backup": False}
-    from core.wallet import keychain_backup
+        return {"kind": "", "is_main": False, "burner_used": False, "keychain_backup": False, "usb_backup": None}
+    from core.wallet import keychain_backup, usb_backup
 
     kind = kind_of(wallet_id, conn=conn)
     return {"kind": kind, "is_main": kind == KIND_MAIN, "burner_used": kind == KIND_BURNER and burner_used(wallet_id, conn=conn),
-            "keychain_backup": keychain_backup.saved_for(wallet_id, conn=conn)}
+            "keychain_backup": keychain_backup.saved_for(wallet_id, conn=conn),
+            "usb_backup": usb_backup.saved_on(wallet_id, conn=conn)}
 
 
 __all__ = [

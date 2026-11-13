@@ -1744,6 +1744,13 @@
       "registry_command_id": "wallet.transfers",
       "surface": "http"
     },
+    "http:GET:/api/wallet/usb": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/usb",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.usb.status",
+      "surface": "http"
+    },
     "http:GET:/api/wallet/usepod/status": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/usepod/status",
@@ -3284,6 +3291,20 @@
       "registry_command_id": "wallet.transfers.stop_waiting",
       "surface": "http"
     },
+    "http:POST:/api/wallet/usb/open": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/usb/open",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.usb.open",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/usb/save": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/usb/save",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.usb.save",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/usepod/topup": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/usepod/topup",
@@ -3652,7 +3673,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 345,
-    "GENERATED_ADAPTER": 167,
+    "GENERATED_ADAPTER": 170,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

@@ -957,6 +957,15 @@ rows:
     tests: [tests/wallet/test_wallet_keychain_backup.py]
     label: TESTED
     target_release: 0.8.0
+  - id: wallet-usb-backup
+    title: Wallet backup key sealed with a backup password on a USB stick, forgot-PIN restore and bring back a wallet from the stick
+    area: crypto
+    ui: [vwCx, vwUsbRestore]
+    wired: ["/api/wallet/usb", "/api/wallet/usb/save", "/api/wallet/usb/open"]
+    default: []
+    tests: [tests/wallet/test_wallet_usb_backup.py]
+    label: TESTED
+    target_release: 0.8.0
   - id: wallet-addons-wallet
     title: Skills & plugins wallet (a separate wallet, each plugin ticked with its own limits)
     area: crypto
