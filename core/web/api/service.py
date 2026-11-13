@@ -184,6 +184,13 @@ def text_response(status: int, text: str, *, headers: dict[str, str] | None = No
 
 #: The pages that host wallet controls (chat approval cards, Settings) may be framed only by this origin.
 WALLET_PAGE_FRAMING_HEADERS: dict[str, str] = {"Content-Security-Policy": "frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN"}
+#: What ``/api/files/raw`` sends with a picture or a video: never read as another type, never a document
+#: that runs or loads anything, and not readable by any other origin.
+RAW_FILE_HEADERS: dict[str, str] = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; sandbox",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
 #: The chat page also loads images only from VOOL itself (``img-src``). An answer is model text, and
 #: the model may have read a web page, a pasted article or a file someone else wrote: any image
 #: address in it that the page fetched on its own would carry what the model put in that address
@@ -2462,14 +2469,23 @@ def _dispatch_get(
         # an http page). Read-only + hard-confined to the known Files roots via path_is_allowed.
         from core import generated_files
 
+        # Only VOOL's own page asks this door, and only for a picture or a video to draw: a page from
+        # another site may not use it to learn which files the person has, and nothing it serves is
+        # ever a document that runs (security review 2026-11-13: a planted .html in a Files root ran
+        # on VOOL's origin and read owner doors).
+        if _header_value(headers, "sec-fetch-site") not in {"", "same-origin", "none"}:
+            return apply_runtime_headers(json_response(403, {"error": "not a known file"}), runtime)
         raw_path = str((query.get("path") or [""])[0] or "")
         if not raw_path or not generated_files.path_is_allowed(raw_path):
             return apply_runtime_headers(json_response(403, {"error": "not a known file"}), runtime)
+        content_type = generated_files.content_type_for(raw_path)
+        if not content_type.startswith(("image/", "video/")):
+            return apply_runtime_headers(json_response(415, {"error": "not a picture or a video"}), runtime)
         data = generated_files.read_file_bytes(raw_path)
         if data is None:
             return apply_runtime_headers(json_response(404, {"error": "file not found"}), runtime)
         return apply_runtime_headers(
-            ApiResponse(status=200, content_type=generated_files.content_type_for(raw_path), body=data), runtime
+            ApiResponse(status=200, content_type=content_type, body=data, headers=dict(RAW_FILE_HEADERS)), runtime
         )
 
     if normalized_path == "/api/cloud/status":
