@@ -1543,7 +1543,7 @@ function usbControls(a, cp, msg){
 }
 var USB_STATES = {
   on_this_computer: 'This wallet is on this computer. Forgot its PIN? Open the backup and choose a new one.',
-  can_bring_back: 'This wallet is not on this computer. Open the backup to bring it back.',
+  can_bring_back: 'This wallet is not on this computer. Open the backup to bring it back. Only bring back your own backups: whoever made a backup still knows its key.',
   use_backup_key: 'Bringing this one back here is not available yet. Use its backup key.'
 };
 function usbRestoreBlock(cp){

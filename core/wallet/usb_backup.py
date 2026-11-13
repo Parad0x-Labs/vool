@@ -43,6 +43,7 @@ FILE_KIND = "vool-wallet-backup"
 FILE_VERSION = 1
 MAX_FILE_BYTES = 64 * 1024
 MAX_FILES_PER_DRIVE = 200
+MAX_ENTRIES_SCANNED = 2000
 _DISKUTIL_TIMEOUT = 5.0
 
 
@@ -184,24 +185,59 @@ def _document(envelope: str, *, label: str, network: str, address: str, backup_f
                        "note": "A VOOL wallet backup, locked with a backup password. Open it in VOOL: Settings, Crypto."}, indent=1, sort_keys=True)
 
 
-def _read_document(path: Path) -> dict[str, Any] | None:
-    """A backup file on the stick, or None when it is not one (or too big, or unreadable). Never raises."""
+def _read_bounded(path: Path) -> bytes | None:
+    """At most MAX_FILE_BYTES of one plain file, opened without following links or blocking on a pipe, sized on the
+    open handle itself (a file swapped or grown after a listing is caught here, not trusted from an earlier stat)."""
+    import stat as stat_module
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_FILE_BYTES:
+        fd = os.open(path, flags)
+    except OSError:
+        return None
+    try:
+        info = os.fstat(fd)
+        if not stat_module.S_ISREG(info.st_mode) or info.st_size > MAX_FILE_BYTES:
             return None
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+        chunks, total = [], 0
+        while total <= MAX_FILE_BYTES:
+            chunk = os.read(fd, MAX_FILE_BYTES + 1 - total)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        return None if total > MAX_FILE_BYTES else b"".join(chunks)
+    except OSError:
         return None
-    if not isinstance(data, dict) or data.get("kind") != FILE_KIND or int(data.get("v") or 0) != FILE_VERSION or not isinstance(data.get("sealed"), dict):
-        return None
+    finally:
+        os.close(fd)
+
+
+def _read_document(path: Path) -> dict[str, Any] | None:
+    """A backup file on the stick, or None when it is not one (unreadable, too big, malformed or inconsistent). Any
+    error while reading or checking ONE file makes that file "not a backup"; it never hides the other files."""
     try:
-        network = chains.resolve_network(str(data.get("network") or "")).network
+        return _check_document(_read_bounded(path))
     except Exception:
         return None
-    address = str(data.get("address") or "")
-    if not address or str(data["sealed"].get("network") or "") != network or str(data["sealed"].get("address") or "") != address:
+
+
+def _check_document(raw: bytes | None) -> dict[str, Any] | None:
+    if raw is None:
         return None
-    return {**data, "network": network, "address": address, "envelope": json.dumps(data["sealed"], sort_keys=True)}
+    data = json.loads(raw.decode("utf-8"))
+    if not isinstance(data, dict) or data.get("kind") != FILE_KIND or type(data.get("v")) is not int or data["v"] != FILE_VERSION:
+        return None
+    sealed = data.get("sealed")
+    if not isinstance(sealed, dict):
+        return None
+    network = chains.resolve_network(str(data.get("network") or "")).network
+    address = data.get("address")
+    if not isinstance(address, str) or not address or sealed.get("network") != network or sealed.get("address") != address:
+        return None
+    label, saved_at = data.get("label"), data.get("saved_at")
+    return {**data, "network": network, "address": address, "label": label if isinstance(label, str) else "",
+            "saved_at": saved_at if isinstance(saved_at, str) else "", "envelope": json.dumps(sealed, sort_keys=True)}
 
 
 def _file_id(drive_id: str, name: str) -> str:
@@ -210,13 +246,19 @@ def _file_id(drive_id: str, name: str) -> str:
 
 def _backup_files(mount: Path) -> list[Path]:
     folder = mount / FOLDER
+    listed: list[Path] = []
     try:
         if folder.is_symlink() or not folder.is_dir():
             return []
-        listed = sorted(p for p in folder.iterdir() if p.name.endswith(SUFFIX) and not p.name.startswith("."))
+        with os.scandir(folder) as entries:
+            for seen, entry in enumerate(entries):
+                if seen >= MAX_ENTRIES_SCANNED or len(listed) >= MAX_FILES_PER_DRIVE:
+                    break  # a stick stuffed with files costs a bounded look, never a full sort
+                if entry.name.endswith(SUFFIX) and not entry.name.startswith("."):
+                    listed.append(Path(entry.path))
     except OSError:
         return []
-    return listed[:MAX_FILES_PER_DRIVE]
+    return sorted(listed)
 
 
 def _write_atomically(folder: Path, name: str, text: str) -> Path:
@@ -314,23 +356,27 @@ def found() -> list[dict[str, Any]]:
     for mount, drive_name in _mounts():
         drive_id = _drive_id(mount)
         for path in _backup_files(mount):
-            data = _read_document(path)
-            if data is None:
-                continue
-            here = present.get((data["network"], data["address"]))
-            here_ready = bool(here) and str(here.get("mode") or "") == custody.MODE_POCKET_SEALED and (str(here.get("setup_state") or "") or "ready") in (
-                "ready", "backup_revealed", "awaiting_backup")
-            removed = kb._removed_row(data["network"], data["address"]) if not here else None
-            if here_ready:
-                state = "on_this_computer"
-            elif removed is not None or chains.resolve_network(data["network"]).is_svm:
-                state = "can_bring_back"
-            else:
-                state = "use_backup_key"
-            shown.append({"file_id": _file_id(drive_id, path.name), "drive": drive_name, "label": str(data.get("label") or "")[:40],
-                          "network": data["network"], "address": data["address"], "saved_at": str(data.get("saved_at") or ""), "state": state,
-                          "wallet_id": str(here["wallet_id"]) if here_ready else ""})
-    return shown
+            with contextlib.suppress(Exception):  # one odd file is skipped; it never hides the others
+                shown.append(_listed(path, drive_id, drive_name, present))
+    return [row for row in shown if row]
+
+
+def _listed(path: Path, drive_id: str, drive_name: str, present: dict[tuple[str, str], dict[str, Any]]) -> dict[str, Any] | None:
+    data = _read_document(path)
+    if data is None:
+        return None
+    here = present.get((data["network"], data["address"]))
+    here_ready = bool(here) and str(here.get("mode") or "") == custody.MODE_POCKET_SEALED and (str(here.get("setup_state") or "") or "ready") in (
+        "ready", "backup_revealed", "awaiting_backup")
+    removed = kb._removed_row(data["network"], data["address"]) if not here else None
+    if here_ready:
+        state = "on_this_computer"
+    elif removed is not None or chains.resolve_network(data["network"]).is_svm:
+        state = "can_bring_back"
+    else:
+        state = "use_backup_key"
+    return {"file_id": _file_id(drive_id, path.name), "drive": drive_name, "label": data["label"][:40], "network": data["network"],
+            "address": data["address"], "saved_at": data["saved_at"], "state": state, "wallet_id": str(here["wallet_id"]) if here_ready else ""}
 
 
 def _document_for(file_id: str, *, source_context: dict[str, Any] | None) -> dict[str, Any]:
@@ -374,7 +420,7 @@ def open_backup(file_id: str, *, password: str, method: str, credential: str = "
     if not spec.is_svm and removed is None:
         raise _fault("restore_not_supported_on_this_network", source_context=source_context)
     view = kb.restore_from_envelope(data["envelope"], spec, data["address"], removed=removed, password=password, method=method, credential=credential,
-                                    credential_confirmation=credential_confirmation, label=label or str(data.get("label") or ""), scope_prefix="usb",
+                                    credential_confirmation=credential_confirmation, label=label or data["label"], scope_prefix="usb",
                                     creation_key=f"usb-restore:{data['address']}", source_context=source_context)
     return {**view, "opened": "brought_back"}
 

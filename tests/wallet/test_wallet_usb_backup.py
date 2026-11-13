@@ -236,3 +236,36 @@ def test_a_mac_volume_counts_only_when_diskutil_says_it_is_external_and_writable
     _diskutil(monkeypatch, info)
     mount = Path(info["MountPoint"]) if info["MountPoint"] != "/Volumes/Other" else Path("/Volumes/Mine")
     assert usb_backup._mac_volume_is_removable(mount) is removable
+
+
+@pytest.mark.parametrize("bad", [
+    json.dumps({"kind": "vool-wallet-backup", "v": [1], "sealed": {}}),
+    json.dumps({"kind": "vool-wallet-backup", "v": "x", "sealed": {}}),
+    json.dumps({"kind": "vool-wallet-backup", "v": {}, "sealed": {}}),
+    json.dumps({"kind": "vool-wallet-backup", "v": True, "sealed": {}}),
+    json.dumps({"kind": "vool-wallet-backup", "v": 1, "network": ["solana"], "address": {"a": 1}, "sealed": {"network": 1}}),
+    json.dumps([1, 2, 3]),
+    "\udcff not utf-8",
+])
+def test_one_malformed_file_never_hides_the_good_backup_beside_it(stick, bad):
+    from core.wallet import usb_backup
+
+    made = _create()
+    usb_backup.save(made["wallet_id"], drive_id=_drive_id(), credential=PIN, password=BACKUP_PASSWORD, confirmation=BACKUP_PASSWORD)
+    target = stick["mount"] / usb_backup.FOLDER / f"VOOL zz broken{usb_backup.SUFFIX}"
+    target.write_bytes(bad.encode("utf-8", "surrogateescape"))
+    assert [row["address"] for row in usb_backup.overview()["backups"]] == [made["address"]]
+
+
+def test_a_pipe_or_a_link_named_like_a_backup_is_skipped_without_blocking(stick, tmp_path):
+    import os
+
+    from core.wallet import usb_backup
+
+    made = _create()
+    usb_backup.save(made["wallet_id"], drive_id=_drive_id(), credential=PIN, password=BACKUP_PASSWORD, confirmation=BACKUP_PASSWORD)
+    folder = stick["mount"] / usb_backup.FOLDER
+    os.mkfifo(folder / f"a pipe{usb_backup.SUFFIX}")  # opening it for reading would block without O_NONBLOCK
+    (written,) = [p for p in _files(stick["mount"]) if not p.name.startswith("a ")]
+    (folder / f"a link{usb_backup.SUFFIX}").symlink_to(written)
+    assert [row["address"] for row in usb_backup.overview()["backups"]] == [made["address"]]
