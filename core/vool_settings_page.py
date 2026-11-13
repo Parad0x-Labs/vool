@@ -504,7 +504,8 @@ def _settings_groups() -> list[dict]:
                     keywords=(
                         "api key openai anthropic claude openrouter groq gemini deepseek kimi byok "
                         "credential provider brave tavily exa serper firecrawl jina search token secret plugin security scans "
-                        "helius alchemy solscan etherscan blockchain chain data solana"
+                        "helius alchemy solscan etherscan blockchain chain data solana "
+                        "x twitter bookmarks posts tweets social"
                     ),
                 ),
             ],
