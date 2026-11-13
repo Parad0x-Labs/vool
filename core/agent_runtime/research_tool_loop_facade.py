@@ -2115,6 +2115,7 @@ class ResearchToolLoopFacadeMixin:
         # One retry per turn for a needs-a-tool ask the model answered in prose (see below).
         tool_use_retry_spent = False
         database_no_tool_corrections = 0
+        database_ready_join_made = False
         # Per-turn tool candidate fingerprint.  Reset each turn so a fresh
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
@@ -2636,6 +2637,20 @@ class ResearchToolLoopFacadeMixin:
                         )
                         break
                     payload_signature = _semantic_payload_signature(tool_decision.structured_output)
+                    if (
+                        payload_signature in seen_tool_payloads
+                        and not database_ready_join_made
+                        and _database_work_turn(effective_input, loop_source_context)
+                        and _database_join_missing(effective_input, executed_steps)
+                    ):
+                        # Run 16i rerun (library 7): the model sent the same read of the person's own row twice
+                        # for "does Yara have anything checked out"; the repeat guard ended the turn on that row.
+                        # The loans were never read, so the ready read-only join runs once in its place.
+                        _ready_join = _database_call_payload(effective_input)
+                        if _ready_join is not None:
+                            database_ready_join_made = True
+                            tool_decision.structured_output = _ready_join
+                            payload_signature = _semantic_payload_signature(_ready_join)
                     if payload_signature in seen_tool_payloads and resuming_approval and payload_signature not in approval_resume_exemptions:
                         approval_resume_exemptions.add(payload_signature)
                         self._emit_runtime_event(

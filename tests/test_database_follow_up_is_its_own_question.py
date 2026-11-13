@@ -451,3 +451,88 @@ def test_the_loop_reads_the_items_when_the_model_stops_at_the_schema_and_asks_le
         finally:
             tool_registry.reset()
     assert seen.count("vool-database.query") >= 1, seen
+
+
+def test_a_repeated_read_of_the_persons_own_row_is_followed_by_the_loans(tmp_path, monkeypatch) -> None:
+    """Library 7 (16i rerun on f50e52eb): SELECT * FROM members WHERE name=:name twice, the repeat guard ended the
+    turn on that row, and the loans were never read."""
+    import uuid
+    from types import SimpleNamespace
+
+    from apps.vool_agent import VoolAgent
+    from core import plugin_tools, tool_registry
+    from core.database_work_state import note_database_demand
+    from core.execution.models import ToolIntentExecution
+    from core.memory_first_router import ModelExecutionDecision
+    from core.plugin_tools import plugin_scratch_dir
+    from core.runtime_flags import override
+    from core.tool_demand_signals import _VOCAB_CACHE
+    from tests._vool_database_pack import isolated_db_world
+    from tests.test_a_narrated_batch_does_not_vanish import _call
+
+    def query(sql: str):
+        arguments = {"name": "library", "sql": sql, "params": {"name": "Yara"}, "row_limit": 20}
+        return ModelExecutionDecision(
+            source="scripted", task_hash="h", used_model=True, confidence=0.8,
+            structured_output={"intent": "vool-database.query", "arguments": arguments},
+            tool_calls=(_call("vool-database.query", **arguments),), validation_state="validated", provider_id="p",
+        )
+
+    class Router:
+        calls = 0
+
+        def resolve_tool_intent(self, **kwargs):
+            Router.calls += 1
+            return query("SELECT * FROM members WHERE name = :name")
+
+        def resolve(self, **kwargs):
+            return SimpleNamespace(
+                output_text="Yara has nothing out right now.", structured_output=None, provider_id="p", used_model=True,
+                source="scripted", validation_state="validated", confidence=0.8, trust_score=0.8, details={}, task_hash="h",
+                tool_calls=(),
+            )
+
+    with override("plugin_runtime_tools", True):
+        isolated_db_world(tmp_path, monkeypatch)
+        plugin_tools.load_all(tmp_path)
+        root = plugin_scratch_dir("vool-database") / "databases"
+        root.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(root / "library.sqlite")
+        c.executescript(
+            "create table books(id integer primary key, title text);"
+            "create table members(id integer primary key, name text, joined text);"
+            "create table loans(id integer primary key, book_id int, member_id int, returned int);"
+            "insert into members values (3,'Yara','2025-01-09'); insert into books values (1,'Kafka'); insert into loans values (1,1,3,1);"
+        )
+        c.commit(); c.close()
+        _VOCAB_CACHE.clear()
+        sent: list[str] = []
+
+        def fake_execute(payload, **_kw):
+            sql = str(dict(payload.get("arguments") or {}).get("sql") or "")
+            sent.append(sql)
+            rows = [["Yara", "Kafka", 1]] if "join" in sql.lower() else [[3, "Yara", "2025-01-09"]]
+            return ToolIntentExecution(handled=True, ok=True, status="executed", mode="tool_executed", tool_name="vool-database.query",
+                                       response_text="ok", user_safe_response_text="ok",
+                                       details={"observation": {"rows": rows, "columns": ["name", "title", "returned"] if len(rows[0]) == 3 and "join" in sql.lower() else ["id", "name", "joined"]}})
+
+        agent = VoolAgent.__new__(VoolAgent)
+        agent.memory_router = Router()
+        agent._should_keep_ai_first_chat_lane = lambda **_kw: False
+        agent._should_run_builder_controller = lambda **_kw: False
+        agent._plan_tool_workflow = lambda **_kw: SimpleNamespace(handled=False, stop_after=False, next_payload=None, reason="")
+        agent.hive_activity_tracker = None
+        agent.public_hive_bridge = None
+        agent._execute_tool_intent = fake_execute
+        sid = f"openclaw:{uuid.uuid4().hex[:20]}"
+        ctx = {"surface": "api", "session_id": sid, "runtime_session_id": sid}
+        note_database_demand(ctx)
+        try:
+            agent._maybe_execute_model_tool_intent(
+                task=SimpleNamespace(task_id="t4"), effective_input="does Yara have anything checked out right now",
+                classification={"task_class": "unknown"}, interpretation=SimpleNamespace(), context_result=SimpleNamespace(),
+                persona=SimpleNamespace(), session_id=sid, source_context=ctx, surface="api",
+            )
+        finally:
+            tool_registry.reset()
+    assert any("join" in sql.lower() for sql in sent), sent
