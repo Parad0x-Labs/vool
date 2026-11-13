@@ -4749,7 +4749,7 @@
     "xs.description": ", avec la description « {description} »",
     "xs.summary_unknown": "Action sur X",
     "xs.unknown_state": "On ne sait pas si cela a été envoyé. Vérifiez X avant de réessayer.",
-    "web.off.tool_refusal": "Les recherches web sont désactivées. Vous pouvez coller le texte de l’article, les liens ou les notes que je dois utiliser, et je travaillerai à partir de ceux-ci. Pour les activer : Réglages > Confidentialité et permissions > Recherches web. (Ligne de commande : la recherche web est optionnelle ; activez-la avec VOOL_ENABLE_WEB=1.)",
+    "web.off.tool_refusal": "Les recherches web sont désactivées. Vous pouvez coller le texte de l’article, les liens ou les notes que je dois utiliser, et je travaillerai à partir de ceux-ci. Pour les activer : Réglages > Confidentialité et permissions > Recherches web.",
     "x.not_connected.reply": "X n’est pas encore connecté. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. En attendant, je peux tout de même vous aider à rédiger des posts.",
     "x.not_connected.post_draft": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Voici votre post en brouillon, à copier et publier vous-même :",
     "x.not_connected.post_ask": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Dites-moi ce que le post doit dire et je vous écrirai un brouillon à copier.",
@@ -5122,7 +5122,7 @@
     "routines.plan_left_other": "Fichiers d'autres types, laissés tels quels : {n}",
     "routines.plan_left_done": "Fichiers déjà traités, laissés tels quels : {n}"
   },
-  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
+  "source_catalog_sha256": "71718bae590f9c14e3e12c893c6c9576e29e637a53344402a09f1ab6184018b5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

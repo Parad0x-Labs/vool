@@ -79,7 +79,10 @@ def test_a_named_web_tool_is_refused_with_paste_guidance_in_the_app_language(iso
     assert result.status == 'disabled' and result.ok is False
     assert result.response_text == expected
     assert result.user_safe_response_text == expected
-    assert 'VOOL_ENABLE_WEB=1' in expected
+    # The person reads where to turn lookups on, in the app; never a developer variable
+    # (the run-modes law, tests/test_runtime_capability_ledger.py).
+    assert 'VOOL_ENABLE_WEB' not in expected
     if locale == 'en':
         assert 'paste the article text, links or notes' in expected
+        assert 'You can turn them on in Settings, Privacy & Permissions.' in expected
         assert not expected.startswith('No.')

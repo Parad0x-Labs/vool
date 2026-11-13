@@ -4749,7 +4749,7 @@
     "xs.description": ", z opisem „{description}”",
     "xs.summary_unknown": "Działanie na X",
     "xs.unknown_state": "Nie wiadomo, czy to wysłano. Sprawdź X przed ponowną próbą.",
-    "web.off.tool_refusal": "Wyszukiwanie w sieci jest wyłączone. Możesz wkleić tekst artykułu, linki lub notatki, których mam użyć, a ja na nich popracuję. Aby je włączyć: Ustawienia > Prywatność i uprawnienia > Wyszukiwanie w sieci. (Wiersz poleceń: wyszukiwanie w sieci jest opcjonalne; włącz je przez VOOL_ENABLE_WEB=1.)",
+    "web.off.tool_refusal": "Wyszukiwanie w sieci jest wyłączone. Możesz wkleić tekst artykułu, linki lub notatki, których mam użyć, a ja na nich popracuję. Aby je włączyć: Ustawienia > Prywatność i uprawnienia > Wyszukiwanie w sieci.",
     "x.not_connected.reply": "X nie jest jeszcze połączony. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Do tego czasu nadal mogę pomóc Ci przygotować szkice postów.",
     "x.not_connected.post_draft": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Oto Twój post jako szkic, który możesz skopiować i opublikować samodzielnie:",
     "x.not_connected.post_ask": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Napisz, co ma zawierać post, a przygotuję szkic do skopiowania.",
@@ -5122,7 +5122,7 @@
     "routines.plan_left_other": "Pliki innych rodzajów, nietknięte: {n}",
     "routines.plan_left_done": "Pliki już gotowe, nietknięte: {n}"
   },
-  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
+  "source_catalog_sha256": "71718bae590f9c14e3e12c893c6c9576e29e637a53344402a09f1ab6184018b5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

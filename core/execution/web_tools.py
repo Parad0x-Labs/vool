@@ -13,9 +13,8 @@ from core.retrieval_observability import begin_web_retrieval, finish_web_retriev
 WEB_LOOKUP_INTENTS = frozenset({"web.search", "web.research", "web.fetch"})
 WEB_OFF_REFUSAL_KEY = "web.off.tool_refusal"
 WEB_OFF_REFUSAL_EN = (
-    "Web lookups are off. You can paste the article text, links or notes you want me to use, "
-    "and I will work from them. To turn lookups on: Settings > Privacy & Permissions > Web lookups. "
-    "(Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
+    "Web lookups are off. You can turn them on in Settings, Privacy & Permissions. You can also paste the "
+    "article text, links or notes you want me to use, and I will work from them."
 )
 
 

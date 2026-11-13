@@ -4749,7 +4749,7 @@
     "xs.description": ", açıklama: “{description}”",
     "xs.summary_unknown": "X işlemi",
     "xs.unknown_state": "Bunun gönderilip gönderilmediği belli değil. Yeniden denemeden önce X’i kontrol et.",
-    "web.off.tool_refusal": "Web aramaları kapalı. Kullanmamı istediğiniz makale metnini, bağlantıları veya notları yapıştırabilirsiniz; onlarla çalışırım. Açmak için: Ayarlar > Gizlilik ve İzinler > Web aramaları. (Komut satırı: web araması isteğe bağlıdır; VOOL_ENABLE_WEB=1 ile açın.)",
+    "web.off.tool_refusal": "Web aramaları kapalı. Kullanmamı istediğiniz makale metnini, bağlantıları veya notları yapıştırabilirsiniz; onlarla çalışırım. Açmak için: Ayarlar > Gizlilik ve İzinler > Web aramaları.",
     "x.not_connected.reply": "X henüz bağlı değil. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. O zamana kadar gönderi taslakları hazırlamanıza yine de yardımcı olabilirim.",
     "x.not_connected.post_draft": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Kopyalayıp kendiniz paylaşabileceğiniz taslak şu:",
     "x.not_connected.post_ask": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Gönderide ne yazması gerektiğini söyleyin, size kopyalayabileceğiniz bir taslak yazayım.",
@@ -5122,7 +5122,7 @@
     "routines.plan_left_other": "Başka türdeki dosyalar, dokunulmadı: {n}",
     "routines.plan_left_done": "Zaten yapılmış dosyalar, dokunulmadı: {n}"
   },
-  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
+  "source_catalog_sha256": "71718bae590f9c14e3e12c893c6c9576e29e637a53344402a09f1ab6184018b5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

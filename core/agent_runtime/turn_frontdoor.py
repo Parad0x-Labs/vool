@@ -2420,6 +2420,20 @@ def handle_turn_frontdoor(
                 # Measured in the running app: "look up the X account @..." was refused as a web
                 # lookup while X was connected and the read was switched on.
                 _ask_needs_web = _ask_is_live_data = False
+            if (_ask_needs_web or _ask_is_live_data) and not _chat_is_offline:
+                # An ask a matched skill really owns ("Run orchard social-manager fast lane using
+                # today's checkpoint recovery conversations") is that skill's to serve with the tools
+                # it seats -- X reads, notes -- none of which is a web lookup: the offer already drops
+                # web.search/research/fetch while lookups are off, and the skill says what to paste.
+                # Measured on CI #681 (v0.8 line): the refusal stood in front of the skill turn and the
+                # native X flow never ran.
+                try:
+                    from core.tool_offer_assembly import matched_skill_tool_intents
+
+                    if matched_skill_tool_intents(effective_input, source_context=source_context):
+                        _ask_needs_web = _ask_is_live_data = False
+                except Exception:
+                    pass
             if _ask_needs_web or _ask_is_live_data:
                 # The same holds for text the person gave VOOL. A turn that pastes what it asks about
                 # ("Summarize the following: ... the weather today was dry ...") is about that text,

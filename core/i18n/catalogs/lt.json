@@ -4749,7 +4749,7 @@
     "xs.description": ", aprašymas: „{description}“",
     "xs.summary_unknown": "Veiksmas X",
     "xs.unknown_state": "Neaišku, ar tai išsiųsta. Prieš bandydami dar kartą patikrinkite X.",
-    "web.off.tool_refusal": "Interneto paieška išjungta. Galite įklijuoti straipsnio tekstą, nuorodas ar pastabas, kurias turėčiau naudoti, ir aš dirbsiu su jomis. Kad įjungtumėte: Nustatymai > Privatumas ir leidimai > Interneto paieška. (Komandinė eilutė: interneto paieška pasirenkama; įjunkite su VOOL_ENABLE_WEB=1.)",
+    "web.off.tool_refusal": "Interneto paieška išjungta. Galite įklijuoti straipsnio tekstą, nuorodas ar pastabas, kurias turėčiau naudoti, ir aš dirbsiu su jomis. Kad įjungtumėte: Nustatymai > Privatumas ir leidimai > Interneto paieška.",
     "x.not_connected.reply": "X dar neprijungtas. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Kol kas vis tiek galiu padėti jums parengti įrašų juodraščius.",
     "x.not_connected.post_draft": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Štai jūsų įrašas kaip juodraštis, kurį galite nukopijuoti ir paskelbti patys:",
     "x.not_connected.post_ask": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Pasakykite, ką turėtų sakyti įrašas, ir parašysiu jums juodraštį nukopijuoti.",
@@ -5122,7 +5122,7 @@
     "routines.plan_left_other": "Kitų rūšių failai, nepaliesti: {n}",
     "routines.plan_left_done": "Jau sutvarkyti failai, nepaliesti: {n}"
   },
-  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
+  "source_catalog_sha256": "71718bae590f9c14e3e12c893c6c9576e29e637a53344402a09f1ab6184018b5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
