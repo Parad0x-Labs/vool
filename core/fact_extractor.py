@@ -317,9 +317,28 @@ class FactExtractor:
         ]
         facts = _merge_facts([*_rule_based_facts(conversation_text), *llm_facts])
         applied: list[ExtractedFact] = []
-        for fact in facts[:5]:
-            if self._apply(fact):
-                applied.append(fact)
+        if not facts:
+            return applied
+        from core.memory import revocation
+
+        # The extraction runs long after its turn (a quiet window, then a slow model call): measured on the
+        # v0.8 package smoke, a forget completed while the model was still answering, and the model's
+        # paraphrase ("Sister Ilona's favorite tree: silver birch") carried none of the forgotten words, so
+        # the fenced block write let it through. The source decides: if the words this extraction read now
+        # carry a forgotten token (a completed forget or one still under way), nothing it learned from them is
+        # written. The check and the writes hold the forget fence together, so a forget running now finishes
+        # first and none can land between them.
+        source = [str(msg.get("content") or "") for msg in list(messages or [])[-20:] if isinstance(msg, dict)]
+        with contextlib.ExitStack() as fence:
+            try:
+                fence.enter_context(
+                    revocation.writing({"source": source}, None, getattr(self._memory, "_authority_home", None))
+                )
+            except RuntimeError:
+                return applied
+            for fact in facts[:5]:
+                if self._apply(fact):
+                    applied.append(fact)
         return applied
 
     def _format_conversation(self, messages: list[dict]) -> str:
