@@ -154,8 +154,10 @@ button.click();out({decision:await decision,body,hidden:overlay.hidden,label});
     assert result["decision"] == "conversation" and result["hidden"]
     assert result["label"] == "Accept price for this chat (24 hours)"
     assert "24 hours" in result["body"] and "spending limits" in result["body"]
-    # Price acceptance does not widen the separately approved monetary budget.
-    assert "price only" in result["body"] and "approved UsePod budget" in result["body"]
+    # Price acceptance does not widen the spending limits: a higher price needs a new decision.
+    # (UsePod is out of core in 0.8, so its own budget sentence is gone; the standard scope holds.)
+    assert "existing spending limits still apply" in result["body"]
+    assert "requires a new decision" in result["body"]
     assert "Provider <b>UsePod</b>" in result["body"] and "6.00 USDC" in result["body"]
 
 

@@ -133,7 +133,10 @@ out({labels,body,decision:await decision,posts});
     assert result["labels"][:2] == ["Accept price and send", "Accept price for this chat (24 hours)"]
     assert "Provider <b>UsePod</b>" in result["body"] and "model <b>gpt-6-astra</b>" in result["body"]
     assert "0.80 USDC per 1M tokens" in result["body"] and "4.00 USDC per 1M tokens" in result["body"]
-    assert "approved UsePod budget" in result["body"] and "never widens" in result["body"]
+    # UsePod's own budget sentence is retired with UsePod in 0.8; the standard scope keeps the
+    # rule that accepting a price never widens the spending limits.
+    assert "existing spending limits still apply" in result["body"]
+    assert "requires a new decision" in result["body"]
     assert "permission for this conversation" not in result["body"].lower()
     assert result["decision"] == "conversation"
     assert len(result["posts"]) == 1 and result["posts"][0]["url"] == "/api/cloud/usepod/approve-route"
