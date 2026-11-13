@@ -205,6 +205,30 @@ def test_renderer_picking_path_bounds_visibility_and_reference_budget(served):
         finish_browser(manager, browser)
 
 
+def test_small_edits_repaint_the_same_pixels_as_a_full_build(served):
+    """A few changed columns repaint only their own boxes; the picture must match a fresh build."""
+    manager, browser = launch_chromium()
+    try:
+        page = browser.new_page(viewport={'width': 1400, 'height': 1000})
+        page.goto(served+'/pet-yard')
+        wait(page, 'window.VoolYardPage?.renderer && VoolYardPage.diagnostics.firstPaint!==null')
+        result = page.evaluate('''()=>{const r=VoolYardPage.renderer;r.setPets([]);r.setGhost(null);r.setToy(null);r.frame(performance.now());
+         const edits=[[100,[['stone',3]]],[101,[['grass',1],['brick',4]]],[300,[['water',1]]],[100,[['sand',1]]],[575,[['glass',2],['moss',1]]],[301,[]],[24,[['clay',8]]]];
+         for(const [i,col] of edits){const y=structuredClone(r.yard);y.columns[i]=col;r.setYard(y);r.frame(performance.now());}
+         const partial=r.metrics.partial;const a=r.canvas.getContext('2d').getImageData(0,0,r.canvas.width,r.canvas.height).data;
+         const fresh=document.createElement('canvas');fresh.width=r.canvas.width;fresh.height=r.canvas.height;
+         const s=window.VoolYard.createRenderer(fresh,{yard:structuredClone(r.yard),catalog:r.catalog});s.setCamera(r.camera.zoom,r.camera.x,r.camera.y);s.setPets([]);s.frame(performance.now());
+         const b=fresh.getContext('2d').getImageData(0,0,fresh.width,fresh.height).data;let diff=0,worst=0,ground=0;for(let i=0;i<a.length;i+=4){const d=Math.max(Math.abs(a[i]-b[i]),Math.abs(a[i+1]-b[i+1]),Math.abs(a[i+2]-b[i+2]));if(d){diff++;worst=Math.max(worst,d);}if(a[i]!==0x25||a[i+1]!==0x37||a[i+2]!==0x46)ground++;}s.destroy();return {partial,diff,worst,ground,pixels:a.length/4};}''')
+        assert result['partial'] is True, result
+        # Same picture. A decoration edge cut by a repaint box can rasterize a shade differently,
+        # so a few faint edge pixels may differ; a missing or misplaced block would not be faint.
+        assert result['diff'] <= 32 and result['worst'] <= 12, result
+        assert result['ground'] > result['pixels'] // 10, result  # the yard is drawn, not just the backdrop
+    finally:
+        browser.close()
+        manager.stop()
+
+
 def test_toybox_custom_pet_sound_assignments_actual_reducer_and_entry_points(served):
     manager, browser = launch_chromium()
     try:
