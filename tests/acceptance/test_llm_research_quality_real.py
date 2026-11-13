@@ -51,7 +51,11 @@ def test_research_lane_uses_planned_search_for_fresh_updates(make_agent, context
 def test_ultra_fresh_research_question_stays_honest(make_agent) -> None:
     agent = make_agent()
 
-    with mock.patch.object(
+    from tests._web_lookups import web_lookups_on
+
+    # Web lookups on: with the switch off (the fresh-install default since 0.7.8) the turn is
+    # refused at the door before this honesty path runs, which tests/test_web_lookups_off_* own.
+    with web_lookups_on(), mock.patch.object(
         agent,
         "_live_info_search_notes",
         side_effect=AssertionError("ultra-fresh honesty path should not hit live search"),

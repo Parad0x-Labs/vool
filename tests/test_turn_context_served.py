@@ -418,8 +418,12 @@ def test_another_session_asking_the_subject_gets_no_page(served_env):
 
     turn_b = chat_turn(agent, SUBJECT_QUERY, "tc-s4b")
     manifests = manifests_for_request(turn_b["request_id"])
-    assert manifests, "the cross-session probe turn stored no manifest"
-    assert not manifest_json_contains_turn_context(manifests)
+    if manifests:
+        assert not manifest_json_contains_turn_context(manifests)
+    else:
+        # v0.8 cross-chat recall answers a subject another chat stated by quoting that chat, with
+        # no model request at all: no request means no page could ride along. It must be that lane.
+        assert "you mentioned it in a chat" in turn_b["text"], turn_b["text"]
     # S2's inspection shows only S2's own (its probe turn's) admission.
     own = admissions_for("tc-s4b")
     assert len(own) == 1 and own[0]["session_id"] == canonical_session("tc-s4b")
