@@ -8,6 +8,7 @@ from typing import Any
 from core import audit_logger, policy_engine
 from core.agent_runtime.orchestrator import (
     database_claims_unsupported,
+    database_holding_answer,
     database_rows_answer,
     synthesis_echoes_prior_reply,
 )
@@ -485,7 +486,58 @@ _ASKS_NEWEST_RE = re.compile(r"\b(?:newest|latest|most\s+recent(?:ly)?)\b", re.I
 _ORDER_DIRECTION_RE = re.compile(r"\border\s+by\s+[^;]*?\b(asc|desc)\b", re.IGNORECASE)
 
 
+_FOLLOW_UP_FILLER = frozenset("and ok okay sorry hey so then what whats what's which who how many much is are the a an of in on to do does did there any my me i it that this again also please".split())
+
+
+def _content_words(text: str) -> set[str]:
+    return {w.rstrip("s") for w in re.findall(r"[a-z0-9]+", str(text or "").lower()) if w not in _FOLLOW_UP_FILLER and len(w) > 1}
+
+
 def _database_query_contradicts_the_ask(
+    intent: str,
+    payload: dict[str, Any],
+    question: str,
+    steps: list[dict[str, Any]] | None = None,
+    source_context: dict[str, Any] | None = None,
+) -> Any:
+    """`_database_query_contradicts_the_ask_checks`, plus: the query the last question ran is not this question's.
+
+    Mac run 16i: "which neighbour lives on Oak Ave" ran the previous turn's `SELECT COUNT(*) FROM tools`. Said once
+    per turn; a query that goes through is remembered for the next turn's check."""
+    if intent != "vool-database.query":
+        return None
+    from core.database_work_state import last_database_query, note_database_query
+
+    sql = str(dict(payload.get("arguments") or {}).get("sql") or "")
+    # Run 16i (toolshed 13): "who has had the Drill" was sent with row_limit=1 and answered with the first row of
+    # two. A one-row cap on a query with no LIMIT of its own is the model's guess at the answer's size, not the
+    # person's; it reads at least a screenful (truncation is still reported by the tool as before).
+    arguments = payload.get("arguments")
+    if isinstance(arguments, dict) and not re.search(r"\blimit\b", sql, re.IGNORECASE):
+        try:
+            if int(str(arguments.get("row_limit") or 0).strip() or 0) in range(1, 20):
+                arguments["row_limit"] = 20
+        except (TypeError, ValueError):
+            pass
+    previous_question, previous_sql = last_database_query(source_context)
+    normalised = " ".join(sql.split()).rstrip(";").strip().lower()
+    told = " ".join(str(s.get("observation") or "") for s in (steps or []) if s.get("correction") and isinstance(s.get("observation"), str))
+    if previous_sql and normalised == previous_sql and "last question ran" not in told:
+        mine, theirs = _content_words(question), _content_words(previous_question)
+        if mine and theirs and len(mine & theirs) / len(mine | theirs) < 0.4:
+            return _database_refusal(
+                intent,
+                "This is the query the last question ran, and this question is a different one. Write the query "
+                "for what this question asks.",
+                "query_is_the_last_question_ran",
+            )
+    refused = _database_query_contradicts_the_ask_checks(intent, payload, question, steps)
+    if refused is None:
+        note_database_query(source_context, question, sql)
+    return refused
+
+
+def _database_query_contradicts_the_ask_checks(
     intent: str, payload: dict[str, Any], question: str, steps: list[dict[str, Any]] | None = None
 ) -> Any:
     """Refuse a query that sorts the wrong way for what was asked ("oldest" sorted DESC), before it runs.
@@ -569,11 +621,36 @@ def _database_join_missing(question: str, steps: list[dict[str, Any]]) -> bool:
         return False
     if " join " not in f" {_database_call_suggestion(question).lower()} ":
         return False
+    from core.agent_runtime.orchestrator import _HOLDING_ASK_RE
+
+    narrow = bool(_HOLDING_ASK_RE.search(str(question or "")))
     for step in steps:
         if str(step.get("tool_name") or "") == "vool-database.query" and step.get("ok") is True:
-            if re.search(r"\bjoin\b", str(dict(step.get("arguments") or {}).get("sql") or ""), re.IGNORECASE):
+            if not re.search(r"\bjoin\b", str(dict(step.get("arguments") or {}).get("sql") or ""), re.IGNORECASE):
+                continue
+            # Toolshed 6 (run 16i): five COUNT(*) calls, never the names. A join that returns no row of
+            # the loans is not the read either.
+            if not narrow or database_holding_answer(question, [step]):
                 return False
     return True
+
+
+def _database_empty_on_a_literal(steps: list[dict[str, Any]]) -> bool:
+    """The last database query ran, matched no row, and filtered on a text value the person never said as such.
+
+    Mac run 16i (toolshed 3): "which tools are power tools" ran `kind = 'power tool'`, got nothing, and the
+    reply said the column holds 'power'. The model knew the value and never asked again."""
+    for step in reversed(steps):
+        if not str(step.get("tool_name") or "").startswith("vool-database.") or step.get("correction"):
+            continue
+        observation = step.get("observation")
+        if str(step.get("tool_name")) != "vool-database.query" or step.get("ok") is not True or not isinstance(observation, dict):
+            return False
+        if list(observation.get("rows") or []) or "rows" not in observation:
+            return False
+        where = re.split(r"\bwhere\b", str(dict(step.get("arguments") or {}).get("sql") or ""), maxsplit=1, flags=re.IGNORECASE)
+        return len(where) == 2 and bool(_WHERE_LITERAL_RE.search(where[1]))
+    return False
 
 
 def _is_database_no_answer(text: str) -> bool:
@@ -581,6 +658,7 @@ def _is_database_no_answer(text: str) -> bool:
     return bool(_DATABASE_NO_ANSWER_RE.search(str(text or "")) or _DATABASE_HANDS_BACK_RE.search(str(text or "")))
 
 
+_CLAIM_AFTER_NO_ROWS_RE = re.compile(r"\*\*[^*\n]{2,60}\*\*|\*[A-Z][^*\n]{2,60}\*|\b(?:1[0-9]|20)\d\d\b|\b\d+\s+(?:books?|rows?|items?|tools?|members?|records?)\b")
 _ORDERED_ASK_RE = re.compile(
     r"\b(?:first|last|newest|oldest|latest|earliest|soonest|order(?:ed)?|sorted?|ascending|descending|by\s+\w+\s+(?:asc|desc))\b",
     re.IGNORECASE,
@@ -623,8 +701,20 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
     a read of the tools table that held no borrower at all; "does not have a column for stock status" after
     the query that used the quantity column had answered. This is the model's closing reply, which the
     synthesis check never saw."""
+    db_steps = [x for x in steps if str(x.get("tool_name") or "").startswith("vool-database.")]
+    if db_steps and not any(x.get("ok") is True and x.get("tool_name") == "vool-database.query" for x in db_steps):
+        # Run 16i (library 9): every query of the turn failed and the reply still named a book and a year.
+        if _CLAIM_AFTER_NO_ROWS_RE.search(str(reply or "")) and not _is_database_no_answer(str(reply or "")):
+            return (
+                "I could not get a query for that to run against your database, so I have no answer to "
+                "give. Nothing was changed. Ask again, or name the table you mean."
+            )
+        return ""
     answering = _database_step_answering(question, steps)
     used = steps[: answering + 1] if answering >= 0 else steps
+    holding = database_holding_answer(question, used)
+    if holding:
+        return holding
     rows = database_rows_answer(used)
     if not rows or _database_last_result_empty(steps):
         return ""
@@ -2260,6 +2350,7 @@ class ResearchToolLoopFacadeMixin:
                                 )
                             )
                             or _database_join_missing(effective_input, executed_steps)
+                            or (database_no_tool_corrections == 0 and _database_empty_on_a_literal(executed_steps))
                         )
                         and _database_work_turn(effective_input, loop_source_context)
                     ):
@@ -2286,7 +2377,11 @@ class ResearchToolLoopFacadeMixin:
                         selected_response
                         and direct_message is not None
                         and database_no_tool_corrections in (1, 2)
-                        and (_is_database_no_answer(direct_message) or _database_join_missing(effective_input, executed_steps))
+                        and (
+                            _is_database_no_answer(direct_message)
+                            or _database_join_missing(effective_input, executed_steps)
+                            or (database_no_tool_corrections == 1 and _database_empty_on_a_literal(executed_steps))
+                        )
                         and _database_work_turn(effective_input, loop_source_context)
                     ):
                         executed_steps.append(
@@ -2296,7 +2391,11 @@ class ResearchToolLoopFacadeMixin:
                                 "ok": False,
                                 "status": "database_not_consulted",
                                 "observation": (
-                                    "You answered without looking. The person's own database is available: call "
+                                    "Your last query matched no row, and the text it matched on may not be how the "
+                                    "column holds the value. Look at what the column really holds (SELECT DISTINCT "
+                                    "that column) and call vool-database.query again with a value from it."
+                                    if _database_empty_on_a_literal(executed_steps)
+                                    else "You answered without looking. The person's own database is available: call "
                                     "vool-database.query using the exact table and column names you were given, then "
                                     "answer from the rows. Do not say you have no access."
                                     + (
@@ -2636,7 +2735,7 @@ class ResearchToolLoopFacadeMixin:
 
                 gating_source_context = {**gating_source_context, ASK_TEXT_KEY: str(effective_input or "")}
             execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
-                tool_name, tool_payload, effective_input, executed_steps
+                tool_name, tool_payload, effective_input, executed_steps, loop_source_context
             ) or self._execute_tool_intent(
                 tool_payload,
                 task_id=task.task_id,

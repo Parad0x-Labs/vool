@@ -302,6 +302,51 @@ def database_rows_answer(executed_steps: list[dict[str, Any]]) -> str:
     return ""
 
 
+_HOLDING_ASK_RE = re.compile(
+    r"\b(?:holding|checked\s+out|borrowed|borrowing|anything\s+(?:out|on\s+loan)|out\s+right\s+now|"
+    r"at\s+the\s+moment|given\s+(?:\w+\s+)?back|returned\s+(?:everything|it\s+all|all)|still\s+(?:have|has|got))\b",
+    re.IGNORECASE,
+)
+_RETURN_COLUMN_RE = re.compile(r"^(?:returned(?:_on|_at|_date)?|date_returned|given_back(?:_on)?)$", re.IGNORECASE)
+_LABEL_COLUMN_RE = re.compile(r"(?:^|_)(?:name|title|item|tool|book)$", re.IGNORECASE)
+
+
+def database_holding_answer(question: str, executed_steps: list[dict[str, Any]]) -> str:
+    """What is out and what came back, read off the rows of a who-holds-what query ("" when the rows do not say).
+
+    Mac run 16c-16i: the rows said `returned: 1` or a returned_on date, and the model wrote "Yara has Kafka checked
+    out" (returned = 1), "Noor still has the Saw and Drill" (both back) and "Gustav is not holding any tools" (the
+    hedge trimmer, returned_on empty). Whether a row is out is a fact of its returned column, so it is read here,
+    not by the model: a flag column is out at 0, a date column is out while empty."""
+    if not _HOLDING_ASK_RE.search(str(question or "")):
+        return ""
+    for step in reversed(executed_steps):
+        observation = step.get("observation")
+        if str(step.get("tool_name") or "") != "vool-database.query" or not _step_succeeded(step) or not isinstance(observation, dict):
+            continue
+        columns = [str(c) for c in list(observation.get("columns") or [])]
+        rows = [list(r) for r in list(observation.get("rows") or []) if isinstance(r, (list, tuple))]
+        returned = next((i for i, c in enumerate(columns) if _RETURN_COLUMN_RE.match(c)), -1)
+        labels = [i for i, c in enumerate(columns) if _LABEL_COLUMN_RE.search(c)]
+        if returned < 0 or not labels or not rows or observation.get("truncated"):
+            return ""
+        is_flag = columns[returned].lower() == "returned"
+        item = labels[-1]
+        person = str(rows[0][labels[0]]) if len(labels) >= 2 and rows[0][labels[0]] not in (None, "") else ""
+        out, back = [], []
+        for row in rows:
+            value = row[returned]
+            outstanding = value in (None, "", 0, "0", False) if is_flag else value in (None, "")
+            (out if outstanding else back).append(str(row[item]))
+        out, back = list(dict.fromkeys(out)), list(dict.fromkeys(back))
+        who = person or "They"
+        lines = [f"{who} has out right now: {', '.join(out)}." if out else f"{who} has nothing out right now."]
+        if back:
+            lines.append(f"Already returned: {', '.join(back)}.")
+        return " ".join(lines)
+    return ""
+
+
 _CLAIM_BOLD_RE = re.compile(r"\*\*([^*\n]{2,60})\*\*|\"([^\"\n]{2,60})\"|`([^`\n]{1,60})`")
 _CLAIM_NUMBER_RE = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])")
 

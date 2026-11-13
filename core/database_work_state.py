@@ -299,3 +299,28 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
         return ""
     except Exception:
         return ""
+
+
+# The last query each session ran, with the question it answered. Mac run 16i (toolshed 12, pantry 8): a follow-up
+# about something else was answered by sending the previous question's query again.
+_LAST_QUERY: dict[str, tuple[str, str]] = {}
+
+
+def note_database_query(source_context: dict[str, Any] | None, question: str, sql: str) -> None:
+    """Remember the query this session just sent and the question it was for. Never raises."""
+    try:
+        session = _session_of(source_context)
+        if session:
+            _LAST_QUERY[session] = (str(question or ""), " ".join(str(sql or "").split()).rstrip(";").strip().lower())
+            while len(_LAST_QUERY) > _MAX_TRACKED:
+                _LAST_QUERY.pop(next(iter(_LAST_QUERY)), None)
+    except Exception:
+        pass
+
+
+def last_database_query(source_context: dict[str, Any] | None) -> tuple[str, str]:
+    """(question, normalised SQL) of the session's previous query, or ("", "")."""
+    try:
+        return _LAST_QUERY.get(_session_of(source_context), ("", ""))
+    except Exception:
+        return ("", "")

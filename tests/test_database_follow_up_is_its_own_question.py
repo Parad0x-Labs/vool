@@ -80,7 +80,8 @@ def test_a_holding_question_read_from_the_people_table_alone_is_not_answered(wor
     _toolshed(tmp_path)
     one = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM neighbours WHERE name = 'Pavel'"}}
     assert _database_join_missing("does Pavel have anything borrowed", [one]) is True
-    joined = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM borrowings JOIN tools ON 1=1"}}
+    joined = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM borrowings JOIN tools ON 1=1"},
+              "observation": {"rows": [["Pavel", "Ladder", None]], "columns": ["name", "name", "returned_on"]}}
     assert _database_join_missing("does Pavel have anything borrowed", [one, joined]) is False
     assert _database_join_missing("who joined most recently", [one]) is False
     assert _database_join_missing("how many tools are there", []) is False
@@ -284,3 +285,76 @@ def test_a_list_named_in_another_order_than_the_rows_is_replaced_by_the_rows() -
     assert _database_reply_contradicts_its_rows(wrong, ask, steps)
     assert _database_reply_contradicts_its_rows(right, ask, steps) == ""
     assert _database_reply_contradicts_its_rows(wrong, "list the items", steps) == ""  # no order asked
+
+
+# ── Mac run 16i rerun on c764848c: the rows were read wrongly, a question got the last question's query ────────
+
+from core.agent_runtime.orchestrator import database_holding_answer  # noqa: E402
+from core.agent_runtime.research_tool_loop_facade import _database_empty_on_a_literal  # noqa: E402
+
+
+def test_whose_loan_is_out_is_read_from_the_returned_column_not_by_the_model() -> None:
+    # library 7: returned = 1 means back, and the model said "has Kafka checked out"
+    flag = _query_step("SELECT members.name, books.title, loans.returned FROM loans JOIN members JOIN books WHERE members.name='Yara'",
+                       [["Yara", "Kafka on the Shore", 1]], ["name", "title", "returned"])
+    said = database_holding_answer("does Yara have anything checked out right now", [flag])
+    assert "nothing out" in said and "Kafka on the Shore" in said and "has out right now: Kafka" not in said
+    # toolshed 7: both loans of Noor are back
+    back = _query_step("select ...", [["Noor", "Saw", "2026-10-15", "2026-10-18"], ["Noor", "Drill", "2026-11-08", "2026-11-09"]],
+                       ["name", "name", "taken_on", "returned_on"])
+    assert "Noor has nothing out right now" in database_holding_answer("has Noor returned everything", [back])
+    # toolshed 8: Gustav's hedge trimmer has no returned date
+    open_ = _query_step("select ...", [["Gustav", "Hedge trimmer", "2026-11-05", None]], ["name", "name", "taken_on", "returned_on"])
+    assert "Gustav has out right now: Hedge trimmer" in database_holding_answer("is Gustav holding any tools at the moment", [open_])
+
+
+def test_a_question_that_is_not_about_what_is_out_is_not_answered_as_one() -> None:
+    step = _query_step("select ...", [["Drill", "Marta", None]], ["name", "name", "returned_on"])
+    assert database_holding_answer("who has had the Drill", [step]) == ""
+    assert database_holding_answer("is Gustav holding any tools", [_query_step("select", [["x"]], ["name"])]) == ""
+
+
+def test_a_count_with_no_names_does_not_satisfy_a_holding_question(world, tmp_path) -> None:  # noqa: F811
+    _toolshed(tmp_path)
+    counted = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT COUNT(*) FROM borrowings JOIN neighbours ON 1=1"},
+               "observation": {"rows": [[2]], "columns": ["COUNT(*)"]}}
+    assert _database_join_missing("does Pavel have anything borrowed", [counted]) is True
+
+
+def test_an_empty_read_on_a_text_value_is_noticed() -> None:
+    empty = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM tools WHERE kind = 'power tool'"},
+             "observation": {"rows": [], "columns": ["id"]}}
+    assert _database_empty_on_a_literal([empty]) is True
+    none_at_all = {**empty, "arguments": {"sql": "SELECT * FROM tools"}}
+    assert _database_empty_on_a_literal([none_at_all]) is False
+    assert _database_empty_on_a_literal([{**empty, "observation": {"rows": [[1]], "columns": ["id"]}}]) is False
+
+
+def test_the_query_the_last_question_ran_is_not_this_questions() -> None:
+    ctx = {"session_id": "s-last-q", "runtime_session_id": "s-last-q"}
+    payload = {"arguments": {"sql": "SELECT COUNT(*) FROM tools"}}
+    assert _database_query_contradicts_the_ask("vool-database.query", payload, "how many tools are there", [], ctx) is None
+    again = _database_query_contradicts_the_ask("vool-database.query", payload, "sorry, which neighbour lives on Oak Ave", [], ctx)
+    assert again is not None and again.status == "sql_error"
+    told = [{"correction": True, "observation": again.response_text}]
+    assert _database_query_contradicts_the_ask("vool-database.query", payload, "sorry, which neighbour lives on Oak Ave", told, ctx) is None
+    # the same question asked again may send the same query
+    other = {"session_id": "s-last-q2", "runtime_session_id": "s-last-q2"}
+    assert _database_query_contradicts_the_ask("vool-database.query", payload, "how many tools are there", [], other) is None
+    assert _database_query_contradicts_the_ask("vool-database.query", payload, "how many tools are there again", [], other) is None
+
+
+def test_a_reply_that_names_a_book_after_every_query_failed_is_not_published() -> None:
+    failed = {"tool_name": "vool-database.query", "ok": False, "status": "tool_failed", "observation": {}}
+    said = _database_reply_contradicts_its_rows("The oldest book is **Kafka on the Shore**, published in 2002.", "oldest book", [failed])
+    assert "could not get a query" in said
+    assert _database_reply_contradicts_its_rows("I could not read it. Ask again.", "oldest book", [failed]) == ""
+
+
+def test_a_one_row_cap_is_not_the_size_of_the_answer() -> None:
+    payload = {"arguments": {"sql": "SELECT who FROM b", "row_limit": 1}}
+    assert _database_query_contradicts_the_ask("vool-database.query", payload, "who has had the Drill", [], None) is None
+    assert payload["arguments"]["row_limit"] == 20
+    capped = {"arguments": {"sql": "SELECT who FROM b ORDER BY id LIMIT 1", "row_limit": 1}}
+    _database_query_contradicts_the_ask("vool-database.query", capped, "who is first", [], None)
+    assert capped["arguments"]["row_limit"] == 1
