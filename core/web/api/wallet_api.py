@@ -107,6 +107,7 @@ _ROLE_REFUSALS = {
     "usb_backup_not_found": "That backup is no longer on the USB stick. Nothing changed.",
     "security_key_already_added": "This wallet already needs a security key. Remove it first to add another. Nothing changed.",
     "no_security_key_added": "This wallet does not need a security key. Nothing changed.",
+    "security_key_change_in_progress": "A security key change for this wallet is already in progress in another window. Finish that one first. Nothing changed.",
 }
 
 #: Plain words for why a security key did not answer (core.wallet.security_key.KeyProblem reasons).

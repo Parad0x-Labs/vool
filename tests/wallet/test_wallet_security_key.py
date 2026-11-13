@@ -256,3 +256,121 @@ def test_an_agent_wallet_takes_no_security_key(keys, monkeypatch):
     made = _create()
     monkeypatch.setattr(custody, "agent_of", lambda wallet_id: "assistant" if wallet_id == made["wallet_id"] else "")
     assert _reason(lambda: pilot_custody.add_security_key(made["wallet_id"], credential=PIN)) == ("wallet_setup_state_invalid", "agent_wallet_credential_is_fixed")
+
+
+# --- from the security review of this piece ----------------------------------------------------------------------
+
+def _database_files() -> tuple[bytes, bytes]:
+    import os
+
+    from core import runtime_continuity
+
+    path = str(runtime_continuity._runtime_db_path())
+    main = open(path, "rb").read()
+    wal = open(path + "-wal", "rb").read() if os.path.exists(path + "-wal") else b""
+    return main, wal
+
+
+def test_the_pin_only_seal_is_gone_from_the_database_files_while_the_app_keeps_them_open(keys):
+    import json
+
+    from core import runtime_continuity
+    from core.wallet import pilot_custody
+    from storage.db import get_connection
+
+    made = _create()
+    old = json.loads(pilot_custody._load(made["wallet_id"])["sealed_blob"])["ciphertext"].encode()
+    keeper = get_connection(runtime_continuity._runtime_db_path())  # the running app holds the database open
+    keeper.execute("SELECT count(*) FROM wallet_profiles").fetchone()
+    try:
+        pilot_custody.add_security_key(made["wallet_id"], credential=PIN)
+        main, wal = _database_files()
+        assert old not in main and old not in wal, "a copy of VOOL's files and the PIN must not open the wallet after the key is added"
+    finally:
+        keeper.close()
+
+
+def test_a_key_problem_answers_the_same_for_the_right_and_a_wrong_pin(keys):
+    from core.wallet import pilot_custody
+
+    made = _create()
+    key = keys["keys"][0]
+    pilot_custody.add_security_key(made["wallet_id"], credential=PIN)
+    key.touch = False
+    right = _reason(lambda: pilot_custody.prove_credential(made["wallet_id"], PIN))
+    wrong = _reason(lambda: pilot_custody.prove_credential(made["wallet_id"], "000000"))
+    assert right == wrong == ("wallet_security_key_needed", "touch_timeout")
+    key.touch = True
+    pilot_custody.prove_credential(made["wallet_id"], PIN)
+
+
+def test_a_backup_recovery_says_it_removed_the_security_key(keys, monkeypatch):
+    from core.wallet import pilot_custody, receipts
+
+    seen: list[tuple[str, dict]] = []
+    real = receipts.journal_security_event
+    monkeypatch.setattr(receipts, "journal_security_event", lambda kind, payload, **kw: (seen.append((kind, dict(payload))), real(kind, payload, **kw))[1])
+    made = _create()
+    pilot_custody.add_security_key(made["wallet_id"], credential=PIN)
+    keys["keys"] = []
+    view = pilot_custody.recover_with_backup(made["wallet_id"], backup_value=made["backup_value"], method="pin", credential=NEW_PIN, credential_confirmation=NEW_PIN)
+    assert view["security_key_removed"] is True and pilot_custody.SECURITY_KEY_DROPPED_NOTE in view["note"]
+    journaled = [payload for kind, payload in seen if kind == "wallet_pilot_recovered_with_backup"]
+    assert journaled and journaled[-1]["security_key_removed"] is True and journaled[-1]["old_seal_cleared"] is True
+    again = pilot_custody.change_pilot_credential(made["wallet_id"], current_credential=NEW_PIN, method="pin", credential=PIN, credential_confirmation=PIN)
+    assert again["security_key_removed"] is False
+
+
+def _touch_id_wallet():
+    from core.wallet import device_auth, pilot_custody
+    from tests.wallet._device_auth_fake import FakeDeviceAuthority
+
+    device_auth.set_device_authority_for_tests(FakeDeviceAuthority())
+    made = pilot_custody.create_pilot_wallet(network=SOLANA_MAINNET, method="device", creation_key=f"c-{uuid.uuid4().hex}")
+    revealed = pilot_custody.reveal_pilot_backup(made["wallet_id"])
+    pilot_custody.acknowledge_pilot_backup(made["wallet_id"], ack_token=revealed["ack_token"])
+    return made
+
+
+def test_a_touch_id_wallet_takes_a_key_keeps_it_through_touch_id_recovery_and_lets_it_go(keys):
+    from core.wallet import device_auth, pilot_custody
+
+    try:
+        made = _touch_id_wallet()
+        key = keys["keys"][0]
+        pilot_custody.add_security_key(made["wallet_id"])
+        pilot_custody.prove_credential(made["wallet_id"], "")
+        with pytest.raises(WalletFault):
+            pilot_custody._open_seal(pilot_custody._load(made["wallet_id"]), "", None, source_context=None)  # Touch ID alone opens nothing
+        keys["keys"] = []
+        assert _reason(lambda: pilot_custody.prove_credential(made["wallet_id"], ""))[0] == "wallet_security_key_needed"
+        keys["keys"] = [key]
+        options = pilot_custody.recovery_options(made["wallet_id"])
+        pilot_custody.recover_with_device(made["wallet_id"], challenge=options["device_recovery"]["challenge"], method="device")
+        assert pilot_custody.security_key_of(made["wallet_id"]) is not None
+        pilot_custody.remove_security_key(made["wallet_id"])
+        keys["keys"] = []
+        pilot_custody.prove_credential(made["wallet_id"], "")
+    finally:
+        device_auth.set_device_authority_for_tests(None)
+
+
+def test_a_second_add_while_one_waits_for_a_touch_is_refused_and_touch_id_still_opens(keys, monkeypatch):
+    from core.wallet import device_auth, pilot_custody, security_key
+
+    try:
+        made = _touch_id_wallet()
+        real_enroll = security_key.enroll
+        seen: dict[str, tuple[str, str]] = {}
+
+        def enroll(**kw):
+            if "other" not in seen:  # the other window's add lands while this one waits for a touch
+                seen["other"] = _reason(lambda: pilot_custody.add_security_key(made["wallet_id"]))
+            return real_enroll(**kw)
+
+        monkeypatch.setattr(security_key, "enroll", enroll)
+        pilot_custody.add_security_key(made["wallet_id"])
+        assert seen["other"] == ("wallet_setup_state_invalid", "security_key_change_in_progress")
+        pilot_custody.prove_credential(made["wallet_id"], "")  # Touch ID and the key still open it
+    finally:
+        device_auth.set_device_authority_for_tests(None)

@@ -30,6 +30,7 @@ import json
 import math
 import os
 import secrets
+import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -986,6 +987,7 @@ def _commit_envelope(row: dict[str, Any], *, sealed_blob: str, device_blob: str,
     new_generation = int(expected_generation) + 1
     with connection() as conn:
         limits._begin_immediate(conn)
+        had_key = security_key_of(wallet_id, conn=conn) is not None
         cursor = conn.execute(
             "UPDATE wallet_profiles SET sealed_blob = ?, device_sealed_blob = ?, approval_method = ?, credential_generation = ?, setup_state = ?, setup_updated_at = ?"
             " WHERE wallet_id = ? AND credential_generation = ? AND seal_policy = ?",
@@ -1003,19 +1005,46 @@ def _commit_envelope(row: dict[str, Any], *, sealed_blob: str, device_blob: str,
                          "added_at = excluded.added_at",
                          (wallet_id, security_key["credential_id"], security_key["salt"], str(security_key.get("name") or "")[:60],
                           str(security_key.get("added_at") or utcnow())))
+    # the old seal must not stay readable in the database file: copy the write-ahead log back now and truncate it
+    old_seal_cleared = _checkpoint_database()
     if row["approval_method"] == custody.APPROVAL_DEVICE and method != custody.APPROVAL_DEVICE:
         # the device secret no longer opens anything: the blob it guarded is gone; a failed forget changes nothing
         with contextlib.suppress(Exception):
             device_auth.current_authority().forget(wallet_id)
     _clear_wallet_unlock_attempts(wallet_id)
     withdrawn = quotes.supersede_open_quotes_for_wallet(wallet_id, reason=event)
+    # a backup recovery re-seals without the security key: say so, in the journal and to the person
+    key_dropped = had_key and security_key is None and event != "wallet_security_key_removed"
     _journal(event, {"wallet_id": wallet_id, "network": row["network"], "method_from": row["approval_method"], "method_to": method,
-                     "credential_generation": new_generation, "previews_withdrawn": withdrawn}, source_context=source_context)
+                     "credential_generation": new_generation, "previews_withdrawn": withdrawn, "security_key_removed": key_dropped,
+                     "old_seal_cleared": old_seal_cleared}, source_context=source_context)
     view = _view(_load(wallet_id) or row)
+    note = ("The old credential no longer opens this wallet on this device. Open payment previews were withdrawn; review them again before approving. "
+            "The blockchain key is unchanged: anyone holding a copy of the exported private key still controls the address.")
+    if key_dropped:
+        note += " " + SECURITY_KEY_DROPPED_NOTE
     view.update({"recovered": event not in ("wallet_pilot_credential_changed", "wallet_security_key_added", "wallet_security_key_removed"), "credential_generation": new_generation, "previews_withdrawn": withdrawn,
-                 "note": "The old credential no longer opens this wallet on this device. Open payment previews were withdrawn; review them again before approving. "
-                         "The blockchain key is unchanged: anyone holding a copy of the exported private key still controls the address."})
+                 "security_key_removed": key_dropped, "note": note})
     return view
+
+
+SECURITY_KEY_DROPPED_NOTE = "This wallet no longer needs its security key. Add it again in Settings > Crypto."
+
+
+def _checkpoint_database(*, attempts: int = 5) -> bool:
+    """Copy the write-ahead log into the database file and truncate it, so a replaced seal is gone from both files
+    (``secure_delete`` zeroes the freed space). A reader in the middle of a read can hold it off for a moment; the
+    caller journals whether it finished."""
+    for attempt in range(attempts):
+        try:
+            with connection() as conn:
+                busy = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if busy is None or int(busy[0]) == 0:
+                return True
+        except Exception:
+            pass
+        time.sleep(0.05 * (attempt + 1))
+    return False
 
 
 def _require_new_credential(method: str, credential: str, confirmation: str, *, source_context: dict[str, Any] | None) -> str:
@@ -1195,7 +1224,38 @@ def change_pilot_credential(wallet_id: str, *, current_credential: str, method: 
 
 # --- adding and removing a security key ------------------------------------------------------------------------
 
+_RESEAL_GUARDS: dict[str, threading.Lock] = {}
+_RESEAL_GUARDS_LOCK = threading.Lock()
+
+
+@contextlib.contextmanager
+def _one_reseal_at_a_time(wallet_id: str, *, source_context: dict[str, Any] | None) -> Iterator[None]:
+    """Adding or removing a security key holds the wallet from the PIN check to the commit. A second add or remove
+    of the same wallet meanwhile (another window, an agent route) is refused at once: it never re-seals, so it never
+    replaces the Touch ID unlock secret the first one committed under."""
+    with _RESEAL_GUARDS_LOCK:
+        guard = _RESEAL_GUARDS.setdefault(str(wallet_id), threading.Lock())
+    if not guard.acquire(blocking=False):
+        raise _fault("wallet_setup_state_invalid", wallet_id=str(wallet_id), reason="security_key_change_in_progress", source_context=source_context)
+    try:
+        yield
+    finally:
+        guard.release()
+
+
 def add_security_key(wallet_id: str, *, credential: str = "", key_pin: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Make this wallet need a security key as well as its PIN or Touch ID (see :func:`_add_security_key`)."""
+    with _one_reseal_at_a_time(wallet_id, source_context=source_context):
+        return _add_security_key(wallet_id, credential=credential, key_pin=key_pin, source_context=source_context)
+
+
+def remove_security_key(wallet_id: str, *, credential: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Stop this wallet needing its security key (see :func:`_remove_security_key`)."""
+    with _one_reseal_at_a_time(wallet_id, source_context=source_context):
+        return _remove_security_key(wallet_id, credential=credential, source_context=source_context)
+
+
+def _add_security_key(wallet_id: str, *, credential: str = "", key_pin: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Make this wallet need a security key as well as its PIN (or Touch ID). The PIN opens the seal first; the ONE
     key plugged in makes a new credential (touch 1) and answers for this wallet (touch 2); the same key is sealed
     again under the PIN AND that answer, in one fenced write that records the key. Nothing is signed or sent."""
@@ -1238,7 +1298,7 @@ def add_security_key(wallet_id: str, *, credential: str = "", key_pin: str = "",
     return view
 
 
-def remove_security_key(wallet_id: str, *, credential: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+def _remove_security_key(wallet_id: str, *, credential: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Stop needing the security key: the PIN (or Touch ID) AND the key open the seal once more, and the same key
     is sealed again under the PIN alone. A lost key is not removed here; the backup key brings the wallet back."""
     custody.require_enabled(source_context=source_context)
@@ -1268,6 +1328,7 @@ __all__ = [
     "KAT_EVM_K1_ADDRESS",
     "METHODS",
     "SEAL_POLICY",
+    "SECURITY_KEY_DROPPED_NOTE",
     "STATE_AWAITING_BACKUP",
     "STATE_BACKUP_REVEALED",
     "STATE_CANCELLED",

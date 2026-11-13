@@ -1437,7 +1437,7 @@ function keychainControls(a, cp, msg){
       postJson(door, body).then(function(res){
         body = null; go.disabled = false;
         if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing changed.'), true); return; }
-        cxMsg(msg, okText); renderCrypto();
+        cxMsg(msg, okText + keyDroppedText(res)); renderCrypto();
       }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
     });
     return f;
@@ -1574,7 +1574,7 @@ function usbRestoreBlock(cp){
         postJson('/api/wallet/usb/open', body).then(function(res){
           body = null; go.disabled = false;
           if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing changed.'), true); return; }
-          cxMsg(msg, r.state === 'on_this_computer' ? 'Done. Use the new PIN or password from now on.' : 'The wallet is back.'); renderCrypto();
+          cxMsg(msg, (r.state === 'on_this_computer' ? 'Done. Use the new PIN or password from now on.' : 'The wallet is back.') + keyDroppedText(res)); renderCrypto();
         }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
       });
       line.appendChild(f); line.appendChild(msg); list.appendChild(line);
@@ -1587,6 +1587,12 @@ function usbRestoreBlock(cp){
   });
   return box;
 }
+function keyDroppedText(res){
+  // a backup recovery re-seals without the security key: the answer says so, and so does the page
+  var d = (res && res.data) || {}, found = false;
+  Object.keys(d).forEach(function(k){ if (d[k] && typeof d[k] === 'object' && d[k].security_key_removed === true) found = true; });
+  return found ? ' This wallet no longer needs its security key. Add it again in Settings > Crypto.' : '';
+}
 function securityKeyControls(a, cp, msg){
   // a security key (YubiKey or similar) the wallet also needs: PIN AND key, every time it opens
   var box = el('div', 'vw-cx-seckey'); box.setAttribute('data-security-key', a.security_key ? 'added' : 'none');
@@ -1594,7 +1600,7 @@ function securityKeyControls(a, cp, msg){
   var device = a.approval_method === 'device';
   box.appendChild(el('div', 'vw-cx-env', k
     ? 'Security key: ' + (k.name || 'Security key') + (usbDateText(k.added_at) ? ', added ' + usbDateText(k.added_at) : '') + '. This wallet opens only with your ' + (device ? 'Touch ID' : 'PIN') + ' and this key plugged in and touched. Lost the key? Your backup key brings the wallet back and removes the lost key.'
-    : 'Add a security key (a YubiKey or similar). After that, this wallet opens only with your ' + (device ? 'Touch ID' : 'PIN') + ' and the key plugged in and touched. If you lose the key, your backup key still brings the wallet back.'));
+    : 'Add a security key (a YubiKey or similar). After that, this wallet opens only with your ' + (device ? 'Touch ID' : 'PIN') + ' and the key plugged in and touched. If you lose the key, your backup key still brings the wallet back. Copies or backups of VOOL\'s files made before you add the key still open with the ' + (device ? 'Touch ID copy' : 'PIN') + ' alone.'));
   var bar = el('div', 'vw-cx-actions'); box.appendChild(bar);
   var open = el('button', 'vw-btn ' + (k ? 'vw-cx-seckey-remove' : 'vw-cx-seckey-add'), k ? 'Remove the security key' : 'Add a security key'); open.type = 'button'; bar.appendChild(open);
   var f = el('div', 'vw-cx-form vw-cx-seckey-form'); f.hidden = true; box.appendChild(f);
