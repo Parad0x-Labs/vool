@@ -318,9 +318,12 @@ def test_a_folder_overview_answer_logs_its_folder_read(tmp_path, monkeypatch) ->
 
 
 def _roots(monkeypatch, root) -> None:
+    # The folder search looks in the home folder (plugged-in drives only when the owner asks, 1b4bf997),
+    # so the test's tree is the home folder, and no drive is mounted beside it.
     import core.machine_diagnostics as md
 
-    monkeypatch.setattr(md, "disk_usage", lambda *a, **k: [{"mount": str(root)}])
+    monkeypatch.setenv("HOME", str(root))
+    monkeypatch.setattr(md, "disk_usage", lambda *a, **k: [])
 
 
 def test_find_folder_matches_the_named_words_in_any_order(tmp_path, monkeypatch) -> None:
