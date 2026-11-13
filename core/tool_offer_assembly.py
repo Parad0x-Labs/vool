@@ -564,6 +564,21 @@ def _developer_turn(user_text: str) -> bool:
     return bool(_DEVELOPER_WORDS_RE.search(text)) and _about_code(str(user_text or ""))
 
 
+_PROCESS_WORDS_RE = re.compile(
+    r"\b(?:process(?:es)?|cpu|ram|memory\s+(?:usage|hog)|task\s+manager|activity\s+monitor|pid|what(?:'s| is) running|running\s+(?:apps|programs))\b",
+    re.IGNORECASE,
+)
+
+
+def _database_ask(text: str) -> bool:
+    try:
+        from core.tool_demand_signals import asks_for_database_work
+
+        return bool(asks_for_database_work(text))
+    except Exception:
+        return False
+
+
 def _audience_ok(skills: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
     """Installed (lexical-lane) skills minus developer skills, unless it is a developer's turn.
 
@@ -1896,6 +1911,12 @@ def assemble_tool_offer(
         )
     )
     specs = _scope_download_specs(specs, str(user_text or ""))
+    # Run 16e: in a turn about the person's own database, "list the members, newest first" went to
+    # operator.inspect_processes (the model took the nearest list tool). A database turn that does not
+    # ask about the machine does not carry the process tool.
+    if database_seats or _database_ask(str(user_text or "")):
+        if not _PROCESS_WORDS_RE.search(str(user_text or "")):
+            specs = [spec for spec in specs if spec.get("intent") != "operator.inspect_processes"]
     from core.vool_browser.live_contracts import SUPPORTED as BROWSER_INTENTS
     from core.vool_browser.live_requests import confined as browser_confined
     from core.vool_browser.live_requests import requested as browser_requested

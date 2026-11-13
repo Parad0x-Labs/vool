@@ -10,6 +10,8 @@ from core.agent_runtime.orchestrator import (
     redact_tool_arguments as redact_tool_argument_data,
 )
 from core.agent_runtime.orchestrator import (
+    database_claims_unsupported,
+    database_rows_answer,
     synthesis_echoes_prior_reply,
 )
 from core.candidate_knowledge_lane import get_candidate_by_id
@@ -3101,6 +3103,8 @@ class ResearchToolLoopFacadeMixin:
             # from (newest first):" and nothing under it, measured 2026-11-06). The read's own rows
             # are on this machine and complete, so they are the answer instead of half a list.
             reject_reason = "incomplete_mail_listing"
+        elif database_claims_unsupported(synthesis_text, executed_steps, effective_input):
+            reject_reason = "database_value_not_in_rows"
         if renders_final:
             # This contract publishes its complete, already-redacted runtime result.
             # A one-line activity summary is not the requested report or PR body.
@@ -3130,7 +3134,8 @@ class ResearchToolLoopFacadeMixin:
                 tool_name=str(executed_steps[-1].get("tool_name") or ""),
                 status=reject_reason,
             )
-            plugin_result = plugin_result_in_plain_words(executed_steps)
+            # A database answer is read off its rows (below), not off the tool's one-line report.
+            plugin_result = "" if database_rows_answer(executed_steps) else plugin_result_in_plain_words(executed_steps)
             if plugin_result:
                 # The tool's own result is the answer the person asked for; only the model's
                 # wording was refused. The turn is complete, not a failed audit.
@@ -3142,6 +3147,10 @@ class ResearchToolLoopFacadeMixin:
                 plugin_result_shown = True
             else:
                 final_message = self._tool_loop_final_message(None, executed_steps)
+                if database_rows_answer(executed_steps):
+                    # The rows the database returned ARE the grounded answer (run 16e: "COUNT(*): 1" under an
+                    # "Incomplete" banner). The rejection stays on the event ledger; the turn is not a failure.
+                    reject_reason = ""
         else:
             final_message = self._tool_loop_final_message(synthesis, executed_steps)
         _syn_provider = str(getattr(synthesis, "provider_id", "") or "")

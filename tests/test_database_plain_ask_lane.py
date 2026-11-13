@@ -279,3 +279,15 @@ def test_in_there_is_the_database_not_a_folder_in_a_database_chat(world, tmp_pat
     note_database_demand(ctx)
     assert resolve("s-db-7", "anything by Austen in there?", source_context=dict(ctx)).kind == "none"
     assert resolve("s-db-7", "what is in that folder", source_context=dict(ctx)).kind == "referent_unresolved"
+
+
+def test_a_database_turn_is_not_offered_the_process_tool(world, tmp_path, monkeypatch) -> None:
+    from core.tool_offer_assembly import assemble_tool_offer
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    ctx = {**PRODUCTION_CONTEXT, "session_id": "s-db-p", "runtime_session_id": "s-db-p"}
+    from core.database_work_state import note_database_demand
+
+    note_database_demand(ctx)
+    names = {s.get("intent") for s in assemble_tool_offer(user_text="has Tomas given everything back", task_class="unknown", source_context=dict(ctx)).specs}
+    assert "operator.inspect_processes" not in names and "vool-database.query" in names

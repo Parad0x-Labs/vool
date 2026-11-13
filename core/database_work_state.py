@@ -100,7 +100,7 @@ def active_database_work_intents(source_context: dict[str, Any] | None) -> tuple
 __all__ = ["RECENT_DATABASE_WORK_SECONDS", "active_database_work_intents"]
 
 
-def database_catalog_block(max_chars: int = 1800) -> str:
+def database_catalog_block(max_chars: int = 2600) -> str:
     """The person's disposable databases, tables and columns as one compact block ("" when none).
 
     Handed to the model beside the database skill so it uses the real names instead of
@@ -120,6 +120,7 @@ def database_catalog_block(max_chars: int = 1800) -> str:
             try:
                 tables = []
                 links: list[str] = []
+                targets_of: dict[str, list[tuple[str, str]]] = {}
                 shapes: dict[str, list[str]] = {}
                 for (table,) in conn.execute(
                     "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name"
@@ -148,11 +149,31 @@ def database_catalog_block(max_chars: int = 1800) -> str:
                         target = next((t for t in (stem, stem + "s", stem + "es") if stem and t in shapes and t != table), "")
                         if target:
                             links.append("%s.%s = %s.id" % (table, column, target))
+                            targets_of.setdefault(table, []).append((column, target))
             finally:
                 conn.close()
+            example = ""
+            for table, pairs in targets_of.items():
+                if len(pairs) < 2:
+                    continue
+                picks = []
+                for _col, target in pairs[:2]:
+                    label = next((c for c in shapes[target] if c.lower() not in ("id",) and not c.lower().endswith("_id")), "id")
+                    picks.append("%s.%s" % (target, label))
+                tail = [c for c in shapes[table] if c.lower() not in ("id",) and not c.lower().endswith("_id")][:1]
+                who = next(
+                    ("%s.name" % target for _c, target in pairs[:2] if "name" in [x.lower() for x in shapes[target]]),
+                    picks[0],
+                )
+                joins = " ".join("JOIN %s ON %s.%s = %s.id" % (target, table, col, target) for col, target in pairs[:2])
+                example = (
+                    "; example (who holds what): SELECT %s FROM %s %s WHERE %s = '<name>'"
+                    % (", ".join(picks + ["%s.%s" % (table, c) for c in tail]), table, joins, who)
+                )
+                break
             lines.append(
                 "- database `%s`: %s%s"
-                % (path.stem, "; ".join(tables) or "no tables", ("; joins: " + ", ".join(links[:8])) if links else "")
+                % (path.stem, "; ".join(tables) or "no tables", ("; joins: " + ", ".join(links[:8])) if links else "") + example
             )
         if not lines:
             return ""

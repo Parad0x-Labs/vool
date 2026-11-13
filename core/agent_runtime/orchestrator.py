@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -287,6 +288,58 @@ def _command_observation_message(executed_steps: list[dict[str, Any]]) -> str:
         lines.append("Its error output:")
         lines.append(_command_output_block(stderr))
     return "\n\n".join(lines)
+
+
+def database_rows_answer(executed_steps: list[dict[str, Any]]) -> str:
+    """The answer built from the last database query's rows ("" unless that query ran and succeeded)."""
+    for step in reversed(executed_steps):
+        name = str(step.get("tool_name") or "")
+        if not name.startswith("vool-database."):
+            continue
+        if name == "vool-database.query" and _step_succeeded(step) and isinstance(step.get("observation"), dict):
+            return _database_observation_message([step])
+        return ""
+    return ""
+
+
+_CLAIM_BOLD_RE = re.compile(r"\*\*([^*\n]{2,60})\*\*|\"([^\"\n]{2,60})\"|`([^`\n]{1,60})`")
+_CLAIM_NUMBER_RE = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])")
+
+
+def database_claims_unsupported(answer: str, executed_steps: list[dict[str, Any]], question: str = "") -> bool:
+    """Whether the model's answer states a value the turn's database rows do not contain.
+
+    Measured 2026-11-12 (Database run 16e, qwen3:8b): the rows said Yara's loan was returned; the answer said
+    "Yes, Yara has **"Beloved"** (book ID 5) ... value `0`" -- a title that no row of the turn held. Names, titles
+    and numbers the answer puts in bold, quotes or code must be in a row (or the question); a number may also be a
+    count of the rows. Only judged when the turn ran a database query that succeeded."""
+    db_steps = [s for s in executed_steps if str(s.get("tool_name") or "").startswith("vool-database.query") and _step_succeeded(s)]
+    if not db_steps:
+        return False
+    corpus_parts = [str(question or "")]
+    row_total = 0
+    for step in db_steps:
+        observation = step.get("observation")
+        if isinstance(observation, dict):
+            corpus_parts.append(json.dumps(observation, default=str))
+            row_total += len(list(observation.get("rows") or []))
+    corpus = "\n".join(corpus_parts).lower()
+    text = str(answer or "")
+    for match in _CLAIM_BOLD_RE.finditer(text):
+        value = next((g for g in match.groups() if g), "").strip().lower()
+        if value and value not in corpus and not value.isdigit():
+            return True
+    body = re.sub(r"(?m)^\s*\d+[.)]\s+", "", text)
+    for number in _CLAIM_NUMBER_RE.findall(body):
+        if number.lower() in corpus:
+            continue
+        try:
+            if float(number) <= max(row_total, 1) and float(number).is_integer():
+                continue
+        except ValueError:
+            pass
+        return True
+    return False
 
 
 def _database_observation_message(executed_steps: list[dict[str, Any]]) -> str:
