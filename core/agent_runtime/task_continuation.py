@@ -68,6 +68,15 @@ def compose_continuation(text: str, previous_request: str) -> str:
     previous = " ".join(str(previous_request or "").split())
     if not current or not previous or len(previous.split()) < 3 or len(current.split()) > 12:
         return ""
+    try:
+        from core.model_own_tools import parse_tools_command
+
+        # "use VOOL's tools" is VOOL's own switch, not the last task for a new object: carried, it
+        # re-ran the previous web ask and the switch never happened (measured on the v0.8 line).
+        if parse_tools_command(current):
+            return ""
+    except Exception:
+        pass
     if not _TASK_HEAD_RE.match(previous):
         return ""
     if _REDO_RE.search(current) or _COUNT_CHANGE_RE.search(current):
