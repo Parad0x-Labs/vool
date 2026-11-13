@@ -1387,7 +1387,8 @@ def _machine_find_file(
     )
     if matches:
         lines = [f"Found {len(matches)} file{'s' if len(matches) != 1 else ''} matching '{name}':"]
-        lines.extend(f"- {path}" for path in matches)
+        # The person sees their home as ~ (Chat R8 M6 printed the whole home path); details keep the real paths.
+        lines.extend(f"- {_home_relative_label(Path(path))}" for path in matches)
         lines.append(f"Searched: {scope} (to depth {_FIND_FOLDER_MAX_DEPTH}; system folders skipped).")
         if len(matches) >= _FIND_FILE_MAX_MATCHES:
             lines.append("Showing the first matches only; refine the name to narrow the search.")
@@ -1654,7 +1655,7 @@ def _machine_find_folder(
                 handled=True,
                 ok=True,
                 status="executed",
-                response_text=f"Found 1 folder matching '{name}':\n- {located}",
+                response_text=f"Found 1 folder matching '{name}':\n- {_home_relative_label(Path(located))}",
                 details={
                     "observation": _tool_observation(
                         intent="machine.find_folder", tool_surface="machine", ok=True,
@@ -1683,7 +1684,7 @@ def _machine_find_folder(
                         ):
                             return RuntimeExecutionResult(
                                 handled=True, ok=True, status="executed",
-                                response_text=f"Found 1 folder matching '{name}':\n- {entry.path}",
+                                response_text=f"Found 1 folder matching '{name}':\n- {_home_relative_label(Path(entry.path))}",
                                 details={
                                     "observation": _tool_observation(
                                         intent="machine.find_folder", tool_surface="machine",
@@ -1707,7 +1708,7 @@ def _machine_find_folder(
             handled=True,
             ok=True,
             status="executed",
-            response_text=f"Found 1 folder matching '{name}':\n- {resolved}",
+            response_text=f"Found 1 folder matching '{name}':\n- {_home_relative_label(Path(resolved))}",
             details={
                 "observation": _tool_observation(
                     intent="machine.find_folder",
@@ -1838,7 +1839,7 @@ def _machine_find_folder(
     )
     if matches:
         lines = [f"Found {len(matches)} folder{'s' if len(matches) != 1 else ''} matching '{name}':"]
-        lines.extend(f"- {path}" for path in matches)
+        lines.extend(f"- {_home_relative_label(Path(path))}" for path in matches)
         lines.append(f"Searched: {scope} (to depth {_FIND_FOLDER_MAX_DEPTH}, system folders skipped).")
         if len(matches) >= _FIND_FOLDER_MAX_MATCHES:
             lines.append("Showing the first matches only; refine the name to narrow the search.")
