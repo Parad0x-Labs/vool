@@ -100,8 +100,20 @@ _ASKS_FOR_A_BREAKDOWN = (
     r"\b(?:by|per)\s+(?:model\s+)?year\b",
 )
 
+# "latest" that ORDERS the person's own rows is not a want of current information: "list the items,
+# latest expiry first", "sorted by latest date", "which item has the latest expiry date". Database run
+# 16h on the v0.8 line (Mac, 2026-11-13): the pantry ask "list the items, latest expiry first" got "Web
+# lookups are off". An ordering is "latest ... first/last/on top", "by (the) latest", or "latest" on a
+# date field of a row (expiry, due date, deadline...).
+_ORDERING_LATEST = (
+    r"(?<!\bby\s)(?<!\bby\sthe\s)latest"
+    r"(?!\s+(?:[\w'’-]+\s+){0,2}?(?:first|last|on\s+top|at\s+the\s+(?:top|bottom)|to\s+(?:earliest|oldest))\b)"
+    r"(?!\s+(?:expiry|expiration|expiring|due|best[\s-]+before|use[\s-]+by|sell[\s-]+by|deadline|end|start|"
+    r"close|closing|return|renewal|delivery|arrival|departure|check[\s-]?(?:in|out)|purchase|birth|hire|"
+    r"join(?:ing)?|signup|sign[\s-]+up)(?:\s+(?:dates?|times?|day))?\b)"
+)
 _WANTS_CURRENT = (
-    r"\b(?:current|latest|today['’]?s|right\s+now|as\s+of\s+(?:today|now))\b",
+    r"\b(?:current|" + _ORDERING_LATEST + r"|today['’]?s|right\s+now|as\s+of\s+(?:today|now))\b",
     r"\bthis\s+(?:week|month|quarter|year)\b",
 )
 
