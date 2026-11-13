@@ -51,7 +51,10 @@ def _record(conn: Any, proposal: Any, *, state: str, tx_signature: str = "", fau
         asset=proposal.asset, amount_minor=int(proposal.amount_minor), destination=proposal.destination, origin=proposal.origin, state=state,
         tx_signature=str(tx_signature or ""), fault_code=str(fault_code or ""), created_at=utcnow(),
     )
-    payload = redact_wallet_record({**receipt.to_dict(), **dict(extra or {})})
+    from core.wallet import payment_context
+
+    story = payment_context.receipt_block(payment_context.get_on(conn, proposal.proposal_id))
+    payload = redact_wallet_record({**receipt.to_dict(), **story, **dict(extra or {})})
     conn.execute(
         "INSERT INTO wallet_receipts (receipt_id, proposal_id, wallet_id, network, asset, amount_minor, destination, origin, state, tx_signature, fault_code, created_at, payload_json)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

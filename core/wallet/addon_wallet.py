@@ -147,6 +147,9 @@ def fetch_for_addon(addon_id: str, url: str, *, source_context: dict[str, Any] |
                                   "body": outcome.body if outcome.status == x402.OUTCOME_DELIVERED else b""}
         if outcome.status != x402.OUTCOME_PAYMENT_REQUIRED or not outcome.proposal_id:
             return answer
+        from core.wallet import payment_context
+
+        payment_context.capture(outcome.proposal_id, source_context=source_context, by=payment_context.BY_PLUGIN, plugin=agent, resource_url=url)
         payment = agent_pay.pay(outcome.proposal_id, agent_id=agent, source_context=source_context)
         answer["payment"] = payment
         if not payment["paid"]:

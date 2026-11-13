@@ -661,6 +661,9 @@ def follow_up(proposal_id: str, *, source_context: dict[str, Any] | None = None)
         asset=target.symbol, origin=str(plan.get("origin") or proposals.ORIGIN_MODEL), memo=str(plan.get("memo") or ""),
         idempotency_key=f"after-swap:{proposal_id}", source_context=source_context, network=str(binding["network"]), recipient=recipient,
     )
+    from core.wallet import payment_context
+
+    payment_context.copy(proposal_id, proposal.proposal_id, note=f"sent after converting {binding['from']['symbol']} to {binding['to']['symbol']} for it")
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
     _save_binding(proposal_id, {**binding, "follow_up_proposal_id": prepared.proposal_id})
     return prepared.to_dict()

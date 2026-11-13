@@ -500,6 +500,18 @@ def _pending_delivery_formats(context: dict[str, Any], steps: list[dict[str, Any
     return wanted - made
 
 
+#: the wallet doors that park a spend: each keeps the owner's words and this turn's earlier tool steps, so a receipt
+#: can say who asked and how the service was found (core.wallet.payment_context)
+_WALLET_SPEND_INTENTS = frozenset({"wallet.propose", "wallet.swap", "x402.propose"})
+
+
+def _with_payment_story(source_context: dict[str, Any], ask: Any, executed_steps: list[dict[str, Any]]) -> dict[str, Any]:
+    from core.wallet import payment_context
+
+    return {**(source_context or {}), payment_context.ASK_KEY: str(ask or ""),
+            payment_context.TRAIL_KEY: payment_context.trail_from_steps(executed_steps)}
+
+
 def _no_unread_document_contents(request: str, executed_steps: list[dict[str, Any]], rendered: str) -> str:
     """The loop's answer, unless it would state what a document of the person's says while no read of a
     document ran on this turn (core.agent_runtime.unread_document_guard): then what was found, and that
@@ -2437,6 +2449,8 @@ class ResearchToolLoopFacadeMixin:
                 from core.wallet.money_answers import ASK_TEXT_KEY
 
                 gating_source_context = {**gating_source_context, ASK_TEXT_KEY: str(effective_input or "")}
+            elif tool_name in _WALLET_SPEND_INTENTS:
+                gating_source_context = _with_payment_story(gating_source_context, effective_input, executed_steps)
             execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
                 tool_name, tool_payload, effective_input
             ) or self._execute_tool_intent(
@@ -2668,7 +2682,9 @@ class ResearchToolLoopFacadeMixin:
                     # the wallet answers the question that was asked, as for the head call
                     source_context=(
                         {**loop_source_context, "wallet_ask_text": str(effective_input or "")}
-                        if member_intent == "wallet.status" else loop_source_context
+                        if member_intent == "wallet.status"
+                        else _with_payment_story(loop_source_context, effective_input, executed_steps)
+                        if member_intent in _WALLET_SPEND_INTENTS else loop_source_context
                     ),
                     hive_activity_tracker=self.hive_activity_tracker,
                     public_hive_bridge=self.public_hive_bridge,

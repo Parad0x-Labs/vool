@@ -412,6 +412,19 @@ def _short(address: str) -> str:
 
 
 def _paid_for(proposal: Any) -> str:
+    """What a payment paid for, and why it exists when the wallet kept that (core.wallet.payment_context: who asked and
+    how the service was found)."""
+    words = _paid_for_what(proposal)
+    try:
+        from core.wallet import payment_context
+
+        why = payment_context.why_text(str(getattr(proposal, "proposal_id", "") or ""))
+    except Exception:
+        why = ""
+    return f"{words} [{why}]" if why else words
+
+
+def _paid_for_what(proposal: Any) -> str:
     """What a payment paid for, from the operation's typed record (never the memo of a payment the owner did not
     type). The service's own address, not a verified merchant identity."""
     from urllib.parse import urlsplit
@@ -422,6 +435,9 @@ def _paid_for(proposal: Any) -> str:
         view = purpose.purpose_for(proposal)
     except Exception:
         view = {}
+    if str(getattr(proposal, "origin", "")) == proposals.ORIGIN_SWAP:
+        # a conversion inside the owner's own wallet, not a payment to anyone: say what it turned into
+        return _converted_into(proposal, view)
     if view.get("kind") == "service" or view.get("provider"):
         provider = str(view.get("provider") or "a service")
         resource = str(view.get("resource") or "")
@@ -439,6 +455,18 @@ def _paid_for(proposal: Any) -> str:
     if str(getattr(proposal, "origin", "")) == proposals.ORIGIN_USER and str(getattr(proposal, "memo", "") or "").strip():
         words += f", note “{str(proposal.memo).strip()[:60]}”"
     return words
+
+
+def _converted_into(proposal: Any, view: dict[str, Any]) -> str:
+    from core.wallet import amounts, swaps
+
+    binding = swaps.binding_for(str(proposal.proposal_id)) or {}
+    target = binding.get("to") or {}
+    outcome = binding.get("outcome") if isinstance(binding.get("outcome"), dict) else None
+    symbol = str(target.get("symbol") or view.get("to_symbol") or "another coin")
+    if outcome and target.get("decimals") is not None:
+        return f"converted into {amounts.format_minor(int(outcome['received_minor']), int(target['decimals']))} {symbol} in your own wallet (price from {swaps.PROVIDER})"
+    return f"to convert into {symbol} in your own wallet (price from {swaps.PROVIDER})"
 
 
 def _sum_line(rows: list[tuple[str, int, int]]) -> str:

@@ -114,12 +114,13 @@ def test_a_payment_with_the_recipient_first_becomes_one_pending_proposal(served)
 
 def test_a_usdc_payment_on_base_with_the_recipient_first_reaches_the_wallet(served):
     """The phrasing as users type it: the wallet decides. This home holds only a Solana Devnet account, so the wallet
-    finds no account for Base (wallet_not_found) and nothing is proposed, but the request reached the wallet."""
+    finds no account for Base (wallet_not_found) and nothing is proposed, but the request reached the wallet. USDC is a
+    coin the owner may send on Solana, so the refusal says where it can go instead of a bare "not recognised"."""
     daemon, chain, provider = served
     message = f"pay {EVM_TO} 1 USDC on base"
     before = set(_pending(daemon))
     turn = daemon.chat(message, session_id="address-first-2", model=MODEL, mode="auto")
     assert "wallet__propose" in _offered(provider, message)
     answer = str((turn.get("message") or {}).get("content") or "")
-    assert "That wallet, proposal or destination was not recognised" in answer and "Nothing was signed and nothing was sent." in answer, answer
+    assert "This wallet can't send USDC on Base Sepolia. Nothing was sent. You can send USDC on Solana." in answer, answer
     assert set(_pending(daemon)) == before and chain.send_count() == 0

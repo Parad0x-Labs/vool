@@ -3020,8 +3020,9 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                     asset=str(args.get("asset") or "SOL"), origin=proposals.ORIGIN_MODEL, memo=str(args.get("memo") or ""), idempotency_key=str(args.get("idempotency_key") or ""), source_context=context,
                     network=pinned_network, recipient=recipient,
                 )
-            from core.wallet import lifecycle
+            from core.wallet import lifecycle, payment_context
 
+            payment_context.capture(proposal.proposal_id, source_context=context, by=payment_context.who_for_turn(context))
             try:
                 prepared = lifecycle.default_lifecycle(source_context=context).prepare(proposal.proposal_id)
             except WalletFault as exc:
@@ -3066,6 +3067,9 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                     return RuntimeExecutionResult(handled=True, ok=False, status="not_paid", response_text=text, details={"observation": _tool_observation(intent=intent, tool_surface="wallet", ok=False, status="not_paid")})
                 outcome = wallet_x402.fetch_paid_resource(resource_url, wallet_id=wallet_id, source_context=context)
                 if outcome.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and outcome.proposal_id:
+                    from core.wallet import payment_context
+
+                    payment_context.capture(outcome.proposal_id, source_context=context, by=payment_context.who_for_turn(context), resource_url=resource_url)
                     text = f"x402 offer parked as proposal {outcome.proposal_id} (state pending_approval). Nothing has been signed; approve it in your wallet."
                     return RuntimeExecutionResult(handled=True, ok=True, status="pending_approval", response_text=text, details={"proposal_id": outcome.proposal_id, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="pending_approval", proposal_id=outcome.proposal_id)})
                 return RuntimeExecutionResult(handled=True, ok=True, status=outcome.status, response_text=f"The resource answered {outcome.http_status} (no capped proposal was parked: status={outcome.status}).", details={"outcome": outcome.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=outcome.status)})
@@ -3083,6 +3087,9 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 if request is None:
                     raise WalletFault("wallet_not_found", context={"reason": "x402_not_detected"}, message="That response carried no x402 offer, so nothing was proposed.")
                 proposal = wallet_x402.propose_from_x402(request, wallet_id=wallet_id, source_context=context)
+            from core.wallet import payment_context
+
+            payment_context.capture(proposal.proposal_id, source_context=context, by=payment_context.who_for_turn(context))
             text = f"x402 offer parked as proposal {proposal.proposal_id} on {proposal.network}. Nothing has been signed; approve it in your wallet; I cannot approve, sign or broadcast."
             if not wallet_x402.names_a_request(proposal):
                 # an x402 offer is paid only as the payment of a request the wallet fetched: this one waits for that fetch
@@ -3204,6 +3211,11 @@ def _wallet_swap_tool(intent: str, args: dict[str, Any], context: dict[str, Any]
         slippage_bps=(round(float(args["slippage_pct"]) * 100) if args.get("slippage_pct") not in (None, "") else None),
         then_send=then_send, idempotency_key=str(args.get("idempotency_key") or ""), source_context=context,
     )
+    from core.wallet import payment_context
+
+    payment_context.capture(parked["proposal"].proposal_id, source_context=context, by=payment_context.who_for_turn(context),
+                            note=(f"converted to have the {then_send['asset']} for the send to "
+                                  f"{then_send['recipient'].get('display_name') or then_send['recipient'].get('label') or 'the address you gave'}" if then_send else ""))
     prepared = lifecycle.default_lifecycle(source_context=context).prepare(parked["proposal"].proposal_id)
     block = swaps.quote_block(parked["binding"])
     text = (f"Conversion {prepared.proposal_id} is ready for your approval: pay at most {block['max_in_human']} {block['from_symbol']}, "

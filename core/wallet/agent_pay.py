@@ -352,6 +352,10 @@ def fetch_for_turn(url: str, *, source_context: dict[str, Any] | None = None) ->
                                   "proposal_id": outcome.proposal_id, "payment": None, "body": outcome.body if outcome.status == x402.OUTCOME_DELIVERED else b""}
         if outcome.status != x402.OUTCOME_PAYMENT_REQUIRED or not outcome.proposal_id:
             return answer
+        from core.wallet import payment_context
+
+        payment_context.capture(outcome.proposal_id, source_context=source_context, resource_url=url,
+                                by=payment_context.BY_HELPER if is_helper(agent) else payment_context.BY_ASSISTANT)
         payment = pay(outcome.proposal_id, agent_id=agent, source_context=source_context)
         answer["payment"] = payment
         if payment["paid"] and payment["delivered"] is not False:
