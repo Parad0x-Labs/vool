@@ -371,10 +371,20 @@ class VoolMemory:
         # one agent does not mis-attribute other agents' rows to the opener
         # (which would leak them into the opener's BM25 leg).
         try:
-            missing = self._conn.execute(
-                "SELECT node_id, agent_id, content, keywords FROM memory_nodes n "
-                "WHERE NOT EXISTS (SELECT 1 FROM memory_fts f WHERE f.node_id = n.node_id)"
-            ).fetchall()
+            # One pass over each side, then a set difference: a correlated
+            # NOT EXISTS against an FTS5 table scans the whole index once per
+            # node, so every open of a long-lived store cost O(nodes x index).
+            indexed = {str(r[0]) for r in self._conn.execute("SELECT node_id FROM memory_fts")}
+            missing_ids = [
+                r[0] for r in self._conn.execute("SELECT node_id FROM memory_nodes")
+                if str(r[0]) not in indexed
+            ]
+            missing = []
+            for i in range(0, len(missing_ids), 500):
+                chunk = missing_ids[i:i + 500]
+                missing.extend(self._conn.execute(
+                    "SELECT node_id, agent_id, content, keywords FROM memory_nodes "
+                    f"WHERE node_id IN ({','.join('?' * len(chunk))})", chunk).fetchall())
             for row in missing:
                 self._conn.execute(
                     "INSERT INTO memory_fts (node_id, agent_id, content, keywords) VALUES (?, ?, ?, ?)",
@@ -386,12 +396,18 @@ class VoolMemory:
         # from it (e.g. a DB written before this index existed). Same
         # best-effort law as the memory_fts backfill above.
         try:
-            missing_occ = self._conn.execute(
-                "SELECT o.occurrence_id, o.body FROM source_occurrences o "
-                "WHERE o.status = 'active' AND o.body != '' "
-                "AND NOT EXISTS (SELECT 1 FROM source_fts f "
-                "                WHERE f.occurrence_id = o.occurrence_id)"
-            ).fetchall()
+            indexed_occ = {str(r[0]) for r in self._conn.execute("SELECT occurrence_id FROM source_fts")}
+            missing_occ_ids = [
+                r[0] for r in self._conn.execute(
+                    "SELECT occurrence_id FROM source_occurrences WHERE status = 'active' AND body != ''")
+                if str(r[0]) not in indexed_occ
+            ]
+            missing_occ = []
+            for i in range(0, len(missing_occ_ids), 500):
+                chunk = missing_occ_ids[i:i + 500]
+                missing_occ.extend(self._conn.execute(
+                    "SELECT occurrence_id, body FROM source_occurrences "
+                    f"WHERE occurrence_id IN ({','.join('?' * len(chunk))})", chunk).fetchall())
             for row in missing_occ:
                 self._conn.execute(
                     "INSERT INTO source_fts (occurrence_id, body) VALUES (?, ?)",
