@@ -255,23 +255,107 @@ def test_a_short_word_does_not_fuzzy_match_its_neighbours(page_ctx, query) -> No
     assert _chat_search(page, query)["matched"] == 0, f"{query!r} was fuzzed into a match"
 
 
+_DISPLAYED_CHAT = "() => String((window.VoolPageActions && window.VoolPageActions.displayedChat()) || '')"
+
+# The chat search's entry points, in the order the test drives them. The test calls the search
+# only through these names and judges every request by them, so a renamed or minified search fails
+# here loudly instead of silently matching nothing.
+CHAT_SEARCH_ENTRY_POINTS = ("openChatSearch", "runChatSearch", "stepChatSearch", "clearChatSearch")
+# Async parents the browser keeps per request. A chain this deep may be cut short, and a cut chain
+# cannot prove where a request came from.
+_ASYNC_DEPTH = 128
+
+
+def _initiator_chain(event: dict) -> tuple[set[str], str]:
+    """The functions in a request's JS initiator chain, across timers, promises and awaits.
+
+    Returns (names, problem): problem is empty when the chain is whole, otherwise why the request
+    cannot be attributed (no script stack, or a chain cut at the depth limit)."""
+    initiator = event.get("initiator") or {}
+    stack = initiator.get("stack")
+    if initiator.get("type") != "script" or not stack or not stack.get("callFrames"):
+        return set(), f"no script stack (initiator type {initiator.get('type')!r})"
+    names: set[str] = set()
+    depth = 0
+    while stack:
+        names.update(str(frame.get("functionName") or "") for frame in stack.get("callFrames") or [])
+        if stack.get("parentId") and not stack.get("parent"):
+            return names, "the async chain continues where the browser did not hand it over"
+        stack = stack.get("parent")
+        depth += 1
+    if depth > _ASYNC_DEPTH:
+        return names, f"the async chain was cut at {_ASYNC_DEPTH} parents"
+    return names, ""
+
+
 def test_searching_never_sends_a_turn_or_calls_anything(page_ctx) -> None:
-    page, seen = page_ctx
-    before = len(seen)
-    page.evaluate(
-        """() => {
-            openChatSearch();
-            for (const q of ['thunder', 'xplanation', 'vool explanation', 'zzz']) {
-              searchInputEl.value = q; runChatSearch(false); stepChatSearch(1); stepChatSearch(-1);
-            }
-            clearChatSearch();
-        }"""
-    )
-    page.wait_for_timeout(200)
-    # The wallet strip's own status poll (every 2500 ms since load) is page traffic, not search's:
-    # landing inside this window made the check fail by timing alone.
-    new_requests = [(m, u) for m, u in seen[before:] if (m, u) != ("GET", "http://vool.test/api/wallet/status")]
-    assert new_requests == [], f"searching issued requests: {new_requests}"
+    """Searching is local: it never sends a turn and starts no request, at once or later.
+
+    The page keeps reading on its own timers: the goal card's read 400 ms after boot, the 1 s
+    disclosure poll, the wallet poll, and readers retrying this rig's "{}" answers. Judged by URL
+    inside a time window, those failed the check by timing alone (CI #682 and #683:
+    GET /api/goal/state?session=...). So every request made while searching is judged by what
+    started it: its initiator chain from the browser, across timers and promises. A request that
+    cannot be attributed fails the test."""
+    page, _seen = page_ctx
+    names = page.evaluate("(names) => names.filter((name) => typeof window[name] !== 'function')",
+                          list(CHAT_SEARCH_ENTRY_POINTS))
+    assert names == [], f"the chat search no longer has these entry points: {names}"
+    cdp = page.context.new_cdp_session(page)
+    started: list[dict] = []
+    cdp.on("Network.requestWillBeSent", lambda event: started.append(event))
+    try:
+        cdp.send("Network.enable")
+        cdp.send("Debugger.enable")
+        cdp.send("Debugger.setAsyncCallStackDepth", {"maxDepth": _ASYNC_DEPTH})
+        # Control: a read this test starts from a named function through a timer must carry that
+        # name in its chain, or the browser is not handing over async stacks and nothing below
+        # could be attributed.
+        page.evaluate("""() => { (function attributionControl() {
+            setTimeout(() => fetch('/api/attribution-control'), 0); })(); }""")
+        for _ in range(80):
+            control = [e for e in started if e["request"]["url"].endswith("/api/attribution-control")]
+            if control:
+                break
+            page.wait_for_timeout(25)
+        assert control, "the control read never started"
+        control_names, problem = _initiator_chain(control[0])
+        assert not problem and "attributionControl" in control_names, (
+            f"the browser handed over no async stack for the control read ({problem or control_names})"
+        )
+
+        chat_before = page.evaluate(_DISPLAYED_CHAT)
+        window_start = len(started)
+        page.evaluate(
+            """(names) => {
+                const [openSearch, runSearch, stepSearch, clearSearch] = names.map((name) => window[name]);
+                openSearch();
+                for (const q of ['thunder', 'xplanation', 'vool explanation', 'zzz']) {
+                  searchInputEl.value = q; runSearch(false); stepSearch(1); stepSearch(-1);
+                }
+                clearSearch();
+            }""",
+            list(CHAT_SEARCH_ENTRY_POINTS),
+        )
+        page.wait_for_timeout(200)
+        chat_after = page.evaluate(_DISPLAYED_CHAT)
+    finally:
+        cdp.detach()
+    # A chat switch is the one way searching could make the goal card read again.
+    assert chat_after == chat_before, "searching switched the displayed chat"
+    during = started[window_start:]
+    sent = [(e["request"]["method"], e["request"]["url"]) for e in during if e["request"]["method"] != "GET"]
+    assert sent == [], f"a request was sent while searching: {sent}"
+    unattributed: list[tuple[str, str]] = []
+    from_search: list[tuple[str, str]] = []
+    for event in during:
+        chain, problem = _initiator_chain(event)
+        if problem:
+            unattributed.append((event["request"]["url"], problem))
+        elif chain & set(CHAT_SEARCH_ENTRY_POINTS):
+            from_search.append((event["request"]["method"], event["request"]["url"]))
+    assert unattributed == [], f"requests made while searching that cannot be attributed: {unattributed}"
+    assert from_search == [], f"searching issued requests: {from_search}"
 
 
 def test_enter_in_the_search_box_does_not_send_the_composer(page_ctx) -> None:
