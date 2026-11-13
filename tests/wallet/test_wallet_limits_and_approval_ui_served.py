@@ -117,6 +117,11 @@ def test_caps_and_approval_method_are_set_from_the_page_and_stored_by_the_doors(
 
             # --- a wrong current secret typed on the page is refused and SAID, never swallowed
             page.reload(wait_until="networkidle")
+            # a reload starts the page again, so the folds are closed again: open them the same way
+            if not page.locator("#walletMore").evaluate("d => d.open"):
+                page.locator("#walletMore > summary").click()
+            if not page.locator("#vwLegacyDev").evaluate("d => d.open"):
+                page.locator("#vwLegacyDev > summary").click()
             page.wait_for_selector("#vwApprovalSave", state="visible", timeout=20000)
             page.select_option("#vwApprovalMethod", "password")
             page.fill("#vwApprovalSecret", "000000")
