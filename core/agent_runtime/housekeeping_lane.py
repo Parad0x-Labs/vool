@@ -870,6 +870,34 @@ def _note_completed_write(run: _Run, position: int, kind: str, written_before: i
         run.completed.append(position)
 
 
+def _record_execution_facts(run: _Run, plan: Plan, *, session_id: str, source_context: dict[str, object] | None) -> None:
+    """File each write this turn completed as an execution fact of this turn (`core.execution_truth`).
+
+    The action-claim gate (e726cfe8) holds "Renamed this chat to **X**" and "Pinned it" to a receipt
+    of this turn, and this lane recorded none: its true report of a rename and a pin that ran and read
+    back was replaced with "I cannot verify the claimed action" (CI #681 on the v0.8 line,
+    test_housekeeping_turn_closure). Only completed writes are filed; a search, a list, an asked,
+    refused or failed action is not. Keyed like the rules lane's facts: the turn's own key and its
+    request id, so the in-turn seal and the served door both find them. Never raises.
+    """
+    try:
+        from core.execution_truth import KIND_TOOL, record_execution, resolve_turn_key
+
+        context = dict(source_context or {})
+        keys = {resolve_turn_key(context, None), str(context.get("request_id") or "").strip()} - {""}
+        for position in run.completed:
+            if position >= len(plan.actions) or plan.actions[position].kind not in _MUTATING:
+                continue
+            action = plan.actions[position]
+            name = f"{LANE_ID}.{action.kind}"
+            for turn_key in sorted(keys):
+                record_execution(session_id=str(session_id or ""), turn_key=turn_key, kind=KIND_TOOL, name=name,
+                                 ok=True, status="executed", detail={"position": position, "value": action.value},
+                                 dedupe=f"{name}:{position}:{action.value}")
+    except Exception:
+        return
+
+
 def _record_demand_receipts(message: str, run: _Run, *, plan_text: str) -> None:
     """Attest, per demand unit, the actions this turn completed -- on the same discharge channel
     the conductor and planned sub-turns use (`core.conductor.obligation_ledger`).
@@ -1056,6 +1084,7 @@ def maybe_handle_housekeeping_request(
     if not private:
         hk.record_handled_request(session_id, effective_input or text)
     _record_demand_receipts(str(effective_input or text), run, plan_text=text)
+    _record_execution_facts(run, plan, session_id=session_id, source_context=source_context)
     response = "\n".join(line for line in run.lines if line).strip() or "I didn't find anything to change."
     response = response.replace("…**.", "…**").replace("….", "…")
     details = {"lane": LANE_ID, "actions": run.details}
