@@ -237,39 +237,50 @@ def single_shape_needs_no_planner(text: str) -> bool:
     runs). Any second clause in the head, a non-operation head, or any exception also keeps
     the call.
     """
+    # No other decline survives its pins: question marks do not separate splittable from
+    # unsplittable ("gold and silver price?" splits; a reordered fetch-then-compute turn with no
+    # question mark must reach the conductor), so only supplied-material turns decline.
+    return bool(pasted_material_head(text))
+
+
+def pasted_material_head(text: str) -> str:
+    """The ask before the paste when *text* is one request over supplied material, else "".
+
+    The reader `single_shape_needs_no_planner` declines on (see there). Other readers of the
+    turn's words ask it too, so the paste's own words are never read as the ask's: measured
+    served on the v0.8 round 6 candidate (11eef8dc), the article under "Turn this into an X
+    article:" said "return checklist", which the answer contract reads as a request for a plan.
+    Empty for every other turn and on any error, so a caller keeps reading the whole turn.
+    """
     message = str(text or "").strip()
     if not message:
-        return False
+        return ""
     try:
         from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
 
         material = _SUPPLIED_MATERIAL_RE.search(message)
-        if material is not None:
-            head = message[: material.start()].strip(" \t\r\n:-")
-            if head:
-                from core.agent_runtime.answer_coverage import demand_units
-                from core.turn_ir import ClauseKind, parse_turn_ir
-
-                head_units = demand_units(head)
-                head_clauses = parse_turn_ir(head).clauses
-                if (
-                    (head_units is None or len(head_units) <= 1)
-                    and len(head_clauses) == 1
-                    and (
-                        head_clauses[0].kind is ClauseKind.TRANSFORM
-                        or _CONVERTS_PASTED_MATERIAL_RE.match(head) is not None
-                    )
-                ):
-                    return True
+        if material is None:
+            return ""
+        head = message[: material.start()].strip(" \t\r\n:-")
+        if not head:
+            return ""
         from core.agent_runtime.answer_coverage import demand_units
+        from core.turn_ir import ClauseKind, parse_turn_ir
 
-        # No other decline survives its pins: question marks do not separate splittable from
-        # unsplittable ("gold and silver price?" splits; a reordered fetch-then-compute turn
-        # with no question mark must reach the conductor), so only supplied-material turns
-        # decline.
-        return False
+        head_units = demand_units(head)
+        head_clauses = parse_turn_ir(head).clauses
+        if (
+            (head_units is None or len(head_units) <= 1)
+            and len(head_clauses) == 1
+            and (
+                head_clauses[0].kind is ClauseKind.TRANSFORM
+                or _CONVERTS_PASTED_MATERIAL_RE.match(head) is not None
+            )
+        ):
+            return head
+        return ""
     except Exception:
-        return False
+        return ""
 
 
 def _subject_without_answer_frame(text: str) -> str:

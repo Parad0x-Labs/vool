@@ -311,7 +311,8 @@ def resolve_requested_answer_contract(user_input: str) -> RequestedAnswerContrac
 
     Existing shape and collection owners retain their authority. Historical restatement is
     informational even when its source is a plan; a newly requested plan keeps its existing
-    finite generation and execution policies. Quoted text is data in this analysis copy.
+    finite generation and execution policies. Quoted text is data in this analysis copy, and so
+    is a pasted piece under one request to rework it: its contract is the ask's alone.
     """
     from core.context_retrieval import query_requests_complete_collection
     from core.raw_output_contract import parse_raw_output_contract
@@ -319,6 +320,16 @@ def resolve_requested_answer_contract(user_input: str) -> RequestedAnswerContrac
     from core.turn_ir import ClauseKind, parse_turn_ir
 
     text = str(user_input or "").strip()
+    # Measured served on the v0.8 round 6 candidate (11eef8dc): under "Turn this into an X
+    # article:" the article's own "return checklist" met the plan patterns, so the article was
+    # asked of the model as a JSON plan ({"summary", "steps"}) and the x-article-builder's
+    # article could not come back. The planners' reader names the ask before such a paste.
+    try:
+        from core.agent_runtime.turn_planner import pasted_material_head
+
+        text = pasted_material_head(text) or text
+    except Exception:
+        pass
     visible = re.sub(r"```[\s\S]*?```|`[^`]*`|\"[^\"]*\"|[“][^”]*[”]", " ", text)
     requested_items = requested_output_item_count(text)
     complete = query_requests_complete_collection(text) or requested_items is not None
