@@ -389,6 +389,42 @@ def _local_code_ask_beats_web_planning(
     return bool(_LOCAL_CODE_ASK_RE.search(lowered) and _LOCAL_CODE_FAILURE_RE.search(lowered))
 
 
+# Tools a skill uses only to KEEP what it made (save a note) or to find it again when the person comes
+# back (find or show a note). Skills A/B round 7 on the v0.8 head (Mac, real model, 2026-11-13):
+# "I want a gentle workout plan for 15 minutes a day" matched gentle-workout-plan, whose only tools
+# are these, so the turn went to the tool lane with a tool call required: the model called
+# operator.list_tools, then a refused call, and only then asked its health questions (131 s and 143 s,
+# loop on and off; "easy exercises for my back", which matched it loosely, was answered in 23 s).
+_KEEP_AND_RECALL_TOOLS = frozenset({"operator.save_note", "operator.find_notes", "operator.show_note"})
+# The person coming back to what such a skill kept: "adjust my workout", "update my habit plan",
+# "show me my saved plan", "where is my routine".
+_RETURNS_TO_KEPT_WORK_RE = re.compile(
+    r"\b(?:adjust|update|change|tweak|revise|review|continue|resume|redo|edit|change)\b[^.?!]{0,40}\b(?:my|our|the|that|this)\s+"
+    r"(?:[\w'’-]+\s+){0,3}?(?:plan|routine|habit|schedule|programme|program|workout|tracker|list)\b"
+    r"|\b(?:my|our)\s+(?:saved|last|current|old|previous|existing)\s+(?:[\w'’-]+\s+){0,2}?"
+    r"(?:plan|routine|habit|schedule|programme|program|workout|tracker|list)\b"
+    r"|\b(?:saved|kept|stored)\s+(?:it|that|the\s+plan)\b",
+    re.IGNORECASE,
+)
+
+
+def _skill_tools_wanted_now(names: tuple[str, ...], text: str) -> bool:
+    """Whether this turn can use the skill's tools at all: a skill whose tools only keep and find again
+    what it made needs them when the person asks for their notes or comes back to that work, not on
+    the ask that starts it."""
+    if not names or not set(names) <= _KEEP_AND_RECALL_TOOLS:
+        return True
+    if _RETURNS_TO_KEPT_WORK_RE.search(text):
+        return True
+    try:
+        from core.operator.parser import parse_operator_action_intent
+
+        intent = parse_operator_action_intent(text)
+    except Exception:
+        return True
+    return intent is not None and intent.kind in {"save_note", "find_notes", "show_note"}
+
+
 def _matched_tool_skill_releases_the_lane(
     text: str, source_context: dict[str, Any] | None
 ) -> bool:
@@ -434,6 +470,8 @@ def _matched_tool_skill_releases_the_lane(
                 continue
             names = tuple(str(name) for name in (getattr(skill, "allowed_tools", ()) or ()))
             if not names:
+                continue
+            if not _skill_tools_wanted_now(names, str(text or "")):
                 continue
             for name in names:
                 try:
@@ -706,7 +744,8 @@ def should_attempt_tool_intent(
 
     from core.tool_offer_assembly import matched_skill_tool_intents
 
-    if matched_skill_tool_intents(text, task_class=task_class, source_context=source_context):
+    _skill_seats = matched_skill_tool_intents(text, task_class=task_class, source_context=source_context)
+    if _skill_seats and _skill_tools_wanted_now(tuple(_skill_seats), text):
         return True
 
     # Everything above this line is structural: a surface that cannot run tools, or no text to
