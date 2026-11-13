@@ -47,11 +47,12 @@ import json
 import os
 import re
 import shutil
+from collections.abc import Iterable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 RISK_CLASSES = ("read_only", "workspace_write", "elevated")
 

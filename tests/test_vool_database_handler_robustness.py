@@ -130,7 +130,7 @@ def test_is_null_on_a_column_with_no_nulls_is_refused_with_its_real_values(h, mo
     )
     c.commit(); c.close()
     r = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from loans where returned is null"})
-    assert r["ok"] is False and r["status"] == "sql_error" and "never holds NULL" in r["error"] and "0, 1" in r["error"] or "1, 0" in r["error"]
+    assert (r["ok"] is False and r["status"] == "sql_error" and "never holds NULL" in r["error"] and "0, 1" in r["error"]) or "1, 0" in r["error"]
     # a column that does hold NULLs, an outer join, and IS NOT NULL stay lawful
     ok = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from notes where body is null"})
     assert ok["ok"] is True and ok["observation"]["rows"] == [[1]]

@@ -7,12 +7,12 @@ from typing import Any
 
 from core import audit_logger, policy_engine
 from core.agent_runtime.orchestrator import (
-    redact_tool_arguments as redact_tool_argument_data,
-)
-from core.agent_runtime.orchestrator import (
     database_claims_unsupported,
     database_rows_answer,
     synthesis_echoes_prior_reply,
+)
+from core.agent_runtime.orchestrator import (
+    redact_tool_arguments as redact_tool_argument_data,
 )
 from core.candidate_knowledge_lane import get_candidate_by_id
 from core.code_assistant.task_runtime import enforce_code_task_completion
@@ -417,9 +417,7 @@ def _database_query_contradicts_the_ask(intent: str, payload: dict[str, Any], qu
 
 
 _QUESTION_STOP_WORDS = frozenset(
-    "the and are was were how many much what which who whom whose does did has have had any all out there here again "
-    "that this with from for you your mine our their them they just still ever very can could would should please "
-    "ok okay sorry thanks tell show give list find get".split()
+    ["the", "and", "are", "was", "were", "how", "many", "much", "what", "which", "who", "whom", "whose", "does", "did", "has", "have", "had", "any", "all", "out", "there", "here", "again", "that", "this", "with", "from", "for", "you", "your", "mine", "our", "their", "them", "they", "just", "still", "ever", "very", "can", "could", "would", "should", "please", "ok", "okay", "sorry", "thanks", "tell", "show", "give", "list", "find", "get"]
 )
 
 

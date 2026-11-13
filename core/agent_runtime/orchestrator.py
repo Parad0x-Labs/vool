@@ -362,13 +362,13 @@ def _database_observation_message(executed_steps: list[dict[str, Any]]) -> str:
                 return f"{columns[0]}: {rows[0][0]}"
             resolved = observation.get("resolved_ids") if isinstance(observation.get("resolved_ids"), dict) else {}
 
-            def _shown(col: str, val: Any) -> str:
+            def _shown(col: str, val: Any, resolved: dict = resolved) -> str:
                 label = (resolved.get(col) or {}).get("labels", {}).get(str(val)) if isinstance(resolved.get(col), dict) else None
                 return f"{col}: {val} ({label})" if label is not None else f"{col}: {val}"
 
             lines = [f"The database returned {len(rows)} row(s):"]
             for row in rows[:20]:
-                lines.append("- " + ", ".join(_shown(col, val) for col, val in zip(columns, row)))
+                lines.append("- " + ", ".join(_shown(col, val) for col, val in zip(columns, row, strict=False)))
             if observation.get("truncated"):
                 lines.append("(More rows matched than are shown.)")
             return "\n".join(lines)
