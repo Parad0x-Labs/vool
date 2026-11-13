@@ -344,6 +344,13 @@ def test_find_folder_still_needs_every_named_word(tmp_path, monkeypatch) -> None
     _roots(monkeypatch, tmp_path)
     result = _machine_find_folder({"name": "Lisbon holiday"})
     assert not ((result.details or {}).get("matches") or []), result.response_text
+    # The search ran over the tree: it was searched, and the same walk finds a folder that does carry every word.
+    observation = (result.details or {}).get("observation") or {}
+    assert str(tmp_path) in [str(r) for r in observation.get("searched_roots") or []], observation
+    control = _machine_find_folder({"name": "Porto holiday"})
+    assert [os.path.basename(m) for m in (control.details or {}).get("matches") or []] == ["Holiday Porto 2025"], (
+        control.response_text
+    )
 
 
 def test_only_a_near_certain_meaning_fit_insists_on_the_retry(card_flag, monkeypatch) -> None:
