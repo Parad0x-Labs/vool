@@ -2020,6 +2020,33 @@ def unverified_live_value_notice(
     )
 
 
+_UNVERIFIED_NOTICE_RE = re.compile(
+    r"I didn't run (?:any live lookup on this turn|a live lookup for this part of the request(?: \([^)]*\))?), "
+    r"so I can't verify (?:current (?P<named>[^—]+?) figures|(?P<subject>[^—]+?)) — any specific numbers I gave "
+    r"would be invented, and I'm not going to state them\. Ask again and I'll fetch the real data first\."
+)
+
+
+def web_off_live_value_notice(text: str) -> str:
+    """`text` with the unverified-live-value notice said for a turn that cannot reach the web.
+
+    The notice ends "Ask again and I'll fetch the real data first", which is not true while Web lookups are off:
+    asking again fetches nothing. With the web off it says plainly that the value needs Web lookups and where to
+    turn them on (coordinator decision 2026-11-13, mixed advice-and-prices asks).
+    """
+    def _said(match: re.Match[str]) -> str:
+        named = str(match.group("named") or "").strip()
+        if named:
+            what = "Current prices" if named in {"price", "live"} else f"Current {named} figures"
+        else:
+            what = str(match.group("subject") or "That").strip()
+            what = what[:1].upper() + what[1:]
+        return (f"{what} need Web lookups, which are off, so I've left them out. "
+                "You can turn them on in Settings, Privacy & Permissions.")
+
+    return _UNVERIFIED_NOTICE_RE.sub(_said, str(text or ""))
+
+
 #: A sentence boundary for the mixed-answer split: terminal punctuation followed
 #: by whitespace.  Decimal points ("$64,102.50") never match because no
 #: whitespace follows the point.

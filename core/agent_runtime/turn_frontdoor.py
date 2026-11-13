@@ -2403,6 +2403,18 @@ def handle_turn_frontdoor(
                 # contract: the stale tank and the unobserved workshop temperature are withheld by
                 # the current-claim guard, never refused as a lookup the web could not answer).
                 _ask_needs_web = _ask_is_live_data = False
+            if _ask_needs_web or _ask_is_live_data:
+                # Advice beside a live price ("recommend accessories for my camera and tell me their prices
+                # today"): the advice is the model's to give, so the turn goes on, the live-value guard keeps
+                # invented prices out, and the reply says the prices need Web lookups (coordinator decision
+                # 2026-11-13; CI #681 current-input-mixed-price was refused whole).
+                try:
+                    from core.online_asks import advice_beside_live_prices
+
+                    if advice_beside_live_prices(effective_input, source_context):
+                        _ask_needs_web = _ask_is_live_data = False
+                except Exception:
+                    pass
             if (_ask_needs_web or _ask_is_live_data) and _reads_own_notes(effective_input):
                 # A read of the person's own notes ('look up my Apple note "Plan"', "look up my notes
                 # about the trip") is answered on this computer by the Notes lane, which needs no web.

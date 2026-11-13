@@ -469,7 +469,37 @@ def reads_an_owned_thing(text: str, *, weather_shaped: bool = False) -> bool:
     return bool(heads) and not any(head in _PUBLIC_PLACE_HEADS for head in heads)
 
 
+# Advice the model can give from what it knows, asked beside a live money value it cannot.
+_ADVICE_RE = re.compile(
+    r"\b(?:recommend|suggest|advise|advice\s+on|ideas?\s+for|tips?\s+for|what\s+(?:should|would|could)\s+i\s+"
+    r"(?:buy|get|pick|choose|use)|which\s+(?:\w+\s+){0,2}should\s+i|help\s+me\s+(?:choose|pick|decide))\b",
+    re.IGNORECASE,
+)
+_LIVE_MONEY_RE = re.compile(r"\b(?:prices?|priced|costs?|cost\s+now|rates?|fares?|fees?|how\s+much)\b", re.IGNORECASE)
+_CLAUSE_JOIN_RE = re.compile(r"\s*,?\s+\band\s+(?:also\s+|then\s+)?|\s*;\s*|(?<=[.?!])\s+", re.IGNORECASE)
+
+
+def advice_beside_live_prices(text: str, source_context: dict | None = None) -> bool:
+    """Whether the ask joins advice the model can give ("recommend accessories for my camera") to a live money
+    value only the web can give ("and tell me their prices today").
+
+    With Web lookups off the advice is still answered and the prices are named as needing the web (coordinator
+    decision 2026-11-13, CI #681 current-input-mixed-price): refusing the whole ask threw the advice away. A
+    question that is all live value ("price of gold today") stays a lookup.
+    """
+    value = " ".join(str(text or "").split())
+    if not value or len(value) > 600:
+        return False
+    clauses = [part.strip() for part in _CLAUSE_JOIN_RE.split(value) if part and part.strip()]
+    if len(clauses) < 2:
+        return False
+    advice = [c for c in clauses if _ADVICE_RE.search(c) and not requirements_want_a_lookup(c, source_context)]
+    live = [c for c in clauses if _LIVE_MONEY_RE.search(c) and requirements_want_a_lookup(c, source_context)]
+    return bool(advice and live and not set(advice) & set(live))
+
+
 __all__ = [
+    "advice_beside_live_prices",
     "asks_about_this_computer_or_project",
     "asks_for_online_facts",
     "reads_an_owned_thing",

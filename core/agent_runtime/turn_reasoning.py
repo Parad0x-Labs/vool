@@ -1738,6 +1738,15 @@ def execute_grounded_turn(
     # that changes ("the louvre opening hours today", a price, a schedule) says so: red/blue team
     # 2026-11-12, Web lookups off, opening hours came back as plain fact with no word that nothing
     # was looked up, so the later "try again" had nothing to rerun.
+    try:
+        # The live-value notice promises a fetch "if you ask again"; with the web off that fetch never comes.
+        from core.model_output_guard import web_off_live_value_notice
+        from core.remote_fetch_policy import effective_web_available
+
+        if not effective_web_available(source_context):
+            response = web_off_live_value_notice(response)
+    except Exception:
+        pass
     if not web_notes and not _current_claim.unsupported:
         try:
             from core.remote_fetch_policy import effective_web_available
