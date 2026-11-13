@@ -136,8 +136,12 @@ class TelegramChatBridge:
     # ---- relay ------------------------------------------------------------------------------
 
     def _send(self, chat_id: str, text: str) -> None:
+        # No link preview: an answer is model text, and Telegram's servers fetch the first link in a
+        # message to draw its preview, so an address the model was led to write (with what it read
+        # put in the address) would leave with no tap (security review 2026-11-13). The person can
+        # still open the link.
         for chunk in _split_for_telegram(_strip_local_image_refs(text)):
-            self._tg_call("sendMessage", {"chat_id": chat_id, "text": chunk})
+            self._tg_call("sendMessage", {"chat_id": chat_id, "text": chunk, "link_preview_options": {"is_disabled": True}})
 
     def handle_update(self, update: dict) -> None:
         update_id = int(update.get("update_id") or 0)

@@ -119,6 +119,12 @@ def test_one_time_binding_real_channel_turn_rules_and_disconnect(bots,platform):
     # The canonical runtime may have no model. A real finalized/no-model answer
     # still traverses /api/chat, never a fake agent or a synthetic bot response.
     wait_for(lambda:len(host.outgoing)>=2)
+    # No message VOOL sends lets the chat app fetch a link in it: Telegram and Discord draw a
+    # preview by fetching the first link, so an address the model was led to write would leave
+    # with no tap (security review 2026-11-13).
+    with host.lock:sent=list(host.outgoing)
+    if platform=='telegram':assert all((m.get('link_preview_options') or {}).get('is_disabled') is True for m in sent),sent
+    else:assert all(int(m.get('flags') or 0)&(1<<2) for m in sent),sent
     row=record(base,platform)
     assert http(base,'/api/mobile/settings',{'operation':'device_rules','device_id':row['device_id'],
         'rules':{'payment_approve':True,'tool_approval':True}})[0]==400

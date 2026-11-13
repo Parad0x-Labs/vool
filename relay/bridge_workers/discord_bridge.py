@@ -34,6 +34,10 @@ REFUSAL_TEXT = "Not authorized. This VOOL is locked to its owner."
 _OWNER_UNREADABLE = object()
 
 
+#: Discord message flag 1 << 2: the message carries no link embeds, so Discord fetches no link in it.
+_SUPPRESS_EMBEDS = 1 << 2
+
+
 def _owner_file() -> Path:
     home = Path(os.environ.get("VOOL_HOME") or (Path.home() / ".vool_runtime"))
     return home / "config" / "discord_bridge.json"
@@ -188,9 +192,15 @@ class DiscordBridge:
             return {}
 
     def _post_bot_message(self, channel_id: str, content: str) -> bool:
+        """Post VOOL's own message (an answer or a refusal) with link embeds suppressed.
+
+        Discord's servers fetch a link in a message to draw its embed, so an address the model was
+        led to write (with what it read put in the address) would leave with no click (security
+        review 2026-11-13). ``SUPPRESS_EMBEDS`` keeps the link and drops the fetch.
+        """
         if not self.bot_token or not channel_id:
             return False
-        payload = {"content": content}
+        payload = {"content": content, "flags": _SUPPRESS_EMBEDS}
         resp = self._discord_api_request(f"/channels/{channel_id}/messages", method="POST", data=payload)
         return bool(isinstance(resp, dict) and resp.get("id"))
 

@@ -247,12 +247,18 @@ class ManagedBot:
             if not self.active() or (right and not enabled(self.device(), right)):
                 break
             chunk = clean[offset : offset + size]
+            # No link preview or embed on either app: their servers fetch a link in a message to draw
+            # it, so an address the model was led to write would leave with no tap (security review
+            # 2026-11-13). Discord's flag 1 << 2 is SUPPRESS_EMBEDS.
             if self.platform == "telegram":
                 self.call(
                     "sendMessage", {"chat_id": channel, "text": chunk, "link_preview_options": {"is_disabled": True}}
                 )
             else:
-                self.call("/channels/" + channel + "/messages", {"content": chunk, "allowed_mentions": {"parse": []}})
+                self.call(
+                    "/channels/" + channel + "/messages",
+                    {"content": chunk, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
+                )
 
     def refused(self, reason, channel=""):
         service().store.append_receipt("bot.request_refused", device_id=self.device_id, detail={"reason": reason})
