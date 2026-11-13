@@ -1403,6 +1403,19 @@ wheels = [
 ]
 
 [[package]]
+name = "fido2"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography", version = "50.0.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+    { name = "cryptography", version = "50.0.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay') or (sys_platform != 'darwin' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ba/ea/6f08c354b7aeb8019249d46a86c2153f8218499cced4d21bf16b6d49fc16/fido2-2.2.1.tar.gz", hash = "sha256:85787428a94c3f8eaf72f0ff30afba983b559a1b1b795c93318c81b4ad4062c4", size = 327147, upload-time = "2026-06-29T17:41:11.927Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/84/198d99c3312557ef6121cf78c38281efe9b3bc88cba0e2c05446f38a024d/fido2-2.2.1-py3-none-any.whl", hash = "sha256:ed397da981b9ab133da6ead7309e41f924b566b749956129efe286fae097749f", size = 238354, upload-time = "2026-06-29T17:41:09.921Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "4.2.4"
 source = { registry = "https://pypi.org/simple" }
@@ -4482,6 +4495,9 @@ evm = [
     { name = "eth-account" },
     { name = "eth-utils" },
 ]
+keys = [
+    { name = "fido2" },
+]
 models = [
     { name = "accelerate", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
     { name = "aiohttp" },
@@ -4540,6 +4556,7 @@ requires-dist = [
     { name = "eth-abi", marker = "extra == 'evm'", specifier = ">=6.0" },
     { name = "eth-account", marker = "extra == 'evm'", specifier = ">=0.13" },
     { name = "eth-utils", marker = "extra == 'evm'", specifier = ">=6.0" },
+    { name = "fido2", marker = "extra == 'keys'", specifier = "==2.2.1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "huggingface-hub", marker = "extra == 'models'", specifier = ">=0.28" },
     { name = "huggingface-hub", marker = "extra == 'runtime'", specifier = ">=0.28" },
@@ -4585,7 +4602,7 @@ requires-dist = [
     { name = "zstandard", marker = "extra == 'dev'", specifier = ">=0.22.0" },
     { name = "zstandard", marker = "extra == 'runtime'", specifier = ">=0.22.0" },
 ]
-provides-extras = ["evm", "pay", "x402", "models", "browser", "companion", "runtime", "desktop", "proof", "dev"]
+provides-extras = ["evm", "pay", "x402", "models", "browser", "companion", "runtime", "desktop", "keys", "proof", "dev"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=9.2.0" }]

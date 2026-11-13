@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import contextvars
 import hashlib
 import hmac
 import json
@@ -53,6 +54,7 @@ PIN_MIN, PIN_MAX = 6, 12
 
 _KDF_ITERATIONS = 200_000
 _SEAL_LABEL = "vool-wallet-pilot-seal-v3"
+_SECURITY_KEY_LABEL = b"vool-wallet-security-key-v1"
 _KDF_NAME = "pbkdf2-sha256-200000+device-secret-v3"
 
 WALLET_LOCK_AFTER = 5
@@ -171,28 +173,62 @@ def _device_secret() -> bytes:
     return bytes(derive_local_secret(_SEAL_LABEL, length=32))
 
 
-def _credential_key(credential: str, salt: bytes) -> bytes:
+def _mix(key: bytes, factor: bytes | None) -> bytes:
+    """With a security key added, the sealing key also needs that key's 32-byte hmac-secret answer
+    (:mod:`core.wallet.security_key`): the seal opens only with the PIN (or Touch ID) AND the key touched."""
+    return key if factor is None else hashlib.sha256(key + _SECURITY_KEY_LABEL + bytes(factor)).digest()
+
+
+def _credential_key(credential: str, salt: bytes, factor: bytes | None = None) -> bytes:
     stretched = hashlib.pbkdf2_hmac("sha256", str(credential).encode("utf-8"), salt, _KDF_ITERATIONS, dklen=32)
-    return hashlib.sha256(_device_secret() + stretched).digest()
+    return _mix(hashlib.sha256(_device_secret() + stretched).digest(), factor)
 
 
-def _device_key(unlock_secret: bytes) -> bytes:
-    return hashlib.sha256(_device_secret() + b"pilot-device-unlock" + bytes(unlock_secret)).digest()
+def _device_key(unlock_secret: bytes, factor: bytes | None = None) -> bytes:
+    return _mix(hashlib.sha256(_device_secret() + b"pilot-device-unlock" + bytes(unlock_secret)).digest(), factor)
+
+
+# --- a security key as a second thing the seal needs ---------------------------------------------------------
+
+def security_key_of(wallet_id: str, *, conn: Any = None) -> dict[str, str] | None:
+    """The security key added to this wallet (credential id, salt, the key's name, when), or None. No secret here:
+    the key's answer is computed inside the key each time."""
+    def read(c: Any) -> dict[str, str] | None:
+        found = c.execute("SELECT credential_id, salt, name, added_at FROM wallet_security_keys WHERE wallet_id = ?", (str(wallet_id),)).fetchone()
+        return {"credential_id": str(found[0]), "salt": str(found[1]), "name": str(found[2]), "added_at": str(found[3])} if found else None
+
+    if conn is not None:
+        return read(conn)
+    with connection() as c:
+        return read(c)
+
+
+def _factor(row: dict[str, Any], *, source_context: dict[str, Any] | None) -> bytes | None:
+    """The added security key's answer for this wallet (the person touches the key), or None without one."""
+    enrolled = security_key_of(row["wallet_id"])
+    if enrolled is None:
+        return None
+    from core.wallet import security_key
+
+    try:
+        return security_key.secret(enrolled["credential_id"], enrolled["salt"])
+    except security_key.KeyProblem as problem:
+        raise _fault("wallet_security_key_needed", wallet_id=row["wallet_id"], reason=problem.reason, source_context=source_context) from None
 
 
 def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode("ascii")
 
 
-def _seal_with_credential(secret: bytes, credential: str, aad: bytes) -> str:
+def _seal_with_credential(secret: bytes, credential: str, aad: bytes, factor: bytes | None = None) -> str:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     salt, nonce = os.urandom(16), os.urandom(12)
-    ciphertext = AESGCM(_credential_key(credential, salt)).encrypt(nonce, bytes(secret), aad)
+    ciphertext = AESGCM(_credential_key(credential, salt, factor)).encrypt(nonce, bytes(secret), aad)
     return json.dumps({"ciphertext": _b64(ciphertext), "nonce": _b64(nonce), "salt": _b64(salt), "kdf": _KDF_NAME, "sealkind": SEAL_POLICY})
 
 
-def _seal_with_device(wallet_id: str, secret: bytes, aad: bytes, *, source_context: dict[str, Any] | None) -> str:
+def _seal_with_device(wallet_id: str, secret: bytes, aad: bytes, *, source_context: dict[str, Any] | None, factor: bytes | None = None) -> str:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     authority = device_auth.current_authority()
@@ -204,11 +240,33 @@ def _seal_with_device(wallet_id: str, secret: bytes, aad: bytes, *, source_conte
     except device_auth.DeviceAuthUnavailable as exc:
         raise _fault("wallet_device_auth_unavailable", reason=str(exc) or "unavailable", source_context=source_context) from None
     nonce = os.urandom(12)
-    ciphertext = AESGCM(_device_key(unlock_secret)).encrypt(nonce, bytes(secret), aad)
+    ciphertext = AESGCM(_device_key(unlock_secret, factor)).encrypt(nonce, bytes(secret), aad)
     return json.dumps({"ciphertext": _b64(ciphertext), "nonce": _b64(nonce), "sealkind": SEAL_POLICY})
 
 
+#: The security key's answer already fetched for the seal being opened now, so :func:`_unseal` stays the one place
+#: every seal is opened and the person still touches the key once per action.
+_FETCHED_FACTOR: contextvars.ContextVar[tuple[str, bytes | None] | None] = contextvars.ContextVar("vool_wallet_fetched_factor", default=None)
+
+
 def _unseal(row: dict[str, Any], credential: str, *, source_context: dict[str, Any] | None) -> bytes:
+    fetched = _FETCHED_FACTOR.get()
+    factor = fetched[1] if fetched is not None and fetched[0] == row["wallet_id"] else _factor(row, source_context=source_context)
+    return _open_seal(row, credential, factor, source_context=source_context)
+
+
+def _unseal_with_factor(row: dict[str, Any], credential: str, *, source_context: dict[str, Any] | None) -> tuple[bytes, bytes | None]:
+    """The key, and the security key's answer it needed (None without one): a re-seal that keeps the security key
+    uses the same answer, so the person touches the key once per action."""
+    factor = _factor(row, source_context=source_context)
+    token = _FETCHED_FACTOR.set((row["wallet_id"], factor))
+    try:
+        return _unseal(row, credential, source_context=source_context), factor
+    finally:
+        _FETCHED_FACTOR.reset(token)
+
+
+def _open_seal(row: dict[str, Any], credential: str, factor: bytes | None, *, source_context: dict[str, Any] | None) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     spec = chains.resolve_network(row["network"])
@@ -225,14 +283,14 @@ def _unseal(row: dict[str, Any], credential: str, *, source_context: dict[str, A
             raise _fault("wallet_device_auth_unavailable", wallet_id=row["wallet_id"], reason=str(exc) or "unavailable", source_context=source_context) from None
         blob = json.loads(row["device_sealed_blob"])
         try:
-            return AESGCM(_device_key(unlock_secret)).decrypt(base64.b64decode(blob["nonce"]), base64.b64decode(blob["ciphertext"]), aad)
+            return AESGCM(_device_key(unlock_secret, factor)).decrypt(base64.b64decode(blob["nonce"]), base64.b64decode(blob["ciphertext"]), aad)
         except Exception:
             raise _fault("wallet_device_auth_denied", wallet_id=row["wallet_id"], reason="device_unseal_failed", source_context=source_context) from None
     if not row["sealed_blob"]:
         raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="no_sealed_key", source_context=source_context)
     blob = json.loads(row["sealed_blob"])
     try:
-        return AESGCM(_credential_key(credential, base64.b64decode(blob["salt"]))).decrypt(base64.b64decode(blob["nonce"]), base64.b64decode(blob["ciphertext"]), aad)
+        return AESGCM(_credential_key(credential, base64.b64decode(blob["salt"]), factor)).decrypt(base64.b64decode(blob["nonce"]), base64.b64decode(blob["ciphertext"]), aad)
     except Exception:
         code = "wallet_password_invalid" if row["approval_method"] == custody.APPROVAL_PASSWORD else "wallet_pin_invalid"
         raise _fault(code, wallet_id=row["wallet_id"], reason="unseal_failed", source_context=source_context) from None
@@ -328,19 +386,26 @@ def _verify(row: dict[str, Any], credential: str, *, source_context: dict[str, A
     """Open the seal through the throttle. The row is read again after the attempt is reserved: a recovery or a
     credential change that committed since the caller loaded it makes the old credential fail against the new seal,
     and the generation that was actually opened is returned so a signer can be fenced before the transmit site."""
+    secret, generation, _factor_used = _verify_with_factor(row, credential, source_context=source_context)
+    return secret, generation
+
+
+def _verify_with_factor(row: dict[str, Any], credential: str, *, source_context: dict[str, Any] | None) -> tuple[bytes, int, bytes | None]:
+    """:func:`_verify`, also returning the security key's answer the seal needed (None without a security key). A
+    missing, wrong or untouched security key refunds the attempt: it is not a wrong PIN."""
     _reserve_attempt(row["wallet_id"], source_context=source_context)
     fresh = _load(row["wallet_id"]) or row
     if _generation(fresh) != _generation(row):
         _settle_attempt(row["wallet_id"], "refund")
         raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="credential_generation_changed", source_context=source_context)
     try:
-        secret = _unseal(fresh, credential, source_context=source_context)
+        secret, factor = _unseal_with_factor(fresh, credential, source_context=source_context)
     except WalletFault as exc:
         failed = exc.code in {"wallet_pin_invalid", "wallet_password_invalid", "wallet_device_auth_denied"}
         _settle_attempt(row["wallet_id"], "failure" if failed else "refund")
         raise
     _settle_attempt(row["wallet_id"], "success")
-    return secret, _generation(fresh)
+    return secret, _generation(fresh), factor
 
 
 # --- rows and views ------------------------------------------------------------------------------------
@@ -897,18 +962,20 @@ def _same_address(spec: chains.ChainIdentity, left: str, right: str) -> bool:
     return str(left) == str(right) if spec.is_svm else str(left).lower() == str(right).lower()
 
 
-def _staged_envelope(spec: chains.ChainIdentity, wallet_id: str, secret: bytes, address: str, method: str, credential: str, *, source_context: dict[str, Any] | None) -> tuple[str, str]:
-    """The new seal, built before anything persistent changes (a device seal enrols a fresh unlock secret)."""
+def _staged_envelope(spec: chains.ChainIdentity, wallet_id: str, secret: bytes, address: str, method: str, credential: str, *,
+                     source_context: dict[str, Any] | None, factor: bytes | None = None) -> tuple[str, str]:
+    """The new seal, built before anything persistent changes (a device seal enrols a fresh unlock secret). With
+    ``factor`` the seal also needs the security key; without it, the seal is the PIN (or Touch ID) alone."""
     aad = _aad(spec, address)
     if method == custody.APPROVAL_DEVICE:
         if not device_auth.current_authority().available():
             raise _fault("wallet_device_auth_unavailable", wallet_id=wallet_id, reason="no_device_authentication_on_this_machine", source_context=source_context)
-        return "", _seal_with_device(wallet_id, secret, aad, source_context=source_context)
-    return _seal_with_credential(secret, credential, aad), ""
+        return "", _seal_with_device(wallet_id, secret, aad, source_context=source_context, factor=factor)
+    return _seal_with_credential(secret, credential, aad, factor), ""
 
 
 def _commit_envelope(row: dict[str, Any], *, sealed_blob: str, device_blob: str, method: str, expected_generation: int, event: str,
-                     source_context: dict[str, Any] | None) -> dict[str, Any]:
+                     source_context: dict[str, Any] | None, security_key: dict[str, str] | None = None) -> dict[str, Any]:
     """ONE fenced write: the new seal replaces the old only while the row still carries the generation the proof was
     made against; the generation advances; a setup left at backup_revealed/cancelled with a proven backup is ready.
     Then the wallet's unlock count clears, every open preview of the wallet is withdrawn (a fresh review is required),
@@ -926,6 +993,16 @@ def _commit_envelope(row: dict[str, Any], *, sealed_blob: str, device_blob: str,
         )
         if cursor.rowcount != 1:
             raise _fault("wallet_setup_state_invalid", wallet_id=wallet_id, reason="recovery_conflict_generation_changed", source_context=source_context)
+        # in the same write as the seal: a seal made with a security key's answer records that key; a seal made
+        # without one (every backup recovery: the lost-key way back) leaves no key behind that it does not need
+        if security_key is None:
+            conn.execute("DELETE FROM wallet_security_keys WHERE wallet_id = ?", (wallet_id,))
+        else:
+            conn.execute("INSERT INTO wallet_security_keys (wallet_id, credential_id, salt, name, added_at) VALUES (?, ?, ?, ?, ?) "
+                         "ON CONFLICT(wallet_id) DO UPDATE SET credential_id = excluded.credential_id, salt = excluded.salt, name = excluded.name, "
+                         "added_at = excluded.added_at",
+                         (wallet_id, security_key["credential_id"], security_key["salt"], str(security_key.get("name") or "")[:60],
+                          str(security_key.get("added_at") or utcnow())))
     if row["approval_method"] == custody.APPROVAL_DEVICE and method != custody.APPROVAL_DEVICE:
         # the device secret no longer opens anything: the blob it guarded is gone; a failed forget changes nothing
         with contextlib.suppress(Exception):
@@ -935,7 +1012,7 @@ def _commit_envelope(row: dict[str, Any], *, sealed_blob: str, device_blob: str,
     _journal(event, {"wallet_id": wallet_id, "network": row["network"], "method_from": row["approval_method"], "method_to": method,
                      "credential_generation": new_generation, "previews_withdrawn": withdrawn}, source_context=source_context)
     view = _view(_load(wallet_id) or row)
-    view.update({"recovered": event != "wallet_pilot_credential_changed", "credential_generation": new_generation, "previews_withdrawn": withdrawn,
+    view.update({"recovered": event not in ("wallet_pilot_credential_changed", "wallet_security_key_added", "wallet_security_key_removed"), "credential_generation": new_generation, "previews_withdrawn": withdrawn,
                  "note": "The old credential no longer opens this wallet on this device. Open payment previews were withdrawn; review them again before approving. "
                          "The blockchain key is unchanged: anyone holding a copy of the exported private key still controls the address."})
     return view
@@ -1057,6 +1134,8 @@ def recover_with_device(wallet_id: str, *, challenge: str, method: str, credenti
         raise _fault("wallet_recovery_refused", wallet_id=row["wallet_id"], reason="stale_or_foreign_recovery_challenge", source_context=source_context)
     chosen = _require_new_credential(method, credential, credential_confirmation, source_context=source_context)
     expected_generation = _generation(row)
+    enrolled = security_key_of(row["wallet_id"])
+    factor = _factor(row, source_context=source_context)  # a wallet with a security key still needs it here
     _reserve_attempt(row["wallet_id"], source_context=source_context, scopes=_recovery_scopes(row["wallet_id"]))
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -1069,7 +1148,7 @@ def recover_with_device(wallet_id: str, *, challenge: str, method: str, credenti
             raise _fault("wallet_device_auth_unavailable", wallet_id=row["wallet_id"], reason=str(exc) or "unavailable", source_context=source_context) from None
         blob = json.loads(row["device_sealed_blob"])
         try:
-            secret = AESGCM(_device_key(unlock_secret)).decrypt(base64.b64decode(blob["nonce"]), base64.b64decode(blob["ciphertext"]), _aad(spec, row["public_key"]))
+            secret = AESGCM(_device_key(unlock_secret, factor)).decrypt(base64.b64decode(blob["nonce"]), base64.b64decode(blob["ciphertext"]), _aad(spec, row["public_key"]))
         except Exception:
             raise _fault("wallet_device_auth_denied", wallet_id=row["wallet_id"], reason="device_unseal_failed", source_context=source_context) from None
         derived = _svm_address(secret) if spec.is_svm else evm_address_for_key(secret)
@@ -1081,11 +1160,12 @@ def recover_with_device(wallet_id: str, *, challenge: str, method: str, credenti
         raise
     _settle_attempt(row["wallet_id"], "success", scopes=_recovery_scopes(row["wallet_id"]))
     try:
-        sealed_blob, device_blob = _staged_envelope(spec, row["wallet_id"], secret, row["public_key"], chosen, credential, source_context=source_context)
+        sealed_blob, device_blob = _staged_envelope(spec, row["wallet_id"], secret, row["public_key"], chosen, credential, source_context=source_context,
+                                                    factor=factor)
     finally:
         del secret
     return _commit_envelope(row, sealed_blob=sealed_blob, device_blob=device_blob, method=chosen, expected_generation=expected_generation,
-                            event="wallet_pilot_recovered_with_device", source_context=source_context)
+                            event="wallet_pilot_recovered_with_device", source_context=source_context, security_key=enrolled if factor is not None else None)
 
 
 def change_pilot_credential(wallet_id: str, *, current_credential: str, method: str, credential: str = "", credential_confirmation: str = "",
@@ -1102,13 +1182,83 @@ def change_pilot_credential(wallet_id: str, *, current_credential: str, method: 
     if row["approval_method"] != custody.APPROVAL_DEVICE:
         _require_credential_shape(row["approval_method"], current_credential, source_context=source_context)
     spec = chains.resolve_network(row["network"])
-    secret, generation = _verify(row, current_credential, source_context=source_context)
+    enrolled = security_key_of(row["wallet_id"])
+    secret, generation, factor = _verify_with_factor(row, current_credential, source_context=source_context)
     try:
-        sealed_blob, device_blob = _staged_envelope(spec, row["wallet_id"], secret, row["public_key"], chosen, credential, source_context=source_context)
+        sealed_blob, device_blob = _staged_envelope(spec, row["wallet_id"], secret, row["public_key"], chosen, credential, source_context=source_context,
+                                                    factor=factor)
     finally:
         del secret
     return _commit_envelope(row, sealed_blob=sealed_blob, device_blob=device_blob, method=chosen, expected_generation=generation,
-                            event="wallet_pilot_credential_changed", source_context=source_context)
+                            event="wallet_pilot_credential_changed", source_context=source_context, security_key=enrolled if factor is not None else None)
+
+
+# --- adding and removing a security key ------------------------------------------------------------------------
+
+def add_security_key(wallet_id: str, *, credential: str = "", key_pin: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Make this wallet need a security key as well as its PIN (or Touch ID). The PIN opens the seal first; the ONE
+    key plugged in makes a new credential (touch 1) and answers for this wallet (touch 2); the same key is sealed
+    again under the PIN AND that answer, in one fenced write that records the key. Nothing is signed or sent."""
+    from core.wallet import security_key as keys
+
+    custody.require_enabled(source_context=source_context)
+    _refuse_agent_wallet(wallet_id, source_context=source_context)
+    row = _require_pilot_row(wallet_id, source_context=source_context)
+    if row["setup_state"] not in {"", STATE_READY}:
+        raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="setup_not_finished", source_context=source_context)
+    if security_key_of(row["wallet_id"]) is not None:
+        raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="security_key_already_added", source_context=source_context)
+    if not keys.library_available():
+        raise _fault("wallet_security_key_needed", wallet_id=row["wallet_id"], reason="key_support_not_installed", source_context=source_context)
+    if row["approval_method"] != custody.APPROVAL_DEVICE:
+        _require_credential_shape(row["approval_method"], credential, source_context=source_context)
+    if not keys.plugged_in():
+        raise _fault("wallet_security_key_needed", wallet_id=row["wallet_id"], reason="no_security_key", source_context=source_context)
+    spec = chains.resolve_network(row["network"])
+    secret, generation = _verify(row, credential, source_context=source_context)
+    try:
+        try:
+            enrolled = keys.enroll(wallet_label=str(row.get("label") or "Wallet"), key_pin=str(key_pin or ""))
+        except keys.KeyProblem as problem:
+            raise _fault("wallet_security_key_needed", wallet_id=row["wallet_id"], reason=problem.reason, source_context=source_context) from None
+        factor = enrolled.pop("answer")
+        sealed_blob, device_blob = _staged_envelope(spec, row["wallet_id"], secret, row["public_key"], row["approval_method"], credential,
+                                                    source_context=source_context, factor=factor)
+        # the new seal must open with the key's answer before it replaces the one that opens without it
+        probe = dict(row, sealed_blob=sealed_blob, device_blob=device_blob, device_sealed_blob=device_blob)
+        if row["approval_method"] != custody.APPROVAL_DEVICE and _open_seal(probe, credential, factor, source_context=source_context) != secret:
+            raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="security_key_seal_check_failed", source_context=source_context)
+        del factor
+    finally:
+        del secret
+    view = _commit_envelope(row, sealed_blob=sealed_blob, device_blob=device_blob, method=row["approval_method"], expected_generation=generation,
+                            event="wallet_security_key_added", source_context=source_context,
+                            security_key={"credential_id": enrolled["credential_id"], "salt": enrolled["salt"], "name": enrolled["name"], "added_at": utcnow()})
+    view["security_key"] = {"name": enrolled["name"]}
+    return view
+
+
+def remove_security_key(wallet_id: str, *, credential: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Stop needing the security key: the PIN (or Touch ID) AND the key open the seal once more, and the same key
+    is sealed again under the PIN alone. A lost key is not removed here; the backup key brings the wallet back."""
+    custody.require_enabled(source_context=source_context)
+    _refuse_agent_wallet(wallet_id, source_context=source_context)
+    row = _require_pilot_row(wallet_id, source_context=source_context)
+    if row["setup_state"] not in {"", STATE_READY}:
+        raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="setup_not_finished", source_context=source_context)
+    if security_key_of(row["wallet_id"]) is None:
+        raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="no_security_key_added", source_context=source_context)
+    if row["approval_method"] != custody.APPROVAL_DEVICE:
+        _require_credential_shape(row["approval_method"], credential, source_context=source_context)
+    spec = chains.resolve_network(row["network"])
+    secret, generation, _factor_used = _verify_with_factor(row, credential, source_context=source_context)
+    try:
+        sealed_blob, device_blob = _staged_envelope(spec, row["wallet_id"], secret, row["public_key"], row["approval_method"], credential,
+                                                    source_context=source_context)
+    finally:
+        del secret
+    return _commit_envelope(row, sealed_blob=sealed_blob, device_blob=device_blob, method=row["approval_method"], expected_generation=generation,
+                            event="wallet_security_key_removed", source_context=source_context, security_key=None)
 
 
 __all__ = [
@@ -1124,6 +1274,7 @@ __all__ = [
     "STATE_GENERATING",
     "STATE_READY",
     "acknowledge_pilot_backup",
+    "add_security_key",
     "cancel_pilot_setup",
     "change_pilot_credential",
     "create_pilot_wallet",
@@ -1133,7 +1284,9 @@ __all__ = [
     "recover_with_device",
     "recovery_challenge",
     "recovery_options",
+    "remove_security_key",
     "resume_pilot_setup",
     "reveal_pilot_backup",
+    "security_key_of",
     "setup_view",
 ]

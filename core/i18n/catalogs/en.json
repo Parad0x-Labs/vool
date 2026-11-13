@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Bypass permissions · this chat only · until you turn it off",
     "bypass.banner.until_time": "Until {time}",
     "bypass.banner_active": "Bypass permissions is active.",
+    "fault.wallet_security_key_needed.action": "Plug in the security key added to this wallet and touch it when it blinks. If the key is lost, bring the wallet back with its backup key (written down, in the Keychain or on a USB stick): that sets a new PIN and removes the lost key from the wallet.",
+    "fault.wallet_security_key_needed.message": "This wallet also needs its security key, and the key did not answer: it is not plugged in, it is a different key, or it was not touched in time. Nothing was unlocked, changed, signed or sent. Plug in this wallet's security key, touch it when it blinks, and try again.",
     "own_tools.banner": "Model's own tools",
     "own_tools.banner_title": "The model's own tools are on: cloud models you choose don't get VOOL's tools, and some search the web themselves. Auto and local models keep VOOL's tools.",
     "own_tools.end_title": "Turn off the model's own tools",

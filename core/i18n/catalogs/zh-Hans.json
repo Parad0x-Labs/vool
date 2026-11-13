@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "绕过权限 · 仅此对话 · 关闭前一直有效",
     "bypass.banner.until_time": "直到 {time}",
     "bypass.banner_active": "权限旁路已启用。",
+    "fault.wallet_security_key_needed.action": "插上添加到这个钱包的安全密钥，并在它闪烁时触摸它。如果密钥丢失，请用钱包的备份密钥（写在纸上、存在钥匙串中或 U 盘里）找回钱包：这会设置新的 PIN，并从钱包中移除丢失的密钥。",
+    "fault.wallet_security_key_needed.message": "这个钱包还需要它的安全密钥，但密钥没有响应：它没有插上、是另一把密钥，或没有及时触摸。没有解锁、更改、签名或发送任何内容。请插上这个钱包的安全密钥，在它闪烁时触摸它，然后重试。",
     "own_tools.banner": "模型自带工具",
     "own_tools.banner_title": "模型自带工具已开启：你选择的云端模型不会获得 VOOL 的工具，其中一些会自己上网搜索。Auto 和本地模型保留 VOOL 的工具。",
     "own_tools.end_title": "关闭模型自带工具",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "其他类型的文件，未改动：{n}",
     "routines.plan_left_done": "已处理过的文件，未改动：{n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

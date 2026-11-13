@@ -131,6 +131,10 @@ SCHEMA = (
     # which wallets VOOL last wrote a password-sealed backup for to a USB stick (core.wallet.usb_backup); no key, no path
     """CREATE TABLE IF NOT EXISTS wallet_usb_backups (
         wallet_id TEXT PRIMARY KEY, network TEXT NOT NULL, address TEXT NOT NULL, drive_name TEXT NOT NULL, saved_at TEXT NOT NULL)""",
+    # the security key (FIDO2 hmac-secret) a wallet's seal also needs (core.wallet.pilot_custody, core.wallet.security_key):
+    # the credential id and salt VOOL asks the key with; the key's secret never leaves the key
+    """CREATE TABLE IF NOT EXISTS wallet_security_keys (
+        wallet_id TEXT PRIMARY KEY, credential_id TEXT NOT NULL, salt TEXT NOT NULL, name TEXT NOT NULL, added_at TEXT NOT NULL)""",
 )
 
 TABLES: tuple[str, ...] = (
@@ -138,7 +142,7 @@ TABLES: tuple[str, ...] = (
     "wallet_card_tokens", "wallet_receipts", "wallet_signing_requests", "wallet_x402_bindings", "wallet_controls",
     "wallet_facilitators", "wallet_unlock_attempts", "wallet_quotes", "wallet_transfers", "wallet_usepod_operations",
     "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions", "wallet_agent_helper_terms",
-    "wallet_roles", "wallet_main", "wallet_keychain_backups", "wallet_usb_backups",
+    "wallet_roles", "wallet_main", "wallet_keychain_backups", "wallet_usb_backups", "wallet_security_keys",
 )
 
 #: Columns added after a table first shipped. Additive, idempotent, checked on every connection.

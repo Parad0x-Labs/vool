@@ -288,6 +288,7 @@ def remove_wallet(wallet_id: str, *, credential: str = "", backup_confirmed: boo
         conn.execute("UPDATE wallet_profiles SET setup_state = ?, sealed_blob = '', device_sealed_blob = '', pin_hash = '', pin_salt = '', is_default = 0 "
                      "WHERE wallet_id = ?", (STATE_REMOVED, str(wallet_id)))
         conn.execute("DELETE FROM wallet_main WHERE wallet_id = ?", (str(wallet_id),))
+        conn.execute("DELETE FROM wallet_security_keys WHERE wallet_id = ?", (str(wallet_id),))  # the seal it guarded is wiped
         freeze(conn)
     from core.wallet import receipts
 
@@ -299,13 +300,18 @@ def describe(entry: dict[str, Any], *, conn: Any) -> dict[str, Any]:
     """The role fields a wallet listing carries: kind, is_main, burner_used."""
     wallet_id = str(entry.get("wallet_id") or "")
     if str(entry.get("agent_id") or ""):
-        return {"kind": "", "is_main": False, "burner_used": False, "keychain_backup": False, "usb_backup": None}
-    from core.wallet import keychain_backup, usb_backup
+        return {"kind": "", "is_main": False, "burner_used": False, "keychain_backup": False, "usb_backup": None, "security_key": None}
+    from core.wallet import keychain_backup, pilot_custody, usb_backup
 
     kind = kind_of(wallet_id, conn=conn)
     return {"kind": kind, "is_main": kind == KIND_MAIN, "burner_used": kind == KIND_BURNER and burner_used(wallet_id, conn=conn),
             "keychain_backup": keychain_backup.saved_for(wallet_id, conn=conn),
-            "usb_backup": usb_backup.saved_on(wallet_id, conn=conn)}
+            "usb_backup": usb_backup.saved_on(wallet_id, conn=conn), "security_key": _security_key_view(pilot_custody.security_key_of(wallet_id, conn=conn))}
+
+
+def _security_key_view(enrolled: dict[str, str] | None) -> dict[str, str] | None:
+    """What the page may show of an added security key: its name and when. Never the credential id or salt."""
+    return {"name": enrolled["name"], "added_at": enrolled["added_at"]} if enrolled else None
 
 
 __all__ = [

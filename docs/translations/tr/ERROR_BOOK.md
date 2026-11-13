@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # VOOL Hata Kitabı
@@ -13,8 +13,8 @@ VOOL'un size gösterebileceği her hata, uygulamanın kendi hata kataloğundan �
 
 - **Şema:** `vool.fault.v1`
 - **Katalog sürümü:** `1`
-- **Katalog özeti:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Hata sayısı:** 58
+- **Katalog özeti:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Hata sayısı:** 59
 
 Her kod sabittir ve asla farklı bir anlam için yeniden kullanılmaz. Her kodun aşağıda, başlığı kodun kendisi olan ayrı bir bölümü vardır; bu yüzden bu sayfada kodu size verildiği gibi aradığınızda bölümünü bulursunuz, bölüme bağlantı da bu sayfanın adresinin ardından `#` ve alt çizgileri kısa çizgiye çevrilmiş koddan oluşur. Her bölüm ne olduğunu, neyin zaten olmuş olabileceğini, sonra ne yapılacağını ve tekrar denemenin işe yarayıp yaramayacağını söyler. Size verilen bir kod bu kitapta yoksa VOOL'un bu sürümünden değildir: onu hangi sürümün gösterdiğini kontrol edin ya da kodu yazıldığı gibi belirterek bildirin.
 
@@ -92,6 +92,7 @@ Her kod sabittir ve asla farklı bir anlam için yeniden kullanılmaz. Her kodun
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Ödeme yayınlanamadı | orta | Sonuç bilinmiyor — tekrar denemeden önce durumu kontrol edin |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Cihazla kilit açma kullanılamıyor | orta | Hiçbir şey gönderilmedi, imzalanmadı veya değiştirilmedi |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Bakiye veya ücret bilinmiyor | orta | Bir istek harici bir hizmete ulaştı; hiçbir ödeme yapılmadı |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Güvenlik anahtarı gerekli | düşük | Hiçbir şey gönderilmedi, imzalanmadı veya değiştirilmedi |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Ödeme simülasyondan geçemedi | orta | Bir istek harici bir hizmete ulaştı; hiçbir ödeme yapılmadı |
 
 ## İptal
@@ -190,7 +191,7 @@ Tüm kodlar, alfabetik sırayla. Bölüm başlığı, kodun sabit çapasıdır.
 
 - **Ne oldu:** O eyleme izin verilmedi, bu yüzden hiçbir şey değişmedi.
 - **Zaten ne olmuş olabilir:** Hiçbir şey gönderilmedi, imzalanmadı veya değiştirilmedi
-- **Sonra ne yapılmalı:** Bu eylemi yöneten izin ilkesini veya onay ayarlarını kontrol edin.
+- **Sonra ne yapılmalı:** Ayarlar'ı açın, Gizlilik ve İzinler'i seçin ve "VOOL'un tek başına neler yapabileceği"ni bu eylemi yönetecek şekilde değiştirin.
 - **Tekrar denemek:** Aynı isteği değiştirmeden yeniden göndermeyin.
 - **Önem derecesi:** orta · **Kategori:** ilke · **Güvenlikle ilgili:** evet
 
@@ -238,7 +239,7 @@ Tüm kodlar, alfabetik sırayla. Bölüm başlığı, kodun sabit çapasıdır.
 
 - **Ne oldu:** O araç şu anda kullanılamıyor, bu yüzden bu kısım yapılmadı. Tekrar denemeden önce etkinleştirilmesi gerekir.
 - **Zaten ne olmuş olabilir:** Hiçbir şey gönderilmedi, imzalanmadı veya değiştirilmedi
-- **Sonra ne yapılmalı:** Aracı ayarlardan bu mod için etkinleştirin ya da başka bir yol seçin.
+- **Sonra ne yapılmalı:** Ayarlar'ı açın, Gizlilik ve İzinler'i seçin ve "VOOL'un tek başına neler yapabileceği"ni ayarlayın ya da başka bir yol seçin.
 - **Tekrar denemek:** Bu girdinin belirttiği değişikliği yaptıktan sonra tekrar deneyin.
 - **Önem derecesi:** düşük · **Kategori:** erişilebilirlik
 
@@ -685,6 +686,18 @@ Tüm kodlar, alfabetik sırayla. Bölüm başlığı, kodun sabit çapasıdır.
 - **Sonra ne yapılmalı:** Bir aktarım bir ağda tek bir hesabı adlandırır; adaylar hata bağlamında listelenir.
 - **Tekrar denemek:** Bu girdinin belirttiği değişikliği yaptıktan sonra tekrar deneyin.
 - **Önem derecesi:** düşük · **Kategori:** ilke
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Güvenlik anahtarı gerekli**
+
+- **Ne oldu:** Bu cüzdan güvenlik anahtarına da ihtiyaç duyuyor ve anahtar yanıt vermedi: takılı değil, başka bir anahtar ya da zamanında dokunulmadı. Hiçbir şeyin kilidi açılmadı, hiçbir şey değiştirilmedi, imzalanmadı veya gönderilmedi. Bu cüzdanın güvenlik anahtarını takın, yanıp sönünce dokunun ve tekrar deneyin.
+- **Zaten ne olmuş olabilir:** Hiçbir şey gönderilmedi, imzalanmadı veya değiştirilmedi
+- **Sonra ne yapılmalı:** Bu cüzdana eklenen güvenlik anahtarını takın ve yanıp sönünce ona dokunun. Anahtarı kaybettiyseniz cüzdanı yedek anahtarıyla geri getirin (kâğıda yazılı, Anahtar Zinciri'nde veya bir USB bellekte): bu yeni bir PIN belirler ve kayıp anahtarı cüzdandan kaldırır.
+- **Tekrar denemek:** Bu girdinin belirttiği değişikliği yaptıktan sonra tekrar deneyin.
+- **Önem derecesi:** düşük · **Kategori:** erişilebilirlik
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

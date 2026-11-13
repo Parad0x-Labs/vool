@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # Libro de errores de VOOL
@@ -13,8 +13,8 @@ Todos los errores que VOOL puede mostrarte, generados a partir del propio catál
 
 - **Esquema:** `vool.fault.v1`
 - **Versión del catálogo:** `1`
-- **Resumen del catálogo:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Número de fallos:** 58
+- **Resumen del catálogo:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Número de fallos:** 59
 
 Cada código es fijo y nunca se reutiliza con otro significado. Cada código tiene su propia sección más abajo, cuyo encabezado es el propio código, así que, si buscas en esta página el código tal como te lo dieron, encuentras su sección, y un enlace a la sección es la dirección de esta página seguida de `#` y del código con guiones en lugar de guiones bajos. Cada sección dice qué pasó, qué puede haber pasado ya, qué hacer a continuación y si volver a intentarlo puede ayudar. Si un código que te dieron no está en este libro, no es de esta versión de VOOL: comprueba qué versión lo mostró o notifícalo con el código tal como está escrito.
 
@@ -92,6 +92,7 @@ Cada código es fijo y nunca se reutiliza con otro significado. Cada código tie
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | No se pudo difundir el pago | media | Resultado desconocido: comprueba el estado antes de reintentar |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Desbloqueo con el dispositivo no disponible | media | No se envió, firmó ni cambió nada |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Saldo o comisión desconocidos | media | Una solicitud llegó a un servicio externo; no se realizó ningún pago |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Se necesita la llave de seguridad | baja | No se envió, firmó ni cambió nada |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | El pago no pasó la simulación | media | Una solicitud llegó a un servicio externo; no se realizó ningún pago |
 
 ## Cancelación
@@ -190,7 +191,7 @@ Todos los códigos, en orden alfabético. El encabezado de la sección es el anc
 
 - **Qué pasó:** Esa acción no estuvo permitida, así que no se cambió nada.
 - **Qué puede haber pasado ya:** No se envió, firmó ni cambió nada
-- **Qué hacer a continuación:** Comprueba la política de permisos o los ajustes de aprobación que rigen esta acción.
+- **Qué hacer a continuación:** Abre Ajustes, elige Privacidad y permisos, y cambia «Lo que VOOL puede hacer solo» para cambiar lo que rige esta acción.
 - **Volver a intentarlo:** No vuelvas a enviar la misma solicitud sin cambios.
 - **Gravedad:** media · **Categoría:** política · **Relevante para la seguridad:** sí
 
@@ -238,7 +239,7 @@ Todos los códigos, en orden alfabético. El encabezado de la sección es el anc
 
 - **Qué pasó:** Esa herramienta no está disponible ahora, así que esta parte no se hizo. Hay que activarla antes de reintentar.
 - **Qué puede haber pasado ya:** No se envió, firmó ni cambió nada
-- **Qué hacer a continuación:** Activa la herramienta para este modo en ajustes o elige otro enfoque.
+- **Qué hacer a continuación:** Abre Ajustes, elige Privacidad y permisos, y cambia «Lo que VOOL puede hacer solo», o elige otro enfoque.
 - **Volver a intentarlo:** Reinténtalo después de hacer el cambio que indica esta entrada.
 - **Gravedad:** baja · **Categoría:** disponibilidad
 
@@ -685,6 +686,18 @@ Todos los códigos, en orden alfabético. El encabezado de la sección es el anc
 - **Qué hacer a continuación:** Una transferencia nombra una cuenta en una red; los candidatos están listados en el contexto del fallo.
 - **Volver a intentarlo:** Reinténtalo después de hacer el cambio que indica esta entrada.
 - **Gravedad:** baja · **Categoría:** política
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Se necesita la llave de seguridad**
+
+- **Qué pasó:** Este monedero también necesita su llave de seguridad, y la llave no respondió: no está conectada, es otra llave o no se tocó a tiempo. No se desbloqueó, cambió, firmó ni envió nada. Conecta la llave de seguridad de este monedero, tócala cuando parpadee y vuelve a intentarlo.
+- **Qué puede haber pasado ya:** No se envió, firmó ni cambió nada
+- **Qué hacer a continuación:** Conecta la llave de seguridad que se añadió a este monedero y tócala cuando parpadee. Si perdiste la llave, recupera el monedero con su clave de respaldo (escrita en papel, en el Llavero o en una memoria USB): eso establece un PIN nuevo y quita la llave perdida del monedero.
+- **Volver a intentarlo:** Reinténtalo después de hacer el cambio que indica esta entrada.
+- **Gravedad:** baja · **Categoría:** disponibilidad
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

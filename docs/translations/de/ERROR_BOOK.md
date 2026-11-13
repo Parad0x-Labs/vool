@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # VOOL-Fehlerbuch
@@ -13,8 +13,8 @@ Alle Fehler, die VOOL dir zeigen kann, erzeugt aus dem eigenen Fehlerkatalog der
 
 - **Schema:** `vool.fault.v1`
 - **Katalogversion:** `1`
-- **Katalog-Prüfsumme:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Anzahl der Fehler:** 58
+- **Katalog-Prüfsumme:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Anzahl der Fehler:** 59
 
 Jeder Code ist fest und wird nie für eine andere Bedeutung wiederverwendet. Jeder Code hat weiter unten einen eigenen Abschnitt, dessen Überschrift der Code selbst ist. Wenn du diese Seite also nach dem Code durchsuchst, so wie du ihn bekommen hast, findest du seinen Abschnitt, und ein Link auf den Abschnitt ist die Adresse dieser Seite, gefolgt von `#` und dem Code mit Bindestrichen statt Unterstrichen. Jeder Abschnitt sagt, was passiert ist, was womöglich schon passiert ist, was als Nächstes zu tun ist und ob ein erneuter Versuch helfen kann. Steht ein Code, den du bekommen hast, nicht in diesem Buch, stammt er nicht aus dieser Version von VOOL: Prüfe, welche Version ihn angezeigt hat, oder melde ihn mit dem Code, so wie er geschrieben ist.
 
@@ -92,6 +92,7 @@ Jeder Code ist fest und wird nie für eine andere Bedeutung wiederverwendet. Jed
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Zahlung konnte nicht übertragen werden | mittel | Ergebnis unbekannt — prüfe den Zustand, bevor du es erneut versuchst |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Entsperrung per Gerät nicht verfügbar | mittel | Nichts wurde gesendet, signiert oder geändert |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Guthaben oder Gebühr unbekannt | mittel | Eine Anfrage hat einen externen Dienst erreicht; es wurde keine Zahlung ausgeführt |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Sicherheitsschlüssel nötig | niedrig | Nichts wurde gesendet, signiert oder geändert |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Zahlung bestand die Simulation nicht | mittel | Eine Anfrage hat einen externen Dienst erreicht; es wurde keine Zahlung ausgeführt |
 
 ## Abbruch
@@ -190,7 +191,7 @@ Alle Codes in alphabetischer Reihenfolge. Die Überschrift des Abschnitts ist de
 
 - **Was passiert ist:** Diese Aktion war nicht erlaubt, also wurde nichts geändert.
 - **Was womöglich schon passiert ist:** Nichts wurde gesendet, signiert oder geändert
-- **Was als Nächstes zu tun ist:** Prüfe die Berechtigungsrichtlinie oder Freigabe-Einstellungen, die diese Aktion regeln.
+- **Was als Nächstes zu tun ist:** Öffne die Einstellungen, wähle „Privatsphäre & Berechtigungen“, und stelle „Was VOOL allein darf“ ein, um zu ändern, was diese Aktion regelt.
 - **Erneuter Versuch:** Sende dieselbe Anfrage nicht unverändert erneut.
 - **Schweregrad:** mittel · **Kategorie:** Richtlinie · **Sicherheitsrelevant:** ja
 
@@ -238,7 +239,7 @@ Alle Codes in alphabetischer Reihenfolge. Die Überschrift des Abschnitts ist de
 
 - **Was passiert ist:** Dieses Werkzeug ist gerade nicht verfügbar, daher wurde dieser Teil nicht erledigt. Es muss erst aktiviert werden, bevor du es erneut versuchst.
 - **Was womöglich schon passiert ist:** Nichts wurde gesendet, signiert oder geändert
-- **Was als Nächstes zu tun ist:** Aktiviere das Werkzeug für diesen Modus in den Einstellungen oder wähle einen anderen Weg.
+- **Was als Nächstes zu tun ist:** Öffne die Einstellungen, wähle „Privatsphäre & Berechtigungen“, und stelle „Was VOOL allein darf“ ein, oder wähle einen anderen Weg.
 - **Erneuter Versuch:** Versuche es erneut, nachdem du die Änderung vorgenommen hast, die dieser Eintrag nennt.
 - **Schweregrad:** niedrig · **Kategorie:** Verfügbarkeit
 
@@ -685,6 +686,18 @@ Alle Codes in alphabetischer Reihenfolge. Die Überschrift des Abschnitts ist de
 - **Was als Nächstes zu tun ist:** Eine Überweisung benennt ein Konto in einem Netz; die Kandidaten stehen im Fehlerkontext.
 - **Erneuter Versuch:** Versuche es erneut, nachdem du die Änderung vorgenommen hast, die dieser Eintrag nennt.
 - **Schweregrad:** niedrig · **Kategorie:** Richtlinie
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Sicherheitsschlüssel nötig**
+
+- **Was passiert ist:** Dieses Wallet braucht auch seinen Sicherheitsschlüssel, und der Schlüssel hat nicht geantwortet: Er ist nicht eingesteckt, es ist ein anderer Schlüssel, oder er wurde nicht rechtzeitig berührt. Nichts wurde entsperrt, geändert, signiert oder gesendet. Stecke den Sicherheitsschlüssel dieses Wallets ein, berühre ihn, wenn er blinkt, und versuche es erneut.
+- **Was womöglich schon passiert ist:** Nichts wurde gesendet, signiert oder geändert
+- **Was als Nächstes zu tun ist:** Stecke den Sicherheitsschlüssel ein, der diesem Wallet hinzugefügt wurde, und berühre ihn, wenn er blinkt. Ist der Schlüssel verloren, hole das Wallet mit seinem Sicherungsschlüssel zurück (aufgeschrieben, im Schlüsselbund oder auf einem USB-Stick): Das setzt eine neue PIN und entfernt den verlorenen Schlüssel aus dem Wallet.
+- **Erneuter Versuch:** Versuche es erneut, nachdem du die Änderung vorgenommen hast, die dieser Eintrag nennt.
+- **Schweregrad:** niedrig · **Kategorie:** Verfügbarkeit
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "עקיפת הרשאות · הצ׳אט הזה בלבד · עד שתכבו אותה",
     "bypass.banner.until_time": "עד {time}",
     "bypass.banner_active": "מצב עקיפת הרשאות פעיל.",
+    "fault.wallet_security_key_needed.action": "חברו את מפתח האבטחה שנוסף לארנק הזה וגעו בו כשהוא מהבהב. אם המפתח אבד, החזירו את הארנק בעזרת מפתח הגיבוי שלו (רשום על נייר, במחזיק המפתחות או בזיכרון USB): זה קובע PIN חדש ומסיר את המפתח שאבד מהארנק.",
+    "fault.wallet_security_key_needed.message": "הארנק הזה צריך גם את מפתח האבטחה שלו, והמפתח לא ענה: הוא לא מחובר, זה מפתח אחר, או שלא נגעתם בו בזמן. שום דבר לא נפתח, שונה, נחתם או נשלח. חברו את מפתח האבטחה של הארנק הזה, געו בו כשהוא מהבהב ונסו שוב.",
     "own_tools.banner": "הכלים של המודל עצמו",
     "own_tools.banner_title": "הכלים של המודל עצמו פועלים: מודלי ענן שבחרתם לא מקבלים את הכלים של VOOL, וחלקם מחפשים ברשת בעצמם. Auto ומודלים מקומיים שומרים על הכלים של VOOL.",
     "own_tools.end_title": "כיבוי הכלים של המודל עצמו",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "קבצים מסוגים אחרים, נשארו כמו שהם: {n}",
     "routines.plan_left_done": "קבצים שכבר טופלו, נשארו כמו שהם: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

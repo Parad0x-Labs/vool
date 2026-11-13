@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Contournement des permissions · ce chat seulement · jusqu’à ce que vous le désactiviez",
     "bypass.banner.until_time": "Jusqu’à {time}",
     "bypass.banner_active": "Le contournement des permissions est actif.",
+    "fault.wallet_security_key_needed.action": "Branchez la clé de sécurité ajoutée à ce portefeuille et touchez-la quand elle clignote. Si la clé est perdue, récupérez le portefeuille avec sa clé de sauvegarde (notée sur papier, dans le Trousseau ou sur une clé USB) : cela définit un nouveau code PIN et retire la clé perdue du portefeuille.",
+    "fault.wallet_security_key_needed.message": "Ce portefeuille a aussi besoin de sa clé de sécurité, et la clé n'a pas répondu : elle n'est pas branchée, c'est une autre clé, ou elle n'a pas été touchée à temps. Rien n'a été déverrouillé, modifié, signé ni envoyé. Branchez la clé de sécurité de ce portefeuille, touchez-la quand elle clignote, puis réessayez.",
     "own_tools.banner": "Outils propres au modèle",
     "own_tools.banner_title": "Les outils propres au modèle sont activés : les modèles cloud que vous choisissez n'ont pas les outils de VOOL, et certains cherchent sur le web eux-mêmes. Auto et les modèles locaux gardent les outils de VOOL.",
     "own_tools.end_title": "Désactiver les outils propres au modèle",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Fichiers d'autres types, laissés tels quels : {n}",
     "routines.plan_left_done": "Fichiers déjà traités, laissés tels quels : {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

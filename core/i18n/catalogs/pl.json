@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Ominięcie uprawnień · tylko ten czat · aż je wyłączysz",
     "bypass.banner.until_time": "Do {time}",
     "bypass.banner_active": "Ominięcie uprawnień jest aktywne.",
+    "fault.wallet_security_key_needed.action": "Podłącz klucz bezpieczeństwa dodany do tego portfela i dotknij go, gdy zacznie migać. Jeśli klucz zginął, przywróć portfel jego kluczem zapasowym (zapisanym na papierze, w Pęku kluczy lub na pendrivie): to ustawia nowy PIN i usuwa zgubiony klucz z portfela.",
+    "fault.wallet_security_key_needed.message": "Ten portfel potrzebuje też swojego klucza bezpieczeństwa, a klucz nie odpowiedział: nie jest podłączony, to inny klucz albo nie został dotknięty na czas. Nic nie zostało odblokowane, zmienione, podpisane ani wysłane. Podłącz klucz bezpieczeństwa tego portfela, dotknij go, gdy zacznie migać, i spróbuj ponownie.",
     "own_tools.banner": "Własne narzędzia modelu",
     "own_tools.banner_title": "Własne narzędzia modelu są włączone: wybrane modele w chmurze nie dostają narzędzi VOOL, a niektóre same szukają w sieci. Auto i modele lokalne zachowują narzędzia VOOL.",
     "own_tools.end_title": "Wyłącz własne narzędzia modelu",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Pliki innych rodzajów, nietknięte: {n}",
     "routines.plan_left_done": "Pliki już gotowe, nietknięte: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

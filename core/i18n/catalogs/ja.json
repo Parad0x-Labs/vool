@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "権限バイパス · このチャットのみ · オフにするまで",
     "bypass.banner.until_time": "{time}まで",
     "bypass.banner_active": "権限バイパスが有効です。",
+    "fault.wallet_security_key_needed.action": "このウォレットに追加したセキュリティキーを差し込み、点滅したらタッチしてください。キーを紛失した場合は、ウォレットのバックアップキー(紙に書き留めたもの、キーチェーン、またはUSBメモリ内のもの)でウォレットを復元してください。新しいPINが設定され、紛失したキーはウォレットから外されます。",
+    "fault.wallet_security_key_needed.message": "このウォレットにはセキュリティキーも必要ですが、キーが応答しませんでした。差し込まれていない、別のキーである、または時間内にタッチされなかった可能性があります。ロック解除、変更、署名、送信は何も行われていません。このウォレットのセキュリティキーを差し込み、点滅したらタッチして、もう一度お試しください。",
     "own_tools.banner": "モデル自身のツール",
     "own_tools.banner_title": "モデル自身のツールがオンです。選んだクラウドモデルには VOOL のツールが渡されず、一部は自分でウェブを検索します。Auto とローカルモデルは VOOL のツールを使い続けます。",
     "own_tools.end_title": "モデル自身のツールをオフにする",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "ほかの種類のファイル（そのまま）: {n}",
     "routines.plan_left_done": "すでに済んだファイル（そのまま）: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

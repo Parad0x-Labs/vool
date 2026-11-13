@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # VOOL klaidų knyga
@@ -13,8 +13,8 @@ Visos klaidos, kurias VOOL gali jums parodyti, sugeneruotos iš pačios programo
 
 - **Schema:** `vool.fault.v1`
 - **Katalogo versija:** `1`
-- **Katalogo kontrolinė suma:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Gedžių skaičius:** 58
+- **Katalogo kontrolinė suma:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Gedžių skaičius:** 59
 
 Kiekvienas kodas yra pastovus ir niekada nenaudojamas iš naujo kita reikšme. Kiekvienas kodas turi savo skyrių toliau, kurio antraštė yra pats kodas, todėl ieškodami šiame puslapyje kodo taip, kaip jį gavote, rasite jo skyrių, o nuoroda į skyrių yra šio puslapio adresas, po kurio eina `#` ir kodas, kuriame apatiniai brūkšniai pakeisti brūkšneliais. Kiekviename skyriuje nurodyta, kas nutiko, kas galbūt jau įvyko, ką daryti toliau ir ar gali padėti bandymas dar kartą. Jei jūsų gauto kodo šioje knygoje nėra, jis ne iš šios VOOL versijos: patikrinkite, kuri versija jį parodė, arba praneškite apie jį, nurodydami kodą taip, kaip jis parašytas.
 
@@ -92,6 +92,7 @@ Kiekvienas kodas yra pastovus ir niekada nenaudojamas iš naujo kita reikšme. K
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Mokėjimo paskelbti nepavyko | vidutinis | Rezultatas nežinomas — prieš bandydami dar kartą patikrinkite būseną |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Atrakinimas įrenginiu nepasiekiamas | vidutinis | Niekas nebuvo išsiųsta, pasirašyta ar pakeista |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Balansas ar komisiniai nežinomi | vidutinis | Užklausa pasiekė išorinę paslaugą; joks mokėjimas nebuvo atliktas |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Reikia saugos rakto | mažas | Niekas nebuvo išsiųsta, pasirašyta ar pakeista |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Mokėjimas nepraėjo modeliavimo | vidutinis | Užklausa pasiekė išorinę paslaugą; joks mokėjimas nebuvo atliktas |
 
 ## Atšaukimas
@@ -190,7 +191,7 @@ Visi kodai abėcėlės tvarka. Skyriaus antraštė yra pastovus kodo inkaras.
 
 - **Kas nutiko:** Šis veiksmas nebuvo leistas, todėl niekas nepasikeitė.
 - **Kas galbūt jau įvyko:** Niekas nebuvo išsiųsta, pasirašyta ar pakeista
-- **Ką daryti toliau:** Patikrinkite leidimų politiką arba patvirtinimų nustatymus, valdančius šį veiksmą.
+- **Ką daryti toliau:** Atverkite Nustatymus, pasirinkite Privatumas ir leidimai ir nustatykite „Ką VOOL gali daryti vienas“, kad pakeistumėte, kas valdo šį veiksmą.
 - **Bandymas dar kartą:** Nesiųskite tos pačios užklausos dar kartą nepakeistos.
 - **Rimtumas:** vidutinis · **Kategorija:** politika · **Svarbu saugumui:** taip
 
@@ -238,7 +239,7 @@ Visi kodai abėcėlės tvarka. Skyriaus antraštė yra pastovus kodo inkaras.
 
 - **Kas nutiko:** Šis įrankis šiuo metu neprieinamas, todėl ši dalis nebuvo atlikta. Prieš bandydami dar kartą, jį reikia įjungti.
 - **Kas galbūt jau įvyko:** Niekas nebuvo išsiųsta, pasirašyta ar pakeista
-- **Ką daryti toliau:** Įjunkite įrankį šiam režimui nustatymuose arba pasirinkite kitą kelią.
+- **Ką daryti toliau:** Atverkite Nustatymus, pasirinkite Privatumas ir leidimai ir nustatykite „Ką VOOL gali daryti vienas“ arba pasirinkite kitą kelią.
 - **Bandymas dar kartą:** Bandykite dar kartą, kai atliksite šiame skyriuje nurodytą pakeitimą.
 - **Rimtumas:** mažas · **Kategorija:** prieinamumas
 
@@ -685,6 +686,18 @@ Visi kodai abėcėlės tvarka. Skyriaus antraštė yra pastovus kodo inkaras.
 - **Ką daryti toliau:** Pervedimas įvardija vieną paskyrą viename tinkle; kandidatai išvardyti gedžio kontekste.
 - **Bandymas dar kartą:** Bandykite dar kartą, kai atliksite šiame skyriuje nurodytą pakeitimą.
 - **Rimtumas:** mažas · **Kategorija:** politika
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Reikia saugos rakto**
+
+- **Kas nutiko:** Šiai piniginei reikia ir jos saugos rakto, bet raktas neatsakė: jis neįjungtas, tai kitas raktas arba jo nepalietėte laiku. Niekas nebuvo atrakinta, pakeista, pasirašyta ar išsiųsta. Įjunkite šios piniginės saugos raktą, palieskite jį, kai jis mirksės, ir bandykite dar kartą.
+- **Kas galbūt jau įvyko:** Niekas nebuvo išsiųsta, pasirašyta ar pakeista
+- **Ką daryti toliau:** Įjunkite prie šios piniginės pridėtą saugos raktą ir palieskite jį, kai jis mirksės. Jei raktą pametėte, atkurkite piniginę jos atsarginiu raktu (užrašytu ant popieriaus, Keychain ar USB atmintinėje): taip nustatomas naujas PIN, o pamestas raktas pašalinamas iš piniginės.
+- **Bandymas dar kartą:** Bandykite dar kartą, kai atliksite šiame skyriuje nurodytą pakeitimą.
+- **Rimtumas:** mažas · **Kategorija:** prieinamumas
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Bypass de permisos · solo este chat · hasta que lo apagues",
     "bypass.banner.until_time": "Hasta {time}",
     "bypass.banner_active": "El bypass de permisos está activo.",
+    "fault.wallet_security_key_needed.action": "Conecta la llave de seguridad que se añadió a este monedero y tócala cuando parpadee. Si perdiste la llave, recupera el monedero con su clave de respaldo (escrita en papel, en el Llavero o en una memoria USB): eso establece un PIN nuevo y quita la llave perdida del monedero.",
+    "fault.wallet_security_key_needed.message": "Este monedero también necesita su llave de seguridad, y la llave no respondió: no está conectada, es otra llave o no se tocó a tiempo. No se desbloqueó, cambió, firmó ni envió nada. Conecta la llave de seguridad de este monedero, tócala cuando parpadee y vuelve a intentarlo.",
     "own_tools.banner": "Herramientas propias del modelo",
     "own_tools.banner_title": "Las herramientas propias del modelo están activadas: los modelos en la nube que elijas no reciben las herramientas de VOOL y algunos buscan en la web por sí mismos. Auto y los modelos locales mantienen las herramientas de VOOL.",
     "own_tools.end_title": "Desactivar las herramientas propias del modelo",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Archivos de otros tipos, sin tocar: {n}",
     "routines.plan_left_done": "Archivos ya hechos, sin tocar: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

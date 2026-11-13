@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Leidimų apėjimas · tik šis pokalbis · kol patys išjungsite",
     "bypass.banner.until_time": "Iki {time}",
     "bypass.banner_active": "Leidimų apėjimas aktyvus.",
+    "fault.wallet_security_key_needed.action": "Įjunkite prie šios piniginės pridėtą saugos raktą ir palieskite jį, kai jis mirksės. Jei raktą pametėte, atkurkite piniginę jos atsarginiu raktu (užrašytu ant popieriaus, Keychain ar USB atmintinėje): taip nustatomas naujas PIN, o pamestas raktas pašalinamas iš piniginės.",
+    "fault.wallet_security_key_needed.message": "Šiai piniginei reikia ir jos saugos rakto, bet raktas neatsakė: jis neįjungtas, tai kitas raktas arba jo nepalietėte laiku. Niekas nebuvo atrakinta, pakeista, pasirašyta ar išsiųsta. Įjunkite šios piniginės saugos raktą, palieskite jį, kai jis mirksės, ir bandykite dar kartą.",
     "own_tools.banner": "Paties modelio įrankiai",
     "own_tools.banner_title": "Paties modelio įrankiai įjungti: jūsų pasirinkti debesies modeliai negauna VOOL įrankių, o kai kurie patys ieško internete. Auto ir vietiniai modeliai pasilieka VOOL įrankius.",
     "own_tools.end_title": "Išjungti paties modelio įrankius",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Kitų rūšių failai, nepaliesti: {n}",
     "routines.plan_left_done": "Jau sutvarkyti failai, nepaliesti: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

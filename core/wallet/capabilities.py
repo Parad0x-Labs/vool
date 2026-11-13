@@ -107,6 +107,8 @@ def account_view(entry: dict[str, Any], spec: chains.ChainIdentity, *, shared_ro
         "keychain_backup": bool(entry.get("keychain_backup")),
         # where VOOL last wrote this wallet's sealed backup on a USB stick: the stick's name and when, never a path
         "usb_backup": entry.get("usb_backup") if isinstance(entry.get("usb_backup"), dict) else None,
+        # the security key this wallet also needs to open (its name and when it was added), or None
+        "security_key": entry.get("security_key") if isinstance(entry.get("security_key"), dict) else None,
     }
 
 

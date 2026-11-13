@@ -1587,6 +1587,46 @@ function usbRestoreBlock(cp){
   });
   return box;
 }
+function securityKeyControls(a, cp, msg){
+  // a security key (YubiKey or similar) the wallet also needs: PIN AND key, every time it opens
+  var box = el('div', 'vw-cx-seckey'); box.setAttribute('data-security-key', a.security_key ? 'added' : 'none');
+  var k = a.security_key || null;
+  var device = a.approval_method === 'device';
+  box.appendChild(el('div', 'vw-cx-env', k
+    ? 'Security key: ' + (k.name || 'Security key') + (usbDateText(k.added_at) ? ', added ' + usbDateText(k.added_at) : '') + '. This wallet opens only with your ' + (device ? 'Touch ID' : 'PIN') + ' and this key plugged in and touched. Lost the key? Your backup key brings the wallet back and removes the lost key.'
+    : 'Add a security key (a YubiKey or similar). After that, this wallet opens only with your ' + (device ? 'Touch ID' : 'PIN') + ' and the key plugged in and touched. If you lose the key, your backup key still brings the wallet back.'));
+  var bar = el('div', 'vw-cx-actions'); box.appendChild(bar);
+  var open = el('button', 'vw-btn ' + (k ? 'vw-cx-seckey-remove' : 'vw-cx-seckey-add'), k ? 'Remove the security key' : 'Add a security key'); open.type = 'button'; bar.appendChild(open);
+  var f = el('div', 'vw-cx-form vw-cx-seckey-form'); f.hidden = true; box.appendChild(f);
+  f.appendChild(el('div', 'vw-line', k
+    ? 'Plug in this wallet\'s security key.' + (device ? '' : ' Type this wallet\'s PIN or password.') + ' Touch the key when it blinks. After this, the PIN alone opens the wallet again.'
+    : 'Plug in ONE security key.' + (device ? '' : ' Type this wallet\'s PIN or password.') + ' Touch the key each time it blinks (twice).'));
+  var cred = null, keyPin = null;
+  if (!device) {
+    var cl = el('label', null, 'This wallet\'s PIN or password'); var cid = 'vwSk-' + a.wallet_id; cl.setAttribute('for', cid); f.appendChild(cl);
+    cred = el('input'); cred.type = 'password'; cred.id = cid; cred.autocomplete = 'off'; f.appendChild(cred);
+  }
+  if (!k) {
+    var kl = el('label', null, 'The security key\'s own PIN (only if the key asks for one)'); var kid = 'vwSkPin-' + a.wallet_id; kl.setAttribute('for', kid); f.appendChild(kl);
+    keyPin = el('input'); keyPin.type = 'password'; keyPin.id = kid; keyPin.autocomplete = 'off'; f.appendChild(keyPin);
+  }
+  var row = el('div', 'vw-sheet-actions'); var go = el('button', 'vw-btn primary vw-cx-seckey-go', k ? 'Remove the key' : 'Add the key'); go.type = 'button';
+  var back = el('button', 'vw-btn', 'Cancel'); back.type = 'button'; row.appendChild(go); row.appendChild(back); f.appendChild(row);
+  function clear(){ if (cred) cred.value = ''; if (keyPin) keyPin.value = ''; }
+  open.addEventListener('click', function(){ f.hidden = !f.hidden; });
+  back.addEventListener('click', function(){ clear(); f.hidden = true; });
+  go.addEventListener('click', function(){
+    var body = { wallet_id: a.wallet_id, credential: cred ? cred.value : '' };
+    if (keyPin) body.key_pin = keyPin.value;
+    clear(); go.disabled = true; cxMsg(msg, k ? 'Touch your security key when it blinks…' : 'Touch your security key when it blinks… (twice)');
+    postJson(k ? '/api/wallet/security-key/remove' : '/api/wallet/security-key/add', body).then(function(res){
+      body = null; go.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'Nothing changed.'), true); return; }
+      cxMsg(msg, k ? 'The security key was removed. The PIN alone opens this wallet again.' : 'Done. This wallet now needs the security key as well. Keep the backup key safe: it is your way back if the key is lost.'); renderCrypto();
+    }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  return box;
+}
 function walletRoleControls(a, cp, msg){
   // rename (no PIN: it loosens nothing) and Make main (this wallet's own PIN or password)
   var host = el('div', 'vw-cx-roles'); host.setAttribute('data-wallet', a.wallet_id);
@@ -1633,7 +1673,7 @@ function walletRoleControls(a, cp, msg){
     }).catch(function(){ body = null; dGo.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
   });
   bar.appendChild(delBtn);
-  if (a.mode === 'pocket_sealed') { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); }
+  if (a.mode === 'pocket_sealed') { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready') host.appendChild(securityKeyControls(a, cp, msg)); }
   if (a.kind === 'everyday' && a.mode === 'pocket_sealed' && (a.setup_state || 'ready') === 'ready') {
     var mainBtn = el('button', 'vw-btn vw-cx-make-main', 'Make main'); mainBtn.type = 'button';
     bar.appendChild(mainBtn);

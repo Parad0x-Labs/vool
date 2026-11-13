@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # Livre des erreurs de VOOL
@@ -13,8 +13,8 @@ Toutes les erreurs que VOOL peut vous afficher, générées à partir du catalog
 
 - **Schéma :** `vool.fault.v1`
 - **Version du catalogue :** `1`
-- **Condensé du catalogue :** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Nombre de défauts :** 58
+- **Condensé du catalogue :** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Nombre de défauts :** 59
 
 Chaque code est stable et n’est jamais réutilisé avec un autre sens. Chaque code a sa propre section ci-dessous, dont le titre est le code lui-même ; en cherchant sur cette page le code tel qu’on vous l’a donné, vous trouvez donc sa section, et un lien vers la section est l’adresse de cette page suivie de `#` et du code avec des traits d’union à la place des traits de soulignement. Chaque section indique ce qui s’est passé, ce qui a peut-être déjà eu lieu, ce qu’il faut faire ensuite et si un nouvel essai peut aider. Si un code qu’on vous a donné ne figure pas dans ce livre, il ne vient pas de cette version de VOOL : vérifiez quelle version l’a affiché, ou signalez-le avec le code tel qu’il est écrit.
 
@@ -92,6 +92,7 @@ Chaque code est stable et n’est jamais réutilisé avec un autre sens. Chaque 
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Le paiement n’a pas pu être diffusé | moyenne | Résultat inconnu — vérifiez l’état avant de réessayer |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Déverrouillage par l’appareil indisponible | moyenne | Rien n’a été envoyé, signé ni modifié |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Solde ou frais inconnus | moyenne | Une requête a atteint un service externe ; aucun paiement n’a été effectué |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Clé de sécurité requise | faible | Rien n’a été envoyé, signé ni modifié |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Le paiement a échoué à la simulation | moyenne | Une requête a atteint un service externe ; aucun paiement n’a été effectué |
 
 ## Annulation
@@ -190,7 +191,7 @@ Tous les codes, par ordre alphabétique. Le titre de la section est l’ancre st
 
 - **Ce qui s’est passé :** Cette action n'était pas permise, donc rien n'a été changé.
 - **Ce qui a peut-être déjà eu lieu :** Rien n’a été envoyé, signé ni modifié
-- **Ce qu’il faut faire ensuite :** Vérifiez la politique de permissions ou les réglages d'approbation qui régissent cette action.
+- **Ce qu’il faut faire ensuite :** Ouvrez les Réglages, choisissez Confidentialité et permissions, et réglez « Ce que VOOL peut faire seul » pour changer ce qui régit cette action.
 - **Nouvel essai :** Ne renvoyez pas la même requête sans changement.
 - **Gravité :** moyenne · **Catégorie :** politique · **Pertinent pour la sécurité :** oui
 
@@ -238,7 +239,7 @@ Tous les codes, par ordre alphabétique. Le titre de la section est l’ancre st
 
 - **Ce qui s’est passé :** Cet outil n'est pas disponible pour l'instant, donc cette partie n'a pas été faite. Il faut l'activer avant de réessayer.
 - **Ce qui a peut-être déjà eu lieu :** Rien n’a été envoyé, signé ni modifié
-- **Ce qu’il faut faire ensuite :** Activez l'outil pour ce mode dans les réglages, ou choisissez une autre approche.
+- **Ce qu’il faut faire ensuite :** Ouvrez les Réglages, choisissez Confidentialité et permissions, et réglez « Ce que VOOL peut faire seul », ou choisissez une autre approche.
 - **Nouvel essai :** Réessayez après avoir fait la modification indiquée par cette entrée.
 - **Gravité :** faible · **Catégorie :** disponibilité
 
@@ -685,6 +686,18 @@ Tous les codes, par ordre alphabétique. Le titre de la section est l’ancre st
 - **Ce qu’il faut faire ensuite :** Un transfert nomme un compte sur un réseau ; les candidats sont listés dans le contexte du défaut.
 - **Nouvel essai :** Réessayez après avoir fait la modification indiquée par cette entrée.
 - **Gravité :** faible · **Catégorie :** politique
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Clé de sécurité requise**
+
+- **Ce qui s’est passé :** Ce portefeuille a aussi besoin de sa clé de sécurité, et la clé n'a pas répondu : elle n'est pas branchée, c'est une autre clé, ou elle n'a pas été touchée à temps. Rien n'a été déverrouillé, modifié, signé ni envoyé. Branchez la clé de sécurité de ce portefeuille, touchez-la quand elle clignote, puis réessayez.
+- **Ce qui a peut-être déjà eu lieu :** Rien n’a été envoyé, signé ni modifié
+- **Ce qu’il faut faire ensuite :** Branchez la clé de sécurité ajoutée à ce portefeuille et touchez-la quand elle clignote. Si la clé est perdue, récupérez le portefeuille avec sa clé de sauvegarde (notée sur papier, dans le Trousseau ou sur une clé USB) : cela définit un nouveau code PIN et retire la clé perdue du portefeuille.
+- **Nouvel essai :** Réessayez après avoir fait la modification indiquée par cette entrée.
+- **Gravité :** faible · **Catégorie :** disponibilité
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

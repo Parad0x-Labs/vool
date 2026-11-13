@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Bỏ qua quyền · chỉ cuộc trò chuyện này · đến khi bạn tắt",
     "bypass.banner.until_time": "Đến {time}",
     "bypass.banner_active": "Bỏ qua quyền đang bật.",
+    "fault.wallet_security_key_needed.action": "Hãy cắm khóa bảo mật đã thêm vào ví này và chạm vào khi khóa nhấp nháy. Nếu mất khóa, hãy khôi phục ví bằng khóa sao lưu của ví (ghi trên giấy, trong Chuỗi khóa hoặc trên USB): việc này đặt PIN mới và gỡ khóa đã mất khỏi ví.",
+    "fault.wallet_security_key_needed.message": "Ví này còn cần khóa bảo mật của nó, nhưng khóa không phản hồi: khóa chưa được cắm, là một khóa khác, hoặc chưa được chạm kịp lúc. Không có gì được mở khóa, thay đổi, ký hay gửi đi. Hãy cắm khóa bảo mật của ví này, chạm vào khi khóa nhấp nháy rồi thử lại.",
     "own_tools.banner": "Công cụ riêng của mô hình",
     "own_tools.banner_title": "Công cụ riêng của mô hình đang bật: các mô hình đám mây bạn chọn không nhận công cụ của VOOL, và một số tự tìm trên web. Auto và mô hình cục bộ vẫn giữ công cụ của VOOL.",
     "own_tools.end_title": "Tắt công cụ riêng của mô hình",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Tệp loại khác, không đụng đến: {n}",
     "routines.plan_left_done": "Tệp đã xử lý rồi, không đụng đến: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

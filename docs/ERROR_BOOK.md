@@ -7,8 +7,8 @@ messages and next steps below are exactly what the app shows.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `6dc4677377fd861ed367a90c95de493fb01d66eaba24fc2a23ea12a613338f16`
-- **Fault count:** 58
+- **Catalog digest:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Fault count:** 59
 
 Each code is stable and never reused for a different meaning. Every code has its own
 section below whose heading is the code itself, so searching this page for the code as
@@ -92,6 +92,7 @@ VOOL: check which version showed it, or report it with the code as written.
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Payment could not be broadcast | medium | Outcome unknown — check state before retrying |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Device unlock unavailable | medium | Nothing was sent, signed or changed |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Balance or fee unknown | medium | A request reached an external service; no payment moved |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Security key needed | low | Nothing was sent, signed or changed |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Payment failed simulation | medium | A request reached an external service; no payment moved |
 
 ## Cancellation
@@ -685,6 +686,18 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** A transfer names one account on one network; the candidates are listed in the fault context.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Security key needed**
+
+- **What happened:** This wallet also needs its security key, and the key did not answer: it is not plugged in, it is a different key, or it was not touched in time. Nothing was unlocked, changed, signed or sent. Plug in this wallet's security key, touch it when it blinks, and try again.
+- **What may already have happened:** Nothing was sent, signed or changed
+- **What to do next:** Plug in the security key added to this wallet and touch it when it blinks. If the key is lost, bring the wallet back with its backup key (written down, in the Keychain or on a USB stick): that sets a new PIN and removes the lost key from the wallet.
+- **Trying again:** Try again after making the change this entry names.
+- **Severity:** low · **Category:** availability
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

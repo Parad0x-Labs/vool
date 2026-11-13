@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # Sổ tay lỗi VOOL
@@ -13,8 +13,8 @@ Mọi lỗi mà VOOL có thể hiển thị cho bạn, được tạo từ chín
 
 - **Lược đồ:** `vool.fault.v1`
 - **Phiên bản danh mục:** `1`
-- **Mã băm danh mục:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Số lỗi:** 58
+- **Mã băm danh mục:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Số lỗi:** 59
 
 Mỗi mã đều cố định và không bao giờ được dùng lại với một nghĩa khác. Mỗi mã có một mục riêng ở bên dưới, với tiêu đề chính là mã đó, nên khi tìm trên trang này đúng mã như bạn nhận được, bạn sẽ thấy mục của nó, và liên kết đến mục đó là địa chỉ của trang này, theo sau là `#` và mã với dấu gạch dưới viết thành dấu gạch ngang. Mỗi mục cho biết chuyện gì đã xảy ra, điều gì có thể đã xảy ra rồi, cần làm gì tiếp theo và thử lại có giúp được không. Nếu một mã bạn nhận được không có trong sổ tay này, mã đó không đến từ phiên bản VOOL này: hãy kiểm tra phiên bản nào đã hiển thị nó, hoặc báo cáo kèm theo mã đúng như đã viết.
 
@@ -92,6 +92,7 @@ Mỗi mã đều cố định và không bao giờ được dùng lại với m�
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Không thể phát đi khoản thanh toán | trung bình | Không rõ kết quả — hãy kiểm tra trạng thái trước khi thử lại |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Không dùng được mở khóa bằng thiết bị | trung bình | Chưa gửi, ký hay thay đổi gì |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Không rõ số dư hoặc phí | trung bình | Một yêu cầu đã đến dịch vụ bên ngoài; không có khoản thanh toán nào được chuyển |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Cần khóa bảo mật | thấp | Chưa gửi, ký hay thay đổi gì |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Khoản thanh toán không qua mô phỏng | trung bình | Một yêu cầu đã đến dịch vụ bên ngoài; không có khoản thanh toán nào được chuyển |
 
 ## Hủy
@@ -190,7 +191,7 @@ Mọi mã, theo thứ tự bảng chữ cái. Tiêu đề của mục là neo c�
 
 - **Chuyện gì đã xảy ra:** Hành động đó không được phép, nên không có gì thay đổi.
 - **Điều gì có thể đã xảy ra rồi:** Chưa gửi, ký hay thay đổi gì
-- **Cần làm gì tiếp theo:** Kiểm tra chính sách quyền hoặc cài đặt phê duyệt chi phối hành động này.
+- **Cần làm gì tiếp theo:** Mở Cài đặt, chọn Riêng tư và Quyền, rồi đặt "VOOL được tự làm gì" để thay đổi điều chi phối hành động này.
 - **Thử lại:** Đừng gửi lại cùng một yêu cầu mà không thay đổi gì.
 - **Mức nghiêm trọng:** trung bình · **Danh mục:** chính sách · **Liên quan đến bảo mật:** có
 
@@ -238,7 +239,7 @@ Mọi mã, theo thứ tự bảng chữ cái. Tiêu đề của mục là neo c�
 
 - **Chuyện gì đã xảy ra:** Công cụ đó hiện không khả dụng, nên phần này chưa làm. Cần bật nó trước khi thử lại.
 - **Điều gì có thể đã xảy ra rồi:** Chưa gửi, ký hay thay đổi gì
-- **Cần làm gì tiếp theo:** Bật công cụ cho chế độ này trong cài đặt, hoặc chọn cách khác.
+- **Cần làm gì tiếp theo:** Mở Cài đặt, chọn Riêng tư và Quyền, rồi đặt "VOOL được tự làm gì", hoặc chọn cách khác.
 - **Thử lại:** Hãy thử lại sau khi thực hiện thay đổi mà mục này nêu.
 - **Mức nghiêm trọng:** thấp · **Danh mục:** tính khả dụng
 
@@ -685,6 +686,18 @@ Mọi mã, theo thứ tự bảng chữ cái. Tiêu đề của mục là neo c�
 - **Cần làm gì tiếp theo:** Một lần chuyển nêu một tài khoản trên một mạng; các ứng viên được liệt kê trong ngữ cảnh lỗi.
 - **Thử lại:** Hãy thử lại sau khi thực hiện thay đổi mà mục này nêu.
 - **Mức nghiêm trọng:** thấp · **Danh mục:** chính sách
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Cần khóa bảo mật**
+
+- **Chuyện gì đã xảy ra:** Ví này còn cần khóa bảo mật của nó, nhưng khóa không phản hồi: khóa chưa được cắm, là một khóa khác, hoặc chưa được chạm kịp lúc. Không có gì được mở khóa, thay đổi, ký hay gửi đi. Hãy cắm khóa bảo mật của ví này, chạm vào khi khóa nhấp nháy rồi thử lại.
+- **Điều gì có thể đã xảy ra rồi:** Chưa gửi, ký hay thay đổi gì
+- **Cần làm gì tiếp theo:** Hãy cắm khóa bảo mật đã thêm vào ví này và chạm vào khi khóa nhấp nháy. Nếu mất khóa, hãy khôi phục ví bằng khóa sao lưu của ví (ghi trên giấy, trong Chuỗi khóa hoặc trên USB): việc này đặt PIN mới và gỡ khóa đã mất khỏi ví.
+- **Thử lại:** Hãy thử lại sau khi thực hiện thay đổi mà mục này nêu.
+- **Mức nghiêm trọng:** thấp · **Danh mục:** tính khả dụng
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

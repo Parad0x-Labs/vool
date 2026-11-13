@@ -127,6 +127,12 @@ desktop = [
     "pyobjc-framework-EventKit==13.0; sys_platform == 'darwin'",
     "pyobjc-framework-Contacts==13.0; sys_platform == 'darwin'",
 ]
+# A security key (YubiKey and similar) as a second thing a VOOL wallet needs to open (core/wallet/security_key.py):
+# Yubico's FIDO2 library, pure Python on the cryptography package VOOL already has. OPTIONAL and off until the person
+# adds a key; without it Settings says security keys are not supported here and nothing else changes.
+keys = [
+    "fido2==2.2.1",
+]
 proof = [
     "pytest>=7.0",
 ]

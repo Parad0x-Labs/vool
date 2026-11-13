@@ -25,7 +25,7 @@ _STATUS_FOR_CODE = {
     "wallet_confirmation_required": 400, "wallet_pin_invalid": 400, "wallet_limit_exceeded": 403, "wallet_duplicate_payment": 409,
     "wallet_approval_rejected": 403, "wallet_x402_cap_exceeded": 403, "wallet_card_data_refused": 400, "wallet_not_found": 404,
     "wallet_simulation_failed": 502, "wallet_broadcast_failed": 502, "wallet_acknowledgement_required": 400,
-    "wallet_device_auth_unavailable": 403, "wallet_device_auth_denied": 403, "wallet_export_unavailable": 400, "wallet_export_pin_not_accepted": 400, "wallet_dependency_unavailable": 403,
+    "wallet_device_auth_unavailable": 403, "wallet_device_auth_denied": 403, "wallet_security_key_needed": 403, "wallet_export_unavailable": 400, "wallet_export_pin_not_accepted": 400, "wallet_dependency_unavailable": 403,
     "wallet_paykit_unavailable": 403, "wallet_payment_channel_off": 403, "wallet_x402_sdk_unavailable": 403,
     "wallet_password_invalid": 400,
     "wallet_chain_identity_mismatch": 403, "wallet_outbound_refused": 403, "evm_pocket_custody_unavailable": 403, "x402_scheme_unavailable": 403,
@@ -105,6 +105,20 @@ _ROLE_REFUSALS = {
     "usb_write_failed": "VOOL could not write to that USB stick. Check that it is not locked or full, then try again. Nothing was saved.",
     "usb_readback_failed": "The backup on the USB stick could not be read back, so it was removed. Try again or use another stick.",
     "usb_backup_not_found": "That backup is no longer on the USB stick. Nothing changed.",
+    "security_key_already_added": "This wallet already needs a security key. Remove it first to add another. Nothing changed.",
+    "no_security_key_added": "This wallet does not need a security key. Nothing changed.",
+}
+
+#: Plain words for why a security key did not answer (core.wallet.security_key.KeyProblem reasons).
+_SECURITY_KEY_WORDS = {
+    "no_security_key": "No security key is plugged in. Plug in the key, touch it when it blinks, and try again. Nothing changed.",
+    "not_this_key": "That is not this wallet's security key. Plug in the key you added to this wallet and try again. Nothing changed.",
+    "touch_timeout": "The security key was not touched in time. Try again and touch the key when it blinks. Nothing changed.",
+    "key_needs_pin": "This security key asks for its own PIN. Type the key's PIN in its box and try again. Nothing changed.",
+    "key_unsupported": "This security key cannot do what VOOL needs (the hmac-secret feature). Most YubiKey 5, SoloKey and Nitrokey 3 keys can. Nothing changed.",
+    "more_than_one_key": "More than one security key is plugged in. Keep only the one you want to add and try again. Nothing changed.",
+    "key_support_not_installed": "Security key support is not installed in this VOOL. Nothing changed.",
+    "key_error": "The security key did not answer properly. Unplug it, plug it in again and try again. Nothing changed.",
 }
 
 
@@ -116,6 +130,8 @@ def _fault(exc: WalletFault) -> Any:
     # generic "that recovery proof does not fit" text written for a typed backup key
     if said and (exc.code == "wallet_setup_state_invalid" or (exc.code == "wallet_recovery_refused" and reason == "backup_password_wrong")):
         payload["message"] = said
+    if exc.code == "wallet_security_key_needed" and reason in _SECURITY_KEY_WORDS:
+        payload["message"] = _SECURITY_KEY_WORDS[reason]
     if exc.code == "wallet_confirmation_required":
         payload["warning"] = custody.POCKET_WARNING_TEXT
         payload["confirmation_phrase"] = custody.POCKET_CONFIRMATION_PHRASE
@@ -250,6 +266,12 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
         from core.wallet import keychain_backup
 
         return _json(200, {"ok": True, "keychain": keychain_backup.overview()}, headers=_NO_STORE)
+    if path == "/api/wallet/security-key":
+        # whether this VOOL can use security keys, and which are plugged in now (names only)
+        from core.wallet import security_key
+
+        return _json(200, {"ok": True, "security_key": {"supported": security_key.library_available(), "plugged_in": security_key.plugged_in()}},
+                     headers=_NO_STORE)
     if path == "/api/wallet/usb":
         # the USB sticks plugged in now and the VOOL backups on them, by opaque id: never a path
         from core.wallet import usb_backup
@@ -411,6 +433,17 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             else:
                 answer = kb.forget(wid, source_context=source_context)
             return _json(200, {"ok": True, "keychain": answer}, headers=_NO_STORE)
+        if path in ("/api/wallet/security-key/add", "/api/wallet/security-key/remove"):
+            # a security key (FIDO2 hmac-secret) the wallet's seal also needs: added or removed with the wallet's
+            # own PIN or password and a touch of the key; nothing is signed or sent
+            from core.wallet import pilot_custody
+
+            wid, cred = str(body.get("wallet_id") or ""), str(body.get("credential") or "")
+            if path == "/api/wallet/security-key/add":
+                answer = pilot_custody.add_security_key(wid, credential=cred, key_pin=str(body.get("key_pin") or ""), source_context=source_context)
+            else:
+                answer = pilot_custody.remove_security_key(wid, credential=cred, source_context=source_context)
+            return _json(200, {"ok": True, "wallet": answer}, headers=_NO_STORE)
         if path in ("/api/wallet/usb/save", "/api/wallet/usb/open"):
             # the same sealed backup as the Keychain one, written to a USB stick the person keeps offline
             from core.wallet import usb_backup

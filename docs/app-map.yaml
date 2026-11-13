@@ -957,6 +957,15 @@ rows:
     tests: [tests/wallet/test_wallet_keychain_backup.py]
     label: TESTED
     target_release: 0.8.0
+  - id: wallet-security-key
+    title: A security key (YubiKey or similar, FIDO2 hmac-secret) as a second thing a wallet needs to open, add and remove; a lost key is replaced by the backup key
+    area: crypto
+    ui: [vwCx]
+    wired: ["/api/wallet/security-key", "/api/wallet/security-key/add", "/api/wallet/security-key/remove"]
+    default: []
+    tests: [tests/wallet/test_wallet_security_key.py]
+    label: TESTED
+    target_release: 0.8.0
   - id: wallet-usb-backup
     title: Wallet backup key sealed with a backup password on a USB stick, forgot-PIN restore and bring back a wallet from the stick
     area: crypto

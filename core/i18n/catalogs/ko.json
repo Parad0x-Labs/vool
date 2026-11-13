@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "권한 바이패스 · 이 채팅만 · 끌 때까지",
     "bypass.banner.until_time": "{time}까지",
     "bypass.banner_active": "권한 바이패스가 활성화되어 있습니다.",
+    "fault.wallet_security_key_needed.action": "이 지갑에 추가한 보안 키를 꽂고 깜박이면 터치하세요. 키를 잃어버렸다면 지갑의 백업 키(종이에 적어 둔 것, 키체인 또는 USB 메모리에 있는 것)로 지갑을 되살리세요. 새 PIN이 설정되고 잃어버린 키는 지갑에서 제거됩니다.",
+    "fault.wallet_security_key_needed.message": "이 지갑에는 보안 키도 필요한데 키가 응답하지 않았습니다. 꽂혀 있지 않거나, 다른 키이거나, 제때 터치하지 않았습니다. 잠금 해제, 변경, 서명, 전송은 아무것도 이루어지지 않았습니다. 이 지갑의 보안 키를 꽂고, 깜박이면 터치한 뒤 다시 시도하세요.",
     "own_tools.banner": "모델 자체 도구",
     "own_tools.banner_title": "모델 자체 도구가 켜져 있습니다. 직접 고른 클라우드 모델은 VOOL의 도구를 받지 않으며, 일부는 스스로 웹을 검색합니다. Auto와 로컬 모델은 VOOL의 도구를 그대로 씁니다.",
     "own_tools.end_title": "모델 자체 도구 끄기",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "다른 종류의 파일(그대로 둠): {n}",
     "routines.plan_left_done": "이미 처리된 파일(그대로 둠): {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1730,6 +1730,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/wallet/security-key": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/security-key",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.security_key.status",
+      "surface": "http"
+    },
     "http:GET:/api/wallet/status": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/status",
@@ -3228,6 +3235,20 @@
       "registry_command_id": "wallet.reject",
       "surface": "http"
     },
+    "http:POST:/api/wallet/security-key/add": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/security-key/add",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.security_key.add",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/security-key/remove": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/security-key/remove",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.security_key.remove",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/setup/acknowledge": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/setup/acknowledge",
@@ -3673,7 +3694,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 345,
-    "GENERATED_ADAPTER": 170,
+    "GENERATED_ADAPTER": 173,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

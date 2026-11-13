@@ -161,6 +161,7 @@ RUNTIME_TABLES = (
     "wallet_main",
     "wallet_keychain_backups",
     "wallet_usb_backups",
+    "wallet_security_keys",
     "response_feedback",
     "event_log_v2",
     "fault_records",

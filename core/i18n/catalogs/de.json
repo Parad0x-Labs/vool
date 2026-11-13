@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Berechtigungen umgehen · nur dieser Chat · bis du es abschaltest",
     "bypass.banner.until_time": "Bis {time}",
     "bypass.banner_active": "Die Umgehung der Berechtigungen ist aktiv.",
+    "fault.wallet_security_key_needed.action": "Stecke den Sicherheitsschlüssel ein, der diesem Wallet hinzugefügt wurde, und berühre ihn, wenn er blinkt. Ist der Schlüssel verloren, hole das Wallet mit seinem Sicherungsschlüssel zurück (aufgeschrieben, im Schlüsselbund oder auf einem USB-Stick): Das setzt eine neue PIN und entfernt den verlorenen Schlüssel aus dem Wallet.",
+    "fault.wallet_security_key_needed.message": "Dieses Wallet braucht auch seinen Sicherheitsschlüssel, und der Schlüssel hat nicht geantwortet: Er ist nicht eingesteckt, es ist ein anderer Schlüssel, oder er wurde nicht rechtzeitig berührt. Nichts wurde entsperrt, geändert, signiert oder gesendet. Stecke den Sicherheitsschlüssel dieses Wallets ein, berühre ihn, wenn er blinkt, und versuche es erneut.",
     "own_tools.banner": "Eigene Werkzeuge des Modells",
     "own_tools.banner_title": "Die eigenen Werkzeuge des Modells sind an: Gewählte Cloud-Modelle bekommen keine VOOL-Werkzeuge, und manche suchen selbst im Web. Auto und lokale Modelle behalten die Werkzeuge von VOOL.",
     "own_tools.end_title": "Eigene Werkzeuge des Modells ausschalten",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Dateien anderer Art, nicht angerührt: {n}",
     "routines.plan_left_done": "Bereits erledigte Dateien, nicht angerührt: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

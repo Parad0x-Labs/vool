@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # Księga błędów VOOL
@@ -13,8 +13,8 @@ Wszystkie błędy, które VOOL może ci pokazać, wygenerowane z własnego katal
 
 - **Schemat:** `vool.fault.v1`
 - **Wersja katalogu:** `1`
-- **Skrót katalogu:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Liczba błędów:** 58
+- **Skrót katalogu:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Liczba błędów:** 59
 
 Każdy kod jest stały i nigdy nie jest używany ponownie w innym znaczeniu. Każdy kod ma poniżej własną sekcję, której nagłówkiem jest sam kod, więc wyszukując na tej stronie kod w podanej ci postaci, znajdziesz jego sekcję, a link do sekcji to adres tej strony, po którym następują `#` i kod z łącznikami zamiast znaków podkreślenia. Każda sekcja mówi, co się stało, co mogło się już stać, co zrobić dalej i czy ponowna próba może pomóc. Jeśli podanego ci kodu nie ma w tej księdze, nie pochodzi on z tej wersji VOOL: sprawdź, która wersja go pokazała, albo zgłoś go, podając kod tak, jak został zapisany.
 
@@ -92,6 +92,7 @@ Każdy kod jest stały i nigdy nie jest używany ponownie w innym znaczeniu. Ka�
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Nie udało się nadać płatności | średnia | Wynik nieznany — sprawdź stan przed ponowną próbą |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Odblokowanie urządzeniem niedostępne | średnia | Nic nie wysłano, nie podpisano ani nie zmieniono |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Nieznane saldo lub opłata | średnia | Żądanie dotarło do usługi zewnętrznej; nie wykonano żadnej płatności |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Potrzebny klucz bezpieczeństwa | niska | Nic nie wysłano, nie podpisano ani nie zmieniono |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | Płatność nie przeszła symulacji | średnia | Żądanie dotarło do usługi zewnętrznej; nie wykonano żadnej płatności |
 
 ## Anulowanie
@@ -190,7 +191,7 @@ Wszystkie kody w kolejności alfabetycznej. Nagłówek sekcji jest stałą kotwi
 
 - **Co się stało:** Ta akcja nie została dozwolona, więc nic się nie zmieniło.
 - **Co mogło się już stać:** Nic nie wysłano, nie podpisano ani nie zmieniono
-- **Co zrobić dalej:** Sprawdź politykę uprawnień albo ustawienia zgód rządzące tym działaniem.
+- **Co zrobić dalej:** Otwórz Ustawienia, wybierz Prywatność i uprawnienia i ustaw „Co VOOL może robić sam”, aby zmienić, co rządzi tym działaniem.
 - **Ponowna próba:** Nie wysyłaj ponownie tego samego żądania bez zmian.
 - **Waga:** średnia · **Kategoria:** zasady · **Istotne dla bezpieczeństwa:** tak
 
@@ -238,7 +239,7 @@ Wszystkie kody w kolejności alfabetycznej. Nagłówek sekcji jest stałą kotwi
 
 - **Co się stało:** To narzędzie jest teraz niedostępne, więc ta część nie została wykonana. Przed ponowną próbą trzeba je włączyć.
 - **Co mogło się już stać:** Nic nie wysłano, nie podpisano ani nie zmieniono
-- **Co zrobić dalej:** Włącz narzędzie dla tego trybu w ustawieniach albo wybierz inny sposób.
+- **Co zrobić dalej:** Otwórz Ustawienia, wybierz Prywatność i uprawnienia i ustaw „Co VOOL może robić sam” albo wybierz inny sposób.
 - **Ponowna próba:** Spróbuj ponownie po wprowadzeniu zmiany, którą wskazuje ten wpis.
 - **Waga:** niska · **Kategoria:** dostępność
 
@@ -685,6 +686,18 @@ Wszystkie kody w kolejności alfabetycznej. Nagłówek sekcji jest stałą kotwi
 - **Co zrobić dalej:** Przelew nazywa jedno konto w jednej sieci; kandydaci są wypisani w kontekście błędu.
 - **Ponowna próba:** Spróbuj ponownie po wprowadzeniu zmiany, którą wskazuje ten wpis.
 - **Waga:** niska · **Kategoria:** zasady
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Potrzebny klucz bezpieczeństwa**
+
+- **Co się stało:** Ten portfel potrzebuje też swojego klucza bezpieczeństwa, a klucz nie odpowiedział: nie jest podłączony, to inny klucz albo nie został dotknięty na czas. Nic nie zostało odblokowane, zmienione, podpisane ani wysłane. Podłącz klucz bezpieczeństwa tego portfela, dotknij go, gdy zacznie migać, i spróbuj ponownie.
+- **Co mogło się już stać:** Nic nie wysłano, nie podpisano ani nie zmieniono
+- **Co zrobić dalej:** Podłącz klucz bezpieczeństwa dodany do tego portfela i dotknij go, gdy zacznie migać. Jeśli klucz zginął, przywróć portfel jego kluczem zapasowym (zapisanym na papierze, w Pęku kluczy lub na pendrivie): to ustawia nowy PIN i usuwa zgubiony klucz z portfela.
+- **Ponowna próba:** Spróbuj ponownie po wprowadzeniu zmiany, którą wskazuje ten wpis.
+- **Waga:** niska · **Kategoria:** dostępność
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

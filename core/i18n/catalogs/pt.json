@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "Bypass de permissões · somente esta conversa · até você desligar",
     "bypass.banner.until_time": "Até {time}",
     "bypass.banner_active": "O bypass de permissões está ativo.",
+    "fault.wallet_security_key_needed.action": "Conecte a chave de segurança adicionada a esta carteira e toque nela quando piscar. Se você perdeu a chave, recupere a carteira com a chave de backup dela (anotada no papel, no Keychain do macOS ou num pendrive): isso define um novo PIN e remove a chave perdida da carteira.",
+    "fault.wallet_security_key_needed.message": "Esta carteira também precisa da chave de segurança dela, e a chave não respondeu: ela não está conectada, é outra chave ou não foi tocada a tempo. Nada foi desbloqueado, alterado, assinado ou enviado. Conecte a chave de segurança desta carteira, toque nela quando piscar e tente de novo.",
     "own_tools.banner": "Ferramentas próprias do modelo",
     "own_tools.banner_title": "As ferramentas próprias do modelo estão ativadas: os modelos na nuvem que você escolher não recebem as ferramentas do VOOL, e alguns pesquisam na web sozinhos. Auto e os modelos locais mantêm as ferramentas do VOOL.",
     "own_tools.end_title": "Desativar as ferramentas próprias do modelo",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Ficheiros de outros tipos, deixados como estão: {n}",
     "routines.plan_left_done": "Ficheiros já tratados, deixados como estão: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

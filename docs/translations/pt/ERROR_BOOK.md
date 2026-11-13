@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 72ade2152db88157a95e2155800ad7f7ecbca477e44e40d1aac1d95495bbc42e
+source_sha256: 5a872f9502c66828af4dfb1e7e687226facc2aaad8cb6544054c90e1fafe8d7d
 ---
 
 # Livro de erros do VOOL
@@ -13,8 +13,8 @@ Todos os erros que o VOOL pode mostrar a você, gerados a partir do próprio cat
 
 - **Esquema:** `vool.fault.v1`
 - **Versão do catálogo:** `1`
-- **Resumo do catálogo:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
-- **Número de falhas:** 58
+- **Resumo do catálogo:** `2d2c27206b99b26ca524806ec42ac41eac2f0d28a110a74f6ac5ef42006f313d`
+- **Número de falhas:** 59
 
 Cada código é fixo e nunca é reutilizado com outro significado. Cada código tem a sua própria seção abaixo, cujo título é o próprio código; assim, ao buscar nesta página o código como você o recebeu, você encontra a seção dele, e um link para a seção é o endereço desta página seguido de `#` e do código com hifens no lugar dos sublinhados. Cada seção diz o que aconteceu, o que pode já ter acontecido, o que fazer em seguida e se tentar de novo pode ajudar. Se um código que você recebeu não está neste livro, ele não é desta versão do VOOL: confira qual versão o mostrou, ou informe-o com o código como está escrito.
 
@@ -92,6 +92,7 @@ Cada código é fixo e nunca é reutilizado com outro significado. Cada código 
 | [`wallet_broadcast_failed`](#wallet-broadcast-failed) | Não foi possível transmitir o pagamento | média | Resultado desconhecido — confira o estado antes de tentar de novo |
 | [`wallet_device_auth_unavailable`](#wallet-device-auth-unavailable) | Destravamento pelo dispositivo indisponível | média | Nada foi enviado, assinado ou alterado |
 | [`wallet_quote_unavailable`](#wallet-quote-unavailable) | Saldo ou taxa desconhecidos | média | Uma solicitação chegou a um serviço externo; nenhum pagamento foi feito |
+| [`wallet_security_key_needed`](#wallet-security-key-needed) | Chave de segurança necessária | baixa | Nada foi enviado, assinado ou alterado |
 | [`wallet_simulation_failed`](#wallet-simulation-failed) | O pagamento não passou na simulação | média | Uma solicitação chegou a um serviço externo; nenhum pagamento foi feito |
 
 ## Cancelamento
@@ -190,7 +191,7 @@ Todos os códigos, em ordem alfabética. O título da seção é a âncora fixa 
 
 - **O que aconteceu:** Essa ação não foi permitida, então nada foi mudado.
 - **O que pode já ter acontecido:** Nada foi enviado, assinado ou alterado
-- **O que fazer em seguida:** Confira a política de permissões ou os ajustes de aprovação que regem esta ação.
+- **O que fazer em seguida:** Abra as Configurações, escolha Privacidade e permissões e defina «O que o VOOL pode fazer sozinho» para mudar o que rege esta ação.
 - **Tentar de novo:** Não envie a mesma solicitação de novo sem alterações.
 - **Gravidade:** média · **Categoria:** política · **Relevante para a segurança:** sim
 
@@ -238,7 +239,7 @@ Todos os códigos, em ordem alfabética. O título da seção é a âncora fixa 
 
 - **O que aconteceu:** Essa ferramenta não está disponível agora, então esta parte não foi feita. É preciso ativá-la antes de tentar de novo.
 - **O que pode já ter acontecido:** Nada foi enviado, assinado ou alterado
-- **O que fazer em seguida:** Ative a ferramenta para este modo nos ajustes, ou escolha outra abordagem.
+- **O que fazer em seguida:** Abra as Configurações, escolha Privacidade e permissões e defina «O que o VOOL pode fazer sozinho», ou escolha outra abordagem.
 - **Tentar de novo:** Tente de novo depois de fazer a mudança que esta entrada indica.
 - **Gravidade:** baixa · **Categoria:** disponibilidade
 
@@ -685,6 +686,18 @@ Todos os códigos, em ordem alfabética. O título da seção é a âncora fixa 
 - **O que fazer em seguida:** Uma transferência nomeia uma conta numa rede; os candidatos estão listados no contexto da falha.
 - **Tentar de novo:** Tente de novo depois de fazer a mudança que esta entrada indica.
 - **Gravidade:** baixa · **Categoria:** política
+
+<a name="wallet-security-key-needed"></a>
+
+### wallet_security_key_needed
+
+**Chave de segurança necessária**
+
+- **O que aconteceu:** Esta carteira também precisa da chave de segurança dela, e a chave não respondeu: ela não está conectada, é outra chave ou não foi tocada a tempo. Nada foi desbloqueado, alterado, assinado ou enviado. Conecte a chave de segurança desta carteira, toque nela quando piscar e tente de novo.
+- **O que pode já ter acontecido:** Nada foi enviado, assinado ou alterado
+- **O que fazer em seguida:** Conecte a chave de segurança adicionada a esta carteira e toque nela quando piscar. Se você perdeu a chave, recupere a carteira com a chave de backup dela (anotada no papel, no Keychain do macOS ou num pendrive): isso define um novo PIN e remove a chave perdida da carteira.
+- **Tentar de novo:** Tente de novo depois de fazer a mudança que esta entrada indica.
+- **Gravidade:** baixa · **Categoria:** disponibilidade
 
 <a name="wallet-send-needs-vool-wallet"></a>
 

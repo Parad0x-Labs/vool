@@ -150,6 +150,8 @@ FAULT_WALLET_DEVICE_AUTH_DENIED = "wallet_device_auth_denied"
 FAULT_WALLET_EXPORT_UNAVAILABLE = "wallet_export_unavailable"
 FAULT_WALLET_EXPORT_PIN_NOT_ACCEPTED = "wallet_export_pin_not_accepted"
 FAULT_WALLET_ACKNOWLEDGEMENT_REQUIRED = "wallet_acknowledgement_required"
+# a wallet that also needs its security key (FIDO2 hmac-secret, core.wallet.security_key) could not get the key's answer
+FAULT_WALLET_SECURITY_KEY_NEEDED = "wallet_security_key_needed"
 
 
 class FaultVocabularyError(Exception):
@@ -523,6 +525,10 @@ _WALLET_SPECS: tuple[FaultSpec, ...] = (
               user_message="Touch ID or your Mac password was declined or did not open this wallet, so nothing was created, changed, unlocked, revealed, signed or sent. Try again.",
               operator_action="Try again and confirm the Touch ID or Mac password prompt from VOOL. A wallet that approves with Touch ID has no PIN or password of its own to use instead. If the prompt keeps failing, restore the wallet from its recovery phrase (a Crypto Pilot from the backup shown at setup) and give it a PIN or a password; a private-key export still needs Touch ID or the Mac password.",
               authority="core.wallet.custody"),
+    FaultSpec(code=FAULT_WALLET_SECURITY_KEY_NEEDED, category=CATEGORY_AVAILABILITY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
+              user_message="This wallet also needs its security key, and the key did not answer: it is not plugged in, it is a different key, or it was not touched in time. Nothing was unlocked, changed, signed or sent. Plug in this wallet's security key, touch it when it blinks, and try again.",
+              operator_action="Plug in the security key added to this wallet and touch it when it blinks. If the key is lost, bring the wallet back with its backup key (written down, in the Keychain or on a USB stick): that sets a new PIN and removes the lost key from the wallet.",
+              authority="core.wallet.pilot_custody"),
     FaultSpec(code=FAULT_WALLET_EXPORT_UNAVAILABLE, category=CATEGORY_SECURITY, severity=SEVERITY_HIGH, retry=RETRY_NEVER,
               user_message="This wallet cannot be exported that way: it is watch-only or holds no key on this machine, its one backup was shown at setup and it never exports, VOOL does not export to the wallet app you chose, or it is a legacy pocket from an earlier version that must be restored from its recovery phrase before it exports to MetaMask. Nothing was revealed.",
               operator_action="Only a legacy pocket sealed on this machine exports, to Phantom or MetaMask, and only with Touch ID or the Mac password. A Crypto Pilot wallet recovers from the backup shown at setup. A legacy pocket from an earlier version exports to MetaMask after it is restored from its recovery phrase.",
@@ -598,6 +604,7 @@ _EFFECT_BY_CODE: dict[str, str] = {
     FAULT_WALLET_SEND_NEEDS_VOOL_WALLET: EFFECT_NONE,
     FAULT_WALLET_PASSWORD_INVALID: EFFECT_NONE,  # a failed unlock seals everything back
     FAULT_WALLET_DEVICE_AUTH_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_SECURITY_KEY_NEEDED: EFFECT_NONE,  # the seal stays closed without the key's answer
     FAULT_WALLET_DEVICE_AUTH_DENIED: EFFECT_NONE,
     FAULT_WALLET_EXPORT_UNAVAILABLE: EFFECT_NONE,  # "nothing was revealed"
     FAULT_WALLET_EXPORT_PIN_NOT_ACCEPTED: EFFECT_NONE,  # refused before the credential is consulted
@@ -666,6 +673,7 @@ _TITLE_BY_CODE: dict[str, str] = {
     FAULT_WALLET_REQUEST_AMBIGUOUS: "More than one account or network fits",
     FAULT_WALLET_DEVICE_AUTH_UNAVAILABLE: "Device unlock unavailable",
     FAULT_WALLET_DEVICE_AUTH_DENIED: "Device unlock declined",
+    FAULT_WALLET_SECURITY_KEY_NEEDED: "Security key needed",
 }
 
 

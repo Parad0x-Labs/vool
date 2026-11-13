@@ -649,6 +649,8 @@
     "bypass.banner.until_off_title": "İzinleri atla · yalnızca bu sohbet · siz kapatana dek",
     "bypass.banner.until_time": "{time} tarihine kadar",
     "bypass.banner_active": "İzin atlama etkin.",
+    "fault.wallet_security_key_needed.action": "Bu cüzdana eklenen güvenlik anahtarını takın ve yanıp sönünce ona dokunun. Anahtarı kaybettiyseniz cüzdanı yedek anahtarıyla geri getirin (kâğıda yazılı, Anahtar Zinciri'nde veya bir USB bellekte): bu yeni bir PIN belirler ve kayıp anahtarı cüzdandan kaldırır.",
+    "fault.wallet_security_key_needed.message": "Bu cüzdan güvenlik anahtarına da ihtiyaç duyuyor ve anahtar yanıt vermedi: takılı değil, başka bir anahtar ya da zamanında dokunulmadı. Hiçbir şeyin kilidi açılmadı, hiçbir şey değiştirilmedi, imzalanmadı veya gönderilmedi. Bu cüzdanın güvenlik anahtarını takın, yanıp sönünce dokunun ve tekrar deneyin.",
     "own_tools.banner": "Modelin kendi araçları",
     "own_tools.banner_title": "Modelin kendi araçları açık: seçtiğin bulut modelleri VOOL'un araçlarını almaz, bazıları web'de kendisi arar. Auto ve yerel modeller VOOL'un araçlarını korur.",
     "own_tools.end_title": "Modelin kendi araçlarını kapat",
@@ -5119,7 +5121,7 @@
     "routines.plan_left_other": "Başka türdeki dosyalar, dokunulmadı: {n}",
     "routines.plan_left_done": "Zaten yapılmış dosyalar, dokunulmadı: {n}"
   },
-  "source_catalog_sha256": "74051b3614ea0e00a38ce2e089057813caa597ea2c52cc2c9c84b08282b8f8c4",
+  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
