@@ -204,6 +204,25 @@ def start_recommended_pull(model_name: str) -> dict[str, Any]:
 # States boot checks on its own: never checked, or checked under an older Ollama/model build.
 # A model that already failed is not re-run on every boot; the person can press Try again.
 _BOOT_CHECK_STATES = frozenset({"unknown", "stale"})
+
+
+def _check_ran_out_of_time(status: Mapping[str, Any] | None) -> bool:
+    """The last check of this model stopped on a timeout or probe error, so it never judged the model.
+
+    Measured 2026-11-13 on the Mac (test VOOL on f50e52eb, fresh home): the first boot check of qwen3:8b
+    ran out of time on its last stage while other jobs shared the machine (emission alone took 118 s).
+    Later boots skipped it as "already failed", so every model answer on that home was refused with
+    "qwen3:8b hasn't passed VOOL's answer check yet" until someone pressed Try again.
+    """
+    if not isinstance(status, Mapping) or str(status.get("state") or "").strip().lower() != "degraded":
+        return False
+    stages = status.get("stages")
+    return any(
+        isinstance(stage, Mapping)
+        and stage.get("state") == "failed"
+        and str(stage.get("failure_code") or "") in _UNFINISHED_CODES
+        for stage in (stages.values() if isinstance(stages, Mapping) else ())
+    )
 # At most this many models are checked per boot (each check takes up to a couple of minutes).
 _BOOT_CHECK_LIMIT = 3
 
@@ -244,11 +263,15 @@ def ready_local_models(
             continue
         seen.add(name)
         try:
-            state = str((status_of(manifest) or {}).get("state") or "unknown").strip().lower()
+            status = status_of(manifest) or {}
+            state = str(status.get("state") or "unknown").strip().lower()
         except Exception:
             continue
         if state == "verified":
             return []
+        if name == primary and _check_ran_out_of_time(status):
+            # The boot primary's check never finished: run it again, as a first check would.
+            state = "unknown"
         candidates.append((manifest, state))
     candidates.sort(key=lambda item: 0 if str(item[0].model_name).strip().lower() == primary else 1)
     checked: list[dict[str, str]] = []

@@ -137,6 +137,46 @@ def test_nothing_runs_when_a_model_is_already_ready_or_already_failed() -> None:
     assert ran == [] and rows == []
 
 
+def _boot_ready_with(statuses: dict[str, dict], outcomes: dict[str, str], primary: str = "qwen3:8b"):
+    from core.local_model_readiness import ready_local_models
+
+    ran: list[str] = []
+
+    def run_check(manifest):
+        ran.append(manifest.model_name)
+        return {"state": outcomes[manifest.model_name]}
+
+    rows = ready_local_models(
+        [_manifest(name) for name in INSTALLED],
+        primary_model=primary,
+        status_of=lambda m: statuses.get(m.model_name, {"state": "unknown"}),
+        run_check=run_check,
+    )
+    return rows, ran
+
+
+def _timed_out(code: str = "timeout") -> dict:
+    return {"state": "degraded", "stages": {
+        "model_emission": {"state": "passed"},
+        "result_continuation": {"state": "failed", "failure_code": code},
+    }}
+
+
+def test_a_primary_whose_check_ran_out_of_time_is_checked_again_on_boot() -> None:
+    """Mac 2026-11-13 (f50e52eb test home): qwen3:8b's first check timed out on its last stage while the Mac was
+    busy; every later boot skipped it, and every answer was refused as written by an unchecked model."""
+    rows, ran = _boot_ready_with(
+        {"qwen3:8b": _timed_out(), "qwen2.5:7b": {"state": "incompatible"}}, {"qwen3:8b": "verified"}
+    )
+    assert ran == ["qwen3:8b"] and rows == [{"model": "qwen3:8b", "readiness": "ready"}]
+
+
+def test_a_check_that_judged_the_model_is_not_run_again_and_neither_is_another_models_timeout() -> None:
+    judged = {"state": "degraded", "stages": {"model_emission": {"state": "failed", "failure_code": "missing_tool_calls"}}}
+    assert _boot_ready_with({"qwen3:8b": judged, "qwen2.5:7b": {"state": "incompatible"}}, {}) == ([], [])
+    assert _boot_ready_with({"qwen3:8b": {"state": "incompatible"}, "qwen2.5:7b": _timed_out()}, {}) == ([], [])
+
+
 def test_an_upgrade_rechecks_a_model_checked_under_an_older_build() -> None:
     rows, ran = _boot_ready({"qwen3:8b": "stale", "qwen2.5:7b": "incompatible"}, {"qwen3:8b": "verified"})
     assert ran == ["qwen3:8b"] and rows[0]["readiness"] == "ready"
