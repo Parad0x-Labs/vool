@@ -146,6 +146,17 @@
     "recency_score": "transform",
     "canonical_agent_name_in_memory": "transform"
   },
+  "core/memory/everyday_remember.py": {
+    "everyday_lead": "transform",
+    "is_question": "transform",
+    "personal_statement": "transform",
+    "strip_continuation": "transform",
+    "list_is_open": "transform",
+    "update_shaped": "transform",
+    "update_body": "transform",
+    "topic_tokens": "transform",
+    "updated_entry": "transform"
+  },
   "core/memory/files.py": {
     "memory_path": "configuration",
     "conversation_log_path": "configuration",

@@ -21,15 +21,6 @@ def maybe_handle_memory_fast_path(
     )
     if handled:
         response = _gate_memory_response(response, session_id, source_context)
-        if isinstance(response, str):
-            # The memory lane wrote (or refused) the fact itself and composed these bytes from what it did. A
-            # planner call earlier in the turn made the turn read as model-authored, and the claim gate then cut
-            # "I'll remember that" and added "Nothing was saved" under a fact that WAS saved (served on 066ac524:
-            # "Remember that my manager is Pieter and the quarterly review is on december 2"). Recorded byte-exact,
-            # so text changed after this point is judged as before.
-            from core.agent_runtime.response import record_deterministic_render
-
-            record_deterministic_render(source_context, response, route="memory_command")
         result = agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
@@ -42,14 +33,6 @@ def maybe_handle_memory_fast_path(
 
         if isinstance(response, ForgetOutcome):
             result["_memory_command_outcome"] = response
-        elif isinstance(response, str):
-            # The transport finalizes with its own context, not this one; the stamp rides the result the same way
-            # the closure verdict does.
-            from core.agent_runtime.response import DETERMINISTIC_RENDER_KEY
-
-            stamp = (source_context or {}).get(DETERMINISTIC_RENDER_KEY) if isinstance(source_context, dict) else None
-            if isinstance(stamp, dict):
-                result["_deterministic_render"] = dict(stamp)
         return result
     result = agent._maybe_handle_companion_memory_fast_path(
         user_input,

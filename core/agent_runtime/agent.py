@@ -7351,10 +7351,20 @@ class VoolAgent(
                 _mark_turn_unfulfilled(source_context, f"{reason}" if not failure_text else f"{reason}: {failure_text[:100]}")
             except Exception:
                 pass
-        return agent_fast_command_surface.fast_path_result(
+        result = agent_fast_command_surface.fast_path_result(
             self,
             **kwargs,
         )
+        if reason == "memory_command" and isinstance(response, str) and isinstance(result, dict):
+            # The memory lane wrote (or refused) the fact itself and composed these bytes from what it did. The
+            # transport's claim gate finalizes with its own context, so the render stamp rides the result, like the
+            # closure verdict: without it a planner call earlier in the turn made "Locked in. I'll remember that."
+            # read as a model's promise and "Nothing was saved" was added under a fact that WAS saved (served on
+            # 066ac524). Byte-exact: text changed after this point is judged as before.
+            served = result.get("response")
+            if isinstance(served, str):
+                result["_deterministic_render"] = {"render": served, "route": "memory_command"}
+        return result
 
     def _action_fast_path_result(
         self,
