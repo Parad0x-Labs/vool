@@ -119,7 +119,9 @@ def test_pdf_review_seats_its_pdf_read_and_no_socket_opens_when_the_model_asks_f
     )
 
     base = set(_offer(PDF_ASK, _turn("t0")).intents)
-    assert "web.search" in base and "pdf.extract_text" not in base, base  # before: the navigation fallback
+    # Before any skill: the person's own words ("explain the contract pdf") ask for the PDF reader through the
+    # ordinary demand law (answer quality, 2026-11-13), and nothing outward is offered beside it.
+    assert "pdf.extract_text" in base and not _outward(base), base
     entry = _entry("pdf-document-review")
     pid, _pack = _install(entry["id"], home, monkeypatch)
     ctx = _turn()
@@ -171,6 +173,7 @@ def test_the_audit_row_names_the_seat_its_pin_and_the_lock(home, no_network, mon
 
 def test_one_byte_changed_on_disk_seats_nothing(home, no_network, monkeypatch):
     entry = _entry("pdf-document-review")
+    without_skill = _offer(PDF_ASK, _turn("t0")).intents
     _pid, pack = _install(entry["id"], home, monkeypatch)
     assert _seats(PDF_ASK, _turn()) == {"pdf-document-review": ("pdf.extract_text",)} or "pdf.ocr" in str(
         _seats(PDF_ASK, _turn())
@@ -184,7 +187,13 @@ def test_one_byte_changed_on_disk_seats_nothing(home, no_network, monkeypatch):
     assert _seats(PDF_ASK, ctx) == {}
     offer = _offer(PDF_ASK, ctx)
     assert "egress_locked" not in ctx["_tool_offer"] and "private_read_seats" not in ctx["_tool_offer"]
-    assert "pdf.extract_text" not in offer.intents, offer.intents
+    # The altered skill adds nothing: the offer is the one the same ask gets with no skill installed (same
+    # intents, same order). The PDF reader in it comes from the person's own words, not from a seat.
+    assert tuple(offer.intents) == tuple(without_skill), (offer.intents, without_skill)
+    from core.tool_offer_assembly import skill_provenance_rows
+
+    audit = [r for r in skill_provenance_rows(offer.skill_guidance.skills) if r.get("name") == entry["skill_name"]]
+    assert not any(r.get("tools") == "private_read_seat" or r.get("seated") or r.get("egress_locked") for r in audit), audit
 
 
 @pytest.fixture
