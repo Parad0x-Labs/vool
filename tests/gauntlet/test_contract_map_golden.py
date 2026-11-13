@@ -43,6 +43,7 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'code.task.report': ('read_only', 'none'),
     'code.task.rollback': ('workspace_write', 'runtime_policy'),
     'code.task.step': ('workspace_write', 'runtime_policy'),
+    'crypto.guide': ('read_only', 'none'),
     'things.search': ('read_only', 'none'),
     'things.match': ('read_only', 'none'),
     'things.prepare': ('read_only', 'none'),
@@ -421,7 +422,8 @@ def test_contract_map_and_list_agree():
     # 211 -> 215: social core (x.feedback.save, x.feedback.list, x.results, x.replies.unanswered).
     # 215 -> 218: the household record tools (things.search, things.match, things.prepare), pinned above.
     # 218 -> 219: wallet.swap, a conversion parked for the owner's PIN (the same tier as wallet.propose), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 219
+    # 219 -> 220: crypto.guide, the offline crypto guide with fixed source links (read-only), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 220
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

@@ -3184,6 +3184,20 @@ def _swap_offer_for_shortfall(exc: Any, *, proposal: Any, recipient: dict[str, A
     return {"text": " ".join(lines), "offer": offer}
 
 
+def _crypto_guide_tool(intent: str, arguments: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """How crypto works, from VOOL's offline guide (core.wallet.crypto_guide): plain words and its fixed source links."""
+    from core.wallet import crypto_guide
+
+    args = arguments if isinstance(arguments, dict) else {}
+    found = crypto_guide.answer(str(args.get("question") or ""), topic_id=str(args.get("topic") or ""))
+    ok = bool(found["topics"])
+    return RuntimeExecutionResult(
+        handled=True, ok=ok, status="answered" if ok else "no_entry", response_text=found["text"],
+        details={"guide": found, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=ok, status="answered" if ok else "no_entry",
+                                                                  topics=found["topics"], links=[link["url"] for link in found["links"]])},
+    )
+
+
 def _wallet_swap_tool(intent: str, args: dict[str, Any], context: dict[str, Any] | None) -> RuntimeExecutionResult:
     """Park one conversion for the owner's approval (core.wallet.swaps), optionally with the send it is for: that send's
     recipient is resolved from Contacts NOW (a saved address or an address given, never a guess), shown on the swap's card,
@@ -4076,6 +4090,8 @@ def _dispatch_runtime_tool(
             return _operator_profile_tool(intent, arguments, source_context)
         if intent in {"wallet.status", "wallet.propose", "wallet.swap", "wallet.simulate", "wallet.payment_status", "x402.propose"}:
             return _wallet_model_tool(intent, arguments, source_context)
+        if intent == "crypto.guide":
+            return _crypto_guide_tool(intent, arguments)
         if intent in {"zcash.invoice.create", "zcash.invoice.unpaid", "zcash.payment.history"}:
             from core.zcash.tools import run_tool as _zcash_tool
 

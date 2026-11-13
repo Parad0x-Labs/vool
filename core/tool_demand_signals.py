@@ -212,6 +212,12 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     # a conversion between the wallet's own coins ("convert 1 SOL to USDC", "swap some sol for usdc")
     ("wallet.swap", "wallet", re.compile(
         r"\b(?:convert|swap|exchange)\b[^.?!]{0,60}?\b(?:sol|usdc|usdt)\b[^.?!]{0,40}?\b(?:to|into|for)\b[^.?!]{0,20}?\b(?:sol|usdc|usdt)\b", re.I)),
+    # how crypto works, asked as a question ("what is solana", "how do gas fees work", "what is slippage", "is this a scam")
+    ("crypto.guide", "wallet", re.compile(
+        r"\b(?:what(?:'s|\s+is|\s+are)|how\s+(?:do(?:es)?|is|are|can)|explain|why\s+(?:do(?:es)?|is|are)|difference\s+between|is\s+it\s+safe)\b[^.?!]{0,60}?"
+        r"\b(?:solana|crypto(?:currency)?|blockchain|stablecoins?|usdc|usdt|tether|ethereum|base\s+chain|bnb\s+chain|arbitrum|layer\s*2|gas(?:\s+fees?)?|gwei"
+        r"|seed\s+phrase|recovery\s+phrase|private\s+key|wallets?|slippage|price\s+impact|swaps?|bridges?|bridging|staking|block\s+explorer|devnet|testnet|mainnet"
+        r"|token\s+accounts?|mint\s+address|approvals?|drainers?|x402|airdrops?)\b", re.I)),
     # -- contacts (the saved people and services; resolution itself happens inside each consumer) -----------
     # possession or the address-book name, never a bare mention: "contact card"/"Contacts are stored locally"
     # is prose about contacts, not a demand on them (the design-review boundary this base pins)

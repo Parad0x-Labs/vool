@@ -498,6 +498,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `ai.paid_ask` | Ask a pay-per-answer AI endpoint the owner added in Settings (Crypto, Pay-per-answer AI) one question, paid in USDC on Base with x402. | `question`, `endpoint?` | saves VOOL data |
+| `crypto.guide` | Explain how crypto works from VOOL's built-in guide, without the web: wallets and keys, the recovery phrase, Solana (SOL, fees, token accounts, mints), USDC and USDT,... | `question`, `topic?` | reads |
 | `pay.x402` | Settle an x402 payment. | `resource`, `allow_spend?`, `approve?`, `max_spend_usdc?`, `null_name?`, `privacy_path?` | spends money |
 | `wallet.payment_status` | Report the state of a payment proposal (pending approval, confirmed with its transaction signature, rejected, failed) from the wallet's own records. | `proposal_id` | reads |
 | `wallet.propose` | Propose a payment for the owner to approve: destination address, the amount as a decimal string in the coin's units (or amount_minor in atomic units), the asset symbol... | `destination`, `amount?`, `amount_minor?`, `asset`, `chain?`, `network?`, `wallet_id?`, `memo?`, `idempotency_key?` | saves VOOL data |
