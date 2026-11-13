@@ -37,8 +37,11 @@ def test_switch_goes_through_the_guarded_endpoint():
     assert "'/api/cloud/model'" in HTML
     # only a real ok response updates the selection
     assert "if (r.ok && j.ok)" in HTML
-    assert "rowEl.dataset.selectionError = message" in HTML
-    assert "hint.textContent = message" in HTML  # the server refusal remains visible
+    # a refused or timed-out pick stays visible on the row and its hint, in the keyed sentence
+    assert "rowEl.dataset.selectionError = shown" in HTML
+    assert "if (hint) hint.textContent = shown" in HTML
+    assert "pageT('chat.model_switch_failed'" in HTML
+    assert "pageT('chat.model_switch_timeout'" in HTML
 
 
 def test_static_popover_is_untouched_and_failsoft():
