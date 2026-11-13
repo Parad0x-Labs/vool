@@ -38,7 +38,11 @@ def test_a_picture_word_says_where_to_look(said, name, scope):
 def test_the_folder_is_found_whatever_the_word_order(home, said):
     result = _machine_find_folder({"name": said})
     assert result.ok, result.response_text
-    assert str(home / "Pictures" / "Holiday Porto 2025") in result.response_text, result.response_text
+    # The reply shows the home folder as ~ (f61268b1); the details carry the real path the tools act on.
+    assert "- ~/Pictures/Holiday Porto 2025" in result.response_text, result.response_text
+    assert [str(m) for m in (result.details or {}).get("matches") or [result.details.get("resolved_target")]] == [
+        str(home / "Pictures" / "Holiday Porto 2025")
+    ], result.details
     assert "Porto tax" not in result.response_text, result.response_text
 
 

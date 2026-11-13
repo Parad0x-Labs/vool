@@ -17,6 +17,7 @@ path directly -- that is a different, allowed question.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import tempfile
 import unittest
@@ -29,6 +30,23 @@ from core.runtime_execution_tools import (
     _machine_find_largest,
     execute_runtime_tool,
 )
+
+
+def _shown(path: Path, home: Path) -> str:
+    """How a reply names *path*: under the home folder as ~ (f61268b1, Chat R8 M6), else in full."""
+    try:
+        return "~/" + path.resolve().relative_to(home.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _names(result, path: Path, home: Path) -> bool:
+    """The reply names *path* the way the person sees it, and the result's details carry its real path (the
+    one the tools act on), so the same folder or file was found."""
+    details = json.dumps(getattr(result, "details", None) or {}, default=str)
+    return _shown(path, home) in str(getattr(result, "response_text", "") or "") and (
+        str(path) in details or str(path.resolve()) in details
+    )
 
 
 def _make_git_project(root: Path, name: str, *, extra_file: str | None = None) -> Path:
@@ -197,7 +215,7 @@ class MachineFindFolderProjectIsolationTests(unittest.TestCase):
             "machine.find_folder", {"name": "project-b"}, source_context=self.source_context
         )
         assert result is not None
-        self.assertNotIn(str(self.project_b), result.response_text)
+        self.assertNotIn(_shown(self.project_b, self.home), result.response_text)
         self.assertEqual(result.details.get("matches"), [])
 
     def test_find_folder_still_finds_the_bound_project_itself(self) -> None:
@@ -207,7 +225,7 @@ class MachineFindFolderProjectIsolationTests(unittest.TestCase):
             "machine.find_folder", {"name": "project-a"}, source_context=self.source_context
         )
         assert result is not None and result.ok
-        self.assertIn(str(self.project_a), result.response_text)
+        self.assertTrue(_names(result, self.project_a, self.home), result.response_text)
 
     def test_no_workspace_root_at_all_finds_both(self) -> None:
         """`workspace_root=None` is the direct/legacy-caller default (nothing is bound, so
@@ -218,7 +236,7 @@ class MachineFindFolderProjectIsolationTests(unittest.TestCase):
         """
         result = _machine_find_folder({"name": "project-b"}, workspace_root=None)
         assert result.ok
-        self.assertIn(str(self.project_b), result.response_text)
+        self.assertTrue(_names(result, self.project_b, self.home), result.response_text)
 
 
 class MachineFindFileProjectIsolationTests(unittest.TestCase):
@@ -243,7 +261,7 @@ class MachineFindFileProjectIsolationTests(unittest.TestCase):
         # The not-found message legitimately echoes the searched-for NAME back ("No file
         # matching 'b_secret.txt' found...") -- what must never appear is the actual PATH,
         # proof the walk never reached inside project-b.
-        self.assertNotIn(str(self.project_b / "b_secret.txt"), result.response_text)
+        self.assertNotIn(_shown(self.project_b / "b_secret.txt", self.home), result.response_text)
         self.assertEqual(result.details.get("matches"), [])
 
     def test_a_file_read_from_an_explicit_path_to_the_sibling_project_is_unaffected(self) -> None:
@@ -289,9 +307,8 @@ class FindFolderFindFileMutationSabotageTests(unittest.TestCase):
                     "machine.find_folder", {"name": "project-b"}, source_context=source_context
                 )
             assert result is not None and result.ok
-            self.assertIn(
-                str(project_b),
-                result.response_text,
+            self.assertTrue(
+                _names(result, project_b, home),
                 "sabotage did not reproduce the F3 symptom -- find_folder should have rediscovered it",
             )
 
@@ -363,7 +380,7 @@ class FindFolderOSErrorContinuationTests(unittest.TestCase):
                 source_context=self.source_context,
             )
         assert result is not None and result.ok, getattr(result, "response_text", result)
-        self.assertIn(str(self.target), result.response_text)
+        self.assertTrue(_names(result, self.target, self.home), result.response_text)
 
 
 class FindFolderOSErrorMutationSabotageTests(unittest.TestCase):
@@ -406,7 +423,7 @@ class FindFolderOSErrorMutationSabotageTests(unittest.TestCase):
                 except OSError:
                     result = None
 
-            found = bool(result is not None and result.ok and str(target) in result.response_text)
+            found = bool(result is not None and result.ok and _names(result, target, home))
             self.assertFalse(
                 found,
                 "sabotage did not reproduce the scan-abort symptom -- the later valid entry "
@@ -457,7 +474,7 @@ class FindFileOSErrorContinuationTests(unittest.TestCase):
                 "machine.find_file", {"name": "target_file.txt"}, source_context=self.source_context
             )
         assert result is not None and result.ok, getattr(result, "response_text", result)
-        self.assertIn(str(self.target_file.resolve()), result.response_text)
+        self.assertTrue(_names(result, self.target_file.resolve(), self.home), result.response_text)
 
 
 class FindFileOSErrorMutationSabotageTests(unittest.TestCase):
@@ -503,7 +520,7 @@ class FindFileOSErrorMutationSabotageTests(unittest.TestCase):
             found = bool(
                 result is not None
                 and result.ok
-                and str(target_file.resolve()) in result.response_text
+                and _names(result, target_file.resolve(), home)
             )
             self.assertFalse(
                 found,
