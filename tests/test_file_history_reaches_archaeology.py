@@ -47,8 +47,8 @@ NOT_FILE_HISTORY = [
 
 @pytest.fixture(scope="module")
 def offer():
-    from core.command_registry.registry import registry
     import core.capability_graph as graph
+    from core.command_registry.registry import registry
 
     registry()
     graph.refresh_from_registry()
