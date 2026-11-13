@@ -659,8 +659,15 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
 
     def test_dispatch_post_answers_web0_null_registration_from_project_grounding(self) -> None:
         runtime = RuntimeServices(display_name="VOOL")
+        # The agent lane's double returns a reply, as the lane does. A bare MagicMock never was
+        # one: it used to be served as "<MagicMock name='_run_agent().get()' ...>", and since the
+        # buffered door reads the result as a dict (f4f048f7) it is an empty answer, which
+        # finalization refuses (NoAnswerContent, CI #682).
+        agent_reply = "Here is what the agent lane found for that question."
 
-        with mock.patch("apps.vool_api_server._run_agent") as run_agent_mock:
+        with mock.patch(
+            "apps.vool_api_server._run_agent", return_value={"response": agent_reply, "confidence": 1.0}
+        ) as run_agent_mock:
             response = _dispatch_post(
                 path="/api/chat",
                 body={
@@ -687,6 +694,7 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         # contract: .null registration questions reach the ordinary agent lanes (the model is
         # invoked), and no topic matcher answers them wholesale.
         run_agent_mock.assert_called_once()
+        self.assertEqual(payload["message"]["content"], agent_reply)
 
     def test_pasted_fee_review_reaches_agent_through_both_chat_transports(self) -> None:
         prompt = (
@@ -760,8 +768,13 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
 
     def test_dispatch_post_answers_named_web0_null_registration_as_workflow(self) -> None:
         runtime = RuntimeServices(display_name="VOOL")
+        # The agent lane's double returns a reply, as the lane does (see the project grounding
+        # test above: a bare MagicMock is an empty answer at the buffered door since f4f048f7).
+        agent_reply = "Here is what the agent lane found for that name."
 
-        with mock.patch("apps.vool_api_server._run_agent") as run_agent_mock:
+        with mock.patch(
+            "apps.vool_api_server._run_agent", return_value={"response": agent_reply, "confidence": 1.0}
+        ) as run_agent_mock:
             response = _dispatch_post(
                 path="/api/chat",
                 body={
@@ -789,6 +802,7 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         # contract: .null registration questions reach the ordinary agent lanes (the model is
         # invoked), and no topic matcher answers them wholesale.
         run_agent_mock.assert_called_once()
+        self.assertEqual(text, agent_reply)
 
     def test_dispatch_post_answers_runtime_model_status_from_runtime_truth(self) -> None:
         runtime = RuntimeServices(
