@@ -53,6 +53,9 @@ RESERVED_TRUST_KEYS = (
     OWNER_LOCAL_KEY,
     HTTP_INGRESS_KEY,
     REMOTE_DEVICE_KEY,
+    # The chat door sets this from an allowed approval's own record (core.web.api.service); a
+    # caller-supplied one would bind its asks to another turn's approvals.
+    "approval_turn_id",
     # core.conversation_state / the turn spine write these; a caller-supplied one would rewrite its own transcript row
     # or claim a recorded folder.
     "_typed_user_text",

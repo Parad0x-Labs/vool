@@ -8653,6 +8653,16 @@ def _dispatch_post_inner(
             # first 80 characters would become ONE task: one's grants, cancel and follow-ups
             # landing on the other. A digest keeps every distinct id distinct.
             _request_turn = "rq-" + hashlib.sha256(_request_turn.encode("utf-8")).hexdigest()[:40]
+        # An approved resume that sends no turn id is still the turn that asked: the approval names
+        # it. With the request id standing in, the resume (a new request) was a different task, so
+        # the allowed approval could never be spent and the same write was asked again (CI #681:
+        # the code-task and builder served journeys).
+        # Only the approval's own identity moves: the turn's record and final check stay on this
+        # request's id, which is what they read.
+        inbound_source_context.pop("approval_turn_id", None)
+        _approval_turn = "" if _client_turn else _turn_named_by_approval(session_id, body.get("approval_token"))
+        if _approval_turn:
+            inbound_source_context["approval_turn_id"] = _approval_turn
         inbound_source_context["cancel_turn_id"] = _client_turn or _request_turn
         # A question asked while a task runs in this chat is answered beside it, not after it. The
         # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
@@ -9667,3 +9677,22 @@ def _parse_iso(value: str):
     except ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _turn_named_by_approval(session_id: Any, approval_token: Any) -> str:
+    """The turn an allowed approval was asked under, for a resume that names no turn of its own."""
+    token = str(approval_token or "").strip()
+    session = str(session_id or "").strip()
+    if not token or len(token) > 128 or not session:
+        return ""
+    try:
+        from core.chat_session_identity import canonical_chat_session_id
+        from core.mode_permission_policy import pending_approval_record
+
+        for candidate in dict.fromkeys((session, canonical_chat_session_id(session))):
+            record = pending_approval_record(candidate, token, include_approved=True)
+            if record and str(record.get("task_id") or "").strip():
+                return str(record["task_id"]).strip()[:80]
+    except Exception:
+        return ""
+    return ""

@@ -221,8 +221,15 @@ def _trim_boundary_words(words: list[str]) -> list[str]:
     return [word.strip(_PUNCT) for word in kept if word.strip(_PUNCT)]
 
 
+# "called index.html" names the FILE, not the business: a capture that opens with a file name is
+# not a site name, and taking it would greet the person with "a one-page website for Index.html".
+_FILE_NAME_WORD_RE = re.compile(r"[\w-]+\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|py|svg)\b", re.IGNORECASE)
+
+
 def _name_from(body: str) -> str:
     match = _CALLED_NAME_RE.search(body)
+    if match and _FILE_NAME_WORD_RE.match(match.group(1)):
+        match = None
     if match:
         words = _trim_boundary_words(match.group(1).split())
         if words:

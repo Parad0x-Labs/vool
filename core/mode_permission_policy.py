@@ -487,6 +487,22 @@ def set_active_mode(
     return dict(state)
 
 
+def _logical_turn_id(context: dict[str, Any], state: dict[str, Any], task_id: Any) -> str:
+    """The turn a permission ask and its approval are bound to.
+
+    An approved resume that sent no turn id of its own carries ``approval_turn_id``: the turn the
+    allowed approval was asked under, set by the chat door from the approval record itself (never
+    from the caller). Otherwise the client turn id, then the internal task id.
+    """
+    return str(
+        context.get("approval_turn_id")
+        or context.get("cancel_turn_id")
+        or state.get("client_turn_id")
+        or task_id
+        or ""
+    ).strip()
+
+
 def active_mode_state(source_context: dict[str, Any] | None) -> dict[str, Any]:
     context = dict(source_context or {})
     session_id = str(context.get("runtime_session_id") or context.get("session_id") or "").strip()
@@ -3754,9 +3770,7 @@ def request_batch_grant_covers(
     session_id = str(
         context.get("runtime_session_id") or context.get("session_id") or state.get("session_id") or ""
     ).strip()
-    logical_task_id = str(
-        context.get("cancel_turn_id") or state.get("client_turn_id") or task_id or ""
-    ).strip()
+    logical_task_id = _logical_turn_id(context, state, task_id)
     fingerprint, _actions, _args, _identity = _call_permission_identity(
         intent=str(intent or ""),
         arguments=arguments,
@@ -4168,7 +4182,7 @@ def _decide_tool_call(
     # The browser/API turn id is the stable logical task identity across an approval pause and
     # controller resume. Internal TaskRecord ids may be regenerated when the HTTP stream restarts.
     # Falling back to the internal id preserves the contract for non-chat callers.
-    logical_task_id = str(context.get("cancel_turn_id") or state.get("client_turn_id") or task_id or "").strip()
+    logical_task_id = _logical_turn_id(context, state, task_id)
     fingerprint, actions, args, identity = _call_permission_identity(
         intent=str(intent or ""),
         arguments=args,

@@ -598,3 +598,26 @@ def test_the_followup_lane_claims_nothing_it_should_not(tmp_path) -> None:
         "i want a new phone for my bakery",
     ):
         assert site_followups.maybe_handle_site_followup(agent, ask, context) is None, ask
+
+
+@pytest.mark.parametrize(
+    "ask",
+    (
+        "In this project, create a single-file HTML task board called index.html.\n\nInclude:\n- TODO column",
+        "make a page named about.html with our story",
+        "build a website called index.htm for the shop",
+    ),
+)
+def test_a_file_name_after_called_is_never_the_site_name(ask: str) -> None:
+    from core.agent_runtime.builder.site_words import extract_site_words
+
+    name = extract_site_words(ask).name
+    assert ".htm" not in name.lower(), name
+    assert "include" not in name.lower(), name
+
+
+def test_a_business_called_by_name_keeps_its_name() -> None:
+    from core.agent_runtime.builder.site_words import extract_site_words
+
+    assert extract_site_words("make a website for my bakery called Paws").name == "Paws"
+    assert extract_site_words("a site called Index Bakery").name == "Index Bakery"

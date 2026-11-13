@@ -319,6 +319,22 @@ def select_auto_builder_manifest(agent: Any) -> Any | None:
         )
         if ranked:
             return ranked[0]
+    # No enabled model declares coding. A model the operator turned on still writes the build
+    # (best-ranked, never the bundle default tag, which may not even be installed): refusing here
+    # stopped every build on a runtime whose models simply declare no capability list, the
+    # served morning scaffold journeys among them (CI #681 on c8ae4380).
+    # Ranked as a general turn: the coding task kinds require the coding capability.
+    ranked = rank_providers(
+        manifests,
+        ModelSelectionRequest(
+            task_kind="normal_chat",
+            output_mode="plain_text",
+            local_only=True,
+            allow_paid_fallback=False,
+        ),
+    )
+    if ranked:
+        return ranked[0]
     return None
 
 
@@ -1249,6 +1265,19 @@ def workspace_build_response(
     return "\n".join(lines)
 
 
+def _with_planned_files(prompt: str, planned_paths: list[str] | None) -> str:
+    """The approval prompt, then the files this build plans to write.
+
+    The first pause is often the folder step, so the prompt alone named only the folder: the
+    operator approving it could not see which files the build was about to write (the Manual-mode
+    scaffold journey's exact-plan check, CI #681).
+    """
+    paths = list(dict.fromkeys(path for path in (planned_paths or []) if path))
+    if not paths:
+        return prompt
+    return prompt + "\n\nPlanned files: " + ", ".join(f"`{path}`" for path in paths) + "."
+
+
 def _interrupted_build_result(
     agent: Any,
     *,
@@ -1259,6 +1288,7 @@ def _interrupted_build_result(
     effective_input: str,
     source_context: dict[str, Any],
     written_paths: list[str],
+    planned_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """The answer for a model build its own tool door stopped: an approval pause or a refusal.
 
@@ -1289,7 +1319,7 @@ def _interrupted_build_result(
             task_id=task_id,
             session_id=session_id,
             user_input=effective_input,
-            response=stated or "Waiting for your approval before writing the files.",
+            response=_with_planned_files(stated or "Waiting for your approval before writing the files.", planned_paths),
             confidence=0.95,
             source_context=pending_context,
             reason="builder_controller_pending_approval",
@@ -1436,14 +1466,14 @@ def _run_model_build(
                 budget=generation_budget,
             )
         elif selected is None:
-            # Local lanes exist, but none that is turned on declares coding support. Say so and
-            # offer the two ways forward -- never fall back to a model the operator turned off.
+            # Local lanes exist, but none of them is turned on. Say so and offer the two ways
+            # forward -- never fall back to a model the operator turned off.
             return agent._action_fast_path_result(
                 task_id=task.task_id,
                 session_id=session_id,
                 user_input=effective_input,
                 response=(
-                    "No local model that can write code is turned on, so I didn't start this build. "
+                    "No local model is turned on, so I didn't start this build. "
                     "Turn one on in Settings → Models & Providers → Local models, or choose a model "
                     "above the chat, then send the request again."
                 ),
@@ -1476,8 +1506,12 @@ def _run_model_build(
     # gated exactly as it was.
     pending_plan: list[dict[str, Any]] = []
 
+    # The whole plan as announced, kept for the answer when a write pauses for approval.
+    announced_plan: list[dict[str, Any]] = []
+
     def announce_plan_fn(planned: list[dict[str, Any]]) -> None:
         pending_plan[:] = [dict(call) for call in planned]
+        announced_plan[:] = [dict(call) for call in planned]
 
     def _claim_from_plan(intent: str, arguments: dict[str, Any]) -> list[dict[str, Any]]:
         """Drop this call from the plan and return what is left -- the batch it heads.
@@ -1581,6 +1615,12 @@ def _run_model_build(
             agent,
             execution=interrupted.result,
             intent=interrupted.intent,
+            planned_paths=[
+                str((call.get("arguments") or {}).get("path") or "")
+                for call in announced_plan
+                if str(call.get("intent") or "") == "workspace.write_file"
+                and str((call.get("arguments") or {}).get("path") or "")
+            ],
             task_id=task.task_id,
             session_id=session_id,
             effective_input=effective_input,
