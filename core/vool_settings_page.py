@@ -6195,10 +6195,10 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.provider_key_guide import provider_key_guide
     from core.routines_fragment import render_routines_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
+    from core.settings_ui_kit import SETTINGS_KIT_CSS
     from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
     from core.x_settings_fragment import X_FEATURES_JS
-    from core.settings_ui_kit import SETTINGS_KIT_CSS
     from core.x_social_fragment import render_x_social_fragment
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
