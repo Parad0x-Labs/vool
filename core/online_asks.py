@@ -46,7 +46,9 @@ _OWNER_RE = re.compile(
 _FROM_RECORDS_RE = re.compile(
     r"\b(?:using|use|from|based\s+on|according\s+to|per)\s+(?:the\s+|these\s+|those\s+)?"
     r"(?:(?:imported|prior|previous|past|earlier|old|saved)\s+)*"
-    r"(?:conversations?|chats?|records|notes|messages|what\s+(?:i|we)\s+(?:said|told\s+you|wrote))\b",
+    r"(?:conversations?|chats?|records|notes|messages|what\s+(?:i|we)\s+(?:said|told\s+you|wrote))\b"
+    # The person's own database ("answer from the orders database ..."): the Database tools answer it.
+    r"|\b(?:from|in|using|use|of)\s+(?:the\s+|my\s+|our\s+)?(?:[\w'’-]+\s+)?(?:database|db)\b",
     re.IGNORECASE,
 )
 # Things on this computer or in this chat, which no web page holds.
