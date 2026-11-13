@@ -75,6 +75,7 @@ that was actually served rather than a call that was merely attempted.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import re
 import threading
@@ -485,20 +486,34 @@ def _now() -> float:
 
 
 def _certification_cache_key(manifest: Any) -> str:
-    """The identity a certification verdict is cached under: the model AT its destination. The
-    measured fingerprint binds the endpoint (``base_identity``), so a lane re-registered at another
-    destination under the same provider id must never be answered from the previous destination's
-    verdict (revision-5 review R2: within the TTL a replaced custom endpoint inherited the old
-    endpoint's authorship, and a newly measured one inherited the old refusal)."""
+    """The identity a certification verdict is cached under: the model AT its destination, as its
+    registration declares it. The measured fingerprint binds the endpoint (``base_identity``), so a
+    lane re-registered at another destination under the same provider id must never be answered
+    from the previous destination's verdict (revision-5 review R2: within the TTL a replaced custom
+    endpoint inherited the old endpoint's authorship, and a newly measured one inherited the old
+    refusal).
+
+    The fingerprint binds the model's declared identity too (adapter, digest, chat template,
+    quantization), and so does this key: a lane re-registered as another build of the model is a
+    different identity, never answered from the earlier registration's verdict. CI #681
+    (2026-11-13): boot names the model in use before the person's lane is registered, so the
+    verdict it cached for the boot default (no digest declared, "unknown") refused the re-registered,
+    certified lane for the rest of the TTL. Only declared fields go into the key; what a live
+    identity read measures stays the TTL's to refresh."""
     provider_id = str(getattr(manifest, "provider_id", "") or "")
     runtime_config = getattr(manifest, "runtime_config", None) or {}
     try:
         base_url = str(runtime_config.get("base_url") or "").strip()
     except AttributeError:
         base_url = ""
-    from core.local_model_tool_certification import normalized_base_identity
+    from core.local_model_tool_certification import certification_fingerprint_payload, normalized_base_identity
 
-    return f"{provider_id}\n{normalized_base_identity(base_url) if base_url else ''}"
+    try:
+        declared = json.dumps(certification_fingerprint_payload(manifest), sort_keys=True, default=str)
+    except Exception:
+        declared = ""
+    identity = hashlib.sha256(declared.encode("utf-8")).hexdigest()[:16] if declared else ""
+    return f"{provider_id}\n{normalized_base_identity(base_url) if base_url else ''}\n{identity}"
 
 
 def invalidate_author_certification(manifest: Any = None) -> None:
