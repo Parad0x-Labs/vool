@@ -48,7 +48,9 @@ def _channels(base: str) -> dict[str, dict]:
 
 def _open_channels(page, base: str) -> None:
     page.goto(f"{base}/settings#wallet", wait_until="networkidle")
-    page.locator("#vwCxChannelsFold > summary").click()  # payment channels sit under Developer options
+    # payment channels sit under Developer options; a same-page visit keeps it open, so open it only when it is closed
+    if not page.locator("#vwCxChannelsFold").evaluate("d => d.open"):
+        page.locator("#vwCxChannelsFold > summary").click()
     page.wait_for_selector("#vwCxChannels #vwCh_x402", state="visible", timeout=20000)
 
 

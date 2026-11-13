@@ -212,7 +212,9 @@ def test_settings_offers_recovery_per_account_and_options_read_changes_nothing(s
     wallet, _backup = _wallet_with_backup(daemon)
     page, errors, _console = _open_page(browser, daemon, "/settings#wallet")  # the integrated Settings page: the Wallet section
     try:
-        page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
+        # the other ways to add a wallet start folded; a same-page visit keeps it open, so open it only when it is closed
+        if not page.locator("#walletMore").evaluate("d => d.open"):
+            page.locator("#walletMore > summary").click()
         page.wait_for_selector("#vwStatus", state="visible", timeout=20_000)
         link = page.locator(f'.vw-forgot-account[data-wallet="{wallet["wallet_id"]}"]')
         link.wait_for(timeout=15_000)

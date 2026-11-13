@@ -67,11 +67,13 @@ def test_served_settings_page_shows_the_wallet_section_with_its_controls(tmp_pat
         try:
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
-            page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
+            # the other ways to add a wallet start folded; a same-page visit keeps it open, so open it only when it is closed
+            if not page.locator("#walletMore").evaluate("d => d.open"):
+                page.locator("#walletMore > summary").click()
             page.wait_for_selector("#vwStatus", state="visible", timeout=20000)
             page.wait_for_selector("#vwConnectEvm", state="visible", timeout=20000)
             text = page.inner_text("#walletHost")
-            assert "custody" in text.lower(), text[:300]
+            assert "nothing added here yet" in text.lower(), text[:300]
             assert "not been audited by an external party" in text, text[:400]
             assert page.is_visible("#vwConnectPhantom") or page.is_visible("#vwCreateBtn"), "wallet controls are not visible"
         finally:

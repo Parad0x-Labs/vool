@@ -293,7 +293,7 @@ function maskedLine(label, value, id){
   line.appendChild(span); line.appendChild(toggle);
   return line;
 }
-var legacyDevOpen = false, legacyShownEnabled = null;
+var legacyDevOpen = false, legacyShownEnabled = null, legacyEvmSync = null;
 function setWalletEnabled(on){
   setMsg(on ? 'Enabling VOOL Wallet…' : 'Turning VOOL Wallet off…');
   return postJson('/api/settings/prefs', { wallet_enabled: !!on }).then(function(res){
@@ -351,7 +351,7 @@ function renderStatus(){
     statusEl.appendChild(offBtn);
     // nothing here yet: one plain line, no account words
     var head = el('div', 'vw-line'); head.id = 'vwKindLine';
-    head.appendChild(document.createTextNode(MODE_LABELS[st.custody_mode] || WT('wallet.legacy.none_yet', 'Nothing added here yet.')) + ' ');
+    head.appendChild(document.createTextNode((MODE_LABELS[st.custody_mode] || WT('wallet.legacy.none_yet', 'Nothing added here yet.')) + ' '));
     var mainnetBadge = el('span', 'vw-badge' + (st.mainnet_enabled ? '' : ' testnet'), st.mainnet_enabled ? WT('wallet.legacy.real_money', 'real money') : WT('wallet.legacy.test_coins', 'test coins only'));
     head.appendChild(mainnetBadge);
     statusEl.appendChild(head);
@@ -710,7 +710,9 @@ function buildSection(){
       });
     }).catch(function(err){ setMsg('Phantom did not connect: ' + (err && err.message ? err.message : 'no answer'), true); });
   });
-  renderStatus().then(function(st){
+  // the EVM choices come with the status; turning Crypto on later re-reads them (refreshStatus)
+  legacyEvmSync = function(st){
+    if (!st) return;
     var declared = (st && st.declared_networks) || [];
     evmChain.textContent = '';
     var evmNetworks = declared.filter(function(n){ return isEvmNetwork(n); });
@@ -719,7 +721,8 @@ function buildSection(){
     });
     evmChain.hidden = evmNetworks.length === 0;
     evmBtn.hidden = evmNetworks.length === 0;
-  });
+  };
+  renderStatus().then(legacyEvmSync);
   evmBtn.addEventListener('click', function(){
     var eth = evmProvider();
     if (!eth) { setMsg(WT('wallet.home.no_evm', 'No MetaMask or other EVM wallet was found in this browser. Open VOOL in a browser that has the wallet extension to connect it.'), true); return; }
@@ -1181,11 +1184,13 @@ function agentControls(cp){
           var chosen = open.filter(function(n){ return n.network === pick.value; })[0] || open[0];
           proved('/api/wallet/agents/wallet', { agent_id: agent.agent_id, network: pick.value }).then(function(res){
             create.disabled = false;
-            if (!res.ok) { cxMsg(msg, faultMessage(res, 'The wallet was not created.'), true); return; }
+            // a refusal or a half-finished create still re-reads the list: a wallet that exists is shown, with its next step
+            if (!res.ok) { cxMsg(msg, faultMessage(res, 'The wallet was not created.'), true); load(); return; }
             cxMsg(msg, '');
             var w = res.data.wallet || {};
+            if (!res.data.backup) { load(); return; }
             showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: chosen.name, address: w.address }, res.data.backup, function(done){ cxMsg(msg, done ? 'The wallet is ready. Send it only what you are willing to let VOOL spend.' : 'The wallet is created but not finished: its backup key was not confirmed and will not be shown again.'); renderCrypto(); });
-          }).catch(function(){ create.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+          }).catch(function(){ create.disabled = false; cxMsg(msg, 'The request did not complete.', true); load(); });
         });
         row.appendChild(pick); row.appendChild(create); block.appendChild(row);
         if (!(agent.wallets || []).length) block.appendChild(el('div', 'vw-cx-env', 'It has no wallet yet, so it pays nothing on its own. Creating one needs your wallet ' + secretWord(d) + ' and moves no money.'));
@@ -2798,7 +2803,7 @@ function refreshStatus(){
     // the Settings surface follows the switch above it: on, the rows appear; off, they go
     if (cryptoHost && cryptoStatus && !!st.enabled !== !!cryptoStatus.enabled && !cryptoOpenForm && !document.getElementById('vwCxBackup')) { cryptoStatus = st; drawCrypto(st); }
     // the section below follows the same switch: it never keeps saying "off" after Crypto was turned on
-    if (statusEl && legacyShownEnabled !== null && !!st.enabled !== legacyShownEnabled) renderStatus();
+    if (statusEl && legacyShownEnabled !== null && !!st.enabled !== legacyShownEnabled) renderStatus().then(function(fresh){ if (legacyEvmSync) legacyEvmSync(fresh); });
     return st;
   }).catch(function(){ return null; });
 }
