@@ -119,3 +119,22 @@ def test_the_manifest_accepts_limits_written_as_text() -> None:
     assert_supported(schema)
     assert validate({"name": "orders", "sql": "select 1", "row_limit": "1", "max_seconds": "5"}, schema) == []
     assert validate({"name": "orders", "sql": "select 1", "row_limit": 2000}, schema) != []
+
+
+def test_is_null_on_a_column_with_no_nulls_is_refused_with_its_real_values(h, monkeypatch) -> None:
+    c = sqlite3.connect(h.scratch_root() + "/databases/orders.sqlite")
+    c.executescript(
+        "create table loans(id integer primary key, member_id int, returned int);"
+        "insert into loans values (1,1,1),(2,1,0),(3,2,0);"
+        "create table notes(id integer primary key, body text); insert into notes values (1,'a'),(2,NULL);"
+    )
+    c.commit(); c.close()
+    r = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from loans where returned is null"})
+    assert r["ok"] is False and r["status"] == "sql_error" and "never holds NULL" in r["error"] and "0, 1" in r["error"] or "1, 0" in r["error"]
+    # a column that does hold NULLs, an outer join, and IS NOT NULL stay lawful
+    ok = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from notes where body is null"})
+    assert ok["ok"] is True and ok["observation"]["rows"] == [[1]]
+    ok = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select customers.name from customers left join loans on loans.member_id = customers.id where loans.returned is null"})
+    assert ok["ok"] is True
+    ok = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from loans where returned is not null"})
+    assert ok["ok"] is True

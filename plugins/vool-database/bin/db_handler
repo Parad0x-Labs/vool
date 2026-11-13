@@ -893,6 +893,49 @@ def _cancelled(name, max_seconds):
     )
 
 
+_IS_NULL_RE = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b([A-Za-z_]\w*)\s+IS\s+NULL\b", re.IGNORECASE)
+_OUTER_JOIN_RE = re.compile(r"\b(?:LEFT|RIGHT|FULL|OUTER)\b", re.IGNORECASE)
+
+
+def _refuse_null_test_on_a_column_with_no_nulls(conn, body):
+    """`col IS NULL` on a column that holds no NULL at all can only return nothing.
+
+    Database run 16f: "how many are still out on loan" was written `WHERE returned IS NULL` on a 0/1 flag; the
+    count 0 was then published as true. The refusal names the column's real values so the model tests those
+    (typed `sql_error`, which the loop hands back to the model). Not applied to outer joins, where NULL is made
+    by the join itself."""
+    if _OUTER_JOIN_RE.search(body):
+        return
+    snapshot = None
+    for qualifier, column in _IS_NULL_RE.findall(body):
+        if snapshot is None:
+            snapshot = _schema_snapshot(conn)
+        for table, shape in snapshot.items():
+            if qualifier and qualifier.lower() != table.lower():
+                continue
+            if column.lower() not in [c["name"].lower() for c in shape["columns"]]:
+                continue
+            safe_table = table.replace('"', '""')
+            safe_column = column.replace('"', '""')
+            try:
+                total = conn.execute('SELECT COUNT(*) FROM "%s"' % safe_table).fetchone()[0]
+                nulls = conn.execute('SELECT COUNT(*) FROM "%s" WHERE "%s" IS NULL' % (safe_table, safe_column)).fetchone()[0]
+                if not total or nulls:
+                    continue
+                values = [r[0] for r in conn.execute('SELECT DISTINCT "%s" FROM "%s" LIMIT 4' % (safe_column, safe_table))]
+            except sqlite3.Error:
+                continue
+            raise Fail(
+                "sql_error",
+                "%s.%s never holds NULL in this database, so `%s IS NULL` matches nothing; its values are %s. "
+                "Test one of those values instead (for a returned/done flag, 0 usually means not yet and 1 means yes)."
+                % (table, column, column, ", ".join(repr(v) for v in values)),
+                database_table=table,
+                database_column=column,
+                values=values,
+            )
+
+
 def tool_query(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
@@ -908,6 +951,7 @@ def tool_query(args):
     max_seconds = max(1, min(max_seconds, MAX_SECONDS))
     conn = open_ro(path)
     try:
+        _refuse_null_test_on_a_column_with_no_nulls(conn, body)
         deadline_guard(conn, max_seconds)
         started = time.monotonic()
         try:

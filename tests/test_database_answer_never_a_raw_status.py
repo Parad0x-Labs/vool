@@ -118,3 +118,47 @@ def test_a_database_turn_does_not_carry_the_process_tool() -> None:
 
     assert not _PROCESS_WORDS_RE.search("list the members, newest first")
     assert _PROCESS_WORDS_RE.search("which process uses the most memory usage")
+
+
+def _library(tmp_path, monkeypatch):
+    from core.plugin_tools import plugin_scratch_dir
+
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path))
+    root = plugin_scratch_dir("vool-database") / "databases"
+    root.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(root / "library.sqlite")
+    c.executescript(
+        "create table books(id integer primary key, title text);"
+        "create table members(id integer primary key, name text, joined text);"
+        "create table loans(id integer primary key, book_id int, member_id int, returned int);"
+        "insert into members values (1,'Ines','2024-03-02'),(2,'Tomas','2023-11-20'),(3,'Yara','2025-01-09');"
+        "insert into books values (1,'Dune'),(2,'Emma'); insert into loans values (1,1,2,0);"
+    )
+    c.commit()
+    return c
+
+
+def test_the_nudge_hands_over_a_ready_call(tmp_path, monkeypatch) -> None:
+    from core.database_work_state import suggest_database_query
+
+    c = _library(tmp_path, monkeypatch)
+    members = suggest_database_query("list the members, newest first")
+    assert members == "name=library, sql=SELECT * FROM members ORDER BY joined DESC"
+    who = suggest_database_query("has Tomas given everything back")
+    assert "name=library, sql=SELECT" in who and "WHERE members.name = 'Tomas'" in who
+    assert c.execute(who.split("sql=", 1)[1]).fetchall()  # the suggested call really runs and finds Tomas's loan
+    assert suggest_database_query("what is the weather") == ""
+
+
+def test_the_no_answer_detector_knows_the_16f_wordings() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_last_result_empty, _is_database_no_answer
+
+    for text in [
+        "I don't have access to real-time information about Yara's status.",
+        "The database does not contain information about Ines or any books she may be holding.",
+        "I don't have access to a list of members or a database of people to list.",
+    ]:
+        assert _is_database_no_answer(text), text
+    empty = [{"tool_name": "vool-database.query", "ok": True, "observation": {"rows": [[0]]}}]
+    assert _database_last_result_empty(empty)
+    assert not _database_last_result_empty([{"tool_name": "vool-database.query", "ok": True, "observation": {"rows": [["Tomas", 1]]}}])

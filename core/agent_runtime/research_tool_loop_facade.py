@@ -338,9 +338,37 @@ _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
 _DATABASE_NO_ANSWER_RE = re.compile(
     r"(?:\bdon'?t have access\b|\bdo not have access\b|\bnot (?:mentioned|specified|provided|stated)\b|\bdoes not (?:mention|include|specify)\b|"
     r"\bplease (?:provide|clarify|specify)\b|\bcould you (?:please )?(?:clarify|specify|provide)\b|\bunclear\b|"
-    r"\bcannot determine\b|\bcan'?t determine\b|\bno (?:information|data|record)s? (?:about|on|of)\b)",
+    r"\bcannot determine\b|\bcan'?t determine\b|\bno (?:information|data|record)s? (?:about|on|of)\b|"
+    r"\breal-time information\b|\bdoes not contain (?:any )?(?:information|data|records?)\b|\bnot (?:in|part of) (?:the|your) database\b|"
+    r"\bcannot be answered\b|\bdo(?:es)? not (?:have|contain) (?:a |any )?(?:list|database|record)s?\b)",
     re.IGNORECASE,
 )
+
+
+def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
+    """The last database step succeeded with no rows, or a lone count of 0 (or failed): nothing it found is a fact."""
+    for step in reversed(steps):
+        if not str(step.get("tool_name") or "").startswith("vool-database."):
+            continue
+        if step.get("correction"):
+            continue
+        observation = step.get("observation")
+        if step.get("ok") is False:
+            return True
+        if not isinstance(observation, dict) or "rows" not in observation:
+            return False
+        rows = list(observation.get("rows") or [])
+        return not rows or (len(rows) == 1 and len(rows[0]) == 1 and rows[0][0] in (0, "0", None))
+    return False
+
+
+def _database_call_suggestion(question: str) -> str:
+    try:
+        from core.database_work_state import suggest_database_query
+
+        return suggest_database_query(question)
+    except Exception:
+        return ""
 
 
 def _is_database_no_answer(text: str) -> bool:
@@ -1948,9 +1976,12 @@ class ResearchToolLoopFacadeMixin:
                     if (
                         selected_response
                         and direct_message is not None
-                        and database_no_tool_corrections < 1
+                        and database_no_tool_corrections < 2
                         and _is_database_no_answer(direct_message)
-                        and not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
+                        and (
+                            not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
+                            or _database_last_result_empty(executed_steps)
+                        )
                         and _database_work_turn(effective_input, loop_source_context)
                     ):
                         # Run 16d: "list the members, newest first" / "has Tomas given everything back" were
@@ -1965,8 +1996,13 @@ class ResearchToolLoopFacadeMixin:
                                 "status": "database_not_consulted",
                                 "observation": (
                                     "You answered without looking. The person's own database is available: call "
-                                    "vool-database.query (or vool-database.schema first) using the exact table and column "
-                                    "names you were given, then answer from the rows. Do not say you have no access."
+                                    "vool-database.query using the exact table and column names you were given, then "
+                                    "answer from the rows. Do not say you have no access."
+                                    + (
+                                        f" Call it now with: {_suggestion}."
+                                        if (_suggestion := _database_call_suggestion(effective_input))
+                                        else ""
+                                    )
                                 ),
                             }
                         )
@@ -1978,6 +2014,19 @@ class ResearchToolLoopFacadeMixin:
                             step_count=len(executed_steps),
                         )
                         continue
+                    if (
+                        direct_message is not None
+                        and selected_response
+                        and _is_database_no_answer(direct_message)
+                        and _database_last_result_empty(executed_steps)
+                    ):
+                        # Run 16f: "the database does not contain information about Ines" after a query that
+                        # found nothing because it was written wrong. An empty result says only that THIS query
+                        # found nothing; the absence is not stated as a fact about the person's data.
+                        direct_message = (
+                            "I could not find that. The query I ran returned nothing, which does not show it is "
+                            "missing from your database, so I am not saying it is. Ask again and I will look again."
+                        )
                     if direct_message is not None:
                         # K-05 MODEL-PROSE-NOT-EVIDENCE: a bound obligation set
                         # with pending machine-effect intents blocks prose

@@ -191,3 +191,81 @@ def database_catalog_block(max_chars: int = 2600) -> str:
         return text[:max_chars]
     except Exception:
         return ""
+
+
+_NAME_TOKEN_RE = None
+
+
+def suggest_database_query(question: str, max_chars: int = 600) -> str:
+    """One concrete read-only call for a question, built from the person's own tables ("" when none fits).
+
+    Run 16f: the model answered "I don't have access" to "list the members, newest first" even after being told
+    to look; the prompt's examples did not land. A ready call with the real database and table names does: the
+    nudge hands it over. A first name the person gives that exists in a `name` column becomes a lookup of that
+    row, joined through the id columns when a table links to it. Read-only, bounded, never raises."""
+    try:
+        import re
+        import sqlite3
+
+        from core.plugin_tools import plugin_scratch_dir
+
+        text = str(question or "")
+        lowered = text.lower()
+        root = plugin_scratch_dir("vool-database") / "databases"
+        for path in sorted(p for p in root.glob("*.sqlite") if p.is_file())[:6]:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+            try:
+                shapes: dict[str, list[str]] = {}
+                for (table,) in conn.execute(
+                    "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name"
+                ).fetchall()[:20]:
+                    shapes[table] = [r[1] for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
+                # 1. a name the person gave, found in a name column
+                for token in re.findall(r"\b[A-Z][a-z]{2,}\b", text):
+                    for table, columns in shapes.items():
+                        if "name" not in [c.lower() for c in columns]:
+                            continue
+                        hit = conn.execute(
+                            'select count(*) from "%s" where lower(name) = lower(?)' % table.replace('"', ""), (token,)
+                        ).fetchone()[0]
+                        if not hit:
+                            continue
+                        linked = []
+                        for other, other_columns in shapes.items():
+                            for column in other_columns:
+                                stem = column[:-3] if column.lower().endswith("_id") else ""
+                                if stem and table in (stem, stem + "s", stem + "es") and other != table:
+                                    linked.append((other, column))
+                        if not linked:
+                            sql = "SELECT * FROM %s WHERE name = '%s'" % (table, token)
+                        else:
+                            other, column = linked[0]
+                            joins = [" JOIN %s ON %s.%s = %s.id" % (table, other, column, table)]
+                            picks = ["%s.name" % table]
+                            for col2 in shapes[other]:
+                                stem2 = col2[:-3] if col2.lower().endswith("_id") else ""
+                                tgt = next((t for t in (stem2, stem2 + "s", stem2 + "es") if stem2 and t in shapes and t not in (other, table)), "")
+                                if tgt:
+                                    label = next((c for c in shapes[tgt] if c.lower() != "id" and not c.lower().endswith("_id")), "id")
+                                    joins.append(" JOIN %s ON %s.%s = %s.id" % (tgt, other, col2, tgt))
+                                    picks.append("%s.%s" % (tgt, label))
+                            picks += ["%s.%s" % (other, c) for c in shapes[other] if c.lower() != "id" and not c.lower().endswith("_id")][:2]
+                            sql = "SELECT %s FROM %s%s WHERE %s.name = '%s'" % (", ".join(picks), other, "".join(joins), table, token)
+                        return ("name=%s, sql=%s" % (path.stem, sql))[:max_chars]
+                # 2. a table the person named, with the order they asked for
+                for table, columns in shapes.items():
+                    names = {table.lower(), table.lower().rstrip("s"), table.lower()[:-3] + "y" if table.lower().endswith("ies") else table.lower()}
+                    if not any(re.search(r"\b%s(?:s|es)?\b" % re.escape(n), lowered) for n in names if n):
+                        continue
+                    order = ""
+                    date_col = next((c for c in columns if re.search(r"join|date|created|added|year|time", c, re.I)), "")
+                    if date_col and re.search(r"\b(newest|latest|recent|most recently)\b", lowered):
+                        order = " ORDER BY %s DESC" % date_col
+                    elif date_col and re.search(r"\b(oldest|earliest)\b", lowered):
+                        order = " ORDER BY %s ASC" % date_col
+                    return ("name=%s, sql=SELECT * FROM %s%s" % (path.stem, table, order))[:max_chars]
+            finally:
+                conn.close()
+        return ""
+    except Exception:
+        return ""
