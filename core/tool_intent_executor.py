@@ -96,6 +96,12 @@ _COMMAND_INTENTS = frozenset(
     }
 )
 
+# A read-only tool's outcomes that describe the TARGET (missing, a folder, not text, too big). The
+# tool's own sentence says what it looked for and where, in words for the person.
+_READ_TARGET_MISS_STATUSES = frozenset(
+    {"not_found", "invalid_target_type", "not_a_directory", "binary_file", "too_large"}
+)
+
 __all__ = [
     "ToolIntentExecution",
     "_looks_like_workspace_bootstrap_request",
@@ -1686,6 +1692,18 @@ def _execute_tool_intent_impl(
                 # (V-043, 2026-11-12): without this the turn ended on the generic "I wasn't able to
                 # turn that into a completed action". On macOS the model's next step is pdf.ocr.
                 execution.user_safe_response_text = str(runtime_execution.response_text or "")
+        if (
+            not runtime_execution.ok
+            and not execution.user_safe_response_text
+            and str(getattr(runtime_contract, "side_effect_class", "") or "") == "read_only"
+            and str(runtime_execution.status or "") in _READ_TARGET_MISS_STATUSES
+        ):
+            # A read that found nothing at its target ends the turn on what it looked for and where
+            # ("There is no file at `contract.pdf` ... I also looked in ~/Downloads ..."). Nothing ran,
+            # nothing changed. Measured in the skills A/B on 11eef8dc (2026-11-13): a missing PDF, a
+            # press release and a test file each ended on "I wasn't able to turn that into a
+            # completed action. Tell me the specific thing you want done", which blamed the person.
+            execution.user_safe_response_text = str(runtime_execution.response_text or "")
         _maybe_store_tool_receipt(
             execution,
             receipt_key=receipt_key,

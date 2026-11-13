@@ -3474,6 +3474,69 @@ _WORKSPACE_WORDS_NOTICE: contextvars.ContextVar[str] = contextvars.ContextVar(
 )
 
 
+def _verify_buffered_seal(
+    result: dict[str, Any] | None,
+    *,
+    user_text: str,
+    session_id: str,
+    source_context: dict[str, Any],
+) -> dict[str, Any]:
+    """K-08 at the buffered door, with the same ONE legal completion the streamed door has.
+
+    ORDERING-FROZEN verify-only assert (R-0/A-11): transforms ran inside the sealing context BEFORE
+    admission; the boundary re-derives them against the UNFOOTERED canonical bytes --
+    `_finalize_turn_usage` appends the provenance footer after the seal, so comparing raw
+    `result["response"]` here crashes every exact-contract turn. Exact-response-control must
+    re-derive byte for byte for every result, or the turn is refused loudly.
+
+    The honesty verify follows the streamed lane's `_k08_verify_immutable`: a result that carries
+    `vool_response_commit` keeps the strict verify, and a result that arrived without one is
+    COMPLETED here -- the door's application stands. The buffered door used to raise for both,
+    so the same turn served streamed was answered and served buffered died as a bare HTTP 500
+    (skills A/B on 11eef8dc, 2026-11-13: "Turn this into an X article" with every tool failing).
+    """
+    from core.response_provenance import strip_provenance_footer as _r0_strip
+
+    commit = (result or {}).get("vool_response_commit")
+    arrived_unsealed = not isinstance(commit, dict)
+    _canonical_served = _r0_strip(str((result or {}).get("response") or ""))
+    if not arrived_unsealed and commit.get("canonical_content"):
+        _canonical_served = str(commit["canonical_content"])
+    _controlled = apply_exact_response_control(
+        {**dict(result or {}), "response": _canonical_served}, user_text
+    )
+    if str(_controlled.get("response") or "") != _canonical_served:
+        raise RuntimeError(
+            "K-08 violation: exact-response-control would mutate post-admission bytes"
+        )
+    # Honesty against the same unfootered canonical bytes, judged under the turn key the in-turn
+    # seal used: this door's context never saw the turn id minted inside the run, and under the
+    # request id a command that really ran looks unbacked.
+    _guarded = enforce_final_action_honesty(
+        {**dict(result or {}), "response": _canonical_served},
+        user_input=user_text,
+        effective_input=user_text,
+        session_id=session_id,
+        source_context=sealed_turn_context(result, source_context),
+    )
+    if str(_guarded.get("response") or "") == _canonical_served:
+        return dict(result or {})
+    if not arrived_unsealed:
+        raise RuntimeError(
+            "K-08 violation: final-action-honesty would mutate post-admission bytes"
+        )
+    # Operator-side only: the door completed an uncommitted reply. For an admitted model reply this
+    # means the in-turn seal and the door judged differently; say why, so the next run names the
+    # cause instead of a bare status code.
+    logging.getLogger("vool.api").warning(
+        "buffered door completed an uncommitted reply (session=%s, admitted=%s): %s",
+        session_id,
+        "_semantic_admission" in (result or {}),
+        dict(_guarded.get("action_honesty_validator") or {}).get("reason") or "unknown",
+    )
+    return _guarded
+
+
 def dispatch_post(
     *,
     path: str,
@@ -9360,38 +9423,8 @@ def _dispatch_post_inner(
             # The buffered lane's turn is over here, answered or failed: release its attachments.
             if _attachment_turn:
                 _release_turn_attachments(session_id, _attachment_turn)
-        # K-08 ORDERING-FROZEN verify-only assert (R-0/A-11): transforms ran
-        # inside the sealing context BEFORE admission; the boundary re-derives
-        # them against the UNFOOTERED canonical bytes — `_finalize_turn_usage`
-        # appends the provenance footer after the seal, so comparing raw
-        # `result["response"]` here crashes every exact-contract turn.
-        from core.response_provenance import strip_provenance_footer as _r0_strip
-
-        _canonical_served = _r0_strip(str((result or {}).get("response") or ""))
-        commit = (result or {}).get("vool_response_commit") or {}
-        if commit.get("canonical_content"):
-            _canonical_served = str(commit["canonical_content"])
-        _controlled = apply_exact_response_control(
-            {**dict(result or {}), "response": _canonical_served}, user_text
-        )
-        if str(_controlled.get("response") or "") != _canonical_served:
-            raise RuntimeError(
-                "K-08 violation: exact-response-control would mutate post-admission bytes"
-            )
-        # Honesty seal verify-only against the same unfootered canonical bytes, judged under the
-        # turn key the in-turn seal used: this door's context never saw the turn id minted inside
-        # the run, and under the request id a command that really ran looks unbacked.
-        _guarded = enforce_final_action_honesty(
-            {**dict(result or {}), "response": _canonical_served},
-            user_input=user_text,
-            effective_input=user_text,
-            session_id=session_id,
-            source_context=sealed_turn_context(result, source_context),
-        )
-        if str(_guarded.get("response") or "") != _canonical_served:
-            raise RuntimeError(
-                "K-08 violation: final-action-honesty would mutate post-admission bytes"
-            )
+        result = _verify_buffered_seal(result, user_text=user_text, session_id=session_id,
+                                       source_context=source_context)
         # ---- VOOL School post-turn gate (buffered student lane) ------------
         # Assistance publication gate + quota settle + ledger events, BEFORE
         # the response is shaped for the wire. May replace the response text
