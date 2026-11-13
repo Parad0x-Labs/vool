@@ -2759,7 +2759,8 @@ function pilotCardFor(p){
   var card = el('div', 'msg assistant vw-card'); card.setAttribute('data-proposal', p.proposal_id); card.setAttribute('data-pilot', '1');
   var collection = p.dna_fee_collection || null;
   var companion = p.companion_collection && p.companion_collection.collection_id ? p.companion_collection : null;
-  card.appendChild(el('div', 'vw-title', collection ? 'DNA service fee collection' : (p.purpose && p.purpose.kind === 'service' ? 'Service payment request' : (p.purpose && p.purpose.kind === 'credit' ? 'Provider credit request' : 'Transfer request'))));
+  var isSwap = p.origin === 'swap';
+  card.appendChild(el('div', 'vw-title', collection ? 'DNA service fee collection' : (isSwap ? 'Conversion request' : (p.purpose && p.purpose.kind === 'service' ? 'Service payment request' : (p.purpose && p.purpose.kind === 'credit' ? 'Provider credit request' : 'Transfer request')))));
   card.appendChild(purposeBlock(p.purpose, 'Transfer request'));
   card.appendChild(el('div', 'vw-row', 'network: ' + chainLabel(p.network)));
   var toRow = el('div', 'vw-row'); toRow.appendChild(document.createTextNode('to: ')); toRow.appendChild(el('span', 'vw-ident', p.destination || (p.purpose && p.purpose.beneficiary) || '')); card.appendChild(toRow);
@@ -2781,7 +2782,7 @@ function pilotCardFor(p){
     rendered[p.proposal_id] = true;
     return card;
   }
-  var review = el('button', 'vw-btn primary vw-review', collection ? 'Review fee collection' : 'Review transfer'); review.type = 'button';
+  var review = el('button', 'vw-btn primary vw-review', collection ? 'Review fee collection' : (isSwap ? 'Review conversion' : 'Review transfer')); review.type = 'button';
   review.setAttribute('aria-label', 'review transfer details; opening the preview does not approve it');
   var result = el('div', 'vw-result');
   review.addEventListener('click', function(){ openSheet(p, controls, result, review); });
@@ -3003,6 +3004,19 @@ function openSheet(p, cardControls, cardResult, opener){
         if (companion && companion.collection_id) {
           var line = el('div', 'vw-transfer-detail', 'DNA fee collection with this payment: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' · ' + (companion.state_label || companion.state) + (companion.tx_signature ? ' · transaction ' + companion.tx_signature : ''));
           line.setAttribute('data-companion-outcome', companion.state || ''); cardResult.appendChild(line);
+        }
+        // a conversion: what the chain says it paid and received; the send it was for arrives as its own card below
+        var swapped = res.data && res.data.swap;
+        if (swapped && swapped.received_human) {
+          var swapLine = el('div', 'vw-transfer-detail', 'Converted: paid ' + swapped.paid_human + ' ' + swapped.from_symbol + ', received ' + swapped.received_human + ' ' + swapped.to_symbol + ' (price from ' + swapped.provider + ').');
+          swapLine.setAttribute('data-swap-outcome', '1'); cardResult.appendChild(swapLine);
+        }
+        if (res.data && res.data.next_proposal) {
+          var nextLine = el('div', 'vw-transfer-detail', 'The send card is below. It needs its own approval.');
+          nextLine.setAttribute('data-swap-next', res.data.next_proposal.proposal_id || ''); cardResult.appendChild(nextLine);
+          refreshStatus();
+        } else if (res.data && res.data.next_refused) {
+          cardResult.appendChild(el('div', 'vw-transfer-detail', res.data.next_refused.message || 'The send could not be prepared. Ask me again.'));
         }
         // a pay-per-answer AI answer that could not go into the chat log (a private chat, or a save that failed) is shown here
         var paidAi = res.data && res.data.paid_ai;

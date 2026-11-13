@@ -3022,7 +3022,16 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 )
             from core.wallet import lifecycle
 
-            prepared = lifecycle.default_lifecycle(source_context=context).prepare(proposal.proposal_id)
+            try:
+                prepared = lifecycle.default_lifecycle(source_context=context).prepare(proposal.proposal_id)
+            except WalletFault as exc:
+                offer = _swap_offer_for_shortfall(exc, proposal=proposal, recipient=recipient, source_context=context)
+                if offer is None:
+                    raise
+                return RuntimeExecutionResult(
+                    handled=True, ok=True, status="needs_conversion", response_text=offer["text"],
+                    details={"swap_offer": offer["offer"], "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="needs_conversion", swap_offer=offer["offer"])},
+                )
             who = describe_snapshot(recipient) or prepared.destination
             text = (
                 f"Proposal {prepared.proposal_id}: {_plain_amount_of(prepared)} to {who} on {_network_name_of(prepared.network)}. State: {prepared.state}.\n"
@@ -3030,6 +3039,8 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 + "Nothing has been signed. Approve it in your wallet with your PIN, biometric or external wallet; I cannot approve, sign or broadcast."
             )
             return RuntimeExecutionResult(handled=True, ok=True, status=prepared.state, response_text=text, details={"proposal": prepared.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=prepared.state, proposal_id=prepared.proposal_id, amount_minor=prepared.amount_minor, asset=prepared.asset)})
+        if intent == "wallet.swap":
+            return _wallet_swap_tool(intent, args, context)
         if intent == "x402.propose":
             # proposal-only: park a capped x402 offer (v2 first, v1 compatibility where safe)
             # for the owner. This lane NEVER approves, signs, broadcasts or retries a paid
@@ -3112,6 +3123,97 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text, details={"proposal": proposal.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", proposal_id=proposal.proposal_id, state=proposal.state)})
     except WalletFault as exc:
         return refusal(exc)
+
+
+def _swap_offer_for_shortfall(exc: Any, *, proposal: Any, recipient: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A send the wallet cannot cover in that coin ("send 10 USDC to Maya" with only SOL): the plain reason, what the wallet
+    holds, and an offer to convert just the missing part first (core.wallet.swaps). Nothing is proposed here; the owner
+    says yes and the conversion gets its own card and PIN, then the send its own. None when no conversion fits."""
+    from core.wallet import amounts, balances, chains, swaps
+
+    context = dict(getattr(exc, "context", {}) or {})
+    if getattr(exc, "code", "") != "wallet_insufficient_funds" or context.get("reason") != "token_balance_below_amount":
+        return None
+    try:
+        spec = chains.resolve_network(proposal.network)
+        target = swaps.coin(spec.network, proposal.asset)
+    except Exception:
+        return None
+    shortfall = int(context.get("shortfall_minor") or 0)
+    if shortfall <= 0:
+        return None
+    held: dict[str, int] = {}
+    try:
+        native = balances.read_balance(str(proposal.wallet_id), source_context=source_context)
+        if native.get("state") == balances.STATE_READ:
+            held["SOL"] = int(native.get("balance_minor") or 0)
+        for row in balances.read_token_balances(str(proposal.wallet_id), source_context=source_context):
+            if row.get("state") == balances.STATE_READ:
+                held[str(row.get("asset") or "").upper()] = int(row.get("balance_minor") or 0)
+    except Exception:
+        pass
+    have = held.get(target.symbol, int(proposal.amount_minor) - shortfall)
+    who = str(recipient.get("display_name") or "") if recipient.get("resolution") == "contact" else ""
+    to_words = f"to {who}" if who else f"to {proposal.destination[:6]}…{proposal.destination[-4:]}"
+    need = amounts.format_minor(shortfall, target.decimals)
+    want = amounts.format_minor(int(proposal.amount_minor), target.decimals)
+    sources = [symbol for symbol in swaps.SWAPPABLE if symbol != target.symbol and held.get(symbol, 0) > 0]
+    lines = [f"You have {amounts.format_minor(have, target.decimals)} {target.symbol}, so I can't send {want} {target.symbol} {to_words} yet. Nothing was sent."]
+    offer: dict[str, Any] = {"to_asset": target.symbol, "amount": need, "side": swaps.SIDE_OUT, "then_send": {"destination": proposal.destination, "amount": want, "asset": target.symbol, "to": who}}
+    if not sources:
+        lines.append(f"There is nothing else in this wallet to convert into {target.symbol}.")
+        return {"text": " ".join(lines), "offer": {**offer, "from_asset": ""}}
+    source = "SOL" if "SOL" in sources else sources[0]
+    offer["from_asset"] = source
+    estimate = ""
+    try:
+        terms = swaps.fetch_quote(source=swaps.coin(spec.network, source), target=target, amount_minor=shortfall, side=swaps.SIDE_OUT,
+                                  slippage_bps=swaps.DEFAULT_SLIPPAGE_BPS, source_context=source_context)
+        estimate = f"about {amounts.format_minor(int(terms['in_minor']), swaps.coin(spec.network, source).decimals)} {source} "
+    except Exception:
+        estimate = f"some {source} "
+    lines.append(f"You have {amounts.format_minor(held[source], swaps.coin(spec.network, source).decimals)} {source}. I can convert {estimate}into {need} {target.symbol} first "
+                 f"(price from {swaps.PROVIDER}), then show you the send card. Each step gets its own card and your PIN. Should I prepare the conversion?")
+    return {"text": " ".join(lines), "offer": offer}
+
+
+def _wallet_swap_tool(intent: str, args: dict[str, Any], context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Park one conversion for the owner's approval (core.wallet.swaps), optionally with the send it is for: that send's
+    recipient is resolved from Contacts NOW (a saved address or an address given, never a guess), shown on the swap's card,
+    and parked as its own proposal only after the swap lands. Nothing is approved, signed or sent here."""
+    from core.contacts.consumers import resolve_wallet_recipient
+    from core.contacts.resolver import describe_snapshot
+    from core.wallet import environment, lifecycle, proposals, swaps
+
+    then_send: dict[str, Any] | None = None
+    destination = str(args.get("then_send_to") or "").strip()
+    if destination:
+        asset = str(args.get("to_asset") or "")
+        found = resolve_wallet_recipient(destination, network="solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset=asset, environment=environment.active_environment().environment)
+        if not found.ok:
+            question = found.status in {"recipient_ambiguous", "recipient_not_found", "recipient_has_no_address"}
+            resolution = found.resolution or {}
+            return RuntimeExecutionResult(handled=True, ok=question, status=found.status, response_text=f"{found.message} Nothing was converted or sent.",
+                                          details={"recipient": resolution, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=question, status=found.status)})
+        recipient = found.snapshots[0]
+        then_send = {"destination": str(recipient["value"]), "recipient": recipient, "amount": str(args.get("then_send_amount") or args.get("amount") or ""),
+                     "asset": asset.upper(), "origin": proposals.ORIGIN_MODEL, "memo": str(args.get("memo") or "")}
+    parked = swaps.propose_swap(
+        from_asset=str(args.get("from_asset") or ""), to_asset=str(args.get("to_asset") or ""), amount=args.get("amount"),
+        side=str(args.get("side") or (swaps.SIDE_OUT if then_send else swaps.SIDE_IN)), wallet_id=str(args.get("wallet_id") or ""),
+        slippage_bps=(round(float(args["slippage_pct"]) * 100) if args.get("slippage_pct") not in (None, "") else None),
+        then_send=then_send, idempotency_key=str(args.get("idempotency_key") or ""), source_context=context,
+    )
+    prepared = lifecycle.default_lifecycle(source_context=context).prepare(parked["proposal"].proposal_id)
+    block = swaps.quote_block(parked["binding"])
+    text = (f"Conversion {prepared.proposal_id} is ready for your approval: pay at most {block['max_in_human']} {block['from_symbol']}, "
+            f"get at least {block['min_out_human']} {block['to_symbol']} ({block['rate_text']}, price from {block['provider']}, slippage {block['slippage_text']}).")
+    if then_send:
+        who = describe_snapshot(then_send["recipient"]) or then_send["destination"]
+        text += f" When it lands I'll show the send card for {then_send['amount']} {then_send['asset']} to {who}; that send needs its own PIN."
+    text += " Nothing has been signed. Approve it in your wallet with your PIN; I cannot approve, sign or send."
+    return RuntimeExecutionResult(handled=True, ok=True, status=prepared.state, response_text=text,
+                                  details={"proposal": prepared.to_dict(), "swap": block, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=prepared.state, proposal_id=prepared.proposal_id)})
 
 
 def _agent_fetch_result(intent: str, ridden: dict[str, Any]) -> RuntimeExecutionResult:
@@ -3960,7 +4062,7 @@ def _dispatch_runtime_tool(
             return _contacts_tool(intent, arguments, source_context)
         if intent in {"profile.remember", "profile.forget", "profile.list"}:
             return _operator_profile_tool(intent, arguments, source_context)
-        if intent in {"wallet.status", "wallet.propose", "wallet.simulate", "wallet.payment_status", "x402.propose"}:
+        if intent in {"wallet.status", "wallet.propose", "wallet.swap", "wallet.simulate", "wallet.payment_status", "x402.propose"}:
             return _wallet_model_tool(intent, arguments, source_context)
         if intent in {"zcash.invoice.create", "zcash.invoice.unpaid", "zcash.payment.history"}:
             from core.zcash.tools import run_tool as _zcash_tool

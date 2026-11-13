@@ -188,11 +188,15 @@ def test_a_recipient_whose_shape_does_not_match_the_row_or_an_unknown_chain_find
         {"destination": _sol_key(), "amount": "0.001", "asset": "ETH"},  # a Solana key with an EVM coin
         {"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "chain": "polygon"},  # a chain the pilot does not carry
         {"destination": EVM_TO, "amount": "0.001", "asset": "ETH", "network": "eip155:11155111"},  # a declared row without an account
-        {"destination": EVM_TO, "amount": "0.001", "asset": "USDC", "chain": "base"},  # a token, not the row's native coin
     ):
         result = _propose(args)
         assert not result.ok and result.status == "wallet_not_found", (args, result.status, result.response_text)
         assert result.details["fault"]["context"]["reason"] == "no_signing_account_for_request", args
+    # a token, not the row's native coin: USDC is sent by the owner's own transfers on Solana only, and the refusal says so
+    result = _propose({"destination": EVM_TO, "amount": "0.001", "asset": "USDC", "chain": "base"})
+    assert not result.ok and result.status == "wallet_not_found", (result.status, result.response_text)
+    assert result.details["fault"]["context"]["reason"] == "token_not_sendable_here", result.details["fault"]
+    assert "Nothing was sent" in result.response_text and "Solana" in result.response_text, result.response_text
     assert _count() == before
 
 

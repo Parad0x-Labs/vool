@@ -207,6 +207,7 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'vool-browser.upload.stage': ('workspace_write', 'runtime_policy'),
     'wallet.payment_status': ('read_only', 'none'),
     'wallet.propose': ('creative_state', 'none'),
+    'wallet.swap': ('creative_state', 'none'),
     'wallet.simulate': ('read_only', 'none'),
     'wallet.spend': ('wallet_spend', 'explicit_user_opt_in'),
     'wallet.status': ('read_only', 'none'),
@@ -419,7 +420,8 @@ def test_contract_map_and_list_agree():
     # 207 -> 211: the full X tools (x.api.catalog, x.api.request, x.api.receipts, x.bookmarks).
     # 211 -> 215: social core (x.feedback.save, x.feedback.list, x.results, x.replies.unanswered).
     # 215 -> 218: the household record tools (things.search, things.match, things.prepare), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 218
+    # 218 -> 219: wallet.swap, a conversion parked for the owner's PIN (the same tier as wallet.propose), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 219
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

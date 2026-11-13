@@ -715,6 +715,7 @@ _LEGACY_INTENT_TO_CAPABILITY: dict[str, str] = {
     "wallet.simulate": "wallet.read",
     "wallet.payment_status": "wallet.read",
     "wallet.propose": "wallet.propose",
+    "wallet.swap": "wallet.propose",
 
     # Operator tools
     "operator.list_tools": "operator.read",

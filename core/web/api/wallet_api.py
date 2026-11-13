@@ -724,7 +724,10 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 # ``companion``: what happened to the collection of previously accrued DNA fees that rode this approval (None when none did);
                 # ``paykit`` / ``x402_sdk``: for a pay-kit or x402 SDK payment, whether its one paid request was answered and delivered (None for a transfer)
                 return _ok({"transfer": result["transfer"], "duplicate": bool(result.get("duplicate")), "receipt": result["transfer"], "companion": result.get("companion"),
-                            "paykit": result.get("paykit"), "x402_sdk": result.get("x402_sdk"), "paid_ai": paid_ai})
+                            "paykit": result.get("paykit"), "x402_sdk": result.get("x402_sdk"), "paid_ai": paid_ai,
+                            # a conversion (core.wallet.swaps): what the chain says it paid and received, and the send it was
+                            # for, parked as its own proposal for its own card and PIN (None when there is none)
+                            "swap": result.get("swap"), "next_proposal": result.get("next_proposal"), "next_refused": result.get("next_refused")})
             _require_acknowledged(_proposal_meaning_for(proposal_id), body, source_context=source_context)
             if str(body.get("method") or "").strip().lower() == "external":
                 # The owner approves by signing in their own wallet: hand out the exact bytes, nothing more.

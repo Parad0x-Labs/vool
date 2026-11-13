@@ -209,6 +209,9 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"|\b(?:pay|send|transfer)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\b(?:[^.?!]|\.(?=\d)){0,60}?\b\d[\d,]*(?:\.\d+)?\s*(?:lamports?|sol|eth|bnb|usdc)\b"
         r"|\b(?:pay|send|transfer)\b(?:[^.?!]|\.(?=\d)){0,60}?\b\d[\d,]*(?:\.\d+)?\s*(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\b",
         re.I)),
+    # a conversion between the wallet's own coins ("convert 1 SOL to USDC", "swap some sol for usdc")
+    ("wallet.swap", "wallet", re.compile(
+        r"\b(?:convert|swap|exchange)\b[^.?!]{0,60}?\b(?:sol|usdc|usdt)\b[^.?!]{0,40}?\b(?:to|into|for)\b[^.?!]{0,20}?\b(?:sol|usdc|usdt)\b", re.I)),
     # -- contacts (the saved people and services; resolution itself happens inside each consumer) -----------
     # possession or the address-book name, never a bare mention: "contact card"/"Contacts are stored locally"
     # is prose about contacts, not a demand on them (the design-review boundary this base pins)

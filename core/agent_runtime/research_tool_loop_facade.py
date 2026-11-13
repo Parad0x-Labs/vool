@@ -56,6 +56,7 @@ _DIRECT_RENDER_TOOL_INTENTS = frozenset(
         # wallet: the proposal id, state and signature ARE the answer; a paraphrase would invent them.
         "wallet.status",
         "wallet.propose",
+        "wallet.swap",
         "wallet.simulate",
         "wallet.payment_status",
     }

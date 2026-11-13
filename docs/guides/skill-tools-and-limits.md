@@ -503,6 +503,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | `wallet.propose` | Propose a payment for the owner to approve: destination address, the amount as a decimal string in the coin's units (or amount_minor in atomic units), the asset symbol... | `destination`, `amount?`, `amount_minor?`, `asset`, `chain?`, `network?`, `wallet_id?`, `memo?`, `idempotency_key?` | saves VOOL data |
 | `wallet.simulate` | Re-run the simulation for an existing payment proposal and report the fee and outcome. | `proposal_id` | reads |
 | `wallet.status` | Answer the owner's question about their own wallets and money from the wallet's records: what every wallet holds (Main, Burner, the assistant's own wallet, the Skills... | `question?` | reads |
+| `wallet.swap` | Propose converting one coin into another inside the owner's own Solana wallet (SOL, USDC, USDT; Solana Mainnet; price from Jupiter), for the owner to approve with thei... | `from_asset`, `to_asset`, `amount`, `side?`, `then_send_to?`, `then_send_amount?`, `slippage_pct?`, `wallet_id?`, `idempotency_key?` | saves VOOL data |
 | `x402.propose` | Turn an x402 payment-required challenge (v2 first, v1 compatibility read where safe) into a payment proposal for the owner. | `status`, `headers?`, `body?`, `resource_url?` | saves VOOL data |
 
 **Video generation is disabled on this runtime (set video.generate_enabled and configure a video service).**

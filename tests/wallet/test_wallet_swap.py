@@ -239,3 +239,63 @@ def test_swaps_are_mainnet_solana_only_and_between_listed_coins(rig) -> None:
     with pytest.raises(WalletFault) as same:
         swaps.propose_swap(from_asset="SOL", to_asset="SOL", amount="1", side="in")
     assert same.value.context.get("reason") == "swap_same_coin"
+
+
+def _tool(intent: str, **args):
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    return _dispatch_runtime_tool(intent, dict(args), source_context={"session_id": "chat-swap"})
+
+
+def test_send_10_usdc_to_kas_with_only_sol_offers_a_conversion_then_two_cards_two_pins(rig) -> None:
+    from solders.keypair import Keypair
+
+    from core.contacts import store
+    from core.wallet import proposals, quotes
+
+    node, _jup = rig
+    wallet = _wallet(node)
+    maya = str(Keypair().pubkey())
+    node.fund_sol(maya, 5_000_000)
+    store.create_contact(display_name="Maya", actor=store.ACTOR_OWNER, endpoints=[{"kind": "wallet", "value": maya}])
+
+    asked = _tool("wallet.propose", destination="Maya", asset="USDC", amount="10")
+    assert asked.status == "needs_conversion", (asked.status, asked.response_text)
+    text = asked.response_text
+    assert "You have 0 USDC, so I can't send 10 USDC to Maya yet. Nothing was sent." in text, text
+    assert "You have 0.4 SOL. I can convert about 0.125 SOL into 10 USDC first (price from Jupiter)" in text, text
+    assert asked.details["swap_offer"] == {"from_asset": "SOL", "to_asset": "USDC", "amount": "10", "side": "out",
+                                           "then_send": {"destination": maya, "amount": "10", "asset": "USDC", "to": "Maya"}}
+    assert not [p for p in proposals.list_proposals() if p.state == "pending_approval"], "an offer parks nothing"
+
+    # the owner says yes: the conversion is parked with the send it is for
+    yes = _tool("wallet.swap", from_asset="SOL", to_asset="USDC", amount="10", side="out", then_send_to="Maya", then_send_amount="10")
+    assert yes.ok and yes.status == "pending_approval", yes.response_text
+    assert "pay at most 0.125625 SOL, get at least 10 USDC" in yes.response_text and "send card for 10 USDC to Maya" in yes.response_text, yes.response_text
+    swap_id = yes.details["proposal"]["proposal_id"]
+    quote = _quote(swap_id)
+    assert any(w["code"] == "swap_then_send" and "send 10 USDC to Maya" in w["text"] for w in quote["fields"]["review"]["warnings"])
+
+    first = _approve(swap_id, quote)
+    assert first["transfer"]["state"] == "confirmed"
+    assert node.token_balance(maya, USDC_MAINNET_MINT) == 0, "the swap's PIN sends nothing to Maya"
+    follow = first["next_proposal"]
+    assert (follow["state"], follow["asset"], int(follow["amount_minor"]), follow["destination"]) == ("pending_approval", "USDC", 10_000_000, maya)
+
+    send_quote = quotes.mint_quote(follow["proposal_id"])
+    assert send_quote["fields"]["recipient_label"] == "Maya" and send_quote["fields"]["review"]["primary_action"] == "Approve and send"
+    second = _approve(follow["proposal_id"], send_quote)
+    assert second["transfer"]["state"] == "confirmed", second["transfer"]
+    assert node.token_balance(maya, USDC_MAINNET_MINT) == 10_000_000 and node.token_balance(wallet["address"], USDC_MAINNET_MINT) == 0
+    assert node.distinct_sends() == 2
+
+
+def test_a_conversion_for_an_unknown_name_asks_and_parks_nothing(rig) -> None:
+    from core.wallet import proposals
+
+    node, _jup = rig
+    _wallet(node)
+    asked = _tool("wallet.swap", from_asset="SOL", to_asset="USDC", amount="10", side="out", then_send_to="Nobody Here", then_send_amount="10")
+    assert asked.status in {"recipient_not_found", "recipient_has_no_address"}, (asked.status, asked.response_text)
+    assert "Nothing was converted or sent" in asked.response_text
+    assert not proposals.list_proposals()

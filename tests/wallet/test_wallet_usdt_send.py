@@ -253,14 +253,18 @@ def test_usdt_without_enough_sol_for_the_fee_says_to_add_sol(chain) -> None:
     assert node.distinct_sends() == 0
 
 
-def test_more_usdt_than_the_account_holds_says_to_lower_the_amount_or_add_usdt(chain) -> None:
+def test_more_usdt_than_the_account_holds_says_what_is_held_and_offers_to_convert_the_rest(chain) -> None:
+    from core.wallet import proposals
+
     node = chain
     _wallet(node, usdt=1_000_000)
     asked = _propose(destination=_person(node, usdt_account=True), asset="USDT", amount="5", network=SOLANA_MAINNET)
-    assert (asked.ok, asked.status) == (False, "wallet_insufficient_funds"), asked.response_text
-    assert asked.details["fault"]["context"]["reason"] == "token_balance_below_amount", asked.details["fault"]
-    assert asked.response_text == "This account doesn't hold enough USDT for this amount. Nothing was sent. Lower the amount or add USDT, then try again."
-    assert node.distinct_sends() == 0
+    # the wallet holds SOL: the missing 4 USDT can be converted first (its own card and PIN), nothing is parked until the owner says yes
+    assert (asked.ok, asked.status) == (True, "needs_conversion"), asked.response_text
+    assert asked.response_text.startswith("You have 1 USDT, so I can't send 5 USDT to "), asked.response_text
+    assert "Nothing was sent." in asked.response_text and "into 4 USDT first" in asked.response_text, asked.response_text
+    assert asked.details["swap_offer"]["amount"] == "4" and asked.details["swap_offer"]["from_asset"] == "SOL"
+    assert not [p for p in proposals.list_proposals() if p.state == "pending_approval"] and node.distinct_sends() == 0
 
 
 def test_only_the_owners_own_requests_move_usdt(chain) -> None:
