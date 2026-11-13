@@ -44,10 +44,20 @@ def _bind_turn_set():
     return obset
 
 
+#: Since 0.7.8 the email argument guard sends only to an address the person wrote, a saved contact
+#: holds, or read mail showed (core/email_argument_guard.py); "a@b.c" is none of those, and not an
+#: address at all. These tests are about the effect obligation, so the person writes the address.
+_RECIPIENT = "ana@example.com"
+
+
 def _approved_context(payload):
     from core.mode_permission_policy import decide_tool_call, resolve_approval
 
-    context = {"runtime_session_id": "s1", "operating_mode": "manual"}
+    context = {
+        "runtime_session_id": "s1",
+        "operating_mode": "manual",
+        "_turn_user_text": f"send {_RECIPIENT} a short note",
+    }
     decision = decide_tool_call(**payload, task_id="t1", source_context=context)
     assert decision.approval_request is not None, decision
     token = decision.approval_request["approval_id"]
@@ -77,7 +87,7 @@ def _drive_email_send(monkeypatch, *, ok: bool):
     monkeypatch.setattr(tie, "execute_authorized_runtime_tool", fake_runtime_tool)
     payload = {
         "intent": "email.send",
-        "arguments": {"to": "a@b.c", "subject": "s", "body": "b"},
+        "arguments": {"to": _RECIPIENT, "subject": "s", "body": "b"},
     }
     execution = tie.execute_tool_intent(
         payload,
@@ -121,7 +131,7 @@ def test_unknown_outcome_keeps_effect_open_blocks_closure(fresh_store, monkeypat
     monkeypatch.setattr(tie, "execute_authorized_runtime_tool", fake_runtime_tool)
     payload = {
         "intent": "email.send",
-        "arguments": {"to": "a@b.c", "subject": "s", "body": "b"},
+        "arguments": {"to": _RECIPIENT, "subject": "s", "body": "b"},
     }
     execution = tie.execute_tool_intent(
         payload,

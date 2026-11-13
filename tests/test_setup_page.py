@@ -135,8 +135,14 @@ def test_a_light_and_a_dark_palette_are_both_declared_and_the_host_chooses() -> 
 
 def test_the_chat_bottom_checklist_is_gone_and_one_line_remains() -> None:
     html = render_vool_chat_html()
-    for gone in ('id="pactCard"', "PACT_COPY", "Step {n} of 8", "pact-card", "/api/onboarding/pact"):
+    for gone in ('id="pactCard"', "PACT_COPY", "Step {n} of 8", "pact-card"):
         assert gone not in html, gone
+    # The card's own feed is gone. What is left of the pact API is its boundary door, the same
+    # live Web lookups read and write Settings uses (vool_settings_page.WEB_LOOKUPS_READ), used by
+    # the model menu since 0.7.8; it carries no tour state.
+    at = [i for i in range(len(html)) if html.startswith("/api/onboarding/pact", i)]
+    assert all(html.startswith(("/api/onboarding/pact?view=boundary", "/api/onboarding/pact/boundary'"), i)
+               for i in at), [html[i:i + 48] for i in at]
     assert html.count('id="setupLine"') == 1
     line = html[html.index('id="setupLine"'):]
     line = line[: line.index("</div>")]

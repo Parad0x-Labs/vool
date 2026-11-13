@@ -298,14 +298,31 @@ def test_served_mixed_request_keeps_both_obligations(make_agent, mail_service, e
     assert not mail_service.store.captured
 
 
-def test_served_email_disabled_by_policy_is_honest(isolated_home, mail_service) -> None:
+@pytest.fixture
+def email_policy_disabled():
+    """The owner switched the email lanes off. Since 0.7.8 an UNSET key follows the connected
+    account (tests/test_email_connection_reaches_the_chat.py), so "disabled by policy" is an
+    explicit off, which wins over a connected account."""
+    from core import policy_engine
+    previous = getattr(policy_engine, "_POLICY_CACHE", None)
+    base = dict(policy_engine.load())
+    base["email"] = {**(base.get("email") or {}), "read_enabled": False, "send_enabled": False}
+    policy_engine._POLICY_CACHE = base
+    try:
+        yield
+    finally:
+        policy_engine._POLICY_CACHE = previous
+
+
+def test_served_email_disabled_by_policy_is_honest(isolated_home, mail_service, email_policy_disabled) -> None:
     from core.tool_intent_executor import execute_tool_intent
 
     context = {**_OPENCLAW, "operating_mode": "auto", "runtime_session_id": _sid("disabled")}
     result = execute_tool_intent({"intent": "email.read", "arguments": {"sender": "willowridge"}},
                                  task_id="t", session_id="s", source_context=context, hive_activity_tracker=_tracker())
     assert result.handled and not result.ok and result.status == "disabled"
-    assert "disabled" in (result.response_text or "").lower()
+    # 0.7.8 plain words: the reason says the lane is "switched off", never a policy key.
+    assert "switched off" in (result.response_text or "").lower()
 
 
 def test_permission_classification_of_new_email_intents() -> None:

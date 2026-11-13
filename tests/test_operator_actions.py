@@ -288,9 +288,9 @@ class OperatorActionTests(unittest.TestCase):
         self.assertIn("capability.expand_family", response)
         # Disabled lanes stay visible as unavailable metadata with their reason. The per-tool
         # lines are sampled per family, so the stable pin is the family's own unavailable count
-        # plus the send flag its reason names.
+        # plus the plain reason it gives (0.7.8: no policy key names in the person's text).
         self.assertIn("- email: 0 available", response)
-        self.assertIn("(set email.send_enabled)", response)
+        self.assertIn("no sending account is connected", response)
 
     def test_inspect_processes_reports_top_rows(self) -> None:
         agent = VoolAgent(backend_name="test-backend", device="openclaw-test", persona_id="default")

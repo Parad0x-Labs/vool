@@ -50,6 +50,9 @@ def test_served_two_sessions_keep_obligations_and_turn_identity_isolated(tmp_pat
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
                                   env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
         try:
+            # Both nudges re-enter a live lookup (gold, Kaunas weather): Web lookups on, as the
+            # person would have it for these asks; off is the fresh-install default since 0.7.8.
+            daemon.switch_web_lookups_on()
             daemon.start(timeout=120)
             assert daemon.certify(timeout=120).get("state") == "verified"
 

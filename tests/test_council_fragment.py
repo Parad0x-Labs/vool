@@ -149,7 +149,8 @@ def test_shortcut_map_is_fully_visible() -> None:
         assert f"<kbd>' + vpCombo('{key}') + '</kbd>" in palette, f"hint bar missing the {key} chip"
     assert "<kbd>Esc</kbd>" in palette, "hint bar missing Esc"
     drawer = render_companion_drawer_fragment()
-    assert "u2318N" in drawer, "the New chat button gains its \\u2318N kbd chip"
+    # The New chat button gains its N chip: \u2318N on a Mac, Ctrl+N on Linux (0.7.8 made it per platform).
+    assert "(isApple ? '\\u2318' : 'Ctrl+') + 'N'" in drawer, "the New chat button gains its \\u2318N / Ctrl+N kbd chip"
     extras = render_composer_extras_fragment()
     assert "Search chats" in extras and "u2318F" in extras, "sidebar search carries the \\u2318F hint"
     assert "sessions.parentNode.appendChild(wrap)" in extras, "search sits at the sidebar bottom"
