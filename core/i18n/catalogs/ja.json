@@ -2275,6 +2275,8 @@
     "wallet.reject": "拒否",
     "wallet.reject_aria": "支払い提案を拒否",
     "wallet.review_title": "支払い承認が必要です",
+    "wallet.service_removed": "このサービスはVOOLから削除されました。支払いは行われていません。",
+    "wallet.service_removed_dismiss": "閉じる",
     "wallet.sign_evm": "EVMウォレットで署名",
     "wallet.sign_phantom": "Phantomで署名",
     "wallet.signature": "署名",
@@ -5176,7 +5178,7 @@
     "wallet.backup.usb_saved": "USB バックアップ: {drive} に保存済み",
     "wallet.backup.usb_none": "USB バックアップ: まだありません"
   },
-  "source_catalog_sha256": "e269e1e28f7c3bd315fa42b74114b5ca77f2a485136e1533c90061b76389f60d",
+  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

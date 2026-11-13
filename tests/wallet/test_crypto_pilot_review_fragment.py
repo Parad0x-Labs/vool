@@ -147,7 +147,13 @@ def test_purposes_fee_asset_and_dust_render_from_typed_facts(browser):
         unknown = page.locator('.vw-card[data-proposal="pay-unknown"]')
         assert unknown.locator(".vw-mechanism").text_content() == "Purpose unknown" and "purpose unknown" in unknown.locator(".vw-purpose-headline").text_content()
         # a credit request an older VOOL left pending keeps its card; the UsePod lane left VOOL in 0.8, so it is never
-        # quoted again and has no sheet to open (core.wallet.quotes refuses it: payment_lane_removed)
+        # quoted again (core.wallet.quotes refuses it: payment_lane_removed): no review, the plain fact, and Dismiss
+        assert credit.locator(".vw-review").count() == 0
+        assert credit.locator("[data-service-removed]").text_content() == "This service was removed from VOOL. Nothing was paid."
+        with page.expect_request(lambda r: r.method == "POST" and r.url.endswith("/api/wallet/reject")) as dismissed:
+            credit.locator(".vw-dismiss").click()
+        assert json.loads(dismissed.value.post_data) == {"proposal_id": "pay-credit"}
+        page.wait_for_selector('.vw-card[data-proposal="pay-credit"]', state="detached", timeout=10_000)
         # the dust sheet: the fee asset differs from the sent asset and is labelled so; dust is exact, never 0
         page.locator('.vw-card[data-proposal="pay-dust"] .vw-review').click()
         page.wait_for_function("!document.getElementById('vwSheetApprove').disabled", timeout=10_000)

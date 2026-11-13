@@ -2275,6 +2275,8 @@
     "wallet.reject": "거부",
     "wallet.reject_aria": "결제 제안 거부",
     "wallet.review_title": "결제 승인 필요",
+    "wallet.service_removed": "이 서비스는 VOOL에서 제거되었습니다. 아무것도 결제되지 않았습니다.",
+    "wallet.service_removed_dismiss": "닫기",
     "wallet.sign_evm": "EVM 지갑으로 서명",
     "wallet.sign_phantom": "Phantom으로 서명",
     "wallet.signature": "서명",
@@ -5176,7 +5178,7 @@
     "wallet.backup.usb_saved": "USB 백업: {drive}에 저장됨",
     "wallet.backup.usb_none": "USB 백업: 아직 없음"
   },
-  "source_catalog_sha256": "e269e1e28f7c3bd315fa42b74114b5ca77f2a485136e1533c90061b76389f60d",
+  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

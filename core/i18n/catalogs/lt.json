@@ -2275,6 +2275,8 @@
     "wallet.reject": "Atmesti",
     "wallet.reject_aria": "atmesti mokėjimo pasiūlymą",
     "wallet.review_title": "Reikia mokėjimo patvirtinimo",
+    "wallet.service_removed": "Ši paslauga pašalinta iš VOOL. Niekas nebuvo sumokėta.",
+    "wallet.service_removed_dismiss": "Paslėpti",
     "wallet.sign_evm": "Pasirašyti su EVM pinigine",
     "wallet.sign_phantom": "Pasirašyti su Phantom",
     "wallet.signature": "parašas",
@@ -5176,7 +5178,7 @@
     "wallet.backup.usb_saved": "USB atsarginė kopija: išsaugota {drive}",
     "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra"
   },
-  "source_catalog_sha256": "e269e1e28f7c3bd315fa42b74114b5ca77f2a485136e1533c90061b76389f60d",
+  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

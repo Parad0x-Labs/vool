@@ -2275,6 +2275,8 @@
     "wallet.reject": "अस्वीकारें",
     "wallet.reject_aria": "भुगतान प्रस्ताव अस्वीकारें",
     "wallet.review_title": "भुगतान स्वीकृति आवश्यक",
+    "wallet.service_removed": "यह सेवा VOOL से हटा दी गई है। कुछ भी भुगतान नहीं हुआ।",
+    "wallet.service_removed_dismiss": "हटाएँ",
     "wallet.sign_evm": "EVM वॉलेट से हस्ताक्षर करें",
     "wallet.sign_phantom": "Phantom से हस्ताक्षर करें",
     "wallet.signature": "हस्ताक्षर",
@@ -5176,7 +5178,7 @@
     "wallet.backup.usb_saved": "USB बैकअप: {drive} पर सहेजा गया",
     "wallet.backup.usb_none": "USB बैकअप: अभी नहीं"
   },
-  "source_catalog_sha256": "e269e1e28f7c3bd315fa42b74114b5ca77f2a485136e1533c90061b76389f60d",
+  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

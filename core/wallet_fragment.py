@@ -2767,7 +2767,21 @@ function pilotCardFor(p){
   if (collection) { var cRow = el('div', 'vw-row', 'fee payment: ' + collection.amount_exact + ' of accrued DNA service fees to the treasury · ' + (collection.state_label || collection.state)); cRow.setAttribute('data-dna-fee-collection', collection.collection_id); card.appendChild(cRow); }
   if (companion) { var kRow = el('div', 'vw-row', 'includes previously accrued DNA fees: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' collected with this payment under its approval · ' + (companion.state_label || companion.state)); kRow.setAttribute('data-companion-collection', companion.collection_id); card.appendChild(kRow); }
   var controls = el('div', 'vw-row');
-  var review = el('button', 'vw-btn primary vw-review', collection ? 'Review fee collection' : (p.origin === 'usepod' ? 'Review payment' : 'Review transfer')); review.type = 'button';
+  if (p.origin === 'usepod') {
+    // UsePod left VOOL in 0.8: a request an older VOOL left waiting can never be quoted or approved, so it offers no
+    // review, only the plain fact and a way to clear it (a rejection signs and sends nothing)
+    var gone = el('div', 'vw-row', WT('wallet.service_removed', 'This service was removed from VOOL. Nothing was paid.')); gone.setAttribute('data-service-removed', '1');
+    card.appendChild(gone);
+    var dismiss = el('button', 'vw-btn vw-dismiss', WT('wallet.service_removed_dismiss', 'Dismiss')); dismiss.type = 'button';
+    dismiss.addEventListener('click', function(){
+      dismiss.disabled = true;
+      postJson('/api/wallet/reject', { proposal_id: p.proposal_id }).then(function(res){ if (res.ok) card.remove(); else dismiss.disabled = false; }).catch(function(){ dismiss.disabled = false; });
+    });
+    controls.appendChild(dismiss); card.appendChild(controls);
+    rendered[p.proposal_id] = true;
+    return card;
+  }
+  var review = el('button', 'vw-btn primary vw-review', collection ? 'Review fee collection' : 'Review transfer'); review.type = 'button';
   review.setAttribute('aria-label', 'review transfer details; opening the preview does not approve it');
   var result = el('div', 'vw-result');
   review.addEventListener('click', function(){ openSheet(p, controls, result, review); });

@@ -2275,6 +2275,8 @@
     "wallet.reject": "Reject",
     "wallet.reject_aria": "reject the payment proposal",
     "wallet.review_title": "Payment approval needed",
+    "wallet.service_removed": "This service was removed from VOOL. Nothing was paid.",
+    "wallet.service_removed_dismiss": "Dismiss",
     "wallet.sign_evm": "Sign with EVM wallet",
     "wallet.sign_phantom": "Sign with Phantom",
     "wallet.signature": "signature",
