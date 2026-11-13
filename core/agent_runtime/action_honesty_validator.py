@@ -2258,6 +2258,25 @@ def unanswered_browser_reply() -> str:
     return _unanswered_browser_response(step) if step else ""
 
 
+def _every_address_is_pasted_below_the_ask(text: str) -> bool:
+    """Whether every web address in `text` lies in a long text pasted below the ask's first line.
+
+    Those addresses are SHOWN, not named for this turn to read: the URL-read lane's own rule
+    (core.agent_runtime.fast_paths_web.address_pasted_below_the_ask), so this backstop reads a
+    pasted article the way that lane does. Measured served on the v0.8 round 6 candidate
+    (11eef8dc): "Turn this into an X article:" over a pasted article with links, whose own words
+    ("check the label") met the review words above, had the x-article-builder answer replaced by
+    the unfetched-URL decline. An address on the ask's line, or under a short ask, still counts.
+    """
+    try:
+        from core.agent_runtime.fast_paths_web import address_pasted_below_the_ask
+    except ImportError:
+        return False
+    raw = str(text or "").strip()
+    addresses = [match.group(0) for match in _URL_RE.finditer(raw)]
+    return bool(addresses) and all(address_pasted_below_the_ask(raw, address) for address in addresses)
+
+
 def response_describes_unfetched_url(*, user_input: str, response: str, fetch_attempts: int) -> bool:
     """Whether the model answered ABOUT a URL it never fetched. If a URL is named with a
     review/check/score intent and no web fetch happened this turn, any substantive answer is a
@@ -2266,6 +2285,8 @@ def response_describes_unfetched_url(*, user_input: str, response: str, fetch_at
         return False
     text = str(user_input or "")
     if not _URL_RE.search(text) or not _URL_REVIEW_INTENT_RE.search(text):
+        return False
+    if _every_address_is_pasted_below_the_ask(text):
         return False
     resp = str(response or "").strip()
     # The sentinel is a substring OF `_UNFETCHED_URL_RESPONSE`, so the guard recognises its own

@@ -144,6 +144,27 @@ def _address_is_in_pasted_text(text: str, url_start: int) -> bool:
     return len(text[first_line_end:].strip()) >= _PASTED_TEXT_MIN_CHARS
 
 
+def address_pasted_below_the_ask(text: str, url: str) -> bool:
+    """Whether `url` lies in a long text pasted below the ask's first line of `text` as written.
+
+    The front door hands the URL lane the turn NORMALIZED to one line, where the pasted text has
+    no line of its own any more, so the rule above cannot see it there. Measured on the v0.8 round
+    6 candidate (11eef8dc) once no planner split the turn first: "Turn this into an X article:"
+    over a pasted article fetched the article's first link (library.example.org/report...), and
+    with Web lookups off the reply was "You linked a URL and I did not open it", the model never
+    seeing the article. `url` may be a bare domain the lane made into an address; its domain is
+    looked for then.
+    """
+    raw = str(text or "").strip()
+    address = str(url or "").strip()
+    if not raw or not address:
+        return False
+    at = raw.find(address)
+    if at < 0:
+        at = raw.find(address.split("://", 1)[-1])
+    return at >= 0 and _address_is_in_pasted_text(raw, at)
+
+
 def url_read_request(text: str) -> dict[str, Any] | None:
     """`{"url": ...}` when the message asks for a web address to be read, else None."""
     raw = str(text or "").strip()
@@ -319,6 +340,9 @@ def maybe_handle_url_read(
     request = url_read_request(user_input)
     if request is None:
         return None
+    # `user_input` is the normalized turn; the pasted-text rule is asked of the turn as written.
+    if address_pasted_below_the_ask(str(getattr(interpretation, "raw_text", "") or ""), str(request["url"])):
+        return None
 
     from core.agent_runtime.fast_paths_machine import _machine_tool_fast_path_result
     from core.runtime_execution_tools import execute_runtime_tool
@@ -457,4 +481,4 @@ def _digest_from_page(
         return None
 
 
-__all__ = ["maybe_handle_url_read", "url_read_request"]
+__all__ = ["address_pasted_below_the_ask", "maybe_handle_url_read", "url_read_request"]
