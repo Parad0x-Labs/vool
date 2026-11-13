@@ -369,12 +369,23 @@ _RECORDS_OF_A_WINDOW_RE = re.compile(
 )
 
 
+# Keeping a record of the person's own day: "log today's session: 5k run, 28 minutes", "jot down tonight's
+# reading". The window dates what they are writing down, not a fact to look up (Mac answer-quality row 4 on
+# d5d044b0: that log was held to a lookup and withheld as "the pages I found don't state it").
+_LOGS_OWN_RECORD_RE = re.compile(
+    r"^\s*(?:please\s+|can\s+you\s+|could\s+you\s+)?(?:log|track|jot\s+down|note\s+down|write\s+down)\s+"
+    r"(?:my\s+)?(?:" + _WINDOW + r"(?:'s|’s)?|my)\s+",
+    re.IGNORECASE,
+)
+
+
 def dates_own_records(text: str) -> bool:
     """Whether a time window in the ask says which of the person's own notes, mail or files it means
     ("summarise my notes from this week"): those are on this computer or in VOOL, and no web page holds
     them. A window that dates something else ("what does my journal say the rent is, right now?")
     is not this. Read only."""
-    return bool(_RECORDS_OF_A_WINDOW_RE.search(" ".join(str(text or "").split())[:600]))
+    value = " ".join(str(text or "").split())[:600]
+    return bool(_RECORDS_OF_A_WINDOW_RE.search(value) or _LOGS_OWN_RECORD_RE.search(value))
 
 
 #: Current-information signals that do not make an ask a web lookup on their own: a date word ("this week")

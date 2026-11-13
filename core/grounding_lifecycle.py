@@ -830,7 +830,7 @@ def record_typed_observations(
     usable = [
         _as_support_row(entry)
         for entry in usable_observations(entries)
-        if isinstance(entry, dict)
+        if isinstance(entry, dict) and str(entry.get("intent") or "") not in _RUNTIME_SELF_DESCRIPTIONS
     ]
     if not usable:
         return 0
@@ -1333,7 +1333,16 @@ def _tool_result_is_evidence(intent: str) -> bool:
     if contract is None:
         return False
     capability = str(getattr(contract, "capability_id", "") or "").strip()
+    if str(intent or "") in _RUNTIME_SELF_DESCRIPTIONS:
+        # The runtime describing its own tools observes nothing in the world either. Mac answer-quality row 4 on
+        # d5d044b0: operator.list_tools' "Tool families on this runtime:" was judged as a page the answer had to
+        # match, and the reply quoted it back to the person under "What the pages said".
+        return False
     return bool(capability) and not capability.startswith("runtime.")
+
+
+#: Tools whose result is the runtime's own catalogue, not anything outside it.
+_RUNTIME_SELF_DESCRIPTIONS = frozenset({"operator.list_tools"})
 
 
 def record_model_authorship(source_context: dict[str, Any] | None) -> bool:
