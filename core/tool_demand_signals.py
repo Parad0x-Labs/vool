@@ -2601,10 +2601,12 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     # Skills audit 2026-11-12: with Web lookups on, only the explicit wording seated a web tool. The
     # reading is `core.online_asks`, the clean loop's and the web-off note's too; with the web off
     # the seat is filtered as disabled and the front door says so before any model call.
-    from core.online_asks import asks_for_online_facts
+    from core.online_asks import advice_beside_live_prices, asks_for_online_facts
 
     web_by_online_reading_only = False
-    if asks_for_online_facts(cleaned):
+    # Advice beside today's prices ("suggest a travel tripod and tell me what it costs today") needs the web for
+    # the prices: Mac answer-quality row 12 on d5d044b0, Web lookups on, ran no lookup and withheld every price.
+    if asks_for_online_facts(cleaned) or advice_beside_live_prices(cleaned):
         asked_for_the_web = "web" in families
         _note("web.search", "web")
         web_by_online_reading_only = not asked_for_the_web and "web" in families

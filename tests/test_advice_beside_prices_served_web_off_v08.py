@@ -33,8 +33,7 @@ def _text(payload: dict[str, Any]) -> str:
     return str(commit.get("canonical_content") or message.get("content") or "")
 
 
-@pytest.fixture
-def served(tmp_path: Path):
+def _start(tmp_path: Path, *, web_on: bool):
     from core.entity_ambiguity import AMBIGUITY_SYSTEM_PROMPT
 
     def reply_fn(body: dict[str, Any]) -> Any:
@@ -44,6 +43,9 @@ def served(tmp_path: Path):
         return REPLY
 
     home = tmp_path / "home"
+    if web_on:
+        (home / "config").mkdir(parents=True, exist_ok=True)
+        (home / "config" / "default_policy.yaml").write_text("system:\n  allow_web_fallback: true\n", encoding="utf-8")
     provider = ScriptedProvider({MODEL: REPLY}, reply_fn=reply_fn)
     daemon = ServedDaemon(home, env_extra={
         "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url,
@@ -57,6 +59,20 @@ def served(tmp_path: Path):
         pytest.skip(f"served daemon could not boot here: {exc}")
     run_in_home(home, _SEED.format(root=REPO_ROOT, base_url=provider.base_url, registered=[MODEL], model=MODEL))
     provider.reset()
+    return provider, daemon
+
+
+@pytest.fixture
+def served(tmp_path: Path):
+    provider, daemon = _start(tmp_path, web_on=False)
+    yield provider, daemon
+    daemon.stop()
+    provider.__exit__(None, None, None)
+
+
+@pytest.fixture
+def served_web_on(tmp_path: Path):
+    provider, daemon = _start(tmp_path, web_on=True)
     yield provider, daemon
     daemon.stop()
     provider.__exit__(None, None, None)
@@ -72,3 +88,12 @@ def test_the_advice_stays_and_the_prices_are_named_as_needing_web_lookups(served
     assert not re.search(r"[$£€]\s?\d", text), text
     assert PLAIN_LINE in text and "Settings, Privacy & Permissions" in text, text
     assert "Web lookups are off, so I can't look this up online" not in text, text
+
+
+def test_with_web_lookups_on_the_model_is_handed_a_web_search_for_the_prices(served_web_on):
+    """Mac row 12 on d5d044b0, Web lookups on: no lookup ran and every price came back "(withheld: not supported)".
+    The model must at least be offered the search that would back them."""
+    provider, daemon = served_web_on
+    daemon.chat(ASK, session_id="served-prices-web-on", model=MODEL, mode="auto")
+    offered = {str(name) for call in provider.calls for name in (call.get("tools") or [])}
+    assert any(name.startswith("web") for name in offered), (offered, [c["prompt"][:120] for c in provider.calls])
