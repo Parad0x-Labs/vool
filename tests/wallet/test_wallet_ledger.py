@@ -118,7 +118,7 @@ def _add(account: int = 0, pin: str = PIN) -> dict:
     before = [len(soft.shown) for soft in ledgers]
     made = pilot_custody.add_ledger_wallet(network=SOLANA_DEVNET, account=account, method="pin", credential=pin, credential_confirmation=pin,
                                            creation_key=f"l-{uuid.uuid4().hex}", label="My Ledger")
-    for soft, count in zip(ledgers, before):
+    for soft, count in zip(ledgers, before, strict=True):
         assert len(soft.shown) == count + 1, "adding a Ledger asks it to sign the proof transfer once"
         soft.shown.clear()
     return made
