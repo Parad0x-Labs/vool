@@ -112,7 +112,8 @@ def _runtime_data_subpaths() -> tuple[str, ...]:
 
 
 def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool,
-             allow_mach_lookup: bool = True, allow_child_signals: bool = False) -> str:
+             allow_mach_lookup: bool = True, allow_child_signals: bool = False,
+             extra_read_files: Sequence[str] = ()) -> str:
     """Deny by default; keep execution working; allow file CONTENT only where it is needed.
 
     The distinction that matters, and the one an earlier version of this file got wrong:
@@ -159,6 +160,10 @@ def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool,
     allowed += [f'(subpath "{path}")' for path in _runtime_data_subpaths()]
     allowed.append(f'(subpath "{scratch}")')
     allowed += [f'(subpath "{path}")' for path in extra_read]
+    # Single files, never their directory: a framework Python's shared library sits directly in its
+    # version directory, beside Resources and Headers, and granting that directory would grant the
+    # whole interpreter prefix.
+    allowed += [f'(literal "{path}")' for path in extra_read_files]
     lines.append("(allow file-read-data " + " ".join(allowed) + ")")
     # WRITES ARE SCRATCH-ONLY, with no caller-supplied widening. There used to be an
     # `extra_write` parameter, and the one decoder that used it (textutil, granted the per-user
@@ -505,6 +510,28 @@ def _resolved(paths: Sequence[str]) -> list[str]:
     return out
 
 
+def _resolved_files(paths: Sequence[str]) -> list[str]:
+    """Like `_resolved`, for single files: real paths of existing regular files only, de-duplicated,
+    never one inside VOOL's data. A file inside the home folder may be named, as an installation tree
+    there may (a uv or pyenv interpreter): it is one named file, never the folder around it."""
+    vool_home = ""
+    with contextlib.suppress(Exception):
+        from core.runtime_paths import active_vool_home
+
+        vool_home = str(Path(active_vool_home()).resolve()).rstrip("/") + "/"
+    out: list[str] = []
+    for entry in paths:
+        try:
+            real = str(Path(entry).resolve())
+        except (OSError, ValueError):
+            continue
+        if vool_home and real.startswith(vool_home):
+            continue
+        if real not in out and os.path.isfile(real):
+            out.append(real)
+    return out
+
+
 def _directory_bytes(root: Path, *, max_entries: int = MAX_SCRATCH_SCAN_ENTRIES) -> int:
     """Bytes under `root`, measured safely enough to run repeatedly while a decoder is alive.
 
@@ -749,6 +776,7 @@ def run_confined(
     allow_mach_lookup: bool = True,
     allow_child_signals: bool = False,
     on_start=None,
+    extra_read_files: Sequence[str] = (),
 ) -> SandboxResult:
     """Run one decoder under confinement. Refuses BEFORE spawning if it cannot be confined."""
     require_confinement(fmt)
@@ -789,7 +817,8 @@ def run_confined(
     else:
         limited = _limited_argv(argv, cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))
         profile = _profile(scratch=scratch_path, extra_read=_resolved(extra_read), allow_gpu=allow_gpu,
-                           allow_mach_lookup=allow_mach_lookup, allow_child_signals=allow_child_signals)
+                           allow_mach_lookup=allow_mach_lookup, allow_child_signals=allow_child_signals,
+                           extra_read_files=_resolved_files(extra_read_files))
         command = [_SANDBOX_EXEC, "-p", profile, *limited]
     # An empty environment plus only what a decoder needs to find its own libraries. No proxy
     # variables, no credentials, no real HOME: a decoder that wanted a token could not find one,

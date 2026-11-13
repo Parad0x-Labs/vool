@@ -54,6 +54,24 @@ def runtime_reads():
     return sorted(paths)
 
 
+def runtime_files():
+    """The interpreter's own shared library, when it is a macOS framework build.
+
+    A framework Python (python.org, the hosted CI runners) links
+    ``<prefix>/Python.framework/Versions/X.Y/Python``, a file that sits directly in the version
+    directory beside Resources and Headers. dyld must read it before ``main``; without it the worker
+    aborts with "Library not loaded" (SIGABRT, measured on the GitHub macOS runner). Granting that
+    directory would grant the whole interpreter prefix, so only the one file is named.
+    """
+    framework = sysconfig.get_config_var('PYTHONFRAMEWORK')
+    prefix = sysconfig.get_config_var('PYTHONFRAMEWORKPREFIX')
+    library = sysconfig.get_config_var('LDLIBRARY')
+    if not (framework and prefix and library):
+        return []
+    path = Path(prefix)/library
+    return [str(path.resolve())] if path.is_file() else []
+
+
 def command(directory, value):
     seconds = value['max_seconds']
     if 'expires' in value:
@@ -134,6 +152,7 @@ def execute(root, data, value, *, job_id):
                 try:
                     result = run_confined(command(directory, value), scratch=directory,
                                           timeout=value['max_seconds'], extra_read=runtime_reads(),
+                                          extra_read_files=runtime_files(),
                                           max_stdout=4096, max_stderr=4096, allow_mach_lookup=False,
                                           allow_child_signals=True,
                                           on_start=started)
