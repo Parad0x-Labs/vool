@@ -138,6 +138,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="setup_progress",
+                    hint="Four quick steps to get VOOL ready.",
                     label="Finish setting up VOOL",
                     kind="custom",
                     widget="setup_progress",
@@ -158,9 +159,11 @@ def _settings_groups() -> list[dict]:
             "icon": "⚙",
             "title": "General",
             "blurb": "How VOOL talks.",
+            "cards": [{"id": "voice", "title": "How VOOL talks", "icon": "smile"}, {"id": "answers", "title": "Answers", "icon": "report"}],
             "rows": [
                 _row(
                     id="communication_style",
+                    card="voice",
                     label="Talk style",
                     help="The tone VOOL writes in. It changes wording, not what VOOL is willing to do.",
                     kind="select",
@@ -177,6 +180,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="humor_percent",
+                    card="voice",
                     label="Humour",
                     help="How much levity VOOL allows itself. 0% is plain and flat.",
                     kind="range",
@@ -192,6 +196,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="profanity_level",
+                    card="voice",
+                    hint="How much VOOL may swear. 0% means never.",
                     label="Profanity ceiling",
                     help=(
                         "How much VOOL may swear, if at all, when the tone calls for it. 0% means never."
@@ -209,6 +215,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="character_mode",
+                    card="voice",
+                    hint="A role VOOL plays until you clear it.",
                     label="Character",
                     help=(
                         "A character VOOL plays until you clear it. Leave it empty for VOOL as "
@@ -226,6 +234,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="style_notes",
+                    card="voice",
+                    hint="Extra writing rules, like “be concise”.",
                     label="Style notes",
                     help=(
                         "Extra instructions for how VOOL writes, for example \"be concise\" or \"no "
@@ -243,6 +253,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="answer_language",
+                    card="voice",
+                    hint="The language VOOL replies in.",
                     label="Answer language",
                     kind="custom",
                     widget="answer_language",
@@ -264,6 +276,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="show_workflow",
+                    card="answers",
                     label="Show VOOL's work",
                     help="Show the steps VOOL took to reach an answer, rather than only the answer.",
                     kind="toggle",
@@ -275,6 +288,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="deep_reasoning",
+                    card="answers",
+                    hint="Local models think first. Slower, but more careful.",
                     label="Deep reasoning",
                     help=(
                         "Let the local model think before it answers. Noticeably slower, and on a "
@@ -290,6 +305,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="show_answer_details",
+                    card="answers",
                     label="Show answer details",
                     help="Adds a small line under each answer saying which model or tool made it.",
                     kind="toggle",
@@ -305,9 +321,12 @@ def _settings_groups() -> list[dict]:
             "icon": "⛊",
             "title": "Privacy & Permissions",
             "blurb": "What VOOL may do on its own, and where your data sits.",
+            "cards": [{"id": "control", "title": "What VOOL may do", "icon": "shield"}, {"id": "online", "title": "Going online", "icon": "globe"}, {"id": "data", "title": "Your data", "icon": "lock"}],
             "rows": [
                 _row(
                     id="autonomy_mode",
+                    card="control",
+                    hint="How often VOOL asks first. Posting, sending, private things and spending always ask.",
                     label="What VOOL may do alone",
                     help=(
                         "How often VOOL stops to ask before doing something. \"Just do routine work\" "
@@ -328,6 +347,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="boundaries_mode",
+                    card="control",
+                    hint="How careful VOOL is about topics.",
                     label="Content boundaries",
                     help=(
                         "How cautious VOOL is about subject matter. \"As I set them\" is the "
@@ -349,6 +370,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="web_lookups",
+                    card="online",
+                    hint="Search the web to answer. Off until you turn it on.",
                     label="Web lookups",
                     kind="custom",
                     widget="web_lookups",
@@ -362,6 +385,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="private_web",
+                    card="online",
+                    hint="Send web traffic through Tor or your own VPN.",
                     label="Private web",
                     kind="custom",
                     widget="private_web",
@@ -376,12 +401,16 @@ def _settings_groups() -> list[dict]:
                     keywords="private web tor vpn anonymous proxy wireguard mullvad proton ivpn nordvpn expressvpn surfshark kill switch",
                 ),
                 _row(
-                    id="live_browser", label="Browser", kind="custom", widget="live_browser",
+                    id="live_browser",
+                    card="online",
+                    hint="VOOL can open web pages. It asks before it acts.", label="Browser", kind="custom", widget="live_browser",
                     help="VOOL asks before it acts or sends anything. Pages load with images and styles; page scripts stay off. Use the wallet for payments.",
                     read={"url": "/api/browser/settings"}, keywords="browser live navigate forms",
                 ),
                 _row(
                     id="automatic_checks",
+                    card="online",
+                    hint="Updates, model downloads and calendar sync. Off by default.",
                     label="Go online on its own",
                     kind="custom",
                     widget="automatic_checks",
@@ -399,6 +428,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="mode_note",
+                    card="control",
+                    hint="One chat can have its own mode, next to the message box.",
                     label="Approval mode for a single chat",
                     kind="note",
                     help=(
@@ -409,15 +440,19 @@ def _settings_groups() -> list[dict]:
                     keywords="manual auto bypass mode approval per chat composer",
                 ),
                 _row(
-                    id="cloud_disclosure", label="Before files go to cloud", kind="custom", widget="cloud_disclosure",
+                    id="cloud_disclosure",
+                    card="data", label="Before files go to cloud", kind="custom", widget="cloud_disclosure",
                     help="Review outgoing requests and choose which project sources cloud models may see.",
                     keywords="cloud privacy preview disclosure files folders project rules personal details",
                 ),
                 _row(
                     id="privacy_disclosure",
+                    card="data",
+                    hint="Where your data lives and what leaves this computer.",
                     label="Privacy & data, as it stands",
                     kind="custom",
                     widget="extras_privacy",
+                    fold_widget=True,
                     help=(
                         "Where your data lives, what is locked, and what leaves this computer and "
                         "when. There are no switches here because these are facts about how VOOL works."
@@ -426,6 +461,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="locality_note",
+                    card="data",
+                    hint="Everything stays here unless an online model or web search is used.",
                     label="Where your data is",
                     kind="note",
                     help=(
@@ -444,12 +481,14 @@ def _settings_groups() -> list[dict]:
             "blurb": "Keys you bring. Stored sealed on this machine, never shown again.",
             "rows": [
                 _row(
-                    id="provider_guide", label="Find a provider", kind="custom", widget="provider_guide",
+                    id="provider_guide",
+                    icon="globe", label="Find a provider", kind="custom", widget="provider_guide",
                     help="Choose a category, open the official provider site, then add your key below.",
                     keywords="api setup guide providers models web search plugin scans keys official links blockchain chain data helius alchemy solscan etherscan",
                 ),
                 _row(
                     id="cloud_keys",
+                    hint="Sealed on this computer and never shown again.",
                     label="Your keys",
                     kind="custom",
                     widget="cloud_keys",
@@ -478,6 +517,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="email_accounts",
+                    hint="Mailboxes VOOL can read and send from.",
                     label="Email accounts",
                     kind="custom",
                     widget="email_accounts",
@@ -496,6 +536,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="email_recovery",
+                    hint="Holds new emails if VOOL isn’t sure one went out.",
                     label="Sending hold",
                     kind="custom",
                     widget="email_recovery",
@@ -520,9 +561,12 @@ def _settings_groups() -> list[dict]:
             "icon": "◈",
             "title": "Models & Providers",
             "blurb": "Which brain answers, and which providers are actually eligible.",
+            "cards": [{"id": "answer", "title": "What answers", "icon": "models"}, {"id": "online", "title": "Online models", "icon": "globe"}],
             "rows": [
                 _row(
                     id="models_overview",
+                    card="answer",
+                    hint="Which model answers you, and where it runs.",
                     label="What will answer",
                     kind="custom",
                     widget="models_overview",
@@ -537,6 +581,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="model_own_tools",
+                    card="online",
+                    hint="A cloud model uses its own web search. Off by default.",
                     label="Use the model's own tools",
                     help=(
                         "Off by default. When on, a cloud model you choose answers without VOOL's tools or "
@@ -556,6 +602,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="model_pin",
+                    card="answer",
+                    hint="The model VOOL asks for first.",
                     label="Model",
                     kind="custom",
                     widget="model_pin",
@@ -571,6 +619,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="local_models",
+                    card="answer",
+                    hint="Models on this computer. Nothing downloads until you press Download.",
                     label="Local models",
                     kind="custom",
                     widget="local_models",
@@ -592,9 +642,12 @@ def _settings_groups() -> list[dict]:
             "icon": "◑",
             "title": "Memory & Personalisation",
             "blurb": "What VOOL remembers about you — yours to edit and to forget.",
+            "cards": [{"id": "remember", "title": "About you", "icon": "memory"}, {"id": "things", "title": "My things and routines", "icon": "archive"}],
             "rows": [
                 _row(
                     id="profile_items",
+                    card="remember",
+                    hint="Everything VOOL remembers. Edit or forget any item.",
                     label="What VOOL remembers",
                     kind="custom",
                     widget="profile",
@@ -611,6 +664,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="learned_facts",
+                    card="remember",
+                    hint="Facts from your chats, with where each came from.",
                     label="Facts VOOL learned in conversation",
                     kind="custom",
                     widget="extras_memory",
@@ -622,6 +677,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="remembered_identity_note",
+                    card="remember",
+                    hint="Your name and email signature are kept here too.",
                     label="Your name, and your email signature",
                     kind="note",
                     help=(
@@ -630,6 +687,24 @@ def _settings_groups() -> list[dict]:
                         "or forget either one in the list."
                     ),
                     keywords="name called address me preferred name email signature identity remembered",
+                ),
+                _row(
+                    id="my_things",
+                    card="things",
+                    label="My things",
+                    kind="custom",
+                    widget="my_things",
+                    help="Keep receipts, manuals and equipment details here. Files stay on this computer.",
+                    keywords="my things receipts manuals warranty equipment serial number purchases",
+                ),
+                _row(
+                    id="routines",
+                    card="things",
+                    label="My routines",
+                    kind="custom",
+                    widget="routines",
+                    help="Tasks you showed VOOL once. Nothing runs until you look at the list and approve it.",
+                    keywords="routines teach task repeat automate folder steps",
                 ),
             ],
         },
@@ -641,9 +716,12 @@ def _settings_groups() -> list[dict]:
                 "Save one chat to a file, or bring one back from a file. This moves chats one at a "
                 "time; it does not include your settings, memory or keys."
             ),
+            "cards": [{"id": "chats", "title": "Chats", "icon": "backup"}, {"id": "share", "title": "Share with friends", "icon": "contacts"}],
             "rows": [
                 _row(
                     id="session_export",
+                    card="chats",
+                    hint="Save one chat to a file.",
                     label="Export a chat",
                     kind="custom",
                     widget="bundle_export",
@@ -658,6 +736,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="session_import",
+                    card="chats",
+                    hint="Bring a chat back from a file.",
                     label="Import a chat",
                     kind="custom",
                     widget="bundle_import",
@@ -672,6 +752,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="chat_import",
+                    card="chats",
+                    hint="Bring chats over from other AI apps.",
                     label="Bring your chats from other AI apps",
                     kind="custom",
                     widget="chat_import",
@@ -682,12 +764,14 @@ def _settings_groups() -> list[dict]:
                     keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
                 ),
                 _row(
-                    id="drop", label="Send with Drop", kind="custom", widget="drop",
+                    id="drop",
+                    card="share", label="Send with Drop", kind="custom", widget="drop",
                     help="Exchange a note and one file through a shared folder.",
                     keywords="drop handoff fingerprint invite shared folder file digest",
                 ),
                 _row(
-                    id="lend", label="Lend jobs to friends", kind="custom", widget="lend",
+                    id="lend",
+                    card="share", label="Lend jobs to friends", kind="custom", widget="lend",
                     help="No cloud processing or paid calls.",
                     keywords="lend borrow friends job invitation QR",
                 ),
@@ -767,9 +851,12 @@ def _settings_groups() -> list[dict]:
             "icon": "◴",
             "title": "Usage & Budgets",
             "blurb": "How much VOOL has used, and which limits it really keeps to.",
+            "cards": [{"id": "use", "title": "Usage", "icon": "budgets"}, {"id": "limits", "title": "Limits", "icon": "settings"}],
             "rows": [
                 _row(
                     id="ram_reserve_pct",
+                    card="limits",
+                    hint="Memory VOOL always leaves free for you.",
                     label="RAM kept free for you",
                     help=(
                         "VOOL always leaves this share of your computer's memory free for you, even "
@@ -790,6 +877,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="daily_token_budget",
+                    card="limits",
+                    hint="A daily guide for cloud use. Not a hard stop.",
                     label="Daily cloud use guide",
                     help=(
                         "A daily amount VOOL is told about, not a cut-off it enforces: nothing "
@@ -809,6 +898,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="usage",
+                    card="use",
                     label="Usage",
                     kind="custom",
                     widget="usage",
@@ -828,6 +918,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="calendar_accounts_panel",
+                    hint="Connect a calendar. Nothing is read until you turn sync on.",
                     label="Calendar accounts",
                     help=(
                         "Connect an online calendar, or the calendar app on a Mac. Nothing is read until you choose "
@@ -848,6 +939,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="notifications_panel",
+                    hint="Alerts, quiet hours, sound and system notifications.",
                     label="Alerts and system notifications",
                     help=(
                         "The bell in VOOL keeps every alert. In the VOOL app on a Mac you can also get a system "
@@ -919,7 +1011,8 @@ def _settings_groups() -> list[dict]:
             "title": "Toybox",
             "blurb": "Original app skins. Preview, apply, create and restore.",
             "rows": [
-                _row(id="toybox_skins", label="App skins", help="Preview an original skin, apply it to chat and Settings, or restore VOOL default. Skins change appearance only.", kind="custom", widget="toybox_skins",
+                _row(id="toybox_skins",
+                    hint="Change how VOOL looks. Approvals keep VOOL’s own look.", label="App skins", help="Preview an original skin, apply it to chat and Settings, or restore VOOL default. Skins change appearance only.", kind="custom", widget="toybox_skins",
                      keywords=["skin", "theme", "toybox", "colours", "appearance"]),
             ],
         },
@@ -931,6 +1024,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="appearance_theme",
+                    hint="Light, dark, or match this computer.",
                     label="Theme and text size",
                     help=(
                         "Choose Light or Dark, or \"Same as this computer\" to follow your computer's "
@@ -942,6 +1036,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="companion_pet_panel",
+                    hint="A small pet that can sit on your desktop.",
                     label="Desktop pet",
                     help=(
                         "The pet can sit on the desktop as its own small window, above ordinary "
@@ -963,6 +1058,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="phone_access",
+                    hint="Use VOOL from your phone. Off by default.",
                     label="Use VOOL from my phone",
                     kind="custom", widget="phone_access",
                     help="Off by default. Choose your home or private network, then pair your phone. Turning this off closes phone access.",
@@ -976,9 +1072,12 @@ def _settings_groups() -> list[dict]:
             "icon": "⌥",
             "title": "Advanced",
             "blurb": "Extra pages for people who want to look under the hood.",
+            "cards": [{"id": "screen", "title": "Screen sharing", "icon": "lock"}, {"id": "pages", "title": "Extra pages", "icon": "files"}],
             "rows": [
                 _row(
                     id="hide_name_on_screen",
+                    card="screen",
+                    hint="Hide your name before you share your screen.",
                     label="Hide my name on screen",
                     help=(
                         "Turn this on before you stream or share your screen. VOOL then shows your "
@@ -995,6 +1094,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="advanced_surfaces",
+                    card="pages",
+                    hint="The activity page and the special web addresses page.",
                     label="Extra pages",
                     kind="custom",
                     widget="advanced_links",
@@ -1007,6 +1108,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="web0",
+                    card="pages",
+                    hint="Open special web addresses. Off by default.",
                     label="Special web addresses",
                     kind="custom",
                     widget="web0",
@@ -1021,9 +1124,11 @@ def _settings_groups() -> list[dict]:
             "icon": "ⓘ",
             "title": "About & Diagnostics",
             "blurb": "Which version of VOOL you have, and what to include when you report a problem.",
+            "cards": [{"id": "updates", "title": "Updates", "icon": "retry"}, {"id": "copy", "title": "This copy of VOOL", "icon": "about"}],
             "rows": [
                 _row(
                     id="updates",
+                    card="updates",
                     label="App updates",
                     kind="custom",
                     widget="updates",
@@ -1033,6 +1138,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="build",
+                    card="copy",
+                    hint="Your exact version, for problem reports.",
                     label="This build",
                     kind="custom",
                     widget="build",
@@ -1045,6 +1152,8 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="toolbelt",
+                    card="copy",
+                    hint="What VOOL can use right now.",
                     label="Toolbelt",
                     kind="custom",
                     widget="extras_toolbelt",
@@ -1303,6 +1412,12 @@ label.inline { cursor:pointer; }
   .rangewrap input[type=range] { width:100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+/* My things and My routines: placed in Memory & Personalisation, never above a page title. */
+#pane > #myThingsSetting, #pane > #routinesSetting { display:none; }
+#myThingsSetting.vs-adopted, #routinesSetting.vs-adopted { border:none !important; padding:0 !important; background:none !important; box-shadow:none !important; margin:0 !important; }
+.vs-adopted { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; border:none; padding:0; margin:0; background:none; }
+#myThingsSetting.vs-adopted label { display:inline-flex; align-items:center; font-size:0; }
+#routinesSetting.vs-adopted > div { display:none; }
 </style>
 </head>
 <body>
@@ -1654,7 +1769,7 @@ const SEARCH_ABSENT = {
   thema: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
   design: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
 };
-function rowText(r) { return [r.label, r.help, r.keywords, r.groupTitle].filter(Boolean).join(' ').toLowerCase(); }
+function rowText(r) { return [r.label, r.hint, r.help, r.keywords, r.groupTitle].filter(Boolean).join(' ').toLowerCase(); }
 function queryWords(q) {
   const words = String(q || '').split(/\s+/).filter(Boolean);
   const meaningful = words.filter(w => !SEARCH_STOPWORDS.has(w));
@@ -1858,20 +1973,36 @@ function control(row) {
 
 function renderRow(row) {
   const node = el('div', 'row');
-  if (row.kind === 'custom') node.classList.add('wide');
+  if (row.kind === 'custom' && !row.fold_widget && !SIDE_WIDGETS.has(row.widget)) node.classList.add('wide');
   node.dataset.row = row.id;
   const main = el('div', 'row-main');
-  const lab = el('div', 'row-label');
+  const lab = el('div', row.labelInHead ? 'row-label vs-label-in-head' : 'row-label');
   lab.appendChild(el('span', null, row.label));
   if (row.badge) {
     const b = el('span', 'badge ' + (row.badge === 'Enforced' ? 'enforced' : (row.badge === 'Pilot' ? 'pilot' : 'guidance')), row.badge);
     lab.appendChild(b);
   }
   main.appendChild(lab);
-  if (row.help) main.appendChild(el('div', row.kind === 'note' ? 'row-help note-body' : 'row-help', row.help));
+  if (row.hint && row.help) {
+    /* One short line on screen; the full explanation stays one click away (and in search). */
+    const line = el('div', 'row-help vs-line');
+    line.appendChild(el('span', 'vs-hint', row.hint));
+    const more = el('details', 'vs-learn');
+    more.appendChild(el('summary', null, T('settings.learn_more', 'Learn more')));
+    const moreBody = el('div', row.kind === 'note' ? 'vs-learn-body note-body' : 'vs-learn-body', row.help);
+    more.appendChild(moreBody);
+    if (state.query && matches({ label: '', help: row.help, keywords: '', groupTitle: '' }, state.query)) more.open = true;
+    line.appendChild(more);
+    main.appendChild(line);
+    row._learnBody = moreBody;
+  } else if (row.help) main.appendChild(el('div', row.kind === 'note' ? 'row-help note-body' : 'row-help', row.help));
   if (row.kind !== 'note' && row.kind !== 'custom') { const meta = metaLine(row); if (meta.childNodes.length) main.appendChild(meta); }
   node.appendChild(main);
-  if (row.kind === 'custom') {
+  if (row.kind === 'custom' && row.fold_widget && row._learnBody) {
+    const host = el('div', 'vs-learn-widget');
+    row._learnBody.appendChild(host);
+    renderWidget(row, host);
+  } else if (row.kind === 'custom') {
     const host = el('div', 'row-ctl');
     node.appendChild(host);
     renderWidget(row, host);
@@ -1897,17 +2028,40 @@ function renderPane() {
   }
   const body = $('#paneBody');
   body.textContent = '';
-  const card = el('div', 'card');
+  const kit = !LEGACY_GROUPS.has(g.id);
+  const card = el('div', kit ? 'card vs-card' : 'card');
   const q = state.query;
   let shown = 0;
+  /* Settings with a card id sit together under that card's header; a page without cards is one card. */
+  const cardNodes = {};
+  const wideRow = (r) => r.kind === 'custom' && !r.fold_widget && !SIDE_WIDGETS.has(r.widget);
+  const cardFor = (r) => {
+    let spec = kit && r.card && (g.cards || []).find(c => c.id === r.card);
+    /* A page without named cards: each big panel is its own card, headed by its own name. */
+    if (!spec && kit && !r.card && wideRow(r)) { spec = { id: 'row-' + r.id, title: r.label, icon: r.icon || SETTINGS_NAV_ICONS[g.id] }; r.labelInHead = true; }
+    if (!spec) return card;
+    if (cardNodes[spec.id]) return cardNodes[spec.id];
+    const c = el('section', 'card vs-card');
+    c.dataset.card = spec.id;
+    const head = el('div', 'vs-card-head');
+    const ico = el('span', 'vs-card-ico vi'); ico.dataset.ico = spec.icon || 'settings'; ico.setAttribute('aria-hidden', 'true');
+    const h = el('h2', 'vs-card-title', spec.title);
+    h.id = 'card-' + g.id + '-' + spec.id;
+    c.setAttribute('aria-labelledby', h.id);
+    head.appendChild(ico); head.appendChild(h);
+    c.appendChild(head);
+    body.appendChild(c);
+    return (cardNodes[spec.id] = c);
+  };
   g.rows.forEach(r => {
     if (state.onlyRow && r.id !== state.onlyRow) return;
     const row = { ...r, group: g.id, groupTitle: g.title };
     if (q && !matches(row, q)) return;
     shown++;
+    const into = cardFor(row);
     const node = renderRow(row);
     if (q) node.classList.add('hit');
-    card.appendChild(node);
+    into.appendChild(node);
   });
   if (!shown && q && !MODEL.some(x => hitsFor(x.id, q) > 0)) {
     /* Nothing anywhere matches: say so in the pane too, with places to try, instead of leaving the
@@ -1938,7 +2092,9 @@ function renderPane() {
     if (setupHiddenByChoice()) inner.appendChild(setupRestoreControl());
     n.appendChild(inner); body.appendChild(n);
   }
-  body.appendChild(card);
+  /* Cards appear in the order the page names them, whatever order their settings come in. */
+  (g.cards || []).forEach(c => { if (cardNodes[c.id]) body.appendChild(cardNodes[c.id]); });
+  if (card.childNodes.length || !Object.keys(cardNodes).length) body.appendChild(card);
   Object.keys(state.rows).forEach(paintState);
   if (state.focusRow) {
     const target = body.querySelector('[data-row="' + CSS.escape(state.focusRow) + '"]');
@@ -1990,11 +2146,38 @@ async function getJSON(url) {
   return j || {};
 }
 
+/* Panels that other parts of VOOL add to the page (My things, My routines) are moved into their
+   own row here instead of sitting above every page's title. */
+const ADOPTED = {};
+function widgetAdopt(stack, id, tries) {
+  const node = ADOPTED[id] || document.getElementById(id);
+  if (!node) {
+    if ((tries || 0) < 30) setTimeout(() => { if (stack.isConnected) widgetAdopt(stack, id, (tries || 0) + 1); }, 100);
+    return;
+  }
+  ADOPTED[id] = node;
+  node.classList.add('vs-adopted');
+  const box = node.querySelector('input[type=checkbox]');
+  if (box && !box.classList.contains('vs-switch')) {
+    box.classList.add('vs-switch'); box.setAttribute('role', 'switch');
+    const paint = () => switchWordFor(box.closest('label') || box, box.checked);
+    box.addEventListener('change', paint);
+    /* The stored value arrives after a read; paint again once it has. */
+    [0, 300, 1200].forEach(ms => setTimeout(paint, ms));
+  }
+  node.querySelectorAll('a[href]').forEach(a => { a.classList.add('vs-btn'); });
+  stack.appendChild(node);
+}
+const SIDE_WIDGETS = new Set(['web_lookups', 'automatic_checks', 'live_browser', 'private_web', 'my_things', 'routines']);
+const LEGACY_GROUPS = new Set(['wallet', 'network']);
+
 function renderWidget(row, host) {
   host.textContent = '';
   const stack = el('div', 'stack');
   host.appendChild(stack);
   const w = row.widget;
+  if (w === 'my_things') return widgetAdopt(stack, 'myThingsSetting');
+  if (w === 'routines') return widgetAdopt(stack, 'routinesSetting');
   if (w === 'build') return widgetBuild(stack);
   if (w === 'updates') return widgetUpdates(stack);
   if (w === 'usage') return widgetUsage(stack);
@@ -3312,19 +3495,40 @@ function widgetKeys(stack) {
   stack.appendChild(st);
   /* The two save buttons do different things, and the note says both (it used to say "only a verified
      key is stored" right under "Save for later (unverified)"). */
-  stack.appendChild(el('div', 'subtle', T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
-  stack.appendChild(el('div', 'subtle', T('keys.plugin_checks_note', 'A check sends one request to the service you picked. Search checks may cost credits.')));
+  /* How the two save buttons differ is one click away, not a paragraph under every form. */
+  const saveHelp = el('details', 'vs-learn');
+  saveHelp.appendChild(el('summary', null, T('settings.learn_more', 'Learn more')));
+  const saveHelpBody = el('div', 'vs-learn-body');
+  saveHelpBody.appendChild(el('div', null, T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
+  saveHelpBody.appendChild(el('div', null, T('keys.plugin_checks_note', 'A check sends one request to the service you picked. Search checks may cost credits.')));
+  saveHelp.appendChild(saveHelpBody);
+  form.appendChild(saveHelp);
   /* X has more than one key, so it gets a guided setup instead of the single paste field. */
+  /* Everything X (keys, paid features, bookmarks, approvals) sits in one fold, so the keys page
+     reads as keys. It opens by itself when an X action waits for approval. */
+  const xFold = el('details', 'vs-fold x-fold'); xFold.id = 'xFold';
+  const xSum = el('summary', 'vs-fold-sum');
+  const xIco = el('span', 'vs-card-ico vi'); xIco.dataset.ico = 'report'; xIco.setAttribute('aria-hidden', 'true');
+  const xSumText = el('span', 'vs-fold-text');
+  xSumText.appendChild(el('span', 'vs-fold-title', T('xsetup.title', 'X (Twitter)')));
+  xSumText.appendChild(el('span', 'vs-line', T('keys.x_fold_hint', 'Connect X, set its limits and approve its actions.')));
+  xSum.appendChild(xIco); xSum.appendChild(xSumText);
+  xFold.appendChild(xSum);
+  const xBody = el('div', 'vs-fold-body stack');
+  xFold.appendChild(xBody);
+  stack.appendChild(xFold);
   const xRow = el('div', 'inline x-setup-entry');
   xRow.appendChild(el('span', 'row-label', T('xsetup.title', 'X (Twitter)')));
   xRow.appendChild(el('span', 'subtle', T('xsetup.entry_note', 'X uses several keys. The guided setup says what to paste where and checks them with one read.')));
   const xBtn = el('button', 'btn x-setup-open', T('xsetup.open', 'Connect X')); xBtn.type = 'button';
   xBtn.addEventListener('click', () => openXSetupDialog(async () => { await readSource('/api/settings/credentials'); renderPane(); }));
   xRow.appendChild(xBtn);
-  stack.appendChild(xRow);
-  const xFeatures = el('div', 'x-features'); stack.appendChild(xFeatures); widgetXFeatures(xFeatures);
-  const bookmarkSetup = el('div', 'x-bookmark-setup'); stack.appendChild(bookmarkSetup); widgetXBookmarks(bookmarkSetup);
-  const xActivity = el('div', 'x-activity'); stack.appendChild(xActivity); widgetXActivity(xActivity);
+  xBody.appendChild(xRow);
+  const xFeatures = el('div', 'x-features'); xBody.appendChild(xFeatures); widgetXFeatures(xFeatures);
+  const bookmarkSetup = el('div', 'x-bookmark-setup'); xBody.appendChild(bookmarkSetup); widgetXBookmarks(bookmarkSetup);
+  const xActivity = el('div', 'x-activity'); xBody.appendChild(xActivity); widgetXActivity(xActivity);
+  new MutationObserver(() => { if (xActivity.querySelector('.x-action-card')) xFold.open = true; }).observe(xActivity, { childList: true, subtree: true });
+  if (/x-|xfold|#keys\/x/i.test(location.hash)) xFold.open = true;
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -3830,7 +4034,10 @@ function widgetModelsOverview(stack) {
   const line = el('div', 'inline');
   const local = el('button', 'btn', thisComputerName()); local.type='button'; local.addEventListener('click', () => mpOpenRow('local_models')); line.appendChild(local);
   const addons=el('a', 'btn', T('keys.plugin_manage', 'Manage plugins in Add-ons')); addons.href='/addons'; line.appendChild(addons);
-  stack.appendChild(line); widgetModel(stack);
+  stack.appendChild(line);
+  /* The model itself is shown once, in the Model row right below; drawing it here too showed
+     "Default model" and "Provider" twice on one page. */
+  if (state.onlyRow === 'models_overview') widgetModel(stack);
 }
 function widgetLocalModels(stack) {
   /* One action per model: "Use this model" adds it here and checks it quietly. The check is the
@@ -5763,7 +5970,43 @@ function sectionFromHash() {
   return group ? group.id : '';
 }
 
+/* Every switch says On or Off in words beside it, the ones a panel draws itself included
+   (Web lookups, Browser, Go online on its own, phone, special web addresses). */
+function switchWordFor(holder, on) {
+  let word = holder.nextElementSibling;
+  if (!word || !word.classList.contains('sw-state')) {
+    word = el('span', 'sw-state'); word.appendChild(el('span', 'sw-dot')); word.appendChild(document.createTextNode(''));
+    const parent = holder.parentElement;
+    const inline = parent && /flex|grid/.test(getComputedStyle(parent).display) && getComputedStyle(parent).flexDirection !== 'column'
+      && !parent.classList.contains('stack');
+    if (inline || !parent) holder.after(word);
+    else {
+      /* In a column the word would drop under the switch: the two share one line instead. */
+      const pair = el('span', 'sw-row vs-sw-pair');
+      holder.replaceWith(pair); pair.appendChild(holder); pair.appendChild(word);
+    }
+  }
+  word.classList.toggle('on', on); word.classList.toggle('off', !on);
+  word.lastChild.textContent = on ? T('settings.switch.on', 'On') : T('settings.switch.off', 'Off');
+}
+function switchWord(sw) {
+  if (!sw.parentElement) return;
+  const own = sw.parentElement.classList.contains('sw-row') && !sw.parentElement.classList.contains('vs-sw-pair');
+  if (own) return;   /* an ordinary row paints its own word */
+  switchWordFor(sw, sw.getAttribute('aria-checked') === 'true');
+}
+function installSwitchWords() {
+  const scan = (root) => {
+    if (root.matches && root.matches('button.sw')) switchWord(root);
+    if (root.querySelectorAll) root.querySelectorAll('button.sw').forEach(switchWord);
+  };
+  new MutationObserver(list => list.forEach(m => {
+    if (m.type === 'attributes') { if (m.target.matches && m.target.matches('button.sw')) switchWord(m.target); }
+    else m.addedNodes.forEach(n => { if (n.nodeType === 1) scan(n); });
+  })).observe($('#pane'), { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-checked'] });
+}
 async function boot() {
+  installSwitchWords();
   $('#back').addEventListener('click', closeSettingsWindow);
   $('#offlineRetry').addEventListener('click', () => { reconcile(); recheckUnsure(true); });
   $('#skipToPane').addEventListener('click', e => { e.preventDefault(); $('#pane').focus(); });
@@ -5916,10 +6159,12 @@ def _localized_settings_groups(ui_locale: str) -> list[dict]:
         group["title"] = resolved(f"settings.group.{group['id']}.title", group["title"])
         if group.get("blurb"):
             group["blurb"] = resolved(f"settings.group.{group['id']}.blurb", group["blurb"])
+        for card in group.get("cards") or []:
+            card["title"] = resolved(f"settings.card.{group['id']}.{card['id']}.title", card["title"])
         for row in group.get("rows", []):
             rid = row["id"]
             row["label"] = resolved(f"settings.row.{rid}.label", row["label"])
-            for field in ("help", "placeholder", "effect"):
+            for field in ("help", "hint", "placeholder", "effect"):
                 if row.get(field):
                     row[field] = resolved(f"settings.row.{rid}.{field}", row[field])
             for option in row.get("options") or []:
@@ -5949,12 +6194,13 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
     from core.x_settings_fragment import X_FEATURES_JS
+    from core.settings_ui_kit import SETTINGS_KIT_CSS
     from core.x_social_fragment import render_x_social_fragment
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("/*__X_FEATURES__*/", X_FEATURES_JS, 1).replace(
-        "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
+        "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS + "\n" + SETTINGS_KIT_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_x_social_fragment() + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
