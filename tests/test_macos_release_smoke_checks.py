@@ -42,7 +42,7 @@ def _speed_row(db, call_seconds):
                            (raw, datetime.now(timezone.utc).isoformat()))
 
 
-@pytest.mark.parametrize('leak', ['', 'history', 'pin', 'speed row'])
+@pytest.mark.parametrize('leak', ['', 'history', 'pin', 'pin on disk', 'speed row'])
 def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak):
     home = tmp_path / 'home'
     db = home / 'Library/Application Support/VOOL/runtime/data/vool_web0_v2.db'
@@ -52,9 +52,12 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
         connection.execute('insert into local_inference_benchmarks values (?, ?)',
                            ('{"tokens": 42}', '2026-11-13T05:00:00+00:00'))
     seen = []
-    # every chat's listing shows the profile facts all chats share (cross-chat recall)
+    # every chat's listing shows the profile facts all chats share (cross-chat recall), but only once the chat
+    # exists: the served listing of a session with no turn yet is empty (the Intel smoke of d5d044b0 counted
+    # the teal fact as the PIN turn's because of that)
     profile = {'record_id': 'memory-teal', 'fact': 'my favourite colour is teal.', 'scope': 'user_profile'}
     pin_rows = [profile]
+    chats = set()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -63,6 +66,7 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             seen.append(body)
+            chats.add(body['session_id'])
             message = body['messages'][0]['content']
             answer = 'Done.'
             if smoke.SECRET in message:
@@ -76,6 +80,8 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
                 answer = 'I do not have that number.'
             if 'PIN' in message and leak == 'pin':
                 pin_rows.append({'record_id': 'memory-pin', 'fact': 'my card PIN is [redacted]', 'scope': 'chat'})
+            if 'PIN' in message and leak == 'pin on disk':
+                (home / 'transcript.jsonl').write_text(json.dumps({'text': message}) + '\n')
             data = {'message': {'content': answer}}
             self.reply(data)
 
@@ -83,7 +89,7 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
             if '/api/chat/history' in self.path:
                 self.reply({'messages': [smoke.SECRET] if leak == 'history' else []})
             elif smoke.PIN_SESSION in self.path:
-                self.reply({'entries': list(pin_rows)})
+                self.reply({'entries': list(pin_rows) if smoke.PIN_SESSION in chats else []})
             else:
                 self.reply({'entries': [profile]})
 
@@ -107,6 +113,7 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
     failed = [row['step'] for row in run.steps if not row['ok']]
     assert failed == ({'': [], 'history': ['private chat leaves no transcript, memory or file'],
                        'pin': ['PIN not echoed and not stored'],
+                       'pin on disk': ['PIN not echoed and not stored'],
                        'speed row': ['private chat leaves no transcript, memory or file']}[leak])
     assert len(seen) == 9
     assert all(body['model'] == 'local-model' and body['model_selection'] == 'pin' for body in seen)
