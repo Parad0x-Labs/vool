@@ -832,17 +832,25 @@ def execute_grounded_turn(
         curiosity_plan_candidates, curiosity_context_snippets = agent._curiosity_candidate_evidence(
             curiosity_result.candidate_ids
         )
-    tool_execution = agent._maybe_execute_model_tool_intent(
-        task=task,
-        effective_input=effective_input,
-        classification=classification,
-        interpretation=interpreted,
-        context_result=context_result,
-        persona=persona,
-        session_id=session_id,
-        source_context=source_context,
-        surface=surface,
-    )
+    try:
+        tool_execution = agent._maybe_execute_model_tool_intent(
+            task=task,
+            effective_input=effective_input,
+            classification=classification,
+            interpretation=interpreted,
+            context_result=context_result,
+            persona=persona,
+            session_id=session_id,
+            source_context=source_context,
+            surface=surface,
+        )
+    finally:
+        if isinstance(source_context, dict):
+            # The loop ran on its own copy of this context: what its web tools did comes back here, where the
+            # reply is sealed (a search that ran, the text it returned).
+            from core.agent_runtime.research_tool_loop_facade import fold_loop_observations_back
+
+            fold_loop_observations_back(source_context)
     # Tool-required gate: a this-machine FACT question must be answered by a real tool. If no
     # GROUNDED tool result was produced (tool loop returned nothing, or a non-executed failure
     # like "couldn't map that to a tool"), refuse to fabricate a value -- return an honest

@@ -1062,15 +1062,18 @@ def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> li
     return observations
 
 
-
-#: Where the tool loop leaves its working context for `_maybe_execute_model_tool_intent` to read back.
+#: Where the tool loop leaves its working context for `fold_loop_observations_back` (called by the turn) to read.
 _LOOP_CONTEXT_KEY = "_tool_loop_working_context"
 #: Set on the turn's context when a web lookup ran inside the tool loop (read by
 #: `core.model_output_guard.turn_ran_a_lookup`).
 LOOKUP_RAN_IN_LOOP_KEY = "_tool_loop_lookup_ran"
+#: The text the tool loop's web tools returned this turn (read by the reply edge).
+WEB_TEXT_IN_LOOP_KEY = "_tool_loop_web_text"
+#: The list the loop's web tool results are collected in (shared by the loop's context and the turn's).
+WEB_TEXT_SINK_KEY = "_tool_loop_web_text_sink"
 
 
-def _fold_loop_observations_back(source_context: dict[str, Any]) -> None:
+def fold_loop_observations_back(source_context: dict[str, Any]) -> None:
     """Tell the turn's own context that a web lookup ran inside the tool loop.
 
     Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, Web lookups on): web.search ran in the tool loop and bound four
@@ -1084,6 +1087,13 @@ def _fold_loop_observations_back(source_context: dict[str, Any]) -> None:
     receipts = loop_context.get("web_retrieval_receipts")
     if isinstance(receipts, list) and receipts:
         source_context[LOOKUP_RAN_IN_LOOP_KEY] = True
+    # What the loop's web tools returned, as text: the reply edge keeps a price only when a fetched page states it
+    # (`core.agent_runtime.reply_edge.unfetched_prices_reply`).
+    sink = source_context.pop(WEB_TEXT_SINK_KEY, None)
+    pages = [str(page) for page in sink or () if str(page).strip()] if isinstance(sink, list) else []
+    if pages:
+        source_context[WEB_TEXT_IN_LOOP_KEY] = "\n".join([str(source_context.get(WEB_TEXT_IN_LOOP_KEY) or ""), *pages]).strip()
+
 
 class ResearchToolLoopFacadeMixin:
     def _x_editorial_direct_message(
@@ -1875,36 +1885,6 @@ class ResearchToolLoopFacadeMixin:
         source_context: dict[str, object] | None,
         surface: str,
     ) -> dict[str, Any] | None:
-        try:
-            return ResearchToolLoopFacadeMixin._run_model_tool_intent(
-                self,
-                task=task,
-                effective_input=effective_input,
-                classification=classification,
-                interpretation=interpretation,
-                context_result=context_result,
-                persona=persona,
-                session_id=session_id,
-                source_context=source_context,
-                surface=surface,
-            )
-        finally:
-            if isinstance(source_context, dict):
-                _fold_loop_observations_back(source_context)
-
-    def _run_model_tool_intent(
-        self,
-        *,
-        task: Any,
-        effective_input: str,
-        classification: dict[str, Any],
-        interpretation: Any,
-        context_result: Any,
-        persona: Any,
-        session_id: str,
-        source_context: dict[str, object] | None,
-        surface: str,
-    ) -> dict[str, Any] | None:
         from core.agent_runtime.intent_claims import (
             ActionPolicy,
             action_policy_from_context,
@@ -2045,8 +2025,13 @@ class ResearchToolLoopFacadeMixin:
         if isinstance(source_context, dict):
             # The loop works on its own copy of the turn's context, and its tools record what they observed there
             # (a web search's retrieval receipt, a tool's typed observation). The reply is sealed with the turn's
-            # context, so `_maybe_execute_model_tool_intent` folds those channels back when the loop ends.
+            # context, so `fold_loop_observations_back` reads them when the loop ends.
             source_context[_LOOP_CONTEXT_KEY] = loop_source_context
+            # The loop's context is rebuilt after every tool result, so what its web tools return is collected in
+            # one list both contexts hold (`response_policy_tool_history.append_tool_result_to_source_context`).
+            web_text_sink: list[str] = []
+            source_context[WEB_TEXT_SINK_KEY] = web_text_sink
+            loop_source_context[WEB_TEXT_SINK_KEY] = web_text_sink
         # This request's own words, server-owned, for gates that must tell what the PERSON wrote
         # from what the model proposed (core.email_argument_guard grounds recipients on it).
         loop_source_context["_turn_user_text"] = str(effective_input or "")

@@ -92,6 +92,79 @@ def web_off_prices_reply(text: str, request: str, source_context: dict[str, Any]
         return text
 
 
+UNFETCHED_PRICES_LINE = "I've left out prices the pages I found didn't state."
+_AMOUNT_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_PRICE_RE = re.compile(
+    r"[$£€¥₹]\s?\d[\d,]*(?:\.\d+)?(?:\s?[-–—]\s?[$£€¥₹]?\s?\d[\d,]*(?:\.\d+)?)?"
+    r"|\d[\d,]*(?:\.\d+)?\s?(?:usd|eur|gbp|dollars?|euros?|pounds?|bucks)\b",
+    re.IGNORECASE,
+)
+# A sentence ends at terminal punctuation followed by space and a capital, a bold mark or a bracket, so "e.g.,"
+# and "$1.50" stay inside their sentence.
+_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z*\[(\"“])")
+
+
+def _amount(text: str) -> str:
+    value = text.replace(",", "")
+    if "." in value:
+        value = value.rstrip("0").rstrip(".")
+    return value
+
+
+def _stated_amounts(text: str) -> set[str]:
+    return {_amount(match.group(0)) for match in _AMOUNT_RE.finditer(str(text or ""))}
+
+
+def _unstated_price(sentence: str, stated: set[str]) -> bool:
+    for price in _PRICE_RE.finditer(sentence):
+        if any(_amount(number.group(0)) not in stated for number in _AMOUNT_RE.finditer(price.group(0))):
+            return True
+    return False
+
+
+def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None) -> str:
+    """`text` without the sentences that state a price no page the turn's web lookup fetched states.
+
+    Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, Web lookups on): web.search returned pages saying "from $20 to
+    $600" for travel tripods, and the reply said "the Gitzo V10 (from $200)" and "most reliable travel tripods
+    range $30–$600". Neither $200 nor $30 is on any page. A price reaches the reply only when a fetched page
+    states it; the rest go, and one line says so. Only on a turn whose tool loop ran a web lookup.
+    """
+    try:
+        context = source_context if isinstance(source_context, dict) else {}
+        pages = str(context.get("_tool_loop_web_text") or "")
+        if not pages.strip():
+            return text
+        stated = _stated_amounts(pages)
+        dropped = False
+        kept_lines: list[str] = []
+        for line in str(text or "").split("\n"):
+            if not _PRICE_RE.search(line):
+                kept_lines.append(line)
+                continue
+            if "|" in line:
+                cells = line.split("|")
+                blanked = ["—" if _PRICE_RE.search(cell) and _unstated_price(cell, stated) else cell for cell in cells]
+                dropped = dropped or blanked != cells
+                kept_lines.append("|".join(blanked))
+                continue
+            sentences = _SENTENCE_END_RE.split(line)
+            kept = [sentence for sentence in sentences if not _unstated_price(sentence, stated)]
+            if len(kept) != len(sentences):
+                dropped = True
+                if not "".join(kept).strip():
+                    continue
+            kept_lines.append(" ".join(kept))
+        if not dropped:
+            return text
+        body = re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
+        if UNFETCHED_PRICES_LINE in body or "The lookup I ran didn't confirm" in body:
+            return body
+        return f"{body}\n\n{UNFETCHED_PRICES_LINE}" if body else UNFETCHED_PRICES_LINE
+    except Exception:
+        return text
+
+
 def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, Any] | None) -> dict[str, Any]:
     """The result with its reply read at the edge. Never raises; returns `result` itself when nothing changes."""
     try:
@@ -99,6 +172,7 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
         if not response.strip():
             return result
         changed = web_off_prices_reply(response, request, source_context)
+        changed = unfetched_prices_reply(changed, source_context)
         if changed == response:
             return result
         return {**result, "response": changed}
@@ -106,4 +180,4 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
         return result
 
 
-__all__ = ["WEB_OFF_PRICES_LINE", "edge_reply", "web_off_prices_reply"]
+__all__ = ["UNFETCHED_PRICES_LINE", "WEB_OFF_PRICES_LINE", "edge_reply", "unfetched_prices_reply", "web_off_prices_reply"]
