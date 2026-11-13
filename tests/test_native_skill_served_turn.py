@@ -305,7 +305,7 @@ def _require_live_model(model: str = LOCAL_MODEL) -> None:
     try:
         with urlopen(f"{base.rstrip('/')}/api/tags", timeout=5) as response:
             tags = json.loads(response.read().decode("utf-8") or "{}")
-    except Exception as exc:  # noqa: BLE001 - any unreachable Ollama is the same plain failure
+    except Exception as exc:  # any unreachable Ollama is the same plain failure
         pytest.fail(f"live test needs the local model {name}, but Ollama at {base} is not reachable ({exc})")
     names = {str(row.get("name") or row.get("model") or "") for row in tags.get("models") or []}
     if name not in names:
