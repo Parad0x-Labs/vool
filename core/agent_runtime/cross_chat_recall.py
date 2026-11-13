@@ -213,7 +213,11 @@ _LIVE_DOMAIN_RE = re.compile(
 #: have that saved, and I looked through your other chats". "Why did I ..." and "how did I ..." ask
 #: about the person's own past and stay.
 _NOT_A_SAVED_FACT_RE = re.compile(
-    r"^\s*(?:why|how)\b(?!\s+(?:did|do|have|had|was|were)\s+(?:i|we)\s+(?:say|tell|mention|decide|agree|choose|pick|name|call|end\s+up)\b)"
+    # "how many / how much / how long / how old ..." asks for an amount, which may well be a saved fact
+    # ("how many tonnes does the yard hold according to my notes?", CI #681); only "how" asking for a
+    # method or a cause is left to the model.
+    r"^\s*(?:why|how)\b(?!\s+(?:many|much|long|old|often|far|big|tall|large|heavy|soon|late|early)\b)"
+    r"(?!\s+(?:did|do|have|had|was|were)\s+(?:i|we)\s+(?:say|tell|mention|decide|agree|choose|pick|name|call|end\s+up)\b)"
     r"|^\s*(?:am|are)\s+(?:i|we)\s+(?:free|allowed|permitted|able|entitled|obliged|required|supposed|legally)\s+to\b"
     r"|\bwhat\s+(?:does|do|did)\s+(?:this|that|these|those|the)\s+(?:[\w'’.-]+\s+){0,2}?(?:say|show|tell\s+(?:me|us))\b",
     re.IGNORECASE,

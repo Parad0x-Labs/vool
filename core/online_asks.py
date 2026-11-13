@@ -377,6 +377,11 @@ def dates_own_records(text: str) -> bool:
     return bool(_RECORDS_OF_A_WINDOW_RE.search(" ".join(str(text or "").split())[:600]))
 
 
+#: Current-information signals that do not make an ask a web lookup on their own: a date word ("this week")
+#: and a schedule shape ("what's on ... tonight") date or describe the person's own things just as often.
+_NOT_WEB_ON_THEIR_OWN = frozenset({"temporal_markers", "schedule_lookup"})
+
+
 def requirements_want_a_lookup(text: str, source_context: dict | None = None) -> bool:
     """Whether the requirement authority holds this ask to current information from the web, so the
     publication gate will only let an answer out that a lookup backs.
@@ -402,6 +407,21 @@ def requirements_want_a_lookup(text: str, source_context: dict | None = None) ->
         # ask got the web-off line, loop on and off.
         return False
     try:
+        # The authority's reading alone is not a web ask: it also holds "was the dentist this week" and
+        # 'delete my Apple note "Later this week"' to evidence because of a date word, and "what's on the
+        # hive tonight?" because of a schedule shape. CI #681 on the v0.8 line (2026-11-13): those, a
+        # calendar read and a database turn got the web-off line. Only a web-specific signal (news, a
+        # fresh lookup, a release, a market...) makes the authority's hold a lookup here; a date word or
+        # a schedule shape is read by the lanes that own it, as before this door read the authority.
+        from core.current_information_signals import firing_signals
+
+        if not any(signal.reason_code not in _NOT_WEB_ON_THEIR_OWN for signal in firing_signals(value)):
+            return False
+        from core.operator.parser import parse_operator_action_intent
+
+        if parse_operator_action_intent(value) is not None:
+            # A calendar, notes, reminder or file action on this computer: its own lane answers it.
+            return False
         from core.execution_requirements import requirements_for
 
         need = requirements_for(value, source_context=source_context or {})

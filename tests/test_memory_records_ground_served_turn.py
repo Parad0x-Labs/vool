@@ -101,5 +101,11 @@ def test_record_questions_publish_from_the_live_capsule_and_a_live_lookup_does_n
     train = turns["train"]["committed"]
     assert train["grounding_stages"]["required"] is True, train
     assert "records I have from our conversations" not in train["canonical_content"], train
-    assert train["grounding_publication"]["state"] in {"refused", "failed"}, train
+    # With Web lookups off (a fresh profile), a timetable is an online ask and gets the web-off line
+    # (red team R3-08, sls 2026-11-12): published, but it states no departure. Any other published
+    # text would have to be a lookup's, and none ran.
+    if train["grounding_publication"]["state"] == "published":
+        assert train["canonical_content"].startswith("Web lookups are off"), train
+    else:
+        assert train["grounding_publication"]["state"] in {"refused", "failed"}, train
     assert "14:05" not in train["canonical_content"], train

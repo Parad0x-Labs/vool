@@ -3284,8 +3284,22 @@ class VoolAgent(
             counted = previous_reply_count(effective_input, session_id=session_id) or previous_result_arithmetic(
                 effective_input, session_id=session_id
             )
+            _no_calendar = None
             if counted is None:
-                counted = _no_mailbox_reply(effective_input) or _no_calendar_reply(effective_input)
+                _no_mailbox = _no_mailbox_reply(effective_input)
+                _no_calendar = None if _no_mailbox else _no_calendar_reply(effective_input)
+                counted = _no_mailbox or _no_calendar
+            if counted is not None and counted == _no_calendar:
+                # The calendar's own answer with no calendar connected: the operator's calendar lane
+                # owns schedule wording, so the turn says so in its route (routing acceptance
+                # negative-07, CI #681: it was labelled as a count of the previous reply).
+                calendar_result = self._fast_path_result(
+                    session_id=session_id, user_input=effective_input, response=counted,
+                    confidence=1.0, source_context=runtime_source_context,
+                    reason="operator_action_calendar_not_connected", route_prefix="action",
+                )
+                calendar_result.update({"route_skips": ["model", "web", "tool_loop"], "fast_path_hit": True})
+                return _guard_final_result(calendar_result)
             if counted is None:
                 # A document ask in a chat bound to a project reads the project's own files first.
                 from core.agent_runtime.project_documents import project_document_answer

@@ -2823,10 +2823,14 @@ def plan_conductor_turn(
         single_ask = len(sentences) <= 1 and not re.search(
             r"\b(?:and\s+then|then|once\s+you|after\s+that|calculate|compute|compare|convert)\b", original, re.IGNORECASE
         )
-        if not web_forbidden and (
-            url_read_request(original)
-            or (single_ask and "web" in resolve_demand_signals(original).required_families)
-        ):
+        # A web seat that comes only from reading the ask as an online fact (a price, opening hours:
+        # core.online_asks) is not the person's own web lookup; "Check the stock levels and the current
+        # price of Ethereum." is two requests and stays the conductor's (CI #681 on the v0.8 line).
+        demand = resolve_demand_signals(original) if single_ask else None
+        own_web_ask = demand is not None and "web" in demand.required_families and not getattr(
+            demand, "web_by_online_reading_only", False
+        )
+        if not web_forbidden and (url_read_request(original) or own_web_ask):
             return None
     except Exception:
         pass

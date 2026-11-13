@@ -2004,11 +2004,22 @@ def _machine_find_largest(
     cleanup_context = bool(str((arguments or {}).get("cleanup_context") or "").lower() not in ("", "false", "0", "no"))
     # The reply names the place as the person knows it ("your home folder", "~/Downloads"); the details keep the
     # real path. Skills A/B on the v0.8 head (2026-11-13): the reply opened with the absolute home path.
-    shown_root = _home_relative_label(Path(str(root))) if root else ""
-    shown_root = "your home folder" if shown_root == "~" else (shown_root or str(root))
-    # A drive or any other absolute place is "on C:\\"; a folder named from home is "in ~/Downloads".
-    where = "in" if shown_root.startswith(("~", "your ")) else "on"
-    lines = [f"Largest {noun} {where} {shown_root} (measured, largest first):"]
+    # A root outside home (a drive, "D:\\" on Windows) keeps its own name: it is not a path relative to
+    # wherever VOOL runs from (CI #681 read "D:\\" as "~/work/.../D:\\").
+    root_path = Path(str(root)) if root else None
+    under_home = False
+    if root_path is not None and root_path.is_absolute():
+        try:
+            root_path.resolve().relative_to(_machine_home().resolve())
+            under_home = True
+        except (ValueError, OSError):
+            under_home = False
+    if under_home:
+        shown_root = _home_relative_label(root_path)
+        place = "in your home folder" if shown_root == "~" else f"in {shown_root}"
+    else:
+        place = f"on {root}"
+    lines = [f"Largest {noun} {place} (measured, largest first):"]
     for entry in entries:
         partial = "" if entry.get("complete") else " (partial — scan hit its time limit)"
         safety = f" · {entry['delete_safety']}" if cleanup_context else ""
