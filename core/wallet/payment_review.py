@@ -88,8 +88,23 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     paykit = fields.get("paykit") if isinstance(fields.get("paykit"), dict) else None
     sdk = fields.get("x402sdk") if isinstance(fields.get("x402sdk"), dict) else None
     paid_request = paykit or sdk
+    swap = fields.get("swap") if isinstance(fields.get("swap"), dict) else None
     warnings: list[dict[str, str]] = []
-    if paid_request:
+    if swap:
+        # a conversion inside the owner's own wallet (core.wallet.swaps): the bounds the signed transaction is proven against
+        headline = (f"Convert {swap['from_symbol']} to {swap['min_out_human']} {swap['to_symbol']}" if swap.get("side") == "out"
+                    else f"Convert {swap['max_in_human']} {swap['from_symbol']} to {swap['to_symbol']}")
+        amount_line = (f"Pay at most {swap['max_in_human']} {swap['from_symbol']} (about {swap['expected_in_human']}), "
+                       f"get at least {swap['min_out_human']} {swap['to_symbol']} (about {swap['expected_out_human']})")
+        recipient_line = f"Into your own wallet {short_address(to_address)} · price from {swap['provider']} · {swap['rate_text']}"
+        recipient_kind = "own_wallet_swap"
+        primary = "Approve and convert"
+        if float(swap.get("price_impact_pct") or 0) >= 1.0:
+            warnings.append({"code": "swap_price_impact", "text": f"This trade moves the price by {float(swap['price_impact_pct']):.2f}%. A smaller amount costs less."})
+        after = swap.get("then_send") if isinstance(swap.get("then_send"), dict) else None
+        if after:
+            warnings.append({"code": "swap_then_send", "text": f"After this lands, you get a second card to send {after['amount']} {after['asset']} to {after['to']}. Nothing is sent with this approval."})
+    elif paid_request:
         site = str(paid_request.get("resource_origin") or "the site")
         headline = f"Pay {site} for one request"
         amount_line = f"Pay {amount_human} {asset} (the exact price the site asked for this request)"
@@ -133,6 +148,13 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         network_line = "Network fee: paid by the site (its fee payer signs and pays it; this wallet pays none)"
     elif sdk:
         network_line = "Network fee: paid by the site (its facilitator submits the payment and pays the gas; this wallet pays none)"
+    elif swap:
+        parts = fields.get("fee_parts") or {}
+        fee_decimals = fields.get("fee_decimals", fields.get("decimals"))
+        network_line = (f"Network cost: at most {payment_fee_max} {gas}, paid by you (network fee {_human(parts.get('base_minor'), fee_decimals)} {gas}, "
+                        f"priority at most {_human(parts.get('priority_max_minor'), fee_decimals)} {gas}"
+                        + (f", opening your {swap['to_symbol']} account {_human(parts.get('account_rent_minor'), fee_decimals)} {gas}, one time" if parts.get("account_rent_minor") else "")
+                        + f") · slippage {swap['slippage_text']} · price impact {float(swap['price_impact_pct']):.2f}% · provider fee {swap['provider_fee_text']}")
     elif fields.get("create_recipient_account"):
         fee_decimals = fields.get("fee_decimals", fields.get("decimals"))
         parts = fields.get("fee_parts") or {}
@@ -150,10 +172,12 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         elif cue == "non_system_owner_recipient":
             warnings.append({"code": cue, "text": "The recipient account is owned by a program, not a plain wallet."})
     actions: list[dict[str, Any]] = [{
-        "kind": "fee_collection" if origin == proposals.ORIGIN_DNA_FEE else ("paid_request" if paid_request else "transfer"),
+        "kind": "fee_collection" if origin == proposals.ORIGIN_DNA_FEE else ("paid_request" if paid_request else ("swap" if swap else "transfer")),
         "proposal_id": str(getattr(proposal, "proposal_id", "") or ""), "to": to_address, "amount_minor": _int(fields.get("amount_minor")), "asset": asset,
         "network_fee_max_minor": _int(fields.get("fee_max_minor")), "gas_asset": gas,
-        "authorization": "this approval, exactly as shown; one signature, sent once with the one request it pays for" if paid_request else "this approval, exactly as shown; one signature, one send",
+        "authorization": ("this approval, exactly as shown; one signature, sent once with the one request it pays for" if paid_request
+                          else ("this approval, exactly as shown; one signature on the provider's transaction, only after it is proven to stay inside these bounds" if swap
+                                else "this approval, exactly as shown; one signature, one send")),
     }]
     if companion:
         actions.append({
@@ -182,6 +206,11 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         details.append(["Token contract", f"{sdk.get('token')} (EIP-712 domain {sdk.get('eip712_name')}, version {sdk.get('eip712_version')})"])
         details.append(["Authorization window", f"usable for at most {_int(sdk.get('window_seconds'))} seconds after signing; unused by then, it can never move funds"])
         details.append(["Network fee payer", "the site's facilitator"])
+    if swap:
+        details.append(["Conversion", f"{swap['from_symbol']} ({swap['from_mint']}) to {swap['to_symbol']} ({swap['to_mint']})"])
+        details.append(["Price from", f"{swap['provider']} · route {' > '.join(swap['route'])} · {swap['privacy_note']}"])
+        details.append(["Bounds", f"pay at most {swap['max_in_minor']} atomic {swap['from_symbol']} · get at least {swap['min_out_minor']} atomic {swap['to_symbol']} · slippage {swap['slippage_bps']} bps"])
+        details.append(["Held for this conversion", f"{amount_human} {asset} (the most this request may use; the sheet's maximum is what the signed transaction is checked against)"])
     details.append(["Exact amount", f"{amount_human} {asset} = {_int(fields.get('amount_minor'))} atomic units"])
     details.append(["Network fee bound", f"estimated {_human(fields.get('fee_estimate_minor'), fields.get('fee_decimals', fields.get('decimals')))} {gas} · at most {payment_fee_max} {gas} = {_int(fields.get('fee_max_minor'))} atomic units"])
     fee_parts = fields.get("fee_parts") or {}

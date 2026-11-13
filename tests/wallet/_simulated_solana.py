@@ -51,6 +51,16 @@ class _Failure(Exception):
         self.log = log
 
 
+def _decode_transaction(raw: bytes) -> Any:
+    """A legacy transaction, else a v0 one (a swap the provider built)."""
+    from solders.transaction import Transaction, VersionedTransaction
+
+    count, offset = int(raw[0]), 1  # the signature count (a one-byte compact length: fewer than 128 signatures)
+    if len(raw) > offset + 64 * count and raw[offset + 64 * count] & 0x80:
+        return VersionedTransaction.from_bytes(raw)
+    return Transaction.from_bytes(raw)
+
+
 class SimulatedSolanaNode:
     def __init__(self, *, genesis_hash: str = MAINNET_GENESIS, lamports_per_signature: int = 5000) -> None:
         self.genesis_hash = genesis_hash
@@ -292,22 +302,36 @@ class SimulatedSolanaNode:
         return {"result": {"context": self._context(), "value": self.lamports_per_signature * int(message.header.num_required_signatures)}}
 
     def _rpc_simulateTransaction(self, params: list[Any]) -> dict[str, Any]:
-        from solders.transaction import Transaction
-
-        transaction = Transaction.from_bytes(base64.b64decode(params[0]))
+        transaction = _decode_transaction(base64.b64decode(params[0]))
+        options = params[1] if len(params) > 1 and isinstance(params[1], dict) else {}
+        state: Any = None
         try:
-            self._execute(transaction, apply=False, verify_signatures=False)
+            state = self._execute(transaction, apply=False, verify_signatures=False)
             err: Any = None
             logs: list[str] = ["SIMULATION: ok"]
         except _Failure as failure:
             err, logs = failure.err, [f"SIMULATION: {failure.log}"]
-        return {"result": {"context": self._context(), "value": {"err": err, "logs": logs, "unitsConsumed": 300}}}
+        value: dict[str, Any] = {"err": err, "logs": logs, "unitsConsumed": 300}
+        wanted = list(((options.get("accounts") or {}).get("addresses")) or [])
+        if wanted:
+            # the accounts as the simulation leaves them (what a node answers for the `accounts` option)
+            if state is None:
+                value["accounts"] = None
+            else:
+                saved = (self.lamports, self.token_accounts)
+                self.lamports, self.token_accounts = state
+                try:
+                    value["accounts"] = [self._account_value(str(address)) for address in wanted]
+                finally:
+                    self.lamports, self.token_accounts = saved
+        return {"result": {"context": self._context(), "value": value}}
+
+    def _rpc_getMultipleAccounts(self, params: list[Any]) -> dict[str, Any]:
+        return {"result": {"context": self._context(), "value": [self._account_value(str(address)) for address in (params[0] if params else [])]}}
 
     def _rpc_sendTransaction(self, params: list[Any]) -> Any:
-        from solders.transaction import Transaction
-
         raw = base64.b64decode(params[0])
-        transaction = Transaction.from_bytes(raw)
+        transaction = _decode_transaction(raw)
         signature = str(transaction.signatures[0])
         mode = str(self.faults.get("send_mode") or "ok")
         if mode == "refuse_preflight":
@@ -445,11 +469,11 @@ class SimulatedSolanaNode:
                 lamports[address] = rent
                 tokens[address] = {"mint": mint, "owner": owner, "amount": 0, "frozen": False}
             else:
-                raise _Failure({"InstructionError": [index, "UnsupportedProgramId"]}, f"program {program} is not executed by this simulation")
+                self._execute_other(index, program, accounts, data, signers=signers, lamports=lamports, tokens=tokens, payments=payments)
         if lamports.get(fee_payer, 0) and lamports[fee_payer] < rent_minimum(0):
             raise _Failure({"InsufficientFundsForRent": {"account_index": 0}}, "fee payer would be left below rent exemption")
         if not apply:
-            return
+            return lamports, tokens
         signature = str(transaction.signatures[0])
         self.lamports = lamports
         self.token_accounts = tokens
@@ -460,6 +484,12 @@ class SimulatedSolanaNode:
                 "preTokenBalances": pre_tokens, "postTokenBalances": _token_balances(keys, tokens, self.mints), "logMessages": ["SIMULATION: executed"],
             },
         }
+
+
+    def _execute_other(self, index: int, program: str, accounts: list[str], data: bytes, *, signers: set[str], lamports: dict[str, int],
+                       tokens: dict[str, dict[str, Any]], payments: list[dict[str, Any]]) -> None:
+        """Any other program: not executed here (a subclass may play one, e.g. a swap venue)."""
+        raise _Failure({"InstructionError": [index, "UnsupportedProgramId"]}, f"program {program} is not executed by this simulation")
 
 
 _DROP = object()

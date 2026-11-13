@@ -27,6 +27,7 @@ KIND_DIRECT = "direct"
 KIND_SERVICE = "service"
 KIND_CREDIT = "credit"
 KIND_UNKNOWN = "unknown"
+KIND_SWAP = "swap"
 
 MECHANISM_DIRECT = "Direct transfer"
 MECHANISM_X402 = "Service payment · x402"
@@ -37,6 +38,8 @@ _MECHANISM_BY_VERSION = {3: f"{MECHANISM_X402} (Solana pay-kit)", 4: "Service pa
 CHARGE_ONE_RESPONSE = "one paid response for this resource"
 CHARGE_PREPAID_CREDIT = "prepayment: credit held by the provider, spent by later requests"
 CHARGE_DIRECT = "this transfer only"
+MECHANISM_SWAP = "Conversion · Jupiter"
+CHARGE_SWAP = "this conversion only, inside your own wallet"
 
 _DIRECT_ORIGINS = frozenset({proposals.ORIGIN_USER, proposals.ORIGIN_MODEL, proposals.ORIGIN_SKILL, proposals.ORIGIN_PLUGIN})
 _MAX_TEXT = 200
@@ -150,6 +153,18 @@ def _usepod_payment(proposal: Any) -> dict[str, Any]:
     return view
 
 
+def _swap(proposal: Any) -> dict[str, Any]:
+    """A conversion inside the owner's own wallet: what it converts, from the swap's own binding (core.wallet.swaps)."""
+    from core.wallet import swaps
+
+    binding = swaps.binding_for(proposal.proposal_id) or {}
+    target = str(((binding.get("to") or {}).get("symbol")) or "another coin")
+    view = _base(KIND_SWAP, headline=f"Convert up to {_amount_text(proposal)} to {target}", mechanism_label=MECHANISM_SWAP,
+                 beneficiary=str(proposal.destination), charge_scope=CHARGE_SWAP)
+    view["to_symbol"] = target
+    return view
+
+
 def purpose_for(proposal: Any) -> dict[str, Any]:
     """The typed purpose of one proposal. The memo is never consulted."""
     origin = str(getattr(proposal, "origin", "") or "")
@@ -159,6 +174,8 @@ def purpose_for(proposal: Any) -> dict[str, Any]:
         return _service(proposal)
     if origin == proposals.ORIGIN_USEPOD:
         return _usepod_payment(proposal)
+    if origin == proposals.ORIGIN_SWAP:
+        return _swap(proposal)
     view = _base(KIND_UNKNOWN, headline=f"Pay {_amount_text(proposal)} to {proposal.destination} — purpose unknown",
                  mechanism_label="Purpose unknown", beneficiary=proposal.destination, charge_scope="")
     view["note"] = f"No record explains this request (origin {origin or 'none'!r})."

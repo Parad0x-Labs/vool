@@ -340,6 +340,9 @@ def _refuse_unpayable_token(rpc: Any, spec: chains.ChainIdentity, proposal: prop
 
 
 def _serialize(message: Any, signature: bytes) -> bytes:
+    if hasattr(message, "serialize"):
+        # a checked swap message (core.wallet.swaps.SwapMessage): v0 or legacy, it serializes itself
+        return bytes(message.serialize(signature))
     from solders.signature import Signature
     from solders.transaction import Transaction
 
@@ -535,6 +538,23 @@ class PaymentLifecycle:
             proposals._claim_message(conn, proposal.proposal_id, network=proposal.network, message_digest=hashlib.sha256(bytes(message)).hexdigest())
 
     # -- stage 1: prepare -------------------------------------------------------------------------
+    def _prepare_swap(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, rpc: RpcClient) -> SimulationResult:
+        """A swap's preparation: Jupiter builds the transaction for the bound price and it is proven exactly as at
+        approval (core.wallet.swaps.build_verified_message). A refusal ends the proposal typed; nothing is signed."""
+        from core.wallet import swaps
+
+        binding = swaps.binding_for(proposal.proposal_id)
+        if binding is None:
+            return SimulationResult(False, 0, "swap_binding_missing")
+        try:
+            fee_max = swaps.fee_max_minor(binding, opens_output_account=swaps.output_account_missing(rpc, binding))
+            checked = swaps.build_verified_message(binding, rpc=rpc, fee_max=fee_max, source_context=self.source_context)
+        except WalletFault as exc:
+            reason = str(exc.context.get("reason") or exc.code)
+            end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=exc.code, detail={"reason": reason}, reason=reason)
+            raise
+        return SimulationResult(True, swaps.BASE_FEE_LAMPORTS, "swap_checked", int(checked["simulated"].get("unit_limit") or 0))
+
     def prepare(self, proposal_id: str) -> proposals.TransactionProposal:
         """proposed -> simulated -> limits_checked -> pending_approval (or a typed terminal refusal)."""
         proposal = self._load(proposal_id)
@@ -581,7 +601,11 @@ class PaymentLifecycle:
                 from core.wallet import svm_tokens
 
                 creates_account = False
-                if svm_tokens.token_route(proposal):
+                if str(proposal.origin) == proposals.ORIGIN_SWAP:
+                    # a conversion: Jupiter's transaction for the bound price is built and proven now (signer, programs,
+                    # the simulated outcome inside the shown bounds); it is built and proven again at approval
+                    simulation = self._prepare_swap(proposal, profile, rpc)
+                elif svm_tokens.token_route(proposal):
                     try:
                         creates_account = _refuse_unpayable_token(rpc, spec, proposal, profile.public_key, source_context=self.source_context)
                     except WalletFault as exc:
@@ -589,7 +613,8 @@ class PaymentLifecycle:
                         end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=exc.code, detail={"reason": reason}, reason=reason)
                         raise
                 try:
-                    simulation = rpc.simulate(_serialize(self._message_for(proposal, profile.public_key, rpc=rpc, create_recipient_account=creates_account), ZERO_SIGNATURE))
+                    if str(proposal.origin) != proposals.ORIGIN_SWAP:
+                        simulation = rpc.simulate(_serialize(self._message_for(proposal, profile.public_key, rpc=rpc, create_recipient_account=creates_account), ZERO_SIGNATURE))
                 except WalletFault as exc:
                     end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code="wallet_simulation_failed", reason=str(exc.context.get("reason") or exc.code))
                     raise
@@ -1025,6 +1050,8 @@ class PaymentLifecycle:
         rent-exempt remainder. A mismatch supersedes the quote and asks for a fresh preview."""
         from core.wallet import quotes, settlement
 
+        if str(proposal.origin) == proposals.ORIGIN_SWAP:
+            return self._revalidate_swap(proposal, profile, spec, quote)
         fields = quote["fields"]
         companion_fields = dict(companion["fields"]) if companion else {}
         extra_principal = int(companion_fields.get("amount_minor") or 0) if companion and str(companion_fields.get("asset") or "") == str(proposal.asset) else 0
@@ -1090,6 +1117,38 @@ class PaymentLifecycle:
         message = _build_message(proposal, profile.public_key, blockhash, create_recipient_account=bool(fields.get("create_recipient_account")))
         companion_message = _build_message(companion["proposal"], profile.public_key, blockhash) if companion else None
         return {"rpc": rpc, "blockhash": blockhash, "slot": slot, "last_valid": last_valid, "balance": balance, "message": message, "companion_message": companion_message, "read_at": time.time()}
+
+    def _revalidate_swap(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any]) -> dict[str, Any]:
+        """A swap right before its claim, while no key exists: the endpoint proves the chain, Jupiter builds the
+        transaction for EXACTLY the price the sheet showed (the bound quote, unchanged), and it is proven again (signer,
+        programs, the simulated outcome inside the shown bounds) with enough blockhash validity left to send it. Any
+        mismatch supersedes the quote and asks for a fresh price; nothing is held."""
+        from core.wallet import quotes, settlement, swaps
+
+        binding = swaps.binding_for(proposal.proposal_id)
+        if binding is None or quote["fields"].get("swap") != swaps.quote_block(binding):
+            quotes.supersede_quote(quote["quote_id"], reason="swap_price_changed_since_the_quote")
+            raise self._fault("wallet_quote_expired", proposal, reason="swap_price_changed_since_the_quote", quote_id=quote["quote_id"])
+        rpc = self._rpc_for(spec.network)
+        try:
+            self._require_svm_identity(rpc, spec)
+            height = int(rpc._call("getBlockHeight", [{"commitment": RpcClient.COMMITMENT}]))
+            balance = rpc.balance(profile.public_key)
+        except WalletFault:
+            raise
+        except Exception as exc:
+            raise self._fault("wallet_quote_unavailable", proposal, reason=f"revalidation_read_failed:{type(exc).__name__}") from None
+        try:
+            checked = swaps.build_verified_message(binding, rpc=rpc, fee_max=int(quote["fields"]["fee_max_minor"]), source_context=self.source_context)
+        except WalletFault as exc:
+            quotes.supersede_quote(quote["quote_id"], reason=str(exc.context.get("reason") or exc.code)[:80])
+            raise
+        last_valid = int(checked["last_valid"] or 0)
+        if not last_valid or last_valid - height < settlement.SVM_CLAIM_MARGIN_BLOCKS:
+            quotes.supersede_quote(quote["quote_id"], reason="blockhash_validity_too_short")
+            raise self._fault("wallet_quote_expired", proposal, reason="blockhash_validity_too_short", quote_id=quote["quote_id"], blocks_left=last_valid - height)
+        return {"rpc": rpc, "blockhash": checked["blockhash"], "slot": 0, "last_valid": last_valid, "balance": balance, "message": checked["message"],
+                "companion_message": None, "read_at": time.time(), "swap_simulated": checked["simulated"]}
 
     def _revalidate_evm(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any]) -> dict[str, Any]:
         """Fresh chain facts right before an EVM claim, while no key exists: the endpoint proves the row's chain id,
@@ -1422,6 +1481,8 @@ class PaymentLifecycle:
         receipts.journal_terminal({**base, "state": view["state"], "tx_id": view.get("tx_id") or tx_id, "evidence_kind": view.get("evidence_kind")}, source_context=self.source_context)
         receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=view["state"] == transfers.STATE_CONFIRMED, status=view["state"], tx_signature=view.get("tx_id") or "")
         result: dict[str, Any] = {"transfer": view, "duplicate": False}
+        if str(proposal.origin) == proposals.ORIGIN_SWAP:
+            result.update(self._after_swap(proposal, view))
         if cid:
             if companion_view is not None and str(companion_view.get("state") or "") in (transfers.STATE_UNKNOWN, transfers.STATE_PENDING, transfers.STATE_DISPATCHING):
                 companion_view = settlement.observe_bounded(cid, rpc=fresh["rpc"], budget_seconds=_CONFIRM_BUDGET_SECONDS) or companion_view
@@ -1429,6 +1490,26 @@ class PaymentLifecycle:
 
             result["companion"] = {"transfer": companion_view, **(dna_fees.companion_outcome(pid) or {})}
         return result
+
+    def _after_swap(self, proposal: proposals.TransactionProposal, view: dict[str, Any]) -> dict[str, Any]:
+        """A landed swap: its own facts on a receipt (provider, bounds, route, what the chain says it paid and received),
+        then the send the owner asked for with it, parked as its OWN proposal for its own card and PIN."""
+        from core.wallet import swaps, transfers
+
+        extra: dict[str, Any] = {}
+        facts = swaps.receipt_facts(proposal.proposal_id)
+        if facts is not None:
+            receipts.record_receipt(proposal, state=str(view.get("state") or ""), tx_signature=str(view.get("tx_id") or ""), extra={"swap": facts})
+            extra["swap"] = facts
+        if str(view.get("state") or "") == transfers.STATE_CONFIRMED:
+            try:
+                follow = swaps.follow_up(proposal.proposal_id, source_context=self.source_context)
+            except WalletFault as exc:
+                extra["next_refused"] = {"code": exc.code, "message": exc.user_message}
+                follow = None
+            if follow is not None:
+                extra["next_proposal"] = follow
+        return extra
 
     def _send_companion(self, companion: dict[str, Any], fresh: dict[str, Any], *, effects: dict[str, Any], tx_id: str) -> dict[str, Any]:
         """Transmit the collection signed with the payment, after the payment's bytes left. A send that fails before

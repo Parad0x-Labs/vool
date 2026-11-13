@@ -335,6 +335,14 @@ def _opens_recipient_account(row: dict[str, Any]) -> bool | None:
     return None
 
 
+def _swap_binding(row: dict[str, Any]) -> dict[str, Any] | None:
+    from core.wallet import swaps
+
+    with contextlib.suppress(Exception):
+        return swaps.binding_for(str(row.get("proposal_id") or ""))
+    return None
+
+
 def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
     """The fee this wallet was charged for the row's transaction. A pay-kit payment whose id is another signer's (the
     resource's fee payer cosigned and paid: the transaction's first signature is not this wallet's) charged it
@@ -342,6 +350,14 @@ def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
     own = str(row.get("payer_signature") or "")
     if own and own != str(tx_id):
         return 0
+    binding = _swap_binding(row)
+    if binding is not None:
+        # a swap: the network fee plus the rent of a token account it opened; never the price itself
+        from core.wallet import swaps
+
+        fee = swaps.charged_fee(client, tx_id)
+        outcome = binding.get("outcome") if isinstance(binding.get("outcome"), dict) else {}
+        return None if fee is None else fee + int(outcome.get("account_rent_minor") or 0)
     opens = _opens_recipient_account(row)
     if opens is None:
         return None
@@ -478,7 +494,19 @@ def _observe_svm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
             transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "status_unrecognized", status=status[:40]))
         return row
     if err is None:
-        if state != transfers.STATE_CONFIRMED and _is_token_transfer(row):
+        swap_binding = _swap_binding(row)
+        if state != transfers.STATE_CONFIRMED and swap_binding is not None:
+            # a swap is done only when the chain's own balances show it paid no more than the shown maximum and
+            # received at least the shown minimum (core.wallet.swaps.prove_landed)
+            from core.wallet import swaps
+
+            proven = swaps.prove_landed(client, row, swap_binding)
+            if proven is not True:
+                with connection() as conn:
+                    transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(
+                        row, "principal_unproven", status=status, slot=slot, answer="swap_outcome_outside_bounds" if proven is False else "no_balances"))
+                return transfers.get_transfer_by_id(proposal_id)
+        elif state != transfers.STATE_CONFIRMED and _is_token_transfer(row):
             proven = _svm_token_principal(client, row, tx_id)
             if proven is not True:
                 # a confirmed token transfer is paid only when its own token balances show the principal moved;

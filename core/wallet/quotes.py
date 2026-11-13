@@ -339,6 +339,8 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
     native = chains.native_asset(spec.network)
     from core.wallet import svm_tokens
 
+    if str(proposal.origin) == proposals.ORIGIN_SWAP:
+        return _mint_swap_quote(spec, proposal, profile, source_context=source_context)
     paykit = _paykit_block(proposal, spec, source_context=source_context)
     sdk = _x402_sdk_block(proposal, spec, source_context=source_context)
     from core.wallet import evm_tokens
@@ -443,6 +445,116 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
             (quote_id, proposal.proposal_id, profile.wallet_id, spec.network, spec.environment, digest, json.dumps(fields, sort_keys=True, default=str), STATE_OPEN, now, fields["expires_at"]),
         )
     return {"quote_id": quote_id, "proposal_id": proposal.proposal_id, "digest": digest, "state": STATE_OPEN, "fields": fields}
+
+
+#: A swap's price is fresh for a short time only: its sheet expires sooner than a send's.
+SWAP_QUOTE_TTL_SECONDS = 30.0
+
+
+def _insert_quote(proposal: Any, profile: Any, spec: chains.ChainIdentity, fields: dict[str, Any], now: float) -> dict[str, Any]:
+    digest = digest_of(fields)
+    quote_id = f"quote-{uuid.uuid4().hex[:20]}"
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        conn.execute("UPDATE wallet_quotes SET state = ? WHERE proposal_id = ? AND state = ?", (STATE_SUPERSEDED, proposal.proposal_id, STATE_OPEN))
+        conn.execute(
+            "INSERT INTO wallet_quotes (quote_id, proposal_id, wallet_id, network, environment, digest, fields_json, state, created_at, expires_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (quote_id, proposal.proposal_id, profile.wallet_id, spec.network, spec.environment, digest, json.dumps(fields, sort_keys=True, default=str), STATE_OPEN, now, fields["expires_at"]),
+        )
+    return {"quote_id": quote_id, "proposal_id": proposal.proposal_id, "digest": digest, "state": STATE_OPEN, "fields": fields}
+
+
+def _mint_swap_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *, source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """A conversion inside the owner's own wallet (core.wallet.swaps): a FRESH price from the provider (it must still
+    fit what the proposal holds), the input coin's balance and the SOL for the network cost read from the chain, and the
+    swap's exact bounds (pay at most, get at least, slippage, price impact, route) inside the digest the PIN binds."""
+    from core.wallet import lifecycle, swaps
+
+    native = chains.native_asset(spec.network)
+    binding = swaps.refresh_terms(proposal, source_context=source_context)
+    source = swaps.Coin(**binding["from"])
+    rpc = lifecycle.RpcClient(chains.network_rpc_url(spec.network), network=spec.network)
+    _prove(spec, rpc.url, lambda method: rpc._call(method, []), source_context=source_context)
+    amount = int(proposal.amount_minor)
+    held_native = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=native.symbol)
+    held_source = held_native if source.native else _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=source.symbol)
+    try:
+        sol = rpc._call("getBalance", [profile.public_key, {"commitment": "confirmed"}])
+        rent_minimum = int(rpc._call("getMinimumBalanceForRentExemption", [0]))
+        opens_output = swaps.output_account_missing(rpc, binding)
+        if source.native:
+            source_balance = int(sol["value"])
+        else:
+            from core.wallet import svm_tokens
+
+            source_balance = svm_tokens.token_balance_minor(rpc, owner=profile.public_key, asset=svm_tokens.token_asset(spec.network, source.symbol), source_context=source_context)
+    except WalletFault:
+        raise
+    except Exception as exc:
+        raise _fault("wallet_quote_unavailable", network=spec.network, reason=f"rpc_read_failed:{type(exc).__name__}", source_context=source_context) from None
+    if (sol or {}).get("value") is None:
+        raise _fault("wallet_quote_unavailable", network=spec.network, reason="balance_unknown", source_context=source_context)
+    sol_balance = int(sol["value"])
+    fee_max = swaps.fee_max_minor(binding, opens_output_account=opens_output)
+    block = swaps.quote_block(binding)
+    shown_max_in = int(block["max_in_minor"])
+    if source.native:
+        shortfall = shown_max_in + fee_max + rent_minimum - (sol_balance - held_native)
+        if shortfall > 0:
+            raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="swap_needs_more_sol", shortfall_minor=shortfall,
+                         shortfall_human=amounts.format_minor(shortfall, native.decimals), gas_asset=native.symbol, source_context=source_context)
+    else:
+        if shown_max_in > source_balance - held_source:
+            raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="token_balance_below_amount", shortfall_minor=shown_max_in - (source_balance - held_source),
+                         gas_asset=source.symbol, source_context=source_context)
+        if fee_max + rent_minimum > sol_balance - held_native:
+            raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="fee_balance_below_fee_ceiling", shortfall_minor=fee_max + rent_minimum - (sol_balance - held_native),
+                         gas_asset=native.symbol, source_context=source_context)
+    now = _now()
+    fee_parts = {"base_minor": swaps.BASE_FEE_LAMPORTS, "priority_max_minor": swaps.PRIORITY_FEE_CAP_LAMPORTS}
+    if opens_output:
+        fee_parts["account_rent_minor"] = swaps.TOKEN_ACCOUNT_RENT_LAMPORTS
+    fields: dict[str, Any] = {
+        "proposal_id": proposal.proposal_id, "network": spec.network, "chain_key": spec.chain_key,
+        "chain_label": chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name), "display_name": spec.display_name,
+        "environment": spec.environment, **environment.presentation(spec), "chain_identity": spec.genesis_hash,
+        "from_label": profile.label or chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name), "from_address": profile.public_key,
+        "to_address": proposal.destination, "asset": source.symbol, "display_symbol": source.symbol, "gas_asset": native.symbol,
+        "decimals": source.decimals, "fee_decimals": native.decimals, "amount_minor": amount, "amount_human": amounts.format_minor(amount, source.decimals),
+        "fee_model": spec.fee_model, "token_transfer": not source.native, "swap": block, "swap_opens_output_account": opens_output,
+        "balance_observed_at": now, "balance_stale": False, "balance_ref": f"slot:{int((sol.get('context') or {}).get('slot') or 0)}",
+        "balance_minor": source_balance, "principal_balance_minor": source_balance, "fee_balance_minor": sol_balance,
+        "held_elsewhere_minor": held_source, "held_native_elsewhere_minor": held_native,
+        "fee_estimate_minor": swaps.BASE_FEE_LAMPORTS, "fee_max_minor": fee_max, "fee_parts": fee_parts, "rent_minimum_minor": rent_minimum, "cues": [],
+        "max_total_minor": shown_max_in + (fee_max if source.native else 0),
+        "estimated_after_minor": source_balance - shown_max_in - (fee_max if source.native else 0),
+        "minimum_after_minor": source_balance - held_source - shown_max_in - (fee_max if source.native else 0),
+        "fee_balance_after_minimum_minor": sol_balance - held_native - fee_max - (shown_max_in if source.native else 0),
+        "quoted_at": now, "expires_at": now + min(QUOTE_TTL_SECONDS, SWAP_QUOTE_TTL_SECONDS),
+        "approval_method": custody.shown_approval_method(profile.wallet_id),
+        **_approval_block(profile),
+    }
+    for name in ("balance", "principal_balance", "max_total", "estimated_after", "minimum_after"):
+        fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), source.decimals)
+    for name in ("fee_estimate", "fee_max", "fee_balance", "fee_balance_after_minimum"):
+        fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), native.decimals)
+    fields["amount_display"] = amounts.display_amount(shown_max_in, source.decimals, source.symbol, mode=amounts.ROUND_UP)
+    fields["balance_display"] = amounts.display_amount(source_balance, source.decimals, source.symbol)
+    fields["fee_estimate_display"] = amounts.display_amount(swaps.BASE_FEE_LAMPORTS, native.decimals, native.symbol)
+    fields["fee_max_display"] = amounts.display_amount(fee_max, native.decimals, native.symbol, mode=amounts.ROUND_UP)
+    fields["max_total_display"] = amounts.display_amount(int(fields["max_total_minor"]), source.decimals, source.symbol, mode=amounts.ROUND_UP)
+    fields["estimated_after_display"] = amounts.display_amount(int(fields["estimated_after_minor"]), source.decimals, source.symbol)
+    fields["minimum_after_display"] = amounts.display_amount(int(fields["minimum_after_minor"]), source.decimals, source.symbol, mode=amounts.ROUND_DOWN)
+    fields["fee_asset_differs"] = not source.native
+    from core.wallet import purpose
+
+    fields["purpose"] = purpose.purpose_for(proposal)
+    _attach_fee_and_review(
+        fields, proposal, rpc=rpc, blockhash="", principal_balance=source_balance, held_principal=held_source, fee_balance=sol_balance,
+        held_native=held_native, rent_minimum=rent_minimum, source_context=source_context,
+    )
+    return _insert_quote(proposal, profile, spec, fields, now)
 
 
 def _paykit_block(proposal: Any, spec: chains.ChainIdentity, *, source_context: dict[str, Any] | None) -> dict[str, Any] | None:

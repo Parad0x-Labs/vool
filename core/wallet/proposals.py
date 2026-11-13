@@ -44,7 +44,10 @@ PAYKIT_ORIGINS = (ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT)
 #: Pilot wallet: an EIP-3009 authorization signed only after it proves it moves exactly the approved amount of the
 #: registry's token to the approved payee, which the resource's facilitator submits. The wallet broadcasts nothing.
 ORIGIN_X402_SDK = "x402_sdk"
-ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT, ORIGIN_X402_SDK)
+#: A conversion between two coins inside the owner's own Solana wallet (core.wallet.swaps): Jupiter builds it, VOOL
+#: proves the built transaction (signer, programs, simulated outcome) before signing, approved on the ordinary sheet.
+ORIGIN_SWAP = "swap"
+ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT, ORIGIN_X402_SDK, ORIGIN_SWAP)
 #: Origins whose lane is gone: stored rows load, new proposals are refused and open ones are never quoted or signed.
 RETIRED_ORIGINS = (ORIGIN_USEPOD,)
 
@@ -345,6 +348,11 @@ def _require_token_lane(network: str, asset: str, *, origin: str, pilot: bool = 
         if registered.symbol in chains.PAYMENT_LANE_TOKENS:
             return
         reason = "payment_lanes_pay_only_with_lane_tokens"
+    elif origin == ORIGIN_SWAP and spec.is_svm and registered.symbol in ("USDC", "USDT"):
+        # the input coin of a conversion inside the owner's own Crypto Pilot wallet (core.wallet.swaps)
+        if pilot:
+            return
+        reason = "token_transfers_need_a_crypto_pilot_wallet"
     elif origin in (ORIGIN_USER, ORIGIN_MODEL) and chains.is_user_transfer_token(spec.network, registered.symbol):
         if pilot:
             return
@@ -497,6 +505,7 @@ __all__ = [
     "ORIGIN_X402",
     "ORIGIN_X402_PAYKIT",
     "ORIGIN_X402_SDK",
+    "ORIGIN_SWAP",
     "PAYKIT_ORIGINS",
     "RETIRED_ORIGINS",
     "STATE_APPROVED",
