@@ -2059,6 +2059,13 @@ def apply_to_provider_messages(
 
     parts = AttachmentParts(parts)
     receipts: list[dict[str, Any]] = []
+    # The words the person typed in this message. A long message is retained as a pasted document
+    # (`retain_inline_message`) so later turns can read it, and on its own turn that document is
+    # the message itself: rendering it again sent the paste twice (skills A/B round 7: 20,489
+    # characters of request for a 6,260-byte paste, every call of the turn).
+    typed = "\n".join(
+        str(part.get("text") or "") for part in parts if isinstance(part, dict) and part.get("type") == "text"
+    )
     for entry in entries:
         parts.source = str(entry.get("attachment_id") or entry.get("id") or "")
         attachment_id = str(entry.get("attachment_id") or "")
@@ -2088,6 +2095,20 @@ def apply_to_provider_messages(
             why = "the selected model cannot read images" if supports_images is False else "this model's image support is unknown, so the image was withheld"
             parts.append({"type": "text", "text": f"[Attached image: {name} — not shown: {why}. The recognised text above is what you have; you have NOT seen the picture.]"})
             receipts.append({"attachment_id": attachment_id, "name": name, "kind": "image", "outcome": "read", "reason": "ocr_text_only", "ocr": True, "pixels_withheld": reason})
+            continue
+        entry_text = str(entry.get("text") or "").strip()
+        if (
+            not entry.get("artifact")
+            and not entry.get("carried")
+            and not entry.get("truncated")
+            and entry_text
+            and entry_text in typed
+        ):
+            # Already in the message, word for word: it travels once, as the person wrote it.
+            receipts.append(
+                {"attachment_id": attachment_id, "name": name, "kind": "text", "outcome": "read",
+                 "reason": "in_the_message"}
+            )
             continue
         parts.append({"type": "text", "text": _text_block(entry)})
         if entry.get("artifact"):
