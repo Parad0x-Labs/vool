@@ -949,6 +949,9 @@ def _seal_semantic_result(
         pass
 
     result = apply_exact_response_control(dict(result or {}), user_input)
+    from core.agent_runtime.reply_edge import edge_reply
+
+    result = edge_reply(result, str(effective_input or user_input or ""), source_context)
     # A-12/R-5: URL grounding is a semantic transform — it belongs INSIDE the
     # sealing context, where it may still legally change bytes pre-admit.
     # M1: imported from its core home (`action_honesty_validator`), never through

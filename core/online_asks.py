@@ -476,6 +476,14 @@ _ADVICE_RE = re.compile(
     re.IGNORECASE,
 )
 _LIVE_MONEY_RE = re.compile(r"\b(?:prices?|priced|costs?|cost\s+now|rates?|fares?|fees?|how\s+much)\b", re.IGNORECASE)
+# A clause that asks what something costs ("tell me what it costs today", "and how much are they"): Mac row 10 on
+# d5d044b0 asked it without a word the lookup reading takes, and the model quoted "$100 and $150".
+_ASKS_A_PRICE_RE = re.compile(
+    r"\b(?:what|how\s+much)\b[^.?!]{0,40}\b(?:costs?|prices?|priced)\b"
+    r"|\bhow\s+much\s+(?:is|are|does|do|would|will)\b"
+    r"|\b(?:tell|give|show|list)\s+me\s+(?:the\s+|their\s+|its\s+|what\s+)?(?:prices?|costs?)\b",
+    re.IGNORECASE,
+)
 _CLAUSE_JOIN_RE = re.compile(r"\s*,?\s+\band\s+(?:also\s+|then\s+)?|\s*;\s*|(?<=[.?!])\s+", re.IGNORECASE)
 
 
@@ -494,7 +502,8 @@ def advice_beside_live_prices(text: str, source_context: dict | None = None) -> 
     if len(clauses) < 2:
         return False
     advice = [c for c in clauses if _ADVICE_RE.search(c) and not requirements_want_a_lookup(c, source_context)]
-    live = [c for c in clauses if _LIVE_MONEY_RE.search(c) and requirements_want_a_lookup(c, source_context)]
+    live = [c for c in clauses if _LIVE_MONEY_RE.search(c) and (
+        _ASKS_A_PRICE_RE.search(c) or requirements_want_a_lookup(c, source_context))]
     return bool(advice and live and not set(advice) & set(live))
 
 

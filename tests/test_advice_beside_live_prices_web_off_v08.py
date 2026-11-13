@@ -40,3 +40,16 @@ def test_a_part_notice_and_other_text_are_kept_as_said():
     part = unverified_live_value_notice(("price",), "and tell me their prices today", part_of_turn=True)
     assert "fetch the real data" not in web_off_live_value_notice(part)
     assert web_off_live_value_notice("Nothing to change here.") == "Nothing to change here."
+
+
+def test_the_reply_edge_keeps_the_advice_and_says_prices_need_web_lookups(monkeypatch):
+    from core.agent_runtime import reply_edge
+
+    monkeypatch.setattr("core.remote_fetch_policy.effective_web_available", lambda *_a, **_k: False)
+    ask = "suggest a good tripod for travel and tell me what it costs today"
+    table = ("| Tripod | Price (USD) | Weight |\n| --- | --- | --- |\n| Peak Design Travel | $379 | 1.27 kg |\n\n"
+             "Prices can vary by retailer.")
+    said = reply_edge.web_off_prices_reply(table, ask, {})
+    assert "Peak Design Travel" in said and "1.27 kg" in said and "$" not in said, said
+    assert said.endswith(reply_edge.WEB_OFF_PRICES_LINE), said
+    assert reply_edge.web_off_prices_reply(table, "recommend a hotel in Rome", {}) == table
