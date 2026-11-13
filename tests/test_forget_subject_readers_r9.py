@@ -231,6 +231,7 @@ def test_new_public_memory_owner_api_requires_reader_classification():
         "semantic_floor", "db_path", "agent_id", "block_write", "block_append", "block_replace", "block_delete",
         "all_block_names", "node_store", "node_update_links", "node_invalidate", "node_invalidate_matching",
         "node_delete_by_lineage", "node_delete_for_session", "occurrence_delete_for_chat",
+        "learned_record", "learned_delete_for_session",
         "node_delete_unlineaged_by_content", "purge_governed_lines", "prune", "node_count", "occurrence_store",
         "occurrence_embedding_upsert", "occurrence_active_count", "occurrence_delete", "occurrence_invalidate_matching",
         "begin_erasure", "complete_erasure", "erasure_incomplete", "revocation_generation", "payload_is_current",

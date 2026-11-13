@@ -346,6 +346,8 @@
     "VoolMemory.node_delete_by_lineage": "writer",
     "VoolMemory.node_delete_for_session": "writer",
     "VoolMemory.occurrence_delete_for_chat": "writer",
+    "VoolMemory.learned_record": "writer",
+    "VoolMemory.learned_delete_for_session": "writer",
     "VoolMemory.node_delete_unlineaged_by_content": "writer",
     "VoolMemory.purge_governed_lines": "writer",
     "VoolMemory.prune": "writer",
