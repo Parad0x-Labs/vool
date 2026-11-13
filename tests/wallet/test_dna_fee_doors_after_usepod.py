@@ -100,9 +100,10 @@ def test_a_model_cannot_propose_a_fee_collection_the_rate_is_a_constant_and_a_co
     from core.wallet.errors import WalletFault
 
     wallet = _payer(lane.node)
-    # the token lane on Mainnet stays closed to the model's own origin; a fee collection is minted only by the runtime
+    # the token lane on Mainnet stays closed to a skill's origin (the owner's own chat transfers may send USDC, approved
+    # on their own sheet like any send); a fee collection is minted only by the runtime
     with pytest.raises(WalletFault) as closed:
-        proposals.propose_transaction(wallet_id=wallet["wallet_id"], destination=lane.treasury, amount_minor=5, asset="USDC", origin=proposals.ORIGIN_MODEL, network=SOLANA_MAINNET)
+        proposals.propose_transaction(wallet_id=wallet["wallet_id"], destination=lane.treasury, amount_minor=5, asset="USDC", origin=proposals.ORIGIN_SKILL, network=SOLANA_MAINNET)
     assert closed.value.context.get("reason") == "mainnet_tokens_move_only_for_service_payments"
     # the UsePod lane left VOOL in 0.8: its origin mints nothing at all any more
     with pytest.raises(WalletFault) as removed:

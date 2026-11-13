@@ -246,8 +246,8 @@ _REGISTRY: dict[str, ChainIdentity] = {
         explorer_tx_template="https://solscan.io/tx/{id}",
         assets=MappingProxyType({
             "SOL": _native(SOLANA_MAINNET, "SOL", 9),
-            # Circle's USDC mint on Solana (the pay-kit lanes pay with it); the
-            # mint's program and decimals are re-read from the chain before any transfer is built.
+            # Circle's USDC mint on Solana (the pay-kit lanes pay with it, and the owner's own transfers may send it:
+            # USER_TRANSFER_TOKENS); the mint's program and decimals are re-read from the chain before any transfer is built.
             "USDC": AssetSpec(chain=SOLANA_MAINNET, symbol="USDC", address="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals=6),
             # Tether's USDT mint on Solana (SPL Token program, 6 decimals; tether.to lists it under supported protocols).
             # The owner's own transfers only (USER_TRANSFER_TOKENS); the mint's program and decimals are re-read from the
@@ -346,7 +346,7 @@ EVM_TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 
 #: Tokens the owner's own transfers (a chat or Crypto request, approved with the wallet's PIN or password) may move,
 #: per row. Every other registered token moves only for the lane that registered it.
-USER_TRANSFER_TOKENS: frozenset[tuple[str, str]] = frozenset({(SOLANA_MAINNET, "USDT"), ("eip155:1", "USDT"), ("eip155:56", "USDT"), ("eip155:42161", "USDT")})
+USER_TRANSFER_TOKENS: frozenset[tuple[str, str]] = frozenset({(SOLANA_MAINNET, "USDC"), (SOLANA_MAINNET, "USDT"), ("eip155:1", "USDT"), ("eip155:56", "USDT"), ("eip155:42161", "USDT")})
 #: Token symbols a service payment lane (the pay-kit lanes, the x402 SDK lane, the DNA fee collection) may pay with.
 PAYMENT_LANE_TOKENS: frozenset[str] = frozenset({"USDC"})
 

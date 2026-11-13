@@ -291,7 +291,7 @@ def test_wallet_balances_in_chat_include_usdt(chain) -> None:
     _wallet(chain, lamports=1_500_000_000, usdt=25_000_000)
     result = _dispatch_runtime_tool("wallet.status", {}, source_context={"session_id": "usdt-balances"})
     text = result.response_text
-    assert "Balances on Mainnet (each chain's own coin and USDT):" in text, text
+    assert "Balances on Mainnet (each chain's own coin and USDC, USDT):" in text, text
     assert "- Solana: 1.5 SOL" in text and "- Solana: 25 USDT" in text, text
     rows = {(row["network"], row["asset"]): row for row in result.details["balances"]}
     assert rows[(SOLANA_MAINNET, "USDT")]["balance_minor"] == "25000000" and rows[(SOLANA_MAINNET, "USDT")]["token"] is True
