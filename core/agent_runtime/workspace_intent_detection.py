@@ -29,6 +29,7 @@ protects `workspace_audit.py`'s conceptual-question exclusions.
 from __future__ import annotations
 
 import difflib
+import functools
 import re
 from collections.abc import Iterable
 
@@ -342,7 +343,14 @@ def _word_pair_is_typo(candidate_word: str, phrase_word: str, *, cutoff: float =
         return True
     if len(candidate_word) < _MIN_FUZZY_LEN or len(phrase_word) < _MIN_FUZZY_LEN:
         return False
-    return difflib.SequenceMatcher(None, candidate_word, phrase_word).ratio() >= cutoff
+    return _ratio_reaches(candidate_word, phrase_word, cutoff)
+
+
+@functools.lru_cache(maxsize=65536)
+def _ratio_reaches(first: str, second: str, cutoff: float) -> bool:
+    # real_quick_ratio and quick_ratio are upper bounds of ratio, so a pair they rule out never reaches it.
+    matcher = difflib.SequenceMatcher(None, first, second)
+    return matcher.real_quick_ratio() >= cutoff and matcher.quick_ratio() >= cutoff and matcher.ratio() >= cutoff
 
 
 def _fuzzy_phrase_hit(normalized_text: str, phrase: str, *, max_word_typos: int = 1) -> bool:

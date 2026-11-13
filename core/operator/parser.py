@@ -546,7 +546,14 @@ class _NoteSaveRecognizer:
 
 _SAVE_NOTE_RE = _NoteSaveRecognizer()
 _FIND_NOTES_RE = re.compile(
-    r"\b(?:find|search|look\s+(?:up|for)|list|show)\b[^\n!?.]*\bnotes?\b", re.IGNORECASE
+    r"\b(?:find|search|look\s+(?:up|for)|list|show)\b[^\n!?.]*\bnotes?\b"
+    # "check my notes for the plumber", "look through my notes about the boiler", "do my notes mention
+    # the dentist": a search of the notes. Skills A/B on the v0.8 head (2026-11-13): "check my notes
+    # for the plumber" reached the model unparsed, which chose save_note.
+    r"|\b(?:check|look\s+(?:in|into|through|at|over)|go\s+(?:through|over)|scan|skim|read\s+through|dig\s+through)\s+"
+    r"(?:my|our|the)\s+(?:[\w'’-]+\s+)?notes\b(?!\s+(?:app|application|settings|folder\s+settings)\b)"
+    r"|\b(?:do|does|did)\s+(?:my|our|the)\s+notes\s+(?:mention|say|talk\s+about|have|contain|include)\b",
+    re.IGNORECASE,
 )
 # The recoverable-delete lane for workspace notes, and the Apple Notes family. Both are
 # anchored on their own words so the workspace save/show/search lanes above keep their requests.
@@ -1307,7 +1314,7 @@ def _event_label(text: str) -> str | None:
 def _note_query(text: str) -> str | None:
     """The search terms after 'notes about/on/for/containing'."""
     match = re.search(
-        r"\bnotes?\s+(?:about|on|for|containing|matching|with)\s+(.+)$",
+        r"\bnotes?\s+(?:about|on|for|containing|matching|with|mention|say\s+about|talk\s+about|have\s+on|contain|include)\s+(.+)$",
         str(text or ""), re.IGNORECASE,
     )
     if match:

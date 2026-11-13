@@ -196,7 +196,25 @@ _LIVE_DOMAIN_RE = re.compile(
     # Data the owner keeps in a store a tool reads (database run 2, 2026-11-12: "whats in my orders
     # database?" was answered "I don't have that saved" by this lane).
     r"databases?|databse|datbase|db|tables?|tabel|spreadsheets?|sheets?|repo|repository|repositories|"
-    r"today|tomorrow|tonight|this\s+(?:week|month|morning|afternoon|evening)|next\s+week|now)\b",
+    r"today|tomorrow|tonight|this\s+(?:week|month|morning|afternoon|evening)|next\s+week|now|"
+    # Free or busy on a day is the calendar's, and space on this computer the disk lane's (skills A/B
+    # on the v0.8 head, 2026-11-13: "am I free to meet on Friday?" and, with the loop off, "why is my
+    # mac out of space" were answered "I don't have that saved").
+    r"busy|(?:free|available)\s+(?:to\s+meet|on|at|for\s+(?:a\s+)?(?:call|meeting|lunch|dinner|coffee)|this|next)|"
+    r"mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekend|"
+    r"storage|(?:out\s+of|free|disk|running\s+out\s+of)\s+space|space\s+left)\b",
+    re.IGNORECASE,
+)
+#: Not a saved fact of the person's: a request for an explanation or a cause ("why is my mac out of
+#: space?", "how do I reset my router?"), a permission or rule ("am I free to quit my job without
+#: notice in Germany?", "am I allowed to park here?"), or what a document says ("what does this csv
+#: say about our sales?"). Skills A/B on the v0.8 head (2026-11-13) measured each answered "I don't
+#: have that saved, and I looked through your other chats". "Why did I ..." and "how did I ..." ask
+#: about the person's own past and stay.
+_NOT_A_SAVED_FACT_RE = re.compile(
+    r"^\s*(?:why|how)\b(?!\s+(?:did|do|have|had|was|were)\s+(?:i|we)\s+(?:say|tell|mention|decide|agree|choose|pick|name|call|end\s+up)\b)"
+    r"|^\s*(?:am|are)\s+(?:i|we)\s+(?:free|allowed|permitted|able|entitled|obliged|required|supposed|legally)\s+to\b"
+    r"|\bwhat\s+(?:does|do|did)\s+(?:this|that|these|those|the)\s+(?:[\w'’.-]+\s+){0,2}?(?:say|show|tell\s+(?:me|us))\b",
     re.IGNORECASE,
 )
 #: Writing the owner keeps (VOOL's notes, a journal, a notes file in a project): "what's in my notes?"
@@ -216,7 +234,8 @@ _RECORDS_SOURCE_RE = re.compile(
 #: that saved, but you mentioned it in a chat".
 _ATTACHMENT_RE = re.compile(
     r"\b(?:attached|attachment|attachments|uploaded|(?:this|that|the)\s+(?:file|image|photo|picture|"
-    r"screenshot|video|clip|audio|recording|pdf|document|doc|spreadsheet|archive|zip))\b",
+    r"screenshot|video|clip|audio|recording|pdf|document|doc|spreadsheet|archive|zip|csv|xlsx|xls|tsv|json|txt|log|"
+    r"sheet|table|chart|report|deck|slides?|presentation|email|message|link|page|article|text))\b",
     re.IGNORECASE,
 )
 
@@ -651,6 +670,8 @@ def cross_chat_recall(
     typed = text
     explicit_recall = bool(_EXPLICIT_RECALL_RE.match(text))
     text = as_question(text)
+    if not explicit_recall and (_NOT_A_SAVED_FACT_RE.search(typed) or _NOT_A_SAVED_FACT_RE.search(text)):
+        return None
     if not _chat_has_owner_statements(source_context):
         # A first message that names a record by itself ("car rental reference?") asks for the
         # person's own record; later in a chat the same words are a follow-up the model answers.

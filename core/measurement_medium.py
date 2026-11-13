@@ -51,6 +51,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from functools import lru_cache
 from typing import Any
 
 #: The colloquial water-state ask: "how's the water", "hows the sea" — a temperature
@@ -88,9 +89,20 @@ def _matches_any(token: str, vocabulary: frozenset[str]) -> bool:
         # Too short for edit distance to mean anything; exact membership only.
         return False
     return any(
-        SequenceMatcher(None, token, word).ratio() >= _FUZZY_FLOOR
+        _close_enough(token, word)
         for word in vocabulary
         if abs(len(word) - len(token)) <= 2
+    )
+
+
+@lru_cache(maxsize=16384)
+def _close_enough(token: str, word: str) -> bool:
+    # real_quick_ratio and quick_ratio are upper bounds of ratio, so a pair they rule out never matches.
+    matcher = SequenceMatcher(None, token, word)
+    return (
+        matcher.real_quick_ratio() >= _FUZZY_FLOOR
+        and matcher.quick_ratio() >= _FUZZY_FLOOR
+        and matcher.ratio() >= _FUZZY_FLOOR
     )
 
 
@@ -105,7 +117,7 @@ _PHASE_TRANSITION_RE = re.compile(
 )
 
 
-def requests_a_water_temperature(text: Any) -> bool:
+def _requests_a_water_temperature_uncached(text: Any) -> bool:
     """Whether this request asks for the temperature OF WATER rather than of the air.
 
     Requires both halves: something that asks for a temperature, and a medium word saying the
@@ -241,3 +253,15 @@ def without_setting_temperatures(text: Any) -> str:
     for start, end in setting_temperature_spans(value):
         value = value[:start] + " " * (end - start) + value[end:]
     return value
+
+
+@lru_cache(maxsize=4096)
+def _requests_a_water_temperature_cached(text: str) -> bool:
+    return _requests_a_water_temperature_uncached(text)
+
+
+def requests_a_water_temperature(text: Any) -> bool:
+    """Whether this request asks for the temperature OF WATER rather than of the air (a pure
+    reading of the text, kept per text; the fuzzy word match made it the costliest reader on a long
+    paste, skills A/B on the v0.8 head, 2026-11-13)."""
+    return _requests_a_water_temperature_cached(str(text or ""))

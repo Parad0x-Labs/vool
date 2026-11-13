@@ -132,6 +132,16 @@ _NOW_RE = re.compile(
     r"this\s+(?:week|month|year|morning|afternoon|evening|weekend))\b",
     re.IGNORECASE,
 )
+# What a city charges drivers: parking rules and road charges change by council and by day. Skills
+# A/B on the v0.8 head (2026-11-13): "is Sunday free parking in London?" was asked back "Did you mean
+# London (city), Sunday (day of the week)?".
+_ROAD_CHARGE_RE = re.compile(
+    r"\bfree\s+(?:on-?street\s+|street\s+|car\s+)?parking\b"
+    r"|\bparking\s+(?:is\s+)?(?:free|charges?|fees?|rules?|restrictions?|costs?|prices?|tickets?\s+(?:cost|price)|hours)\b"
+    r"|\b(?:pay|paying)\s+(?:for|to)\s+park\b|\bcan\s+(?:i|we|you)\s+park\b"
+    r"|\b(?:congestion|clean\s+air|low\s+emission)\s+(?:charge|zone)\b|\bulez\b|\btolls?\b",
+    re.IGNORECASE,
+)
 # A day, season or holiday a place keeps its own hours on.
 _HOURS_ANCHOR_RE = re.compile(
     r"\b(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?|"
@@ -222,6 +232,13 @@ def _entry_rule_ask(text: str) -> bool:
 def _public_fact_shape(text: str) -> bool:
     """The words alone: a public fact that changes, or fresh information."""
     if _entry_rule_ask(text):
+        return True
+    if (
+        _ROAD_CHARGE_RE.search(text)
+        and not re.search(r"\b(?:my|our)\b", text, re.IGNORECASE)
+        and not _FROM_RECORDS_RE.search(text)
+        and (_VENUE_RE.search(text) or _names_a_place(text) or _HOURS_ANCHOR_RE.search(text))
+    ):
         return True
     if _OWNER_RE.search(text) or _FROM_RECORDS_RE.search(text):
         return False
@@ -351,6 +368,11 @@ def requirements_want_a_lookup(text: str, source_context: dict | None = None) ->
         return True
     head = value[:600]
     if _THIS_COMPUTER_RE.search(head) or _OWN_DOCUMENT_RE.search(head) or _OWN_RECORD_RE.search(head):
+        return False
+    if _FROM_RECORDS_RE.search(head) or (_OWNER_RE.search(head) and _LOCAL_THING_RE.search(head)):
+        # The person's own notes, files, mail or chats ("summarise my notes from this week"): "this
+        # week" dates them, it does not make them news. Skills A/B on the v0.8 head (2026-11-13): that
+        # ask got the web-off line, loop on and off.
         return False
     try:
         from core.execution_requirements import requirements_for

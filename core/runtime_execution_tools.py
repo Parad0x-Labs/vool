@@ -1358,6 +1358,19 @@ def _machine_find_file(
             details={},
         )
     matches, roots, scanned_dirs, timed_out = walked
+    if not matches:
+        # A name the model wrote from the ask ("lease.pdf" for "the lease pdf in my downloads") is the
+        # file's words, not its whole name: the file on disk is "Flat_Lease_2026.pdf". Looked up again by
+        # its words in any order, of the same kind, the way the readers' guessed-path lookup does. Skills
+        # A/B on the v0.8 head (2026-11-13, loop off): "I couldn't find a file named 'lease.pdf'".
+        stem, suffix = Path(name.replace("\\", "/")).stem, Path(name).suffix.lower()
+        words = " ".join(w for w in re.split(r"[^0-9A-Za-z]+", stem) if w)
+        if words and words.lower() != name.lower():
+            again = _walk_safe_roots_for_files(words, workspace_root=workspace_root, any_word_order=True)
+            if again is not None:
+                kept = [m for m in again[0] if not suffix or Path(m).suffix.lower() == suffix]
+                if kept:
+                    matches, roots, scanned_dirs, timed_out = kept, again[1], scanned_dirs + again[2], again[3]
 
     scope = ", ".join(_home_relative_label(Path(root)) for root in roots)
     observation = _tool_observation(
@@ -1989,7 +2002,11 @@ def _machine_find_largest(
     # row answered a question nobody asked. The caller marks a cleanup ask (freeing space,
     # deleting, clearing up); the classes stay in the details either way.
     cleanup_context = bool(str((arguments or {}).get("cleanup_context") or "").lower() not in ("", "false", "0", "no"))
-    lines = [f"Largest {noun} on {root} (measured, largest first):"]
+    # The reply names the place as the person knows it ("your home folder", "~/Downloads"); the details keep the
+    # real path. Skills A/B on the v0.8 head (2026-11-13): the reply opened with the absolute home path.
+    shown_root = _home_relative_label(Path(str(root))) if root else ""
+    shown_root = "your home folder" if shown_root == "~" else (shown_root or str(root))
+    lines = [f"Largest {noun} in {shown_root} (measured, largest first):"]
     for entry in entries:
         partial = "" if entry.get("complete") else " (partial — scan hit its time limit)"
         safety = f" · {entry['delete_safety']}" if cleanup_context else ""
