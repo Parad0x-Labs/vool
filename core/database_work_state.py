@@ -258,10 +258,21 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                     if not any(re.search(r"\b%s(?:s|es)?\b" % re.escape(n), lowered) for n in names if n):
                         continue
                     order = ""
-                    date_col = next((c for c in columns if re.search(r"join|date|created|added|year|time", c, re.I)), "")
-                    if date_col and re.search(r"\b(newest|latest|recent|most recently)\b", lowered):
+                    # An expiry or due date is the column a "latest expiry first" ask sorts by (Mac answer-quality
+                    # row 3 on d5d044b0: "show my freezer items, the ones expiring last at the top").
+                    date_col = next(
+                        (c for c in columns if re.search(r"expir|best_before|use_by|due", c, re.I)
+                         and re.search(r"\b(?:expir\w*|due|best before|use by)\b", lowered)),
+                        "",
+                    ) or next((c for c in columns if re.search(r"join|date|created|added|year|time", c, re.I)), "")
+                    if date_col and re.search(
+                        r"\b(newest|latest|recent|most recently|furthest)\b|\blast\s+(?:at|on)\s+(?:the\s+)?top\b"
+                        r"|\b(?:expir\w*|due)\s+last\b", lowered
+                    ):
                         order = " ORDER BY %s DESC" % date_col
-                    elif date_col and re.search(r"\b(oldest|earliest)\b", lowered):
+                    elif date_col and re.search(
+                        r"\b(oldest|earliest|soonest)\b|\b(?:expir\w*|due)\s+(?:first|soonest|next)\b", lowered
+                    ):
                         order = " ORDER BY %s ASC" % date_col
                     return ("name=%s, sql=SELECT * FROM %s%s" % (path.stem, table, order))[:max_chars]
                 # 3. no table named, but a column is: "who joined most recently" -> the table with `joined`

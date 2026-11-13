@@ -347,7 +347,11 @@ _DATABASE_NO_ANSWER_RE = re.compile(
     r"\bplease (?:provide|clarify|specify)\b|\bcould you (?:please )?(?:clarify|specify|provide)\b|\bunclear\b|"
     r"\bcannot determine\b|\bcan'?t determine\b|\bno (?:information|data|record)s? (?:about|on|of)\b|"
     r"\breal-time information\b|\bdoes not contain (?:any )?(?:information|data|records?)\b|\bnot (?:in|part of) (?:the|your) database\b|"
-    r"\bcannot be answered\b|\bdo(?:es)? not (?:have|contain) (?:a |any )?(?:list|database|record)s?\b)",
+    r"\bcannot be answered\b|\bdo(?:es)? not (?:have|contain) (?:a |any )?(?:list|database|record)s?\b|"
+    # A reply that only announces the query it did not run: Mac answer-quality row 3 on d5d044b0 ended on "The
+    # table `freezer_items` doesn't exist ... Let me show you the items sorted by expiry" with no rows shown.
+    r"\blet me (?:show|run|query|check|try|look|list|fetch|pull)\b|\bwould you like me to (?:show|run|query|list|sort|fetch)\b|"
+    r"\b(?:doesn'?t|does not) exist\b|\bno (?:such )?table\b)",
     re.IGNORECASE,
 )
 
