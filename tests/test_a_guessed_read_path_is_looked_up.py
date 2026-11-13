@@ -96,10 +96,24 @@ def test_one_match_is_read_and_named(intent: str, guess: str, home: Path) -> Non
     assert str(home) not in execution.response_text, "the file is named home-relative, never by full path"
 
 
+def _offered_here(intent: str) -> bool:
+    from core.runtime_tool_contracts import runtime_tool_contract_map
+
+    contract = runtime_tool_contract_map().get(intent)
+    return bool(contract is not None and contract.supported)
+
+
 @pytest.mark.parametrize(("intent", "guess"), PDF_GUESSES)
 def test_a_guessed_pdf_path_points_the_reader_at_the_real_file(intent: str, guess: str, home: Path) -> None:
     _pdf(home / "Downloads" / "Car-Insurance-Policy-2026.pdf")
     execution = _run(intent, guess)
+    if not _offered_here(intent):
+        # pdf.ocr reads with macOS Vision. Elsewhere it is never offered (ledger V-043), and a call
+        # that still arrives says so plainly. It looks nothing up and names no file.
+        assert not execution.ok and execution.status == "disabled", execution
+        assert "needs macOS" in execution.response_text, execution.response_text
+        assert "I found" not in execution.response_text and "Car-Insurance" not in execution.response_text
+        return
     assert "I found `~/Downloads/Car-Insurance-Policy-2026.pdf`" in execution.response_text, execution.response_text
     assert (execution.details or {}).get("found_path") == "~/Downloads/Car-Insurance-Policy-2026.pdf"
     assert str(home) not in execution.response_text
