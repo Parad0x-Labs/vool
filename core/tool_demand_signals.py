@@ -1332,7 +1332,8 @@ _MAILBOX_ANCHOR_RE = re.compile(
     r"|\bthe\s+(?:inbox|mailbox)\b(?=\s*(?:$|[.,;:!?]|(?:for|from|in|about|at|since|to|and|or)\b))"
     rf"|\b(?:new|unread)\s+{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
     rf"|\b{_MAIL_ITEM}\s+(?:(?:that|which)\s+)?(?:from|sent\s+by)\s+"
-    r"(?!(?:going|being|getting|landing|ending|reaching|hitting)\b)[\w@&'.-]"
+    # "can you send email from here?" names where mail would be sent FROM, not a sender.
+    r"(?!(?:going|being|getting|landing|ending|reaching|hitting|here|there)\b)[\w@&'.-]"
     rf"|\b{_MAIL_ITEM}\s+(?:(?:that|which)\s+)?(?:(?!{_NOT_A_SENDER_WORD}\b)[\w@&'.-]+\s+){{1,4}}sent\b"
     r"|\be-?mailed\s+(?:(?:it|that|this|them|something|anything)\s+)?(?:(?:over|back)\s+)?(?:to\s+)?(?:me|us)\b"
     r"|\b(?:did|does|do|has|have|had|will|would)\s+(?:[\w@&'.-]+\s+){1,5}?e-?mail\s+(?:me|us)\b"
@@ -1417,6 +1418,14 @@ def mailbox_retrieval_intents(text: str) -> tuple[str, ...]:
         from core.stipulated_frame import has_stipulated_frame
 
         if has_stipulated_frame(eligible):
+            return ()
+    except Exception:
+        pass
+    try:
+        from core.operator_profile_interpretation import interpret_profile_turn
+
+        # "use my work inbox by default" picks the account VOOL uses; it asks to read no mail.
+        if any(proposal.category == "default_account.email" for proposal in interpret_profile_turn(eligible)):
             return ()
     except Exception:
         pass
