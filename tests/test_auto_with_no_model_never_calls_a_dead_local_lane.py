@@ -20,6 +20,7 @@ Pinned:
 from __future__ import annotations
 
 import json
+import re
 import socketserver
 import threading
 import time
@@ -185,14 +186,28 @@ def test_auto_with_nothing_set_up_sends_nothing_to_the_local_endpoint(bare) -> N
     assert failed and failed[-1].get("message") == "No model was available to answer this message.", failed
 
 
+def _registered_local_lane(daemon: BareDaemon) -> str:
+    """The local lane this home registered at boot, from the daemon's own boot log.
+
+    Which model that is depends on the computer: since 0.7.8 the default is this machine's pick
+    from the one suggestion table (qwen3.5:4b on a 16 GB runner, not the old fixed qwen3:4b). A
+    model the home never registered is answered "isn't available on this runtime", which is a
+    different, correct path; this test is about the model the person actually has selected.
+    """
+    found = re.findall(r"Auto-registered default provider: (ollama-local:[^\s\"\\]+)", daemon.log_path.read_text("utf-8", "replace"))
+    assert found, daemon.log_tail()
+    return found[-1]
+
+
 def test_a_picked_local_model_is_still_tried_and_says_it_is_not_running(bare) -> None:
+    lane = _registered_local_lane(bare.daemon)
     session = _session(f"picked-local-{uuid.uuid4()}")
-    status, answer = bare.daemon.turn(PROMPT, session, model="ollama-local:qwen3:4b")
+    status, answer = bare.daemon.turn(PROMPT, session, model=lane)
     events = bare.daemon.events(session)
     reply = _answer_text(answer)
     assert status == 200, answer
     selected = [e for e in events if e.get("event_type") == "model_lane_selected"]
-    assert selected and selected[-1].get("provider_id") == "ollama-local:qwen3:4b", [e.get("message") for e in selected]
+    assert selected and selected[-1].get("provider_id") == lane, [e.get("message") for e in selected]
     assert "no local model is running" in reply, reply
 
 
