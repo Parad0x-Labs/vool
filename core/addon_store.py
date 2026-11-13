@@ -437,13 +437,13 @@ def reject(review_id: str) -> dict:
 # A Browse row from VOOL's own skills repository whose file ships inside the app
 # (core/addon_packages.json, sha256-pinned in core/addon_directory.json and reviewed at release)
 # can be added with VOOL's local check alone. Every other row -- other publishers, GitHub
-# pastes, saved discoveries -- keeps the Eyebrow scan exactly as before. The bytes are checked
+# pastes, saved discoveries -- keeps its installation checks exactly as before. The bytes are checked
 # against the shipped pin when they are staged, again before install (_review_material), and on
 # every load (assert_reviewed's pack digest and reviewed_skill's SKILL.md digest).
 
 LOCAL_CHECK = "vool_local"
-NOT_VOOL_SKILL = ("Only skills made by VOOL can be added with the free local check. "
-                  "This one needs a scan with Eyebrow first.")
+NOT_VOOL_SKILL = ("Only skills made by VOOL can be added this way. "
+                  "A skill from another maker needs its installation checks first.")
 BUNDLED_CHANGED = ("This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added. "
                    "Update or reinstall VOOL to repair it.")
 

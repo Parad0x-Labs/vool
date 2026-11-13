@@ -177,9 +177,13 @@ def test_how_to_add_a_skill_has_one_plain_answer_and_authors_nothing(asked: str)
     body = reply["response"]
     assert "Skills & Plugins" in body and "Browse" in body
     assert "make me a skill that" in body
-    # VOOL's own skills need no key; other makers' skills do, and the answer says which is which.
+    # VOOL's own skills need no key; other makers' skills are checked before the person adds
+    # them, and the answer says which is which. VOOL ships no Eyebrow scanner (sls, Nov 13),
+    # so the answer never sends anyone for an Eyebrow key.
     assert "Skills made by VOOL are checked on your computer and need no key" in body
-    assert "other makers" in body and "Eyebrow key" in body
+    assert "Skills from other makers are checked on your computer too" in body
+    assert "you read the result before you add one" in body
+    assert "Eyebrow" not in body and "key in Settings" not in body
 
 
 @pytest.mark.parametrize("asked", ["how do i make a skill that sorts my email", "how do I add a row to a table?"])
