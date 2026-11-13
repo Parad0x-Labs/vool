@@ -36,10 +36,15 @@ _MAX_OUTPUT_TOKENS = 700
 
 
 def _is_local(manifest: Any) -> bool:
+    """Runs on this machine AND is not billed. A paid provider reached on a loopback address (a paid
+    service's local proxy, a paid test double) is the owner's paid cloud model: it is never the loop's
+    free local brain, so Auto never spends on it and a pinned turn takes the paid path with its reservation
+    (CI #681: after the paid pin was cleared, the loop still ran two billed steps on it as "local")."""
     try:
         from core.local_model_policy import manifest_is_local
+        from core.model_selection_policy import provider_cost_class
 
-        return bool(manifest_is_local(manifest))
+        return bool(manifest_is_local(manifest)) and provider_cost_class(manifest) != "paid_cloud"
     except Exception:
         return False
 
