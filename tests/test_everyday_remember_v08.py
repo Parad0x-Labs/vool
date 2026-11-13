@@ -56,6 +56,7 @@ def _facts(chat: str = CHAT) -> list[str]:
         ("note this down - the alarm code changes monthly", "the alarm code changes monthly", False),
         ("for future reference, the bike pump is in the shed", "the bike pump is in the shed", False),
         ("a few things to note down", "", True),
+        ("keep in mind to water the ferns on sundays", "water the ferns on sundays", False),
     ],
 )
 def test_an_everyday_lead_carries_its_fact(text, fact, opens_list):
@@ -68,7 +69,7 @@ def test_an_everyday_lead_carries_its_fact(text, fact, opens_list):
 @pytest.mark.parametrize(
     "text",
     [
-        "keep in mind to water the ferns",  # a reminder, another lane
+        "make a note to water the ferns",  # a reminder, another lane
         "what should I keep in mind when buying a kayak?",
         "my brother moved to Ghent",
         "write me a poem about things to remember",
@@ -132,9 +133,11 @@ def test_a_lead_alone_opens_the_list(isolated_home):
 def test_the_lead_words_never_end_up_in_the_fact(isolated_home):
     assert _say("keep in mind that I can't eat shellfish")[0]
     assert _say("note this down: the boiler was serviced in june")[0]
+    assert _say("keep in mind to buy milk tomorrow")[0]
     facts = _facts()
     assert "I can't eat shellfish" in facts
     assert "the boiler was serviced in june" in facts
+    assert "buy milk tomorrow" in facts
     assert not any(fact.startswith(("in mind", "this down")) for fact in facts)
 
 

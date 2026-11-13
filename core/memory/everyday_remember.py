@@ -102,7 +102,13 @@ def everyday_lead(text: str) -> EverydayLead | None:
         return None
     fact = match.group("fact").strip()
     if fact.lower().startswith("to "):
-        return None  # "keep in mind to call mom" is a reminder
+        if not match.group("lead").lower().startswith("keep"):
+            return None  # "make a note to call mom" asks for a reminder, another lane
+        # "keep in mind to buy milk" keeps "buy milk": the capture lane read "keep" as its verb and saved
+        # "in mind to buy milk".
+        fact = fact[3:].strip()
+        if not fact:
+            return None
     plural = bool(match.group("plural1") or match.group("plural2"))
     return EverydayLead(fact=fact, opens_list=plural or not fact)
 
