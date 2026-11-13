@@ -73,7 +73,11 @@ def test_served_settings_page_shows_the_wallet_section_with_its_controls(tmp_pat
             page.wait_for_selector("#vwStatus", state="visible", timeout=20000)
             page.wait_for_selector("#vwConnectEvm", state="visible", timeout=20000)
             text = page.inner_text("#walletHost")
+            # with nothing added the section says so in words; who holds a key is said once a wallet exists
+            # (test_wallet_browser pins "VOOL wallet: its key stays on this computer" and "Connected wallet"),
+            # and the raw "custody:" label is developer text that must not come back
             assert "nothing added here yet" in text.lower(), text[:300]
+            assert "custody:" not in text.lower(), text[:300]
             assert "not been audited by an external party" in text, text[:400]
             assert page.is_visible("#vwConnectPhantom") or page.is_visible("#vwCreateBtn"), "wallet controls are not visible"
         finally:
