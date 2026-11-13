@@ -1746,6 +1746,9 @@ _WORKSPACE_TARGET_NOUN_RE = re.compile(
 )
 
 
+_FUZZY_CREATE_ASK_RE = re.compile(r"\b(?:create|make|mkdir|crate|creat)(?![sd]\b|es\b|ed\b)")
+
+
 def _looks_like_workspace_bootstrap_request(text: str) -> bool:
     lowered = " ".join(str(text or "").strip().lower().split())
     if not lowered:
@@ -1764,7 +1767,11 @@ def _looks_like_workspace_bootstrap_request(text: str) -> bool:
     starts_code = any(marker in lowered for marker in _START_CODE_MARKERS)
     mentions_workspace_target = _WORKSPACE_TARGET_NOUN_RE.search(lowered) is not None
     has_path = bool(_extract_workspace_bootstrap_path(text))
-    fuzzy_create_verb = any(v in lowered for v in ("create", "make", "mkdir", "crate", "creat"))
+    # The verb as an ask ("create", "make", typos "crate"/"creat", "creating"), never as a report:
+    # "the build script creates the dist folder" describes what a script does, and since a folder
+    # name can stand before the folder noun with no verb (`_ARTICLE_NOUN_PATH_RE`), reading
+    # "creates" as the ask planned a mkdir of `dist` from a description.
+    fuzzy_create_verb = _FUZZY_CREATE_ASK_RE.search(lowered) is not None
     return bool(
         (creates_folder and (starts_code or has_path))
         or (starts_code and mentions_workspace_target)
