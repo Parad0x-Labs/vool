@@ -75,9 +75,13 @@ def _ask(text: str, session: str, context: dict | None = None):
     return hook.maybe_answer(_Agent(), text=text, effective_input=text, session_id=session, source_context=ctx), ctx
 
 
-def test_a_listing_answered_from_the_staged_read_records_its_folder(setup):
+def test_a_listing_answered_from_the_staged_read_records_its_folder(setup, caplog):
     _home, shown = setup
+    caplog.set_level("INFO", logger=hook._LOG.name)
     out, ctx = _ask("whats on my desktop", "r8-c1")
+    # The staged read is named in the turn's log, so a one-call answer never reads as one with no tool behind it.
+    assert any("tools= staged=machine.list_directory" in r.getMessage() for r in caplog.records), [r.getMessage() for r in caplog.records]
+    assert [r["tool_name"] for r in out["tool_receipts"]] == ["machine.list_directory"]
     assert out is not None and "landlord_letter_2026.txt" in out["response"]
     assert len(shown) == 1 and "[Evidence gathered" in shown[0], "answered in one call from the staged read"
     assert ctx["_conversation_kind_listing"]["path"] == "~/Desktop"

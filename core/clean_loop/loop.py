@@ -135,6 +135,8 @@ class LoopResult:
     seen: list[str] = field(default_factory=list)
     #: The read-only evidence a pre-step staged before the first model call (real tools ran for it), or "".
     staged: str = ""
+    #: The tools that staging ran (their receipts are this turn's), so the turn's log names them like any other read.
+    staged_tools: list[str] = field(default_factory=list)
 
     @property
     def tools_used(self) -> list[str]:
@@ -193,6 +195,7 @@ def run_loop(
     max_steps = max(1, int(max_steps))
     messages: list[dict[str, str]] = [{"role": "system", "content": build_system_prompt(registry)}]
     messages.extend({"role": m["role"], "content": m["content"]} for m in history)
+    before_staging = len(ctx.receipts)
     staged = _staged_evidence(ask, registry, ctx)
     user = ask if not staged else f"{ask}\n\n{STAGED_EVIDENCE_HEADING}\n{staged}"
     if prior_evidence.strip():
@@ -203,6 +206,7 @@ def run_loop(
     if staged:
         result.seen.append(staged)
         result.staged = staged
+        result.staged_tools = [str(r.get("tool_name") or "") for r in ctx.receipts[before_staging:] if r.get("tool_name")]
     nudged = bool(looked)  # the caller already ran the look (its text is the prior evidence): no reminder to look
     question_nudged = False
     own_search_done = False

@@ -465,8 +465,11 @@ def maybe_answer(
         )
         loop_result = _force_ordered_answer(loop_result, text=text, ctx=ctx, context=context)
     _LOG.info(
-        "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
+        # A pre-step's reads ran before the first model call; they are named apart (staged=) so a one-call answer is
+        # never read as an answer with no tool behind it (Chat R8 on f50e52eb: C1, C2, C11, M5 showed "tools=").
+        "clean loop: stopped=%s model_calls=%d tools=%s staged=%s think_ms=%d tool_ms=%d",
         loop_result.stopped, loop_result.model_calls, ",".join(loop_result.tools_used),
+        ",".join(getattr(loop_result, "staged_tools", None) or []),
         loop_result.think_ms,
         sum(int(step.get("tool_ms") or 0) for step in loop_result.steps),
     )
