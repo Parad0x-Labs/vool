@@ -92,7 +92,8 @@ class QwenTier:
 #: min_vram_gb the least NVIDIA card memory; 0.0 where that ladder never picks it.
 TIERS: list[QwenTier] = [
     QwenTier("titan", "qwen3.6:35b",  35.0,  0.0, 44.0),
-    QwenTier("heavy", "qwen3.8:27b",  27.0, 22.0,  0.0),
+    QwenTier("heavy", "qwen3:30b-instruct", 30.0, 22.0, 34.0),
+    QwenTier("heavy", "qwen3.8:27b",  27.0,  0.0,  0.0),  # bigger-jobs model, no longer a daily pick
     QwenTier("mid",   "qwen3.5:9b",    9.0, 10.0, 17.0),
     QwenTier("base",  "qwen3.5:4b",    4.0,  6.0, 11.0),
     QwenTier("lite",  "qwen3.5:2b",    2.0,  0.0,  5.5),
@@ -102,6 +103,7 @@ TIERS: list[QwenTier] = [
 #: Apple Silicon rows (unified memory): min_ram_gb is the Mac's total memory for the row.
 MPS_TIERS: list[QwenTier] = [
     QwenTier("titan", "qwen3.6:35b",  35.0, 0.0, 44.0),
+    QwenTier("heavy", "qwen3:30b-instruct", 30.0, 0.0, 34.0),
     QwenTier("mid",   "qwen3.5:9b",    9.0, 0.0, 17.0),
     QwenTier("base",  "qwen3.5:4b",    4.0, 0.0, 11.0),
     QwenTier("lite",  "qwen3.5:2b",    2.0, 0.0,  5.5),

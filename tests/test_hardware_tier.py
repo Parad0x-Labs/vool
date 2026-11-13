@@ -47,15 +47,15 @@ def test_select_qwen_tier_uses_ram_thresholds_for_apple_unified_memory(monkeypat
     assert tier.ollama_tag == "qwen3.5:9b"
 
 
-def test_select_qwen_tier_keeps_the_9b_on_a_36gb_apple_unified_memory(monkeypatch) -> None:
+def test_select_qwen_tier_gives_a_36gb_mac_the_30b_as_its_daily_model(monkeypatch) -> None:
     monkeypatch.delenv("VOOL_OLLAMA_MODEL", raising=False)
     probe = MachineProbe(cpu_cores=12, ram_gb=36.0, gpu_name="Apple Silicon", vram_gb=36.0, accelerator="mps")
 
     tier = select_qwen_tier(probe)
 
-    # A 36 GB Mac keeps the 9b as its daily model; qwen3.8:27b is its bigger-jobs model.
-    assert tier.tier_name == "mid"
-    assert tier.ollama_tag == "qwen3.5:9b"
+    # A 36 GB Mac gets the 30B (about 30 tok/s, it stays loaded beside the helper) as its daily model.
+    assert tier.tier_name == "heavy"
+    assert tier.ollama_tag == "qwen3:30b-instruct"
 
 
 def test_select_qwen_tier_keeps_discrete_vram_selection_for_non_mps(monkeypatch) -> None:
@@ -64,8 +64,9 @@ def test_select_qwen_tier_keeps_discrete_vram_selection_for_non_mps(monkeypatch)
 
     tier = select_qwen_tier(probe)
 
+    # A 24 GB card gets the 30B as its daily model; qwen3.8:27b is its bigger-jobs model.
     assert tier.tier_name == "heavy"
-    assert tier.ollama_tag == "qwen3.8:27b"
+    assert tier.ollama_tag == "qwen3:30b-instruct"
 
 
 def test_select_qwen_tier_ignores_discrete_vram_when_accelerator_is_cpu(monkeypatch) -> None:
