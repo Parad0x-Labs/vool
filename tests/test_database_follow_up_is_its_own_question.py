@@ -360,7 +360,7 @@ def test_a_one_row_cap_is_not_the_size_of_the_answer() -> None:
     assert capped["arguments"]["row_limit"] == 1
 
 
-def test_a_named_one_table_database_is_read_when_asked_whats_in_it(world, tmp_path) -> None:  # noqa: F811
+def test_a_named_one_table_database_is_read_when_asked_whats_in_it(world, tmp_path) -> None:
     from core.database_work_state import suggest_database_query
     from core.plugin_tools import plugin_scratch_dir
     from core.tool_demand_signals import _VOCAB_CACHE

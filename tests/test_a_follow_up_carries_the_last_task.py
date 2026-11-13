@@ -5,9 +5,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_database_plain_ask_lane import world  # noqa: F401  (fixture)
-
 from core.agent_runtime.task_continuation import compose_continuation
+from tests.test_database_plain_ask_lane import world
 
 TRANSLATE = "translate lantern into Dutch and Polish"
 SPLIT = "split a 90 euro dinner bill between 5 people"
