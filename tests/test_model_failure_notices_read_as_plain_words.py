@@ -228,6 +228,24 @@ def test_a_403_and_a_429_from_a_model_on_this_computer_are_said_plainly_too() ->
         assert "API Keys" not in text and "quota" not in text and "HTTP" not in text, text
 
 
+@pytest.mark.parametrize("pinned", [False, True], ids=["auto", "pinned"])
+def test_a_429_from_a_model_on_this_computer_names_the_wait_it_asked_for(pinned: bool) -> None:
+    """The 429 law the cloud wording keeps holds here too (CI #681, served fault journey): the model
+    app's own Retry-After is the wait to name, and "Wait a moment" never stands in for it. Without
+    one, no short wait is promised: an account-run model in Ollama has a usage limit of its own."""
+    timed = _auth_failure("429 Client Error: Too Many Requests [retry_after=27s]", local=True, pinned=pinned)
+    bare = _auth_failure("429 Client Error: Too Many Requests", local=True, pinned=pinned)
+
+    assert "the model app on this computer was too busy to run qwen3.5:4b just now and asked to wait about 27 seconds" in timed, timed
+    assert "Try again after that wait." in timed, timed
+    assert "may limit how much this model can be used" in bare and "seconds" not in bare, bare
+    for text in (timed, bare):
+        assert "wait a moment" not in text.lower(), text
+        assert "retry_after" not in text and "Retry-After" not in text, text
+        _assert_plain(text)
+        assert assistant_text_is_runtime_failure_notice(text)
+
+
 def test_a_401_from_a_cloud_provider_keeps_its_key_advice() -> None:
     text = _auth_failure("401 Client Error: Unauthorized", local=False)
 

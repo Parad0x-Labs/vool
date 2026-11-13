@@ -880,9 +880,21 @@ def _local_model_refusal_hint(details: Any, records: list[dict[str, str]], evide
             f"{NO_ANSWER_LEAD}: the model app on this computer refused to run {model}. "
             f"{NOTHING_MADE_UP} Check your model app (such as Ollama), then try again."
         )
+    # A 429 keeps the 429 law the cloud wording follows: the model app's own Retry-After, when the
+    # attempt carries it, is the wait to name; without it nothing promises that a short wait fixes
+    # it (an account-run model in Ollama has a usage limit of its own). CI #681 (2026-11-13): "Wait a
+    # moment" stood in for the app's own "27 seconds".
+    retry_after = _RETRY_AFTER_MARKER_RE.search(said)
+    if retry_after:
+        return (
+            f"{NO_ANSWER_LEAD}: the model app on this computer was too busy to run {model} just now "
+            f"and asked to wait about {int(retry_after.group(1))} seconds. {NOTHING_MADE_UP} Try again "
+            "after that wait."
+        )
     return (
         f"{NO_ANSWER_LEAD}: the model app on this computer was too busy to run {model} just now. "
-        f"{NOTHING_MADE_UP} Wait a moment, then try again."
+        f"{NOTHING_MADE_UP} Try again later. If it keeps happening, your model app (such as Ollama) "
+        "may limit how much this model can be used."
     )
 
 
