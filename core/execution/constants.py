@@ -1493,6 +1493,12 @@ _PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directorie
 _PRESENT_SOCIAL_WORDS = frozenset({
     "twitter", "tweet", "tweets", "instagram", "insta", "facebook", "tiktok", "linkedin", "reddit", "mastodon", "bluesky",
 })
+# "open a repo session for pull request 8", "open the draft pull request": the object names a code
+# repository or a pull request, which the repo tools own, not words a file's name carries. Measured
+# on the v0.8 line: both were answered by a disk search ("None of the searchable local folders are
+# readable right now") and the repo session was never opened.
+_PRESENT_FORGE_WORDS = frozenset({"repo", "repos", "repository", "repositories", "pr", "prs"})
+_PRESENT_FORGE_PHRASE_RE = re.compile(r"\b(?:pull|merge)\s+requests?\b")
 # "find my phone" is not a file lookup (the loose search stands down on it too): the object names
 # a device the owner owns, not words a file's name carries.
 _PRESENT_DEVICE_WORDS = frozenset({
@@ -1647,7 +1653,9 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     if all(word in _PRESENT_NOTES_WORDS for word in kept):
         return None  # "find my notes about pollen" searches the notes store, not a file named notes
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
-           or word in _PRESENT_STORAGE_WORDS for word in kept):
+           or word in _PRESENT_STORAGE_WORDS or word in _PRESENT_FORGE_WORDS for word in kept):
+        return None
+    if _PRESENT_FORGE_PHRASE_RE.search(" ".join(kept)):
         return None
     if kept[-1] in _PRESENT_MAIL_HEAD_WORDS:
         # "open that invoice thread and tell me what it says": the thing asked for is a mail
