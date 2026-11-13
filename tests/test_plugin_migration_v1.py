@@ -198,7 +198,7 @@ def test_the_retired_usepod_package_never_becomes_a_provider_lane(package, https
         return native(*args, **kwargs, _connector=https_service['connector'], _tls_context=https_service['context'])
     monkeypatch.setattr(plugin_services, 'native_request', routed)
     monkeypatch.setattr(plugin_providers, 'native_request', routed)
-    with pytest.raises(ServiceRefused, match='no longer part of VOOL. VOOL does not use this plugin'):
+    with pytest.raises(ServiceRefused, match=r'no longer part of VOOL\. VOOL does not use this plugin'):
         plugin_providers.refresh_models(info['id'])
     assert not plugin_providers.usable_provider('plugin-vool-plugin-usepod')
     assert not https_service['log'].exists()
