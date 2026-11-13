@@ -416,6 +416,14 @@ def test_expansion_reseats_the_requested_family() -> None:
 # ---------------------------------------------------------------------------
 
 
+#: One plain ask per wording-seated tool that an expanded family may step down (the WORDING path
+#: in the census below). Test meaning OK by sls 2026-11-13.
+_WORDING_PATH_ASKS = (
+    "remind me to call mom at 5pm tomorrow",
+    "cancel my reminder to call mom",
+)
+
+
 def test_every_enabled_contracted_tool_has_a_legal_path(tmp_path, monkeypatch) -> None:
     """Hint seating ∪ lone-family expansion ∪ STATEFUL session seats covers every enabled,
     model-visible contract; owner-only contracts are covered by their owner-local surface.
@@ -424,19 +432,29 @@ def test_every_enabled_contracted_tool_has_a_legal_path(tmp_path, monkeypatch) -
     added and no family can ever seat it, this fails instead of shipping the
     silent unreachability the census found (33 of 79 at a6c8e3c4).
 
-    Two paths are modelled beyond the family hints, matching how the runtime actually seats
+    Three paths are modelled beyond the family hints, matching how the runtime actually seats
     tools: an OPEN RepoOps session seats its stage's control-plane tools (journal-read, the
     same mechanism the served journeys exercise), and an owner-only contract
     (`model_visible=False`, e.g. an operator authorization mint) is counted under its
     owner-local path -- a model must never be offered it, which the negative test below
-    pins separately.
+    pins separately. A wording-seated tool an expanded family steps down is proven through its
+    own plain ask (`_WORDING_PATH_ASKS`).
     """
     import json as _json
     from datetime import datetime, timezone
 
+    import core.capability_graph as _graph
     from core.capability_graph import _CANONICAL_FAMILIES
+    from core.command_registry.registry import registry as _command_registry
     from core.runtime_tool_contracts import runtime_tool_contracts
     from core.tool_offer_state import record_family_expansion, reset_offer_state
+
+    # The running app's state, whatever ran before in this process: the command registry is
+    # built and its model-offerable reads are projected into the families. Left to test order,
+    # this census passed or failed depending on whether an earlier test had built that registry
+    # (and whether a tool-registry reset had dropped its reads again).
+    _command_registry()
+    _graph.refresh_from_registry()
 
     enabled = {
         c.intent
@@ -495,6 +513,14 @@ def test_every_enabled_contracted_tool_has_a_legal_path(tmp_path, monkeypatch) -
                                     source_context={"session_id": "census-chat"})
         union |= set(offer.intents)
         monkeypatch.delenv("VOOL_REPOOPS_DIR")
+
+    # The WORDING path: a family tool its own wording seats (capability_graph
+    # _WORDING_SEATED_INTENTS). An expanded operator family steps the reminder writes down first
+    # because these seats can always seat them again (Job 6d; the command reads keep their seats,
+    # pinned by test_expand_family_offer_order E01), so they are proven here through the real
+    # offer, one plain ask each, never assumed from the set.
+    for ask in _WORDING_PATH_ASKS:
+        union |= set(assemble_tool_offer(user_text=ask, source_context={}).intents)
 
     never = sorted(enabled - union)
     assert not never, f"enabled contracted tools with no legal selection path: {never}"
