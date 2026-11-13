@@ -427,3 +427,73 @@ def test_the_ledger_words_cover_every_reason_and_say_what_to_do_after_a_timeout(
     assert "reject it there" in wallet_api._LEDGER_WORDS["ledger_ledger_timeout"]
     late = wallet_api._LEDGER_WORDS["ledger_pressed_too_late"]
     assert "nothing was sent" in late and "free again" in late and "already" not in late
+
+
+class _HidLikeDevice:
+    """hidapi 0.15.0's device as hid.pyx behaves: on a blocking device read(n, 0) means NO time limit (hid_read), so
+    an empty buffer would wait forever; here that raises instead of hanging the test."""
+
+    def __init__(self, soft: SoftLedger):
+        self.soft, self.blocking, self.inbox, self.outbox, self.reads = soft, True, [], b"", []
+
+    def open_path(self, path):
+        pass
+
+    def set_nonblocking(self, flag):
+        self.blocking = not flag
+
+    def write(self, data):
+        packet = bytes(data)[1:]
+        self.outbox += packet
+        self._try_answer()
+        return len(data)
+
+    def _try_answer(self):
+        import struct
+
+        packets = [self.outbox[i:i + ledger.PACKET] for i in range(0, len(self.outbox), ledger.PACKET)]
+        try:
+            apdu = ledger.unframe(iter(packets).__next__)
+        except (StopIteration, ledger.LedgerProblem):
+            return
+        self.outbox = b""
+        data, status = self.soft._answer(apdu)
+        self.inbox.extend(ledger.frame(data + struct.pack(">H", status)))
+
+    def read(self, size, timeout_ms=0):
+        self.reads.append(timeout_ms)
+        if self.inbox:
+            return list(self.inbox.pop(0))
+        if timeout_ms <= 0 and self.blocking:
+            raise AssertionError("hid read with timeout 0 on a blocking device waits forever")
+        return []
+
+    def close(self):
+        pass
+
+
+def test_the_real_usb_transport_never_asks_hidapi_to_wait_forever(monkeypatch):
+    """The drain before each question and a nearly spent deadline both read with at least 1 ms: hidapi takes 0 as no
+    time limit, which on an empty buffer (the normal case) would hang the Ledger for good."""
+    import sys
+    import types
+
+    soft = SoftLedger("A")
+    made: list[_HidLikeDevice] = []
+
+    def device():
+        made.append(_HidLikeDevice(soft))
+        return made[-1]
+
+    monkeypatch.setitem(sys.modules, "hid", types.SimpleNamespace(device=device))
+    transport = ledger.HidTransport(b"usb-path")
+    path = ledger.solana_path(0)
+    expected = soft.public_bytes(path)
+    transport.drain()  # empty buffer: returns, never waits
+    data, status = ledger._exchange(transport, bytes([ledger.CLA, ledger.INS_GET_PUBKEY, 0, 0]) + ledger._with_len(ledger._path_bytes(path)), timeout=0.0004)
+    assert (status, bytes(data)) == (ledger.SW_OK, expected)
+    assert made[0].reads and min(made[0].reads) >= 1
+    # a late answer still in the buffer is thrown away before the next question
+    made[0].inbox.extend(ledger.frame(b"\x07" * 64 + b"\x90\x00"))
+    data, status = ledger._exchange(transport, bytes([ledger.CLA, ledger.INS_GET_PUBKEY, 0, 0]) + ledger._with_len(ledger._path_bytes(path)), timeout=1.0)
+    assert bytes(data) == expected and min(made[0].reads) >= 1

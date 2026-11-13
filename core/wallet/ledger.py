@@ -175,14 +175,17 @@ class HidTransport:
     def drain(self) -> None:
         """Throw away any answer still waiting from an earlier exchange (a press that came after VOOL stopped
         waiting), so it is never read as the answer to the next question."""
+        # hidapi's read() takes timeout 0 as "wait forever" on a blocking device, so the shortest real wait is 1 ms
         for _ in range(64):
-            if not bytes(self._device.read(PACKET, 0) or b""):
+            if not bytes(self._device.read(PACKET, 1) or b""):
                 return
 
     def exchange(self, apdu: bytes, *, timeout: float = ADDRESS_TIMEOUT_SECONDS) -> tuple[bytes, int]:
         for packet in frame(apdu):
             self._device.write(b"\x00" + packet)
-        answer = unframe(lambda: bytes(self._device.read(PACKET, int(timeout * 1000))))
+        # never 0 ms: hidapi reads that as no time limit at all
+        wait_ms = max(1, int(timeout * 1000))
+        answer = unframe(lambda: bytes(self._device.read(PACKET, wait_ms)))
         if len(answer) < 2:
             raise LedgerProblem("ledger_error")
         return answer[:-2], struct.unpack(">H", answer[-2:])[0]
