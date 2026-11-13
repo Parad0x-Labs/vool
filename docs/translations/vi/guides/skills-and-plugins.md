@@ -1,13 +1,13 @@
 ---
 description: Mở rộng VOOL bằng kỹ năng và plugin.
 translation: machine
-source_sha256: a86860b8624e3c97c81e813ec92e3998c687a87d7bc43b7960c489cdcd309196
+source_sha256: 4dd2a317a7b10ee024616f6e0c27bd73087c44334f29e2c5f60f69773f4e54e8
 ---
 
 # Kỹ năng và plugin
 
-Một **kỹ năng** là một bộ hướng dẫn được đóng gói cho một công việc lặp lại. Một **plugin** thêm công cụ
-mới vào runtime.
+Một **kỹ năng** là một bộ hướng dẫn được đóng gói cho một công việc lặp lại. Một **plugin** thêm công cụ,
+một nhà cung cấp mô hình hoặc một trình quét tiện ích. Plugin cũng có thể đi kèm kỹ năng.
 
 ## Đi kèm so với cài từ bên ngoài
 
@@ -16,9 +16,9 @@ dựng hiện tại, plugin **VOOL Database**. Bạn cũng có thể tự cài k
 
 | | Đi kèm (phát hành cùng VOOL) | Cài từ bên ngoài |
 | --- | --- | --- |
-| Nằm ở đâu | Bên trong ứng dụng | Thư mục plugin của bạn (đặt trong Cài đặt) |
+| Nằm ở đâu | Bên trong ứng dụng | Thư mục plugin của bạn (quản lý từ cửa sổ plugin trong VOOL, không phải từ Cài đặt) |
 | Cập nhật | Cùng với ứng dụng | Khi bạn cập nhật gói |
-| Có thể tắt | Có — từng mục riêng | Có — từng mục riêng |
+| Có thể tắt | Chưa có nút nào trong các cửa sổ của ứng dụng | Có — từ cửa sổ plugin |
 | Cấp quyền | **Không** | **Không** |
 
 Hai quy tắc áp dụng cho cả hai nguồn:
@@ -32,11 +32,30 @@ Hai quy tắc áp dụng cho cả hai nguồn:
 
 ## Tìm kỹ năng
 
-Trang Kỹ năng và Plugin liệt kê các kỹ năng của chính VOOL trước. **Duyệt** có sẵn 53 kỹ năng VOOL dùng được
-ngay. Chúng chỉ gồm văn bản: mỗi kỹ năng là một bộ hướng dẫn, đi kèm ứng dụng, nên Duyệt liệt kê chúng
-mà không cần tra cứu trực tuyến. Các kỹ năng VOOL dùng công cụ của VOOL được liệt kê trong thẻ
-**Bộ sưu tập kỹ năng**, nơi các kỹ năng của đội ngũ VOOL đứng đầu. Hãy xem xét một kỹ năng trước khi bật
-nó.
+Trang Kỹ năng và Plugin liệt kê các kỹ năng của chính VOOL trước. **Duyệt** có sẵn 75 kỹ năng VOOL dùng được ngay. Mỗi kỹ năng là một bộ hướng dẫn, đi kèm ứng dụng, nên Duyệt liệt kê chúng mà không cần tra cứu trực tuyến. 22 kỹ năng trong số đó dùng công cụ của VOOL (email, ghi chú, tệp, PDF, ví của bạn và nhiều thứ khác) ở những lượt chúng được chọn: công cụ của một kỹ năng chỉ thu hẹp những gì VOOL vốn đã cung cấp cho yêu cầu của bạn, một công cụ đang tắt vẫn tắt, và mọi lệnh gọi vẫn hỏi như mọi khi. Mục **Nguồn và chi tiết kỹ thuật** của kỹ năng liệt kê các công cụ nó dùng. Thẻ **Bộ sưu tập kỹ năng** liệt kê các kỹ năng của đội ngũ VOOL trước. Hãy xem xét một kỹ năng trước khi bật nó.
+
+Cách thêm một kỹ năng từ Duyệt tùy thuộc vào ai đã làm ra nó:
+
+* **Kỹ năng do VOOL làm** (75 kỹ năng ở trên): nhấn **Thêm kỹ năng này**. VOOL kiểm tra trên máy tính của bạn rằng tệp đúng là tệp đã đi kèm ứng dụng và đọc nó để tìm các chỉ dẫn rủi ro, rồi cho bạn xem kết quả. Không cần khóa và không có gì được gửi đi đâu cả. Nếu tệp không khớp, VOOL từ chối nó và cho bạn biết.
+* **Kỹ năng từ người làm khác** (nhà phát hành khác, hoặc một liên kết GitHub bạn dán vào): nhấn **Tải về và quét**. VOOL tải kỹ năng công khai về ở một phiên bản cố định và kiểm tra nó trên máy tính của bạn. Nếu bạn đã bật một plugin quét, plugin đó cũng nhận nội dung kỹ năng và báo cáo của nó được thêm bên cạnh báo cáo của chính VOOL. Đọc kết quả, rồi chọn có thêm kỹ năng hay không: nếu một trong hai bước kiểm tra báo có vấn đề, VOOL chỉ thêm nó sau khi bạn chấp nhận rủi ro cho phiên bản đó. Không cần khóa, trừ khi plugin quét của bạn yêu cầu.
+
+Bạn cũng có thể tự làm kỹ năng của mình ngay trong trò chuyện mà không cần khóa nào: xem [Tự làm kỹ năng của bạn](../../../guides/make-your-own-skill.md).
+
+Bạn cũng có thể hỏi trong bất kỳ cuộc trò chuyện nào: *tôi có những kỹ năng nào?* sẽ liệt kê chúng, và *làm sao để thêm một kỹ năng?* sẽ giải thích cả hai cách.
+
+## Bật hoặc tắt một kỹ năng
+
+Mở **Kỹ năng và Plugin**, rồi **Tiện ích của tôi**, rồi **Kỹ năng**. Mỗi kỹ năng hiển thị **Bật** hoặc **Tắt** cùng một nút **Bật** hoặc **Tắt**. Một kỹ năng bạn đã tắt sẽ không được dùng trong bất kỳ cuộc trò chuyện nào cho đến khi bạn bật lại. Các tệp của nó vẫn được giữ.
+
+Thẻ **Built-in skills** trong **Plugin** không có nút riêng: hãy bật hoặc tắt từng kỹ năng của nó trong **Kỹ năng**.
+
+## Xem kỹ năng nào đã định hình câu trả lời
+
+Khi các chỉ dẫn của một kỹ năng là một phần trong cách VOOL viết câu trả lời, một dòng ngắn bên dưới câu trả lời sẽ cho biết điều đó, ví dụ **Skill đã dùng: Browser**. Dòng này xuất hiện ngay sau câu trả lời, trong khi cuộc trò chuyện đang mở; các câu trả lời được nạp lại sau đó từ lịch sử chưa hiển thị nó. Các quy tắc về phong cách trả lời đi kèm hầu hết các câu trả lời không được nêu tên ở đó.
+
+## Kỹ năng để xây dựng VOOL
+
+Thư viện cũng chứa các kỹ năng mà đội ngũ VOOL dùng để xây dựng VOOL: rà soát mã, chạy kiểm thử, kiểm tra phát hành, sửa pipeline và những việc tương tự. Chúng không được liệt kê trong trò chuyện hay trên trang Kỹ năng, và chúng không định hướng các câu trả lời hằng ngày. Nhà phát triển có thể hiển thị và dùng chúng bằng cách khởi động VOOL với `VOOL_DEVELOPER_SKILLS=1`.
 
 ## Trạng thái khả dụng
 
@@ -62,7 +81,16 @@ Hãy xem xét toàn bộ gói trước khi xác minh. Một lần xem xét là b
 phải giấy chứng nhận an toàn hay sự cấp quyền.
 {% endhint %}
 
-## Phê duyệt gói trong v0.7
+## Plugin trong Tiện ích
+
+Mở **Tiện ích → Tiện ích của tôi → Plugin**. Xem xét một thư mục cục bộ hoặc một thư mục GitHub công khai tại đúng một commit. Việc cài đặt thu nhận toàn bộ gói và giữ nó ở trạng thái tắt. Các plugin đã ký từ cửa hàng dùng chuỗi registry hiện có và cũng được cài ở trạng thái tắt. Hãy xem xét bảng quyền truy cập riêng trước khi bật công cụ hoặc dịch vụ. Lưu khóa dịch vụ không tạo ra yêu cầu nào; kiểm tra kết nối và làm mới danh sách mô hình là những thao tác tường minh.
+
+Tắt sẽ gỡ các công cụ và dừng các lệnh gọi đang chạy. Gỡ cài đặt sẽ tắt trước, xóa các tệp và vùng scratch thuộc về plugin, mặc định xóa các khóa đã lưu và giữ lại lịch sử. Bản cập nhật và cài lại cần một lần xem xét mới và bắt đầu ở trạng thái tắt. Một bản cập nhật từ kho hoặc nhà phát hành khác không giữ các khóa đã lưu. UsePod và Eyebrow không còn là một phần của VOOL, và VOOL không cung cấp plugin cho cả hai. Một khóa UsePod hoặc Eyebrow đã lưu vẫn nằm trên máy tính này và VOOL không dùng nó; Tiện ích sẽ thông báo điều này cho đến khi bạn đóng thông báo. Các cuộc trò chuyện từng dùng một mô hình UsePod sẽ không có mô hình nào được chọn sau khi nâng cấp, và Tự động sẽ không chuyển sang mô hình đám mây trong các cuộc trò chuyện đó; một thông báo sẽ cho biết điều này cho đến khi bạn đóng nó.
+
+Xem [Viết plugin](../../../guides/plugin-authoring.md) và [Kiểm tra tiện ích](addon-security.md).
+
+## Phê duyệt toàn bộ gói
+
 
 Việc xác minh bao gồm mọi tệp và thư mục của gói, kể cả tệp thực thi của trình xử lý, thư viện được đóng
 kèm (vendored), tệp khóa phụ thuộc, tài liệu tham chiếu, tài nguyên và bit chế độ thực thi. Thêm, xóa,
@@ -100,22 +128,17 @@ Hãy giữ đầu ra lâu dài, bộ nhớ đệm và nhật ký trong `PLUGIN_S
 cụ chỉ đọc không nhận quyền ghi. Các công cụ khác có thể ghi vào vùng scratch nhưng không thể sửa đổi bản
 sao thực thi của chúng. `VOOL_PLUGIN_DEPENDENCIES` là một ánh xạ JSON từ danh tính phần phụ thuộc đã khai
 báo tới các thư mục phụ thuộc đã thu nhận. Hãy đóng gói các thư viện bên thứ ba khác cùng tệp khóa của
-chúng bên trong gói; chỉ riêng một tệp khóa không chứng thực một môi trường bên ngoài. Trình thông dịch của máy chủ (host) và
+chúng bên trong gói; chỉ riêng một tệp khóa không chứng thực một môi trường bên ngoài. Trình thông dịch của runtime và
 các thư viện hệ thống vẫn là một phần của nền tảng được tin cậy, thay vì được coi là các byte của
 gói bên thứ ba đã được xem xét. Bước kiểm tra tính toàn vẹn này không chứng nhận hành vi, không chứng thực
 mã tùy ý được tải về hoặc nạp từ bên ngoài bản phân phối đã phê duyệt, không làm trung gian cho mọi tác
 động bên trong và không thay thế bước phê duyệt gốc của ví.
 
+Trên macOS, mã plugin chạy trong sandbox của macOS. Khóa chỉ đến được trình xử lý qua đầu vào riêng của nó, không bao giờ qua môi trường của nó, vì trên Mac bất kỳ chương trình nào của cùng người dùng, kể cả mã plugin, đều có thể đọc môi trường khởi động của chương trình khác. Một máy chủ kết nối cần khóa trong môi trường của nó chỉ chạy trong môi trường chạy Linux cách ly tùy chọn, do bạn tự chuẩn bị; VOOL không bao giờ khởi động một máy ảo (VM) hay tải về một ảnh hệ thống. Nếu không có môi trường đó, plugin ấy vẫn tắt và cho biết lý do. Linux dùng bwrap, bao gồm một không gian tên tiến trình riêng và `/proc`.
+
+Trên macOS, một công cụ khai báo mạng chỉ có thể kết nối tới một proxy riêng mà VOOL khởi động cho mỗi lệnh gọi, và proxy đó chỉ kết nối tới các máy chủ đã khai báo. Trên Linux và trong môi trường chạy cách ly, các tiến trình plugin không có mạng. Các yêu cầu của nhà cung cấp và trình quét gốc dùng lớp truyền tải HTTPS riêng tới máy chủ đã khai báo trên mọi nền tảng.
+
 ## Viết một kỹ năng
 
-Một kỹ năng là một thư mục chứa một tệp hướng dẫn và mọi tệp mà nó tham chiếu tới:
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Soạn bản nháp trong ứng dụng (`skill.create` chuẩn bị nó mà không kích hoạt gì), xác thực nó, rồi cài
-đặt để kích hoạt — ba bước tách biệt có chủ ý, để việc soạn không bao giờ là một thay đổi hành vi ngầm.
-Danh mục và định dạng soạn kỹ năng vẫn đang được hoàn thiện cho bản phát hành công khai.
+* Để làm một kỹ năng bằng cách yêu cầu trong trò chuyện, xem [Tự làm kỹ năng của bạn](../../../guides/make-your-own-skill.md).
+* Để tự viết, lint, cài đặt và kiểm thử một tệp SKILL.md, xem [Xây dựng và kiểm thử một kỹ năng](../../../guides/build-and-test-a-skill.md).

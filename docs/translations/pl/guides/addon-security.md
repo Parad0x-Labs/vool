@@ -1,48 +1,100 @@
 ---
 translation: machine
-source_sha256: 671f147e5d9649b6c2b7c2d391ea085120e783a8ace29f92ac8c3d5ecb4407eb
+source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
 ---
-# Odkrywanie umiejętności i kontrole Eyebrow
+# Kontrole dodatków
 
-Strona Umiejętności i wtyczki ma cztery karty: **Przeglądaj**, **Kodeks umiejętności**, **Moje dodatki** i **Bezpieczeństwo**. Przeglądaj pokazuje najpierw własne umiejętności VOOL, w tym 53 tekstowe umiejętności VOOL dołączone do aplikacji, potem przejrzane dodatki z katalogu, a ponadto może wyszukać publiczne repozytorium GitHub w przypiętej rewizji. Kodeks umiejętności pokazuje najpierw umiejętności zespołu VOOL, przed wyborem redakcji i polecanymi umiejętnościami. Wyszukiwanie ignoruje wielkość liter i typowe separatory; filtry kategorii i sortowanie zawężają listę. Źródło, licencja, rewizja i wymagania są widoczne przed pobraniem.
+Dodatki oddzielają od siebie przeglądanie, sprawdzanie i instalację. Skan opisuje konkretne bajty;
+nie jest gwarancją bezpieczeństwa, poparciem wydawcy, uprawnieniem w czasie działania ani zatwierdzeniem w portfelu.
 
-## Pierwsze użycie
+Przeglądaj pokazuje najpierw własne umiejętności VOOL, w tym 75 umiejętności VOOL dołączonych do aplikacji (22 z nich
+korzysta z narzędzi VOOL, które jedynie zawężają to, co VOOL już oferuje), a potem przejrzane dodatki z katalogu. Kodeks umiejętności pokazuje najpierw umiejętności zespołu VOOL, nad wyborem redakcji
+i polecanymi umiejętnościami.
 
-1. Zapisz klucz API Eyebrow na karcie Bezpieczeństwo, dostępnej też w Ustawienia → Klucze API. Kluczem zarządza istniejący magazyn poświadczeń. Zapisanie nie testuje połączenia ani niczego nie skanuje; z Eyebrow łączy się jawnie dopiero przycisk Przetestuj połączenie.
-2. Na karcie Przeglądaj wybierz umiejętność i zatwierdź pobranie jej publicznej zawartości oraz wysłanie tej zawartości do Eyebrow. Zużywa to limit skanowań usługi zgodnie z twoim planem. Nie ma automatycznych ponownych prób.
-3. Przeczytaj zwrócony raport. Sama udana odpowiedź HTTP nie oznacza czystego wyniku. Ten początkowy katalog pozwala na instalację tylko przy kompletnym raporcie `pass`, bez żadnych wykrytych problemów i bez naruszeń zasad. Odrzuć usuwa przygotowane pobranie bez instalowania go.
-4. Zaakceptuj instalację osobno. VOOL zachowuje licencję, instaluje przez swój istniejący cykl życia wtyczek, weryfikuje dokładnie przejrzany pakiet i włącza umiejętność. Istniejące uprawnienia nadal decydują o każdej czynności, którą umiejętność mogłaby zasugerować.
+## Umiejętności stworzone przez VOOL: kontrola lokalna
 
-Skanowanie to ocena konkretnych bajtów dokonana przez dostawcę usługi, a nie gwarancja bezpieczeństwa, zgodności ani jakości odpowiedzi. Umieszczenie w katalogu nie jest certyfikacją wydawcy.
+75 umiejętności stworzonych przez VOOL jest dostarczanych wewnątrz aplikacji; każda jest przypięta przez SHA-256 we własnym katalogu VOOL i
+sprawdzana przy wydaniu VOOL. Dla nich **Dodaj tę umiejętność** uruchamia tylko lokalną kontrolę VOOL: bez klucza,
+bez limitu skanów i bez żądań sieciowych.
 
-## Granice
+1. VOOL odczytuje umiejętność i licencję z własnej kopii aplikacji i odrzuca je, jeśli ich SHA-256 nie
+   zgadza się z przypiętym (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+2. Lokalna kontrola VOOL czyta umiejętność pod kątem ryzykownych instrukcji i pokazuje wynik. Czysty wynik
+   można dodać przyciskiem **Dodaj i włącz**; wszystko, co oznaczy, wymaga twojej osobnej, wyraźnej zgody na
+   tę konkretną wersję. **Odrzuć** ją porzuca.
+3. Potem instalacja przebiega tym samym cyklem życia co w przypadku innych umiejętności: dokładne pliki są instalowane,
+   weryfikowane i włączane. Zainstalowana umiejętność jest sprawdzana względem przypiętego SHA-256 przy każdym
+   ładowaniu; zmieniony plik czyni ją niedostępną.
 
-Zawartość pochodzi wyłącznie z publicznych repozytoriów GitHub w stałej, 40-znakowej rewizji, z plikami umiejętności i licencji przypiętymi przez SHA-256. W tej wersji nie ma obsługi prywatnych repozytoriów, rozpakowywania archiwów, skryptów instalacyjnych ani importera wtyczek wykonywalnych/MCP. Do Eyebrow wysyłany jest tylko samodzielny plik SKILL.md; lokalne czaty, pliki obszaru roboczego, poświadczenia i treść licencji nie są przesyłane do skanowania.
+Kontrola lokalna to statyczny odczyt ustalonych bajtów, a nie gwarancja bezpieczeństwa ani jakości odpowiedzi.
+Umiejętności od innych twórców nigdy nie idą tą ścieżką.
 
-Pobrane pliki pozostają nieaktywne do czasu przeglądu i akceptacji. Lokalnie uwierzytelnione potwierdzenia wiążą raport z przypiętą zawartością. Instalacja odrzuca wygasłe przeglądy (24 godziny), zmodyfikowane przygotowane pliki i istniejące katalogi docelowe. Środowisko uruchomieniowe sprawdza stan cyklu życia i przejrzane bajty, zanim doda zarządzaną umiejętność do kontekstu modelu. Dodane pliki, dowiązania symboliczne lub zmieniona zawartość czynią ją niedostępną. Wskazówki są wstawiane w całości albo jawnie odnotowywane jako pominięte z powodu niewystarczającego budżetu promptu; zeskanowane instrukcje nie są po cichu obcinane.
+## Publiczne umiejętności
 
-Te kontrole nie izolują złośliwego kodu, który już działa jako użytkownik systemu operacyjnego. Nie obejmują wcześniej ręcznie zainstalowanych wtyczek. Potwierdzenie skanowania nie przyznaje żadnego nowego uprawnienia do wykonywania kodu ani uprawnień w portfelu.
+Wybierz publiczną umiejętność z GitHuba w ustalonej rewizji i zatwierdź pobranie jej zawartości. VOOL sprawdza
+ją na tym urządzeniu za pomocą `core/local_scan.py`. Bez włączonej wtyczki skanera strona wyjaśnia,
+że kontrole pozostały na tym urządzeniu. Ta ścieżka nie wymaga klucza skanera.
 
-## API i obsługa błędów
+Włączona wtyczka skanera otrzymuje także zawartość publicznej umiejętności, gdy zażądano skanu. Może to
+zużywać limit jej usługi. Lokalne czaty, prywatne pliki obszaru roboczego i inne dane uwierzytelniające
+nie są przesyłane. Zapisanie klucza i otwarcie Dodatków nie wykonuje testu połączenia ani żądania skanu.
+Nie ma automatycznych ponowień żądań.
 
-`GET /api/addons` zwraca katalog i stan lokalny bez testu połączenia i bez skanowania. `POST /api/addons` obsługuje `save_key`, `remove_key`, `test_key`, `scan`, `install` i `reject`. Operacje zmieniające stan przyjmują tylko żądania przez interfejs loopback, w formacie JSON i z przeglądarki z tego samego źródła; akceptowane są tylko pola właściwe dla danej operacji. Adresy URL źródeł i ścieżki podane przez wywołującego są odrzucane.
+Wyniki czytasz, a instalację akceptujesz osobno. Walidacja raportu wymaga pełnego pokrycia
+i prawidłowych wyników. Raport z wynikiem pozytywnym nie ma ustaleń ani naruszeń zasad. Osobno oferowana
+akceptacja ryzyka wiąże przejrzaną wersję; nigdy nie zmienia raportu ani nie daje dodatkowego dostępu.
+Wygasłe przeglądy, zmienione bajty w przygotowanym pobraniu, dowiązania i kolidujące foldery docelowe są odrzucane.
+Pokwitowania wiążą całą zainstalowaną dystrybucję. Zmienione pliki odbierają dostępność w czasie działania.
+Wskazówki umiejętności są wstawiane w całości albo wyraźnie pomijane, gdy nie mieszczą się w budżecie promptu.
 
-Klient korzysta z żądania Eyebrow v1, które przesyła źródło umiejętności w treści, pod adresem `/v1/scan`, z uwierzytelnianiem typu bearer, stałym źródłem HTTPS, bez przekierowań, z ograniczonym rozmiarem odpowiedzi i bez automatycznych ponownych prób. `/v1/version` służy do jawnego testu połączenia. Dokumentacja API: https://eyebrow.cc/api/reference .
+## Opcjonalne skanery
 
-Typowe błędy z określonym kodem to między innymi:
+Zdalny skaner jest opcjonalny. Gdy żadna wtyczka skanera nie jest włączona, o tym, czy umiejętność można zainstalować,
+decyduje własna kontrola VOOL na tym urządzeniu; wcześniejsze wersje wymagały zamiast tego zdalnego skanu.
 
-| Kod | Znaczenie / co zrobić |
-| --- | --- |
-| `eyebrow_key_missing` / `eyebrow_unauthorized` | Zapisz lub wymień klucz. |
-| `eyebrow_quota` | Przed ponowną próbą sprawdź limit usługi. |
-| `eyebrow_timeout` / `eyebrow_unreachable` | Brak automatycznej ponownej próby; skanowanie przerwane po przekroczeniu czasu może mimo to zużyć limit. |
-| `eyebrow_invalid_report` / `eyebrow_no_coverage` | Dowody są niekompletne; nic nie zostaje włączone. |
-| `addon_source_changed` / `addon_changed` | Przypięte lub przejrzane bajty się różnią; nie aktywuj ich. |
-| `review_untrusted` / `review_expired` | Przed instalacją uzyskaj nowy przegląd. |
-| `addon_already_installed` | Istniejące pliki zostały zachowane. Automatyczna wymiana nie jest zaimplementowana. |
+Aby go dodać, zainstaluj wtyczkę skanera od jej twórcy w sekcji Wtyczki, zapisz własny
+klucz, przejrzyj dostęp i ją włącz. Jej deklaracja podaje ścieżkę do wyraźnego testu połączenia
+i ścieżkę do zleconego skanowania, a te żądania wykonuje wspólny natywny transport wtyczek.
+VOOL nie ma wbudowanego klienta skanera ani centralnego ustawienia klucza skanera i nie oferuje własnej
+wtyczki skanera. Klucz Eyebrow zapisany w starszym VOOL pozostaje na tym komputerze i nie jest używany.
+Identyfikatory `vool-plugin-eyebrow` i `vool-plugin-usepod` są zarezerwowane; inny pakiet, który rości sobie
+jeden z nich, jest odrzucany przed przeglądem.
 
-## Obecne ograniczenia i weryfikacja
+Własna kontrola VOOL na tym urządzeniu działa zawsze. Raport wtyczki skanera jest dodawany obok niej:
+jeśli którakolwiek z nich znajdzie problem, instalacja jest blokowana, a raport wtyczki musi wskazywać dokładną
+sprawdzoną zawartość. Wtyczka skanera nigdy nie może sama zatwierdzić instalacji.
 
-Nie ma automatycznych aktualizacji, importera dowolnych katalogów ani procesu naprawy lub ponownej instalacji na miejscu dla istniejącego, zmienionego pakietu. Odzyskiwanie oczekujących przeglądów po ponownym uruchomieniu aplikacji nie jest dostępne w interfejsie. Nowe teksty interfejsu mają obecnie zapasową wersję angielską; kompletnych tłumaczeń się nie deklaruje.
+Włączony skaner z brakującym lub odrzuconym kluczem kończy się jawnym błędem. VOOL nigdy po cichu nie zastępuje
+zleconego zdalnego skanu pozytywnym wynikiem lokalnym. Przekroczenia czasu, błędy usługi, przekierowania,
+zbyt duże odpowiedzi i niepełne raporty pozostawiają instalację niezaakceptowaną. Żądanie, które przekroczyło czas,
+mogło mimo to zużyć limit usługi.
 
-Testy automatyczne sprawdzają rzeczywisty cykl życia, ładowanie umiejętności, procedury obsługi API i udostępniany interfejs w przeglądarce, z jawnie zasymulowanymi publicznymi pobraniami i odpowiedziami Eyebrow. Dowodzą działania środowiska uruchomieniowego i interfejsu, a nie dostępności Eyebrow na żywo ani kompetencji modelu. Rzeczywiste skanowanie z prawdziwym kluczem i akceptacja natywnej spakowanej aplikacji pozostają kontrolami wydania. Do uruchomienia tych testów nie jest potrzebny żaden klucz ani płatne wywołanie usługi.
+## Pakiety wykonywalne i przegląd sklepu
+
+Wtyczki przechodzą pełny przegląd pakietu z folderu lokalnego lub przypiętego publicznego pakietu z GitHuba, oddzielny od
+importu umiejętności tylko tekstowych. Instalacja nie uruchamia kodu pakietu i pozostawia go wyłączonym. Wtyczki ze sklepu
+wymagają też istniejącego podpisanego pokwitowania i pełnego skrótu dystrybucji. Włączenie wymaga
+osobnego arkusza dostępu obejmującego narzędzia, skutki, dokładne hosty, gniazda danych uwierzytelniających i dołączone serwery.
+
+Kod wykonywalny przy wywołaniu otrzymuje tylko własne zadeklarowane klucze. Nie może odczytywać gniazd innej
+wtyczki, płatnych kluczy modeli właściciela ani uprawnień portfela do podpisywania, limitów, zatwierdzeń czy pokwitowań.
+Jego wynik pozostaje niezaufany. Zmienione bajty cofają zgodę; wyłączenie zatrzymuje wywołania. Nieobsługiwane
+odizolowanie odmawia wykonania. Limity środowiska uruchomieniowego opisuje [Tworzenie wtyczek](../../../guides/plugin-authoring.md).
+
+Jeśli VOOL nie może odczytać swoich zapisów o wtyczkach, pakiety, dla których nie ma zapisu, przestają oferować umiejętności, z wyjątkiem
+tych dostarczanych z VOOL, a uszkodzony plik jest zachowywany obok nowego. Jeśli nie może odczytać
+twoich wyborów włączenia i wyłączenia, każda wtyczka liczy się jako wyłączona, dopóki znów jej nie włączysz.
+
+## Lokalne API i transport
+
+`GET /api/addons` odczytuje spis. Zmiany przez `POST /api/addons` wymagają lokalnego dostępu właściciela,
+JSON, żądań przeglądarki z tego samego źródła i pól właściwych dla danej akcji. Punkty włączania/wyłączania i cyklu życia wtyczek
+(`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) stosują tę samą zasadę JSON i
+tego samego źródła. Pobieranie publicznych źródeł używa
+dokładnych rewizji i zweryfikowanych blobów o ograniczonym rozmiarze. Usługi natywne wymagają zadeklarowanych publicznych hostów HTTPS,
+weryfikują TLS, przypinają rozwiązane adresy publiczne, odrzucają przekierowania, ograniczają odpowiedzi i zatrzymują się, gdy
+wtyczka jest wyłączona.
+
+Lokalne udawane usługi HTTPS pozwalają zweryfikować transport i obsługę błędów bez płatnych wywołań. Nie
+potwierdzają niezawodności prawdziwej usługi, rozliczeń, kompetencji modeli ani instalacji wewnątrz innych
+aplikacji. To wymaga osobnej weryfikacji.

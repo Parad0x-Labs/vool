@@ -1,48 +1,51 @@
 ---
 translation: machine
-source_sha256: 671f147e5d9649b6c2b7c2d391ea085120e783a8ace29f92ac8c3d5ecb4407eb
+source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
 ---
-# Becerileri keşfetme ve Eyebrow kontrolleri
+# Eklenti denetimleri
 
-Beceriler ve Eklentiler sayfasında dört sekme vardır: **Göz at**, **Beceri Kodeksi**, **Eklentilerim** ve **Güvenlik**. Göz at önce VOOL'un kendi becerilerini listeler (uygulamayla birlikte gelen, yalnızca metinden oluşan 53 VOOL becerisi dahil), ardından incelenmiş katalog eklentilerini listeler ve herkese açık bir GitHub deposunu sabitlenmiş bir sürümde arayabilir. Beceri Kodeksi, editör seçimlerinin ve öne çıkan becerilerin üstünde, önce VOOL ekibinin becerilerini listeler. Arama büyük/küçük harfi ve yaygın ayırıcıları yok sayar; kategori ve sıralama denetimleri listeyi daraltır. Kaynak, lisans, sürüm ve gereksinimler indirmeden önce görünür.
+Eklentiler; göz atmayı, incelemeyi ve kurmayı birbirinden ayrı tutar. Bir tarama belirli baytları tanımlar; bir güvenlik garantisi, yayıncı onayı, çalışma zamanı izni ya da cüzdan onayı değildir.
 
-## İlk kullanım
+Göz at önce VOOL'un kendi becerilerini listeler; bunlar arasında uygulamayla birlikte gelen 75 VOOL becerisi vardır (bunların 22'si VOOL araçlarını kullanır ve bu araçlar yalnızca VOOL'un zaten sunduklarını daraltır). Ardından katalogdaki incelenmiş eklentileri listeler. Beceri Kodeksi, editörün seçimlerinin ve öne çıkan becerilerin üstünde, önce VOOL ekibinin becerilerini listeler.
 
-1. Güvenlik sekmesinde bir Eyebrow API anahtarı kaydedin; bu, Ayarlar → API anahtarları altında da yapılabilir. Anahtar, mevcut kimlik bilgisi deposuna aittir. Kaydetmek bağlantıyı test etmez ve hiçbir şeyi taramaz; "Bağlantıyı test et" Eyebrow ile açıkça iletişim kurar.
-2. Göz at sekmesinde bir beceri seçin ve onun herkese açık içeriğinin indirilmesini ve bu içeriğin Eyebrow'a gönderilmesini onaylayın. Bu, planınıza göre hizmetin tarama kotasından düşer. Otomatik yeniden deneme yapılmaz.
-3. Dönen raporu okuyun. Başarılı bir HTTP yanıtı tek başına temiz bir sonuç değildir. Bu ilk katalog kuruluma yalnızca eksiksiz bir `pass` raporuyla, hiç bulgu ve hiç ilke ihlali olmadığında izin verir. "Reddet", hazırlanan indirmeyi kurmadan atar.
-4. Kurulumu ayrıca kabul edin. VOOL lisansı korur, mevcut eklenti yaşam döngüsü üzerinden kurar, incelenmiş paketin tam olarak kendisini doğrular ve beceriyi etkinleştirir. Becerinin önerebileceği her eylemi yine mevcut izinler yönetir.
+## VOOL'un yaptığı beceriler: yerel denetim
 
-Tarama, bir firmanın belirli baytlar hakkındaki değerlendirmesidir; güvenlik, uyumluluk ya da yanıt kalitesi garantisi değildir. Kataloğa alınmak, yayıncının sertifikalandığı anlamına gelmez.
+VOOL'un yaptığı 75 beceri uygulamanın içinde gelir; her biri VOOL'un kendi dizininde SHA-256 ile sabitlenmiştir ve VOOL yayımlandığında incelenir. Bunlar için **Bu beceriyi ekle** yalnızca VOOL'un yerel denetimini çalıştırır: anahtar gerekmez, tarama hakkı harcanmaz ve ağ isteği yapılmaz.
 
-## Sınırlar
+1. VOOL beceriyi ve lisansı uygulamanın kendi kopyasından okur ve SHA-256 değerleri sabitlenen değerle eşleşmedikçe onları reddeder (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+2. VOOL'un yerel denetimi beceriyi riskli talimatlar için okur ve sonucu gösterir. Temiz bir sonuç **Ekle ve aç** ile eklenebilir; denetimin işaretlediği her şey, tam olarak o sürüm için ayrı ve açık onayınızı gerektirir. **Reddet** onu atar.
+3. Kurulum ardından diğer becerilerle aynı yaşam döngüsünü izler: tam olarak bu dosyalar kurulur, doğrulanır ve etkinleştirilir. Kurulu beceri her yüklendiğinde sabitlenmiş SHA-256 değerine göre denetlenir; değişmiş bir dosya beceriyi kullanılamaz hale getirir.
 
-İçerik yalnızca 40 karakterlik sabit bir sürümdeki herkese açık GitHub depolarından, SHA-256 ile sabitlenmiş beceri ve lisans dosyalarıyla gelir. Bu sürümde özel depo, arşiv açma, kurulum betiği ya da yürütülebilir/MCP eklenti içe aktarıcısı yoktur. Eyebrow'a yalnızca bağımsız SKILL.md dosyası gönderilir; yerel sohbetler, çalışma alanı dosyaları, kimlik bilgileri ve lisans içerikleri taramaya gönderilmez.
+Yerel denetim sabit baytların statik bir okumasıdır; güvenlik ya da yanıt kalitesi garantisi değildir. Başka yapımcıların becerileri asla bu yoldan geçmez.
 
-İndirmeler inceleme ve kabule kadar etkisiz kalır. Yerel olarak kimliği doğrulanmış makbuzlar raporu sabitlenmiş içeriğe bağlar. Kurulum; süresi dolmuş incelemeleri (24 saat), değiştirilmiş hazırlanmış dosyaları ve zaten var olan hedef dizinleri reddeder. Çalışma zamanı, yönetilen bir beceriyi model bağlamına eklemeden önce yaşam döngüsü durumunu ve incelenmiş baytları denetler. Eklenen dosyalar, sembolik bağlantılar ya da değişen içerik beceriyi kullanılamaz hale getirir. Yönergeler bütün olarak eklenir ya da istem bütçesi yetersiz olduğu için dışarıda bırakıldığı açıkça kaydedilir; taranan talimatlar sessizce kırpılmaz.
+## Herkese açık beceriler
 
-Bu denetimler, işletim sistemi kullanıcısı olarak zaten çalışmakta olan kötü amaçlı kodu yalıtmaz. Önceden elle kurulmuş eklentileri kapsamaz. Bir tarama makbuzu yeni bir yürütme izni ya da cüzdan yetkisi vermez.
+Sabit bir revizyondaki herkese açık bir GitHub becerisini seçin ve içeriğinin indirilmesini onaylayın. VOOL onu bu cihazda `core/local_scan.py` ile denetler. Etkin bir tarama eklentisi yoksa sayfa, denetimlerin bu cihazda kaldığını açıklar. Bu yol için tarama anahtarı gerekmez.
 
-## API ve hata işleme
+Etkin bir tarama eklentisi de, bir tarama istendiğinde herkese açık becerinin içeriğini alır. Bu, onun hizmet hakkını tüketebilir. Yerel sohbetler, özel çalışma alanı dosyaları ve diğer kimlik bilgileri gönderilmez. Bir anahtarı kaydetmek ve Eklentiler'i açmak bağlantı testi ya da tarama isteği yapmaz. Otomatik istek yinelemesi yoktur.
 
-`GET /api/addons`, bağlantı testi ya da tarama yapmadan katalog ve yerel durum bilgisini döndürür. `POST /api/addons`; `save_key`, `remove_key`, `test_key`, `scan`, `install` ve `reject` işlemlerini destekler. Değişiklik yapan istekler loopback, JSON ve aynı kaynaklı tarayıcı istekleri gerektirir; yalnızca işleme özgü alanlar kabul edilir. Çağıranın verdiği kaynak URL'leri ve yollar reddedilir.
+Bulguları okuyun ve kurulumu ayrıca kabul edin. Rapor doğrulaması tam kapsam ve geçerli bulgular gerektirir. Geçen bir raporda bulgu ya da politika ihlali yoktur. Ayrıca sunulan bir risk kabulü incelenen sürüme bağlanır; raporu asla değiştirmez ve daha fazla erişim vermez. Süresi dolmuş incelemeler, değişmiş hazırlık baytları, bağlantılar ve çakışan hedef klasörler reddedilir. Makbuzlar kurulu dağıtımın tamamını bağlar. Değişen dosyalar çalışma zamanı kullanılabilirliğini geri çeker. Beceri yönergeleri bütün olarak eklenir ya da istem bütçesine sığmadığında açıkça dışarıda bırakılır.
 
-İstemci, Eyebrow v1'in `/v1/scan` adresindeki satır içi beceri kaynağı isteğini bearer kimlik doğrulaması, sabit bir HTTPS kaynağı, yönlendirme olmadan, sınırlı yanıt boyutuyla ve otomatik yeniden deneme olmadan kullanır. Açık bağlantı testi için `/v1/version` kullanılır. API başvurusu: https://eyebrow.cc/api/reference .
+## İsteğe bağlı tarama araçları
 
-Türü belli tipik hatalar şunlardır:
+Uzak bir tarama aracı isteğe bağlıdır. Hiçbir tarama eklentisi etkin değilken bir becerinin kurulup kurulamayacağına VOOL'un bu cihazdaki kendi denetimi karar verir; önceki sürümler bunun yerine uzak bir tarama gerektiriyordu.
 
-| Kod | Anlamı / kurtarma |
-| --- | --- |
-| `eyebrow_key_missing` / `eyebrow_unauthorized` | Anahtarı kaydedin ya da değiştirin. |
-| `eyebrow_quota` | Yeniden denemeden önce hizmet kotasını gözden geçirin. |
-| `eyebrow_timeout` / `eyebrow_unreachable` | Otomatik yeniden deneme yoktur; zaman aşımına uğrayan bir tarama yine de kotadan düşebilir. |
-| `eyebrow_invalid_report` / `eyebrow_no_coverage` | Kanıt eksiktir; hiçbir şey etkinleştirilmez. |
-| `addon_source_changed` / `addon_changed` | Sabitlenmiş ya da incelenmiş baytlar farklı; bunları etkinleştirmeyin. |
-| `review_untrusted` / `review_expired` | Kurulumdan önce yeni bir inceleme alın. |
-| `addon_already_installed` | Var olan dosyalar korundu. Otomatik değiştirme uygulanmamıştır. |
+Bir tane eklemek için bir tarama eklentisini yapımcısından Eklentiler bölümü aracılığıyla kurun, kendi anahtarınızı kaydedin, erişimi inceleyin ve etkinleştirin. Eklentinin bildirimi, açık bir bağlantı testi için bir yol ve istenen taramalar için bir yol adlandırır; bu istekleri ortak yerleşik eklenti taşıması yapar. VOOL'un yerleşik bir tarama istemcisi ya da merkezi bir tarama anahtarı ayarı yoktur ve kendine ait bir tarama eklentisi sunmaz. Eski bir VOOL'dan kalan kayıtlı bir Eyebrow anahtarı bu bilgisayarda kalır ve kullanılmaz. `vool-plugin-eyebrow` ve `vool-plugin-usepod` kimlikleri ayrılmıştır; bunlardan birini sahiplenen başka bir paket inceleme öncesinde reddedilir.
 
-## Güncel sınırlamalar ve doğrulama
+VOOL'un bu cihazdaki kendi denetimi her zaman çalışır. Bir tarama eklentisinin raporu onun yanına eklenir: ikisinden birinin bir sorun bulması kurulumu engeller ve bir eklenti raporu denetlenen içeriği tam olarak adlandırmalıdır. Bir tarama eklentisi bir kurulumu asla tek başına onaylayamaz.
 
-Var olan, değişmiş bir paket için otomatik güncelleme, rastgele katalog içe aktarıcısı ya da yerinde onarma/yeniden kurma iş akışı yoktur. Uygulama yeniden başladıktan sonra bekleyen incelemeyi kurtarma arayüzde sunulmaz. Yeni arayüz metinleri şu anda İngilizce yedek metinle gelir; eksiksiz çeviri iddia edilmez.
+Anahtarı eksik ya da reddedilmiş, etkin bir tarama aracı açıkça başarısız olur. VOOL istenen o uzak taramayı asla sessizce geçen bir yerel sonuçla değiştirmez. Zaman aşımları, hizmet hataları, yönlendirmeler, aşırı büyük yanıtlar ve eksik raporlar kurulumu kabul edilmemiş durumda bırakır. Zaman aşımına uğramış bir istek yine de hizmet hakkını tüketmiş olabilir.
 
-Otomatik testler gerçek yaşam döngüsünü, beceri yüklemeyi, API işleyicilerini ve sunulan tarayıcı arayüzünü, açıkça taklit edilmiş herkese açık indirmeler ve Eyebrow yanıtlarıyla çalıştırır. Bunlar Eyebrow'un canlı kullanılabilirliğini ya da model yetkinliğini değil, çalışma zamanı ve arayüz davranışını kanıtlar. Gerçek bir anahtarla yapılan bir tarama ve yerel paketlenmiş uygulamanın kabulü sürüm denetimleri olarak kalır. Bu testleri çalıştırmak için herhangi bir anahtar ya da ücretli hizmet çağrısı gerekmez.
+## Yürütülebilir paketler ve mağaza incelemesi
+
+Eklentiler, yalnızca metin içeren beceri içe aktarıcısından ayrı olarak, yerel bir klasörün ya da sabitlenmiş herkese açık bir GitHub paketinin eksiksiz incelemesini kullanır. Kurulum hiçbir paket kodunu çalıştırmaz ve paketi devre dışı tutar. Mağaza eklentileri ayrıca mevcut imzalı makbuzu ve tam dağıtım özetini gerektirir. Etkinleştirme; araçları, etkileri, tam ana makineleri, kimlik bilgisi yuvalarını ve paketle gelen sunucuları kapsayan ayrı bir erişim sayfası gerektirir.
+
+Yürütülebilir kod çağrıldığında yalnızca kendi bildirdiği anahtarları alır. Başka bir eklentinin yuvalarını, sahibin ücretli model anahtarlarını ya da cüzdan imzalama, limit, onay veya makbuz yetkisini okuyamaz. Çıktısı güvenilmez olarak kalır. Değişen baytlar onayı geri çeker; devre dışı bırakma çağrıları durdurur. Desteklenmeyen kısıtlama yürütmeyi reddeder. Çalışma zamanı sınırları için bkz. [Eklenti yazma](../../../guides/plugin-authoring.md).
+
+VOOL eklenti kayıtlarını okuyamazsa, kaydı olmayan paketler, VOOL ile gelenler dışında, beceri sunmayı bırakır ve bozuk dosya yenisinin yanında tutulur. Açma ve kapama seçimlerinizi okuyamazsa, siz birini yeniden açana kadar her eklenti kapalı sayılır.
+
+## Yerel API ve taşıma
+
+`GET /api/addons` envanteri okur. `POST /api/addons` adresindeki değişiklikler sahibe ait yerel erişim, JSON, aynı kaynaklı tarayıcı istekleri ve eyleme özgü alanlar gerektirir. Eklenti açma/kapama ve yaşam döngüsü kapıları (`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) aynı JSON ve aynı kaynak kuralını uygular. Herkese açık kaynak indirmeleri tam revizyonlar ve boyutu sınırlı, doğrulanmış bloblar kullanır. Yerleşik hizmetler bildirilmiş herkese açık HTTPS ana makineleri gerektirir, TLS'yi doğrular, çözümlenen herkese açık adresleri sabitler, yönlendirmeleri reddeder, yanıtları sınırlar ve eklenti devre dışı bırakıldığında durur.
+
+Yerel sahte HTTPS hizmetleri, ücretli çağrılar olmadan taşımayı ve hata işlemeyi doğrulayabilir. Bunlar canlı hizmet güvenilirliğini, faturalandırmayı, model yetkinliğini ya da başka uygulamaların içindeki kurulumu kanıtlamaz. Bunlar ayrı doğrulama gerektirir.

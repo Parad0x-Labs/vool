@@ -1,13 +1,13 @@
 ---
 description: VOOL išplėtimas įgūdžiais ir papildiniais.
 translation: machine
-source_sha256: a86860b8624e3c97c81e813ec92e3998c687a87d7bc43b7960c489cdcd309196
+source_sha256: 4dd2a317a7b10ee024616f6e0c27bd73087c44334f29e2c5f60f69773f4e54e8
 ---
 
 # Įgūdžiai ir papildiniai
 
-**Įgūdis** yra supakuotas instrukcijų rinkinys pasikartojančiai užduočiai. **Papildinys** prideda naujų
-įrankių į vykdymo aplinką.
+**Įgūdis** yra supakuotas instrukcijų rinkinys pasikartojančiai užduočiai. **Papildinys** prideda įrankių,
+modelių tiekėją arba priedų skenerį. Papildiniuose taip pat gali būti įgūdžių.
 
 ## Įtaisyti ir įdiegti iš išorės
 
@@ -16,9 +16,9 @@ dabartinėse versijose, papildiniu **VOOL Database**. Taip pat galite įdiegti s
 
 | | Įtaisyti (pateikiami su VOOL) | Įdiegti iš išorės |
 | --- | --- | --- |
-| Kur jie yra | Programos viduje | Jūsų papildinių aplankas (nustatomas Nustatymuose) |
+| Kur jie yra | Programos viduje | Jūsų papildinių aplankas (valdomas iš papildinių lango VOOL, o ne iš Nustatymų) |
 | Atnaujinimai | Kartu su programa | Kai atnaujinate paketą |
-| Galima išjungti | Taip — kiekvieną atskirai | Taip — kiekvieną atskirai |
+| Galima išjungti | Programos languose tokio mygtuko kol kas nėra | Taip — iš papildinių lango |
 | Suteikia leidimus | **Ne** | **Ne** |
 
 Abiem šaltiniams galioja dvi taisyklės:
@@ -32,11 +32,55 @@ Abiem šaltiniams galioja dvi taisyklės:
 
 ## Įgūdžių paieška
 
-Skiltis Įgūdžiai ir papildiniai pirmiausia rodo paties VOOL įgūdžius. **Naršyti** pateikia 53 paruoštus
-VOOL įgūdžius. Jie yra tik tekstiniai: kiekvienas iš jų yra instrukcijų rinkinys, pridėtas prie programos,
-todėl Naršyti juos parodo nieko neieškodamas internete. VOOL įgūdžiai, kurie naudoja VOOL įrankius,
-išvardyti kortelėje **Įgūdžių kodeksas**, kur pirmiausia rodomi VOOL komandos įgūdžiai. Peržiūrėkite įgūdį
-prieš jį įjungdami.
+Skiltis Įgūdžiai ir papildiniai pirmiausia rodo paties VOOL įgūdžius. **Naršyti** pateikia 75 paruoštus
+VOOL įgūdžius. Kiekvienas iš jų yra instrukcijų rinkinys, pridėtas prie programos, todėl Naršyti juos parodo
+nieko neieškodamas internete. 22 iš jų naudoja VOOL įrankius (jūsų el. paštą, užrašus, failus, PDF, piniginę ir
+kt.) tuose ėjimuose, kuriuose yra parenkami: įgūdžio įrankiai tik susiaurina tai, ką VOOL jau siūlo jūsų
+užklausai, išjungtas įrankis lieka išjungtas, o kiekvienas iškvietimas klausia kaip visada. Jo
+**Šaltinis ir techninė informacija** išvardija naudojamus įrankius. Kortelė **Įgūdžių kodeksas** pirmiausia rodo VOOL komandos
+įgūdžius. Peržiūrėkite įgūdį prieš jį įjungdami.
+
+Kaip įgūdis pridedamas iš Naršyti, priklauso nuo to, kas jį sukūrė:
+
+* **VOOL sukurti įgūdžiai** (minėti 75): paspauskite **Pridėti šį įgūdį**. VOOL jūsų
+  kompiuteryje patikrina, ar failas yra būtent tas, su kuriuo buvo pateiktas, ir perskaito jį ieškodamas rizikingų
+  instrukcijų, tada parodo jums rezultatą. Rakto nereikia ir niekas niekur nesiunčiama.
+  Jei failas nesutampa, VOOL jį atmeta ir apie tai praneša.
+* **Kitų kūrėjų įgūdžiai** (kitų leidėjų arba iš jūsų įklijuotos GitHub nuorodos): paspauskite
+  **Atsisiųsti ir nuskaityti**. VOOL atsisiunčia viešą įgūdį fiksuotos versijos ir patikrina jį jūsų
+  kompiuteryje. Jei įjungėte skenerio papildinį, jis taip pat gauna įgūdžio turinį, o
+  jo ataskaita pridedama šalia paties VOOL ataskaitos. Perskaitykite rezultatą, tada nuspręskite, ar pridėti
+  įgūdį: jei bet kuri patikra praneša apie problemą, VOOL jį prideda tik jums priėmus tos
+  versijos rizikas. Rakto nereikia, nebent jo prašo jūsų skenerio papildinys.
+
+Savo įgūdį taip pat galite susikurti pokalbyje visai be rakto: žr.
+[Susikurkite savo įgūdį](../../../guides/make-your-own-skill.md).
+
+Taip pat galite paklausti bet kuriame pokalbyje: *kokius įgūdžius turiu?* juos išvardija, o *kaip pridėti
+įgūdį?* paaiškina abu būdus.
+
+## Įgūdžio įjungimas ir išjungimas
+
+Atidarykite **Įgūdžiai ir papildiniai**, tada **Mano priedai**, tada **Įgūdžiai**. Prie kiekvieno įgūdžio rodoma **Įjungta** arba
+**Išjungta** ir mygtukas **Įjungti** arba **Išjungti**. Išjungtas įgūdis nenaudojamas jokiame pokalbyje,
+kol vėl jį įjungsite. Jo failai išsaugomi.
+
+Kortelė **Built-in skills** skiltyje **Papildiniai** neturi savo mygtuko: jos įgūdžius įjunkite arba
+išjunkite po vieną skiltyje **Įgūdžiai**.
+
+## Kuris įgūdis paveikė atsakymą
+
+Kai įgūdžio instrukcijos buvo dalis to, kaip VOOL parašė atsakymą, tai nurodo trumpa eilutė po
+atsakymu, pavyzdžiui, **Panaudotas įgūdis: Browser**. Ji pasirodo iškart po atsakymo, kol
+pokalbis atidarytas; vėliau iš istorijos įkeltuose atsakymuose jos kol kas nėra. Atsakymų stiliaus taisyklės,
+lydinčios daugumą atsakymų, ten neįvardijamos.
+
+## Įgūdžiai VOOL kūrimui
+
+Bibliotekoje taip pat yra įgūdžiai, su kuriais VOOL komanda kuria VOOL: kodo peržiūra, testų paleidimas,
+išleidimo patikros, konvejerio taisymas ir panašiai. Jie nerodomi pokalbyje ar įgūdžių puslapyje
+ir nevaldo kasdienių atsakymų. Kūrėjai gali juos parodyti ir naudoti, paleisdami VOOL su
+`VOOL_DEVELOPER_SKILLS=1`.
 
 ## Prieinamumo būsenos
 
@@ -62,7 +106,26 @@ Prieš patikrą peržiūrėkite visą paketą. Peržiūra yra įrodymas apie kon
 o ne saugumo sertifikatas ir ne leidimų suteikimas.
 {% endhint %}
 
-## Paketų patvirtinimas v0.7
+## Papildiniai Prieduose
+
+Atidarykite **Priedai → Mano priedai → Papildiniai**. Peržiūrėkite vietinį aplanką arba viešą GitHub aplanką
+tiksliame commit. Diegimas užfiksuoja visą paketą ir palieka jį išjungtą. Pasirašyti
+parduotuvės papildiniai naudoja esamą registro grandinę ir taip pat įdiegiami išjungti. Atskirai peržiūrėkite prieigos
+lapą prieš įjungdami įrankius ar paslaugas. Paslaugos rakto išsaugojimas nesiunčia jokios užklausos;
+ryšio testai ir modelių sąrašo atnaujinimai yra aiškūs veiksmai.
+
+Išjungimas pašalina įrankius ir sustabdo vykdomus iškvietimus. Pašalinimas pirmiausia išjungia, pašalina nuosavus failus
+ir laikinąjį aplanką, pagal numatytąją nuostatą ištrina išsaugotus raktus ir išsaugo istoriją. Atnaujinimams ir pakartotiniams diegimams
+reikia naujos peržiūros, ir jie pradedami išjungti. Atnaujinimas iš kitos saugyklos ar nuo kito leidėjo
+neišsaugo išsaugotų raktų. UsePod ir Eyebrow nebėra VOOL dalis, ir VOOL
+nesiūlo papildinio nė vienam iš jų. Išsaugotas UsePod ar Eyebrow raktas lieka šiame kompiuteryje, ir VOOL
+jo nenaudoja; Priedai apie tai praneša, kol uždarysite pranešimą. Pokalbiuose, kuriuose buvo naudojamas UsePod modelis,
+po atnaujinimo nėra pasirinkto modelio, ir Auto tuose pokalbiuose neperjungs į debesijos modelį;
+pranešimas apie tai praneša, kol jį uždarysite.
+
+Žr. [Papildinių kūrimas](../../../guides/plugin-authoring.md) ir [Priedų patikros](addon-security.md).
+
+## Viso paketo patvirtinimas
 
 Patikra apima kiekvieną paketo failą ir katalogą, įskaitant doroklių vykdomuosius failus, pridėtas
 bibliotekas, priklausomybių užrakto failus, nuorodų failus, išteklius ir vykdymo režimo bitus.
@@ -102,22 +165,24 @@ Tik skaitymo įrankiai negauna rašymo teisės. Kiti įrankiai gali rašyti į l
 negali keisti savo vykdymo kopijos. `VOOL_PLUGIN_DEPENDENCIES` yra JSON atvaizdis iš deklaruotų
 priklausomybių tapatybių į užfiksuotus priklausomybių katalogus. Kitas trečiųjų šalių bibliotekas ir jų
 užrakto failus pridėkite paketo viduje; vien užrakto failas nepatvirtina išorinės aplinkos.
-Pagrindinio kompiuterio interpretatorius ir sistemos bibliotekos lieka patikimos platformos dalimi ir
+Vykdymo aplinkos interpretatorius ir sistemos bibliotekos lieka patikimos platformos dalimi ir
 nepateikiami kaip peržiūrėti trečiųjų šalių paketų baitai. Ši vientisumo patikra nesertifikuoja elgsenos,
 nepatvirtina bet kokio kodo, atsisiųsto ar įkelto už patvirtintos distribucijos ribų, netarpininkauja
 kiekvienam vidiniam poveikiui ir nepakeičia įtaisytojo piniginės patvirtinimo.
 
+macOS sistemoje papildinių kodas vykdomas macOS smėlio dėžėje. Raktai doroklį pasiekia tik per jo privačią
+įvestį, niekada per jo aplinką, nes bet kuri to paties naudotojo programa, įskaitant papildinių kodą,
+Mac kompiuteryje gali perskaityti kitos programos pradinę aplinką. Ryšio serveris, kuriam raktas reikalingas jo
+aplinkoje, veikia tik pasirenkamoje izoliuotoje Linux vykdymo aplinkoje, kurią parengiate patys;
+VOOL niekada nepaleidžia virtualiosios mašinos ir neatsisiunčia atvaizdo. Be jos toks papildinys lieka išjungtas ir nurodo priežastį.
+Linux naudoja bwrap, įskaitant privačią procesų vardų sritį ir `/proc`.
+
+macOS sistemoje įrankis, deklaruojantis tinklą, gali pasiekti tik privatų tarpinį serverį, kurį VOOL paleidžia kiekvienam
+iškvietimui, o tarpinis serveris jungiasi tik prie deklaruotų pagrindinių kompiuterių. Linux sistemoje ir izoliuotoje vykdymo aplinkoje
+papildinių procesai neturi tinklo. Savųjų tiekėjų ir skenerių užklausos visose platformose naudoja savo atskirą
+HTTPS transportą į deklaruotus pagrindinius kompiuterius.
+
 ## Įgūdžio rašymas
 
-Įgūdis yra aplankas su instrukcijų failu ir visais failais, į kuriuos jis nurodo:
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Juodraštį parenkite programoje (`skill.create` jį paruošia nieko neaktyvuodamas), patikrinkite jo
-tinkamumą, tada įdiekite, kad jį aktyvuotumėte — tai sąmoningai trys atskiri žingsniai, kad kūrimas
-niekada nebūtų numanomas elgsenos pakeitimas. Katalogas ir kūrimo formatas dar baigiami rengti prieš
-viešą išleidimą.
+* Kaip sukurti įgūdį paprašius pokalbyje, žr. [Susikurkite savo įgūdį](../../../guides/make-your-own-skill.md).
+* Kaip patiems parašyti, patikrinti linteriu, įdiegti ir išbandyti SKILL.md failą, žr. [Įgūdžio kūrimas ir testavimas](../../../guides/build-and-test-a-skill.md).

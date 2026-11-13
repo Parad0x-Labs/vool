@@ -1,13 +1,13 @@
 ---
 description: Amplía VOOL con habilidades y plugins.
 translation: machine
-source_sha256: a86860b8624e3c97c81e813ec92e3998c687a87d7bc43b7960c489cdcd309196
+source_sha256: 4dd2a317a7b10ee024616f6e0c27bd73087c44334f29e2c5f60f69773f4e54e8
 ---
 
 # Habilidades y plugins
 
 Una **habilidad** es un conjunto empaquetado de instrucciones para una tarea recurrente. Un **plugin** añade
-herramientas nuevas al entorno de ejecución.
+herramientas, un proveedor de modelos o un analizador de complementos. Los plugins también pueden incluir habilidades.
 
 ## Incluidos frente a instalados externamente
 
@@ -17,9 +17,9 @@ propios.
 
 | | Incluidos (vienen con VOOL) | Instalados externamente |
 | --- | --- | --- |
-| Dónde están | Dentro de la app | Tu carpeta de plugins (se configura en Ajustes) |
+| Dónde están | Dentro de la app | Tu carpeta de plugins (se gestiona desde la ventana de plugins de VOOL, no desde Ajustes) |
 | Actualizaciones | Con la app | Cuando actualizas el paquete |
-| Se pueden desactivar | Sí, de uno en uno | Sí, de uno en uno |
+| Se pueden desactivar | Aún no hay un botón en las ventanas de la app | Sí, desde la ventana de plugins |
 | Conceden permisos | **No** | **No** |
 
 Dos reglas valen para ambos orígenes:
@@ -33,11 +33,55 @@ Dos reglas valen para ambos orígenes:
 
 ## Encontrar habilidades
 
-Habilidades y plugins muestra primero las habilidades propias de VOOL. **Explorar** incluye 53 habilidades de
-VOOL listas para usar. Son solo de texto: cada una es un conjunto de instrucciones incluido con la app, así que
-Explorar las muestra sin consultar nada en línea. Las habilidades de VOOL que usan herramientas de VOOL aparecen
-en la pestaña **Códice de habilidades**, donde las habilidades del equipo de VOOL van primero. Revisa una
-habilidad antes de activarla.
+Habilidades y plugins muestra primero las habilidades propias de VOOL. **Explorar** incluye 75 habilidades de
+VOOL listas para usar. Cada una es un conjunto de instrucciones incluido con la app, así que
+Explorar las muestra sin consultar nada en línea. 22 de ellas usan herramientas de VOOL (tu correo, notas, archivos, PDF, monedero y
+más) en los turnos en que se eligen: las herramientas de una habilidad solo restringen lo que VOOL ya ofrece para
+tu petición, una herramienta desactivada sigue desactivada y cada llamada pide permiso como siempre. Su apartado
+**Fuente y detalles técnicos** muestra las herramientas que usa. La pestaña **Códice de habilidades** muestra primero las
+habilidades del equipo de VOOL. Revisa una habilidad antes de activarla.
+
+Cómo se añade una habilidad de Explorar depende de quién la hizo:
+
+* **Habilidades hechas por VOOL** (las 75 de arriba): pulsa **Añadir esta habilidad**. VOOL comprueba en tu
+  ordenador que el archivo es exactamente el que venía con la app y lo lee en busca de instrucciones
+  arriesgadas; después te muestra el resultado. No hace falta ninguna clave y no se envía nada a ningún sitio.
+  Si el archivo no coincide, VOOL lo rechaza y lo indica.
+* **Habilidades de otros creadores** (otros editores, o un enlace de GitHub que pegues): pulsa
+  **Descargar y analizar**. VOOL descarga la habilidad pública en una versión fija y la comprueba en
+  tu ordenador. Si activaste un plugin analizador, también recibe el contenido de la habilidad y
+  su informe se añade junto al de VOOL. Lee el resultado y luego elige si añades la
+  habilidad: si alguna de las comprobaciones informa de un problema, VOOL solo la añade después de que aceptes los riesgos de
+  esa versión. No hace falta ninguna clave, salvo que tu plugin analizador pida una.
+
+También puedes crear tu propia habilidad en el chat sin ninguna clave: consulta
+[Crea tu propia habilidad](../../../guides/make-your-own-skill.md).
+
+También puedes preguntar en cualquier chat: *¿qué habilidades tengo?* las muestra, y *¿cómo añado una
+habilidad?* explica las dos formas.
+
+## Activar o desactivar una habilidad
+
+Abre **Habilidades y plugins**, luego **Mis complementos** y luego **Habilidades**. Cada habilidad muestra **Activado** o
+**Desactivado** con un botón **Activar** o **Desactivar**. Una habilidad que desactivas no se usa en ningún chat
+hasta que la vuelvas a activar. Sus archivos se conservan.
+
+La tarjeta **Built-in skills** de **Extensiones** no tiene botón propio: activa o desactiva sus habilidades
+una a una en **Habilidades**.
+
+## Ver qué habilidad dio forma a una respuesta
+
+Cuando las instrucciones de una habilidad formaron parte de cómo VOOL escribió una respuesta, una línea breve bajo la
+respuesta lo indica, por ejemplo **Habilidad usada: Browser**. Aparece justo después de la respuesta, mientras
+el chat está abierto; las respuestas que se cargan más tarde desde tu historial todavía no la muestran. Las reglas de estilo de respuesta
+que acompañan a la mayoría de las respuestas no se nombran ahí.
+
+## Habilidades para construir VOOL
+
+La biblioteca también contiene las habilidades con las que el equipo de VOOL construye VOOL: revisión de código, ejecución de pruebas,
+comprobaciones de publicación, reparación del pipeline y similares. No aparecen en el chat ni en la página de habilidades,
+y no orientan las respuestas cotidianas. Los desarrolladores pueden mostrarlas y usarlas iniciando VOOL con
+`VOOL_DEVELOPER_SKILLS=1`.
 
 ## Estados de disponibilidad
 
@@ -63,7 +107,26 @@ Revisa el paquete completo antes de la verificación. Una revisión es una prueb
 no un certificado de seguridad ni una concesión de permisos.
 {% endhint %}
 
-## Aprobación de paquetes en v0.7
+## Plugins en Complementos
+
+Abre **Complementos → Mis complementos → Extensiones**. Revisa una carpeta local o una carpeta pública de GitHub en
+un commit exacto. La instalación captura el paquete completo y lo deja desactivado. Los plugins firmados
+de la tienda usan la cadena de registro existente y también se instalan desactivados. Revisa la hoja de acceso
+por separado antes de activar herramientas o servicios. Guardar una clave de servicio no genera ninguna petición;
+las pruebas de conexión y la actualización de la lista de modelos son acciones explícitas.
+
+Desactivar quita las herramientas y detiene las llamadas en curso. Desinstalar primero desactiva, elimina los archivos propios
+y el espacio temporal, borra por defecto las claves guardadas y conserva el historial. Las actualizaciones y reinstalaciones
+requieren una revisión nueva y empiezan desactivadas. Una actualización desde otro repositorio o de otro editor
+no conserva las claves guardadas. UsePod y Eyebrow ya no forman parte de VOOL, y VOOL
+no ofrece ningún plugin para ninguno de los dos. Una clave guardada de UsePod o de Eyebrow sigue en este ordenador y VOOL
+no la usa; Complementos lo indica hasta que cierres el aviso. Los chats que usaban un modelo de UsePod
+no tienen ningún modelo seleccionado tras la actualización, y Auto no cambia a un modelo en la nube en esos
+chats; un aviso lo indica hasta que lo cierres.
+
+Consulta [Crear plugins](../../../guides/plugin-authoring.md) y [Comprobaciones de complementos](addon-security.md).
+
+## Aprobación completa de paquetes
 
 La verificación cubre todos los archivos y directorios del paquete, incluidos los ejecutables de los manejadores,
 las bibliotecas de terceros incluidas, los archivos de bloqueo de dependencias, las referencias, los recursos y los
@@ -103,21 +166,24 @@ Las herramientas de solo lectura no reciben ningún permiso de escritura. Las de
 el espacio temporal, pero no pueden modificar su copia de ejecución. `VOOL_PLUGIN_DEPENDENCIES` es una
 correspondencia JSON de las identidades de dependencia declaradas a los directorios de dependencias capturados.
 Incluye las demás bibliotecas de terceros y sus archivos de bloqueo dentro del paquete; un archivo de bloqueo por
-sí solo no certifica un entorno externo. El intérprete del equipo y las bibliotecas del sistema siguen formando
+sí solo no certifica un entorno externo. El intérprete del entorno de ejecución y las bibliotecas del sistema siguen formando
 parte de la plataforma de confianza, en lugar de presentarse como bytes revisados de paquetes de terceros. Esta
 comprobación de integridad no certifica el comportamiento, no certifica código arbitrario descargado o cargado desde
 fuera de la distribución aprobada, no media en cada efecto interno ni sustituye la aprobación nativa del monedero.
 
+En macOS, el código de los plugins se ejecuta en el sandbox de macOS. Las claves llegan a un manejador solo por su entrada
+privada, nunca por su entorno, porque cualquier programa del mismo usuario, incluido el código de los plugins,
+puede leer el entorno de inicio de otro programa en un Mac. Un servidor de conexión que necesita una clave en su
+entorno solo se ejecuta en el entorno de ejecución Linux aislado opcional, que preparas tú mismo;
+VOOL nunca inicia una VM ni descarga una imagen. Sin él, ese plugin sigue desactivado y explica por qué.
+Linux usa bwrap, con un espacio de nombres de procesos privado y `/proc`.
+
+En macOS, una herramienta que declara acceso a la red solo puede llegar a un proxy privado que VOOL inicia para cada
+llamada, y el proxy solo se conecta a los hosts declarados. En Linux y en el entorno de ejecución aislado,
+los procesos de los plugins no tienen red. Las peticiones nativas de proveedores y analizadores usan su propio
+transporte HTTPS hacia hosts declarados en todas las plataformas.
+
 ## Escribir una habilidad
 
-Una habilidad es una carpeta con un archivo de instrucciones y los archivos a los que hace referencia:
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Crea un borrador en la app (`skill.create` lo prepara sin activar nada), valídalo y después instálalo para
-activarlo: tres pasos separados a propósito, para que crear una habilidad nunca sea un cambio de comportamiento
-implícito. El catálogo y el formato de creación aún se están terminando para su publicación.
+* Para crear una habilidad pidiéndola en el chat, consulta [Crea tu propia habilidad](../../../guides/make-your-own-skill.md).
+* Para escribir, revisar con lint, instalar y probar tú mismo un archivo SKILL.md, consulta [Crea y prueba una habilidad](../../../guides/build-and-test-a-skill.md).

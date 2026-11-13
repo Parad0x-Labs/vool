@@ -1,48 +1,100 @@
 ---
 translation: machine
-source_sha256: 671f147e5d9649b6c2b7c2d391ea085120e783a8ace29f92ac8c3d5ecb4407eb
+source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
 ---
-# Įgūdžių paieška ir Eyebrow patikros
+# Priedų patikros
 
-Puslapis Įgūdžiai ir papildiniai turi keturias korteles: **Naršyti**, **Įgūdžių kodeksas**, **Mano priedai** ir **Sauga**. Naršyti pirmiausia rodo paties VOOL įgūdžius, įskaitant 53 tik tekstinius VOOL įgūdžius, pridėtus prie programos, tada peržiūrėtus katalogo priedus, ir gali ieškoti viešos GitHub repozitorijos prisegtoje revizijoje. Įgūdžių kodeksas pirmiausia rodo VOOL komandos įgūdžius, virš redaktorių pasirinkimų ir rekomenduojamų įgūdžių. Paieška nepaiso raidžių dydžio ir įprastų skyriklių; kategorijų ir rikiavimo valdikliai susiaurina sąrašą. Šaltinis, licencija, revizija ir reikalavimai matomi prieš atsisiunčiant.
+Priedai atskiria naršymą, patikrą ir diegimą. Nuskaitymas aprašo konkrečius baitus;
+tai nėra saugumo garantija, leidėjo rekomendacija, vykdymo leidimas ar piniginės patvirtinimas.
 
-## Pirmasis naudojimas
+Naršyti pirmiausia rodo paties VOOL įgūdžius, įskaitant 75 VOOL įgūdžius, pateikiamus su programa (22 iš jų
+naudoja VOOL įrankius, kurie tik susiaurina tai, ką VOOL jau siūlo), tada peržiūrėtus katalogo priedus. Įgūdžių kodeksas pirmiausia rodo VOOL komandos įgūdžius, virš redaktorių atrinktų
+ir rekomenduojamų įgūdžių.
 
-1. Išsaugokite Eyebrow API raktą kortelėje Sauga, kuri pasiekiama ir per Nustatymai → API raktai. Raktą valdo esama prisijungimo duomenų saugykla. Išsaugojimas netikrina ryšio ir nieko neskenuoja; su Eyebrow aiškiai susisiekia tik mygtukas Patikrinti ryšį.
-2. Kortelėje Naršyti pasirinkite įgūdį ir patvirtinkite jo viešo turinio atsisiuntimą bei to turinio išsiuntimą Eyebrow. Tai naudoja paslaugos skenavimų limitą pagal jūsų planą. Automatiniai pakartotiniai bandymai nevykdomi.
-3. Perskaitykite grąžintą ataskaitą. Vien sėkmingas HTTP atsakymas dar nėra švarus rezultatas. Šis pradinis katalogas leidžia diegti tik esant išsamiai `pass` ataskaitai, be jokių radinių ir be politikos pažeidimų. Atmesti pašalina paruoštą atsisiuntimą jo neįdiegdamas.
-4. Diegimą priimkite atskirai. VOOL išsaugo licenciją, diegia per savo esamą papildinių gyvavimo ciklą, patikrina tiksliai peržiūrėtą paketą ir įjungia įgūdį. Kiekvieną veiksmą, kurį jis galėtų pasiūlyti, vis tiek valdo esami leidimai.
+## VOOL sukurti įgūdžiai: vietinė patikra
 
-Skenavimas yra paslaugos teikėjo atliktas konkrečių baitų įvertinimas, o ne saugumo, suderinamumo ar atsakymų kokybės garantija. Įtraukimas į katalogą nėra leidėjo sertifikavimas.
+75 VOOL sukurti įgūdžiai pateikiami programos viduje; kiekvienas yra prisegtas pagal SHA-256 paties VOOL kataloge ir
+peržiūrimas, kai išleidžiamas VOOL. Jiems **Pridėti šį įgūdį** paleidžia tik VOOL vietinę patikrą: be rakto,
+be nuskaitymų kvotos ir be jokių tinklo užklausų.
 
-## Ribos
+1. VOOL perskaito įgūdį ir licenciją iš pačios programos kopijos ir juos atmeta, jei jų SHA-256
+   nesutampa su prisegtuoju (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+2. VOOL vietinė patikra perskaito įgūdį ieškodama rizikingų instrukcijų ir parodo rezultatą. Švarų rezultatą
+   galima pridėti mygtuku **Pridėti ir įjungti**; viskam, ką ji pažymi, reikia jūsų atskiro, aiškaus sutikimo
+   būtent tai versijai. **Atmesti** jį išmeta.
+3. Tada diegimas vyksta tuo pačiu gyvavimo ciklu kaip ir kitų įgūdžių: tikslūs failai įdiegiami,
+   patikrinami ir įjungiami. Įdiegtas įgūdis tikrinamas pagal prisegtą SHA-256 kiekvieną kartą, kai yra
+   įkeliamas; pakeistas failas padaro jį neprieinamą.
 
-Turinys gaunamas tik iš viešų GitHub repozitorijų fiksuotoje 40 simbolių revizijoje, o įgūdžio ir licencijos failai prisegti SHA-256 maiša. Šioje versijoje nėra privačių repozitorijų palaikymo, archyvų išpakavimo, diegimo scenarijų ar vykdomųjų/MCP papildinių importavimo. Eyebrow siunčiamas tik atskiras SKILL.md failas; vietiniai pokalbiai, darbo srities failai, prisijungimo duomenys ir licencijos turinys skenuoti neteikiami.
+Vietinė patikra yra statinis fiksuotų baitų skaitymas, o ne saugumo ar atsakymų kokybės garantija.
+Kitų kūrėjų įgūdžiai niekada neina šiuo keliu.
 
-Atsisiųsti failai lieka neaktyvūs iki peržiūros ir priėmimo. Vietoje autentifikuoti kvitai susieja ataskaitą su prisegtu turiniu. Diegimas atmeta nebegaliojančias peržiūras (24 valandos), pakeistus paruoštus failus ir jau esamus paskirties katalogus. Prieš įtraukdama valdomą įgūdį į modelio kontekstą, vykdymo aplinka patikrina gyvavimo ciklo būseną ir peržiūrėtus baitus. Pridėti failai, simbolinės nuorodos ar pakeistas turinys padaro jį neprieinamą. Nurodymai įterpiami visi arba aiškiai pažymima, kad jie praleisti dėl nepakankamo užklausos biudžeto; nuskenuotos instrukcijos tyliai netrumpinamos.
+## Vieši įgūdžiai
 
-Šios patikros neizoliuoja kenkėjiško kodo, kuris jau vykdomas operacinės sistemos naudotojo vardu. Jos netaikomos anksčiau rankiniu būdu įdiegtiems papildiniams. Skenavimo kvitas nesuteikia jokio naujo vykdymo leidimo ar įgaliojimų piniginėje.
+Pasirinkite viešą GitHub įgūdį fiksuotoje revizijoje ir patvirtinkite jo turinio atsisiuntimą. VOOL patikrina
+jį šiame įrenginyje su `core/local_scan.py`. Jei įjungto skenerio papildinio nėra, puslapis paaiškina,
+kad patikros liko šiame įrenginyje. Šiam keliui skenerio rakto nereikia.
 
-## API ir nesėkmių tvarkymas
+Įjungtas skenerio papildinys, kai paprašoma nuskaitymo, taip pat gauna viešo įgūdžio turinį. Tai
+gali naudoti jo paslaugos kvotą. Vietiniai pokalbiai, privatūs darbo erdvės failai ir kiti prisijungimo duomenys
+nesiunčiami. Rakto išsaugojimas ir Priedų atidarymas neatlieka nei ryšio testo, nei nuskaitymo užklausos.
+Automatinių užklausų kartojimų nėra.
 
-`GET /api/addons` grąžina katalogą ir vietinę būseną be ryšio patikros ir be skenavimo. `POST /api/addons` palaiko `save_key`, `remove_key`, `test_key`, `scan`, `install` ir `reject`. Būseną keičiančioms operacijoms reikia užklausų per loopback sąsają, JSON formatu ir iš tos pačios kilmės naršyklės; priimami tik konkrečiai operacijai skirti laukai. Kvietėjo pateikti šaltinio URL ir keliai atmetami.
+Radinius skaitykite ir diegimą priimkite atskirai. Ataskaitos patvirtinimui reikia visiškos aprėpties
+ir galiojančių radinių. Sėkminga ataskaita neturi radinių ir politikos pažeidimų. Atskirai siūlomas
+rizikos priėmimas susiejamas su peržiūrėta versija; jis niekada nekeičia ataskaitos ir nesuteikia daugiau prieigos.
+Pasibaigusios peržiūros, pakeisti parengto atsisiuntimo baitai, nuorodos ir konfliktuojantys tiksliniai aplankai atmetami.
+Kvitai susieja visą įdiegtą distribuciją. Pakeisti failai atšaukia prieinamumą vykdymo metu.
+Įgūdžio nurodymai įterpiami visi arba aiškiai praleidžiami, kai netelpa į raginimo biudžetą.
 
-Klientas naudoja Eyebrow v1 užklausą su įterptu įgūdžio šaltiniu adresu `/v1/scan`, su bearer autentifikavimu, fiksuota HTTPS kilme, be peradresavimų, su ribotu atsakymo dydžiu ir be automatinių pakartotinių bandymų. `/v1/version` naudojamas aiškiai ryšio patikrai. API dokumentacija: https://eyebrow.cc/api/reference .
+## Pasirenkami skeneriai
 
-Tipiškos tipizuotos nesėkmės:
+Nuotolinis skeneris yra pasirenkamas. Kai joks skenerio papildinys neįjungtas, ar įgūdį galima įdiegti,
+sprendžia paties VOOL patikra šiame įrenginyje; ankstesnės versijos vietoj to reikalavo nuotolinio nuskaitymo.
 
-| Kodas | Reikšmė / atkūrimas |
-| --- | --- |
-| `eyebrow_key_missing` / `eyebrow_unauthorized` | Išsaugokite arba pakeiskite raktą. |
-| `eyebrow_quota` | Prieš bandydami dar kartą, peržiūrėkite paslaugos limitą. |
-| `eyebrow_timeout` / `eyebrow_unreachable` | Automatinio pakartotinio bandymo nėra; skenavimas, kuriam baigėsi laikas, vis tiek gali sunaudoti limitą. |
-| `eyebrow_invalid_report` / `eyebrow_no_coverage` | Įrodymai neišsamūs; niekas neįjungiama. |
-| `addon_source_changed` / `addon_changed` | Prisegti arba peržiūrėti baitai skiriasi; jų neaktyvuokite. |
-| `review_untrusted` / `review_expired` | Prieš diegdami gaukite naują peržiūrą. |
-| `addon_already_installed` | Esami failai išsaugoti. Automatinis pakeitimas neįgyvendintas. |
+Norėdami jį pridėti, įdiekite skenerio papildinį iš jo kūrėjo per skiltį Papildiniai, išsaugokite savo
+raktą, peržiūrėkite prieigą ir jį įjunkite. Jo deklaracija nurodo kelią aiškiam ryšio testui
+ir kelią užsakytam nuskaitymui, o šias užklausas atlieka bendras savasis papildinių transportas.
+VOOL neturi įtaisyto skenerio kliento ar centrinio skenerio rakto nustatymo ir nesiūlo savo
+skenerio papildinio. Iš senesnio VOOL išsaugotas Eyebrow raktas lieka šiame kompiuteryje ir nenaudojamas.
+Identifikatoriai `vool-plugin-eyebrow` ir `vool-plugin-usepod` yra rezervuoti; kitas paketas, kuris pretenduoja
+į vieną iš jų, atmetamas dar prieš peržiūrą.
 
-## Dabartiniai apribojimai ir patikra
+Paties VOOL patikra šiame įrenginyje vykdoma visada. Skenerio papildinio ataskaita pridedama šalia jos:
+jei bet kuri iš jų randa problemą, diegimas blokuojamas, o papildinio ataskaita turi nurodyti tikslų
+patikrintą turinį. Skenerio papildinys niekada negali pats patvirtinti diegimo.
 
-Nėra automatinio atnaujinimo, bet kokių katalogų importavimo ar esamo pakeisto paketo taisymo / pakartotinio diegimo vietoje proceso. Laukiančių peržiūrų atkūrimas po programos paleidimo iš naujo sąsajoje nepasiekiamas. Nauji sąsajos tekstai šiuo metu turi atsarginę anglišką versiją; išsamūs vertimai neteigiami.
+Įjungtas skeneris su trūkstamu ar atmestu raktu aiškiai baigiasi klaida. VOOL niekada tyliai nepakeičia
+užsakyto nuotolinio nuskaitymo sėkmingu vietiniu rezultatu. Skirtojo laiko pabaigos, paslaugos klaidos, peradresavimai,
+per dideli atsakymai ir neišsamios ataskaitos palieka diegimą nepriimtą. Užklausa, kuriai baigėsi skirtasis laikas,
+vis tiek galėjo sunaudoti paslaugos kvotą.
 
-Automatiniai testai išbando tikrą gyvavimo ciklą, įgūdžių įkėlimą, API doroklius ir pateikiamą naršyklės sąsają su aiškiai imituotais viešais atsisiuntimais ir Eyebrow atsakymais. Jie įrodo vykdymo aplinkos ir sąsajos elgseną, o ne realų Eyebrow pasiekiamumą ar modelio kompetenciją. Tikras skenavimas su raktu ir įtaisytos supakuotos programos priėmimas lieka išleidimo patikromis. Šiems testams paleisti nereikia jokio rakto ar mokamo paslaugos iškvietimo.
+## Vykdomieji paketai ir parduotuvės peržiūra
+
+Papildiniams taikoma visa vietinio aplanko arba prisegto viešo GitHub paketo peržiūra, atskira nuo
+tik tekstinių įgūdžių importavimo. Diegimas nevykdo jokio paketo kodo ir palieka jį išjungtą. Parduotuvės papildiniams
+taip pat reikia esamo pasirašyto kvito ir visos distribucijos maišos. Įjungimui reikia
+atskiro prieigos lapo, apimančio įrankius, poveikius, tikslius pagrindinius kompiuterius (hostus), prisijungimo duomenų lizdus ir pridėtus serverius.
+
+Vykdomasis kodas iškvietimo metu gauna tik savo deklaruotus raktus. Jis negali skaityti kito
+papildinio lizdų, savininko mokamų modelių raktų ar piniginės pasirašymo, limitų, patvirtinimo ar kvitų įgaliojimų.
+Jo išvestis lieka nepatikima. Pakeisti baitai atšaukia sutikimą; išjungimas sustabdo iškvietimus. Nepalaikoma
+izoliacija atsisako vykdyti. Vykdymo aplinkos ribos aprašytos puslapyje [Papildinių kūrimas](../../../guides/plugin-authoring.md).
+
+Jei VOOL negali perskaityti savo papildinių įrašų, paketai, apie kuriuos jis neturi įrašo, nustoja siūlyti įgūdžius, išskyrus
+tuos, kurie pateikiami su VOOL, o sugadintas failas paliekamas šalia naujojo. Jei jis negali perskaityti
+jūsų įjungimo ir išjungimo pasirinkimų, kiekvienas papildinys laikomas išjungtu, kol vėl jį įjungsite.
+
+## Vietinė API ir transportas
+
+`GET /api/addons` skaito sąrašą. Pakeitimams per `POST /api/addons` reikia savininko vietinės prieigos,
+JSON, tos pačios kilmės naršyklės užklausų ir veiksmui būdingų laukų. Papildinių įjungimo / išjungimo ir gyvavimo ciklo
+durys (`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) taiko tą pačią JSON ir
+tos pačios kilmės taisyklę. Viešų šaltinių atsisiuntimai naudoja
+tikslias revizijas ir ribotus patikrintus blobus. Savosioms paslaugoms reikia deklaruotų viešų HTTPS pagrindinių kompiuterių;
+jos tikrina TLS, prisega išspręstus viešus adresus, atmeta peradresavimus, riboja atsakymus ir sustoja, kai
+papildinys išjungiamas.
+
+Vietinės netikros HTTPS paslaugos gali patikrinti transportą ir klaidų tvarkymą be mokamų iškvietimų. Jos
+neįrodo realios paslaugos patikimumo, atsiskaitymo, modelių kompetencijos ar diegimo kitose
+programose. Tam reikia atskiro patikrinimo.

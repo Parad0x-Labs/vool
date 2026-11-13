@@ -1,48 +1,101 @@
 ---
 translation: machine
-source_sha256: 671f147e5d9649b6c2b7c2d391ea085120e783a8ace29f92ac8c3d5ecb4407eb
+source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
 ---
-# Descubrir habilidades y análisis de Eyebrow
+# Comprobaciones de complementos
 
-La página Habilidades y plugins tiene cuatro pestañas: **Explorar**, **Códice de habilidades**, **Mis complementos** y **Seguridad**. Explorar muestra primero las habilidades propias de VOOL, incluidas 53 habilidades de VOOL de solo texto que vienen con la app, después los complementos revisados del catálogo, y puede consultar un repositorio público de GitHub en una revisión fijada. Códice de habilidades muestra primero las habilidades del equipo de VOOL, por encima de las selecciones editoriales y las habilidades destacadas. La búsqueda ignora las mayúsculas y los separadores habituales; los controles de categoría y de orden acotan la lista. El origen, la licencia, la revisión y los requisitos se ven antes de descargar.
+Complementos mantiene separados explorar, inspeccionar e instalar. Un análisis describe unos bytes concretos;
+no es una garantía de seguridad, un respaldo del editor, un permiso de ejecución ni una aprobación del monedero.
 
-## Primer uso
+Explorar muestra primero las habilidades propias de VOOL, incluidas 75 habilidades de VOOL que vienen con la app (22 de ellas
+usan herramientas de VOOL, que solo restringen lo que VOOL ya ofrece), y después los complementos revisados del catálogo. Códice de habilidades muestra primero las habilidades del equipo de VOOL, por encima de las
+selecciones editoriales y las habilidades destacadas.
 
-1. Guarda una clave API de Eyebrow en la pestaña Seguridad, también disponible en Ajustes → Claves API. La clave queda en manos del almacén de credenciales existente. Guardarla no prueba la conexión ni analiza nada; Probar conexión contacta con Eyebrow de forma explícita.
-2. En Explorar, elige una habilidad y aprueba descargar su contenido público y enviar ese contenido a Eyebrow. Esto consume la cuota de análisis del servicio según tu plan. No hay reintentos automáticos.
-3. Lee el informe que se devuelve. Una respuesta HTTP correcta no es por sí sola un resultado limpio. Este catálogo inicial solo permite la instalación con un informe `pass` completo, sin hallazgos y sin infracciones de la política. Rechazar descarta la descarga preparada sin instalarla.
-4. Acepta la instalación por separado. VOOL conserva la licencia, instala mediante su ciclo de vida de plugins existente, verifica el paquete exacto revisado y activa la habilidad. Los permisos existentes siguen controlando cada acción que pueda sugerir.
+## Habilidades hechas por VOOL: la comprobación local
 
-Un análisis es la evaluación de un proveedor sobre unos bytes concretos, no una garantía de seguridad, de compatibilidad ni de calidad de las respuestas. Estar incluido en el catálogo no es una certificación del editor.
+Las 75 habilidades hechas por VOOL vienen dentro de la app, cada una fijada por SHA-256 en el directorio propio de VOOL y
+revisada cuando se publica VOOL. Para ellas, **Añadir esta habilidad** ejecuta solo la comprobación local de VOOL: sin clave,
+sin cuota de análisis y sin ninguna petición de red.
 
-## Límites
+1. VOOL lee la habilidad y la licencia de la copia propia de la app y las rechaza salvo que su SHA-256
+   coincida con el valor fijado (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was
+   not added.*).
+2. La comprobación local de VOOL lee la habilidad en busca de instrucciones arriesgadas y muestra el resultado. Un resultado limpio
+   se puede añadir con **Añadir y activar**; cualquier cosa que señale necesita tu visto bueno aparte y explícito para
+   esa versión exacta. **Rechazar** la descarta.
+3. Después, la instalación sigue el mismo ciclo de vida que las demás habilidades: los archivos exactos se instalan,
+   se verifican y se activan. La habilidad instalada se compara con su SHA-256 fijado cada vez que se
+   carga; un archivo cambiado la deja no disponible.
 
-El contenido solo procede de repositorios públicos de GitHub en una revisión fija de 40 caracteres, con los archivos de la habilidad y de la licencia fijados por SHA-256. En esta versión no hay repositorios privados, extracción de archivos comprimidos, scripts de instalación ni importador de plugins ejecutables o MCP. Solo se envía a Eyebrow el SKILL.md independiente; los chats locales, los archivos del espacio de trabajo, las credenciales y el contenido de las licencias no se envían para su análisis.
+La comprobación local es una lectura estática de unos bytes fijos, no una garantía de seguridad ni de calidad de las respuestas.
+Las habilidades de otros creadores nunca siguen este camino.
 
-Las descargas permanecen inertes hasta la revisión y la aceptación. Unos recibos autenticados localmente vinculan el informe al contenido fijado. La instalación rechaza las revisiones caducadas (24 horas), los archivos preparados modificados y los directorios de destino existentes. El entorno de ejecución comprueba el estado del ciclo de vida y los bytes revisados antes de añadir una habilidad gestionada al contexto del modelo. Los archivos añadidos, los enlaces simbólicos o el contenido cambiado la dejan no disponible. Las indicaciones se insertan completas o se registra de forma explícita que se omitieron por falta de presupuesto de prompt; las instrucciones analizadas no se truncan en silencio.
+## Habilidades públicas
 
-Estas comprobaciones no aíslan el código malicioso que ya se esté ejecutando como el usuario del sistema operativo. No se extienden a los plugins instalados manualmente con anterioridad. Un recibo de análisis no concede ningún permiso de ejecución nuevo ni ninguna autoridad sobre el monedero.
+Elige una habilidad pública de GitHub en una revisión fija y aprueba la descarga de su contenido. VOOL la comprueba
+en este dispositivo con `core/local_scan.py`. Sin un plugin analizador activado, la página explica
+que las comprobaciones se quedaron en este dispositivo. Para este camino no hace falta ninguna clave de analizador.
 
-## API y gestión de fallos
+Un plugin analizador activado también recibe el contenido de la habilidad pública cuando se solicita un análisis. Esto
+puede consumir la cuota de su servicio. Los chats locales, los archivos privados del espacio de trabajo y otras credenciales no
+se envían. Guardar una clave y abrir Complementos no hacen ninguna prueba de conexión ni petición de análisis. No hay
+reintentos automáticos de las peticiones.
 
-`GET /api/addons` devuelve el catálogo y el estado local sin probar la conexión ni analizar nada. `POST /api/addons` admite `save_key`, `remove_key`, `test_key`, `scan`, `install` y `reject`. Las operaciones que modifican algo requieren peticiones por loopback, en JSON y, desde el navegador, del mismo origen; solo se aceptan los campos propios de cada operación. Se rechazan las URL de origen y las rutas que aporte quien llama.
+Lee los hallazgos y acepta la instalación por separado. La validación del informe requiere una cobertura completa
+y hallazgos válidos. Un informe aprobado no tiene hallazgos ni infracciones de la política. Una aceptación del riesgo
+ofrecida por separado vincula la versión revisada; nunca cambia el informe ni concede más acceso.
+Se rechazan las revisiones caducadas, los bytes preparados cambiados, los enlaces y las carpetas de destino en conflicto.
+Los recibos vinculan la distribución instalada completa. Los archivos cambiados retiran la disponibilidad en ejecución.
+Las indicaciones de una habilidad se insertan completas o se omiten de forma explícita cuando no caben en el presupuesto de prompt.
 
-El cliente usa la petición de Eyebrow v1 con el código de la habilidad incluido en `/v1/scan`, con autenticación bearer, un origen HTTPS fijo, sin redirecciones, con un tamaño de respuesta limitado y sin reintentos automáticos. `/v1/version` se usa para la prueba de conexión explícita. Referencia de la API: https://eyebrow.cc/api/reference .
+## Analizadores opcionales
 
-Entre los fallos tipificados habituales están:
+Un analizador remoto es opcional. Sin ningún plugin analizador activado, la comprobación propia de VOOL en este dispositivo
+decide si una habilidad se puede instalar; las versiones anteriores exigían en su lugar un análisis remoto.
 
-| Código | Significado / recuperación |
-| --- | --- |
-| `eyebrow_key_missing` / `eyebrow_unauthorized` | Guarda o sustituye la clave. |
-| `eyebrow_quota` | Revisa la cuota del servicio antes de reintentar. |
-| `eyebrow_timeout` / `eyebrow_unreachable` | Sin reintento automático; un análisis que agotó el tiempo de espera puede consumir cuota igualmente. |
-| `eyebrow_invalid_report` / `eyebrow_no_coverage` | Las pruebas están incompletas; no se activa nada. |
-| `addon_source_changed` / `addon_changed` | Los bytes fijados o revisados no coinciden; no los actives. |
-| `review_untrusted` / `review_expired` | Obtén una revisión nueva antes de instalar. |
-| `addon_already_installed` | Se conservaron los archivos existentes. La sustitución automática no está implementada. |
+Para añadir uno, instala un plugin analizador de su creador desde la sección Extensiones, guarda tu propia
+clave, revisa el acceso y actívalo. Su declaración nombra una ruta para una prueba de conexión explícita
+y una ruta para los análisis solicitados, y el transporte nativo compartido de plugins hace esas peticiones.
+VOOL no tiene un cliente analizador integrado ni un ajuste central de clave de analizador, y no ofrece ningún plugin analizador
+propio. Una clave de Eyebrow guardada por una versión anterior de VOOL sigue en este ordenador y no se usa. Los
+identificadores `vool-plugin-eyebrow` y `vool-plugin-usepod` están reservados; otro paquete que reclame
+uno de ellos se rechaza antes de la revisión.
 
-## Limitaciones actuales y verificación
+La comprobación propia de VOOL en este dispositivo siempre se ejecuta. El informe de un plugin analizador se añade junto a ella:
+si cualquiera de los dos encuentra un problema, la instalación se bloquea, y el informe de un plugin debe nombrar el contenido exacto
+que se comprobó. Un plugin analizador nunca puede aprobar una instalación por sí solo.
 
-No hay actualización automática, ni importador de catálogos arbitrarios, ni un flujo de reparación o reinstalación en el sitio para un paquete existente que haya cambiado. La recuperación de una revisión pendiente después de reiniciar la app no está disponible en la interfaz. Los textos nuevos de la interfaz se muestran de momento en inglés como alternativa; no se afirma que las traducciones estén completas.
+Un analizador activado cuya clave falta o se rechaza falla de forma clara. VOOL nunca sustituye en silencio
+ese análisis remoto solicitado por un resultado local aprobado. Los tiempos de espera agotados, los errores del servicio, las redirecciones,
+las respuestas demasiado grandes y los informes incompletos dejan la instalación sin aceptar. Una petición que agotó el tiempo de espera
+puede haber consumido igualmente cuota del servicio.
 
-Las pruebas automatizadas ejercitan el ciclo de vida real, la carga de habilidades, los manejadores de la API y la interfaz servida en el navegador, con descargas públicas y respuestas de Eyebrow simuladas de forma explícita. Demuestran el comportamiento del entorno de ejecución y de la interfaz, no la disponibilidad real de Eyebrow ni la competencia del modelo. Un análisis real con una clave y la aceptación en la app empaquetada nativa siguen siendo comprobaciones de la publicación. No hace falta ninguna clave ni ninguna llamada a un servicio de pago para ejecutar estas pruebas.
+## Paquetes ejecutables y revisión de la tienda
+
+Los plugins usan una revisión completa del paquete, de una carpeta local o de un paquete público de GitHub fijado, separada del
+importador de habilidades de solo texto. La instalación no ejecuta código del paquete y lo deja desactivado. Los plugins de la tienda
+también requieren el recibo firmado existente y el resumen criptográfico de la distribución completa. La activación requiere una
+hoja de acceso aparte que cubra herramientas, efectos, hosts exactos, ranuras de credenciales y servidores incluidos.
+
+El código ejecutable recibe solo sus propias claves declaradas al invocarse. No puede leer las ranuras de otro
+plugin, las claves de modelos de pago del propietario ni tiene autoridad sobre la firma, el límite, la aprobación o los recibos del monedero.
+Su salida sigue sin ser de confianza. Los bytes cambiados retiran el consentimiento; desactivar detiene las llamadas. Un confinamiento
+no compatible impide la ejecución. Consulta [Crear plugins](../../../guides/plugin-authoring.md) para ver los límites de ejecución.
+
+Si VOOL no puede leer sus registros de plugins, los paquetes de los que no tiene registro dejan de ofrecer habilidades, salvo
+las que vienen con VOOL, y el archivo dañado se conserva junto al nuevo. Si no puede leer
+tus elecciones de activar y desactivar, todos los plugins cuentan como desactivados hasta que vuelvas a activar alguno.
+
+## API local y transporte
+
+`GET /api/addons` lee el inventario. Las modificaciones en `POST /api/addons` requieren acceso local del propietario,
+JSON, peticiones del navegador del mismo origen y campos propios de cada acción. Los accesos de activación y de ciclo de vida de los plugins
+(`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) aplican la misma regla de JSON y de
+mismo origen. Las descargas de fuentes públicas usan
+revisiones exactas y blobs verificados de tamaño limitado. Los servicios nativos requieren hosts HTTPS públicos declarados,
+validan TLS, fijan las direcciones públicas resueltas, rechazan redirecciones, limitan las respuestas y se detienen cuando
+el plugin se desactiva.
+
+Los servicios HTTPS locales simulados pueden verificar el transporte y la gestión de errores sin llamadas de pago. No
+demuestran la fiabilidad real del servicio, la facturación, la competencia del modelo ni la instalación dentro de otras
+aplicaciones. Eso requiere una verificación aparte.

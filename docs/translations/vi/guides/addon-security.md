@@ -1,48 +1,51 @@
 ---
 translation: machine
-source_sha256: 671f147e5d9649b6c2b7c2d391ea085120e783a8ace29f92ac8c3d5ecb4407eb
+source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
 ---
-# Khám phá kỹ năng và kiểm tra Eyebrow
+# Kiểm tra tiện ích
 
-Trang Kỹ năng và Plugin có bốn thẻ: **Duyệt**, **Bộ sưu tập kỹ năng**, **Tiện ích của tôi** và **Bảo mật**. Duyệt liệt kê các kỹ năng của chính VOOL trước, gồm 53 kỹ năng VOOL chỉ có văn bản đi kèm ứng dụng, sau đó là các tiện ích đã được xem xét trong danh mục, và có thể tra cứu một kho GitHub công khai tại một bản sửa đổi (revision) được ghim. Bộ sưu tập kỹ năng liệt kê các kỹ năng của đội ngũ VOOL trước, phía trên mục biên tập viên chọn và các kỹ năng nổi bật. Tìm kiếm bỏ qua chữ hoa chữ thường và các ký tự phân cách thông dụng; các nút chọn danh mục và sắp xếp giúp thu hẹp danh sách. Nguồn, giấy phép, bản sửa đổi và yêu cầu đều hiển thị trước khi tải về.
+Tiện ích giữ việc duyệt, kiểm tra và cài đặt tách biệt nhau. Một lần quét mô tả những byte cụ thể; đó không phải là bảo đảm an toàn, sự chứng thực cho nhà phát hành, quyền khi chạy hay sự phê duyệt của ví.
 
-## Lần dùng đầu tiên
+Duyệt liệt kê các kỹ năng của chính VOOL trước, gồm 75 kỹ năng VOOL đi kèm ứng dụng (22 kỹ năng trong số đó dùng công cụ của VOOL, và các công cụ này chỉ thu hẹp những gì VOOL vốn đã cung cấp), sau đó là các tiện ích đã được xem xét trong danh mục. Bộ sưu tập kỹ năng liệt kê các kỹ năng của đội ngũ VOOL trước, phía trên mục biên tập viên chọn và các kỹ năng nổi bật.
 
-1. Lưu một khóa API Eyebrow trong thẻ Bảo mật, cũng có trong Cài đặt → Khóa API. Kho thông tin đăng nhập hiện có quản lý khóa này. Việc lưu không kiểm tra kết nối hay quét bất cứ thứ gì; chỉ nút Kiểm tra kết nối mới liên hệ với Eyebrow một cách tường minh.
-2. Trong Duyệt, chọn một kỹ năng và chấp thuận việc tải nội dung công khai của nó về và gửi nội dung đó tới Eyebrow. Việc này tiêu tốn hạn mức quét của dịch vụ theo gói của bạn. Không có lần thử lại tự động nào.
-3. Đọc báo cáo trả về. Chỉ một phản hồi HTTP thành công không có nghĩa là kết quả sạch. Danh mục ban đầu này chỉ cho phép cài đặt khi có báo cáo `pass` đầy đủ, không có phát hiện nào và không vi phạm chính sách nào. Nút Từ chối bỏ bản tải về đang chờ mà không cài đặt nó.
-4. Chấp nhận việc cài đặt như một bước riêng. VOOL giữ nguyên giấy phép, cài đặt thông qua vòng đời plugin hiện có của nó, xác minh đúng gói đã được xem xét và bật kỹ năng. Các quyền hiện có vẫn chi phối mọi hành động mà kỹ năng có thể gợi ý.
+## Kỹ năng do VOOL làm: bước kiểm tra cục bộ
 
-Một lần quét là đánh giá của một nhà cung cấp dịch vụ về những byte cụ thể, không phải là sự bảo đảm về độ an toàn, tính tương thích hay chất lượng câu trả lời. Việc được đưa vào danh mục không phải là chứng nhận cho nhà phát hành.
+75 kỹ năng do VOOL làm được phát hành bên trong ứng dụng, mỗi kỹ năng được ghim bằng SHA-256 trong thư mục riêng của VOOL và được xem xét khi VOOL phát hành. Với các kỹ năng này, **Thêm kỹ năng này** chỉ chạy bước kiểm tra cục bộ của VOOL: không cần khóa, không tốn hạn mức quét và không có yêu cầu mạng nào.
 
-## Ranh giới
+1. VOOL đọc kỹ năng và giấy phép từ bản sao riêng của ứng dụng và từ chối chúng nếu SHA-256 của chúng không khớp với giá trị đã ghim (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+2. Bước kiểm tra cục bộ của VOOL đọc kỹ năng để tìm các chỉ dẫn rủi ro và hiển thị kết quả. Một kết quả sạch có thể được thêm bằng **Thêm và bật**; bất cứ thứ gì bị gắn cờ đều cần bạn đồng ý riêng và tường minh cho đúng phiên bản đó. **Từ chối** sẽ loại bỏ nó.
+3. Sau đó việc cài đặt đi theo cùng vòng đời như các kỹ năng khác: đúng các tệp đó được cài, xác minh và bật. Kỹ năng đã cài được đối chiếu với SHA-256 đã ghim mỗi lần nó được nạp; một tệp bị thay đổi sẽ khiến kỹ năng không khả dụng.
 
-Nội dung chỉ đến từ các kho GitHub công khai tại một bản sửa đổi cố định dài 40 ký tự, với các tệp kỹ năng và tệp giấy phép được ghim bằng SHA-256. Phiên bản này không hỗ trợ kho riêng tư, không giải nén tệp lưu trữ, không có tập lệnh cài đặt và không có trình nhập plugin thực thi/MCP. Chỉ tệp SKILL.md độc lập được gửi tới Eyebrow; các cuộc trò chuyện cục bộ, tệp trong không gian làm việc, thông tin đăng nhập và nội dung giấy phép không được gửi đi để quét.
+Bước kiểm tra cục bộ là một lần đọc tĩnh các byte cố định, không phải bảo đảm về an toàn hay chất lượng câu trả lời. Kỹ năng của những người làm khác không bao giờ đi theo con đường này.
 
-Các bản tải về vẫn bất hoạt cho đến khi được xem xét và chấp nhận. Các biên nhận được xác thực cục bộ ràng buộc báo cáo với nội dung đã ghim. Việc cài đặt từ chối các lần xem xét đã hết hạn (24 giờ), các tệp đang chờ đã bị sửa đổi và các thư mục đích đã tồn tại. Runtime kiểm tra trạng thái vòng đời và các byte đã xem xét trước khi thêm một kỹ năng được quản lý vào ngữ cảnh của mô hình. Tệp được thêm vào, liên kết tượng trưng hoặc nội dung bị thay đổi sẽ khiến kỹ năng đó không khả dụng. Phần hướng dẫn được chèn trọn vẹn hoặc được ghi lại một cách tường minh là đã bị bỏ qua vì không đủ ngân sách lời nhắc; các hướng dẫn đã quét không bị cắt bớt một cách lặng lẽ.
+## Kỹ năng công khai
 
-Các bước kiểm tra này không cách ly mã độc đã đang chạy dưới quyền người dùng hệ điều hành. Chúng không áp dụng cho các plugin đã được cài thủ công từ trước. Biên nhận quét không cấp thêm quyền thực thi mới hay quyền hạn nào đối với ví.
+Chọn một kỹ năng GitHub công khai tại một bản sửa đổi (revision) cố định và đồng ý tải nội dung của nó về. VOOL kiểm tra nó trên thiết bị này bằng `core/local_scan.py`. Khi không có plugin quét nào được bật, trang sẽ giải thích rằng các bước kiểm tra chỉ diễn ra trên thiết bị này. Con đường này không cần khóa của trình quét.
 
-## API và xử lý lỗi
+Một plugin quét đã bật cũng nhận nội dung kỹ năng công khai khi có yêu cầu quét. Việc này có thể tiêu tốn hạn mức dịch vụ của nó. Các cuộc trò chuyện cục bộ, tệp riêng trong không gian làm việc và các thông tin xác thực khác không được gửi đi. Lưu khóa và mở Tiện ích không tạo ra yêu cầu kiểm tra kết nối hay yêu cầu quét nào. Không có việc tự động thử lại yêu cầu.
 
-`GET /api/addons` trả về danh mục và trạng thái cục bộ mà không kiểm tra kết nối hay quét. `POST /api/addons` hỗ trợ `save_key`, `remove_key`, `test_key`, `scan`, `install` và `reject`. Các yêu cầu thay đổi phải là yêu cầu loopback, JSON và từ trình duyệt cùng nguồn gốc (same-origin); chỉ các trường riêng của từng thao tác được chấp nhận. URL nguồn và đường dẫn do bên gọi cung cấp đều bị từ chối.
+Đọc các phát hiện và chấp nhận việc cài đặt một cách riêng biệt. Việc xác thực báo cáo đòi hỏi phạm vi bao phủ đầy đủ và các phát hiện hợp lệ. Một báo cáo đạt không có phát hiện hay vi phạm chính sách nào. Việc chấp nhận rủi ro được đưa ra riêng sẽ ràng buộc với phiên bản đã xem xét; nó không bao giờ thay đổi báo cáo hay cấp thêm quyền truy cập. Các lần xem xét đã hết hạn, byte trong vùng chuẩn bị bị thay đổi, liên kết và thư mục đích bị xung đột đều bị từ chối. Biên nhận ràng buộc toàn bộ bản phân phối đã cài. Các tệp bị thay đổi sẽ rút lại khả năng dùng khi chạy. Hướng dẫn của kỹ năng được chèn nguyên vẹn hoặc được bỏ qua một cách tường minh khi không vừa ngân sách lời nhắc.
 
-Máy khách dùng yêu cầu nguồn kỹ năng nội tuyến của Eyebrow v1 tại `/v1/scan`, với xác thực bearer, một nguồn gốc HTTPS cố định, không chuyển hướng, kích thước phản hồi có giới hạn và không tự động thử lại. `/v1/version` được dùng cho bước kiểm tra kết nối tường minh. Tài liệu tham khảo API: https://eyebrow.cc/api/reference .
+## Trình quét tùy chọn
 
-Các lỗi có kiểu xác định thường gặp gồm:
+Trình quét từ xa là tùy chọn. Khi không có plugin quét nào được bật, bước kiểm tra của chính VOOL trên thiết bị này quyết định một kỹ năng có thể được cài hay không; các phiên bản trước thì đòi hỏi một lần quét từ xa.
 
-| Mã | Ý nghĩa / cách khắc phục |
-| --- | --- |
-| `eyebrow_key_missing` / `eyebrow_unauthorized` | Lưu hoặc thay khóa. |
-| `eyebrow_quota` | Xem lại hạn mức dịch vụ trước khi thử lại. |
-| `eyebrow_timeout` / `eyebrow_unreachable` | Không tự động thử lại; một lần quét bị quá thời gian vẫn có thể tiêu tốn hạn mức. |
-| `eyebrow_invalid_report` / `eyebrow_no_coverage` | Bằng chứng chưa đầy đủ; không có gì được bật. |
-| `addon_source_changed` / `addon_changed` | Các byte đã ghim hoặc đã xem xét khác đi; đừng kích hoạt chúng. |
-| `review_untrusted` / `review_expired` | Hãy lấy một lần xem xét mới trước khi cài đặt. |
-| `addon_already_installed` | Các tệp hiện có được giữ nguyên. Việc thay thế tự động chưa được triển khai. |
+Để thêm một trình quét, hãy cài plugin quét từ người làm ra nó qua mục Plugin, lưu khóa của riêng bạn, xem xét quyền truy cập rồi bật nó. Phần khai báo của nó nêu một đường dẫn cho việc kiểm tra kết nối tường minh và một đường dẫn cho việc quét được yêu cầu, và lớp truyền tải plugin gốc dùng chung sẽ gửi các yêu cầu đó. VOOL không có ứng dụng khách trình quét tích hợp sẵn hay thiết lập khóa trình quét tập trung, và không cung cấp plugin quét nào của riêng mình. Một khóa Eyebrow đã lưu từ VOOL phiên bản cũ vẫn nằm trên máy tính này và không được dùng. Các id `vool-plugin-eyebrow` và `vool-plugin-usepod` đã được giữ chỗ; một gói khác nhận một trong hai id này sẽ bị từ chối trước khi xem xét.
 
-## Hạn chế hiện tại và kiểm chứng
+Bước kiểm tra của chính VOOL trên thiết bị này luôn chạy. Báo cáo của plugin quét được thêm bên cạnh nó: chỉ cần một trong hai phát hiện vấn đề là việc cài đặt bị chặn, và báo cáo của plugin phải nêu đúng nội dung đã được kiểm tra. Một plugin quét không bao giờ có thể tự mình phê duyệt một lần cài đặt.
 
-Hiện không có cập nhật tự động, trình nhập danh mục tùy ý hay quy trình sửa chữa/cài lại tại chỗ cho một gói hiện có đã bị thay đổi. Việc khôi phục các lần xem xét đang chờ sau khi khởi động lại ứng dụng chưa có trong giao diện. Các chuỗi giao diện mới hiện dùng tiếng Anh làm phương án dự phòng; không khẳng định đã dịch đầy đủ.
+Một trình quét đã bật mà thiếu khóa hoặc khóa bị từ chối sẽ thất bại một cách rõ ràng. VOOL không bao giờ lặng lẽ thay lần quét từ xa được yêu cầu đó bằng một kết quả cục bộ đạt. Hết thời gian chờ, lỗi dịch vụ, chuyển hướng, phản hồi quá cỡ và báo cáo không đầy đủ đều khiến việc cài đặt vẫn chưa được chấp nhận. Một yêu cầu bị hết thời gian chờ vẫn có thể đã tiêu tốn hạn mức dịch vụ.
 
-Các bài kiểm thử tự động chạy vòng đời thực, việc nạp kỹ năng, các trình xử lý API và giao diện trình duyệt được phục vụ, với các bản tải về công khai và phản hồi của Eyebrow được giả lập (mock) một cách tường minh. Chúng chứng minh hành vi của runtime và giao diện, không chứng minh Eyebrow đang hoạt động thực tế hay năng lực của mô hình. Một lần quét thật có dùng khóa và việc chấp nhận trên ứng dụng đóng gói gốc vẫn là các bước kiểm tra khi phát hành. Không cần khóa hay lệnh gọi dịch vụ trả phí nào để chạy các bài kiểm thử này.
+## Gói thực thi và xem xét của cửa hàng
+
+Plugin dùng một lần xem xét đầy đủ gói từ thư mục cục bộ hoặc gói GitHub công khai được ghim, tách biệt với trình nhập kỹ năng chỉ có văn bản. Việc cài đặt không chạy mã nào của gói và giữ gói ở trạng thái tắt. Plugin từ cửa hàng còn cần biên nhận đã ký hiện có và mã băm của toàn bộ bản phân phối. Việc bật đòi hỏi một bảng quyền truy cập riêng, bao gồm công cụ, tác động, đúng các máy chủ (host), ô thông tin xác thực và máy chủ đi kèm.
+
+Mã thực thi chỉ nhận các khóa do chính nó khai báo khi được gọi. Nó không thể đọc ô của plugin khác, khóa mô hình trả phí của chủ sở hữu, hay quyền ký, hạn mức, phê duyệt hoặc biên nhận của ví. Đầu ra của nó vẫn bị coi là không đáng tin. Byte thay đổi sẽ rút lại sự đồng ý; tắt sẽ dừng các lệnh gọi. Cách ly không được hỗ trợ sẽ khiến việc thực thi bị từ chối. Xem [Viết plugin](../../../guides/plugin-authoring.md) để biết các giới hạn khi chạy.
+
+Nếu VOOL không đọc được hồ sơ plugin của mình, các gói mà nó không có hồ sơ sẽ ngừng cung cấp kỹ năng, trừ những gói đi kèm VOOL, và tệp bị hỏng được giữ bên cạnh tệp mới. Nếu nó không đọc được các lựa chọn bật và tắt của bạn, mọi plugin đều được coi là tắt cho đến khi bạn bật lại.
+
+## API cục bộ và truyền tải
+
+`GET /api/addons` đọc danh mục hiện có. Các thao tác thay đổi tại `POST /api/addons` đòi hỏi quyền truy cập cục bộ của chủ sở hữu, JSON, yêu cầu trình duyệt cùng nguồn gốc và các trường riêng cho từng thao tác. Các cổng bật/tắt plugin và vòng đời (`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) áp dụng cùng quy tắc JSON và cùng nguồn gốc. Việc tải nguồn công khai về dùng đúng bản sửa đổi và các blob đã xác minh có giới hạn kích thước. Dịch vụ gốc đòi hỏi các máy chủ HTTPS công khai đã khai báo, xác thực TLS, ghim các địa chỉ công khai đã phân giải, từ chối chuyển hướng, giới hạn phản hồi và dừng lại khi plugin bị tắt.
+
+Các dịch vụ HTTPS giả lập cục bộ có thể kiểm chứng việc truyền tải và xử lý lỗi mà không cần lệnh gọi trả phí. Chúng không chứng minh độ tin cậy của dịch vụ thực tế, việc tính phí, năng lực của mô hình hay việc cài đặt bên trong các ứng dụng khác. Những điều đó cần được kiểm chứng riêng.

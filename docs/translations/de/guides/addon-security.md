@@ -1,48 +1,101 @@
 ---
 translation: machine
-source_sha256: 671f147e5d9649b6c2b7c2d391ea085120e783a8ace29f92ac8c3d5ecb4407eb
+source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
 ---
-# Skills entdecken und Eyebrow-Prüfungen
+# Add-on-Prüfungen
 
-Die Seite „Skills & Erweiterungen“ hat vier Tabs: **Durchsuchen**, **Fertigkeiten-Codex**, **Meine Add-ons** und **Sicherheit**. „Durchsuchen“ listet zuerst die eigenen Skills von VOOL, darunter 53 reine Text-Skills von VOOL, die mit der App gebündelt sind, dann die geprüften Add-ons des Katalogs, und kann ein öffentliches GitHub-Repository in einer festgelegten Revision abrufen. „Fertigkeiten-Codex“ listet zuerst die Skills des VOOL-Teams, vor der Auswahl der Redaktion und vorgestellten Skills. Die Suche ignoriert Groß- und Kleinschreibung und übliche Trennzeichen; Steuerelemente für Kategorie und Sortierung grenzen die Liste ein. Quelle, Lizenz, Revision und Voraussetzungen sind vor dem Herunterladen sichtbar.
+Der Bereich Zusatzmodule hält Durchsuchen, Prüfen und Installieren getrennt. Ein Scan beschreibt bestimmte Bytes;
+er ist keine Sicherheitsgarantie, keine Empfehlung des Herausgebers, keine Laufzeitberechtigung und keine Freigabe der Wallet.
 
-## Erste Nutzung
+„Durchsuchen“ listet zuerst die eigenen Skills von VOOL, darunter 75 mit der App gebündelte VOOL-Skills (22 davon
+nutzen VOOL-Werkzeuge, die nur eingrenzen, was VOOL ohnehin anbietet), dann die geprüften Add-ons des Katalogs. „Fertigkeiten-Codex“ listet zuerst die Skills des VOOL-Teams, vor der
+Auswahl der Redaktion und vorgestellten Skills.
 
-1. Speichere einen Eyebrow-API-Schlüssel im Tab „Sicherheit“, der auch unter Einstellungen → API-Schlüssel erreichbar ist. Der bestehende Zugangsdatenspeicher verwaltet den Schlüssel. Das Speichern testet weder die Verbindung, noch scannt es etwas; „Verbindung testen“ kontaktiert Eyebrow ausdrücklich.
-2. Wähle in „Durchsuchen“ einen Skill und erlaube, seinen öffentlichen Inhalt herunterzuladen und diesen Inhalt an Eyebrow zu senden. Das verbraucht Scan-Guthaben des Dienstes gemäß deinem Tarif. Es gibt keine automatischen Wiederholungen.
-3. Lies den zurückgegebenen Bericht. Eine erfolgreiche HTTP-Antwort allein ist kein sauberes Ergebnis. Dieser erste Katalog erlaubt die Installation nur mit einem vollständigen `pass`-Bericht, ohne Befunde und ohne Richtlinienverstöße. „Ablehnen“ verwirft den bereitgestellten Download, ohne ihn zu installieren.
-4. Akzeptiere die Installation separat. VOOL bewahrt die Lizenz, installiert über seinen bestehenden Plugin-Lebenszyklus, verifiziert genau das geprüfte Paket und aktiviert den Skill. Bestehende Berechtigungen regeln weiterhin jede Aktion, die er vorschlagen könnte.
+## Von VOOL gemachte Skills: die lokale Prüfung
 
-Ein Scan ist die Einschätzung bestimmter Bytes durch einen Drittanbieter, keine Garantie für Sicherheit, Kompatibilität oder Antwortqualität. Die Aufnahme in den Katalog ist keine Zertifizierung des Herausgebers.
+Die 75 von VOOL gemachten Skills werden in der App mitgeliefert, jeder per SHA-256 im eigenen Verzeichnis von VOOL festgelegt
+und bei der Veröffentlichung von VOOL geprüft. Für diese führt **Diesen Skill hinzufügen** nur die lokale Prüfung von VOOL aus: kein Schlüssel,
+kein Scan-Guthaben und keine Netzwerkanfrage.
 
-## Grenzen
+1. VOOL liest den Skill und die Lizenz aus der eigenen Kopie der App und lehnt sie ab, wenn ihr SHA-256
+   nicht mit dem festgelegten Wert übereinstimmt (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was
+   not added.*).
+2. Die lokale Prüfung von VOOL liest den Skill auf riskante Anweisungen hin und zeigt das Ergebnis. Ein sauberes Ergebnis
+   kannst du mit **Hinzufügen und einschalten** hinzufügen; alles, was sie markiert, braucht dein gesondertes, ausdrückliches OK für
+   genau diese Version. **Ablehnen** verwirft es.
+3. Die Installation folgt dann demselben Lebenszyklus wie bei anderen Skills: Die exakten Dateien werden installiert,
+   verifiziert und aktiviert. Der installierte Skill wird bei jedem Laden gegen seinen festgelegten SHA-256 geprüft;
+   eine geänderte Datei macht ihn nicht verfügbar.
 
-Inhalte kommen nur aus öffentlichen GitHub-Repositorys in einer festen, 40-stelligen Revision, mit per SHA-256 festgelegten Skill- und Lizenzdateien. In dieser Version gibt es keine privaten Repositorys, kein Entpacken von Archiven, kein Installationsskript und keinen Importer für ausführbare oder MCP-Plugins. Nur die eigenständige SKILL.md wird an Eyebrow gesendet; lokale Chats, Dateien im Arbeitsbereich, Zugangsdaten und Lizenzinhalte werden nicht zum Scannen übermittelt.
+Die lokale Prüfung ist ein statisches Lesen fester Bytes, keine Garantie für Sicherheit oder Antwortqualität.
+Skills anderer Hersteller nehmen nie diesen Weg.
 
-Downloads bleiben wirkungslos, bis sie geprüft und akzeptiert sind. Lokal authentifizierte Belege binden den Bericht an den festgelegten Inhalt. Die Installation lehnt abgelaufene Prüfungen (24 Stunden), veränderte bereitgestellte Dateien und bereits vorhandene Zielverzeichnisse ab. Die Laufzeitumgebung prüft den Lebenszykluszustand und die geprüften Bytes, bevor sie einen verwalteten Skill in den Modellkontext aufnimmt. Hinzugefügte Dateien, Symlinks oder geänderte Inhalte machen ihn nicht verfügbar. Anleitungen werden vollständig eingefügt oder ausdrücklich als wegen unzureichenden Prompt-Budgets ausgelassen verzeichnet; die gescannten Anweisungen werden nicht stillschweigend gekürzt.
+## Öffentliche Skills
 
-Diese Prüfungen isolieren keinen bösartigen Code, der bereits als Benutzer des Betriebssystems läuft. Sie erstrecken sich nicht auf bereits vorhandene, manuell installierte Plugins. Ein Scan-Beleg gewährt keine neue Ausführungsberechtigung und keine Befugnis über die Wallet.
+Wähle einen öffentlichen GitHub-Skill in einer festen Revision und erlaube, seinen Inhalt herunterzuladen. VOOL prüft
+ihn auf diesem Gerät mit `core/local_scan.py`. Ohne aktiviertes Scanner-Plugin erklärt die Seite,
+dass die Prüfungen auf diesem Gerät geblieben sind. Für diesen Weg wird kein Scanner-Schlüssel gebraucht.
 
-## API und Fehlerbehandlung
+Ein aktiviertes Scanner-Plugin erhält den Inhalt des öffentlichen Skills ebenfalls, wenn ein Scan angefordert wird. Das
+kann Guthaben seines Dienstes verbrauchen. Lokale Chats, private Dateien im Arbeitsbereich und andere Zugangsdaten werden
+nicht übermittelt. Das Speichern eines Schlüssels und das Öffnen von Zusatzmodule lösen weder einen Verbindungstest noch eine Scan-Anfrage aus. Es
+gibt keine automatischen Wiederholungen von Anfragen.
 
-`GET /api/addons` gibt den Katalog und den lokalen Status zurück, ohne Verbindungstest oder Scan. `POST /api/addons` unterstützt `save_key`, `remove_key`, `test_key`, `scan`, `install` und `reject`. Änderungen erfordern Loopback, JSON und Browser-Anfragen vom selben Ursprung; nur vorgangsspezifische Felder werden akzeptiert. Vom Aufrufer gelieferte Quell-URLs und Pfade werden abgelehnt.
+Lies die Befunde und akzeptiere die Installation getrennt davon. Die Validierung eines Berichts erfordert vollständige Abdeckung
+und gültige Befunde. Ein bestandener Bericht hat keine Befunde und keine Richtlinienverstöße. Eine gesondert angebotene
+Risikoakzeptanz bindet die geprüfte Version; sie ändert nie den Bericht und gewährt nie mehr Zugriff.
+Abgelaufene Prüfungen, veränderte bereitgestellte Bytes, Links und kollidierende Zielordner werden abgelehnt.
+Belege binden die vollständige installierte Distribution. Geänderte Dateien entziehen die Verfügbarkeit zur Laufzeit.
+Skill-Anleitungen werden vollständig eingefügt oder ausdrücklich ausgelassen, wenn sie nicht ins Prompt-Budget passen.
 
-Der Client nutzt die Inline-Anfrage mit Skill-Quelle von Eyebrow v1 unter `/v1/scan`, mit Bearer-Authentifizierung, einem festen HTTPS-Ursprung, ohne Weiterleitungen, mit begrenzter Antwortgröße und ohne automatische Wiederholungen. `/v1/version` dient dem ausdrücklichen Verbindungstest. API-Referenz: https://eyebrow.cc/api/reference .
+## Optionale Scanner
 
-Typische typisierte Fehler sind:
+Ein entfernter Scanner ist optional. Ist kein Scanner-Plugin aktiviert, entscheidet die eigene Prüfung von VOOL auf diesem Gerät,
+ob ein Skill installiert werden kann; frühere Versionen verlangten stattdessen einen entfernten Scan.
 
-| Code | Bedeutung / Abhilfe |
-| --- | --- |
-| `eyebrow_key_missing` / `eyebrow_unauthorized` | Speichere oder ersetze den Schlüssel. |
-| `eyebrow_quota` | Prüfe das Guthaben des Dienstes, bevor du es erneut versuchst. |
-| `eyebrow_timeout` / `eyebrow_unreachable` | Keine automatische Wiederholung; ein Scan mit Zeitüberschreitung kann trotzdem Guthaben verbrauchen. |
-| `eyebrow_invalid_report` / `eyebrow_no_coverage` | Der Nachweis ist unvollständig; nichts wird aktiviert. |
-| `addon_source_changed` / `addon_changed` | Festgelegte oder geprüfte Bytes weichen ab; aktiviere sie nicht. |
-| `review_untrusted` / `review_expired` | Hol vor der Installation eine neue Prüfung ein. |
-| `addon_already_installed` | Vorhandene Dateien wurden bewahrt. Automatisches Ersetzen ist nicht implementiert. |
+Um einen hinzuzufügen, installiere ein Scanner-Plugin seines Herstellers über den Bereich Plug-ins, speichere deinen eigenen
+Schlüssel, prüfe den Zugriff und aktiviere es. Seine Erklärung nennt einen Pfad für einen ausdrücklichen Verbindungstest
+und einen Pfad für angeforderte Scans, und der gemeinsame native Plugin-Transport stellt diese Anfragen.
+VOOL hat keinen eingebauten Scanner-Client und keine zentrale Einstellung für einen Scanner-Schlüssel und bietet kein eigenes
+Scanner-Plugin an. Ein gespeicherter Eyebrow-Schlüssel aus einer älteren VOOL-Version bleibt auf diesem Computer und wird nicht verwendet. Die
+IDs `vool-plugin-eyebrow` und `vool-plugin-usepod` sind reserviert; ein anderes Paket, das eine davon beansprucht,
+wird vor der Prüfung abgelehnt.
 
-## Aktuelle Einschränkungen und Verifizierung
+Die eigene Prüfung von VOOL auf diesem Gerät läuft immer. Der Bericht eines Scanner-Plugins kommt daneben hinzu:
+Findet einer von beiden ein Problem, blockiert das die Installation, und ein Plugin-Bericht muss genau den
+geprüften Inhalt benennen. Ein Scanner-Plugin kann eine Installation nie allein freigeben.
 
-Es gibt kein automatisches Update, keinen Importer für beliebige Kataloge und keinen Ablauf zum Reparieren oder Neuinstallieren an Ort und Stelle für ein bestehendes, verändertes Paket. Die Wiederherstellung ausstehender Prüfungen nach einem Neustart der App ist in der Oberfläche nicht verfügbar. Neue Texte der Oberfläche fallen derzeit auf Englisch zurück; vollständige Übersetzungen werden nicht behauptet.
+Ein aktivierter Scanner mit fehlendem oder abgelehntem Schlüssel schlägt deutlich sichtbar fehl. VOOL ersetzt
+diesen angeforderten entfernten Scan nie stillschweigend durch ein bestandenes lokales Ergebnis. Zeitüberschreitungen, Dienstfehler, Weiterleitungen,
+übergroße Antworten und unvollständige Berichte lassen die Installation unakzeptiert. Eine Anfrage mit Zeitüberschreitung
+kann trotzdem Guthaben des Dienstes verbraucht haben.
 
-Automatisierte Tests prüfen den echten Lebenszyklus, das Laden von Skills, die API-Handler und die ausgelieferte Browser-Oberfläche mit ausdrücklich simulierten öffentlichen Downloads und Eyebrow-Antworten. Sie belegen das Verhalten von Laufzeitumgebung und Oberfläche, nicht die Live-Verfügbarkeit von Eyebrow oder die Kompetenz des Modells. Ein echter Scan mit Schlüssel und die Abnahme der nativen, paketierten App bleiben Release-Prüfungen. Zum Ausführen dieser Tests wird weder ein Schlüssel noch ein Aufruf eines kostenpflichtigen Dienstes gebraucht.
+## Ausführbare Pakete und Store-Prüfung
+
+Plugins nutzen eine vollständige Paketprüfung eines lokalen Ordners oder eines festgelegten öffentlichen GitHub-Pakets, getrennt vom
+reinen Text-Importer für Skills. Die Installation führt keinen Paketcode aus und lässt ihn deaktiviert. Store-Plugins
+erfordern außerdem den bestehenden signierten Beleg und den Digest der vollständigen Distribution. Das Aktivieren erfordert ein
+gesondertes Zugriffsblatt, das Werkzeuge, Wirkungen, genaue Hosts, Plätze für Zugangsdaten und mitgelieferte Server abdeckt.
+
+Ausführbarer Code erhält beim Aufruf nur seine eigenen erklärten Schlüssel. Er kann weder die Plätze eines anderen
+Plugins noch die kostenpflichtigen Modellschlüssel des Besitzers lesen und hat keine Befugnis über Signieren, Limits, Freigaben oder Belege der Wallet.
+Seine Ausgabe bleibt nicht vertrauenswürdig. Geänderte Bytes entziehen die Zustimmung; Deaktivieren stoppt Aufrufe. Nicht unterstützte
+Isolierung verweigert die Ausführung. Zu den Laufzeitgrenzen siehe [Plugins verfassen](../../../guides/plugin-authoring.md).
+
+Wenn VOOL seine Plugin-Einträge nicht lesen kann, bieten Pakete, zu denen es keinen Eintrag hat, keine Skills mehr an, außer
+den mit VOOL ausgelieferten, und die beschädigte Datei wird neben der neuen aufbewahrt. Wenn es deine Ein- und
+Aus-Einstellungen nicht lesen kann, gilt jedes Plugin als aus, bis du eines wieder einschaltest.
+
+## Lokale API und Transport
+
+`GET /api/addons` liest den Bestand. Änderungen über `POST /api/addons` erfordern lokalen Zugriff durch den Besitzer,
+JSON, Browser-Anfragen vom selben Ursprung und vorgangsspezifische Felder. Die Zugänge zum Ein- und Ausschalten und für den Lebenszyklus von Plugins
+(`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) wenden dieselbe Regel für JSON und
+denselben Ursprung an. Downloads öffentlicher Quellen nutzen
+exakte Revisionen und begrenzte, verifizierte Blobs. Native Dienste erfordern erklärte öffentliche HTTPS-Hosts,
+validieren TLS, legen aufgelöste öffentliche Adressen fest, lehnen Weiterleitungen ab, begrenzen Antworten und stoppen, wenn
+das Plugin deaktiviert wird.
+
+Lokale simulierte HTTPS-Dienste können Transport und Fehlerbehandlung ohne kostenpflichtige Aufrufe prüfen. Sie belegen
+weder die Live-Zuverlässigkeit des Dienstes noch die Abrechnung, die Kompetenz des Modells oder die Installation in anderen
+Anwendungen. Dafür ist eine gesonderte Verifizierung nötig.

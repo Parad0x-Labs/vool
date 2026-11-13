@@ -1,13 +1,13 @@
 ---
 description: Étendre VOOL avec des compétences et des plugins.
 translation: machine
-source_sha256: a86860b8624e3c97c81e813ec92e3998c687a87d7bc43b7960c489cdcd309196
+source_sha256: 4dd2a317a7b10ee024616f6e0c27bd73087c44334f29e2c5f60f69773f4e54e8
 ---
 
 # Compétences et plugins
 
 Une **compétence** est un ensemble d’instructions empaqueté pour une tâche récurrente. Un **plugin**
-ajoute de nouveaux outils au runtime.
+ajoute des outils, un fournisseur de modèles ou un analyseur de modules. Les plugins peuvent aussi contenir des compétences.
 
 ## Fournis ou installés de l’extérieur
 
@@ -17,9 +17,9 @@ propres compétences et plugins.
 
 | | Fourni (livré avec VOOL) | Installé de l’extérieur |
 | --- | --- | --- |
-| Emplacement | Dans l’app | Votre dossier de plugins (défini dans les Réglages) |
+| Emplacement | Dans l’app | Votre dossier de plugins (géré depuis la fenêtre des plugins de VOOL, pas depuis les Réglages) |
 | Mises à jour | Avec l’app | Quand vous mettez à jour le paquet |
-| Peut être désactivé | Oui — individuellement | Oui — individuellement |
+| Peut être désactivé | Pas encore de bouton dans les fenêtres de l’app | Oui — depuis la fenêtre des plugins |
 | Accorde des permissions | **Non** | **Non** |
 
 Deux règles valent pour les deux sources :
@@ -33,11 +33,55 @@ Deux règles valent pour les deux sources :
 
 ## Trouver des compétences
 
-« Compétences et plugins » liste d’abord les compétences de VOOL lui-même. **Parcourir** propose 53
-compétences VOOL prêtes à l’emploi. Elles ne contiennent que du texte : chacune est un ensemble
-d’instructions, fourni avec l’app, donc « Parcourir » les liste sans recherche en ligne. Les compétences
-VOOL qui utilisent des outils VOOL sont listées dans l’onglet **Codex des compétences**, où les
-compétences de l’équipe VOOL viennent en premier. Examinez une compétence avant de l’activer.
+« Compétences et plugins » liste d’abord les compétences de VOOL lui-même. **Parcourir** propose 75
+compétences VOOL prêtes à l’emploi. Chacune est un ensemble d’instructions, fourni avec l’app, donc
+« Parcourir » les liste sans recherche en ligne. 22 d’entre elles utilisent des outils VOOL (vos e-mails, notes, fichiers, PDF, portefeuille et
+plus encore) lors des tours où elles sont choisies : les outils d’une compétence ne font que restreindre ce que VOOL propose déjà pour
+votre demande, un outil désactivé reste désactivé, et chaque appel demande votre accord comme toujours. Sa section
+**Source et détails techniques** liste les outils qu’elle utilise. L’onglet **Codex des compétences** liste d’abord les
+compétences de l’équipe VOOL. Examinez une compétence avant de l’activer.
+
+La façon dont une compétence de « Parcourir » est ajoutée dépend de qui l’a créée :
+
+* **Compétences créées par VOOL** (les 75 ci-dessus) : appuyez sur **Ajouter cette compétence**. VOOL vérifie sur votre
+  ordinateur que le fichier est exactement celui avec lequel il a été livré et le lit à la recherche d’instructions
+  risquées, puis vous montre le résultat. Aucune clé n’est nécessaire et rien n’est envoyé nulle part.
+  Si le fichier ne correspond pas, VOOL le refuse et le dit.
+* **Compétences d’autres créateurs** (d’autres éditeurs, ou un lien GitHub que vous collez) : appuyez sur
+  **Télécharger et analyser**. VOOL télécharge la compétence publique à une version fixe et la vérifie sur
+  votre ordinateur. Si vous avez activé un plugin d’analyse, il reçoit aussi le contenu de la compétence et
+  son rapport s’ajoute à celui de VOOL. Lisez le résultat, puis choisissez d’ajouter ou non la
+  compétence : si l’une des vérifications signale un problème, VOOL ne l’ajoute qu’après que vous avez accepté les risques pour
+  cette version. Aucune clé n’est nécessaire, sauf si votre plugin d’analyse en demande une.
+
+Vous pouvez aussi créer votre propre compétence dans une discussion sans aucune clé : voir
+[Créer votre propre compétence](../../../guides/make-your-own-skill.md).
+
+Vous pouvez aussi demander dans n’importe quelle discussion : *quelles compétences ai-je ?* les liste, et *comment ajouter une
+compétence ?* explique les deux façons.
+
+## Activer ou désactiver une compétence
+
+Ouvrez **Compétences et plugins**, puis **Mes modules**, puis **Compétences**. Chaque compétence affiche **Activé** ou
+**Désactivé** avec un bouton **Activer** ou **Désactiver**. Une compétence que vous désactivez n’est utilisée dans aucune discussion
+jusqu’à ce que vous la réactiviez. Ses fichiers sont conservés.
+
+La carte **Built-in skills** sous **Extensions** n’a pas de bouton à elle : activez ou désactivez ses compétences
+une par une sous **Compétences**.
+
+## Voir quelle compétence a façonné une réponse
+
+Quand les instructions d’une compétence ont servi à VOOL pour écrire une réponse, une courte ligne sous la
+réponse l’indique, par exemple **Compétence utilisée : Browser**. Elle apparaît juste après la réponse, tant que
+la discussion est ouverte ; les réponses chargées plus tard depuis votre historique ne l’affichent pas encore. Les règles de style de réponse
+qui accompagnent la plupart des réponses n’y sont pas nommées.
+
+## Compétences pour construire VOOL
+
+La bibliothèque contient aussi les compétences avec lesquelles l’équipe VOOL construit VOOL : revue de code, exécution de tests,
+vérifications de publication, réparation du pipeline et autres. Elles ne sont listées ni dans les discussions ni sur la page des compétences,
+et elles n’orientent pas les réponses courantes. Les développeurs peuvent les afficher et les utiliser en lançant VOOL avec
+`VOOL_DEVELOPER_SKILLS=1`.
 
 ## États de disponibilité
 
@@ -64,7 +108,26 @@ Examinez le paquet entier avant la vérification. Un examen est une preuve porta
 pas un certificat de sécurité ni un octroi de permissions.
 {% endhint %}
 
-## Approbation des paquets dans v0.7
+## Plugins dans Modules
+
+Ouvrez **Modules → Mes modules → Extensions**. Examinez un dossier local ou un dossier GitHub public à
+un commit exact. L’installation capture le paquet complet et le laisse désactivé. Les plugins signés
+de la boutique utilisent la chaîne de registre existante et s’installent aussi désactivés. Examinez la fiche
+d’accès séparément avant d’activer des outils ou des services. Enregistrer une clé de service ne déclenche aucune requête ;
+les tests de connexion et l’actualisation de la liste des modèles sont des actions explicites.
+
+La désactivation retire les outils et arrête les appels en cours. La désinstallation désactive d’abord, supprime les fichiers propres
+et la zone temporaire, supprime par défaut les clés enregistrées et conserve l’historique. Les mises à jour et les réinstallations
+exigent un nouvel examen et démarrent désactivées. Une mise à jour provenant d’un autre dépôt ou d’un autre éditeur
+ne conserve pas les clés enregistrées. UsePod et Eyebrow ne font plus partie de VOOL, et VOOL
+ne propose de plugin pour aucun des deux. Une clé UsePod ou Eyebrow enregistrée reste sur cet ordinateur et VOOL
+ne l’utilise pas ; Modules l’indique jusqu’à ce que vous fermiez l’avis. Les discussions qui utilisaient un modèle UsePod
+n’ont plus de modèle sélectionné après la mise à niveau, et Auto ne passe pas à un modèle cloud dans ces
+discussions ; un avis l’indique jusqu’à ce que vous le fermiez.
+
+Voir [Créer un plugin](../../../guides/plugin-authoring.md) et [Vérifications des modules](addon-security.md).
+
+## Approbation complète des paquets
 
 La vérification couvre chaque fichier et chaque répertoire du paquet, y compris les exécutables des
 gestionnaires, les bibliothèques intégrées, les fichiers de verrouillage des dépendances, les références,
@@ -108,24 +171,25 @@ exécutable. Les outils en lecture seule ne reçoivent aucun droit d’écriture
 `VOOL_PLUGIN_DEPENDENCIES` est une correspondance JSON entre les identités de dépendances déclarées et
 les répertoires de dépendances capturés. Intégrez les autres bibliothèques tierces et leurs fichiers de
 verrouillage dans le paquet ; un fichier de verrouillage seul n’atteste pas un environnement externe.
-L’interpréteur de l’hôte et les bibliothèques système restent partie intégrante de la plateforme de
+L’interpréteur d’exécution et les bibliothèques système restent partie intégrante de la plateforme de
 confiance, plutôt que d’être présentés comme des octets de paquets tiers examinés. Ce contrôle
 d’intégrité ne certifie pas le comportement, n’atteste pas du code arbitraire téléchargé ou chargé depuis
 l’extérieur de la distribution approuvée, ne contrôle pas chaque effet interne et ne remplace pas
 l’approbation native du portefeuille.
 
+Sous macOS, le code des plugins s’exécute dans le bac à sable de macOS. Les clés n’atteignent un gestionnaire que par son entrée
+privée, jamais par son environnement, car tout programme du même utilisateur, code des plugins compris,
+peut lire l’environnement de démarrage d’un autre programme sur un Mac. Un serveur de connexion qui a besoin d’une clé dans son
+environnement ne s’exécute que dans le runtime Linux isolé facultatif, que vous provisionnez vous-même ;
+VOOL ne démarre jamais de VM et ne télécharge jamais d’image. Sans lui, ce plugin reste désactivé et en indique la raison.
+Linux utilise bwrap, avec un espace de noms de processus privé et `/proc`.
+
+Sous macOS, un outil qui déclare un accès réseau ne peut joindre qu’un proxy privé que VOOL démarre pour chaque
+appel, et le proxy ne se connecte qu’aux hôtes déclarés. Sous Linux et dans le runtime isolé,
+les processus des plugins n’ont pas de réseau. Les requêtes natives des fournisseurs et des analyseurs utilisent leur propre
+transport HTTPS vers des hôtes déclarés sur toutes les plateformes.
+
 ## Écrire une compétence
 
-Une compétence est un dossier avec un fichier d’instructions et tous les fichiers auxquels il fait
-référence :
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Rédigez-la dans l’app (`skill.create` la prépare sans rien activer), validez-la, puis installez-la pour
-l’activer — trois étapes distinctes à dessein, pour que la rédaction ne soit jamais un changement de
-comportement implicite. Le catalogue et le format de rédaction sont encore en cours de finalisation pour
-leur sortie publique.
+* Pour créer une compétence en la demandant dans une discussion, voir [Créer votre propre compétence](../../../guides/make-your-own-skill.md).
+* Pour écrire, contrôler (lint), installer et tester vous-même un fichier SKILL.md, voir [Construire et tester une compétence](../../../guides/build-and-test-a-skill.md).
