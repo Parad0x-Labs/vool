@@ -304,6 +304,15 @@ def _is_an_ask(text: str) -> bool:
     if _QUESTIONISH_RE.search(compact):
         return True
     try:
+        from core.clean_loop import route
+
+        # "any note about the boiler service in my stuff": a lookup of the owner's own things in a statement's shape. Not
+        # recorded, the next "no thanks, try documents instead" had no ask to move (Chat R8 C6 on the Mac).
+        if route.is_notes_ask(compact) or route.asks_explicitly_about_own_things(compact):
+            return True
+    except Exception:
+        pass
+    try:
         from core.agent_runtime.answer_coverage import asks_for_work_of_its_own
 
         return bool(asks_for_work_of_its_own(compact))

@@ -146,6 +146,12 @@ _ASK_STOP = frozenset(
         "next", "some", "any", "all", "one", "two", "best", "better", "good", "make", "made", "know", "like",
         "want", "please", "thing", "things", "stuff", "today", "week", "time", "copy", "final", "untitled", "img",
         "image", "screenshot", "document", "notes", "note", "draft",
+        # What a listing ask calls the listing itself ("downloads folder contents", "what is inside documents"): no
+        # file is about "contents", so the words must not decline a listing that ran (Chat R8 C5 on the Mac).
+        "contents", "content", "inside", "items", "item", "list", "listing", "entries", "entry", "everything",
+        # The words of a redirect ("no thanks, try documents instead", "nah look on the desktop") say where to look, never
+        # what: the earlier ask carries the subject (core.clean_loop.hook).
+        "thanks", "thank", "instead", "rather", "look", "nah", "nope",
     }
 )
 
@@ -453,12 +459,24 @@ def skill_owns_turn(text: str) -> bool:
     if not families & _SKILL_OWNED_FAMILIES:
         return False
     return not (_NAMES_FILES_RE.search(value) or _MACHINE_RE.search(value))
+# "do i have a letter from the landlord anywhere", "have i got the boiler receipt saved": the owner asks what they have kept.
+# A disk search that found nothing answers it (Chat R8 C7 on the Mac: the recall lane said "I don't have that saved").
+_OWN_HAVE_RE = re.compile(
+    r"\b(?:do|did)\s+(?:i|we)\s+(?:still\s+)?(?:have|keep|own)\b.{1,80}?\b(?:anywhere|saved|stored|kept|on\s+(?:here|this\s+(?:computer|mac|laptop|machine)))\b"
+    r"|\bhave\s+(?:i|we)\s+(?:got|kept|saved)\b.{1,80}?\b(?:anywhere|saved|stored|kept)\b",
+    re.I,
+)
+
+
 def asks_explicitly_about_own_things(text: str) -> bool:
     """Whether the ask itself says it is about the owner's things (see the comment above)."""
     value = str(text or "")
     if _SELF_RE.search(value):
         return False
-    return bool(_OWN_POSSESSIVE_RE.search(value) or _OWN_OF_RE.search(value) or _OWN_ACT_RE.search(value) or _OWN_PLACE_RE.search(value) or _MACHINE_RE.search(value))
+    return bool(
+        _OWN_POSSESSIVE_RE.search(value) or _OWN_OF_RE.search(value) or _OWN_ACT_RE.search(value) or _OWN_PLACE_RE.search(value)
+        or _MACHINE_RE.search(value) or _OWN_HAVE_RE.search(value)
+    )
 
 
 def own_content_words(text: str) -> set[str]:

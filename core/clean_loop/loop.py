@@ -133,6 +133,8 @@ class LoopResult:
     #: Every tool and evidence text this turn showed the model, for answer gates that check the
     #: answer against what was actually seen (exact file names).
     seen: list[str] = field(default_factory=list)
+    #: The read-only evidence a pre-step staged before the first model call (real tools ran for it), or "".
+    staged: str = ""
 
     @property
     def tools_used(self) -> list[str]:
@@ -200,6 +202,7 @@ def run_loop(
     result = LoopResult(answer="")
     if staged:
         result.seen.append(staged)
+        result.staged = staged
     nudged = bool(looked)  # the caller already ran the look (its text is the prior evidence): no reminder to look
     question_nudged = False
     own_search_done = False

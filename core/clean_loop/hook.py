@@ -10,6 +10,7 @@ runtime events, which the execution-truth ledger records), and any pending propo
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from typing import Any
@@ -320,6 +321,8 @@ def loop_should_decline(text: str, loop_result: Any, receipts: list[dict[str, An
     loop's and the normal turn flow (web lookup, the web-off refusal, the model) gets it."""
     steps = list(getattr(loop_result, "steps", None) or [])
     good = productive_steps(loop_result)
+    if not good and str(getattr(loop_result, "staged", "") or "").strip():
+        good = [-1]  # a pre-step's staged read ran through the real tools: it is a read, like a model's own step
     if not good:
         # Nothing was read. A follow-up may still be answered from the chat's own earlier evidence (no tool ran).
         if follow_up and not steps:
@@ -433,10 +436,15 @@ def maybe_answer(
     loop_brain = make_brain(router, decision.brain, context)
     loop_ask = text
     changed_slots = context.get("_conversation_slots") if isinstance(context.get("_conversation_slots"), dict) else {}
+    carried = ""
     if context.get("_conversation_changed") and str(changed_slots.get("path") or "").strip():
-        # The owner moved the last ask to another folder ("try the documents folder instead"): the search keeps to it.
+        # The owner moved the last ask to another folder ("try the documents folder instead"): the search keeps to it,
+        # and looks for what the last ask asked for: the redirect's own words name only the place (Chat R8 C6, C7, M6).
         ctx.scope = str(changed_slots["path"]).strip()
+        carried = re.sub(r"\s*\(change:.*\)\s*$", "", str(context.get("_conversation_request") or "")).strip()
         loop_ask = f"{text}\n[Look only in {ctx.scope}.]"
+        if carried and carried != text:
+            loop_ask = f"{text}\n[The earlier ask, now in {ctx.scope}: {carried}]\n[Look only in {ctx.scope}.]"
     try:
         loop_result = run_loop(
             loop_ask,
@@ -500,14 +508,17 @@ def maybe_answer(
         _clear_evidence(session_id)
         return None
     if not explicit_own and not loop_result.proposals:
-        declined = loop_should_decline(text, loop_result, ctx.receipts, follow_up=follow_up)
+        declined = loop_should_decline(carried or text, loop_result, ctx.receipts, follow_up=follow_up)
         if declined:
             # Admitted on a word, not on the owner's own things, and the reads found nothing for it: not this
             # loop's turn. Only reads ran; none of them is recorded as this turn's observation.
             context["clean_local_loop_route"] = declined
             _clear_evidence(session_id)
             return None
-    productive = bool(productive_steps(loop_result))
+    # A listing a pre-step staged is a read that ran too (its receipts are this turn's): the model answered from it in
+    # one call, and the chat's record must hold its folder and text like a listing the model asked for, or "and the
+    # newest?" next has no folder (Chat R8 C1, C2, C11, M5 on the Mac: follow-ups went to the model on its own).
+    productive = bool(productive_steps(loop_result)) or bool(str(getattr(loop_result, "staged", "") or "").strip())
     if productive:
         evidence = _turn_evidence(loop_result.seen) or prior_evidence
     else:
