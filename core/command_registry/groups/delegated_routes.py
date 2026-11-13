@@ -223,6 +223,8 @@ WALLET_ACTIONS: tuple[tuple[str, str, str, str], ...] = (
      "Pause, resume or end an agent's spending allowance; resuming needs the owner's wallet PIN or password, nothing is signed or sent"),
     ("wallet.addons.allowance.set", "/api/wallet/addons/allowance", "mutating",
      "Allow one plugin to pay from the Skills & plugins wallet with its own limits, or change them; allowing or loosening needs the owner's wallet PIN or password, nothing is signed or sent"),
+    ("wallet.agents.caps.set", "/api/wallet/agents/caps", "mutating",
+     "Set an agent wallet's own caps (most per payment, per day, per service per day) for one coin; raising any needs the owner's wallet PIN or password, nothing is signed or sent"),
     ("wallet.keychain.save", "/api/wallet/keychain/save", "destructive",
      "Seal a wallet's backup key with the owner's backup password and keep it in this computer's secure store (that wallet's PIN or password required)"),
     ("wallet.keychain.recover", "/api/wallet/keychain/recover", "destructive",

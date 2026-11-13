@@ -219,7 +219,7 @@ def overview(*, now: float | None = None) -> dict[str, Any]:
 
 def _addons(wallets: list[dict[str, Any]], names: dict[str, str], *, now: float) -> dict[str, Any]:
     """The Skills & plugins wallet block: its wallets, and every plugin that asks to pay with its tick and limits."""
-    mine = [{**wallet, "network_name": names.get(wallet["network"], wallet["network"])} for wallet in wallets if wallet["agent_id"] == addon_wallet.ADDONS]
+    mine = [{**wallet, "network_name": names.get(wallet["network"], wallet["network"]), "caps": wallet_caps(wallet)} for wallet in wallets if wallet["agent_id"] == addon_wallet.ADDONS]
     listed = []
     for item in addon_wallet.requesters():
         view = addon_wallet.allowance_for(item["addon_id"], now=now)
@@ -280,6 +280,54 @@ def save_addon(body: dict[str, Any], *, now: float | None = None, source_context
         allowance_id = allowances.create_allowance(spec, credential=credential, now=moment, source_context=source_context)
     view = allowances.allowance_view(allowance_id, now=moment) or {"allowance_id": allowance_id, "unreadable": True}
     return {"allowance": _allowance_shown(view, now=moment)}
+
+
+def wallet_caps(wallet: dict[str, Any]) -> list[dict[str, Any]]:
+    """An agent wallet's own ceilings (``core.wallet.limits``), per coin of its network, in plain amounts.
+
+    These are the wallet's caps, the same ones every payment from it is reserved against (the allowance of a plugin
+    or of the assistant is checked first and never replaces them). Nothing here is new money logic: it only shows
+    them and, through :func:`save_caps`, lets the owner set them. Unreadable on a network this build does not know."""
+    try:
+        spec = chains.resolve_network(wallet["network"])
+    except Exception:
+        return []
+    rows = []
+    for asset in sorted(spec.assets.values(), key=lambda a: (bool(a.native), a.symbol)):
+        cap = limits.load_limits(wallet["wallet_id"], asset.symbol)
+        rows.append({"asset": asset.symbol, "per_payment": _human(cap.per_tx_minor, asset), "daily": _human(cap.daily_minor, asset),
+                     "per_service_daily": _human(cap.per_destination_daily_minor, asset)})
+    return rows
+
+
+def save_caps(body: dict[str, Any], *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Set an agent wallet's own caps for one coin, typed in plain amounts. Lowering is saved as typed; raising any of
+    them is the owner's act (their own wallet's PIN or password, ``custody.prove_owner``), exactly as the caps door
+    of the owner's own wallets."""
+    wallet = agent_wallets.agent_wallet(str(body.get("wallet_id") or ""))
+    if wallet is None:
+        raise _refuse("not_an_agent_wallet", source_context=source_context)
+    asset = _asset(wallet["network"], str(body.get("asset") or ""))
+    wanted = limits.SpendLimits(per_tx_minor=_minor(body.get("per_payment"), asset, "one payment"), daily_minor=_minor(body.get("daily"), asset, "one day"),
+                                per_destination_daily_minor=_minor(body.get("per_service_daily"), asset, "one service in a day"))
+    if wanted.per_tx_minor > wanted.daily_minor or wanted.per_destination_daily_minor > wanted.daily_minor:
+        raise SettingsRefused("One payment, and one service in a day, have to fit inside the day.")
+    wallet_id = wallet["wallet_id"]
+    current = limits.load_limits(wallet_id, asset.symbol)
+    credential = str(body.get("credential") or "")
+
+    def prove() -> None:
+        custody.prove_owner(wallet_id, credential=credential, purpose="raise a spending cap", source_context=source_context)
+
+    proven = limits.loosens(current, wanted)
+    if proven:
+        prove()
+    updated = limits.set_limits_unless_raised(wallet_id, asset.symbol, wanted, proven=proven)
+    if updated is None:
+        # a cap was lowered after the first read: against the stored caps this write is now a raise
+        prove()
+        limits.set_limits_unless_raised(wallet_id, asset.symbol, wanted, proven=True)
+    return {"caps": wallet_caps(wallet)}
 
 
 def balances_of(wallet_id: str, *, source_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:

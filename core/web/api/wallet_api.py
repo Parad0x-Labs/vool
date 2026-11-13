@@ -410,6 +410,9 @@ def _agent_door(path: str, body: dict[str, Any], *, source_context: dict[str, An
         elif path == "/api/wallet/addons/allowance":
             # the Skills & plugins wallet: tick a plugin with its own limits, or change them
             answer = agent_settings.save_addon(body, source_context=source_context)
+        elif path == "/api/wallet/agents/caps":
+            # an agent wallet's own caps (the wallet ceilings every payment from it is reserved against), in plain amounts
+            answer = agent_settings.save_caps(body, source_context=source_context)
         else:
             return _json(404, {"ok": False, "error": "not found"})
     except agent_settings.SettingsRefused as exc:
@@ -439,7 +442,7 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             return _fault(wallet_fault("wallet_caller_refused", authority=caller_binding.AUTHORITY, context={"reason": reason, "door": path}, source_context=source_context))
     try:
         if path in ("/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state",
-                    "/api/wallet/addons/allowance"):
+                    "/api/wallet/addons/allowance", "/api/wallet/agents/caps"):
             # listed door by door: each is its own registered command
             return _agent_door(path, body, source_context=source_context)
         if path == "/api/wallet/transfers/refresh":

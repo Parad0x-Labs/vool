@@ -108,6 +108,100 @@ _WALLET_CSS = """
 .vw-cx details{margin:10px 0}
 .vw-cx details summary{cursor:pointer;color:var(--muted,#9aa1af);font-size:12.5px}
 .vw-cx-dev{padding:8px 10px;border:1px dashed var(--border,#262b35);border-radius:8px}
+/* ---- Crypto page as a wallet app: sections, cards, chips, help, sheets, toast. Palette vars only, light + dark -- */
+.vw-cx{font-size:13px;display:flex;flex-direction:column;gap:16px}
+.vw-cx-head{margin:0;display:flex;flex-direction:column;gap:8px}
+#vwCxNotice{align-self:flex-start;font-size:11.5px;padding:4px 10px;border-radius:999px;margin:0;line-height:1.3}
+.vw-cx-next{margin:0;display:flex;gap:10px;align-items:flex-start;font-weight:600}
+.vw-cx-next::before{content:'';flex:0 0 8px;height:8px;margin-top:6px;border-radius:50%;background:var(--accent,#5eead4)}
+.vw-cx-sec{--hue:94,163,255;border-radius:16px;padding:14px 14px 12px;background:rgba(var(--hue),.055);border:1px solid rgba(var(--hue),.22)}
+.vw-cx-sec[data-sec="wallets"]{--hue:45,212,191}
+.vw-cx-sec[data-sec="agents"]{--hue:167,139,250}
+.vw-cx-sec[data-sec="payments"]{--hue:251,191,36}
+.vw-cx-sec[data-sec="advanced"]{--hue:148,163,184}
+#walletMore{border-radius:16px;padding:10px 14px;background:rgba(148,163,184,.055);border:1px solid rgba(148,163,184,.22);margin-top:12px}
+#walletMore>summary{cursor:pointer;font-weight:600;color:var(--ink,#e6e9ef)}
+:root[data-theme="light"] .vw-cx-sec[data-sec="wallets"]{--hue:13,148,136}
+:root[data-theme="light"] .vw-cx-sec[data-sec="agents"]{--hue:124,58,237}
+:root[data-theme="light"] .vw-cx-sec[data-sec="payments"]{--hue:180,120,10}
+:root[data-theme="light"] .vw-cx-sec[data-sec="advanced"]{--hue:71,85,105}
+@media (prefers-color-scheme: light){
+:root[data-theme="system"] .vw-cx-sec[data-sec="wallets"]{--hue:13,148,136}
+:root[data-theme="system"] .vw-cx-sec[data-sec="agents"]{--hue:124,58,237}
+:root[data-theme="system"] .vw-cx-sec[data-sec="payments"]{--hue:180,120,10}
+:root[data-theme="system"] .vw-cx-sec[data-sec="advanced"]{--hue:71,85,105}}
+.vw-cx-sec-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.vw-cx-sec-ico{flex:0 0 32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:rgba(var(--hue),.16);color:rgb(var(--hue));font-size:17px}
+.vw-cx-sec-ico.vi::before{margin:0}
+.vw-cx-sec-title{font-size:15.5px;font-weight:650;margin:0;letter-spacing:.005em}
+.vw-cx-sub{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#9aa1af);margin:14px 2px 6px}
+.vw-cx-sec .vw-cx-row,.vw-cx-sec .vw-cx-agent,.vw-cx-sec .vw-cx-addons,.vw-cx-sec .vw-cx-paid-ai,.vw-cx-sec .vw-cx-channels,.vw-cx-sec .vw-cx-agents{background:var(--panel,#151922);border:1px solid var(--border,#262b35);border-radius:14px;padding:12px 14px;margin:8px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.vw-cx-sec .vw-cx-agents{background:transparent;border:none;box-shadow:none;padding:0;margin:0}
+.vw-cx-sec .vw-cx-agents>.vw-cx-title{display:none}
+.vw-cx-row.inactive{opacity:.9;border-style:dashed}
+.vw-cx-title{font-weight:650;font-size:14px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.vw-cx-row[data-empty="true"]{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:9px 12px;margin:6px 0}
+.vw-cx-row[data-empty="true"] .vw-cx-title{font-size:13px;font-weight:600;flex:1 1 220px}
+.vw-cx-row[data-empty="true"] .vw-cx-works{flex:0 0 100%;margin:0}
+.vw-cx-row[data-empty="true"] .vw-cx-create{margin:0}
+.vw-cx-row[data-empty="true"] .vw-msg:empty{display:none}
+.vw-cx-account{margin:10px 0 4px;padding:12px;border:1px solid var(--border,#262b35);border-radius:12px;background:rgba(127,127,127,.04)}
+.vw-cx-acc-top{display:flex;align-items:center;gap:10px}
+.vw-cx-acc-ico{flex:0 0 34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft,rgba(94,234,212,.12));color:var(--accent,#5eead4);font-size:16px}
+.vw-cx-acc-ico.vi::before{margin:0}
+.vw-cx-acc-name{flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
+.vw-cx-backup-line{display:flex;align-items:center;gap:6px;margin:10px 0 6px}
+.vw-cx-chip.on{color:var(--ink,#e8eaf0);border-color:rgba(45,212,191,.45)}
+:root[data-theme="light"] .vw-cx-chip.on{border-color:rgba(13,148,136,.5)}
+.vw-cx-row[data-empty="true"]{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:10px 14px}
+.vw-cx-row[data-empty="true"]>*{order:2;flex:1 1 100%}
+.vw-cx-row[data-empty="true"]>.vw-cx-title{order:0;flex:1 1 auto;margin:0}
+.vw-cx-row[data-empty="true"]>.vw-btn{order:1;flex:0 0 auto}
+.vw-cx-sec select,.vw-cx-sec input[type=text],.vw-cx-sec input[type=password],.vw-cx-agent-sheet select,.vw-cx-agent-sheet input[type=text]{border-radius:8px;border:1px solid var(--border,#262b35);background:var(--panel,#16181d);color:var(--ink,#e8eaf0);padding:6px 10px;font:inherit;font-size:13px}
+.vw-cx-acc-name .vw-line{font-size:13.5px;color:var(--ink,#e8eaf0);font-weight:600;margin:0}
+.vw-cx-acc-top .vw-cx-balance{margin:0;text-align:right;max-width:46%}
+.vw-cx-address{display:block;max-width:100%;margin:8px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;color:var(--muted,#9aa1af);word-break:normal;overflow-wrap:normal}
+.vw-cx-account[data-setup-state="ready"] .vw-cx-state{display:none}
+.vw-cx-account .vw-cx-actions{gap:6px;margin-top:10px}
+.vw-cx-account .vw-btn{border-radius:999px;padding:6px 12px;margin:0}
+.vw-cx-account .vw-btn.vw-cx-receive{border-color:var(--accent,#5eead4);color:var(--accent,#5eead4)}
+.vw-cx-account-agent{padding:8px 12px;background:transparent;border-style:dashed}
+.vw-cx-account-agent .vw-cx-actions,.vw-cx-account-agent .vw-cx-balance,.vw-cx-account-agent .vw-cx-state,.vw-cx-account-agent .vw-cx-history{display:none}
+.vw-cx-account-agent .vw-cx-acc-ico{flex-basis:26px;height:26px;font-size:13px}
+.vw-cx-account-agent .vw-cx-acc-name .vw-line{font-weight:500;font-size:12.5px;color:var(--muted,#9aa1af)}
+.vw-btn{border-radius:8px}
+.vw-cx .vw-btn.primary{background:var(--accent-soft,rgba(94,234,212,.12))}
+.vw-cx-agent>.vw-cx-agent-head{display:flex;align-items:center;gap:10px;margin:0 0 4px}
+.vw-cx-agent-head .vw-line{font-size:14px;font-weight:650;color:var(--ink,#e8eaf0);margin:0}
+.vw-cx-addons>.vw-cx-agent{border:none;background:transparent;box-shadow:none;padding:0;margin:0}
+.vw-cx-addons>.vw-cx-agent-head{display:flex;align-items:center;gap:10px;margin:0 0 4px}
+.vw-cx-addons>.vw-cx-agent-head .vw-cx-title{margin:0}
+.vw-cx-agent-wallet{background:rgba(127,127,127,.04)}
+.vw-cx-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.vw-cx-chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--border,#262b35);background:var(--panel,#151922);color:var(--ink,#e8eaf0);line-height:1.4}
+.vw-cx-chip-sep{display:none}
+.vw-cx-allowance{border:1px solid var(--border,#262b35);border-radius:10px;padding:8px 10px;margin:8px 0}
+.vw-cx-allowance>.vw-line{font-weight:600;color:var(--ink,#e8eaf0);margin:0 0 2px}
+.vw-cx-caps-card{border:1px solid var(--border,#262b35);border-radius:10px;padding:8px 10px;margin:10px 0 2px}
+.vw-cx-caps-head{display:flex;align-items:center;gap:6px;font-weight:600}
+.vw-cx-caps-head .vi{color:var(--accent,#5eead4)}
+.vw-cx-addon-list{margin-top:10px;border-top:1px solid var(--border,#262b35);padding-top:6px}
+.vw-cx-addon{padding:6px 0}
+.vw-tip{font:inherit;font-size:10.5px;font-weight:700;width:18px;height:18px;line-height:16px;padding:0;margin:0 0 0 4px;border-radius:50%;border:1px solid var(--border,#262b35);background:transparent;color:var(--muted,#9aa1af);cursor:pointer;flex:0 0 auto;vertical-align:1px}
+.vw-tip[aria-expanded="true"]{border-color:var(--accent,#5eead4);color:var(--accent,#5eead4)}
+.vw-tip-text{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.vw-tip-text.open{position:static;width:auto;height:auto;margin:6px 0;clip:auto;overflow:visible;font-size:12px;line-height:1.45;color:var(--muted,#9aa1af);padding:8px 10px;border-radius:10px;background:rgba(127,127,127,.08)}
+.vw-cx-agent-form{position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;margin:0;border:none}
+.vw-cx-agent-sheet{background:var(--panel,#151922);color:var(--ink,#e8eaf0);width:min(520px,100%);max-height:90vh;overflow:auto;padding:18px;border-radius:16px;border:1px solid var(--border,#262b35);box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.vw-cx-agent-sheet h3{margin:0 0 10px;font-size:15.5px}
+.vw-cx-agent-sheet .vw-cx-agent-field{margin:8px 0}
+.vw-cx-agent-sheet .vw-cx-agent-field label{display:block;font-size:12px;color:var(--muted,#9aa1af);margin:0 0 3px}
+.vw-cx-agent-sheet input.vw-limit,.vw-cx-agent-sheet select.vw-limit{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px 10px;border-radius:10px;border:1px solid var(--border,#262b35);background:transparent;color:var(--ink,#e8eaf0)}
+.vw-cx-agent-sheet .vw-cx-agent-field input.vw-limit+input,.vw-cx-agent-sheet .vw-cx-agent-field select+input{margin-top:6px}
+.vw-cx-agent-sheet .vw-cx-actions{margin-top:14px}
+#vwToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;max-width:min(560px,92vw);padding:10px 16px;border-radius:12px;background:var(--panel,#151922);color:var(--ink,#e8eaf0);border:1px solid var(--accent,#5eead4);box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+#vwToast.show{opacity:1}
+#vwToast.bad{border-color:#f87171}
 .vw-copy{font:inherit;font-size:11px;padding:1px 6px;border:1px solid var(--border,#262b35);border-radius:6px;background:transparent;color:var(--muted,#9aa1af);cursor:pointer;margin-left:6px;vertical-align:1px}
 .vw-sheet-note{font-size:12px;margin:6px 0;color:#fbbf24}
 .vw-sheet-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
@@ -772,6 +866,63 @@ var SETUP_TEXT = {
   generating: WT('wallet.setup_state.generating', 'setup in progress')
 };
 function cxMsg(node, text, isErr){ node.textContent = text || ''; node.className = 'vw-msg' + (isErr ? ' err' : ''); }
+// A small "?" that shows the longer words under it. Closed, the words stay in the page for a screen reader (and for
+// a copy of the page's text); they are only out of sight, so the first look stays one short line.
+function tip(host, text){
+  if (!text) return null;
+  var b = el('button', 'vw-tip', '?'); b.type = 'button'; b.setAttribute('aria-label', WT('wallet.tip.more', 'More about this')); b.setAttribute('aria-expanded', 'false');
+  var t = el('div', 'vw-tip-text', text);
+  b.addEventListener('click', function(){ var open = !t.classList.contains('open'); t.classList.toggle('open', open); b.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+  host.appendChild(b);
+  return t;
+}
+function icon(name, cls){ var i = el('span', 'vi' + (cls ? ' ' + cls : '')); i.setAttribute('data-ico', name); i.setAttribute('aria-hidden', 'true'); return i; }
+// one section of the Crypto page: a calm line icon, a clear header and its own soft tint
+function cxSection(key, ico, title){
+  var sec = el('section', 'vw-cx-sec'); sec.setAttribute('data-sec', key); sec.id = 'vwCxSec_' + key;
+  var head = el('div', 'vw-cx-sec-head');
+  head.appendChild(icon(ico, 'vw-cx-sec-ico'));
+  var h = el('h3', 'vw-cx-sec-title', title); head.appendChild(h);
+  sec.appendChild(head); sec.setAttribute('aria-label', title);
+  return sec;
+}
+// what was just saved, said once at the foot of the window; the card that changed says it too
+var toastTimer = null;
+function toast(text, bad){
+  if (!text) return;
+  var t = document.getElementById('vwToast');
+  if (!t) { t = el('div'); t.id = 'vwToast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
+  t.textContent = text; t.className = 'show' + (bad ? ' bad' : '');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.className = ''; }, 4200);
+}
+// a form opened as a sheet over the page: the node that carries data-agent-form is the backdrop, so every check for
+// an open form (and every "close it" that removes it) keeps working; the content goes into the sheet inside it
+function agentSheet(key, title){
+  var form = el('div', 'vw-cx-agent-form'); form.setAttribute('data-agent-form', key); form.setAttribute('role', 'dialog'); form.setAttribute('aria-modal', 'true');
+  var sheet = el('div', 'vw-cx-agent-sheet'); form.appendChild(sheet);
+  if (title) sheet.appendChild(el('h3', null, title));
+  function close(){ var c = sheet.querySelector('[data-sheet-cancel]'); if (c) c.click(); else form.remove(); }
+  // Escape closes this sheet and nothing else, wherever the focus is (a pressed button can drop it to the page, and
+  // the Settings page would otherwise read that Escape as "close Settings"); the listener goes with the sheet
+  function onKey(e){
+    if (!form.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+    if (e.key !== 'Escape' || document.getElementById('vwCxBackup')) return;
+    e.preventDefault(); e.stopPropagation(); document.removeEventListener('keydown', onKey, true); close();
+  }
+  document.addEventListener('keydown', onKey, true);
+  form.addEventListener('click', function(e){ if (e.target === form) close(); });
+  return { form: form, sheet: sheet };
+}
+// "a · b · c" as chips; the separators stay in the text (hidden), so the line reads the same to a reader or a copy
+function chipLine(text, cls){
+  var wrap = el('div', 'vw-cx-chips' + (cls ? ' ' + cls : ''));
+  String(text || '').split(' · ').forEach(function(part, i){
+    if (i) wrap.appendChild(el('span', 'vw-cx-chip-sep', ' · '));
+    wrap.appendChild(el('span', 'vw-cx-chip', part));
+  });
+  return wrap;
+}
 // A refusal's catalog sentence, then the producer's specific next step when it names one (the same
 // code is refused from several flows, so the sentence stays true for all of them and the step adds the detail).
 function failText(res, fallback){
@@ -809,7 +960,7 @@ function drawCrypto(st){
     return;
   }
   var cp = st.crypto_pilot || {};
-  var head = el('div', 'vw-cx-head');
+  var head = el('div', 'vw-cx-head');  // the pilot note as a small tag, then the one next step
   var notice = el('div', 'vw-cx-warn', cp.pilot_notice || ''); notice.id = 'vwCxNotice'; head.appendChild(notice);
   if (cp.frozen) head.appendChild(el('div', 'vw-cx-warn', 'Payments are frozen by the panic control; nothing is signed or sent until it is lifted.'));
   var next = el('div', 'vw-cx-next', nextStepText(cp)); next.id = 'vwCxNext'; next.setAttribute('role', 'status'); head.appendChild(next);
@@ -820,30 +971,41 @@ function drawCrypto(st){
   var env = el('div', 'vw-cx-env'); env.id = 'vwCxEnv';
   env.textContent = WT('wallet.cx.env', 'Networks shown') + ': ' + (cp.environment_label || cp.active_environment || '') + ' · ' + (cp.environment_source_label || cp.environment_source || '');
   facts.appendChild(env);
-  head.appendChild(facts);
   box.appendChild(head);
+  // Your wallets / Agents & plugins / Payments / Advanced: each its own panel, header and line icon
+  var secWallets = cxSection('wallets', 'wallet', WT('wallet.sec.wallets', 'Your wallets'));
+  var secAgents = cxSection('agents', 'addons', WT('wallet.sec.agents', 'Agents & plugins'));
+  var secPay = cxSection('payments', 'budgets', WT('wallet.sec.payments', 'Payments'));
+  var secAdv = cxSection('advanced', 'advanced', WT('wallet.sec.advanced', 'Advanced'));
+  box.appendChild(secWallets); box.appendChild(secAgents); box.appendChild(secPay); box.appendChild(secAdv);
   var rows = cp.networks || [];
   var order = cp.chain_order || [];
   var active = rows.filter(function(r){ return r.active; });
   var inactiveWithAccounts = rows.filter(function(r){ return !r.active && (r.accounts || []).length; });
   var inactiveEmpty = rows.filter(function(r){ return !r.active && !(r.accounts || []).length; });
   function byOrder(a, b){ return order.indexOf(a.chain_key) - order.indexOf(b.chain_key); }
-  active.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
+  // networks with a wallet first, as full cards; the others as one compact line each, to add a wallet there
+  var sorted = active.sort(byOrder);
+  var withAccounts = sorted.filter(function(r){ return (r.accounts || []).length; }), empty = sorted.filter(function(r){ return !(r.accounts || []).length; });
+  withAccounts.forEach(function(r){ secWallets.appendChild(rowCard(r, cp, st)); });
   if (inactiveWithAccounts.length) {
-    box.appendChild(el('div', 'vw-cx-env', 'Accounts on the other network environment stay listed with their own network; changing the environment moves nothing.'));
-    inactiveWithAccounts.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
+    secWallets.appendChild(el('div', 'vw-cx-env', 'Accounts on the other network environment stay listed with their own network; changing the environment moves nothing.'));
+    inactiveWithAccounts.sort(byOrder).forEach(function(r){ secWallets.appendChild(rowCard(r, cp, st)); });
   }
-  box.appendChild(keychainRestoreBlock(cp));
-  box.appendChild(usbRestoreBlock(cp));
+  if (empty.length && (withAccounts.length || inactiveWithAccounts.length)) secWallets.appendChild(el('div', 'vw-cx-sub', WT('wallet.sec.other_networks', 'Add a wallet on another network')));
+  empty.forEach(function(r){ secWallets.appendChild(rowCard(r, cp, st)); });
+  secWallets.appendChild(facts);
+  secWallets.appendChild(keychainRestoreBlock(cp));
+  secWallets.appendChild(usbRestoreBlock(cp));
   // how paid web requests are paid is a developer choice: folded with the other developer options' look
   var channels = el('details', 'vw-cx-fold vw-cx-dev-fold'); channels.id = 'vwCxChannelsFold'; channels.open = cryptoChannelsOpen;
   channels.addEventListener('toggle', function(){ cryptoChannelsOpen = channels.open; });
   channels.appendChild(el('summary', null, WT('wallet.cx.channels_dev', 'Developer options: payment channels')));
   channels.appendChild(channelControls(cp));
-  box.appendChild(channels);
-  box.appendChild(paidAiControls(cp));
-  box.appendChild(agentControls(cp));
-  box.appendChild(devOptions(cp, inactiveEmpty.sort(byOrder)));
+  secAgents.appendChild(agentControls(cp));
+  secPay.appendChild(paidAiControls(cp));
+  secAdv.appendChild(channels);
+  secAdv.appendChild(devOptions(cp, inactiveEmpty.sort(byOrder)));
 }
 function nextStepText(cp){
   var mine = [];
@@ -863,8 +1025,8 @@ function channelControls(cp){
   // cap, approval and receipt apply on every channel; a channel that is off pays nothing, and a payment already parked
   // on it waits for approval until the channel is on again.
   var box = el('div', 'vw-cx-row vw-cx-channels'); box.id = 'vwCxChannels';
-  box.appendChild(el('div', 'vw-cx-title', 'Payment channels'));
-  box.appendChild(el('div', 'vw-cx-env', 'Choose how VOOL may pay for paid requests. Whichever channel a payment goes through, it needs your approval, stays under your caps and gets a receipt. A channel that is off pays nothing: a payment already waiting on it cannot be approved until you turn the channel back on, and a request already sent to an external wallet still expires on its usual timer.'));
+  var chTitle = el('div', 'vw-cx-title', 'Payment channels'); box.appendChild(chTitle);
+  box.appendChild(tip(chTitle, 'Choose how VOOL may pay for paid requests. Whichever channel a payment goes through, it needs your approval, stays under your caps and gets a receipt. A channel that is off pays nothing: a payment already waiting on it cannot be approved until you turn the channel back on, and a request already sent to an external wallet still expires on its usual timer.'));
   var msg = el('div', 'vw-msg');
   (cp.payment_channels || []).forEach(function(c){
     if (c && c.error) { var unread = el('div', 'vw-cx-warn', 'The payment channels could not be shown right now. Reload this page to try again.'); unread.id = 'vwCxChannelsUnread'; box.appendChild(unread); return; }
@@ -873,7 +1035,7 @@ function channelControls(cp){
     var toggle = el('input'); toggle.type = 'checkbox'; toggle.id = 'vwCh_' + c.channel_id; toggle.checked = !!c.on;
     var label = el('label', null, c.label); label.setAttribute('for', toggle.id);
     row.appendChild(toggle); row.appendChild(label);
-    row.appendChild(el('div', 'vw-cx-env', c.description || ''));
+    var chNote = tip(row, c.description || ''); if (chNote) row.appendChild(chNote);
     var facts = 'Built by ' + (c.built_by || '?') + ' · pays on ' + ((c.network_names || []).join(', ') || 'no network yet');
     if (!c.available) facts += ' · not usable on this install: ' + (CHANNEL_REASONS[c.reason] || c.reason || 'unavailable');
     row.appendChild(el('div', 'vw-cx-env', facts));
@@ -896,9 +1058,10 @@ function paidAiControls(cp){
   // The owner's pay-per-answer AI endpoints: a model VOOL may ask through x402, the most one answer may cost, and
   // whether it is on. Asking happens from chat; every answer is paid only after the owner approves it in the wallet.
   var box = el('div', 'vw-cx-row vw-cx-paid-ai'); box.id = 'vwCxPaidAi';
-  box.appendChild(el('div', 'vw-cx-title', 'Pay-per-answer AI'));
-  box.appendChild(el('div', 'vw-cx-env', 'Add an AI service that charges a small fee per answer, in USDC on Base. Then ask it from any chat, for example "ask my paid AI: …", and name it when you have more than one. Only your question is sent, never the rest of the chat. You approve each payment first. It stays under your caps and this price limit, and you get a receipt.'));
-  box.appendChild(el('div', 'vw-cx-env', 'VOOL checks that each answer comes from the model you chose. If the service names a different model, or no model, VOOL pauses it. Turn it back on here when you are ready. VOOL cannot see what really runs behind the service.'));
+  var paTitle = el('div', 'vw-cx-title', 'Pay-per-answer AI'); box.appendChild(paTitle);
+  var paTip = tip(paTitle, 'Add an AI service that charges a small fee per answer, in USDC on Base. Then ask it from any chat, for example "ask my paid AI: …", and name it when you have more than one. Only your question is sent, never the rest of the chat. You approve each payment first. It stays under your caps and this price limit, and you get a receipt.');
+  box.appendChild(paTip);
+  paTip.appendChild(el('div', null, 'VOOL checks that each answer comes from the model you chose. If the service names a different model, or no model, VOOL pauses it. Turn it back on here when you are ready. VOOL cannot see what really runs behind the service.'));
   var msg = el('div', 'vw-msg');
   var list = el('div', 'vw-cx-paid-ai-list'); list.id = 'vwPaidAiList';
   function draw(rows){
@@ -980,7 +1143,8 @@ function agentControls(cp){
   }
   var box = el('div', 'vw-cx-row vw-cx-agents'); box.id = 'vwCxAgents';
   box.appendChild(el('div', 'vw-cx-title', 'Agent spending'));
-  box.appendChild(el('div', 'vw-cx-env', 'Let VOOL pay small amounts to services you name without asking you each time. It pays only from its own small wallet, which you fill. Your own wallets are never used without you. Anything outside the limits you set waits for your approval.'));
+  box.appendChild(el('div', 'vw-cx-env vw-cx-tip-src', 'Let VOOL pay small amounts to services you name without asking you each time. It pays only from its own small wallet, which you fill. Your own wallets are never used without you. Anything outside the limits you set waits for your approval.'));
+  var AGENTS_INTRO = box.querySelector('.vw-cx-tip-src').textContent; box.querySelector('.vw-cx-tip-src').remove();
   var body = el('div', 'vw-cx-agents-body'); body.id = 'vwAgentsBody'; box.appendChild(body);
   var msg = el('div', 'vw-msg'); msg.id = 'vwAgentsMsg'; box.appendChild(msg);
   function secretWord(d){ return d.owner_method === 'password' ? 'password' : 'PIN'; }
@@ -991,9 +1155,16 @@ function agentControls(cp){
       draw(j.agent_spending);
     }).catch(function(){ body.textContent = ''; body.appendChild(el('div', 'vw-cx-warn', 'Agent spending could not be shown right now. Reload this page to try again.')); });
   }
-  function after(res, okText, failText){
-    if (!res.ok) { cxMsg(msg, faultMessage(res, failText), true); return false; }
-    cxMsg(msg, okText);
+  // what a save says goes under the card it belongs to (who: the agent or 'addons'), and once as a toast
+  function after(res, okText, failText, who){
+    if (!res.ok) {
+      var bad = faultMessage(res, failText);
+      if (who) { blockSaid[who] = { text: bad, bad: true }; var line = document.getElementById('vwAgentMsg_' + who); if (line) cxMsg(line, bad, true); else cxMsg(msg, bad, true); }
+      else cxMsg(msg, bad, true);
+      return false;
+    }
+    if (who) { blockSaid[who] = { text: okText, bad: false }; cxMsg(msg, ''); } else cxMsg(msg, okText);
+    toast(okText);
     if (res.data && res.data.agent_spending) draw(res.data.agent_spending); else load();
     return true;
   }
@@ -1007,30 +1178,33 @@ function agentControls(cp){
   function allowanceForm(d, agent, wallet, coins, current){
     // one form for a new allowance and for changing one; a change that allows more asks for the PIN, a tighter one does not
     var key = current ? current.allowance_id : wallet.wallet_id;
-    var form = el('div', 'vw-form vw-cx-agent-form'); form.setAttribute('data-agent-form', key);
+    var made = agentSheet(key, (current ? 'Change the allowance' : 'Set an allowance') + ' · ' + agent.name + ' · ' + (wallet.network_name || wallet.network));
+    var form = made.form, sheet = made.sheet;
     var coin = null;
     if (!current) {
       var cw = el('div', 'vw-cx-agent-field'); var cl = el('label', null, 'Coin'); cl.setAttribute('for', 'vwAgCoin_' + key); cw.appendChild(cl);
       coin = el('select', 'vw-limit'); coin.id = 'vwAgCoin_' + key;
       coins.forEach(function(c){ var o = el('option', null, c.symbol); o.value = c.symbol; coin.appendChild(o); });
-      cw.appendChild(coin); form.appendChild(cw);
+      cw.appendChild(coin); sheet.appendChild(cw);
     }
-    var per = field(form, 'vwAgPer_' + key, 'Most for one payment', 'e.g. 0.05', current && current.per_payment);
+    var per = field(sheet, 'vwAgPer_' + key, 'Most for one payment', 'e.g. 0.05', current && current.per_payment);
     var pw = el('div', 'vw-cx-agent-field'); var pl = el('label', null, 'Most per'); pl.setAttribute('for', 'vwAgPeriod_' + key); pw.appendChild(pl);
     var period = el('select', 'vw-limit'); period.id = 'vwAgPeriod_' + key;
     (d.periods || ['hour', 'day', 'week', 'month']).forEach(function(p){ var o = el('option', null, AGENT_PERIOD_WORD[p] || p); o.value = p; period.appendChild(o); });
     period.value = (current && current.period) || 'day'; pw.appendChild(period);
     var periodAmount = el('input', 'vw-limit'); periodAmount.type = 'text'; periodAmount.id = 'vwAgPeriodAmount_' + key; periodAmount.autocomplete = 'off'; periodAmount.placeholder = 'e.g. 1';
-    periodAmount.setAttribute('aria-label', 'most in that period'); periodAmount.value = (current && current.period_amount) || ''; pw.appendChild(periodAmount); form.appendChild(pw);
-    var total = field(form, 'vwAgTotal_' + key, 'Most in total', 'e.g. 5', current && current.total);
-    var count = field(form, 'vwAgCount_' + key, 'Most payments in total', 'e.g. 100', current ? String(current.max_payments) : '');
-    var days = field(form, 'vwAgDays_' + key, current ? 'Days from now until it ends (leave empty to keep the end date)' : 'Days until it ends (1 to ' + (d.max_days || 90) + ')', String(d.default_days || 30), '');
-    var ask = field(form, 'vwAgAsk_' + key, 'Always ask me above (optional)', 'e.g. 0.5', current && current.ask_above);
-    form.appendChild(el('div', 'vw-cx-env', 'Helper agents (optional). When VOOL splits a job between helper agents, each helper may spend this much out of this allowance, on the same services. Leave both empty and helpers pay nothing.'));
-    var helperPer = field(form, 'vwAgHelperPer_' + key, 'Most for one helper payment', 'empty: helpers pay nothing', current && current.helper_per_payment);
-    var helperTotal = field(form, 'vwAgHelperTotal_' + key, 'Most one helper may spend in total', 'empty: helpers pay nothing', current && current.helper_total);
-    form.appendChild(el('div', 'vw-cx-env', 'Services it may pay. Type each service address, and the most it may get in total. The address a service is paid at is fixed when you approve its first payment; if it ever changes, VOOL asks you.'));
-    var list = el('div', 'vw-cx-agent-services'); form.appendChild(list);
+    periodAmount.setAttribute('aria-label', 'most in that period'); periodAmount.value = (current && current.period_amount) || ''; pw.appendChild(periodAmount); sheet.appendChild(pw);
+    var total = field(sheet, 'vwAgTotal_' + key, 'Most in total', 'e.g. 5', current && current.total);
+    var count = field(sheet, 'vwAgCount_' + key, 'Most payments in total', 'e.g. 100', current ? String(current.max_payments) : '');
+    var days = field(sheet, 'vwAgDays_' + key, current ? 'Days from now until it ends (leave empty to keep the end date)' : 'Days until it ends (1 to ' + (d.max_days || 90) + ')', String(d.default_days || 30), '');
+    var ask = field(sheet, 'vwAgAsk_' + key, 'Always ask me above (optional)', 'e.g. 0.5', current && current.ask_above);
+    var helpHead = el('div', 'vw-cx-sub', 'Helper agents (optional)'); sheet.appendChild(helpHead);
+    sheet.appendChild(tip(helpHead, 'When VOOL splits a job between helper agents, each helper may spend this much out of this allowance, on the same services. Leave both empty and helpers pay nothing.'));
+    var helperPer = field(sheet, 'vwAgHelperPer_' + key, 'Most for one helper payment', 'empty: helpers pay nothing', current && current.helper_per_payment);
+    var helperTotal = field(sheet, 'vwAgHelperTotal_' + key, 'Most one helper may spend in total', 'empty: helpers pay nothing', current && current.helper_total);
+    var svcHead = el('div', 'vw-cx-sub', 'Services it may pay'); sheet.appendChild(svcHead);
+    sheet.appendChild(tip(svcHead, 'Type each service address, and the most it may get in total. The address a service is paid at is fixed when you approve its first payment; if it ever changes, VOOL asks you.'));
+    var list = el('div', 'vw-cx-agent-services'); sheet.appendChild(list);
     var rows = [];
     function addService(address, limit){
       var n = rows.length;
@@ -1043,10 +1217,10 @@ function agentControls(cp){
     var acts = el('div', 'vw-cx-actions');
     var more = el('button', 'vw-btn', 'Add another service'); more.type = 'button'; more.addEventListener('click', function(){ addService('', ''); });
     var save = el('button', 'vw-btn primary', current ? 'Save changes' : 'Set allowance'); save.type = 'button'; save.id = 'vwAgSave_' + key;
-    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
-    acts.appendChild(more); acts.appendChild(save); acts.appendChild(cancel); form.appendChild(acts);
+    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button'; cancel.setAttribute('data-sheet-cancel', '');
+    acts.appendChild(more); acts.appendChild(save); acts.appendChild(cancel); sheet.appendChild(acts);
     // what a save says stays in the form, next to the fields, not at the foot of the whole section
-    var fmsg = el('div', 'vw-msg'); fmsg.id = 'vwAgentMsg_form_' + key; fmsg.setAttribute('role', 'status'); form.appendChild(fmsg);
+    var fmsg = el('div', 'vw-msg'); fmsg.id = 'vwAgentMsg_form_' + key; fmsg.setAttribute('role', 'status'); sheet.appendChild(fmsg);
     cancel.addEventListener('click', function(){ form.remove(); cxMsg(msg, ''); });
     save.addEventListener('click', function(){
       var payload = { per_payment: per.value, period: period.value, period_amount: periodAmount.value, total: total.value, max_payments: count.value, days: days.value, ask_above: ask.value, helper_per_payment: helperPer.value, helper_total: helperTotal.value,
@@ -1058,9 +1232,10 @@ function agentControls(cp){
       postOwnerProved('/api/wallet/agents/allowance', payload, fmsg).then(function(res){
         save.disabled = false;
         if (!res.ok) { cxMsg(fmsg, faultMessage(res, 'The allowance was not saved.'), true); return; }
-        after(res, current ? 'Saved.' : 'The allowance is set. VOOL can now pay these services inside these limits without asking.', 'The allowance was not saved.');
+        after(res, current ? 'Saved.' : 'The allowance is set. VOOL can now pay these services inside these limits without asking.', 'The allowance was not saved.', agent.agent_id);
       }).catch(function(){ save.disabled = false; cxMsg(fmsg, 'The request did not complete. Nothing was changed.', true); });
     });
+    setTimeout(function(){ var first = sheet.querySelector('select, input'); if (first) first.focus(); }, 0);
     return form;
   }
   function allowanceCard(d, agent, wallet, a){
@@ -1072,7 +1247,7 @@ function agentControls(cp){
       if (a.state === 'paused') card.appendChild(el('div', 'vw-cx-warn', (AGENT_PAUSE_TEXT[a.pause_reason] || 'It is paused.') + ' Nothing is paid on it until you turn it back on.'));
       var word = AGENT_PERIOD_WORD[a.period] || a.period;
       var facts = el('div', 'vw-cx-env', 'Up to ' + a.per_payment + ' ' + a.asset + ' for one payment · ' + a.period_used + ' of ' + a.period_amount + ' ' + a.asset + ' used this ' + word + ' · ' + a.total_used + ' of ' + a.total + ' ' + a.asset + ' used in total · ' + a.payments + ' of ' + a.max_payments + ' payments · ' + (a.state === 'expired' ? 'ended' : (a.days_left + (a.days_left === 1 ? ' day left' : ' days left'))) + (a.ask_above ? ' · asks you above ' + a.ask_above + ' ' + a.asset : ''));
-      facts.setAttribute('data-allowance-facts', a.allowance_id); card.appendChild(facts);
+      facts = chipLine(facts.textContent); facts.setAttribute('data-allowance-facts', a.allowance_id); card.appendChild(facts);
       var helpers = el('div', 'vw-cx-env', a.helper_total ? ('Helper agents: each may spend up to ' + a.helper_per_payment + ' ' + a.asset + ' for one payment and ' + a.helper_total + ' ' + a.asset + ' in total, out of this allowance.') : 'Helper agents pay nothing.');
       helpers.setAttribute('data-allowance-helpers', a.helper_total ? 'on' : 'off'); card.appendChild(helpers);
       (a.services || []).forEach(function(s){
@@ -1085,7 +1260,7 @@ function agentControls(cp){
       var b = el('button', 'vw-btn', text); b.type = 'button'; b.setAttribute('data-allowance-action', action);
       b.addEventListener('click', function(){
         b.disabled = true;
-        (action === 'resume' ? proved : postJson)('/api/wallet/agents/allowance/state', { allowance_id: a.allowance_id, action: action }).then(function(res){ b.disabled = false; after(res, okText, 'The allowance was not changed.'); })
+        (action === 'resume' ? proved : postJson)('/api/wallet/agents/allowance/state', { allowance_id: a.allowance_id, action: action }).then(function(res){ b.disabled = false; after(res, okText, 'The allowance was not changed.', agent.agent_id); })
           .catch(function(){ b.disabled = false; cxMsg(msg, 'The request did not complete. Nothing was changed.', true); });
       });
       acts.appendChild(b);
@@ -1106,8 +1281,9 @@ function agentControls(cp){
   }
   function walletCard(d, agent, w){
     var card = el('div', 'vw-cx-account vw-cx-agent-wallet'); card.setAttribute('data-agent-wallet', w.wallet_id); card.setAttribute('data-setup-state', w.setup_state || '');
-    card.appendChild(el('div', 'vw-line', 'Its wallet on ' + (w.network_name || w.network)));
-    var addr = el('div', 'vw-cx-address', w.address || ''); card.appendChild(addr);
+    var top = el('div', 'vw-cx-acc-top'); top.appendChild(icon('wallet', 'vw-cx-acc-ico'));
+    var name = el('div', 'vw-cx-acc-name'); name.appendChild(el('div', 'vw-line', 'Its wallet on ' + (w.network_name || w.network))); top.appendChild(name); card.appendChild(top);
+    var addr = el('div', 'vw-cx-address', w.address || ''); addr.title = w.address || ''; card.appendChild(addr);
     var acts = el('div', 'vw-cx-actions'); acts.appendChild(copyButton(w.address, 'address')); card.appendChild(acts);
     if (!w.ready) {
       card.appendChild(el('div', 'vw-cx-warn', 'This wallet is not finished: its backup key has not been saved yet. It cannot pay until you do.'));
@@ -1139,7 +1315,7 @@ function agentControls(cp){
       acts.appendChild(show);
       return card;
     }
-    var held = el('div', 'vw-cx-balance', 'Reading what is in it…'); held.setAttribute('data-agent-balance', 'reading'); card.appendChild(held);
+    var held = el('div', 'vw-cx-balance', 'Reading what is in it…'); held.setAttribute('data-agent-balance', 'reading'); top.appendChild(held);
     getJson('/api/wallet/agents/balance?wallet_id=' + encodeURIComponent(w.wallet_id)).then(function(j){
       var rows = (j && j.ok && j.balances) || [];
       var read = rows.filter(function(b){ return b.read; });
@@ -1147,8 +1323,10 @@ function agentControls(cp){
       held.textContent = 'In it now: ' + read.map(function(b){ return b.amount + ' ' + b.asset; }).join(' · ') + (read.length < rows.length ? ' · the rest could not be read' : '');
       held.className = 'vw-cx-balance read'; held.setAttribute('data-agent-balance', 'read');
     }).catch(function(){ held.textContent = 'What is in it could not be read right now (this does not mean it is empty).'; held.setAttribute('data-agent-balance', 'unavailable'); });
-    card.appendChild(el('div', 'vw-cx-env', 'To fill it, send coins to this address from your own wallet. Send only what you are willing to let VOOL spend: that amount is the most this wallet can ever lose. Its backup key lets you take the money back out with any wallet app.'));
-    if (agent.agent_id === 'addons') return card;  // its limits are per plugin, in the list below it
+    var fill = tip(name, 'To fill it, send coins to this address from your own wallet. Send only what you are willing to let VOOL spend: that amount is the most this wallet can ever lose. Its backup key lets you take the money back out with any wallet app.');
+    card.appendChild(fill);
+    // the Skills & plugins wallet: its own limits for the whole wallet; each plugin's limits are in the list below it
+    if (agent.agent_id === 'addons') { card.appendChild(capsCard(w)); return card; }
     var network = (d.networks || []).filter(function(n){ return n.network === w.network; })[0];
     var coins = network ? network.coins : [];
     var mine = (agent.allowances || []).filter(function(a){ return a.wallet_id === w.wallet_id; });
@@ -1167,6 +1345,57 @@ function agentControls(cp){
     }
     return card;
   }
+  function capsCard(w){
+    var box = el('div', 'vw-cx-caps-card'); box.setAttribute('data-caps-wallet', w.wallet_id);
+    var head = el('div', 'vw-cx-caps-head'); head.appendChild(icon('shield')); head.appendChild(el('span', null, WT('wallet.caps.title', 'Limits for the whole wallet')));
+    var note = tip(head, WT('wallet.caps.note', 'These limits hold for every payment from this wallet, whichever plugin asks. Each plugin you tick also gets its own limits. The wallet can never lose more than you send it.'));
+    box.appendChild(head); box.appendChild(note);
+    var caps = w.caps || [];
+    if (!caps.length) { box.appendChild(el('div', 'vw-cx-env', WT('wallet.caps.unread', 'Its limits could not be read right now.'))); return box; }
+    var chips = el('div', 'vw-cx-chips');
+    caps.forEach(function(c){ var chip = el('span', 'vw-cx-chip', WTF('wallet.caps.summary', '{asset}: up to {per_payment} a payment, {daily} a day', c)); chip.setAttribute('data-caps-asset', c.asset); chips.appendChild(chip); });
+    box.appendChild(chips);
+    var each = el('div', 'vw-cx-env vw-cx-caps-each', WT('wallet.caps.each', 'Each plugin you tick also gets its own limits, below.')); box.appendChild(each);
+    var edit = el('button', 'vw-btn', WT('wallet.caps.edit', 'Edit limits')); edit.type = 'button'; edit.setAttribute('data-caps-edit', w.wallet_id);
+    var row = el('div', 'vw-cx-actions'); row.appendChild(edit); box.appendChild(row);
+    edit.addEventListener('click', function(){
+      var open = box.querySelector('[data-agent-form]'); if (open) { open.remove(); return; }
+      box.appendChild(capsForm(w, caps));
+    });
+    return box;
+  }
+  function capsForm(w, caps){
+    var key = 'caps_' + w.wallet_id;
+    var made = agentSheet(key, WT('wallet.caps.title', 'Limits for the whole wallet') + ' · Skills & plugins · ' + (w.network_name || w.network));
+    var form = made.form, sheet = made.sheet;
+    sheet.appendChild(el('div', 'vw-cx-env', WT('wallet.caps.note', 'These limits hold for every payment from this wallet, whichever plugin asks. Each plugin you tick also gets its own limits. The wallet can never lose more than you send it.')));
+    var cw = el('div', 'vw-cx-agent-field'); var cl = el('label', null, WT('wallet.caps.coin', 'Coin')); cl.setAttribute('for', 'vwCapsCoin_' + w.wallet_id); cw.appendChild(cl);
+    var coin = el('select', 'vw-limit'); coin.id = 'vwCapsCoin_' + w.wallet_id;
+    caps.forEach(function(c){ var o = el('option', null, c.asset); o.value = c.asset; coin.appendChild(o); });
+    cw.appendChild(coin); sheet.appendChild(cw);
+    var per = field(sheet, 'vwCapsPer_' + w.wallet_id, WT('wallet.caps.per_payment', 'Most for one payment'), 'e.g. 1', '');
+    var day = field(sheet, 'vwCapsDay_' + w.wallet_id, WT('wallet.caps.daily', 'Most in one day'), 'e.g. 5', '');
+    var svc = field(sheet, 'vwCapsSvc_' + w.wallet_id, WT('wallet.caps.per_service', 'Most to one service in a day'), 'e.g. 2', '');
+    function fill(){ var c = caps.filter(function(x){ return x.asset === coin.value; })[0] || caps[0]; per.value = c.per_payment; day.value = c.daily; svc.value = c.per_service_daily; }
+    coin.addEventListener('change', fill); fill();
+    var acts = el('div', 'vw-cx-actions');
+    var save = el('button', 'vw-btn primary', WT('wallet.caps.save', 'Save limits')); save.type = 'button'; save.id = 'vwCapsSave_' + w.wallet_id;
+    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button'; cancel.setAttribute('data-sheet-cancel', '');
+    acts.appendChild(save); acts.appendChild(cancel); sheet.appendChild(acts);
+    var fmsg = el('div', 'vw-msg'); fmsg.id = 'vwAgentMsg_form_' + key; fmsg.setAttribute('role', 'status'); sheet.appendChild(fmsg);
+    cancel.addEventListener('click', function(){ form.remove(); });
+    save.addEventListener('click', function(){
+      save.disabled = true; cxMsg(fmsg, '');
+      // raising any of them asks for your wallet PIN or password; lowering does not
+      postOwnerProved('/api/wallet/agents/caps', { wallet_id: w.wallet_id, asset: coin.value, per_payment: per.value, daily: day.value, per_service_daily: svc.value }, fmsg).then(function(res){
+        save.disabled = false;
+        if (!res.ok) { cxMsg(fmsg, faultMessage(res, 'The limits were not saved.'), true); return; }
+        after(res, WT('wallet.caps.saved', 'Limits saved.'), 'The limits were not saved.', 'addons');
+      }).catch(function(){ save.disabled = false; cxMsg(fmsg, 'The request did not complete. Nothing was changed.', true); });
+    });
+    setTimeout(function(){ coin.focus(); }, 0);
+    return form;
+  }
   function draw(d){
     body.textContent = '';
     if (d.frozen) body.appendChild(el('div', 'vw-cx-warn', 'Payments are frozen, so nothing is paid on any allowance until the freeze is lifted.'));
@@ -1184,7 +1413,10 @@ function agentControls(cp){
       var said = blockSaid[agent.agent_id];
       if (said) cxMsg(bmsg, said.text, said.bad);
       function say(text, bad){ blockSaid[agent.agent_id] = text ? { text: text, bad: !!bad } : null; cxMsg(bmsg, text || '', bad); }
-      if (agent.agent_id !== 'addons') block.appendChild(el('div', 'vw-line', agent.name));  // the Skills & plugins box has its own title
+      if (agent.agent_id !== 'addons') {  // the Skills & plugins box has its own title
+        var ah = el('div', 'vw-cx-agent-head'); ah.appendChild(icon('models', 'vw-cx-sec-ico')); ah.appendChild(el('div', 'vw-line', agent.name));
+        var intro = tip(ah, AGENTS_INTRO); block.appendChild(ah); if (intro) block.appendChild(intro);
+      }
       (agent.wallets || []).forEach(function(w){ block.appendChild(walletCard(d, agent, w)); });
       var has = (agent.wallets || []).map(function(w){ return w.network; });
       var open = (d.networks || []).filter(function(n){ return has.indexOf(n.network) < 0; });
@@ -1227,8 +1459,9 @@ function agentControls(cp){
     // the Skills & plugins wallet: its own wallet, and per plugin a tick and that plugin's own limits
     var a = d.addons;
     var box = el('div', 'vw-cx-addons'); box.id = 'vwAddons';
-    box.appendChild(el('div', 'vw-cx-title', 'Skills & plugins wallet'));
-    box.appendChild(el('div', 'vw-cx-env', 'A separate wallet for skills and plugins that pay for services. Your own wallets and the assistant\'s wallet are never used for them. Nothing is allowed until you tick it, and each plugin gets its own limits. A skill that is only instructions cannot pay by itself.'));
+    var head = el('div', 'vw-cx-agent-head'); head.appendChild(icon('addons', 'vw-cx-sec-ico')); head.appendChild(el('div', 'vw-cx-title', 'Skills & plugins wallet'));
+    var intro = tip(head, 'A separate wallet for skills and plugins that pay for services. Your own wallets and the assistant\'s wallet are never used for them. Nothing is allowed until you tick it, and each plugin gets its own limits. A skill that is only instructions cannot pay by itself.');
+    box.appendChild(head); box.appendChild(intro);
     box.appendChild(agentBlock(d, { agent_id: 'addons', name: a.name || 'Skills & plugins', wallets: a.wallets || [], allowances: [] }));
     var list = el('div', 'vw-cx-addon-list'); list.id = 'vwAddonList'; box.appendChild(list);
     var plugins = a.plugins || [];
@@ -1255,7 +1488,7 @@ function agentControls(cp){
     }
     var acts = el('div', 'vw-cx-actions'); row.appendChild(acts);
     function state(action, okText){
-      return (action === 'resume' ? proved : postJson)('/api/wallet/agents/allowance/state', { allowance_id: al.allowance_id, action: action }).then(function(res){ after(res, okText, 'Nothing was changed.'); })
+      return (action === 'resume' ? proved : postJson)('/api/wallet/agents/allowance/state', { allowance_id: al.allowance_id, action: action }).then(function(res){ after(res, okText, 'Nothing was changed.', 'addons'); })
         .catch(function(){ cxMsg(msg, 'The request did not complete. Nothing was changed.', true); });
     }
     tick.addEventListener('change', function(){
@@ -1274,16 +1507,22 @@ function agentControls(cp){
   }
   function addonForm(d, p, ready, current){
     var key = current ? current.allowance_id : p.addon_id;
-    var form = el('div', 'vw-form vw-cx-agent-form'); form.setAttribute('data-agent-form', key);
-    if (!current && !ready.length) { form.appendChild(el('div', 'vw-cx-warn', 'Create the Skills & plugins wallet above and save its backup key first. Then come back and allow this plugin.')); return form; }
+    var made = agentSheet(key, (current ? 'Change limits' : 'Allow ' + p.name) + ' · ' + p.name);
+    var form = made.form, sheet = made.sheet;
+    if (!current && !ready.length) {
+      sheet.appendChild(el('div', 'vw-cx-warn', 'Create the Skills & plugins wallet above and save its backup key first. Then come back and allow this plugin.'));
+      var ok = el('button', 'vw-btn', 'Close'); ok.type = 'button'; ok.setAttribute('data-sheet-cancel', ''); ok.addEventListener('click', function(){ form.remove(); });
+      var r0 = el('div', 'vw-cx-actions'); r0.appendChild(ok); sheet.appendChild(r0);
+      return form;
+    }
     var walletPick = null, coin = null;
     if (!current) {
       var ww = el('div', 'vw-cx-agent-field'); var wl = el('label', null, 'Wallet'); wl.setAttribute('for', 'vwAdWallet_' + key); ww.appendChild(wl);
       walletPick = el('select', 'vw-limit'); walletPick.id = 'vwAdWallet_' + key;
       ready.forEach(function(w){ var o = el('option', null, (w.label || 'Skills & plugins') + ' · ' + (w.network_name || w.network)); o.value = w.wallet_id; walletPick.appendChild(o); });
-      ww.appendChild(walletPick); form.appendChild(ww);
+      ww.appendChild(walletPick); sheet.appendChild(ww);
       var cw = el('div', 'vw-cx-agent-field'); var cl = el('label', null, 'Coin'); cl.setAttribute('for', 'vwAdCoin_' + key); cw.appendChild(cl);
-      coin = el('select', 'vw-limit'); coin.id = 'vwAdCoin_' + key; cw.appendChild(coin); form.appendChild(cw);
+      coin = el('select', 'vw-limit'); coin.id = 'vwAdCoin_' + key; cw.appendChild(coin); sheet.appendChild(cw);
       var fillCoins = function(){
         coin.textContent = '';
         var w = ready.filter(function(x){ return x.wallet_id === walletPick.value; })[0] || ready[0];
@@ -1292,30 +1531,32 @@ function agentControls(cp){
       };
       walletPick.addEventListener('change', fillCoins); fillCoins();
     }
-    var per = field(form, 'vwAdPer_' + key, 'Most for one payment', 'e.g. 0.05', current && current.per_payment);
+    var per = field(sheet, 'vwAdPer_' + key, 'Most for one payment', 'e.g. 0.05', current && current.per_payment);
     var pw = el('div', 'vw-cx-agent-field'); var pl = el('label', null, 'Most per'); pl.setAttribute('for', 'vwAdPeriod_' + key); pw.appendChild(pl);
     var period = el('select', 'vw-limit'); period.id = 'vwAdPeriod_' + key;
     ['hour', 'day', 'week'].forEach(function(x){ var o = el('option', null, AGENT_PERIOD_WORD[x] || x); o.value = x; period.appendChild(o); });
     period.value = (current && current.period) || 'day'; pw.appendChild(period);
     var amount = el('input', 'vw-limit'); amount.type = 'text'; amount.id = 'vwAdAmount_' + key; amount.autocomplete = 'off'; amount.placeholder = 'e.g. 1'; amount.setAttribute('aria-label', 'most in that period');
-    amount.value = (current && current.period_amount) || ''; pw.appendChild(amount); form.appendChild(pw);
-    var count = field(form, 'vwAdCount_' + key, 'Most payments in that period', 'e.g. 20', current && current.period_payments ? String(current.period_payments) : '');
-    var days = field(form, 'vwAdDays_' + key, current ? 'Days from now until it ends (leave empty to keep the end date)' : 'Days until it ends (1 to ' + (d.max_days || 90) + ')', String(d.default_days || 30), '');
-    var ask = field(form, 'vwAdAsk_' + key, 'Always ask me above (optional)', 'e.g. 0.5', current && current.ask_above);
-    form.appendChild(el('div', 'vw-cx-env', 'It may pay only: ' + (p.services || []).join(', ') + '. The address each service is paid at is fixed when you approve its first payment.'));
+    amount.value = (current && current.period_amount) || ''; pw.appendChild(amount); sheet.appendChild(pw);
+    var count = field(sheet, 'vwAdCount_' + key, 'Most payments in that period', 'e.g. 20', current && current.period_payments ? String(current.period_payments) : '');
+    var days = field(sheet, 'vwAdDays_' + key, current ? 'Days from now until it ends (leave empty to keep the end date)' : 'Days until it ends (1 to ' + (d.max_days || 90) + ')', String(d.default_days || 30), '');
+    var ask = field(sheet, 'vwAdAsk_' + key, 'Always ask me above (optional)', 'e.g. 0.5', current && current.ask_above);
+    sheet.appendChild(el('div', 'vw-cx-env', 'It may pay only: ' + (p.services || []).join(', ') + '. The address each service is paid at is fixed when you approve its first payment.'));
     var acts = el('div', 'vw-cx-actions');
     var save = el('button', 'vw-btn primary', current ? 'Save limits' : 'Allow ' + p.name); save.type = 'button'; save.id = 'vwAdSave_' + key.replace(/[^a-z0-9]/gi, '_');
-    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
-    acts.appendChild(save); acts.appendChild(cancel); form.appendChild(acts);
+    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button'; cancel.setAttribute('data-sheet-cancel', '');
+    acts.appendChild(save); acts.appendChild(cancel); sheet.appendChild(acts);
+    var fmsg = el('div', 'vw-msg'); fmsg.id = 'vwAgentMsg_form_' + key.replace(/[^a-z0-9]/gi, '_'); fmsg.setAttribute('role', 'status'); sheet.appendChild(fmsg);
     cancel.addEventListener('click', function(){ form.remove(); cxMsg(msg, ''); });
     save.addEventListener('click', function(){
       var payload = { addon_id: p.addon_id, per_payment: per.value, period: period.value, period_amount: amount.value, period_payments: count.value, days: days.value, ask_above: ask.value };
       if (!current) { payload.wallet_id = walletPick.value; payload.asset = coin.value; }
       save.disabled = true;
-      proved('/api/wallet/addons/allowance', payload).then(function(res){
+      postOwnerProved('/api/wallet/addons/allowance', payload, fmsg).then(function(res){
         save.disabled = false;
-        after(res, current ? 'Saved.' : p.name + ' may now pay its services inside these limits.', 'Nothing was allowed.');
-      }).catch(function(){ save.disabled = false; cxMsg(msg, 'The request did not complete. Nothing was changed.', true); });
+        if (!res.ok) { cxMsg(fmsg, faultMessage(res, 'Nothing was allowed.'), true); return; }
+        after(res, current ? 'Saved.' : p.name + ' may now pay its services inside these limits.', 'Nothing was allowed.', 'addons');
+      }).catch(function(){ save.disabled = false; cxMsg(fmsg, 'The request did not complete. Nothing was changed.', true); });
     });
     return form;
   }
@@ -1364,12 +1605,13 @@ function rowName(r){
 
 function rowCard(r, cp, st){
   var card = el('div', 'vw-cx-row' + (r.active ? '' : ' inactive')); card.setAttribute('data-network', r.network); card.setAttribute('data-chain', r.chain_key); card.setAttribute('data-active', r.active ? 'true' : 'false');
+  card.setAttribute('data-empty', (r.accounts || []).length ? 'false' : 'true');
   var title = el('div', 'vw-cx-title');
   title.appendChild(document.createTextNode(rowName(r)));
   title.appendChild(el('span', 'vw-badge' + (r.environment === 'mainnet' ? '' : ' testnet'), r.badge));
   if (!r.active) title.appendChild(el('span', 'vw-badge mode', 'not active'));
   card.appendChild(title);
-  if (r.chain_key === 'robinhood') card.appendChild(el('div', 'vw-cx-env', 'Robinhood Chain is a public network, not the Robinhood brokerage or its wallet.'));
+  if (r.chain_key === 'robinhood') { var rh = tip(title, 'Robinhood Chain is a public network, not the Robinhood brokerage or its wallet.'); card.appendChild(rh); }
   var works = el('details', 'vw-cx-fold vw-cx-works');
   works.appendChild(el('summary', null, WT('wallet.cx.works', 'What works here')));
   works.appendChild(el('div', 'vw-cx-env', (r.value_note || '') + ' · native coin ' + (r.native_display_symbol || r.native_symbol) + (r.explorer_label ? ' · explorer: ' + r.explorer_label : '')));
@@ -1443,25 +1685,27 @@ function ledgerAdd(r, cp, msg){
 }
 function accountCard(a, r, cp, st){
   var box = el('div', 'vw-cx-account'); box.setAttribute('data-wallet', a.wallet_id); box.setAttribute('data-setup-state', a.setup_state || 'ready'); box.setAttribute('data-mode', a.mode || '');
-  var line = el('div');
+  // top row: a round icon, the name with its badge, and what is in it on the right
+  var top = el('div', 'vw-cx-acc-top'); top.appendChild(icon(a.agent_id ? 'addons' : 'wallet', 'vw-cx-acc-ico'));
+  var line = el('div', 'vw-cx-acc-name'); top.appendChild(line);
   line.appendChild(el('span', 'vw-line', (a.label ? a.label + ' · ' : '') + (a.agent_id ? (a.agent_id === 'addons' ? 'the Skills & plugins wallet (see below)' : 'an agent\'s own wallet (see Agent spending below)') : (a.ledger ? 'Ledger wallet' : (a.mode_label || a.mode)))));
-  if (a.agent_id) box.setAttribute('data-agent', a.agent_id);
+  if (a.agent_id) { box.setAttribute('data-agent', a.agent_id); box.className += ' vw-cx-account-agent'; }
   if (a.kind) {
     box.setAttribute('data-kind', a.kind);
     var badge = el('span', 'vw-badge vw-cx-kind', a.kind === 'main' ? 'Main' : (a.kind === 'burner' ? (a.burner_used ? 'Burner, used' : 'Burner') : 'Everyday'));
     badge.setAttribute('data-kind', a.kind);
     line.appendChild(badge);
   }
-  box.appendChild(line);
-  if (a.kind) box.appendChild(el('div', 'vw-cx-env vw-cx-kind-note', KIND_NOTES[a.kind === 'burner' && a.burner_used ? 'burner_used' : a.kind] || ''));
+  box.appendChild(top);
+  if (a.kind) { var kindNote = tip(line, KIND_NOTES[a.kind === 'burner' && a.burner_used ? 'burner_used' : a.kind] || ''); if (kindNote) { kindNote.className += ' vw-cx-kind-note'; box.appendChild(kindNote); } }
   if (a.ledger) {
     box.setAttribute('data-ledger', 'true');
-    box.appendChild(el('div', 'vw-cx-env vw-cx-ledger-note', 'Signs on your Ledger. Its key never leaves the Ledger. Every payment asks for this wallet\'s PIN or password, then shows on the Ledger for you to check and press. Its backup is the Ledger\'s own recovery words.'));
+    var ledgerNote = tip(line, 'Signs on your Ledger. Its key never leaves the Ledger. Every payment asks for this wallet\'s PIN or password, then shows on the Ledger for you to check and press. Its backup is the Ledger\'s own recovery words.'); ledgerNote.className += ' vw-cx-ledger-note'; box.appendChild(ledgerNote);
   }
-  var addr = el('div', 'vw-cx-address', a.address || ''); box.appendChild(addr);
+  var addr = el('div', 'vw-cx-address', a.address || ''); addr.title = a.address || ''; box.appendChild(addr);
   var setupState = a.setup_state || 'ready';
   var stateLine = el('div', 'vw-cx-env', 'State: ' + (SETUP_TEXT[setupState] || setupState)); stateLine.className += ' vw-cx-state'; box.appendChild(stateLine);
-  var balance = el('div', 'vw-cx-balance', 'Balance not read yet.'); balance.setAttribute('data-balance-state', 'unread'); box.appendChild(balance);
+  var balance = el('div', 'vw-cx-balance', 'Balance not read yet.'); balance.setAttribute('data-balance-state', 'unread'); top.appendChild(balance);
   var actions = el('div', 'vw-cx-actions');
   var msg = el('div', 'vw-msg');
   if (setupState === 'ready' || !a.mode || a.mode !== 'pocket_sealed') {
@@ -1523,7 +1767,10 @@ var KIND_NOTES = {
 function keychainControls(a, cp, msg){
   // the backup key sealed with a backup password the person chooses, kept in this computer's secure store
   var box = el('div', 'vw-cx-keychain'); box.setAttribute('data-keychain', a.keychain_backup ? 'saved' : 'none');
-  box.appendChild(el('div', 'vw-cx-env', a.keychain_backup
+  // one short status line; what it means sits behind its "?"
+  var kline = el('div', 'vw-cx-backup-line'); box.appendChild(kline);
+  kline.appendChild(el('span', 'vw-cx-chip' + (a.keychain_backup ? ' on' : ''), a.keychain_backup ? WT('wallet.backup.keychain_saved', 'Keychain backup: saved') : WT('wallet.backup.keychain_none', 'Keychain backup: not yet')));
+  box.appendChild(tip(kline, a.keychain_backup
     ? 'Backup saved in this computer\'s Keychain, locked with your backup password. If you forget the PIN or reinstall VOOL, it brings this wallet back.'
     : 'No Keychain backup yet. You can keep this wallet\'s backup key in this computer\'s Keychain, locked with a backup password only you know. Writing the backup key down on paper is still the safest second copy.'));
   var bar = el('div', 'vw-cx-actions'); box.appendChild(bar);
@@ -1610,7 +1857,9 @@ function usbControls(a, cp, msg){
   // the same sealed backup as the Keychain one, written to a USB stick the person keeps offline
   var box = el('div', 'vw-cx-usb'); box.setAttribute('data-usb', a.usb_backup ? 'saved' : 'none');
   var u = a.usb_backup || null;
-  box.appendChild(el('div', 'vw-cx-env', u
+  var uline = el('div', 'vw-cx-backup-line'); box.appendChild(uline);
+  uline.appendChild(el('span', 'vw-cx-chip' + (u ? ' on' : ''), u ? WTF('wallet.backup.usb_saved', 'USB backup: saved on {drive}', { drive: u.drive }) + (usbDateText(u.saved_at) ? ' · ' + usbDateText(u.saved_at) : '') : WT('wallet.backup.usb_none', 'USB backup: not yet')));
+  box.appendChild(tip(uline, u
     ? 'Backup saved on "' + u.drive + '"' + (usbDateText(u.saved_at) ? ' on ' + usbDateText(u.saved_at) : '') + ', locked with your backup password. Keep that drive away from this computer.'
     : 'No USB backup yet. You can keep this wallet\'s backup on a USB stick or external drive in a drawer, locked with a backup password only you know.'));
   var bar = el('div', 'vw-cx-actions'); box.appendChild(bar);

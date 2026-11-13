@@ -38,7 +38,7 @@ TRUSTED_DOORS: frozenset[str] = frozenset({
     "/api/wallet/dna-fees/policy",
     "/api/wallet/recovery/backup", "/api/wallet/recovery/device",
     "/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state",
-    "/api/wallet/wallets/name", "/api/wallet/wallets/main", "/api/wallet/wallets/remove", "/api/wallet/addons/allowance",
+    "/api/wallet/wallets/name", "/api/wallet/wallets/main", "/api/wallet/wallets/remove", "/api/wallet/addons/allowance", "/api/wallet/agents/caps",
     "/api/wallet/keychain/save", "/api/wallet/keychain/recover", "/api/wallet/keychain/restore", "/api/wallet/keychain/forget",
     "/api/wallet/usb/save", "/api/wallet/usb/open", "/api/wallet/security-key/add", "/api/wallet/security-key/remove",
     "/api/wallet/ledger/add",
