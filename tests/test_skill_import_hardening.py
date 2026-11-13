@@ -301,7 +301,7 @@ def test_a_negation_counts_only_right_before_the_verb(text, conflict) -> None:
 
 def test_a_browse_skill_from_github_is_checked_again_on_the_bytes_it_installs() -> None:
     from core import addon_store
-    from core.eyebrow_client import AddonError
+    from core.addon_security import AddonError
 
     entry = {"id": "github-" + "a" * 24, "repository": "https://github.com/o/r", "ref": "d" * 40}
     with pytest.raises(AddonError) as refused:
