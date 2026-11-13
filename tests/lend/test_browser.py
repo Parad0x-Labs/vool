@@ -430,10 +430,13 @@ def served_failures(a, b, bases, homes, relay, evidence, events, processes):
     api(a,bases[0],'poll')
     assert send(changed,b'Never sent').json()['error'] == 'HOST_NOT_CONFIRMED'
 
-    key = offer(expires=int(time.time()*1000)+2000)
+    # Five seconds, not two: on a slow hosted runner the offer, join and upload took longer than a
+    # two-second window, so the host never listed the job before it expired (StopIteration below).
+    expires = int(time.time()*1000)+5000
+    key = offer(expires=expires)
     expiring = send(key,b'Expires before the host approves').json()['job']
     api(a,bases[0],'poll')
-    time.sleep(2.1)
+    time.sleep(max(0.0, expires/1000-time.time())+0.1)
     api(a,bases[0],'poll')
     api(b,bases[1],'poll')
     assert job(a,bases[0],expiring)['state'] == job(b,bases[1],expiring)['state'] == 'expired'
