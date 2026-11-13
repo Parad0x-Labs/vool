@@ -252,3 +252,12 @@ def test_other_things_being_full_are_not_the_drives(asked):
     refusal = _drive_stats_privacy_refusal("machine.disk_usage", asked)
     assert refusal is not None
     assert "Answer from" not in refusal.user_safe_response_text
+
+
+def test_the_storage_scan_names_the_home_folder_without_its_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    from core.operator.handlers import _shown_place
+
+    assert _shown_place(tmp_path) == "your home folder"
+    assert _shown_place(tmp_path / "Downloads") == "~/Downloads"
+    assert str(tmp_path) not in _shown_place(tmp_path / "Library" / "Caches")

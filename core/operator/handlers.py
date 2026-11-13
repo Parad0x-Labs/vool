@@ -12,6 +12,17 @@ from .models import OperatorActionIntent, OperatorActionResult
 from .when import format_due_time, has_passed
 
 
+def _shown_place(path: Any) -> str:
+    """A place as the person reads it: "your home folder" or "~/Downloads", never the absolute home path
+    (the account name is in it). Skills A/B on the v0.8 head (2026-11-13) measured the largest-items reply
+    opening with the absolute home path; the storage scan said it the same way."""
+    try:
+        resolved = Path(str(path)).expanduser().resolve()
+        relative = resolved.relative_to(Path.home().resolve())
+    except Exception:
+        return str(path)
+    return "your home folder" if str(relative) in {"", "."} else f"~/{relative.as_posix()}"
+
 def _percent(value: Any) -> float:
     """A process row's percentage as a sortable float; unreadable values rank last, never crash."""
     try:
@@ -243,7 +254,7 @@ def handle_inspect_disk_usage(
         )
 
     lines = [
-        f"Storage scan for {target}",
+        f"Storage scan for {_shown_place(target)}",
         f"Free space on volume: {fmt_bytes_fn(summary['disk_free_bytes'])} / {fmt_bytes_fn(summary['disk_total_bytes'])}",
     ]
     if summary["top_entries"]:
@@ -258,7 +269,7 @@ def handle_inspect_disk_usage(
         lines.append("")
         lines.append(f"Safe temp cleanup preview: {fmt_bytes_fn(preview_total)} across {len(cleanup_roots)} bounded temp root(s).")
         for path in cleanup_roots[:4]:
-            lines.append(f"- {path}")
+            lines.append(f"- {_shown_place(path)}")
         lines.append("")
         lines.append(
             f"If you want me to execute it, reply with: clean all temp files. Pending action id: {pending_action_id}"
