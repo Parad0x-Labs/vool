@@ -718,8 +718,13 @@ class MachineFindLargestSafeRootFloorTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         # A real, sensitive-looking area outside every safe root -- /etc and /var/log do not
-        # exist under a scratch $HOME, so build equivalents inside this fixture's home instead.
-        self.etc = self.home / "etc"
+        # exist under a scratch $HOME, so build equivalents in this fixture instead. The system
+        # stand-in lives OUTSIDE the home: a visible folder in the home ("~/etc") is one of the
+        # owner's own folders, which reads may open, so it no longer stands for /etc. The hidden
+        # ~/.ssh stays in the home, where it is never a root.
+        self._outside = tempfile.TemporaryDirectory()
+        self.addCleanup(self._outside.cleanup)
+        self.etc = Path(self._outside.name) / "etc"
         self.etc.mkdir()
         (self.etc / "services").write_text("real system data\n", encoding="utf-8")
         self.ssh = self.home / ".ssh"
