@@ -613,6 +613,9 @@ def fence_spawned_daemons_from_live_ollama():
 @pytest.fixture(autouse=True)
 def block_live_local_ollama_under_pytest(monkeypatch):
     if os.environ.get("VOOL_ALPHA_LIVE_SOAK") == "1" or os.environ.get("VOOL_ALLOW_LIVE_OLLAMA_TESTS") == "1":
+        # A generator fixture must yield even when it guards nothing: a bare return here made
+        # every opted-in live test ERROR at setup ("did not yield a value") instead of running.
+        yield
         return
 
     # A developer shell may export the installer's inventory flag. Keep ordinary tests from

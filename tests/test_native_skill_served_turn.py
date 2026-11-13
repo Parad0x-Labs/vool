@@ -294,9 +294,33 @@ def test_e2e_root_cause_repair_workflow_served(served_rig, tmp_path) -> None:
     )
 
 
+def _require_live_model(model: str = LOCAL_MODEL) -> None:
+    """In an opted-in live run, a missing model is a FAILURE that names it, never a skip."""
+    import json
+    from urllib.request import urlopen
+
+    name = model.split(":", 1)[1]
+    host = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
+    base = host if host.startswith("http") else f"http://{host}"
+    try:
+        with urlopen(f"{base.rstrip('/')}/api/tags", timeout=5) as response:
+            tags = json.loads(response.read().decode("utf-8") or "{}")
+    except Exception as exc:  # noqa: BLE001 - any unreachable Ollama is the same plain failure
+        pytest.fail(f"live test needs the local model {name}, but Ollama at {base} is not reachable ({exc})")
+    names = {str(row.get("name") or row.get("model") or "") for row in tags.get("models") or []}
+    if name not in names:
+        pytest.fail(f"live test needs the local model {name}, which Ollama at {base} does not have; pull it first")
+
+
+#: Test meaning (CI #681, coordinator OK 2026-11-13): this build turn drives a REAL local model. It
+#: passed on main only because the create ask was misrouted to a text search. It now runs only in
+#: an explicitly selected live job (VOOL_ALLOW_LIVE_OLLAMA_TESTS=1 or VOOL_ALPHA_LIVE_SOAK=1), and
+#: there a missing model FAILS with its name. The default CI run never counts it as passed.
+@_LIVE_LOCAL_MODEL
 def test_e2e_feature_build_workflow_served(served_rig, tmp_path) -> None:
     """A build turn on the served path: the feature file is really written (environmental),
     the build doctrine is bound, and the write carries a typed receipt through the gate."""
+    _require_live_model()
     project = tmp_path / "build-project"
     project.mkdir(parents=True, exist_ok=True)
     served_rig.state.requests.clear()
