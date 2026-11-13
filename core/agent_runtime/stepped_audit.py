@@ -1120,6 +1120,74 @@ def _cited_code_contradicts(text: str, evidence: Any, path: str, start: int, end
                for m in _CONDITION_RE.finditer(text))
 
 
+#: A story about a feature the code lacks, a general hazard or an intent, not about what this code does wrong.
+#: Real-model audit of 3.21, attempt 6: "the subtotal function does not support line item adjustments ...
+#: which can lead to incorrect pricing" and "rounding at the end can lead to incorrect final prices due to
+#: floating-point precision issues" were served High through the harm vocabulary alone.
+_NOT_A_DEFECT_STORY_RE = re.compile(
+    r"\b(?:does\s+not|doesn'?t|do\s+not|cannot|can'?t)\s+support\b|\bno\s+support\b|\blacks?\s+(?:support|a\s+way)\b"
+    r"|\bno\s+(?:mechanism|way)\b|\bbusiness\s+logic\b|\bintended\b|\bfloating[- ]point\b|\bprecision\b"
+    r"|\btest\s+coverage\b|\bedge\s+cases?\b|\bnotif(?:y|ies|ication)\b",
+    re.IGNORECASE,
+)
+#: The state the cited lines change is left wrong: one state changes while the state that must follow it does not,
+#: or the write is made without the check it needs. (A value gone bad, "on_hand could become negative", is
+#: `_BAD_VALUE_RE`.) Each names an outcome a test can observe on the program's own state.
+_STATE_LEFT_WRONG_RE = re.compile(
+    r"\b(?:not|never|no\s+longer)\s+(?:\w+\s+)?(?:adjusted|released|freed|updated|restored|reduced|decremented"
+    r"|incremented|reflected|synced|synchronized)\b"
+    r"|\b(?:stays?|remains?|left|kept)\s+(?:\w+\s+)?(?:reserved|stale|locked|allocated)\b"
+    r"|\bout\s+of\s+sync\b|\binconsisten(?:t|cy|cies)\b"
+    r"|\b(?:does\s+not|doesn'?t|never)\s+(?:first\s+)?check(?:s)?\b[^.]{0,80}?\bbefore\b"
+    r"|\bwithout\s+(?:first\s+)?checking\b",
+    re.IGNORECASE,
+)
+#: A name the cited line writes: `self.on_hand[sku] = ...`, `order.lines[sku] = ...`, `del order.lines[sku]`.
+_WRITTEN_NAME_RE = re.compile(
+    r"^\s*(?:del\s+)?(?P<name>[A-Za-z_][\w.]*)(?:\[[^\]]*\])?\s*(?:[-+*/]?=(?!=)|$)"
+)
+
+
+def _names_written_on(lines: list[str]) -> set[str]:
+    """The state the cited lines change, as the words a story uses for it: `self.on_hand` is "on hand",
+    `order.lines` is "order lines" and "lines"."""
+    words: set[str] = set()
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("return", "if ", "for ", "while ", "def ", "class ", "#")):
+            continue
+        match = _WRITTEN_NAME_RE.match(line)
+        if not match or (not stripped.startswith("del ") and "=" not in stripped):
+            continue
+        parts = [p for p in match.group("name").split(".") if p and p != "self"]
+        if not parts:
+            continue
+        words.add(" ".join(parts).replace("_", " ").lower())
+        if len(parts[-1]) >= 4:
+            words.add(parts[-1].replace("_", " ").lower())
+    return words
+
+
+def _state_story_is_grounded(text: str, evidence: Any, path: str, start: int, end: int) -> bool:
+    """Whether the story says the state its cited lines write is left wrong, in the source's own names.
+
+    The second way a story is checkable without a literal: "the ship method does not check if the reserved
+    stock is sufficient before reducing on_hand" (stock.py:28-29 writes on_hand) and "the quantity is updated
+    in the order lines, but the stock is not adjusted" (orders.py:25 writes order.lines). Both are the
+    fixture's real bugs, and qwen3:8b words them that way on every run of attempts 5 and 6, with no input to
+    quote, so the literal rule never fired. A feature the code lacks, a general hazard or an intent is no such
+    story, whatever outcome word it ends on.
+    """
+    if _NOT_A_DEFECT_STORY_RE.search(text):
+        return False
+    if not (_BAD_VALUE_RE.search(_CONDITION_RE.sub(" ", text)) or _STATE_LEFT_WRONG_RE.search(text)):
+        return False
+    lines = str(evidence.sources.get(path, "") or "").splitlines()
+    written = _names_written_on(lines[max(0, start - 1): min(len(lines), end)])
+    story = re.sub(r"[_\-]", " ", text.lower())
+    return any(re.search(r"(?<![\w])" + re.escape(name) + r"(?![\w])", story) for name in written)
+
+
 def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, start: int, end: int) -> bool:
     """Whether a failure scenario can be settled by running something: it gives a concrete input (a literal of
     its own, or a condition on a value) AND names code that sits on the cited lines (±1), AND those lines do not
@@ -1131,6 +1199,8 @@ def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, 
     cannot buy the provable tier with a vague or unrelated story, only with one tied to the source it cites.
     """
     text = str(scenario or "")
+    if _state_story_is_grounded(text, evidence, path, start, end):
+        return not _cited_code_contradicts(text, evidence, path, start, end)
     # A literal and a nearby name are not enough on their own (independent review, 2026-10-07: "With 2 orders,
     # order.lines may be hard to read" and "The 3 lines that update order.lines are clear and correct" were
     # promoted to the top severity). The story must also state the wrong outcome it claims.
@@ -1206,9 +1276,17 @@ def _finding_defect(
     # Neither way backs a claim the cited code already rules out (`_cited_code_contradicts`): a user sees a
     # false High whichever way it was backed (real-model audit of 3.21, attempt 4: "if qty is negative ...
     # incorrect reservations" at stock.py:20, where reserve() refuses qty <= 0).
-    provable = (worded or _scenario_is_concrete_and_grounded(
-        failure_scenario, evidence, resolved, line_start, line_end
-    )) and not _cited_code_contradicts(failure_scenario, evidence, resolved, line_start, line_end)
+    grounded = _scenario_is_concrete_and_grounded(failure_scenario, evidence, resolved, line_start, line_end)
+    if allow_observations:
+        # A survey row is shown with no challenge, so its words alone never make it High: the vocabulary matched
+        # "can lead to incorrect pricing" on a feature request and "incorrect final prices due to floating-point
+        # precision" on a hunch (real-model audit of 3.21, attempt 6), and "raises an error" on a guard that is
+        # right (orders.py:23). Only a story grounded in the code it cites backs the class.
+        provable = grounded
+    else:
+        provable = (worded or grounded) and not _cited_code_contradicts(
+            failure_scenario, evidence, resolved, line_start, line_end
+        )
     if declared in PROVABLE_HARM_CLASSES and allow_observations and not provable:
         # A survey row is shown without any challenge, so its declared crash/integrity has to be
         # backed by its words or it is downgraded to the undeclared-inference rule below.
