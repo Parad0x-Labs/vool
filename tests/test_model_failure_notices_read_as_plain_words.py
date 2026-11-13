@@ -133,6 +133,31 @@ def test_a_selected_model_that_sent_back_nothing_says_so_plainly() -> None:
 
 
 @pytest.mark.parametrize(
+    ("requested", "attempted", "named"),
+    [
+        ("usepod-byok:meridian-synth-chat", "usepod-byok:meridian-synth-chat", "meridian-synth-chat"),
+        ("openrouter:meta-llama/llama-3.3-70b-instruct", "openrouter:meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.3-70b-instruct"),
+        ("ollama-local:qwen3.5:4b", "ollama-local:qwen3.5:4b", "qwen3.5:4b"),
+        # A bare model name keeps its own colon: only a lane id the router dispatched loses its lane.
+        ("qwen3.5:4b", "ollama-local:qwen3.5:4b", "qwen3.5:4b"),
+    ],
+    ids=["cloud-pin-lane", "openrouter-pin", "local-pin-lane", "bare-name"],
+)
+def test_a_pinned_model_is_named_by_its_own_name_not_its_lane(requested: str, attempted: str, named: str) -> None:
+    """CI #681 (served pin lane, 2026-11-13): a pin arrives as its lane id, and the notice read
+    "usepod-byok:meridian-synth-chat sent back an empty reply"."""
+    text = _no_answer(
+        {"requested_model": requested, "model_was_attempted": True,
+         "provider_failure": {"error_class": "EMPTY_PROVIDER_RESPONSE"}, "attempted": [attempted]},
+        source="selected_model_blocked",
+    )
+
+    assert text == f"I couldn't get an answer this time: {named} sent back an empty reply. Nothing was made up in its place. You can try again."
+    _assert_plain(text)
+    assert assistant_text_is_runtime_failure_notice(text)
+
+
+@pytest.mark.parametrize(
     "stored",
     [
         "`qwen3.5:4b` failed before producing a usable answer. No cached or remembered text was substituted. Retry the turn.",

@@ -537,6 +537,25 @@ def _attempt_failure_words(error: str, error_class: str = "") -> str:
     return "did not reply"
 
 
+def _pinned_model_name(details: dict[str, Any]) -> str:
+    """The model a person picked, by its own name, for a notice about that pin.
+
+    A pin arrives as the lane id the router dispatched ("openrouter:meta-llama/llama-3.3-70b-instruct",
+    "ollama-local:qwen3.5:4b"); the part before the first colon is how VOOL reaches the model, not
+    the model the person picked. A requested name that is not one of the attempted lane ids is kept
+    whole, because a model name can hold a colon of its own ("qwen3.5:4b").
+
+    CI #681 (served pin lane, 2026-11-13): an empty reply from a pin read "usepod-byok:meridian-synth-chat
+    sent back an empty reply".
+    """
+
+    requested = str(details.get("requested_model") or "").strip()
+    attempted = {str(item).strip() for item in list(details.get("attempted") or []) if str(item).strip()}
+    if requested in attempted and ":" in requested:
+        return requested.split(":", 1)[1]
+    return requested
+
+
 def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
     """Describe a measured model failure in plain words without exposing raw provider errors.
 
@@ -575,7 +594,7 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
 
     if source == "selected_model_blocked" and details.get("model_was_attempted"):
         failure = details.get("provider_failure") or {}
-        name = str(details.get("requested_model") or "").strip() or "The model you selected"
+        name = _pinned_model_name(details) or "The model you selected"
         if failure.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
             return f"{NO_ANSWER_LEAD}: {name} sent back an empty reply. {NOTHING_MADE_UP} {TRY_AGAIN}"
         error = str(details.get("block_reason") or details.get("reason") or "")
