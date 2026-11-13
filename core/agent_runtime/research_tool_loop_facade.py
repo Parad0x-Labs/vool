@@ -2431,6 +2431,11 @@ class ResearchToolLoopFacadeMixin:
             # The privacy gate runs BEFORE dispatch, on the ask's own words: a drive-stats read a
             # model reaches for on a turn that never asked about the drives is refused with plain
             # words, so the machine's numbers neither run nor ride the conversation back out.
+            if tool_name == "wallet.status":
+                # the wallet answers the question that was asked (core.wallet.money_answers), so it gets the ask itself
+                from core.wallet.money_answers import ASK_TEXT_KEY
+
+                gating_source_context = {**gating_source_context, ASK_TEXT_KEY: str(effective_input or "")}
             execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
                 tool_name, tool_payload, effective_input
             ) or self._execute_tool_intent(
@@ -2659,7 +2664,11 @@ class ResearchToolLoopFacadeMixin:
                     member_payload,
                     task_id=task.task_id,
                     session_id=session_id,
-                    source_context=loop_source_context,
+                    # the wallet answers the question that was asked, as for the head call
+                    source_context=(
+                        {**loop_source_context, "wallet_ask_text": str(effective_input or "")}
+                        if member_intent == "wallet.status" else loop_source_context
+                    ),
                     hive_activity_tracker=self.hive_activity_tracker,
                     public_hive_bridge=self.public_hive_bridge,
                     checkpoint_id=checkpoint_id,

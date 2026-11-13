@@ -998,6 +998,49 @@ def handle_turn_frontdoor(
             )
         }
 
+    # The owner's money questions ("how much is in all my wallets", "what did the agent spend yesterday and on what",
+    # "how much can it still spend today", "show my last payments") are answered from the wallet's own records
+    # (core.wallet.money_answers), read-only. Before the spend-cap explainer and the live price lookup: a wallet's
+    # limits are not the cloud AI spend cap, and "how much SOL is in my main wallet" is not the price of SOL. With
+    # crypto off, or no wallet yet, it says so plainly instead of a model guessing numbers.
+    if _intent_input and _owner_local:
+        from core.wallet import config as wallet_config
+        from core.wallet import money_answers
+
+        if money_answers.is_money_question(_intent_input, wallet_on=wallet_config.wallet_enabled()):
+            money_reply = money_answers.answer(_intent_input, source_context=source_context)
+            # The wallet was READ this turn: the answer is the runtime's own render of its records, so the output
+            # guards judge it as an observation the runtime minted (each line a support row), never as a model's
+            # unobserved numbers.
+            if isinstance(source_context, dict):
+                try:
+                    from core.agent_runtime.response import record_deterministic_render
+                    from core.final_answer_authorship import record_runtime_support
+
+                    observation = {"intent": "wallet.status", "tool_surface": "wallet", "ok": True, "status": money_reply.state,
+                                   "source": "wallet_records", "summary": money_reply.text[:2000]}
+                    observations = source_context.get("runtime_tool_observations")
+                    source_context["runtime_tool_observations"] = [*(observations if isinstance(observations, list) else []), observation]
+                    record_runtime_support(
+                        source_context,
+                        support_rows=[{"summary": line.strip(), "intent": "wallet.status", "source": "wallet_records"}
+                                      for line in money_reply.text.splitlines() if line.strip()],
+                        request_text=str(_intent_input),
+                    )
+                    record_deterministic_render(source_context, money_reply.text, route="wallet_money_question")
+                except Exception:
+                    pass
+            return {
+                "result": agent._fast_path_result(
+                    session_id=session_id,
+                    user_input=effective_input,
+                    response=money_reply.text,
+                    confidence=0.95,
+                    source_context=source_context,
+                    reason="wallet_money_question",
+                )
+            }
+
     # "How does the spend cap work / can you guarantee my $5 limit?" — answered from the real
     # policy and ledger. The local model improvises here, and an improvised money guarantee is the
     # worst answer this product can give, so it never reaches a model.

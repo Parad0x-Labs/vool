@@ -75,7 +75,7 @@ def _render_status() -> str:
 def test_the_status_render_publishes_the_hash_and_redaction_keeps_it_readable(seeded_home):
     with _scoped_registry():  # fresh-process simulation: no registrations carried in
         text = _render_status()
-        assert f"tx_signature={TX_HASH}" in text  # the seam rendered the stored hash
+        assert f"Transaction: {TX_HASH}." in text  # the seam rendered the stored hash
         masked = redact_secrets(f"{text} also seen {UNREGISTERED}")
         assert TX_HASH in masked  # registered at render: the wallet's own hash survives
         assert UNREGISTERED not in masked and "[redacted-key]" in masked  # the lookalike does not

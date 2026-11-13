@@ -502,7 +502,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | `wallet.payment_status` | Report the state of a payment proposal (pending approval, confirmed with its transaction signature, rejected, failed) from the wallet's own records. | `proposal_id` | reads |
 | `wallet.propose` | Propose a payment for the owner to approve: destination address, the amount as a decimal string in the coin's units (or amount_minor in atomic units), the asset symbol... | `destination`, `amount?`, `amount_minor?`, `asset`, `chain?`, `network?`, `wallet_id?`, `memo?`, `idempotency_key?` | saves VOOL data |
 | `wallet.simulate` | Re-run the simulation for an existing payment proposal and report the fee and outcome. | `proposal_id` | reads |
-| `wallet.status` | Read the wallet's public-safe status: custody mode, network, public key, spending limits, pending approvals and the last receipt. | none | reads |
+| `wallet.status` | Answer the owner's question about their own wallets and money from the wallet's records: what every wallet holds (Main, Burner, the assistant's own wallet, the Skills... | `question?` | reads |
 | `x402.propose` | Turn an x402 payment-required challenge (v2 first, v1 compatibility read where safe) into a payment proposal for the owner. | `status`, `headers?`, `body?`, `resource_url?` | saves VOOL data |
 
 **Video generation is disabled on this runtime (set video.generate_enabled and configure a video service).**

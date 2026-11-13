@@ -69,7 +69,7 @@ def test_handlers_propose_prepare_simulate_and_report_without_touching_a_key(wal
 
     profile = custody.create_pocket_wallet(acknowledged_warning=True, confirmation_phrase=custody.POCKET_CONFIRMATION_PHRASE, pin=PIN).profile
     status = _wallet_model_tool("wallet.status", {}, {"session_id": "s1"})
-    assert status.ok and profile.public_key in status.response_text and "pocket_sealed" in status.response_text
+    assert status.ok and profile.public_key in status.response_text and "sealed on this computer" in status.response_text
     proposed = _wallet_model_tool("wallet.propose", {"destination": DESTINATION, "amount_minor": 1200, "asset": "SOL", "memo": "coffee"}, {"session_id": "s1"})
     assert proposed.ok and proposed.status == "pending_approval"
     proposal_id = proposed.details["observation"]["proposal_id"]

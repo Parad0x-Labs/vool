@@ -135,6 +135,18 @@ _DB_NOUN = (
     r"sqlite|postgres|mysql)\b"
 )
 
+class _WalletMoneyAsk:
+    """A demand rule read by the wallet's own question reader rather than one regular expression: it has the
+    ``search`` a rule pattern has, and answers whether the words ask about the owner's wallets and money."""
+
+    pattern = "core.wallet.money_answers.may_be_about_money"
+
+    def search(self, text: str) -> bool:
+        from core.wallet.money_answers import may_be_about_money
+
+        return may_be_about_money(text)
+
+
 _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     # -- repository operations (RepoOps control plane) ------------------------
     # GitHub-management demands -- pull requests, issues, CI truth, the typed git vertical --
@@ -213,6 +225,10 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"\b(?:ask|use|query|try)\b[^.?!]{0,30}?\b(?:paid|pay[\s-]?per[\s-]?answer)\s+(?:ai|model|llm|service|endpoint)\b"
         r"|\bask\b[^.?!]{0,60}?\b(?:with|over|via|through|using|paying\s+with)\s+x402\b", re.I)),
     ("wallet.status", "wallet", re.compile(r"\bwallet\b[^.?!]{0,30}?\b(?:status|balance|limits?)\b|\b(?:my|the)\s+wallet\b", re.I)),
+    # the owner's money questions in everyday words: every wallet's holdings, what the assistant or plugins spent and
+    # on what, allowance limits and what is left, waiting payments, payment history (core.wallet.money_answers reads
+    # the words; the tool it seats only reads)
+    ("wallet.status", "wallet", _WalletMoneyAsk()),
     # -- Zcash private invoices (core/zcash; seated only when the lane is on, since the contracts exist only then) --
     # every pattern is anchored on the coin's own name, so no other money talk seats them
     ("zcash.invoice.create", "wallet", re.compile(r"\b(?:bill|invoice|charge|request)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:zec|zcash|taz)\b|\b(?:zec|zcash)\s+(?:invoice|payment\s+request)\b", re.I)),

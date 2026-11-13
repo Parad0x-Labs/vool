@@ -2842,6 +2842,78 @@ def _wallet_balances(source_context: dict[str, Any] | None) -> dict[str, Any]:
     return {"lines": lines, "balances": public, "read": len(held) + len(empty), "unavailable": len(unknown)}
 
 
+def _plain_amount_of(proposal: Any) -> str:
+    """A proposal's amount in its coin's own units ("0.01 SOL"), never atomic units."""
+    from core.wallet import purpose
+
+    return purpose._amount_text(proposal)
+
+
+def _network_name_of(network: str) -> str:
+    from core.wallet import chains
+
+    try:
+        return chains.resolve_network(str(network or "")).display_name
+    except Exception:
+        return str(network or "an unknown network")
+
+
+def _plain_fee_of(network: str, fee_minor: Any) -> str:
+    """A network fee in the network's own coin ("0.000005 SOL")."""
+    from core.wallet import amounts, chains
+
+    try:
+        spec = chains.resolve_network(str(network or ""))
+        native = chains.native_asset(spec.network)
+        return f"{amounts.format_minor(int(fee_minor or 0), native.decimals)} {spec.native_display_symbol or native.symbol}"
+    except Exception:
+        return "unknown"
+
+
+def _wallet_status_head(status: dict[str, Any]) -> str:
+    """The default wallet in the owner's words: its name and network, what waits for approval, and its caps as coin
+    amounts (never a custody code, a CAIP id or atomic units)."""
+    from core.wallet import amounts, chains
+
+    try:
+        spec = chains.resolve_network(str(status.get("network") or ""))
+        network = spec.display_name
+    except Exception:
+        spec, network = None, "no network yet"
+    name = str(status.get("label") or "").strip()
+    if not status.get("public_key"):
+        return "No wallet is set up yet. Pending approvals: 0."
+    keys = {"pocket_sealed": "its key is sealed on this computer", "external_signer": "it signs in your own external wallet",
+            "watch_only": "it is watch-only, so it cannot pay"}.get(str(status.get("custody_mode") or ""), "how its key is kept is unknown")
+    head = (f"Default wallet{': ' + name if name else ''} on {network}, address {status.get('public_key')}; {keys}. "
+            f"Payments waiting for your approval: {int(status.get('pending_approvals') or 0)}.")
+    caps = status.get("limits") or {}
+    if spec is not None and caps:
+        native = chains.native_asset(spec.network)
+        symbol = spec.native_display_symbol or native.symbol
+        with contextlib.suppress(KeyError, TypeError, ValueError):
+            head += (f" Its caps: {amounts.format_minor(int(caps['per_tx_minor']), native.decimals)} {symbol} a payment, "
+                     f"{amounts.format_minor(int(caps['daily_minor']), native.decimals)} {symbol} a day.")
+    return head
+
+
+def _wallet_last_payment_line(last: dict[str, Any]) -> str:
+    from core.wallet import amounts, chains, redaction
+
+    state = {"confirmed": "done", "failed": "did not go through", "rejected": "declined"}.get(str(last.get("state") or ""), "on its way")
+    try:
+        spec = chains.resolve_network(str(last.get("network") or ""))
+        asset = chains.asset_for(spec.network, str(last.get("asset") or ""))
+        symbol = (spec.native_display_symbol or asset.symbol) if asset.native else asset.symbol
+        amount = f"{amounts.format_minor(int(last.get('amount_minor') or 0), asset.decimals)} {symbol} on {spec.display_name}"
+    except Exception:
+        amount = "an amount that could not be read"
+    line = f"Last payment: {amount} ({state})."
+    # the wallet's own transaction hash is published (registered with redaction) so the owner can look it up
+    tx_hash = redaction.publish_identifier(last.get("tx_signature"))
+    return f"{line} Transaction: {tx_hash}." if tx_hash else line
+
+
 def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
     """The model-facing wallet surface: status, propose, simulate, payment_status.
 
@@ -2871,14 +2943,21 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
         if not wallet_config.wallet_enabled():
             custody.require_enabled(source_context=context)
         if intent == "wallet.status":
+            from core.wallet import money_answers
+
+            # the owner's own question (the model's `question` argument, else the turn's ask the tool loop hands over):
+            # answered from the wallet's records for exactly what was asked (balances of every wallet with its tokens,
+            # what an agent spent and on what, allowance limits and what is left, waiting payments, history)
+            question = str(args.get("question") or "").strip() or str((context or {}).get(money_answers.ASK_TEXT_KEY) or "").strip()
+            if question:
+                reply = money_answers.answer(question, source_context=context)
+                return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=reply.text,
+                                              details={"money": reply.facts, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", money_topics=list(reply.topics), money_state=reply.state)})
             status = wallet_status()
-            lines = [
-                f"Wallet {status.get('label') or '(unnamed)'} on {status.get('network')}: custody={status.get('custody_mode')}, public key {status.get('public_key') or '(none)'}.",
-                f"Pending approvals: {status.get('pending_approvals', 0)}. Mainnet enabled: {status.get('mainnet_enabled')}. Limits (SOL minor units): {status.get('limits') or {}}.",
-            ]
+            lines = [_wallet_status_head(status)]
             last = status.get("last_receipt") or {}
             if last:
-                lines.append(f"Last receipt: proposal {last.get('proposal_id')} state={last.get('state')} tx_signature={redaction.publish_identifier(last.get('tx_signature')) or '-'}.")
+                lines.append(_wallet_last_payment_line(last))
             held = _wallet_balances(context)
             lines.extend(held["lines"])
             return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text="\n".join(lines), details={"status": status, "balances": held["balances"], "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", pending_approvals=int(status.get("pending_approvals") or 0), balances_read=held["read"], balances_unavailable=held["unavailable"])})
@@ -2942,7 +3021,7 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
             prepared = lifecycle.default_lifecycle(source_context=context).prepare(proposal.proposal_id)
             who = describe_snapshot(recipient) or prepared.destination
             text = (
-                f"Proposal {prepared.proposal_id}: {prepared.amount_minor} {prepared.asset} (minor units) to {who} on {prepared.network}. State: {prepared.state}.\n"
+                f"Proposal {prepared.proposal_id}: {_plain_amount_of(prepared)} to {who} on {_network_name_of(prepared.network)}. State: {prepared.state}.\n"
                 + (f"Check before approving: {recipient['warning']}\n" if recipient.get("warning") else "")
                 + "Nothing has been signed. Approve it in your wallet with your PIN, biometric or external wallet; I cannot approve, sign or broadcast."
             )
@@ -3006,7 +3085,7 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
 
                 prepared = lifecycle.default_lifecycle(source_context=context).prepare(proposal.proposal_id)
                 simulation = dict(prepared.simulation or {})
-            text = f"Simulation for {proposal.proposal_id} {'succeeded' if simulation.get('ok') else 'did not pass'} (fee {simulation.get('fee_minor', 0)} minor units). Nothing was signed and nothing was sent."
+            text = f"Simulation for {proposal.proposal_id} {'succeeded' if simulation.get('ok') else 'did not pass'} (fee {_plain_fee_of(proposal.network, simulation.get('fee_minor', 0))}). Nothing was signed and nothing was sent."
             return RuntimeExecutionResult(handled=True, ok=True, status="simulate_only", response_text=text, details={"simulation": simulation, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="simulate_only", proposal_id=proposal.proposal_id)})
         from core.wallet import transfers
 

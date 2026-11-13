@@ -58,6 +58,8 @@ def fast_path_response_class(
         "same_chat_transcript_recall",
         "ui_command_fast_path",
         "credit_status_fast_path",
+        # the owner's money question, read from the wallet's own records (core.wallet.money_answers)
+        "wallet_money_question",
         "memory_command",
         "user_preference_command",
         "live_info_fast_path",

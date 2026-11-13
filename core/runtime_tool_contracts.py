@@ -2739,13 +2739,13 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         # broadcast are operator-only doors (core/web/api/wallet_api.py) and are not tools at all.
         RuntimeToolContract(
             intent="wallet.status",
-            description="Read the wallet's public-safe status: custody mode, network, public key, spending limits, pending approvals and the last receipt. Read-only; never returns key material.",
+            description="Answer the owner's question about their own wallets and money from the wallet's records: what every wallet holds (Main, Burner, the assistant's own wallet, the Skills & plugins wallet; coins and tokens, per network, with totals), what the assistant or plugins spent and on what (today, yesterday, this week...), allowance limits and what is left, payments waiting for approval, and recent payments. Pass the owner's question as `question`. Read-only: never proposes, pays or changes anything, and never returns key material.",
             tool_surface="wallet",
             capability_id="wallet.read",
             capability_claim="read the wallet's public status",
             supported=wallet_tools_enabled,
             unsupported_reason="The wallet is switched off on this runtime (VOOL_WALLET_ENABLED).",
-            input_schema={},
+            input_schema={"question": "str (optional): the owner's question about their wallets, in their own words"},
             output_schema={"status": "wallet_status"},
             side_effect_class="read_only",
             permission_actions=("read_files",),
