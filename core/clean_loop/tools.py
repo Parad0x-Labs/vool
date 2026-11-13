@@ -1446,12 +1446,103 @@ UNCHECKED_FILE_CLAIM_TEXT = (
 )
 
 
+_NAME_WRAP = "`*_\"'\u201c\u201d\u2018\u2019 "
+_LEAD_QUANTITY_RE = re.compile(r"^\s*\d[\d.,]*\s*(?:bytes?|[KMGT]?B)\b[\s,:;-]*", re.IGNORECASE)
+_MONTHS = {
+    name: index for index, names in enumerate(
+        ("jan january", "feb february", "mar march", "apr april", "may", "jun june", "jul july", "aug august",
+         "sep sept september", "oct october", "nov november", "dec december"), start=1,
+    ) for name in names.split()
+}
+_MONTH_WORD = "|".join(sorted(_MONTHS, key=len, reverse=True))
+_DATE_FORMS = (
+    re.compile(r"\b(?P<y>\d{4})-(?P<m>\d{1,2})-(?P<d>\d{1,2})\b"),
+    re.compile(rf"\b(?P<mon>{_MONTH_WORD})\.?\s+(?P<d>\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(?P<y>\d{{4}}))?\b", re.I),
+    re.compile(rf"\b(?P<d>\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?P<mon>{_MONTH_WORD})\.?(?:,?\s+(?P<y>\d{{4}}))?\b", re.I),
+    re.compile(r"\b(?P<a>\d{1,2})[/.](?P<b>\d{1,2})[/.](?P<y>\d{4})\b"),
+)
+
+
+def _date_mentions(text: str) -> list[tuple[str, set[tuple[int | None, int, int]]]]:
+    """Every calendar date `text` mentions, in any common written form, as (year or None, month, day) readings.
+    A numeric day/month pair that reads both ways gives both readings."""
+    found: list[tuple[str, set[tuple[int | None, int, int]]]] = []
+    taken: list[tuple[int, int]] = []
+    for form in _DATE_FORMS:
+        for m in form.finditer(str(text or "")):
+            if any(m.start() < hi and lo < m.end() for lo, hi in taken):
+                continue
+            taken.append((m.start(), m.end()))
+            groups = m.groupdict()
+            year = int(groups["y"]) if groups.get("y") else None
+            if groups.get("a"):
+                a, b = int(groups["a"]), int(groups["b"])
+                readings = {(year, b, a), (year, a, b)}
+            else:
+                month = _MONTHS[groups["mon"].lower()] if groups.get("mon") else int(groups["m"])
+                readings = {(year, month, int(groups["d"]))}
+            found.append((m.group(0), {r for r in readings if 1 <= r[1] <= 12 and 1 <= r[2] <= 31}))
+    return found
+
+
+def _same_date(reading: tuple[int | None, int, int], have: tuple[int | None, int, int]) -> bool:
+    return reading[1:] == have[1:] and (reading[0] is None or have[0] is None or reading[0] == have[0])
+
+
+def _name_variants(name: str) -> list[str]:
+    """The name as written, then what is left when what a reply wraps around a file name is taken off:
+    a bullet symbol or emoji, a folder path in front, a size in front, quotes and backticks."""
+    out: list[str] = []
+
+    def add(value: str) -> None:
+        value = value.strip(_NAME_WRAP)
+        if value and value not in out:
+            out.append(value)
+
+    add(name)
+    start = re.search(r"[\w]", name)
+    base = name[start.start():] if start else name
+    add(base)
+    add(_LEAD_QUANTITY_RE.sub("", base))
+    if "/" in base:
+        add(base.rsplit("/", 1)[1])
+    return out
+
+
+def ordered_folder_answer(ask: str, folder: str, ctx: ToolContext) -> str:
+    """The folder's own answer to an ask made of ordering or counting words (oldest, newest, largest, smallest, how
+    many): the listing tool sorts and counts, one read per direction the ask names. Empty when the ask names none or
+    the folder cannot be read."""
+    from core.execution.constants import ordering_reads_of
+
+    parts: list[str] = []
+    for read in ordering_reads_of(ask):
+        outcome = _call(ctx, "machine.list_directory", {"path": str(_home_path(folder, ctx.home)), **read})
+        if not outcome.ok or not outcome.text.strip():
+            return ""
+        parts.append(outcome.text.strip())
+    return "\n\n".join(parts)
+
+
+def tool_listing_answer(seen: list[str], ctx: ToolContext | None = None) -> str:
+    """The turn's own listing as the reply, when a tool listed something this turn: the tool's text (names, sizes,
+    dates, as the tool printed them), not the model's prose. Empty when no tool text of the turn lists anything."""
+    texts = [str(item or "").strip() for item in seen or [] if str(item or "").strip()]
+    listed = [t for t in texts if any(ln.startswith("- ") for ln in t.splitlines())]
+    if not listed and ctx is not None:
+        listed = [str(entry.get("text") or "").strip() for entry in getattr(ctx, "listings", None) or [] if isinstance(entry, dict)]
+        listed = [t for t in listed if t]
+    if not listed:
+        return ""
+    return re.sub(r"^\(that folder is [^)\n]*\)\n", "", listed[-1])[:_RESULT_CHARS].strip()
+
+
 def _file_names_in(answer: str) -> list[str]:
     names: list[str] = []
     for line in str(answer or "").splitlines():
         bullet = _BULLET_NAME_RE.match(line)
         if bullet:
-            name = bullet.group("name").strip().strip("`*_ ")
+            name = bullet.group("name").strip().strip(_NAME_WRAP)
             ext = name.rpartition(".")[2].lower()
             if "." in name and ext in _CLAIM_EXTENSIONS and name not in names:
                 names.append(name)
@@ -1468,19 +1559,32 @@ def _bytes_of(number: str, unit: str) -> float:
     return float(number) * _UNIT_BYTES.get(unit.upper(), 1)
 
 
+def _size_backed(number: str, unit: str, sizes: list[float]) -> bool:
+    """A size is backed when it is within 10% of a size the evidence holds, or is that size rounded to the
+    precision it is written in ("1 KB" for 653 bytes, "2.9 KB" for 2969, "0.6 KB")."""
+    want = _bytes_of(number, unit)
+    scale = _UNIT_BYTES.get(unit.upper(), 1)
+    half_step = 0.5 * 10 ** -(len(number.partition(".")[2])) * scale
+    return any(abs(want - got) <= max(0.1 * max(got, 1.0), half_step) for got in sizes)
+
+
 def unbacked_file_claims(answer: str, evidence: list[str]) -> list[str]:
     """File names, and sizes or dates stated beside a file, that `answer` gives but `evidence` does not hold.
 
     Read from structure: a token shaped like a file (a stem and a known extension), compared with the text the
-    evidence holds, case-folded. For a file the evidence does hold, the sizes and dates in the same line or
-    sentence must be ones the evidence's own lines for that file carry (a size within rounding)."""
+    evidence holds, case-folded, once what a reply wraps around a name (a bullet symbol, a path, a size, quotes)
+    is taken off. For a file the evidence does hold, the sizes and dates in the same line or sentence must be
+    ones the evidence's own lines for that file carry: a size within rounding, a date in any written form."""
     text = str(answer or "")
     blob = "\n".join(str(item or "") for item in evidence).casefold()
     bad: list[str] = []
-    names = _file_names_in(text)
-    for name in names:
-        if name.casefold() not in blob:
-            bad.append(name)
+    names: list[str] = []
+    for raw in _file_names_in(text):
+        backed = next((v for v in _name_variants(raw) if v.casefold() in blob), None)
+        if backed is None:
+            bad.append(raw)
+        elif backed not in names:
+            names.append(backed)
     if bad:
         return bad
     lines = blob.splitlines()
@@ -1494,14 +1598,16 @@ def unbacked_file_claims(answer: str, evidence: list[str]) -> list[str]:
         sizes = [_bytes_of(m.group(1), m.group(2)) for ln in owned for m in _SIZE_RE.finditer(ln)]
         if sizes:
             for m in _SIZE_RE.finditer(part):
-                want = _bytes_of(m.group(1), m.group(2))
-                if not any(abs(want - got) <= 0.1 * max(got, 1.0) for got in sizes):
+                if not _size_backed(m.group(1), m.group(2), sizes):
                     bad.append(f"{here[0]} ({m.group(0)})")
-        dates = {d for ln in owned for d in _DATE_RE.findall(ln)}
-        if dates:
-            for d in _DATE_RE.findall(part):
-                if d not in dates:
-                    bad.append(f"{here[0]} ({d})")
+        # A sentence about one file must carry that file's own dates; one that lists several files ("from 1, 5 and 11 Nov")
+        # may carry the date of any of them, so every date the evidence's lines hold counts.
+        dated = owned if len(here) == 1 else lines
+        have = {r for ln in dated for _t, group in _date_mentions(ln) for r in group}
+        if have:
+            for written, group in _date_mentions(part):
+                if group and not any(_same_date(r, h) for r in group for h in have):
+                    bad.append(f"{here[0]} ({written})")
     return bad
 
 

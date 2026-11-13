@@ -196,7 +196,7 @@ def _guard_file_claims(
     holds is never published. With the chat's recorded folder the folder is listed again and the model answers from
     that listing; if the answer still names something the evidence does not hold, or there is no folder to list,
     the reply says plainly that it could not check."""
-    from core.clean_loop.tools import UNCHECKED_FILE_CLAIM_TEXT, list_dir, unbacked_file_claims
+    from core.clean_loop.tools import UNCHECKED_FILE_CLAIM_TEXT, list_dir, tool_listing_answer, unbacked_file_claims
 
     if loop_result.stopped != "answered" or loop_result.proposals:
         return loop_result
@@ -224,9 +224,41 @@ def _guard_file_claims(
                 merged.answer, _claim_evidence(merged, ctx, context, prior_evidence, text)
             ):
                 return merged
-            merged.answer = UNCHECKED_FILE_CLAIM_TEXT
+            merged.answer = tool_listing_answer(merged.seen, ctx) or UNCHECKED_FILE_CLAIM_TEXT
             return merged
-    loop_result.answer = UNCHECKED_FILE_CLAIM_TEXT
+    # A tool ran this turn: its own listing is the answer, never a refusal. Only when nothing was listed at all
+    # does the reply say it could not check.
+    loop_result.answer = tool_listing_answer(loop_result.seen, ctx) or UNCHECKED_FILE_CLAIM_TEXT
+    return loop_result
+
+
+def _force_ordered_answer(loop_result: Any, *, text: str, ctx: ToolContext, context: dict[str, Any]) -> Any:
+    """An ordering or counting ask about the folder this chat listed (oldest, newest, largest, smallest, how many) is
+    never answered by the model from the old listing text with no tool run: a model comparing dates or sizes it was
+    shown picks the wrong file with full confidence. The folder's own listing tool sorts and counts, and that is the
+    reply. Applies when the ask holds an ordering word and the answer is about the files in view (it names a file, or
+    the ask names nothing but the entries); an ask about anything else ("the biggest country") is left alone."""
+    from core.clean_loop.tools import _file_names_in, ordered_folder_answer
+    from core.execution.constants import _is_implicit_entry_ask, ordering_reads_of
+
+    if loop_result.stopped != "answered" or loop_result.proposals or loop_result.tools_used:
+        return loop_result
+    slots = context.get("_conversation_slots") if isinstance(context.get("_conversation_slots"), dict) else {}
+    folder = str(slots.get("path") or "").strip()
+    if not folder or not ordering_reads_of(text):
+        return loop_result
+    if not (_file_names_in(loop_result.answer) or _is_implicit_entry_ask(text, allow_kinds=True)):
+        return loop_result
+    answer = ordered_folder_answer(text, folder, ctx)
+    if not answer:
+        return loop_result
+    loop_result.steps.append({
+        "step": len(loop_result.steps), "tool": "list_dir", "args": {"path": folder}, "ok": True, "status": "executed",
+        "empty": False, "intents": ["machine.list_directory"], "result_chars": len(answer), "think_ms": 0, "tool_ms": 0,
+        "by": "ordering_guard",
+    })
+    loop_result.seen.append(answer)
+    loop_result.answer = answer
     return loop_result
 
 
@@ -423,6 +455,7 @@ def maybe_answer(
         loop_result = _guard_file_claims(
             loop_result, text=text, brain=loop_brain, ctx=ctx, context=context, prior_evidence=prior_evidence
         )
+        loop_result = _force_ordered_answer(loop_result, text=text, ctx=ctx, context=context)
     _LOG.info(
         "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
         loop_result.stopped, loop_result.model_calls, ",".join(loop_result.tools_used),

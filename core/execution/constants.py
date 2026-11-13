@@ -4507,7 +4507,46 @@ _ENTRY_ASK_WORDS = frozenset({
     "many", "big", "large", "small", "biggest", "largest", "smallest", "tiniest", "lightest", "heaviest", "number", "count", "total",
     "all", "do", "i", "have", "can", "you", "could", "out", "among", "from", "hmm", "um", "well", "actually", "also", "anyway", "but",
     "any", "only", "newest", "latest", "most", "recent", "was", "did", "got", "much", "thanks", "thx", "i'd", "id", "like", "to", "know", "find", "get", "check",
+    "oldest", "earliest", "least", "older", "first",
 })
+#: The two ends of the time order of a folder's entries. "oldest" is the minimum modified time, never read from the
+#: dates a listing printed: the listing tool sorts. The tool takes it as `size_order: "oldest"` (the model-facing tool
+#: surface is frozen, so the one ordering argument it already has carries this value for the lanes).
+_OLDEST_ORDER_RE = re.compile(r"\b(?:oldest|earliest|least\s+recent(?:ly)?)\b", re.IGNORECASE)
+_NEWEST_ORDER_RE = re.compile(r"\b(?:newest|latest|most\s+recent(?:ly)?)\b", re.IGNORECASE)
+
+
+_MOST_SPACE_RE = re.compile(r"\b(?:most|more)\s+(?:space|room)\b|\bhogs?\b", re.IGNORECASE)
+_LEAST_SPACE_RE = re.compile(r"\bleast\s+(?:space|room)\b", re.IGNORECASE)
+
+
+def ordering_reads_of(text: str) -> list[dict[str, Any]]:
+    """The folder reads a message asks for by an ordering or counting word, one per direction it names: oldest and
+    newest (by modified time), largest and smallest (by size), how many. Each is the argument dict of the listing
+    tool, which does the ordering; empty when the message holds no such word. Closed vocabulary of ordering words, not
+    a reading of the sentence: callers decide whether the message is about the folder in view."""
+    clean = " ".join(str(text or "").split())
+    words = r"(?:oldest|earliest|newest|latest|biggest|largest|heaviest|smallest|tiniest|lightest)"
+    count = re.search(rf"\b{words}\s+(\d{{1,3}})\b|\b(\d{{1,3}})\s+{words}\b", clean, re.IGNORECASE)
+    limit = max(1, min(int(count.group(1) or count.group(2)), 200)) if count else 1
+    reads: list[dict[str, Any]] = []
+    if _OLDEST_ORDER_RE.search(clean):
+        reads.append({"size_order": "oldest", "limit": limit})
+    if _NEWEST_ORDER_RE.search(clean):
+        reads.append({"newest_first": True, "limit": limit})
+    size = _SIZE_ORDER_RE.search(clean)
+    if size is not None:
+        reads.append({"size_order": "largest" if size.group("big") else "smallest", "limit": limit})
+    for pattern, order in ((_MOST_SPACE_RE, "largest"), (_LEAST_SPACE_RE, "smallest")):
+        if pattern.search(clean) and not any(r.get("size_order") == order for r in reads):
+            reads.append({"size_order": order, "limit": limit})
+    if size is not None:
+        small = _SIZE_ORDER_RE.search(clean, size.end())
+        if small is not None and bool(small.group("big")) != bool(size.group("big")):
+            reads.append({"size_order": "largest" if small.group("big") else "smallest", "limit": limit})
+    if _COUNT_ASK_RE.search(clean):
+        reads.append({"count_only": True})
+    return reads
 
 
 def _is_implicit_entry_ask(clean: str, *, allow_kinds: bool = False) -> bool:
@@ -4543,7 +4582,12 @@ def _folder_follow_up(clean: str, folder_hint: str, kind_hint: str = "") -> dict
                 "limit": max(1, min(int(digits), 200)) if digits else 1, **kind}
     if _COUNT_ASK_RE.search(clean):
         return {"path": folder_hint, "count_only": True, **kind}
-    newest = re.search(r"\b(?:newest|latest|most\s+recent)\b", clean, re.IGNORECASE)
+    oldest = _OLDEST_ORDER_RE.search(clean)
+    newest = _NEWEST_ORDER_RE.search(clean)
+    if oldest is not None and newest is None:
+        count = re.search(r"\b(?:oldest|earliest)\s+(\d{1,3})\b|\b(\d{1,3})\s+(?:oldest|earliest)\b", clean, re.IGNORECASE)
+        digits = (count.group(1) or count.group(2)) if count else ""
+        return {"path": folder_hint, "size_order": "oldest", "limit": max(1, min(int(digits), 200)) if digits else 1, **kind}
     if newest is not None:
         count = _NEWEST_COUNT_RE.search(clean)
         digits = (count.group(1) or count.group(2)) if count else ""

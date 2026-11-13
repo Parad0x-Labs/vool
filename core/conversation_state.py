@@ -752,6 +752,22 @@ _REDIRECT_REST = frozenset({
 })
 
 
+def _lookup_a_file_search_could_serve(pending: PendingRequest) -> bool:
+    """Whether the last ask ended in words with no file tool behind it (a recall answer, a plain "I don't have that") and was
+    a lookup of the owner's own things: then the redirect to a folder is that same lookup inside the folder. Read from the
+    clean loop's own classifiers on the recorded request ("is there a note about X", "did i save the Y"); a general-knowledge
+    question ("whats the capital of france") is not one."""
+    if pending.outcome not in {ANSWERED, DONE}:
+        return False
+    try:
+        from core.clean_loop import route
+
+        request = str(pending.request or "")
+        return route.asks_about_own_files_or_computer(request) or route.is_notes_ask(request)
+    except Exception:
+        return False
+
+
 def _redirect_change(compact: str, pending: PendingRequest) -> str:
     """The change a redirect makes to the last ask ("the documents folder instead"), else "".
 
@@ -762,7 +778,8 @@ def _redirect_change(compact: str, pending: PendingRequest) -> str:
     slots = pending.slots or {}
     tool = str(slots.get("tool") or "").lower()
     if not (tool.startswith("machine.") or slots.get("path") or slots.get("kind") or slots.get("listed") or slots.get("evidence")):
-        return ""  # the last ask was not about files: there is no folder to move
+        if not _lookup_a_file_search_could_serve(pending):
+            return ""  # the last ask was not about files: there is no folder to move
     words = re.findall(r"[a-z0-9~/'.-]+", compact.lower())
     start = 0
     while start < len(words) and words[start] in _REDIRECT_LEAD:
@@ -801,7 +818,8 @@ def _try_with_a_subject(compact: str, pending: PendingRequest) -> bool:
     if _STRONG_CUE_RE.search(compact):
         return False
     slots = pending.slots or {}
-    if not (str(slots.get("tool") or "").lower().startswith("machine.") or slots.get("path") or slots.get("kind") or slots.get("listed")):
+    if not (str(slots.get("tool") or "").lower().startswith("machine.") or slots.get("path") or slots.get("kind") or slots.get("listed")
+            or _lookup_a_file_search_could_serve(pending)):
         return False
     return not _redirect_change(compact, pending)
 

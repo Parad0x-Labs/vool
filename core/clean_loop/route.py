@@ -618,6 +618,14 @@ def skill_keeps_turn(text: str, source_context: Mapping[str, Any] | None) -> str
         return ""
 
 
+def _moved_to_a_folder(source_context: Mapping[str, Any] | None) -> bool:
+    """Whether the owner moved the last ask to a folder ("try the documents folder instead"): a lookup inside a folder is a
+    file search, whatever the ask's own words ("a note about...") would have sent to the notes tools."""
+    context = source_context or {}
+    slots = context.get("_conversation_slots")
+    return bool(context.get("_conversation_changed") and isinstance(slots, dict) and str(slots.get("path") or "").strip())
+
+
 def decide(
     text: str,
     *,
@@ -646,7 +654,7 @@ def decide(
         return RouteDecision(False, blocked)
     if is_online_ask(text):
         return RouteDecision(False, "online_ask")
-    if is_notes_ask(text):
+    if is_notes_ask(text) and not _moved_to_a_folder(source_context):
         return RouteDecision(False, "notes_ask")
     if _database_work_owns(text, dict(source_context or {})):
         # The person's own databases belong to the database tools, which this loop's brain does not

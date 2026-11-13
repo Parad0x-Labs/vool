@@ -5995,6 +5995,8 @@ def _list_machine_directory(
         )
     newest_first = bool(arguments.get("newest_first", False))
     size_order = str(arguments.get("size_order") or "").strip().lower()
+    # "oldest" is the lanes' own value (the model-facing schema is frozen): the minimum modified time, not a size order.
+    oldest_first = size_order == "oldest" and not newest_first
     if size_order not in {"largest", "smallest"}:
         size_order = ""
 
@@ -6011,14 +6013,17 @@ def _list_machine_directory(
         and not (kind_suffixes and (child.is_dir() or not child.name.lower().endswith(kind_suffixes)))
         and not (kind == "screenshot" and not re.search(r"screen\s?_?shot", child.name, re.IGNORECASE))
     ]
-    if newest_first:
-        def _mtime(item: Path) -> float:
-            try:
-                return item.stat().st_mtime
-            except OSError:
-                return 0.0
+    def _mtime(item: Path) -> float:
+        try:
+            return item.stat().st_mtime
+        except OSError:
+            return 0.0
 
+    if newest_first:
         children.sort(key=_mtime, reverse=True)
+    elif oldest_first:
+        # The minimum modified time, ties by name: the tool orders, nobody reads dates off a printed list.
+        children.sort(key=lambda item: (_mtime(item), item.name.lower()))
     elif size_order:
         # "which is the biggest one there": files by size, folders left out (a folder's own entry
         # size says nothing about what it holds).
@@ -6033,6 +6038,7 @@ def _list_machine_directory(
                 "path": _home_relative_label(child),
                 "type": "directory" if child.is_dir() else "file",
                 **({"size_bytes": _size_of(child)} if size_order else {}),
+                **({"modified": datetime.fromtimestamp(_mtime(child)).strftime("%Y-%m-%d")} if (newest_first or oldest_first) else {}),
             }
         )
     entries = matched[:limit]
@@ -6119,9 +6125,13 @@ def _list_machine_directory(
     if size_order:
         label = f"{'Largest' if size_order == 'largest' else 'Smallest'} files"
     lines = [f"{label} under `{shown}`:"]
+    if (newest_first or oldest_first) and not kind_suffixes:
+        lines = [f"{'Newest' if newest_first else 'Oldest'} in `{shown}`:"]
     for entry in entries:
         suffix = "/" if entry["type"] == "directory" else ""
         size_note = f" ({_human_size(entry['size_bytes'])})" if "size_bytes" in entry else ""
+        if "modified" in entry and not kind_suffixes:
+            size_note = f" (modified {entry['modified']})"
         lines.append(f"- {entry['name']}{suffix}{size_note}")
     if dropped:
         noun = "folders" if directories_only else "entries"
