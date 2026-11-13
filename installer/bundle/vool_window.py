@@ -1615,7 +1615,7 @@ def _deliver_vool_url(url: str, window: object | None) -> None:
         _log(f"could not open a vool:// routine link ({exc!r})")
 
 
-def _register_url_scheme_handler(window: object | None = None) -> None:
+def _register_url_scheme_handler() -> None:
     """macOS: catch the vool:// launch/activation (GURL Apple Event) and relay its params.
 
     The .app's bash launcher exec's into THIS process, so the window is the .app's NSApplication and
@@ -1637,6 +1637,8 @@ def _register_url_scheme_handler(window: object | None = None) -> None:
         def handleAppleEvent_withReplyEvent_(self, event, reply_event):  # noqa: N802 (ObjC selector)
             try:
                 descriptor = event.paramDescriptorForKeyword_(key_direct_object)
+                # The routine link opens in the window on screen (main() appends it before registering).
+                window = _PRESENT_WINDOWS[-1] if _PRESENT_WINDOWS else None
                 _deliver_vool_url(str(descriptor.stringValue() or ""), window) if descriptor else None
             except Exception as exc:
                 _log(f"vool:// handler error ({exc!r})")
@@ -2181,7 +2183,7 @@ def main() -> int:
             raise RuntimeError("pywebview returned no native window")
         _PRESENT_WINDOWS.append(window)
         api.set_window(window, webview)
-        _register_url_scheme_handler(window)   # vool://auth/<provider>/callback and vool://routine/<id> (macOS)
+        _register_url_scheme_handler()   # vool://auth/<provider>/callback and vool://routine/<id> (macOS)
         runtime_lost = _start_runtime_watchdog(supervisor, window, done)
         notification_bridge = _start_notification_bridge(window)
         # macOS: X hides to Dock, Cmd+Q quits (default on); the same post-start hook binds Cmd+,
