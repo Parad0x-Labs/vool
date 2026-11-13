@@ -79,6 +79,8 @@ def test_sign_in_bookmark_approval_and_disconnect_in_served_settings(fake_x, vau
         page.on('pageerror', lambda error: errors.append(str(error)))
         origin = f'http://127.0.0.1:{server.server_port}'
         page.goto(origin + '/settings#keys')
+        # X sits in its own fold on API Keys; open it as a person would.
+        page.locator('#xFold > summary').click()
         box = page.locator('.x-bookmark-setup')
         box.locator('.x-bookmark-state').filter(has_text='off until you sign in').wait_for()
         assert fake_x.calls == [] and outside == []

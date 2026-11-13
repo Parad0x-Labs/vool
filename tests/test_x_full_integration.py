@@ -251,6 +251,8 @@ def test_served_settings_prices_save_reload_disable_without_provider_calls(vault
         page = browser.new_page(viewport={'width': 1120, 'height': 900})
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.goto(f'http://127.0.0.1:{server.server_port}/settings#keys')
+        # X sits in its own fold on API Keys; open it as a person would.
+        page.locator('#xFold > summary').click()
         host = page.locator('.x-features')
         host.locator('.x-features-save').wait_for()
         assert catalog_for(locale).text('xfull.title') in host.inner_text()

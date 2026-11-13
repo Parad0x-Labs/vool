@@ -371,7 +371,7 @@ def _settings_groups() -> list[dict]:
                 _row(
                     id="web_lookups",
                     card="online",
-                    hint="Search the web to answer. Off until you turn it on.",
+                    hint="Search the web to answer. Off by default.",
                     label="Web lookups",
                     kind="custom",
                     widget="web_lookups",

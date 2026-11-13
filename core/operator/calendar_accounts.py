@@ -38,27 +38,27 @@ DISCOVERY_SCOPE_NAME = "calendar.account_discovery"
 PROVIDERS: dict[str, dict[str, str]] = {
     "google": {
         "label": "Google Calendar",
-        "connection": "a Google account credential binding (OAuth)",
-        "events": "recurring series are read as the dated instances Google expands",
-        "links": "the event page; Google Meet and conference links when the event has them",
+        "connection": "your Google account sign-in",
+        "events": "repeating events are read one date at a time",
+        "links": "the event page, and Google Meet links",
     },
     "graph": {
         "label": "Microsoft Outlook / Microsoft 365",
-        "connection": "a Microsoft account credential binding (OAuth)",
-        "events": "recurring series are read as the dated occurrences calendarView expands",
-        "links": "the event page; Teams and online meeting join links when the event has them",
+        "connection": "your Microsoft account sign-in",
+        "events": "repeating events are read one date at a time",
+        "links": "the event page, and Teams links",
     },
     "caldav": {
         "label": "iCloud or another CalDAV server",
-        "connection": "the server's CalDAV address and a credential binding (for iCloud, an app-specific password)",
-        "events": "stored events are read as the server returns them; servers differ in how they expand recurring series",
-        "links": "the event's URL property when the server keeps one",
+        "connection": "the server address and a sign-in (for iCloud, an app-specific password)",
+        "events": "events are read as the server sends them",
+        "links": "the event's web link, if it has one",
     },
     "eventkit": {
         "label": "Apple Calendar on this Mac",
         "connection": "macOS Calendar permission for VOOL, granted in the system prompt (no password)",
-        "events": "the calendars macOS already syncs are read, recurring instances included",
-        "links": "the event's URL when it has one",
+        "events": "the calendars your Mac already syncs",
+        "links": "the event's web link, if it has one",
     },
 }
 

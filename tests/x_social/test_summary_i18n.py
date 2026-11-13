@@ -54,6 +54,8 @@ def test_action_summaries_use_every_catalog_on_served_settings(fake_x, vault_hom
         for locale in sorted(path.stem for path in CATALOGS_DIR.glob('*.json')):
             catalog = catalog_for(locale)
             page.goto(base + '/settings?ui_locale=' + locale + '#keys')
+            # X sits in its own fold on API Keys; open it as a person would.
+            page.locator('#xFold > summary').click()
             def isolate(value, selected_locale=locale):
                 return '\u2068' + value + '\u2069' if selected_locale in {'ar', 'he'} else value
             expected = catalog.text('xs.summary_quote').replace('@{author}', isolate('@late_whale'))

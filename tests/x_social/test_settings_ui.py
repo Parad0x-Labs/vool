@@ -38,6 +38,8 @@ def test_rating_voice_pause_forget_on_the_served_settings_page(fake_x, vault_hom
         page=browser.new_page(viewport={'width':1100,'height':1050})
         errors=[];page.on('pageerror',lambda e: errors.append(str(e)))
         page.goto(f'http://127.0.0.1:{server.server_port}/settings#keys')
+        # X sits in its own fold on API Keys; open it as a person would.
+        page.locator('#xFold > summary').click()
         card=page.locator('.x-action-card').filter(has_text='A precise release note.')
         card.get_by_label('Your rating',exact=True).select_option('9')
         card.get_by_label('Comment (optional)',exact=True).fill('Clear and concrete.')
