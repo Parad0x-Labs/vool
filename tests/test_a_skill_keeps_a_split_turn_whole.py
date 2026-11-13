@@ -80,8 +80,12 @@ def test_the_demand_seam_leaves_a_paste_to_rework_whole(head: str, monkeypatch) 
 
     turn = f"{head}\n\n{PASTE}"
     if head == CONVERT_HEADS[0]:
-        # The seam's own reader cuts the article into units (the A/B article went to eleven).
-        assert demand_coverage(turn).mixed
+        # The seam's own reader leaves the paste whole too: one unit, not mixed. It cut the A/B
+        # article into eleven before the round 7 fix
+        # (tests/test_a_pasted_piece_is_material_for_every_reader.py).
+        coverage = demand_coverage(turn)
+        assert not coverage.mixed
+        assert len(coverage.units) == 1
     planner = Mock(return_value=[])
     monkeypatch.setattr("core.agent_runtime.demand_ownership.units_as_plan", planner)
     result = VoolAgent._maybe_answer_demand_owned_turn(

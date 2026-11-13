@@ -160,7 +160,15 @@ def prepare_turn_task_bundle(
         classification_context["source_context"] = dict(source_context)
         classification_context["source_surface"] = source_context.get("surface")
         classification_context["source_platform"] = source_context.get("platform")
-    classification = classify_fn(effective_input, context=classification_context)
+    # One request over a paste is classified by its request, not by the paste: the pasted words
+    # are the request's material (`turn_planner.pasted_material_head`). Measured in the skills A/B
+    # on the round 7 line (Mac, qwen3:8b): "Turn this into an X article:" over an article with
+    # links read as research, which opens the tool gate on its own (core.execution.planner), and
+    # the turn spent a tool round (137-161 s, no tool call) before its answer.
+    from core.agent_runtime.turn_planner import pasted_material_head
+
+    classified_text = pasted_material_head(effective_input) or effective_input
+    classification = classify_fn(classified_text, context=classification_context)
     agent._update_task_class(task.task_id, classification["task_class"])
     agent._update_runtime_checkpoint_context(
         source_context,

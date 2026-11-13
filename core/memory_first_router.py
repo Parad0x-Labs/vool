@@ -366,6 +366,12 @@ def _local_model_free_memory_gb() -> float | None:
 _FALLBACK_ATTEMPT_FLOOR_SECONDS = 5.0
 
 
+#: The answer room from which a call no longer fits the ordinary 60 s window. Every long-answer
+#: room in core.prompt_normalizer starts here: a creative piece and a presentation (1800), an X
+#: draft and a reworked paste (up to 2600), a program (8192).
+LONG_ANSWER_TOKENS = 1800
+
+
 def resolve_fallback_budget_seconds(
     lane: str,
     *,
@@ -373,6 +379,7 @@ def resolve_fallback_budget_seconds(
     no_usable_gpu: bool,
     output_mode: str = "",
     local_candidates: bool = False,
+    answer_tokens: int = 0,
 ) -> float | None:
     """Wall-clock budget for the sequential provider-fallback loop.
 
@@ -400,6 +407,13 @@ def resolve_fallback_budget_seconds(
     caps instead of cutting a slow local answer at a GPU-sized window. A GPU host, a DirectML or
     Vulkan host, ``VOOL_OLLAMA_NUM_GPU=0`` on a GPU host, and a cloud-only chain keep exactly
     the values below.
+
+    ``answer_tokens`` is the answer room this call carries. A call with ``LONG_ANSWER_TOKENS`` or
+    more gets the larger budget too, keyed on this call for the same reason as ``tool_intent``:
+    the 60 s window was sized for a conversational reply, and a long answer is long to write on
+    any lane. Measured on the Mac skills A/B (f4f048f7, qwen3:8b, Apple Silicon): the X article
+    turn's answer call, a 21 KB prompt with only 320 tokens of room, ran out the 60 s window
+    before it answered, and the turn failed with no answer.
     """
     if lane in {"deep", "cloud", "human"}:
         return None
@@ -407,6 +421,8 @@ def resolve_fallback_budget_seconds(
         budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_cpu", 180.0))
     elif output_mode == "tool_intent":
         budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_tool_intent", 180.0))
+    elif int(answer_tokens or 0) >= LONG_ANSWER_TOKENS:
+        budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_long_answer", 180.0))
     else:
         budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds", 60.0))
     if local_candidates:
@@ -6214,12 +6230,14 @@ class MemoryFirstRouter:
         # default on Windows (daemon disabled), which would wrongly stretch the
         # budget to the CPU value on a healthy GPU box.
         _forced_cpu = str(os.environ.get("VOOL_OLLAMA_NUM_GPU", "")).strip() == "0"
+        _no_usable_gpu = not _forced_cpu and _machine_has_no_usable_gpu()
+        _local_candidates = any(_manifest_is_local(candidate) for candidate in ranked_manifests)
         _fallback_budget_seconds = resolve_fallback_budget_seconds(
             autopilot.lane,
             forced_cpu=_forced_cpu,
-            no_usable_gpu=(not _forced_cpu and _machine_has_no_usable_gpu()),
+            no_usable_gpu=_no_usable_gpu,
             output_mode=output_mode,
-            local_candidates=any(_manifest_is_local(candidate) for candidate in ranked_manifests),
+            local_candidates=_local_candidates,
         )
         _fallback_deadline: float | None = None
 
@@ -6360,6 +6378,18 @@ class MemoryFirstRouter:
             surface=surface,
             source_context=source_context,
         )
+        # The answer room is known once the request is built; a long one widens the budget
+        # (resolve_fallback_budget_seconds). The deadline has not started yet.
+        _answer_room = _model_request_output_ceiling(request) or 0
+        if _answer_room >= LONG_ANSWER_TOKENS:
+            _fallback_budget_seconds = resolve_fallback_budget_seconds(
+                autopilot.lane,
+                forced_cpu=_forced_cpu,
+                no_usable_gpu=_no_usable_gpu,
+                output_mode=output_mode,
+                local_candidates=_local_candidates,
+                answer_tokens=_answer_room,
+            )
         if output_mode == "tool_intent":
             from core.capability_graph import family_hint_from_task_class
             from core.cloud_tool_call_contract import build_cloud_tool_definitions

@@ -2258,12 +2258,17 @@ def _generation_profile(
     The intent accompanies `max_output_tokens` so a later step can resolve
     this answer-length contract against the lane serving the turn.
     """
+    # One request over a pasted piece is shaped by the request alone: a number, a list or an
+    # exact phrase inside the piece is material, not a length the user asked for. Measured on
+    # the Mac skills A/B (f4f048f7): the article under "Turn this into an X article:" read as a
+    # counted collection and was given 320 tokens.
+    paste_head = _pasted_request_head(user_text)
     profile = _generation_profile_shape(
         surface=surface,
         task_kind=task_kind,
         output_mode=output_mode,
         task_class=task_class,
-        user_text=user_text,
+        user_text=paste_head or user_text,
         history_messages=history_messages,
         context_attached=context_attached,
     )
@@ -2309,13 +2314,73 @@ def _generation_profile(
             return profile
     except Exception:
         pass
+    # One request over a pasted piece answers with the piece remade (`_paste_rework_room`). Only
+    # the profiles with no length of their own take the room: an exact target or a counted list
+    # keeps what the user asked for.
+    normalized_mode = str(output_mode or "plain_text").strip().lower()
+    if (
+        paste_head
+        and normalized_mode == "plain_text"
+        and str(profile.get("profile_id") or "") in _PASTE_ROOM_PROFILES
+    ):
+        room = _paste_rework_room(str(user_text or ""), paste_head)
+        if room > int(profile.get("max_output_tokens") or 0):
+            return {
+                **profile,
+                "max_output_tokens": room,
+                "output_budget_intent": _intent_entry(normalized_mode, room, room, 0, "paste_rework_room"),
+            }
     return {
         **profile,
         "output_budget_intent": _output_budget_intent(
             profile,
-            output_mode=str(output_mode or "plain_text").strip().lower(),
+            output_mode=normalized_mode,
         ),
     }
+
+
+#: The plain-text profiles that state no answer length of their own.
+_PASTE_ROOM_PROFILES = frozenset({"chat_plain_text", "default_plain_text", "chat_presentation"})
+
+#: The most room a reworked paste asks for: the X-editorial room, which was sized for article drafts.
+_PASTE_REWORK_MAX_TOKENS = 2600
+
+
+def _pasted_request_head(user_text: str) -> str:
+    """The request before the paste when the turn is one request over a pasted piece, else ""."""
+    try:
+        from core.agent_runtime.turn_planner import pasted_material_head
+
+        return pasted_material_head(str(user_text or ""))
+    except Exception:
+        return ""
+
+
+def _paste_rework_room(user_text: str, head: str) -> int:
+    """Answer room for one request (*head*) over a pasted piece, or 0 when it states a length.
+
+    The answer is the piece remade (an article, a translation, a rewrite) and, under a skill, the
+    sheets that go with it, so it asks for about twice the piece at four characters to a token, at
+    most the X-editorial article room. A request that states its own length ("in 50 words") keeps
+    it. Measured on the Mac skills A/B (f4f048f7, qwen3:8b): a 6.2 KB article under "Turn this
+    into an X article:" was given 320 tokens, about a fifth of the article alone. Only emitted
+    tokens are billed, and the lane's physical caps still bind.
+    """
+    try:
+        from core.ordinary_chat_response_guard import explicit_short_output_max_words
+        from core.response_constraints import parse_response_constraint
+
+        stated = parse_response_constraint(head)
+        if stated is not None and (
+            stated.max_words or stated.exact_words or stated.max_sentences or stated.exact_sentences
+        ):
+            return 0
+        if explicit_short_output_max_words(head) is not None:
+            return 0
+    except Exception:
+        return 0
+    material_chars = max(0, len(str(user_text or "").strip()) - len(head))
+    return min(_PASTE_REWORK_MAX_TOKENS, (material_chars // 4) * 2)
 
 
 def _output_budget_intent(profile: dict[str, Any], *, output_mode: str) -> dict[str, Any]:

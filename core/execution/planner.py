@@ -472,6 +472,18 @@ def should_attempt_tool_intent(
     intent_surface = (
         structured_directive.task_text if structured_directive is not None else user_text
     )
+    # A paste under one rework request is material, never the ask: only the request before it
+    # decides whether the model is offered tools (`turn_planner.pasted_material_head`, the reader
+    # the answer contract, the slice lanes and the classifier share). Measured on the Mac skills
+    # A/B (f4f048f7, qwen3:8b): an article pasted under "Turn this into an X article:" read here
+    # as a web and workspace demand, and the turn spent a 137-161 s tool round in which the model
+    # called nothing. The request itself still reaches every reader below, so "Turn this into a
+    # PDF: ..." keeps its file tool.
+    from core.agent_runtime.turn_planner import pasted_material_head
+
+    _paste_head = pasted_material_head(intent_surface)
+    if _paste_head:
+        intent_surface = _paste_head
     # An instruction the same turn takes back is not an instruction. Measured: "Search my local
     # workspace for `password.txt`. WAIT, STOP. Cancel the search immediately. Instead, write a
     # 2-line javascript function" planned and ran `workspace.search_text` against the very filename

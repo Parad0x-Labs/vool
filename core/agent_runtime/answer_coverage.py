@@ -582,6 +582,17 @@ def fused_cross_domain_slices(text: str) -> tuple[str, ...]:
     return tuple(fused)
 
 
+def _one_request_over_a_paste(text: str) -> bool:
+    """Whether *text* is one request over supplied material. Any error is no: the turn keeps its
+    per-clause reading."""
+    try:
+        from core.agent_runtime.turn_planner import pasted_material_head
+
+        return bool(pasted_material_head(str(text or "")))
+    except Exception:
+        return False
+
+
 def coverage_for(text: str, family: str, *, probe: object | None = None) -> ClaimCoverage:
     """Whether `family` may end this turn, and exactly which clauses it accounts for.
 
@@ -595,7 +606,17 @@ def coverage_for(text: str, family: str, *, probe: object | None = None) -> Clai
     its own. The live-info lane is the case: its classifier needs the agent instance and the turn's
     interpretation, and importing either here would put the whole agent behind a coverage check.
     The call site owns the reading; the arbitration stays in one place.
+
+    One request over a paste ("Turn this into an X article:" and the article) gives no family a
+    clause: the pasted sentences are the request's material, not asks of their own
+    (`turn_planner.pasted_material_head`, the reader the planners and the demand seam already
+    share). Measured in the skills A/B on the round 7 line (f4f048f7, Mac, qwen3:8b): the live-info
+    family claimed two of the article's sentences, a picture caption and a link, and answered them
+    "Live web lookup is off" before any model call; the turn then ran as research and ended on
+    "Web lookups are off" after 341 s, with the article never written.
     """
+    if _one_request_over_a_paste(text):
+        return ClaimCoverage(family=family, scope=CLAIM_SCOPE_SLICE, consumed=(), uncovered=(), conflicting=())
     rows = slice_families(text)
     if probe is not None:
         rows = tuple(

@@ -1625,7 +1625,18 @@ def demand_coverage(text: str) -> DemandCoverage:
     Every catalog spec declaring a per-unit capability contributes its lane id
     wherever its capability claims the unit; 'none'/composite/fallback
     declarations contribute nothing here. An unknown capability name raises
-    TypeError — see `_capability_impl`."""
+    TypeError — see `_capability_impl`.
+
+    One request over a paste ("Turn this into an X article:" and the article) is ONE unit that no
+    per-unit lane claims: the pasted sentences are that request's material, not demands
+    (`turn_planner.pasted_material_head`, the reader the planners and the demand seam share).
+    Measured in the served article turn on the round 7 line: minting and probing the article's
+    sentences here, once for every lane the front door asks about, was 79% of the turn's wall time
+    (about two minutes in the cloud rig and on the Mac before the first model call)."""
+    from core.agent_runtime.answer_coverage import _one_request_over_a_paste
+
+    if _one_request_over_a_paste(str(text or "")):
+        return DemandCoverage(units=(("u1", str(text or "")),), per_unit_lanes=((),))
     from core.lane_registry import active_catalog
 
     probes = tuple(
