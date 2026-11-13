@@ -1949,14 +1949,21 @@ def assemble_tool_offer(
                  and browser_tool_allowed(str(spec["intent"]))
                  and (contract := tool_for_intent(str(spec["intent"]))) is not None and contract.supported]
     from core.execution.web_tools import WEB_LOOKUP_INTENTS
+    from core.online_asks import advice_beside_live_prices
     from core.remote_fetch_policy import effective_web_available
 
-    if WEB_LOOKUP_INTENTS & set(guidance.allowed_tools) and not effective_web_available(source_context):
+    if (
+        WEB_LOOKUP_INTENTS & set(guidance.allowed_tools) or advice_beside_live_prices(str(user_text or ""))
+    ) and not effective_web_available(source_context):
         # Web lookups off on a turn guided by a skill that declares a lookup tool: the lookup
         # tools are not offered, so the skill's own web-off wording reaches the chat.
         # `web.search`/`web.research` are declared supported whatever the switch says, so the
         # graph and the skill's seats would offer them, and a call ends the turn on core's
         # refusal. Any other turn keeps the native seam's offer and a named tool its refusal.
+        # Advice beside today's prices is the same: the advice is answerable without the web, and
+        # the reply edge says the prices need Web lookups. Mac recheck 2026-11-13 on f50e52eb
+        # (qwen3:8b): "suggest a good tripod for travel and tell me what it costs today" called
+        # web.research, and the refusal was the whole reply, with no tripod in it.
         specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
     if not task_seats and _ARCHAEOLOGY_TRACE in set(resolve_demand_signals(str(user_text or "")).explicit_intents):
         # A file-history question with no code task open: the archaeology trace answers it. A code

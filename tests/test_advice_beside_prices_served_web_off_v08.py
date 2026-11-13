@@ -33,13 +33,30 @@ def _text(payload: dict[str, Any]) -> str:
     return str(commit.get("canonical_content") or message.get("content") or "")
 
 
-def _start(tmp_path: Path, *, web_on: bool):
+WEB_CALL = {"id": "call-1", "type": "function",
+            "function": {"name": "web__research", "arguments": {"query": "best travel tripod price"}}}
+
+
+def _offered(body: dict[str, Any]) -> list[str]:
+    names = []
+    for tool in body.get("tools") or []:
+        function = tool.get("function") if isinstance(tool, dict) else None
+        names.append(str((function or {}).get("name") or (tool.get("name") if isinstance(tool, dict) else tool)))
+    return names
+
+
+def _start(tmp_path: Path, *, web_on: bool, calls_the_web_when_offered: bool = False):
     from core.entity_ambiguity import AMBIGUITY_SYSTEM_PROMPT
+
+    web_calls: list[int] = []
 
     def reply_fn(body: dict[str, Any]) -> Any:
         prompt = " ".join(str(m.get("content") or "") for m in body.get("messages") or [] if isinstance(m, dict))
         if AMBIGUITY_SYSTEM_PROMPT in prompt:
             return json.dumps({"ambiguous": False, "referents": [], "clarification": ""})
+        if calls_the_web_when_offered and not web_calls and any(n in {"web__research", "web__search"} for n in _offered(body)):
+            web_calls.append(1)
+            return WEB_CALL
         return REPLY
 
     home = tmp_path / "home"
@@ -65,6 +82,14 @@ def _start(tmp_path: Path, *, web_on: bool):
 @pytest.fixture
 def served(tmp_path: Path):
     provider, daemon = _start(tmp_path, web_on=False)
+    yield provider, daemon
+    daemon.stop()
+    provider.__exit__(None, None, None)
+
+
+@pytest.fixture
+def served_eager_model(tmp_path: Path):
+    provider, daemon = _start(tmp_path, web_on=False, calls_the_web_when_offered=True)
     yield provider, daemon
     daemon.stop()
     provider.__exit__(None, None, None)
@@ -97,3 +122,18 @@ def test_with_web_lookups_on_the_model_is_handed_a_web_search_for_the_prices(ser
     daemon.chat(ASK, session_id="served-prices-web-on", model=MODEL, mode="auto")
     offered = {str(name) for call in provider.calls for name in (call.get("tools") or [])}
     assert any(name.startswith("web") for name in offered), (offered, [c["prompt"][:120] for c in provider.calls])
+
+
+def test_with_web_lookups_off_a_model_that_reaches_for_the_web_still_gives_the_advice(served_eager_model):
+    """Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, loop on, Web lookups off): the model was offered
+    web.research, called it, and the refusal ("Web lookups are off ... paste the article text") was the whole
+    reply: no tripod. With the lookups off, an advice-beside-prices turn is not offered them."""
+    provider, daemon = served_eager_model
+    text = _text(daemon.chat(ASK, session_id="served-prices-eager", model=MODEL, mode="auto"))
+
+    offered = {name for call in provider.calls for name in (call.get("tools") or [])}
+    assert not offered & {"web__research", "web__search", "web__fetch"}, offered
+    assert "Peak Design Travel Tripod" in text, text
+    assert not re.search(r"[$£€]\s?\d", text), text
+    assert PLAIN_LINE in text, text
+    assert "paste the article text" not in text, text
