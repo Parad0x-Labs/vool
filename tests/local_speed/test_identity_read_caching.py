@@ -2,8 +2,9 @@
 
 Measured on the model-free baseline: a plain turn paid ~10 identity triples (version + tags +
 show per ranked candidate, per turn) -- roughly half its own wall time on an instant engine.
-The read is now reused per (endpoint, model) for five minutes; a fresh read still happens after
-the window or when the endpoint or model changes.
+The read is now reused per (endpoint, model, manifest identity metadata) for five minutes; a
+fresh read still happens after the window, when the endpoint or model changes, or when the
+manifest row is rewritten with other identity metadata.
 """
 from __future__ import annotations
 
@@ -47,10 +48,33 @@ def test_an_expired_window_reads_again(monkeypatch) -> None:
     calls = _cached_adapter_calls(monkeypatch, endpoint="http://127.0.0.1:11434", model="qwen3:8b")
     assert len(calls) == 1
     # Age the only cache entry past the window.
-    adapter_module._certificate_identity_cache["http://127.0.0.1:11434", "qwen3:8b"] = (
-        0.0, {"backend_version": "old"}
-    )
+    assert len(adapter_module._certificate_identity_cache) == 1
+    for key in list(adapter_module._certificate_identity_cache):
+        adapter_module._certificate_identity_cache[key] = (0.0, {"backend_version": "old"})
     manifest = _ollama_manifest("qwen3:8b", base_url="http://127.0.0.1:11434")
     identity = OpenAICompatibleAdapter(manifest).tool_certification_runtime_identity()
     assert identity["backend_version"] == "0.12.0"
     assert len(calls) == 2
+
+
+def test_a_rewritten_manifest_row_reads_again(monkeypatch) -> None:
+    """A row rewritten in place with other identity metadata is read again, not served the old
+    row's cached identity. Found on the served forget proof: with (endpoint, model) as the only
+    key, the certified model's certificate stopped matching after a restart and the model was
+    passed over. The manifest's identity metadata is part of the key."""
+    monkeypatch.setattr(adapter_module, "_certificate_identity_cache", {})
+    calls: list[str] = []
+
+    def _read(self) -> dict[str, str]:
+        digest = str(self.manifest.metadata.get("model_digest") or "unknown")
+        calls.append(digest)
+        return {"backend_version": "0.12.0", "model_digest": digest, "template_hash": "y",
+                "quantization": "q8_0"}
+
+    monkeypatch.setattr(OpenAICompatibleAdapter, "_read_tool_certification_runtime_identity", _read)
+    bare = _ollama_manifest("qwen3:8b", base_url="http://127.0.0.1:11434")
+    assert OpenAICompatibleAdapter(bare).tool_certification_runtime_identity()["model_digest"] == "unknown"
+    seeded = bare.model_copy(update={"metadata": {**bare.metadata, "model_digest": "sha256:new"}})
+    assert OpenAICompatibleAdapter(seeded).tool_certification_runtime_identity()["model_digest"] == "sha256:new"
+    assert OpenAICompatibleAdapter(seeded).tool_certification_runtime_identity()["model_digest"] == "sha256:new"
+    assert calls == ["unknown", "sha256:new"]

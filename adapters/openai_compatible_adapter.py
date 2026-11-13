@@ -73,7 +73,7 @@ _SERVING_KEEP_ALIVE = "30m"
 #: the certification run's own tool-competence probe -- the actual gate -- never consults this
 #: identity at all.
 _CERTIFICATE_IDENTITY_TTL_S = 300.0
-_certificate_identity_cache: dict[tuple[str, str], tuple[float, dict[str, str]]] = {}
+_certificate_identity_cache: dict[tuple[str, ...], tuple[float, dict[str, str]]] = {}
 _certificate_identity_cache_lock = threading.Lock()
 
 
@@ -2020,7 +2020,21 @@ class OpenAICompatibleAdapter(ModelAdapter):
         """
         base_url_cached = str(self.manifest.runtime_config.get("base_url") or "").strip().rstrip("/")
         model_cached = str(self.manifest.model_name or "")
-        cache_key = (base_url_cached, model_cached)
+        # The identity starts from the manifest's own metadata (digest, template hash,
+        # quantization, a configured backend version), so those values are part of the key: a
+        # manifest rewritten in place (a re-pull, a re-registration, a seeded certification
+        # target) must never be read back with the identity of the row it replaced. A stale
+        # read here is stored by the certification run and then mismatches every later read.
+        metadata = dict(self.manifest.metadata or {})
+        runtime_config = dict(self.manifest.runtime_config or {})
+        cache_key = (
+            base_url_cached,
+            model_cached,
+            *(
+                str(metadata.get(name) or runtime_config.get(name) or "")
+                for name in ("backend_version", "model_digest", "digest", "chat_template_hash", "template_hash", "quantization")
+            ),
+        )
         now = time.monotonic()
         with _certificate_identity_cache_lock:
             hit = _certificate_identity_cache.get(cache_key)
