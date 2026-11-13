@@ -445,12 +445,27 @@ def _plugin_tools_setting_path() -> Path:
     return active_vool_home() / "config" / "plugin_tools.json"
 
 
+def _owner_choice() -> bool | None:
+    """The owner's saved "Let chats use plugin tools" choice, or None when they never made one.
+
+    A saved choice that cannot be read counts as off: what the owner chose cannot be told, and
+    plugin tools run programs and reach services.
+    """
+    try:
+        raw = _plugin_tools_setting_path().read_text()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return False
+    try:
+        return json.loads(raw).get("enabled") is True
+    except (ValueError, AttributeError):
+        return False
+
+
 def plugin_tools_setting() -> bool:
     """The owner's "Let chats use plugin tools" choice. Off unless the owner turned it on."""
-    try:
-        return json.loads(_plugin_tools_setting_path().read_text()).get("enabled") is True
-    except (OSError, ValueError, AttributeError):
-        return False
+    return _owner_choice() is True
 
 
 def set_plugin_tools_setting(enabled: bool) -> bool:
@@ -473,10 +488,20 @@ def set_plugin_tools_setting(enabled: bool) -> bool:
 
 
 def plugin_tools_on() -> bool:
-    """The owner's setting, or the plugin-tools feature switch set for the whole process."""
+    """Whether chats may use the tools of enabled plugins.
+
+    The owner's own choice decides. Until they make one, the plugin-tools switch for the whole
+    process decides (VOOL_PLUGIN_RUNTIME_TOOLS), and 0.8 ships it on.
+
+    The two used to be ORed. Once that switch shipped on, turning off "Let chats use plugin
+    tools" changed nothing: the page showed the box ticked again and chats kept the tools.
+    """
+    choice = _owner_choice()
+    if choice is not None:
+        return choice
     from core.runtime_flags import flag_enabled
 
-    return flag_enabled("plugin_runtime_tools") or plugin_tools_setting()
+    return flag_enabled("plugin_runtime_tools")
 
 
 def runtime_lane_open(plugin_id: str) -> bool:

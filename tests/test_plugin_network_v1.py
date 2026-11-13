@@ -419,3 +419,51 @@ def test_owner_setting_turns_plugin_tools_on_and_off_through_the_addons_api(pack
         assert status == 403 and runtime_lane_open("sample-provider")
         post({"action": "plugin_tools_setting", "enabled": False})
         assert not runtime_lane_open("sample-provider")
+
+
+def test_plugin_tools_ship_on_and_the_owner_can_still_turn_them_off(package, monkeypatch):
+    """0.8 ships plugin tools on (VOOL_PLUGIN_RUNTIME_TOOLS defaults to on): with no choice
+    saved, chats may use an enabled plugin's tools. The owner's "Let chats use plugin tools"
+    switch must still turn them off. It used to be ORed with that shipped switch, so unticking
+    it changed nothing and the page showed it ticked again."""
+    from core.addon_store import catalog
+    from core.execution.capabilities import _plugin_tool_specs
+    from core.plugin_tools import plugin_tools_on, plugin_tools_setting, runtime_lane_open
+    from core.runtime_flags import flag
+    from core.web.api.addon_api import handle_addon_post
+
+    def post(body):
+        return handle_addon_post(body, {"Content-Type": "application/json"}, "127.0.0.1")
+
+    def offered():
+        return any(spec["intent"] == "sample-provider.echo" for spec in _plugin_tool_specs())
+
+    monkeypatch.delenv("VOOL_PLUGIN_RUNTIME_TOOLS", raising=False)
+    assert flag("plugin_runtime_tools").default is True
+    tool_package(package, "import json,sys\njson.load(sys.stdin)\nprint(json.dumps({'text':'ok'}))\n")
+    admit(package)
+    assert not plugin_tools_setting(), "no choice is saved yet"
+    assert plugin_tools_on() and runtime_lane_open("sample-provider") and offered()
+    assert catalog()["plugin_tools_enabled"] is True
+
+    status, body = post({"action": "plugin_tools_setting", "enabled": False})
+    assert status == 200 and body["enabled"] is False
+    assert not plugin_tools_on() and not runtime_lane_open("sample-provider") and not offered()
+    assert catalog()["plugin_tools_enabled"] is False, "the page shows the box the owner unticked"
+
+    status, body = post({"action": "plugin_tools_setting", "enabled": True})
+    assert status == 200 and body["enabled"] is True
+    assert runtime_lane_open("sample-provider") and offered()
+
+
+def test_an_unreadable_plugin_tools_choice_counts_as_off(package, monkeypatch):
+    from core.plugin_tools import _plugin_tools_setting_path, plugin_tools_on
+
+    monkeypatch.delenv("VOOL_PLUGIN_RUNTIME_TOOLS", raising=False)
+    assert plugin_tools_on()
+    path = _plugin_tools_setting_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not json")
+    assert not plugin_tools_on()
+    path.write_text('["enabled"]')
+    assert not plugin_tools_on()
