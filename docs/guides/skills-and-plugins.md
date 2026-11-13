@@ -44,13 +44,13 @@ How a skill from Browse is added depends on who made it:
 * **Skills made by VOOL** (the 75 above): press **Add this skill**. VOOL checks on your
   computer that the file is the exact one it shipped with and reads it for risky
   instructions, then shows you the result. No key is needed and nothing is sent anywhere.
-  If the file does not match, VOOL refuses it and says so. A scan with **Eyebrow** stays
-  available as an optional extra when you have a key.
-* **Skills from other makers** (other publishers, or a GitHub link you paste): VOOL first
-  scans the skill with **Eyebrow**, a security checker. That scan needs an Eyebrow key, which
-  you add under **Settings → API Keys**. Without a key, the skill's page says so and offers
-  the options: add a key, run VOOL's free local check for a report (it cannot add the skill on
-  its own), or pick a skill made by VOOL.
+  If the file does not match, VOOL refuses it and says so.
+* **Skills from other makers** (other publishers, or a GitHub link you paste): press
+  **Download and scan**. VOOL downloads the public skill at a fixed version and checks it on
+  your computer. If you enabled a scanner plugin, it also receives the skill's contents and
+  its report is added beside VOOL's own. Read the result, then choose whether to add the
+  skill: if either check reports a problem, VOOL adds it only after you accept the risks for
+  that version. No key is needed unless your scanner plugin asks for one.
 
 You can also make your own skill in chat with no key at all: see
 [Make your own skill](make-your-own-skill.md).
@@ -116,11 +116,11 @@ connection tests and model-list refreshes are explicit actions.
 Disable removes tools and stops running calls. Uninstall disables first, removes owned files
 and scratch, defaults to deleting saved keys, and retains history. Updates and re-installs
 require a new review and start disabled. An update from another repository or publisher
-does not keep the saved keys. UsePod and Eyebrow reference plugins live under
-`examples/plugins/`; they are examples maintained with VOOL, not service endorsements.
-Older saved keys are kept. Add-ons explains how to reuse them after explicitly installing
-and enabling the reference. Previous UsePod model pins fall back to an already chosen
-configured provider or are cleared, with a notice and automatic escalation turned off.
+does not keep the saved keys. UsePod and Eyebrow are no longer part of VOOL, and VOOL
+offers no plugin for either. A saved UsePod or Eyebrow key stays on this computer and VOOL
+does not use it; Add-ons says so until you close the notice. Chats that used a UsePod model
+have no model selected after the upgrade, and Auto won't switch to a cloud model in those
+chats; a notice says so until you close it.
 
 See [Plugin authoring](plugin-authoring.md) and [Add-on checks](addon-security.md).
 

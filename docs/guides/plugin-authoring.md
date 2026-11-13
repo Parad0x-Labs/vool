@@ -1,7 +1,7 @@
 # Writing a plugin
 
-Skills teach a workflow; plugins add tools or services. Start from the complete examples in
-`examples/plugins/`. Bundle source, dependencies and locks, README, MIT LICENSE and CHANGELOG.
+Skills teach a workflow; plugins add tools or services. Start from the complete example in
+`examples/plugins/template`. Bundle source, dependencies and locks, README, MIT LICENSE and CHANGELOG.
 Keep runtime output in scratch, never beside executable code.
 
 ## Manifest
@@ -34,11 +34,12 @@ scanners receive requested public add-on content through the shared service tran
 ## Access
 
 Plugin tools are offered to the model only while **Let chats use plugin tools** is on in the
-Plugins section, and then only for plugins the owner enabled. The setting is off by default.
-`VOOL_PLUGIN_RUNTIME_TOOLS=1` also turns it on, and is still the only switch for older
-packages without the `vool` block. Model provider and scanner plugins work either way. The ids `vool-plugin-usepod` and
-`vool-plugin-eyebrow` belong to VOOL's own packages, recognised by their exact bytes; a
-package that only claims one of them is refused.
+Plugins section, and then only for plugins the owner enabled. Once the owner ticks or unticks
+it, that choice holds. Until then it follows the `VOOL_PLUGIN_RUNTIME_TOOLS` switch, which is
+on unless set to `0`, and older packages without the `vool` block follow only that switch.
+Model provider and scanner plugins work either way. The ids `vool-plugin-usepod` and
+`vool-plugin-eyebrow` are reserved for the retired UsePod and Eyebrow services, and VOOL
+offers no plugin for either; another package that claims one of them is refused.
 
 Install through the Plugins section, review the entire distribution, then install disabled.
 Connect your own key in its card and accept the separate access sheet to enable it. Saving
