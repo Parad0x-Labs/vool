@@ -328,7 +328,9 @@ def _read_holdings(wallets: list[_Wallet], *, source_context: dict[str, Any] | N
                 token_answers = [{"asset": symbol, "state": "unavailable"} for symbol in tokens]
             for token_answer in token_answers:
                 symbol = str(token_answer.get("asset") or "")
-                decimals = int(spec.assets[symbol].decimals) if symbol in spec.assets else 0
+                if symbol not in spec.assets:
+                    continue  # a coin this network does not register has no known decimals: never print its raw count
+                decimals = int(spec.assets[symbol].decimals)
                 rows.append({"asset": symbol, "decimals": decimals, "minor": int(token_answer["balance_minor"]) if token_answer.get("state") == balances.STATE_READ else None})
         return rows
 

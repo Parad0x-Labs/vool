@@ -2887,11 +2887,15 @@ def _wallet_status_head(status: dict[str, Any]) -> str:
             "watch_only": "it is watch-only, so it cannot pay"}.get(str(status.get("custody_mode") or ""), "how its key is kept is unknown")
     head = (f"Default wallet{': ' + name if name else ''} on {network}, address {status.get('public_key')}; {keys}. "
             f"Payments waiting for your approval: {int(status.get('pending_approvals') or 0)}.")
-    caps = status.get("limits") or {}
-    if spec is not None and caps:
+    if spec is not None and status.get("wallet_id"):
+        # the caps row for the default wallet's OWN coin: status["limits"] is the SOL row in lamports, which on an
+        # EVM default wallet would print as a cap a billion times too small
+        from core.wallet import limits
+
         native = chains.native_asset(spec.network)
         symbol = spec.native_display_symbol or native.symbol
-        with contextlib.suppress(KeyError, TypeError, ValueError):
+        with contextlib.suppress(Exception):
+            caps = limits.load_limits(str(status["wallet_id"]), native.symbol).to_dict()
             head += (f" Its caps: {amounts.format_minor(int(caps['per_tx_minor']), native.decimals)} {symbol} a payment, "
                      f"{amounts.format_minor(int(caps['daily_minor']), native.decimals)} {symbol} a day.")
     return head

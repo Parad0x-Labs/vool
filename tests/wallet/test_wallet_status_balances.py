@@ -74,3 +74,23 @@ def test_no_account_in_the_active_environment_says_so_and_reads_nothing(home):
     assert result.ok
     assert "Balances: no account on Mainnet yet." in result.response_text
     assert result.details["balances"] == []
+
+
+@pytest.mark.parametrize(("network", "label", "caps"), [
+    (BASE_SEPOLIA, "Base Sepolia", "Its caps: 0.01 ETH a payment, 0.05 ETH a day."),
+    ("eip155:97", "BNB Smart Chain Testnet", "a payment, 0.1 tBNB a day."),
+])
+def test_an_evm_default_wallet_states_its_own_coins_caps_not_the_solana_row(home, network, label, caps):
+    """The caps line reads the default wallet's own coin row: an EVM wallet's caps are never the SOL row in lamports
+    printed with 18 decimals (that read 0.0000000001 ETH for a 0.01 ETH cap)."""
+    from core.runtime_execution_tools import _wallet_status_head
+    from core.wallet import status as wallet_status_module
+
+    _env("testnet")
+    wallet = _pilot(network, label)
+    status = wallet_status_module.wallet_status()
+    if status.get("wallet_id") != wallet["wallet_id"]:  # the head is about whichever wallet is the default
+        status = {**status, "wallet_id": wallet["wallet_id"], "network": network, "public_key": wallet["address"], "custody_mode": "pocket_sealed"}
+    head = _wallet_status_head(status)
+    assert caps in head, head
+    assert "0.0000000" not in head, head
