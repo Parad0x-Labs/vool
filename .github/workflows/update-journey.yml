@@ -18,15 +18,27 @@ name: In-app update journey
 # mac (gate)     with to_tag (a draft release holding the new Mac update ZIPs): the previous release updated
 #                to those exact ZIP bytes through a throwaway-key test feed, before anything is published.
 #                Each Mac runs twice: the usual profile, and the pre-rename NULLA/runtime profile.
+# mac-builds     with mac_old_runs and mac_new_runs, instead of the jobs above: Mac builds that were never
+#                released, taken from their macOS arm64 and Intel package runs (a build, and the same commit
+#                one patch version higher). The latest published release updated to the first build, with the
+#                usual and with the pre-rename profile; the first build updated to the second; and the first
+#                build offered a second build that cannot start, which must restore the first by itself. Each
+#                journey runs on its own fresh runner, through a throwaway-key test feed. Nothing is published.
 
 on:
   workflow_dispatch:
     inputs:
       from_tag:
-        description: 'Installed release to update from (default: the release before the latest)'
+        description: 'Installed release to update from (default: the release before the latest; mac-builds: the latest)'
         required: false
       to_tag:
         description: 'Gate mode: the DRAFT release whose Mac update ZIPs to install (empty = live feed)'
+        required: false
+      mac_old_runs:
+        description: 'Mac builds: the macOS arm64 and Intel package run ids of the build to install (with mac_new_runs)'
+        required: false
+      mac_new_runs:
+        description: 'Mac builds: the package run ids of the same commit one patch version higher'
         required: false
   pull_request:
     paths:
@@ -44,6 +56,7 @@ permissions:
 
 jobs:
   linux-package:
+    if: inputs.mac_old_runs == '' && inputs.mac_new_runs == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
@@ -183,6 +196,7 @@ jobs:
           if-no-files-found: warn
 
   mac:
+    if: inputs.mac_old_runs == '' && inputs.mac_new_runs == ''
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -267,6 +281,174 @@ jobs:
         if: always()
         with:
           name: update-journey-${{ matrix.arch }}-${{ matrix.profile }}
+          path: |
+            ${{ runner.temp }}/journey/journey.json
+            ${{ runner.temp }}/journey/app.log
+            ~/Library/Application Support/VOOL/runtime/data/update_v2/transactions/
+            ~/Library/Application Support/VOOL/runtime/data/update_v2/workers/*/worker.log
+            ~/Library/Application Support/NULLA/runtime/data/update_v2/transactions/
+            ~/Library/Application Support/NULLA/runtime/data/update_v2/workers/*/worker.log
+          if-no-files-found: warn
+
+  mac-builds:
+    if: inputs.mac_old_runs != '' || inputs.mac_new_runs != ''
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read  # the published release's DMG
+      actions: read  # the package runs and their artifacts
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+        journey: [published-usual, published-pre-rename, update, broken-update]
+        include:
+          - runner: macos-15
+            arch: arm64
+            key: macos-arm64
+            workflow: macOS arm64 package
+          - runner: macos-15-intel
+            arch: x86_64
+            key: macos-x64
+            workflow: macOS Intel package
+    steps:
+      - uses: actions/checkout@v7
+      - name: The builds, from their package runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_RUNS: ${{ inputs.mac_old_runs }}
+          NEW_RUNS: ${{ inputs.mac_new_runs }}
+          WORKFLOW: ${{ matrix.workflow }}
+          ARCH: ${{ matrix.arch }}
+          JOURNEY: ${{ matrix.journey }}
+        run: |
+          set -euo pipefail
+          [[ -n "$OLD_RUNS" && -n "$NEW_RUNS" ]] || { echo "::error::give both mac_old_runs and mac_new_runs"; exit 1; }
+          python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" -q install cryptography
+          echo "PY=$RUNNER_TEMP/venv/bin/python" >> "$GITHUB_ENV"
+          # fetch old|new RUN_IDS first|second: this architecture's DMG from the one successful package run among the ids,
+          # checked against its checksum, and the app inside it. Sets DMG, VERSION and COMMIT.
+          fetch() {
+            local which="$1" id name conclusion sha run="" built="" sum mount manifest
+            for id in $2; do
+              IFS='|' read -r name conclusion sha < <(gh run view "$id" --repo "$GITHUB_REPOSITORY" \
+                --json workflowName,conclusion,headSha -q '"\(.workflowName)|\(.conclusion)|\(.headSha)"')
+              [[ "$name" == "$WORKFLOW" ]] || continue
+              [[ -z "$run" ]] || { echo "::error::two $WORKFLOW runs given for the $which build"; return 1; }
+              [[ "$conclusion" == success ]] || { echo "::error::$WORKFLOW run $id ended '$conclusion'"; return 1; }
+              run="$id" built="$sha"
+            done
+            [[ -n "$run" ]] || { echo "::error::no $WORKFLOW run among '$2'"; return 1; }
+            gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "macos-$ARCH-package" --dir "$RUNNER_TEMP/$which"
+            DMG="$(ls "$RUNNER_TEMP/$which"/VOOL-*-macos-"$ARCH".dmg)"
+            sum="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+            [[ "$sum" == "$(awk '{print $1}' "$DMG.sha256")" ]] || { echo "::error::$DMG does not match its checksum"; return 1; }
+            mount="$(hdiutil attach -nobrowse -readonly -noautoopen -plist "$DMG" | python3 -c 'import plistlib, sys; print(next(e["mount-point"] for e in plistlib.loads(sys.stdin.buffer.read())["system-entities"] if e.get("mount-point")))')"
+            mkdir -p "$RUNNER_TEMP/$which/app"
+            ditto "$mount/VOOL.app" "$RUNNER_TEMP/$which/app/VOOL.app"
+            hdiutil detach "$mount" >/dev/null
+            manifest="$RUNNER_TEMP/$which/app/VOOL.app/Contents/Resources/BUILD_MANIFEST.json"
+            VERSION="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"].removesuffix("-beta"))' "$manifest")"
+            COMMIT="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["exact_sha"])' "$manifest")"
+            [[ "$COMMIT" == "$built" ]] || { echo "::error::the $which DMG says $COMMIT, its package run built $built"; return 1; }
+            echo "- $3 build: $VERSION at $COMMIT, $WORKFLOW run $run ($(basename "$DMG"), sha256 $sum)" >> "$GITHUB_STEP_SUMMARY"
+          }
+          echo "### $JOURNEY on $ARCH" >> "$GITHUB_STEP_SUMMARY"
+          fetch old "$OLD_RUNS" first
+          { echo "OLD_DMG=$DMG"; echo "OLD_VERSION=$VERSION"; echo "OLD_COMMIT=$COMMIT"; } >> "$GITHUB_ENV"
+          old_version="$VERSION" old_commit="$COMMIT"
+          if [[ "$JOURNEY" == update || "$JOURNEY" == broken-update ]]; then
+            fetch new "$NEW_RUNS" second
+            { echo "NEW_VERSION=$VERSION"; echo "NEW_COMMIT=$COMMIT"; } >> "$GITHUB_ENV"
+            next="$(python3 -c 'import sys; v = sys.argv[1].split("."); v[2] = str(int(v[2]) + 1); print(".".join(v))' "$old_version")"
+            [[ "$VERSION" == "$next" ]] || { echo "::error::the second build is $VERSION, not $next"; exit 1; }
+            # The second build must be the first one with only its version raised.
+            git fetch --no-tags --depth=1 origin "$old_commit" "$COMMIT"
+            changed="$(git diff --name-only "$old_commit" "$COMMIT")"
+            for path in $changed; do
+              case "$path" in
+                pyproject.toml|uv.lock|core/app_version.py|config/release/update_channel.json|config/release/update_channel.sample.json) ;;
+                *) echo "::error::the second build also changes $path"; exit 1 ;;
+              esac
+            done
+          fi
+      - name: Update payload and test feed
+        env:
+          JOURNEY: ${{ matrix.journey }}
+          KEY: ${{ matrix.key }}
+        run: |
+          set -euo pipefail
+          case "$JOURNEY" in
+            published-*) app="$RUNNER_TEMP/old/app/VOOL.app" version="$OLD_VERSION" commit="$OLD_COMMIT" ;;
+            update) app="$RUNNER_TEMP/new/app/VOOL.app" version="$NEW_VERSION" commit="$NEW_COMMIT" ;;
+            broken-update)
+              # The second build with a server that exits at once, signed again the way the build signs it.
+              # The app runs its compiled code without checking it against the source, so the server's
+              # compiled copy goes and the edited source is what runs.
+              app="$RUNNER_TEMP/broken/VOOL.app" version="$NEW_VERSION" commit="$NEW_COMMIT"
+              mkdir -p "$RUNNER_TEMP/broken" && ditto "$RUNNER_TEMP/new/app/VOOL.app" "$app"
+              code="$app/Contents/Resources/app/apps"
+              rm -fv "$code"/__pycache__/vool_api_server.*.pyc
+              { echo 'raise SystemExit("journey: this build is broken on purpose")'; cat "$code/vool_api_server.py"; } > "$RUNNER_TEMP/server.py"
+              cat "$RUNNER_TEMP/server.py" > "$code/vool_api_server.py"
+              codesign --force --sign - "$app"
+              ;;
+          esac
+          "$PY" -m installer.build_update_payload --platform "$KEY" --version "$version" --source "$app" --out "$RUNNER_TEMP/payload"
+          zip="$(ls "$RUNNER_TEMP"/payload/*-update.zip)"
+          "$PY" ops/update_journey.py make-feed --out "$RUNNER_TEMP/feed" --version "$version" --commit "$commit" \
+            --artifact "$KEY=$zip"
+          { echo "FEED_VERSION=$version"; echo "FEED_COMMIT=$commit"; } >> "$GITHUB_ENV"
+          echo "- offered: $(basename "$zip") ($version at $commit), sha256 $(shasum -a 256 "$zip" | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
+      - name: Journey on ${{ matrix.arch }} (${{ matrix.journey }}) - notice, one Update press, restart, data kept
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_TAG: ${{ inputs.from_tag }}
+          JOURNEY: ${{ matrix.journey }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          # Releases before 0.7.5 check only after one Check press; later ones check on their own.
+          notice_for() {
+            python3 -c 'import sys; v = tuple(int(p) for p in sys.argv[1].removeprefix("v").split("-")[0].split(".")); print("press" if v < (0, 7, 5) else "auto")' "$1"
+          }
+          extra=()
+          case "$JOURNEY" in
+            published-*)
+              tag="${FROM_TAG:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)}"
+              mkdir "$RUNNER_TEMP/published"
+              gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/published" \
+                --pattern "VOOL-*-macos-$ARCH.dmg" --pattern "VOOL-*-macos-$ARCH.dmg.sha256"
+              installed="$(ls "$RUNNER_TEMP"/published/VOOL-*-macos-"$ARCH".dmg)"
+              sum="$(shasum -a 256 "$installed" | awk '{print $1}')"
+              [[ "$sum" == "$(awk '{print $1}' "$installed.sha256")" ]] || { echo "::error::$installed does not match its published checksum"; exit 1; }
+              notice="$(notice_for "$tag")"
+              echo "- installed: the published $tag ($(basename "$installed"), sha256 $sum)" >> "$GITHUB_STEP_SUMMARY"
+              if [[ "$JOURNEY" == published-pre-rename ]]; then extra=(--legacy-profile); fi
+              ;;
+            *)
+              installed="$OLD_DMG"
+              notice="$(notice_for "$OLD_VERSION")"
+              echo "- installed: the first build ($(basename "$installed"))" >> "$GITHUB_STEP_SUMMARY"
+              if [[ "$JOURNEY" == broken-update ]]; then extra=(--broken-update); fi
+              ;;
+          esac
+          "$PY" ops/update_journey.py --platform macos --old "$installed" --feed "$RUNNER_TEMP/feed" \
+            --new-version "$FEED_VERSION" --new-commit "$FEED_COMMIT" --expect-notice "$notice" \
+            ${extra[@]+"${extra[@]}"} --scratch "$RUNNER_TEMP/journey"
+      - name: Journey steps in the run summary
+        if: always()
+        run: |
+          [[ -f "$RUNNER_TEMP/journey/journey.json" ]] || exit 0
+          python3 - "$RUNNER_TEMP/journey/journey.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          for entry in json.load(open(sys.argv[1]))["steps"]:
+              print(f"- {'PASS' if entry['ok'] else 'FAIL'} {entry['step']} ({entry['at_s']} s)")
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: update-journey-builds-${{ matrix.arch }}-${{ matrix.journey }}
           path: |
             ${{ runner.temp }}/journey/journey.json
             ${{ runner.temp }}/journey/app.log
