@@ -166,7 +166,19 @@ def _personal_question(text: str) -> bool:
 
 def _is_statement(text: str) -> bool:
     clean = " ".join(str(text or "").split())
-    return bool(clean) and "?" not in clean and not _QUESTION_HEAD_RE.match(clean)
+    if not clean or "?" in clean or _QUESTION_HEAD_RE.match(clean):
+        return False
+    # A question typed without its mark or with a typo ("waht can you acutally do for me"), or a
+    # request to VOOL ("show me the parse_header function"), states no fact. Read as one, the
+    # owner's earlier ask in another chat was quoted back as "you mentioned it" when they asked
+    # the same thing again (replay corpus on the v0.8 line: 4 repeated asks).
+    try:
+        from core.input_normalizer import normalize_user_text
+
+        fixed = " ".join(str(normalize_user_text(clean).normalized_text or clean).split())
+    except Exception:
+        fixed = clean
+    return not (_QUESTION_HEAD_RE.match(fixed) or as_question(fixed).endswith("?"))
 
 
 def _owner_local(source_context: dict[str, Any] | None) -> bool:
