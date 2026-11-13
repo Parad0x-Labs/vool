@@ -432,9 +432,47 @@ def requirements_want_a_lookup(text: str, source_context: dict | None = None) ->
     return any(str(toolset).startswith("web") for toolset in (need.allowed_toolsets or ()))
 
 
+#: Places a forecast or a public source covers: "the weather in my city" is still a lookup.
+_PUBLIC_PLACE_HEADS = frozenset(
+    {"city", "town", "village", "area", "region", "country", "state", "county", "neighbourhood",
+     "neighborhood", "location", "place", "street", "home", "house", "garden", "yard", "hometown",
+     "district", "island", "coast", "suburb", "postcode", "zip"}
+)
+_OWN_THING_RE = re.compile(
+    r"\b(?:my|our)\s+((?:[a-z][a-z'-]*\s+){0,3}?[a-z][a-z'-]*)"
+    r"(?=\s+(?:right\s+now|now|today|currently|this\s+(?:year|week|month)|is|are|was|were|has|have"
+    r"|holds?|weighs?|and|or|at|for)\b|\s*[?.!,]|\s*$)",
+    re.IGNORECASE,
+)
+_IN_OWN_THING_RE = re.compile(r"\b(?:in|inside|of|at)\s+(?:my|our)\b", re.IGNORECASE)
+
+
+def reads_an_owned_thing(text: str, *, weather_shaped: bool = False) -> bool:
+    """Whether the ask is a reading of something the person owns, which no web lookup can answer.
+
+    "How much water is in my workshop tank right now?", "How tall is my tallest sunflower?",
+    "What is the temperature in my workshop?": the web holds nothing about the person's tank,
+    flowers or workshop, so "Web lookups are off" names a cause that is not one. Those turns go on
+    to the model with the person's records, where the current-claim guard withholds a stale or
+    unobserved reading. A public place ("the weather in my city") and anything that is not a
+    reading of an owned thing ("can I use a news photo on my blog") keep the web-off line.
+    """
+    from core.unsourced_current_claim import question_asks_for_measured_amount
+
+    clean = " ".join(str(text or "").split())
+    if weather_shaped:
+        if not _IN_OWN_THING_RE.search(clean):
+            return False
+    elif not question_asks_for_measured_amount(clean):
+        return False
+    heads = [match.group(1).split()[-1].casefold() for match in _OWN_THING_RE.finditer(clean)]
+    return bool(heads) and not any(head in _PUBLIC_PLACE_HEADS for head in heads)
+
+
 __all__ = [
     "asks_about_this_computer_or_project",
     "asks_for_online_facts",
+    "reads_an_owned_thing",
     "release_notes_are_authored",
     "requirements_want_a_lookup",
 ]

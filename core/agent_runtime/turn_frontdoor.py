@@ -2394,6 +2394,15 @@ def handle_turn_frontdoor(
                     _ask_needs_web = requirements_want_a_lookup(effective_input, source_context)
                 except Exception:
                     _ask_needs_web = False
+            from core.online_asks import reads_an_owned_thing as _reads_an_owned_thing
+
+            if (_ask_needs_web or _ask_is_live_data) and _reads_an_owned_thing(
+                effective_input, weather_shaped=_ask_is_live_data and not _ask_needs_web
+            ):
+                # A reading of the person's own things is not a web lookup (main's memory-evidence
+                # contract: the stale tank and the unobserved workshop temperature are withheld by
+                # the current-claim guard, never refused as a lookup the web could not answer).
+                _ask_needs_web = _ask_is_live_data = False
             if (_ask_needs_web or _ask_is_live_data) and _reads_own_notes(effective_input):
                 # A read of the person's own notes ('look up my Apple note "Plan"', "look up my notes
                 # about the trip") is answered on this computer by the Notes lane, which needs no web.

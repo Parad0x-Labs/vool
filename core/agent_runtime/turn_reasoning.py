@@ -1717,10 +1717,13 @@ def execute_grounded_turn(
             try:
                 from core.bootstrap_context import admitted_capsule_evidence_text
                 from core.memory_grounding import question_names_someone_in_the_records
+                from core.online_asks import reads_an_owned_thing
                 from core.remote_fetch_policy import effective_web_available, lookup_unavailable_reason
                 from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
 
-                if _records_scoped or question_names_someone_in_the_records(
+                # A reading of the person's own things ("how tall is my tallest sunflower") is a
+                # question for their records, which no lookup could answer: the records notice.
+                if _records_scoped or reads_an_owned_thing(effective_input) or question_names_someone_in_the_records(
                     effective_input, admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
                 ):
                     response = RECORDS_WITHDRAWAL_NOTICE
