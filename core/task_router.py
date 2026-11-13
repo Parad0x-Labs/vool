@@ -396,6 +396,9 @@ def _is_mailbox_request(text: str) -> bool:
         return False
 
 
+_OWN_PROJECT_RE = re.compile(r"\b(?:this|my|our|current|the\s+current)\s+(?:own\s+)?(?:project|repo|repository|codebase)\b")
+
+
 def looks_like_public_entity_lookup_request(text: str) -> bool:
     from core.retrieval_constraints import analyze_retrieval_constraints
     from core.stipulated_frame import stipulated_frame_forbids_retrieval
@@ -413,7 +416,11 @@ def looks_like_public_entity_lookup_request(text: str) -> bool:
     soft_entity_prompt = any(pattern.search(lowered) for pattern in _SOFT_ENTITY_LOOKUP_QUESTION_PATTERNS)
     has_lookup_marker = any(marker in lowered for marker in _EXPLICIT_LOOKUP_MARKERS)
     has_web_or_social_cue = any(marker in lowered for marker in _WEB_SOCIAL_LOOKUP_MARKERS)
-    has_public_context = any(marker in lowered for marker in (
+    # "this project" / "my project" is the person's own workspace, never a public one: "Fix the
+    # failing check in this project" read as a public lookup ("check" + "project") and, with Web
+    # lookups off, the turn was refused before the code task could open (CI #681).
+    public_text = _OWN_PROJECT_RE.sub(" ", lowered)
+    has_public_context = any(marker in public_text for marker in (
         "solana", "founder", "ceo", "cto", "person", "guy", "girl", "crypto",
         "ethereum", "bitcoin", "helius", "blockchain", "defi", "nft",
         "company", "startup", "project", "protocol", "influencer",
