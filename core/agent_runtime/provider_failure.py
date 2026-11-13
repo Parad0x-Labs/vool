@@ -91,6 +91,15 @@ class ProviderFailure:
         # person waiting on the answer. Both stay in the structured call record (last_call.error,
         # the call manifests) that this label travels with.
         where = f" during the {phase} step" if phase else ""
+        if self.kind in {UNREACHABLE, PROVIDER_ERROR} and re.search(
+            r"\btim(?:ed|e)\s*-?\s*out\b|\btimeout\b", str(self.detail or ""), re.IGNORECASE
+        ):
+            # A timeout is the one transport fact the person can act on (it is neither "offline"
+            # nor "an error"), so it is said in plain words; the raw detail stays in the call record.
+            return (
+                f"The AI service I tried did not answer in time{where} — the request timed out "
+                "before an answer came back. Try again, or pick a faster model."
+            )
         if self.kind == UNREACHABLE:
             return (
                 f"The AI service I tried could not be reached{where} — the connection itself "
