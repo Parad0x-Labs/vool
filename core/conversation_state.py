@@ -59,6 +59,8 @@ class Resolution:
     change: str = ""
     #: A reply the resolver can give itself (a pointer outside the printed list): the turn publishes it, no lane guesses.
     answer: str = ""
+    #: The message carries no task (thanks, a dismissal, a shrug): the turn answers `answer` and runs nothing.
+    closing: bool = False
 
     @property
     def text(self) -> str:
@@ -392,6 +394,15 @@ CLOSING_NOTE = ("The person's message is a closing remark (thanks, a dismissal o
 _ACCEPT_WORDS = frozenset({"yes", "yep", "yeah", "yup", "y", "sure", "please", "pls", "plz", "proceed", "confirm", "approve", "go", "ahead", "do"})
 
 
+#: Words that only pad a closing ("all good", "no worries", "appreciate it", "thanks for trying", "that's all"). They are
+#: function words of this class alone: they never make a message a closing without an anchor word below.
+_CLOSING_PAD = frozenset({
+    "worries", "worry", "problem", "perfect", "good", "fine", "enough", "fair", "awesome", "brilliant", "lovely", "super",
+    "appreciate", "appreciated", "trying", "bother", "bothered", "help", "helping", "effort", "time", "i", "i'm", "im", "i've", "ive",
+    "its", "it's", "that's", "thats", "that", "it", "all", "for", "the", "of", "is", "are", "be", "ok", "okay", "will", "well",
+    "so", "then", "got", "sort", "myself", "own", "np", "ta", "much", "bit", "little", "too", "also", "now", "just", "here",
+    "happy", "glad", "no", "nope", "not", "worked", "works", "helped", "helpful", "useful",
+})
 def is_closing(text: str) -> bool:
     """A social-only message with a thanks word, a filler or a dismissal in it, and no acceptance word."""
     if not is_social_only(text):
@@ -400,6 +411,45 @@ def is_closing(text: str) -> bool:
     if any(t in _ACCEPT_WORDS for t in toks):
         return False
     return any(t in _THANKS_WORDS or t in _FILLER_WORDS or t in _DISMISS_TOKENS for t in toks)
+
+
+def is_plain_closing(text: str) -> bool:
+    """A message with no task in it: once the closed classes (thanks, reactions, fillers, acknowledgement padding) are
+    removed nothing is left, and at least one anchor (a thanks word, a shrug, "never mind", "forget it") is there. An
+    acceptance ("yes thanks"), a go-ahead or a rerun word, a negation of what was said ("not that", "that's not all"),
+    a bare "no" / "stop" / "cancel" (an answer or an order, not a goodbye), a forget ask ("forget that", "forget it all")
+    or any other word (a noun, a verb, a folder) is a task or a question of its own and keeps the message out. Read from
+    structure, not from sentences."""
+    toks = _tokens(text)
+    if not toks or len(toks) > 12:
+        return False
+    if "?" in str(text):
+        return False
+    known = _THANKS_WORDS | _REACTION_WORDS | _FILLER_WORDS | _DISMISS_TOKENS | _SOCIAL_EXTRA | _THANKS_TAIL | _ACK_WORDS | _CLOSING_PAD
+    if not all(t in known for t in toks):
+        return False
+    thanked = any(t in _THANKS_WORDS for t in toks)
+    if any(t in _CLOSING_BLOCKERS and not (thanked and t in _THANKS_TAIL) for t in toks):
+        return False
+    if "not" in toks:
+        return False
+    for i, t in enumerate(toks):
+        nxt = toks[i + 1] if i + 1 < len(toks) else ""
+        if t == "forget" and (nxt != "it" or any(w in toks for w in ("all", "that"))):
+            return False
+        if t == "never" and nxt != "mind":
+            return False
+        if t == "mind" and (i == 0 or toks[i - 1] != "never"):
+            return False
+    return any(t in _CLOSING_ANCHOR for t in toks)
+
+
+def closing_reply(text: str) -> str:
+    """One short plain line for a closing, chosen by the class of the message (thanks vs a dismissal), never by its wording."""
+    toks = _tokens(text)
+    if any(t in _THANKS_WORDS or t in {"appreciate", "appreciated", "ta"} for t in toks):
+        return "You're welcome."
+    return "Okay. Ask me whenever you want something."
 
 
 def _cleared_exit(compact: str, pending: PendingRequest | None = None) -> bool:
@@ -466,6 +516,12 @@ _FILLER_WORDS = frozenset({"meh", "whatever", "anyway", "anyways", "nah", "nvm",
 _SOCIAL_EXTRA = frozenset({"ugh", "oh", "fine", "eh", "pff", "bah"})
 #: Words that ask to run something: a message holding one is never a closing.
 _GO_TOKENS = frozenset({"again", "retry", "redo", "rerun", "repeat", "try", "once", "more", "same", "go", "ahead", "proceed", "continue"})
+#: At least one of these must be present: it is what makes the message a closing rather than a bare reaction.
+_CLOSING_ANCHOR = _THANKS_WORDS | _FILLER_WORDS | frozenset({"appreciate", "appreciated", "worries", "np", "ta", "leave", "skip", "drop"})
+#: Tokens that make a message ask for something: an acceptance, a go-ahead, a rerun, or a cue to do work.
+_CLOSING_BLOCKERS = _ACCEPT_WORDS | _GO_TOKENS | frozenset({"need", "more", "further", "any", "anything", "something", "also"})
+
+
 _BARE_GO_MAX_AGE = 0
 _ARBITRATE_MAX_AGE = 1
 
@@ -707,6 +763,9 @@ def resolve(
     picked = _pick(compact, pending)
     if picked is not None:
         return picked
+    if is_plain_closing(compact):
+        # No task in the message: whatever the record says, nothing runs and nothing of the record rides along.
+        return Resolution("none", note=CLOSING_NOTE, answer=closing_reply(compact), closing=True)
     if pending is not None and pending.outcome == NEEDS_ANSWER and pending.turns_since == 0 and _read_only(pending):
         toks = _tokens(compact)
         if toks and len(toks) <= 5 and all(t in _AFFIRM_WORDS for t in toks):
@@ -828,4 +887,4 @@ def _note(pending: PendingRequest) -> str:
     return f"Earlier in this chat the user asked: “{pending.request}”. It ended {pending.outcome}{why}.{where}"
 
 
-__all__ = ["CLOSING_NOTE", "PendingRequest", "Resolution", "is_closing", "is_social_only", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
+__all__ = ["CLOSING_NOTE", "closing_reply", "PendingRequest", "Resolution", "is_closing", "is_plain_closing", "is_social_only", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
