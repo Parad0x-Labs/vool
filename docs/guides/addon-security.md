@@ -29,7 +29,7 @@ Skills from other makers never take this path.
 ## Public skills
 
 Choose a public GitHub skill at a fixed revision and approve downloading its contents. VOOL checks
-it on this device with `core/local_scan.py`. Without an enabled scanner plugin, the page explains
+it on this device. Without an enabled scanner plugin, the page explains
 that the checks stayed on this device. No scanner key is required for that path.
 
 An enabled scanner plugin also receives the public skill content when a scan is requested. This
