@@ -1487,6 +1487,12 @@ _PRESENT_APP_WORDS = frozenset({
 # named "garden planner project" then answered "I couldn't find a file matching ..." under the
 # notice that VOOL was now working in that very folder (train port real-app run, 2026-11-12).
 _PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir", "project", "projects"})
+# "find Tolly solana twitter" asks who someone is on a social network, not for a file named "twitter" (CI #681: once
+# the X lane stopped claiming the ask with X not connected, this lane searched the disk for it). A kind word keeps the
+# file reading: "pull up the twitter export csv" is a file on disk.
+_PRESENT_SOCIAL_WORDS = frozenset({
+    "twitter", "tweet", "tweets", "instagram", "insta", "facebook", "tiktok", "linkedin", "reddit", "mastodon", "bluesky",
+})
 # "find my phone" is not a file lookup (the loose search stands down on it too): the object names
 # a device the owner owns, not words a file's name carries.
 _PRESENT_DEVICE_WORDS = frozenset({
@@ -1636,7 +1642,7 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
            or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None
     names_a_document = any(word in _PRESENT_KIND_WORDS or word in _PRESENT_DOCUMENT_WORDS for word in kept)
-    if not names_a_document and any(word in _PRESENT_ORGANIZER_WORDS for word in kept):
+    if not names_a_document and any(word in _PRESENT_ORGANIZER_WORDS or word in _PRESENT_SOCIAL_WORDS for word in kept):
         return None
     rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
     if _FILE_OTHER_ACTION_RE.search(rest):

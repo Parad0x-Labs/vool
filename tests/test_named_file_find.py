@@ -513,3 +513,18 @@ def test_not_a_file_date_question(text):
     from core.execution.constants import machine_file_date_question
 
     assert machine_file_date_question(text) is None
+
+
+# --- CI #681: a social network named in the ask is not a file name ---------------------------------------------------
+@pytest.mark.parametrize("text", ["find Tolly solana twitter", "find tweets about solana", "find Toly instagram"])
+def test_a_social_network_in_a_find_ask_is_not_a_disk_search(text):
+    from core.execution.constants import machine_present_file_intent
+
+    assert machine_present_file_intent(text) is None
+
+
+def test_a_kind_word_keeps_a_social_named_file_a_file():
+    from core.execution.constants import machine_present_file_intent
+
+    ask = machine_present_file_intent("pull up the twitter export csv")
+    assert ask is not None and ask.kind == "csv" and "twitter" in ask.words
