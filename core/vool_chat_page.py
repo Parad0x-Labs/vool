@@ -13763,7 +13763,10 @@ function _storageNotice(d) {
   const wrap = document.createElement('div'); wrap.className = 'plugins-empty plugin-storage-notice';
   wrap.setAttribute('data-storage-state', String(st.state));
   const txt = document.createElement('div');
-  txt.textContent = (d && d.reason) ? d.reason : ('Plugin storage is ' + st.state + '.');
+  const said = (d && d.reason) ? d.reason : ('Plugin storage is ' + st.state + '.');
+  // "Nothing added yet" is a fixed sentence, so it reads in the person's language; the other
+  // states name a folder and a system error, which stay as the server wrote them.
+  txt.textContent = st.state === 'missing' ? pageT('plugins.storage.missing', said) : said;
   wrap.appendChild(txt);
   if (st.state !== 'missing') {
     const btn = document.createElement('button'); btn.className = 'p-toggle enable'; btn.textContent = 'Rescan';
@@ -13802,7 +13805,8 @@ function renderPlugins(d, query) {
   }
   const q = String(query || '').trim().toLowerCase();
   let plugins = d.plugins || [];
-  if (q) plugins = plugins.filter((pl) => ((pl.name || '') + ' ' + (pl.id || '') + ' ' + (pl.description || '') + ' ' + (pl.category || '')).toLowerCase().indexOf(q) !== -1);
+  if (q) plugins = plugins.filter((pl) => ((pl.name || '') + ' ' + (pl.id || '') + ' ' + (pl.description || '') + ' ' + (pl.category || '')
+    + ' ' + _pluginCardText(pl, 'name') + ' ' + _pluginCardText(pl, 'description') + ' ' + _pluginCardText(pl, 'category')).toLowerCase().indexOf(q) !== -1);
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
   head.textContent = q
     ? (plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
@@ -13812,13 +13816,14 @@ function renderPlugins(d, query) {
   plugins.forEach((pl) => {
     const card = document.createElement('div'); card.className = 'plugin-card' + (pl.first_party ? ' firstparty' : '');
     const h = document.createElement('div'); h.className = 'p-head';
-    const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = pl.name || pl.id;
+    const shownName = _pluginCardText(pl, 'name') || pl.id;
+    const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = shownName;
     const ver = document.createElement('span'); ver.className = 'p-ver'; ver.textContent = 'v' + (pl.version || '0');
     h.appendChild(nm); h.appendChild(ver);
     if (pl.first_party) h.appendChild(_firstPartyBadge());
-    const cat = document.createElement('span'); cat.className = 'p-cat'; cat.textContent = pl.category || '';
+    const cat = document.createElement('span'); cat.className = 'p-cat'; cat.textContent = _pluginCardText(pl, 'category');
     h.appendChild(cat); card.appendChild(h);
-    if (pl.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = pl.description; card.appendChild(de); }
+    if (pl.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = _pluginCardText(pl, 'description'); card.appendChild(de); }
     const act = document.createElement('div'); act.className = 'p-actions';
     const off = pl.enabled === false;
     const nSk = (pl.skills || []).length;
@@ -13833,7 +13838,8 @@ function renderPlugins(d, query) {
       : pl.enabled === false ? pageT('plugins.status.off', 'Off')
       : pageT('plugins.status.unknown', 'Status unknown');
     const st = document.createElement('span'); st.className = 'p-status' + (pl.enabled === true ? '' : ' off');
-    st.textContent = (origin ? origin + ' · ' : '') + state + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
+    st.textContent = (origin ? origin + ' · ' : '') + state
+      + (nSk ? (' · ' + pageTF('plugins.status.skill_count', '{n, plural, one {{n} skill} other {{n} skills}}', { n: nSk })) : '');
     act.appendChild(st);
     if (pl.id === 'native-library') {
       // The built-in skills are not one plugin to switch: the server has no off switch for the
@@ -13844,13 +13850,27 @@ function renderPlugins(d, query) {
       act.appendChild(hint);
     } else {
       const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
-      tg.setAttribute('aria-label', tg.textContent + ' ' + (pl.name || pl.id));
+      tg.setAttribute('aria-label', tg.textContent + ' ' + shownName);
       tg.addEventListener('click', () => togglePlugin(pl.id, off));
       act.appendChild(tg);
     }
     card.appendChild(act);
     body.appendChild(card);
   });
+}
+
+// The cards for what comes with VOOL speak the person's language. Their words live in the
+// catalog under the plugin's id, and the server's English is the fallback (tests pin the two
+// English copies equal). A plugin someone installed keeps its maker's own words.
+const _BUILT_IN_CARD_KEYS = {
+  'native-library': { name: 'plugins.builtin.native_library.name', description: 'plugins.builtin.native_library.description', category: 'plugins.status.built_in' },
+  'vool-database': { name: 'plugins.builtin.vool_database.name', description: 'plugins.builtin.vool_database.description', category: 'plugins.builtin.vool_database.category' },
+};
+function _pluginCardText(pl, field) {
+  const english = String((pl && pl[field]) || '');
+  const builtIn = !!pl && (pl.first_party === true || pl.origin === 'bundled');
+  const keys = builtIn ? _BUILT_IN_CARD_KEYS[pl.id] : null;
+  return (keys && keys[field] && english) ? pageT(keys[field], english) : english;
 }
 
 function renderSkills(d, query) {
@@ -13871,32 +13891,40 @@ function renderSkills(d, query) {
     a.title = 'Open the Media Studio editor in a dedicated window'; a.textContent = 'Open Media Studio';
     card.appendChild(a); body.appendChild(card);
   }
+  // Nothing added yet still lists the skills that come with VOOL, so each one can be turned off
+  // before anything else is installed (the Built-in skills card sends the person here).
+  const builtInOnly = !!(d && !d.installed && (d.plugins || []).some((pl) => (pl.skills || []).length));
   if (!d || !d.installed) {
     const notice = _storageNotice(d);
-    if (notice) { body.appendChild(notice); return; }
-    const p = document.createElement('div'); p.className = 'plugins-empty';
-    p.textContent = (d && d.reason) ? d.reason : 'No skills yet. Ask VOOL in any chat: make me a skill that ...';
-    body.appendChild(p); return;
+    const nothingAddedYet = !!(d && d.storage && d.storage.state === 'missing');
+    if (notice) { body.appendChild(notice); if (!(builtInOnly && nothingAddedYet)) return; }
+    else {
+      const p = document.createElement('div'); p.className = 'plugins-empty';
+      p.textContent = (d && d.reason) ? d.reason : 'No skills yet. Ask VOOL in any chat: make me a skill that ...';
+      body.appendChild(p);
+      if (!builtInOnly) return;
+    }
   }
   const q = String(query || '').trim().toLowerCase();
   let skills = [];
   // `summary` is the line written for people; `description` is written for skill picking and can
   // read as instructions, so it is only the fallback for a skill whose author wrote no summary.
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, title: _skillTitle(s.name), description: s.summary || s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
-  if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.title || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, title: _skillTitle(s.name), description: s.summary || s.description, plugin: _pluginCardText(pl, 'name') || pl.id, pluginEnglish: pl.name || '', first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
+  if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.title || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '') + ' ' + (s.pluginEnglish || '')).toLowerCase().indexOf(q) !== -1);
   skills.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
   head.textContent = q
     ? (skills.length + ' skill' + (skills.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
     : (d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + '. A skill that is On is used when your message is about its job.');
-  body.appendChild(head);
+  if (!builtInOnly || q) body.appendChild(head);
   if (!skills.length) { const p = document.createElement('div'); p.className = 'plugins-empty'; p.textContent = 'No skills match that search.'; body.appendChild(p); return; }
   skills.forEach((s) => {
     const card = document.createElement('div'); card.className = 'plugin-card' + (s.first_party ? ' firstparty' : '');
     const h = document.createElement('div'); h.className = 'p-head';
     const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = s.title || s.name;
     h.appendChild(nm);
-    const pill = document.createElement('span'); pill.className = 'p-cat'; pill.textContent = s.plugin; pill.title = 'From: ' + s.plugin;
+    const pill = document.createElement('span'); pill.className = 'p-cat'; pill.textContent = s.plugin;
+    pill.title = pageTF('skills.from_plugin_title', 'From plugin: {plugin}', { plugin: s.plugin });
     h.appendChild(pill);
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);

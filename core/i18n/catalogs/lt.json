@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · .null naršyklė",
     "plugins.badge_title": "Įtraukta į VOOL",
     "plugins.native_hint": "Atskirus įgūdžius įjunkite arba išjunkite skiltyje „Įgūdžiai“.",
+    "plugins.builtin.native_library.name": "Įtaisyti įgūdžiai",
+    "plugins.builtin.native_library.description": "Įgūdžiai, gaunami kartu su VOOL. Atskirus įgūdžius įjunkite arba išjunkite skiltyje „Įgūdžiai“.",
+    "plugins.builtin.vool_database.name": "VOOL duomenų bazė",
+    "plugins.builtin.vool_database.description": "Leidžia VOOL šiame kompiuteryje laikyti savo nedideles duomenų bazes, jose ieškoti ir jas keisti, prieš tai padarius atsarginę kopiją.",
+    "plugins.builtin.vool_database.category": "Duomenys",
+    "plugins.status.skill_count": "{n, plural, one {{n} įgūdis} few {{n} įgūdžiai} other {{n} įgūdžių}}",
+    "plugins.storage.missing": "Papildomų priedų dar nėra. Peržiūrėkite parduotuvę, kad pridėtumėte.",
     "chat.skills_used_one": "Panaudotas įgūdis:",
     "chat.skills_used_many": "Panaudoti įgūdžiai:",
     "chat.skills_used_title": "Šio įgūdžio nurodymais VOOL rėmėsi rašydamas šį atsakymą. Įgūdžius įjunkite arba išjunkite skiltyje „Įgūdžiai ir papildiniai“, dalyje „Mano priedai“.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "USB atsarginė kopija: išsaugota {drive}",
     "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

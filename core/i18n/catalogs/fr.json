@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · navigateur .null",
     "plugins.badge_title": "Fourni avec VOOL",
     "plugins.native_hint": "Activez ou désactivez chaque compétence dans Compétences.",
+    "plugins.builtin.native_library.name": "Compétences intégrées",
+    "plugins.builtin.native_library.description": "Les compétences fournies avec VOOL. Activez ou désactivez chaque compétence dans Compétences.",
+    "plugins.builtin.vool_database.name": "Base de données VOOL",
+    "plugins.builtin.vool_database.description": "Permet à VOOL de tenir ses propres petites bases de données sur cet ordinateur, d’y chercher des informations et de les modifier, avec une sauvegarde avant.",
+    "plugins.builtin.vool_database.category": "Données",
+    "plugins.status.skill_count": "{n, plural, one {{n} compétence} many {{n} compétences} other {{n} compétences}}",
+    "plugins.storage.missing": "Aucun module supplémentaire pour l’instant. Parcourez la boutique pour en ajouter un.",
     "chat.skills_used_one": "Compétence utilisée :",
     "chat.skills_used_many": "Compétences utilisées :",
     "chat.skills_used_title": "Les instructions de cette compétence ont servi à VOOL pour écrire cette réponse. Activez ou désactivez les compétences dans Compétences et plugins, sous Mes modules.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "Sauvegarde USB : enregistrée sur {drive}",
     "wallet.backup.usb_none": "Sauvegarde USB : pas encore"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

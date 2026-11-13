@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · .null 브라우저",
     "plugins.badge_title": "VOOL에 포함됨",
     "plugins.native_hint": "스킬을 하나씩 켜고 끄려면 스킬에서 하세요.",
+    "plugins.builtin.native_library.name": "기본 제공 스킬",
+    "plugins.builtin.native_library.description": "VOOL과 함께 제공되는 스킬입니다. 스킬을 하나씩 켜고 끄려면 스킬에서 하세요.",
+    "plugins.builtin.vool_database.name": "VOOL 데이터베이스",
+    "plugins.builtin.vool_database.description": "VOOL이 이 컴퓨터에 자체 소형 데이터베이스를 두고, 그 안에서 찾아보고, 먼저 백업한 뒤 변경할 수 있게 합니다.",
+    "plugins.builtin.vool_database.category": "데이터",
+    "plugins.status.skill_count": "{n, plural, other {스킬 {n}개}}",
+    "plugins.storage.missing": "아직 추가 애드온이 없습니다. 스토어를 둘러보고 추가하세요.",
     "chat.skills_used_one": "사용한 스킬:",
     "chat.skills_used_many": "사용한 스킬:",
     "chat.skills_used_title": "VOOL은 이 스킬의 지시를 바탕으로 이 답변을 썼습니다. 스킬은 스킬 및 플러그인의 내 추가 기능에서 켜고 끌 수 있습니다.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "USB 백업: {drive}에 저장됨",
     "wallet.backup.usb_none": "USB 백업: 아직 없음"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

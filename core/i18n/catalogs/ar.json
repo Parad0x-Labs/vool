@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · متصفح .null",
     "plugins.badge_title": "مرفقة مع VOOL",
     "plugins.native_hint": "شغّل كل مهارة أو أوقفها من قسم المهارات.",
+    "plugins.builtin.native_library.name": "المهارات المدمجة",
+    "plugins.builtin.native_library.description": "المهارات التي تأتي مع VOOL. شغّل كل مهارة أو أوقفها من قسم المهارات.",
+    "plugins.builtin.vool_database.name": "قاعدة بيانات VOOL",
+    "plugins.builtin.vool_database.description": "يتيح لـ VOOL الاحتفاظ بقواعد بيانات صغيرة خاصة به على هذا الكمبيوتر، والبحث فيها، وتغييرها بعد نسخة احتياطية أولًا.",
+    "plugins.builtin.vool_database.category": "بيانات",
+    "plugins.status.skill_count": "{n, plural, zero {لا مهارات} one {مهارة واحدة} two {مهارتان} few {{n} مهارات} many {{n} مهارة} other {{n} مهارة}}",
+    "plugins.storage.missing": "لا توجد إضافات أخرى بعد. تصفّح المتجر لإضافة واحدة.",
     "chat.skills_used_one": "المهارة المستخدمة:",
     "chat.skills_used_many": "المهارات المستخدمة:",
     "chat.skills_used_title": "كانت تعليمات هذه المهارة جزءًا من طريقة كتابة VOOL لهذه الإجابة. شغّل المهارات أو أوقفها من المهارات والإضافات، ضمن إضافاتي.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "نسخة USB: محفوظة على {drive}",
     "wallet.backup.usb_none": "نسخة USB: ليس بعد"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

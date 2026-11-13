@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · .null ブラウザー",
     "plugins.badge_title": "VOOLに付属",
     "plugins.native_hint": "スキルを1つずつオン・オフするには「スキル」から行います。",
+    "plugins.builtin.native_library.name": "内蔵スキル",
+    "plugins.builtin.native_library.description": "VOOLに付属するスキルです。スキルを1つずつオン・オフするには「スキル」から行います。",
+    "plugins.builtin.vool_database.name": "VOOLデータベース",
+    "plugins.builtin.vool_database.description": "VOOLがこのコンピュータ上に自分用の小さなデータベースを持ち、そこで調べものをし、先にバックアップを取ってから変更できるようにします。",
+    "plugins.builtin.vool_database.category": "データ",
+    "plugins.status.skill_count": "{n, plural, other {{n} 個のスキル}}",
+    "plugins.storage.missing": "追加のアドオンはまだありません。ストアを見て追加してください。",
     "chat.skills_used_one": "使ったスキル:",
     "chat.skills_used_many": "使ったスキル:",
     "chat.skills_used_title": "このスキルの指示をもとに、VOOLはこの回答を書きました。スキルのオン・オフは「スキルとプラグイン」の「マイアドオン」で切り替えられます。",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "USB バックアップ: {drive} に保存済み",
     "wallet.backup.usb_none": "USB バックアップ: まだありません"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

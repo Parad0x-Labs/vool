@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · דפדפן .null",
     "plugins.badge_title": "מגיע עם VOOL",
     "plugins.native_hint": "הפעילו או כבו כל מיומנות בנפרד תחת מיומנויות.",
+    "plugins.builtin.native_library.name": "מיומנויות מובנות",
+    "plugins.builtin.native_library.description": "המיומנויות שמגיעות עם VOOL. הפעילו או כבו כל מיומנות בנפרד תחת מיומנויות.",
+    "plugins.builtin.vool_database.name": "מסד הנתונים של VOOL",
+    "plugins.builtin.vool_database.description": "מאפשר ל-VOOL לנהל מסדי נתונים קטנים משלו במחשב הזה, לחפש בהם ולשנות אותם, עם גיבוי לפני כן.",
+    "plugins.builtin.vool_database.category": "נתונים",
+    "plugins.status.skill_count": "{n, plural, one {מיומנות אחת} two {שתי מיומנויות} other {{n} מיומנויות}}",
+    "plugins.storage.missing": "עדיין אין תוספים נוספים. עיינו בחנות כדי להוסיף אחד.",
     "chat.skills_used_one": "מיומנות שנעשה בה שימוש:",
     "chat.skills_used_many": "מיומנויות שנעשה בהן שימוש:",
     "chat.skills_used_title": "ההוראות של המיומנות הזו היו חלק מהאופן שבו VOOL כתב את התשובה הזו. הפעילו או כבו מיומנויות במיומנויות ותוספים, תחת התוספים שלי.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "גיבוי USB: נשמר ב-{drive}",
     "wallet.backup.usb_none": "גיבוי USB: עדיין לא"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

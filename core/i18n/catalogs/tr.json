@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · .null tarayıcısı",
     "plugins.badge_title": "VOOL ile birlikte gelir",
     "plugins.native_hint": "Becerileri tek tek Beceriler bölümünden açıp kapatın.",
+    "plugins.builtin.native_library.name": "Yerleşik beceriler",
+    "plugins.builtin.native_library.description": "VOOL ile gelen beceriler. Becerileri tek tek Beceriler bölümünden açıp kapatın.",
+    "plugins.builtin.vool_database.name": "VOOL Veritabanı",
+    "plugins.builtin.vool_database.description": "VOOL'un bu bilgisayarda kendi küçük veritabanlarını tutmasını, bunlarda bilgi aramasını ve önce yedek alarak bunları değiştirmesini sağlar.",
+    "plugins.builtin.vool_database.category": "Veri",
+    "plugins.status.skill_count": "{n, plural, one {{n} beceri} other {{n} beceri}}",
+    "plugins.storage.missing": "Henüz ek bir eklenti yok. Eklemek için mağazaya göz atın.",
     "chat.skills_used_one": "Kullanılan beceri:",
     "chat.skills_used_many": "Kullanılan beceriler:",
     "chat.skills_used_title": "VOOL bu yanıtı yazarken bu becerinin talimatlarını kullandı. Becerileri Beceriler ve Eklentiler içinde, Eklentilerim bölümünden açıp kapatabilirsiniz.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "USB yedeği: {drive} üzerine kaydedildi",
     "wallet.backup.usb_none": "USB yedeği: henüz yok"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

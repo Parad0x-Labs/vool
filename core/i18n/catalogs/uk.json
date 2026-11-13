@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · браузер .null",
     "plugins.badge_title": "Входить до VOOL",
     "plugins.native_hint": "Окремі навички вмикаються й вимикаються в розділі «Навички».",
+    "plugins.builtin.native_library.name": "Вбудовані навички",
+    "plugins.builtin.native_library.description": "Навички, що входять до VOOL. Окремі навички вмикаються й вимикаються в розділі «Навички».",
+    "plugins.builtin.vool_database.name": "База даних VOOL",
+    "plugins.builtin.vool_database.description": "Дає VOOL змогу вести власні невеликі бази даних на цьому комп’ютері, шукати в них і змінювати їх, спершу роблячи резервну копію.",
+    "plugins.builtin.vool_database.category": "Дані",
+    "plugins.status.skill_count": "{n, plural, one {{n} навичка} few {{n} навички} many {{n} навичок} other {{n} навички}}",
+    "plugins.storage.missing": "Додаткових доповнень поки немає. Відкрийте магазин, щоб додати.",
     "chat.skills_used_one": "Використано навичку:",
     "chat.skills_used_many": "Використано навички:",
     "chat.skills_used_title": "VOOL спирався на інструкції цієї навички, коли писав цю відповідь. Вмикати й вимикати навички можна в розділі «Навички та плагіни», на вкладці «Мої додатки».",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "Копія на USB: збережена на {drive}",
     "wallet.backup.usb_none": "Копія на USB: ще немає"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

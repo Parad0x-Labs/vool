@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · navegador .null",
     "plugins.badge_title": "Viene con VOOL",
     "plugins.native_hint": "Activa o desactiva cada habilidad en Habilidades.",
+    "plugins.builtin.native_library.name": "Habilidades integradas",
+    "plugins.builtin.native_library.description": "Las habilidades que vienen con VOOL. Activa o desactiva cada habilidad en Habilidades.",
+    "plugins.builtin.vool_database.name": "Base de datos de VOOL",
+    "plugins.builtin.vool_database.description": "Permite a VOOL llevar sus propias bases de datos pequeñas en este ordenador, consultarlas y cambiarlas, con una copia de seguridad antes.",
+    "plugins.builtin.vool_database.category": "Datos",
+    "plugins.status.skill_count": "{n, plural, one {{n} habilidad} many {{n} habilidades} other {{n} habilidades}}",
+    "plugins.storage.missing": "Todavía no hay complementos adicionales. Explora la tienda para añadir uno.",
     "chat.skills_used_one": "Habilidad usada:",
     "chat.skills_used_many": "Habilidades usadas:",
     "chat.skills_used_title": "Las instrucciones de esta habilidad formaron parte de cómo VOOL escribió esta respuesta. Activa o desactiva habilidades en Habilidades y plugins, dentro de Mis complementos.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "Copia en USB: guardada en {drive}",
     "wallet.backup.usb_none": "Copia en USB: todavía no"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

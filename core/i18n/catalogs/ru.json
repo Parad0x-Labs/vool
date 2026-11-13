@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · браузер .null",
     "plugins.badge_title": "Входит в VOOL",
     "plugins.native_hint": "Отдельные навыки включаются и выключаются в разделе «Навыки».",
+    "plugins.builtin.native_library.name": "Встроенные навыки",
+    "plugins.builtin.native_library.description": "Навыки, которые входят в VOOL. Отдельные навыки включаются и выключаются в разделе «Навыки».",
+    "plugins.builtin.vool_database.name": "База данных VOOL",
+    "plugins.builtin.vool_database.description": "Позволяет VOOL вести собственные небольшие базы данных на этом компьютере, искать в них и изменять их, сначала делая резервную копию.",
+    "plugins.builtin.vool_database.category": "Данные",
+    "plugins.status.skill_count": "{n, plural, one {{n} навык} few {{n} навыка} many {{n} навыков} other {{n} навыка}}",
+    "plugins.storage.missing": "Дополнительных расширений пока нет. Откройте магазин, чтобы добавить.",
     "chat.skills_used_one": "Использован навык:",
     "chat.skills_used_many": "Использованы навыки:",
     "chat.skills_used_title": "VOOL опирался на инструкции этого навыка, когда писал этот ответ. Включать и выключать навыки можно в разделе «Навыки и плагины», на вкладке «Мои дополнения».",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "Копия на USB: сохранена на {drive}",
     "wallet.backup.usb_none": "Копия на USB: пока нет"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

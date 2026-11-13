@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · przeglądarka .null",
     "plugins.badge_title": "Dołączone do VOOL",
     "plugins.native_hint": "Pojedyncze umiejętności włączasz i wyłączasz w sekcji Umiejętności.",
+    "plugins.builtin.native_library.name": "Wbudowane umiejętności",
+    "plugins.builtin.native_library.description": "Umiejętności dostarczane z VOOL. Pojedyncze umiejętności włączasz i wyłączasz w sekcji Umiejętności.",
+    "plugins.builtin.vool_database.name": "Baza danych VOOL",
+    "plugins.builtin.vool_database.description": "Pozwala VOOL prowadzić własne małe bazy danych na tym komputerze, wyszukiwać w nich i zmieniać je, najpierw robiąc kopię zapasową.",
+    "plugins.builtin.vool_database.category": "Dane",
+    "plugins.status.skill_count": "{n, plural, one {{n} umiejętność} few {{n} umiejętności} many {{n} umiejętności} other {{n} umiejętności}}",
+    "plugins.storage.missing": "Nie masz jeszcze dodatkowych dodatków. Przejrzyj sklep, aby jakiś dodać.",
     "chat.skills_used_one": "Użyta umiejętność:",
     "chat.skills_used_many": "Użyte umiejętności:",
     "chat.skills_used_title": "Instrukcje tej umiejętności pomogły VOOL napisać tę odpowiedź. Umiejętności włączysz lub wyłączysz w sekcji Umiejętności i wtyczki, w zakładce Moje dodatki.",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "Kopia na USB: zapisana na {drive}",
     "wallet.backup.usb_none": "Kopia na USB: jeszcze nie"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

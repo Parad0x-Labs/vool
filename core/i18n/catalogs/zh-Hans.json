@@ -3696,6 +3696,13 @@
     "web0.title": "VOOL · .null 浏览器",
     "plugins.badge_title": "VOOL 自带",
     "plugins.native_hint": "在“技能”中可以单独打开或关闭每个技能。",
+    "plugins.builtin.native_library.name": "内置技能",
+    "plugins.builtin.native_library.description": "VOOL 自带的技能。在“技能”中可以单独打开或关闭每个技能。",
+    "plugins.builtin.vool_database.name": "VOOL 数据库",
+    "plugins.builtin.vool_database.description": "让 VOOL 在这台电脑上保存自己的小型数据库，在其中查找信息，并在先做好备份后修改它们。",
+    "plugins.builtin.vool_database.category": "数据",
+    "plugins.status.skill_count": "{n, plural, other {{n} 个技能}}",
+    "plugins.storage.missing": "还没有额外的附加组件。浏览商店来添加一个。",
     "chat.skills_used_one": "用到的技能：",
     "chat.skills_used_many": "用到的技能：",
     "chat.skills_used_title": "VOOL 写这条回答时参考了这个技能的指示。可在“技能与插件”的“我的附加组件”中打开或关闭技能。",
@@ -5178,7 +5185,7 @@
     "wallet.backup.usb_saved": "USB 备份：已保存到 {drive}",
     "wallet.backup.usb_none": "USB 备份：尚未保存"
   },
-  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
+  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
