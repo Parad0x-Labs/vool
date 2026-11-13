@@ -356,6 +356,22 @@ _DATABASE_NO_ANSWER_RE = re.compile(
 )
 
 
+# What a reply says when it hands the work back instead of doing it ("Would you like to proceed?") or says the
+# rows it just read do not answer ("no indication", "no column for that"). Mac run 16i: pantry 1 stopped at
+# the schema and asked leave to look; toolshed 6 read Pavel's loans and said "no indication they belong to Pavel".
+_DATABASE_HANDS_BACK_RE = re.compile(
+    r"\b(?:would\s+you\s+like\s+(?:me\s+)?to\s+(?:proceed|continue|retrieve|see|fetch)|"
+    r"(?:i|let\s+me)\s+can\s+(?:retrieve|fetch|show)|shall\s+i\s+(?:proceed|retrieve|fetch))\b",
+    re.IGNORECASE,
+)
+_DATABASE_DENIES_ROWS_RE = re.compile(
+    r"\b(?:no\s+(?:direct\s+)?(?:indication|way|column)|not\s+explicit(?:ly)?|does\s+not\s+(?:explicitly\s+)?state|"
+    r"(?:no|not\s+any)\s+(?:specific\s+)?(?:information|data)\s+(?:is\s+)?(?:provided|available)|"
+    r"does\s+not\s+have\s+a\s+column|there\s+is\s+no\s+[\w` ]{0,30}column)\b",
+    re.IGNORECASE,
+)
+
+
 def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
     """The last database step succeeded with no rows, or a lone count of 0 (or failed): nothing it found is a fact."""
     for step in reversed(steps):
@@ -440,6 +456,17 @@ def _database_query_carries_over_the_last_ask(sql: str, question: str, steps: li
             f"This query filters on '{value}', and the question does not mention it. Take that filter out unless "
             "the question asked for it, then call again."
         )
+    if re.search(r"\border\s+by\b", sql, re.IGNORECASE):
+        # a 0/1 filter the question never names, in a query that sorts ("expires soonest" run as
+        # `WHERE opened = 1 ORDER BY expires LIMIT 1`)
+        for column in re.findall(r"\b([A-Za-z_]\w*)\s*=\s*(?:0|1|true|false)\b", where[1] if len(where) == 2 else "", re.IGNORECASE):
+            stem = column.lower()[:4]
+            if stem in text or f"filters on '{column.lower()}'" in told:
+                continue
+            return (
+                f"This query filters on '{column.lower()}', and the question does not mention it. Take that filter out "
+                "unless the question asked for it, then call again."
+            )
     if (
         _ONE_TOP_ROW_RE.search(sql)
         and re.search(r"\border\s+by\b", sql, re.IGNORECASE)
@@ -551,7 +578,62 @@ def _database_join_missing(question: str, steps: list[dict[str, Any]]) -> bool:
 
 def _is_database_no_answer(text: str) -> bool:
     """A reply that gives up or asks what is meant instead of answering."""
-    return bool(_DATABASE_NO_ANSWER_RE.search(str(text or "")))
+    return bool(_DATABASE_NO_ANSWER_RE.search(str(text or "")) or _DATABASE_HANDS_BACK_RE.search(str(text or "")))
+
+
+_ORDERED_ASK_RE = re.compile(
+    r"\b(?:first|last|newest|oldest|latest|earliest|soonest|order(?:ed)?|sorted?|ascending|descending|by\s+\w+\s+(?:asc|desc))\b",
+    re.IGNORECASE,
+)
+
+
+def _listed_out_of_order(reply: str, steps: list[dict[str, Any]]) -> bool:
+    """Whether the reply names the rows' labels (their name/title column) in another order than the rows came.
+
+    Mac run 16i, "list the items, latest expiry first": the query sorted right and the reply listed the items
+    in an order the rows never had."""
+    for step in reversed(steps):
+        observation = step.get("observation")
+        if str(step.get("tool_name") or "") != "vool-database.query" or not isinstance(observation, dict):
+            continue
+        columns = [str(c).lower() for c in (observation.get("columns") or [])]
+        rows = list(observation.get("rows") or [])
+        label = next((columns.index(w) for w in ("name", "title", "label") if w in columns), -1)
+        if label < 0 or len(rows) < 3:
+            return False
+        lowered = reply.lower()
+        found = []
+        for index, row in enumerate(rows):
+            try:
+                value = str(row[label] if not isinstance(row, dict) else list(row.values())[label]).lower()
+            except (IndexError, TypeError):
+                return False
+            at = lowered.find(value) if value else -1
+            if at >= 0:
+                found.append((at, index))
+        if len(found) < 3:
+            return False
+        return [i for _, i in sorted(found)] != sorted(i for _, i in found)
+    return False
+
+
+def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[dict[str, Any]]) -> str:
+    """The rows' own answer when a reply, sent after a database query that found rows, denies them or states a
+    value no row holds; "" when the reply stands. Mac run 16i: "The Drill has been borrowed by **Pavel**" after
+    a read of the tools table that held no borrower at all; "does not have a column for stock status" after
+    the query that used the quantity column had answered. This is the model's closing reply, which the
+    synthesis check never saw."""
+    answering = _database_step_answering(question, steps)
+    used = steps[: answering + 1] if answering >= 0 else steps
+    rows = database_rows_answer(used)
+    if not rows or _database_last_result_empty(steps):
+        return ""
+    text = str(reply or "")
+    if _DATABASE_NO_ANSWER_RE.search(text) or _DATABASE_DENIES_ROWS_RE.search(text) or database_claims_unsupported(text, used, question):
+        return rows
+    if _ORDERED_ASK_RE.search(str(question or "")) and _listed_out_of_order(text, used):
+        return rows
+    return ""
 
 
 def _database_work_turn(text: str, source_context: dict[str, Any] | None) -> bool:
@@ -2236,6 +2318,17 @@ class ResearchToolLoopFacadeMixin:
                             "I could not find that. The query I ran returned nothing, which does not show it is "
                             "missing from your database, so I am not saying it is. Ask again and I will look again."
                         )
+                    if direct_message is not None and selected_response and executed_steps:
+                        _rows_say = _database_reply_contradicts_its_rows(str(direct_message), effective_input, executed_steps)
+                        if _rows_say:
+                            self._emit_runtime_event(
+                                loop_source_context,
+                                event_type="database_reply_replaced_by_its_rows",
+                                message="The closing reply denied or contradicted the rows the query read; the rows are the answer.",
+                                status="database_reply_replaced_by_its_rows",
+                                step_count=len(executed_steps),
+                            )
+                            direct_message = _rows_say
                     if direct_message is not None:
                         # K-05 MODEL-PROSE-NOT-EVIDENCE: a bound obligation set
                         # with pending machine-effect intents blocks prose

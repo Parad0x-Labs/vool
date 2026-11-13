@@ -193,3 +193,94 @@ def test_the_loop_reads_the_loans_when_the_model_answers_from_the_people_table(t
     steps = [str(s) for s in (result or {}).get("details", {}).get("tool_steps", [])]
     assert steps.count("vool-database.query") >= 2, steps
     assert "database_not_consulted" in str((result or {}).get("response") or ""), result  # told twice, then the ready join ran
+
+
+# ── the exact queries of Mac run 16i (pantry), against the checks ─────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "ask, sql, refused",
+    [
+        ("which item expires soonest", "SELECT name, expires FROM items WHERE opened = 1 ORDER BY expires ASC LIMIT 1", True),
+        ("whats on the middle shelf", "SELECT * FROM items WHERE shelf = 'middle' ORDER BY expires ASC LIMIT 1", True),
+        ("whats on the middle shelf", "SELECT * FROM items WHERE shelf = 'middle' LIMIT 10", False),
+        ("is there any honey in there", "SELECT COUNT(*) AS count FROM items WHERE shelf = 'bottom' AND name = 'honey';", True),
+        ("which has the largest quantity", "SELECT name, quantity FROM items ORDER BY quantity DESC LIMIT 1", False),
+        ("which ones are out of stock", "SELECT * FROM items WHERE quantity = 0", False),
+        ("how many are still unopened", "SELECT COUNT(*) AS count FROM items WHERE opened = 0", False),
+        ("which unopened item expires first", "SELECT name FROM items WHERE opened = 0 ORDER BY expires LIMIT 1", False),
+        ("list the items, latest expiry first", "SELECT * FROM items ORDER BY expires DESC", False),
+    ],
+)
+def test_the_queries_run_16i_ran(ask: str, sql: str, refused: bool) -> None:
+    said = _database_query_carries_over_the_last_ask(sql, ask, [])
+    assert bool(said) is refused, (ask, sql, said)
+
+
+def test_a_word_given_to_a_flag_column_is_refused_with_its_real_values(tmp_path, monkeypatch) -> None:
+    import importlib.machinery
+    import importlib.util
+    import io
+    import json
+
+    from tests.test_vool_database_handler_robustness import HANDLER
+
+    (tmp_path / "databases").mkdir()
+    c = sqlite3.connect(tmp_path / "databases" / "pantry.sqlite")
+    c.executescript("create table items(id integer primary key, name text, opened int); insert into items values (1,'Rice',0),(2,'Tea',1);")
+    c.commit(); c.close()
+    loader = importlib.machinery.SourceFileLoader("db_handler_flag", str(HANDLER))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+    monkeypatch.setattr(module, "scratch_root", lambda: str(tmp_path))
+
+    def call(sql: str) -> dict:
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"intent": "vool-database.query", "arguments": {"name": "pantry", "sql": sql}})))
+        out = io.StringIO()
+        monkeypatch.setattr("sys.stdout", out)
+        module.main()
+        return json.loads(out.getvalue())
+
+    refused = call("SELECT COUNT(*) FROM items WHERE opened = 'no'")
+    assert refused["ok"] is False and "1 means yes and 0 means no" in json.dumps(refused)
+    assert call("SELECT COUNT(*) FROM items WHERE opened = 0")["ok"] is True
+    assert call("SELECT COUNT(*) FROM items WHERE name = 'no'")["ok"] is True
+
+
+# ── a closing reply that denies or contradicts the rows the query read ────────────────────────────────────────
+
+from core.agent_runtime.research_tool_loop_facade import _database_reply_contradicts_its_rows  # noqa: E402
+
+
+def _query_step(sql: str, rows: list, columns: list[str]) -> dict:
+    return {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": sql},
+            "observation": {"rows": rows, "columns": columns, "row_count": len(rows)}}
+
+
+def test_a_borrower_no_row_holds_is_replaced_by_the_rows() -> None:
+    steps = [_query_step("SELECT * FROM tools WHERE name = 'Drill'", [[1, "Drill", "power", 2019]], ["id", "name", "kind", "bought"])]
+    said = _database_reply_contradicts_its_rows("The Drill has been borrowed by **Pavel**.", "who has had the Drill", steps)
+    assert "Drill" in said and "Pavel" not in said
+
+
+def test_a_denial_of_rows_just_read_is_replaced_by_the_rows() -> None:
+    steps = [_query_step("SELECT * FROM items WHERE quantity = 0", [[2, "Lentils", "top", 0]], ["id", "name", "shelf", "quantity"])]
+    reply = "The database does not have a column for stock status. There is no direct way to tell."
+    assert "Lentils" in _database_reply_contradicts_its_rows(reply, "which ones are out of stock", steps)
+
+
+def test_an_answer_the_rows_support_stands() -> None:
+    steps = [_query_step("SELECT * FROM items WHERE quantity = 0", [[2, "Lentils", "top", 0]], ["id", "name", "shelf", "quantity"])]
+    assert _database_reply_contradicts_its_rows("Lentils are out of stock.", "which ones are out of stock", steps) == ""
+    assert _database_reply_contradicts_its_rows("Lentils are out.", "which ones are out", []) == ""
+
+
+def test_a_list_named_in_another_order_than_the_rows_is_replaced_by_the_rows() -> None:
+    names = ["Honey", "Pasta", "Rice", "Lentils", "Tea", "Flour"]
+    steps = [_query_step("SELECT * FROM items ORDER BY expires DESC", [[i, n] for i, n in enumerate(names, 1)], ["id", "name"])]
+    wrong = "Here you go: Honey, Pasta, Tea, Rice, Lentils, Flour."
+    right = "Here you go: Honey, Pasta, Rice, Lentils, Tea, Flour."
+    ask = "list the items, latest expiry first"
+    assert _database_reply_contradicts_its_rows(wrong, ask, steps)
+    assert _database_reply_contradicts_its_rows(right, ask, steps) == ""
+    assert _database_reply_contradicts_its_rows(wrong, "list the items", steps) == ""  # no order asked

@@ -936,6 +936,41 @@ def _refuse_null_test_on_a_column_with_no_nulls(conn, body):
             )
 
 
+_FLAG_VS_WORD_RE = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b([A-Za-z_]\w*)\s*(?:=|!=|<>|\bIS\b)\s*'(yes|no|true|false|y|n)'", re.IGNORECASE)
+
+
+def _refuse_a_word_given_to_a_flag_column(conn, body):
+    """`opened = 'no'` on a column that holds only 0 and 1: a flag is compared with its number.
+
+    Database run 16i (pantry): "how many are still unopened" was written `WHERE opened = 'no'` and the count
+    that came back was published. The refusal names the column's real values so the next call tests those."""
+    matches = _FLAG_VS_WORD_RE.findall(body)
+    if not matches:
+        return
+    snapshot = _schema_snapshot(conn)
+    for qualifier, column, word in matches:
+        for table, shape in snapshot.items():
+            if qualifier and qualifier.lower() != table.lower():
+                continue
+            declared = {c["name"].lower(): str(c["type"] or "").upper() for c in shape["columns"]}
+            if "INT" not in declared.get(column.lower(), ""):
+                continue
+            try:
+                values = [r[0] for r in conn.execute('SELECT DISTINCT "%s" FROM "%s" LIMIT 4' % (column.replace('"', '""'), table.replace('"', '""')))]
+            except sqlite3.Error:
+                continue
+            if not values or any(v not in (0, 1, None) for v in values):
+                continue
+            raise Fail(
+                "sql_error",
+                "%s.%s holds numbers (%s), not the word '%s': 1 means yes and 0 means no. Test %s = 1 or %s = 0."
+                % (table, column, ", ".join(repr(v) for v in sorted(values, key=lambda v: (v is None, v))), word, column, column),
+                database_table=table,
+                database_column=column,
+                values=values,
+            )
+
+
 _ID_VS_NAME_RE = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b([A-Za-z_]\w*)_id\s*=\s*'([^']*)'", re.IGNORECASE)
 _NAME_LIKE_COLUMNS = ("name", "title", "label")
 
@@ -1076,6 +1111,7 @@ def tool_query(args):
     try:
         _refuse_null_test_on_a_column_with_no_nulls(conn, body)
         _refuse_a_name_given_to_an_id_column(conn, body)
+        _refuse_a_word_given_to_a_flag_column(conn, body)
         deadline_guard(conn, max_seconds)
         started = time.monotonic()
         try:
