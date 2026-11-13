@@ -300,13 +300,14 @@ def describe(entry: dict[str, Any], *, conn: Any) -> dict[str, Any]:
     """The role fields a wallet listing carries: kind, is_main, burner_used."""
     wallet_id = str(entry.get("wallet_id") or "")
     if str(entry.get("agent_id") or ""):
-        return {"kind": "", "is_main": False, "burner_used": False, "keychain_backup": False, "usb_backup": None, "security_key": None}
+        return {"kind": "", "is_main": False, "burner_used": False, "keychain_backup": False, "usb_backup": None, "security_key": None, "ledger": None}
     from core.wallet import keychain_backup, pilot_custody, usb_backup
 
     kind = kind_of(wallet_id, conn=conn)
     return {"kind": kind, "is_main": kind == KIND_MAIN, "burner_used": kind == KIND_BURNER and burner_used(wallet_id, conn=conn),
             "keychain_backup": keychain_backup.saved_for(wallet_id, conn=conn),
-            "usb_backup": usb_backup.saved_on(wallet_id, conn=conn), "security_key": _security_key_view(pilot_custody.security_key_of(wallet_id, conn=conn))}
+            "usb_backup": usb_backup.saved_on(wallet_id, conn=conn), "security_key": _security_key_view(pilot_custody.security_key_of(wallet_id, conn=conn)),
+            "ledger": pilot_custody.ledger_of(wallet_id, conn=conn)}
 
 
 def _security_key_view(enrolled: dict[str, str] | None) -> dict[str, str] | None:

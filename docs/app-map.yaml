@@ -966,6 +966,15 @@ rows:
     tests: [tests/wallet/test_wallet_security_key.py]
     label: TESTED
     target_release: 0.8.0
+  - id: wallet-ledger
+    title: A Ledger as the signer of a Solana wallet (can be Main); every send goes through the same quote, caps, approval and receipts and is pressed on the Ledger
+    area: crypto
+    ui: [vwCx]
+    wired: ["/api/wallet/ledger", "/api/wallet/ledger/add"]
+    default: []
+    tests: [tests/wallet/test_wallet_ledger.py]
+    label: TESTED
+    target_release: 0.8.0
   - id: wallet-usb-backup
     title: Wallet backup key sealed with a backup password on a USB stick, forgot-PIN restore and bring back a wallet from the stick
     area: crypto

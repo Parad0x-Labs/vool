@@ -128,10 +128,12 @@ desktop = [
     "pyobjc-framework-Contacts==13.0; sys_platform == 'darwin'",
 ]
 # A security key (YubiKey and similar) as a second thing a VOOL wallet needs to open (core/wallet/security_key.py):
-# Yubico's FIDO2 library, pure Python on the cryptography package VOOL already has. OPTIONAL and off until the person
-# adds a key; without it Settings says security keys are not supported here and nothing else changes.
+# Yubico's FIDO2 library, pure Python on the cryptography package VOOL already has. A Ledger as a Solana wallet's
+# signer (core/wallet/ledger.py): the hidapi USB HID binding; VOOL speaks the Ledger's APDUs itself. OPTIONAL and off
+# until the person adds a key or a Ledger; without them Settings says they are not supported here and nothing else changes.
 keys = [
     "fido2==2.2.1",
+    "hidapi==0.15.0",
 ]
 proof = [
     "pytest>=7.0",

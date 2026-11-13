@@ -135,6 +135,10 @@ SCHEMA = (
     # the credential id and salt VOOL asks the key with; the key's secret never leaves the key
     """CREATE TABLE IF NOT EXISTS wallet_security_keys (
         wallet_id TEXT PRIMARY KEY, credential_id TEXT NOT NULL, salt TEXT NOT NULL, name TEXT NOT NULL, added_at TEXT NOT NULL)""",
+    # a wallet whose key lives only on a Ledger (core.wallet.pilot_custody, core.wallet.ledger): the account path the
+    # Ledger signs with; no key is kept here
+    """CREATE TABLE IF NOT EXISTS wallet_ledgers (
+        wallet_id TEXT PRIMARY KEY, network TEXT NOT NULL, path TEXT NOT NULL, added_at TEXT NOT NULL)""",
 )
 
 TABLES: tuple[str, ...] = (
@@ -143,6 +147,7 @@ TABLES: tuple[str, ...] = (
     "wallet_facilitators", "wallet_unlock_attempts", "wallet_quotes", "wallet_transfers", "wallet_usepod_operations",
     "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions", "wallet_agent_helper_terms",
     "wallet_roles", "wallet_main", "wallet_keychain_backups", "wallet_usb_backups", "wallet_security_keys",
+    "wallet_ledgers",
 )
 
 #: Columns added after a table first shipped. Additive, idempotent, checked on every connection.

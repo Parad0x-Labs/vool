@@ -811,8 +811,59 @@ class PilotSigner:
         self.closed = True
 
 
+class LedgerPilotSigner:
+    """The signer of a wallet whose key lives only on a Ledger: the PIN was proven through the same seal and throttle,
+    and each Solana message goes to the Ledger, where the person reads it and presses. Nothing here holds a key. The
+    Ledger must still hold this wallet's address at its path; the signature is checked before it is handed out."""
+
+    def __init__(self, *, path: str, public_key: str, family: str, wallet_id: str, generation: int = 1) -> None:
+        self.path, self.public_key, self.family, self.wallet_id, self.closed = str(path), str(public_key), str(family), str(wallet_id), False
+        self.generation = int(generation)
+
+    def sign_svm(self, message: bytes) -> bytes:
+        from core.wallet import ledger
+        from core.wallet.signers import _verify
+
+        if self.closed or self.family != chains.FAMILY_SVM:
+            raise _fault("wallet_signing_unavailable", wallet_id=self.wallet_id, reason="signing_session_closed" if self.closed else "not_a_solana_key")
+        try:
+            signature = ledger.sign_solana_message(ledger.parse_path(self.path), bytes(message), expected_public_key=self.public_key)
+        except ledger.LedgerProblem as problem:
+            raise _fault("wallet_signing_unavailable", wallet_id=self.wallet_id, reason=f"ledger_{problem.reason}") from None
+        if not _verify(self.public_key, bytes(message), signature):
+            raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="ledger_signature_mismatch")
+        return signature
+
+    def sign_evm_type2(self, params: dict[str, Any]) -> tuple[bytes, str]:
+        raise _fault("wallet_signing_unavailable", wallet_id=self.wallet_id, reason="ledger_signs_solana_only")
+
+    def sign_evm_typed_data(self, typed: dict[str, Any]) -> str:
+        raise _fault("wallet_signing_unavailable", wallet_id=self.wallet_id, reason="ledger_signs_solana_only")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def ledger_of(wallet_id: str, *, conn: Any = None) -> dict[str, str] | None:
+    """The Ledger account a wallet signs with (its path and when it was added), or None for a wallet VOOL holds."""
+    query = "SELECT path, added_at FROM wallet_ledgers WHERE wallet_id = ?"
+    if conn is not None:
+        found = conn.execute(query, (str(wallet_id),)).fetchone()
+    else:
+        with connection() as own:
+            found = own.execute(query, (str(wallet_id),)).fetchone()
+    return {"path": str(found[0]), "added_at": str(found[1])} if found else None
+
+
+def refuse_ledger_wallet(wallet_id: str, *, what: str, source_context: dict[str, Any] | None = None) -> None:
+    """A Ledger wallet has no key in VOOL: its backup is the Ledger's own recovery words, so nothing here can save,
+    reveal or restore one, and a security key adds nothing to a Ledger."""
+    if ledger_of(wallet_id) is not None:
+        raise _fault("wallet_setup_state_invalid", wallet_id=str(wallet_id), reason=f"ledger_wallet_{what}", source_context=source_context)
+
+
 @contextlib.contextmanager
-def signing_session(wallet_id: str, credential: str, *, source_context: dict[str, Any] | None = None) -> Iterator[PilotSigner]:
+def signing_session(wallet_id: str, credential: str, *, source_context: dict[str, Any] | None = None) -> Iterator[PilotSigner | LedgerPilotSigner]:
     """Open a ready pilot wallet's seal ONCE (one throttle attempt, one device prompt) and yield a signer for the
     session's body; the key reference is dropped when the body ends, however it ends. Callers keep every network read
     outside the body: no secret exists while the chain is read."""
@@ -823,7 +874,13 @@ def signing_session(wallet_id: str, credential: str, *, source_context: dict[str
         _require_credential_shape(row["approval_method"], credential, source_context=source_context)
     spec = chains.resolve_network(row["network"])
     secret, generation = _verify(row, credential, source_context=source_context)
-    signer = PilotSigner(secret, public_key=row["public_key"], family=spec.family, wallet_id=row["wallet_id"], generation=generation)
+    on_ledger = ledger_of(row["wallet_id"])
+    if on_ledger is not None:
+        # the seal of a Ledger wallet holds no key, only proof of the PIN: the Ledger signs
+        signer: PilotSigner | LedgerPilotSigner = LedgerPilotSigner(path=on_ledger["path"], public_key=row["public_key"], family=spec.family,
+                                                                     wallet_id=row["wallet_id"], generation=generation)
+    else:
+        signer = PilotSigner(secret, public_key=row["public_key"], family=spec.family, wallet_id=row["wallet_id"], generation=generation)
     del secret
     try:
         yield signer
@@ -1122,6 +1179,7 @@ def recover_with_backup(wallet_id: str, *, backup_value: str, method: str, crede
     text = str(backup_value or "").strip()
     if text:
         register_exact_secret(text)
+    refuse_ledger_wallet(wallet_id, what="backup_is_on_the_ledger", source_context=source_context)
     row = _require_recoverable_row(wallet_id, source_context=source_context)
     chosen = _require_new_credential(method, credential, credential_confirmation, source_context=source_context)
     spec = chains.resolve_network(row["network"])
@@ -1263,6 +1321,7 @@ def _add_security_key(wallet_id: str, *, credential: str = "", key_pin: str = ""
 
     custody.require_enabled(source_context=source_context)
     _refuse_agent_wallet(wallet_id, source_context=source_context)
+    refuse_ledger_wallet(wallet_id, what="needs_no_security_key", source_context=source_context)
     row = _require_pilot_row(wallet_id, source_context=source_context)
     if row["setup_state"] not in {"", STATE_READY}:
         raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="setup_not_finished", source_context=source_context)
@@ -1321,6 +1380,83 @@ def _remove_security_key(wallet_id: str, *, credential: str = "", source_context
                             event="wallet_security_key_removed", source_context=source_context, security_key=None)
 
 
+
+def add_ledger_wallet(*, network: str, account: int = 0, method: str, credential: str = "", credential_confirmation: str = "",
+                      creation_key: str = "", label: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Add the Solana account on the ONE Ledger plugged in as a VOOL wallet. The Ledger shows the address and the
+    person presses to confirm it; VOOL keeps only that address and its path. The new PIN (or password) is sealed like
+    any wallet's, but the seal holds no key: it proves the PIN through the same throttle, and every send is then read
+    and pressed on the Ledger. The same quote, caps, approval and receipt path as every VOOL wallet; never an agent's.
+
+    The same Ledger account added again (after a delete, or a forgotten PIN) gets the new PIN on the same wallet."""
+    from core.wallet import ledger, wallet_roles
+
+    custody.require_enabled(source_context=source_context)
+    net = custody.require_network(network, source_context=source_context)
+    spec = environment.require_active(net, source_context=source_context)
+    if not spec.is_svm:
+        raise _fault("wallet_setup_state_invalid", reason="ledger_solana_only", source_context=source_context)
+    chosen = str(method or "").strip().lower()
+    if chosen not in (custody.APPROVAL_PIN, custody.APPROVAL_PASSWORD):
+        raise _fault("wallet_setup_state_invalid", reason="ledger_needs_pin_or_password", source_context=source_context)
+    chosen = _require_new_credential(chosen, credential, credential_confirmation, source_context=source_context)
+    key = str(creation_key or "").strip()[:128]
+    if not key:
+        raise _fault("wallet_setup_state_invalid", reason="creation_key_required", source_context=source_context)
+    try:
+        index = int(account)
+        path = ledger.solana_path(index)
+    except (TypeError, ValueError, ledger.LedgerProblem):
+        raise _fault("wallet_setup_state_invalid", reason="ledger_account_invalid", source_context=source_context) from None
+    if not ledger.library_available():
+        raise _fault("wallet_signing_unavailable", reason="ledger_support_not_installed", source_context=source_context)
+    try:
+        address = ledger.public_key(path, confirm=True)
+    except ledger.LedgerProblem as problem:
+        raise _fault("wallet_signing_unavailable", reason=f"ledger_{problem.reason}", source_context=source_context) from None
+    path_text = ledger.path_text(path)
+    # the seal proves the PIN; it holds 32 random bytes that are no key of anything
+    stand_in = secrets.token_bytes(32)
+    sealed_blob = _seal_with_credential(stand_in, credential, _aad(spec, address))
+    del stand_in
+    with connection() as conn:
+        found = conn.execute("SELECT wallet_id FROM wallet_profiles WHERE network = ? AND public_key = ? AND agent_id = ''",
+                             (spec.network, address)).fetchall()
+    if found:
+        if len(found) != 1 or ledger_of(found[0][0]) is None:
+            # a wallet VOOL holds the key of is never turned into a Ledger wallet, nor the other way round
+            raise _fault("wallet_setup_state_invalid", reason="ledger_address_already_a_vool_wallet", source_context=source_context)
+        row = _load(found[0][0]) or {}
+        view = _commit_envelope(row, sealed_blob=sealed_blob, device_blob="", method=chosen, expected_generation=_generation(row),
+                                event="wallet_ledger_pin_set", source_context=source_context, security_key=None)
+        with connection() as conn:
+            limits._begin_immediate(conn)
+            wallet_roles.freeze(conn)
+        view["ledger"] = {"path": path_text}
+        return view
+    wallet_id, now = f"wallet-{uuid.uuid4().hex[:16]}", utcnow()
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        if conn.execute("SELECT 1 FROM wallet_profiles WHERE network = ? AND (creation_key = ? OR public_key = ?)", (spec.network, key, address)).fetchone():
+            raise _fault("wallet_setup_state_invalid", reason="ledger_add_conflict", source_context=source_context)
+        wallet_roles.freeze(conn)  # today's Main stays Main; on a network with no wallet yet the Ledger wallet is the first, so it is Main
+        conn.execute(
+            "INSERT INTO wallet_profiles (wallet_id, mode, network, public_key, label, created_at, approval_method, is_default, "
+            "sealed_blob, seal_kind, seal_policy, setup_state, creation_key, revealed_at, setup_updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
+            (wallet_id, custody.MODE_POCKET_SEALED, spec.network, address, wallet_roles.clean_name(label) or "Ledger", now, chosen,
+             sealed_blob, SEAL_POLICY, SEAL_POLICY, STATE_READY, key, now, now),
+        )
+        conn.execute("INSERT INTO wallet_ledgers (wallet_id, network, path, added_at) VALUES (?, ?, ?, ?)", (wallet_id, spec.network, path_text, now))
+        wallet_roles.record_new_wallet(conn, wallet_id, kind=wallet_roles.KIND_EVERYDAY)
+        wallet_roles.freeze(conn)
+    _journal("wallet_ledger_added", {"wallet_id": wallet_id, "network": spec.network, "address": address, "path": path_text, "method": chosen},
+             source_context=source_context)
+    view = _view(_load(wallet_id) or {}, created=True)
+    view["ledger"] = {"path": path_text}
+    return view
+
+
 __all__ = [
     "BACKUP_FORMAT_EVM",
     "BACKUP_FORMAT_SOLANA",
@@ -1334,17 +1470,21 @@ __all__ = [
     "STATE_CANCELLED",
     "STATE_GENERATING",
     "STATE_READY",
+    "LedgerPilotSigner",
     "acknowledge_pilot_backup",
+    "add_ledger_wallet",
     "add_security_key",
     "cancel_pilot_setup",
     "change_pilot_credential",
     "create_pilot_wallet",
     "credential_generation",
     "evm_address_for_key",
+    "ledger_of",
     "recover_with_backup",
     "recover_with_device",
     "recovery_challenge",
     "recovery_options",
+    "refuse_ledger_wallet",
     "remove_security_key",
     "resume_pilot_setup",
     "reveal_pilot_backup",

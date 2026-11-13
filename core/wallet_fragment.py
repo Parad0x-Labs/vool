@@ -1332,13 +1332,56 @@ function rowCard(r, cp, st){
   } else if (r.active && !(caps.create && caps.create.available) && !accounts.length) {
     card.appendChild(el('div', 'vw-cx-env', 'Create wallet is unavailable here: ' + (CAP_REASONS[(caps.create || {}).reason] || (caps.create || {}).reason || 'unavailable') + '.'));
   }
+  if (r.active && caps.create && caps.create.available && String(r.network).indexOf('solana:') === 0 && !inProgress.length) card.appendChild(ledgerAdd(r, cp, msg));
   card.appendChild(msg);
   return card;
+}
+function ledgerAdd(r, cp, msg){
+  // a Ledger's Solana account as a VOOL wallet: the key stays on the Ledger, every send is pressed there
+  var box = el('div', 'vw-cx-ledger'); box.setAttribute('data-network', r.network);
+  var open = el('button', 'vw-btn vw-cx-ledger-add', 'Add a Ledger'); open.type = 'button'; box.appendChild(open);
+  var f = el('div', 'vw-cx-form vw-cx-ledger-form'); f.hidden = true; box.appendChild(f);
+  f.appendChild(el('div', 'vw-line', 'Plug in your Ledger, unlock it and open its Solana app. VOOL reads its Solana address; check that the address on the Ledger matches and press to confirm. The key never leaves the Ledger. Every payment from it will ask for the PIN or password you choose here, then show on the Ledger for you to check and press. If you forget this PIN, add the same Ledger again.'));
+  var nid = 'vwLd-' + r.network.replace(/[^a-zA-Z0-9]/g, '');
+  var al = el('label', null, 'Ledger account (0 is the first)'); al.setAttribute('for', nid + 'Account'); f.appendChild(al);
+  var account = el('input'); account.type = 'number'; account.min = '0'; account.max = '999'; account.value = '0'; account.id = nid + 'Account'; f.appendChild(account);
+  var creds = credentialPrompt(f, nid, cp);
+  var devOpt = creds.method.querySelector('option[value="device"]'); if (devOpt) devOpt.remove();
+  var ll = el('label', null, 'Wallet name (optional)'); ll.setAttribute('for', nid + 'Label'); f.appendChild(ll);
+  var label = el('input'); label.type = 'text'; label.id = nid + 'Label'; label.maxLength = 40; label.autocomplete = 'off'; f.appendChild(label);
+  var row = el('div', 'vw-sheet-actions'); var go = el('button', 'vw-btn primary vw-cx-ledger-go', 'Add this Ledger'); go.type = 'button';
+  var back = el('button', 'vw-btn', 'Cancel'); back.type = 'button'; row.appendChild(go); row.appendChild(back); f.appendChild(row);
+  open.addEventListener('click', function(){
+    f.hidden = !f.hidden; if (f.hidden) return;
+    getJson('/api/wallet/ledger').then(function(j){
+      var l = (j && j.ledger) || {};
+      if (!l.supported) cxMsg(msg, 'Ledger support is not installed in this VOOL.', true);
+      else if (!l.plugged_in) cxMsg(msg, 'No Ledger found yet. Plug it in, unlock it and open its Solana app.');
+      else cxMsg(msg, 'Ledger found.');
+    }).catch(function(){});
+  });
+  back.addEventListener('click', function(){ creds.clear(); f.hidden = true; });
+  if (!cryptoCreationKeys['ledger:' + r.network]) cryptoCreationKeys['ledger:' + r.network] = 'ledger-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+  go.addEventListener('click', function(){
+    if (creds.cred.value !== creds.conf.value) { cxMsg(msg, 'The two entries differ. Type the same PIN or password twice.', true); return; }
+    var body = { network: r.network, account: account.value || '0', method: creds.method.value, credential: creds.cred.value, credential_confirmation: creds.conf.value,
+                 creation_key: cryptoCreationKeys['ledger:' + r.network], label: label.value || '' };
+    creds.clear(); go.disabled = true; cxMsg(msg, 'Check the address on your Ledger and press to confirm it…');
+    postJson('/api/wallet/ledger/add', body).then(function(res){
+      body = null; go.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not added. Nothing changed.'), true); return; }
+      delete cryptoCreationKeys['ledger:' + r.network];
+      var w = (res.data && res.data.wallet) || {};
+      cxMsg(msg, w.created ? 'Added. This wallet signs on your Ledger (' + short(w.address) + ').' : 'Done. The same Ledger wallet now uses the new PIN or password.');
+      renderCrypto();
+    }).catch(function(){ body = null; go.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  return box;
 }
 function accountCard(a, r, cp, st){
   var box = el('div', 'vw-cx-account'); box.setAttribute('data-wallet', a.wallet_id); box.setAttribute('data-setup-state', a.setup_state || 'ready'); box.setAttribute('data-mode', a.mode || '');
   var line = el('div');
-  line.appendChild(el('span', 'vw-line', (a.label ? a.label + ' · ' : '') + (a.agent_id ? (a.agent_id === 'addons' ? 'the Skills & plugins wallet (see below)' : 'an agent\'s own wallet (see Agent spending below)') : (a.mode_label || a.mode))));
+  line.appendChild(el('span', 'vw-line', (a.label ? a.label + ' · ' : '') + (a.agent_id ? (a.agent_id === 'addons' ? 'the Skills & plugins wallet (see below)' : 'an agent\'s own wallet (see Agent spending below)') : (a.ledger ? 'Ledger wallet' : (a.mode_label || a.mode)))));
   if (a.agent_id) box.setAttribute('data-agent', a.agent_id);
   if (a.kind) {
     box.setAttribute('data-kind', a.kind);
@@ -1348,6 +1391,10 @@ function accountCard(a, r, cp, st){
   }
   box.appendChild(line);
   if (a.kind) box.appendChild(el('div', 'vw-cx-env vw-cx-kind-note', KIND_NOTES[a.kind === 'burner' && a.burner_used ? 'burner_used' : a.kind] || ''));
+  if (a.ledger) {
+    box.setAttribute('data-ledger', 'true');
+    box.appendChild(el('div', 'vw-cx-env vw-cx-ledger-note', 'Signs on your Ledger. Its key never leaves the Ledger. Every payment asks for this wallet\'s PIN or password, then shows on the Ledger for you to check and press. Its backup is the Ledger\'s own recovery words.'));
+  }
   var addr = el('div', 'vw-cx-address', a.address || ''); box.appendChild(addr);
   var setupState = a.setup_state || 'ready';
   var stateLine = el('div', 'vw-cx-env', 'State: ' + (SETUP_TEXT[setupState] || setupState)); stateLine.className += ' vw-cx-state'; box.appendChild(stateLine);
@@ -1392,7 +1439,8 @@ function accountCard(a, r, cp, st){
       }).catch(function(){ historyBox.textContent = 'The history could not be read.'; });
     });
     actions.appendChild(history);
-    if (a.mode === 'pocket_sealed' && !a.agent_id) { var forgot = forgotLink(a.wallet_id, 'Forgot PIN or password?'); forgot.className += ' vw-cx-forgot'; actions.appendChild(forgot); }
+    if (a.mode === 'pocket_sealed' && !a.agent_id && !a.ledger) { var forgot = forgotLink(a.wallet_id, 'Forgot PIN or password?'); forgot.className += ' vw-cx-forgot'; actions.appendChild(forgot); }
+    if (a.ledger) actions.appendChild(el('span', 'vw-cx-env vw-cx-ledger-forgot', 'Forgot the PIN? Add the same Ledger again below: same wallet, new PIN.'));
     box.appendChild(actions); box.appendChild(historyBox);
     if (!a.agent_id && a.kind) box.appendChild(walletRoleControls(a, cp, msg));
   } else {
@@ -1659,9 +1707,11 @@ function walletRoleControls(a, cp, msg){
   // Delete: the person's own wallet, at any time; this wallet's own PIN and a confirmed backup (or an empty wallet)
   var delBtn = el('button', 'vw-btn vw-cx-remove', 'Delete wallet'); delBtn.type = 'button';
   var dForm = el('div', 'vw-cx-form vw-cx-remove-form'); dForm.hidden = true;
-  dForm.appendChild(el('div', 'vw-cx-warn', 'Deleting removes this wallet and its key from this computer. Coins still in it stay at its address, and only its backup key can reach them again. Move them to another wallet first if you want to keep them.'));
+  dForm.appendChild(el('div', 'vw-cx-warn', a.ledger
+    ? 'Deleting removes this wallet from VOOL. Its key stays on your Ledger, and you can add the same Ledger again at any time.'
+    : 'Deleting removes this wallet and its key from this computer. Coins still in it stay at its address, and only its backup key can reach them again. Move them to another wallet first if you want to keep them.'));
   var okWrap = el('label', 'vw-line'); var ok = el('input'); ok.type = 'checkbox'; ok.className = 'vw-cx-remove-ok';
-  okWrap.appendChild(ok); okWrap.appendChild(document.createTextNode(' I have this wallet\'s backup key, or it is empty')); dForm.appendChild(okWrap);
+  okWrap.appendChild(ok); okWrap.appendChild(document.createTextNode(a.ledger ? ' I have my Ledger and its recovery words' : ' I have this wallet\'s backup key, or it is empty')); dForm.appendChild(okWrap);
   var dCreds = a.mode === 'pocket_sealed' ? credentialPrompt(dForm, 'vwCxDel-' + a.wallet_id, cp, { single: true }) : null;
   var dRow = el('div', 'vw-sheet-actions');
   var dGo = el('button', 'vw-btn primary vw-cx-remove-go', 'Delete this wallet'); dGo.type = 'button';
@@ -1679,7 +1729,7 @@ function walletRoleControls(a, cp, msg){
     }).catch(function(){ body = null; dGo.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
   });
   bar.appendChild(delBtn);
-  if (a.mode === 'pocket_sealed') { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready') host.appendChild(securityKeyControls(a, cp, msg)); }
+  if (a.mode === 'pocket_sealed' && !a.ledger) { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready') host.appendChild(securityKeyControls(a, cp, msg)); }
   if (a.kind === 'everyday' && a.mode === 'pocket_sealed' && (a.setup_state || 'ready') === 'ready') {
     var mainBtn = el('button', 'vw-btn vw-cx-make-main', 'Make main'); mainBtn.type = 'button';
     bar.appendChild(mainBtn);
@@ -2549,6 +2599,7 @@ function openSheet(p, cardControls, cardResult, opener){
     var payer = ((lastStatus && lastStatus.accounts) || []).filter(function(a){ return a.public_key === f.from_address; })[0];
     forgot.hidden = method === 'device' || !payer;
     if (payer) { var link = forgotLink(payer.wallet_id, 'Forgot PIN or password?'); link.id = 'vwSheetForgot'; forgot.replaceWith(link); forgot = link; }
+    if (f.signs_on_ledger) forgot.hidden = true;  // a Ledger wallet's PIN is reset by adding the same Ledger again (Settings > Crypto)
     cred.placeholder = method === 'password' ? 'wallet password' : 'wallet PIN';
     cred.setAttribute('aria-label', method === 'password' ? 'wallet password for this approval only' : 'wallet PIN for this approval only');
     if (method === 'pin') cred.inputMode = 'numeric';
@@ -2613,7 +2664,7 @@ function openSheet(p, cardControls, cardResult, opener){
     else if (f.approval_method === 'password') body.password = cred.value;
     else body.pin = cred.value;
     cred.value = '';
-    decisionStarted = true; busy = true; gate(); setState(f.approval_method === 'device' ? 'Confirm with Touch ID or your Mac password…' : 'Checking the approval…');
+    decisionStarted = true; busy = true; gate(); setState(f.approval_method === 'device' ? 'Confirm with Touch ID or your Mac password…' : (f.signs_on_ledger ? 'Now check the transfer on your Ledger and press to approve it (within 25 seconds)…' : 'Checking the approval…'));
     postJson('/api/wallet/approve', body).then(function(res){
       busy = false; body = null;
       if (res.ok) {

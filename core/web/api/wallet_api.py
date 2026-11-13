@@ -108,6 +108,27 @@ _ROLE_REFUSALS = {
     "security_key_already_added": "This wallet already needs a security key. Remove it first to add another. Nothing changed.",
     "no_security_key_added": "This wallet does not need a security key. Nothing changed.",
     "security_key_change_in_progress": "A security key change for this wallet is already in progress in another window. Finish that one first. Nothing changed.",
+    "ledger_wallet_backup_is_on_the_ledger": "This wallet's key is only on your Ledger. Its backup is the Ledger's own recovery words. Nothing changed.",
+    "ledger_wallet_needs_no_security_key": "This wallet already signs on your Ledger, so it needs no security key. Nothing changed.",
+    "ledger_solana_only": "A Ledger can be added for Solana wallets for now. Nothing changed.",
+    "ledger_needs_pin_or_password": "Choose a PIN or a password for the Ledger wallet. Nothing changed.",
+    "ledger_account_invalid": "That Ledger account number is not valid. Use 0 for the first account. Nothing changed.",
+    "ledger_address_already_a_vool_wallet": "That address is already a wallet VOOL holds the key of, so it cannot be added as a Ledger wallet. Nothing changed.",
+    "ledger_add_conflict": "This Ledger account was just added. Look again at your wallets. Nothing changed.",
+}
+
+#: Plain words for why the Ledger did not sign or answer (core.wallet.ledger.LedgerProblem reasons, prefixed ledger_).
+_LEDGER_WORDS = {
+    "ledger_no_ledger": "No Ledger is plugged in. Plug it in, unlock it, open its Solana app and try again. Nothing was sent.",
+    "ledger_more_than_one_ledger": "More than one Ledger is plugged in. Keep only this wallet's Ledger plugged in and try again. Nothing was sent.",
+    "ledger_ledger_locked": "Your Ledger is locked. Unlock it with its PIN, open its Solana app and try again. Nothing was sent.",
+    "ledger_open_solana_app": "Open the Solana app on your Ledger and try again. Nothing was sent.",
+    "ledger_refused_on_ledger": "You rejected it on the Ledger. Nothing was sent.",
+    "ledger_ledger_timeout": "The Ledger was not pressed in time. Try again and approve on the Ledger within 25 seconds. Nothing was sent.",
+    "ledger_not_this_ledger": "This Ledger does not hold this wallet's address. Plug in the Ledger you added this wallet with. Nothing was sent.",
+    "ledger_ledger_error": "The Ledger did not answer properly. Unplug it, plug it in again, open its Solana app and try again. Nothing was sent.",
+    "ledger_support_not_installed": "Ledger support is not installed in this VOOL. Nothing changed.",
+    "ledger_signs_solana_only": "This Ledger wallet signs Solana payments only. Nothing was sent.",
 }
 
 #: Plain words for why a security key did not answer (core.wallet.security_key.KeyProblem reasons).
@@ -133,6 +154,8 @@ def _fault(exc: WalletFault) -> Any:
         payload["message"] = said
     if exc.code == "wallet_security_key_needed" and reason in _SECURITY_KEY_WORDS:
         payload["message"] = _SECURITY_KEY_WORDS[reason]
+    if exc.code == "wallet_signing_unavailable" and reason in _LEDGER_WORDS:
+        payload["message"] = _LEDGER_WORDS[reason] if exc.context.get("wallet_id") else _LEDGER_WORDS[reason].replace("Nothing was sent.", "Nothing changed.")
     if exc.code == "wallet_confirmation_required":
         payload["warning"] = custody.POCKET_WARNING_TEXT
         payload["confirmation_phrase"] = custody.POCKET_CONFIRMATION_PHRASE
@@ -273,6 +296,12 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
 
         return _json(200, {"ok": True, "security_key": {"supported": security_key.library_available(), "plugged_in": security_key.plugged_in()}},
                      headers=_NO_STORE)
+    if path == "/api/wallet/ledger":
+        # whether this VOOL can use a Ledger, and whether one is plugged in now; never an address until it is added
+        from core.wallet import ledger
+
+        supported = ledger.library_available()
+        return _json(200, {"ok": True, "ledger": {"supported": supported, "plugged_in": bool(supported and ledger.plugged_in())}}, headers=_NO_STORE)
     if path == "/api/wallet/usb":
         # the USB sticks plugged in now and the VOOL backups on them, by opaque id: never a path
         from core.wallet import usb_backup
@@ -444,6 +473,19 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 answer = pilot_custody.add_security_key(wid, credential=cred, key_pin=str(body.get("key_pin") or ""), source_context=source_context)
             else:
                 answer = pilot_custody.remove_security_key(wid, credential=cred, source_context=source_context)
+            return _json(200, {"ok": True, "wallet": answer}, headers=_NO_STORE)
+        if path == "/api/wallet/ledger/add":
+            # the Solana account on the person's Ledger as a VOOL wallet: the Ledger shows the address and the person
+            # presses; a PIN or password guards approvals; every send is then pressed on the Ledger
+            from core.wallet import pilot_custody
+
+            try:
+                account = int(body.get("account") or 0)
+            except (TypeError, ValueError):
+                account = -1
+            answer = pilot_custody.add_ledger_wallet(network=str(body.get("network") or ""), account=account, method=str(body.get("method") or "pin"),
+                                                     credential=str(body.get("credential") or ""), credential_confirmation=str(body.get("credential_confirmation") or ""),
+                                                     creation_key=str(body.get("creation_key") or ""), label=str(body.get("label") or ""), source_context=source_context)
             return _json(200, {"ok": True, "wallet": answer}, headers=_NO_STORE)
         if path in ("/api/wallet/usb/save", "/api/wallet/usb/open"):
             # the same sealed backup as the Keychain one, written to a USB stick the person keeps offline

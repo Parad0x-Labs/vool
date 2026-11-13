@@ -1702,6 +1702,13 @@
       "registry_command_id": "wallet.keychain.status",
       "surface": "http"
     },
+    "http:GET:/api/wallet/ledger": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/ledger",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.ledger.status",
+      "surface": "http"
+    },
     "http:GET:/api/wallet/pocket/terms": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/pocket/terms",
@@ -3172,6 +3179,13 @@
       "registry_command_id": "wallet.keychain.save",
       "surface": "http"
     },
+    "http:POST:/api/wallet/ledger/add": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/ledger/add",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.ledger.add",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/limits": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/limits",
@@ -3694,7 +3708,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 345,
-    "GENERATED_ADAPTER": 173,
+    "GENERATED_ADAPTER": 175,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

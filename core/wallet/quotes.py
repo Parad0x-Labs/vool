@@ -297,9 +297,12 @@ def _held_elsewhere(wallet_id: str, network: str, proposal_id: str, *, asset: st
 def _approval_block(profile: custody.WalletProfile) -> dict[str, Any]:
     """A connected or watch-only account previews a Crypto Pilot transfer but cannot approve it here: the quote
     says so, with the fault's own words, so the sheet asks for no credential and says what is really wrong. A
-    Crypto Pilot wallet's quote carries nothing extra."""
+    Crypto Pilot wallet's quote carries nothing extra, except that a Ledger wallet's says so: the sheet tells the
+    person to read and press the transfer on the Ledger after the PIN."""
     if custody.seal_policy(profile.wallet_id) == custody.PILOT_SEAL_POLICY:
-        return {}
+        from core.wallet import pilot_custody
+
+        return {"signs_on_ledger": True} if pilot_custody.ledger_of(profile.wallet_id) is not None else {}
     from core.faults.catalog import get_spec
     from core.i18n.catalog import fault_message_key
     from core.i18n.turn_locale import turn_text

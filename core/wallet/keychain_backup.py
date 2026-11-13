@@ -163,6 +163,9 @@ def _owner_pilot_row(wallet_id: str, *, source_context: dict[str, Any] | None) -
 
     if custody.agent_of(wallet_id):
         raise _fault("agent_wallet_not_backed_up_here", source_context=source_context)
+    if pilot_custody.ledger_of(wallet_id) is not None:
+        # the key is only on the Ledger; its own recovery words are the backup
+        raise _fault("ledger_wallet_backup_is_on_the_ledger", source_context=source_context)
     row = pilot_custody._require_pilot_row(wallet_id, source_context=source_context)
     if str(row.get("setup_state") or "") not in ("ready", "backup_revealed", "awaiting_backup"):
         raise _fault("setup_not_finished", source_context=source_context)
