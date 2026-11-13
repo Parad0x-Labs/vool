@@ -2047,6 +2047,41 @@ def web_off_live_value_notice(text: str) -> str:
     return _UNVERIFIED_NOTICE_RE.sub(_said, str(text or ""))
 
 
+def turn_ran_a_lookup(source_context: Any, web_notes: Any = None) -> bool:
+    """Whether this turn started a web lookup at all, whatever it returned.
+
+    The unverified-live-value notice opens "I didn't run any live lookup on this turn". A turn whose search ran
+    and returned pages that did not back every figure is not that turn.
+    """
+    if web_notes:
+        return True
+    context = source_context if isinstance(source_context, dict) else {}
+    if context.get("_tool_loop_lookup_ran"):
+        return True
+    receipts = context.get("web_retrieval_receipts")
+    return bool(isinstance(receipts, list) and receipts)
+
+
+def looked_up_live_value_notice(text: str) -> str:
+    """`text` with the unverified-live-value notice said for a turn whose web lookup DID run.
+
+    Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, Web lookups on): web.search ran and bound four pages for
+    "suggest a good tripod for travel and tell me what it costs today"; a figure no page stated was withdrawn
+    and the reply ended "I didn't run any live lookup on this turn ... Ask again and I'll fetch the real data
+    first", beside the figures the pages did state. It says what happened instead: the lookup ran and did not
+    confirm the figure, so it was left out.
+    """
+    def _said(match: re.Match[str]) -> str:
+        named = str(match.group("named") or "").strip()
+        if named:
+            what = "current prices" if named in {"price", "live"} else f"current {named} figures"
+        else:
+            what = str(match.group("subject") or "that").strip()
+        return f"The lookup I ran didn't confirm {what}, so I've left out any figure it didn't state."
+
+    return _UNVERIFIED_NOTICE_RE.sub(_said, str(text or ""))
+
+
 #: A sentence boundary for the mixed-answer split: terminal punctuation followed
 #: by whitespace.  Decimal points ("$64,102.50") never match because no
 #: whitespace follows the point.

@@ -1758,6 +1758,11 @@ def execute_grounded_turn(
 
         if not effective_web_available(source_context):
             response = web_off_live_value_notice(response)
+        else:
+            from core.model_output_guard import looked_up_live_value_notice, turn_ran_a_lookup
+
+            if turn_ran_a_lookup(source_context, web_notes):
+                response = looked_up_live_value_notice(response)
     except Exception:
         pass
     if not web_notes and not _current_claim.unsupported:

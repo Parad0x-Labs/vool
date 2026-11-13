@@ -1062,6 +1062,29 @@ def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> li
     return observations
 
 
+
+#: Where the tool loop leaves its working context for `_maybe_execute_model_tool_intent` to read back.
+_LOOP_CONTEXT_KEY = "_tool_loop_working_context"
+#: Set on the turn's context when a web lookup ran inside the tool loop (read by
+#: `core.model_output_guard.turn_ran_a_lookup`).
+LOOKUP_RAN_IN_LOOP_KEY = "_tool_loop_lookup_ran"
+
+
+def _fold_loop_observations_back(source_context: dict[str, Any]) -> None:
+    """Tell the turn's own context that a web lookup ran inside the tool loop.
+
+    Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, Web lookups on): web.search ran in the tool loop and bound four
+    pages, but its receipt was written to the loop's copy of the context. The seal read the turn's context and
+    appended "I didn't run any live lookup on this turn" to an answer built from the search. Only the fact that a
+    lookup ran comes back: which figures the seal withholds is unchanged.
+    """
+    loop_context = source_context.pop(_LOOP_CONTEXT_KEY, None)
+    if not isinstance(loop_context, dict) or loop_context is source_context:
+        return
+    receipts = loop_context.get("web_retrieval_receipts")
+    if isinstance(receipts, list) and receipts:
+        source_context[LOOKUP_RAN_IN_LOOP_KEY] = True
+
 class ResearchToolLoopFacadeMixin:
     def _x_editorial_direct_message(
         self, message: str, *, user_text: str, source_context: dict[str, Any] | None
@@ -1852,6 +1875,35 @@ class ResearchToolLoopFacadeMixin:
         source_context: dict[str, object] | None,
         surface: str,
     ) -> dict[str, Any] | None:
+        try:
+            return self._run_model_tool_intent(
+                task=task,
+                effective_input=effective_input,
+                classification=classification,
+                interpretation=interpretation,
+                context_result=context_result,
+                persona=persona,
+                session_id=session_id,
+                source_context=source_context,
+                surface=surface,
+            )
+        finally:
+            if isinstance(source_context, dict):
+                _fold_loop_observations_back(source_context)
+
+    def _run_model_tool_intent(
+        self,
+        *,
+        task: Any,
+        effective_input: str,
+        classification: dict[str, Any],
+        interpretation: Any,
+        context_result: Any,
+        persona: Any,
+        session_id: str,
+        source_context: dict[str, object] | None,
+        surface: str,
+    ) -> dict[str, Any] | None:
         from core.agent_runtime.intent_claims import (
             ActionPolicy,
             action_policy_from_context,
@@ -1989,6 +2041,11 @@ class ResearchToolLoopFacadeMixin:
         # stored with a paused request's checkpoint must never reopen that request's scope here.
         from core.tool_offer_state import TURN_SCOPE_KEY
 
+        if isinstance(source_context, dict):
+            # The loop works on its own copy of the turn's context, and its tools record what they observed there
+            # (a web search's retrieval receipt, a tool's typed observation). The reply is sealed with the turn's
+            # context, so `_maybe_execute_model_tool_intent` folds those channels back when the loop ends.
+            source_context[_LOOP_CONTEXT_KEY] = loop_source_context
         # This request's own words, server-owned, for gates that must tell what the PERSON wrote
         # from what the model proposed (core.email_argument_guard grounds recipients on it).
         loop_source_context["_turn_user_text"] = str(effective_input or "")

@@ -624,6 +624,15 @@ def _validate_final_chat_output(
                         withdrawn = RECORDS_WITHDRAWAL_NOTICE
                 except Exception:
                     pass
+                try:
+                    # A lookup that ran and did not back a figure is not "no lookup": Mac recheck 2026-11-13 on
+                    # f50e52eb, web.search had bound four pages and the reply still said it ran none.
+                    from core.model_output_guard import looked_up_live_value_notice, turn_ran_a_lookup
+
+                    if turn_ran_a_lookup(source_context):
+                        withdrawn = looked_up_live_value_notice(withdrawn)
+                except Exception:
+                    pass
                 final_text = withdrawn
                 live_claim_kinds_withdrew = True
                 _mark_turn_unfulfilled(source_context, "live figures withheld: no lookup ran for them")
