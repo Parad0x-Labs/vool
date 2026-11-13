@@ -400,8 +400,10 @@ def built(tmp_path_factory: pytest.TempPathFactory) -> dict:
     for page in de.rglob("*.md"):
         text = page.read_text(encoding="utf-8")
         if "](../guides/local-models.md" in text:
-            page.write_text(text.replace("](../guides/local-models.md",
-                                         "](../../../guides/local-models.md"), encoding="utf-8")
+            # A German #section has no match on the English page, so the link drops it.
+            text = re.sub(r"\]\(\.\./guides/local-models\.md(?:#[^)]*)?\)",
+                          "](../../../guides/local-models.md)", text)
+            page.write_text(text, encoding="utf-8")
     readme = root / "docs" / "README.md"
     readme.write_text(readme.read_text(encoding="utf-8") + "\nOne more English line.\n",
                       encoding="utf-8")
