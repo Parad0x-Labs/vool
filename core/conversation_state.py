@@ -688,7 +688,7 @@ def _relative_pick(compact: str, pending: PendingRequest | None) -> Resolution |
 #: The nouns an ordinal may carry when it points into a list ("the second one", "the 3rd file").
 _POINTER_NOUNS = frozenset({"one", "ones", "result", "results", "item", "items", "file", "files", "folder", "folders", "pic", "pics", "picture", "pictures"})
 #: What may follow a pointer without making the ordinal part of another phrase.
-_POINTER_TAIL = frozenset({"please", "pls", "plz", "then", "instead", "too", "again", "and", "or", "of", "from", "in", "on", "is", "was", "for", "to", "it", "them", "those", "these", "that", "the", "list", "above", "there", "now", "thanks", "again"})
+_POINTER_TAIL = frozenset({"please", "pls", "plz", "then", "instead", "too", "again", "and", "or", "of", "from", "in", "on", "is", "was", "for", "to", "it", "them", "those", "these", "that", "the", "list", "above", "there", "now", "thanks"})
 
 
 #: Words that open a description after a noun ("the last file I edited", "the first folder that holds ...").
