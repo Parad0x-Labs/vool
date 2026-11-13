@@ -213,7 +213,10 @@ def test_a_missing_tool_is_reported_not_pretended() -> None:
             _agent(), "validate the qa-echo skill", session_id="s", source_context={}
         )
 
-    assert "did not pretend" in result["response"]
+    # Said in plain words (train plain-words job): it did not run and nothing changed, with no
+    # tool id for the person to decode.
+    assert "did not run it" in result["response"] and "nothing changed" in result["response"]
+    assert "`" not in result["response"] and "skill.validate" not in result["response"]
 
 
 def test_the_lane_declines_a_turn_it_does_not_own() -> None:
