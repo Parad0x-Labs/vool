@@ -685,6 +685,35 @@ def _relative_pick(compact: str, pending: PendingRequest | None) -> Resolution |
                       f"“{compact}” points at: {name} (next to the item picked last, in the list printed earlier in this chat).")
 
 
+#: The nouns an ordinal may carry when it points into a list ("the second one", "the 3rd file").
+_POINTER_NOUNS = frozenset({"one", "ones", "result", "results", "item", "items", "file", "files", "folder", "folders", "pic", "pics", "picture", "pictures"})
+#: What may follow a pointer without making the ordinal part of another phrase.
+_POINTER_TAIL = frozenset({"please", "pls", "plz", "then", "instead", "too", "again", "and", "or", "of", "from", "in", "on", "is", "was", "for", "to", "it", "them", "those", "these", "that", "the", "list", "above", "there", "now", "thanks", "again"})
+
+
+#: Words that open a description after a noun ("the last file I edited", "the first folder that holds ...").
+_DESCRIBES = frozenset({"i", "i've", "ive", "we", "you", "that", "which", "who", "with", "containing", "named", "called", "about", "my", "where", "when"})
+
+
+def _ordinal_points_at_an_item(compact: str, m: re.Match[str]) -> bool:
+    """Whether the ordinal the pick pattern matched is shaped like a pointer: it carries a pointer noun ("the second
+    one"), or it stands under "the" (or opens the message) and its clause ends there ("open the third", "the 2nd
+    please"). An ordinal followed by a noun of its own ("the first man", "the last file i edited" is still a pointer
+    noun and stays) or one with neither "the" nor a pointer noun ("who came second", "which finishes first in a
+    kiln") belongs to the question. Read from the shape around the ordinal, not from sentences."""
+    matched = m.group(0).lower().split()
+    has_noun = bool(matched) and matched[-1] in _POINTER_NOUNS
+    after = re.findall(r"[a-z0-9']+|[.,;:!?]", compact[m.end():].lower())
+    nxt = after[0] if after else ""
+    ends = not nxt or nxt in ".,;:!?" or nxt in _POINTER_TAIL
+    if has_noun:
+        # "the 4th one looks right" points; "the last file i edited", "the first file that mentions tax" describe a
+        # file by what was done to it, which is an ask of its own.
+        return matched[-1] in {"one", "ones", "item", "items", "result", "results"} or nxt not in _DESCRIBES
+    has_the = matched[0] == "the" or not compact[:m.start()].strip()
+    return has_the and ends
+
+
 def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
     """An ordinal pointer ("the second one", "the last two", "number 3") against the list the chat printed last."""
     relative = _relative_pick(compact, pending)
@@ -696,6 +725,10 @@ def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
     if m.group("ord") and m.group("ord").lower() in {"first", "last"} and _ORDER_BEFORE_RE.search(compact[:m.start("ord")]):
         # "list the members, newest first" names an order, not an item: measured on the Mac (Database run 16b,
         # 2026-11-12) it was read as a pointer into an unprinted list, and the reply asked "which list or which item".
+        return None
+    if m.group("ord") and not _ordinal_points_at_an_item(compact, m):
+        # "which finishes first in a kiln", "the first man on the moon", "who came second": the ordinal belongs to
+        # the question's own subject. It is no pointer into a list, printed or not.
         return None
     listed = (pending.slots.get("listed") if pending else None) or []
     if not listed or (pending and pending.turns_since > _PICK_MAX_AGE):
