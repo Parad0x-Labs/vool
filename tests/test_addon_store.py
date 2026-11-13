@@ -53,7 +53,7 @@ def _base_rig(tmp_path, monkeypatch):
 
 def _install_scanner():
     from core import plugin_manager
-    reference = Path(__file__).parents[1] / "examples/plugins/vool-plugin-eyebrow"
+    reference = Path(__file__).parent / "fixtures/plugins/sample-scanner"
     reviewed = plugin_manager.prepare_local(str(reference))
     scanner = plugin_manager.install(reviewed["review_id"], accepted=True, digest=reviewed["digest"])["plugin"]
     plugin_manager.connect(scanner["id"], "access", secrets.token_urlsafe(32))
@@ -76,7 +76,7 @@ def rig(tmp_path, monkeypatch):
 def _skill_records():
     # The scanner is an explicitly installed prerequisite; the instruction skill
     # must still remain absent until this test's separate installation gesture.
-    return [record for record in lifecycle.records() if record.plugin_id != "vool-plugin-eyebrow"]
+    return [record for record in lifecycle.records() if record.plugin_id != "sample-scanner"]
 
 
 def test_scan_review_install_offer_disable_and_drift(rig, monkeypatch):
@@ -205,7 +205,7 @@ def test_change_between_admission_and_read_cannot_enter_prompt(rig, monkeypatch)
 
 def test_catalogue_read_never_probes_keychain_or_network(rig, monkeypatch):
     from core import credential_store
-    monkeypatch.setattr(credential_store, '_meta_load', lambda: {"plugin.vool-plugin-eyebrow.access": {'label': 'Eyebrow'}})
+    monkeypatch.setattr(credential_store, '_meta_load', lambda: {"plugin.sample-scanner.access": {'label': 'Sample scanner'}})
     def forbidden(*a, **kw): raise AssertionError('a catalogue read must not use credentials or network')
     monkeypatch.setattr(credential_store, '_maybe_migrate', forbidden)
     monkeypatch.setattr(credential_store, 'get_credential', forbidden)

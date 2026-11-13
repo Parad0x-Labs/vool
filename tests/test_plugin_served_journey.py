@@ -10,7 +10,6 @@ import hashlib
 import json
 import os
 import secrets
-import shutil
 import signal
 import socket
 import subprocess
@@ -26,6 +25,11 @@ from playwright.sync_api import expect
 from tests.test_plugin_services_v1 import https_service
 
 ROOT = Path(__file__).resolve().parents[1]
+# VOOL ships no UsePod or Eyebrow plugin (sls, Nov 12 and 13). Core still knows their exact old
+# package bytes for the retained UsePod lane and the saved Eyebrow key, so the journey that pins
+# those rules installs a test-only copy. Every other journey uses neutral sample packages.
+RETIRED = ROOT / "tests/fixtures/retired_first_party_plugins"
+SAMPLE_SCANNER = ROOT / "tests/fixtures/plugins/sample-scanner"
 
 
 class PluginDaemon:
@@ -140,16 +144,12 @@ def send_chat(page, text, expected, *, artifact=None):
 
 
 def path_token_provider(folder):
-    """The reference provider manifest pointed at an ordinary service, not a wallet-funded one."""
-    shutil.copytree(ROOT / "examples/plugins/vool-plugin-usepod", folder)
-    path = folder / ".codex-plugin/plugin.json"
-    raw = json.loads(path.read_text())
-    raw["name"] = raw["vool"]["id"] = "sample-path-provider"
-    raw["vool"]["network"] = ["api.example.org"]
-    raw["vool"]["model_provider"].update(base_url="https://api.example.org",
-                                         pricing_source="https://api.example.org/v1/marketplace/models")
-    raw["vool"]["model_provider"].pop("x402", None)
-    path.write_text(json.dumps(raw))
+    """A neutral provider package that carries its key in the request path."""
+    from tests.test_plugin_manifest_v1 import path_token_manifest
+
+    (folder / ".codex-plugin").mkdir(parents=True)
+    (folder / ".codex-plugin/plugin.json").write_text(json.dumps(path_token_manifest()))
+    (folder / "LICENSE").write_text("MIT License\n")
     return folder
 
 
@@ -184,7 +184,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         page.screenshot(path=str(tmp_path / "fresh-plugins.png"), full_page=True)
 
         card = install_folder(page, path_token_provider(tmp_path / "provider"), "sample-path-provider")
-        card.get_by_label("Your UsePod service token", exact=True).fill(https_service["access"])
+        card.get_by_label("Your service key", exact=True).fill(https_service["access"])
         card.get_by_role("button", name="Save key", exact=True).click()
         assert not daemon.routes.exists()
         accept_access(page, card)
@@ -281,7 +281,7 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
         assert saved["policy"]["provider"] == "" and saved["policy"]["mode"] == "off"
         assert saved["usage"]["count"] == 3
         plugins_page(page, daemon)
-        card = install_folder(page, ROOT / "examples/plugins/vool-plugin-usepod", "vool-plugin-usepod")
+        card = install_folder(page, RETIRED / "vool-plugin-usepod", "vool-plugin-usepod")
         assert not card.get_by_text("Key saved.", exact=True).count()
         card.get_by_role("button", name="Review access and enable", exact=True).click()
         page.get_by_role("button", name="Keep disabled", exact=True).click()
@@ -296,8 +296,15 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
         assert not card.get_by_role("button", name="Refresh model list", exact=True).count()
         assert not card.get_by_text("1 models available", exact=True).count()
         assert not daemon.routes.exists() and not https_service["log"].exists()
+        # A saved scanner key goes to no other maker's scanner: enabling a neutral one saves nothing.
+        card = install_folder(page, SAMPLE_SCANNER, "sample-scanner")
+        accept_access(page, card)
+        assert not card.get_by_text("Key saved.", exact=True).count()
+        card.get_by_role("button", name="Disable", exact=True).click()
+        card.get_by_text("Disabled", exact=True).wait_for()
+        assert not daemon.routes.exists() and not https_service["log"].exists()
         # A scanner key is an ordinary service key: enabling its plugin reuses it explicitly.
-        card = install_folder(page, ROOT / "examples/plugins/vool-plugin-eyebrow", "vool-plugin-eyebrow")
+        card = install_folder(page, RETIRED / "vool-plugin-eyebrow", "vool-plugin-eyebrow")
         assert not card.get_by_text("Key saved.", exact=True).count()
         accept_access(page, card)
         card.get_by_text("Key saved.", exact=True).wait_for()
@@ -342,12 +349,12 @@ def test_scanner_key_and_real_github_install_flow(tmp_path, https_service):
     page.set_default_timeout(10000)
     try:
         plugins_page(page, daemon)
-        card = install_folder(page, ROOT / "examples/plugins/vool-plugin-eyebrow", "vool-plugin-eyebrow")
+        card = install_folder(page, SAMPLE_SCANNER, "sample-scanner")
         accept_access(page, card)
         card.get_by_role("button", name="Test connection", exact=True).click()
         page.get_by_text("Connect your service key in Add-ons before using this plugin.", exact=True).wait_for()
         assert not daemon.routes.exists()
-        card.get_by_label("Your Eyebrow service key", exact=True).fill("wrong-" + secrets.token_hex(16))
+        card.get_by_label("Your service key", exact=True).fill("wrong-" + secrets.token_hex(16))
         card.get_by_role("button", name="Save key", exact=True).click()
         entry = github_skill_review(page)
         page.get_by_text("The service rejected this key or access. Check your key and account in Add-ons.", exact=True).wait_for(timeout=30000)
@@ -357,8 +364,8 @@ def test_scanner_key_and_real_github_install_flow(tmp_path, https_service):
         assert len(scanned) == 1 and not scanned[0].get("installed", False)
         page.screenshot(path=str(tmp_path / "scanner-bad-key.png"), full_page=True)
         plugins_page(page, daemon)
-        card = page.locator('[data-plugin-id="vool-plugin-eyebrow"]')
-        card.get_by_label("Your Eyebrow service key", exact=True).fill(https_service["access"])
+        card = page.locator('[data-plugin-id="sample-scanner"]')
+        card.get_by_label("Your service key", exact=True).fill(https_service["access"])
         card.get_by_role("button", name="Save key", exact=True).click()
         card.get_by_role("button", name="Test connection", exact=True).click()
         page.get_by_text("Connection checked. The service returned a response.", exact=True).wait_for()

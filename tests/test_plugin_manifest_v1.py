@@ -22,6 +22,17 @@ def manifest():
                            "credential_slot": "access", "model_list_path": "/v1/models", "pricing_source": "models"}}}
 
 
+def path_token_manifest():
+    """A neutral provider that carries its key in the request path, as some services ask."""
+    raw = manifest()
+    raw["name"] = raw["vool"]["id"] = "sample-path-provider"
+    raw["vool"]["name"] = "Sample path provider"
+    raw["vool"]["model_provider"].update(auth_placement="path", auth_path="/proxy/{credential}",
+                                         api_path="/v1/chat/completions",
+                                         pricing_source="https://api.example.org/v1/marketplace/models")
+    return raw
+
+
 def load(raw, tmp_path):
     return parse_manifest(raw, path=tmp_path / ".codex-plugin" / "plugin.json")
 

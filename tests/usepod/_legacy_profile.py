@@ -19,7 +19,9 @@ def enable_reference():
     identity = "vool-plugin-usepod"
     record = plugin_lifecycle.record_for(identity)
     if record is None or record.stage == plugin_lifecycle.STAGE_UNINSTALLED:
-        source = Path(__file__).resolve().parents[2] / "examples/plugins/vool-plugin-usepod"
+        # VOOL ships no UsePod plugin any more. The retained lane still opens only for the old
+        # first-party package bytes (core.plugin_migration.SERVICES), kept here as a test-only copy.
+        source = Path(__file__).resolve().parents[1] / "fixtures/retired_first_party_plugins/vool-plugin-usepod"
         review = plugin_manager.prepare_local(str(source))
         info = plugin_manager.install(review["review_id"], accepted=True, digest=review["digest"])["plugin"]
         plugin_manager.enable(identity, accepted=True, approval_digest=info["approval_digest"])

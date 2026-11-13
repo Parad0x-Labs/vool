@@ -184,11 +184,9 @@ def test_models_enter_existing_registry_and_real_adapter_streams(package, https_
 
 
 def enabled_scanner(package, service, *, key=True):
-    reference = Path(__file__).parents[1] / "examples/plugins/vool-plugin-eyebrow/.codex-plugin/plugin.json"
+    reference = Path(__file__).parent / "fixtures/plugins/sample-scanner/.codex-plugin/plugin.json"
     raw = json.loads(reference.read_text())
     raw["name"] = raw["vool"]["id"] = "sample-provider"
-    raw["vool"]["network"] = ["api.example.org"]
-    raw["vool"]["scanner"]["base_url"] = "https://api.example.org"
     (package / ".codex-plugin/plugin.json").write_text(json.dumps(raw))
     info = installed(package)
     if key:

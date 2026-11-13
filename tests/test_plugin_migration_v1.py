@@ -17,10 +17,18 @@ from tests.test_plugin_manager_v1 import installed, package
 from tests.test_plugin_services_v1 import https_service
 
 
+RETIRED = Path(__file__).resolve().parent / 'fixtures/retired_first_party_plugins'
+
+
 def reference(package, service):
-    """The exact first-party package VOOL ships for this service."""
+    """The exact old first-party package bytes core still knows for this retired service.
+
+    VOOL ships no UsePod or Eyebrow plugin any more (sls, Nov 12 and 13). Core keeps their
+    digests for the retained UsePod lane and the saved Eyebrow key, so these tests install a
+    test-only copy of those bytes.
+    """
     shutil.rmtree(package)
-    shutil.copytree(Path(__file__).resolve().parents[1] / 'examples/plugins' / ('vool-plugin-' + service), package)
+    shutil.copytree(RETIRED / ('vool-plugin-' + service), package)
 
 
 def upgrade_profile(key):
@@ -144,25 +152,37 @@ def test_a_package_that_only_claims_a_first_party_name_is_refused(package, https
     assert not https_service['log'].exists()
 
 
-def test_first_party_package_digests_match_the_shipped_examples():
+def test_first_party_package_digests_match_the_retired_package_copies():
     from core.plugin_package import capture_package
 
     for service in migration.SERVICES:
-        folder = Path(__file__).resolve().parents[1] / 'examples/plugins' / service['id']
-        assert capture_package(folder).digest in service['digests'], service['id']
+        assert capture_package(RETIRED / service['id']).digest in service['digests'], service['id']
+
+
+def test_vool_ships_no_plugin_for_a_retired_service():
+    """No example package carries a retired service's id or reaches its service."""
+    from urllib.parse import urlsplit
+
+    examples = Path(__file__).resolve().parents[1] / 'examples/plugins'
+    retired = [service for service in migration.SERVICES if service.get('retired')]
+    assert {service['id'] for service in retired} == {'vool-plugin-usepod', 'vool-plugin-eyebrow'}
+    ids = {service['id'] for service in retired}
+    hosts = {urlsplit(service['origin']).hostname for service in retired}
+    manifests = sorted(examples.glob('*/.codex-plugin/plugin.json')) + sorted(examples.glob('*/.claude-plugin/plugin.json'))
+    assert manifests
+    for path in manifests:
+        raw = json.loads(path.read_text())
+        block = raw.get('vool') or {}
+        assert raw.get('name') not in ids and block.get('id') not in ids, path
+        assert not hosts & set(block.get('network') or []), path
+    assert not any((examples / identity).exists() for identity in ids)
 
 
 def path_token_provider(package):
-    """The reference provider manifest pointed at an ordinary service, not a wallet-funded one."""
-    reference(package, 'usepod')
-    path = package / '.codex-plugin/plugin.json'
-    raw = json.loads(path.read_text())
-    raw['name'] = raw['vool']['id'] = 'sample-path-provider'
-    raw['vool']['network'] = ['api.example.org']
-    raw['vool']['model_provider'].update(base_url='https://api.example.org',
-                                         pricing_source='https://api.example.org/v1/marketplace/models')
-    raw['vool']['model_provider'].pop('x402', None)
-    path.write_text(json.dumps(raw))
+    """A neutral provider that carries its key in the request path, not a wallet-funded one."""
+    from tests.test_plugin_manifest_v1 import path_token_manifest
+
+    (package / '.codex-plugin/plugin.json').write_text(json.dumps(path_token_manifest()))
 
 
 def test_wallet_funded_service_origin_never_becomes_a_plain_provider_lane(package, https_service, monkeypatch):
