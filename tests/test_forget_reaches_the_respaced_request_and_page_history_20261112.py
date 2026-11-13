@@ -60,7 +60,6 @@ RESPACED = [
     ("pa$$word", "pa$$word"),
     ("R&D", "R&D"),
     ("#4410", "#4410"),
-    ("@sealark", "@sealark"),
     ("J.R.R.", "J.R.R."),
     ("pass:word", "pass:word"),
     ("C++", "C++"),
@@ -81,6 +80,18 @@ def test_a_forget_finds_the_word_in_the_request_as_the_normalizer_rewrote_it(typ
     assert forget_needle_in(rewritten, token), rewritten
     assert carries(rewritten, token), rewritten
     assert text_carries_revoked_token(rewritten, (token,)), rewritten
+
+
+@pytest.mark.parametrize("frame", FRAMES)
+def test_a_handle_is_kept_as_typed_and_the_forget_finds_it(frame):
+    """Since the X merge (21856060) the normalizer keeps a handle whole, like an email address: "@sealark" is
+    no longer re-spaced, so it left the list above; the forget still has to find it in the stored request."""
+    request = frame.format("@sealark")
+    rewritten = normalize_user_text(request).normalized_text
+    assert "@sealark" in rewritten, rewritten
+    assert forget_needle_in(rewritten, "@sealark"), rewritten
+    assert carries(rewritten, "@sealark"), rewritten
+    assert text_carries_revoked_token(rewritten, ("@sealark",)), rewritten
 
 
 @pytest.mark.parametrize("hay, token", [
