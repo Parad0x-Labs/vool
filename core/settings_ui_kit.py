@@ -65,7 +65,7 @@ a.vs-btn:hover, .vs-btn:hover { border-color:var(--accent); }
 [dir="rtl"] .vs-learn-body { border-radius:8px 0 0 8px; }
 [dir="rtl"] #paneBody input.vs-switch:checked::after { transform:translateX(-19px); }
 [dir="rtl"] #paneBody input.vs-switch::after { left:auto; right:2px; }
-@media (max-width: 720px) { .vs-card-head { flex-wrap:wrap; } .vs-card-chips { justify-content:flex-start; width:100%; } }
+@media (max-width: 719.98px) { .vs-card-head { flex-wrap:wrap; } .vs-card-chips { justify-content:flex-start; width:100%; } }
 """
 SETTINGS_KIT_CSS += """
 .vs-line .vs-hint { margin-inline-end:6px; }

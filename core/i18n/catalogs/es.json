@@ -5133,7 +5133,7 @@
     "settings.row.my_things.help": "Guarda aquí recibos, manuales y datos de tus equipos. Los archivos se quedan en este ordenador.",
     "settings.row.routines.label": "Mis rutinas",
     "settings.row.routines.help": "Tareas que enseñaste a VOOL una vez. Nada se ejecuta hasta que ves la lista y la apruebas.",
-    "settings.card.backup.chats.title": "Chats",
+    "settings.card.backup.chats.title": "Conversaciones",
     "settings.card.backup.share.title": "Compartir con amigos",
     "settings.row.session_export.hint": "Guardar un chat en un archivo.",
     "settings.row.session_import.hint": "Recuperar un chat desde un archivo.",

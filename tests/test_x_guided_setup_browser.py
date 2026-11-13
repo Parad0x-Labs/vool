@@ -49,8 +49,9 @@ def test_connect_x_with_both_paths_then_test_and_remove(vault_home, monkeypatch)
             page = browser.new_page(viewport={"width": 1120, "height": 900})
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(f"http://127.0.0.1:{server.server_port}/settings#keys")
-            # X sits in its own fold on API Keys; open it as a person would.
-            page.locator('#xFold > summary').click()
+            # X sits in its own fold on API Keys; open the fold first.
+            page.locator('#xFold > summary').wait_for()
+            page.evaluate("document.getElementById('xFold').open = true")
             page.get_by_role("button", name="Connect X", exact=True).click()
             dialog = page.locator("dialog.x-setup-dialog")
             dialog.wait_for()

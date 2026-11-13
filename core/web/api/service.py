@@ -2422,7 +2422,7 @@ def _dispatch_get(
         except x_oauth2.OAuthFailure:
             pass
         return apply_runtime_headers(ApiResponse(status=303, content_type="text/plain", body=b"",
-            headers={"Location": "/settings#keys", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}), runtime)
+            headers={"Location": "/settings#keys/x", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}), runtime)
 
     if normalized_path == "/api/oauth/status":
         # Redacted view of a pending vool:// OAuth callback (provider, state, has_code, age) — never

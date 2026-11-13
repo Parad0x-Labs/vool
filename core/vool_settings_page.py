@@ -3528,7 +3528,11 @@ function widgetKeys(stack) {
   const bookmarkSetup = el('div', 'x-bookmark-setup'); xBody.appendChild(bookmarkSetup); widgetXBookmarks(bookmarkSetup);
   const xActivity = el('div', 'x-activity'); xBody.appendChild(xActivity); widgetXActivity(xActivity);
   new MutationObserver(() => { if (xActivity.querySelector('.x-action-card')) xFold.open = true; }).observe(xActivity, { childList: true, subtree: true });
-  if (/x-|xfold|#keys\/x/i.test(location.hash)) xFold.open = true;
+  /* Once opened, the fold stays open for this window (a sign-in round trip or a redraw keeps it). */
+  try { if (sessionStorage.getItem('vool.settings.xfold') === '1') xFold.open = true; } catch (e) {}
+  /* X's sign-in hands back to #keys/x: the person lands on the X fold they started from. */
+  if (/^#keys\/x$/.test(location.hash)) xFold.open = true;
+  xFold.addEventListener('toggle', () => { try { sessionStorage.setItem('vool.settings.xfold', xFold.open ? '1' : '0'); } catch (e) {} });
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -5990,7 +5994,7 @@ function switchWordFor(holder, on) {
   word.lastChild.textContent = on ? T('settings.switch.on', 'On') : T('settings.switch.off', 'Off');
 }
 function switchWord(sw) {
-  if (!sw.parentElement) return;
+  if (!sw.parentElement || LEGACY_GROUPS.has(state.group)) return;   /* Crypto keeps its own look */
   const own = sw.parentElement.classList.contains('sw-row') && !sw.parentElement.classList.contains('vs-sw-pair');
   if (own) return;   /* an ordinary row paints its own word */
   switchWordFor(sw, sw.getAttribute('aria-checked') === 'true');

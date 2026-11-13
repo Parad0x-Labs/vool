@@ -182,7 +182,7 @@ def test_pkce_callback_stores_tokens_only_after_verification_and_is_single_use(f
     assert result.status == 303
     assert result.headers['Cache-Control'] == 'no-store'
     assert result.headers['Referrer-Policy'] == 'no-referrer'
-    assert result.headers['Location'] == '/settings#keys'
+    assert result.headers['Location'] == '/settings#keys/x'  # back to API Keys with the X fold open
     assert len(fake_x.calls) == 2
     fields = fake_x.calls[0]['fields']
     verifier = fields['code_verifier'][0]
