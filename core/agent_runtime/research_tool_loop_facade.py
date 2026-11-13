@@ -1876,7 +1876,8 @@ class ResearchToolLoopFacadeMixin:
         surface: str,
     ) -> dict[str, Any] | None:
         try:
-            return self._run_model_tool_intent(
+            return ResearchToolLoopFacadeMixin._run_model_tool_intent(
+                self,
                 task=task,
                 effective_input=effective_input,
                 classification=classification,
