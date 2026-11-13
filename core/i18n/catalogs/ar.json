@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "تعذّر الوصول إلى VOOL، لذلك لم يُحذف شيء. حاول مجددًا بعد لحظات.",
     "chat.log_aria": "المحادثة",
     "chat.model_switch_failed": "تعذّر اختيار ذلك الطراز. يبقى الطراز السابق.",
+    "chat.model_switch_timeout": "استغرق اختيار ذلك الطراز وقتًا طويلًا جدًا. يبقى الطراز السابق. تحقّق من الاتصال وحاول مرة أخرى.",
     "chat.no_model.line_text": "يحتاج VOOL إلى نموذج ذكاء اصطناعي قبل أن يتمكن من الإجابة. يستغرق إعداده حوالي دقيقتين.",
     "chat.no_model.line_text_retired": "لم يعد UsePod جزءًا من VOOL، لذلك لا يوجد نموذج محدد هنا. اختيار نموذج آخر يستغرق نحو دقيقتين.",
     "chat.no_model.reply_body": "يستغرق الإعداد حوالي دقيقتين: افتح الإعداد واختر أين يفكّر VOOL. إذا كان لديك بالفعل تطبيق نماذج على هذا الكمبيوتر، مثل Ollama، فافتحه واسأل مرة أخرى.",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "ملفات من أنواع أخرى، لم تُلمس: {n}",
     "routines.plan_left_done": "ملفات أُنجزت من قبل، لم تُلمس: {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

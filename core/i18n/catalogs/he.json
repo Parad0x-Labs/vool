@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "לא ניתן היה להגיע ל-VOOL, ולכן שום דבר לא נמחק. נסו שוב בעוד רגע.",
     "chat.log_aria": "שיחה",
     "chat.model_switch_failed": "לא ניתן היה לבחור את המודל הזה. הקודם נשאר.",
+    "chat.model_switch_timeout": "בחירת המודל הזה ארכה זמן רב מדי. הקודם נשאר. בדוק את החיבור ונסה שוב.",
     "chat.no_model.line_text": "VOOL צריך מודל בינה מלאכותית כדי לענות. ההגדרה לוקחת בערך שתי דקות.",
     "chat.no_model.line_text_retired": "UsePod כבר אינו חלק מ-VOOL, ולכן לא נבחר כאן מודל. בחירת מודל אחר אורכת כשתי דקות.",
     "chat.no_model.reply_body": "ההגדרה לוקחת בערך שתי דקות: פתחו את ההגדרה ובחרו איפה VOOL יחשוב. אם כבר יש לכם במחשב הזה אפליקציית מודלים, כמו Ollama, פתחו אותה ושאלו שוב.",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "קבצים מסוגים אחרים, נשארו כמו שהם: {n}",
     "routines.plan_left_done": "קבצים שכבר טופלו, נשארו כמו שהם: {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

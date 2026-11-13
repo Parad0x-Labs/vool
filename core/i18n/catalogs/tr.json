@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "VOOL’a ulaşılamadığı için hiçbir şey silinmedi. Birazdan tekrar deneyin.",
     "chat.log_aria": "Konuşma",
     "chat.model_switch_failed": "Bu model seçilemedi. Eski model kalıyor.",
+    "chat.model_switch_timeout": "Bu modeli seçmek çok uzun sürdü. Eski model kalıyor. Bağlantınızı kontrol edip yeniden deneyin.",
     "chat.no_model.line_text": "VOOL'un yanıt verebilmesi için bir yapay zekâ modeli gerekiyor. Kurulum yaklaşık iki dakika sürer.",
     "chat.no_model.line_text_retired": "UsePod artık VOOL'un bir parçası değil, bu yüzden burada seçili bir model yok. Başka bir model seçmek yaklaşık iki dakika sürer.",
     "chat.no_model.reply_body": "Kurulum yaklaşık iki dakika sürer: kurulumu açın ve VOOL'un nerede düşüneceğini seçin. Bu bilgisayarda Ollama gibi bir model uygulaması zaten varsa onu açın ve yeniden sorun.",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "Başka türdeki dosyalar, dokunulmadı: {n}",
     "routines.plan_left_done": "Zaten yapılmış dosyalar, dokunulmadı: {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

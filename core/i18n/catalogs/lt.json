@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "Nepavyko pasiekti VOOL, todėl niekas nebuvo ištrinta. Pabandykite po akimirkos.",
     "chat.log_aria": "Pokalbis",
     "chat.model_switch_failed": "Šio modelio nepavyko pasirinkti. Lieka senasis.",
+    "chat.model_switch_timeout": "Šio modelio pasirinkimas užtruko per ilgai. Lieka senasis. Patikrinkite ryšį ir bandykite dar kartą.",
     "chat.no_model.line_text": "Kad galėtų atsakyti, VOOL reikia DI modelio. Nustatymas užtrunka apie dvi minutes.",
     "chat.no_model.line_text_retired": "„UsePod“ nebėra VOOL dalis, todėl čia nepasirinktas joks modelis. Pasirinkti kitą užtrunka apie dvi minutes.",
     "chat.no_model.reply_body": "Nustatymas užtrunka apie dvi minutes: atidarykite sąranką ir pasirinkite, kur VOOL turėtų mąstyti. Jei šiame kompiuteryje jau turite modelių programą, pavyzdžiui, Ollama, atidarykite ją ir paklauskite dar kartą.",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "Kitų rūšių failai, nepaliesti: {n}",
     "routines.plan_left_done": "Jau sutvarkyti failai, nepaliesti: {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

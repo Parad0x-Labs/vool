@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "无法连接 VOOL，因此什么都没有删除。请稍后重试。",
     "chat.log_aria": "对话",
     "chat.model_switch_failed": "无法选择该模型。原来的模型保持不变。",
+    "chat.model_switch_timeout": "选择该模型耗时过长。原来的模型保持不变。请检查网络连接后重试。",
     "chat.no_model.line_text": "VOOL 需要一个 AI 模型才能回答。设置大约需要两分钟。",
     "chat.no_model.line_text_retired": "UsePod 已不再是 VOOL 的一部分，所以这里没有选中任何模型。另选一个模型大约需要两分钟。",
     "chat.no_model.reply_body": "设置大约需要两分钟：打开设置，选择 VOOL 在哪里思考。如果这台电脑上已经有模型应用（例如 Ollama），请打开它后再问一次。",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "其他类型的文件，未改动：{n}",
     "routines.plan_left_done": "已处理过的文件，未改动：{n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

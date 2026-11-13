@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "VOOL तक नहीं पहुँचा जा सका, इसलिए कुछ भी नहीं मिटाया गया। थोड़ी देर में दोबारा कोशिश करें।",
     "chat.log_aria": "बातचीत",
     "chat.model_switch_failed": "वह मॉडल नहीं चुना जा सका। पुराना मॉडल बना रहेगा।",
+    "chat.model_switch_timeout": "उस मॉडल को चुनने में बहुत ज़्यादा समय लगा। पुराना मॉडल बना रहेगा। कनेक्शन जाँचें और फिर से कोशिश करें।",
     "chat.no_model.line_text": "जवाब देने से पहले VOOL को एक AI मॉडल चाहिए। इसे सेट करने में लगभग दो मिनट लगते हैं।",
     "chat.no_model.line_text_retired": "UsePod अब VOOL का हिस्सा नहीं है, इसलिए यहाँ कोई मॉडल चुना हुआ नहीं है। दूसरा मॉडल चुनने में लगभग दो मिनट लगते हैं।",
     "chat.no_model.reply_body": "सेटअप में लगभग दो मिनट लगते हैं: सेटअप खोलें और चुनें कि VOOL कहाँ सोचे। अगर इस कंप्यूटर पर पहले से कोई मॉडल ऐप है, जैसे Ollama, तो उसे खोलें और फिर से पूछें।",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "दूसरी तरह की फ़ाइलें, छुई नहीं गईं: {n}",
     "routines.plan_left_done": "पहले से निपटाई गई फ़ाइलें, छुई नहीं गईं: {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

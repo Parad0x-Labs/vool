@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "VOOL couldn’t be reached, so nothing was deleted. Try again in a moment.",
     "chat.log_aria": "Conversation",
     "chat.model_switch_failed": "That model could not be picked. The old one stays.",
+    "chat.model_switch_timeout": "Picking that model took too long. The old one stays. Check the connection and try again.",
     "chat.no_model.line_text": "VOOL needs an AI model before it can answer. Setting one up takes about two minutes.",
     "chat.no_model.line_text_retired": "UsePod is no longer part of VOOL, so no model is chosen here. Choosing another takes about two minutes.",
     "chat.no_model.reply_body": "Setting one up takes about two minutes: open Setup and choose where VOOL should think. If you already have a model app on this computer, such as Ollama, open it and ask again.",

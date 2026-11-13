@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "VOOL에 연결할 수 없어 아무 것도 삭제되지 않았습니다. 잠시 후 다시 시도하세요.",
     "chat.log_aria": "대화",
     "chat.model_switch_failed": "해당 모델을 선택하지 못했습니다. 이전 모델이 유지됩니다.",
+    "chat.model_switch_timeout": "해당 모델을 선택하는 데 시간이 너무 오래 걸렸습니다. 이전 모델이 유지됩니다. 연결을 확인하고 다시 시도하세요.",
     "chat.no_model.line_text": "VOOL이 답하려면 AI 모델이 필요합니다. 설정은 2분 정도 걸립니다.",
     "chat.no_model.line_text_retired": "UsePod는 더 이상 VOOL의 일부가 아니어서 여기에는 선택된 모델이 없습니다. 다른 모델을 고르는 데 2분 정도 걸립니다.",
     "chat.no_model.reply_body": "설정은 2분 정도 걸립니다. 설정을 열고 VOOL이 어디에서 생각할지 고르세요. 이 컴퓨터에 Ollama 같은 모델 앱이 이미 있다면 그 앱을 열고 다시 물어보세요.",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "다른 종류의 파일(그대로 둠): {n}",
     "routines.plan_left_done": "이미 처리된 파일(그대로 둠): {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

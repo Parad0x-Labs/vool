@@ -40,6 +40,7 @@ CONTRACT = {
     "chat.session_preview_failed": "The preview could not be loaded.",
     "chat.session_import_failed": "The chats could not be brought back. Nothing was changed.",
     "chat.model_switch_failed": "That model could not be picked. The old one stays.",
+    "chat.model_switch_timeout": "Picking that model took too long. The old one stays. Check the connection and try again.",
     "chat.send_failed": "The message could not be sent.",
 }
 
@@ -111,8 +112,11 @@ def test_the_model_select_failure_is_one_keyed_sentence() -> None:
     # the row hint and its dataset carrier hold the keyed sentence (the hint renders both
     # here and from dataset.selectionError in the 'Not pinned.' sibling), never raw detail;
     # the old refusal words survive only inside the throw the catch above replaces
-    assert "rowEl.dataset.selectionError = message;" in body
+    assert "rowEl.dataset.selectionError = shown;" in body
     assert "const message = pageT('chat.model_switch_failed'" in body
+    # a pick that ran out of time reads its own keyed sentence; every other failure the one above
+    assert _pageT_call("chat.model_switch_timeout") in body, "the model-select timeout is not keyed"
+    assert "const shown = (e && e.voolSelectionTimeout)" in body
 
 
 def test_the_bug_report_failure_first_sentence_is_keyed() -> None:

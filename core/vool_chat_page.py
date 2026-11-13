@@ -12156,7 +12156,7 @@ async function modelSelectionPost(body) {
   const controller = new AbortController();
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => { controller.abort(); reject(new Error('Model selection took too long. Check the connection and try selecting it again.')); }, 20000);
+    timer = setTimeout(() => { controller.abort(); reject(Object.assign(new Error('model selection timed out'), { voolSelectionTimeout: true })); }, 20000);
   });
   try {
     return await Promise.race([fetch('/api/cloud/model', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:controller.signal }).then(async r => ({r, j:await r.json()})), timeout]);
@@ -12231,13 +12231,18 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
     if (!stillCurrent()) return false;
     // The server's own refusal words never reach the person: one keyed sentence.
     // dataset.selectionError rides the row hint, so it carries the keyed sentence too.
+    // A pick that ran out of time says so (the 20 s wait above), so the person checks the
+    // connection instead of the model; every other failure keeps the one keyed sentence.
     const message = pageT('chat.model_switch_failed', 'That model could not be picked. The old one stays.');
+    const shown = (e && e.voolSelectionTimeout)
+      ? pageT('chat.model_switch_timeout', 'Picking that model took too long. The old one stays. Check the connection and try again.')
+      : message;
     if (rowEl) {
-      rowEl.dataset.selectionError = message;
+      rowEl.dataset.selectionError = shown;
       const hint = rowEl.querySelector('.pi-hint');
-      if (hint) hint.textContent = message;
+      if (hint) hint.textContent = shown;
     }
-    toast(message);
+    toast(shown);
   }
   return false;
 }

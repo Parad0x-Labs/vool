@@ -724,6 +724,7 @@
     "chat.delete_failed_offline": "Không kết nối được VOOL nên chưa có gì bị xóa. Hãy thử lại sau ít lâu.",
     "chat.log_aria": "Cuộc trò chuyện",
     "chat.model_switch_failed": "Không thể chọn mô hình đó. Mô hình cũ vẫn được giữ.",
+    "chat.model_switch_timeout": "Việc chọn mô hình đó mất quá nhiều thời gian. Mô hình cũ vẫn được giữ. Hãy kiểm tra kết nối và thử lại.",
     "chat.no_model.line_text": "VOOL cần một mô hình AI trước khi có thể trả lời. Việc thiết lập mất khoảng hai phút.",
     "chat.no_model.line_text_retired": "UsePod không còn là một phần của VOOL nên ở đây chưa có mô hình nào được chọn. Chọn mô hình khác mất khoảng hai phút.",
     "chat.no_model.reply_body": "Việc thiết lập mất khoảng hai phút: mở phần thiết lập và chọn nơi VOOL sẽ suy nghĩ. Nếu máy tính này đã có ứng dụng mô hình, như Ollama, hãy mở nó và hỏi lại.",
@@ -5121,7 +5122,7 @@
     "routines.plan_left_other": "Tệp loại khác, không đụng đến: {n}",
     "routines.plan_left_done": "Tệp đã xử lý rồi, không đụng đến: {n}"
   },
-  "source_catalog_sha256": "25fc1cbd8215fa9ad8a0772acdb50d4471554e8da120092485f368662d7e0c59",
+  "source_catalog_sha256": "66d20e231be9a66308bd21c448f19003365fb24e7b60ca2aa5eb240c387956ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
