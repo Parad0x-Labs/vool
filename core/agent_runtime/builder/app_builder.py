@@ -50,7 +50,10 @@ SITE_FALLBACK_ERROR = "The page could not be finished. Nothing was changed."
 # can be imported and never re-implements it. Deliberation ("should i make a website for my
 # bakery?") never reaches this function -- the shared doors have already refused it by the time a
 # request is inside the build lane -- so a marker hit here is a site ask that is already building.
-_SITE_HINT_MARKERS = ("index.html", "website", "homepage", "landing page")
+# A file name is not one of them: "create a task board called index.html" asks for an app that
+# happens to live in index.html, and answering it with a one-page site receipt (or, when the model
+# failed, a site built from the words "Index.html Include") is the wrong deliverable.
+_SITE_HINT_MARKERS = ("website", "homepage", "landing page")
 
 
 def _is_site_request(request: str) -> bool:
