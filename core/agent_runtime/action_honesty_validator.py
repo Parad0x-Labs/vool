@@ -1494,6 +1494,17 @@ def _enforce_mailbox_answer_needs_mail_access(
         return output
     honest = _NO_MAIL_ACCOUNT_RESPONSE if gap == "no_account" else _MAIL_READING_OFF_RESPONSE
     original = str(output.get("response") or "")
+    try:
+        # The v0.8 email lane already answered this ask before any model ran, with its own plain
+        # no-mailbox sentence: that reply is the honest one, and replacing it with a second
+        # wording of the same fact only changes the words the person was promised.
+        from core.agent_runtime.agent import _no_mailbox_reply
+
+        lane_reply = _no_mailbox_reply(request)
+        if lane_reply and original.strip().startswith(lane_reply.strip()):
+            return output
+    except Exception:
+        pass
     executed = _collect_executed_tools(session_id, source_context)
     if any(str(entry.get("tool") or "").startswith("email.") for entry in executed) or any(
         str(output.get(key) or "").startswith("email.") for key in ("intent", "tool_intent", "tool_name")
