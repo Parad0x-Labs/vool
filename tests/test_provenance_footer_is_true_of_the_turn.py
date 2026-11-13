@@ -474,6 +474,41 @@ def test_no_usable_answer_names_only_the_model_that_was_actually_attempted() -> 
     assert "2 cloud model attempts failed" in footer
 
 
+@pytest.mark.parametrize(
+    ("ledger", "expected"),
+    [
+        # Nothing at all was invoked: the whole-turn claim is true.
+        ({}, "runtime | no model"),
+        # Another model (the free fallback) really got the request and failed. The pin was never
+        # sent, but a footer saying "not sent" would name THAT model and hide its failed attempt.
+        ({"calls": 1, "completed_calls": 0, "failed_calls": 1, "lanes": ["cloud"], "models": ["free/fallback"]},
+         "runtime | fallback | model attempted | no usable answer | 1 cloud model attempt failed"),
+        # A call completed (a routing call, or a fallback that returned nothing usable).
+        ({"calls": 1, "completed_calls": 1, "lanes": ["local"], "models": ["qwen2.5:7b"]},
+         "runtime | qwen2.5:7b | model attempted | no usable answer"),
+    ],
+)
+def test_a_pin_refused_before_its_adapter_ran_never_footers_another_models_call_as_not_sent(
+    ledger: dict, expected: str
+) -> None:
+    """The router refuses a pin before its adapter (a spend cap, a refused reservation, a pick
+    saved for the removed payment lane) with model_was_attempted False. The turn ledger counts a
+    call only when an adapter is entered, so it never holds the refused pin: any call it holds
+    belongs to another model that really got a request. "Not sent" was true only while the UsePod
+    adapter counted its own refusals; it must not come back over another model's call."""
+    result = {
+        "response": "The selected model could not run.",
+        "model_execution": {"source": "selected_model_blocked", "used_model": False,
+                            "details": {"block_reason": "per_call_spend_cap_exceeded", "model_was_attempted": False}},
+        "model_calls": int(ledger.get("calls") or 0),
+    }
+
+    footer = format_provenance_footer(result, None, _accounting(**ledger) if ledger else _accounting())
+
+    assert footer.strip("`").startswith(expected), footer
+    assert "not sent" not in footer and "refused before send" not in footer
+
+
 def test_an_unnamed_lane_is_reported_as_unrecorded_and_never_as_local() -> None:
     """A model ran, nothing recorded where. The old default made that read as the free lane.
 

@@ -268,23 +268,30 @@ def test_broken_mcp_calls_fail_closed_with_plain_message(package, text):
     assert "stopped, timed out, or sent an invalid response" in result.error
 
 
-def test_plugin_that_can_reach_a_wallet_funded_service_never_receives_a_key_for_it(package):
+@pytest.mark.parametrize("host", ["api.usepod.ai", "api.example.org"])
+def test_plugin_that_can_reach_the_old_wallet_funded_service_never_receives_its_saved_token(package, host):
+    """The UsePod balance was spent only with wallet approvals. That lane left VOOL in 0.8, and a
+    service's own plugin is now an ordinary plugin under the money rule -- but the token VOOL saved
+    for that balance is still on disk, and it must never reach plugin code. The guard is on the
+    VALUE, not the destination: pasted into a plugin's own slot, it is refused whether the plugin
+    declares the old service's host or any other."""
     from core import plugin_tools
+    from core.credential_store import store_credential
 
     value = secrets.token_urlsafe(32)
+    store_credential("llm.cloud.usepod", value)
     tool_package(package, '''import json,os,sys
 json.load(sys.stdin)
 print(json.dumps({"text":os.environ.get("SAMPLE_ACCESS","")}))
 ''', env=["SAMPLE_ACCESS"])
     path = package / ".codex-plugin/plugin.json"
     raw = json.loads(path.read_text())
-    raw["vool"]["network"] = ["api.usepod.ai"]
+    raw["vool"]["network"] = [host]
     path.write_text(json.dumps(raw))
-    # A fresh token, not the saved legacy one: the destination decides, not the value.
     contract = admit(package, value=value)
     result = plugin_tools.execute_plugin_contract(contract, {"text": "probe"})
     assert not result.ok
-    assert "wallet approvals" in result.error
+    assert "carried over from an earlier VOOL setting" in result.error
     assert value not in json.dumps(result.__dict__)
 
 

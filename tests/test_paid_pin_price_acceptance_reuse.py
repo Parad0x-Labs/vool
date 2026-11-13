@@ -220,4 +220,19 @@ def test_every_accept_button_resolves_the_promised_scope(kind: str) -> None:
     assert not re.search(r"closeGate\(\s*true\s*\)", executable), (
         "an accept path still resolves the one-turn ack"
     )
-    assert _GATE_JS.count("closeGate('conversation')") >= 4
+    # Each accept button's own click handler resolves the chat scope, and nothing else. (This
+    # counted ">= 4" while the UsePod limits save gave each button a second, post-save path; that
+    # lane left in 0.8, so the fact is now pinned per button instead of by a total.)
+    accept_buttons = ("confirmBtn", "conversationBtn")
+    for button in accept_buttons:
+        handler = re.search(
+            button + r"\.addEventListener\('click', function\(\)\{(.*?)\n  \}\);", executable, re.S
+        )
+        assert handler, f"{button} has no click handler"
+        resolutions = re.findall(r"closeGate\(([^)]*)\)", handler.group(1))
+        assert resolutions == ["'conversation'"], (button, resolutions)
+    mounted = re.findall(r"actionsEl\.appendChild\((\w+)\);", executable)
+    assert [b for b in mounted if b in accept_buttons] == list(accept_buttons)
+    assert _GATE_JS.count("closeGate('conversation')") == len(accept_buttons), (
+        "a path other than the two accept buttons resolves the chat scope"
+    )

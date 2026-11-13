@@ -106,10 +106,12 @@ def _cases(cat, grouped) -> list[tuple[str, str, str]]:
         ("attempted_no_answer", _footer({"model_calls": 1, "model_execution": {"source": "x", "used_model": False}}, None, {
             "calls": 1, "failed_calls": 1, "completed_calls": 0, "pending_calls": 0, "models": ["p/m1"], "lanes": ["cloud"]}),
          " · ".join([_t(cat, "no_answer"), _t(cat, "try_failed_cloud")])),
-        ("refused_before_send", _footer({"model_execution": {
-            "source": "selected_model_blocked", "used_model": False,
-            "details": {"block_reason": "usepod_dispatch_refused:MONEY_LIQUIDITY_UNVERIFIED"}}}, None, {
-            "calls": 1, "failed_calls": 1, "completed_calls": 0, "pending_calls": 0, "models": ["m1"]}),
+        # Stored history, not a live shape: only the UsePod adapter counted a dispatch it refused
+        # before sending, and that lane left in 0.8. Chats saved before then still carry this exact
+        # line (format_provenance_footer at a411c935 printed it for this turn), and history stays
+        # readable, so the page must still read it truthfully.
+        ("refused_before_send_stored",
+         f"runtime | m1 | not sent | refused before send: MONEY_LIQUIDITY_UNVERIFIED | 1 model attempt failed | {BUILD}",
          _t(cat, "not_sent")),
         ("local_only", _footer(dict(FAST_PATH, local_only=True)),
          " · ".join([_t(cat, "quick_reply"), no_ai, _t(cat, "local_only")])),
