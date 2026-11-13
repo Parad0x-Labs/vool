@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "Šis patikrinimas neatsidaro. Pradėkite patikrinimą iš naujo.",
     "addons.plugin_message_0ef7c8054096": "Šiai paslaugai reikia papildinio, kuris gali už ją mokėti. Pirmiausia įjunkite tą papildinį.",
     "addons.plugin_message_fc0c95675725": "Šis pavadinimas priklauso VOOL sukurtam papildiniui. Norėdami įdiegti, suteikite savo papildiniui kitokį pavadinimą.",
+    "addons.plugin_message_2d0ae0a4c670": "Šio VOOL įgūdžio failas nesutampa su kopija, gauta kartu su VOOL, todėl jis nepridėtas. Atnaujinkite arba iš naujo įdiekite VOOL, kad tai pataisytumėte.",
     "settings.row.hide_name_on_screen.label": "Slėpti mano vardą ekrane",
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart.",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "USB atsarginė kopija: išsaugota {drive}",
     "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

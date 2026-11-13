@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Kontrole dodatków
 
@@ -18,7 +18,7 @@ sprawdzana przy wydaniu VOOL. Dla nich **Dodaj tę umiejętność** uruchamia ty
 bez limitu skanów i bez żądań sieciowych.
 
 1. VOOL odczytuje umiejętność i licencję z własnej kopii aplikacji i odrzuca je, jeśli ich SHA-256 nie
-   zgadza się z przypiętym (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+   zgadza się z przypiętym (*Plik tej umiejętności VOOL nie zgadza się z kopią dostarczoną z VOOL, więc nie została dodana.*).
 2. Lokalna kontrola VOOL czyta umiejętność pod kątem ryzykownych instrukcji i pokazuje wynik. Czysty wynik
    można dodać przyciskiem **Dodaj i włącz**; wszystko, co oznaczy, wymaga twojej osobnej, wyraźnej zgody na
    tę konkretną wersję. **Odrzuć** ją porzuca.
@@ -32,7 +32,7 @@ Umiejętności od innych twórców nigdy nie idą tą ścieżką.
 ## Publiczne umiejętności
 
 Wybierz publiczną umiejętność z GitHuba w ustalonej rewizji i zatwierdź pobranie jej zawartości. VOOL sprawdza
-ją na tym urządzeniu za pomocą `core/local_scan.py`. Bez włączonej wtyczki skanera strona wyjaśnia,
+ją na tym urządzeniu. Bez włączonej wtyczki skanera strona wyjaśnia,
 że kontrole pozostały na tym urządzeniu. Ta ścieżka nie wymaga klucza skanera.
 
 Włączona wtyczka skanera otrzymuje także zawartość publicznej umiejętności, gdy zażądano skanu. Może to

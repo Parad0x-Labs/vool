@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Vérifications des modules
 
@@ -18,8 +18,7 @@ examinée à la sortie de chaque version de VOOL. Pour celles-ci, **Ajouter cett
 aucun quota d’analyse et aucune requête réseau.
 
 1. VOOL lit la compétence et la licence depuis la copie propre à l’app et les refuse si leur SHA-256
-   ne correspond pas à la valeur fixée (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was
-   not added.*).
+   ne correspond pas à la valeur fixée (*Le fichier de cette compétence VOOL ne correspond pas à la copie fournie avec VOOL, elle n’a donc pas été ajoutée.*).
 2. La vérification locale de VOOL lit la compétence à la recherche d’instructions risquées et affiche le résultat. Un résultat net
    peut être ajouté avec **Ajouter et activer** ; tout ce qu’elle signale exige votre accord distinct et explicite pour
    cette version précise. **Refuser** l’écarte.
@@ -33,7 +32,7 @@ Les compétences d’autres créateurs ne prennent jamais ce chemin.
 ## Compétences publiques
 
 Choisissez une compétence GitHub publique à une révision fixe et approuvez le téléchargement de son contenu. VOOL la vérifie
-sur cet appareil avec `core/local_scan.py`. Sans plugin d’analyse activé, la page explique
+sur cet appareil. Sans plugin d’analyse activé, la page explique
 que les vérifications sont restées sur cet appareil. Aucune clé d’analyseur n’est nécessaire pour ce chemin.
 
 Un plugin d’analyse activé reçoit aussi le contenu de la compétence publique quand une analyse est demandée. Cela

@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Kiểm tra tiện ích
 
@@ -12,7 +12,7 @@ Duyệt liệt kê các kỹ năng của chính VOOL trước, gồm 75 kỹ nă
 
 75 kỹ năng do VOOL làm được phát hành bên trong ứng dụng, mỗi kỹ năng được ghim bằng SHA-256 trong thư mục riêng của VOOL và được xem xét khi VOOL phát hành. Với các kỹ năng này, **Thêm kỹ năng này** chỉ chạy bước kiểm tra cục bộ của VOOL: không cần khóa, không tốn hạn mức quét và không có yêu cầu mạng nào.
 
-1. VOOL đọc kỹ năng và giấy phép từ bản sao riêng của ứng dụng và từ chối chúng nếu SHA-256 của chúng không khớp với giá trị đã ghim (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+1. VOOL đọc kỹ năng và giấy phép từ bản sao riêng của ứng dụng và từ chối chúng nếu SHA-256 của chúng không khớp với giá trị đã ghim (*Tệp của kỹ năng VOOL này không khớp với bản đi kèm VOOL, nên kỹ năng chưa được thêm.*).
 2. Bước kiểm tra cục bộ của VOOL đọc kỹ năng để tìm các chỉ dẫn rủi ro và hiển thị kết quả. Một kết quả sạch có thể được thêm bằng **Thêm và bật**; bất cứ thứ gì bị gắn cờ đều cần bạn đồng ý riêng và tường minh cho đúng phiên bản đó. **Từ chối** sẽ loại bỏ nó.
 3. Sau đó việc cài đặt đi theo cùng vòng đời như các kỹ năng khác: đúng các tệp đó được cài, xác minh và bật. Kỹ năng đã cài được đối chiếu với SHA-256 đã ghim mỗi lần nó được nạp; một tệp bị thay đổi sẽ khiến kỹ năng không khả dụng.
 
@@ -20,7 +20,7 @@ Bước kiểm tra cục bộ là một lần đọc tĩnh các byte cố địn
 
 ## Kỹ năng công khai
 
-Chọn một kỹ năng GitHub công khai tại một bản sửa đổi (revision) cố định và đồng ý tải nội dung của nó về. VOOL kiểm tra nó trên thiết bị này bằng `core/local_scan.py`. Khi không có plugin quét nào được bật, trang sẽ giải thích rằng các bước kiểm tra chỉ diễn ra trên thiết bị này. Con đường này không cần khóa của trình quét.
+Chọn một kỹ năng GitHub công khai tại một bản sửa đổi (revision) cố định và đồng ý tải nội dung của nó về. VOOL kiểm tra nó trên thiết bị này. Khi không có plugin quét nào được bật, trang sẽ giải thích rằng các bước kiểm tra chỉ diễn ra trên thiết bị này. Con đường này không cần khóa của trình quét.
 
 Một plugin quét đã bật cũng nhận nội dung kỹ năng công khai khi có yêu cầu quét. Việc này có thể tiêu tốn hạn mức dịch vụ của nó. Các cuộc trò chuyện cục bộ, tệp riêng trong không gian làm việc và các thông tin xác thực khác không được gửi đi. Lưu khóa và mở Tiện ích không tạo ra yêu cầu kiểm tra kết nối hay yêu cầu quét nào. Không có việc tự động thử lại yêu cầu.
 

@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "无法打开该检查。请重新开始检查。",
     "addons.plugin_message_0ef7c8054096": "此服务需要一个可以为其付款的插件。请先启用该插件。",
     "addons.plugin_message_fc0c95675725": "此名称属于 VOOL 制作的插件。请为您的插件换一个名称再安装。",
+    "addons.plugin_message_2d0ae0a4c670": "这个 VOOL 技能的文件与 VOOL 自带的副本不一致，因此没有添加。请更新或重新安装 VOOL 来修复。",
     "settings.row.hide_name_on_screen.label": "在屏幕上隐藏我的名字",
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
     "settings.row.hide_name_on_screen.effect": "立即生效。",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "USB 备份：已保存到 {drive}",
     "wallet.backup.usb_none": "USB 备份：尚未保存"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

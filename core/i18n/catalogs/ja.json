@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "そのチェックは開けません。チェックをもう一度開始してください。",
     "addons.plugin_message_0ef7c8054096": "このサービスには支払いのできるプラグインが必要です。先にそのプラグインをオンにしてください。",
     "addons.plugin_message_fc0c95675725": "この名前はVOOLが作ったプラグインのものです。インストールするには、プラグインに別の名前を付けてください。",
+    "addons.plugin_message_2d0ae0a4c670": "このVOOLスキルのファイルはVOOLに付属していたコピーと一致しないため、追加されませんでした。直すにはVOOLを更新するか、入れ直してください。",
     "settings.row.hide_name_on_screen.label": "画面に自分の名前を表示しない",
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "USB バックアップ: {drive} に保存済み",
     "wallet.backup.usb_none": "USB バックアップ: まだありません"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

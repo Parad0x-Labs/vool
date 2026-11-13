@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "그 검사를 열 수 없습니다. 검사를 다시 시작하세요.",
     "addons.plugin_message_0ef7c8054096": "이 서비스에는 결제할 수 있는 플러그인이 필요합니다. 먼저 그 플러그인을 켜세요.",
     "addons.plugin_message_fc0c95675725": "이 이름은 VOOL이 만든 플러그인의 것입니다. 설치하려면 플러그인에 다른 이름을 붙이세요.",
+    "addons.plugin_message_2d0ae0a4c670": "이 VOOL 스킬의 파일이 VOOL과 함께 제공된 사본과 일치하지 않아 추가하지 않았습니다. 고치려면 VOOL을 업데이트하거나 다시 설치하세요.",
     "settings.row.hide_name_on_screen.label": "화면에서 내 이름 숨기기",
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
     "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다.",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "USB 백업: {drive}에 저장됨",
     "wallet.backup.usb_none": "USB 백업: 아직 없음"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

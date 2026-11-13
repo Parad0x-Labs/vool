@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Priedų patikros
 
@@ -18,7 +18,7 @@ peržiūrimas, kai išleidžiamas VOOL. Jiems **Pridėti šį įgūdį** paleid�
 be nuskaitymų kvotos ir be jokių tinklo užklausų.
 
 1. VOOL perskaito įgūdį ir licenciją iš pačios programos kopijos ir juos atmeta, jei jų SHA-256
-   nesutampa su prisegtuoju (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+   nesutampa su prisegtuoju (*Šio VOOL įgūdžio failas nesutampa su kopija, gauta kartu su VOOL, todėl jis nepridėtas.*).
 2. VOOL vietinė patikra perskaito įgūdį ieškodama rizikingų instrukcijų ir parodo rezultatą. Švarų rezultatą
    galima pridėti mygtuku **Pridėti ir įjungti**; viskam, ką ji pažymi, reikia jūsų atskiro, aiškaus sutikimo
    būtent tai versijai. **Atmesti** jį išmeta.
@@ -32,7 +32,7 @@ Kitų kūrėjų įgūdžiai niekada neina šiuo keliu.
 ## Vieši įgūdžiai
 
 Pasirinkite viešą GitHub įgūdį fiksuotoje revizijoje ir patvirtinkite jo turinio atsisiuntimą. VOOL patikrina
-jį šiame įrenginyje su `core/local_scan.py`. Jei įjungto skenerio papildinio nėra, puslapis paaiškina,
+jį šiame įrenginyje. Jei įjungto skenerio papildinio nėra, puslapis paaiškina,
 kad patikros liko šiame įrenginyje. Šiam keliui skenerio rakto nereikia.
 
 Įjungtas skenerio papildinys, kai paprašoma nuskaitymo, taip pat gauna viešo įgūdžio turinį. Tai

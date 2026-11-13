@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "Цю перевірку не вдається відкрити. Запустіть перевірку заново.",
     "addons.plugin_message_0ef7c8054096": "Ця служба потребує плагіна, який може за неї платити. Спочатку ввімкніть цей плагін.",
     "addons.plugin_message_fc0c95675725": "Ця назва належить плагіну, створеному VOOL. Дайте своєму плагіну іншу назву, щоб його встановити.",
+    "addons.plugin_message_2d0ae0a4c670": "Файл цієї навички VOOL не збігається з копією, що постачається з VOOL, тому її не додано. Оновіть або перевстановіть VOOL, щоб це виправити.",
     "settings.row.hide_name_on_screen.label": "Приховувати моє ім’я на екрані",
     "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
     "settings.row.hide_name_on_screen.effect": "Діє негайно.",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "Копія на USB: збережена на {drive}",
     "wallet.backup.usb_none": "Копія на USB: ще немає"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Verificações de complementos
 
@@ -18,8 +18,7 @@ revisada quando o VOOL é lançado. Para elas, **Adicionar esta habilidade** exe
 sem cota de verificação e sem nenhum pedido de rede.
 
 1. O VOOL lê a habilidade e a licença da cópia do próprio app e as recusa, a menos que o SHA-256 delas
-   corresponda ao valor fixado (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was
-   not added.*).
+   corresponda ao valor fixado (*O arquivo desta habilidade do VOOL não corresponde à cópia que veio com o VOOL, por isso ela não foi adicionada.*).
 2. A verificação local do VOOL lê a habilidade em busca de instruções arriscadas e mostra o resultado. Um resultado limpo
    pode ser adicionado com **Adicionar e ligar**; qualquer coisa que ela sinalizar precisa do seu OK separado e explícito para
    aquela versão exata. **Rejeitar** a descarta.
@@ -33,7 +32,7 @@ Habilidades de outros criadores nunca seguem esse caminho.
 ## Habilidades públicas
 
 Escolha uma habilidade pública do GitHub em uma revisão fixa e aprove o download do conteúdo dela. O VOOL a verifica
-neste dispositivo com `core/local_scan.py`. Sem um plugin verificador ativado, a página explica
+neste dispositivo. Sem um plugin verificador ativado, a página explica
 que as verificações ficaram neste dispositivo. Nenhuma chave de verificador é necessária nesse caminho.
 
 Um plugin verificador ativado também recebe o conteúdo da habilidade pública quando uma verificação é solicitada. Isso

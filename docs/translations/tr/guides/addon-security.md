@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Eklenti denetimleri
 
@@ -12,7 +12,7 @@ Göz at önce VOOL'un kendi becerilerini listeler; bunlar arasında uygulamayla 
 
 VOOL'un yaptığı 75 beceri uygulamanın içinde gelir; her biri VOOL'un kendi dizininde SHA-256 ile sabitlenmiştir ve VOOL yayımlandığında incelenir. Bunlar için **Bu beceriyi ekle** yalnızca VOOL'un yerel denetimini çalıştırır: anahtar gerekmez, tarama hakkı harcanmaz ve ağ isteği yapılmaz.
 
-1. VOOL beceriyi ve lisansı uygulamanın kendi kopyasından okur ve SHA-256 değerleri sabitlenen değerle eşleşmedikçe onları reddeder (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+1. VOOL beceriyi ve lisansı uygulamanın kendi kopyasından okur ve SHA-256 değerleri sabitlenen değerle eşleşmedikçe onları reddeder (*Bu VOOL becerisinin dosyası VOOL ile gelen kopyayla eşleşmiyor, bu yüzden eklenmedi.*).
 2. VOOL'un yerel denetimi beceriyi riskli talimatlar için okur ve sonucu gösterir. Temiz bir sonuç **Ekle ve aç** ile eklenebilir; denetimin işaretlediği her şey, tam olarak o sürüm için ayrı ve açık onayınızı gerektirir. **Reddet** onu atar.
 3. Kurulum ardından diğer becerilerle aynı yaşam döngüsünü izler: tam olarak bu dosyalar kurulur, doğrulanır ve etkinleştirilir. Kurulu beceri her yüklendiğinde sabitlenmiş SHA-256 değerine göre denetlenir; değişmiş bir dosya beceriyi kullanılamaz hale getirir.
 
@@ -20,7 +20,7 @@ Yerel denetim sabit baytların statik bir okumasıdır; güvenlik ya da yanıt k
 
 ## Herkese açık beceriler
 
-Sabit bir revizyondaki herkese açık bir GitHub becerisini seçin ve içeriğinin indirilmesini onaylayın. VOOL onu bu cihazda `core/local_scan.py` ile denetler. Etkin bir tarama eklentisi yoksa sayfa, denetimlerin bu cihazda kaldığını açıklar. Bu yol için tarama anahtarı gerekmez.
+Sabit bir revizyondaki herkese açık bir GitHub becerisini seçin ve içeriğinin indirilmesini onaylayın. VOOL onu bu cihazda denetler. Etkin bir tarama eklentisi yoksa sayfa, denetimlerin bu cihazda kaldığını açıklar. Bu yol için tarama anahtarı gerekmez.
 
 Etkin bir tarama eklentisi de, bir tarama istendiğinde herkese açık becerinin içeriğini alır. Bu, onun hizmet hakkını tüketebilir. Yerel sohbetler, özel çalışma alanı dosyaları ve diğer kimlik bilgileri gönderilmez. Bir anahtarı kaydetmek ve Eklentiler'i açmak bağlantı testi ya da tarama isteği yapmaz. Otomatik istek yinelemesi yoktur.
 

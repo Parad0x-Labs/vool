@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "لا يمكن فتح ذلك الفحص. ابدأ الفحص مرة أخرى.",
     "addons.plugin_message_0ef7c8054096": "تحتاج هذه الخدمة إلى إضافة تستطيع الدفع مقابلها. شغّل تلك الإضافة أولًا.",
     "addons.plugin_message_fc0c95675725": "هذا الاسم يخص إضافة صنعها VOOL. أعطِ إضافتك اسمًا مختلفًا لتثبيتها.",
+    "addons.plugin_message_2d0ae0a4c670": "ملف مهارة VOOL هذه لا يطابق النسخة التي جاءت مع VOOL، لذلك لم تُضَف. حدّث VOOL أو أعد تثبيته لإصلاح ذلك.",
     "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
     "settings.row.hide_name_on_screen.effect": "يسري فورًا.",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "نسخة USB: محفوظة على {drive}",
     "wallet.backup.usb_none": "نسخة USB: ليس بعد"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

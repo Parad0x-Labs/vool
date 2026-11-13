@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "Cette vérification ne peut pas être ouverte. Relancez la vérification.",
     "addons.plugin_message_0ef7c8054096": "Ce service a besoin d'un plugin capable de payer. Activez d'abord ce plugin.",
     "addons.plugin_message_fc0c95675725": "Ce nom appartient à un plugin créé par VOOL. Donnez un autre nom à votre plugin pour l'installer.",
+    "addons.plugin_message_2d0ae0a4c670": "Le fichier de cette compétence VOOL ne correspond pas à la copie fournie avec VOOL, elle n’a donc pas été ajoutée. Mettez à jour ou réinstallez VOOL pour la réparer.",
     "settings.row.hide_name_on_screen.label": "Masquer mon nom à l’écran",
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement.",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "Sauvegarde USB : enregistrée sur {drive}",
     "wallet.backup.usb_none": "Sauvegarde USB : pas encore"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

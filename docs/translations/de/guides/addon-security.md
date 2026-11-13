@@ -1,6 +1,6 @@
 ---
 translation: machine
-source_sha256: 4596ad3e82d6936445beafa8e30a334325d70a8a0f1ee052eda3c43ae5118244
+source_sha256: 021137e6424e28cf4af2913b10198aa3e59fb7d63a002949eeea0837375436a8
 ---
 # Add-on-Prüfungen
 
@@ -18,8 +18,7 @@ und bei der Veröffentlichung von VOOL geprüft. Für diese führt **Diesen Skil
 kein Scan-Guthaben und keine Netzwerkanfrage.
 
 1. VOOL liest den Skill und die Lizenz aus der eigenen Kopie der App und lehnt sie ab, wenn ihr SHA-256
-   nicht mit dem festgelegten Wert übereinstimmt (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was
-   not added.*).
+   nicht mit dem festgelegten Wert übereinstimmt (*Die Datei dieser VOOL-Fertigkeit stimmt nicht mit der Kopie überein, die mit VOOL kam, deshalb wurde sie nicht hinzugefügt.*).
 2. Die lokale Prüfung von VOOL liest den Skill auf riskante Anweisungen hin und zeigt das Ergebnis. Ein sauberes Ergebnis
    kannst du mit **Hinzufügen und einschalten** hinzufügen; alles, was sie markiert, braucht dein gesondertes, ausdrückliches OK für
    genau diese Version. **Ablehnen** verwirft es.
@@ -33,7 +32,7 @@ Skills anderer Hersteller nehmen nie diesen Weg.
 ## Öffentliche Skills
 
 Wähle einen öffentlichen GitHub-Skill in einer festen Revision und erlaube, seinen Inhalt herunterzuladen. VOOL prüft
-ihn auf diesem Gerät mit `core/local_scan.py`. Ohne aktiviertes Scanner-Plugin erklärt die Seite,
+ihn auf diesem Gerät. Ohne aktiviertes Scanner-Plugin erklärt die Seite,
 dass die Prüfungen auf diesem Gerät geblieben sind. Für diesen Weg wird kein Scanner-Schlüssel gebraucht.
 
 Ein aktiviertes Scanner-Plugin erhält den Inhalt des öffentlichen Skills ebenfalls, wenn ein Scan angefordert wird. Das

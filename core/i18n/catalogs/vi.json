@@ -3651,6 +3651,7 @@
     "addons.plugin_message_7038ceabccfe": "Không mở được lượt kiểm tra đó. Hãy bắt đầu lại lượt kiểm tra.",
     "addons.plugin_message_0ef7c8054096": "Dịch vụ này cần một plugin có thể trả phí cho nó. Hãy bật plugin đó trước.",
     "addons.plugin_message_fc0c95675725": "Tên này thuộc về một plugin do VOOL làm. Đặt tên khác cho plugin của bạn để cài đặt nó.",
+    "addons.plugin_message_2d0ae0a4c670": "Tệp của kỹ năng VOOL này không khớp với bản đi kèm VOOL, nên kỹ năng chưa được thêm. Hãy cập nhật hoặc cài đặt lại VOOL để sửa.",
     "settings.row.hide_name_on_screen.label": "Ẩn tên tôi trên màn hình",
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
     "settings.row.hide_name_on_screen.effect": "Áp dụng ngay.",
@@ -5178,7 +5179,7 @@
     "wallet.backup.usb_saved": "Sao lưu USB: đã lưu trên {drive}",
     "wallet.backup.usb_none": "Sao lưu USB: chưa có"
   },
-  "source_catalog_sha256": "61477b6c14be8eded2b177c3729392cf60085027d4f256ad7377d37ee81b323e",
+  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
