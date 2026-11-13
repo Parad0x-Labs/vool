@@ -1496,7 +1496,7 @@ def _enforce_mailbox_answer_needs_mail_access(
     original = str(output.get("response") or "")
     try:
         # The v0.8 email lane already answered this ask before any model ran, with its own plain
-        # no-mailbox sentence: that reply is the honest one, and replacing it with a second
+        # no-mailbox sentence: that reply is already the true one, and replacing it with a second
         # wording of the same fact only changes the words the person was promised.
         from core.agent_runtime.agent import _no_mailbox_reply
 
