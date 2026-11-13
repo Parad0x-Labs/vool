@@ -125,7 +125,7 @@ def test_trim_and_convert_recording_without_an_account(homes, monkeypatch):
 
 def test_production_worker_profile_denies_host_file_and_network(homes, tmp_path):
     from core.artifact_readers._sandbox import run_confined
-    from core.lend.worker import command, runtime_reads
+    from core.lend.worker import command, runtime_files, runtime_reads
 
     ok(homes, homes[1], 'status')
     runtime_paths.configure_runtime_home(homes[1])
@@ -161,7 +161,8 @@ with socket.socket() as sock:
         raise RuntimeError('network reachable')
 ''')
         result = run_confined(command(scratch, {'max_seconds': 5}), scratch=scratch,
-                              timeout=5, extra_read=runtime_reads(), allow_mach_lookup=False, allow_child_signals=True)
+                              timeout=5, extra_read=runtime_reads(), extra_read_files=runtime_files(),
+                              allow_mach_lookup=False, allow_child_signals=True)
     assert result.returncode == 0, result.stderr
     assert b'host file denied' in result.stdout and b'network denied' in result.stdout
     assert b'host signal denied' in result.stdout
@@ -172,7 +173,7 @@ def test_worker_deadline_stops_its_recording_child(homes, tmp_path):
 
     from core.artifact_readers._sandbox import run_confined
     from core.lend import task_worker
-    from core.lend.worker import command, runtime_reads
+    from core.lend.worker import command, runtime_files, runtime_reads
 
     ok(homes, homes[1], 'status')
     runtime_paths.configure_runtime_home(homes[1])
@@ -194,7 +195,8 @@ time.sleep(2)
 
     try:
         result = run_confined(command(scratch, {'max_seconds': 3}), scratch=scratch,
-                              timeout=3, extra_read=runtime_reads(), allow_mach_lookup=False, allow_child_signals=True)
+                              timeout=3, extra_read=runtime_reads(), extra_read_files=runtime_files(),
+                              allow_mach_lookup=False, allow_child_signals=True)
         assert result.returncode == 2
     except ReaderFailed as failure:
         assert failure.code == 'decoder_killed'
@@ -207,7 +209,7 @@ def test_worker_memory_ceiling_holds_inside_confinement_and_for_decoders(homes, 
 
     from core.artifact_readers._sandbox import run_confined
     from core.lend import task_worker
-    from core.lend.worker import command, runtime_reads
+    from core.lend.worker import command, runtime_files, runtime_reads
 
     ok(homes, homes[1], 'status')
     runtime_paths.configure_runtime_home(homes[1])
@@ -233,7 +235,8 @@ else:
 print('decoder exit', subprocess.run([sys.executable,'-I','-c',{child!r}]).returncode)
 ''')
     result = run_confined(command(scratch, {'max_seconds': 10}), scratch=scratch,
-                          timeout=10, extra_read=runtime_reads(), allow_mach_lookup=False, allow_child_signals=True)
+                          timeout=10, extra_read=runtime_reads(), extra_read_files=runtime_files(),
+                          allow_mach_lookup=False, allow_child_signals=True)
     assert result.returncode == 0, result.stderr
     assert b'small allocation 67108864' in result.stdout
     assert b'large allocation refused' in result.stdout
