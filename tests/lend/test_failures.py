@@ -103,10 +103,13 @@ def test_wrong_fingerprint_unconfirmed_join_and_replay_refused(homes):
 
 
 def test_expired_queue_refuses_execution_and_erases_input(homes):
-    key = ready(homes, expires=int(time.time()*1000)+1000)
+    # Three seconds, not one: on a slow hosted runner the invite, join and upload above took longer
+    # than a one-second window, so the job expired before it was ever queued (empty poll).
+    expires = int(time.time()*1000)+3000
+    key = ready(homes, expires=expires)
     job = submit(homes, key, b'Expires before approval')
     ok(homes, homes[1], 'poll')
-    time.sleep(1.1)
+    time.sleep(max(0.0, expires/1000-time.time())+0.1)
     host = ok(homes, homes[1], 'poll')['jobs'][0]
     guest = ok(homes, homes[2], 'poll')['jobs'][0]
     assert host['state'] == guest['state'] == 'expired'

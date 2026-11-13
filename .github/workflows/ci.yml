@@ -349,6 +349,11 @@ jobs:
           python -m pip install -e ".[dev,browser,companion,evm]"
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
+      - name: Provision ffmpeg for the lent recording job (Homebrew)
+        # Lend a job offers "recording" only where Homebrew's ffmpeg and ffprobe exist
+        # (core/lend/worker.available); the hosted image has neither, so the invite was refused
+        # with CAPABILITY_UNAVAILABLE before the recording test could run.
+        run: brew install ffmpeg && /opt/homebrew/bin/ffmpeg -version | head -1 && /opt/homebrew/bin/ffprobe -version | head -1
       - name: Run the macOS-only suites
         run: >-
           python -m pytest -q --tb=short -p no:cacheprovider
