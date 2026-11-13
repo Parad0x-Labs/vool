@@ -11,6 +11,7 @@ tests/test_sealed_turn_key_boundary.py for the unit-level account).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,10 @@ MODEL = "qwen3-stub:2b"
 PROMPT = "Run the build script in my project with python3 and tell me what happened"
 ORIGINAL = "original line\n"
 REWRITTEN = "rewritten by the build\n"
+# The buffered reply lists the steps it ran; the streamed lane showed them live as tool events
+# and leaves them out of the text (research_tool_loop_facade, include_step_summary). Everything
+# else in the committed answer must match.
+_STEP_SUMMARY_RE = re.compile(r"\n*Real steps completed:\n(?:- [^\n]*\n?)+")
 
 
 def _committed(reply: dict) -> str:
@@ -84,4 +89,6 @@ def test_a_buffered_command_turn_with_an_empty_summary_commits_like_the_streamed
 
     assert "K-08 violation" not in log
     assert _committed(buffered), "the buffered turn committed no answer"
-    assert _committed(buffered) == _committed(streamed)
+    assert "Real steps completed:" in _committed(buffered), "the buffered turn did not list the command it ran"
+    assert "Real steps completed:" not in _committed(streamed)
+    assert _STEP_SUMMARY_RE.sub("\n", _committed(buffered)).strip() == _committed(streamed).strip()
