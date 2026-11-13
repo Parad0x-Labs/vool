@@ -464,13 +464,27 @@ def _repair_denial(
     )
 
 
+# "called" that NAMES a thing ("a file called budget.pdf", "anything called notes") is no call. Read as
+# the access verb, the disk-PDF lane's own true sentence "I could not find a file called
+# site-survey-vk73.pdf anywhere in ~" became a denial of calling that file, and the reply was replaced
+# with "I cannot verify from runtime evidence whether a read of site-survey-vk73.pdf occurred"
+# (served, round-8 head 2026-11-13, clean loop on and off alike).
+_NAMING_CALLED_RE = re.compile(
+    r"\b(?:(?:a|an|the|any|some|one|no)\s+(?:[\w-]+\s+){0,2}?|"
+    r"(?:anything|something|nothing|everything|files?|folders?|documents?|pdfs?|apps?|notes?)\s+)"
+    r"(?:called|named)\b",
+    re.IGNORECASE,
+)
+
+
 def _check_denial(sentence: str, evidence: TurnEvidence, *, whole_conversation: bool) -> ClaimFinding | None:
+    probe = _NAMING_CALLED_RE.sub(lambda m: m.group(0)[: -len(m.group(0).split()[-1])] + "named", sentence)
     if not (
-        _VERB_DENIAL_RE.search(sentence)
-        or _EVENT_DENIAL_RE.search(sentence)
-        or _PASSIVE_DENIAL_RE.search(sentence)
-        or _ACTIVE_QUANTIFIED_DENIAL_RE.search(sentence)
-        or _FRONTED_NEGATION_DENIAL_RE.search(sentence)
+        _VERB_DENIAL_RE.search(probe)
+        or _EVENT_DENIAL_RE.search(probe)
+        or _PASSIVE_DENIAL_RE.search(probe)
+        or _ACTIVE_QUANTIFIED_DENIAL_RE.search(probe)
+        or _FRONTED_NEGATION_DENIAL_RE.search(probe)
     ):
         return None
     if _NOT_A_SELF_REPORT_RE.search(sentence):

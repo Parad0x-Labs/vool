@@ -428,6 +428,19 @@ def maybe_handle_pdf_read(
                 _failure_text("not_found", reason="", shown=named or shown),
                 reason="pdf_read_not_found",
             )
+        from core.clean_loop.route import asks_about_chat_attachment
+
+        if asks_about_chat_attachment(user_input):
+            # "the attached site-survey.pdf" with nothing attached: say that first, and name the
+            # file the person named, not the sentence around it ("screen on page 3 of the attached
+            # site-survey-vk73.pdf", served on the round-8 head, 2026-11-13).
+            file_name = re.split(r"\b(?:attached|uploaded)\s+", named, flags=re.IGNORECASE)[-1].strip() or named
+            return plain(
+                f"Nothing is attached to this message, and I could not find a file called {file_name} "
+                f"anywhere in {_allowed_roots_label()} either. Attach it again, or tell me the folder "
+                f"it is in and I will read it.",
+                reason="pdf_read_attachment_not_bound",
+            )
         return plain(
             f"I could not find a file called {named} anywhere in {_allowed_roots_label()}. "
             f"Give me the folder it is in and I will read it.",

@@ -12,7 +12,8 @@
    Money words are RED in any form.
 3. Nothing else owns the turn: not a planned sub-turn, a resumed checkpoint, a browser workflow, a
    project-bound chat, a private chat (its words never reach this loop's brain) or a chat with an
-   active goal workflow, and it is the owner's own local turn.
+   active goal workflow, nor an ask about a file sent with the chat ("the attached report.pdf") when
+   none is bound, and it is the owner's own local turn.
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
    shares a distinctive word with the name of one of the owner's files, or, checked last, it is a
    question about something the owner's documents hold: `tools.document_matches`), and not a
@@ -517,6 +518,27 @@ def _carries_attachments(source_context: Mapping[str, Any]) -> bool:
         return bool(evidence)
 
 
+# The ask points at material sent WITH the chat: "the attached site-survey.pdf", "this attachment",
+# "the file I uploaded", "I attached". This loop never sees attachments, only the words and the owner's
+# disk, so with nothing bound it answered such an ask from the model (CI on the default-on loop,
+# test_media_product_served, 2026-11-13). The lanes that read attachments, and the disk-PDF lane that
+# says plainly the file is nowhere on this computer, own it. "the report that has the floor plan attached"
+# names no chat material and stays a files ask.
+_ATTACHMENT_REF_RE = re.compile(
+    r"\b(?:the|this|that|these|those|my)\s+(?:attached|uploaded)\b|"
+    r"\b(?:the|this|that|these|those|my)\s+attachments?\b|"
+    r"\b(?:i|i'?ve|i\s+have|we|we'?ve)\s+(?:just\s+)?(?:attached|uploaded)\b|"
+    r"\b(?:attached|uploaded)\s+(?:files?|pdfs?|docs?|documents?|images?|photos?|pictures?|screenshots?|"
+    r"spreadsheets?|csvs?|sheets?|scans?)\b",
+    re.I,
+)
+
+
+def asks_about_chat_attachment(text: str) -> bool:
+    """Whether the ask points at a file sent with the chat rather than one on the owner's disk."""
+    return bool(_ATTACHMENT_REF_RE.search(str(text or "")))
+
+
 def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) -> str:
     if source_context.get("planned_subturn"):
         return "planned_subturn"
@@ -652,6 +674,9 @@ def decide(
     blocked = _owner_context_blocks(dict(source_context or {}), session_id)
     if blocked:
         return RouteDecision(False, blocked)
+    if asks_about_chat_attachment(text):
+        # Nothing is bound (a bound file is `attachment_turn` above), yet the ask points at one.
+        return RouteDecision(False, "attachment_ask_nothing_bound")
     if is_online_ask(text):
         return RouteDecision(False, "online_ask")
     if is_notes_ask(text) and not _moved_to_a_folder(source_context):
@@ -690,6 +715,7 @@ __all__ = [
     "LOOP_RUNTIME_TOOLS",
     "RouteDecision",
     "ask_words",
+    "asks_about_chat_attachment",
     "asks_about_own_files_or_computer",
     "asks_explicitly_about_own_things",
     "change_reply",
