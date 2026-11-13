@@ -184,6 +184,16 @@ def text_response(status: int, text: str, *, headers: dict[str, str] | None = No
 
 #: The pages that host wallet controls (chat approval cards, Settings) may be framed only by this origin.
 WALLET_PAGE_FRAMING_HEADERS: dict[str, str] = {"Content-Security-Policy": "frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN"}
+#: The chat page also loads images only from VOOL itself (``img-src``). An answer is model text, and
+#: the model may have read a web page, a pasted article or a file someone else wrote: any image
+#: address in it that the page fetched on its own would carry what the model put in that address
+#: off this computer with no click (security review 2026-11-13). VOOL's own pictures are inline
+#: data, blobs, or files VOOL saved and serves at ``/api/files/raw``; a cloud image VOOL made is
+#: saved first (``core.media_tools``). A frame drawn from ``srcdoc`` keeps this policy as well.
+CHAT_PAGE_HEADERS: dict[str, str] = {
+    **WALLET_PAGE_FRAMING_HEADERS,
+    "Content-Security-Policy": "frame-ancestors 'self'; img-src 'self' data: blob:",
+}
 
 
 def html_response(status: int, html: str, *, headers: dict[str, str] | None = None) -> ApiResponse:
@@ -1351,7 +1361,7 @@ def _dispatch_get(
                 headers={
                     "X-Vool-Workstation-Version": VOOL_WORKSTATION_DEPLOYMENT_VERSION,
                     "X-Vool-Workstation-Surface": "chat",
-                    **WALLET_PAGE_FRAMING_HEADERS,
+                    **CHAT_PAGE_HEADERS,
                 },
             ),
             runtime,

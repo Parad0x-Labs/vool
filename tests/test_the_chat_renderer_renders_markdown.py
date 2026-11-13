@@ -239,10 +239,21 @@ def test_a_bare_url_is_still_auto_linked(render) -> None:
     assert "<a href=" in html and "example.com" in html
 
 
-def test_an_image_still_renders(render) -> None:
-    html = render("![a cat](https://example.com/cat.png)")
+def test_an_image_on_another_site_is_a_link_and_never_loads(render) -> None:
+    """An answer is model text, and the model may have read a page, a paste or a file someone else
+    wrote: an image address the page fetched by itself would carry what was put in it off this
+    computer with no click (security review 2026-11-13). It is a link the person may open."""
+    html = render("![a cat](https://example.com/cat.png?d=SECRET)")
+    assert "<img" not in html, html
+    assert 'href="https://example.com/cat.png?d=SECRET"' in html, html
+    assert ">a cat</a>" in html, html
+    assert "<img" not in render("![](http://127.0.0.1:9/x.gif)")
+
+
+def test_an_image_vool_saved_here_still_renders(render) -> None:
+    html = render("![a cat](file:///Users/me/VOOL/generated/cat.png)")
     assert 'class="chat-img"' in html
-    assert 'src="https://example.com/cat.png"' in html
+    assert 'src="/api/files/raw?path=%2FUsers%2Fme%2FVOOL%2Fgenerated%2Fcat.png"' in html
 
 
 def test_the_raw_text_is_still_kept_for_copy(render) -> None:

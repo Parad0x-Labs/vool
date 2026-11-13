@@ -35,6 +35,8 @@ class MediaResult:
     message: str
     ref: str = ""
     provider: str = ""
+    #: The provider's own address for a picture VOOL saved here (``ref`` is then the saved file).
+    remote_ref: str = ""
 
 
 @dataclass
@@ -43,6 +45,8 @@ class ImageResult:
     status: str
     message: str
     image_ref: str = ""
+    #: Where the provider put the picture, when ``image_ref`` is the copy VOOL saved on this computer.
+    remote_ref: str = ""
 
 
 def _service(kind: str, account: str) -> dict | None:
@@ -132,7 +136,45 @@ def _generate(
     # must not crash the caller or lose the ref -- undercounting one unit beats raising after a paid call.
     with contextlib.suppress(Exception):
         usage_quota.consume_quota(quota_key, tier=tier)
-    return MediaResult(True, "executed", f"{kind.capitalize()} generated.", ref=ref, provider=provider.name)
+    remote_ref = ""
+    if kind == "image" and ref:
+        saved = _keep_image_here(ref, prompt=str(prompt), opener=injected_opener, timeout=timeout)
+        if saved:
+            remote_ref, ref = ref, saved
+    return MediaResult(True, "executed", f"{kind.capitalize()} generated.", ref=ref, provider=provider.name,
+                       remote_ref=remote_ref)
+
+
+def _keep_image_here(ref: str, *, prompt: str, opener: Opener | None, timeout: float) -> str:
+    """Save the picture a cloud provider made as a file on this computer; its path, or "" (keep the link).
+
+    The chat page draws pictures only from VOOL itself (core.web.api.service.CHAT_PAGE_HEADERS), so
+    the picture is fetched once here, through the same outbound door as the generation call it
+    belongs to, and shown from the saved file. A ``data:`` reply is decoded in place. Never raises.
+    """
+    from core import generated_files
+
+    value = str(ref or "").strip()
+    try:
+        if value.startswith("data:image/") and ";base64," in value[:64]:
+            import base64
+
+            data = base64.b64decode(value.split(",", 1)[1], validate=False)
+        elif value.lower().startswith("https://"):
+            req = urllib.request.Request(value, method="GET", headers={"Accept": "image/*"})
+            if opener is not None:
+                resp_ctx = opener(req, timeout=timeout)
+            else:
+                from core.remote_fetch_policy import open_remote
+
+                resp_ctx = open_remote(req, timeout=timeout)
+            with resp_ctx as resp:
+                data = resp.read(generated_files.MAX_SAVED_IMAGE_BYTES + 1)
+        else:
+            return ""
+    except Exception:
+        return ""
+    return generated_files.save_image_bytes(data, stem="cloud-image", prompt=prompt)
 
 
 def generate_image(*, prompt: str, account: str = "default", tier: str | None = None,
@@ -140,7 +182,7 @@ def generate_image(*, prompt: str, account: str = "default", tier: str | None = 
     """Generate one image for `prompt` via the configured provider. Metered against image.generate."""
     r = _generate(kind="image", quota_key="image.generate", prompt=prompt, account=account, tier=tier,
                   opener=opener, timeout=60.0)
-    return ImageResult(r.ok, r.status, r.message, image_ref=r.ref)
+    return ImageResult(r.ok, r.status, r.message, image_ref=r.ref, remote_ref=r.remote_ref)
 
 
 def generate_video(*, prompt: str, account: str = "default", tier: str | None = None,

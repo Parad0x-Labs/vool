@@ -2719,6 +2719,7 @@ def _image_generate(arguments: dict[str, Any]) -> RuntimeExecutionResult:
         response_text=result.message,
         details={
             "image_ref": result.image_ref,
+            "remote_ref": str(getattr(result, "remote_ref", "") or ""),
             "observation": _tool_observation(
                 intent="image.generate", tool_surface="media", ok=result.ok, status=result.status,
                 image_ref=result.image_ref,

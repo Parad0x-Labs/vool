@@ -236,9 +236,20 @@ def maybe_handle_image_generation(
             )
         if execution is not None and getattr(execution, "ok", False):
             image_ref = str((getattr(execution, "details", {}) or {}).get("image_ref") or "")
-            if image_ref:
+            if image_ref and image_ref.startswith("/"):
+                # VOOL saved the cloud render here (core.media_tools): it shows like a local one.
+                with contextlib.suppress(Exception):
+                    from core import generated_files
+                    generated_files.record_generated_file(image_ref, session_id=session_id, prompt=prompt)
                 return reply(
-                    f'Here\'s your image for "{prompt}":\n\n![{prompt}]({image_ref})\n\n{image_ref}',
+                    f'Here\'s your image for "{prompt}":\n\n![{prompt}](file://{image_ref})\n\n{image_ref}',
+                    execution=execution,
+                )
+            if image_ref:
+                # It could not be saved here, and the chat never draws a picture from another site:
+                # the person gets the link to open it.
+                return reply(
+                    f'Here\'s your image for "{prompt}". Open it here: {image_ref}',
                     execution=execution,
                 )
             return reply(

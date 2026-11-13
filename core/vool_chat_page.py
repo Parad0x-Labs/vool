@@ -4957,14 +4957,17 @@ function safeUrl(u) {
 // inline code. Escaping happens once, before any of this, so nothing here can inject markup.
 function renderInline(html) {
   // Inline images: ![alt](target). A local render path (file:// or /abs) is served via /api/files/raw
-  // (a browser can't load file:// from an http page); an https image (cloud) loads directly. Done
-  // BEFORE link handling so ![alt](https://img) becomes an <img>, not a link. The raw local path is
-  // kept in data-local for the right-click actions (open in Preview / reveal in Finder / copy).
+  // (a browser can't load file:// from an http page). Done BEFORE link handling. The raw local path
+  // is kept in data-local for the right-click actions (open in Preview / reveal in Finder / copy).
+  // An image on another site is NEVER drawn: the answer is model text, and the model may have read a
+  // page, a paste or a file someone else wrote, so an address the page fetched by itself would carry
+  // whatever was put in it off this computer with no click. It becomes an ordinary link the person
+  // may open (the page's img-src policy refuses it besides). VOOL's own cloud images are saved first.
   html = html.replace(/!\[([^\]\n]*)\]\(([^)\s]+)\)/g, (m, alt, target) => {
     const t = target.replace(/&amp;/g, '&');
     let src = '';
     let local = '';
-    if (/^https?:\/\//i.test(t)) { src = t; }
+    if (/^https?:\/\//i.test(t)) { return '[' + (alt.trim() || 'image') + '](' + target + ')'; }
     else if (/^file:\/\//i.test(t)) { local = t.replace(/^file:\/\//, ''); src = '/api/files/raw?path=' + encodeURIComponent(local); }
     else if (t.charAt(0) === '/') { local = t; src = '/api/files/raw?path=' + encodeURIComponent(local); }
     if (!src) return m;

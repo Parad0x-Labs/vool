@@ -9,8 +9,10 @@ with VOOL_FILES_DIRS (os.pathsep-separated).
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -130,6 +132,54 @@ def list_generated_files(*, limit: int = 500) -> dict[str, Any]:
     return {"files": shown, "count": len(items), "shown": len(shown), "roots": files_roots()}
 
 
+#: The picture formats ``save_image_bytes`` keeps, by their first bytes (never by a server's word).
+_IMAGE_MAGIC = (
+    (b"\x89PNG\r\n\x1a\n", ".png"),
+    (b"\xff\xd8\xff", ".jpg"),
+    (b"GIF87a", ".gif"),
+    (b"GIF89a", ".gif"),
+)
+MAX_SAVED_IMAGE_BYTES = 25 * 1024 * 1024
+
+
+def image_suffix_for(data: bytes) -> str:
+    """The file suffix of a PNG, JPEG, GIF or WebP picture by its own bytes, or "" for anything else."""
+    head = bytes(data[:16])
+    for magic, suffix in _IMAGE_MAGIC:
+        if head.startswith(magic):
+            return suffix
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return ".webp"
+    return ""
+
+
+def save_image_bytes(data: bytes, *, stem: str = "image", session_id: str = "", prompt: str = "") -> str:
+    """Keep a picture VOOL made elsewhere (a cloud render) as a file here, and return its path, or "".
+
+    The chat page draws pictures only from VOOL itself, so a cloud render is saved under the first
+    Files root and shown through ``/api/files/raw`` like a local render. Only a real PNG, JPEG, GIF
+    or WebP up to ``MAX_SAVED_IMAGE_BYTES`` is kept; the name comes from the bytes' own digest.
+    """
+    blob = bytes(data or b"")
+    suffix = image_suffix_for(blob)
+    if not suffix or len(blob) > MAX_SAVED_IMAGE_BYTES:
+        return ""
+    safe_stem = re.sub(r"[^a-z0-9-]+", "-", str(stem or "image").lower()).strip("-")[:24] or "image"
+    root = _default_roots()[0]
+    target = root / f"{safe_stem}-{hashlib.sha256(blob).hexdigest()[:16]}{suffix}"
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            tmp = target.with_name(target.name + ".part")
+            tmp.write_bytes(blob)
+            os.replace(tmp, target)
+    except OSError:
+        return ""
+    with contextlib.suppress(Exception):
+        record_generated_file(str(target), session_id=session_id, prompt=prompt)
+    return str(target)
+
+
 def path_is_allowed(path: str) -> bool:
     """True only when ``path`` resolves to a file under one of the known roots (never an arbitrary path)."""
     raw = str(path or "").strip()
@@ -191,10 +241,13 @@ def read_file_bytes(path: str) -> bytes | None:
 
 
 __all__ = [
+    "MAX_SAVED_IMAGE_BYTES",
     "content_type_for",
     "files_roots",
+    "image_suffix_for",
     "list_generated_files",
     "open_file",
     "path_is_allowed",
     "read_file_bytes",
+    "save_image_bytes",
 ]
