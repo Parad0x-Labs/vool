@@ -1,6 +1,7 @@
 ---
 name: vool-create-world
 description: "Build an original playable world from a user idea, using the shared Yard units and validated world files. Use for an explicit request to create a VOOL world, park, course or gathering place."
+summary: "Plans a small world for your Pet Yard as a file you can import. Nothing changes until you import it."
 version: 1.0.0
 license: MIT
 author: sls_0x

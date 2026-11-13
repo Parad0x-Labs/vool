@@ -1,6 +1,7 @@
 ---
 name: vool-create-pet
 description: "Create an original pixel pet for Toybox and Pet Yard, with distinct reactions and local voice assignments. Use for an explicit request to create a VOOL pet."
+summary: "Draws a new pixel pet for your Pet Yard, with its own reactions, ready to import. Nothing changes until you import it."
 version: 1.0.0
 license: MIT
 author: sls_0x
