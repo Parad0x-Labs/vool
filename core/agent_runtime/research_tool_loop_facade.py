@@ -81,6 +81,13 @@ _DIRECT_RENDER_SINGLE_STEP_WORKSPACE_INTENTS = frozenset(
 _DIRECT_RENDER_SINGLE_STEP_SUBSTITUTION_INTENTS = (
     _DIRECT_RENDER_SINGLE_STEP_WORKSPACE_INTENTS | _DIRECT_RENDER_TOOL_INTENTS
 )
+# A model whose whole answer after a tool ran is a closing word ("done", "ok", "finished") said
+# nothing the person can use; the tool's own result is the answer. CI #681 forge journey: a draft
+# pull request opened and the reply read "done" instead of "Draft pull request o/r#31 opened ...".
+_BARE_CLOSING_RE = re.compile(
+    r"^\W*(?:ok(?:ay)?|done|all\s+done|finished|complete(?:d)?|success(?:ful)?|it'?s\s+done|that'?s\s+done)\W*$",
+    re.IGNORECASE,
+)
 
 
 
@@ -2201,6 +2208,19 @@ class ResearchToolLoopFacadeMixin:
                                 # The exact workspace result is stronger evidence than a model
                                 # paraphrase and avoids losing filenames/query tokens in synthesis.
                                 direct_message = grounded_tool_text
+                        elif (
+                            executed_steps
+                            and bool(executed_steps[-1].get("ok"))
+                            and _BARE_CLOSING_RE.match(str(direct_message or ""))
+                        ):
+                            result_text = str(
+                                ((checkpoint_state.get("last_tool_response") or {}).get("response_text"))
+                                or executed_steps[-1].get("response_text")
+                                or executed_steps[-1].get("summary")
+                                or ""
+                            ).strip()
+                            if result_text:
+                                direct_message = result_text
                         direct_message = self._x_editorial_direct_message(
                             direct_message, user_text=effective_input, source_context=loop_source_context
                         )
