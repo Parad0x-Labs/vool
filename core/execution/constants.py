@@ -2898,7 +2898,16 @@ _LOCAL_FACT_LARGEST_RE = re.compile(
     # "what's eating up my disk space" / "what is hogging my storage" asks for the biggest
     # consumers, not the free-space total it was answered with (measured 2026-09-07).
     r"|\b(?:eating|hogging|filling|chewing)\s+(?:up\s+)?(?:all\s+)?(?:of\s+)?(?:my\s+|the\s+)?"
-    r"(?:(?:disk\s+|drive\s+|hard\s+drive\s+|storage\s+|ssd\s+)?(?:space|storage)|disk|drive|ssd|hard\s+drive)\b",
+    r"(?:(?:disk\s+|drive\s+|hard\s+drive\s+|storage\s+|ssd\s+)?(?:space|storage)|disk|drive|ssd|hard\s+drive)\b"
+    # "my mac keeps saying the disk is full, what's eating it?": the full disk named, then what fills it (Mac
+    # answer-quality row 2 on d5d044b0, loop off: no tool ran and the plain lane gave up). "what's taking up all
+    # the space on my mac" asks the same.
+    r"|\b(?:disk|drive|ssd|storage|hard\s+drive|mac|macbook|computer|laptop)\b[^.?!]{0,40}?\b(?:full|out\s+of\s+space|"
+    r"running\s+out(?:\s+of\s+space)?)\b[^?!]{0,40}?\b(?:eating|hogging|filling|using|taking(?:\s+up)?|chewing)\s+"
+    r"(?:up\s+)?(?:it|that|all\s+of\s+it|(?:all\s+)?(?:the\s+)?(?:space|room|storage))\b"
+    r"|\bwhat(?:'s|\s+is|\s+are)?\s+(?:taking|using|eating|hogging)\s+(?:up\s+)?(?:all\s+(?:the\s+|my\s+)?|so\s+much\s+|the\s+most\s+)?"
+    r"(?:space|storage|room)\s+(?:on|in)\s+(?:my|this|the)\s+(?:whole\s+|entire\s+)?"
+    r"(?:mac|macbook|computer|laptop|pc|machine|disk|drive|ssd|hard\s+drive)\b",
     re.IGNORECASE,
 )
 # Advisory / how-to / definitional framings are NOT fact lookups about this machine, so they
