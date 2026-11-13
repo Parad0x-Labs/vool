@@ -446,25 +446,30 @@ class VoolMemory:
     # ------------------------------------------------------------------ learned-line provenance
 
     @fenced_writer
-    def learned_record(self, *, session_id: str, source_text: str, items: list[tuple[str, str, str]]) -> None:
-        """Record which words one extraction learned its block lines and fact nodes from (``items`` are
-        ``(block_name, line, node_id)``; ``line`` or ``node_id`` may be '')."""
-        rows = [(_normalize_block_name(block), str(line or "").strip(), str(node or "").strip())
-                for block, line, node in items or ()]
-        rows = [row for row in rows if row[1] or row[2]]
-        if not rows:
-            return
+    def learned_record(self, *, session_id: str, items: list[tuple[str, str, str, str]]) -> None:
+        """Record where each learned block line and fact node came from: ``items`` are
+        ``(block_name, line, node_id, source_text)``, ``source_text`` the words of the turn or turns (one clause
+        per line) that fact was learned from; ``line`` or ``node_id`` may be ''. Facts learned together from
+        different words keep separate sources, so forgetting one never takes the others."""
         import uuid
 
-        run_id = uuid.uuid4().hex
+        by_source: dict[str, list[tuple[str, str, str]]] = {}
+        for block, line, node, source in items or ():
+            row = (_normalize_block_name(block), str(line or "").strip(), str(node or "").strip())
+            if row[1] or row[2]:
+                by_source.setdefault(str(source or "").strip(), []).append(row)
+        if not by_source:
+            return
         with self._lock:
-            self._conn.execute(
-                "INSERT INTO memory_learned_runs (run_id, agent_id, session_id, source_text, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (run_id, self._agent_id, str(session_id or "").strip(), str(source_text or ""), time.time()))
-            self._conn.executemany(
-                "INSERT OR IGNORE INTO memory_learned_items (run_id, agent_id, block_name, line, node_id) "
-                "VALUES (?, ?, ?, ?, ?)", [(run_id, self._agent_id, *row) for row in rows])
+            for source, rows in by_source.items():
+                run_id = uuid.uuid4().hex
+                self._conn.execute(
+                    "INSERT INTO memory_learned_runs (run_id, agent_id, session_id, source_text, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (run_id, self._agent_id, str(session_id or "").strip(), source, time.time()))
+                self._conn.executemany(
+                    "INSERT OR IGNORE INTO memory_learned_items (run_id, agent_id, block_name, line, node_id) "
+                    "VALUES (?, ?, ?, ?, ?)", [(run_id, self._agent_id, *row) for row in rows])
             self._prune_learned_sources_locked()
             self._conn.commit()
 
@@ -506,24 +511,26 @@ class VoolMemory:
 
     def _erase_learned_from(self, token: str, *, session_id: str, forgotten_turns: list[str] | tuple[str, ...] = ()
                             ) -> dict[str, int]:
-        """Forget law for what the fact extractor learned: remove every block line and fact node derived from
-        this chat's words that carry ``token``, reworded or not, then verify.
+        """Forget law for what the fact extractor learned: remove every block line and fact node learned from
+        this chat's forgotten words, reworded or not, and nothing else; then verify.
 
-        Lines with recorded provenance go when their run's words carry the token. Lines and fact nodes from
-        before provenance was recorded carry no source: they go when they share two or more content words with
-        one of ``forgotten_turns`` (this chat's turns that carried the token, read before the forget erased
-        them). Nodes are matched only in this chat; block lines are home-wide, as the blocks are.
-        Raises when a run of this chat still carries the token afterwards."""
+        A line or node with recorded provenance goes when its own source words carry the token, or the forgotten
+        words hold its source clause whole. Lines and fact nodes from before provenance was recorded carry no
+        source: they go only when they carry the forgotten fact itself (``_carries_forgotten_fact`` against
+        ``forgotten_turns``, this chat's turns that carried the token, read before the forget erased them); a
+        line about the same subject that holds another fact stays. Nodes are matched only in this chat; block
+        lines are home-wide, as the blocks are. Raises when a source of this chat still carries the token."""
         from core.fact_extractor import ALLOWED_BLOCKS
         from core.memory.carriers import carries
 
         scope = str(session_id or "").strip()
         removed_lines = removed_nodes = 0
-        turn_words = [words for words in (_learned_words(turn) for turn in forgotten_turns or ()) if words]
+        turns = [str(turn) for turn in forgotten_turns or () if str(turn or "").strip()]
         with self._lock:
             runs = [row for row in self._conn.execute(
                 "SELECT run_id, session_id, source_text FROM memory_learned_runs WHERE agent_id = ?",
-                (self._agent_id,)) if str(row["session_id"]) == scope and carries(str(row["source_text"]), token)]
+                (self._agent_id,)) if str(row["session_id"]) == scope
+                and _source_is_forgotten(str(row["source_text"]), token)]
             doomed_runs = {str(row["run_id"]) for row in runs}
             items = self._conn.execute(
                 "SELECT run_id, block_name, line, node_id FROM memory_learned_items WHERE agent_id = ?",
@@ -532,6 +539,7 @@ class VoolMemory:
             doomed_lines: dict[str, set[str]] = {}
             doomed_nodes: set[str] = set()
             sourced_nodes = {str(row["node_id"]) for row in items if row["node_id"]}
+            kept_lines: dict[str, set[str]] = {}
             for row in items:
                 block, line = str(row["block_name"]), str(row["line"] or "")
                 if line:
@@ -541,6 +549,10 @@ class VoolMemory:
                         doomed_lines.setdefault(block, set()).add(_learned_line_key(line))
                     if row["node_id"]:
                         doomed_nodes.add(str(row["node_id"]))
+                elif line:
+                    kept_lines.setdefault(block, set()).add(_learned_line_key(line))
+            # The same line learned again from words that were not forgotten stays (the forget names its words).
+            doomed_lines = {block: keys - kept_lines.get(block, set()) for block, keys in doomed_lines.items()}
             for row in self._conn.execute(
                     "SELECT block_name, content FROM memory_blocks WHERE agent_id = ?", (self._agent_id,)).fetchall():
                 block = str(row["block_name"])
@@ -551,7 +563,7 @@ class VoolMemory:
                     key = _learned_line_key(line)
                     legacy = key and key not in sourced_lines.get(block, set())
                     if key and (key in doomed_lines.get(block, set())
-                                or (legacy and _derived_from_any(line, turn_words))):
+                                or (legacy and _carries_forgotten_fact(line, token, turns))):
                         dropped += 1
                         continue
                     kept.append(line)
@@ -566,7 +578,7 @@ class VoolMemory:
                 else:
                     self._conn.execute("DELETE FROM memory_blocks WHERE block_name = ? AND agent_id = ?",
                                        (block, self._agent_id))
-            if scope and turn_words:
+            if scope and turns:
                 expected = _requested_session_scope(scope)
                 for row in self._conn.execute(
                         "SELECT node_id, content, tags, context_description FROM memory_nodes WHERE agent_id = ?",
@@ -578,7 +590,7 @@ class VoolMemory:
                     if not (set(tags) & ALLOWED_BLOCKS) or expected is None or _exact_stored_session_scope(
                             tags=tags, context_description=str(row["context_description"] or "")) != expected:
                         continue  # only the extractor's fact nodes of this chat
-                    if _derived_from_any(str(row["content"] or ""), turn_words):
+                    if _carries_forgotten_fact(str(row["content"] or ""), token, turns):
                         doomed_nodes.add(node_id)
             if doomed_nodes:
                 removed_nodes = len(doomed_nodes)
@@ -601,7 +613,7 @@ class VoolMemory:
             self._conn.commit()
             left = [row for row in self._conn.execute(
                 "SELECT source_text FROM memory_learned_runs WHERE agent_id = ? AND session_id = ?",
-                (self._agent_id, scope)) if carries(str(row["source_text"]), token)]
+                (self._agent_id, scope)) if _source_is_forgotten(str(row["source_text"]), token)]
         if left:
             raise RuntimeError("learned-line provenance still carries forgotten words")
         return {"lines": removed_lines, "nodes": removed_nodes}
@@ -3225,18 +3237,81 @@ def _learned_line_set(content: str) -> set[str]:
     return {key for key in (_learned_line_key(line) for line in str(content or "").splitlines()) if key}
 
 
+def _learned_word(word: str) -> str:
+    """One spelling for a word in a learned line and its source: plural and British -our are not meaning."""
+    if len(word) > 4 and word.endswith("s") and not word.endswith("ss") and not word[-2].isdigit():
+        word = word[:-1]
+    word = word.replace("ourite", "orite")
+    if len(word) > 4 and word.endswith("our"):
+        word = word[:-3] + "or"
+    return word
+
+
 def _learned_words(text: str) -> set[str]:
+    """Content words: every word with a digit (a code, a number), and other words of three or more letters that
+    are not common words."""
     import unicodedata
 
     folded = unicodedata.normalize("NFKC", str(text or "")).casefold()
-    return {word for word in _LEARNED_WORD_RE.findall(folded) if len(word) >= 3 and word not in _LEARNED_STOPWORDS}
+    words = set()
+    for word in _LEARNED_WORD_RE.findall(folded):
+        if any(ch.isdigit() for ch in word):
+            words.add(word)
+        elif len(word) >= 3 and word not in _LEARNED_STOPWORDS:
+            words.add(_learned_word(word))
+    return words
 
 
-def _derived_from_any(line: str, turn_words: list[set[str]]) -> bool:
-    """A line without recorded provenance counts as derived from a forgotten turn when they share two or more
-    content words (a learned line restates the turn's subject and its value, in other words around them)."""
+#: Where one fact ends and the next begins in a person's message: a sentence end, a comma, "and", "but".
+_LEARNED_CLAUSE_SPLIT_RE = re.compile(r"[.;!?\n]+|,\s+|\s+(?:and|but)\s+", re.IGNORECASE)
+
+
+def _learned_clauses(text: str) -> list[str]:
+    clauses = [clause.strip() for clause in _LEARNED_CLAUSE_SPLIT_RE.split(str(text or "")) if clause.strip()]
+    return clauses or ([str(text).strip()] if str(text or "").strip() else [])
+
+
+def _source_is_forgotten(source_text: str, token: str) -> bool:
+    """A learned fact's source is forgotten when its words carry the forgotten words, or the forgotten words hold
+    one of its source clauses whole (a forget of a whole sentence that named this fact among others)."""
+    from core.memory.carriers import carries
+
+    if carries(source_text, token):
+        return True
+    return any(len(_learned_words(clause)) >= 2 and carries(token, clause)
+               for clause in str(source_text or "").splitlines() if clause.strip())
+
+
+def _carries_forgotten_fact(line: str, token: str, turns: list[str] | tuple[str, ...]) -> bool:
+    """For a learned line or fact node with no recorded source: does it hold the forgotten fact itself?
+
+    The forgotten fact is the clause of a forgotten turn that holds the forgotten words: its subject is the
+    forgotten words (``token``), its value the clause's other content words. A line holds that fact when the
+    words it adds to the subject come at least half from that value, and it names the subject or two words of
+    the value. "Sister Ilona's favorite tree: silver birch" holds the fact of "my sister Ilona's favourite tree
+    is the silver birch" (forgotten: "Ilona's favourite tree"); "Sister Ilona's favourite flower: tulip" and
+    "Favourite tree: oak" do not. When the forgotten words are the whole fact (no value left), the line must
+    name at least two of its words and every number in it."""
     words = _learned_words(line)
-    return bool(words) and any(len(words & turn) >= 2 for turn in turn_words)
+    subject = _learned_words(token)
+    if not words or not subject:
+        return False
+    for turn in turns or ():
+        for clause in _learned_clauses(turn):
+            clause_words = _learned_words(clause)
+            if not clause_words & subject:
+                continue
+            value = clause_words - subject
+            if not value:
+                numbers = {word for word in subject if any(ch.isdigit() for ch in word)}
+                if len(words & subject) >= min(2, len(subject)) and numbers <= words:
+                    return True
+                continue
+            added = words - subject
+            shared = words & value
+            if shared and added and len(shared) * 2 >= len(added) and (words & subject or len(shared) >= 2):
+                return True
+    return False
 
 
 def _requested_session_scope(session_id: str | None) -> str | None:

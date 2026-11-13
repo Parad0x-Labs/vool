@@ -173,22 +173,27 @@ def test_a_forget_that_starts_first_finishes_before_the_extraction_decides(env):
 # What was learned BEFORE the forget goes with it, reworded or not.
 #
 # Law (``core.vool_memory.VoolMemory._erase_learned_from``): the extractor records, for every block line and fact
-# node it writes, the words it learned them from (its chat and its source turns). A forget removes every line and
-# node whose source words carry the forgotten token. Lines and fact nodes from before that record existed carry no
-# source: they go when they share two or more content words with one of the chat's turns that carried the token
-# (read before the forget erased them). What was learned from other words stays.
+# node it writes, the words that one fact came from (the clauses of the person's turns that share the most content
+# words with it; the turns the model cites when none do). A forget removes every line and node whose own source
+# carries the forgotten words, and nothing learned from other words, even in the same extraction or the same message.
+# Lines and fact nodes from before that record existed carry no source: they go only when they hold the forgotten
+# fact itself (``_carries_forgotten_fact``); a line about the same subject that holds another fact stays.
 
 
-def _extract_from(home, messages: list[dict], content: str) -> list:
+def _extract_from(home, messages: list[dict], content, turns=None) -> list:
+    """One extraction of ``messages`` whose model answers ``content`` (one fact or a list), citing ``turns``."""
     from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
     from core.fact_extractor import FactExtractor
     from core.vool_memory import VoolMemory
 
+    contents = [content] if isinstance(content, str) else list(content)
+    cited = list(turns) if turns is not None else [None] * len(contents)
+    facts = [{"action": "ADD", "block": "user_profile", "content": text, **({"turns": cite} if cite else {})}
+             for text, cite in zip(contents, cited, strict=True)]
     memory = VoolMemory(runtime_home=str(home), agent_id=SEMANTIC_MEMORY_AGENT_ID)
     try:
         extractor = FactExtractor(memory=memory, ollama_url="http://127.0.0.1:9", session_id=OWNER_CHAT)
-        extractor._call_model = lambda _conversation: json.dumps(
-            {"facts": [{"action": "ADD", "block": "user_profile", "content": content}]})
+        extractor._call_model = lambda _conversation: json.dumps({"facts": facts})
         return extractor.run_sync(messages)
     finally:
         memory.close()
@@ -240,8 +245,13 @@ def test_a_reworded_line_learned_before_the_forget_goes_with_it(env, paraphrase)
     assert [row[0] for row in _rows(home, "SELECT line FROM memory_learned_items WHERE line != ''")] == [GATE_LEARNED]
 
 
-def test_an_older_learned_line_without_a_source_goes_when_it_restates_the_forgotten_turn(env):
-    """Written before learned lines recorded their source: matched by content words against the forgotten turn."""
+#: The same subject, another fact (and another subject, the same kind of fact): never the forgotten one.
+SAME_SUBJECT_OTHER_FACTS = ("Sister Ilona's favourite flower: tulip", "Favourite tree: oak",
+                            "Sister Ilona works as a nurse", "Ilona's birthday: May 3")
+
+
+def test_an_older_learned_line_without_a_source_goes_only_when_it_holds_the_forgotten_fact(env):
+    """Written before learned lines recorded their source (block lines are shared by every chat)."""
     from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
     from core.persistent_memory import append_conversation_event
     from core.vool_memory import VoolMemory
@@ -252,7 +262,7 @@ def test_an_older_learned_line_without_a_source_goes_when_it_restates_the_forgot
                               source_context=_context(OWNER_CHAT))
     memory = VoolMemory(runtime_home=str(home), agent_id=SEMANTIC_MEMORY_AGENT_ID)
     try:
-        for line in (PARAPHRASES[0], "Prefers short answers", "Works night shifts at the harbour"):
+        for line in (*PARAPHRASES, *SAME_SUBJECT_OTHER_FACTS, "Prefers short answers"):
             memory.block_append("user_profile", line)
     finally:
         memory.close()
@@ -262,8 +272,62 @@ def test_an_older_learned_line_without_a_source_goes_when_it_restates_the_forgot
 
     learned = _learned(home)
     assert "silver birch" not in learned
-    assert "Prefers short answers" in learned and "Works night shifts at the harbour" in learned
+    for kept in (*SAME_SUBJECT_OTHER_FACTS, "Prefers short answers"):
+        assert kept in learned, (kept, learned)
     assert not _memory_db_carries(home, b"silver birch")
+
+
+def test_facts_learned_together_keep_their_own_sources(env):
+    """One extraction read both turns; forgetting one fact keeps the other (and a fact placed only by the
+    model's citation follows the turn it cited)."""
+    from core.persistent_memory import append_conversation_event
+
+    home = env["home"]
+    _remembered()
+    assert "Locked in" in _say(GATE)
+    append_conversation_event(session_id=OWNER_CHAT, user_input=REMEMBERED, assistant_output="Locked in.",
+                              source_context=_context(OWNER_CHAT))
+    messages = [*_turn(REMEMBERED), *_turn(GATE)]
+    applied = _extract_from(home, messages, [PARAPHRASES[0], GATE_LEARNED, "Has family who love nature",
+                                             "Keeps a keypad entry at home"], turns=[None, None, [1], [2]])
+    assert len(applied) == 4
+
+    assert _say(FORGET).startswith("Forget applied")
+
+    learned = _learned(home)
+    assert "silver birch" not in learned and "Has family who love nature" not in learned
+    assert GATE_LEARNED in learned and "Keeps a keypad entry at home" in learned
+    assert any(GATE_LEARNED in node for node in _fact_nodes(home))
+    assert not _memory_db_carries(home, b"silver birch")
+
+
+def test_two_facts_in_one_message_keep_their_own_sources(env):
+    from core.persistent_memory import append_conversation_event
+
+    home = env["home"]
+    both = "Remember that my sister Ilona's favourite tree is the silver birch and my gate code is 4417."
+    _remembered()
+    append_conversation_event(session_id=OWNER_CHAT, user_input=both, assistant_output="Locked in.",
+                              source_context=_context(OWNER_CHAT))
+    assert len(_extract_from(home, _turn(both), [PARAPHRASES[0], GATE_LEARNED])) == 2
+
+    assert _say(FORGET).startswith("Forget applied")
+
+    learned = _learned(home)
+    assert "silver birch" not in learned
+    assert GATE_LEARNED in learned
+
+
+def test_a_late_extraction_still_writes_the_facts_of_other_words(env):
+    """A forget lands while the model answers: only the fact from the forgotten words is dropped."""
+    home = env["home"]
+    _remembered()
+    assert _say(FORGET).startswith("Forget applied")
+
+    applied = _extract_from(home, [*_turn(REMEMBERED), *_turn(GATE)], [PARAPHRASES[0], GATE_LEARNED])
+
+    assert [fact.content for fact in applied] == [GATE_LEARNED]
+    assert "silver birch" not in _learned(home) and GATE_LEARNED in _learned(home)
 
 
 def test_a_deleted_chat_keeps_no_copy_of_its_words_as_a_learned_source(env):

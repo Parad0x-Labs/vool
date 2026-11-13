@@ -3239,9 +3239,12 @@ def _turns_carrying(session_id: Any, token: str) -> list[str]:
         for row in _load_jsonl(conversation_log_path()):
             if str(row.get("session_id") or row.get("chat_id") or "") != scope:
                 continue
-            text = "\n".join(str(row.get(field) or "") for field in ("user", "assistant"))
-            if carries(text, token):
-                turns.append(text)
+            # The person's words when they carry it (the fact is theirs), else the reply that does.
+            for field in ("user", "assistant"):
+                text = str(row.get(field) or "")
+                if carries(text, token):
+                    turns.append(text)
+                    break
         return turns
     except Exception as exc:
         LOGGER.warning("forgotten turns could not be read: %s", type(exc).__name__)

@@ -15,7 +15,7 @@ from core.disclosure.direct import received_headers, request_options
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
-from core.vool_memory import VoolMemory
+from core.vool_memory import VoolMemory, _learned_clauses, _learned_words
 
 FactAction = Literal["ADD", "UPDATE", "DELETE", "NOOP"]
 
@@ -26,8 +26,8 @@ Output format (the angle-bracket strings are placeholders describing what goes t
 never output the placeholders and never copy them literally):
 {
   "facts": [
-    {"action": "ADD", "block": "user_profile", "content": "<a fact the user explicitly stated about themselves>"},
-    {"action": "UPDATE", "block": "preferences", "old": "<the currently stored value>", "new": "<the corrected value>"},
+    {"action": "ADD", "block": "user_profile", "content": "<a fact the user explicitly stated about themselves>", "turns": [<the turn number it came from>]},
+    {"action": "UPDATE", "block": "preferences", "old": "<the currently stored value>", "new": "<the corrected value>", "turns": [<the turn number it came from>]},
     {"action": "DELETE", "block": "project_context", "content": "<the outdated fact to remove>"},
     {"action": "NOOP"}
   ]
@@ -41,6 +41,7 @@ Rules:
 - Do not extract one-off tasks, transient emotions, raw logs, file paths, or private internal paths.
 - Do not extract secrets, keys, tokens, passwords, seed phrases, cookies, or credentials.
 - Prefer NOOP when uncertain.
+- Give each fact the numbers of the conversation turns it came from in "turns".
 - Max 5 facts per call."""
 
 FACT_EXTRACT_USER = """Conversation:
@@ -146,6 +147,8 @@ class ExtractedFact:
     content: str = ""
     old: str = ""
     new: str = ""
+    #: The conversation turns the model says the fact came from (numbered as in the conversation it read).
+    turns: tuple[int, ...] = ()
 
 
 _NAME_FACT_RE = re.compile(r"^\s*name\s*[:=]\s*(.+)$", re.IGNORECASE)
@@ -320,44 +323,46 @@ class FactExtractor:
         if not facts:
             return applied
         from core.memory import revocation
+        from core.memory.carriers import carries
 
         # The extraction runs long after its turn (a quiet window, then a slow model call): measured on the
         # v0.8 package smoke, a forget completed while the model was still answering, and the model's
         # paraphrase ("Sister Ilona's favorite tree: silver birch") carried none of the forgotten words, so
-        # the fenced block write let it through. The source decides: if the words this extraction read now
-        # carry a forgotten token (a completed forget or one still under way), nothing it learned from them is
-        # written. The check and the writes hold the forget fence together, so a forget running now finishes
-        # first and none can land between them.
-        source = [str(msg.get("content") or "") for msg in list(messages or [])[-20:] if isinstance(msg, dict)]
-        with contextlib.ExitStack() as fence:
+        # the fenced block write let it through. Each fact's own source decides: a fact learned from words this
+        # chat has since forgotten (a completed forget, or one still under way) is not written; facts learned
+        # from other words are. The check and the writes hold the forget fence together, so a forget running
+        # now finishes first and none can land between them.
+        turns = _conversation_turns(messages)
+        home = getattr(self._memory, "_authority_home", None)
+        self._learned: list[tuple[str, str, str, str]] = []
+        with revocation.fence_first(home):
             try:
-                fence.enter_context(
-                    revocation.writing({"source": source}, None, getattr(self._memory, "_authority_home", None))
-                )
-            except RuntimeError:
-                return applied
-            self._learned: list[tuple[str, str, str]] = []
+                forgotten = revocation.revoked_tokens(self._session_id or None, home, owner_memory=self._memory)
+            except Exception:
+                return applied  # an unreadable forget record, or a forget not finished: learn nothing
             for fact in facts[:5]:
-                if self._apply(fact):
-                    applied.append(fact)
-            # Where each learned line came from, so a later forget of these words removes it, reworded or not.
+                sources = _fact_sources(fact, turns)
+                if any(carries(source, token) or (len(_learned_words(source)) >= 2 and carries(token, source))
+                       for source in sources for token in forgotten):
+                    continue
+                self._source = "\n".join(sources)
+                try:
+                    if self._apply(fact):
+                        applied.append(fact)
+                except RuntimeError:
+                    continue  # the fenced write refused forgotten words in the fact itself
+            # Where each learned line came from, so a later forget of its words removes it, reworded or not.
             record = getattr(self._memory, "learned_record", None)
             if self._learned and record is not None:
-                record(session_id=self._session_id, source_text="\n".join(source), items=self._learned)
+                record(session_id=self._session_id, items=self._learned)
         return applied
 
     def _format_conversation(self, messages: list[dict]) -> str:
         parts: list[str] = []
-        for msg in list(messages or [])[-20:]:
-            if not isinstance(msg, dict):
-                continue
-            role = str(msg.get("role") or "unknown").strip().lower()
-            if role not in {"user", "assistant"}:
-                continue
-            content = _message_content_text(msg.get("content", ""))
-            content = _redact_sensitive_text(content)[:500].strip()
+        for turn, role, raw in _numbered_messages(messages):
+            content = _redact_sensitive_text(_message_content_text(raw))[:500].strip()
             if content:
-                parts.append(f"{role}: {content}")
+                parts.append(f"turn {turn} {role}: {content}")
         return "\n".join(parts)
 
     def _user_text(self, messages: list[dict]) -> str:
@@ -466,6 +471,7 @@ class FactExtractor:
                     content=str(item.get("content") or "").strip(),
                     old=str(item.get("old") or "").strip(),
                     new=str(item.get("new") or "").strip(),
+                    turns=_cited_turns(item.get("turns", item.get("turn"))),
                 )
             )
         return facts
@@ -521,7 +527,7 @@ class FactExtractor:
     def _learned_item(self, block: str, line: str, node_id: str) -> None:
         learned = getattr(self, "_learned", None)
         if learned is not None and (line or node_id):
-            learned.append((block, line, node_id))
+            learned.append((block, line, node_id, getattr(self, "_source", "")))
 
     def _store_fact_node(self, *, content: str, block: str, action: str) -> str:
         if not self._session_id:
@@ -703,18 +709,71 @@ def _standing_direction_facts(declarative_text: str) -> list[ExtractedFact]:
     return facts
 
 
+#: A user line of the conversation the extractor reads ("turn 3 user: ..."; unnumbered "user: ..." also reads).
+_USER_LINE_RE = re.compile(r"^(?:turn\s+\d+\s+)?user:(.*)$", re.IGNORECASE | re.DOTALL)
+
+
 def _declarative_user_lines(conversation: str) -> list[str]:
     lines: list[str] = []
     for raw_line in str(conversation or "").splitlines():
-        line = raw_line.strip()
-        if not line.lower().startswith("user:"):
+        match = _USER_LINE_RE.match(raw_line.strip())
+        if not match:
             continue
-        text = line.split(":", 1)[1].strip()
+        text = match.group(1).strip()
         lowered = text.lower().lstrip()
         if "?" in text or lowered.startswith(("what ", "who ", "which ", "where ", "when ", "why ", "how ")):
             continue
         lines.append(text)
     return lines
+
+
+def _numbered_messages(messages: list[dict]):
+    """(turn number, role, content) of the conversation the extractor reads: the last 20 user and assistant
+    messages, a turn per user message (from 1) with the replies that follow it."""
+    turn = 0
+    for msg in list(messages or [])[-20:]:
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role") or "unknown").strip().lower()
+        if role not in {"user", "assistant"}:
+            continue
+        if role == "user" or turn == 0:
+            turn += 1
+        yield turn, role, msg.get("content", "")
+
+
+def _conversation_turns(messages: list[dict]) -> dict[int, str]:
+    """The person's own words of each numbered turn."""
+    turns: dict[int, str] = {}
+    for turn, role, raw in _numbered_messages(messages):
+        if role == "user":
+            turns[turn] = " ".join(part for part in (turns.get(turn, ""), _message_content_text(raw)) if part)
+    return turns
+
+
+def _cited_turns(value) -> tuple[int, ...]:
+    items = value if isinstance(value, list) else [value]
+    cited = []
+    for item in items:
+        with contextlib.suppress(TypeError, ValueError):
+            cited.append(int(item))
+    return tuple(number for number in cited if number > 0)
+
+
+def _fact_sources(fact: ExtractedFact, turns: dict[int, str]) -> list[str]:
+    """The words one learned fact came from: the clauses of the person's turns that share the most content words
+    with it. When its words match no clause, the turns the model cited; when it cited none it can use, every
+    turn it read (a fact nobody can place goes with any of them)."""
+    words = _learned_words(fact.content or fact.new)
+    scored = [(len(words & _learned_words(clause)), clause)
+              for _number, text in sorted(turns.items()) for clause in _learned_clauses(text)]
+    best = max((score for score, _clause in scored), default=0)
+    if best:
+        return list(dict.fromkeys(clause for score, clause in scored if score == best))
+    cited = [turns[number] for number in fact.turns if str(turns.get(number) or "").strip()]
+    if cited:
+        return cited
+    return [text for _number, text in sorted(turns.items()) if text.strip()]
 
 
 def _merge_facts(facts: list[ExtractedFact]) -> list[ExtractedFact]:
