@@ -225,7 +225,12 @@ def test_a_resource_gated_model_is_abandoned_not_re_asked() -> None:
 
 def test_the_failure_sentence_names_the_model_that_answered() -> None:
     """Live: two dead qwen3:14b attempts, nemotron answered and returned empty — and the operator
-    was told qwen3:14b answered."""
+    was told qwen3:14b answered.
+
+    The person-facing sentence names no model at all since the plain-words failure texts
+    (tests/test_failure_texts_plain_words.py): the model that answered is named in the report's
+    own "Audited stepwise by" line and the call record. What this pins is the fact the incident got
+    wrong: the sentence says the service ANSWERED (empty), and never names the dead model."""
     from types import SimpleNamespace
 
     from core.agent_runtime.stepped_audit import _failure_sentence
@@ -233,5 +238,6 @@ def test_the_failure_sentence_names_the_model_that_answered() -> None:
     last = SimpleNamespace(error="", text="", model_name="vendor/answering-model")
     sentence = _failure_sentence(["qwen3:14b:model_load_gated_low_memory"], last, "vendor/answering-model")
 
-    assert "vendor/answering-model" in sentence
     assert "qwen3:14b" not in sentence
+    assert "was reached" in sentence and "came back empty" in sentence, sentence
+    assert "could not be reached" not in sentence, sentence
