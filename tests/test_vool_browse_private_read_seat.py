@@ -81,12 +81,12 @@ def test_the_private_list_is_closed_reads_only_and_apart_from_the_social_list():
         is_egress_tool,
     )
 
-    assert SKILL_SEATABLE_PRIVATE_READS == {
+    assert {
         "pdf.extract_text", "pdf.ocr", "machine.disk_usage", "machine.find_largest",
         "machine.list_directory", "machine.find_file", "machine.read_file", "workspace.identity",
         "workspace.list_tree", "workspace.read_file", "workspace.search_text",
         "workspace.symbol_search", "workspace.git_diff",
-    }
+    } == SKILL_SEATABLE_PRIVATE_READS
     assert not SKILL_SEATABLE_PRIVATE_READS & (SKILL_SEATABLE_READS | SKILL_SEATABLE_PROPOSALS)
     contracts = runtime_tool_contract_map()
     for intent in SKILL_SEATABLE_PRIVATE_READS:
