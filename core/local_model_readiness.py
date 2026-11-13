@@ -311,6 +311,8 @@ def model_in_use(boot_model: str) -> str:
 
     Boot names its primary before the boot check has run; when that model is not ready and
     another local model is, turns answer with the ready one, so that is the one to name.
+    It reads the certification store directly (no cache): a label read at boot must never leave a
+    "not ready" verdict behind for the first turns after the model was certified.
     """
 
     tag = str(boot_model or "").strip()
@@ -320,14 +322,14 @@ def model_in_use(boot_model: str) -> str:
         from core.model_registry import ModelRegistry
 
         manifests = [m for m in ModelRegistry().list_manifests(enabled_only=True) if manifest_is_local(m)]
-        if not any(author_certification(m).certified for m in manifests):
+        if not any(author_certification(m, use_cache=False).certified for m in manifests):
             # Nothing is ready yet. While boot (or the button) is making a model ready, that is the
             # model VOOL is about to use, not the boot guess the check will replace.
             return _model_being_checked() or tag
         if tag.lower() not in unready_local_model_names(manifests):
             return tag
         for manifest in manifests:
-            if author_certification(manifest).certified:
+            if author_certification(manifest, use_cache=False).certified:
                 return str(manifest.model_name)
     except Exception:
         pass
@@ -357,7 +359,7 @@ def local_model_for_work(preferred: str) -> str:
             if manifest_is_local(m) and str(getattr(m, "provider_name", "")).startswith("ollama")
         ]
         names = [str(m.model_name) for m in manifests]
-        ready = [str(m.model_name) for m in manifests if author_certification(m).certified]
+        ready = [str(m.model_name) for m in manifests if author_certification(m, use_cache=False).certified]
         for pool in (ready, names):
             if not pool:
                 continue
