@@ -1331,7 +1331,7 @@ def _plain_key(name: str) -> str:
 
 def _skills_known_here(source_context: dict[str, Any] | None, session_id: str) -> tuple[list[str], set[str], set[str]]:
     """(names the person has, in list order; their plain keys; plain keys of Browse skills)."""
-    from core.native_skill_library import lane_for, load_skill_contracts, shown_to_people
+    from core.native_skill_library import developer_skill_ids, lane_for, load_skill_contracts, shown_to_people
     from core.skill_tools import list_skills
 
     have: list[str] = []
@@ -1352,9 +1352,11 @@ def _skills_known_here(source_context: dict[str, Any] | None, session_id: str) -
         for row in listed.get(section) or []:
             _add(str(row.get("name") or ""))
     try:
-        for contract in load_skill_contracts().contracts:
+        contracts = load_skill_contracts().contracts
+        developer = developer_skill_ids(contracts)
+        for contract in contracts:
             # Answer-style rules (the doctrine lane) are known, but not offered as skills to use.
-            if contract.source == "native" and shown_to_people(contract.id):
+            if contract.source == "native" and shown_to_people(contract.id, developer=developer):
                 _add(contract.id, named=lane_for(contract) != "doctrine")
     except Exception:
         pass

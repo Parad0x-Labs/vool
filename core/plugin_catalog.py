@@ -295,10 +295,11 @@ def _native_library_entry() -> dict[str, Any] | None:
     a library that cannot be read yields no entry rather than an error page.
     """
     try:
-        from core.native_skill_library import shown_to_people, skill_inventory
+        from core.native_skill_library import developer_skill_ids, shown_to_people, skill_inventory
 
         # VOOL's own developer skills are not listed for a person (developer setting off).
-        rows = [row for row in skill_inventory() if shown_to_people(str(row.get("id") or ""))]
+        developer = developer_skill_ids()
+        rows = [row for row in skill_inventory() if shown_to_people(str(row.get("id") or ""), developer=developer)]
     except Exception:
         return None
     if not rows:

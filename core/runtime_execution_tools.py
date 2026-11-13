@@ -9108,11 +9108,12 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
     # VOOL's own developer skills are not the person's: never listed unless the developer setting
     # is on. And a workspace that is VOOL's own program folder (the 0.7.5 Linux launcher made it
     # so) holds the built-ins' source files, which are not skills the person made.
-    from core.native_skill_library import native_skills_root, shown_to_people
+    from core.native_skill_library import developer_skill_ids, native_skills_root, shown_to_people
 
+    developer = developer_skill_ids()
     native_rows = [
         row for row in (result.get("native_skills") or [])
-        if shown_to_people(str(row.get("name") or ""))
+        if shown_to_people(str(row.get("name") or ""), developer=developer)
     ]
     try:
         own_library = native_skills_root().resolve()

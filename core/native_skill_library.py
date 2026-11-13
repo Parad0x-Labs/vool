@@ -438,15 +438,25 @@ def is_developer_skill(skill_id: str) -> bool:
     person-facing list and the per-turn guidance decide with this mark.
     """
     cleaned = str(skill_id or "").strip().lower()
-    if not cleaned:
-        return False
-    try:
-        contracts = load_skill_contracts().contracts
-    except Exception:
-        return False
-    return any(
-        contract.audience == "developer" and cleaned in {contract.id.lower(), contract.name.lower()}
-        for contract in contracts
+    return bool(cleaned) and cleaned in developer_skill_ids()
+
+
+def developer_skill_ids(contracts: Iterable[SkillContract] | None = None) -> frozenset[str]:
+    """The ids and names (lower case) of every developer skill, from one library load.
+
+    A list that asks `shown_to_people` row by row hands this set in, so the library loads once
+    per list and not once per row: the add-ons page loaded it 27 times for one catalog read,
+    which took ten seconds after a chat turn (CI #681). A caller that already holds the loaded
+    contracts passes them. Nothing is kept between calls.
+    """
+    if contracts is None:
+        try:
+            contracts = load_skill_contracts().contracts
+        except Exception:
+            return frozenset()
+    return frozenset(
+        name.lower() for contract in contracts if contract.audience == "developer"
+        for name in (contract.id, contract.name) if name
     )
 
 
@@ -595,9 +605,17 @@ def everyday_sense_only(user_text: str) -> bool:
     return says and not about_code(text)
 
 
-def shown_to_people(skill_id: str) -> bool:
-    """Whether a person-facing list or a turn may carry this skill."""
-    return developer_skills_on() or not is_developer_skill(skill_id)
+def shown_to_people(skill_id: str, *, developer: frozenset[str] | None = None) -> bool:
+    """Whether a person-facing list or a turn may carry this skill.
+
+    ``developer`` is `developer_skill_ids()` read once by a caller that asks for many rows.
+    """
+    if developer_skills_on():
+        return True
+    if developer is None:
+        return not is_developer_skill(skill_id)
+    cleaned = str(skill_id or "").strip().lower()
+    return not (cleaned and cleaned in developer)
 
 
 def load_native_library(root: Path | None = None) -> LibraryLoad:
@@ -2094,6 +2112,7 @@ __all__ = [
     "contract_from_frontmatter",
     "contract_to_dict",
     "contract_violations",
+    "developer_skill_ids",
     "developer_skills_on",
     "disabled_skill_ids",
     "guidance_for_selection",
