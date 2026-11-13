@@ -496,7 +496,7 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
     if isinstance(raw_provider, str) and raw_provider.strip():
         prov = raw_provider.strip().lower()
         if prov not in PROVIDERS:
-            return apply_runtime_headers(json_response(400, {"error": "unknown provider"}), runtime)
+            return apply_runtime_headers(json_response(400, {"error": "unknown provider", "code": "unknown_provider"}), runtime)
         name = slot_for(prov)
     raw_name = body.get("name")
     if isinstance(raw_name, str) and raw_name.strip():
@@ -741,7 +741,7 @@ def set_cloud_model_authority(body: dict, headers: dict, runtime, client_host: s
     from core.plugin_providers import usable_provider
 
     if model_provider is not None and model_provider not in PROVIDERS and not usable_provider(model_provider):
-        return apply_runtime_headers(json_response(400, {"error": "unknown provider"}), runtime)
+        return apply_runtime_headers(json_response(400, {"error": "unknown provider", "code": "unknown_provider"}), runtime)
 
     # A11 SERVER-OWNED PAID AUTHORITY: classification runs through the ONE server-owned
     # classifier every surface converges on (this endpoint, the chat command, NL intents,
@@ -867,7 +867,7 @@ def set_cloud_model_authority(body: dict, headers: dict, runtime, client_host: s
                 if not register_chat_cloud_model(provider, chosen):
                     raise ValueError("Provider endpoint unavailable")
             except Exception:
-                return apply_runtime_headers(json_response(503, {"ok": False, "error": "model registration unavailable"}), runtime)
+                return apply_runtime_headers(json_response(503, {"ok": False, "error": "model registration unavailable", "code": "model_unresolvable"}), runtime)
         if confirm_paid and chosen and _cost["cost_state"] != "free":
             from core.model_price_acceptance import record_acceptance
 

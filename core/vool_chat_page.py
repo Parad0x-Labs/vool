@@ -9991,9 +9991,16 @@ async function runTurn(text, queueItemId, opts) {
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
       const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
       run.error = reason || String(res.status);
-      run.text = reason
+      let refusedText = reason
         ? pageT('run.refused_reason', 'VOOL did not run this turn.')
         : pageT('run.refused_status', 'VOOL did not run this turn.');
+      // A known cause reads its own keyed reason, picked by the typed field, never the words:
+      // a chat that is not active (archived, deleted) by its lifecycle state, an outage by its
+      // 5xx status class. Anything else keeps the one keyed sentence above.
+      const lifecycle = (refusal && typeof refusal.lifecycle_state === 'string' && /^[a-z_]{1,32}$/.test(refusal.lifecycle_state)) ? refusal.lifecycle_state : '';
+      if (lifecycle && lifecycle !== 'active') refusedText = pageT('run.refused.chat_' + lifecycle, pageT('run.refused.chat_inactive', refusedText));
+      else if (res.status >= 500) refusedText = pageT('run.refused.unavailable', refusedText);
+      run.text = refusedText;
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
       if (run.textEl) run.textEl.textContent = run.text;
       finishRun(run, 'failed', run.text);
@@ -10594,6 +10601,18 @@ async function uploadAttachment(item, chatId) {
       // in place. The chip reads one keyed sentence, never the server's own words.
       item.state = 'failed';
       item.error = pageT('attach.upload_failed_http', 'The file could not be uploaded.');
+      // A known refusal reads its own keyed reason, picked by the door's typed code (too large,
+      // not what its name says, a secret inside...), filled from this page's own facts: the
+      // file's name and the limits it already shows. The door's words never reach the chip.
+      const refusalCode = (data && typeof data.error === 'string' && /^[a-z_]{1,64}$/.test(data.error)) ? data.error : '';
+      if (refusalCode) {
+        item.error = pageTF('attach.refused.' + refusalCode, item.error, {
+          name: item.name || (item.file && item.file.name) || pageT('attach.attachment', 'attachment'),
+          limit: fmtBytes(ATTACH_LIMITS.max_bytes_per_file),
+          total: fmtBytes(ATTACH_LIMITS.max_bytes_per_turn),
+          count: ATTACH_LIMITS.max_files_per_turn,
+        });
+      }
       item.retryable = !(data && data.error && res.status < 500 && data.error !== 'upload_failed');
       // A FINAL refusal (a secret, an unsupported type, over the limit) takes its marker home: the
       // composer returns to its pre-paste bytes; the chip stays, red, with the door's reason.
@@ -12179,17 +12198,21 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
       refreshSelectionProvenance();
       return true;
     }
-    throw new Error((j && (j.message || j.error)) || 'Could not select this model. Try again.');
+    const refused = new Error((j && (j.message || j.error)) || 'Could not select this model. Try again.');
+    // The typed refusal code picks a keyed reason; the server's words stay in the throw only.
+    refused.voolRefusalCode = (j && typeof j.code === 'string' && /^[a-z_]{1,64}$/.test(j.code)) ? j.code : '';
+    throw refused;
   } catch (e) {
     if (!stillCurrent()) return false;
     // The server's own refusal words never reach the person: one keyed sentence.
     // dataset.selectionError rides the row hint, so it carries the keyed sentence too.
     // A pick that ran out of time says so (the 20 s wait above), so the person checks the
-    // connection instead of the model; every other failure keeps the one keyed sentence.
+    // connection instead of the model; a known refusal (a model the provider cannot resolve)
+    // reads its own keyed reason; every other failure keeps the one keyed sentence.
     const message = pageT('chat.model_switch_failed', 'That model could not be picked. The old one stays.');
     const shown = (e && e.voolSelectionTimeout)
       ? pageT('chat.model_switch_timeout', 'Picking that model took too long. The old one stays. Check the connection and try again.')
-      : message;
+      : ((e && e.voolRefusalCode) ? pageT('chat.model_switch_refused.' + e.voolRefusalCode, message) : message);
     if (rowEl) {
       rowEl.dataset.selectionError = shown;
       const hint = rowEl.querySelector('.pi-hint');

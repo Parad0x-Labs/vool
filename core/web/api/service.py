@@ -5109,7 +5109,11 @@ def _dispatch_post_inner(
                                     "error": (
                                         "the workspace in the request does not match this chat's "
                                         "actual workspace; reload the page and approve again"
-                                    )
+                                    ),
+                                    # Typed, so the page shows its own keyed sentence for it
+                                    # (bypass.readiness.workspace_changed), never these words.
+                                    "reason": "bypass_workspace_required",
+                                    "workspace_reason": "workspace_changed",
                                 },
                             ),
                             runtime,
@@ -5251,7 +5255,11 @@ def _dispatch_post_inner(
                                     "error": (
                                         "the workspace in the request does not match this chat's "
                                         "actual workspace; reload the page and approve again"
-                                    )
+                                    ),
+                                    # Typed, so the page shows its own keyed sentence for it
+                                    # (bypass.readiness.workspace_changed), never these words.
+                                    "reason": "bypass_workspace_required",
+                                    "workspace_reason": "workspace_changed",
                                 },
                             ),
                             runtime,
