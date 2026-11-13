@@ -570,6 +570,15 @@ _PROCESS_WORDS_RE = re.compile(
 )
 
 
+_ASKS_VOOLS_OWN_TOOLS_RE = re.compile(
+    r"\b(?:your|vool'?s?|assistant'?s?)\s+(?:own\s+)?(?:tools?|plugins?|skills?|abilities|capabilities)\b"
+    r"|\bwhat\s+(?:tools|plugins|skills)\s+(?:do\s+you|can\s+you|are\s+(?:available|installed))\b"
+    r"|\bwhat\s+can\s+you\s+do\b|\bcapabilit(?:y|ies)\b|\blist\s+(?:all\s+)?(?:the\s+)?(?:available\s+|your\s+)?tools\b",
+    re.IGNORECASE,
+)
+_DATABASE_TURN_DROPS = frozenset({"operator.list_tools", "capability.expand_family"})
+
+
 def _database_ask(text: str) -> bool:
     try:
         from core.tool_demand_signals import asks_for_database_work
@@ -1917,6 +1926,13 @@ def assemble_tool_offer(
     if database_seats or _database_ask(str(user_text or "")):
         if not _PROCESS_WORDS_RE.search(str(user_text or "")):
             specs = [spec for spec in specs if spec.get("intent") != "operator.inspect_processes"]
+        # Mac run 16i (d5d044b0): "how many tools are there" in a toolshed database, "who joined most recently"
+        # and "add a condition column to the tools table" were sent to the tool listing and to capability
+        # expansion, never to the database ("the family database is not a recognized capability family").
+        # The person's tables are what a database turn is about; the listing stays for an ask about VOOL's own
+        # tools, and expansion for a turn whose words name another family.
+        if not _ASKS_VOOLS_OWN_TOOLS_RE.search(str(user_text or "")):
+            specs = [spec for spec in specs if spec.get("intent") not in _DATABASE_TURN_DROPS]
     from core.vool_browser.live_contracts import SUPPORTED as BROWSER_INTENTS
     from core.vool_browser.live_requests import confined as browser_confined
     from core.vool_browser.live_requests import requested as browser_requested

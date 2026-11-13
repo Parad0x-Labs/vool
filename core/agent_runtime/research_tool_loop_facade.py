@@ -387,12 +387,80 @@ def _database_call_payload(question: str) -> dict[str, Any] | None:
     }
 
 
+def _database_refusal(intent: str, message: str, reason: str) -> Any:
+    """A typed `sql_error` the loop hands back to the model like any other correctable mistake."""
+    from core.execution.models import ToolIntentExecution
+
+    return ToolIntentExecution(
+        handled=True,
+        ok=False,
+        status="sql_error",
+        mode="refused",
+        tool_name=intent,
+        response_text=message,
+        user_safe_response_text=message,
+        details={"executed": False, "reason": reason},
+    )
+
+
+_WHERE_LITERAL_RE = re.compile(r"'([^']{2,40})'")
+_ONE_TOP_ROW_RE = re.compile(r"\blimit\s+1\b(?!\d)", re.IGNORECASE)
+_WANTS_ONE_TOP_ROW_RE = re.compile(
+    r"\b(?:most|least|largest|biggest|smallest|highest|lowest|soonest|latest|earliest|oldest|newest|first|last|top|next|"
+    r"recent(?:ly)?|best|worst|cheapest|longest|shortest|max(?:imum)?|min(?:imum)?|expensive|which\s+one|the\s+one)\b",
+    re.IGNORECASE,
+)
+
+
+def _database_query_carries_over_the_last_ask(sql: str, question: str, steps: list[dict[str, Any]]) -> str:
+    """The refusal text when this query filters on a value the question never names, or keeps only one top row
+    the question never asked for; "" otherwise. The local model copies the previous turn's query into a follow-up
+    (Mac run 16i on d5d044b0: "whats on the middle shelf" came back as the soonest-expiring item, "how many are
+    still unopened" counted only the bottom shelf). Said once per turn: when the model sends the same thing
+    again after being told, it runs, so a question worded in words the check cannot match is never stuck."""
+    import difflib
+
+    text = str(question or "").lower()
+    words = re.findall(r"[a-z0-9]+", text)
+    told = " ".join(
+        str(step.get("observation") or "") for step in steps if step.get("correction") and isinstance(step.get("observation"), str)
+    ).lower()
+    where = re.split(r"\bwhere\b", sql, maxsplit=1, flags=re.IGNORECASE)
+    for literal in _WHERE_LITERAL_RE.findall(where[1] if len(where) == 2 else ""):
+        value = literal.strip("% ").lower()
+        if not value or re.fullmatch(r"[\d\s:./-]+", value) or f"filters on '{value}'" in told:
+            continue
+        parts = re.findall(r"[a-z0-9]+", value)
+        if value in text or any(
+            part in text or any(difflib.SequenceMatcher(None, part, word).ratio() >= 0.72 for word in words)
+            for part in parts
+        ):
+            continue
+        return (
+            f"This query filters on '{value}', and the question does not mention it. Take that filter out unless "
+            "the question asked for it, then call again."
+        )
+    if (
+        _ONE_TOP_ROW_RE.search(sql)
+        and re.search(r"\border\s+by\b", sql, re.IGNORECASE)
+        and not _WANTS_ONE_TOP_ROW_RE.search(text)
+        and "keeps only one row" not in told
+    ):
+        return (
+            "This query keeps only one row (ORDER BY ... LIMIT 1), and the question did not ask for a single "
+            "top row. Show every row that fits the question and call again."
+        )
+    return ""
+
+
 _ASKS_OLDEST_RE = re.compile(r"\b(?:oldest|earliest)\b", re.IGNORECASE)
 _ASKS_NEWEST_RE = re.compile(r"\b(?:newest|latest|most\s+recent(?:ly)?)\b", re.IGNORECASE)
 _ORDER_DIRECTION_RE = re.compile(r"\border\s+by\s+[^;]*?\b(asc|desc)\b", re.IGNORECASE)
 
 
-def _database_query_contradicts_the_ask(intent: str, payload: dict[str, Any], question: str) -> Any:
+def _database_query_contradicts_the_ask(
+    intent: str, payload: dict[str, Any], question: str, steps: list[dict[str, Any]] | None = None
+) -> Any:
     """Refuse a query that sorts the wrong way for what was asked ("oldest" sorted DESC), before it runs.
 
     Database run 16g: "what's the oldest book" was answered Kafka (2002) from `ORDER BY year DESC LIMIT 1`. The
@@ -400,6 +468,9 @@ def _database_query_contradicts_the_ask(intent: str, payload: dict[str, Any], qu
     if intent != "vool-database.query":
         return None
     sql = str(dict(payload.get("arguments") or {}).get("sql") or "")
+    carried = _database_query_carries_over_the_last_ask(sql, question, steps or [])
+    if carried:
+        return _database_refusal(intent, carried, "query_carries_over_from_the_last_ask")
     match = _ORDER_DIRECTION_RE.search(sql)
     if not match:
         return None
@@ -413,18 +484,7 @@ def _database_query_contradicts_the_ask(intent: str, payload: dict[str, Any], qu
         message = "The question asks for the NEWEST, but this query sorts ASC, which puts the oldest first. Sort DESC (ORDER BY ... DESC) and call again."
     else:
         return None
-    from core.execution.models import ToolIntentExecution
-
-    return ToolIntentExecution(
-        handled=True,
-        ok=False,
-        status="sql_error",
-        mode="refused",
-        tool_name=intent,
-        response_text=message,
-        user_safe_response_text=message,
-        details={"executed": False, "reason": "query_sorts_against_the_ask"},
-    )
+    return _database_refusal(intent, message, "query_sorts_against_the_ask")
 
 
 _QUESTION_STOP_WORDS = frozenset(
@@ -462,6 +522,31 @@ def _database_call_suggestion(question: str) -> str:
         return suggest_database_query(question)
     except Exception:
         return ""
+
+
+_HOLDING_RE = re.compile(
+    r"\b(?:holding|holds?|checked\s+out|borrow(?:ed|ing|s)?|lent|lends?|have\s+(?:anything|any|everything)|"
+    r"has\s+(?:anything|any|had|everything)|given\s+(?:\w+\s+)?back|returned|still\s+(?:have|has|got)|"
+    r"out\s+right\s+now|taken\s+out|who\s+has)\b",
+    re.IGNORECASE,
+)
+
+
+def _database_join_missing(question: str, steps: list[dict[str, Any]]) -> bool:
+    """A question about who holds or has had what, that a query read without ever joining the link table.
+
+    Mac run 16i: "does Yara have anything checked out" was answered from the one members row ("Yara, joined
+    2025-01-09"); the loans were never read. The ask has a ready join (`suggest_database_query`); until a query
+    this turn joined, the reply is not an answer to it."""
+    if not _HOLDING_RE.search(str(question or "")):
+        return False
+    if " join " not in f" {_database_call_suggestion(question).lower()} ":
+        return False
+    for step in steps:
+        if str(step.get("tool_name") or "") == "vool-database.query" and step.get("ok") is True:
+            if re.search(r"\bjoin\b", str(dict(step.get("arguments") or {}).get("sql") or ""), re.IGNORECASE):
+                return False
+    return True
 
 
 def _is_database_no_answer(text: str) -> bool:
@@ -1463,6 +1548,7 @@ class ResearchToolLoopFacadeMixin:
         executed_steps: list[dict[str, Any]],
         loop_source_context: dict[str, Any],
         seen_tool_payloads: set[str],
+        question: str = "",
     ) -> bool:
         """Hand a correctable argument error back to the model instead of ending the turn.
 
@@ -1522,6 +1608,7 @@ class ResearchToolLoopFacadeMixin:
                     if task_plane_refusal
                     else f"The call to {intent} failed and nothing was changed: {detail} "
                     "Use the exact names it lists and call the tool again."
+                    + (f" A call that fits the question: {_fit}." if (_fit := _database_call_suggestion(question)) and corrections >= 1 else "")
                     if database_refusal
                     else f"The call to {intent} did not run, and no tool that goes online or sends anything "
                     "will run on this turn. Answer the person's request now from what this turn has already "
@@ -2072,10 +2159,15 @@ class ResearchToolLoopFacadeMixin:
                         selected_response
                         and direct_message is not None
                         and database_no_tool_corrections < 3
-                        and _is_database_no_answer(direct_message)
                         and (
-                            not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
-                            or _database_last_result_empty(executed_steps)
+                            (
+                                _is_database_no_answer(direct_message)
+                                and (
+                                    not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
+                                    or _database_last_result_empty(executed_steps)
+                                )
+                            )
+                            or _database_join_missing(effective_input, executed_steps)
                         )
                         and _database_work_turn(effective_input, loop_source_context)
                     ):
@@ -2102,7 +2194,7 @@ class ResearchToolLoopFacadeMixin:
                         selected_response
                         and direct_message is not None
                         and database_no_tool_corrections in (1, 2)
-                        and _is_database_no_answer(direct_message)
+                        and (_is_database_no_answer(direct_message) or _database_join_missing(effective_input, executed_steps))
                         and _database_work_turn(effective_input, loop_source_context)
                     ):
                         executed_steps.append(
@@ -2441,7 +2533,7 @@ class ResearchToolLoopFacadeMixin:
 
                 gating_source_context = {**gating_source_context, ASK_TEXT_KEY: str(effective_input or "")}
             execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
-                tool_name, tool_payload, effective_input
+                tool_name, tool_payload, effective_input, executed_steps
             ) or self._execute_tool_intent(
                 tool_payload,
                 task_id=task.task_id,
@@ -2880,6 +2972,7 @@ class ResearchToolLoopFacadeMixin:
                 executed_steps=executed_steps,
                 loop_source_context=loop_source_context,
                 seen_tool_payloads=seen_tool_payloads,
+                question=effective_input,
             ):
                 continue
 
