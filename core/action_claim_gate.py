@@ -101,6 +101,14 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"\b(?:skills?|comp[ée]tences?|habilidad(?:es)?|f[äa]higkeit(?:en)?)\b", re.I),
     ),
     (
+        # Chat on the built-in Database is read-only in 0.8 (no create, add, insert or delete), so a
+        # "created" or "added" database is always a claim nothing backs. Mac 2026-11-13 on f50e52eb,
+        # qwen3:8b: "I've created a new database called 'freezer' ... I've added the following rows",
+        # with no tool run and no file made.
+        "database",
+        re.compile(r"\b(?:databases?|db|base(?:s)? de donn[ée]es|bases? de datos|datenbank(?:en)?)\b", re.I),
+    ),
+    (
         "contacts",
         re.compile(
             r"\b(?:contacts?(?: list)?|address book|phone ?book|contactos?|kontakte?|kontaktliste"
@@ -511,6 +519,8 @@ _LINES: dict[str, dict[str, str]] = {
         "notes_read": "I haven't looked through your notes. Ask me to search your notes and I'll look.",
         "device_read": "I haven't checked your other machine.",
         "contacts": "No contact was saved or changed. Ask me again and I'll use your contacts.",
+        "database": "I can't create or change a database from chat. Nothing was made.",
+        "database_read": "I haven't read your database in this reply. Ask me again and I'll run the query.",
         "contacts_read": "I haven't looked in your contacts. Ask me to look them up and I'll check.",
         "memory": "Nothing was saved: no tool stored it. Ask me to save it as a note and I'll keep it.",
         "generic": "Nothing was done yet: no tool ran for this request. Ask again and I'll do it with the right tool.",
@@ -536,6 +546,8 @@ _LINES: dict[str, dict[str, str]] = {
         "notes_read": "Je n'ai pas parcouru vos notes. Demandez-moi de chercher dans vos notes et je regarderai.",
         "device_read": "Je n'ai pas vérifié votre autre machine.",
         "contacts": "Aucun contact n'a été enregistré ni modifié. Redemandez et j'utiliserai vos contacts.",
+        "database": "Je ne peux pas créer ni modifier une base de données depuis le chat. Rien n'a été créé.",
+        "database_read": "Je n'ai pas lu votre base de données dans cette réponse. Redemandez et je lancerai la requête.",
         "contacts_read": "Je n'ai pas consulté vos contacts. Demandez-moi de les chercher et je vérifierai.",
         "memory": "Rien n'a été enregistré : aucun outil ne l'a conservé. Demandez-moi de l'enregistrer comme note et je le garderai.",
         "generic": "Rien n'a encore été fait : aucun outil n'a été utilisé pour cette demande. Redemandez et je le ferai avec le bon outil.",
@@ -561,6 +573,8 @@ _LINES: dict[str, dict[str, str]] = {
         "notes_read": "No he revisado tus notas. Pídeme que busque en tus notas y lo miraré.",
         "device_read": "No he revisado tu otra máquina.",
         "contacts": "No se ha guardado ni cambiado ningún contacto. Vuelve a pedirlo y usaré tus contactos.",
+        "database": "No puedo crear ni cambiar una base de datos desde el chat. No se ha creado nada.",
+        "database_read": "No he leído tu base de datos en esta respuesta. Vuelve a pedirlo y haré la consulta.",
         "contacts_read": "No he mirado tus contactos. Pídeme que los busque y lo comprobaré.",
         "memory": "No se ha guardado nada: ninguna herramienta lo almacenó. Pídeme que lo guarde como nota y lo conservaré.",
         "generic": "Todavía no se ha hecho nada: no se usó ninguna herramienta para esta petición. Vuelve a pedirlo y lo haré con la herramienta adecuada.",
@@ -586,6 +600,8 @@ _LINES: dict[str, dict[str, str]] = {
         "notes_read": "Ich habe deine Notizen nicht durchgesehen. Bitte mich, deine Notizen zu durchsuchen, und ich sehe nach.",
         "device_read": "Ich habe dein anderes Gerät nicht geprüft.",
         "contacts": "Es wurde kein Kontakt gespeichert oder geändert. Frag noch einmal, und ich nutze deine Kontakte.",
+        "database": "Ich kann im Chat keine Datenbank anlegen oder ändern. Es wurde nichts angelegt.",
+        "database_read": "Ich habe deine Datenbank in dieser Antwort nicht gelesen. Frag noch einmal, und ich führe die Abfrage aus.",
         "contacts_read": "Ich habe deine Kontakte nicht durchgesehen. Bitte mich, sie nachzuschlagen, und ich sehe nach.",
         "memory": "Es wurde nichts gespeichert: Kein Werkzeug hat es abgelegt. Bitte mich, es als Notiz zu speichern, und ich behalte es.",
         "generic": "Es wurde noch nichts gemacht: Für diese Anfrage lief kein Werkzeug. Frag noch einmal, und ich mache es mit dem richtigen Werkzeug.",
@@ -728,14 +744,22 @@ _FLUFF = re.compile(
 )
 
 
+_LIST_ITEM = re.compile(r"^\s*(?:\d{1,3}[.)]|[-*•])\s+\S")
+
+
 def _without_claims(content: str, spans: set[tuple[int, int, int]]) -> str:
     """``content`` with the claimed sentence spans cut out; '' when only filler would be left."""
     by_line: dict[int, list[tuple[int, int]]] = {}
     for index, a, b in spans:
         by_line.setdefault(index, []).append((a, b))
     kept_lines: list[str] = []
+    in_claimed_list = False
     for index, line in enumerate(str(content or "").split("\n")):
         cuts = sorted(by_line.get(index, []), reverse=True)
+        if in_claimed_list and not cuts and _LIST_ITEM.match(line):
+            # The items a removed claim introduced ("I've added the following rows:") are its content.
+            continue
+        in_claimed_list = bool(cuts) and line[max(b for _a, b in cuts):].strip() == "" and line[: max(b for _a, b in cuts)].rstrip().endswith(":")
         if not cuts:
             kept_lines.append(line)
             continue
