@@ -322,6 +322,24 @@ _RUN_RE = re.compile(
 )
 
 
+# An edit of a video or a recording ("cut the boring first ten seconds out of my holiday video") belongs to the media
+# tools and the media-studio skill, which only the normal lane seats; this loop has neither and only reads. It held the
+# turn once 5b20ca27 stopped reading "first ten" as a pointer into a list (CI #683, test_skill_picker_served_turns).
+_MEDIA_EDIT_RE = re.compile(
+    r"\b(?:cut|trim|crop|splice|mute|rotate|stabili[sz]e|speed\s+up|slow\s+down|add\s+(?:music|captions?|subtitles?)|"
+    r"fade|loop|reverse|join|merge)\b.{0,80}?\b(?:video|videos|clip|clips|footage|movie|film|recording|audio|song|track|"
+    r"podcast|voice\s*memo|mp4|mov|mkv|webm|mp3|wav|m4a)\b"
+    r"|\b(?:video|clip|footage|movie|recording|audio|song|podcast)\b.{0,40}?\b(?:cut|trim|crop|mute|rotate|shorter|louder|quieter)\b",
+    re.I,
+)
+
+
+def is_media_edit(text: str) -> bool:
+    value = str(text or "")
+    # "which recording did i cut last week" asks about one; an order or a request ("could you mute ...") edits one.
+    return bool(_MEDIA_EDIT_RE.search(value)) and (bool(_PERMISSION_RE.search(value)) or not is_question(value))
+
+
 def is_run_order(text: str) -> bool:
     value = str(text or "")
     for match in _RUN_RE.finditer(value):
@@ -687,6 +705,8 @@ def decide(
         return RouteDecision(False, "write_turn")
     if is_run_order(text):
         return RouteDecision(False, "run_turn")
+    if is_media_edit(text):
+        return RouteDecision(False, "media_edit_turn")
     if browser_turn:
         return RouteDecision(False, "browser_turn")
     blocked = _owner_context_blocks(dict(source_context or {}), session_id)
@@ -743,6 +763,7 @@ __all__ = [
     "is_notes_ask",
     "is_online_ask",
     "is_privacy_ask",
+    "is_media_edit",
     "is_question",
     "is_red",
     "is_run_order",
