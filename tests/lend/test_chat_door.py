@@ -150,6 +150,32 @@ def test_the_door_does_not_take_other_asks():
     assert kind_of_ask('send the bank csv to my desktop computer') == 'drop'
 
 
+@pytest.mark.parametrize('ask', [
+    # The words to add to a note are the note's text, not an ask (CI #681, the Notes account suite).
+    'append to my Apple note "Plan" in the Personal folder with "move it to the Work folder of the On My Mac account"',
+    'add “send the invoice to my laptop” to my shopping note',
+    # "On My Mac" is the Notes account and the Files place on this computer, not another computer.
+    'move my note "Plan" to the On My Mac account',
+    'rename the Plan note in the On My Mac folder to Plan v2',
+])
+def test_quoted_words_and_the_on_my_mac_account_are_not_a_drop_ask(ask):
+    from core.drop.chat_door import kind_of_ask
+
+    assert kind_of_ask(ask) == '', ask
+
+
+@pytest.mark.parametrize('ask, kind', [
+    ('send "report.pdf" to my laptop', 'drop'),
+    ('send this to my laptop: "buy milk"', 'drop'),
+    ('put the photo on my mac', 'drop'),
+    ('let my laptop finish the "export" job', 'lend'),
+])
+def test_a_quoted_name_in_a_real_ask_still_counts(ask, kind):
+    from core.drop.chat_door import kind_of_ask
+
+    assert kind_of_ask(ask) == kind, ask
+
+
 def test_an_email_ask_is_not_answered_by_the_door(drop_off):
     text = str(_run(NOT_OURS[0]).get('response') or '')
     assert 'Send with Drop' not in text and 'nothing was sent' not in text, text

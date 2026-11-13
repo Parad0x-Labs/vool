@@ -153,6 +153,12 @@ _OTHER_CHANNEL = re.compile(
 )
 _NEGATED = re.compile(r"\b(?:do\s+not|don(?:'|’)?t|dont|never|without)\s+(?:\w+\s+){0,2}?(?:send|push|drop|move|"
                       r"transfer|copy|put|share|hand|pass|give)\b", re.I)
+#: Words in double quotes are something the owner names or dictates (a note's title, the text to add to it),
+#: never the ask itself: 'append to my note "Plan" with "move it to my Mac"' asks nothing of Drop.
+_DOUBLE_QUOTED = re.compile(r'"[^"]*"|“[^”]*”|«[^»]*»|„[^“”]*[“”]')
+#: "On My Mac" is the name Apple gives to the notes, reminders and files kept on this computer (an account in
+#: Notes, a place in Files), not another computer to send to.
+_ON_MY_MAC_PLACE = re.compile(r"\bon\s+my\s+mac\b(?=\s+(?:account|folder|notes?|storage|location)\b)", re.I)
 #: "the macbook, yes": a short follow-up naming the computer, after a Drop or lending ask.
 _FOLLOW_UP_DEVICE = re.compile(r"\b" + _DEVICE + r"\b", re.I)
 
@@ -198,6 +204,7 @@ def kind_of_ask(text: str) -> str:
     # The words of a dictated note ("... saying don't forget to email the landlord") are the owner's note,
     # not their ask, so they never make it a question, a mail ask or a "don't send".
     value = _drop_parts(value)[3].strip()
+    value = _ON_MY_MAC_PLACE.sub("On_My_Mac", _DOUBLE_QUOTED.sub('""', value))
     if not value or _QUESTION.search(value) or _OTHER_CHANNEL.search(value) or _NEGATED.search(value):
         return ""
     if _LEND_ASK.search(value):
