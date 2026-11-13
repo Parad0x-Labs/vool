@@ -403,6 +403,12 @@ def trusted_remote_device(device_id: str):
         _TRUSTED_REMOTE_DEVICE.reset(token)
 
 
+def trusted_remote_device_active() -> bool:
+    """Whether a verified phone request (``trusted_remote_device``) is running its turn right now."""
+
+    return bool(_TRUSTED_REMOTE_DEVICE.get())
+
+
 def stamp_remote_device(source_context: dict[str, Any]) -> None:
     """Called by the chat door after the reserved keys were stripped and owner-local was derived."""
 
@@ -706,6 +712,7 @@ __all__ = [
     "stamp_remote_device",
     "strip_reserved_trust_keys",
     "trusted_remote_device",
+    "trusted_remote_device_active",
     "turn_author_from_request",
     "turn_is_owner_authored",
     "turn_is_remote",

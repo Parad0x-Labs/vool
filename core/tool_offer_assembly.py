@@ -31,6 +31,16 @@ Now both call `assemble_tool_offer`. It:
   write or delete, code tasks and repo sessions, email or send, wallet or payment and browser
   actions never are either. Reserved seats and explicitly demanded intents stay, unavailable and
   owner-only tools never seat, and plugin or MCP tools stay behind their family's expansion;
+- lets VOOL's own pinned Browse skill also seat a closed list of the owner's private reads
+  (``SKILL_SEATABLE_PRIVATE_READS``: PDF text, disk and file reads, workspace reads) when its own
+  list names them, the person's own words this turn really ask for it and ask for nothing online
+  or sent (security decision 2026-11-13, ``vool_browse_private_read_seats``). Such a turn is then
+  under the egress lock: its offer holds no tool that can reach a network or send
+  (``is_egress_tool``), the lock is frozen on the turn as a web prohibition
+  (``core.turn_prohibitions.freeze_skill_egress_lock``), the tool doors refuse those tools
+  (``skill_egress_lock_refusal``) and the fetch door refuses every socket, for the rest of the turn
+  only. A file's content can carry instructions; it never meets a network or send tool in the
+  same turn;
 - stamps the offer's provenance on the turn context (``_tool_offer``) so an executed turn can be
   audited against what was offered.
 
@@ -396,6 +406,11 @@ def skill_provenance_rows(rows: Any) -> list[dict[str, Any]]:
             entry["dropped"] = str(row.get("dropped"))
         if row.get("tools"):
             entry["tools"] = str(row.get("tools"))
+        if row.get("seated"):
+            # A private-read seat (``PrivateReadSeat.audit``): what it seated, from which pin, locked.
+            entry["seated"] = [str(intent) for intent in row.get("seated") or ()]
+            entry["pin_sha256"] = str(row.get("pin_sha256") or "")
+            entry["egress_locked"] = bool(row.get("egress_locked"))
         out.append(entry)
     return out
 
@@ -963,17 +978,19 @@ def skill_needs_lane_tools(name: str, lane_tools: frozenset[str]) -> bool:
     """Whether the added skill *name* is one of VOOL's own pinned Browse skills that declares tools,
     may seat none of them in the normal lane (``_skill_may_seat``), and finds some in *lane_tools*.
 
-    The seat law keeps the owner's private reads (machine, workspace, pdf, Apple Notes) and the
-    workflow planes off a skill, and the normal lane's own offer for these asks holds none of
-    them, so there such a skill names tools the turn does not have. Measured on the Mac A/B
-    (11eef8dc, loop on): pdf-document-review took "explain this pdf contract in Downloads" from the
-    clean loop, the offer held no pdf tool, the model tried workspace.read_file on
-    /Downloads/contract.pdf and the reply was "I wasn't able to turn that into a completed
-    action"; the loop itself answered "what does the lease pdf in my downloads say about notice"
-    from the file (machine.find_file, pdf.extract_text). A skill whose tools the lane does not hold
-    either (test-failure-helper's workspace tools) still keeps the normal lane, where its words at
-    least reach the turn. The person's own skills seat what they declare and any other added
-    skill's tools stay behind their family, so neither is judged here (False).
+    The social seat law keeps the owner's private reads (machine, workspace, pdf, Apple Notes) and
+    the workflow planes off a skill. Measured on the Mac A/B (11eef8dc, loop on):
+    pdf-document-review took "explain this pdf contract in Downloads" from the clean loop, the offer
+    held no pdf tool, the model tried workspace.read_file on /Downloads/contract.pdf and the reply
+    was "I wasn't able to turn that into a completed action"; the loop itself answered "what does
+    the lease pdf in my downloads say about notice" from the file (machine.find_file,
+    pdf.extract_text). The normal lane may now seat the closed list of private reads for such a
+    skill under the egress lock (``vool_browse_private_read_seats``); the loop keeps these asks all
+    the same, since it answers them with the same shape (local reads, no network), which is the
+    clean-loop owner's call to change. A skill whose tools the lane does not hold either
+    (test-failure-helper's workspace tools) still keeps the normal lane. The person's own skills
+    seat what they declare and any other added skill's tools stay behind their family, so neither
+    is judged here (False).
     """
     from core.skill_origin import ORIGIN_VOOL_BROWSE, origin_of
 
@@ -991,14 +1008,6 @@ def skill_needs_lane_tools(name: str, lane_tools: frozenset[str]) -> bool:
             and not any(_skill_may_seat(tool) for tool in declared)
             and any(tool in lane_tools for tool in declared)
         )
-    return False
-    for skill in loaded_skills():
-        if str(getattr(skill, "name", "") or "").strip().lower() != key:
-            continue
-        if origin_of(skill) != ORIGIN_VOOL_BROWSE:
-            return False
-        declared = tuple(str(tool) for tool in (getattr(skill, "allowed_tools", ()) or ()) if str(tool).strip())
-        return bool(declared) and not any(_skill_may_seat(tool) for tool in declared)
     return False
 
 
@@ -1157,27 +1166,41 @@ def matched_skill_tool_seats(
     return _real_match_declarations(candidates, text, limit=limit)
 
 
-def _real_match_declarations(candidates: tuple[Any, ...], text: str, *, limit: int) -> tuple[str, ...]:
-    """The ``allowed-tools`` the REALLY matched candidates declare, in rank order."""
+def _really_matched(candidates: tuple[Any, ...], text: str, *, limit: int) -> tuple[Any, ...]:
+    """The candidates the words REALLY match (``skill_match_is_real``), in rank order, at most *limit*."""
     from core.plugin_skills import rank_skills
 
     # Rank the WHOLE candidate set, then keep the real matches: the ranker itself only
     # returns its top `limit`, and one description-heavy skill must not crowd a real match
     # out of the slots before the real-match filter ever sees it.
     ranked = rank_skills(candidates, text, limit=max(limit, len(candidates)))
+    return tuple(skill for skill in ranked if skill_match_is_real(skill, text))[: max(0, limit)]
+
+
+def _real_match_declarations(candidates: tuple[Any, ...], text: str, *, limit: int) -> tuple[str, ...]:
+    """The ``allowed-tools`` the REALLY matched candidates declare, in rank order."""
     seats: list[str] = []
-    matched = 0
-    for skill in ranked:
-        if matched >= limit:
-            break
-        if not skill_match_is_real(skill, text):
-            continue
-        matched += 1
+    for skill in _really_matched(candidates, text, limit=limit):
         for name in getattr(skill, "allowed_tools", ()) or ():
             clean = str(name).strip()
             if clean and clean not in seats:
                 seats.append(clean)
     return tuple(seats)
+
+
+def _vool_browse_candidates(text: str) -> tuple[Any, ...]:
+    """VOOL's own pinned Browse skills that may answer *text*: not turned off, audience this turn."""
+    from core.skill_origin import ORIGIN_VOOL_BROWSE, origin_of
+
+    candidates = tuple(s for s in loaded_skills() if origin_of(s) == ORIGIN_VOOL_BROWSE)
+    disabled: set[str] = set()
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import disabled_skill_ids
+
+        disabled = set(disabled_skill_ids())
+    return _audience_ok(
+        tuple(s for s in candidates if str(getattr(s, "name", "") or "") not in disabled), text
+    )
 
 
 def vool_browse_skill_seats(
@@ -1188,26 +1211,213 @@ def vool_browse_skill_seats(
     Candidates are only skills whose origin is ``ORIGIN_VOOL_BROWSE`` (re-proved from the signed
     receipt and the shipped pin on every read), minus the ones the owner turned off and the ones
     whose audience this turn is not. Their declarations pass ``_social_seats``: available built-ins
-    on the social list only. The owner-local gate is the caller's (``_owner_skill_seats``).
+    on the social list only. The owner-local gate is the caller's (``_owner_skill_seats``). The
+    private reads such a skill may seat are a separate law (``vool_browse_private_read_seats``).
     """
     del source_context  # the same candidates on every surface; the caller gates the owner
     text = str(user_text or "").strip()
     if not text:
         return ()
-    from core.skill_origin import ORIGIN_VOOL_BROWSE, origin_of
-
-    candidates = tuple(s for s in loaded_skills() if origin_of(s) == ORIGIN_VOOL_BROWSE)
-    disabled: set[str] = set()
-    with contextlib.suppress(Exception):
-        from core.native_skill_library import disabled_skill_ids
-
-        disabled = set(disabled_skill_ids())
-    candidates = _audience_ok(
-        tuple(s for s in candidates if str(getattr(s, "name", "") or "") not in disabled), text
-    )
+    candidates = _vool_browse_candidates(text)
     if not candidates:
         return ()
     return _social_seats(_real_match_declarations(candidates, text, limit=limit))
+
+
+@dataclass(frozen=True)
+class PrivateReadSeat:
+    """What one of VOOL's own pinned Browse skills seated of the owner's private reads on a turn."""
+
+    skill: str
+    plugin_id: str
+    pin_sha256: str
+    seated: tuple[str, ...]
+
+    def audit(self) -> dict[str, Any]:
+        """The offer audit's fields for this skill (``skill_provenance_rows`` carries them)."""
+        return {
+            "tools": "private_read_seat",
+            "seated": list(self.seated),
+            "pin_sha256": self.pin_sha256,
+            "egress_locked": True,
+        }
+
+
+#: A request clause whose own verb sends something off this computer or looks something up
+#: online: "... and email it to Sam", "then look the company up", "post a summary on X". A verb
+#: behind any other word is not this turn's ask ("before I share this pdf, check it ...").
+_REACHES_OUT_ASK_RE = re.compile(
+    r"(?:^|[.,;:!?]\s*|\b(?:and|then|also|plus|please|pls|can\s+you|could\s+you|would\s+you|will\s+you"
+    r"|help\s+me(?:\s+to)?|go\s+ahead\s+and|try\s+to|i\s+(?:want|need)\s+(?:you\s+)?to)\s+)"
+    r"(?:send|e-?mail|mail|forward|share|post|tweet|publish|upload|message|text|dm|reply"
+    r"|search|google|browse|fetch|download|research|look\s+(?:\S+\s+){0,3}?up)\b",
+    re.IGNORECASE,
+)
+
+
+def _words_reach_out(text: str) -> bool:
+    """Whether the person's words ask for anything that goes online or leaves this computer.
+
+    The online asks (``core.clean_loop.route.is_online_ask``: web words, a web address, a public
+    fact that changes), an ask clause whose verb sends or looks up (``_REACHES_OUT_ASK_RE``), a tool
+    the words name that can reach a network or run something that can (``is_egress_tool``), or a
+    family they need beyond this computer's. Any error reads as reaching out: no private seat.
+    """
+    value = str(text or "").strip()
+    if not value:
+        return False
+    try:
+        from core.clean_loop.route import is_online_ask
+        from core.tool_demand_signals import resolve_demand_signals
+        from core.vool_browser.live_requests import requested as browser_requested
+
+        if is_online_ask(value) or _REACHES_OUT_ASK_RE.search(value) or browser_requested(value):
+            return True
+        signals = resolve_demand_signals(value)
+        return any(is_egress_tool(intent) for intent in signals.explicit_intents) or any(
+            str(family) not in _LOCAL_FAMILIES for family in signals.required_families
+        )
+    except Exception:
+        return True
+
+
+def _turn_words(user_text: str, source_context: dict[str, Any] | None) -> str:
+    """The person's own message this turn, as typed: the canonical request's verbatim text."""
+    from core.turn_contract import TURN_REQUEST_KEY
+
+    request = dict(source_context or {}).get(TURN_REQUEST_KEY)
+    verbatim = str(getattr(request, "user_text", "") or "")
+    return verbatim if verbatim.strip() else str(user_text or "")
+
+
+def _own_ask(text: str) -> str:
+    """The ask in the person's message: quoted spans masked and pasted material cut away.
+
+    A quote is somebody's words (``core.turn_prohibitions``), and material supplied after a colon,
+    a line break or an opening quote is the piece to work on (``core.plain_task_routing``), so
+    neither can pick the skill that seats a private read. A message that is all material asks
+    nothing here.
+    """
+    from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
+    from core.turn_prohibitions import _strip_quoted_spans
+
+    value = _strip_quoted_spans(str(text or ""))
+    material = _SUPPLIED_MATERIAL_RE.search(value)
+    if material is not None:
+        value = value[: material.start()]
+    return " ".join(value.split()).strip()
+
+
+#: Surfaces and platforms a turn from the owner's phone or a chat channel carries
+#: (core.web.api.mobile_companion_api), whatever its owner-local stamp says.
+_REMOTE_TURN_SURFACES = frozenset({"mobile_companion", "channel", "mobile", "phone"})
+
+
+def _owner_desk_turn(source_context: dict[str, Any] | None) -> bool:
+    """Whether this turn is the owner's own, typed at this computer, in their own words.
+
+    Owner-local and not remote (``core.request_trust``), written by the owner and not an agent, not
+    from the paired phone or a channel (its surface, platform or remote-device stamp, or a verified
+    phone request still in scope), and not a planned sub-turn of another turn's text. Any doubt is
+    no.
+    """
+    if not isinstance(source_context, dict) or source_context.get("planned_subturn"):
+        return False
+    try:
+        from core.request_trust import (
+            REMOTE_DEVICE_KEY,
+            request_is_owner_local,
+            trusted_remote_device_active,
+            turn_is_owner_authored,
+            turn_is_remote,
+        )
+
+        if (
+            not request_is_owner_local(source_context)
+            or turn_is_remote(source_context)
+            or not turn_is_owner_authored(source_context)
+            or source_context.get(REMOTE_DEVICE_KEY)
+            or trusted_remote_device_active()
+        ):
+            return False
+        surface = str(source_context.get("surface") or "").strip().lower()
+        platform = str(source_context.get("platform") or "").strip().lower()
+        return surface not in _REMOTE_TURN_SURFACES and platform not in _REMOTE_TURN_SURFACES
+    except Exception:
+        return False
+
+
+def vool_browse_private_read_seats(
+    user_text: str, source_context: dict[str, Any] | None, *, limit: int = MAX_SKILLS
+) -> tuple[PrivateReadSeat, ...]:
+    """The owner's private reads VOOL's own pinned Browse skills seat on this turn (security, 2026-11-13).
+
+    All must hold, or nothing is seated (the skill narrows only, as before):
+
+    - the owner's own turn at this computer (``_owner_desk_turn``): not a phone, channel or other
+      remote turn, not an agent's brief, not a planned sub-turn of another turn's text, and no live
+      browser session holds the turn;
+    - the person's words this turn ask for nothing that goes online or leaves the computer
+      (``_words_reach_out``): when they do, their words decide the offer by the ordinary laws, and
+      a skill never strips what they asked for;
+    - the skill really matches the person's own ask (``skill_match_is_real`` on ``_own_ask``):
+      quoted or pasted text never picks it;
+    - it is VOOL's own Browse skill, re-proved now (``core.skill_origin.vool_browse_pin``), and the
+      tools come from the SKILL.md bytes read here and hashed to the pin: an import, another
+      maker's add-on, a file, MCP, bundled or native skill, or the same name with other bytes,
+      seats nothing;
+    - each tool is on ``SKILL_SEATABLE_PRIVATE_READS``, passes ``_skill_may_seat_private`` and is
+      available on this computer, and the skill's own allowed-tools names it.
+
+    Seating any private read freezes the egress lock on the turn (``assemble_tool_offer``).
+    """
+    if not _owner_desk_turn(source_context):
+        return ()
+    try:
+        from core.vool_browser.live_requests import confined as browser_confined
+
+        if browser_confined():
+            return ()
+        words = _turn_words(user_text, source_context)
+        if _words_reach_out(words) or _words_reach_out(str(user_text or "")):
+            return ()
+        ask = _own_ask(words)
+        if not ask:
+            return ()
+        candidates = _vool_browse_candidates(ask)
+        if not candidates:
+            return ()
+        from core.plugin_skills import parse_skill_content
+        from core.skill_origin import vool_browse_pin
+
+        seats: list[PrivateReadSeat] = []
+        for skill in _really_matched(candidates, ask, limit=limit):
+            pinned = vool_browse_pin(skill)
+            if pinned is None:
+                continue
+            skill_md, pin = pinned
+            raw = skill_md.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != pin:
+                continue
+            plugin_id = str(getattr(skill, "plugin_id", "") or "")
+            pinned_skill = parse_skill_content(raw.decode("utf-8"), path=skill_md, plugin_id=plugin_id)
+            wanted = tuple(
+                dict.fromkeys(
+                    str(tool).strip() for tool in (pinned_skill.allowed_tools or ())
+                    if _skill_may_seat_private(str(tool).strip())
+                )
+            )
+            seated = tuple(
+                intent for intent in _available_declared(wanted, social_only=False)
+                if _skill_may_seat_private(intent)
+            )
+            if seated:
+                seats.append(PrivateReadSeat(
+                    skill=str(getattr(skill, "name", "") or ""), plugin_id=plugin_id, pin_sha256=pin, seated=seated,
+                ))
+        return tuple(seats)
+    except Exception:
+        return ()
 
 
 def offer_fingerprint(specs: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> str:
@@ -1342,6 +1552,137 @@ def _skill_may_seat(intent: str) -> bool:
     return intent in SKILL_SEATABLE_PROPOSALS
 
 
+#: Permission actions a private read's contract may carry and still be seated: reading and
+#: listing on this computer, nothing that reaches a network or a provider.
+_SKILL_PRIVATE_READ_ACTIONS = frozenset({"read_files", "list_directories"})
+#: The owner's private reads VOOL's own pinned Browse skills may seat (security decision,
+#: 2026-11-13), so the PDF, disk, CSV and code skills get their text and their tools together.
+#: A closed list, separate from ``SKILL_SEATABLE_READS``: a read stays unseatable until it is added
+#: here, and each is seated only when the skill's own allowed-tools names it, only by
+#: ``vool_browse_private_read_seats``, and only on a turn that then holds no network or send tool
+#: (``core.turn_prohibitions.freeze_skill_egress_lock``). Never on it: ``sandbox.run_command``,
+#: ``workspace.run_tests``, ``machine.move_path`` and ``machine.ensure_directory``, ``contacts.*``,
+#: ``email.*`` drafts included, ``operator.apple_note_*``, calendar, reminders, messages,
+#: ``x.dms`` and every ``_SKILL_UNSEATABLE_FAMILIES`` member.
+SKILL_SEATABLE_PRIVATE_READS = frozenset({
+    "pdf.extract_text", "pdf.ocr",
+    "machine.disk_usage", "machine.find_largest", "machine.list_directory", "machine.find_file",
+    "machine.read_file",
+    "workspace.identity", "workspace.list_tree", "workspace.read_file", "workspace.search_text",
+    "workspace.symbol_search", "workspace.git_diff",
+})
+
+
+def _skill_may_seat_private(intent: str) -> bool:
+    """A private read a skill may seat: on the closed list, and its own contract still a local read.
+
+    Built-in, outside every unseatable family, read-only, no approval, and permission actions
+    within read and list. A contract that changes tier drops out without editing the list.
+    """
+    from core.runtime_tool_contracts import runtime_tool_contract_map
+
+    name = str(intent or "")
+    contract = runtime_tool_contract_map().get(name)
+    return (
+        contract is not None
+        and name in SKILL_SEATABLE_PRIVATE_READS
+        and contract.source == "builtin"
+        and not name.startswith(_SKILL_UNSEATABLE_FAMILIES)
+        and bool(contract.read_only)
+        and contract.approval_requirement == "none"
+        and set(contract.permission_actions) <= _SKILL_PRIVATE_READ_ACTIONS
+    )
+
+
+#: Tool surfaces whose built-ins act only on this computer. Every other surface (web, X, mail,
+#: chain, wallet, market, repository, media, Web0, demo, skill installs, code tasks, the sandbox and
+#: orchestration) reaches a network or runs something that can, and so does every plugin or MCP
+#: tool: a turn under the egress lock is offered, and runs, none of them.
+_LOCAL_TOOL_SURFACES = frozenset({
+    "runtime", "capability", "pdf", "machine", "workspace", "file", "operator", "profile", "contacts",
+    "set", "my_things",
+})
+#: Side effects that leave this computer, spend, or run code, whatever the surface.
+_EGRESS_SIDE_EFFECTS = frozenset({
+    "network_send", "network_publish", "wallet_spend", "credit_spend", "sandbox_command",
+    "validation_command", "task_orchestration", "media_generation",
+})
+#: Permission actions that reach a network, a provider or a person, spend, or run commands.
+_EGRESS_PERMISSION_ACTIONS = frozenset({
+    "use_network_access", "access_external_providers", "external_messages",
+    "use_browser_or_web_retrieval", "public_read_only_retrieval", "financial_or_paid_actions",
+    "spend_funds", "run_side_effecting_commands", "git_push",
+})
+#: A part of a tool's name that sends or shares off this computer, whatever its contract's classes
+#: say: ``machine.send_to_phone`` is a local read by its contract and hands the file to the paired
+#: phone. A local tool named this way later counts too, until someone proves it stays here.
+_EGRESS_NAME_RE = re.compile(
+    r"(?:^|[._])(?:send|share|publish|upload|post|forward|e?mail|messages?|sms|tweet|reply|dm|relay|webhook)"
+    r"(?=$|[._])",
+    re.IGNORECASE,
+)
+#: The capability families whose tools stay on this computer: a turn whose words need any other
+#: family asks for something beyond it (``_words_reach_out``).
+_LOCAL_FAMILIES = frozenset({
+    "filesystem", "workspace", "pdf", "file", "operator", "profile", "contacts", "set", "runtime",
+})
+
+
+def is_egress_tool(intent: str) -> bool:
+    """Whether a tool can send anything off this computer, or run something that can.
+
+    Fails closed: a name with no contract, or a contract that is not built in (a plugin or MCP
+    tool), counts. A built-in counts unless its surface is a local one, its side effect stays on
+    the computer, none of its permission actions reaches out (``web.search`` carries no
+    permission action at all, so the surface decides) and its name does not send or share
+    (``_EGRESS_NAME_RE``).
+    """
+    name = str(intent or "").strip()
+    if not name or _EGRESS_NAME_RE.search(name):
+        return True
+    contract = None
+    with contextlib.suppress(Exception):
+        from core.tool_registry import tool_for_intent
+
+        contract = tool_for_intent(name)
+    if contract is None:
+        from core.runtime_tool_contracts import runtime_tool_contract_map
+
+        contract = runtime_tool_contract_map().get(name)
+    if contract is None:
+        return True
+    return (
+        str(getattr(contract, "source", "") or "") != "builtin"
+        or str(getattr(contract, "tool_surface", "") or "") not in _LOCAL_TOOL_SURFACES
+        or str(getattr(contract, "side_effect_class", "") or "") in _EGRESS_SIDE_EFFECTS
+        or bool(set(getattr(contract, "permission_actions", ()) or ()) & _EGRESS_PERMISSION_ACTIONS)
+    )
+
+
+#: What a tool call gets back on a turn under the egress lock, in words the person can act on.
+EGRESS_LOCKED_REFUSAL = (
+    "Not run: on this turn a VOOL skill is reading your own files, so nothing leaves this computer "
+    "until the turn ends. Ask in a new message to look something up online or to send something."
+)
+
+
+def skill_egress_lock_refusal(intent: str, source_context: dict[str, Any] | None) -> str:
+    """The refusal for *intent* on a turn under the egress lock, or "" when it may run.
+
+    The execution half of the lock (``core.tool_intent_executor`` and the runtime tool door ask it
+    before dispatch): a network or send tool a model reaches after ``capability.expand_family``, in
+    a retry or from a stale offer is refused here, and the fetch door refuses any socket besides.
+    """
+    from core.turn_prohibitions import skill_egress_locked
+
+    if not skill_egress_locked(source_context):
+        return ""
+    try:
+        return EGRESS_LOCKED_REFUSAL if is_egress_tool(intent) else ""
+    except Exception:
+        return EGRESS_LOCKED_REFUSAL
+
+
 def _available_declared(declared: tuple[str, ...], *, social_only: bool) -> tuple[str, ...]:
     """Resolve declarations through the ordinary availability/owner-only graph.
 
@@ -1377,19 +1718,23 @@ def _social_seats(declared: tuple[str, ...]) -> tuple[str, ...]:
     return _available_declared(declared, social_only=True)
 
 
-def _owner_skill_seats(user_text: str, source_context: dict[str, Any] | None) -> tuple[str, ...]:
-    """What this turn's matched skills may ADD, on the owner's own local turn only.
+def _owner_skill_seat_plan(
+    user_text: str, source_context: dict[str, Any] | None
+) -> tuple[tuple[str, ...], tuple[PrivateReadSeat, ...]]:
+    """What this turn's matched skills may ADD, and the private reads among it, owner-local only.
 
     The person's own skills (made in VOOL) seat what they declare; VOOL's own pinned Browse
-    skills seat only the social list. Every other skill adds nothing and only narrows.
+    skills seat the social list, and the closed list of private reads under the egress lock
+    (``vool_browse_private_read_seats``). Every other skill adds nothing and only narrows. When a
+    private read is seated, no seat that can reach a network or send stays (``is_egress_tool``).
     """
     if not isinstance(source_context, dict):
-        return ()
+        return (), ()
     try:
         from core.request_trust import request_is_owner_local
 
         if not request_is_owner_local(source_context):
-            return ()
+            return (), ()
         # Seats follow the MATCH, not the render — and only for skills the person WROTE in VOOL
         # (skill.create, recorded at install by core.skill_origin). An import sits in the same
         # local-skills folder and used to count as the operator's (red team t6/t14: a "save this
@@ -1397,8 +1742,18 @@ def _owner_skill_seats(user_text: str, source_context: dict[str, Any] | None) ->
         own = matched_skill_tool_seats(user_text, source_context=source_context)
         browse = vool_browse_skill_seats(user_text, source_context=source_context)
     except Exception:
-        return ()
-    return tuple(dict.fromkeys((*own, *browse)))
+        return (), ()
+    seats = tuple(dict.fromkeys((*own, *browse)))
+    private = vool_browse_private_read_seats(user_text, source_context)
+    if not private:
+        return seats, ()
+    kept = tuple(seat for seat in seats if not is_egress_tool(seat))
+    return tuple(dict.fromkeys((*kept, *(intent for row in private for intent in row.seated)))), private
+
+
+def _owner_skill_seats(user_text: str, source_context: dict[str, Any] | None) -> tuple[str, ...]:
+    """What this turn's matched skills may ADD, on the owner's own local turn only (``_owner_skill_seat_plan``)."""
+    return _owner_skill_seat_plan(user_text, source_context)[0]
 
 
 def matched_skill_tool_intents(
@@ -1482,9 +1837,10 @@ def assemble_tool_offer(
     expansions = turn_family_expansions(source_context) if source_context is not None else ()
     # The skills the words match are resolved BEFORE the specs, because a matched skill may SEAT
     # tools (they used to only narrow the ranked fill, which left a skill with nothing to call):
-    # the person's own skill what it declares, VOOL's own pinned Browse skill only the social
-    # list. Every other skill's list only narrows (core.skill_origin). The seats are owner-local
-    # only, and every other law still applies at seating time: availability, owner-only, the cap.
+    # the person's own skill what it declares, VOOL's own pinned Browse skill the social list and,
+    # under the egress lock, the closed list of private reads. Every other skill's list only
+    # narrows (core.skill_origin). The seats are owner-local only, and every other law still
+    # applies at seating time: availability, owner-only, the cap.
     guidance = skill_guidance_for(
         str(user_text or ""),
         task_class=str(task_class or ""),
@@ -1492,7 +1848,17 @@ def assemble_tool_offer(
         doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
         source_context=source_context if isinstance(source_context, dict) else None,
     )
-    skill_seats = _owner_skill_seats(user_text, source_context)
+    skill_seats, private_seats = _owner_skill_seat_plan(user_text, source_context)
+    from core.turn_prohibitions import freeze_skill_egress_lock, skill_egress_locked
+
+    if private_seats:
+        # A private read of the owner's files is on this turn: nothing may leave the computer for
+        # the rest of it (security decision 2026-11-13). Frozen on the turn, not only left out of
+        # this offer, so a later round, a family expansion, a retry or a child cannot add the
+        # network back; the fetch door and the tool door refuse besides.
+        freeze_skill_egress_lock(source_context if isinstance(source_context, dict) else None)
+        guidance = _with_private_seat_rows(guidance, private_seats)
+    egress_locked = bool(private_seats) or skill_egress_locked(source_context)
     from core.x_feedback import reply_intents
 
     # A short answer to this chat's own rating question seats x.feedback.save (owner-local only,
@@ -1594,9 +1960,18 @@ def assemble_tool_offer(
         narrowed = [spec for spec in specs if str(spec.get("intent") or "") in retry_only]
         if any(str(spec.get("intent") or "") != "respond.direct" for spec in narrowed):
             specs = narrowed
+    if egress_locked:
+        # Last, after every law above that can add a tool (the words' seats, the ranked fill, a
+        # family the model expanded, a follow-up's inherited family, a retry): on a turn under the
+        # egress lock nothing that can reach a network or send stays in the offer.
+        specs = [spec for spec in specs if not is_egress_tool(str(spec.get("intent") or ""))]
 
     from core.capability_graph import _CANONICAL_FAMILIES
 
+    # A family seated only by a skill's private read is not recorded for a follow-up to inherit:
+    # the next turn gets a private read from its own words or its own skill match, under its own
+    # lock, never from this turn's seat.
+    private_intents = {intent for row in private_seats for intent in row.seated}
     seated_families = tuple(
         dict.fromkeys(
             family
@@ -1604,6 +1979,7 @@ def assemble_tool_offer(
                 str(spec.get("intent") or "").partition(".")[0]
                 for spec in specs
                 if str(spec.get("intent") or "").strip()
+                and str(spec.get("intent") or "") not in private_intents
             )
             if family in _CANONICAL_FAMILIES
         )
@@ -1634,40 +2010,73 @@ def assemble_tool_offer(
             "fingerprint": offer.fingerprint,
             "skills": [dict(s) for s in guidance.skills],
         }
+        if egress_locked:
+            source_context["_tool_offer"]["egress_locked"] = True
+        if private_seats:
+            # Which skill seated which private read, from which pinned bytes: the executed reads'
+            # own receipts are tied to this stamp of the turn's offer.
+            source_context["_tool_offer"]["private_read_seats"] = [
+                {"name": row.skill, "plugin_id": row.plugin_id, **row.audit()} for row in private_seats
+            ]
         # Audit trail from THE offer seam itself: every consumer path that binds skill guidance
         # (router offer, express chat lanes) records WHICH skills and versions entered the turn's
         # context. Consumers of the event tolerate repeats; a turn whose guidance went unrecorded
         # could not answer for its own context.
-        if guidance.skills and source_context.get("runtime_session_id"):
+        if (guidance.skills or private_seats) and source_context.get("runtime_session_id"):
             try:
                 from core.runtime_task_events import emit_runtime_event
 
+                details: dict[str, Any] = {
+                    "recorded_by": "tool_offer",
+                    "skills": skill_provenance_rows(guidance.skills),
+                }
+                if private_seats:
+                    details["private_read_seats"] = source_context["_tool_offer"]["private_read_seats"]
                 emit_runtime_event(
                     source_context,
                     event_type="tool_offer_skills",
                     message="skill guidance joined the turn's context (tool offer)",
-                    details={
-                        "recorded_by": "tool_offer",
-                        "skills": skill_provenance_rows(guidance.skills),
-                    },
+                    details=details,
                 )
             except Exception:
                 pass  # the audit trail must never break the offer it records
     return offer
 
 
+def _with_private_seat_rows(guidance: SkillGuidance, seats: tuple[PrivateReadSeat, ...]) -> SkillGuidance:
+    """The guidance with each seating skill's audit row naming its private-read seat.
+
+    The row said ``narrow_only`` for every Browse skill (social core finding 4); a skill that seated
+    a private read says ``private_read_seat``, the reads it seated, its pin and the egress lock.
+    """
+    by_skill = {(row.skill, row.plugin_id.removeprefix("plugin:")): row for row in seats}
+    rows = []
+    for row in guidance.skills:
+        seat = by_skill.get(
+            (str(row.get("name") or ""), str(row.get("plugin_id") or "").removeprefix("plugin:"))
+        )
+        rows.append({**row, **seat.audit()} if seat is not None else row)
+    return SkillGuidance(text=guidance.text, skills=tuple(rows), allowed_tools=guidance.allowed_tools)
+
+
 __all__ = [
+    "EGRESS_LOCKED_REFUSAL",
     "MAX_SKILLS",
     "MAX_SKILL_CHARS",
     "MAX_TOOL_LANE_SKILL_CHARS",
     "MAX_TOTAL_SKILL_CHARS",
     "PROVENANCE",
+    "PrivateReadSeat",
+    "SKILL_SEATABLE_PRIVATE_READS",
     "SkillGuidance",
     "ToolOffer",
     "assemble_tool_offer",
+    "is_egress_tool",
     "loaded_skills",
     "offer_fingerprint",
     "reset_skill_cache",
+    "skill_egress_lock_refusal",
     "skill_guidance_for",
     "skill_provenance_rows",
+    "vool_browse_private_read_seats",
 ]

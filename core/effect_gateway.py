@@ -1655,6 +1655,18 @@ class EffectLedger:
         with self._lock:
             self._memo.setdefault(effect_class, verdict)
 
+    def deny_for_rest_of_turn(self, effect_class: str, reason: str) -> None:
+        """Narrow only: every later consult of ``effect_class`` on this turn is denied with *reason*.
+
+        ``freeze_decision`` keeps the turn's FIRST verdict, so an allow frozen earlier in the turn
+        would outlive it; this writes the deny over it. ``decide_network_fetch`` lets a frozen deny
+        bind before anything else, and nothing writes an allow over a deny, so the turn cannot widen
+        back. The ledger dies with the turn: the next turn's ledger starts empty. Used by
+        ``core.turn_prohibitions.freeze_skill_egress_lock``.
+        """
+        with self._lock:
+            self._memo[effect_class] = (DECISION_DENIED, str(reason or "denied"))
+
 
 class EffectLifecycle:
     """ONE logical effect's durable lifecycle authority (R2b2b).

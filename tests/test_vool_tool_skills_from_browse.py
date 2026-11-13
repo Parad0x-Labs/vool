@@ -54,6 +54,13 @@ TOOL_TURNS = {
 }
 
 
+# On these asks (the owner's own turn, nothing online asked) the skill seats private reads from the
+# closed list, under the egress lock (tests/test_vool_browse_private_read_seat.py). csv-insights,
+# disk-space-advisor and test-failure-helper do not: their asks here are not a real match or ask
+# for a coding task, so they only narrow.
+SEATS_PRIVATE_READS = {"downloads-tidy", "pdf-document-review", "pdf-share-check", "repo-explainer"}
+
+
 def _shipped(entry: dict):
     """The bundled SKILL.md as VOOL loads it once added from Browse (a discover- add-on)."""
     from core.plugin_skills import parse_skill_content
@@ -121,7 +128,9 @@ def test_a_vool_tool_skill_added_from_browse_is_used_whole_on_a_tool_turn(home, 
     from core.tool_offer_assembly import (
         MAX_TOOL_LANE_DOCTRINE_CHARS,
         MAX_TOOL_LANE_SKILL_CHARS,
+        SKILL_SEATABLE_PRIVATE_READS,
         _skill_may_seat,
+        is_egress_tool,
         loaded_skills,
         render_complete_block,
     )
@@ -138,13 +147,20 @@ def test_a_vool_tool_skill_added_from_browse_is_used_whole_on_a_tool_turn(home, 
     assert not row.get("reason") and row.get("complete", True), row
     block = render_complete_block(skill, MAX_TOOL_LANE_SKILL_CHARS)
     assert row["plugin_id"] == pid and row["chars"] == len(block) and block in offer.skill_guidance.text
-    assert row["tools"] == "narrow_only"
-    # Its tool list narrows the offer. What it adds is only what its own list names from the
-    # social list VOOL lets its own Browse skills seat: never a private read, a write or a send.
+    # Its tool list narrows the offer. What it adds is only what its own list names: from the social
+    # list VOOL lets its own Browse skills seat, or (security decision 2026-11-13) from the closed list
+    # of private reads, and then nothing in the offer can reach a network or send. Never a write.
     assert origin_of(skill) == ORIGIN_VOOL_BROWSE
     added = set(offer.intents) - before
     assert added <= set(skill.allowed_tools), sorted(added - set(skill.allowed_tools))
-    assert all(_skill_may_seat(intent) for intent in added), sorted(i for i in added if not _skill_may_seat(i))
+    if name in SEATS_PRIVATE_READS:
+        assert row["tools"] == "private_read_seat" and row["egress_locked"] is True, row
+        assert row["pin_sha256"] == entry["sha256"] and added <= set(row["seated"]), row
+        assert set(row["seated"]) <= SKILL_SEATABLE_PRIVATE_READS & set(offer.intents), row["seated"]
+        assert not [i for i in offer.intents if is_egress_tool(i)], offer.intents
+    else:
+        assert row["tools"] == "narrow_only", row
+        assert all(_skill_may_seat(intent) for intent in added), sorted(i for i in added if not _skill_may_seat(i))
     assert len(offer.skill_guidance.text) <= MAX_TOOL_LANE_SKILL_CHARS + MAX_TOOL_LANE_DOCTRINE_CHARS
 
 

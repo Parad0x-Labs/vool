@@ -59,7 +59,8 @@ ORIGINS = (
 #: app (lifecycle source ``vool-bundled:``, a local-check receipt, bytes equal to the shipped pin).
 #: Decided from those records on every read, never from an install record, so it is not in
 #: ``ORIGINS``: nothing can write it down. It still never adds a tool the way the person's own
-#: skill does; it may seat only the social list (``core.tool_offer_assembly``).
+#: skill does; it may seat only the social list, and the closed list of private reads on a turn
+#: that then holds no network or send tool (``core.tool_offer_assembly``).
 ORIGIN_VOOL_BROWSE = "vool_browse"
 
 _LOCK = threading.Lock()
@@ -275,11 +276,11 @@ def _registry_record(plugin_id: str) -> bool:
         return False
 
 
-def _vool_browse_install(plugin_id: str) -> bool:
-    """Whether a Browse install is VOOL's own skill, added from the copy shipped in the app, as shipped.
+def _vool_browse_pinned_file(plugin_id: str) -> tuple[Path, str] | None:
+    """The pinned SKILL.md of a Browse install that is VOOL's own skill, as shipped, and its pin.
 
-    Every link is checked, and any failure reads as an ordinary import: the lifecycle source is
-    ``vool-bundled:``, the signed install receipt is authentic and records VOOL's local check, its
+    Every link is checked, and any failure reads as an ordinary import (None): the lifecycle source
+    is ``vool-bundled:``, the signed install receipt is authentic and records VOOL's local check, its
     entry still equals the pin this app ships (``addon_store.is_vool_bundled``), the pack on disk is
     the reviewed one with nothing added, and the SKILL.md bytes now are the pinned bytes.
     """
@@ -289,17 +290,49 @@ def _vool_browse_install(plugin_id: str) -> bool:
 
         record = record_for(plugin_id)
         if record is None or not str(record.source or "").startswith("vool-bundled:"):
-            return False
+            return None
         pack = Path(str(record.root or ""))
         addon_store.assert_reviewed(plugin_id, pack)
         receipt = addon_store._read(addon_store._installed_receipt(plugin_id))
         entry = dict(receipt.get("entry") or {})
         if receipt.get("check") != addon_store.LOCAL_CHECK or not addon_store.is_vool_bundled(entry):
-            return False
+            return None
         skill_md = pack / "skills" / str(entry["skill_name"]) / "SKILL.md"
-        return hashlib.sha256(skill_md.read_bytes()).hexdigest() == str(entry.get("sha256") or "")
+        pin = str(entry.get("sha256") or "").strip().lower()
+        if len(pin) != 64 or hashlib.sha256(skill_md.read_bytes()).hexdigest() != pin:
+            return None
+        return skill_md, pin
     except Exception:
-        return False
+        return None
+
+
+def _vool_browse_install(plugin_id: str) -> bool:
+    """Whether a Browse install is VOOL's own skill, added from the copy shipped in the app, as shipped."""
+    return _vool_browse_pinned_file(plugin_id) is not None
+
+
+def vool_browse_pin(skill: Any) -> tuple[Path, str] | None:
+    """The pinned SKILL.md and its sha256 when *skill* is that very file of VOOL's own Browse skill.
+
+    Re-proved on every call, link by link (``_vool_browse_pinned_file``), and the loaded skill must
+    be the reviewed snapshot of that pinned file: ``addon_store.reviewed_skill`` loads it under the
+    shown path ``addons/<add-on id>/<skill name>/SKILL.md`` (the real path, for any other loader).
+    Any other file (an import, another maker's add-on, a file install, an MCP resource, a bundled or
+    native skill), or the same name with other bytes, reads None. ``core.tool_offer_assembly`` seats
+    a private read for such a skill only from bytes it hashes to this pin itself.
+    """
+    plugin_id = str(getattr(skill, "plugin_id", "") or "").removeprefix("plugin:")
+    path = str(getattr(skill, "path", "") or "")
+    if not plugin_id.startswith("discover-") or not path or path.startswith("skill://"):
+        return None
+    pinned = _vool_browse_pinned_file(plugin_id)
+    if pinned is None:
+        return None
+    skill_md = pinned[0]
+    shown = Path("addons") / plugin_id / skill_md.parent.name / "SKILL.md"
+    if Path(path) != shown and _key(path) != _key(skill_md):
+        return None
+    return pinned
 
 
 def may_add_tools(skill: Any) -> bool:
@@ -342,4 +375,5 @@ __all__ = [
     "note_drafted",
     "origin_of",
     "record_install",
+    "vool_browse_pin",
 ]

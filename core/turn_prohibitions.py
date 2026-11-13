@@ -237,12 +237,79 @@ def conserved_request_prohibitions(source_context: dict[str, Any] | None) -> Tur
     ingress minted is the authority every lane below reads. Absent key, absent
     field or a non-request value reads as the canonical empty set — this
     helper never guesses a prohibition, and never grants one either.
+
+    A turn a skill's private read was seated on (`freeze_skill_egress_lock`)
+    also reads the web frozen, with `REASON_SKILL_EGRESS_LOCK`, exactly as a
+    spoken "no internet" freezes it: union only.
     """
     from core.turn_contract import TURN_REQUEST_KEY
 
     request = dict(source_context or {}).get(TURN_REQUEST_KEY)
     prohibitions = getattr(request, "prohibitions", None)
-    return prohibitions if isinstance(prohibitions, TurnProhibitions) else NO_PROHIBITIONS
+    frozen = prohibitions if isinstance(prohibitions, TurnProhibitions) else NO_PROHIBITIONS
+    if not skill_egress_locked(source_context):
+        return frozen
+    return TurnProhibitions(
+        families=frozen.families | {FAMILY_WEB},
+        prohibited_toolsets=frozen.prohibited_toolsets,
+        reason_codes=tuple(dict.fromkeys((*frozen.reason_codes, REASON_SKILL_EGRESS_LOCK))),
+        clauses=frozen.clauses,
+    )
+
+
+#: The reason code of the egress lock a skill's private read freezes on its turn
+#: (core.tool_offer_assembly: VOOL's own pinned Browse skill seated a read of
+#: the owner's files, so nothing may leave the computer for the rest of it).
+REASON_SKILL_EGRESS_LOCK = "skill_private_read_egress_lock"
+#: The context key the lock rides on beside the turn's effect ledger. Narrowing
+#: only: a context that carries it loses the network and every send, so a
+#: forged one takes authority away and never grants any.
+SKILL_EGRESS_LOCK_KEY = "skill_egress_lock"
+
+
+def freeze_skill_egress_lock(source_context: dict[str, Any] | None) -> None:
+    """Freeze "nothing leaves this computer" on the rest of this turn: web and every send.
+
+    Two carriers, both turn-scoped and both union-only. The context marker
+    rides every copy made from this context from now on (children, retries,
+    later model rounds). The turn's effect ledger, which every copy and worker
+    thread of the turn shares by reference, denies the network-fetch effect
+    for the rest of the turn, so the one outbound HTTP door refuses before any
+    socket whatever lane asks, and `skill_egress_locked` reads the lock from
+    a context copied BEFORE the freeze too. The next turn mints a new request
+    and a new ledger: nothing carries over.
+    """
+    if isinstance(source_context, dict):
+        source_context[SKILL_EGRESS_LOCK_KEY] = True
+    try:
+        from core.effect_gateway import EFFECT_NETWORK_FETCH, current_effect_ledger
+
+        ledger = current_effect_ledger()
+        if ledger is not None:
+            ledger.deny_for_rest_of_turn(EFFECT_NETWORK_FETCH, REASON_SKILL_EGRESS_LOCK)
+    except Exception:
+        pass
+
+
+def skill_egress_locked(source_context: dict[str, Any] | None) -> bool:
+    """Whether this turn carries the egress lock `freeze_skill_egress_lock` froze.
+
+    Read from the context marker, or from the turn's effect ledger or any ledger
+    it is nested in (a scope opened inside a locked turn stays locked).
+    """
+    if isinstance(source_context, dict) and source_context.get(SKILL_EGRESS_LOCK_KEY):
+        return True
+    try:
+        from core.effect_gateway import DECISION_DENIED, EFFECT_NETWORK_FETCH, current_effect_ledger
+
+        ledger = current_effect_ledger()
+        while ledger is not None:
+            if ledger.frozen_decision(EFFECT_NETWORK_FETCH) == (DECISION_DENIED, REASON_SKILL_EGRESS_LOCK):
+                return True
+            ledger = ledger.parent
+        return False
+    except Exception:
+        return False
 
 
 def conserve_retrieval_constraints(
@@ -354,10 +421,14 @@ __all__ = [
     "FAMILY_WRITE",
     "NO_PROHIBITIONS",
     "REASON_CONSERVED",
+    "REASON_SKILL_EGRESS_LOCK",
+    "SKILL_EGRESS_LOCK_KEY",
     "ChildPolicyDecision",
     "TurnProhibitions",
     "child_demand_policy",
     "conserve_retrieval_constraints",
     "conserved_request_prohibitions",
+    "freeze_skill_egress_lock",
     "prohibitions_from_text",
+    "skill_egress_locked",
 ]

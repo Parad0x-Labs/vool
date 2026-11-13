@@ -117,16 +117,24 @@ def remote_fetch_allowed_by_context(source_context: dict[str, Any] | None) -> bo
     forbade.  This only ever NARROWS: a request that froze nothing (the common
     case, and every parent turn whose own text already carries the veto) leaves
     the boundary exactly as it was.
+
+    A turn under a skill's egress lock (a private read was seated on it,
+    core.turn_prohibitions.freeze_skill_egress_lock) is not allowed whatever the
+    context's explicit key says: the lock only narrows, so it is read first.
     """
 
     context = dict(source_context or {})
-    if "allow_remote_fetch" in context:
-        return bool(context.get("allow_remote_fetch"))
     from core.turn_prohibitions import (
         FAMILY_TOOLS,
         FAMILY_WEB,
         conserved_request_prohibitions,
+        skill_egress_locked,
     )
+
+    if skill_egress_locked(context):
+        return False
+    if "allow_remote_fetch" in context:
+        return bool(context.get("allow_remote_fetch"))
 
     prohibitions = conserved_request_prohibitions(context)
     if prohibitions.prohibits_family(FAMILY_WEB) or prohibitions.prohibits_family(
@@ -1227,6 +1235,13 @@ def remote_fetch_policy_scope(source_context: dict[str, Any] | None) -> Iterator
     )
 
     effect_ledger = open_effect_receipt_scope(source_context)
+    # A scope opened inside a turn under a skill's egress lock, or for a context that carries it,
+    # keeps the lock on its own ledger (core.turn_prohibitions.freeze_skill_egress_lock).
+    from core.effect_gateway import EFFECT_NETWORK_FETCH
+    from core.turn_prohibitions import REASON_SKILL_EGRESS_LOCK, skill_egress_locked
+
+    if skill_egress_locked(source_context):
+        effect_ledger.deny_for_rest_of_turn(EFFECT_NETWORK_FETCH, REASON_SKILL_EGRESS_LOCK)
     forbidden_token = None
     if explicit_remote_fetch_disabled(source_context):
         forbidden_token = _REMOTE_FETCH_FORBIDDEN.set(True)

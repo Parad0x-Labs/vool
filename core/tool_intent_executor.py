@@ -319,6 +319,25 @@ def execute_tool_intent(
             details={"tool_call_id": call_id, "executed": False, "cancelled": True},
         )
 
+    # The egress lock (core.tool_offer_assembly): on a turn a skill's private read was seated on,
+    # a network or send tool is refused here before any authority is spent, whichever round, retry
+    # or expanded family it came from. The fetch door refuses any socket besides.
+    from core.tool_offer_assembly import skill_egress_lock_refusal
+
+    locked_intent = str(_normalize_payload(payload).get("intent") or "")
+    egress_refusal = skill_egress_lock_refusal(locked_intent, source_context)
+    if egress_refusal:
+        return ToolIntentExecution(
+            handled=True,
+            ok=False,
+            status="egress_locked",
+            mode="refused",
+            tool_name=locked_intent,
+            response_text=egress_refusal,
+            user_safe_response_text=egress_refusal,
+            details={"tool_call_id": call_id, "executed": False, "reason": "skill_private_read_egress_lock"},
+        )
+
     # The coding lane's one execution law: while this session has a code task open, its mutations
     # are proposed as contracted `code.task.*` calls -- never executed directly, by a model, a
     # plugin tool or a skill-shaped intent. Decided from the task journal's typed state and the

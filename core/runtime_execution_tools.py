@@ -4266,6 +4266,30 @@ def execute_runtime_tool(
             },
         )
 
+    # Egress-lock fence (core.tool_offer_assembly): a turn a skill's private read was seated on
+    # runs no tool that can reach a network or send, whichever caller reaches this door.
+    from core.tool_offer_assembly import skill_egress_lock_refusal
+
+    egress_refusal = skill_egress_lock_refusal(intent, source_context)
+    if egress_refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="egress_locked",
+            response_text=egress_refusal,
+            details={
+                "reason": "skill_private_read_egress_lock",
+                "executed": False,
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="egress_lock_gate",
+                    ok=False,
+                    status="egress_locked",
+                    reason="skill_private_read_egress_lock",
+                ),
+            },
+        )
+
     folder_refusal = phone_folder_refusal(intent, arguments, source_context=source_context)
     if folder_refusal:
         return RuntimeExecutionResult(
@@ -5081,6 +5105,32 @@ def _capability_expand_family(
                 ),
             },
         )
+    # A turn under the skill egress lock (core.tool_offer_assembly: a VOOL skill seated the owner's
+    # private reads) gains no network or send tool from an expansion. Say so instead of claiming a
+    # seat the next round would strip, and spend none of the turn's expansion cap on it.
+    from core.tool_offer_assembly import EGRESS_LOCKED_REFUSAL, is_egress_tool
+    from core.turn_prohibitions import skill_egress_locked
+
+    if skill_egress_locked(source_context):
+        seated = [intent for intent in seated if not is_egress_tool(intent)]
+        if not seated:
+            return RuntimeExecutionResult(
+                handled=True,
+                ok=False,
+                status="egress_locked",
+                response_text=EGRESS_LOCKED_REFUSAL,
+                details={
+                    "family": family,
+                    "reason": "skill_private_read_egress_lock",
+                    "observation": _tool_observation(
+                        intent="capability.expand_family",
+                        tool_surface="capability",
+                        ok=False,
+                        status="egress_locked",
+                        family=family,
+                    ),
+                },
+            )
     from core.tool_offer_state import _EXPANSION_MAX_FAMILIES, record_family_expansion
 
     turn_families = record_family_expansion(source_context, family)
