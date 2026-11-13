@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "Sao lưu trong Keychain: chưa có",
     "wallet.backup.usb_saved": "Sao lưu USB: đã lưu trên {drive}",
     "wallet.backup.usb_none": "Sao lưu USB: chưa có",
-    "xbook.short": "Cho phép VOOL đọc và lưu dấu trang X của bạn. Mỗi yêu cầu đều chờ bạn phê duyệt."
+    "xbook.short": "Cho phép VOOL đọc và lưu dấu trang X của bạn. Mỗi yêu cầu đều chờ bạn phê duyệt.",
+    "wallet.review.over_cap_payment": "Khoản thanh toán này cộng phí mạng tối đa là {total} {asset}, vượt giới hạn {cap} {asset} cho một lần thanh toán của ví này. Hãy gửi tối đa {room} {asset}, hoặc nâng giới hạn trong Cài đặt, Tiền mã hóa. Chưa có gì được gửi.",
+    "wallet.review.over_cap_day": "Khoản thanh toán này cộng phí mạng sẽ vượt một giới hạn chi tiêu của ví này (cho hôm nay, hoặc cho người nhận này hôm nay). Chưa có gì được gửi.",
+    "wallet.review.over_cap_frozen": "Chi tiêu trong ví này đang bị đóng băng, nên chưa thể duyệt khoản thanh toán này. Chưa có gì được gửi."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

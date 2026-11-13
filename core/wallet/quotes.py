@@ -311,6 +311,50 @@ def _approval_block(profile: custody.WalletProfile) -> dict[str, Any]:
     return {"approval_unavailable": {"code": code, "message": turn_text(fault_message_key(code), get_spec(code).user_message)}}
 
 
+def _decimals_of(spec: Any, asset: str) -> int:
+    for item in spec.assets.values():
+        if str(item.symbol).upper() == str(asset).upper():
+            return int(item.decimals)
+    return 0
+
+
+def _limit_block(fields: dict[str, Any], proposal: Any, spec: Any) -> None:
+    """The wallet's own caps, read before anything is approved. Approve reserves the amount AND the network fee
+    ceiling against the caps (``transfers.insert_claim``), so a preview that says nothing would let a payment of
+    exactly the cap reach Approve only to be refused there. The same check runs here (``limits.check_limits``, the
+    advisory mirror of the binding reservation, with this quote's fee ceiling); a payment the caps refuse previews
+    as not approvable, with the reason in plain words and what would fit. The binding check at Approve is unchanged:
+    this only says earlier what it will say."""
+    fee_max = int(fields.get("fee_max_minor") or 0)
+    amount = int(proposal.amount_minor)
+    verdict = limits.check_limits(proposal.wallet_id, proposal.asset, amount, proposal.destination, fee_minor=fee_max, chain=spec.network)
+    if verdict.ok:
+        return
+    from core.i18n.turn_locale import turn_text
+
+    asset = str(proposal.asset).upper()
+    decimals = _decimals_of(spec, asset)
+    shown = fields.get("display_symbol") or asset
+    token = limits._token_transfer(spec.network, asset)
+    text = ""
+    if verdict.limit == limits.LIMIT_FROZEN:
+        text = turn_text("wallet.review.over_cap_frozen", "Spending is frozen in this wallet, so this payment cannot be approved now. Nothing was sent.")
+    elif verdict.limit == limits.LIMIT_PER_TRANSACTION and (not token or not limits.check_limits(proposal.wallet_id, asset, amount, proposal.destination, fee_minor=0, chain=spec.network).ok):
+        cap = limits.load_limits(proposal.wallet_id, asset).per_tx_minor
+        total = amount if token else amount + fee_max
+        room = cap if token else max(0, cap - fee_max)
+        text = turn_text("wallet.review.over_cap_payment",
+                         "This payment plus its network fee comes to at most {total} {asset}, above this wallet's limit of {cap} {asset} for one payment. Send at most {room} {asset}, or raise the limit in Settings, Crypto. Nothing was sent.",
+                         total=amounts.format_minor(total, decimals), cap=amounts.format_minor(cap, decimals), room=amounts.format_minor(room, decimals), asset=shown)
+    if not text:
+        text = turn_text("wallet.review.over_cap_day", "This payment plus its network fee would go over a spending limit of this wallet (for today, or for this recipient today). Nothing was sent.")
+    review = fields.get("review")
+    if isinstance(review, dict):
+        review["warnings"] = [*(review.get("warnings") or []), {"code": "over_spending_limit", "text": text}]
+    # a connected or watch-only account already says what is really wrong; it keeps its own words
+    fields.setdefault("approval_unavailable", {"code": "wallet_limit_exceeded", "limit": verdict.limit, "message": text})
+
+
 def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     custody.require_enabled(source_context=source_context)
     proposal = proposals.get_proposal(proposal_id)
@@ -432,6 +476,7 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
     mobile_review = pc_review(proposal)
     if mobile_review is not None:
         fields["mobile_review"] = mobile_review
+    _limit_block(fields, proposal, spec)
     digest = digest_of(fields)
     quote_id = f"quote-{uuid.uuid4().hex[:20]}"
     with connection() as conn:
@@ -560,6 +605,7 @@ def _mint_authorization_quote(spec: chains.ChainIdentity, proposal: Any, profile
         fields, proposal, rpc=None, blockhash="", principal_balance=balance, held_principal=held_token, fee_balance=0, held_native=0, rent_minimum=0,
         source_context=source_context,
     )
+    _limit_block(fields, proposal, spec)
     digest = digest_of(fields)
     quote_id = f"quote-{uuid.uuid4().hex[:20]}"
     with connection() as conn:
@@ -689,6 +735,7 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         fields, proposal, rpc=rpc, blockhash=blockhash, principal_balance=principal_balance, held_principal=held_token, fee_balance=fee_balance,
         held_native=held_native, rent_minimum=int(facts["rent_minimum_minor"]), source_context=source_context,
     )
+    _limit_block(fields, proposal, spec)
     digest = digest_of(fields)
     quote_id = f"quote-{uuid.uuid4().hex[:20]}"
     with connection() as conn:
@@ -765,6 +812,7 @@ def _mint_evm_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: An
         fields, proposal, rpc=None, blockhash="", principal_balance=principal_balance, held_principal=held_token, fee_balance=fee_balance,
         held_native=held_native, rent_minimum=0, source_context=source_context,
     )
+    _limit_block(fields, proposal, spec)
     digest = digest_of(fields)
     quote_id = f"quote-{uuid.uuid4().hex[:20]}"
     with connection() as conn:

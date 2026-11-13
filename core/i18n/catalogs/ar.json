@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "نسخة في سلسلة المفاتيح: ليس بعد",
     "wallet.backup.usb_saved": "نسخة USB: محفوظة على {drive}",
     "wallet.backup.usb_none": "نسخة USB: ليس بعد",
-    "xbook.short": "يتيح لـ VOOL قراءة إشاراتك المرجعية على X وحفظها. كل طلب ينتظر موافقتك."
+    "xbook.short": "يتيح لـ VOOL قراءة إشاراتك المرجعية على X وحفظها. كل طلب ينتظر موافقتك.",
+    "wallet.review.over_cap_payment": "تبلغ هذه الدفعة مع رسوم الشبكة {total} {asset} كحد أقصى، وهذا فوق حد هذه المحفظة البالغ {cap} {asset} للدفعة الواحدة. أرسل {room} {asset} كحد أقصى، أو ارفع الحد من الإعدادات، العملات المشفرة. لم يُرسل شيء.",
+    "wallet.review.over_cap_day": "ستتجاوز هذه الدفعة مع رسوم الشبكة حدًّا للإنفاق في هذه المحفظة (لليوم، أو لهذا المستلم اليوم). لم يُرسل شيء.",
+    "wallet.review.over_cap_frozen": "الإنفاق مجمَّد في هذه المحفظة، لذا لا يمكن الموافقة على هذه الدفعة الآن. لم يُرسل شيء."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

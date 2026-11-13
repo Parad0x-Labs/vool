@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "키체인 백업: 아직 없음",
     "wallet.backup.usb_saved": "USB 백업: {drive}에 저장됨",
     "wallet.backup.usb_none": "USB 백업: 아직 없음",
-    "xbook.short": "VOOL이 X 북마크를 읽고 저장할 수 있게 합니다. 모든 요청은 승인을 기다립니다."
+    "xbook.short": "VOOL이 X 북마크를 읽고 저장할 수 있게 합니다. 모든 요청은 승인을 기다립니다.",
+    "wallet.review.over_cap_payment": "이 결제는 네트워크 수수료를 포함해 최대 {total} {asset}로, 이 지갑의 결제 1회 한도 {cap} {asset}를 넘습니다. 최대 {room} {asset}까지 보내거나 설정, 암호화폐에서 한도를 올리세요. 아무것도 보내지 않았습니다.",
+    "wallet.review.over_cap_day": "이 결제는 네트워크 수수료를 포함하면 이 지갑의 지출 한도(오늘 한도 또는 오늘 이 수신자 한도)를 넘습니다. 아무것도 보내지 않았습니다.",
+    "wallet.review.over_cap_frozen": "이 지갑의 지출이 동결되어 지금은 이 결제를 승인할 수 없습니다. 아무것도 보내지 않았습니다."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

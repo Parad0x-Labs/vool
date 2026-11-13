@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "Cópia no Porta-chaves: ainda não",
     "wallet.backup.usb_saved": "Cópia em USB: guardada em {drive}",
     "wallet.backup.usb_none": "Cópia em USB: ainda não",
-    "xbook.short": "Permite que o VOOL leia e guarde os teus favoritos do X. Cada pedido aguarda a tua aprovação."
+    "xbook.short": "Permite que o VOOL leia e guarde os teus favoritos do X. Cada pedido aguarda a tua aprovação.",
+    "wallet.review.over_cap_payment": "Este pagamento com a taxa de rede chega a no máximo {total} {asset}, acima do limite desta carteira de {cap} {asset} por pagamento. Envie no máximo {room} {asset} ou aumente o limite em Definições, Cripto. Nada foi enviado.",
+    "wallet.review.over_cap_day": "Este pagamento com a taxa de rede ultrapassaria um limite de gastos desta carteira (para hoje, ou para este destinatário hoje). Nada foi enviado.",
+    "wallet.review.over_cap_frozen": "Os gastos estão congelados nesta carteira, por isso este pagamento não pode ser aprovado agora. Nada foi enviado."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

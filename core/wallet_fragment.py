@@ -2936,7 +2936,8 @@ function openSheet(p, cardControls, cardResult, opener){
       // a connected or watch-only account: the preview is real, but this sheet cannot approve it, so no credential is
       // asked; the server's words say what is really wrong. Cancelling the request still works.
       cred.hidden = true; forgot.hidden = true; approve.hidden = true;
-      setState(f.approval_unavailable.message || 'This account cannot send from here. Nothing was signed or sent.', true);
+      // a payment over the wallet's caps already says why in its review warning; the line under it stays empty
+      setState(f.approval_unavailable.code === 'wallet_limit_exceeded' ? '' : (f.approval_unavailable.message || 'This account cannot send from here. Nothing was signed or sent.'), true);
       state.setAttribute('data-approval-unavailable', f.approval_unavailable.code || '');
       gate(); return;
     }
@@ -2986,6 +2987,12 @@ function openSheet(p, cardControls, cardResult, opener){
   approve.addEventListener('click', function(){
     if (!quote || invalid || expired()) { gate(); return; }
     var f = quote.fields || {};
+    if (f.approval_method !== 'device' && !cred.value) {
+      // nothing typed yet: nothing is sent, so nothing can count as a wrong PIN; the box is shown and focused
+      cred.hidden = false; cred.focus();
+      setState(f.approval_method === 'password' ? 'Type your wallet password first. Nothing was sent.' : 'Type your wallet PIN first. Nothing was sent.', true);
+      return;
+    }
     var body = { proposal_id: p.proposal_id, quote_id: quote.quote_id, quote_digest: quote.digest };
     if (f.approval_method === 'device') body.method = 'device';
     else if (f.approval_method === 'password') body.password = cred.value;
@@ -3015,6 +3022,12 @@ function openSheet(p, cardControls, cardResult, opener){
       }
       var code = res.data && res.data.error;
       if (code === 'wallet_quote_expired' || code === 'wallet_quote_mismatch') invalid = code;
+      if (((res.data && res.data.fault && res.data.fault.context) || {}).reason === 'credential_required') {
+        // the server saw no PIN: not a wrong one, and not counted; ask for it where it is typed
+        cred.hidden = false; cred.focus();
+        setState(f.approval_method === 'password' ? 'Type your wallet password first. Nothing was sent.' : 'Type your wallet PIN first. Nothing was sent.', true);
+        gate(); return;
+      }
       setState((res.data && (res.data.message || code)) || 'Not approved.', true);
       gate();
     }).catch(function(){ busy = false; body = null; setState('The approval request did not complete.', true); gate(); });

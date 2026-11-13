@@ -5203,7 +5203,10 @@
     "wallet.backup.keychain_none": "Keychain backup: not yet",
     "wallet.backup.usb_saved": "USB backup: saved on {drive}",
     "wallet.backup.usb_none": "USB backup: not yet",
-    "xbook.short": "Lets VOOL read and save your X bookmarks. Each request waits for your approval."
+    "xbook.short": "Lets VOOL read and save your X bookmarks. Each request waits for your approval.",
+    "wallet.review.over_cap_payment": "This payment plus its network fee comes to at most {total} {asset}, above this wallet's limit of {cap} {asset} for one payment. Send at most {room} {asset}, or raise the limit in Settings, Crypto. Nothing was sent.",
+    "wallet.review.over_cap_day": "This payment plus its network fee would go over a spending limit of this wallet (for today, or for this recipient today). Nothing was sent.",
+    "wallet.review.over_cap_frozen": "Spending is frozen in this wallet, so this payment cannot be approved now. Nothing was sent."
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "Sauvegarde dans le Trousseau : pas encore",
     "wallet.backup.usb_saved": "Sauvegarde USB : enregistrée sur {drive}",
     "wallet.backup.usb_none": "Sauvegarde USB : pas encore",
-    "xbook.short": "Permet à VOOL de lire et d’enregistrer tes signets X. Chaque demande attend ton accord."
+    "xbook.short": "Permet à VOOL de lire et d’enregistrer tes signets X. Chaque demande attend ton accord.",
+    "wallet.review.over_cap_payment": "Ce paiement, frais de réseau compris, atteint au plus {total} {asset}, au-dessus de la limite de ce portefeuille de {cap} {asset} par paiement. Envoyez au plus {room} {asset}, ou relevez la limite dans Réglages, Crypto. Rien n’a été envoyé.",
+    "wallet.review.over_cap_day": "Ce paiement, frais de réseau compris, dépasserait une limite de dépense de ce portefeuille (pour aujourd’hui, ou pour ce destinataire aujourd’hui). Rien n’a été envoyé.",
+    "wallet.review.over_cap_frozen": "Les dépenses sont gelées dans ce portefeuille : ce paiement ne peut pas être approuvé maintenant. Rien n’a été envoyé."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

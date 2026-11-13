@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "גיבוי ב-Keychain: עדיין לא",
     "wallet.backup.usb_saved": "גיבוי USB: נשמר ב-{drive}",
     "wallet.backup.usb_none": "גיבוי USB: עדיין לא",
-    "xbook.short": "מאפשר ל-VOOL לקרוא ולשמור את הסימניות שלך ב-X. כל בקשה ממתינה לאישורך."
+    "xbook.short": "מאפשר ל-VOOL לקרוא ולשמור את הסימניות שלך ב-X. כל בקשה ממתינה לאישורך.",
+    "wallet.review.over_cap_payment": "התשלום הזה יחד עם עמלת הרשת מגיע לכל היותר ל-{total} {asset}, מעל המגבלה של הארנק הזה – {cap} {asset} לתשלום אחד. שלחו לכל היותר {room} {asset}, או הגדילו את המגבלה בהגדרות, קריפטו. שום דבר לא נשלח.",
+    "wallet.review.over_cap_day": "התשלום הזה יחד עם עמלת הרשת יחרוג ממגבלת הוצאה של הארנק הזה (להיום, או לנמען הזה היום). שום דבר לא נשלח.",
+    "wallet.review.over_cap_frozen": "ההוצאות בארנק הזה מוקפאות, ולכן אי אפשר לאשר את התשלום הזה עכשיו. שום דבר לא נשלח."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

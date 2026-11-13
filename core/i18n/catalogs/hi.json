@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "Keychain बैकअप: अभी नहीं",
     "wallet.backup.usb_saved": "USB बैकअप: {drive} पर सहेजा गया",
     "wallet.backup.usb_none": "USB बैकअप: अभी नहीं",
-    "xbook.short": "VOOL को आपके X बुकमार्क पढ़ने और सहेजने देता है। हर अनुरोध आपकी मंज़ूरी का इंतज़ार करता है।"
+    "xbook.short": "VOOL को आपके X बुकमार्क पढ़ने और सहेजने देता है। हर अनुरोध आपकी मंज़ूरी का इंतज़ार करता है।",
+    "wallet.review.over_cap_payment": "नेटवर्क शुल्क सहित यह भुगतान अधिकतम {total} {asset} होता है, जो इस वॉलेट की एक भुगतान की सीमा {cap} {asset} से ज़्यादा है। अधिकतम {room} {asset} भेजें, या सेटिंग्स, क्रिप्टो में सीमा बढ़ाएँ। कुछ भी नहीं भेजा गया।",
+    "wallet.review.over_cap_day": "नेटवर्क शुल्क सहित यह भुगतान इस वॉलेट की खर्च सीमा पार कर जाएगा (आज के लिए, या आज इस प्राप्तकर्ता के लिए)। कुछ भी नहीं भेजा गया।",
+    "wallet.review.over_cap_frozen": "इस वॉलेट में खर्च रोका गया है, इसलिए यह भुगतान अभी मंज़ूर नहीं हो सकता। कुछ भी नहीं भेजा गया।"
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

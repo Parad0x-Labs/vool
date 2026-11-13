@@ -712,6 +712,7 @@ class PaymentLifecycle:
         rpc = self._prove_before_claim(proposal) if chains.resolve_network(proposal.network).is_svm else None
         challenge = self._challenge_for(proposal, profile)
         decision = approver.approve(challenge)
+        self._require_typed_credential(proposal, decision)
         accepted = approval_module.decision_binds(decision, challenge)
         device_signer = None
         if accepted and profile.mode == custody.MODE_POCKET_SEALED:
@@ -851,6 +852,14 @@ class PaymentLifecycle:
             end_unheld(proposal.proposal_id, evidence=evidence)
         raise self._fault("wallet_approval_rejected", proposal, reason=SPEND_NOT_HELD)
 
+    def _require_typed_credential(self, proposal: proposals.TransactionProposal, decision: Any) -> None:
+        """A PIN or password approval that carries no PIN or password was never an attempt: nothing was typed, so
+        nothing is counted toward the approval attempts, the wallet's unlock throttle is not touched and the payment
+        stays pending. It is refused as "type it first" before any credential check."""
+        if decision.method in (approval_module.METHOD_PIN, approval_module.METHOD_PASSWORD) and not str(decision.pin_unlock or ""):
+            code = "wallet_password_invalid" if decision.method == approval_module.METHOD_PASSWORD else "wallet_pin_invalid"
+            raise self._fault(code, proposal, method=decision.method, reason="credential_required")
+
     def _refuse_pilot_approval(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str) -> None:
         attempts = self._count_approval_refusal(proposal, decision, reason=reason)
         final = "approval_attempts_exhausted" if attempts >= MAX_APPROVAL_ATTEMPTS else reason
@@ -903,6 +912,7 @@ class PaymentLifecycle:
             raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         challenge = approval_module.ApprovalChallengeV3.for_quote(proposal, quote)
         decision = approver.approve(challenge)
+        self._require_typed_credential(proposal, decision)
         if not approval_module.decision_binds_v3(decision, challenge):
             self._refuse_pilot_approval(proposal, decision, reason=decision.reason or "challenge_mismatch")
         if not capabilities.pilot_transfer_ready(spec):

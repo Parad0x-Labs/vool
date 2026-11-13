@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "Anahtar Zinciri yedeği: henüz yok",
     "wallet.backup.usb_saved": "USB yedeği: {drive} üzerine kaydedildi",
     "wallet.backup.usb_none": "USB yedeği: henüz yok",
-    "xbook.short": "VOOL'un X yer imlerinizi okumasına ve kaydetmesine izin verir. Her istek onayınızı bekler."
+    "xbook.short": "VOOL'un X yer imlerinizi okumasına ve kaydetmesine izin verir. Her istek onayınızı bekler.",
+    "wallet.review.over_cap_payment": "Bu ödeme ağ ücretiyle birlikte en fazla {total} {asset} tutuyor; bu, cüzdanın tek ödeme limiti olan {cap} {asset} üzerinde. En fazla {room} {asset} gönderin ya da limiti Ayarlar, Kripto bölümünden yükseltin. Hiçbir şey gönderilmedi.",
+    "wallet.review.over_cap_day": "Bu ödeme ağ ücretiyle birlikte bu cüzdanın bir harcama limitini aşar (bugün için ya da bugün bu alıcı için). Hiçbir şey gönderilmedi.",
+    "wallet.review.over_cap_frozen": "Bu cüzdanda harcamalar dondurulmuş, bu yüzden bu ödeme şu anda onaylanamaz. Hiçbir şey gönderilmedi."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

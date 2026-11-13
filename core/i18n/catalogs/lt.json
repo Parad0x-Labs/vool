@@ -5203,9 +5203,12 @@
     "wallet.backup.keychain_none": "Atsarginė kopija Keychain: dar nėra",
     "wallet.backup.usb_saved": "USB atsarginė kopija: išsaugota {drive}",
     "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra",
-    "xbook.short": "Leidžia VOOL skaityti ir išsaugoti jūsų X žymes. Kiekviena užklausa laukia jūsų patvirtinimo."
+    "xbook.short": "Leidžia VOOL skaityti ir išsaugoti jūsų X žymes. Kiekviena užklausa laukia jūsų patvirtinimo.",
+    "wallet.review.over_cap_payment": "Šis mokėjimas su tinklo mokesčiu sudaro daugiausia {total} {asset}, daugiau nei šios piniginės riba – {cap} {asset} vienam mokėjimui. Siųskite daugiausia {room} {asset} arba padidinkite ribą: Nustatymai, Kriptovaliuta. Niekas neišsiųsta.",
+    "wallet.review.over_cap_day": "Šis mokėjimas su tinklo mokesčiu viršytų šios piniginės išlaidų ribą (šiandienai arba šiam gavėjui šiandien). Niekas neišsiųsta.",
+    "wallet.review.over_cap_frozen": "Šioje piniginėje išlaidos užšaldytos, todėl šio mokėjimo dabar patvirtinti negalima. Niekas neišsiųsta."
   },
-  "source_catalog_sha256": "1b6d657733f590569b8a504f763adde38b578958beec1e0eaeb42c04586b59d2",
+  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
