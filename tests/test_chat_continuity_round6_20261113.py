@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from core import conversation_state as cs
-from tests.test_clean_local_loop_turn import turn_setup  # noqa: F401  (fixture)
+from tests.test_clean_local_loop_turn import turn_setup
 
 SC = {"surface": "cli", "platform": "cli"}
 
@@ -119,7 +119,7 @@ def test_an_acceptance_keeps_its_meaning(message):
 def test_a_trap_turn_still_reaches_the_work(turn_setup, monkeypatch):
     agent, fake, _home = turn_setup
     _r1, r2, _n = _two_turns(agent, fake, monkeypatch, "any photos of the camping trip in downloads", "thanks, now how much do i owe the plumber?",
-                             replies=FOUND_NOTHING + ['{"tool": "find", "query": "plumber"}', '{"answer": "EUR 140.00"}'])
+                             replies=[*FOUND_NOTHING, '{"tool": "find", "query": "plumber"}', '{"answer": "EUR 140.00"}'])
     assert r2.get("route_reason") != "conversation_closing"
 
 
