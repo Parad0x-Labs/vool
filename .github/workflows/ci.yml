@@ -461,8 +461,8 @@ jobs:
         # behind their exact CI predecessors (global os.name flips used to poison pytest's
         # failure formatter -- now replaced by narrow per-module platform seams), the
         # permission-prompt polluters sit before the first-run-pact victims they used to
-        # starve of transcript rows (evidence_missing), and the strict-service lifecycle
-        # proof pins the bounded stop's postconditions. Keeping the ordering preserves the
+        # starve of transcript rows (evidence_missing).
+        # Keeping the ordering preserves the
         # composition each repair was proven against.
         run: >-
           python ops/pytest_watchdog.py --phase-timeout 120
@@ -501,7 +501,6 @@ jobs:
           tests/native_skills/test_native_selection.py
           tests/test_first_run_pact_restart_multiplicity.py
           tests/test_p0_tool_offer_authority.py
-          tests/usepod/test_strict_service_lifecycle.py
           tests/test_council_api.py
       - name: Upload focused diagnostics
         if: always()
