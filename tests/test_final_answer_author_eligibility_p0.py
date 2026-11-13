@@ -645,8 +645,14 @@ def test_the_runtime_escalates_to_a_certified_author_on_the_real_chat_path():
             certified.provider_id: certified_answer,
         }
     )
+    # The turn STARTS on the uncertified model: the person picked it. Since 0.7.8 Auto ranks a
+    # certified local author first on its own, so an Auto turn never meets the uncertified one
+    # and there is nothing to escalate from; a pick is where escalation still happens.
     result, context, script = _drive(
-        "sess-escalate", script=script, candidates=[uncertified, certified]
+        "sess-escalate",
+        script=script,
+        candidates=[uncertified, certified],
+        context_extra={"requested_model": uncertified.provider_id},
     )
     served = _serve(context, result)
 
@@ -690,10 +696,16 @@ def test_a_failed_escalation_cannot_turn_a_refusal_into_an_answer():
             certified.provider_id: "",
         }
     )
+    # Started on the uncertified pick, as above: otherwise its bytes are never written and the
+    # check below cannot fail.
     result, context, _script = _drive(
-        "sess-escalate-fails", script=script, candidates=[uncertified, certified]
+        "sess-escalate-fails",
+        script=script,
+        candidates=[uncertified, certified],
+        context_extra={"requested_model": uncertified.provider_id},
     )
     served = _serve(context, result)
+    assert uncertified.provider_id in _script.manifests, _script.manifests
 
     assert MODEL_FINGERPRINT not in served, (
         "a failed escalation served the uncertified author's bytes: " + served[:400]
