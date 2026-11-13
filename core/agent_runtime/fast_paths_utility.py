@@ -961,6 +961,14 @@ def maybe_handle_direct_workspace_runtime_request(
 
     if turn_supplies_its_own_content(user_input, source_context=source_context):
         return None
+    # An order to run a command names its file as an argument, not as something to show: "run the
+    # command: sed -n 2p shipments/batch.csv" belongs to the command lane, which runs exactly those
+    # arguments. Measured on the v0.8 CI tip b9530c3c: once csv files were named here, this lane
+    # answered that order by printing the whole file, and the command never ran.
+    from core.clean_loop.route import is_run_order
+
+    if is_run_order(user_input):
+        return None
     direct_reads = _direct_workspace_read_requests(user_input)
     if direct_reads and _names_only_absent_proper_noun_products(user_input, direct_reads, workspace_root):
         # "What is the latest stable version of Node.js?" -- measured served (c5463c47): the
