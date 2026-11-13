@@ -422,8 +422,16 @@ def test_another_session_asking_the_subject_gets_no_page(served_env):
         assert not manifest_json_contains_turn_context(manifests)
     else:
         # v0.8 cross-chat recall answers a subject another chat stated by quoting that chat, with
-        # no model request at all: no request means no page could ride along. It must be that lane.
+        # no model request at all: no request means no page could ride along. It must be that lane,
+        # with the right recalled answer, and nothing from this test's own scaffolding.
         assert "you mentioned it in a chat" in turn_b["text"], turn_b["text"]
+        assert "42000" in turn_b["text"], turn_b["text"]
+        assert "turn_context" not in turn_b["text"] and "admission" not in turn_b["text"], turn_b["text"]
+        # Forgotten content never comes back through that lane, from any chat.
+        chat_turn(agent, "forget the harbor lights survey budget", "tc-s4c")
+        after = chat_turn(agent, SUBJECT_QUERY, "tc-s4d")
+        assert "42000" not in after["text"], after["text"]
+        assert not manifest_json_contains_turn_context(manifests_for_request(after["request_id"]))
     # S2's inspection shows only S2's own (its probe turn's) admission.
     own = admissions_for("tc-s4b")
     assert len(own) == 1 and own[0]["session_id"] == canonical_session("tc-s4b")
