@@ -486,7 +486,7 @@ _ASKS_NEWEST_RE = re.compile(r"\b(?:newest|latest|most\s+recent(?:ly)?)\b", re.I
 _ORDER_DIRECTION_RE = re.compile(r"\border\s+by\s+[^;]*?\b(asc|desc)\b", re.IGNORECASE)
 
 
-_FOLLOW_UP_FILLER = frozenset("and ok okay sorry hey so then what whats what's which who how many much is are the a an of in on to do does did there any my me i it that this again also please".split())
+_FOLLOW_UP_FILLER = frozenset(["and", "ok", "okay", "sorry", "hey", "so", "then", "what", "whats", "what's", "which", "who", "how", "many", "much", "is", "are", "the", "a", "an", "of", "in", "on", "to", "do", "does", "did", "there", "any", "my", "me", "i", "it", "that", "this", "again", "also", "please"])
 
 
 def _content_words(text: str) -> set[str]:

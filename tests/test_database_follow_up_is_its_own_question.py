@@ -289,8 +289,8 @@ def test_a_list_named_in_another_order_than_the_rows_is_replaced_by_the_rows() -
 
 # ── Mac run 16i rerun on c764848c: the rows were read wrongly, a question got the last question's query ────────
 
-from core.agent_runtime.orchestrator import database_holding_answer  # noqa: E402
-from core.agent_runtime.research_tool_loop_facade import _database_empty_on_a_literal  # noqa: E402
+from core.agent_runtime.orchestrator import database_holding_answer
+from core.agent_runtime.research_tool_loop_facade import _database_empty_on_a_literal
 
 
 def test_whose_loan_is_out_is_read_from_the_returned_column_not_by_the_model() -> None:
@@ -314,7 +314,7 @@ def test_a_question_that_is_not_about_what_is_out_is_not_answered_as_one() -> No
     assert database_holding_answer("is Gustav holding any tools", [_query_step("select", [["x"]], ["name"])]) == ""
 
 
-def test_a_count_with_no_names_does_not_satisfy_a_holding_question(world, tmp_path) -> None:  # noqa: F811
+def test_a_count_with_no_names_does_not_satisfy_a_holding_question(world, tmp_path) -> None:
     _toolshed(tmp_path)
     counted = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT COUNT(*) FROM borrowings JOIN neighbours ON 1=1"},
                "observation": {"rows": [[2]], "columns": ["COUNT(*)"]}}
