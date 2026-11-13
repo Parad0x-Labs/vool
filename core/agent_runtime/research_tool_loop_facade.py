@@ -131,6 +131,18 @@ _MACHINE_DRIVE_STAT_INTENTS = frozenset(
 # An ask about ONE thing on the computer, whatever the thing is called: "how much space does <X> take (up)",
 # a file name with its extension ("report.pdf", not "4.5 GB"), or "the/my/this ... folder|file". "On my
 # computer" then says where that thing lives, not that the drives are asked about.
+# The person says this computer is full or out of room ("my disk is full, where did the space go", "my
+# laptop is out of space"): a statement, not the question shape the disk classifier wants, and still an
+# ask about the drives. Skills A/B rerun on the v0.8 head f4f048f7 (Mac, real model, loop off,
+# 2026-11-13): that ask's disk read was refused and the refusal was the reply.
+_HOST_IS_FULL_RE = re.compile(
+    r"\b(?:is|are|'s|got|getting|gets)\s+(?:almost\s+|nearly\s+|completely\s+|totally\s+|so\s+)?full\b"
+    r"|\b(?:out\s+of|running\s+out\s+of|run\s+out\s+of|low\s+on|short\s+on)\s+(?:disk\s+|drive\s+)?(?:space|storage|room)\b"
+    r"|\bwhere\s+(?:did|has|have|does|do)\s+(?:all\s+)?(?:the\s+|my\s+)?(?:disk\s+)?(?:space|storage)\s+(?:gone|go|went)\b"
+    r"|\bwhat(?:'s|s|\s+is)\s+(?:using|eating|taking\s+up|hogging|filling)\s+(?:up\s+)?(?:all\s+)?(?:the\s+|my\s+)?"
+    r"(?:disk\s+|drive\s+)?(?:space|storage)\b",
+    re.IGNORECASE,
+)
 _NAMES_ONE_THING_RE = re.compile(
     r"\bhow\s+much\s+(?:space|room|storage|disk)\b[^?!\n]{0,80}?\b(?:take|takes|taking|took|use|uses|using|occupy|occupies|fill|fills)\b"
     r"|\b[\w-]*[A-Za-z][\w-]*\.[A-Za-z][A-Za-z0-9]{0,4}\b"
@@ -171,12 +183,12 @@ def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
         return None
     if _DISK_STRONG_RE.search(text):
         return None
-    if (_DISK_SPACE_CUE_RE.search(text) and _STORAGE_HOST_ANCHOR_RE.search(text)
+    if ((_DISK_SPACE_CUE_RE.search(text) or _HOST_IS_FULL_RE.search(text)) and _STORAGE_HOST_ANCHOR_RE.search(text)
             and not _NAMES_ONE_THING_RE.search(text)):
         return None
     message = (
-        "That reading is about the whole computer's drives, and this question wasn't about "
-        "them, so those numbers are left out. Answer from what the question is actually about."
+        "The drive readings were left out: this question is not about how full this computer's "
+        "drives are."
     )
     return ToolIntentExecution(
         handled=True,

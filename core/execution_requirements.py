@@ -1021,7 +1021,8 @@ def _compute_requirements(
     # Mac (Database run 16b, 2026-11-12): the query ran, and the answer was then withheld because
     # "the pages I found don't state it". Only the freshness words stand down; a live-data ask, an
     # evidence promise or any other signal keeps its reading.
-    own_data_now = _freshness_reads_own_database(candidate_text, source_context)
+    own_data_now = _freshness_reads_own_database(candidate_text, source_context) or _freshness_dates_own_records(
+        candidate_text)
     if own_data_now and mode is AnswerMode.GROUNDED:
         mode = AnswerMode.DIRECT
     # The software-authoring register (see `answer_mode_for`): the request asks the runtime to
@@ -1599,6 +1600,33 @@ def _freshness_reads_own_database(text: str, source_context: dict[str, Any] | No
 
         if not active_database_work_intents(source_context):
             return False
+    except Exception:
+        return False
+    return _only_freshness_asks_for_a_lookup(text)
+
+
+def _freshness_dates_own_records(text: str) -> bool:
+    """Whether a freshness word only dates the person's own notes, journal, mail or files.
+
+    "summarise my notes from this week" asks about the person's own records, which no web page holds:
+    "this week" says which of them, it does not make them news. Skills A/B rerun on the v0.8 head
+    f4f048f7 (Mac, real model, 2026-11-13): the notes were searched, then the answer was withheld as "I
+    looked this up, but what I found doesn't back the answer ... The pages I found don't state it",
+    loop on and off. Never raises; False keeps the reading as it was."""
+    try:
+        from core.online_asks import dates_own_records
+
+        if not dates_own_records(text):
+            return False
+    except Exception:
+        return False
+    return _only_freshness_asks_for_a_lookup(text)
+
+
+def _only_freshness_asks_for_a_lookup(text: str) -> bool:
+    """Whether the only reason to look anything up is a freshness word: with those masked, the ask is
+    answered directly, and no live-data, currency, evidence or other current-information signal fires."""
+    try:
         clean = " ".join(str(text or "").split())
         if not clean or _ASKS_THE_WEB_RE.search(clean):
             return False

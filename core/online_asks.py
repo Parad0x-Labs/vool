@@ -350,6 +350,31 @@ _OWN_RECORD_RE = re.compile(
     re.IGNORECASE,
 )
 
+_RECORD_NOUN = (
+    r"(?:notes|notebooks?|journal(?:\s+entries)?|diary|e-?mails?|mail|inbox|messages|texts|chats|"
+    r"files|documents|docs|downloads|screenshots|photos|pictures|voice\s+memos|memos|entries)"
+)
+_WINDOW = (
+    r"(?:today|tonight|yesterday|(?:this|last|past|previous)\s+(?:week|month|morning|afternoon|evening|night|weekend|year))"
+)
+# A time window that says WHICH of the person's records: "my notes from this week", "this morning's
+# emails", "what did i write in my journal yesterday", "what's new in my inbox today".
+_RECORDS_OF_A_WINDOW_RE = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'’-]+\s+){0,2}?" + _RECORD_NOUN + r"\s+(?:(?:from|of|for|in|during|since|over|written|taken|saved|made)\s+)?(?:the\s+)?" + _WINDOW + r"\b"
+    r"|\b" + _WINDOW + r"(?:'s|’s)\s+(?:[\w'’-]+\s+){0,2}?" + _RECORD_NOUN + r"\b"
+    r"|\b(?:in|from|through)\s+(?:my|our)\s+(?:[\w'’-]+\s+){0,2}?" + _RECORD_NOUN + r"\s+" + _WINDOW + r"\s*[?.!]?$",
+    re.IGNORECASE,
+)
+
+
+def dates_own_records(text: str) -> bool:
+    """Whether a time window in the ask says which of the person's own notes, mail or files it means
+    ("summarise my notes from this week"): those are on this computer or in VOOL, and no web page holds
+    them. A window that dates something else ("what does my journal say the rent is, right now?")
+    is not this. Read only."""
+    return bool(_RECORDS_OF_A_WINDOW_RE.search(" ".join(str(text or "").split())[:600]))
+
+
 def requirements_want_a_lookup(text: str, source_context: dict | None = None) -> bool:
     """Whether the requirement authority holds this ask to current information from the web, so the
     publication gate will only let an answer out that a lookup backs.

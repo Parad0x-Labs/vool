@@ -161,3 +161,94 @@ def test_asking_whether_a_note_exists_is_a_notes_search(searched, asked, topic):
     assert found is not None and found.kind == "find_notes", found
     assert recall.cross_chat_recall(asked, session_id=SID, source_context=_asked(asked)) is None
     assert searched == []
+
+
+# Skills A/B rerun on the v0.8 head f4f048f7 (Mac, real model, loop on and off, 2026-11-13):
+# * "summarise my notes from this week" searched the notes for 'week' twice, found nothing, and the
+#   answer was then withheld as "I looked this up, but what I found doesn't back the answer ... The
+#   pages I found don't state it": the requirement authority held the person's own notes to a web lookup.
+# * With the loop off, "my disk is full, where did the space go" had its drive read refused as "not about
+#   the drives", and the refusal's instruction to the model was the reply.
+
+@pytest.mark.parametrize("asked", (
+    "summarise my notes from this week",             # measured
+    "give me a recap of my journal from last week",
+    "summarise my emails from today",
+    "what did i write in my notes this morning",
+))
+def test_the_persons_own_records_dated_now_are_answered_without_the_web(asked):
+    from core.execution_requirements import requirements_for
+
+    need = requirements_for(asked, source_context={})
+    assert not need.current_information_required, need
+    assert not need.external_evidence_required, need
+    assert "web_search" not in need.allowed_toolsets, need
+
+
+@pytest.mark.parametrize("asked", ("summarise the news this week", "whats the weather this week",
+                                   "latest news on my bank this week"))
+def test_world_asks_dated_now_still_need_the_web(asked):
+    from core.execution_requirements import requirements_for
+
+    assert requirements_for(asked, source_context={}).current_information_required
+
+
+@pytest.mark.parametrize(("query", "topic", "window"), (
+    ("week", "", "this week"),                        # the measured model query
+    ("this week", "", "this week"),
+    ("summarise my notes from this week", "", "this week"),
+    ("notes about the boiler from last month", "boiler", "last month"),
+    ("yesterday's notes", "", "yesterday"),
+    ("boiler", "boiler", None),
+    ("morning routine", "morning routine", None),
+))
+def test_a_time_window_is_when_the_notes_were_written_not_their_topic(query, topic, window):
+    from core.operator.notes import notes_search_topic, notes_window
+
+    assert notes_search_topic(query) == topic
+    found = notes_window(query)
+    assert (found[2] if found else None) == window
+
+
+def test_the_notes_of_a_window_are_listed_with_what_they_say(monkeypatch):
+    import time
+
+    import core.operator.notes as notes
+    from core.operator.models import OperatorActionIntent
+
+    now = time.time()
+    rows = [
+        {"note_path": "a", "title": "Plumber", "session": "", "linked_event_uid": "", "excerpt": "call Tuesday"},
+        {"note_path": "b", "title": "Old idea", "session": "", "linked_event_uid": "", "excerpt": "from last year"},
+    ]
+    stamps = {"a": now, "b": now - 400 * 86400}
+    monkeypatch.setattr(notes, "search_notes", lambda *, query: [r for r in rows if query in ("", "plumber")])
+    monkeypatch.setattr(notes, "_note_recency", lambda row: stamps[row["note_path"]])
+    result = notes.handle_find_notes(
+        OperatorActionIntent(kind="find_notes", target_label="week"),
+        task_id="t", session_id="s", audit_log_fn=lambda *a, **k: None,
+    )
+    assert result.ok and result.details["count"] == 1, result.response_text
+    assert "Plumber: call Tuesday" in result.response_text and "Old idea" not in result.response_text
+    assert "'week'" not in result.response_text
+
+
+@pytest.mark.parametrize("asked", (
+    "my disk is full, where did the space go",       # measured, loop off
+    "my laptop is out of space",
+    "where did all my storage go on my mac",
+    "my mac is full what is taking up the space",
+))
+def test_saying_this_computer_is_full_keeps_the_drive_reading(asked):
+    from core.agent_runtime.research_tool_loop_facade import _drive_stats_privacy_refusal
+
+    assert _drive_stats_privacy_refusal("machine.disk_usage", asked) is None
+
+
+@pytest.mark.parametrize("asked", ("my inbox is full", "the bus is full", "my calendar is full this week"))
+def test_other_things_being_full_are_not_the_drives(asked):
+    from core.agent_runtime.research_tool_loop_facade import _drive_stats_privacy_refusal
+
+    refusal = _drive_stats_privacy_refusal("machine.disk_usage", asked)
+    assert refusal is not None
+    assert "Answer from" not in refusal.user_safe_response_text

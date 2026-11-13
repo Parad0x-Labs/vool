@@ -730,16 +730,84 @@ _NOTES_ASK_WORDS = frozenset(
 _NOTES_QUOTED_RE = re.compile(r'["\u201c]([^"\u201d]{2,})["\u201d]')
 
 
+# When the notes were written, as opposed to what they are about: "summarise my notes from this week".
+# Skills A/B rerun on the v0.8 head f4f048f7 (Mac, real model, 2026-11-13): the model searched the notes
+# for 'week' twice and found nothing, so a time window read as a topic hid every note of the week.
+_NOTES_WINDOW_RE = re.compile(
+    r"\b(?:(?P<dir>this|last|past|previous)\s+(?P<unit>week|month|morning|afternoon|evening|night)"
+    r"|(?P<day>today|tonight|yesterday))(?:'s|\u2019s)?\b",
+    re.IGNORECASE,
+)
+# A query that is nothing but the unit a window was cut down to ("week", "this week's").
+_BARE_WINDOW_UNIT_RE = re.compile(r"^(?:week|month|morning|afternoon|evening|weekly|monthly)(?:'s)?$", re.IGNORECASE)
+
+
+def notes_window(words: str, *, now: datetime | None = None) -> tuple[float, float, str] | None:
+    """The span of time a notes ask names, as (start, end) epoch seconds in this computer's local time and
+    the phrase that named it ("this week"); None when it names none. A week starts on Monday. Read only."""
+
+    text = " ".join(str(words or "").split())
+    bare = _BARE_WINDOW_UNIT_RE.match(text.strip(" ?!.,;:"))
+    if bare is not None:
+        # The model's own query is often the unit alone ("week" for "my notes from this week"): the current one.
+        unit = bare.group(0).casefold()
+        text = "today" if unit in {"morning", "afternoon", "evening"} else f"this {'month' if unit.startswith('month') else 'week'}"
+    match = _NOTES_WINDOW_RE.search(text)
+    if match is None:
+        return None
+    from datetime import timedelta
+
+    local = (now or datetime.now()).astimezone()
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    day = (match.group("day") or "").casefold()
+    direction = (match.group("dir") or "").casefold()
+    unit = (match.group("unit") or "").casefold()
+    if day in {"today", "tonight"}:
+        start, end = midnight, midnight + timedelta(days=1)
+    elif day == "yesterday":
+        start, end = midnight - timedelta(days=1), midnight
+    elif unit == "week":
+        monday = midnight - timedelta(days=midnight.weekday())
+        if direction == "this":
+            start, end = monday, monday + timedelta(days=7)
+        elif direction == "past":
+            start, end = midnight - timedelta(days=6), midnight + timedelta(days=1)
+        else:
+            start, end = monday - timedelta(days=7), monday
+    elif unit == "month":
+        first = midnight.replace(day=1)
+        following = (first + timedelta(days=32)).replace(day=1)
+        if direction == "this":
+            start, end = first, following
+        elif direction == "past":
+            start, end = midnight - timedelta(days=29), midnight + timedelta(days=1)
+        else:
+            start, end = (first - timedelta(days=1)).replace(day=1), first
+    else:
+        # Part of a day: "this morning" is today, "last night" ran into today.
+        base = midnight - timedelta(days=1) if direction in {"last", "previous"} and unit != "night" else midnight
+        if unit == "night":
+            start, end = midnight - timedelta(hours=6), midnight + timedelta(hours=6)
+        else:
+            start, end = base, base + timedelta(days=1)
+    phrase = day or f"{direction} {unit}"
+    return start.timestamp(), end.timestamp(), phrase
+
+
 def notes_search_topic(words: str) -> str:
     """The topic a notes ask searches for, with the ask itself taken off ("" = no topic: list).
 
     "have I got any notes saved?" -> "", "any notes on the dentist?" -> "dentist", "notes about
-    the boiler service" -> "boiler service". A quoted topic is kept exactly as quoted. Read only."""
+    the boiler service" -> "boiler service", "my notes from this week" -> "" (a window, see
+    `notes_window`, never a topic). A quoted topic is kept exactly as quoted. Read only."""
 
     text = " ".join(str(words or "").split())
     quoted = _NOTES_QUOTED_RE.search(text)
     if quoted:
         return quoted.group(1).strip()
+    text = " ".join(_NOTES_WINDOW_RE.sub(" ", text).split())
+    if _BARE_WINDOW_UNIT_RE.match(text.strip(" ?!.,;:")):
+        return ""
     kept = []
     for raw in re.split(r"\s+", text):
         word = raw.strip(" \t?!.,;:()[]{}").replace("\u2019", "'")
@@ -776,6 +844,9 @@ def handle_find_notes(
 ) -> OperatorActionResult:
     del session_id
     query = find_notes_query(intent)
+    window = notes_window(intent.target_label or "") or notes_window(intent.raw_text or "")
+    if window is not None:
+        return _notes_in_window(query, window, task_id=task_id, audit_log_fn=audit_log_fn)
     if not query:
         # No topic: the newest notes first, and how many there are in all.
         rows = sorted(search_notes(query=""), key=_note_recency, reverse=True)
@@ -804,6 +875,41 @@ def handle_find_notes(
     for row in rows:
         lines.append(f"- {row['title']}: {row['excerpt']}" + (" (linked to an event)" if row["linked_event_uid"] else ""))
     return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"query": query, "count": len(rows), "notes": rows})
+
+
+def _notes_in_window(
+    query: str, window: tuple[float, float, str], *, task_id: str, audit_log_fn: Any,
+) -> OperatorActionResult:
+    """The notes written or changed in a span of time ("my notes from this week"), newest first, with
+    what each one says, so a summary of them has their words; narrowed to a topic when one was named."""
+    start, end, phrase = window
+    rows = [row for row in search_notes(query=query) if start <= _note_recency(row) < end]
+    rows.sort(key=_note_recency, reverse=True)
+    audit_log_fn(
+        "operator_action_find_notes",
+        target_id=task_id,
+        target_type="task",
+        details={"query": query, "window": phrase, "matches": len(rows)},
+    )
+    about = f" about {query!r}" if query else ""
+    if not rows:
+        return OperatorActionResult(
+            ok=True, status="reported",
+            response_text=f"No notes in this workspace{about} were written or changed {phrase}.",
+            details={"query": query, "window": phrase, "count": 0},
+        )
+    shown = rows[:_NEWEST_NOTES_SHOWN]
+    lines = [f"Notes{about} written or changed {phrase} ({len(rows)}), newest first:"]
+    for row in shown:
+        excerpt = " ".join(str(row.get("excerpt") or "").split())
+        lines.append(f"- {row['title']}" + (f": {excerpt}" if excerpt else "")
+                     + (" (linked to an event)" if row["linked_event_uid"] else ""))
+    if len(rows) > len(shown):
+        lines.append(f"…and {len(rows) - len(shown)} older.")
+    return OperatorActionResult(
+        ok=True, status="reported", response_text="\n".join(lines),
+        details={"query": query, "window": phrase, "count": len(rows), "notes": shown},
+    )
 
 
 def handle_show_note(
