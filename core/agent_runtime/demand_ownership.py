@@ -1514,6 +1514,34 @@ def execution_unit_members(text: str) -> dict[str, tuple[str, ...]]:
     return {span.unit_id: span.member_unit_ids or (span.unit_id,) for span in execution_unit_spans(text)}
 
 
+_OPERATOR_LANE = "operator_action_dispatch"
+
+
+def _the_operator_reads_it_as_an_argument(unit: Any, group: list[Any], served: dict[str, frozenset[str]]) -> bool:
+    """Whether `unit` is what a bare notes search before it looks for: bound to that request by the operator lane's
+    whole-text reading (`_operator_action_binds`), while the fragment alone is no operator action."""
+    if served.get(unit.unit_id, frozenset()) != frozenset({_OPERATOR_LANE}):
+        # Read by another lane too ("..., and what is the price of gold?"): a request of its own.
+        return False
+    if not any(_OPERATOR_LANE in served.get(member.unit_id, frozenset()) for member in group):
+        return False
+    try:
+        from core.operator.notes import find_notes_query
+        from core.operator.parser import parse_operator_action_intent
+
+        if _operator_action_covers(unit.text):
+            return False
+        # Only a notes search that names nothing to look for on its own ("check my notes"): a search with its
+        # own topic ("check my notes for the plumber") is complete, and a question after it is a request apart.
+        for member in group:
+            intent = parse_operator_action_intent(member.text)
+            if intent is not None and intent.kind == "find_notes" and not find_notes_query(intent):
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def _legacy_execution_unit_spans(text: str, minted: Any) -> tuple[ExecutionUnitSpan, ...]:
     """The grouping law that preceded the interpretation (R1e, amended) -- SHADOW ONLY.
 
@@ -1555,6 +1583,16 @@ def _legacy_execution_unit_spans(text: str, minted: Any) -> tuple[ExecutionUnitS
             # became its own paid sub-turn -- six attempts for one design answer, one of them
             # asking the model "Explain the architecture" with nothing to explain. The accounting
             # grain is untouched: every heading stays a member obligation of the unit that ran.
+            groups[-1].append(unit)
+            continue
+        if groups and opens_fresh and readers_intact and _the_operator_reads_it_as_an_argument(
+            unit, groups[-1], served
+        ):
+            # The operator lane's reading of the WHOLE text takes this question as what it acts on
+            # ("check my notes, did I write anything down about the dentist?": the question is what the
+            # notes search looks for), and the fragment is no operator request of its own. Split, the
+            # bare "check my notes" listed the notes and the question went to the saved-chat search
+            # (served claim gates, CI on the v0.8 line, 2026-11-13).
             groups[-1].append(unit)
             continue
         # A single-action parser cannot batch another complete action into its
