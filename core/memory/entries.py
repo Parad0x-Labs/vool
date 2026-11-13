@@ -2570,6 +2570,7 @@ def delete_conversation_session(session_id: str) -> bool:
         try:
             semantic.node_delete_for_session(sid)
             semantic.occurrence_delete_for_chat(sid)
+            semantic.learned_delete_for_session(sid)
         finally:
             semantic.close()
     except Exception:

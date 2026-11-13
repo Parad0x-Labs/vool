@@ -899,6 +899,7 @@ class DropHome:
             entries.delete_conversation_session(sid)
             memory.node_delete_for_session(sid)
             memory.occurrence_delete_for_chat(sid)
+            memory.learned_delete_for_session(sid)
             memory.block_delete(summary_block(sid))
             memory.record_revocation(sid, chat_id=sid)
             memory.complete_erasure(owner_operation)

@@ -2937,6 +2937,9 @@ def maybe_handle_memory_command(
             mirror_before = ""
             mirror_after = ""
             already_erased = False
+            # This chat's turns that carry the words, read before any store erases them: what the fact extractor
+            # learned from them before it recorded where its lines came from goes with them (`_erase_learned_from`).
+            forgotten_turns = _turns_carrying(resolved_session, token)
             try:
                 mirror_before = _mirror_text().lower()
                 already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
@@ -3015,6 +3018,17 @@ def maybe_handle_memory_command(
             except Exception as exc:
                 LOGGER.warning("imported context erasure failed: %s", type(exc).__name__)
                 _record_erasure_store(erasures, "imported_working_state", "incomplete")
+            for owner, operation_store in owner_stores.items():
+                # Everything the fact extractor learned from these words, reworded or not (a paraphrase carries
+                # none of the forgotten words, so the block erase below cannot find it).
+                try:
+                    learned = operation_store._erase_learned_from(
+                        token, session_id=resolved_session, forgotten_turns=forgotten_turns)
+                    _record_erasure_store(erasures, f"{owner}_learned_lines", "verified",
+                                          int(learned["lines"]) + int(learned["nodes"]))
+                except Exception as exc:
+                    LOGGER.warning("learned line erasure failed: %s", type(exc).__name__)
+                    _record_erasure_store(erasures, f"{owner}_learned_lines", "incomplete")
             for owner, operation_store in owner_stores.items():
                 block_status: dict[str, Any] = {}
                 try:
@@ -3209,6 +3223,29 @@ def _whole_erase_saved_texts(policy: Any) -> list[str]:
         if text and memory_entries._memory_command_row_allowed(row, access_policy=policy):
             texts.append(text)
     return texts
+
+
+def _turns_carrying(session_id: Any, token: str) -> list[str]:
+    """The words of this chat's logged turns that carry ``token`` (read raw: the forget's own admission withholds
+    them from the serving readers). Only forget targets; empty when unreadable."""
+    scope = str(session_id or "").strip()
+    if not scope or not token:
+        return []
+    try:
+        from core.memory.carriers import carries
+        from core.memory.files import _load_jsonl, conversation_log_path
+
+        turns = []
+        for row in _load_jsonl(conversation_log_path()):
+            if str(row.get("session_id") or row.get("chat_id") or "") != scope:
+                continue
+            text = "\n".join(str(row.get(field) or "") for field in ("user", "assistant"))
+            if carries(text, token):
+                turns.append(text)
+        return turns
+    except Exception as exc:
+        LOGGER.warning("forgotten turns could not be read: %s", type(exc).__name__)
+        return []
 
 
 def _whole_erase_learned_lines(source_context: dict[str, Any] | None) -> list[str]:

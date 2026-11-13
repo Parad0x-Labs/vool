@@ -336,9 +336,14 @@ class FactExtractor:
                 )
             except RuntimeError:
                 return applied
+            self._learned: list[tuple[str, str, str]] = []
             for fact in facts[:5]:
                 if self._apply(fact):
                     applied.append(fact)
+            # Where each learned line came from, so a later forget of these words removes it, reworded or not.
+            record = getattr(self._memory, "learned_record", None)
+            if self._learned and record is not None:
+                record(session_id=self._session_id, source_text="\n".join(source), items=self._learned)
         return applied
 
     def _format_conversation(self, messages: list[dict]) -> str:
@@ -481,10 +486,13 @@ class FactExtractor:
             if singleton_line:
                 changed = self._memory.block_replace(fact.block, singleton_line, content)
                 if changed:
-                    self._store_fact_node(content=f"{singleton_line} -> {content}", block=fact.block, action="UPDATE")
+                    node = self._store_fact_node(content=f"{singleton_line} -> {content}", block=fact.block,
+                                                 action="UPDATE")
+                    self._learned_item(fact.block, content, node)
                 return changed
             self._memory.block_append(fact.block, content)
-            self._store_fact_node(content=content, block=fact.block, action=fact.action)
+            node = self._store_fact_node(content=content, block=fact.block, action=fact.action)
+            self._learned_item(fact.block, content, node)
             return True
         if fact.action == "UPDATE":
             old = _safe_memory_text(fact.old)
@@ -493,7 +501,8 @@ class FactExtractor:
                 return False
             changed = self._memory.block_replace(fact.block, old, new)
             if changed:
-                self._store_fact_node(content=f"{old} -> {new}", block=fact.block, action=fact.action)
+                node = self._store_fact_node(content=f"{old} -> {new}", block=fact.block, action=fact.action)
+                self._learned_item(fact.block, new, node)
             return changed
         if fact.action == "DELETE":
             content = _safe_memory_text(fact.content)
@@ -504,15 +513,21 @@ class FactExtractor:
                 return False
             updated = "\n".join(line for line in existing.replace(content, "").splitlines() if line.strip())
             self._memory.block_write(fact.block, updated)
-            self._store_fact_node(content=f"Removed: {content}", block=fact.block, action=fact.action)
+            node = self._store_fact_node(content=f"Removed: {content}", block=fact.block, action=fact.action)
+            self._learned_item(fact.block, "", node)
             return True
         return False
 
-    def _store_fact_node(self, *, content: str, block: str, action: str) -> None:
+    def _learned_item(self, block: str, line: str, node_id: str) -> None:
+        learned = getattr(self, "_learned", None)
+        if learned is not None and (line or node_id):
+            learned.append((block, line, node_id))
+
+    def _store_fact_node(self, *, content: str, block: str, action: str) -> str:
         if not self._session_id:
             # A node without an immutable chat namespace cannot safely
             # participate in semantic retrieval.
-            return
+            return ""
         embedding = stable_text_embedding(content)
         related = [
             node.node_id
@@ -536,7 +551,7 @@ class FactExtractor:
         tags = [block, action.lower(), f"session:{session_scope}"]
         if project_scope:
             tags.append(f"project:{project_scope}")
-        self._memory.node_store(
+        node = self._memory.node_store(
             content=content,
             keywords=_keywords_for_text(content),
             tags=tags,
@@ -555,6 +570,7 @@ class FactExtractor:
             # canonical erasure reaches them. Legacy shape ('') stays honest.
             lineage_request_id=self._current_lineage_request_id(),
         )
+        return str(getattr(node, "node_id", "") or "")
 
     @staticmethod
     def _current_lineage_request_id() -> str:

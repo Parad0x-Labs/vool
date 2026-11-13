@@ -428,7 +428,183 @@ class VoolMemory:
             "CREATE INDEX IF NOT EXISTS idx_memory_erasure_operations_chat "
             "ON memory_erasure_operations(chat_id, status)"
         )
+        # Where each learned line came from (core.fact_extractor): one row per extraction run with the words it
+        # read, in its chat, and one row per block line or fact node it wrote. A forget of those words removes
+        # what was derived from them, reworded or not (`_erase_learned_from`).
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS memory_learned_runs ("
+            "run_id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, session_id TEXT NOT NULL, "
+            "source_text TEXT NOT NULL, created_at REAL NOT NULL)"
+        )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS memory_learned_items ("
+            "run_id TEXT NOT NULL, agent_id TEXT NOT NULL, block_name TEXT NOT NULL, line TEXT NOT NULL, "
+            "node_id TEXT NOT NULL, PRIMARY KEY (run_id, agent_id, block_name, line, node_id))"
+        )
         self._conn.commit()
+
+    # ------------------------------------------------------------------ learned-line provenance
+
+    @fenced_writer
+    def learned_record(self, *, session_id: str, source_text: str, items: list[tuple[str, str, str]]) -> None:
+        """Record which words one extraction learned its block lines and fact nodes from (``items`` are
+        ``(block_name, line, node_id)``; ``line`` or ``node_id`` may be '')."""
+        rows = [(_normalize_block_name(block), str(line or "").strip(), str(node or "").strip())
+                for block, line, node in items or ()]
+        rows = [row for row in rows if row[1] or row[2]]
+        if not rows:
+            return
+        import uuid
+
+        run_id = uuid.uuid4().hex
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO memory_learned_runs (run_id, agent_id, session_id, source_text, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (run_id, self._agent_id, str(session_id or "").strip(), str(source_text or ""), time.time()))
+            self._conn.executemany(
+                "INSERT OR IGNORE INTO memory_learned_items (run_id, agent_id, block_name, line, node_id) "
+                "VALUES (?, ?, ?, ?, ?)", [(run_id, self._agent_id, *row) for row in rows])
+            self._prune_learned_sources_locked()
+            self._conn.commit()
+
+    def _prune_learned_sources_locked(self) -> None:
+        """Drop provenance whose line and node are gone, then runs with nothing left: a run's words are kept
+        only while something learned from them is."""
+        blocks = {str(row["block_name"]): _learned_line_set(str(row["content"] or "")) for row in self._conn.execute(
+            "SELECT block_name, content FROM memory_blocks WHERE agent_id = ?", (self._agent_id,))}
+        nodes = {str(row["node_id"]) for row in self._conn.execute(
+            "SELECT node_id FROM memory_nodes WHERE agent_id = ?", (self._agent_id,))}
+        stale = [
+            (row["run_id"], row["block_name"], row["line"], row["node_id"])
+            for row in self._conn.execute(
+                "SELECT run_id, block_name, line, node_id FROM memory_learned_items WHERE agent_id = ?",
+                (self._agent_id,))
+            if not (row["line"] and _learned_line_key(row["line"]) in blocks.get(str(row["block_name"]), set()))
+            and not (row["node_id"] and str(row["node_id"]) in nodes)
+        ]
+        self._conn.executemany(
+            "DELETE FROM memory_learned_items WHERE run_id = ? AND agent_id = ? AND block_name = ? AND line = ? "
+            "AND node_id = ?", [(run, self._agent_id, block, line, node) for run, block, line, node in stale])
+        self._conn.execute(
+            "DELETE FROM memory_learned_runs WHERE agent_id = ? AND run_id NOT IN "
+            "(SELECT run_id FROM memory_learned_items WHERE agent_id = ?)", (self._agent_id, self._agent_id))
+
+    def learned_delete_for_session(self, session_id: str) -> int:
+        """A deleted chat keeps no copy of its words here (the lines learned from it lose their source)."""
+        scope = str(session_id or "").strip()
+        if not scope:
+            return 0
+        with self._lock:
+            # Every agent's runs: the chat is gone for all of them.
+            runs = [str(row["run_id"]) for row in self._conn.execute(
+                "SELECT run_id FROM memory_learned_runs WHERE session_id = ?", (scope,))]
+            self._conn.executemany("DELETE FROM memory_learned_items WHERE run_id = ?", [(run,) for run in runs])
+            self._conn.executemany("DELETE FROM memory_learned_runs WHERE run_id = ?", [(run,) for run in runs])
+            self._conn.commit()
+        return len(runs)
+
+    def _erase_learned_from(self, token: str, *, session_id: str, forgotten_turns: list[str] | tuple[str, ...] = ()
+                            ) -> dict[str, int]:
+        """Forget law for what the fact extractor learned: remove every block line and fact node derived from
+        this chat's words that carry ``token``, reworded or not, then verify.
+
+        Lines with recorded provenance go when their run's words carry the token. Lines and fact nodes from
+        before provenance was recorded carry no source: they go when they share two or more content words with
+        one of ``forgotten_turns`` (this chat's turns that carried the token, read before the forget erased
+        them). Nodes are matched only in this chat; block lines are home-wide, as the blocks are.
+        Raises when a run of this chat still carries the token afterwards."""
+        from core.fact_extractor import ALLOWED_BLOCKS
+        from core.memory.carriers import carries
+
+        scope = str(session_id or "").strip()
+        removed_lines = removed_nodes = 0
+        turn_words = [words for words in (_learned_words(turn) for turn in forgotten_turns or ()) if words]
+        with self._lock:
+            runs = [row for row in self._conn.execute(
+                "SELECT run_id, session_id, source_text FROM memory_learned_runs WHERE agent_id = ?",
+                (self._agent_id,)) if str(row["session_id"]) == scope and carries(str(row["source_text"]), token)]
+            doomed_runs = {str(row["run_id"]) for row in runs}
+            items = self._conn.execute(
+                "SELECT run_id, block_name, line, node_id FROM memory_learned_items WHERE agent_id = ?",
+                (self._agent_id,)).fetchall()
+            sourced_lines: dict[str, set[str]] = {}
+            doomed_lines: dict[str, set[str]] = {}
+            doomed_nodes: set[str] = set()
+            sourced_nodes = {str(row["node_id"]) for row in items if row["node_id"]}
+            for row in items:
+                block, line = str(row["block_name"]), str(row["line"] or "")
+                if line:
+                    sourced_lines.setdefault(block, set()).add(_learned_line_key(line))
+                if str(row["run_id"]) in doomed_runs:
+                    if line:
+                        doomed_lines.setdefault(block, set()).add(_learned_line_key(line))
+                    if row["node_id"]:
+                        doomed_nodes.add(str(row["node_id"]))
+            for row in self._conn.execute(
+                    "SELECT block_name, content FROM memory_blocks WHERE agent_id = ?", (self._agent_id,)).fetchall():
+                block = str(row["block_name"])
+                if block not in ALLOWED_BLOCKS:
+                    continue
+                kept, dropped = [], 0
+                for line in str(row["content"] or "").splitlines():
+                    key = _learned_line_key(line)
+                    legacy = key and key not in sourced_lines.get(block, set())
+                    if key and (key in doomed_lines.get(block, set())
+                                or (legacy and _derived_from_any(line, turn_words))):
+                        dropped += 1
+                        continue
+                    kept.append(line)
+                if not dropped:
+                    continue
+                removed_lines += dropped
+                content = "\n".join(line for line in kept if line.strip())
+                if content:
+                    self._conn.execute("UPDATE memory_blocks SET content = ?, updated_at = ? "
+                                       "WHERE block_name = ? AND agent_id = ?",
+                                       (content, time.time(), block, self._agent_id))
+                else:
+                    self._conn.execute("DELETE FROM memory_blocks WHERE block_name = ? AND agent_id = ?",
+                                       (block, self._agent_id))
+            if scope and turn_words:
+                expected = _requested_session_scope(scope)
+                for row in self._conn.execute(
+                        "SELECT node_id, content, tags, context_description FROM memory_nodes WHERE agent_id = ?",
+                        (self._agent_id,)).fetchall():
+                    node_id = str(row["node_id"])
+                    if node_id in sourced_nodes or node_id in doomed_nodes:
+                        continue
+                    tags = [str(tag or "").strip() for tag in _json_list(row["tags"])]
+                    if not (set(tags) & ALLOWED_BLOCKS) or expected is None or _exact_stored_session_scope(
+                            tags=tags, context_description=str(row["context_description"] or "")) != expected:
+                        continue  # only the extractor's fact nodes of this chat
+                    if _derived_from_any(str(row["content"] or ""), turn_words):
+                        doomed_nodes.add(node_id)
+            if doomed_nodes:
+                removed_nodes = len(doomed_nodes)
+                self._conn.executemany("DELETE FROM memory_nodes WHERE node_id = ? AND agent_id = ?",
+                                       [(node, self._agent_id) for node in doomed_nodes])
+                with contextlib.suppress(sqlite3.Error):  # FTS is a best-effort leg
+                    self._conn.executemany("DELETE FROM memory_fts WHERE node_id = ?",
+                                           [(node,) for node in doomed_nodes])
+            self._conn.executemany("DELETE FROM memory_learned_items WHERE run_id = ? AND agent_id = ?",
+                                   [(run, self._agent_id) for run in doomed_runs])
+            self._conn.executemany("DELETE FROM memory_learned_runs WHERE run_id = ? AND agent_id = ?",
+                                   [(run, self._agent_id) for run in doomed_runs])
+            # A provenance row naming the forgotten words goes with the line the block erase removes.
+            self._conn.executemany(
+                "DELETE FROM memory_learned_items WHERE run_id = ? AND agent_id = ? AND block_name = ? AND line = ? "
+                "AND node_id = ?",
+                [(row["run_id"], self._agent_id, row["block_name"], row["line"], row["node_id"]) for row in items
+                 if str(row["run_id"]) not in doomed_runs and carries(str(row["line"] or ""), token)])
+            self._prune_learned_sources_locked()
+            self._conn.commit()
+            left = [row for row in self._conn.execute(
+                "SELECT source_text FROM memory_learned_runs WHERE agent_id = ? AND session_id = ?",
+                (self._agent_id, scope)) if carries(str(row["source_text"]), token)]
+        if left:
+            raise RuntimeError("learned-line provenance still carries forgotten words")
+        return {"lines": removed_lines, "nodes": removed_nodes}
 
     @property
     def db_path(self) -> Path:
@@ -3020,6 +3196,47 @@ def text_carries_forget_token(text: str, needle: str) -> bool:
     if not normalized:
         return False
     return forget_needle_in(text, normalized)
+
+
+#: Words that say nothing about which fact a line holds: a learned line and the turn it came from share them
+#: by chance. Everything else of three or more letters or digits is a content word.
+_LEARNED_STOPWORDS = frozenset(
+    [
+        "the", "and", "that", "this", "these", "those", "with", "from", "for", "about", "into", "onto", "over",
+        "under", "than", "then", "them", "they", "their", "there", "what", "when", "where", "which", "while",
+        "who", "whom", "whose", "why", "how", "you", "your", "yours", "our", "ours", "his", "her", "hers",
+        "its", "was", "were", "are", "is", "be", "been", "being", "have", "has", "had", "having", "not", "but",
+        "all", "any", "can", "could", "would", "should", "will", "shall", "may", "might", "must", "just",
+        "also", "very", "really", "like", "likes", "liked", "say", "said", "says", "tell", "told", "remember",
+        "remembered", "forget", "forgot", "please", "user", "know", "knows", "thing", "things", "something",
+        "anything", "everything", "one", "ones", "some", "more", "most", "much", "many", "now", "today", "yes",
+        "okay", "sure", "got", "get", "gets", "make", "made", "let", "lets"
+    ]
+)
+_LEARNED_WORD_RE = re.compile(r"[^\W_]+")
+
+
+def _learned_line_key(line: str) -> str:
+    """One learned line as the provenance names it: whitespace and list marks are not meaning."""
+    return " ".join(str(line or "").split()).lstrip("-* ").strip().casefold()
+
+
+def _learned_line_set(content: str) -> set[str]:
+    return {key for key in (_learned_line_key(line) for line in str(content or "").splitlines()) if key}
+
+
+def _learned_words(text: str) -> set[str]:
+    import unicodedata
+
+    folded = unicodedata.normalize("NFKC", str(text or "")).casefold()
+    return {word for word in _LEARNED_WORD_RE.findall(folded) if len(word) >= 3 and word not in _LEARNED_STOPWORDS}
+
+
+def _derived_from_any(line: str, turn_words: list[set[str]]) -> bool:
+    """A line without recorded provenance counts as derived from a forgotten turn when they share two or more
+    content words (a learned line restates the turn's subject and its value, in other words around them)."""
+    words = _learned_words(line)
+    return bool(words) and any(len(words & turn) >= 2 for turn in turn_words)
 
 
 def _requested_session_scope(session_id: str | None) -> str | None:

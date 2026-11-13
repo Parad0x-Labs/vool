@@ -167,3 +167,133 @@ def test_a_forget_that_starts_first_finishes_before_the_extraction_decides(env):
 
     assert result.get("applied") == []
     assert "silver birch" not in _learned(home)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# What was learned BEFORE the forget goes with it, reworded or not.
+#
+# Law (``core.vool_memory.VoolMemory._erase_learned_from``): the extractor records, for every block line and fact
+# node it writes, the words it learned them from (its chat and its source turns). A forget removes every line and
+# node whose source words carry the forgotten token. Lines and fact nodes from before that record existed carry no
+# source: they go when they share two or more content words with one of the chat's turns that carried the token
+# (read before the forget erased them). What was learned from other words stays.
+
+
+def _extract_from(home, messages: list[dict], content: str) -> list:
+    from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
+    from core.fact_extractor import FactExtractor
+    from core.vool_memory import VoolMemory
+
+    memory = VoolMemory(runtime_home=str(home), agent_id=SEMANTIC_MEMORY_AGENT_ID)
+    try:
+        extractor = FactExtractor(memory=memory, ollama_url="http://127.0.0.1:9", session_id=OWNER_CHAT)
+        extractor._call_model = lambda _conversation: json.dumps(
+            {"facts": [{"action": "ADD", "block": "user_profile", "content": content}]})
+        return extractor.run_sync(messages)
+    finally:
+        memory.close()
+
+
+def _turn(user: str) -> list[dict]:
+    return [{"role": "user", "content": user}, {"role": "assistant", "content": "Locked in. I'll remember that."}]
+
+
+def _rows(home, sql: str) -> list:
+    import sqlite3
+
+    conn = sqlite3.connect(home / "data" / "memory" / "vool_memory.db")
+    try:
+        return conn.execute(sql).fetchall()
+    finally:
+        conn.close()
+
+
+def _fact_nodes(home) -> list[str]:
+    return [row[0] for row in _rows(home, "SELECT content FROM memory_nodes")]
+
+
+GATE = "Remember that my gate code is 4417."
+GATE_LEARNED = "Gate code: 4417"
+
+
+@pytest.mark.parametrize("paraphrase", PARAPHRASES)
+def test_a_reworded_line_learned_before_the_forget_goes_with_it(env, paraphrase):
+    from core.persistent_memory import append_conversation_event
+
+    home = env["home"]
+    _remembered()
+    append_conversation_event(session_id=OWNER_CHAT, user_input=REMEMBERED, assistant_output="Locked in.",
+                              source_context=_context(OWNER_CHAT))
+    assert [fact.content for fact in _extract(home, paraphrase)] == [paraphrase]
+    assert "Locked in" in _say(GATE)
+    assert [fact.content for fact in _extract_from(home, _turn(GATE), GATE_LEARNED)] == [GATE_LEARNED]
+    assert paraphrase in _learned(home) and any("silver birch" in node for node in _fact_nodes(home))
+
+    assert _say(FORGET).startswith("Forget applied"), "the forget is verified"
+
+    assert "silver birch" not in _learned(home)
+    assert not any("silver birch" in node for node in _fact_nodes(home))
+    assert not _memory_db_carries(home, b"silver birch")
+    # What was learned from other words stays, with its source.
+    assert GATE_LEARNED in _learned(home)
+    assert any(GATE_LEARNED in node for node in _fact_nodes(home))
+    assert [row[0] for row in _rows(home, "SELECT line FROM memory_learned_items WHERE line != ''")] == [GATE_LEARNED]
+
+
+def test_an_older_learned_line_without_a_source_goes_when_it_restates_the_forgotten_turn(env):
+    """Written before learned lines recorded their source: matched by content words against the forgotten turn."""
+    from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
+    from core.persistent_memory import append_conversation_event
+    from core.vool_memory import VoolMemory
+
+    home = env["home"]
+    _remembered()
+    append_conversation_event(session_id=OWNER_CHAT, user_input=REMEMBERED, assistant_output="Locked in.",
+                              source_context=_context(OWNER_CHAT))
+    memory = VoolMemory(runtime_home=str(home), agent_id=SEMANTIC_MEMORY_AGENT_ID)
+    try:
+        for line in (PARAPHRASES[0], "Prefers short answers", "Works night shifts at the harbour"):
+            memory.block_append("user_profile", line)
+    finally:
+        memory.close()
+    assert not _rows(home, "SELECT 1 FROM memory_learned_items")
+
+    assert _say(FORGET).startswith("Forget applied")
+
+    learned = _learned(home)
+    assert "silver birch" not in learned
+    assert "Prefers short answers" in learned and "Works night shifts at the harbour" in learned
+    assert not _memory_db_carries(home, b"silver birch")
+
+
+def test_a_deleted_chat_keeps_no_copy_of_its_words_as_a_learned_source(env):
+    from core.memory.entries import delete_conversation_session
+
+    home = env["home"]
+    _remembered()
+    _extract(home, PARAPHRASES[0])
+    assert _rows(home, "SELECT 1 FROM memory_learned_runs")
+
+    delete_conversation_session(OWNER_CHAT)
+
+    assert not _rows(home, "SELECT 1 FROM memory_learned_runs")
+    assert not _rows(home, "SELECT 1 FROM memory_learned_items")
+
+
+def test_a_whole_erase_leaves_no_learned_line_or_source(env):
+    home = env["home"]
+    _remembered()
+    _extract(home, PARAPHRASES[0])
+    assert "Locked in" in _say(GATE)
+    _extract_from(home, _turn(GATE), GATE_LEARNED)
+
+    reply = _say("forget everything you know about me")
+
+    assert reply.startswith("Forget applied"), reply
+    assert not _learned(home).strip()
+    assert not _rows(home, "SELECT 1 FROM memory_learned_runs")
+    assert not _rows(home, "SELECT 1 FROM memory_learned_items")
+    # Only the forget list keeps the words (memory_revocations), as every forget does.
+    for table in ("memory_blocks", "memory_nodes", "memory_fts", "memory_learned_runs", "memory_learned_items"):
+        assert not any("silver birch" in repr(row) or "4417" in repr(row)
+                       for row in _rows(home, f"SELECT * FROM {table}")), table
