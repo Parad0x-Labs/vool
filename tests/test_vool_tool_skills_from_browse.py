@@ -89,6 +89,32 @@ def test_every_vool_browse_skill_fits_whole_on_the_turns_it_is_made_for(entry):
     assert "(source: UNTRUSTED" in block, "a Browse add-on keeps the untrusted label"
 
 
+@pytest.mark.parametrize("entry", _OWN_ROWS, ids=lambda e: e["skill_name"])
+def test_a_browse_skill_fits_whole_wherever_the_daemon_was_started(entry, tmp_path, monkeypatch):
+    """Added from Browse, a skill is loaded as ``addons/<add-on>/<skill>/SKILL.md``
+    (core.addon_store.reviewed_skill), a path relative to nothing, and its block's header reads
+    that path against the daemon's working folder. Started from VOOL's source folder, the header
+    carries the whole path, 16 characters more than the ``<add-on>/<skill>`` it carries anywhere
+    else. The block must fit with either header, or the turn leaves the skill out.
+
+    Measured 2026-11-13: social-manager at 4,197 characters passed the test above and was left out
+    of every served tool round, where its block was 4,213.
+    """
+    from core.plugin_skills import parse_skill_content
+    from core.tool_offer_assembly import MAX_SKILL_CHARS, MAX_TOOL_LANE_SKILL_CHARS, render_complete_block
+
+    plugin_id = "discover-" + entry["id"]
+    text = addon_packages.source(entry["sha256"]).decode("utf-8")
+    shown = Path("addons") / plugin_id / entry["skill_name"] / "SKILL.md"
+    skill = parse_skill_content(text, path=shown, plugin_id=plugin_id)
+    limit = MAX_TOOL_LANE_SKILL_CHARS if skill.allowed_tools else MAX_SKILL_CHARS
+    sizes = {}
+    for label, folder in (("source folder", Path(__file__).resolve().parents[1]), ("elsewhere", tmp_path)):
+        monkeypatch.chdir(folder)
+        sizes[label] = len(render_complete_block(skill, 10**6) or "")
+    assert all(0 < size <= limit for size in sizes.values()), (entry["skill_name"], sizes, limit)
+
+
 @pytest.mark.parametrize("entry", [e for e in _OWN_ROWS if e["skill_name"] in TOOL_TURNS], ids=lambda e: e["skill_name"])
 def test_a_vool_browse_tool_skill_names_only_real_tools_and_says_which(entry):
     from core.runtime_tool_contracts import runtime_tool_contract_map
