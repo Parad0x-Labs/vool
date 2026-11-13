@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -21,6 +23,8 @@ from core.local_operator_actions import dispatch_operator_action, parse_operator
 from core.operator import reminders as rem
 from storage.db import get_connection
 from storage.migrations import run_migrations
+
+TIMEZONE = "Europe/Athens"
 
 pytestmark = [pytest.mark.pa_beta]
 
@@ -39,8 +43,16 @@ def isolated_home(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
 
-    assert save_user_timezone("Europe/Athens")
+    assert save_user_timezone(TIMEZONE)
     return tmp_path
+
+
+def _days_ahead(days: int) -> str:
+    """The calendar day `days` after today in the chat's timezone, as YYYY-MM-DD.
+
+    A reminder here must still be ahead whenever the suite runs: the fixed 3, 4 and 6 November
+    2026 dates passed, and VOOL rightly refused them as already passed (CI #682)."""
+    return (datetime.now(ZoneInfo(TIMEZONE)).date() + timedelta(days=days)).isoformat()
 
 
 def _sid(label: str) -> str:
@@ -107,7 +119,7 @@ def _mentions_nothing_found(reply_lower: str) -> bool:
 def test_cancel_that_one_cancels_the_real_reminder_and_empties_the_store(isolated_home):
     sid = _sid("one")
     _, created = _run_turn(
-        "remind me to renew my passport on 2026-11-03 at 10:00", session_id=sid
+        f"remind me to renew my passport on {_days_ahead(7)} at 10:00", session_id=sid
     )
     assert created.ok and created.status == "executed", created.response_text
     reminder_id = created.details["reminder_id"]
@@ -157,11 +169,11 @@ def test_cancel_referent_with_nothing_to_cancel_says_so_and_touches_nothing(isol
 def test_cancel_that_one_picks_the_latest_created_of_two_reminders(isolated_home):
     sid = _sid("two")
     _, early = _run_turn(
-        "remind me to water the herbs on 2026-11-04 at 09:00", session_id=sid
+        f"remind me to water the herbs on {_days_ahead(8)} at 09:00", session_id=sid
     )
     assert early.ok and early.status == "executed", early.response_text
     _, late = _run_turn(
-        "remind me to return the library books on 2026-11-06 at 17:30", session_id=sid
+        f"remind me to return the library books on {_days_ahead(10)} at 17:30", session_id=sid
     )
     assert late.ok and late.status == "executed", late.response_text
     assert len(_pending_rows(sid)) == 2
