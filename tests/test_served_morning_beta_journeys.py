@@ -423,8 +423,15 @@ def test_fault_wording_served_401_403_429_retry_after(tmp_path):
         server.shutdown()
         server.server_close()
 
-    assert "rejected the stored API key" in text_401 or "authentication failed" in text_401, text_401[:400]
-    assert "access denied" in text_403 or "refused the request" in text_403, text_403[:400]
-    assert "429" in text_429 and "rate or quota limit" in text_429, text_429[:400]
-    assert "27" in text_429 and "Retry-After" in text_429, text_429[:400]
+    # The loopback model is registered as a model on this computer (an "ollama-local" lane), so each
+    # refusal is the model app's and reads as one (app bugs 2026-11-12, C3: a local 401 was told to
+    # check a cloud API key). Each status keeps its own typed wording, and the 429 names the wait the
+    # app's own Retry-After asked for. The cloud wording for the same three statuses is pinned in
+    # tests/test_provider_failure_truthfulness.py and tests/test_model_failure_notices_read_as_plain_words.py.
+    assert "would not run qwen3-stub:2b because it asked for a sign-in" in text_401, text_401[:400]
+    assert "refused to run qwen3-stub:2b" in text_403, text_403[:400]
+    assert "too busy to run qwen3-stub:2b" in text_429, text_429[:400]
+    assert "asked to wait about 27 seconds" in text_429, text_429[:400]
     assert "wait a moment" not in text_429.lower(), text_429[:400]
+    for text in (text_401, text_403, text_429):
+        assert "API key" not in text and "Settings → API Keys" not in text, text[:400]
