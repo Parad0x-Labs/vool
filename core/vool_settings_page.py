@@ -5860,19 +5860,20 @@ function widgetProfile(stack) {
    edited keeps their text and is told the stored value moved. */
 async function reconcile() {
   let navChanged = false;
+  const group = state.group;
+  /* What the open group was drawn from; when a re-read brings back exactly the same, nothing is repainted, so
+     coming back to the window (after a Keychain prompt, or copying a wallet's backup elsewhere) never flickers
+     the page or moves it. Taken before ANY re-read, the setup state's included, so a step finished elsewhere
+     still repaints the open Setup group. */
+  const drawnFrom = () => JSON.stringify(urlsForGroup(group).map(u => [state.sources[u], state.sourceErr[u]]));
+  const drawn = drawnFrom();
   if (MODEL.some(g => g.id === 'setup')) {
     await readSource(SETUP_STATE_URL);
     const setup = state.sources[SETUP_STATE_URL];
     if (!setup || !setup.show_entry) { removeSetupGroup(); renderNav(); navChanged = true; }
   }
-  const group = state.group;
   const before = {};
   ALL_ROWS.filter(r => r.group === group && r.read).forEach(r => { before[r.id] = valueOf(r); });
-  /* What the open group was drawn from; when a re-read brings back exactly the same, nothing is repainted, so
-     coming back to the window (after a Keychain prompt, or copying a wallet's backup elsewhere) never flickers
-     the page or moves it. */
-  const drawnFrom = () => JSON.stringify(urlsForGroup(group).map(u => [state.sources[u], state.sourceErr[u]]));
-  const drawn = drawnFrom();
   await ensureGroupSources(group, true, true);
   ALL_ROWS.filter(r => r.group === group && r.read).forEach(r => {
     const st = rowState(r.id);
