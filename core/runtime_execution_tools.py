@@ -5503,7 +5503,7 @@ def _readable_machine_roots() -> tuple[Path, ...]:
     home = _machine_home().resolve()
     # The link test runs on the folder in the home, before resolving: a media folder that links to a
     # hidden folder in the same home ("Pictures" -> "~/.config") resolves to a child of home too.
-    named = tuple(_safe_machine_roots()) + tuple(
+    named = tuple(Path(root) for root in _safe_machine_roots()) + tuple(
         root
         for root in (
             (home / name).resolve()
@@ -5517,7 +5517,9 @@ def _readable_machine_roots() -> tuple[Path, ...]:
 
 def _other_home_folders(home: Path, already: tuple[Path, ...]) -> tuple[Path, ...]:
     try:
-        entries = sorted(os.scandir(home), key=lambda entry: entry.name.casefold())
+        # Closed when read, like every other listing here: an open scandir holds a descriptor.
+        with os.scandir(home) as listing:
+            entries = sorted(listing, key=lambda entry: entry.name.casefold())
     except OSError:
         return ()
     taken = {root.name.casefold() for root in already}
