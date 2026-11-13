@@ -48,9 +48,13 @@ NOT_FILE_HISTORY = [
 @pytest.fixture(scope="module")
 def offer():
     import core.capability_graph as graph
+    from core.command_registry.model_tools import project_model_tools
     from core.command_registry.registry import registry
 
+    # Own state: the command reads are projected into the tool registry and the graph re-indexed
+    # here, whatever an earlier test in the same process did to either registry.
     registry()
+    project_model_tools()
     graph.refresh_from_registry()
     from core.tool_offer_assembly import assemble_tool_offer
 
@@ -74,10 +78,25 @@ def test_other_wordings_do_not_name_the_trace(text):
     assert TRACE not in resolve_demand_signals(text).explicit_intents, text
 
 
+def _trace_state() -> dict:
+    """Why the trace is not seated, for a failure message (contract, graph row, demand)."""
+    import core.capability_graph as graph
+    from core.tool_demand_signals import resolve_demand_signals
+    from core.tool_registry import tool_for_intent
+
+    contract = tool_for_intent(TRACE)
+    impl = graph._implementations.get(graph.ImplementationId(TRACE))
+    return {
+        "contract": None if contract is None else (contract.supported, contract.read_only),
+        "graph_row": None if impl is None else (impl.available, impl.availability_reason, impl.source),
+        "demand": resolve_demand_signals("which task changed this file").explicit_intents,
+    }
+
+
 @pytest.mark.parametrize("text", FILE_HISTORY_ASKS)
 def test_the_offer_seats_the_trace_and_not_the_task_report(offer, text):
     intents = offer(text)
-    assert TRACE in intents, (text, intents)
+    assert TRACE in intents, (text, intents, _trace_state())
     assert REPORT not in intents, (text, intents)
 
 
@@ -85,7 +104,8 @@ def test_the_seated_trace_carries_its_arguments(offer):
     from core.tool_offer_assembly import assemble_tool_offer
 
     specs = assemble_tool_offer(user_text="which task changed this file", source_context={}).specs
-    row = next(spec for spec in specs if spec.get("intent") == TRACE)
+    row = next((spec for spec in specs if spec.get("intent") == TRACE), None)
+    assert row is not None, _trace_state()
     assert {"path", "session_id", "turn_id", "since", "until"} <= set(row["arguments"])
     # Every selector is optional: a call that names only the file must not be refused.
     assert all("optional" in str(kind) for kind in row["arguments"].values()), row["arguments"]

@@ -201,7 +201,15 @@ def unregister(intent: str) -> bool:
 
 
 def reset() -> None:
-    """Drop every registered non-builtin tool. For tests and for a post-install reload."""
+    """Drop every registered plugin/extension tool. For tests and for a post-install reload.
+
+    The model-offerable command reads (``operator.command.*``) are projected from the core
+    command registry, not installed by anything a reset is meant to undo, so they come straight
+    back. Before, a reset dropped them for the rest of the process: the command registry is built
+    once and only projects on that first build, so a later ``registry()`` call never put them
+    back and the archaeology trace could no longer be seated (an order-dependent test failure on
+    the v0.8 line, after the blackbox suite's isolation fixture had reset this registry).
+    """
 
     with _lock:
         _extra.clear()
@@ -212,6 +220,22 @@ def reset() -> None:
         except Exception:
             pass
         _bump_locked()
+    _reproject_core_commands()
+
+
+def _reproject_core_commands() -> None:
+    """Restore the command-registry projection if that registry is already built (never builds it)."""
+    try:
+        import importlib
+
+        command_registry = importlib.import_module("core.command_registry.registry")
+        if getattr(command_registry, "_REGISTRY", None) is None:
+            return  # first registry() call projects them itself
+        from core.command_registry.model_tools import project_model_tools
+
+        project_model_tools()
+    except Exception:
+        pass
 
 
 def _all_intents_locked() -> set[str]:
