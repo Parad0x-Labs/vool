@@ -128,7 +128,12 @@ def _commodity(_query, targets, **_kwargs):
 
 @pytest.fixture()
 def fetchers():
+    # These stubs stand for the live providers a person reaches with Web lookups ON. Since the
+    # owner decision of 2026-11-12 the live-data runners ask that switch before any fetch (off is
+    # the fresh-install default), so the switch is set here, where the providers are faked; the
+    # off case is owned by tests/test_web_lookups_off_means_no_live_fetch.py.
     with (
+        mock.patch("core.policy_engine.allow_web_fallback", return_value=True),
         mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=_weather),
         mock.patch("tools.web.web_research._crypto_price_fallback_multi", side_effect=_crypto),
         mock.patch("tools.web.web_research._market_quote_fallback_multi", side_effect=_commodity),
