@@ -1827,6 +1827,20 @@ def pack_name_problem(name: str, *, installing_into: bool = False) -> str:
             'Pick another name, for example "my-' + slug.split("-", 1)[-1] + '", and try again.')
 
 
+def _browse_installed_pack(pack_dir: Path) -> bool:
+    """Whether a global pack is one skill the person added from Browse (an add-on store install
+    with its install record), which they may remove like their own."""
+    try:
+        from core import addon_store
+
+        if not addon_store.is_managed(pack_dir.name):
+            return False
+        addon_store._installed_receipt(pack_dir.name)
+    except Exception:
+        return False
+    return (pack_dir / ".codex-plugin" / "plugin.json").is_file()
+
+
 def _removable_global_pack(pack_dir: Path) -> bool:
     """Whether a global pack holds skills the operator authored (and may therefore remove).
 
@@ -1849,7 +1863,8 @@ def remove_skill(name: str, *, scope: str = "", keys: dict[str, str] | None = No
     The whole skill folder (SKILL.md and its version history) moves to a ``removed`` folder of its
     scope with a timestamp, so it can be brought back by hand and its history is intact. With no
     ``scope`` the narrowest match wins (this chat, this project, then global). First-party and
-    add-on-store skills are refused: they are not the operator's drafts to remove.
+    VOOL-managed packs are refused. A skill the person added from Browse
+    is theirs: its package moves out the same way and Browse offers it again.
     """
     slug = _slug(name)
     if not slug:
@@ -1875,13 +1890,17 @@ def remove_skill(name: str, *, scope: str = "", keys: dict[str, str] | None = No
                 if not (candidate / "SKILL.md").is_file():
                     continue
                 pack = candidate.parent.parent
-                if not _removable_global_pack(pack):
+                browse_pack = _browse_installed_pack(pack)
+                if not browse_pack and not _removable_global_pack(pack):
                     return {
                         "status": "refused",
                         "reason": f"`{slug}` belongs to the {pack.name!r} package, which VOOL manages; "
                         "turn it off in the skills settings instead",
                     }
-                target, target_scope, removed_root = candidate, "global", plugins_root() / "removed-skills"
+                # A skill the person added from Browse is theirs to remove: its whole package moves
+                # out, and its install record is closed so Browse offers it again.
+                target = pack if browse_pack else candidate
+                target_scope, removed_root = "global", plugins_root() / "removed-skills"
                 break
     if target is None or removed_root is None:
         where = f"in {wanted}" if wanted else "in this chat, this project or globally"
@@ -1889,12 +1908,22 @@ def remove_skill(name: str, *, scope: str = "", keys: dict[str, str] | None = No
 
     stamp = _utcnow().replace(":", "").replace("-", "")
     destination = removed_root / f"{slug}-{stamp}"
+    from_browse = target_scope == "global" and _browse_installed_pack(target)
     with _ACTIVATION_LOCK:
         try:
             removed_root.mkdir(parents=True, exist_ok=True)
             shutil.move(str(target), str(destination))
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not move the skill out"}
+        if from_browse:
+            with contextlib.suppress(Exception):
+                from core import plugin_lifecycle
+
+                plugin_lifecycle.uninstall(target.name)
+            with contextlib.suppress(Exception):
+                from core.native_skill_library import forget_skill_switch
+
+                forget_skill_switch(slug)
     if target_scope == "global":
         with contextlib.suppress(Exception):
             from core.plugin_catalog import invalidate_storage_listing
@@ -1907,4 +1936,5 @@ def remove_skill(name: str, *, scope: str = "", keys: dict[str, str] | None = No
         "moved_to": str(destination),
         "active": False,
         "note": "it no longer loads from the next turn; its files and versions were kept",
+        "from_browse": bool(from_browse),
     }

@@ -1076,6 +1076,47 @@ def disabled_skill_ids() -> set[str]:
     return _read_disabled_ids()
 
 
+def added_skill_rows(known_ids: set[str]) -> list[dict[str, Any]]:
+    """Skills the person added (from Browse, or made in chat) that carry no typed contract, as
+    inventory rows, so every skill that can be picked is listed with its On/Off state."""
+    try:
+        from core.tool_offer_assembly import loaded_skills
+
+        skills = loaded_skills()
+    except Exception:
+        return []
+    disabled = _read_disabled_ids()
+    rows: list[dict[str, Any]] = []
+    for skill in skills:
+        skill_id = str(getattr(skill, "name", "") or "").strip()
+        if not skill_id or skill_id in known_ids:
+            continue
+        known_ids.add(skill_id)
+        off = skill_id in disabled
+        rows.append({
+            "id": skill_id,
+            "name": skill_id,
+            "description": str(getattr(skill, "description", "") or ""),
+            "version": "",
+            "source": "added",
+            "plugin_id": str(getattr(skill, "plugin_id", "") or ""),
+            "enabled": not off,
+            "available": not off,
+            "reason": "disabled by operator" if off else "",
+            "task_families": [],
+            "capability_families": [],
+        })
+    return rows
+
+
+def forget_skill_switch(skill_id: str) -> None:
+    """Drop a removed skill's saved Off, so adding it again later starts On like any new add."""
+    disabled = _read_disabled_ids()
+    if skill_id in disabled:
+        disabled.discard(skill_id)
+        _enabled_store_path().write_text(json.dumps({"disabled": sorted(disabled)}), encoding="utf-8")
+
+
 def set_skill_enabled(skill_id: str, enabled: bool) -> dict[str, Any]:
     """Persist one skill's enabled state, WHATEVER source it came from (native, plugin, MCP,
     or a legacy installed skill — the last disabled by its name, read back by the same store)."""

@@ -2223,9 +2223,13 @@ def _dispatch_get(
         # state, and the typed reason when it is not available (prerequisite missing,
         # capability unavailable, contract invalid). Read-only and fail-soft; the catalog the
         # toolbelt console already reads carries the same rows under the native-library entry.
-        from core.native_skill_library import skill_inventory
+        # Skills the person added from Browse have no typed contract; they are listed too, with the
+        # same On/Off that POST /api/skills/enable changes.
+        from core.native_skill_library import added_skill_rows, skill_inventory
 
-        return apply_runtime_headers(json_response(200, {"skills": skill_inventory()}), runtime)
+        rows = skill_inventory()
+        rows += added_skill_rows({str(row.get("id") or "") for row in rows})
+        return apply_runtime_headers(json_response(200, {"skills": rows}), runtime)
 
     if normalized_path == "/api/projects":
         # Codex-style projects: the folders a chat can be bound to for an isolated workspace + context.

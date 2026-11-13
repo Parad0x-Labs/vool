@@ -9585,7 +9585,9 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
             intent,
             result,
             response=(
-                f"Turned off `{result.get('name')}` for {SCOPE_LABELS.get(str(result.get('scope') or ''), 'its scope')}. "
+                f"Removed `{result.get('name')}`. You can add it again from Browse in Skills & Plugins."
+                if result.get("from_browse")
+                else f"Turned off `{result.get('name')}` for {SCOPE_LABELS.get(str(result.get('scope') or ''), 'its scope')}. "
                 "Its files and versions were kept."
             ),
         )
