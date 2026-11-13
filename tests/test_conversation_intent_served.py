@@ -303,7 +303,11 @@ def test_an_empty_reply_is_recorded_with_its_diagnostics_and_not_retried(usepod)
     assert isinstance(facts, dict), failed[-1]
     assert facts["finish_reason"] == "stop" and facts["completion_tokens"] == 0 and facts["content_present"] is False
     assert failed[-1].get("empty_reply_class") == "upstream_empty"
-    assert "did not return a usable reply" in text or "could not run this turn" in text, text
+    # The plain-words notice (app bugs 2026-11-12) says what the pinned model did, by the model's own
+    # name: "I couldn't get an answer this time: meridian-synth-chat sent back an empty reply. ...".
+    # Its lane id is how VOOL reaches the model, never part of what the person reads.
+    assert f"{MODEL} sent back an empty reply" in text or "could not run this turn" in text, text
+    assert LANE_ID not in text, text
     assert DESIGN_REPLY not in text and _events_of(events, "task_failed")
 
 
