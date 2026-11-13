@@ -1426,11 +1426,13 @@ def exact_names(answer: str, result: Any) -> str:
 # turn's tool results, the evidence this chat's record holds for the previous turn, the previous reply the owner saw,
 # or the owner's own words hold it. Measured on the Mac (round 6, T12): after a listing of Downloads, "whats the
 # largest one" was answered "holiday_budget_2026.xlsx at 4 KB" with no tool run: a file from another folder.
-_CLAIM_EXTENSIONS = frozenset(
-    "jpg jpeg png gif heic heif webp bmp tif tiff svg raw pdf doc docx xls xlsx csv ppt pptx key pages numbers txt md rtf "
-    "odt ods zip rar 7z tar gz tgz dmg pkg iso exe msi mp3 wav m4a flac aac mp4 mov mkv avi webm json xml html htm py js ts "
-    "log ini cfg yaml yml sql db sqlite backup bak epub".split()
-)
+_CLAIM_EXTENSIONS = frozenset((
+        "jpg", "jpeg", "png", "gif", "heic", "heif", "webp", "bmp", "tif", "tiff", "svg", "raw", "pdf", "doc",
+        "docx", "xls", "xlsx", "csv", "ppt", "pptx", "key", "pages", "numbers", "txt", "md", "rtf", "odt", "ods",
+        "zip", "rar", "7z", "tar", "gz", "tgz", "dmg", "pkg", "iso", "exe", "msi", "mp3", "wav", "m4a", "flac",
+        "aac", "mp4", "mov", "mkv", "avi", "webm", "json", "xml", "html", "htm", "py", "js", "ts", "log", "ini",
+        "cfg", "yaml", "yml", "sql", "db", "sqlite", "backup", "bak", "epub",
+))
 _FILE_TOKEN_RE = re.compile(
     r"(?<![\w/.~-])[^\s,;:\"'`*<>\[\]{}|]+?\.(?P<ext>[A-Za-z0-9]{1,8})(?![\w-])"
 )

@@ -14,7 +14,7 @@ from core import conversation_state as cs
 from core import final_answer_authorship as fa
 from core.clean_loop.tools import UNCHECKED_FILE_CLAIM_TEXT, unbacked_file_claims
 from core.execution.constants import machine_kind_listing_intent
-from tests.test_clean_local_loop_turn import turn_setup  # noqa: F401  (fixture)
+from tests.test_clean_local_loop_turn import turn_setup
 
 SC = {"surface": "openclaw", "_owner_local": True, "platform": "cli"}
 OUTSIDE = "holiday_budget_2026.xlsx"
