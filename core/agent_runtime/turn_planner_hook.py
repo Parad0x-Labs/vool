@@ -923,19 +923,20 @@ def search_expansions_for_turn(
 ) -> tuple[str, ...]:
     """Up to four distinct short search phrases for this turn's question; () on any failure.
 
-    The call is spent only on recall-shaped questions: `single_clause_recall_question` is the
-    runtime's own structural reader for "a question about what people said or did", and phrases
-    that would be searched beside a non-recall turn cannot rank anything its answer uses
+    The call is spent only on turns answered from the speaker's own records
+    (`asks_about_own_records`): a recall question, or a request about their own things that
+    supplies no material ("Summarize my project", whose words miss the record that names the
+    project). Phrases searched beside any other turn cannot rank anything its answer uses
     (measured on the model-free baseline: the phrase call fired on every turn of a stored
-    session, recall-shaped or not, one serial call and one cache break per turn).
+    session, one serial call and one cache break per turn).
     """
 
     if not str(question or "").strip():
         return ()
     try:
-        from core.plain_task_routing import single_clause_recall_question
+        from core.plain_task_routing import asks_about_own_records
 
-        if not single_clause_recall_question(str(question or "")):
+        if not asks_about_own_records(str(question or "")):
             return ()
     except Exception:
         pass  # an unreadable shape fails toward today's behaviour: the call runs

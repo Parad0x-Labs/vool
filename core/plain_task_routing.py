@@ -664,6 +664,17 @@ def _asks_about_own_things_without_material(raw: str) -> bool:
     return bool(_OWN_THING_RE.search(raw)) and not _SUPPLIED_MATERIAL_RE.search(raw)
 
 
+def asks_about_own_records(text: str) -> bool:
+    """Whether *text* is answered from the speaker's own records: a recall question
+    (`single_clause_recall_question`) or a request about their own things that supplies no material
+    ("Summarize my project", "Explain what I'm building")."""
+
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return False
+    return single_clause_recall_question(raw) or _asks_about_own_things_without_material(raw)
+
+
 def plain_task_kind(text: str) -> str:
     """Return the plain model task kind for one-shot text tasks.
 
@@ -699,6 +710,7 @@ def is_plain_task(text: str) -> bool:
 
 __all__ = [
     "answer_is_only_runtime_selection_narration",
+    "asks_about_own_records",
     "is_ordinary_multi_part_plain_task",
     "is_plain_task",
     "multipart_has_non_plain_request",
