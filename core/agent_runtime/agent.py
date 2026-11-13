@@ -306,6 +306,27 @@ def _record_conductor_demand_receipts(plan: Any, outcomes: Any, *, request: str)
         _log.exception("conductor demand receipts not recorded")
 
 
+def _skill_keeps_turn_whole(text: str, source_context: Any) -> bool:
+    """Whether a skill the ask names, or an added skill its words pick, keeps the turn whole.
+
+    The conductor's steps and a planned split never read skills, so a turn split there reaches
+    the skill in no part (core.tool_offer_assembly.skill_picks_turn, the clean loop's law too).
+    Asked only of a turn that may hold several requests, so a one-request turn pays nothing. Fails
+    toward the turn's lanes: any error is no.
+    """
+    try:
+        from core.agent_runtime.turn_planner import turn_may_hold_several_requests
+
+        if not turn_may_hold_several_requests(str(text or "")):
+            return False
+        from core.tool_offer_assembly import skill_picks_turn
+
+        context = source_context if isinstance(source_context, dict) else None
+        return bool(skill_picks_turn(str(text or ""), source_context=context))
+    except Exception:
+        return False
+
+
 def _record_planned_turn_demand_receipts(outcomes: Any, *, request: str) -> None:
     """File the demand receipts the PLANNED SUB-TURN lane's own execution record supports.
 
@@ -6061,6 +6082,10 @@ class VoolAgent(
         """
         if bool((source_context or {}).get("planned_subturn")):
             return None
+        if _skill_keeps_turn_whole(str(raw_input or effective_input), source_context):
+            # A skill picked this ask: the conductor's steps never read it, so the turn stays whole
+            # for the lane that does (core.tool_offer_assembly.skill_picks_turn).
+            return None
         from core.model_own_tools import turn_has_provider_search
 
         if turn_has_provider_search(source_context):
@@ -7057,6 +7082,9 @@ class VoolAgent(
         """
         if bool((source_context or {}).get("planned_subturn")):
             # A sub-turn is one request by construction. Planning it again would recurse.
+            return None
+        if _skill_keeps_turn_whole(effective_input, source_context):
+            # A skill picked this ask; split, no sub-turn would carry it (skill_picks_turn).
             return None
         if dict((source_context or {}).get("raw_output_contract") or {}).get(
             "structured_labels"

@@ -89,6 +89,28 @@ _FUNCTION_WORDS = frozenset({
 # against its own original and the whole decomposition lane misfired on it.
 _WORD_RE = re.compile(r"[^\W_]+")
 
+#: What a head calls the material pasted below it: "this", "these", "the notes below".
+_PASTED_MATERIAL_REF = (
+    r"(?:(?:this|these|that|those|the|my|our)\s+(?:text|notes?|draft|article|post|piece|copy|essay|story"
+    r"|thread|message|email|letter|list|outline|paragraphs?|words)(?:\s+(?:below|above))?"
+    r"|this|these|that|it|the\s+following|(?:the\s+)?(?:below|above))"
+)
+#: A head that turns the pasted material into something: "Turn this into an X article",
+#: "Make this an X thread", "Format the notes below as a blog post". Turn-IR reads these heads as
+#: ACT ("turn" also switches things on), CREATE ("make") or UNKNOWN ("format"), so the operation
+#: test alone misses them, yet the paste is plainly the one object of the one request. Measured on
+#: the Mac A/B (11eef8dc, qwen3:8b): "Turn this into an X article:" with a pasted article was split
+#: into planned sub-turns that fetched its links, looked for files and ran 7 minutes.
+_CONVERTS_PASTED_MATERIAL_RE = re.compile(
+    r"^(?:(?:please|pls|can\s+you|could\s+you|would\s+you)\s+)?(?:"
+    r"(?:turn|make|convert|format|reformat|shape|rework|recast|adapt|transform|put)\s+"
+    + _PASTED_MATERIAL_REF
+    + r"\s+(?:into|as|to|for)\b"
+    r"|make\s+" + _PASTED_MATERIAL_REF + r"\s+(?:an?|the|my|our)\s+\w"
+    r")",
+    re.IGNORECASE,
+)
+
 PLANNER_SYSTEM_PROMPT = (
     "You split a user's message into the separate requests it makes, so each one can be answered.\n"
     "Return ONLY a JSON array. Each element is an object with:\n"
@@ -201,7 +223,9 @@ def single_shape_needs_no_planner(text: str) -> bool:
       quote) is one request over that material when the material's HEAD -- the instruction
       before the paste -- is a single clause minting at most one demanded slot AND that clause
       is an OPERATION over supplied text (Turn-IR kind TRANSFORM: summarise, rewrite,
-      translate). A colon can equally introduce a LIST of requests ("three things: ..."), and
+      translate), or turns the material it points at into something
+      (``_CONVERTS_PASTED_MATERIAL_RE``: "Turn this into an X article", "Make this an X
+      thread"). A colon can equally introduce a LIST of requests ("three things: ..."), and
       those heads read as UNKNOWN/OBSERVE clauses -- operation kind is the structural
       separator, so request lists keep the planner. The paste's own sentences mint clauses and
       slots of their own, and the planner call spent on them returns the turn undivided
@@ -231,7 +255,10 @@ def single_shape_needs_no_planner(text: str) -> bool:
                 if (
                     (head_units is None or len(head_units) <= 1)
                     and len(head_clauses) == 1
-                    and head_clauses[0].kind is ClauseKind.TRANSFORM
+                    and (
+                        head_clauses[0].kind is ClauseKind.TRANSFORM
+                        or _CONVERTS_PASTED_MATERIAL_RE.match(head) is not None
+                    )
                 ):
                     return True
         from core.agent_runtime.answer_coverage import demand_units

@@ -924,6 +924,84 @@ def named_skill_for(user_text: str, *, source_context: dict[str, Any] | None = N
     return next((known[key] for key in windows if key in known), "")
 
 
+def skill_picks_turn(
+    user_text: str, *, source_context: dict[str, Any] | None = None, lane_tools: frozenset[str] = frozenset()
+) -> str:
+    """Why a skill picks this whole turn, or "".
+
+    ``named_skill_turn``: the ask names a skill VOOL has (``named_skill_for``). ``added_skill_turn``:
+    its words pick a skill the person added (``added_skill_for``). A lane that never reads skills
+    leaves such a turn whole to the normal lane, the one that does: the clean local loop
+    (core.clean_loop.route.skill_keeps_turn), the multi-part conductor and the turn planner
+    (core.agent_runtime.agent). Split there, no part saw the skill: measured on the Mac A/B
+    (11eef8dc, qwen3:8b), "my disk is full, where did the space go" and "assertion error in my
+    tests, what is the cause" were cut in two and the conductor's explanation step answered one
+    half with no skill and no tools, while disk-space-advisor and test-failure-helper were
+    installed for exactly those words.
+
+    ``lane_tools``: the runtime tools the asking lane holds itself (the clean local loop's file
+    and computer tools). An added skill picked by its words alone leaves the turn there when the
+    normal lane could not give it the tools it names and this lane has them
+    (``skill_needs_lane_tools``). An error reads as no pick: the turn keeps its lanes.
+    """
+    context = source_context if isinstance(source_context, dict) else None
+    try:
+        if named_skill_for(user_text, source_context=context):
+            return "named_skill_turn"
+    except Exception:
+        pass
+    try:
+        added = added_skill_for(user_text, source_context=context)
+        if added and not (lane_tools and skill_needs_lane_tools(added, lane_tools)):
+            return "added_skill_turn"
+    except Exception:
+        pass
+    return ""
+
+
+def skill_needs_lane_tools(name: str, lane_tools: frozenset[str]) -> bool:
+    """Whether the added skill *name* is one of VOOL's own pinned Browse skills that declares tools,
+    may seat none of them in the normal lane (``_skill_may_seat``), and finds some in *lane_tools*.
+
+    The seat law keeps the owner's private reads (machine, workspace, pdf, Apple Notes) and the
+    workflow planes off a skill, and the normal lane's own offer for these asks holds none of
+    them, so there such a skill names tools the turn does not have. Measured on the Mac A/B
+    (11eef8dc, loop on): pdf-document-review took "explain this pdf contract in Downloads" from the
+    clean loop, the offer held no pdf tool, the model tried workspace.read_file on
+    /Downloads/contract.pdf and the reply was "I wasn't able to turn that into a completed
+    action"; the loop itself answered "what does the lease pdf in my downloads say about notice"
+    from the file (machine.find_file, pdf.extract_text). A skill whose tools the lane does not hold
+    either (test-failure-helper's workspace tools) still keeps the normal lane, where its words at
+    least reach the turn. The person's own skills seat what they declare and any other added
+    skill's tools stay behind their family, so neither is judged here (False).
+    """
+    from core.skill_origin import ORIGIN_VOOL_BROWSE, origin_of
+
+    key = str(name or "").strip().lower()
+    if not key or not lane_tools:
+        return False
+    for skill in loaded_skills():
+        if str(getattr(skill, "name", "") or "").strip().lower() != key:
+            continue
+        if origin_of(skill) != ORIGIN_VOOL_BROWSE:
+            return False
+        declared = tuple(str(tool) for tool in (getattr(skill, "allowed_tools", ()) or ()) if str(tool).strip())
+        return (
+            bool(declared)
+            and not any(_skill_may_seat(tool) for tool in declared)
+            and any(tool in lane_tools for tool in declared)
+        )
+    return False
+    for skill in loaded_skills():
+        if str(getattr(skill, "name", "") or "").strip().lower() != key:
+            continue
+        if origin_of(skill) != ORIGIN_VOOL_BROWSE:
+            return False
+        declared = tuple(str(tool) for tool in (getattr(skill, "allowed_tools", ()) or ()) if str(tool).strip())
+        return bool(declared) and not any(_skill_may_seat(tool) for tool in declared)
+    return False
+
+
 #: R3 (round 2): the request verbs that can open a clause. A closed class, in the repo's
 #: instructional_request idiom: the ordinary ways an English turn asks for something to be
 #: DONE, not reported. A verb behind any other word ("she loved the pictures") is narration.

@@ -12,6 +12,10 @@ where a skill's guidance reaches the turn whole (core.clean_loop.route.skill_kee
   for the file history." was taken as a files ask (tests/project_archaeology/test_served_selection).
 
 A built-in skill that only matches the ask's words does not count, so the loop keeps those file asks.
+Nor does an added Browse skill whose tools the normal lane may not seat while the loop holds them
+(the PDF, disk and CSV skills, LOOP_KEEPS): measured on the Mac A/B (11eef8dc, loop on),
+pdf-document-review took "explain this pdf contract in Downloads" from the loop, the normal lane's
+offer held no pdf tool, and the turn failed (tests/test_a_skill_keeps_a_split_turn_whole.py).
 """
 from __future__ import annotations
 
@@ -38,6 +42,8 @@ TAKEN = {
 # The four the loop still takes without the skill on 28fc78dd (notes asks now go to the notes
 # tools, and "minutes" is no longer a files topic): for these the skill rule is what keeps the turn.
 STILL_TAKEN = ("csv-insights", "disk-space-advisor", "pdf-document-review", "test-failure-helper")
+# Of those, the skills whose tools only the loop has here: with the loop on, it keeps their asks.
+LOOP_KEEPS = ("csv-insights", "disk-space-advisor", "pdf-document-review")
 # project-archaeology ships with VOOL; "which task changed this file" is one of its own triggers.
 HISTORY_ASK = "which task changed this file"
 
@@ -72,10 +78,14 @@ def test_an_added_browse_skill_keeps_its_own_ask_in_the_normal_lane(home, no_net
     entry = next(e for e in _OWN_ROWS if e["skill_name"] == name)
     _install(entry["id"], home, monkeypatch)
     after = _decide(ask)
-    assert not after.admit, after.reason
+    if flag == "on" and name in LOOP_KEEPS:
+        # The loop has this skill's tools and the normal lane may not seat them: the loop keeps it.
+        assert after.admit, after.reason
+    else:
+        assert not after.admit, after.reason
     if flag == "off":
         assert after.reason == "flag_off"
-    elif before.admit:
+    elif before.admit and name not in LOOP_KEEPS:
         assert after.reason == "added_skill_turn"
     # In the normal lane the skill reaches the turn whole.
     assert _whole(_offer(ask), name)

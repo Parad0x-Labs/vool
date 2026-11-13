@@ -580,6 +580,21 @@ def _memory_lane_owns(text: str) -> bool:
         # The memory lane cannot be asked: the turn keeps the old pipeline, which owns these commands.
         return True
     return memory_command_owns_turn(text)
+#: The runtime tools this loop's own file and computer tools run (core.clean_loop.tools): a skill
+#: from Browse whose tools are among these, and which the normal lane may not seat, is better
+#: served here (skill_keeps_turn).
+LOOP_RUNTIME_TOOLS = frozenset({
+    "machine.disk_usage",
+    "machine.find_file",
+    "machine.find_largest",
+    "machine.inspect_specs",
+    "machine.list_directory",
+    "machine.list_processes",
+    "machine.read_file",
+    "pdf.extract_text",
+})
+
+
 def skill_keeps_turn(text: str, source_context: Mapping[str, Any] | None) -> str:
     """Why a skill keeps this turn in the normal lane, the only lane that reads skills, or "".
 
@@ -587,25 +602,20 @@ def skill_keeps_turn(text: str, source_context: Mapping[str, Any] | None) -> str
     archaeology skill for the file history"). ``added_skill_turn``: the ask picks, by its words, a
     skill the person added (made by them, or added from Browse, the Skill Codex, a file or an MCP
     server). This loop's brain never sees skills, so taking either turn would pass over the skill.
-    A built-in skill picked by words alone does not count: the loop keeps those file asks. Checked
-    after the cheap gates and before the brain; an error leaves the decision as it was.
+    A built-in skill picked by words alone does not count: the loop keeps those file asks. Nor does
+    an added VOOL Browse skill picked by words alone whose declared tools the normal lane may not
+    seat while this loop holds them (``LOOP_RUNTIME_TOOLS``: the disk, PDF and CSV skills), since
+    there the normal lane would have only the skill's words
+    (core.tool_offer_assembly.skill_needs_lane_tools). One law with the conductor and the turn
+    planner (core.tool_offer_assembly.skill_picks_turn). Checked after the cheap gates and before
+    the brain; an error leaves the decision as it was.
     """
-    context = dict(source_context or {})
     try:
-        from core.tool_offer_assembly import named_skill_for
+        from core.tool_offer_assembly import skill_picks_turn
 
-        if named_skill_for(text, source_context=context):
-            return "named_skill_turn"
+        return skill_picks_turn(text, source_context=dict(source_context or {}), lane_tools=LOOP_RUNTIME_TOOLS)
     except Exception:
-        pass
-    try:
-        from core.tool_offer_assembly import added_skill_for
-
-        if added_skill_for(text, source_context=context):
-            return "added_skill_turn"
-    except Exception:
-        pass
-    return ""
+        return ""
 
 
 def decide(
@@ -669,6 +679,7 @@ def decide(
 __all__ = [
     "CHANGES_ENV",
     "FLAG_ENV",
+    "LOOP_RUNTIME_TOOLS",
     "RouteDecision",
     "ask_words",
     "asks_about_own_files_or_computer",
