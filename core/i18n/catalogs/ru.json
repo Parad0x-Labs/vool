@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "Его также можно открыть в: {target}",
     "wallet.keychain.save": "Сохранить копию в Связке ключей",
     "wallet.usb.save": "Сохранить копию на USB-флешку или диск",
-    "wallet.usb.save_again": "Снова сохранить на USB-флешку или диск"
+    "wallet.usb.save_again": "Снова сохранить на USB-флешку или диск",
+    "wallet.agents.create_addons": "Создать кошелёк для навыков и плагинов",
+    "wallet.agents.create_agent": "Создать кошелёк для: {name}",
+    "wallet.agents.ready": "Готово: у {name} теперь есть свой кошелёк, он показан выше. Отправляйте на него только то, что готовы позволить VOOL потратить.",
+    "wallet.agents.unfinished": "У {name} теперь есть свой кошелёк, он показан выше, но он не готов: ключ резервной копии не подтверждён и больше не будет показан."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

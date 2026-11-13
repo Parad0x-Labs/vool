@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "Cũng mở được trong: {target}",
     "wallet.keychain.save": "Lưu bản sao lưu vào Keychain",
     "wallet.usb.save": "Lưu bản sao lưu vào USB hoặc ổ đĩa",
-    "wallet.usb.save_again": "Lưu lại vào USB hoặc ổ đĩa"
+    "wallet.usb.save_again": "Lưu lại vào USB hoặc ổ đĩa",
+    "wallet.agents.create_addons": "Tạo ví cho Kỹ năng và plugin",
+    "wallet.agents.create_agent": "Tạo ví cho {name}",
+    "wallet.agents.ready": "Xong: {name} giờ đã có ví riêng, hiển thị ở trên. Chỉ gửi vào đó số tiền bạn sẵn sàng để VOOL chi.",
+    "wallet.agents.unfinished": "{name} giờ đã có ví riêng, hiển thị ở trên, nhưng chưa hoàn tất: khóa sao lưu chưa được xác nhận và sẽ không hiển thị lại."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

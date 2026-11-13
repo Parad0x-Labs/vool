@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "يُفتح أيضًا في: {target}",
     "wallet.keychain.save": "حفظ النسخة الاحتياطية في سلسلة المفاتيح",
     "wallet.usb.save": "حفظ النسخة الاحتياطية على ذاكرة USB أو قرص",
-    "wallet.usb.save_again": "الحفظ مجددًا على ذاكرة USB أو قرص"
+    "wallet.usb.save_again": "الحفظ مجددًا على ذاكرة USB أو قرص",
+    "wallet.agents.create_addons": "إنشاء محفظة المهارات والإضافات",
+    "wallet.agents.create_agent": "إنشاء محفظة لـ {name}",
+    "wallet.agents.ready": "تم: أصبحت لـ {name} محفظته الخاصة، وهي معروضة أعلاه. أرسل إليها فقط ما تقبل أن يُنفقه VOOL.",
+    "wallet.agents.unfinished": "أصبحت لـ {name} محفظته الخاصة، وهي معروضة أعلاه، لكنها غير مكتملة: لم يُؤكَّد مفتاح النسخ الاحتياطي ولن يُعرض مرة أخرى."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

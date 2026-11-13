@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "Elle s’ouvre aussi dans : {target}",
     "wallet.keychain.save": "Enregistrer la sauvegarde dans le Trousseau",
     "wallet.usb.save": "Enregistrer la sauvegarde sur une clé USB ou un disque",
-    "wallet.usb.save_again": "Enregistrer à nouveau sur une clé USB ou un disque"
+    "wallet.usb.save_again": "Enregistrer à nouveau sur une clé USB ou un disque",
+    "wallet.agents.create_addons": "Créer le portefeuille Skills et plugins",
+    "wallet.agents.create_agent": "Créer un portefeuille pour {name}",
+    "wallet.agents.ready": "C’est fait : {name} a maintenant son propre portefeuille, affiché plus haut. N’y envoyez que ce que vous acceptez de laisser VOOL dépenser.",
+    "wallet.agents.unfinished": "{name} a maintenant son propre portefeuille, affiché plus haut, mais il n’est pas terminé : sa clé de sauvegarde n’a pas été confirmée et ne sera plus affichée."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

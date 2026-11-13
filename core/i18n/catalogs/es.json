@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "También se abre en: {target}",
     "wallet.keychain.save": "Guardar copia en el Llavero",
     "wallet.usb.save": "Guardar copia en una memoria USB o disco",
-    "wallet.usb.save_again": "Guardar otra vez en una memoria USB o disco"
+    "wallet.usb.save_again": "Guardar otra vez en una memoria USB o disco",
+    "wallet.agents.create_addons": "Crear el monedero de Skills y plugins",
+    "wallet.agents.create_agent": "Crear un monedero para {name}",
+    "wallet.agents.ready": "Listo: {name} ya tiene su propio monedero, arriba. Envíale solo lo que estés dispuesto a dejar gastar a VOOL.",
+    "wallet.agents.unfinished": "{name} ya tiene su propio monedero, arriba, pero no está terminado: su clave de respaldo no se confirmó y no se volverá a mostrar."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

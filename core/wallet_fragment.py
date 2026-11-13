@@ -1167,9 +1167,15 @@ function agentControls(cp){
     if (d.addons) body.appendChild(addonsBlock(d));
     drawTail(d);
   }
+  // what a create said stays under the button that was pressed, across the redraws that follow it
+  var blockSaid = {};
   function agentBlock(d, agent){
     {
       var block = el('div', 'vw-cx-agent'); block.setAttribute('data-agent', agent.agent_id);
+      var bmsg = el('div', 'vw-msg'); bmsg.id = 'vwAgentMsg_' + agent.agent_id; bmsg.setAttribute('role', 'status');
+      var said = blockSaid[agent.agent_id];
+      if (said) cxMsg(bmsg, said.text, said.bad);
+      function say(text, bad){ blockSaid[agent.agent_id] = text ? { text: text, bad: !!bad } : null; cxMsg(bmsg, text || '', bad); }
       if (agent.agent_id !== 'addons') block.appendChild(el('div', 'vw-line', agent.name));  // the Skills & plugins box has its own title
       (agent.wallets || []).forEach(function(w){ block.appendChild(walletCard(d, agent, w)); });
       var has = (agent.wallets || []).map(function(w){ return w.network; });
@@ -1178,23 +1184,32 @@ function agentControls(cp){
         var row = el('div', 'vw-cx-actions');
         var pick = el('select', 'vw-limit'); pick.id = 'vwAgentNet_' + agent.agent_id; pick.setAttribute('aria-label', 'network for the wallet of ' + agent.name);
         open.forEach(function(n){ var o = el('option', null, n.name); o.value = n.network; pick.appendChild(o); });
-        var create = el('button', 'vw-btn', (agent.wallets || []).length ? 'Create a wallet on another network' : 'Create its wallet'); create.type = 'button'; create.id = 'vwAgentCreate_' + agent.agent_id;
+        // two of these sit one above the other (the assistant's and the Skills & plugins one): each button names whose wallet it makes
+        var create = el('button', 'vw-btn', (agent.wallets || []).length ? 'Create a wallet on another network'
+          : (agent.agent_id === 'addons' ? WT('wallet.agents.create_addons', 'Create the Skills & plugins wallet') : WTF('wallet.agents.create_agent', 'Create a wallet for {name}', { name: agent.name })));
+        create.type = 'button'; create.id = 'vwAgentCreate_' + agent.agent_id;
         create.addEventListener('click', function(){
-          create.disabled = true;
+          create.disabled = true; say('');
           var chosen = open.filter(function(n){ return n.network === pick.value; })[0] || open[0];
-          proved('/api/wallet/agents/wallet', { agent_id: agent.agent_id, network: pick.value }).then(function(res){
+          var whose = agent.agent_id === 'addons' ? 'Skills & plugins' : agent.name;
+          // the PIN box opens under this button, not at the foot of the whole section
+          postOwnerProved('/api/wallet/agents/wallet', { agent_id: agent.agent_id, network: pick.value }, bmsg).then(function(res){
             create.disabled = false;
             // a refusal or a half-finished create still re-reads the list: a wallet that exists is shown, with its next step
-            if (!res.ok) { cxMsg(msg, faultMessage(res, 'The wallet was not created.'), true); load(); return; }
-            cxMsg(msg, '');
+            if (!res.ok) { say(faultMessage(res, 'The wallet was not created.'), true); load(); return; }
             var w = res.data.wallet || {};
             if (!res.data.backup) { load(); return; }
-            showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: chosen.name, address: w.address }, res.data.backup, function(done){ cxMsg(msg, done ? 'The wallet is ready. Send it only what you are willing to let VOOL spend.' : 'The wallet is created but not finished: its backup key was not confirmed and will not be shown again.'); renderCrypto(); });
-          }).catch(function(){ create.disabled = false; cxMsg(msg, 'The request did not complete.', true); load(); });
+            showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: chosen.name, address: w.address }, res.data.backup, function(done){
+              say(done ? WTF('wallet.agents.ready', 'Done: {name} has its own wallet now, shown above. Send it only what you are willing to let VOOL spend.', { name: whose })
+                : WTF('wallet.agents.unfinished', '{name} has its own wallet now, shown above, but it is not finished: its backup key was not confirmed and will not be shown again.', { name: whose }));
+              renderCrypto();
+            });
+          }).catch(function(){ create.disabled = false; say('The request did not complete.', true); load(); });
         });
         row.appendChild(pick); row.appendChild(create); block.appendChild(row);
         if (!(agent.wallets || []).length) block.appendChild(el('div', 'vw-cx-env', 'It has no wallet yet, so it pays nothing on its own. Creating one needs your wallet ' + secretWord(d) + ' and moves no money.'));
       }
+      block.appendChild(bmsg);
       return block;
     }
   }

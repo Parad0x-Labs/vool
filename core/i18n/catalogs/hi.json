@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "यह इनमें भी खुलती है: {target}",
     "wallet.keychain.save": "बैकअप Keychain में सहेजें",
     "wallet.usb.save": "बैकअप USB स्टिक या ड्राइव पर सहेजें",
-    "wallet.usb.save_again": "फिर से USB स्टिक या ड्राइव पर सहेजें"
+    "wallet.usb.save_again": "फिर से USB स्टिक या ड्राइव पर सहेजें",
+    "wallet.agents.create_addons": "स्किल्स और प्लगइन्स का वॉलेट बनाएँ",
+    "wallet.agents.create_agent": "{name} के लिए वॉलेट बनाएँ",
+    "wallet.agents.ready": "हो गया: {name} के पास अब अपना वॉलेट है, ऊपर दिखाया गया है। इसमें केवल उतना भेजें जितना आप VOOL को खर्च करने देना चाहते हैं।",
+    "wallet.agents.unfinished": "{name} के पास अब अपना वॉलेट है, ऊपर दिखाया गया है, पर वह पूरा नहीं हुआ: उसकी बैकअप कुंजी की पुष्टि नहीं हुई और वह दोबारा नहीं दिखाई जाएगी।"
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

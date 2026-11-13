@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "Otworzysz go też w: {target}",
     "wallet.keychain.save": "Zapisz kopię w Pęku kluczy",
     "wallet.usb.save": "Zapisz kopię na pendrivie lub dysku",
-    "wallet.usb.save_again": "Zapisz ponownie na pendrivie lub dysku"
+    "wallet.usb.save_again": "Zapisz ponownie na pendrivie lub dysku",
+    "wallet.agents.create_addons": "Utwórz portfel dla umiejętności i wtyczek",
+    "wallet.agents.create_agent": "Utwórz portfel dla: {name}",
+    "wallet.agents.ready": "Gotowe: {name} ma teraz własny portfel, widoczny wyżej. Wysyłaj do niego tylko tyle, ile pozwalasz VOOL wydać.",
+    "wallet.agents.unfinished": "{name} ma teraz własny portfel, widoczny wyżej, ale nie jest gotowy: jego klucz kopii zapasowej nie został potwierdzony i nie zostanie pokazany ponownie."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

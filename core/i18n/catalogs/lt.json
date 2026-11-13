@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "Jis taip pat atsidaro: {target}",
     "wallet.keychain.save": "Išsaugoti kopiją Raktinėje",
     "wallet.usb.save": "Išsaugoti kopiją USB atmintinėje ar diske",
-    "wallet.usb.save_again": "Vėl išsaugoti USB atmintinėje ar diske"
+    "wallet.usb.save_again": "Vėl išsaugoti USB atmintinėje ar diske",
+    "wallet.agents.create_addons": "Sukurti įgūdžių ir papildinių piniginę",
+    "wallet.agents.create_agent": "Sukurti piniginę: {name}",
+    "wallet.agents.ready": "Atlikta: {name} dabar turi savo piniginę, ji parodyta aukščiau. Siųskite jai tik tiek, kiek leidžiate VOOL išleisti.",
+    "wallet.agents.unfinished": "{name} dabar turi savo piniginę, ji parodyta aukščiau, bet ji nebaigta: atsarginės kopijos raktas nepatvirtintas ir daugiau nebus parodytas."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

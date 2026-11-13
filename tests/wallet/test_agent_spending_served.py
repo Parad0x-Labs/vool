@@ -120,7 +120,8 @@ def _prove(page, credential: str) -> None:
 
 
 def _said(page, text: str) -> None:
-    page.wait_for_function("(t) => (document.getElementById('vwAgentsMsg') || {textContent: ''}).textContent.indexOf(t) >= 0", arg=text, timeout=15_000)
+    # the section's message line, or the line under the agent's own Create button (a create answers where it was pressed)
+    page.wait_for_function("(t) => Array.from(document.querySelectorAll('#vwAgentsMsg, [id^=vwAgentMsg_]')).some(m => m.textContent.indexOf(t) >= 0)", arg=text, timeout=15_000)
 
 
 def _ask(daemon, url: str, session: str) -> str:

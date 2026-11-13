@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "Şurada da açılır: {target}",
     "wallet.keychain.save": "Yedeği Anahtar Zinciri'ne kaydet",
     "wallet.usb.save": "Yedeği USB belleğe veya sürücüye kaydet",
-    "wallet.usb.save_again": "USB belleğe veya sürücüye yeniden kaydet"
+    "wallet.usb.save_again": "USB belleğe veya sürücüye yeniden kaydet",
+    "wallet.agents.create_addons": "Beceriler ve eklentiler cüzdanını oluştur",
+    "wallet.agents.create_agent": "{name} için cüzdan oluştur",
+    "wallet.agents.ready": "Tamam: {name} artık kendi cüzdanına sahip, yukarıda gösteriliyor. Ona yalnızca VOOL’un harcamasına izin verdiğiniz kadarını gönderin.",
+    "wallet.agents.unfinished": "{name} artık kendi cüzdanına sahip, yukarıda gösteriliyor, ancak tamamlanmadı: yedek anahtarı onaylanmadı ve bir daha gösterilmeyecek."
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

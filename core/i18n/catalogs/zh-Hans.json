@@ -5151,9 +5151,13 @@
     "wallet.backup.opens_in": "也可以在这里打开：{target}",
     "wallet.keychain.save": "将备份保存到钥匙串",
     "wallet.usb.save": "将备份保存到 U 盘或硬盘",
-    "wallet.usb.save_again": "再次保存到 U 盘或硬盘"
+    "wallet.usb.save_again": "再次保存到 U 盘或硬盘",
+    "wallet.agents.create_addons": "创建技能和插件钱包",
+    "wallet.agents.create_agent": "为 {name} 创建钱包",
+    "wallet.agents.ready": "完成：{name} 现在有了自己的钱包，显示在上方。只向它发送你愿意让 VOOL 花掉的金额。",
+    "wallet.agents.unfinished": "{name} 现在有了自己的钱包，显示在上方，但尚未完成：它的备份密钥未被确认，且不会再次显示。"
   },
-  "source_catalog_sha256": "068b85807f8a646c39a928114a648ff24e21915e07c0e3e74753594684a95f00",
+  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

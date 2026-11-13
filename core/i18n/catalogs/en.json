@@ -5151,7 +5151,11 @@
     "wallet.backup.opens_in": "It also opens in: {target}",
     "wallet.keychain.save": "Save backup in Keychain",
     "wallet.usb.save": "Save backup to a USB stick or drive",
-    "wallet.usb.save_again": "Save to a USB stick or drive again"
+    "wallet.usb.save_again": "Save to a USB stick or drive again",
+    "wallet.agents.create_addons": "Create the Skills & plugins wallet",
+    "wallet.agents.create_agent": "Create a wallet for {name}",
+    "wallet.agents.ready": "Done: {name} has its own wallet now, shown above. Send it only what you are willing to let VOOL spend.",
+    "wallet.agents.unfinished": "{name} has its own wallet now, shown above, but it is not finished: its backup key was not confirmed and will not be shown again."
   },
   "html_keys": [
     "bypass.modal_limits",
