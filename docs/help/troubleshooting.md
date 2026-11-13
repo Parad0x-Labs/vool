@@ -19,7 +19,7 @@ experimental; see the [install guide](../getting-started/install.md#install-from
 
 1. Confirm the local model runtime is installed — on Linux, install
    [Ollama](https://ollama.com) first if you have not
-   (see [the install guide](../INSTALL.md#local-model-first-steps-linux)).
+   (see [Run a local model](../guides/local-models.md#install-a-runtime)).
 2. Confirm the runtime is running.
 3. Confirm at least one model is pulled.
 4. Confirm the port matches what VOOL expects.
