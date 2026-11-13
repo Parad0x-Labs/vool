@@ -65,7 +65,6 @@ REWRITTEN_FW2_EN_VALUES = {
 # Provider-site references and pinned islands that keep their "API Keys" wording on purpose.
 PINNED_API_KEYS_ISLANDS = [
     "addons.manage_api_keys",
-    "addons.no_key",
     "first_run.fact_10",
     "keys.copy_again",
     "keyguide.provider.etherscan.step1",
