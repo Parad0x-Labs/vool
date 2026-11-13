@@ -32,14 +32,25 @@ def test_dmg_staging_uses_the_system_mount_point(monkeypatch, tmp_path):
     assert calls[-1] == ['hdiutil', 'detach', str(mount)]
 
 
-@pytest.mark.parametrize('leak', ['', 'history', 'pin'])
+def _speed_row(db, call_seconds):
+    """A speed row as the recorder writes it: when the call ends, with the call's own total duration."""
+    from datetime import datetime, timezone
+
+    raw = json.dumps({'eval_count': 3, 'total_duration': int(call_seconds * 1e9)})
+    with sqlite3.connect(db) as connection:
+        connection.execute('insert into local_inference_benchmarks values (?, ?)',
+                           (raw, datetime.now(timezone.utc).isoformat()))
+
+
+@pytest.mark.parametrize('leak', ['', 'history', 'pin', 'speed row'])
 def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak):
     home = tmp_path / 'home'
     db = home / 'Library/Application Support/VOOL/runtime/data/vool_web0_v2.db'
     db.parent.mkdir(parents=True)
     with sqlite3.connect(db) as connection:
-        connection.execute('create table local_inference_benchmarks(raw_result_json text)')
-        connection.execute('insert into local_inference_benchmarks values (?)', ('{"tokens": 42}',))
+        connection.execute('create table local_inference_benchmarks(raw_result_json text, created_at text)')
+        connection.execute('insert into local_inference_benchmarks values (?, ?)',
+                           ('{"tokens": 42}', '2026-11-13T05:00:00+00:00'))
     seen = []
     # every chat's listing shows the profile facts all chats share (cross-chat recall)
     profile = {'record_id': 'memory-teal', 'fact': 'my favourite colour is teal.', 'scope': 'user_profile'}
@@ -54,6 +65,11 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
             seen.append(body)
             message = body['messages'][0]['content']
             answer = 'Done.'
+            if smoke.SECRET in message:
+                # An earlier chat's background call, begun 500 s ago, ends during the private turn: not its row.
+                _speed_row(db, 500)
+                if leak == 'speed row':
+                    _speed_row(db, 0.2)  # a call that began inside the private turn: its row
             if message == 'What is my favourite colour?':
                 answer = 'teal'
             if message == 'What is my locker number?':
@@ -90,7 +106,8 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
     assert len(run.steps) == 5
     failed = [row['step'] for row in run.steps if not row['ok']]
     assert failed == ({'': [], 'history': ['private chat leaves no transcript, memory or file'],
-                       'pin': ['PIN not echoed and not stored']}[leak])
+                       'pin': ['PIN not echoed and not stored'],
+                       'speed row': ['private chat leaves no transcript, memory or file']}[leak])
     assert len(seen) == 9
     assert all(body['model'] == 'local-model' and body['model_selection'] == 'pin' for body in seen)
     assert {body['session_id'] for body in seen} == {

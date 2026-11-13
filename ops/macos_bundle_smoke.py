@@ -176,7 +176,7 @@ def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeou
 
     db = home / "Library/Application Support/VOOL/runtime/data/vool_web0_v2.db"
 
-    def bench_rows():
+    def bench_rows(columns="raw_result_json"):
         import shutil
         import sqlite3
         import tempfile
@@ -188,7 +188,8 @@ def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeou
                     shutil.copyfile(src, Path(tmp) / ("copy.db" + suffix))
             con = sqlite3.connect(str(Path(tmp) / "copy.db"))
             try:
-                return [r[0] for r in con.execute("select raw_result_json from local_inference_benchmarks order by rowid")]
+                rows = con.execute(f"select {columns} from local_inference_benchmarks order by rowid").fetchall()
+                return [r[0] if len(r) == 1 else tuple(r) for r in rows]
             finally:
                 con.close()
 
@@ -225,20 +226,39 @@ def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeou
         return ("4821" not in said and not stored and not extra_answer), {
             "reply": said[:300], "pin_in_memory": stored, "second_answer": extra_answer}
 
+    def began_inside(row, started):
+        # A speed row is written when a model call ENDS. Background work of earlier chats (a remember turn's
+        # extraction waits out a quiet window, then runs for minutes on a slow machine) can end while the
+        # private turn runs: measured on the Intel smoke of 271e90da, two such rows (499 s and 501 s calls)
+        # landed during a 91 s private turn. A row is the private turn's when its call began inside the turn:
+        # the row's end time minus the call's own total duration is not before the turn started. A row that
+        # cannot be read that way counts against the private turn.
+        from datetime import datetime
+        raw, created = row
+        try:
+            ended = datetime.fromisoformat(str(created)).timestamp()
+            took = float(json.loads(raw or "{}").get("total_duration") or 0) / 1e9
+        except (TypeError, ValueError, AttributeError):
+            return True
+        return ended - took >= started - 1.0
+
     def private():
         before = len(bench_rows())
+        started = time.time()
         on = chat(PRIVATE_SESSION, "private-on", "private chat", model, timeout)
         chat(PRIVATE_SESSION, "private-fact", f"My cousin's boat is called {SECRET}. Remember that.", model, timeout)
         snapshot_db("wal-snap-1-after-private-fact")
-        during = len(bench_rows())
+        new = bench_rows("raw_result_json, created_at")[before:]
+        inside = [row for row in new if began_inside(row, started)]
         off = chat(PRIVATE_SESSION, "private-off", "turn recording back on", model, timeout)
         snapshot_db("wal-snap-2-after-recording-on")
         hist = request(origin, f"/api/chat/history?session={PRIVATE_SESSION}")
         (run.scratch / "history-private.json").write_text(json.dumps(hist, indent=2) + "\n")
         on_disk = files_holding(home, SECRET)
-        ok = SECRET not in json.dumps(hist) and not on_disk and during == before
+        ok = SECRET not in json.dumps(hist) and not on_disk and not inside
         return ok, {"on": on[:200], "off": off[:200], "in_history": SECRET in json.dumps(hist), "files": on_disk[:10],
-                    "benchmark_rows_before_private_turn": before, "after_private_fact": during}
+                    "benchmark_rows_before_private_turn": before, "ended_during_private_turn": len(new),
+                    "began_inside_private_turn": len(inside)}
 
     def bench_content_free():
         rows = bench_rows()
