@@ -30,6 +30,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests._served_daemon import ServedDaemon, _session
 from tests.test_conversation_intent_served import (
     OR_LANE_ID,
     OR_MODEL,
@@ -38,7 +39,6 @@ from tests.test_conversation_intent_served import (
     _answer_text,
     _or_scripted,
 )
-from tests.usepod.test_usepod_served_flow import UsePodServedDaemon, _session
 
 DEAD = "http://127.0.0.1:9"
 PROMPT = "explain how photosynthesis works in two sentences"
@@ -124,7 +124,7 @@ def _local_endpoints(env: dict[str, str], url: str) -> dict[str, str]:
     return env
 
 
-class BareDaemon(UsePodServedDaemon):
+class BareDaemon(ServedDaemon):
     """No provider configured; the local endpoints are the recorder."""
 
     def __init__(self, home: Path, recorder: LocalEndpointRecorder) -> None:

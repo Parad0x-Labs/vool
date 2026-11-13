@@ -861,7 +861,7 @@ Post-alpha expansion order:
 
 **SHIPPED / PRODUCTION** — the local-first agent runtime: local model lane,
 memory, tool loop with typed permissions and approval gates, workspace
-confinement, receipts, BYOK/UsePod provider lanes, the served chat UI, the
+confinement, receipts, BYOK provider lanes, the served chat UI, the
 macOS app (Apple Silicon and Intel) and the Linux x86_64 tarball. Browser tool with Chromium's sandbox ON. Permission modes whose
 labels match their enforced semantics.
 

@@ -320,6 +320,9 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="not_a_pilot_transfer", source_context=source_context)
     if proposal.state not in transfers.OPEN_PROPOSAL_STATES:
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason=f"proposal_state_{proposal.state}", source_context=source_context)
+    if str(proposal.origin) in proposals.RETIRED_ORIGINS:
+        # a request an older VOOL parked on a lane that is gone (UsePod): never quoted, so it can never be approved
+        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="payment_lane_removed", source_context=source_context)
     spec = environment.require_active(proposal.network, source_context=source_context)
     profile = custody.require_wallet(proposal.wallet_id, source_context=source_context)
     recipient = dict(getattr(proposal, "recipient", {}) or {})
@@ -348,11 +351,6 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         return _mint_authorization_quote(spec, proposal, profile, sdk=sdk, source_context=source_context)
     if not token_payment and not evm_token and str(proposal.asset).upper() not in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="native_coin_transfers_only", source_context=source_context)
-    if proposal.origin == proposals.ORIGIN_USEPOD:
-        # a provider requirement is quoted only inside its window; a closed one ends the request here, typed
-        from core.wallet import usepod
-
-        usepod.require_binding(proposal, moment=_now(), expiry_code="wallet_quote_unavailable", source_context=source_context)
     if proposal.origin == proposals.ORIGIN_DNA_FEE:
         # a fee collection has no sheet of its own: it is planned into, shown on and approved with its provider
         # payment's quote (nobody volunteers to pay fees through a separate card)
@@ -673,7 +671,7 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
     for name in ("fee_estimate", "fee_max", "fee_balance", "fee_balance_after_minimum"):
         fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), native.decimals)
     # the shortened forms a person reads first (the readable sheet's display fields, composed for the
-    # two-asset token lane per usepod-end-to-end INTEGRATION-HANDOFF-08d77f61 step 2): token figures in
+    # two-asset token lane): token figures in
     # the token, fee figures in the gas asset, never one sum across assets; the amount exact, maxima
     # rounded up, minima rounded down
     fields["amount_display"] = amounts.display_amount(amount, token.decimals, token.symbol, exact=True)
@@ -784,39 +782,13 @@ def _attach_fee_and_review(
     fields: dict[str, Any], proposal: Any, *, rpc: Any, blockhash: str, principal_balance: int, held_principal: int, fee_balance: int, held_native: int,
     rent_minimum: int, source_context: dict[str, Any] | None,
 ) -> None:
-    """The DNA service-fee facts the sheet shows and the approval binds, from the fee owner (core.wallet.dna_fees):
-    for a native x402 provider payment the exact fee on THIS payment, the accrued position, and the collection of
-    previously accrued fees PLANNED to ride this payment when it is economical (``companion``: its own proposal, ledger
-    identity and version, amount, treasury, network-fee ceiling). Then the finite list of actions the approval covers
-    and the compact review (core.wallet.payment_review), all inside the digest."""
-    from core.wallet import dna_fees, payment_review
+    """The finite list of actions the approval covers and the compact review (core.wallet.payment_review), all inside
+    the digest. ``companion`` is always None: no payment carries a DNA fee collection (see below)."""
+    from core.wallet import payment_review
 
+    # the collection of accrued DNA fees rode only the UsePod lane's provider payments, and that lane left VOOL in 0.8:
+    # no payment carries a fee or a companion collection now
     fields["companion"] = None
-    if proposal.origin == proposals.ORIGIN_USEPOD:
-        from core.wallet import usepod
-
-        record = usepod.operation_for_proposal(proposal.proposal_id) or {}
-        fields["provider_payment_kind"] = str(record.get("payment_kind") or usepod.KIND_UNKNOWN)
-        plan = None
-        from core.wallet import pilot_custody
-
-        # a Ledger wallet never carries the collection: it would be a second transaction to press on the Ledger inside
-        # the same claim, which the sheet does not tell the person about; it is collected from a wallet VOOL holds
-        if rpc is not None and blockhash and pilot_custody.ledger_of(proposal.wallet_id) is None:
-            plan = dna_fees.plan_companion_collection(
-                proposal, rpc=rpc, blockhash=blockhash, payment_fee_max_atomic=int(fields.get("fee_max_minor") or 0), principal_balance_atomic=int(principal_balance),
-                held_principal_atomic=int(held_principal), fee_balance_atomic=int(fee_balance), held_native_atomic=int(held_native), rent_minimum_atomic=int(rent_minimum),
-                source_context=source_context,
-            )
-        fee = dna_fees.payment_preview(proposal, plan=plan)
-        if fee is not None:
-            fields["dna_fee"] = fee
-            fields["companion"] = plan.get("companion") if plan and plan.get("due") else None
-            # total authorized exposure, per asset: the principal plus the fee's whole-unit ceiling in the paid asset;
-            # the network fee stays in its own asset and its own row
-            decimals = int(fields.get("decimals") or 0)
-            fields["authorized_exposure_minor"] = int(fields["amount_minor"]) + int(fee["fee_reserved_ceiling_atomic"])
-            fields["authorized_exposure_human"] = amounts.format_minor(fields["authorized_exposure_minor"], decimals)
     review = payment_review.compose(fields, proposal)
     fields["actions"] = review["actions"]
     fields["review"] = review

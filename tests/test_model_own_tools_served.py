@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from tests._served_daemon import _answer_text, _session
 from tests.test_conversation_intent_served import (
     OR_LANE_ID,
     OR_MODEL,
@@ -37,7 +38,6 @@ from tests.test_conversation_intent_served import (
     _or_completion,
     _user_text,
 )
-from tests.usepod.test_usepod_served_flow import _answer_text, _session
 
 SEARCH_TOOL = {"type": "openrouter:web_search", "parameters": {"engine": "exa", "max_results": 5, "max_uses": 2}}
 SOURCE_URL = "https://example.org/rust-compiler-performance-2026"

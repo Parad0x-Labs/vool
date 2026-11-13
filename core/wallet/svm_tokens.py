@@ -1,6 +1,6 @@
 """SPL token facts and transfers on Solana rows: the one place the quote, the approval lane and the settlement read.
 
-What a token payment needs (a UsePod x402 payment in USDC, the owner's own USDT transfer), and every fact comes from
+What a token payment needs (a pay-kit payment in USDC, the owner's own USDT transfer), and every fact comes from
 the chain, checked against the registry rather than assumed: the mint is owned by the SPL Token program and carries the
 registry's decimals; the payer's associated token account is a token account of that mint owned by the payer; the
 recipient's associated token account exists, holds the same mint and belongs to the quoted recipient. A payment lane
@@ -58,7 +58,7 @@ def is_lane_token(network: str, asset: str) -> bool:
     return chains.asset_for(chains.resolve_network(network).network, asset).symbol in chains.PAYMENT_LANE_TOKENS
 
 
-#: a service payment lane's token payment (UsePod x402, the DNA fee collection, the pay-kit lanes): never creates an account
+#: a service payment lane's token payment (the DNA fee collection, the pay-kit lanes): never creates an account
 ROUTE_LANE = "lane"
 #: the owner's own token transfer (a chat or Crypto request): may create the recipient's account, quoted and approved
 ROUTE_OWNER = "owner"
@@ -72,7 +72,7 @@ def token_route(proposal: Any) -> str:
     network, asset, origin = str(getattr(proposal, "network", "") or ""), str(getattr(proposal, "asset", "") or ""), str(getattr(proposal, "origin", "") or "")
     if not is_token_transfer(network, asset):
         return ""
-    if origin in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, *proposals.PAYKIT_ORIGINS):
+    if origin in (proposals.ORIGIN_DNA_FEE, *proposals.PAYKIT_ORIGINS):
         return ROUTE_LANE
     if origin in (proposals.ORIGIN_USER, proposals.ORIGIN_MODEL) and chains.is_user_transfer_token(network, asset):
         return ROUTE_OWNER

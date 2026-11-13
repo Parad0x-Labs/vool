@@ -7,8 +7,8 @@ cannot hide an outer hang. Timeout is a red, incomplete run, never a skip.
 Clock authority: the CHILD's progress payload identifies the phase and node,
 but elapsed time is measured by the SUPERVISOR's own monotonic clock, from the
 moment it last observed the payload CHANGE. Tests may legitimately simulate a
-business clock by patching the shared stdlib ``time`` module (e.g. the usepod
-price-wait suite) while the teardown progress hook fires, and the run that
+business clock by patching the shared stdlib ``time`` module (as the retired
+UsePod price-wait suite did) while the teardown progress hook fires, and the run that
 produced artifact 10902318921 showed why child timestamps must never drive
 deadlines: the child reported the fake ``at`` 1000.2 while its real clock read
 2967.6 and it had already advanced to the next file -- the supervisor declared
@@ -37,7 +37,7 @@ _OWNER = "VOOL_CI_PROGRESS_PID"
 _STACK = "VOOL_CI_STACKS"
 _stack_stream = None
 #: Bound at import, before any test can patch the shared ``time`` module's
-#: ``monotonic`` attribute (the usepod price-wait suites do exactly that).
+#: ``monotonic`` attribute (the retired UsePod price-wait suites did exactly that).
 #: The captured reference keeps the watchdog's own timestamps real even while
 #: a test's business clock is simulated.
 _MONOTONIC = time.monotonic

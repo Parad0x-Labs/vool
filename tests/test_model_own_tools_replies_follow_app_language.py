@@ -31,13 +31,13 @@ from core.model_own_tools import (
     REPLY_STATUS_ON,
     reply_text,
 )
+from tests._served_daemon import _answer_text, _session
 from tests.test_conversation_intent_served import (
     OR_LANE_ID,
     OR_MODEL,
     OpenAICompatibleService,
     OpenRouterCompatibleDaemon,
 )
-from tests.usepod.test_usepod_served_flow import _answer_text, _session
 
 
 def _post_chat(

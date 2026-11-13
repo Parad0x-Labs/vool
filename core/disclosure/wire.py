@@ -302,13 +302,12 @@ def close_chat(chat_id: str) -> None:
 class WirePayload(dict):
     """A normal JSON object for adapter compatibility plus a bound byte envelope."""
 
-    def __init__(self, payload: dict[str, Any], body: bytes, url: str, preview_id: str = "", *, encoder=encode_body, control_only: bool = False, cloud_destination: bool | None = None, network_consent: Any = None) -> None:
+    def __init__(self, payload: dict[str, Any], body: bytes, url: str, preview_id: str = "", *, encoder=encode_body, control_only: bool = False, cloud_destination: bool | None = None) -> None:
         super().__init__(payload)
         self.wire_body = body
         self.encoder = encoder
         self.control_only = control_only
         self.cloud_destination = cloud_destination
-        self.network_consent = network_consent
         self.destination = url
         self.preview_id = preview_id
         self._wire_consumed = False
@@ -333,12 +332,10 @@ class WirePayload(dict):
         # Review can take minutes. Re-read the existing operator authorities at
         # dispatch, including cloud manifests served on a loopback endpoint.
         if self.cloud_destination is True or not auto_local_only_mode.endpoint_is_local(url):
-            from core.disclosure.network import UsePodConsent
             # The owner's explicit pick of a paid model is its own authority, exactly as the router
             # honors it with cloud help off: a reservation the server made for THIS call, still
             # standing at dispatch. Local-only and the turn's veto below still refuse it.
-            network_allowed = (self.network_consent.allowed(url, self) if isinstance(self.network_consent, UsePodConsent)
-                               else _operator_cloud_network_allowed()
+            network_allowed = (_operator_cloud_network_allowed()
                                or _paid_call_still_reserved(self.owner_paid_call, model=str(self.get("model") or "")))
             if (remote_fetch_forbidden() or auto_local_only_mode.turn_is_local_only(None)
                     or not network_allowed):
@@ -839,7 +836,7 @@ def _prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], requ
         request.metadata["_disclosure_preview_id"] = item.preview_id
         if request.metadata.get("_disclosure_restore") is not None:
             request.metadata["_disclosure_restore_sha"] = item.digest
-        result = WirePayload(body, wire, url, item.preview_id, encoder=encoder, cloud_destination=not local, network_consent=context.get("network_consent"))
+        result = WirePayload(body, wire, url, item.preview_id, encoder=encoder, cloud_destination=not local)
         result.timing = item.timing
         return result
 

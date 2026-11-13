@@ -271,11 +271,6 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
 
         wallet_id = str((query.get("wallet_id") or [""])[0] or "").strip()
         return _ok({"balance": balances.read_balance(wallet_id)})
-    if path == "/api/wallet/usepod/status":
-        from core.wallet import usepod
-
-        record = usepod.status_for(str((query.get("correlation_id") or [""])[0] or ""), provider=str((query.get("provider") or [""])[0] or ""))
-        return _ok({"topup": record}) if record else _json(404, {"ok": False, "error": "wallet_not_found"})
     if path == "/api/wallet/transfers":
         # the Crypto Pilot activity read model: one row per transfer, its state label, evidence and explorer link
         from core.wallet import transfers
@@ -635,15 +630,6 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 saved = {"asset": asset.upper(), "atomic": value, "source": "settings"}
             view = dna_fees.collect_min_view(asset)
             return _ok({"collect_min": view, "saved": saved, "override_in_force": view["source"] == "operator_override"})
-        if path == "/api/wallet/usepod/topup":
-            # the UsePod owner's exact payment requirement becomes ONE pilot proposal under its correlation id
-            from core.wallet import usepod
-
-            try:
-                requirement = usepod.parse_requirement(body)
-            except usepod.RequirementError as exc:
-                return _json(400, {"ok": False, "error": "usepod_requirement_invalid", "reason": exc.reason})
-            return _ok({"topup": usepod.validate_topup(requirement, source_context=source_context)})
         if path == "/api/wallet/propose":
             key = str(body.get("idempotency_key") or "")
             wallet_id = _wallet_id(body)

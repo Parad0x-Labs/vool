@@ -142,9 +142,9 @@ def _usdc_accounts(sol, owners) -> None:
             is_native=None, delegated_amount=0, close_authority=None))}
 
 
-@pytest.mark.parametrize("origin", [proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE])
+@pytest.mark.parametrize("origin", [proposals.ORIGIN_X402_PAYKIT, proposals.ORIGIN_DNA_FEE])
 def test_a_payment_channel_payment_from_a_connected_account_on_mainnet_gets_no_signing_request(mainnet, origin):
-    """Receive and view only on mainnet covers every lane: a UsePod or fee payment in USDC from a connected account is refused
+    """Receive and view only on mainnet covers every lane: a service or fee payment in USDC from a connected account is refused
     at the external signing door before any hold or signing request, and the card says so instead of offering a signer."""
     from solders.keypair import Keypair
 
@@ -201,7 +201,7 @@ def test_every_legacy_door_refuses_a_view_only_account_on_mainnet_before_any_hol
     sender, destination = str(Keypair().pubkey()), str(Keypair().pubkey())
     _usdc_accounts(sol, [(sender, 10**9), (destination, 0)])
     account = register(sender, network=chains.SOLANA_MAINNET)
-    proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=destination, amount_minor=1000, asset="USDC", origin=proposals.ORIGIN_USEPOD, network=chains.SOLANA_MAINNET)
+    proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=destination, amount_minor=1000, asset="USDC", origin=proposals.ORIGIN_X402_PAYKIT, network=chains.SOLANA_MAINNET)
     lifecycle.default_lifecycle().prepare(proposal.proposal_id)
     body = {"proposal_id": proposal.proposal_id, **({"method": "external"} if door == "external" else {"pin": "482913"})}
     status_code, refused = _post("/api/wallet/approve", body)

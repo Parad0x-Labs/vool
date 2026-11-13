@@ -98,20 +98,13 @@ def test_a_pre_send_spend_refusal_names_the_cap_and_never_claims_provider_contac
     assert "provider" not in cause.lower(), "a pre-send refusal never implies the provider was contacted"
 
 
-def test_an_unknown_paid_outcome_says_unknown_and_points_at_the_resume_path() -> None:
-    from core.agent_runtime.memory_runtime import _paid_result_unknown_hint
+def test_a_pick_saved_for_the_removed_usepod_lane_says_nothing_was_sent_or_charged() -> None:
+    from core.agent_runtime.memory_runtime import _selected_model_block_cause
 
-    text = _paid_result_unknown_hint(
-        _execution_with(
-            {
-                "requested_model": "usepod:some-model",
-                "block_reason": "usepod_x402_paid_result_unknown: the paid answer never arrived",
-            }
-        )
-    )
-    assert "result is unknown" in text
-    assert "without paying again" in text, "the only supported retry is the non-paying Resume"
-    assert "try again" not in text.lower().replace("send your message again", ""), text
+    cause = _selected_model_block_cause("payment_lane_removed", model_was_attempted=False)
+    assert "no longer part of VOOL" in cause
+    assert "nothing was sent" in cause and "nothing was charged" in cause
+    assert "result is unknown" not in cause and "try again" not in cause.lower()
 
 
 def test_a_missing_workspace_tells_the_user_how_to_bind_one(tmp_path, monkeypatch) -> None:

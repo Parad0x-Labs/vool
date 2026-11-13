@@ -24,6 +24,8 @@ ORIGIN_MODEL = "model"
 ORIGIN_SKILL = "skill"
 ORIGIN_PLUGIN = "plugin"
 ORIGIN_X402 = "x402"
+#: The UsePod payment lane, removed from VOOL in 0.8. Its rows from an older VOOL still load, so their history and
+#: receipts read as before, but nothing new is proposed on it and none of its open requests can be quoted or paid.
 ORIGIN_USEPOD = "usepod"
 #: A collection of accrued DNA service fees to the designated treasury (core.wallet.dna_fees): minted only by the
 #: runtime from the fee ledger's own position, approved on its own sheet, never proposed by a model, skill or plugin.
@@ -43,6 +45,8 @@ PAYKIT_ORIGINS = (ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT)
 #: registry's token to the approved payee, which the resource's facilitator submits. The wallet broadcasts nothing.
 ORIGIN_X402_SDK = "x402_sdk"
 ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT, ORIGIN_X402_SDK)
+#: Origins whose lane is gone: stored rows load, new proposals are refused and open ones are never quoted or signed.
+RETIRED_ORIGINS = (ORIGIN_USEPOD,)
 
 STATE_PROPOSED = "proposed"
 STATE_SIMULATED = "simulated"
@@ -186,6 +190,8 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "account_network_mismatch", "wallet_network": _canonical_network(profile.network), "proposal_network": _canonical_network(resolved_network)}, source_context=source_context)
     if origin not in ORIGINS:
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "unknown_origin", "origin": str(origin)}, source_context=source_context)
+    if origin in RETIRED_ORIGINS:
+        raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "payment_lane_removed", "origin": str(origin)}, source_context=source_context)
     from core.wallet import channels
 
     # a payment channel the owner turned off parks nothing, whichever door proposes on it
@@ -323,7 +329,7 @@ def _validated_asset(network: str, asset: str, *, source_context: dict[str, Any]
 
 
 def _require_token_lane(network: str, asset: str, *, origin: str, pilot: bool = False, source_context: dict[str, Any] | None) -> None:
-    """A token on a Mainnet row moves only for a service payment lane (UsePod's x402, a pay-kit x402 or MPP payment, or an x402
+    """A token on a Mainnet row moves only for a service payment lane (a pay-kit x402 or MPP payment, or an x402
     SDK payment, to any site) and the DNA fee collection, and then only a lane token (``chains.PAYMENT_LANE_TOKENS``); the
     owner's own transfers (a chat or Crypto request) from a Crypto Pilot wallet may also move the tokens the registry names
     for them (``chains.USER_TRANSFER_TOKENS``, USDT on Solana), approved like any other transfer. Every other origin keeps to
@@ -334,8 +340,8 @@ def _require_token_lane(network: str, asset: str, *, origin: str, pilot: bool = 
     registered = chains.asset_for(spec.network, asset)
     if not spec.is_mainnet or registered.native:
         return
-    reason = "mainnet_tokens_move_only_for_usepod_x402"
-    if origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, *PAYKIT_ORIGINS, ORIGIN_X402_SDK):
+    reason = "mainnet_tokens_move_only_for_service_payments"
+    if origin in (ORIGIN_DNA_FEE, *PAYKIT_ORIGINS, ORIGIN_X402_SDK):
         if registered.symbol in chains.PAYMENT_LANE_TOKENS:
             return
         reason = "payment_lanes_pay_only_with_lane_tokens"
@@ -492,6 +498,7 @@ __all__ = [
     "ORIGIN_X402_PAYKIT",
     "ORIGIN_X402_SDK",
     "PAYKIT_ORIGINS",
+    "RETIRED_ORIGINS",
     "STATE_APPROVED",
     "STATE_AWAITING_SIGNATURE",
     "STATE_BROADCAST",

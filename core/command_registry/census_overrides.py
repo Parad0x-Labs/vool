@@ -345,7 +345,7 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/chat/queue": "chat read feed (queued messages)",
     "http:GET:/api/chat/sessions": "chat read feed (session list)",
     # Lane surfaces that entered with the calendar/notes, email, notifications-centre,
-    # money-contract, usepod-discovery, bug-report, school and model/tooling merges.
+    # money-contract, provider-discovery, bug-report, school and model/tooling merges.
     # Classified 2026-09-18 when the census pin flagged all 54 as LEGACY_UNMIGRATED:
     # each entry names its owning lane and its class honestly. The READ rows are feeds
     # and pages; the WRITE rows are lane-owned operator surfaces whose consent doors
@@ -394,9 +394,6 @@ _EXTERNAL: dict[str, str] = {
     "http:POST:/api/email/recovery/check": "email lane operator action (recovery check)",
     "http:POST:/api/email/accounts/add": "email lane operator action (add a password account after one verified IMAP login)",
     "http:POST:/api/email/accounts/remove": "email lane operator action (remove a password account)",
-    "http:GET:/api/cloud/usepod/discovery": "usepod lane read feed (discovery)",
-    "http:GET:/api/cloud/usepod/x402/unresolved": "usepod lane read feed (unresolved x402 state)",
-    "http:POST:/api/cloud/usepod/*": "usepod lane operator surface family (its own spend/consent gates)",
     "http:GET:/api/discovery": "provider discovery lane read feed",
     "http:POST:/api/discovery/refresh": "provider discovery lane operator action (refresh)",
     "http:GET:/api/models/local": "model registry read feed (local models)",

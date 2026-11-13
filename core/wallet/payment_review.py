@@ -15,7 +15,6 @@ from typing import Any
 from core.wallet import amounts, proposals
 
 AUTHORITY = "core.wallet.payment_review"
-PROVIDER_LABELS = {proposals.ORIGIN_USEPOD: "UsePod"}
 
 
 def short_address(value: Any) -> str:
@@ -90,26 +89,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     sdk = fields.get("x402sdk") if isinstance(fields.get("x402sdk"), dict) else None
     paid_request = paykit or sdk
     warnings: list[dict[str, str]] = []
-    if origin == proposals.ORIGIN_USEPOD:
-        from core.wallet import purpose
-
-        payment_purpose = fields.get("purpose") or {}
-        provider = PROVIDER_LABELS.get(origin, "the provider")
-        if payment_purpose.get("kind") == purpose.KIND_SERVICE:
-            headline = f"Pay {provider} for this AI response"
-            amount_line = f"Pay at most {amount_human} {asset} (the provider's cap for this response; the final usage bill can be lower, never higher)"
-        elif payment_purpose.get("kind") == purpose.KIND_CREDIT:
-            headline = "Prepay provider credit"
-            amount_line = f"Prepay {amount_human} {asset} (provider credit for later requests)"
-            warnings.append({"code": "prepaid_credit", "text": str(payment_purpose.get("note") or "Payment accepted is not service delivered.")})
-        else:
-            headline = "Payment purpose unknown"
-            amount_line = f"Pay {amount_human} {asset} (the operation does not record what this payment buys)"
-            warnings.append({"code": "unknown_purpose", "text": str(payment_purpose.get("note") or "The payment purpose is not on record.")})
-        recipient_line = f"To {provider}'s payment account {to_address}"
-        recipient_kind = "provider_pay_to"
-        primary = "Approve and pay"
-    elif paid_request:
+    if paid_request:
         site = str(paid_request.get("resource_origin") or "the site")
         headline = f"Pay {site} for one request"
         amount_line = f"Pay {amount_human} {asset} (the exact price the site asked for this request)"
@@ -170,7 +150,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         elif cue == "non_system_owner_recipient":
             warnings.append({"code": cue, "text": "The recipient account is owned by a program, not a plain wallet."})
     actions: list[dict[str, Any]] = [{
-        "kind": "provider_payment" if origin == proposals.ORIGIN_USEPOD else ("fee_collection" if origin == proposals.ORIGIN_DNA_FEE else ("paid_request" if paid_request else "transfer")),
+        "kind": "fee_collection" if origin == proposals.ORIGIN_DNA_FEE else ("paid_request" if paid_request else "transfer"),
         "proposal_id": str(getattr(proposal, "proposal_id", "") or ""), "to": to_address, "amount_minor": _int(fields.get("amount_minor")), "asset": asset,
         "network_fee_max_minor": _int(fields.get("fee_max_minor")), "gas_asset": gas,
         "authorization": "this approval, exactly as shown; one signature, sent once with the one request it pays for" if paid_request else "this approval, exactly as shown; one signature, one send",
@@ -254,4 +234,4 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     }
 
 
-__all__ = ["AUTHORITY", "PROVIDER_LABELS", "compose", "short_address"]
+__all__ = ["AUTHORITY", "compose", "short_address"]

@@ -74,8 +74,8 @@ BASIS_PROVIDER_REPORTED = "provider_reported"  # the provider told us what it ch
 BASIS_PUBLISHED_PRICE = "published_price"  # tokens x a price we can point at a source for
 BASIS_UNKNOWN_CEILING = "unknown_ceiling"  # tokens x the conservative ceiling; not a bill
 BASIS_NO_USAGE = "no_usage"  # provider returned neither a cost nor any token count
-# Tokens x a ceiling the OWNER approved for a dynamic marketplace (UsePod). An upper bound: the
-# serving route bills its own listed price, at or below the ceiling, and no exact charge is reported.
+# Tokens x a ceiling the OWNER approved for a dynamic marketplace (UsePod, in an older VOOL; its rows still
+# read). An upper bound: the serving route billed its own listed price, at or below the ceiling.
 BASIS_APPROVED_CEILING = "approved_price_ceiling"
 
 
@@ -385,35 +385,6 @@ def provider_slot_for_manifest(manifest: Any) -> str:
     return ""
 
 
-def _usepod_approved_price(model_id: str) -> ModelPrice | None:
-    """The owner-approved UsePod price ceiling for this model, in USD per token, or None.
-
-    An UPPER bound, not a published price: UsePod bills the serving route's own listing at or below
-    the ceiling and reports no exact charge. The integer microunits are converted here only for the
-    legacy USD ledger, with USDC counted 1:1 as USD -- stated in ``source``, never implied.
-    """
-    try:
-        from core.usepod.routing import load_route_state
-
-        state = load_route_state()
-        bound = state.bounds.get(str(model_id or ""))
-        if state.error or bound is None:
-            return None
-        return ModelPrice(
-            prompt_usd_per_token=bound.max_input_microunits_per_million / (_PER_MILLION * _PER_MILLION),
-            completion_usd_per_token=bound.max_output_microunits_per_million / (_PER_MILLION * _PER_MILLION),
-            request_usd=0.0,
-            source=(
-                f"usepod approved price ceiling {bound.approval_id} ({bound.max_input_microunits_per_million}/"
-                f"{bound.max_output_microunits_per_million} USDC microunits per 1M; USDC counted 1:1 as USD)"
-            ),
-            known=False,
-            basis=BASIS_APPROVED_CEILING,
-        )
-    except Exception:  # pragma: no cover - defensive; pricing never breaks a turn
-        return None
-
-
 #: Models whose provider runs its own paid tools (web search, website visits, code execution) on
 #: every call, on a direct endpoint that reports no price for those tools: tokens are all a
 #: response bills, so no cap could count the tool fees. VOOL does not pin or send to them.
@@ -439,22 +410,11 @@ def unpriced_builtin_tools(provider_hint: str, model_id: str) -> bool:
 def reservation_price_refusal(provider_id: str, model_id: str) -> str:
     """Why a paid reservation for this provider/model must not be sized at all, or "".
 
-    A dynamic marketplace (UsePod) has no stable published price, and the table ceiling can sit below
-    a real listing. Without an owner-approved bound there is no defensible number to reserve against, so
-    the reservation is refused with this code instead of sized on a guess.
+    The UsePod marketplace priced each call against an owner-approved bound. That lane left VOOL in 0.8,
+    so a reservation for its historical provider identity is refused instead of sized on a guess.
     """
-    if provider_slot(provider_id) != "usepod":
-        return ""
-    try:
-        from core.usepod.routing import load_route_state
-
-        state = load_route_state()
-    except Exception:
-        return "usepod_route_state_unavailable"
-    if state.error:
-        return state.error
-    if str(model_id or "") not in state.bounds:
-        return "usepod_route_not_approved"
+    if provider_slot(provider_id) == "usepod":
+        return "payment_lane_removed"
     return ""
 
 
@@ -468,8 +428,6 @@ def lookup_model_price(provider_id: str, model_id: str, *, prompt_tokens: int = 
     provider = provider_slot(provider_id)
     if provider == "openrouter":
         return _openrouter_price(model_id) or _ceiling_price()
-    if provider == "usepod":
-        return _usepod_approved_price(model_id) or _ceiling_price()
 
     table = _DIRECT_PRICE_TABLE.get(provider)
     if table:

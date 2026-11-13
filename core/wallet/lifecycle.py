@@ -294,7 +294,7 @@ def _build_message(proposal: proposals.TransactionProposal, payer_pubkey: str, b
 
         route = svm_tokens.token_route(proposal)
         if route:
-            # a UsePod x402 token payment, a DNA fee collection to the treasury, (as the simulation's stand-in for the
+            # a DNA fee collection to the treasury, (as the simulation's stand-in for the
             # pay-kit lane's own message) an x402 token payment, or the owner's own token transfer: one TransferChecked
             # between the two associated token accounts; only the owner's transfer may open the recipient's account first
             return svm_tokens.build_transfer_message(
@@ -483,7 +483,7 @@ class PaymentLifecycle:
         if spec.is_mainnet:
             profile = custody.get_wallet(proposal.wallet_id)
             if profile is None or profile.mode in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY):
-                # on a Mainnet row a connected or watch-only account receives and shows its balance only: no lane (a UsePod,
+                # on a Mainnet row a connected or watch-only account receives and shows its balance only: no lane (a
                 # fee or service payment included) claims, hands out bytes to sign or submits for it. Sending there stays in
                 # a VOOL Wallet, with its limits, approval and receipts. Typed, before any hold, signing request or socket.
                 # an account that cannot be read is refused the same way (unknown fails closed)
@@ -695,6 +695,7 @@ class PaymentLifecycle:
         if proposal.state != proposals.STATE_PENDING_APPROVAL:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         self._require_signable_row(proposal)
+        self._require_live_lane(proposal)
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
         self._require_channel_on(proposal)
@@ -788,6 +789,11 @@ class PaymentLifecycle:
                 receipts._record_refusal(conn, current, fault_code=fault_code, reason=shown, attempts=attempts)
         return attempts
 
+    def _require_live_lane(self, proposal: proposals.TransactionProposal) -> None:
+        """A request an older VOOL parked on a lane that is gone (UsePod) is never approved: nothing is asked, signed or sent."""
+        if str(proposal.origin) in proposals.RETIRED_ORIGINS:
+            raise self._fault("wallet_quote_unavailable", proposal, reason="payment_lane_removed")
+
     def _require_owns_request(self, proposal: proposals.TransactionProposal) -> None:
         """A proposal a request was bound to is paid only as a request's payment, at every door that prepares, approves
         or claims one (prepare, the pocket and external-signer approvals and their claim, the Crypto Pilot approval and
@@ -866,6 +872,7 @@ class PaymentLifecycle:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         if not transfers.is_pilot_transfer(proposal):
             raise self._fault("wallet_quote_mismatch", proposal, reason="not_a_pilot_transfer")
+        self._require_live_lane(proposal)
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
         self._require_channel_on(proposal)
@@ -884,18 +891,8 @@ class PaymentLifecycle:
             check = verify_snapshot(recipient)
             if not check.ok:
                 raise self._fault("wallet_recipient_refused", proposal, reason=f"contact_{check.status}")
-        if proposal.origin == proposals.ORIGIN_USEPOD:
-            # the provider's durable requirement, before any credential: pinned fields equal, window still open
-            from core.wallet import usepod
-
-            usepod.require_binding(proposal, moment=time.time(), quote_fields=quote["fields"], source_context=self.source_context)
+        # no payment carries a DNA fee collection since the UsePod lane it rode left VOOL (core.wallet.quotes)
         companion: dict[str, Any] | None = None
-        if proposal.origin == proposals.ORIGIN_USEPOD:
-            # the collection of previously accrued DNA fees planned to ride THIS approval, before any credential: the
-            # companion stands (offered, unexpired, bound to this payment at the version the sheet showed)
-            from core.wallet import dna_fees
-
-            companion = dna_fees.require_companion_binding(proposal, quote_fields=quote["fields"], moment=time.time(), source_context=self.source_context)
         if proposal.origin == proposals.ORIGIN_DNA_FEE:
             # a fee collection is approved WITH its provider payment, never on a sheet of its own
             raise self._fault("wallet_quote_mismatch", proposal, reason="dna_fee_collection_rides_its_payment")
@@ -1253,11 +1250,6 @@ class PaymentLifecycle:
                 identity = {"authorization_json": json.dumps({"kind": "eip3009", "token": str(fields.get("token_contract") or ""), "from_block": int(fresh["block_number"])}, sort_keys=True)}
             else:
                 identity = {"nonce": int(fresh["nonce"])}
-            if proposal.origin == proposals.ORIGIN_USEPOD:
-                # inside the claim transaction: the requirement is re-read on this connection; a refusal rolls back
-                from core.wallet import usepod
-
-                usepod.check_binding(conn, proposal, moment=now, quote_fields=fields)
             if spec.is_evm and not authorization and transfers.live_for_account(conn, spec.network, profile.public_key) is not None:
                 raise self._fault("wallet_duplicate_payment", proposal, reason="previous_transfer_in_flight")
             try:
@@ -1436,8 +1428,6 @@ class PaymentLifecycle:
             from core.wallet import dna_fees
 
             result["companion"] = {"transfer": companion_view, **(dna_fees.companion_outcome(pid) or {})}
-        elif proposal.origin == proposals.ORIGIN_USEPOD:
-            result["companion"] = None
         return result
 
     def _send_companion(self, companion: dict[str, Any], fresh: dict[str, Any], *, effects: dict[str, Any], tx_id: str) -> dict[str, Any]:
@@ -2042,14 +2032,6 @@ class PaymentLifecycle:
                 # the account's slot was used by another transaction: these bytes can never land
                 settlement.revoke_signed(pid, reason="nonce_used_elsewhere")
                 raise self._fault("wallet_broadcast_failed", proposal, reason="signed_not_sent:nonce_used_elsewhere", status=transfers.STATE_SIGNED_REVOKED)
-        if proposal.origin == proposals.ORIGIN_USEPOD:
-            from core.wallet import usepod
-
-            if usepod.binding_expired(proposal, moment=time.time()):
-                # the provider's window closed between the signature and the transmit: these bytes never leave
-                settlement.revoke_signed(pid, reason="provider_requirement_expired")
-                usepod.mark_expired(pid, detail="window_closed_before_send", expire_proposal=False)
-                raise self._fault("wallet_broadcast_failed", proposal, reason="signed_not_sent:provider_requirement_expired", status=transfers.STATE_SIGNED_REVOKED)
         logical = reconciliation.logical_effect_id(pid)
         instance = str(row.get("effect_instance_id") or "")
         if not mark_effect_dispatched(logical_effect_id=logical, effect_instance_id=instance, claimed_by=AUTHORITY):

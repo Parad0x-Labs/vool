@@ -8,8 +8,7 @@ SERVICES = (
      "origin_slot": "llm.cloud.usepod_origin", "origin": "https://api.usepod.ai", "kind": "model_provider",
      "rebind": False,
      # UsePod is retired (owner decision 2026-11-12): VOOL offers no UsePod plugin and says so
-     # once. The saved key stays where it is and nothing uses it. The reference package and the
-     # retained lane behind it are still in the tree until their removal is reviewed on its own.
+     # once. The saved key stays where it is and nothing uses it. Its payment lane left core in 0.8.
      "retired": True,
      "digests": frozenset({"fe7fedb6881f6ba74df98b36ae25f818feab79a34c373ccf6acba87e9c820b54"})},
     {"id": "vool-plugin-eyebrow", "name": "Eyebrow", "slot": "security.eyebrow",
@@ -24,8 +23,8 @@ RESERVED_NAME = ("This name belongs to a plugin made by VOOL. Give your plugin a
 def reserved_refusal(plugin_id: str, digest: str) -> str:
     """VOOL's own service plugins are known by their exact package bytes, never by a claimed name.
 
-    Their ids unlock the retained payment lane and the saved scanner key, so a package that only
-    calls itself by one of those names is refused.
+    Their ids stay reserved so a package that only calls itself by one of those names can never
+    pose as VOOL's own or reach a saved key; such a package is refused.
     """
     service = next((service for service in SERVICES if service["id"] == plugin_id), None)
     return RESERVED_NAME if service and digest not in service["digests"] else ""
@@ -61,14 +60,17 @@ def notices() -> list[dict]:
         if installed and record.enabled and (not service["rebind"]
                                              or credential_is_indexed("plugin." + service["id"] + ".access")):
             continue
+        key = "plugin_migration_" + service["id"].removeprefix("vool-plugin-")
         if not installed:
             message = service["name"] + " now comes as a plugin. Install it to keep using it; your saved key will be reused."
         elif service["rebind"]:
             message = "Your saved " + service["name"] + " key is kept. Enable the plugin to reuse it, or connect your own service key."
+            key += "_installed"
         else:
-            message = "Your saved " + service["name"] + " key is kept. Enable the plugin to keep using it through your wallet approvals."
-        result.append({"plugin_id": service["id"], "message": message,
-                       "message_key": "plugin_migration_" + service["id"].removeprefix("vool-plugin-") + ("_installed" if installed else "")})
+            # An old UsePod package left installed: its lane is gone and the saved key is never
+            # handed to it, so enabling it would not bring the old lane back.
+            message = RETIRED_KEY.format(name=service["name"])
+        result.append({"plugin_id": service["id"], "message": message, "message_key": key})
     if fallback:
         result.append(fallback)
     return result
@@ -93,8 +95,8 @@ def bind_on_enable(plugin_id: str) -> bool:
 
     service = next((service for service in SERVICES if service["id"] == plugin_id), None)
     if not service or not service["rebind"]:
-        # A UsePod token pays from a balance funded through VOOL's wallet. It stays in its
-        # own slot, spent only on the retained lane with spend grants, caps and receipts.
+        # A saved UsePod token stays in its own slot. Its lane left VOOL, and the token is
+        # never copied into any plugin.
         return False
     record, plugin = declaration(plugin_id, service["kind"])
     if not is_first_party(record):

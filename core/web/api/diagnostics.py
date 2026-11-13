@@ -52,7 +52,7 @@ DIAGNOSTIC_SCHEMA = "vool.diagnostic.v1"
 #: Every condition code is namespaced with this prefix.
 NAMESPACE = "vool"
 
-# Typed dispatch states (values match core.usepod.transport's contract; kept literal
+# Typed dispatch states (the transport contract values; kept literal
 # here so the mapping function stays pure data-in/data-out with no import coupling).
 DISPATCH_NOT_SENT = "not_sent"
 DISPATCH_OUTCOME_UNKNOWN = "sent_outcome_unknown"

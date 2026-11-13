@@ -54,9 +54,9 @@ def refresh_models(plugin_id: str) -> dict:
     from storage.model_provider_manifest import ModelProviderManifest
 
     record, plugin = declaration(plugin_id, "model_provider")
+    if retired_package(plugin_id):
+        raise ServiceRefused(RETIRED_PACKAGE)
     spec = plugin.vool["model_provider"]
-    if money_governed(spec["base_url"]):
-        raise ServiceRefused("This service is paid from your wallet balance, so VOOL uses it only with your wallet approvals each time.")
     response = native_request(plugin_id, "model_provider", "GET", spec["base_url"].rstrip("/") + spec["model_list_path"],
                               expected_approval=record.approval_digest)
     try:
@@ -110,6 +110,20 @@ def refresh_models(plugin_id: str) -> dict:
             "message": "Prices come from the service. Your spending limits still apply."}
 
 
+#: The adapter type of the UsePod lanes an older VOOL saved (removed in 0.8).
+RETIRED_ADAPTER = "usepod"
+RETIRED_PACKAGE = "UsePod is no longer part of VOOL. VOOL does not use this plugin."
+
+
+def retired_package(plugin_id: str) -> bool:
+    """VOOL's own old package for a retired paid service (UsePod). It paid from a balance funded through
+    VOOL's wallet, and that lane left VOOL in 0.8, so the package is never a provider lane: nothing is
+    listed, picked or sent through it. A service's own plugin under its own name is an ordinary plugin."""
+    from core.plugin_migration import SERVICES
+
+    return any(service["id"] == plugin_id and service.get("retired") and service["kind"] == "model_provider" for service in SERVICES)
+
+
 def filter_manifests(manifests):
     # One package check per plugin per listing: a provider can list up to 2048 models.
     checked: dict = {}
@@ -124,7 +138,9 @@ def filter_manifests(manifests):
 
     result = []
     for manifest in manifests:
-        if manifest.adapter_type == "usepod" and usable(("x402",), lambda: require_legacy_x402() or True) is None:
+        if manifest.adapter_type == RETIRED_ADAPTER:
+            # An older VOOL saved UsePod's lanes in the manifest table. That lane is gone in 0.8: its
+            # rows are never listed, picked or dispatched.
             continue
         plugin_id = manifest.runtime_config.get("plugin_id")
         if plugin_id:
@@ -142,30 +158,13 @@ def _plain_lane_models(plugin_id: str, approval: str) -> frozenset[str]:
     return frozenset(row["id"] for row in cached_models(plugin_id))
 
 
-def money_governed(base_url: str) -> bool:
-    """A service whose prepaid balance VOOL already spends under its money law.
-
-    Its token pays from a balance the owner funded through VOOL's wallet, so it
-    never becomes a plain provider lane: spending it stays on the retained lane
-    with spend grants, caps and receipts.
-    """
-    from urllib.parse import urlsplit
-
-    from core.usepod.legacy_config import CONFIG
-    from core.usepod.legacy_config import origin as legacy_origin
-
-    host = (urlsplit(str(base_url or "")).hostname or "").rstrip(".").lower()
-    governed = {(urlsplit(url).hostname or "").rstrip(".").lower() for url in (CONFIG.base_url, legacy_origin()) if url}
-    return bool(host) and host in governed
-
-
 def cached_models(plugin_id: str) -> list[dict]:
     from core.runtime_paths import data_path
 
+    if retired_package(plugin_id):
+        return []
     try:
-        record, plugin = declaration(plugin_id, "model_provider")
-        if money_governed(plugin.vool["model_provider"]["base_url"]):
-            return []
+        record, _plugin = declaration(plugin_id, "model_provider")
         cache = json.loads(child_of(data_path("plugin-models"), plugin_id + ".json").read_text())
         return cache["models"] if cache["approval_digest"] == record.approval_digest else []
     except (OSError, ValueError, KeyError, ServiceRefused):
@@ -196,20 +195,3 @@ def usable_provider(provider: str, model: str = "") -> bool:
         return False
     rows = cached_models(provider.removeprefix("plugin-"))
     return any(row["id"] == model for row in rows) if model else bool(rows)
-
-
-def require_legacy_x402():
-    """Gate the retained monetary lane; a declaration grants no caps, approval or signing."""
-    from core.plugin_migration import is_first_party
-    from core.usepod.legacy_config import CONFIG
-    from core.usepod.legacy_config import origin as legacy_origin
-
-    record, plugin = declaration("vool-plugin-usepod", "model_provider")
-    if not is_first_party(record):
-        raise ServiceRefused("This service needs a plugin that can pay for it. Switch that plugin on first.")
-    spec = plugin.vool["model_provider"]
-    saved_origin = legacy_origin().rstrip("/")
-    if (spec.get("x402") is not True
-            or spec["base_url"].rstrip("/") not in {CONFIG.base_url.rstrip("/"), saved_origin}):
-        raise ServiceRefused("This service needs a plugin that can pay for it. Switch that plugin on first.")
-    return record, plugin

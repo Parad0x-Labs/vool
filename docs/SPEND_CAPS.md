@@ -32,6 +32,6 @@ the provider and verify its terms if an enforceable billing ceiling is required.
 alert only notifies. Prepaid credit with auto-reload disabled can give a harder limit when
 the provider enforces it.
 
-UsePod wallet payments and prepaid inference use separately approved money grants and an
-atomic liability ledger in the payment asset's native units. The BYOK USD caps above do not
-cover that lane. A credit top-up is prepayment, not proof that a later service was delivered.
+The UsePod payment lane left VOOL in 0.8. A model pick saved for it is refused before
+anything is sent, and its wallet payments from an older VOOL stay readable in the wallet
+history.

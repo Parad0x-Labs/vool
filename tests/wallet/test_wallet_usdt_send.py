@@ -269,31 +269,11 @@ def test_only_the_owners_own_requests_move_usdt(chain) -> None:
 
     wallet = _wallet(chain)
     to = _person(chain, usdt_account=True)
-    for origin in (proposals.ORIGIN_SKILL, proposals.ORIGIN_PLUGIN, proposals.ORIGIN_USEPOD, proposals.ORIGIN_X402):
+    for origin in (proposals.ORIGIN_SKILL, proposals.ORIGIN_PLUGIN, proposals.ORIGIN_X402):
         with pytest.raises(WalletFault) as caught:
             proposals.propose_transaction(wallet_id=wallet["wallet_id"], destination=to, amount_minor=1_000_000, asset="USDT", origin=origin, network=SOLANA_MAINNET,
                                           idempotency_key=uuid.uuid4().hex)
         assert caught.value.code == "wallet_network_disabled", (origin, caught.value.context)
-
-
-def test_a_usepod_requirement_in_usdt_is_not_a_lane_payment(chain, monkeypatch, tmp_path) -> None:
-    import time
-
-    from core.wallet import usepod
-    from core.wallet.errors import WalletFault
-    from tests.usepod._legacy_profile import isolate_reference
-
-    isolate_reference(monkeypatch, tmp_path)
-
-    wallet = _wallet(chain)
-    pay_to = _person(chain, usdt_account=True)
-    requirement = usepod.parse_requirement({
-        "correlation_id": f"upo_{uuid.uuid4().hex}", "provider": "usepod", "network": SOLANA_MAINNET, "asset": "USDT", "pay_to": pay_to,
-        "amount_minor": 150_000, "expires_at": time.time() + 300, "resource": "http://127.0.0.1:9/proxy/x402/v1/chat/completions", "payer_wallet": wallet["wallet_id"],
-    })
-    with pytest.raises(WalletFault) as caught:
-        usepod.validate_x402_payment(requirement)
-    assert (caught.value.code, caught.value.context.get("reason")) == ("wallet_network_disabled", "x402_asset_not_registered_on_row")
 
 
 def test_on_test_networks_usdt_is_refused_with_where_it_can_go(chain) -> None:

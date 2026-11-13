@@ -79,15 +79,6 @@ class ApiResponse:
     headers: dict[str, str] = field(default_factory=dict)
 
 
-
-# Reading what is owed and withdrawing an approval stay possible without the plugin:
-# they read or remove local records only and contact no service.
-_USEPOD_LOCAL_ONLY_PATHS = frozenset({
-    "/api/cloud/usepod/x402/unresolved",
-    "/api/cloud/usepod/forget-route",
-    "/api/cloud/usepod/spend-approval/pending",
-})
-
 def json_response(status: int, payload: Any, *, headers: dict[str, str] | None = None) -> ApiResponse:
     return ApiResponse(
         status=status,
@@ -1094,16 +1085,6 @@ def _dispatch_get(
             return json_response(403, {"ok": False, "error": "owner_local_required"})
         return private_web_api.get(normalized_path, query)
 
-    # The owner gate answers first; only the owner learns whether the payment lane is open.
-    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
-            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
-        from core.plugin_providers import require_legacy_x402
-        from core.plugin_services import ServiceRefused
-
-        try:
-            require_legacy_x402()
-        except ServiceRefused as exc:
-            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
 
     if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
         from core.vool_browser.live import BrowserFault
@@ -2177,29 +2158,6 @@ def _dispatch_get(
         provider_rows.extend(plugin_provider_rows())
         return apply_runtime_headers(json_response(200, {"providers": provider_rows}), runtime)
 
-    if normalized_path == "/api/cloud/usepod/discovery":
-        # What the UsePod settings panel shows, from caches only: the marketplace snapshot with its
-        # provenance and staleness, what this credential was observed to see, the routing policy,
-        # approved price bounds, route trust and the evidence behind each capability. No network.
-        from core.usepod.discovery import discovery_view
-
-        _ud_filter = str((query.get("q") or [""])[0] or "")[:128]
-        view = discovery_view(limit=_qint(query, "limit", 250), model_filter=_ud_filter)
-        if _ud_filter:
-            from core.usepod.spend_approval import prepaid_spend_readiness
-            try:
-                view["spend_readiness"] = prepaid_spend_readiness(_ud_filter)
-            except Exception:
-                view["spend_readiness"] = {"available": False, "state": "unavailable"}
-        return apply_runtime_headers(json_response(200, view), runtime)
-
-    if normalized_path == "/api/cloud/usepod/x402/unresolved":
-        # Paid accountless calls whose answer never arrived: public facts and the liability state, never the request
-        # bytes. A row is resumable once the money law holds its liability as unknown.
-        from core.usepod.money_law import unresolved_x402_operations
-
-        return apply_runtime_headers(json_response(200, {"operations": unresolved_x402_operations()}), runtime)
-
     if normalized_path == "/api/search/providers":
         # The web-search BYOK catalog for Settings: which providers exist, whether each currently
         # holds a key, and where to get one. Presence only — never a key, and no live calls (the
@@ -2447,14 +2405,6 @@ def _dispatch_get(
             if str(cloud.get("state") or "") != "no_key":
                 conns.append({"id": "cloud", "label": str(cloud.get("label") or "Cloud"),
                               "provider": cloud.get("provider"), "state": str(cloud.get("state") or "untested")})
-            else:
-                # No key anywhere, but a lane that needs none may still be usable now: UsePod paid per call from the
-                # wallet (accountless x402) once the wallet authority verifies a network.
-                from core.usepod.discovery import accountless_x402_ready
-
-                ready = accountless_x402_ready()
-                if ready:
-                    conns.append({"id": "cloud", "label": ready["label"], "provider": "usepod", "state": "ok", "mode": "accountless_x402"})
         except Exception:
             pass
         try:
@@ -2814,8 +2764,8 @@ def _dispatch_get(
 
     if normalized_path == "/api/cloud/spend-limits":
         # D4 (read-only): the four VOOL-wide paid-call ceilings the reservation enforces for
-        # non-UsePod paid picks (per call/task/day/month USD). Distinct from provider credits and
-        # from any UsePod grant; surfaced so the Models & Providers overview can show the limits
+        # paid picks (per call/task/day/month USD). Distinct from provider credits; surfaced so
+        # the Models & Providers overview can show the limits
         # that actually bind, instead of them existing only inside the ledger.
         from core.paid_call_reservation import spend_limits
 
@@ -2830,7 +2780,7 @@ def _dispatch_get(
                         "daily_usd": float(getattr(limits, "daily_usd", 0.0) or 0.0),
                         "monthly_usd": float(getattr(limits, "monthly_usd", 0.0) or 0.0),
                     },
-                    "scope": "VOOL-wide paid calls (legacy USD ledger; does not include UsePod grants)",
+                    "scope": "VOOL-wide paid calls",
                     "enforced_by": "core.model_spend_ledger at reservation",
                 },
             ),
@@ -3606,16 +3556,6 @@ def dispatch_post(
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
 
-    # The owner gate answers first; only the owner learns whether the payment lane is open.
-    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
-            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
-        from core.plugin_providers import require_legacy_x402
-        from core.plugin_services import ServiceRefused
-
-        try:
-            require_legacy_x402()
-        except ServiceRefused as exc:
-            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
 
     if normalized_path == "/api/lend":
         from core.lend.api import handle
@@ -4704,245 +4644,6 @@ def _hashlast_serve_gate(commit: dict[str, Any]) -> str:
     return ""
 
 
-def _usepod_balance_public(observation: dict[str, Any]) -> dict[str, Any]:
-    """The secret-free balance observation for the page: integer microunits AND the exact decimal
-    USDC string (3000000 -> "3.000000"), so no surface has to divide -- or mistake 3,000,000 µUSDC
-    for three million dollars. Missing is named, never zero."""
-    from core.usepod.discovery import BALANCE_REUSE_SECONDS
-
-    amount = observation.get("usdc_balance_microunits")
-    reported = str(observation.get("state") or "") == "reported" and isinstance(amount, int) and not isinstance(amount, bool)
-    return {
-        "state": str(observation.get("state") or "not_observed"),
-        "usdc_balance_microunits": int(amount) if reported else None,
-        "usdc_balance": f"{int(amount) // 1_000_000}.{int(amount) % 1_000_000:06d}" if reported else None,
-        "unit": "usdc_microunit",
-        "observed_at": observation.get("observed_at"),
-        "age_seconds": observation.get("age_seconds"),
-        "evidence": str(observation.get("evidence") or ""),
-        "fingerprint": str(observation.get("fingerprint") or ""),
-        "http_status": observation.get("http_status"),
-        "error_code": observation.get("error_code"),
-        "previous": observation.get("previous"),
-        "reuse_seconds": float(BALANCE_REUSE_SECONDS),
-    }
-
-
-def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
-    """One UsePod owner action, behind the same guard suite as the other state-changing POSTs."""
-    import json as _json
-
-    from core.web.api.runtime import host_header_allowed
-
-    content_type = _header_value(headers, "content-type").lower()
-    if content_type and "json" not in content_type:
-        return 415, {"error": "content-type must be application/json"}
-    origin = _header_value(headers, "origin").strip()
-    if origin and not host_header_allowed(origin.split("://", 1)[-1]):
-        return 403, {"error": "cross-origin request not allowed"}
-    try:
-        if len(_json.dumps(body)) > 65536:
-            return 413, {"error": "request body too large"}
-    except (TypeError, ValueError):
-        return 400, {"error": "unserializable body"}
-
-    from core.usepod import discovery, routing
-
-    def _routes(state: Any) -> dict[str, Any]:
-        return {
-            "route_policy": state.policy.to_dict(),
-            "approved_routes": {model_id: bound.to_dict() for model_id, bound in state.bounds.items()},
-            "route_store_error": state.error,
-        }
-
-    if normalized_path.startswith("/api/cloud/usepod/price-wait/"):
-        from core.usepod import price_wait
-        try:
-            if normalized_path.endswith("/save"):
-                return 200, {"bound": price_wait.save_target(**body).to_dict()}
-            if normalized_path.endswith("/check"):
-                return 200, price_wait.check(str(body.get("model_id") or ""))
-            if normalized_path.endswith("/pending"):
-                from core.runtime_continuity import price_wait_sessions
-                return 200, {"sessions": price_wait_sessions()}
-        except (ValueError, TypeError, routing.RouteUnavailableError) as exc:
-            return 400, {"error": str(exc), "code": "price_wait_refused"}
-    if normalized_path == "/api/cloud/usepod/refresh":
-        if body:
-            return 400, {"error": f"unknown fields: {sorted(body)}", "code": "unknown_fields"}
-        return 200, discovery.refresh_discovery()
-    if normalized_path == "/api/cloud/usepod/balance":
-        # ONE read-only balance observation for the stored credential, through the same door the
-        # dispatch reservation reads (core.usepod.discovery.observe_balance): the record while it is
-        # fresh, otherwise one GET of /proxy/<token>/balance. No inference, no spend, no authority --
-        # the composer preflight and the Settings budget panel verify liquidity here BEFORE a draft is
-        # consumed, so a send never fails on a balance nobody read. ``max_age_seconds: 0`` reads now.
-        unknown = sorted(set(body) - {"max_age_seconds"})
-        if unknown:
-            return 400, {"error": f"unknown fields: {unknown}", "code": "unknown_fields"}
-        raw_age = body.get("max_age_seconds")
-        if raw_age is None:
-            max_age: float | None = discovery.BALANCE_REUSE_SECONDS
-        elif isinstance(raw_age, bool) or not isinstance(raw_age, (int, float)) or raw_age < 0 or raw_age > 900:
-            return 400, {"error": "max_age_seconds must be a number of seconds from 0 to 900", "code": "max_age_invalid"}
-        else:
-            max_age = float(raw_age)
-        try:
-            observation = discovery.observe_balance(max_age_seconds=max_age, strict=True)
-        except discovery.UsePodCredentialPairUnavailableError as exc:
-            return 409, {"state": "credential_pair_unresolved", "code": exc.code, "error": str(exc)}
-        return 200, _usepod_balance_public(observation)
-    if normalized_path == "/api/cloud/usepod/route-policy":
-        try:
-            state = routing.save_route_policy(routing.RoutePolicy.from_dict(body))
-        except ValueError as exc:
-            return 400, {"error": "routing policy refused", "code": str(getattr(exc, "code", "") or "route_policy_invalid")}
-        return 200, _routes(state)
-    if normalized_path in {"/api/cloud/usepod/approve-route", "/api/cloud/usepod/forget-route"}:
-        unknown = sorted(set(body) - {"model_id", "max_input_usdc_per_million", "max_output_usdc_per_million"})
-        if unknown:
-            return 400, {"error": f"unknown fields: {unknown}", "code": "unknown_fields"}
-        model_id = body.get("model_id")
-        if not isinstance(model_id, str) or not model_id.strip():
-            return 400, {"error": "missing model_id", "code": "model_id_required"}
-        if normalized_path.endswith("/forget-route"):
-            return 200, _routes(routing.forget_approved_bound(model_id.strip()))
-        # The two-axis reviewed maxima from the price review: exact decimal USDC-per-1M strings,
-        # both axes together or neither. Conversion and validation happen in the owner
-        # (core.usepod.discovery.approve_model_route) through the exact decimal utility; a bad
-        # value is refused with its typed code and nothing is written.
-        max_input = body.get("max_input_usdc_per_million")
-        max_output = body.get("max_output_usdc_per_million")
-        if (max_input is None) != (max_output is None):
-            return 400, {"error": "the reviewed price review is two-axis: give both maximum input and output prices", "code": "owner_review_requires_both_axes"}
-        try:
-            bound = discovery.approve_model_route(
-                model_id.strip(),
-                max_input_usdc_per_million=max_input,
-                max_output_usdc_per_million=max_output,
-            )
-        except routing.RouteUnavailableError as exc:
-            return 409, {"error": "no route can be approved at current prices", "code": exc.code, "evidence": exc.evidence}
-        except ValueError as exc:
-            return 400, {"error": "routing policy refused", "code": str(getattr(exc, "code", "") or "route_policy_invalid")}
-        return 200, {"approved_route": bound.to_dict()}
-    if normalized_path in {"/api/cloud/usepod/spend-approval/propose", "/api/cloud/usepod/spend-approval/confirm", "/api/cloud/usepod/spend-approval/pending"}:
-        # The trusted spend-consent bridge (core.usepod.spend_approval): propose registers a
-        # PENDING approval in the SAME approval store the tool gate uses; the OPERATOR resolves
-        # it through the existing approval door; confirm mints the grant from the recorded facts
-        # through the real operator authority. /api/money widening stays refused. Route approval
-        # and spend consent remain separate facts.
-        from core.usepod import spend_approval
-
-        if normalized_path.endswith("/pending"):
-            if body:
-                return 400, {"error": f"unknown fields: {sorted(body)}", "code": "unknown_fields"}
-            return 200, {"pending": spend_approval.pending_spend_approval()}
-        if normalized_path.endswith("/propose"):
-            unknown = sorted(set(body) - {"per_call_atomic", "max_total_atomic", "expiry_epoch", "asset", "budget_mode"})
-            if unknown:
-                return 400, {"error": f"unknown fields: {unknown}", "code": "unknown_fields"}
-            try:
-                return 200, spend_approval.propose_spend_grant(
-                    per_call_atomic=int(body.get("per_call_atomic") or 0),
-                    max_total_atomic=int(body.get("max_total_atomic") or 0),
-                    expiry_epoch=float(body.get("expiry_epoch") or 0.0),
-                    asset=str(body.get("asset") or "USDC"),
-                    budget_mode=str(body.get("budget_mode") or "once"),
-                )
-            except (ValueError, TypeError) as exc:
-                return 400, {"error": str(exc), "code": "spend_proposal_refused"}
-        unknown = sorted(set(body) - {"approval_id"})
-        if unknown:
-            return 400, {"error": f"unknown fields: {unknown}", "code": "unknown_fields"}
-        if not isinstance(body.get("approval_id"), str) or not body["approval_id"].strip():
-            return 400, {"error": "missing approval_id", "code": "approval_id_required"}
-        try:
-            return 200, spend_approval.confirm_spend_grant(body["approval_id"].strip())
-        except PermissionError as exc:
-            return 403, {"error": str(exc), "code": "spend_approval_not_granted"}
-        except Exception as exc:
-            return 400, {"error": f"grant mint refused: {exc}", "code": "spend_grant_refused"}
-    if normalized_path == "/api/cloud/usepod/lane":
-        from core.usepod import discovery as usepod_discovery
-        from core.usepod.lane import LanePreference, save_lane_preference
-
-        fields = dict(body or {})
-        try:
-            requested = LanePreference.from_dict({key: value for key, value in fields.items() if key != "origin"})
-        except ValueError:
-            return 400, {"error": "lane refused", "code": "lane_invalid"}
-        if "origin" in fields:
-            # Accountless x402 only: with no UsePod token stored the owner may choose another origin explicitly (a
-            # staging gateway, a local stand-in); an empty value returns to the documented one. A stored token's
-            # origin belongs to its credential pair and is refused here.
-            try:
-                usepod_discovery.save_accountless_origin(str(fields.get("origin") or ""))
-            except usepod_discovery.AccountlessOriginRefusedError as exc:
-                return exc.http_status, {"error": str(exc), "code": exc.code}
-        from core.usepod.legacy_registration import refresh_path_token_lanes
-
-        preference = save_lane_preference(requested)
-        return 200, {"lane": preference.to_dict(), "origin": usepod_discovery.configured_origin(),
-                     "refreshed_lanes": refresh_path_token_lanes("usepod")}
-    if normalized_path == "/api/cloud/usepod/x402/resume":
-        # The owner finishes ONE paid accountless call whose answer never arrived: the recorded bytes and proof are resent
-        # once, never a new quote or a second payment. The conversation that asked has ended, so the answer comes back here.
-        unknown = sorted(set(body) - {"operation_id"})
-        if unknown:
-            return 400, {"error": f"unknown fields: {unknown}", "code": "unknown_fields"}
-        operation_id = str(body.get("operation_id") or "").strip()
-        if not operation_id:
-            return 400, {"error": "missing operation_id", "code": "operation_id_required"}
-        from core.usepod.legacy_adapter import (
-            UsePodDispatchRefusedError,
-            UsePodRouteNotCompliantError,
-            resume_x402_operation,
-        )
-        from core.usepod.transport import UsePodTransportError, X402OperationStateError
-
-        try:
-            return 200, resume_x402_operation(operation_id)
-        except X402OperationStateError as exc:
-            return 409, {"error": "resume refused", "code": str(getattr(exc, "code", "") or "resume_refused")}
-        except UsePodDispatchRefusedError as exc:
-            return 409, {"error": "resume refused", "code": str(getattr(exc, "code", "") or "resume_refused")}
-        except UsePodRouteNotCompliantError:
-            return 409, {"error": "the answer came from a route nobody approved; its liability is retained", "code": "route_not_compliant"}
-        except UsePodTransportError as exc:
-            # The HTTP status comes from TYPED dispatch facts, not a blanket 502:
-            # - a request that never left this machine (dispatch_state=not_sent) is a
-            #   400 contract refusal -- claiming a transport failure would be fake;
-            # - a genuine x402 payment challenge keeps its protocol HTTP 402;
-            # - upstream throttling surfaces as 429; an unanswered send is a 504;
-            # - an upstream that answered and refused/failed is a 502 carrying the
-            #   upstream's REAL status as data (served contracts read ``http_status``).
-            resume_status, resume_condition = diagnostics.gateway_condition(exc.dispatch_state, exc.http_status)
-            resume_payload = {
-                "error": (
-                    "the resend was refused before anything was sent; the liability stays held"
-                    if resume_status == 400
-                    else "the resend did not complete; the liability stays held"
-                ),
-                "code": exc.code,
-                "dispatch_state": exc.dispatch_state,
-                "http_status": exc.http_status,
-                "detail": exc.detail,
-            }
-            return resume_status, diagnostics.with_diagnostic(
-                resume_payload,
-                diagnostics.diagnostic_envelope(
-                    resume_condition,
-                    detail=exc.detail,
-                    correlation_id=operation_id,
-                    http_status=resume_status,
-                    upstream_status=exc.http_status,
-                    retry_after_seconds=getattr(exc, "retry_after_seconds", None),
-                ),
-            )
-    return 404, {"error": "unknown UsePod action", "code": "unknown_action"}
-
-
 def _submit_http_status(result) -> int:
     """The STANDARD HTTP status for one bug-report submission outcome, from the typed
     failure facts -- never a blanket "409" for every failure.
@@ -5817,23 +5518,12 @@ def _dispatch_post_inner(
                         runtime,
                     )
             payload = {"text": text, "attachments": queued_attachments}
-            if body.get("price_wait_model"):
-                from core.usepod.price_wait import queued_target
-                try:
-                    payload["price_wait"] = queued_target(str(body["price_wait_model"]))
-                except ValueError as exc:
-                    return apply_runtime_headers(json_response(409, {"error": str(exc)}), runtime)
             item = enqueue_message(session_id=q_session, payload=payload, idempotency_key=idem)
             position = len(list_queued_messages(q_session, statuses=("pending",)))
             return apply_runtime_headers(json_response(200, {"item": item, "position": position}), runtime)
         if op == "claim":
             pending = list_queued_messages(q_session, statuses=("pending",))
             expected = str(pending[0]["queue_item_id"]) if pending else ""
-            if pending and pending[0].get("payload", {}).get("price_wait"):
-                from core.usepod.price_wait import check_queued
-                gate = check_queued(pending[0]["payload"]["price_wait"])
-                if not gate.get("ready"):
-                    return apply_runtime_headers(json_response(200, {"item": None, "waiting": gate}), runtime)
             item = claim_next_message(q_session, expected_queue_item_id=expected, lease_owner=str(body.get("lease_owner") or "").strip()[:80], turn_id=str(body.get("turn_id") or "").strip()[:80])
             if item is None and chat_turn_active(q_session):
                 # An empty claim because the chat's slot is taken, not because the queue is:
@@ -5883,15 +5573,6 @@ def _dispatch_post_inner(
             return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
         _cr_status, _cr_payload = _cr_forward("settings.credentials.set", {"payload": dict(body)}, client_host=client_host, headers=headers)
         return apply_runtime_headers(json_response(_cr_status, _cr_payload), runtime)
-
-    if normalized_path.startswith("/api/cloud/usepod/"):
-        # UsePod owner actions from Settings: refresh discovery, save the routing policy, approve or
-        # forget a model's price bound, choose the lane's dialect and payment transport. Owner-local;
-        # none runs inference or spends, and every refusal carries a stable code and no credential.
-        if not is_loopback_host(client_host):
-            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
-        _up_status, _up_payload = _usepod_owner_action(normalized_path, body, headers)
-        return apply_runtime_headers(json_response(_up_status, _up_payload), runtime)
 
     if normalized_path == "/api/cloud/test":
         # Live auth test of the cloud key against the provider ("Test connection" button and the
@@ -8639,7 +8320,6 @@ def _dispatch_post_inner(
         history = history_without_forgotten_words(history, chat_id=session_id, current_user_text=user_text)
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
-        inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""
         # A caller that sends no turn id (a script, a bridge, a phone plug) still sends ONE turn, and
         # its execution record, its approval prompts and this door's final honesty check must all name
         # it the same way, so the request id this door already minted stands in. Measured on 1cbf433:

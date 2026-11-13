@@ -48,14 +48,3 @@ out({providers,beforeCount,matching,posts,confirms,gets,visibleLabel,selected});
     assert result['posts']==[{'model':'gpt-6-astra','provider':'plugin-vool-plugin-usepod'},{'model':'gpt-6-astra','provider':'plugin-vool-plugin-usepod','confirm_paid':True}]
     assert result['confirms']==1
     assert result['visibleLabel']=='Astra · paid' and result['selected']=='gpt-6-astra'
-
-
-def test_usepod_verification_places_client_header_on_the_auth_probe():
-    from core.credential_intelligence.verification import _place_credential
-    from tests.usepod._legacy_profile import _store
-    # The balance probe remains private to the retained monetary lane, outside the public registry.
-    _credentials, descriptor = _store()
-    url,headers,body=_place_credential('synthetic-path-token',descriptor)
-    assert headers['User-Agent']=='VOOL/0.5'
-    assert url.endswith('/proxy/synthetic-path-token/balance')
-    assert 'Authorization' not in headers and body is None

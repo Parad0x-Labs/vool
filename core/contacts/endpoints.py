@@ -5,7 +5,7 @@ address bound to one network. Each endpoint has its own id, a canonical identity
 detection, and a verification state saying where it came from. Nothing here sends, dials or pays. A saved messaging
 identity does not mean VOOL can deliver on that channel (``messaging_delivery``).
 
-Wallet addresses are validated by the wallet owner (``core.wallet.chains`` and ``core.wallet.usepod.canonical_recipient``):
+Wallet addresses are validated by the wallet owner (``core.wallet.chains``, ``canonical_recipient``):
 an EVM address is one identity per network (lowercase hex; EIP-55 case is a checksum and a wrong checksum is refused),
 a Solana address keeps its exact case and must decode to 32 bytes. The same EVM-looking address saved for Base and for
 Ethereum is two endpoints, never one payment destination.
@@ -302,7 +302,7 @@ def detected_wallet_network(raw: object) -> str:
     spec = next((s for s in chains.rows_for_environment(environment) if s.is_svm), None)
     if spec is None:
         return ""
-    from core.wallet.usepod import canonical_recipient
+    from core.wallet.chains import canonical_recipient
 
     return spec.network if canonical_recipient(spec, text) is not None else ""
 
@@ -379,7 +379,7 @@ def normalize_wallet(raw: object, *, network: object) -> WalletIdentity:
                 raise EndpointError("wallet_address_checksum", "The address's capital letters do not match its checksum: a character is probably wrong.")
         if int(body, 16) == 0:
             raise EndpointError("wallet_address_invalid", "The zero address cannot receive a payment.")
-    from core.wallet.usepod import canonical_recipient
+    from core.wallet.chains import canonical_recipient
 
     canonical = canonical_recipient(spec, text)
     if canonical is None:

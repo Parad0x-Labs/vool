@@ -995,20 +995,6 @@
       "registry_command_id": "",
       "surface": "http"
     },
-    "http:GET:/api/cloud/usepod/discovery": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "GET /api/cloud/usepod/discovery",
-      "note": "usepod lane read feed (discovery)",
-      "registry_command_id": "",
-      "surface": "http"
-    },
-    "http:GET:/api/cloud/usepod/x402/unresolved": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "GET /api/cloud/usepod/x402/unresolved",
-      "note": "usepod lane read feed (unresolved x402 state)",
-      "registry_command_id": "",
-      "surface": "http"
-    },
     "http:GET:/api/commands": {
       "classification": "REGISTRY_OWNED",
       "name": "GET /api/commands",
@@ -1765,13 +1751,6 @@
       "registry_command_id": "wallet.usb.status",
       "surface": "http"
     },
-    "http:GET:/api/wallet/usepod/status": {
-      "classification": "GENERATED_ADAPTER",
-      "name": "GET /api/wallet/usepod/status",
-      "note": "delegated route forwards through execute_command",
-      "registry_command_id": "wallet.usepod.status",
-      "surface": "http"
-    },
     "http:GET:/api/wallet/wallets/{id}": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/wallets/{id}",
@@ -2287,13 +2266,6 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/cloud/test",
       "note": "cloud connection probe lane",
-      "registry_command_id": "",
-      "surface": "http"
-    },
-    "http:POST:/api/cloud/usepod/*": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "POST /api/cloud/usepod/*",
-      "note": "usepod lane operator surface family (its own spend/consent gates)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3347,13 +3319,6 @@
       "registry_command_id": "wallet.usb.save",
       "surface": "http"
     },
-    "http:POST:/api/wallet/usepod/topup": {
-      "classification": "GENERATED_ADAPTER",
-      "name": "POST /api/wallet/usepod/topup",
-      "note": "delegated route forwards through execute_command",
-      "registry_command_id": "wallet.usepod.topup",
-      "surface": "http"
-    },
     "http:POST:/api/wallet/wallets/main": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/wallets/main",
@@ -3714,8 +3679,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 345,
-    "GENERATED_ADAPTER": 176,
+    "EXTERNAL_TRANSPORT_ONLY": 342,
+    "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

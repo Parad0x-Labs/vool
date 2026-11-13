@@ -112,12 +112,6 @@ def chat_surface_honest_degraded_response(
     # only "I couldn't get a live model response" -- the actionable fact (the stored key is being
     # rejected) was in the ledger but never surfaced, which reads as "the model is useless" rather
     # than "your key needs rotating".
-    # A wallet-paid call whose answer never arrived is a money fact before it is a routing one: it did run and it was paid,
-    # so it is never reported as a model that could not run.
-    paid_hint = _paid_result_unknown_hint(model_execution)
-    if paid_hint:
-        return paid_hint
-
     provider_hint = _provider_auth_failure_hint(model_execution)
     if provider_hint:
         return provider_hint
@@ -133,23 +127,6 @@ def chat_surface_honest_degraded_response(
     runtime_hint = _typed_model_runtime_failure_hint(model_execution)
     if runtime_hint:
         return runtime_hint
-
-    # A prepaid UsePod dispatch the adapter refused BEFORE sending is a money/verification fact, not a
-    # model failure: the request never left, nothing was charged. Judged before the single-candidate
-    # hint below, which cannot tell "refused before send" from "answered nothing" and used to say
-    # "did not return a usable reply ... switch to Auto" for exactly this case (observed live
-    # 2026-09-16 02:26: MONEY_LIQUIDITY_UNVERIFIED reported as the model returning no reply).
-    prepaid_hint = _usepod_prepaid_refusal_hint(model_execution)
-    if prepaid_hint:
-        return prepaid_hint
-
-    # A UsePod 402 is the PROVIDER's answer after the request was sent, and it says one of several
-    # things. "no_provider_at_price" is capacity: nobody was serving the model at the approved
-    # price when the request arrived (a listing does not guarantee serving capacity). It is not
-    # the local price gate (refused before sending, above) and it is not an empty balance.
-    transport_hint = _usepod_transport_payment_hint(model_execution)
-    if transport_hint:
-        return transport_hint
 
     # An ordinary multi-part Q&A failure is about answer completeness, not routing.  Provider/model
     # selection prose is internal operator detail and was observed becoming the entire final answer
@@ -185,11 +162,6 @@ def chat_surface_honest_degraded_response(
         block_reason = str((details or {}).get("block_reason") or (details or {}).get("reason") or "").strip() if isinstance(details, dict) else ""
         model_was_attempted = bool((details or {}).get("model_was_attempted")) if isinstance(details, dict) else False
         name = f"`{requested}`" if requested else "The model you selected"
-        money_code = _usepod_refusal_code(block_reason)
-        if requested.startswith("usepod:") and money_code in _MONEY_AUTHORITY_CAUSES:
-            return (f"{_MONEY_AUTHORITY_CAUSES[money_code]}. {name} was not contacted. "
-                    "Open Settings → Models & Providers → UsePod spending to review and allow a fresh budget, "
-                    "then send your message again. Selecting a model does not renew a spending budget.")
         cause = _selected_model_block_cause(block_reason, model_was_attempted=model_was_attempted)
         return (
             f"{name} could not run this turn: {cause}. I did not answer with a different model "
@@ -220,230 +192,6 @@ def chat_surface_honest_degraded_response(
     return (
         "I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered "
         "text as if it were fresh."
-    )
-
-
-#: Named by the UsePod transport on a failure after the wallet's proof was bound (X402PaidResultUnknownError).
-_PAID_RESULT_UNKNOWN_MARKER = "usepod_x402_paid_result_unknown"
-
-#: The UsePod adapter's own prefix for a dispatch it refused BEFORE sending (core.usepod.legacy_adapter.
-#: UsePodDispatchRefusedError). The router carries the exception text as the block reason.
-_USEPOD_REFUSAL_PREFIX = "usepod_dispatch_refused:"
-_MONEY_AUTHORITY_CAUSES = {
-    "MONEY_AUTHORITY_EXPIRED": "Your spending approval expired",
-    "MONEY_AUTHORITY_REVOKED": "Your spending approval was revoked",
-    "MONEY_AUTHORITY_EXHAUSTED": "Your approved spending allowance has been used",
-    "MONEY_AUTHORITY_INVALID": "No applicable spending approval is available",
-    "MONEY_AUTHORITY_REQUIRED": "Spending approval is required",
-}
-_BUDGET_RECOVERY = (
-    "Open Settings → Models & Providers → UsePod spending to review and allow a fresh budget, "
-    "then send your message again. Selecting a model does not renew a spending budget."
-)
-
-
-def _usepod_refusal_code(block_reason: str) -> str:
-    """The adapter's refusal code without its ``usepod_dispatch_refused:`` prefix (a bare code passes through)."""
-    reason = str(block_reason or "").strip()
-    if reason.startswith(_USEPOD_REFUSAL_PREFIX):
-        reason = reason[len(_USEPOD_REFUSAL_PREFIX):]
-    return reason.strip()
-
-
-def _usepod_prepaid_refusal_hint(model_execution: Any) -> str:
-    """One plain statement for a UsePod dispatch the adapter refused BEFORE sending.
-
-    Says three things the receipt already established and the old text contradicted: nothing was
-    sent, nothing was charged, and WHICH verification blocked it -- a balance the money law could not
-    verify, a balance too small for this request's maximum, an expired/revoked/spent budget, or a
-    route/price fact. Each names its own recovery. Auto is never offered as the remedy: a balance or
-    budget defect is not fixed by answering from another provider. "" for anything else -- an
-    after-send transport failure on a UsePod pin, a bare gate code, another provider -- so every
-    other lane keeps its own wording. The pre-send families are the footer's
-    (core.response_provenance.usepod_pre_send_refusal_code): one reading, two surfaces."""
-    from core.response_provenance import usepod_pre_send_refusal_code
-
-    details = getattr(model_execution, "details", None)
-    if not isinstance(details, dict):
-        return ""
-    source = str(getattr(model_execution, "source", "") or "").strip().lower()
-    if source != "selected_model_blocked":
-        return ""
-    requested = str(details.get("requested_model") or "").strip()
-    code = usepod_pre_send_refusal_code(str(details.get("block_reason") or details.get("reason") or ""))
-    if not code:
-        return ""
-    name = f"`{requested}`" if requested else "The UsePod model you selected"
-    not_sent = f"{name} was not contacted: nothing was sent and nothing was charged."
-    if code == "MONEY_LIQUIDITY_UNVERIFIED":
-        return (
-            f"UsePod could not verify your account balance before sending, so this request was refused. {not_sent} "
-            "Open Settings → Models & Providers → UsePod, check that the token is accepted (Test) and that the balance "
-            "reads, then send your message again."
-        )
-    if code == "MONEY_LIQUIDITY_INSUFFICIENT":
-        return (
-            f"Your UsePod balance does not cover this request's maximum cost after the spending already held, so it "
-            f"was refused. {not_sent} Top up the UsePod account or shorten the request, then send it again."
-        )
-    if code in _MONEY_AUTHORITY_CAUSES:
-        return f"{_MONEY_AUTHORITY_CAUSES[code]}. {not_sent} {_BUDGET_RECOVERY}"
-    if code.startswith("MONEY_"):
-        return (
-            f"The spending check refused this request ({code}). {not_sent} "
-            "Open Settings → Models & Providers → UsePod spending to review the budget, then send your message again."
-        )
-    if code in {"price_stale", "price_feed_unavailable"}:
-        return (
-            f"The UsePod price feed is {'stale' if code == 'price_stale' else 'unavailable'}, so the maximum cost of this request "
-            f"could not be bounded and it was refused. {not_sent} Open Settings → Models & Providers → UsePod and refresh "
-            "the marketplace prices, then send your message again."
-        )
-    if code == "route_price_above_approved_bound":
-        # Name the axes the refusal actually measured, from the adapter's own evidence carried on
-        # the decision (saved maxima vs current prices, exact USDC per 1M). With no evidence the
-        # wording falls back to the axes-free sentence and says it has no values to show.
-        axes = _usepod_price_refusal_axes(details)
-        if axes:
-            axis_text = " and ".join(
-                f"the current {axis['axis']} price {axis['observed_usdc_per_million']} USDC per 1M is above your saved maximum {axis['saved_max_usdc_per_million']}"
-                for axis in axes
-            )
-            return (
-                f"UsePod refused this request before sending it: {axis_text}. {not_sent} "
-                "Use Review price limits for this model to raise the maxima you are willing to pay, then send your message again."
-            )
-        return (
-            f"UsePod refused this request before sending it: the current price is above the maximum you approved for this model. {not_sent} "
-            "Use Review price limits for this model to raise the maxima you are willing to pay, then send your message again."
-        )
-    if code in {"route_not_approved", "route_policy_changed_since_approval", "model_disappeared"}:
-        return (
-            f"The route for this model is not approved at the current prices ({code}), so the request was refused. {not_sent} "
-            "Open Settings → Models & Providers → UsePod and approve the route for this model, then send your message again."
-        )
-    if code in {"usepod_token_not_configured", "usepod_credential_pair_unresolved"}:
-        return (
-            f"No usable UsePod token is stored right now ({code}). {not_sent} "
-            "Save the UsePod token under Settings → API Keys, then send your message again."
-        )
-    return (
-        f"UsePod refused this request before sending it ({code}). {not_sent} "
-        "Review the UsePod settings for this model, then send your message again."
-    )
-
-
-
-def _usepod_price_refusal_axes(details: Any) -> list[dict[str, Any]]:
-    """The violating price axes off a blocked decision's carried route evidence, else [].
-
-    The evidence is the adapter's own typed ``route_evidence`` (see
-    ``core.usepod.routing.price_refusal_axes``): ids and exact human-unit prices only, never a
-    credential. Absent evidence returns [] — the caller words the refusal without values rather
-    than inventing any.
-    """
-    if not isinstance(details, dict):
-        return []
-    evidence = details.get("block_route_evidence")
-    if not isinstance(evidence, dict):
-        return []
-    axes = evidence.get("refusal_axes")
-    if not isinstance(axes, list):
-        return []
-    out = []
-    for axis in axes:
-        if not isinstance(axis, dict):
-            continue
-        if str(axis.get("axis") or "") not in {"input", "output"}:
-            continue
-        observed = str(axis.get("observed_usdc_per_million") or "").strip()
-        saved = str(axis.get("saved_max_usdc_per_million") or "").strip()
-        if observed and saved:
-            out.append({"axis": str(axis["axis"]), "observed_usdc_per_million": observed, "saved_max_usdc_per_million": saved})
-    return out
-
-
-_USEPOD_TRANSPORT_PAYMENT_RE = re.compile(
-    r"usepod_transport:payment_or_balance_required(?:\s+status=(?P<status>\d+))?"
-    r"(?:\s+dispatch=(?P<dispatch>[a-z_]+))?(?::\s*(?P<hint>[A-Za-z0-9_.:-]+))?"
-)
-
-
-def _usepod_transport_payment_hint(model_execution: Any) -> str:
-    """One plain statement for a UsePod HTTP 402 answered AFTER the request was sent.
-
-    Reads the transport's own code and hint (`core.usepod.transport.error_for_response`), keeps
-    the distinction the provider drew, and never turns every 402 into an empty balance:
-
-    * ``no_provider_at_price`` -- no provider was serving this model at the approved price when
-      the request arrived; capacity, not money;
-    * ``insufficient_balance`` / ``insufficient_funds`` -- the provider says the prepaid balance
-      did not cover the call;
-    * anything else -- a 402 with the provider's own hint, quoted as a code.
-
-    The request DID leave, so the reservation is retained until its owner reconciles it (the
-    receipt already says "LIABILITY RETAINED"); this text says so instead of "did not return a
-    usable reply". "" for every other failure.
-    """
-    details = getattr(model_execution, "details", None)
-    if not isinstance(details, dict):
-        return ""
-    source = str(getattr(model_execution, "source", "") or "").strip().lower()
-    if source != "selected_model_blocked":
-        return ""
-    reason = str(details.get("block_reason") or details.get("reason") or "")
-    match = _USEPOD_TRANSPORT_PAYMENT_RE.search(reason)
-    if match is None:
-        return ""
-    requested = str(details.get("requested_model") or "").strip()
-    name = f"`{requested}`" if requested else "The UsePod model you selected"
-    hint = str(match.group("hint") or "").strip().lower()
-    status = str(match.group("status") or "402")
-    retained = (
-        "The request was sent, so its spending reservation stays retained until UsePod's record of "
-        "the operation is reconciled; nothing was answered and no other model was used."
-    )
-    if hint == "no_provider_at_price":
-        return (
-            f"UsePod answered HTTP {status} no_provider_at_price: no provider was serving {name} at the "
-            f"approved price when the request arrived. A marketplace listing does not guarantee serving "
-            f"capacity. {retained} Send the message again later, or review the approved route for this "
-            "model under Settings → Models & Providers → UsePod."
-        )
-    if hint in {"insufficient_balance", "insufficient_funds", "balance_required", "payment_required"}:
-        return (
-            f"UsePod answered HTTP {status} {hint}: the provider reports that the prepaid balance did not "
-            f"cover this request to {name}. {retained} Top up the UsePod account, then send the message again."
-        )
-    shown = f" ({hint})" if hint else ""
-    return (
-        f"UsePod answered HTTP {status} payment or balance required{shown} for {name}. {retained} "
-        "Review the UsePod account and route under Settings → Models & Providers → UsePod, then send the "
-        "message again."
-    )
-
-
-def _paid_result_unknown_hint(model_execution: Any) -> str:
-    """A call the wallet paid for whose answer never arrived: paid, result unknown.
-
-    Nothing is made up in the answer's place and no refund is implied. The operation stays unresolved until it is resumed,
-    which resends the same paid request without paying again."""
-    details = getattr(model_execution, "details", None)
-    if not isinstance(details, dict):
-        return ""
-    reasons = [str(details.get("block_reason") or ""), str(details.get("reason") or "")]
-    reasons += [str(item) for item in list(details.get("attempted_error_reasons") or [])]
-    if not any(_PAID_RESULT_UNKNOWN_MARKER in reason for reason in reasons):
-        return ""
-    requested = str(details.get("requested_model") or "").strip()
-    attempted = [str(item).strip() for item in list(details.get("attempted") or []) if str(item).strip()]
-    name = requested or (attempted[0].split(":", 1)[-1] if attempted else "")
-    label = f"`{name}`" if name else "The model you selected"
-    return (
-        f"{label} was paid from your wallet for this turn, but its answer never arrived, so the result is unknown. "
-        "No answer was made up in its place and no refund is assumed: the payment stays on record as unresolved. "
-        "Settings lists it under Paid calls waiting for an answer, where Resume asks for this same answer once "
-        "without paying again."
     )
 
 
@@ -478,15 +226,9 @@ def _selected_model_block_cause(block_reason: str, *, model_was_attempted: bool)
         return "the request was missing its routing identity"
     if code == "selected_provider_excluded_before_invocation":
         return "its provider lane is not available right now"
-    if code == "usepod_route_not_approved":
-        # The paid-call reservation refused BEFORE sending: no approved price bound exists for
-        # this model's route. A local gate, never a provider answer -- and not an empty balance.
-        return (
-            "its UsePod route is not approved at the current prices, so nothing was sent and "
-            "nothing was charged (approve the route under Settings → Models & Providers → UsePod)"
-        )
-    if code == "usepod_route_state_unavailable":
-        return "its UsePod route state could not be read, so nothing was sent and nothing was charged"
+    if code == "payment_lane_removed":
+        # A pick saved for UsePod, whose lane left VOOL in 0.8: refused before anything was sent.
+        return "it ran on UsePod, which is no longer part of VOOL, so nothing was sent and nothing was charged"
     if model_was_attempted:
         if _is_http_rate_limit(code):
             return "the provider refused the request with HTTP 429 (rate limit); wait and retry, or select another model"
@@ -545,8 +287,8 @@ def _pinned_model_name(details: dict[str, Any]) -> str:
     the model the person picked. A requested name that is not one of the attempted lane ids is kept
     whole, because a model name can hold a colon of its own ("qwen3.5:4b").
 
-    CI #681 (served pin lane, 2026-11-13): an empty reply from a pin read "usepod-byok:meridian-synth-chat
-    sent back an empty reply".
+    CI #681 (served pin lane, 2026-11-13): an empty reply from a pin read "<lane>:<model> sent back an
+    empty reply".
     """
 
     requested = str(details.get("requested_model") or "").strip()

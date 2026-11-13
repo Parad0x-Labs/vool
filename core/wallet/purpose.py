@@ -1,13 +1,13 @@
 """What a payment is for, from typed facts only.
 
 The preview, the pending card and the receipt say who receives what and why. The answer comes from the records the
-operation's owner wrote -- the proposal's typed origin, the UsePod operation record, the x402 binding -- never from
+operation's owner wrote -- the proposal's typed origin, the x402 binding, an older VOOL's UsePod operation record -- never from
 the memo's wording and never from a guess:
 
 * ``direct``  -- a transfer the owner or the model asked for: "Send 0.001 ETH to <address>" · Direct transfer.
 * ``service`` -- an x402 payment for one resource: "Pay <provider> for <resource>" · Service payment · x402.
-* ``credit``  -- a UsePod top-up: prepayment that becomes provider credit; an accepted payment is not a delivered
-  service, and the line says so.
+* ``credit``  -- a UsePod top-up an older VOOL made (the lane left VOOL in 0.8; its history still reads): prepayment
+  that became provider credit; an accepted payment is not a delivered service, and the line says so.
 * ``unknown`` -- an origin without a record: shown as unknown, never dressed up.
 
 A provider's description is the provider's own text, attributed as such: it is not proof of who the merchant is.
@@ -110,18 +110,34 @@ def _service(proposal: Any) -> dict[str, Any]:
     return view
 
 
-def _usepod_payment(proposal: Any) -> dict[str, Any]:
-    from core.wallet import usepod
+#: The payment kinds an older VOOL's UsePod operation record carries (``wallet_usepod_operations.payment_kind``).
+_USEPOD_KIND_CREDIT = "prepaid_credit"
+_USEPOD_KIND_RESPONSE = "inference_x402"
 
-    record = usepod.operation_for_proposal(proposal.proposal_id)
-    if record is None or record.get("payment_kind") not in {usepod.KIND_CREDIT, usepod.KIND_RESPONSE}:
+
+def _usepod_record(proposal_id: str) -> dict[str, Any] | None:
+    """The UsePod operation record an older VOOL wrote for this proposal, read only for its history."""
+    from core.wallet.store import connection
+
+    try:
+        with connection() as conn:
+            row = conn.execute("SELECT provider, resource, pay_to, payment_kind FROM wallet_usepod_operations WHERE proposal_id = ?", (str(proposal_id),)).fetchone()
+    except Exception:
+        return None
+    return None if row is None else dict(zip(("provider", "resource", "pay_to", "payment_kind"), tuple(row), strict=True))
+
+
+def _usepod_payment(proposal: Any) -> dict[str, Any]:
+    """A payment the UsePod lane made in an older VOOL. The lane is gone; its history reads as it did."""
+    record = _usepod_record(proposal.proposal_id)
+    if record is None or record.get("payment_kind") not in {_USEPOD_KIND_CREDIT, _USEPOD_KIND_RESPONSE}:
         view = _base(KIND_UNKNOWN, headline=f"Pay {_amount_text(proposal)} to UsePod — payment purpose unknown",
                      mechanism_label="Purpose unknown", beneficiary=proposal.destination, charge_scope="")
         view["note"] = "This operation does not record whether it buys provider credit or one response. Its memo cannot establish that purpose."
         return view
     provider = str(record.get("provider") or "an unnamed provider")
     resource = str(record.get("resource") or "")
-    if record["payment_kind"] == usepod.KIND_RESPONSE:
+    if record["payment_kind"] == _USEPOD_KIND_RESPONSE:
         view = _base(KIND_SERVICE, headline=f"Pay {provider} for this response", mechanism_label=MECHANISM_X402,
                      beneficiary=str(record.get("pay_to") or proposal.destination), charge_scope=CHARGE_ONE_RESPONSE)
         view.update({"provider": provider, "provider_source": "the UsePod requirement's provider (not a verified merchant identity)",

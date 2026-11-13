@@ -5248,13 +5248,3 @@ def _upsert_runtime_session(
         ),
     )
 
-
-def price_wait_sessions() -> list[str]:
-    """Owner queue inventory, no task content: lets the open app resume waiting chats."""
-    with _LOCK:
-        conn = _conn()
-        try:
-            rows = conn.execute("SELECT DISTINCT session_id FROM message_queue WHERE status='pending' AND json_extract(payload_json, '$.price_wait') IS NOT NULL").fetchall()
-            return [str(row["session_id"]) for row in rows]
-        finally:
-            conn.close()

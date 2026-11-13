@@ -213,19 +213,3 @@ def test_empty_reply_diagnostics_carry_facts_and_never_text():
     assert classify_empty_reply({"finish_reason": "", "completion_tokens": None}) == "unclassified"
     assert classify_empty_reply(None) == "unclassified"
 
-
-def test_a_usepod_402_keeps_its_own_words():
-    from types import SimpleNamespace
-
-    from core.agent_runtime.memory_runtime import _usepod_transport_payment_hint
-
-    def execution(reason: str):
-        return SimpleNamespace(source="selected_model_blocked", details={"requested_model": "usepod:gpt-6-astra", "block_reason": reason})
-
-    capacity = _usepod_transport_payment_hint(execution("usepod_transport:payment_or_balance_required status=402 dispatch=response_received: no_provider_at_price"))
-    assert "no_provider_at_price" in capacity and "does not guarantee serving capacity" in capacity
-    assert "balance" not in capacity.lower().replace("balance_required", "")
-    funds = _usepod_transport_payment_hint(execution("usepod_transport:payment_or_balance_required status=402 dispatch=response_received: insufficient_balance"))
-    assert "insufficient_balance" in funds and "did not cover" in funds
-    assert _usepod_transport_payment_hint(execution("usepod_dispatch_refused:route_price_above_approved_bound")) == ""
-    assert _usepod_transport_payment_hint(execution("circuit_open")) == ""

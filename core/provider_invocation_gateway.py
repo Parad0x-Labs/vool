@@ -722,8 +722,7 @@ class ProviderInvocationPermit:
                                      self._disclosure_wire.destination, self._disclosure_wire.preview_id,
                                      encoder=self._disclosure_wire.encoder,
                                      control_only=self._disclosure_wire.control_only,
-                                     cloud_destination=self._disclosure_wire.cloud_destination,
-                                     network_consent=self._disclosure_wire.network_consent)
+                                     cloud_destination=self._disclosure_wire.cloud_destination)
                 result.timing = self._disclosure_wire.timing
                 result.owner_paid_call = getattr(self._disclosure_wire, "owner_paid_call", "")
                 return result

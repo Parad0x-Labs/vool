@@ -191,16 +191,6 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: Off until a base URL and key are saved in the keys card.
-  - id: model-marketplace
-    title: Model marketplace provider
-    area: chat-models
-    ui: [usepod]
-    wired: ["/api/cloud/usepod/discovery", "/api/cloud/usepod/x402/unresolved", "/api/cloud/usepod/*", "/api/money/projection", "/api/money/grants/revoke"]
-    default: []
-    tests: [tests/usepod/test_usepod_registration.py, tests/usepod/test_usepod_served_flow.py]
-    label: TESTED
-    target_release: 0.7.0
-    note: Off until its key is saved; its settings card reads the spend projection and can revoke a spend grant.
   - id: local-models
     title: Register local models served on this machine
     area: chat-models
@@ -1129,26 +1119,16 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: Crypto is off by default and uses mainnet when enabled. Website x402 payments support USDC on Base; payment channels show availability. No live mainnet payment proof is recorded.
-  - id: marketplace-x402
-    title: x402 payments through the model marketplace lane
-    area: crypto
-    ui: [usepod]
-    wired: ["/api/wallet/usepod/status", "/api/wallet/usepod/topup"]
-    default: []
-    tests: [tests/usepod/test_usepod_x402_money_seam.py, tests/usepod/test_usepod_transport_x402.py]
-    label: TESTED
-    target_release: 0.7.0
-    note: Prepaid by default; the per-request lane needs the wallet on and the main network setting.
   - id: service-fee
     title: Service fee on x402 payments
     area: crypto
     ui: [vwDnaFees]
     wired: ["/api/wallet/dna-fees", "/api/wallet/dna-fees/policy"]
     default: []
-    tests: [tests/wallet/test_dna_fee_collection_lane.py, tests/wallet/test_dna_fee_settings_ui_served.py]
+    tests: [tests/wallet/test_dna_fee_doors_after_usepod.py, tests/wallet/test_dna_fee_settings_ui_served.py]
     label: TESTED
     target_release: 0.7.0
-    note: Fixed rate.
+    note: Fixed rate. 0.8 charges no new fee (the UsePod lane it rode left VOOL); fees an older VOOL recorded stay readable.
   - id: scam-safety-cards
     title: Scam-safety cards for the wallet
     area: crypto
@@ -1594,8 +1574,8 @@ internal:
     routes: ["/api/onboarding/pact"]
   - reason: Remaining onboarding writes without a page caller; the pact boundary write among them can still turn the web switch on.
     routes: ["/api/onboarding/*"]
-  - reason: Owner-local money budget reads and reconcile door with no page caller; the marketplace card's two callers are mapped there.
-    routes: ["/api/money/contract", "/api/money/funding", "/api/money/grants", "/api/money/liabilities", "/api/money/liabilities/{id}", "/api/money/rules", "/api/money/reconcile"]
+  - reason: Owner-local money budget reads, grant revocation and reconcile door with no page caller (the marketplace card that read the projection left with UsePod in 0.8).
+    routes: ["/api/money/contract", "/api/money/funding", "/api/money/grants", "/api/money/liabilities", "/api/money/liabilities/{id}", "/api/money/rules", "/api/money/reconcile", "/api/money/projection", "/api/money/grants/revoke"]
   - reason: Research intake quarantine (security lane for shared research intake).
     routes: ["/api/intake/quarantine/list", "/api/intake/*"]
   - reason: Recovery door for tasks interrupted by a crash.

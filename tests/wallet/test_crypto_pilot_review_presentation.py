@@ -157,8 +157,8 @@ def test_x402_purpose_without_a_binding_says_the_request_is_not_on_record() -> N
     assert "api.example.test" not in json.dumps(view)  # the memo's URL is not consulted
 
 
-def test_usepod_purpose_is_prepaid_credit_from_the_operation_record(wallet_home) -> None:
-    from core.wallet import usepod
+def test_an_older_usepod_top_up_still_reads_as_prepaid_credit_from_its_operation_record(wallet_home) -> None:
+    """The UsePod lane left VOOL in 0.8; a top-up an older VOOL recorded keeps its purpose in the history."""
     from core.wallet.store import utcnow
 
     pid = f"pay-{uuid.uuid4().hex[:20]}"
@@ -170,7 +170,7 @@ def test_usepod_purpose_is_prepaid_credit_from_the_operation_record(wallet_home)
             ("usepod.example|corr-1", "usepod.example", "corr-1", "core.wallet.usepod", BASE_SEPOLIA, "ETH", "0x8a4af57c4a4c4d978b58db77a8fcf724e3faeb1a", 1_000_000_000_000_000,
              4_102_444_800.0, "https://usepod.example/models/summarize", "d" * 64, pid, "wallet-test", "proposed", "", 0, "{}", utcnow(), utcnow()),
         )
-    assert usepod.operation_for_proposal(pid) is not None
+    assert purpose._usepod_record(pid) is not None
     view = purpose.purpose_for(_proposal(proposals.ORIGIN_USEPOD, "UsePod top-up https://usepod.example/models/summarize", proposal_id=pid))
     assert view["kind"] == purpose.KIND_CREDIT and view["mechanism_label"] == purpose.MECHANISM_CREDIT
     assert view["headline"] == "Prepay usepod.example credit for https://usepod.example/models/summarize"

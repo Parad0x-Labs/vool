@@ -211,7 +211,7 @@ def test_saving_settings_keeps_a_chosen_expiry_and_renews_only_on_switch_on(monk
     assert saved["right_expiry"]["computer_tools"] > time.time() + 29 * 86400
 
 
-def test_a_usepod_lane_stays_the_owners_even_with_paid_services(phone, monkeypatch):
+def test_a_paid_owner_pick_stays_the_owners_even_with_paid_services(phone, monkeypatch):
     from core import model_selection_policy, paid_call_reservation
 
     monkeypatch.setattr(model_selection_policy, "provider_cost_class", lambda _m: "paid_cloud")
@@ -219,7 +219,7 @@ def test_a_usepod_lane_stays_the_owners_even_with_paid_services(phone, monkeypat
 
     phone["rules"] = {"paid_services": True}
     phone["right_expiry"] = {"paid_services": time.time() + 3600}
-    manifest = SimpleNamespace(provider_id="usepod:x402", model_name="m")
+    manifest = SimpleNamespace(provider_id="anthropic", model_name="m")
     denial = {}
     assert paid_call_reservation.reserve_owner_pick_paid_call(manifest=manifest, task=None, source_context=_turn(), denial=denial) is None
     assert denial["reason"] == "not_owner_local"

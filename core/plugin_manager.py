@@ -97,22 +97,10 @@ def summary(plugin) -> dict:
                 isinstance(spec, dict) and spec.get("env") for spec in block.get("mcpServers", {}).values())),
             "executable_runtime_available": not bool(refusal := plugin_isolation_refusal(plugin)),
             "mac_process_note": sys.platform == "darwin",
-            "wallet_service": _wallet_service(block),
             "executable_runtime_refusal": refusal, "executable_runtime_refusal_key": message_key(refusal) if refusal else "",
             "tools": [{"intent": tool.intent, "description": tool.description,
                        "side_effect_class": tool.side_effect_class,
                        "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts]}
-
-
-WALLET_SERVICE = "This service is paid from your wallet balance, so VOOL uses it only with your wallet approvals each time."
-
-
-def _wallet_service(block: dict) -> bool:
-    """A service VOOL pays from the wallet balance: no plugin key, test or model list ever applies to it."""
-    from core.plugin_providers import money_governed
-
-    spec = block.get("model_provider")
-    return isinstance(spec, dict) and money_governed(spec.get("base_url", ""))
 
 
 def message_key(message: str) -> str:
@@ -411,8 +399,6 @@ def test_connection(plugin_id: str) -> dict:
     if not kind:
         raise ServiceRefused("This plugin does not declare a service connection test.")
     spec = plugin.vool[kind]
-    if _wallet_service(plugin.vool):
-        raise ServiceRefused(WALLET_SERVICE)
     path = spec["test_path"] if kind == "scanner" else spec["model_list_path"]
     response = native_request(plugin_id, kind, "GET", spec["base_url"].rstrip("/") + path)
     try:

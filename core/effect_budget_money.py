@@ -394,8 +394,7 @@ def parse_decimal_amount(text: Any, *, decimals: int) -> int:
     """Atomic units for an exact decimal string ("0.20" at 6 decimals is 200000).
 
     Refuses floats, signs, exponents and precision beyond the asset — never
-    rounds. The UsePod price-ceiling convention (USDC microunits per million
-    tokens) is an integer already and does not come through here.
+    rounds.
     """
     if isinstance(text, bool) or not isinstance(text, (str, int)):
         raise _invalid(f"a decimal amount must be a string or int, not {type(text).__name__}")
@@ -3660,16 +3659,6 @@ def reconcile_money_liabilities(*, force: bool = False) -> list[dict[str, Any]]:
     except Exception:
         _MONEY_RECONCILED["done"] = False
         raise
-    # Provider-owned recovery of evidence-backed holds: the UsePod authority settles unknown
-    # prepaid holds whose own recorded refusal is a documented admission refusal at their proven
-    # zero. It reads only recorded facts and settles through the same law (idempotent, conflict
-    # refusing), so it runs as part of the normal reconciliation rather than as a separate door.
-    try:
-        from core.usepod.money_law import recover_admission_refusal_holds
-
-        changes.extend(recover_admission_refusal_holds())
-    except ImportError:
-        pass
     return changes
 
 

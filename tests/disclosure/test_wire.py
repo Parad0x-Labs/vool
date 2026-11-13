@@ -180,17 +180,12 @@ def test_local_network_uses_the_existing_local_only_endpoint_authority():
     assert wire.consume_wire(url) == encode_body(payload)
 
 
-def test_ascii_review_matches_real_prepaid_envelope_and_transport_without_credentials(cloud):
-    from urllib.parse import urlsplit
+def test_ascii_review_matches_the_bytes_an_outside_server_receives(cloud):
+    import urllib.request
 
     from core.disclosure.wire import encode_ascii_body, prepare
-    from core.usepod.descriptor import TransportMode, WireProtocol, x402_target
-    from core.usepod.transport import UsePodHttpTransport, seal_request_envelope
 
-    endpoint, bodies = cloud
-    parsed = urlsplit(endpoint)
-    origin = f"{parsed.scheme}://{parsed.netloc}"
-    url = origin + x402_target(origin=origin, protocol=WireProtocol.OPENAI).path_template
+    url, bodies = cloud
     payload = {"model": "recording-provider", "max_tokens": 100,
                "messages": [{"role": "user", "content": "Résumé: Živilė"}]}
     request = ModelRequest("answer", "question", metadata={})
@@ -202,17 +197,13 @@ def test_ascii_review_matches_real_prepaid_envelope_and_transport_without_creden
         assert bodies == []
         decide(preview["id"], preview["sha256"], "send")
         wire = future.result(timeout=8)
-    envelope = seal_request_envelope(payload=wire, transport_mode=TransportMode.X402, protocol=WireProtocol.OPENAI,
-                                     origin=origin, model_id="recording-provider", route_approval_id="reviewed-fake-outside")
-    assert envelope.body == wire.consume_wire(url) == preview["body"].encode()
-    # The outside server responds without billing or a payment challenge. This
-    # exercises the real transport only; no wallet, key, signer or paid call.
-    response = UsePodHttpTransport().post_envelope(envelope, origin=origin, token=None, read_timeout_seconds=5)
-    try:
+    body = wire.consume_wire(url)
+    assert body == preview["body"].encode()
+    # The outside server responds without billing; no wallet, key, signer or paid call.
+    post = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(post, timeout=5) as response:
         assert response.status == 200
-    finally:
-        response.close()
-    assert bodies == [envelope.body]
+    assert bodies == [body]
     assert b"\\u017d" in bodies[0]
 
 

@@ -192,15 +192,3 @@ def test_a_refused_package_says_its_own_reason_on_the_page(package):
     (package / "extra").symlink_to(package / "LICENSE")
     assert "Linked files" in refusal()
 
-
-def test_wallet_paid_service_card_offers_no_key_test_or_model_list(package, monkeypatch):
-    from core import plugin_providers
-
-    info = installed(package)
-    assert manager.inspect(info["id"])["wallet_service"] is False
-    monkeypatch.setattr(plugin_providers, "money_governed", lambda url: True)
-    assert manager.inspect(info["id"])["wallet_service"] is True
-    manager.enable(info["id"], accepted=True, approval_digest=info["approval_digest"])
-    status, result = handle_addon_post({"action": "plugin_test", "id": info["id"]},
-                                      {"Content-Type": "application/json"}, "127.0.0.1")
-    assert status == 400 and result["message"] == manager.WALLET_SERVICE

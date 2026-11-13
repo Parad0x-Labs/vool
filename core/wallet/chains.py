@@ -155,7 +155,7 @@ def _devnet_assets() -> Mapping[str, AssetSpec]:
 #: shipped before the Crypto Pilot keep their identities, names, schemes and assets; the pilot adds the
 #: five Mainnet rows and Robinhood Chain Testnet. Facts verified against official sources and live
 #: identity reads on 2026-09-14 (delivery/NETWORK-MATRIX.json). Mainnet rows declare no x402 scheme. The Mainnet
-#: tokens are USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only, and USDC on Base, for
+#: tokens are USDC on Solana, for the Solana pay-kit lanes only, and USDC on Base, for
 #: the x402 SDK lane only (proposals refuse them for every other origin); the pilot's own transfers move native coins only.
 #: Arbitrum rows added after the pilot were verified on 2026-10-13 against docs.arbitrum.io/chain-info and live RPC
 #: reads; native ETH only. USDT on Solana, Ethereum, BNB Smart Chain and Arbitrum One (2026-10-14) is a token the owner
@@ -246,7 +246,7 @@ _REGISTRY: dict[str, ChainIdentity] = {
         explorer_tx_template="https://solscan.io/tx/{id}",
         assets=MappingProxyType({
             "SOL": _native(SOLANA_MAINNET, "SOL", 9),
-            # Circle's USDC mint on Solana (docs.usepod.ai/api/x402-payments names USDC on this network); the
+            # Circle's USDC mint on Solana (the pay-kit lanes pay with it); the
             # mint's program and decimals are re-read from the chain before any transfer is built.
             "USDC": AssetSpec(chain=SOLANA_MAINNET, symbol="USDC", address="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals=6),
             # Tether's USDT mint on Solana (SPL Token program, 6 decimals; tether.to lists it under supported protocols).
@@ -347,7 +347,7 @@ EVM_TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 #: Tokens the owner's own transfers (a chat or Crypto request, approved with the wallet's PIN or password) may move,
 #: per row. Every other registered token moves only for the lane that registered it.
 USER_TRANSFER_TOKENS: frozenset[tuple[str, str]] = frozenset({(SOLANA_MAINNET, "USDT"), ("eip155:1", "USDT"), ("eip155:56", "USDT"), ("eip155:42161", "USDT")})
-#: Token symbols a service payment lane (UsePod x402, the pay-kit lanes, the DNA fee collection) may pay with.
+#: Token symbols a service payment lane (the pay-kit lanes, the x402 SDK lane, the DNA fee collection) may pay with.
 PAYMENT_LANE_TOKENS: frozenset[str] = frozenset({"USDC"})
 
 
@@ -440,6 +440,23 @@ def destination_matches_family(network: Any, destination: str) -> bool:
     if spec.is_evm:
         return bool(EVM_ADDRESS_RE.match(str(destination or "").strip()))
     return bool(SVM_ADDRESS_RE.match(str(destination or "").strip()))
+
+
+def canonical_recipient(spec: Any, pay_to: str) -> str | None:
+    """The recipient's identity on this row's chain. EVM: the lowercase hex address (EIP-55 case is a checksum, not an
+    identity). Solana: the exact Base58 string -- case IS identity -- accepted only when it decodes to 32 bytes. None when
+    the value is not a key of the row's family."""
+    value = str(pay_to or "").strip()
+    if spec.is_evm:
+        return value.lower() if destination_matches_family(spec.network, value) else None
+    if not destination_matches_family(spec.network, value):
+        return None
+    try:
+        from core.vool_wallet import b58decode
+
+        return value if len(b58decode(value)) == 32 else None
+    except Exception:
+        return None
 
 
 # --- chain identity ----------------------------------------------------------------------------------

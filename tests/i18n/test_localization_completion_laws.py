@@ -275,8 +275,6 @@ def test_every_activity_technical_field_has_its_label_key() -> None:
     for extra in (
         "activity.field.not_reported",
         "activity.field.not_reported_by_provider",
-        "activity.review_prices",
-        "activity.review_prices_note",
     ):
         assert extra in messages, extra
 

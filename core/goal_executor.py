@@ -54,7 +54,6 @@ _STEP_CONTEXT_DROP = frozenset(
         "cancel_event",
         "bypass_token",
         "mode_approval_token",
-        "price_wait_queue_id",
         "goal_step",
         "attachment_delivery",
         "attachment_turn_id",

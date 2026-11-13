@@ -1211,8 +1211,7 @@ _SPEND_CAP_EXPLAINER = (
     "budget alert is not a cap. Prepaid credit with auto-reload disabled may provide a harder "
     "limit, depending on the provider.\n"
     "For BYOK, the call goes from this machine to your provider using your key. VOOL cannot "
-    "refund the provider's charge. UsePod wallet payments and prepaid credit have their own "
-    "approved money grants and liability ledger; these USD ceilings do not govern that lane."
+    "refund the provider's charge."
 )
 
 

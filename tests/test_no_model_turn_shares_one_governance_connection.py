@@ -30,7 +30,7 @@ from urllib.request import urlopen
 
 import pytest
 
-from tests.usepod.test_usepod_served_flow import LAUNCHER, UsePodServedDaemon, _answer_text, _session
+from tests._served_daemon import LAUNCHER, ServedDaemon, _answer_text, _session
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # Measured with one read scope per write: 16 (greeting), 26 (this turn), 43 (weather). Before: 343,
@@ -68,7 +68,7 @@ runpy.run_path(sys.argv[0], run_name="__main__")
 """
 
 
-class InstrumentedDaemon(UsePodServedDaemon):
+class InstrumentedDaemon(ServedDaemon):
     """The served daemon, no model configured, with the connection log and outage trigger."""
 
     def __init__(self, home: Path) -> None:

@@ -111,20 +111,19 @@ def test_only_accepting_reference_enable_reuses_saved_scanner_key_without_online
     assert not any(n['plugin_id'] == info['id'] for n in migration.notices())
 
 
-def test_wallet_funded_usepod_key_is_never_copied_into_the_plugin(package, https_service):
-    from core.plugin_providers import require_legacy_x402
-
+def test_a_saved_usepod_key_is_never_copied_into_the_old_usepod_package(package, https_service):
     key = https_service['access']
     store_credential('llm.cloud.usepod', key)
     reference(package, 'usepod')
     info = installed(package)
     manager.enable(info['id'], accepted=True, approval_digest=info['approval_digest'])
-    # The token pays from a balance funded through VOOL's wallet. It stays in its own slot,
-    # spent only on the retained lane with spend grants, caps and receipts.
+    # UsePod left VOOL in 0.8. Its saved token stays in its own slot and nothing uses it: switching
+    # the old package on copies nothing, opens no payment lane and lists no UsePod model.
     assert not get_credential('plugin.vool-plugin-usepod.access')
     assert get_credential('llm.cloud.usepod') == key
-    record, _plugin = require_legacy_x402()
-    assert record.plugin_id == 'vool-plugin-usepod'
+    from core.model_registry import ModelRegistry
+
+    assert not [m for m in ModelRegistry().list_manifests(enabled_only=False) if m.adapter_type == 'usepod']
     assert not any(n['plugin_id'] == info['id'] for n in migration.notices())
     assert not https_service['log'].exists()
 
@@ -141,8 +140,8 @@ def test_a_package_that_only_claims_a_first_party_name_is_refused(package, https
     if 'pricing_source' in block:
         block['pricing_source'] = 'https://api.example.org/v1/marketplace/models'
     path.write_text(json.dumps(raw))
-    # The name unlocks the retained payment lane and the saved scanner key, so only VOOL's
-    # own package bytes may use it.
+    # The names stay reserved for VOOL's own package bytes, so a look-alike never reaches a
+    # saved key.
     with pytest.raises(lifecycle.LifecycleError, match='belongs to a plugin made by VOOL'):
         manager.prepare_local(str(package))
     assert not lifecycle.record_for('vool-plugin-' + service)
@@ -184,7 +183,9 @@ def path_token_provider(package):
     (package / '.codex-plugin/plugin.json').write_text(json.dumps(path_token_manifest()))
 
 
-def test_wallet_funded_service_origin_never_becomes_a_plain_provider_lane(package, https_service, monkeypatch):
+def test_the_retired_usepod_package_never_becomes_a_provider_lane(package, https_service, monkeypatch):
+    """UsePod left VOOL in 0.8. Its old package paid from a wallet-funded balance, so even with a key of the
+    person's own it lists nothing, is never usable and reaches nothing."""
     from core import plugin_providers, plugin_services
     from core.plugin_services import ServiceRefused
 
@@ -197,7 +198,7 @@ def test_wallet_funded_service_origin_never_becomes_a_plain_provider_lane(packag
         return native(*args, **kwargs, _connector=https_service['connector'], _tls_context=https_service['context'])
     monkeypatch.setattr(plugin_services, 'native_request', routed)
     monkeypatch.setattr(plugin_providers, 'native_request', routed)
-    with pytest.raises(ServiceRefused, match='wallet approvals'):
+    with pytest.raises(ServiceRefused, match='no longer part of VOOL. VOOL does not use this plugin'):
         plugin_providers.refresh_models(info['id'])
     assert not plugin_providers.usable_provider('plugin-vool-plugin-usepod')
     assert not https_service['log'].exists()

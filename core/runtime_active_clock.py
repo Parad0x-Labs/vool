@@ -1,7 +1,7 @@
-"""Execution-time clock for an explicitly price-queued live turn.
+"""Execution-time clock for a live turn that waits on the owner (a live browser hand-over).
 
-Only time spent waiting BEFORE paid dispatch is excluded from execution deadlines.
-Consent expiry, budget renewal and price freshness keep using wall time. This is live
+Only time spent waiting on the owner is excluded from execution deadlines.
+Consent expiry and budget renewal keep using wall time. This is live
 continuation, not a serializable checkpoint: process exit ends this clock and stack.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import threading
 import time
 from contextlib import contextmanager
 
-_CLOCK = contextvars.ContextVar("price_wait_execution_clock", default=None)
+_CLOCK = contextvars.ContextVar("owner_wait_execution_clock", default=None)
 
 
 class ActiveClock:

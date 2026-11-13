@@ -25,9 +25,9 @@ from playwright.sync_api import expect
 from tests.test_plugin_services_v1 import https_service
 
 ROOT = Path(__file__).resolve().parents[1]
-# VOOL ships no UsePod or Eyebrow plugin (sls, Nov 12 and 13). Core still knows their exact old
-# package bytes for the retained UsePod lane and the saved Eyebrow key, so the journey that pins
-# those rules installs a test-only copy. Every other journey uses neutral sample packages.
+# VOOL ships no UsePod or Eyebrow plugin (owner decision, Nov 12 and 13), and the UsePod payment lane left core
+# in 0.8. Core still knows their exact old package bytes (the reserved names, the saved Eyebrow key),
+# so the journey that pins those rules installs a test-only copy. Every other journey uses neutral sample packages.
 RETIRED = ROOT / "tests/fixtures/retired_first_party_plugins"
 SAMPLE_SCANNER = ROOT / "tests/fixtures/plugins/sample-scanner"
 
@@ -287,14 +287,12 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
         page.get_by_role("button", name="Keep disabled", exact=True).click()
         assert not daemon.routes.exists()
         accept_access(page, card)
-        # The UsePod token pays from a balance funded through VOOL's wallet: it stays in its
-        # own slot for the retained lane and never becomes a plain plugin provider key.
+        # UsePod left VOOL in 0.8: the old package is an ordinary model plugin with no wallet lane.
+        # The saved UsePod token stays in its own slot and is never copied into it, and nothing
+        # is fetched until the person connects a key of their own and asks.
+        card.get_by_role("button", name="Refresh model list", exact=True).wait_for()
         assert not card.get_by_text("Key saved.", exact=True).count()
-        # A wallet-paid service is never offered a model refresh, a key or a test (345e180a): its
-        # card says VOOL uses it only with wallet approvals, and no model list is fetched.
-        card.get_by_text("wallet approvals", exact=False).first.wait_for()
-        assert not card.get_by_role("button", name="Refresh model list", exact=True).count()
-        assert not card.get_by_text("1 models available", exact=True).count()
+        assert not card.get_by_text("wallet approvals", exact=False).count()
         assert not daemon.routes.exists() and not https_service["log"].exists()
         # A saved scanner key goes to no other maker's scanner: enabling a neutral one saves nothing.
         card = install_folder(page, SAMPLE_SCANNER, "sample-scanner")

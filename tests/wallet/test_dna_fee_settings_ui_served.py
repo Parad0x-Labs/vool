@@ -6,9 +6,9 @@ sets the collection threshold from the page: the door stores what the page sent;
 value and says when an operator override outranks it; there is no "collect now": accrued fees ride the next native
 payment's approval, and the page says so.
 
-Real Chromium against a real ``apps.vool_api_server``. A fee is put on record the way one was ever written: one
-accepted UsePod x402 payment settled by the production money law in the daemon's own store, through the owner's CLI
-(a child interpreter with the daemon's home; no HTTP door writes money). Assertions are on what the daemon STORES and
+Real Chromium against a real ``apps.vool_api_server``. A fee is put on record as an older VOOL left one: one accrual in
+the fee ledger in the daemon's own store, through the owner's CLI (a child interpreter with the daemon's home; no HTTP
+door writes money). Assertions are on what the daemon STORES and
 on the page's rendered words for the two facts a user must not confuse: what they saved and what is in force. The
 0.1% rate and the treasury have no control here, by design (``core.wallet.dna_fees`` constants; a page cannot reach
 them).
@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.usepod.test_usepod_x402_composed_served import PIN  # the served wallet suites' disposable fixture PIN
+from tests.wallet.test_wallet_limits_and_approval_ui_served import PIN  # the wallet suites' disposable fixture PIN
 
 
 def _post(base: str, path: str, body: dict) -> tuple[int, dict]:
@@ -64,37 +64,24 @@ def _shot(page, name: str) -> None:
 
 
 def _put_a_fee_on_record(daemon) -> None:
-    """A DNA fee on record in the daemon's own store, written the way one ever was: one accepted UsePod x402 payment of
-    0.40 USDC on Solana Mainnet, reserved, claimed, dispatched and settled by the production money law, which accrues
-    the 0.1% fee in the settling transaction. The owner's CLI writes it (a child interpreter with the daemon's home and
-    environment); no HTTP door writes money. Synthetic figures and a synthetic payer; nothing touches any chain."""
+    """A DNA fee on record in the daemon's own store, as an older VOOL left one: the 0.1% fee of one accepted
+    0.40 USDC payment on Solana Mainnet, accrued in the fee ledger under the production fee terms (the lane that
+    accrued fees left VOOL in 0.8, so only such a record can exist). The owner's CLI writes it (a child interpreter
+    with the daemon's home and environment); no HTTP door writes money. Synthetic figures and a synthetic payer;
+    nothing touches any chain."""
     script = f"""
-import time, uuid
+import uuid
 from solders.keypair import Keypair
-from core.effect_budget import grant_operator_budget_authority
-from core.effect_budget_money import AssetIdentity, MoneyGrantSpec, grant_money_authority
-from core.service_fee_ledger import fee_ceiling_atomic
-from core.usepod.money_law import EffectBudgetMonetaryAuthority
-from core.usepod.monetary import EXACT_COST_NOT_SUPPLIED, ProviderLiability, SettlementEvidence
-network, model, note, amount = {SOLANA_MAINNET!r}, "synthetic-model", "synthetic test funds: dna fee panel proof", {FEE_BASIS_ATOMIC}
+from core import service_fee_ledger
+from core.wallet import dna_fees
+network, amount = {SOLANA_MAINNET!r}, {FEE_BASIS_ATOMIC}
 payer = str(Keypair().pubkey())
-ceiling = amount + fee_ceiling_atomic(amount, 10)
-grant_money_authority(grant_operator_budget_authority(note=note), MoneyGrantSpec(
-    kind="single_payment", operation_kinds=("inference_x402",), provider_id="usepod", asset=AssetIdentity(network=network, asset="USDC", decimals=6),
-    max_total_atomic=ceiling, per_operation_max_atomic=ceiling, models=(model,), routes=("marketplace",), network=network, payer_account=payer,
-    fee_asset=AssetIdentity(network=network, asset="SOL", decimals=9), max_fee_total_atomic=50_000, per_operation_max_fee_atomic=50_000,
-    expires_epoch=time.time() + 3600.0, credit_liquidity="not_required", approval_ref="synthetic:" + uuid.uuid4().hex[:8], note=note))
-liability = ProviderLiability(
-    operation_id="upo_" + uuid.uuid4().hex, provider_id="usepod", transport_mode="x402", asset="USDC", unit="usdc_microunit", account_kind="x402_payer_wallet",
-    account_ref=payer, network=network, max_amount_atomic=amount, model_id=model, route_approval_id="apr", envelope_binding_sha256="c" * 64,
-    basis={{"route_class": "marketplace", "quote_id": "q-" + uuid.uuid4().hex[:6], "pay_to": "PayTo" + "9" * 39, "fee_network": network, "fee_asset": "SOL", "fee_decimals": 9,
-           "fee_max_atomic": 5_000, "principal_balance_atomic": 500_000_000, "fee_balance_atomic": 20_000_000, "wallet_authority_label": "synthetic"}})
-authority = EffectBudgetMonetaryAuthority()
-reservation = authority.reserve(liability)
-authority.claim(reservation, executor="synthetic")
-authority.mark_dispatched(reservation)
-authority.settle(reservation, SettlementEvidence(operation_id=liability.operation_id, outcome="completed", http_status=200, usage={{}}, input_tokens=None, output_tokens=None,
-                                                 upper_bound_cost_atomic=None, exact_cost_atomic=None, exact_cost_state=EXACT_COST_NOT_SUPPLIED, route={{}}, balance_remaining_raw=None, usage_exceeds_liability_bound=False))
+_key, terms = dna_fees.identity_for(payer=payer, network=network, asset="USDC")
+with dna_fees._ledger_txn() as conn:
+    service_fee_ledger.accrue(conn, liability_id="synthetic-" + uuid.uuid4().hex, operation_id="synthetic-" + uuid.uuid4().hex,
+                              payer_account=payer, network=terms["network"], asset_key=terms["asset_key"], treasury_owner=terms["treasury_owner"],
+                              policy_id=terms["policy_id"], basis_atomic=amount, rate_bps=int(terms["rate_bps"]),
+                              evidence_id="synthetic", evidence_kind="synthetic", source="synthetic test funds: dna fee panel proof")
 """
     env = daemon.env()
     env["PYTHONDONTWRITEBYTECODE"] = "1"

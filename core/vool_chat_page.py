@@ -8266,18 +8266,6 @@ function stepsRollupText(steps) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// Opening the price review from a refusal row only OPENS the gate: the operator edits and
-// explicitly confirms there, and confirmation saves limits -- it never retries or sends the
-// refused message. Delegated once, on the panel that renders the rows.
-document.addEventListener('click', function(ev) {
-  const button = ev.target && ev.target.closest ? ev.target.closest('[data-vool-price-review]') : null;
-  if (!button || !window.VoolPriceGate) return;
-  const id = String(button.getAttribute('data-vool-price-review-id') || '').trim();
-  if (!id) return;
-  ev.preventDefault();
-  const label = String(button.getAttribute('data-vool-price-review-label') || id);
-  window.VoolPriceGate.review({ kind: 'review', id: id, provider: String(button.getAttribute('data-vool-price-review-provider') || 'usepod'), label: label });
-});
 function activityKvHtml(lines) {
   if (!lines.length) return '';
   return '<div class="xp-kv">' + lines.map(([k, v]) => '<div class="xp-kv-row"><span class="xp-kv-k">' + esc(k) + '</span><span class="xp-kv-v mono">' + esc(v) + '</span></div>').join('') + '</div>';
@@ -8292,17 +8280,6 @@ function activityItemDetailLines(item, skipText) {
   }
   return lines;
 }
-// The typed pre-send price refusal a UsePod row can carry: the one failure whose recovery is
-// exactly this mission's price review. Matched on the event's own reason codes, never on prose.
-function priceReviewTargetForEvent(e) {
-  if (!e) return null;
-  const causes = [e.rejection_reason, e.reason, e.error, e.error_kind].map((v) => String(v == null ? '' : v));
-  const refused = causes.some((text) => text.indexOf('usepod_dispatch_refused:route_price_above_approved_bound') !== -1);
-  if (!refused) return null;
-  const model = String(e.requested_model || e.model_id || e.selected_model || '').trim();
-  if (!model) return null;
-  return { provider: 'usepod', id: model, label: model };
-}
 function activityItemHtml(item, openState) {
   // A tool call's state comes from its pairing; a step row (no pairing) is drawn the way its own
   // display says, so a failure there shows in the failure colour rather than as ordinary progress.
@@ -8313,28 +8290,14 @@ function activityItemHtml(item, openState) {
   const sub = item.display ? item.display.sub : '';
   const kv = activityItemDetailLines(item, title);
   const kvHtml = activityKvHtml(kv);
-  const review = priceReviewTargetForEvent(item.endEvent || item.startEvent);
-  // The review target travels as PLAIN data attributes, never as JSON: the panel's rendering
-  // re-serializes row markup, and a quoted JSON payload in a quoted attribute truncated at its
-  // first inner quote (measured: the attribute read back as "{"), the click's JSON.parse threw,
-  // and the action silently did nothing. Provider/model ids carry no quotes, so esc() is enough.
-  const reviewHtml = review
-    ? '<div class="xp-kv"><div class="xp-kv-row"><span class="xp-kv-k">' + esc(pageT('activity.field.action', 'action')) + '</span><span class="xp-kv-v">'
-      + '<button type="button" class="vg-btn" data-vool-price-review="1'
-      + '" data-vool-price-review-provider="' + esc(review.provider)
-      + '" data-vool-price-review-id="' + esc(review.id)
-      + '" data-vool-price-review-label="' + esc(review.label)
-      + '">' + esc(pageT('activity.review_prices', 'Review price limits')) + '</button>'
-      + ' ' + esc(pageT('activity.review_prices_note', '(opens the max input/output prices this model dispatches under; opening reviews nothing, sends nothing)')) + '</span></div></div>'
-    : '';
-  if (!kvHtml && !sub && !reviewHtml) {
+  if (!kvHtml && !sub) {
     // Nothing to drill into -- a plain row, not a disclosure triangle with nothing behind it.
     return '<div class="xp-row-flat ' + cls + '"><span class="ic">' + icon + '</span><div class="bd">' + esc(title) + '</div></div>';
   }
   const openAttr = openState[item.id] ? ' open' : '';
   return '<details class="xp-item ' + cls + '" data-node-id="' + esc(item.id) + '"' + openAttr + '>'
     + '<summary><span class="ic">' + icon + '</span><span class="bd">' + esc(title) + '</span></summary>'
-    + '<div class="xp-item-body">' + (sub ? '<div class="st">' + esc(sub) + '</div>' : '') + kvHtml + reviewHtml + '</div>'
+    + '<div class="xp-item-body">' + (sub ? '<div class="st">' + esc(sub) + '</div>' : '') + kvHtml + '</div>'
     + '</details>';
 }
 function activityCategoryHtml(cat, openState) {
@@ -9121,7 +9084,7 @@ function renderPanelBody() {
   updateTabCounts();
   if (!document.body.classList.contains('panel-open')) return;
   // The Activity tab is the panel's INTERACTIVE surface: expandable rows and per-row actions
-  // (Review price limits and the recovery buttons live inside it). Its content changes only when
+  // (the recovery buttons live inside it). Its content changes only when
   // the ledger grows or the turn moves, but the 1.4s ledger poll rebuilt it unconditionally --
   // replacing the exact nodes a pointer click had resolved, which killed the click mid-press
   // (observed as an automation stall, and equally a human's click target vanishing). Skip the
@@ -9592,7 +9555,7 @@ function renderQueue(items) {
     const label = document.createElement('span');
     label.className = 'qchip-text';
     const queuedAttachmentCount = ((item.payload && item.payload.attachments) || []).length;
-    label.textContent = (stale ? 'Interrupted, not sent: ' + preview : running ? pageTF('queue.item_running', 'Running: {preview}', { preview: preview }) : (item.payload && item.payload.price_wait ? pageTF('queue.item_price_wait', 'Waiting for price · {model}: {preview}', { model: item.payload.price_wait.model_id, preview: preview }) : pageTF('queue.item_queued', 'Queued {pos}: {preview}', { pos: pos, preview: preview }))) + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
+    label.textContent = (stale ? 'Interrupted, not sent: ' + preview : running ? pageTF('queue.item_running', 'Running: {preview}', { preview: preview }) : pageTF('queue.item_queued', 'Queued {pos}: {preview}', { pos: pos, preview: preview })) + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
     label.title = preview;
     chip.appendChild(label);
     if (stale) {
@@ -9650,7 +9613,7 @@ function queueWaitingState(chatId) {
   const live = items.some(function (i) { return i.status === 'in_flight' && !queueItemStale(i); });
   // Interrupted messages count too, in their original order, so one answer covers them all.
   const waiting = items.filter(function (i) {
-    return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
+    return i.status === 'pending' || queueItemStale(i);
   });
   const owner = chatState(chatId);
   // A turn the server is executing for this chat (a reload took this page's own run away) means
@@ -9695,7 +9658,7 @@ function scheduleQueueWaitingNotice(chatId) {
 async function resendWaiting(chatId) {
   chatId = String(chatId || displayedChat);
   const items = (lastQueueItemsByChat.get(chatId) || []).filter(function (i) {
-    return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
+    return i.status === 'pending' || queueItemStale(i);
   });
   const firstStale = items.findIndex(queueItemStale);
   if (firstStale < 0) { pumpQueue(chatId); return; }
@@ -9727,17 +9690,6 @@ async function resendWaiting(chatId) {
 }
 function resendStaleQueueItem(item) { return resendWaiting(String(item.session_id || displayedChat)); }
 
-let priceQueuePumpActive = false;
-async function pumpPriceWaitQueues() {
-  if (priceQueuePumpActive) return;
-  priceQueuePumpActive = true;
-  try {
-    const state = await postJsonWithin('/api/cloud/usepod/price-wait/pending', {}, 5000);
-    for (const chatId of ((state && state.sessions) || [])) { if (!isChatBusy(chatId)) await pumpQueue(chatId); }
-  } catch (e) { /* durable pending work remains queued; try on the next bounded tick */ }
-  finally { priceQueuePumpActive = false; }
-}
-setInterval(pumpPriceWaitQueues, 60000);
 // Pump the next queued message, but only once the current turn's stream truly closed. The
 // atomic server-side claim (compare-and-swap) guarantees exactly-once even if this races.
 async function pumpQueue(forChatId) {
@@ -9780,7 +9732,7 @@ async function pumpQueue(forChatId) {
     const queuedIds = (claimed.payload && Array.isArray(claimed.payload.attachments)) ? claimed.payload.attachments : [];
     const queuedMeta = queuedIds.map((id) => owner.queuedAttachmentMeta[id] || { id: id, name: 'attachment', kind: '', size_bytes: 0, previewUrl: '' });
     queuedIds.forEach((id) => { delete owner.queuedAttachmentMeta[id]; });
-    await runTurn((claimed.payload && claimed.payload.text) || '', claimed.queue_item_id, { chatId: chatId, attachments: queuedMeta, queuedModel: claimed.payload.price_wait ? 'usepod:' + claimed.payload.price_wait.model_id : '', priceWait: !!claimed.payload.price_wait });
+    await runTurn((claimed.payload && claimed.payload.text) || '', claimed.queue_item_id, { chatId: chatId, attachments: queuedMeta });
     return;
   }
 }
@@ -9918,7 +9870,7 @@ async function runTurn(text, queueItemId, opts) {
     // A disclosure retry carries a one-use server capability bound to a verified free local
     // model. The server validates it before routing and denies cloud fallback. A stale picker
     // cache must not turn this local choice into a request for paid-cloud approval.
-    if (sendRequiresPaidAck && !opts.disclosureRetry && !opts.priceWait && !paidPinAcked(String(selectedModel), chatId)) {
+    if (sendRequiresPaidAck && !opts.disclosureRetry && !paidPinAcked(String(selectedModel), chatId)) {
       // The typed gate makes this decision informed (real rates, catalog freshness); the bare
       // confirm remains the fallback so an unmounted fragment can never brick sending.
       const ok = window.VoolPriceGate

@@ -255,35 +255,6 @@ def test_chat_surface_honest_degraded_response_facade_delegates_to_extracted_mod
     )
 
 
-def test_a_wallet_paid_call_whose_answer_never_arrived_is_reported_as_paid_with_an_unknown_result() -> None:
-    agent = _build_agent()
-    reason = "usepod_x402_paid_result_unknown:transfer_ended_without_response dispatch=sent_outcome_unknown"
-    model_execution = SimpleNamespace(
-        source="selected_model_blocked",
-        details={"attempted": ["usepod:meridian-synth-chat"], "reason": reason, "block_reason": reason, "model_was_attempted": True, "requested_model": "usepod:meridian-synth-chat", "ranked_candidates": []},
-    )
-
-    response = memory_runtime.chat_surface_honest_degraded_response(agent, model_execution, user_input="")
-
-    assert "`usepod:meridian-synth-chat` was paid from your wallet" in response
-    assert "result is unknown" in response and "no refund is assumed" in response and "Resume" in response
-    # neither the single-candidate sentence nor the could-not-run sentence: the model ran and was paid
-    assert "only model this turn was allowed" not in response and "could not run" not in response
-
-
-def test_an_ordinary_usepod_transport_failure_keeps_the_selected_model_wording() -> None:
-    agent = _build_agent()
-    reason = "usepod_transport:transfer_ended_without_response dispatch=sent_outcome_unknown"
-    model_execution = SimpleNamespace(
-        source="selected_model_blocked",
-        details={"attempted": [], "reason": reason, "block_reason": reason, "model_was_attempted": True, "requested_model": "usepod:meridian-synth-chat", "ranked_candidates": []},
-    )
-
-    response = memory_runtime.chat_surface_honest_degraded_response(agent, model_execution, user_input="")
-
-    assert "paid from your wallet" not in response and "could not run this turn" in response
-
-
 def test_provider_rate_limit_is_visible_without_exposing_raw_error() -> None:
     reason = "429 Client Error: Provider returned error for url: https://example.invalid/?secret=hidden"
     execution = SimpleNamespace(source="selected_model_blocked", details={

@@ -122,7 +122,6 @@ def test_purposes_fee_asset_and_dust_render_from_typed_facts(browser):
     ]
     quotes = {
         "pay-direct": _fields(),
-        "pay-credit": _fields(origin="usepod", proposal_id="pay-credit", purpose=CREDIT),
         "pay-unknown": _fields(origin="mystery", proposal_id="pay-unknown", purpose=UNKNOWN),
         # a fee paid in another asset than the one sent, and a dust fee shown exactly, never as zero
         "pay-dust": _fields(proposal_id="pay-dust", display_symbol="TOK", asset="TOK", amount_display="0.001 TOK", fee_asset_differs=True, token_transfer=True,
@@ -147,14 +146,8 @@ def test_purposes_fee_asset_and_dust_render_from_typed_facts(browser):
         assert "Payment accepted is not service delivered" in credit.locator(".vw-purpose-note").text_content()
         unknown = page.locator('.vw-card[data-proposal="pay-unknown"]')
         assert unknown.locator(".vw-mechanism").text_content() == "Purpose unknown" and "purpose unknown" in unknown.locator(".vw-purpose-headline").text_content()
-        # the credit sheet: title names the mechanism, the purpose block repeats the typed facts
-        credit.locator(".vw-review").click()
-        page.wait_for_function("!document.getElementById('vwSheetApprove').disabled", timeout=10_000)
-        assert page.locator("#vwSheetTitle").text_content() == "Prepay provider credit"
-        assert "provider credit for later requests" in page.locator('#vwSheet [data-review="amount"]').text_content()
-        assert "Payment accepted is not service delivered" in page.locator('#vwSheet [data-warning="prepaid_credit"]').text_content()
-        page.locator("#vwSheetLater").click()
-        page.wait_for_selector("#vwSheet", state="detached")
+        # a credit request an older VOOL left pending keeps its card; the UsePod lane left VOOL in 0.8, so it is never
+        # quoted again and has no sheet to open (core.wallet.quotes refuses it: payment_lane_removed)
         # the dust sheet: the fee asset differs from the sent asset and is labelled so; dust is exact, never 0
         page.locator('.vw-card[data-proposal="pay-dust"] .vw-review').click()
         page.wait_for_function("!document.getElementById('vwSheetApprove').disabled", timeout=10_000)

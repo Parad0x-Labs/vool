@@ -166,11 +166,11 @@ def test_answer_describes_atomic_caps_and_unknown_billing_truthfully():
     assert "measured not to bind" not in out
 
 
-def test_answer_distinguishes_byok_from_wallet_provider_payments():
+def test_answer_explains_byok_and_names_no_removed_payment_lane():
     out = maybe_handle_spend_cap_explainer_intent("how does the spend cap work", owner_local=True).lower()
     assert "your provider using your key" in out
-    assert "usepod wallet payments" in out
-    assert "these usd ceilings do not govern that lane" in out
+    # UsePod left VOOL in 0.8: the answer never points at a lane that is gone
+    assert "usepod" not in out and "do not govern that lane" not in out
 
 
 def test_answer_links_the_written_doc_and_the_doc_exists():

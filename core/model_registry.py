@@ -186,10 +186,6 @@ class ModelRegistry:
             return OptionalTransformersAdapter(manifest)
         if adapter_type == "peft_lora_adapter":
             return PeftLoRAAdapter(manifest)
-        if adapter_type == "usepod":
-            from core.usepod.legacy_adapter import UsePodAdapter
-
-            return UsePodAdapter(manifest)
         raise ValueError(f"Unsupported adapter_type: {adapter_type}")
 
     def _warnings_for_manifest(self, manifest: ModelProviderManifest) -> list[str]:

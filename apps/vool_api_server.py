@@ -762,15 +762,6 @@ def main() -> int:
             wallet_settlement.start_observer()
         except Exception:
             logger.exception("wallet transfer observer failed to start; server continues without it")
-        # UsePod accountless x402: the Crypto Pilot wallet is the payment authority. Installed once, under its own label;
-        # the networks it can pay on are recomputed on every read (Crypto switch, environment, a ready pilot wallet, the
-        # row's proven genesis). Fail-soft: boot never depends on it, and x402 turns refuse at the pick without it.
-        try:
-            from core.wallet import usepod_x402
-
-            usepod_x402.install_at_boot()
-        except Exception:
-            logger.exception("UsePod x402 payment authority failed to install; x402 turns refuse without it")
         # the browser lane and web.fetch never open this runtime's own service (core.runtime_served_origins)
         from core.runtime_served_origins import register_served_port
 

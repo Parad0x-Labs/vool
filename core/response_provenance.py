@@ -151,7 +151,7 @@ class TurnProvenance:
     pending_model_calls: int = 0
     participating_models: tuple[str, ...] = ()
     #: The adapter's own refusal code when the selected model's dispatch was refused BEFORE any byte
-    #: left (a UsePod money/route/price check), read from the router's terminal decision. "" when the
+    #: left, read from the router's terminal decision. "" when the
     #: turn's failure is not such a refusal. Distinguishes "not sent" from "attempted, no answer".
     refused_before_send: str = ""
     usage_details: tuple[dict[str, Any], ...] = ()
@@ -252,29 +252,6 @@ def _lane_from_cost_class(cost_class: Any) -> str:
     return ""
 
 
-#: The UsePod adapter's refusal families that are raised BEFORE any byte leaves: the money law's
-#: reservation, the price/route authorization, the credential and envelope checks. A code outside
-#: these (an x402 journal state, say) may follow a payment, so it is never read as "not sent".
-USEPOD_PRE_SEND_REFUSAL_PREFIXES = (
-    "MONEY_", "price_", "route_", "model_disappeared", "usepod_token_not_configured",
-    "usepod_credential_pair_unresolved", "lane_origin_differs_from_credential_origin",
-    "max_output_tokens_required", "input_bound_unavailable_for_non_text_parts", "protocol_translation:",
-    "sealed_payload_differs_from_envelope", "monetary_authority_",
-)
-_USEPOD_REFUSAL_PREFIX = "usepod_dispatch_refused:"
-
-
-def usepod_pre_send_refusal_code(block_reason: str) -> str:
-    """The adapter's refusal code when ``block_reason`` names a UsePod dispatch refused BEFORE sending
-    (``usepod_dispatch_refused:<code>`` with a pre-send family), else "". A bare code is not accepted:
-    the prefix is the adapter's own statement that its refusal came from this seam."""
-    reason = str(block_reason or "").strip()
-    if not reason.startswith(_USEPOD_REFUSAL_PREFIX):
-        return ""
-    code = reason[len(_USEPOD_REFUSAL_PREFIX):].strip()[:64]
-    return code if code.startswith(USEPOD_PRE_SEND_REFUSAL_PREFIXES) else ""
-
-
 def read_turn_provenance(
     result: dict[str, Any] | None,
     usage: dict[str, Any] | None = None,
@@ -308,15 +285,9 @@ def read_turn_provenance(
     tokens = _int(metered.get("prompt_tokens")) + _int(metered.get("output_tokens"))
     execution = payload.get("model_execution")
     execution = dict(execution) if isinstance(execution, dict) else {}
-    # A pin the UsePod adapter refused before sending is a reading off the router's terminal
-    # decision (source selected_model_blocked, reason usepod_dispatch_refused:<code>). The ledger
-    # counts that attempt as failed -- true -- but the footer must not add "model attempted" over a
-    # request that never left: observed live 2026-09-16, a MONEY_LIQUIDITY_UNVERIFIED refusal
-    # footered as an attempted model with no usable answer.
+    # No lane reports a typed pre-send refusal since the UsePod adapter left VOOL in 0.8; the field
+    # stays so a footer never adds "model attempted" over a request that never left.
     refused_before_send = ""
-    if str(execution.get("source") or "").strip().lower() == "selected_model_blocked":
-        _details = execution.get("details") if isinstance(execution.get("details"), dict) else {}
-        refused_before_send = usepod_pre_send_refusal_code(str(_details.get("block_reason") or _details.get("reason") or ""))
     # Provider calls entered this turn: the ledger's own count where it has one, otherwise the
     # number the result reports. Not the same thing as authorship -- see below.
     calls = _int(ledger.get("calls")) if "calls" in ledger else _int(payload.get("model_calls"))

@@ -616,7 +616,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
 def _adapter_supplied_cost_estimate(manifest: Any, response: Any) -> Any | None:
     """The cost estimate an ADAPTER computed from its own dispatch authorization, when it gives one.
 
-    A dynamic marketplace (UsePod) prices a call against an owner-approved ceiling the adapter
+    A dynamic marketplace prices a call against an owner-approved ceiling the adapter
     re-checked immediately before sending; the static table lookup below knows none of that, and its
     ceiling can sit below a real listing. The adapter's figure is used only when well-formed, and it
     keeps the adapter's own ``known``/``basis`` (an upper bound stays an upper bound).
@@ -651,9 +651,8 @@ def _adapter_supplied_cost_estimate(manifest: Any, response: Any) -> Any | None:
 def _provider_receipt(container: Any) -> dict[str, Any] | None:
     """The bounded, secret-free receipt an adapter attached to a response or a failure, if any.
 
-    An adapter that authorizes and bills against its own evidence (UsePod: the route that served, the
-    balance header, the settlement state) places a compact ``receipt`` beside its full evidence. Routing
-    events carry the receipt and nothing larger, so an event row never holds a prompt or a credential.
+    An adapter that authorizes and bills against its own evidence places a compact ``receipt`` beside
+    its full evidence. Routing events carry the receipt and nothing larger, so an event row never holds a prompt or a credential.
     """
     receipt = container.get("receipt") if isinstance(container, dict) else None
     if not isinstance(receipt, dict):
@@ -684,7 +683,7 @@ def _response_cost_estimate(manifest: Any, response: Any) -> Any | None:
     A model whose price VOOL does not know settles at a conservative ceiling rather than at zero
     -- see :mod:`core.model_pricing` for why the ceiling is the choice over refusing the call.
 
-    An adapter that authorized the call against its own price evidence (UsePod's approved ceiling)
+    An adapter that authorized the call against its own price evidence (an approved ceiling)
     supplies the estimate itself; that figure wins over the static lookup.
     """
     supplied = _adapter_supplied_cost_estimate(manifest, response)
@@ -3151,7 +3150,7 @@ class MemoryFirstRouter:
                     if exhausted:
                         # The provider's own terminal facts say THIS model reasons: record it so
                         # the next sizing for this exact lane/model carries the thinking reserve
-                        # even on feeds that publish no capability (UsePod lists pricing only).
+                        # even on feeds that publish no capability (a marketplace that lists pricing only).
                         from core.output_budget_policy import note_observed_reasoning
 
                         note_observed_reasoning(
@@ -4076,7 +4075,7 @@ class MemoryFirstRouter:
             ):
                 # Terminal fact: the provider stopped at OUR ceiling with reasoning tokens in
                 # the usage block. Record it so the NEXT sizing for this exact lane/model
-                # carries the thinking reserve -- the UsePod feed publishes no capability, and
+                # carries the thinking reserve -- a marketplace feed may publish no capability, and
                 # this is how a truncated first answer teaches the second call its real shape.
                 try:
                     _completion_details = dict(response_completion_usage or {}).get(
@@ -4116,11 +4115,9 @@ class MemoryFirstRouter:
             _paid_control_retry_permitted = False
             if reported_cost_class(manifest) == "paid_cloud":
                 # A truncated PAID answer may take the same one bounded repair, but only under a
-                # monetary authority this turn already holds — the legacy ledger reservation, or
-                # (the UsePod lane) an ACTIVE money-law prepaid grant whose allowlist covers this
-                # model. The retry's ceiling is projected against the legacy reservation where one
-                # exists; the grant path authorizes by its own allowlist, exactly as the pick did.
-                # A lane with neither refuses before dispatch: no new authority is created mid-turn.
+                # monetary authority this turn already holds — the legacy ledger reservation. The
+                # retry's ceiling is projected against that reservation.
+                # A lane without one refuses before dispatch: no new authority is created mid-turn.
                 try:
                     from core.model_pricing import estimate_call_usd
                     from core.model_spend_ledger import get_spend_reservation
@@ -4146,21 +4143,6 @@ class MemoryFirstRouter:
                         _paid_control_retry_permitted = _projected <= _held_ceiling + 1e-9
                 except Exception:
                     _paid_control_retry_permitted = False
-                if not _paid_control_retry_permitted and str(
-                    getattr(manifest, "provider_id", "") or ""
-                ).startswith("usepod"):
-                    try:
-                        from core.usepod import money_law
-
-                        _model_id = str(getattr(manifest, "model_name", "") or "")
-                        _grants = money_law.active_prepaid_grants()
-                        _paid_control_retry_permitted = any(
-                            not (row["spec"].get("models") or ())
-                            or _model_id in tuple(row["spec"].get("models") or ())
-                            for row in _grants
-                        )
-                    except Exception:
-                        _paid_control_retry_permitted = False
             if (
                 control_violations
                 and bool(getattr(call_request, "allow_response_control_retry", True))
@@ -4225,7 +4207,7 @@ class MemoryFirstRouter:
                 # The truncation facts decide the repair's room. A length-finish on a lane the
                 # terminal facts/registry say REASONS means the ceiling fit neither the monologue
                 # nor the answer; +128 repaired nothing and the repair truncated again (measured
-                # live on the UsePod lane, 2026-09-17: two length-finishes, one per attempt).
+                # live on a marketplace lane, 2026-09-17: two length-finishes, one per attempt).
                 # The repair then carries the same 2,048 thinking reserve the first sizing
                 # would have used had the feed published the capability, and does NOT disable
                 # reasoning on a lane observed to mandate it -- a disabled policy there is the
@@ -4250,7 +4232,7 @@ class MemoryFirstRouter:
                     # reasoning is declared. A length-finish is the provider's own fact that the
                     # ceiling was too small for THIS model's answer whatever it spent the tokens
                     # on, and +128 repaired nothing twice on lanes whose feeds publish no
-                    # capability (measured live 2026-09-17: a capability-less UsePod lane and a
+                    # capability (measured live 2026-09-17: a capability-less marketplace lane and a
                     # declared OpenRouter lane both truncated their repairs). The money gate
                     # above already refuses a paid repair whose projection exceeds the held
                     # reservation, so the room never spends authority nobody granted.
@@ -4945,28 +4927,11 @@ class MemoryFirstRouter:
                 trace_id=getattr(task, "task_id", None),
                 details={"error": str(exc)},
             )
-            # The adapter's own typed evidence for this failure (a pre-send refusal carries its
-            # route facts: saved maxima, current prices, and the violating axes in exact human
-            # units). Stamped per provider/model so the turn's terminal decision — built later,
-            # with only the reason string — can still name the actual axes instead of pointing
-            # generically at Settings. Redaction-safe by construction (ids and prices only).
-            failure_evidence = getattr(exc, "provider_evidence", None)
             if isinstance(source_context, dict):
                 source_context["_last_provider_failure"] = {
                     "error_class": generic_error_class.value if generic_error_class else "",
                     "empty_reply_class": _empty_reply_class(exc),
                 }
-            if isinstance(failure_evidence, dict) and isinstance(source_context, dict):
-                usepod_body = failure_evidence.get("usepod")
-                route_evidence = (
-                    usepod_body.get("route_evidence")
-                    if isinstance(usepod_body, dict)
-                    else None
-                )
-                if isinstance(route_evidence, dict) and route_evidence:
-                    source_context.setdefault("_pin_failure_route_evidence", {})[
-                        f"{manifest.provider_id}|{manifest.model_name}"
-                    ] = dict(route_evidence)
             _emit_model_routing_event(
                 source_context,
                 "model.call_failed",
@@ -7628,13 +7593,6 @@ class MemoryFirstRouter:
                 if requested_model in {candidate.provider_id, candidate.model_name}:
                     selected_model_local = _manifest_is_local(candidate)
                     break
-        pin_route_evidence = {}
-        if isinstance(source_context, dict):
-            for key, entry in dict(source_context.get("_pin_failure_route_evidence") or {}).items():
-                _, _, model_id = str(key).partition("|")
-                if str(requested_model).endswith(f":{model_id}") or str(requested_model) == str(model_id):
-                    pin_route_evidence = dict(entry)
-                    break
         return ModelExecutionDecision(
             source="selected_model_blocked",
             task_hash=task_hash,
@@ -7644,7 +7602,6 @@ class MemoryFirstRouter:
                 "attempted": attempted,
                 "reason": reason,
                 "block_reason": reason,
-                "block_route_evidence": pin_route_evidence,
                 "model_was_attempted": bool(dispatched),
                 "provider_failure": dict((source_context or {}).get("_last_provider_failure") or {}),
                 "requested_model": requested_model,
