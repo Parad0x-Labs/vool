@@ -556,3 +556,52 @@ def test_a_later_answered_ask_replaces_an_earlier_one_and_a_refusal_still_wins_t
     assert cs.resolve("s1", "try that again").request == "how many ounces in a pound"
     _seed()
     assert cs.resolve("s1", "retry pls").request == ASK
+
+
+# --- CI #681: what an answered-ask record must not do -----------------------------------------------------------------
+def test_a_stopped_turn_is_not_recorded_as_an_answered_ask():
+    # Measured on the served daemon: the stopped turn sealed with a fallback line and was recorded as answered, so the
+    # next "hi again, can you hear me?" reran the story the person had stopped and waited for the stopped call.
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    cs.record_sealed_turn("s1", "tell me a very long story about a lighthouse keeper", PLAIN, stopped=True)
+    pending = cs.load("s1")
+    assert (pending.request, pending.turns_since) == (OLD_ASK, 1)
+    cs.record_sealed_turn("s2", "tell me a very long story about a lighthouse keeper", PLAIN, stopped=True)
+    assert cs.load("s2") is None
+
+
+def test_a_failed_turn_with_no_tool_is_not_recorded_as_answered():
+    cs.record_sealed_turn("s1", OLD_ASK, {"mode": "chat", "success": False, "response": "The model did not answer."})
+    assert cs.load("s1") is None
+
+
+@pytest.mark.parametrize("message", ["hi again, can you hear me?", "hello again", "hey again! how are you"])
+def test_a_greeting_with_again_is_not_a_retry(message):
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    assert cs.resolve("s1", message).kind == "none"
+
+
+def test_a_greeting_before_a_real_retry_cue_still_retries():
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    got = cs.resolve("s1", "hi again, try it again")
+    assert (got.kind, got.request) == ("retry", OLD_ASK)
+
+
+@pytest.mark.parametrize("message", ["shorter please", "put that in a table", "ok"])
+def test_an_answered_ask_adds_no_note_to_a_short_follow_up(message):
+    # The transcript holds the question and its answer; the note made the model read "shorter please" against the
+    # request text instead of the answer it re-presents, and the re-presented answer lost its withheld claim.
+    cs.record_sealed_turn("s1", OLD_ASK, PLAIN)
+    assert cs.resolve("s1", message).note == ""
+
+
+def test_a_refusal_still_gets_its_note_on_a_short_follow_up():
+    _seed()
+    assert "It ended refused" in cs.resolve("s1", "ok").note
+
+
+def test_a_typed_secret_never_lands_in_the_record():
+    cs.record_sealed_turn("s1", "My email password is Qx7-plover-91. Also explain entropy briefly.", PLAIN)
+    pending = cs.load("s1")
+    assert pending is not None and pending.outcome == cs.ANSWERED
+    assert "Qx7-plover-91" not in pending.request and "entropy" in pending.request

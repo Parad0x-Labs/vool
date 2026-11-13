@@ -922,11 +922,14 @@ def _seal_semantic_result(
         if _slots.get("picked") and _slots.get("listed"):
             # A pick keeps the list it picked from and what it picked, for "the one before it" next.
             _extra.update({"listed": _slots["listed"], "picked": _slots["picked"]})
+        from core.finalization import _turn_cancel_marker_fired
+
         conversation_state.record_sealed_turn(
             session_id,
             str(_ctx.get("_conversation_request") or user_input or ""),
             result,
             extra_slots=_extra or None,
+            stopped=_turn_cancel_marker_fired(_ctx),
         )
     except Exception:
         pass

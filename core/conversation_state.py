@@ -222,11 +222,23 @@ def slots_of(result: dict[str, Any] | None) -> dict[str, Any]:
     return slots
 
 
-def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | None, *, extra_slots: dict[str, Any] | None = None) -> None:
-    """Called once per sealed turn. Actionable turns replace the record; every other turn only ages it."""
+def record_sealed_turn(
+    session_id: str, request: str, result: dict[str, Any] | None, *, extra_slots: dict[str, Any] | None = None, stopped: bool = False
+) -> None:
+    """Called once per sealed turn. Actionable turns replace the record; an ask answered in words is recorded as
+    answered; every other turn only ages it. A turn the person stopped was not answered: whatever its lanes went on
+    to compose, it only ages the record, so a later "again" never reruns what they stopped."""
     sid = str(session_id or "").strip()
     text = " ".join(str(request or "").split())
     if not sid or not text:
+        return
+    try:
+        from core.secret_redaction import redact_secrets
+
+        # A PIN, card number or password typed in the ask never lands in this record (it is a run record on disk);
+        # a rerun of a masked ask reads the mask, never the value.
+        text = " ".join(redact_secrets(text).split())
+    except Exception:
         return
     outcome, reason, actionable = outcome_of(result)
     try:
@@ -235,7 +247,7 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
             try:
                 if actionable:
                     slots = {**slots_of(result), **dict(extra_slots or {})}
-                    reply = " ".join(str((result or {}).get("response") or (result or {}).get("response_text") or "").split())[:600]
+                    reply = " ".join(redact_secrets(str((result or {}).get("response") or (result or {}).get("response_text") or "")).split())[:600]
                     if reply and outcome in {REFUSED, FAILED, NEEDS_ANSWER}:
                         slots["_reply"] = reply  # what VOOL showed: it names the blocker; later messages are grounded against it
                     conn.execute(
@@ -243,7 +255,7 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
                         "VALUES (?, ?, ?, ?, ?, 0, ?)",
                         (sid, text[:2000], outcome, reason[:200], json.dumps(slots, sort_keys=True, default=str), _now()),
                     )
-                elif _is_an_ask(text):
+                elif not stopped and outcome == DONE and _is_an_ask(text):
                     # A question or task that was just answered in words: the next "try that again" has it to rerun.
                     # What the chat resolved earlier (folder, printed list) rides along while it is still fresh.
                     old = conn.execute("SELECT slots, turns_since, outcome FROM conversation_state WHERE session_id = ?", (sid,)).fetchone()
@@ -611,10 +623,21 @@ def blocker_cleared(pending: PendingRequest, source_context: dict[str, Any] | No
     return None
 
 
+#: "hi again", "hello again": a greeting, not a retry. With no other cue in the message there is nothing to rerun.
+_GREETING_AGAIN_RE = re.compile(
+    r"^\s*(?:hi|hello|hey|hiya|howdy|yo|welcome\s+back|good\s+(?:morning|afternoon|evening))\s+again\b[\s,.!]*", re.IGNORECASE
+)
+
+
 def _split_cue(compact: str) -> tuple[bool, str]:
     """``(has_cue, remainder)``: the message with its retry cue (and the do-verb around it) removed."""
     if not _CUE_RE.search(compact):
         return False, compact
+    greeting = _GREETING_AGAIN_RE.match(compact)
+    if greeting:
+        if not _CUE_RE.search(compact[greeting.end():]):
+            return False, compact
+        compact = compact[greeting.end():]  # "hi again, try it again": the greeting is not part of the change
     rest = _CUE_STRIP_RE.sub(" ", compact, count=1)
     rest = " ".join(rest.replace(",", " ").split()).strip(" .!?-;:")
     return True, rest
@@ -976,6 +999,10 @@ def _looks_back_at_the_record(compact: str, pending: PendingRequest) -> bool:
     unsupported (Database run 16b on the Mac, 2026-11-12: "is Ines holding any books at the moment" carried the failed
     "add a notes column" ask)."""
     if pending.turns_since > _CUE_MAX_AGE:
+        return False
+    if pending.outcome == ANSWERED:
+        # Nothing ended badly: the question and its answer are in the transcript already. Restating it beside "shorter
+        # please" pointed the model at the request text instead of the answer it is re-presenting (CI #681).
         return False
     return len(compact.split()) <= 3 or bool(_LOOKS_BACK_RE.search(compact))
 
