@@ -7,14 +7,13 @@ import sqlite3
 
 import pytest
 
-from tests.test_database_plain_ask_lane import world  # noqa: F401  (fixture)
-from tests.test_production_route_matrix import PRODUCTION_CONTEXT
-
 from core.agent_runtime.research_tool_loop_facade import (
     _database_join_missing,
     _database_query_carries_over_the_last_ask,
     _database_query_contradicts_the_ask,
 )
+from tests.test_database_plain_ask_lane import world
+from tests.test_production_route_matrix import PRODUCTION_CONTEXT
 
 SEEN = {"correction": True, "ok": False, "status": "sql_error"}
 
@@ -77,7 +76,7 @@ def _toolshed(tmp_path) -> None:
     _VOCAB_CACHE.clear()
 
 
-def test_a_holding_question_read_from_the_people_table_alone_is_not_answered(world, tmp_path) -> None:  # noqa: F811
+def test_a_holding_question_read_from_the_people_table_alone_is_not_answered(world, tmp_path) -> None:
     _toolshed(tmp_path)
     one = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM neighbours WHERE name = 'Pavel'"}}
     assert _database_join_missing("does Pavel have anything borrowed", [one]) is True
@@ -87,7 +86,7 @@ def test_a_holding_question_read_from_the_people_table_alone_is_not_answered(wor
     assert _database_join_missing("how many tools are there", []) is False
 
 
-def test_a_database_turn_is_not_offered_the_tool_listing_or_expansion(world, tmp_path, monkeypatch) -> None:  # noqa: F811
+def test_a_database_turn_is_not_offered_the_tool_listing_or_expansion(world, tmp_path, monkeypatch) -> None:
     from core.database_work_state import note_database_demand
     from core.tool_offer_assembly import assemble_tool_offer
 
