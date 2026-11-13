@@ -89,3 +89,33 @@ def test_only_a_standing_reservation_counts() -> None:
 
     assert _paid_call_still_reserved("") is False
     assert _paid_call_still_reserved("model-call-that-was-never-reserved") is False
+
+
+def _reserve(model_call_id, model_id):
+    from core.model_spend_ledger import SpendLimits, reserve_spend
+
+    reserve_spend(model_call_id=model_call_id, task_id="task-bind", subtask_id="owner_explicit_model_pick:bind",
+                  model_id=model_id, maximum_usd=0.25, limits=SpendLimits(per_call_usd=1.0, per_task_usd=1.0, daily_usd=5.0, monthly_usd=20.0))
+
+
+def test_a_reservation_never_carries_another_model_or_host(anthropic_lane) -> None:
+    """Security review of 7d45a5a8: the wire's exception binds the reserved model and the reserved lane's host."""
+    from types import SimpleNamespace
+
+    from core.disclosure.wire import _owner_paid_call, _paid_call_still_reserved
+
+    model = anthropic_lane.model_name
+    host_url = str(anthropic_lane.runtime_config["base_url"]).rstrip("/") + "/v1/chat/completions"
+    _reserve("model-call-bind", model)
+    request = SimpleNamespace(model_call_id="model-call-bind")
+    lane = anthropic_lane.provider_id
+    assert _owner_paid_call(request, {"model": model}, url=host_url, provider_id=lane) == "model-call-bind"
+    # Another model on the same reservation.
+    assert _owner_paid_call(request, {"model": "claude-opus-other"}, url=host_url, provider_id=lane) == ""
+    # Another host for the same model and reservation.
+    assert _owner_paid_call(request, {"model": model}, url="https://elsewhere.invalid/v1/chat/completions", provider_id=lane) == ""
+    # Another lane named for the same model.
+    assert _owner_paid_call(request, {"model": model}, url=host_url, provider_id="someone-else:" + model) == ""
+    # At dispatch the body's model must still be the reserved one.
+    assert _paid_call_still_reserved("model-call-bind", model=model) is True
+    assert _paid_call_still_reserved("model-call-bind", model="claude-opus-other") is False

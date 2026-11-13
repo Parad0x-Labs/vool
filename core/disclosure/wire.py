@@ -338,7 +338,8 @@ class WirePayload(dict):
             # honors it with cloud help off: a reservation the server made for THIS call, still
             # standing at dispatch. Local-only and the turn's veto below still refuse it.
             network_allowed = (self.network_consent.allowed(url, self) if isinstance(self.network_consent, UsePodConsent)
-                               else _operator_cloud_network_allowed() or _paid_call_still_reserved(self.owner_paid_call))
+                               else _operator_cloud_network_allowed()
+                               or _paid_call_still_reserved(self.owner_paid_call, model=str(self.get("model") or "")))
             if (remote_fetch_forbidden() or auto_local_only_mode.turn_is_local_only(None)
                     or not network_allowed):
                 raise DisclosureRefused("Cloud models are off for this turn. Nothing was sent.")
@@ -491,14 +492,14 @@ def request_context(request: Any, *, provider: str, cloud: bool) -> dict[str, An
                                  for a in attachments if isinstance(a, dict))}
 
 
-def _paid_call_still_reserved(model_call_id: str) -> bool:
-    """Whether the spend ledger holds a standing reservation for this call.
+def _reserved_model(model_call_id: str) -> str:
+    """The model a standing spend reservation holds for this call, or "" when there is none.
 
     Only core.paid_call_reservation makes one, from server-held state, for the owner's explicit pick
     of a paid model (never for an automatic fallback). A released, settled or held call is not one.
     """
     if not model_call_id:
-        return False
+        return ""
     try:
         from storage.db import get_connection
 
@@ -506,14 +507,56 @@ def _paid_call_still_reserved(model_call_id: str) -> bool:
         try:
             # Read only: a home that never reserved a paid call has no ledger table, and none is made here.
             if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='model_spend_reservations'").fetchone():
-                return False
+                return ""
             row = conn.execute("SELECT status, model_id FROM model_spend_reservations WHERE model_call_id = ?",
                                (str(model_call_id),)).fetchone()
         finally:
             conn.close()
     except Exception:
-        return False
-    return row is not None and str(row[0]) == "reserved" and str(row[1]) != "x.api"
+        return ""
+    if row is None or str(row[0]) != "reserved" or str(row[1] or "") in {"", "x.api"}:
+        return ""
+    return str(row[1])
+
+
+def _host(url: str) -> str:
+    from urllib.parse import urlparse
+
+    try:
+        return str(urlparse(str(url or "")).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def _lane_host(provider_id: str, model: str) -> str:
+    """The host of the registered lane ``provider_id`` serving ``model``, or "" when no such lane is on."""
+    try:
+        from storage.model_provider_manifest import list_provider_manifests
+
+        for manifest in list_provider_manifests(enabled_only=True):
+            if str(manifest.provider_id) == str(provider_id) and str(manifest.model_name) == str(model):
+                return _host(str((manifest.runtime_config or {}).get("base_url") or ""))
+    except Exception:
+        return ""
+    return ""
+
+
+def _paid_call_still_reserved(model_call_id: str, *, model: str = "") -> bool:
+    """Whether the spend ledger still holds a standing reservation for this call AND this model."""
+    reserved = _reserved_model(model_call_id)
+    return bool(reserved) and reserved == str(model or "")
+
+
+def _owner_paid_call(request: Any, payload: dict[str, Any], *, url: str, provider_id: str) -> str:
+    """The call id when this request is the owner's reserved paid pick, bound to the reserved model and
+    the reserved lane's host: a reservation never carries another model or another destination."""
+    call_id = str(getattr(request, "model_call_id", "") or "")
+    model = str(payload.get("model") or "")
+    reserved = _reserved_model(call_id)
+    if not reserved or reserved != model:
+        return ""
+    lane = _lane_host(provider_id, reserved)
+    return call_id if lane and lane == _host(url) else ""
 
 
 def prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], request: Any, encoder=encode_body) -> WirePayload:
@@ -522,8 +565,7 @@ def prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], reque
     A refusal is also written to the caller's stop note when it brought one (STOP_NOTE_KEY)."""
     try:
         wire = _prepare(payload, url=url, context=context, request=request, encoder=encoder)
-        if _paid_call_still_reserved(str(getattr(request, "model_call_id", "") or "")):
-            wire.owner_paid_call = str(request.model_call_id)
+        wire.owner_paid_call = _owner_paid_call(request, wire, url=url, provider_id=str(context.get("provider") or ""))
         return wire
     except DisclosureRefused as exc:
         note = (getattr(request, "metadata", None) or {}).get(STOP_NOTE_KEY)
