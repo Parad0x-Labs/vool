@@ -3649,7 +3649,6 @@
     "addons.plugin_message_9b62a2f94767": "לא הייתה אפשרות להוריד את התוסף הזה. לא הותקן דבר.",
     "addons.plugin_message_65179f7f8314": "מקור התוסף הזה השתנה. בדקו אותו שוב.",
     "addons.plugin_message_7038ceabccfe": "אי אפשר לפתוח את הבדיקה הזאת. התחילו את הבדיקה שוב.",
-    "addons.plugin_message_0ef7c8054096": "השירות הזה צריך פלאגין שיכול לשלם עבורו. הפעילו קודם את הפלאגין הזה.",
     "addons.plugin_message_fc0c95675725": "השם הזה שייך לפלאגין שנוצר על ידי VOOL. תנו לפלאגין שלכם שם אחר כדי להתקין אותו.",
     "addons.plugin_message_2d0ae0a4c670": "הקובץ של מיומנות VOOL הזו לא תואם לעותק שהגיע עם VOOL, ולכן היא לא נוספה. עדכנו את VOOL או התקינו אותו מחדש כדי לתקן זאת.",
     "settings.row.hide_name_on_screen.label": "הסתרת השם שלי על המסך",
@@ -5179,7 +5178,7 @@
     "wallet.backup.usb_saved": "גיבוי USB: נשמר ב-{drive}",
     "wallet.backup.usb_none": "גיבוי USB: עדיין לא"
   },
-  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
+  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

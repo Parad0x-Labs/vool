@@ -3649,7 +3649,6 @@
     "addons.plugin_message_9b62a2f94767": "Couldn't download this add-on. Nothing was installed.",
     "addons.plugin_message_65179f7f8314": "Where this add-on comes from has changed. Check it again.",
     "addons.plugin_message_7038ceabccfe": "That check can't be opened. Start the check again.",
-    "addons.plugin_message_0ef7c8054096": "This service needs a plugin that can pay for it. Switch that plugin on first.",
     "addons.plugin_message_fc0c95675725": "This name belongs to a plugin made by VOOL. Give your plugin a different name to install it.",
     "addons.plugin_message_2d0ae0a4c670": "This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added. Update or reinstall VOOL to repair it.",
     "settings.row.hide_name_on_screen.label": "Hide my name on screen",

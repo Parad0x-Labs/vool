@@ -3649,7 +3649,6 @@
     "addons.plugin_message_9b62a2f94767": "تعذّر تنزيل هذه الإضافة. لم يُثبَّت شيء.",
     "addons.plugin_message_65179f7f8314": "تغيّر المصدر الذي تأتي منه هذه الإضافة. افحصها مرة أخرى.",
     "addons.plugin_message_7038ceabccfe": "لا يمكن فتح ذلك الفحص. ابدأ الفحص مرة أخرى.",
-    "addons.plugin_message_0ef7c8054096": "تحتاج هذه الخدمة إلى إضافة تستطيع الدفع مقابلها. شغّل تلك الإضافة أولًا.",
     "addons.plugin_message_fc0c95675725": "هذا الاسم يخص إضافة صنعها VOOL. أعطِ إضافتك اسمًا مختلفًا لتثبيتها.",
     "addons.plugin_message_2d0ae0a4c670": "ملف مهارة VOOL هذه لا يطابق النسخة التي جاءت مع VOOL، لذلك لم تُضَف. حدّث VOOL أو أعد تثبيته لإصلاح ذلك.",
     "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
@@ -5179,7 +5178,7 @@
     "wallet.backup.usb_saved": "نسخة USB: محفوظة على {drive}",
     "wallet.backup.usb_none": "نسخة USB: ليس بعد"
   },
-  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
+  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

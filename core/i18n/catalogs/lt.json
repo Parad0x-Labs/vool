@@ -3649,7 +3649,6 @@
     "addons.plugin_message_9b62a2f94767": "Nepavyko atsisiųsti šio priedo. Niekas nebuvo įdiegta.",
     "addons.plugin_message_65179f7f8314": "Pasikeitė tai, iš kur ateina šis priedas. Patikrinkite jį dar kartą.",
     "addons.plugin_message_7038ceabccfe": "Šis patikrinimas neatsidaro. Pradėkite patikrinimą iš naujo.",
-    "addons.plugin_message_0ef7c8054096": "Šiai paslaugai reikia papildinio, kuris gali už ją mokėti. Pirmiausia įjunkite tą papildinį.",
     "addons.plugin_message_fc0c95675725": "Šis pavadinimas priklauso VOOL sukurtam papildiniui. Norėdami įdiegti, suteikite savo papildiniui kitokį pavadinimą.",
     "addons.plugin_message_2d0ae0a4c670": "Šio VOOL įgūdžio failas nesutampa su kopija, gauta kartu su VOOL, todėl jis nepridėtas. Atnaujinkite arba iš naujo įdiekite VOOL, kad tai pataisytumėte.",
     "settings.row.hide_name_on_screen.label": "Slėpti mano vardą ekrane",
@@ -5179,7 +5178,7 @@
     "wallet.backup.usb_saved": "USB atsarginė kopija: išsaugota {drive}",
     "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra"
   },
-  "source_catalog_sha256": "682e906b04ae8a8686a251edd7e9fc19bc8da9bd033badba0238a1e03c849972",
+  "source_catalog_sha256": "93df5782f08f1e9fd3a3e085119533937578a19f10a4bcb7e33a3fe39d9928ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
