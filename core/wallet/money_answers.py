@@ -97,6 +97,10 @@ _HOW_TO_RE = re.compile(
     r"|\bhow\s+(?:does|do)\b[^.?!]{0,60}\bwork\b|\bwhat\s+(?:is|are)\s+(?:a|an)\b", re.I)
 #: material the words point at (a file, a note, a document): reading it is not a reading of the wallets
 _MATERIAL_RE = re.compile(r"\b(?:files?|folders?|documents?|docs?|pdfs?|notes?|spreadsheets?|screenshots?|attachments?|words|emails?|messages?)\b|\.(?:txt|csv|pdf|md|json)\b", re.I)
+#: paper the owner holds: a receipt, bill, invoice, statement or picture is read from the paper (or the attachment),
+#: not from the wallet, unless the words tie it to a wallet, the assistant, a plugin or a coin
+_PAPER_RE = re.compile(
+    r"\b(?:receipts?|bills?|invoices?|statements?|quotes?|orders?|tickets?|scans?|photos?|pictures?|images?|uploads?|uploaded|attached|scanned)\b", re.I)
 #: the shape of asking: a question, or a request to show or tell (a statement about a wallet is not a question)
 _ASKING_RE = re.compile(
     r"\?|^(?:ok(?:ay)?[,\s]+|so[,\s]+|and[,\s]+|hey[,\s]+|vool[,\s]+)*(?:how|what|whats|what's|which|is|are|do|does|did|has|have|can|could|show|give|list|tell|check|"
@@ -155,6 +159,12 @@ def _clean(text: str) -> str:
 _MY_BALANCE_RE = re.compile(r"\b(?:my|our)\s+(?:(?:total|overall|current|crypto|coin|sol|usdc|usdt|eth|bnb|onchain|on-chain)\s+){0,2}balances?\b", re.I)
 
 
+def _ties_to_a_wallet(cleaned: str) -> bool:
+    """A receipt or bill the words tie to the wallets: the assistant's, a plugin's, VOOL's own payments, a coin."""
+    return bool(_OWN_WALLET_RE.search(cleaned) or _AGENT_RE.search(cleaned) or _YOU_PAID_RE.search(cleaned)
+                or re.search(r"\b(?:plugins?|skills?|crypto)\b", cleaned, re.I) or re.search(rf"\b{_COINS}\b", cleaned, re.I))
+
+
 def is_money_question(text: str, *, wallet_on: bool = True) -> bool:
     """Whether the words ask about the owner's own wallets, an agent's spending, limits, waiting payments or payment
     history. A question, never an order (orders go to the wallet's own doors), and never cloud AI usage, a card or a
@@ -163,6 +173,8 @@ def is_money_question(text: str, *, wallet_on: bool = True) -> bool:
     if not cleaned or len(cleaned) > 400:
         return False
     if _NOT_THIS_WALLET_RE.search(cleaned) or _HOW_TO_RE.search(cleaned) or _MATERIAL_RE.search(cleaned) or not _ASKING_RE.search(cleaned):
+        return False
+    if _PAPER_RE.search(cleaned) and not _ties_to_a_wallet(cleaned):
         return False
     first_clause = re.split(r"[.?!;]\s+", cleaned)[0]
     if _ORDER_RE.search(first_clause) and not _HYPOTHETICAL_SEND_RE.search(cleaned):
@@ -191,7 +203,8 @@ def may_be_about_money(text: str) -> bool:
         return True
     cleaned = _clean(text)
     return bool(cleaned and len(cleaned) <= 400 and _ASKING_RE.search(cleaned) and re.search(r"\b(?:waiting|pending|awaiting)\b[^.?!]{0,40}\b(?:approv\w*|sign\w*|ok)\b", cleaned, re.I)
-                and not _MATERIAL_RE.search(cleaned) and not _NOT_THIS_WALLET_RE.search(cleaned))
+                and not _MATERIAL_RE.search(cleaned) and not _NOT_THIS_WALLET_RE.search(cleaned)
+                and not (_PAPER_RE.search(cleaned) and not _ties_to_a_wallet(cleaned)))
 
 
 def read_ask(text: str) -> MoneyAsk:

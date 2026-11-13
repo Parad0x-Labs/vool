@@ -37,6 +37,24 @@ NOT_ASKED = (
     "approve the payment",
     "set the agent's daily limit to 5 USDC",
 )
+PAPER_TOTALS = (
+    "What is the total on the attached receipt?",
+    "what is the total on this receipt",
+    "how much did i pay on this receipt",
+    "how much tax is on this receipt",
+    "how much is the electricity bill?",
+    "how much do i owe on this invoice?",
+    "what's the total on the scanned invoice",
+    "how much was spent according to the uploaded statement?",
+    "is anything waiting on this invoice to be approved?",
+)
+WALLET_RECEIPTS = (
+    "show me the agent's receipts from yesterday",
+    "what receipts do i have from the assistant this month?",
+    "show me my wallet receipts",
+    "did the agent pay any bills today?",
+    "did you pay for anything without asking me?",
+)
 DEV_WORDS = re.compile(r"minor|lamport|wei\b|pocket_sealed|eip155|solana:|pending_approval|wallet-[0-9a-f]{6}", re.IGNORECASE)
 
 
@@ -52,6 +70,21 @@ def test_prices_explanations_orders_and_other_money_are_not_wallet_reads(text):
     from core.wallet import money_answers
 
     assert not money_answers.is_money_question(text), text
+
+
+@pytest.mark.parametrize("text", PAPER_TOTALS)
+def test_a_receipt_bill_invoice_or_statement_total_is_read_from_the_paper_not_the_wallet(text):
+    from core.wallet import money_answers
+
+    assert not money_answers.is_money_question(text), text
+    assert not money_answers.may_be_about_money(text), text
+
+
+@pytest.mark.parametrize("text", WALLET_RECEIPTS)
+def test_receipts_tied_to_the_assistant_or_the_wallet_stay_wallet_reads(text):
+    from core.wallet import money_answers
+
+    assert money_answers.is_money_question(text), text
 
 
 def _wallet():
