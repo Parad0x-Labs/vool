@@ -43,8 +43,10 @@ IS the answer the user needs — report it exactly, do not route around it.
 
 1. **Connect first.** `vool-database.connect` with the bare database name.
    It returns the engine identity and integrity snapshot. A database that does
-   not exist is `unknown_database`: offer to create a disposable one with
-   `vool-database.db.create` — never assume contents.
+   not exist is `unknown_database`: say so and name the databases that do exist.
+   From chat you read and preview only: you cannot create a database or add,
+   change or delete rows, so never say you did, and never offer to — say plainly
+   that it cannot be done from chat. Never assume contents.
 2. **Inspect before you query.** `vool-database.schema` gives tables, columns,
    types, primary/foreign keys, unique constraints, indexes and row counts.
    Read it before writing SQL; a query against the wrong shape wastes a turn.
