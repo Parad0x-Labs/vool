@@ -97,12 +97,3 @@ SETTINGS_KIT_CSS += """
 .inline > .vs-learn[open] { flex-basis:100%; }
 .inline > .vs-learn { align-self:center; }
 """
-SETTINGS_KIT_CSS += """
-/* Toybox: a denser grid of skins, so the page is not a long scroll of big cards. */
-#paneBody .tb-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr)); gap:12px; }
-#paneBody .tb-card { padding:10px; }
-#paneBody .tb-mini { height:120px; }
-#paneBody .tb-mini iframe { height:240px; }
-#paneBody .tb-name { font-size:14px; margin-top:8px; }
-#paneBody .tb-card .tb-desc { margin:4px 0 10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-"""

@@ -364,18 +364,6 @@ _EXTERNAL: dict[str, str] = {
     "http:POST:/api/notifications/native/report": "notifications lane operator action (native delivery report)",
     "http:POST:/api/notifications/native/test": "notifications lane operator action (native test delivery)",
     "http:POST:/api/notifications/native/authorize": "notifications lane operator action (native authorization)",
-    # Toybox skins lane: owner-local cosmetic doors behind the operator guard (loopback,
-    # JSON, same origin); the skin data is inert and no command surface is exposed.
-    # Pet Yard lane: the offline Yard page and its local doors (loopback only; saves go through
-    # the operator guard). Yard documents and pet packs are inert data, never scripts.
-    "http:GET:/pet-yard": "yard lane local page (offline cosmetic play)",
-    "http:GET:/api/pet-yard": "yard lane read feed (validated local document)",
-    "http:GET:/api/pet-yard/lifeform": "yard lane read feed (verified public appearance)",
-    "http:GET:/api/pet-cosmetics": "yard lane read feed (local inert media choices)",
-    "http:POST:/api/pet-yard": "yard lane operator actions (guarded local saves and foreground growth)",
-    "http:POST:/api/pet-cosmetics/*": "yard lane operator actions (guarded data-only imports and choices)",
-    "http:GET:/api/toybox": "toybox lane read feed (skin state and choices)",
-    "http:POST:/api/toybox/*": "toybox lane operator action (preview, apply, restore, remove)",
     "http:GET:/api/calendar/accounts": "calendar lane read feed (accounts)",
     "http:GET:/api/calendar/alerts": "calendar lane read feed (alerts)",
     "http:GET:/api/reminders": "calendar lane read feed (reminders)",

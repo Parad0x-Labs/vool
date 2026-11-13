@@ -1007,17 +1007,6 @@ def _settings_groups() -> list[dict]:
             ],
         },
         {
-            "id": "toybox",
-            "icon": "▦",
-            "title": "Toybox",
-            "blurb": "Original app skins. Preview, apply, create and restore.",
-            "rows": [
-                _row(id="toybox_skins",
-                    hint="Change how VOOL looks. Approvals keep VOOL’s own look.", label="App skins", help="Preview an original skin, apply it to chat and Settings, or restore VOOL default. Skins change appearance only.", kind="custom", widget="toybox_skins",
-                     keywords=["skin", "theme", "toybox", "colours", "appearance"]),
-            ],
-        },
-        {
             "id": "companion",
             "icon": "◐",
             "title": "Appearance",
@@ -1796,7 +1785,7 @@ function hitsFor(groupId, q) { return ALL_ROWS.filter(r => r.group === groupId &
 const SETTINGS_NAV_ICONS = {
   setup: 'check', general: 'settings', permissions: 'shield', keys: 'key', email: 'mail', models: 'models',
   memory: 'memory', backup: 'backup', network: 'globe', budgets: 'budgets', calendars: 'calendar',
-  notifications: 'bell', wallet: 'wallet', toybox: 'palette', companion: 'appearance', phone: 'phone', advanced: 'advanced', about: 'about',
+  notifications: 'bell', wallet: 'wallet', companion: 'appearance', phone: 'phone', advanced: 'advanced', about: 'about',
 };
 function renderNav() {
   const nav = $('#nav');
@@ -2217,7 +2206,6 @@ function renderWidget(row, host) {
   if (w === 'scam_school') return widgetScamSchool(stack);
   if (w === 'setup_progress') return widgetSetupProgress(stack);
   if (w === 'appearance') return widgetAppearance(stack);
-  if (w === 'toybox_skins') return widgetSurface(stack, 'VoolToybox', 'Toybox did not load. Reload Settings.');
   if (w === 'companion_pet') return widgetCompanionPet(stack);
   if (w === 'advanced_links') return widgetAdvancedLinks(stack);
   if (w === 'extras_memory') return widgetExtras(stack, 'memory');
@@ -6241,7 +6229,6 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.routines_fragment import render_routines_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.settings_ui_kit import SETTINGS_KIT_CSS
-    from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
     from core.x_settings_fragment import X_FEATURES_JS
     from core.x_social_fragment import render_x_social_fragment
@@ -6252,7 +6239,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS + "\n" + SETTINGS_KIT_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_x_social_fragment() + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
+        + "\n" + render_x_social_fragment() + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the
@@ -6263,8 +6250,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     logo = Path(__file__).with_name("assets") / "vool-logo-dark.png"
     logo_uri = ("data:image/png;base64," + b64encode(logo.read_bytes()).decode("ascii")) if logo.is_file() else "data:,"
     return (
-        page.replace("</head>", current_skin_style() + "</head>", 1)
-        .replace("__SETTINGS_MODEL__", model)
+        page.replace("__SETTINGS_MODEL__", model)
         .replace("__VOOL_LOGO_URI__", logo_uri, 1)
         .replace("__LANGUAGE_CATALOG__", catalog)
         .replace("__PLUGIN_MANAGED_SLOTS__", json.dumps(retired_slots()))

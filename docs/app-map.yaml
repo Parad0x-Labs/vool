@@ -1434,16 +1434,6 @@ rows:
     tests: [tests/test_companion_context_boundary.py, tests/test_companion_no_ground.py]
     label: TESTED
     target_release: 0.7.0
-  - id: app-skins
-    title: Change the app's look with Toybox skins
-    area: other
-    ui: []
-    wired: ["/api/toybox", "/api/toybox/*"]
-    default: []
-    tests: [tests/test_toybox_skins.py, tests/test_toybox_v2_acceptance.py, tests/test_toybox_protects_072_surfaces.py]
-    label: TESTED
-    target_release: unknown
-    note: Settings > Toybox. Skins change appearance only; approvals, receipts, keys and private chats keep VOOL's own look.
   - id: scene-lab
     title: Scene lab panel
     area: other
@@ -1535,17 +1525,6 @@ rows:
     label: UNKNOWN
     target_release: unknown
     note: The follow-up tracker is on by default and points at a shipped watcher address; whether it reaches the network on a fresh install is undetermined; the outbound-fetch consent check is the only remaining gate.
-
-  - id: pet-yard
-    title: Build and play in the offline Pet Yard
-    area: other
-    ui: [petYardLink]
-    wired: ["/pet-yard", "/api/pet-yard", "/api/pet-yard/lifeform", "/api/pet-cosmetics", "/api/pet-cosmetics/*"]
-    default: []
-    tests: [tests/test_pet_world_journey.py, tests/test_pet_cosmetics.py]
-    label: IMPLEMENTED
-    target_release: unknown
-    note: Local operator doors; custom web pets and sounds are inert imports. Detached desktop custom pets and online visits are not provided.
 
 # Deliberate non-features: census routes and pinned tools that no row claims,
 # each with the reason they are not user features.

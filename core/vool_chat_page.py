@@ -64,7 +64,6 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .home-options { position:absolute; bottom:calc(100% + 8px); left:0; right:0; z-index:60; padding:6px; border:1px solid var(--border); border-radius:12px; background:var(--panel-solid); box-shadow:0 8px 30px #0005; max-height:calc(100dvh - 100px); overflow-y:auto; }
 .home-options .side-foot-btn { display:block; border-color:transparent; padding:9px 10px; }
 .home-options .side-foot-btn:hover { background:var(--active); }
-.home-options a.side-foot-btn { text-decoration:none; box-sizing:border-box; }
 .home-support { margin-top:5px; padding-top:5px; border-top:1px solid var(--border); }
 .home-support .side-foot-btn { font-size:12px; font-weight:500; color:var(--muted); }
 
@@ -1273,7 +1272,6 @@ body:not(.panel-open) #xpanel { display:none; }
         <button id="pluginsBtn" type="button" class="side-foot-btn vi" data-ico="addons" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
         <button id="filesBtn" type="button" class="side-foot-btn vi" data-ico="files" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">Files</button>
         <button id="contactsBtn" type="button" class="side-foot-btn vi" data-ico="contacts" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">Contacts</button>
-        <a id="petYardLink" class="side-foot-btn vi" data-ico="paw" href="/pet-yard" title="Pet Yard &mdash; build and play with your pets, offline" data-i18n="yard.title" data-i18n-title="yard.open_title">Pet Yard</a>
         <button id="settingsBtn" type="button" class="side-foot-btn vi" data-ico="settings" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">Settings</button>
         <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn vi" data-ico="report" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
       </div>
@@ -2348,7 +2346,6 @@ function setDisplayedChat(chatId) {
   if (previousChat && previousChat !== String(chatId || '') && typeof closeBypassModal === 'function') closeBypassModal();
   displayedChat = String(chatId || '');
   view = chatState(displayedChat);
-  if (window.VoolStage) window.VoolStage.mirror(displayedChat, false);
   // The address follows the chat on screen (replaced, not pushed, so Back history is not flooded).
   try { if (CANONICAL.test(displayedChat) && location.hash !== '#' + displayedChat) history.replaceState(null, '', '#' + displayedChat); } catch (e) {}
   // Named fragment call site: per-chat composer state (drafts, accent) follows the ONE place the
@@ -6795,7 +6792,6 @@ function applyTaskEvent(run, ev) {
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
   if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
-  if (typeof window !== 'undefined' && window.VoolStage && isDisplayed(run.chatId)) window.VoolStage.mirror(run.chatId, false);
   // The goal card consumes the same durable event (also before the ended-gate: a goal event
   // that arrives after the carrying turn finished is still live goal truth).
   if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
@@ -9805,7 +9801,6 @@ async function runTurn(text, queueItemId, opts) {
     // ("as we go") instead of the frozen first-message chat title. Presentation only: the
     // reducer bounds it, the screen-privacy mask covers it before it reaches the native pet.
     try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start, userText: text }); } catch (e) {}
-    if (window.VoolStage && isDisplayed(chatId)) window.VoolStage.mirror(chatId, false);
   }
   run.attachments = turnAttachments;
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one
@@ -10057,7 +10052,6 @@ async function runTurn(text, queueItemId, opts) {
           // State first, unconditionally: the answer accrues on the run whether or not anyone is
           // looking at this chat. Painting is the gated second step.
           assistant += chunk;
-          if (window.VoolStage && isDisplayed(chatId)) window.VoolStage.mirror(chatId, true);
           run.text = assistant;
           // Live token estimate (~4 chars/token) as the answer streams -- the answer's own footer
           // carries the exact count when it finishes.
@@ -15627,14 +15621,12 @@ def _page_fragments() -> tuple[str, ...]:
     from core.price_safety_fragment import render_price_safety_fragment
     from core.routines_fragment import render_routines_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
-    from core.toybox_fragment import render_toybox_fragment
     from core.ui_chip_fragment import render_chip_fragment
     from core.wallet_fragment import render_wallet_fragment
     from core.x_social_fragment import render_x_social_fragment
 
     return (
         render_chip_fragment(),
-        render_toybox_fragment(),
         render_addon_store_fragment(),
         render_chat_visuals_fragment(),
         render_palette_fragment(),
@@ -15687,7 +15679,6 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
 
     from core.i18n.catalog import catalog_for
     from core.i18n.locales import get_locale
-    from core.toybox_fragment import current_skin_style
 
     logo = Path(__file__).with_name("assets") / "vool-logo-dark.png"
     logo_uri = "data:image/png;base64," + b64encode(logo.read_bytes()).decode("ascii")
@@ -15699,7 +15690,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
     tag = catalog_for(ui_locale).locale
     spec = get_locale(tag)
     page = (
-        _VOOL_CHAT_HTML.replace("</head>", current_skin_style() + "</head>", 1).replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
+        _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
         .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
