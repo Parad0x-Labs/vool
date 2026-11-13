@@ -309,8 +309,9 @@ def _record_conductor_demand_receipts(plan: Any, outcomes: Any, *, request: str)
 def _skill_keeps_turn_whole(text: str, source_context: Any) -> bool:
     """Whether a skill the ask names, or an added skill its words pick, keeps the turn whole.
 
-    The conductor's steps and a planned split never read skills, so a turn split there reaches
-    the skill in no part (core.tool_offer_assembly.skill_picks_turn, the clean loop's law too).
+    The conductor's steps, the demand seam's units and a planned split never read skills, so a
+    turn split there reaches the skill in no part (core.tool_offer_assembly.skill_picks_turn, the
+    clean loop's law too).
     Asked only of a turn that may hold several requests, so a one-request turn pays nothing. Fails
     toward the turn's lanes: any error is no.
     """
@@ -3522,6 +3523,22 @@ class VoolAgent(
                 return None
         except Exception:
             pass
+        # And for one request over a paste ("Turn this into an X article:", "Summarise this:"):
+        # the pasted sentences and links are its material, not demands of their own, by the
+        # planners' own reader (turn_planner.single_shape_needs_no_planner). Measured on the v0.8
+        # round 6 candidate (11eef8dc): this seam cut "Turn this into an X article:" and a pasted
+        # article into eleven sub-turns that fetched its links and looked for files; on the Mac
+        # the turn ran seven minutes and ended in an HTTP 500. A turn a skill picks stays whole
+        # here too, as in the conductor and the turn planner (_skill_keeps_turn_whole).
+        try:
+            from core.agent_runtime.turn_planner import single_shape_needs_no_planner
+
+            if single_shape_needs_no_planner(str(raw_input or effective_input)):
+                return None
+        except Exception:
+            pass
+        if _skill_keeps_turn_whole(str(raw_input or effective_input), source_context):
+            return None
         # --------------------------------------------------------------------
         # PHASE 1 — PRE-DISPATCH ELIGIBILITY. Nothing here may leave side
         # effects: no unit has been handed to a lane, so declining is free.

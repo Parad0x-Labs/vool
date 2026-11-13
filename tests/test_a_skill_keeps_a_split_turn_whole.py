@@ -3,9 +3,10 @@
 Measured on the Mac skills A/B (v0.8 round 6 candidate 11eef8dc, qwen3:8b, loop on and off), with
 eight VOOL skills added from Browse:
 
-- "Turn this into an X article:" with a pasted article was split by the turn planner into planned
-  sub-turns that fetched the article's links and looked for files; seven minutes later the turn
-  ended in an HTTP 500. The paste is the one object of the one request.
+- "Turn this into an X article:" with a pasted article was split by the turn planner and by the
+  demand seam (eleven units, no model) into planned sub-turns that fetched the article's links and
+  looked for files; seven minutes later the turn ended in an HTTP 500. The paste is the one object
+  of the one request.
 - "my disk is full, where did the space go" and "assertion error in my tests, what is the cause"
   were cut in two by the conductor, whose explanation step answered one half with no skill and no
   tools, while disk-space-advisor and test-failure-helper were installed for exactly those words.
@@ -34,7 +35,11 @@ PASTE = (
     "participating households and 120 completed loans. Those are different measures: a household "
     "can borrow more than once.\n\n[PICTURE 1: register.png]\n\n"
     "## Make the shelf easy to read\n\n"
-    "The [shelf map](https://library.example.org/shelves) groups items by the job they help with.\n"
+    "The [shelf map](https://library.example.org/shelves) groups items by the job they help with.\n\n"
+    "## Make a volunteer shift understandable\n\n"
+    "The [volunteer guide](https://library.example.org/volunteer) describes opening the register, "
+    "checking expected returns, helping a borrower find an item, and leaving notes for the next "
+    "shift. We need more people willing to learn that routine.\n\n[PICTURE 2: rota.png]\n"
 )
 
 CONVERT_HEADS = (
@@ -64,6 +69,26 @@ def test_turning_pasted_material_into_something_is_one_request(head: str) -> Non
         raise AssertionError("a paste to turn into one piece bought a decomposition call")
 
     assert plan_turn(turn, ask_model=_must_not_run) == []
+
+
+@pytest.mark.parametrize("head", CONVERT_HEADS)
+def test_the_demand_seam_leaves_a_paste_to_rework_whole(head: str, monkeypatch) -> None:
+    from unittest.mock import Mock
+
+    from apps.vool_agent import VoolAgent
+    from core.agent_runtime.demand_ownership import demand_coverage
+
+    turn = f"{head}\n\n{PASTE}"
+    if head == CONVERT_HEADS[0]:
+        # The seam's own reader cuts the article into units (the A/B article went to eleven).
+        assert demand_coverage(turn).mixed
+    planner = Mock(return_value=[])
+    monkeypatch.setattr("core.agent_runtime.demand_ownership.units_as_plan", planner)
+    result = VoolAgent._maybe_answer_demand_owned_turn(
+        object(), effective_input=turn, raw_input=turn, session_id="paste-whole", source_context=dict(OWNER)
+    )
+    assert result is None
+    planner.assert_not_called()
 
 
 @pytest.mark.parametrize(
