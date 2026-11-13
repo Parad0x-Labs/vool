@@ -314,7 +314,8 @@ def email_policy_disabled():
         policy_engine._POLICY_CACHE = previous
 
 
-def test_served_email_disabled_by_policy_is_honest(isolated_home, mail_service, email_policy_disabled) -> None:
+@pytest.mark.usefixtures("email_policy_disabled")
+def test_served_email_disabled_by_policy_is_honest(isolated_home, mail_service) -> None:
     from core.tool_intent_executor import execute_tool_intent
 
     context = {**_OPENCLAW, "operating_mode": "auto", "runtime_session_id": _sid("disabled")}
