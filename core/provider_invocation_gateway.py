@@ -725,6 +725,7 @@ class ProviderInvocationPermit:
                                      cloud_destination=self._disclosure_wire.cloud_destination,
                                      network_consent=self._disclosure_wire.network_consent)
                 result.timing = self._disclosure_wire.timing
+                result.owner_paid_call = getattr(self._disclosure_wire, "owner_paid_call", "")
                 return result
             return copy.deepcopy(self._payload)
 

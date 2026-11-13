@@ -8,8 +8,8 @@ same call ran on until the provider answered and only then raised ``model_call_c
 ledger recorded exactly this, a minute later.
 
 NO REAL CALL IS MADE. The real Anthropic BYOK lane is registered from a dummy key and its POST goes
-through the real provider transfer (worker process, cancel option and all) to a loopback server
-that holds the reply, so only the destination differs from a live call.
+through the disclosure boundary and the real provider transfer (worker process, cancel option and
+all) to a loopback server that holds the reply, so only the destination differs from a live call.
 """
 from __future__ import annotations
 
@@ -69,14 +69,18 @@ def test_a_paid_call_stopped_in_flight_ends_at_once_and_is_held_as_billing_ambig
         unregister_runtime_event_sink,
     )
 
-    real_post = provider_http.post
     sent: list[str] = []
 
-    def to_loopback(url, **options):
-        sent.append(str(url))
-        return real_post(f"http://127.0.0.1:{holding_provider.server_port}/v1/chat/completions", **options)
+    # The swap happens in the transfer itself, after the disclosure boundary has checked the body
+    # against its reviewed destination (a body bound for the provider is never re-pointed earlier).
+    class ToLoopback(provider_http._Transfer):
+        def __init__(self, method, url, options, cancel_check):
+            if str(url).startswith("https://api.anthropic.com/"):
+                sent.append(str(url))
+                url = f"http://127.0.0.1:{holding_provider.server_port}/v1/chat/completions"
+            super().__init__(method, url, options, cancel_check)
 
-    monkeypatch.setattr("adapters.openai_compatible_adapter.requests.post", to_loopback)
+    monkeypatch.setattr(provider_http, "_Transfer", ToLoopback)
     _set_policy(mode="off", daily_cap=25)
     events: list[dict] = []
     stream_id = new_runtime_event_stream_id()

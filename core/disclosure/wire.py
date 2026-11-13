@@ -313,6 +313,8 @@ class WirePayload(dict):
         self.preview_id = preview_id
         self._wire_consumed = False
         self.timing = None
+        #: The model call id of the owner's own paid pick, when the router reserved this call for it.
+        self.owner_paid_call = ""
 
     def consume_wire(self, url: str) -> bytes:
         from core import auto_local_only_mode
@@ -332,8 +334,11 @@ class WirePayload(dict):
         # dispatch, including cloud manifests served on a loopback endpoint.
         if self.cloud_destination is True or not auto_local_only_mode.endpoint_is_local(url):
             from core.disclosure.network import UsePodConsent
+            # The owner's explicit pick of a paid model is its own authority, exactly as the router
+            # honors it with cloud help off: a reservation the server made for THIS call, still
+            # standing at dispatch. Local-only and the turn's veto below still refuse it.
             network_allowed = (self.network_consent.allowed(url, self) if isinstance(self.network_consent, UsePodConsent)
-                               else _operator_cloud_network_allowed())
+                               else _operator_cloud_network_allowed() or _paid_call_still_reserved(self.owner_paid_call))
             if (remote_fetch_forbidden() or auto_local_only_mode.turn_is_local_only(None)
                     or not network_allowed):
                 raise DisclosureRefused("Cloud models are off for this turn. Nothing was sent.")
@@ -486,12 +491,40 @@ def request_context(request: Any, *, provider: str, cloud: bool) -> dict[str, An
                                  for a in attachments if isinstance(a, dict))}
 
 
+def _paid_call_still_reserved(model_call_id: str) -> bool:
+    """Whether the spend ledger holds a standing reservation for this call.
+
+    Only core.paid_call_reservation makes one, from server-held state, for the owner's explicit pick
+    of a paid model (never for an automatic fallback). A released, settled or held call is not one.
+    """
+    if not model_call_id:
+        return False
+    try:
+        from storage.db import get_connection
+
+        conn = get_connection()
+        try:
+            # Read only: a home that never reserved a paid call has no ledger table, and none is made here.
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='model_spend_reservations'").fetchone():
+                return False
+            row = conn.execute("SELECT status, model_id FROM model_spend_reservations WHERE model_call_id = ?",
+                               (str(model_call_id),)).fetchone()
+        finally:
+            conn.close()
+    except Exception:
+        return False
+    return row is not None and str(row[0]) == "reserved" and str(row[1]) != "x.api"
+
+
 def prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], request: Any, encoder=encode_body) -> WirePayload:
     """Resolve one owner choice before the invocation gateway claims any spend (see _prepare).
 
     A refusal is also written to the caller's stop note when it brought one (STOP_NOTE_KEY)."""
     try:
-        return _prepare(payload, url=url, context=context, request=request, encoder=encoder)
+        wire = _prepare(payload, url=url, context=context, request=request, encoder=encoder)
+        if _paid_call_still_reserved(str(getattr(request, "model_call_id", "") or "")):
+            wire.owner_paid_call = str(request.model_call_id)
+        return wire
     except DisclosureRefused as exc:
         note = (getattr(request, "metadata", None) or {}).get(STOP_NOTE_KEY)
         if isinstance(note, dict):
