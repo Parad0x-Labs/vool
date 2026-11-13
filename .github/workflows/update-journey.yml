@@ -326,20 +326,28 @@ jobs:
           [[ -n "$OLD_RUNS" && -n "$NEW_RUNS" ]] || { echo "::error::give both mac_old_runs and mac_new_runs"; exit 1; }
           python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" -q install cryptography
           echo "PY=$RUNNER_TEMP/venv/bin/python" >> "$GITHUB_ENV"
-          # fetch old|new RUN_IDS first|second: this architecture's DMG from the one successful package run among the ids,
+          # fetch old|new RUN_IDS first|second: this architecture's DMG from the one finished package run among the ids,
           # checked against its checksum, and the app inside it. Sets DMG, VERSION and COMMIT.
           fetch() {
-            local which="$1" id name conclusion sha run="" built="" sum mount manifest
+            local which="$1" id name status conclusion sha run="" built="" ended="" sum mount manifest
             for id in $2; do
-              IFS='|' read -r name conclusion sha < <(gh run view "$id" --repo "$GITHUB_REPOSITORY" \
-                --json workflowName,conclusion,headSha -q '"\(.workflowName)|\(.conclusion)|\(.headSha)"')
+              IFS='|' read -r name status conclusion sha < <(gh run view "$id" --repo "$GITHUB_REPOSITORY" \
+                --json workflowName,status,conclusion,headSha -q '"\(.workflowName)|\(.status)|\(.conclusion)|\(.headSha)"')
               [[ "$name" == "$WORKFLOW" ]] || continue
               [[ -z "$run" ]] || { echo "::error::two $WORKFLOW runs given for the $which build"; return 1; }
-              [[ "$conclusion" == success ]] || { echo "::error::$WORKFLOW run $id ended '$conclusion'"; return 1; }
-              run="$id" built="$sha"
+              [[ "$status" == completed ]] || { echo "::error::$WORKFLOW run $id has not finished ($status)"; return 1; }
+              run="$id" built="$sha" ended="$conclusion"
             done
             [[ -n "$run" ]] || { echo "::error::no $WORKFLOW run among '$2'"; return 1; }
+            # The package artifact exists only when the job that built it passed every check up to its upload
+            # (slices, locked requirements, checksums); there is no such artifact otherwise and this fails.
+            # A later job of the same run (the Intel smoke test) does not change the DMG, so its result is
+            # reported here and the update journey still runs.
             gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "macos-$ARCH-package" --dir "$RUNNER_TEMP/$which"
+            if [[ "$ended" != success ]]; then
+              echo "::warning::$WORKFLOW run $run ended '$ended' after its package was built and uploaded"
+              echo "- note: $WORKFLOW run $run ended '$ended' after the package was built and uploaded" >> "$GITHUB_STEP_SUMMARY"
+            fi
             DMG="$(ls "$RUNNER_TEMP/$which"/VOOL-*-macos-"$ARCH".dmg)"
             sum="$(shasum -a 256 "$DMG" | awk '{print $1}')"
             [[ "$sum" == "$(awk '{print $1}' "$DMG.sha256")" ]] || { echo "::error::$DMG does not match its checksum"; return 1; }
