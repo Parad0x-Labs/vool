@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "לצ׳אט אחד יכול להיות גם מצב אישור משלו, שנבחר מתפריט המצב ליד תיבת ההודעה. הוא חל רק על הצ׳אט הזה, והרשאה זמנית שם מסתיימת עם המשימה שלה.",
     "settings.row.mode_note.label": "מצב אישור לצ׳אט בודד",
     "settings.row.model_pin.effect": "חל מההודעה הבאה שלך. תשובה שכבר נכתבת שומרת על ההגדרה הקודמת.",
-    "settings.row.model_pin.help": "העדפה וכשירות הם שני דברים. דגם שתצמידו כאן הוא מה ש-VOOL מבקש; מה שהוא באמת יכול להשתמש בו תלוי גם במפתח שמור לאותו ספק ובכך שהספק מקבל את הבקשה. כשהשניים חלוקים, הנתיב בפועל נקרא בשם למטה ואינו מוחלף בשקט.",
+    "settings.row.model_pin.help": "המודל שתבחר כאן הוא הראשון ש-VOOL מבקש. VOOL יכול להשתמש בו רק אם נשמר מפתח של אותו ספק והספק מקבל את הבקשה. אם VOOL נאלץ להשתמש במודל אחר, הוא מציין אותו למטה ולעולם לא מחליף בשקט.",
     "settings.row.model_pin.label": "דגם",
     "settings.row.models_overview.effect": "חל מההודעה הבאה שלך. תשובה שכבר נכתבת שומרת על ההגדרה הקודמת.",
     "settings.row.models_overview.help": "איזה מודל עונה לכם ואיפה הוא רץ: במחשב הזה או ברשת דרך חברה. כל כרטיס מראה אם הוא מוכן, והפקדים של כל חברה נמצאים בהמשך.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "גיבוי ב-Keychain: נשמר",
     "wallet.backup.keychain_none": "גיבוי ב-Keychain: עדיין לא",
     "wallet.backup.usb_saved": "גיבוי USB: נשמר ב-{drive}",
-    "wallet.backup.usb_none": "גיבוי USB: עדיין לא"
+    "wallet.backup.usb_none": "גיבוי USB: עדיין לא",
+    "xbook.short": "מאפשר ל-VOOL לקרוא ולשמור את הסימניות שלך ב-X. כל בקשה ממתינה לאישורך."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

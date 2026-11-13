@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "Pokalbis taip pat gali turėti savo patvirtinimo režimą, pasirenkamą režimo meniu šalia žinutės laukelio. Jis galioja tik tam pokalbiui, o laikinas leidimas ten baigiasi kartu su jo užduotimi.",
     "settings.row.mode_note.label": "Vieno pokalbio leidimų režimas",
     "settings.row.model_pin.effect": "Galioja nuo kitos jūsų žinutės. Jau rašomas atsakymas išlaiko seną nustatymą.",
-    "settings.row.model_pin.help": "Pageidavimas ir tinkamumas — skirtingi dalykai. Modelis, pritvirtintas čia, yra tas, kurio VOOL prašo; ką jis iš tikrųjų gali naudoti, taip pat priklauso nuo to tiekėjo išsaugoto rakto ir nuo tiekėjo priėjimo prašymą. Kai šie nesutampa, faktinė eismo juosta įvardijama žemiau, o ne tylomis pakeičiama.",
+    "settings.row.model_pin.help": "Čia pasirinktą modelį VOOL prašo pirmiausia. VOOL gali jį naudoti tik tada, kai išsaugotas to tiekėjo raktas ir tiekėjas priima užklausą. Jei VOOL tenka naudoti kitą modelį, jis jį nurodo žemiau ir niekada nepakeičia tyliai.",
     "settings.row.model_pin.label": "Modelis",
     "settings.row.models_overview.effect": "Galioja nuo kitos jūsų žinutės. Jau rašomas atsakymas išlaiko seną nustatymą.",
     "settings.row.models_overview.help": "Kuris modelis jums atsako ir kur jis veikia: šiame kompiuteryje ar internete per įmonę. Kiekviena kortelė rodo, ar jis paruoštas, o kiekvienos įmonės valdikliai yra žemiau.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "Atsarginė kopija Keychain: išsaugota",
     "wallet.backup.keychain_none": "Atsarginė kopija Keychain: dar nėra",
     "wallet.backup.usb_saved": "USB atsarginė kopija: išsaugota {drive}",
-    "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra"
+    "wallet.backup.usb_none": "USB atsarginė kopija: dar nėra",
+    "xbook.short": "Leidžia VOOL skaityti ir išsaugoti jūsų X žymes. Kiekviena užklausa laukia jūsų patvirtinimo."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "Một cuộc trò chuyện cũng có thể có chế độ phê duyệt riêng, chọn từ menu chế độ cạnh ô tin nhắn. Nó chỉ áp dụng cho cuộc trò chuyện đó, và quyền tạm thời ở đó kết thúc cùng nhiệm vụ.",
     "settings.row.mode_note.label": "Chế độ phê duyệt cho một cuộc trò chuyện",
     "settings.row.model_pin.effect": "Áp dụng từ tin nhắn tiếp theo của bạn. Câu trả lời đang được viết vẫn giữ cài đặt cũ.",
-    "settings.row.model_pin.help": "Sở thích và đủ điều kiện là hai chuyện khác nhau. Mô hình bạn ghim tại đây là cái VOOL yêu cầu; cái nó thực sự dùng được còn phụ thuộc khóa đã lưu của nhà cung cấp đó và việc nhà cung cấp nhận yêu cầu. Khi hai điều khác nhau, làn thực tế được nêu dưới đây thay vì âm thầm thay thế.",
+    "settings.row.model_pin.help": "Mô hình bạn chọn ở đây là mô hình VOOL yêu cầu trước tiên. VOOL chỉ dùng được khi đã lưu khóa của nhà cung cấp đó và nhà cung cấp chấp nhận yêu cầu. Nếu VOOL phải dùng mô hình khác, nó sẽ ghi tên bên dưới và không bao giờ âm thầm đổi.",
     "settings.row.model_pin.label": "Mô hình",
     "settings.row.models_overview.effect": "Áp dụng từ tin nhắn tiếp theo của bạn. Câu trả lời đang được viết vẫn giữ cài đặt cũ.",
     "settings.row.models_overview.help": "Mô hình nào trả lời bạn và chạy ở đâu: trên máy tính này hay trực tuyến qua một công ty. Mỗi thẻ cho biết nó đã sẵn sàng chưa, và phần điều khiển cho từng công ty ở bên dưới.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "Sao lưu trong Keychain: đã lưu",
     "wallet.backup.keychain_none": "Sao lưu trong Keychain: chưa có",
     "wallet.backup.usb_saved": "Sao lưu USB: đã lưu trên {drive}",
-    "wallet.backup.usb_none": "Sao lưu USB: chưa có"
+    "wallet.backup.usb_none": "Sao lưu USB: chưa có",
+    "xbook.short": "Cho phép VOOL đọc và lưu dấu trang X của bạn. Mỗi yêu cầu đều chờ bạn phê duyệt."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -305,6 +305,9 @@ def test_extras_fragment_renders_learned_facts_privacy_and_toolbelt_in_the_new_p
     assert all(e.get("record_id") != entry["record_id"] for e in remaining), remaining
 
     page.evaluate("window.__voolSettings.go('permissions')")
+    # The privacy facts sit inside the row's "Learn more" fold; open it as a user would.
+    page.wait_for_selector("#vsPrivacySec", state="attached", timeout=15000)
+    page.evaluate("document.getElementById('vsPrivacySec').closest('details').open = true")
     page.wait_for_selector("#vsPrivacySec", timeout=15000)
     privacy = page.inner_text("#vsPrivacySec")
     assert "Keys are sealed" in privacy and "Spend is gated" in privacy, privacy

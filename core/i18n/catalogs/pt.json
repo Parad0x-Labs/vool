@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "Um chat também pode ter seu próprio modo de aprovação, escolhido no menu de modo ao lado da caixa de mensagem. Ele vale só para esse chat, e uma permissão temporária ali termina com a tarefa.",
     "settings.row.mode_note.label": "Modo de aprovação para uma conversa",
     "settings.row.model_pin.effect": "Vale a partir da sua próxima mensagem. Uma resposta que já está sendo escrita mantém o ajuste anterior.",
-    "settings.row.model_pin.help": "Preferência e elegibilidade são coisas diferentes. Um modelo fixado aqui é o que o VOOL pede; o que ele pode usar de verdade depende também de uma chave guardada daquele provedor e de o provedor aceitar o pedido. Quando os dois divergem, a pista efetiva é nomeada abaixo, nunca substituída em silêncio.",
+    "settings.row.model_pin.help": "O modelo que escolheres aqui é o primeiro que o VOOL pede. O VOOL só o pode usar se houver uma chave guardada desse fornecedor e o fornecedor aceitar o pedido. Se o VOOL tiver de usar outro modelo, indica-o abaixo e nunca muda em silêncio.",
     "settings.row.model_pin.label": "Modelo",
     "settings.row.models_overview.effect": "Vale a partir da sua próxima mensagem. Uma resposta que já está sendo escrita mantém o ajuste anterior.",
     "settings.row.models_overview.help": "Qual modelo responde a você e onde ele roda: neste computador ou online por meio de uma empresa. Cada cartão mostra se está pronto, e os controles de cada empresa ficam mais abaixo.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "Cópia no Porta-chaves: guardada",
     "wallet.backup.keychain_none": "Cópia no Porta-chaves: ainda não",
     "wallet.backup.usb_saved": "Cópia em USB: guardada em {drive}",
-    "wallet.backup.usb_none": "Cópia em USB: ainda não"
+    "wallet.backup.usb_none": "Cópia em USB: ainda não",
+    "xbook.short": "Permite que o VOOL leia e guarde os teus favoritos do X. Cada pedido aguarda a tua aprovação."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "One chat can also have its own approval mode, chosen from the mode menu next to the message box. It applies to that chat only, and a temporary permission there ends with its task.",
     "settings.row.mode_note.label": "Approval mode for a single chat",
     "settings.row.model_pin.effect": "Applies from your next message. An answer already being written keeps the old setting.",
-    "settings.row.model_pin.help": "Preference and eligibility are different things. A model you pin here is what VOOL asks for; what it can actually use also depends on a stored key for that provider and on the provider accepting the request. When the two differ, the effective lane is named below rather than silently substituted.",
+    "settings.row.model_pin.help": "The model you pick here is the one VOOL asks for first. VOOL can only use it when a key for that provider is saved and the provider accepts the request. If VOOL has to use a different model, it names it below and never switches quietly.",
     "settings.row.model_pin.label": "Model",
     "settings.row.models_overview.effect": "Applies from your next message. An answer already being written keeps the old setting.",
     "settings.row.models_overview.help": "Which model answers you and where it runs: on this computer or online through a company. Each card shows whether it is ready, and the controls for each company are further down.",
@@ -5183,7 +5183,8 @@
     "wallet.backup.keychain_saved": "Keychain backup: saved",
     "wallet.backup.keychain_none": "Keychain backup: not yet",
     "wallet.backup.usb_saved": "USB backup: saved on {drive}",
-    "wallet.backup.usb_none": "USB backup: not yet"
+    "wallet.backup.usb_none": "USB backup: not yet",
+    "xbook.short": "Lets VOOL read and save your X bookmarks. Each request waits for your approval."
   },
   "html_keys": [
     "bypass.modal_limits",

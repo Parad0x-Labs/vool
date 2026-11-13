@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "Une conversation peut aussi avoir son propre mode d’approbation, choisi dans le menu de mode à côté de la zone de message. Il ne s’applique qu’à cette conversation, et une permission temporaire y prend fin avec sa tâche.",
     "settings.row.mode_note.label": "Mode d'approbation pour un seul chat",
     "settings.row.model_pin.effect": "S’applique à partir de votre prochain message. Une réponse déjà en cours d’écriture garde l’ancien réglage.",
-    "settings.row.model_pin.help": "Préférence et éligibilité sont deux choses. Un modèle épinglé ici est celui que VOOL demande ; ce qu'il peut réellement utiliser dépend aussi d'une clé stockée pour ce fournisseur et de l'acceptation de la requête par le fournisseur. Quand les deux diffèrent, la voie effective est nommée ci-dessous plutôt que silencieusement substituée.",
+    "settings.row.model_pin.help": "Le modèle choisi ici est celui que VOOL demande en premier. VOOL ne peut l’utiliser que si une clé de ce fournisseur est enregistrée et que le fournisseur accepte la demande. Si VOOL doit utiliser un autre modèle, il l’indique ci-dessous et ne change jamais en silence.",
     "settings.row.model_pin.label": "Modèle",
     "settings.row.models_overview.effect": "S’applique à partir de votre prochain message. Une réponse déjà en cours d’écriture garde l’ancien réglage.",
     "settings.row.models_overview.help": "Quel modèle vous répond et où il tourne : sur cet ordinateur ou en ligne via une entreprise. Chaque carte indique s’il est prêt ; les commandes de chaque entreprise sont plus bas.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "Sauvegarde dans le Trousseau : enregistrée",
     "wallet.backup.keychain_none": "Sauvegarde dans le Trousseau : pas encore",
     "wallet.backup.usb_saved": "Sauvegarde USB : enregistrée sur {drive}",
-    "wallet.backup.usb_none": "Sauvegarde USB : pas encore"
+    "wallet.backup.usb_none": "Sauvegarde USB : pas encore",
+    "xbook.short": "Permet à VOOL de lire et d’enregistrer tes signets X. Chaque demande attend ton accord."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

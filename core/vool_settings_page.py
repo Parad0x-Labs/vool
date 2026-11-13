@@ -609,10 +609,10 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="model_pin",
                     help=(
-                        "Preference and eligibility are different things. A model you pin here is "
-                        "what VOOL asks for; what it can actually use also depends on a stored key "
-                        "for that provider and on the provider accepting the request. When the two "
-                        "differ, the effective lane is named below rather than silently substituted."
+                        "The model you pick here is the one VOOL asks for first. VOOL can only use "
+                        "it when a key for that provider is saved and the provider accepts the "
+                        "request. If VOOL has to use a different model, it names it below and never "
+                        "switches quietly."
                     ),
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_NEXT_TURN,
@@ -3744,6 +3744,7 @@ const KEY_GUIDE_ICONS = {
   search: ['M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13z', 'M15.3 15.3L20 20'],
   security: ['M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z', 'M9 12l2.2 2.2L15.2 10'],
   chain: ['M4 4h7v7H4z', 'M13 13h7v7h-7z', 'M11 7.5h3.5a2 2 0 0 1 2 2V13'],
+  market: ['M4 4v16h16', 'M7 15l4-4.5 3 3L20 7', 'M16 7h4v4'],
 };
 function keyGuideIcon(id) {
   const NS = 'http://www.w3.org/2000/svg';
@@ -3779,7 +3780,11 @@ function xOpenLink(url, summary) {
 }
 function widgetXBookmarks(host) {
   host.appendChild(el('h4', 'row-label', T('xbook.title', 'X bookmarks')));
-  host.appendChild(el('p', 'subtle', tfmt('xbook.help', 'In your X developer app, enable OAuth 2.0 for a public client and register this callback: {redirect}. Paste its Client ID below. X may charge for API use. Every bookmark request waits for your approval here.', { redirect: location.origin + '/api/x/oauth/callback' })));
+  // One plain line; the developer-app steps (OAuth client, callback address) sit behind Learn more.
+  const xbLine = el('div', 'vs-line'); xbLine.appendChild(el('span', 'vs-hint', T('xbook.short', 'Lets VOOL read and save your X bookmarks. Each request waits for your approval.')));
+  const xbLearn = el('details', 'vs-learn'); xbLearn.appendChild(el('summary', null, T('settings.learn_more', 'Learn more')));
+  xbLearn.appendChild(el('div', 'vs-learn-body x-bookmark-setup', tfmt('xbook.help', 'In your X developer app, enable OAuth 2.0 for a public client and register this callback: {redirect}. Paste its Client ID below. X may charge for API use. Every bookmark request waits for your approval here.', { redirect: location.origin + '/api/x/oauth/callback' })));
+  xbLine.appendChild(xbLearn); host.appendChild(xbLine);
   const row = el('div', 'inline'); const label = el('label');
   label.appendChild(el('span', null, T('xbook.client_id', 'X Client ID')));
   const client = el('input', 'inp x-bookmark-client'); client.type = 'text'; client.autocomplete = 'off'; client.maxLength = 512;

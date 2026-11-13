@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "Bir sohbetin, mesaj kutusunun yanındaki mod menüsünden seçilen kendi onay modu da olabilir. Yalnızca o sohbete uygulanır ve oradaki geçici bir izin göreviyle birlikte sona erer.",
     "settings.row.mode_note.label": "Tek bir sohbet için onay modu",
     "settings.row.model_pin.effect": "Bir sonraki mesajınızdan itibaren geçerlidir. Hâlihazırda yazılan bir yanıt eski ayarı korur.",
-    "settings.row.model_pin.help": "Tercih ve uygunluk farklı şeylerdir. Buraya sabitlediğiniz model VOOL'un istediğidir; gerçekten kullanabileceği, o sağlayı için saklı bir anahtara ve sağlayıcının isteği kabulüne de bağlıdır. İkisi ayrıldığında, geçerli şerit aşağıda adlandırılır, sessizce değiştirilmez.",
+    "settings.row.model_pin.help": "Burada seçtiğiniz model, VOOL'un ilk istediği modeldir. VOOL onu yalnızca o sağlayıcının anahtarı kayıtlıysa ve sağlayıcı isteği kabul ederse kullanabilir. VOOL başka bir model kullanmak zorunda kalırsa adını aşağıda yazar ve asla sessizce değiştirmez.",
     "settings.row.model_pin.label": "Model",
     "settings.row.models_overview.effect": "Bir sonraki mesajınızdan itibaren geçerlidir. Hâlihazırda yazılan bir yanıt eski ayarı korur.",
     "settings.row.models_overview.help": "Size hangi modelin yanıt verdiği ve nerede çalıştığı: bu bilgisayarda ya da bir şirket üzerinden çevrimiçi. Her kart hazır olup olmadığını gösterir; her şirketin ayarları daha aşağıdadır.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "Anahtar Zinciri yedeği: kaydedildi",
     "wallet.backup.keychain_none": "Anahtar Zinciri yedeği: henüz yok",
     "wallet.backup.usb_saved": "USB yedeği: {drive} üzerine kaydedildi",
-    "wallet.backup.usb_none": "USB yedeği: henüz yok"
+    "wallet.backup.usb_none": "USB yedeği: henüz yok",
+    "xbook.short": "VOOL'un X yer imlerinizi okumasına ve kaydetmesine izin verir. Her istek onayınızı bekler."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -324,7 +324,12 @@ def state():
             choice["thumbnail"] = stage_thumbnail(choice["manifest"])
             choice["preview"] = preview_html(choice["manifest"])
         else:
+            from core.toybox_fragment import preview_html
+
             choice["thumbnail"] = thumbnail(choice["manifest"])
+            # Every skin gets the same live card preview, so each one plays its demo on hover,
+            # not only the stage skins (the Preview button already rendered these the same way).
+            choice["preview"] = preview_html(choice["manifest"])
     return {
         "ok": True,
         "css": skin_css(selected),

@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "チャットごとに独自の承認モードを持たせることもできます。メッセージ欄の横のモードメニューで選びます。そのチャットにだけ適用され、そこでの一時的な許可はそのタスクとともに終わります。",
     "settings.row.mode_note.label": "単一チャットの承認モード",
     "settings.row.model_pin.effect": "次のメッセージから適用されます。すでに書かれている途中の回答は前の設定のままです。",
-    "settings.row.model_pin.help": "希望と適格性は別物です。ここにピン留めしたモデルはVOOLが要求するもの。実際に使えるかは、そのプロバイダの保存済みキーと、プロバイダがリクエストを受け入れるかにも依存します。両者が食い違うとき、実際のレーンは黙って置換されず、下に明示されます。",
+    "settings.row.model_pin.help": "ここで選んだモデルを VOOL は最初に使おうとします。そのプロバイダーのキーが保存され、プロバイダーがリクエストを受け付けた場合にのみ使えます。別のモデルを使う必要がある場合は、下にその名前を表示し、黙って切り替えることはありません。",
     "settings.row.model_pin.label": "モデル",
     "settings.row.models_overview.effect": "次のメッセージから適用されます。すでに書かれている途中の回答は前の設定のままです。",
     "settings.row.models_overview.help": "どのモデルが答え、どこで動くか:このコンピューター上か、会社を通じたオンラインか。各カードに準備ができているかが表示され、各会社の設定はさらに下にあります。",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "キーチェーンのバックアップ: 保存済み",
     "wallet.backup.keychain_none": "キーチェーンのバックアップ: まだありません",
     "wallet.backup.usb_saved": "USB バックアップ: {drive} に保存済み",
-    "wallet.backup.usb_none": "USB バックアップ: まだありません"
+    "wallet.backup.usb_none": "USB バックアップ: まだありません",
+    "xbook.short": "VOOL が X のブックマークを読み取り・保存できるようにします。各リクエストはあなたの承認を待ちます。"
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

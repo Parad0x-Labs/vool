@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "单个聊天也可以有自己的批准模式，从消息框旁边的模式菜单中选择。它只适用于该聊天，在那里给出的临时许可会随任务一起结束。",
     "settings.row.mode_note.label": "单个对话的批准模式",
     "settings.row.model_pin.effect": "从你的下一条消息开始生效。正在撰写的回答仍保留旧设置。",
-    "settings.row.model_pin.help": "偏好和资格是两回事。你在这里固定的模型是 VOOL 请求的对象；它实际能用什么还取决于该提供方是否有存储的密钥，以及提供方是否接受请求。两者不一致时，实际使用的通道会在下面点名，而不是悄悄替换。",
+    "settings.row.model_pin.help": "你在这里选的模型是 VOOL 首先请求的模型。只有保存了该提供商的密钥且提供商接受请求时，VOOL 才能使用它。如果 VOOL 必须改用其他模型，会在下方写明，绝不悄悄切换。",
     "settings.row.model_pin.label": "模型",
     "settings.row.models_overview.effect": "从你的下一条消息开始生效。正在撰写的回答仍保留旧设置。",
     "settings.row.models_overview.help": "哪个模型回答你、它在哪里运行：在这台电脑上，或通过某家公司在线运行。每张卡片显示它是否就绪，各家公司的设置项在下方。",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "钥匙串备份：已保存",
     "wallet.backup.keychain_none": "钥匙串备份：尚未保存",
     "wallet.backup.usb_saved": "USB 备份：已保存到 {drive}",
-    "wallet.backup.usb_none": "USB 备份：尚未保存"
+    "wallet.backup.usb_none": "USB 备份：尚未保存",
+    "xbook.short": "让 VOOL 读取并保存你的 X 书签。每个请求都会等待你的批准。"
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1893,7 +1893,7 @@
     "settings.row.mode_note.help": "채팅마다 자체 승인 모드를 둘 수도 있으며, 메시지 상자 옆의 모드 메뉴에서 고릅니다. 그 채팅에만 적용되고, 거기서 준 임시 권한은 해당 작업과 함께 끝납니다.",
     "settings.row.mode_note.label": "단일 채팅의 승인 모드",
     "settings.row.model_pin.effect": "다음 메시지부터 적용됩니다. 이미 작성 중인 답변은 이전 설정을 유지합니다.",
-    "settings.row.model_pin.help": "선호와 자격은 다른 것입니다. 여기 고정한 모델은 VOOL이 요청하는 것이고, 실제로 쓸 수 있는지는 그 공급자의 저장된 키와 공급자가 요청을 받아들이는지에도 달려 있습니다. 둘이 어긋나면, 실제 차선이 조용히 대체되는 게 아니라 아래에 이름 붙여집니다.",
+    "settings.row.model_pin.help": "여기서 고른 모델을 VOOL이 가장 먼저 요청합니다. 해당 제공업체의 키가 저장되어 있고 제공업체가 요청을 받아들일 때만 사용할 수 있습니다. 다른 모델을 써야 하면 아래에 그 이름을 표시하며, 몰래 바꾸지 않습니다.",
     "settings.row.model_pin.label": "모델",
     "settings.row.models_overview.effect": "다음 메시지부터 적용됩니다. 이미 작성 중인 답변은 이전 설정을 유지합니다.",
     "settings.row.models_overview.help": "어떤 모델이 답하고 어디서 실행되는지: 이 컴퓨터에서, 또는 회사를 통해 온라인으로. 각 카드에 준비 여부가 표시되고, 각 회사의 설정은 아래에 있습니다.",
@@ -5183,9 +5183,10 @@
     "wallet.backup.keychain_saved": "키체인 백업: 저장됨",
     "wallet.backup.keychain_none": "키체인 백업: 아직 없음",
     "wallet.backup.usb_saved": "USB 백업: {drive}에 저장됨",
-    "wallet.backup.usb_none": "USB 백업: 아직 없음"
+    "wallet.backup.usb_none": "USB 백업: 아직 없음",
+    "xbook.short": "VOOL이 X 북마크를 읽고 저장할 수 있게 합니다. 모든 요청은 승인을 기다립니다."
   },
-  "source_catalog_sha256": "8d1e5667e614b3fb25a721cb56561bdaee3ad245e9a0625dff3e721d65a4c0fb",
+  "source_catalog_sha256": "45b4d462da99ae7e9aad96b27700aa9152c2508ba018af1f93dc15734d062a11",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
