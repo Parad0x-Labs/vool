@@ -941,6 +941,16 @@ def plugin_result_in_plain_words(executed_steps: list[dict[str, Any]]) -> str:
     return f"This is what the {name} plugin returned. VOOL has not checked it.\n\n```text\n{body}\n```"
 
 
+def _bound_material_turn(source_context: Any) -> bool:
+    """Whether ingress bound chat-attachment material to this turn (the one attachment authority)."""
+    try:
+        from core.execution.constants import bound_chat_attachment_present
+
+        return bound_chat_attachment_present(dict(source_context or {}))
+    except Exception:
+        return False
+
+
 def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
     """Everything the model was shown from this turn's tools, for judging whether its answer used it.
 
@@ -3154,6 +3164,19 @@ class ResearchToolLoopFacadeMixin:
                         loop_stop_reason = "tool_failed_after_evidence"
                         break
                         return None
+                if (
+                    execution.mode != "tool_preview"
+                    and executed_steps
+                    and str(execution.tool_name or tool_name or "").startswith("machine.")
+                    and _bound_material_turn(loop_source_context)
+                ):
+                    # A machine read that failed beside bound material ("Describe the attached video; what is my
+                    # screen resolution?" on a machine whose display cannot be read) is half of the turn: the
+                    # material still has to be answered. Returning the refusal alone dropped the video with no
+                    # model call (CI #683 macos, test_artifact_readers_served_m2, once ffmpeg was provisioned).
+                    # The synthesis reads the material and this step's typed refusal, and says both.
+                    loop_stop_reason = "tool_failed_after_evidence"
+                    break
                 confidence = max(0.35, min(0.96, confidence_hint))
                 task_outcome = "pending_approval" if execution.mode == "tool_preview" else "failed"
                 safe_response = self._tool_failure_user_message(

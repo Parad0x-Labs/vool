@@ -856,6 +856,19 @@ def execute_grounded_turn(
         and bool(tool_execution.get("success"))
         and str(tool_execution.get("mode") or "") == "tool_executed"
     )
+    if (
+        required_capability
+        and not grounded_tool
+        and tool_execution is not None
+        and str(tool_execution.get("status") or "") == "tool_failed_narrated"
+    ):
+        from core.execution.constants import bound_chat_attachment_present
+
+        if bound_chat_attachment_present(source_context):
+            # The host read failed beside bound material and the tool loop's synthesis already said so,
+            # from the tool's own refusal, while answering the material: that reply is not a guess at the
+            # value, and the blocker below would throw the material's answer away.
+            required_capability = None
     if required_capability and not grounded_tool:
         # This turn refused rather than guessing, which is right — but the decision that led here
         # is already in the candidate cache, recorded at model-call time when the only question
