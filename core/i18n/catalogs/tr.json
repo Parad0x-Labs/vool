@@ -5167,7 +5167,7 @@
     "wallet.caps.unread": "Limitler şu anda okunamadı.",
     "wallet.caps.summary": "{asset}: ödeme başına en fazla {per_payment}, günde {daily}",
     "wallet.caps.edit": "Limitleri düzenle",
-    "wallet.caps.coin": "Coin",
+    "wallet.caps.coin": "Kripto para",
     "wallet.caps.per_payment": "Tek ödemede en fazla",
     "wallet.caps.daily": "Bir günde en fazla",
     "wallet.caps.per_service": "Bir hizmete günde en fazla",
