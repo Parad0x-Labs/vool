@@ -137,6 +137,11 @@ class FaultableProvider:
                         "answer_lane": answer_lane,
                         "tools": tools,
                         "prompt": prompt[:4000],
+                        # The turn's own words: the prompt above can be cut before them.
+                        "last_user": next(
+                            (str(m.get("content") or "")[:300] for m in reversed(messages) if m.get("role") == "user"),
+                            "",
+                        ),
                         "status": 200,
                     }
                     rig.calls.append(call)
@@ -564,9 +569,19 @@ def test_auto_recovers_a_transient_provider_fault_in_the_same_turn(served: dict[
 
     # ------------------------------------------------ S8: healthy: one dispatch, no retry
     started, mark = time.time(), _mark(home)
-    reply = daemon.chat("How many legs does a spider have?", session_id="journey-healthy", mode="auto")
+    question = "How many legs does a spider have?"
+    reply = daemon.chat(question, session_id="journey-healthy", mode="auto")
     assert ANSWER in _answer_text(reply), reply
-    assert [call["status"] for call in provider.answer_calls(since=started)] == [200] * (1 + _repairs(home, after=mark))
+    # This turn's own dispatches, told by its words: on the hosted runner (CI #682) two more
+    # answer-lane calls landed in this window, and the ledger did not say whose they were.
+    window = provider.answer_calls(since=started)
+    this_turn = [call for call in window if question in call["last_user"]]
+    seen = [(call["status"], call["last_user"][:120]) for call in window]
+    assert [call["status"] for call in this_turn] == [200] * (1 + _repairs(home, after=mark)), seen
+    # Nothing here may be a late re-send of a turn that already ended as failed (S6, S7): that
+    # would be the unreceipted retry the steps above rule out.
+    ended = ("Name one planet with rings.", "Summarize what a heat pump does in one sentence.")
+    assert not [call for call in window if any(text in call["last_user"] for text in ended)], seen
     assert _events(home, "model.call_retrying", after=mark) == []
     assert _outcomes(home, after=mark) == ["completed"]
 
