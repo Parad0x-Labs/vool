@@ -207,7 +207,7 @@ def test_browser_chat_flow_user_asks_model_proposes_operator_approves_with_pin(b
     # the visible approval step: a card with the amount and destination and a PIN field
     page.wait_for_selector(".vw-card", timeout=30000)
     card = page.inner_text(".vw-card")
-    assert "0.0000015 SOL" in card and DESTINATION[:8] in card  # 1500 lamports, shown in SOL and "model" in card.lower()
+    assert "0.0000015 SOL" in card and DESTINATION[:8] in card and "model" in card.lower()  # 1500 lamports, shown in SOL
     page.fill(".vw-card .vw-pin", "000000")
     page.click(".vw-card .vw-approve")
     page.wait_for_function("() => document.querySelector('.vw-card .vw-result') && document.querySelector('.vw-card .vw-result').textContent.length > 0", timeout=30000)
