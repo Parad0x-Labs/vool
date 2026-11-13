@@ -395,6 +395,8 @@ def _annotated(ctx: ToolContext, intent: str, arguments: dict[str, Any], resolve
     text = _annotate(outcome.text, resolve, ctx.home)
     for receipt in ctx.receipts[before:]:
         receipt["response_preview"] = text[:1800]
+    if intent == "machine.list_directory" and arguments.get("path"):
+        ctx.listings.append({"path": str(arguments["path"]), "text": text})
     return ToolOutcome(text=text, ok=outcome.ok, status=outcome.status, intents=outcome.intents)
 
 
@@ -486,6 +488,8 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
         for line in outcome.text.splitlines():
             if line.startswith("- ") and line not in hits:
                 hits.append(line)
+    if ctx.scope:
+        hits = [line for line in hits if _in_scope(_home_path(line[2:].split(" (", 1)[0].strip().rstrip("/"), ctx.home), ctx)]
     inside = [line for line in _find_in_text(words, ctx) if line.split(" (", 1)[0] not in "\n".join(hits)]
     distinguishing = _distinguishing_words(getattr(ctx, "ask", ""), words)
     if distinguishing:
@@ -1021,6 +1025,18 @@ def document_matches(ask: str, ctx: ToolContext) -> bool:
     return False
 
 
+def _in_scope(path: Path, ctx: ToolContext) -> bool:
+    """Whether `path` is inside the folder this turn's search is scoped to (always, with no scope)."""
+    if not ctx.scope:
+        return True
+    try:
+        root = scope_path(ctx.scope, ctx.home)
+        full = Path(os.path.abspath(path))
+    except Exception:
+        return True
+    return full == root or root in full.parents
+
+
 def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
     """Look inside the owner's documents (the word the owner uses is often inside a file, never in
     its name: Mac audit F08), over the whole in-memory index rather than the newest few files. Best match first,
@@ -1031,6 +1047,8 @@ def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
         cache = dict(_TEXT_CACHE)
     scored: list[tuple[int, Path, _IndexedDocument, str]] = []
     for path in candidates:
+        if not _in_scope(path, ctx):
+            continue
         try:
             info = path.stat(follow_symlinks=False)
         except OSError:
@@ -1402,6 +1420,89 @@ def exact_names(answer: str, result: Any) -> str:
     return out
 
 
+# --- file facts in an answer must come from a tool result ----------------------------------------------------------
+#
+# A file name, a size or a date in the loop's answer is a claim about the owner's disk. It stands only when this
+# turn's tool results, the evidence this chat's record holds for the previous turn, the previous reply the owner saw,
+# or the owner's own words hold it. Measured on the Mac (round 6, T12): after a listing of Downloads, "whats the
+# largest one" was answered "holiday_budget_2026.xlsx at 4 KB" with no tool run: a file from another folder.
+_CLAIM_EXTENSIONS = frozenset(
+    "jpg jpeg png gif heic heif webp bmp tif tiff svg raw pdf doc docx xls xlsx csv ppt pptx key pages numbers txt md rtf "
+    "odt ods zip rar 7z tar gz tgz dmg pkg iso exe msi mp3 wav m4a flac aac mp4 mov mkv avi webm json xml html htm py js ts "
+    "log ini cfg yaml yml sql db sqlite backup bak epub".split()
+)
+_FILE_TOKEN_RE = re.compile(
+    r"(?<![\w/.~-])[^\s,;:\"'`*<>\[\]{}|]+?\.(?P<ext>[A-Za-z0-9]{1,8})(?![\w-])"
+)
+_BULLET_NAME_RE = re.compile(r"^\s*(?:[-*\u2022]|\d+[.)])\s+`?(?P<name>[^`(\u2014\u2013:]+?)`?\s*(?:\(|\u2014|\u2013|:|$)")
+_SIZE_RE = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(bytes?|[KMGT]?B)\b", re.IGNORECASE)
+_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+_UNIT_BYTES = {"B": 1, "BYTE": 1, "BYTES": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
+UNCHECKED_FILE_CLAIM_TEXT = (
+    "I couldn't check that against your files just now, so I'm not going to name a file, a size or a date. "
+    "Tell me the folder and I'll list it and answer from the list."
+)
+
+
+def _file_names_in(answer: str) -> list[str]:
+    names: list[str] = []
+    for line in str(answer or "").splitlines():
+        bullet = _BULLET_NAME_RE.match(line)
+        if bullet:
+            name = bullet.group("name").strip().strip("`*_ ")
+            ext = name.rpartition(".")[2].lower()
+            if "." in name and ext in _CLAIM_EXTENSIONS and name not in names:
+                names.append(name)
+    for match in _FILE_TOKEN_RE.finditer(str(answer or "")):
+        if match.group("ext").lower() not in _CLAIM_EXTENSIONS:
+            continue
+        token = match.group(0).lstrip("(").rstrip(".,;:!?")
+        if token and token not in names:
+            names.append(token)
+    return names
+
+
+def _bytes_of(number: str, unit: str) -> float:
+    return float(number) * _UNIT_BYTES.get(unit.upper(), 1)
+
+
+def unbacked_file_claims(answer: str, evidence: list[str]) -> list[str]:
+    """File names, and sizes or dates stated beside a file, that `answer` gives but `evidence` does not hold.
+
+    Read from structure: a token shaped like a file (a stem and a known extension), compared with the text the
+    evidence holds, case-folded. For a file the evidence does hold, the sizes and dates in the same line or
+    sentence must be ones the evidence's own lines for that file carry (a size within rounding)."""
+    text = str(answer or "")
+    blob = "\n".join(str(item or "") for item in evidence).casefold()
+    bad: list[str] = []
+    names = _file_names_in(text)
+    for name in names:
+        if name.casefold() not in blob:
+            bad.append(name)
+    if bad:
+        return bad
+    lines = blob.splitlines()
+    for part in [p for line in text.splitlines() for p in re.split(r"(?<=[.!?])\s+(?=[A-Z])", line)]:
+        here = [n for n in names if n.casefold() in part.casefold()]
+        if not here:
+            continue
+        owned = [ln for ln in lines if any(n.casefold() in ln for n in here)]
+        if not owned:
+            continue
+        sizes = [_bytes_of(m.group(1), m.group(2)) for ln in owned for m in _SIZE_RE.finditer(ln)]
+        if sizes:
+            for m in _SIZE_RE.finditer(part):
+                want = _bytes_of(m.group(1), m.group(2))
+                if not any(abs(want - got) <= 0.1 * max(got, 1.0) for got in sizes):
+                    bad.append(f"{here[0]} ({m.group(0)})")
+        dates = {d for ln in owned for d in _DATE_RE.findall(ln)}
+        if dates:
+            for d in _DATE_RE.findall(part):
+                if d not in dates:
+                    bad.append(f"{here[0]} ({d})")
+    return bad
+
+
 _ABSENCE_CLAIM_RE = re.compile(
     r"\b(?:not found|nothing found|couldn't find|could not find|can't find|cannot find|didn't find|did not find|"
     r"isn't there|is not there|not there|doesn't exist|does not exist|don't have(?: one)?|do not have(?: one)?|"
@@ -1484,6 +1585,10 @@ _LOOK_ROOM_FOR_RE = re.compile(r"\b(?:left|available|spare|enough|(?:space|room|
 _LOOK_SPECS_RE = re.compile(r"\b(?:ram|specs|how\s+much\s+memory|what\s+chip|which\s+chip)\b")
 _LOOK_PROC_RE = re.compile(r"\b(?:running|slowing|sluggish|cpu)\b")
 _LOOK_BIG_RE = re.compile(r"\b(?:biggest|largest)\b")
+#: Words that widen a "biggest" ask to the whole machine, so a folder this chat listed earlier is not its scope.
+_MACHINE_WIDE_RE = re.compile(
+    r"\b(?:computer|mac|machine|laptop|pc|disk|drive|everywhere|anywhere|whole|entire|overall|all\s+(?:my\s+)?(?:files|folders))\b"
+)
 #: The whats-in/inside/show shape, and — separately — the folder must be what the ask points at
 #: ("in my downloads", "inside the lisbon folder"). A folder word sitting elsewhere in the ask
 #: ("my downloads is full of them") is not a request for that folder's contents.
@@ -1558,7 +1663,14 @@ def look_first_pre_step(ask: str, ctx: ToolContext) -> str | None:
     if _LOOK_PROC_RE.search(low):
         return settle(processes({"sort": "cpu" if "cpu" in low else "memory"}, ctx))
     if _LOOK_BIG_RE.search(low):
-        return settle(largest({"path": _look_folder(low, ctx)}, ctx))
+        folder = _look_folder(low, ctx)
+        if not folder and not _MACHINE_WIDE_RE.search(low):
+            # No place of its own: "whats the largest one" right after a listing means the folder this chat just
+            # listed (its record holds the path), not the whole home folder (round 6, T12: the answer named a file
+            # from another folder).
+            slots = (ctx.source_context or {}).get("_conversation_slots")
+            folder = str(slots.get("path") or "") if isinstance(slots, dict) else ""
+        return settle(largest({"path": folder}, ctx))
     if _LOOK_IN_RE.search(low):
         folder = _look_folder(low, ctx)
         return settle(list_dir({"path": folder}, ctx)) if folder else None

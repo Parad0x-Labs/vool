@@ -704,6 +704,24 @@ def _machine_step_summary(execution: Any, intent: str) -> str:
     return intent
 
 
+def _home_shown_as_tilde(text: str) -> str:
+    """The reply shows a path inside the owner's home folder as `~/Documents`, never the absolute `/Users/name/...`.
+
+    One place for every machine read's reply (a folder match, the largest items, a listing); the receipts and details keep
+    the real path."""
+    try:
+        from core.runtime_execution_tools import _machine_home
+
+        home = _machine_home()
+        shown = str(text or "")
+        for form in dict.fromkeys([str(home), str(home.resolve())]):
+            if len(form) > 1:
+                shown = re.sub(re.escape(form) + r"(?=[/\\]|(?![\w.-]))", "~", shown)
+        return shown
+    except Exception:
+        return str(text or "")
+
+
 def _machine_tool_fast_path_result(
     agent: Any,
     *,
@@ -790,7 +808,7 @@ def _machine_tool_fast_path_result(
     result = agent._fast_path_result(
         session_id=session_id,
         user_input=user_input,
-        response=(
+        response=_home_shown_as_tilde(
             str(response_text).strip()
             if response_text is not None
             else str(getattr(execution, "response_text", "") or "").strip()

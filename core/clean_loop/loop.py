@@ -186,6 +186,7 @@ def run_loop(
     history: Sequence[dict[str, str]] = (),
     prior_evidence: str = "",
     max_steps: int = DEFAULT_MAX_STEPS,
+    looked: bool = False,
 ) -> LoopResult:
     max_steps = max(1, int(max_steps))
     messages: list[dict[str, str]] = [{"role": "system", "content": build_system_prompt(registry)}]
@@ -199,7 +200,7 @@ def run_loop(
     result = LoopResult(answer="")
     if staged:
         result.seen.append(staged)
-    nudged = False
+    nudged = bool(looked)  # the caller already ran the look (its text is the prior evidence): no reminder to look
     question_nudged = False
     own_search_done = False
     absence_search_nudged = False

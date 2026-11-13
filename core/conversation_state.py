@@ -259,7 +259,7 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
                             before = json.loads(old[0] or "{}")
                         except Exception:
                             before = {}
-                        carry = {k: v for k, v in before.items() if k in {"listed", "picked", "path"}} if isinstance(before, dict) else {}
+                        carry = {k: v for k, v in before.items() if k in {"listed", "picked", "path", "evidence"}} if isinstance(before, dict) else {}
                     conn.execute(
                         "INSERT OR REPLACE INTO conversation_state (session_id, request, outcome, reason, slots, turns_since, updated_at) "
                         "VALUES (?, ?, ?, '', ?, 0, ?)",
@@ -733,6 +733,79 @@ def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
     return Resolution("pick", rewritten, {"picked": [i["path"] for i in picked], "listed": listed},
                       f"“{compact}” points at: {names} (from the list printed earlier in this chat).")
 
+#: A redirect: after the acknowledgements and dismissals that may open a message ("no thanks,", "meh,", "ok"), a verb of
+#: looking somewhere else ("try", "look in", "check", "search", "how about"), or a message that ends in "instead".
+_REDIRECT_LEAD = frozenset({
+    "no", "nope", "nah", "not", "thanks", "thank", "you", "thx", "ty", "ok", "okay", "meh", "hmm", "hm", "well", "so", "but", "actually",
+    "oh", "ah", "yeah", "yes", "sure", "alright", "right", "then", "anyway", "please", "pls", "plz", "just", "and", "that", "one", "it",
+    "i", "think", "guess", "maybe", "perhaps", "um", "uh", "fine", "cool", "ugh", "eh", "erm", "argh", "sigh", "damn", "fair", "enough",
+})
+_REDIRECT_HEAD_RE = re.compile(
+    r"^(?:(?:try|check|search|use|go\s+(?:to|with)|look(?:\s+(?:in|at|through|into|inside|on))?|how\s+about|what\s+about)\b|or\b)", re.IGNORECASE
+)
+#: What may follow the verb: articles, prepositions, the words for a folder, and (checked separately) a known folder, a kind of
+#: file or a count. Anything else is a subject of its own, so the message is a new ask, not a change to the last one.
+_REDIRECT_REST = frozenset({
+    "the", "my", "a", "an", "in", "on", "from", "at", "into", "inside", "through", "within", "folder", "folders", "directory", "dir",
+    "instead", "rather", "then", "please", "pls", "plz", "one", "other", "another", "same", "again", "too", "also", "as", "well",
+    "for", "it", "that", "there", "only", "just", "latest", "newest", "recent", "last", "most", "of", "and", "or", "files", "file",
+})
+
+
+def _redirect_change(compact: str, pending: PendingRequest) -> str:
+    """The change a redirect makes to the last ask ("the documents folder instead"), else "".
+
+    "no thanks, try the documents folder instead" after a found-nothing find is the same ask scoped to Documents. The
+    message must (1) open with nothing but acknowledgements or dismissals, (2) say to look elsewhere (a verb of looking or
+    "instead"), (3) hold nothing else but articles, prepositions and the folder / kind / count it names, and (4) name a
+    place or kind the recorded ask can take (`apply_change` moves a slot). Any other word is a subject of its own."""
+    slots = pending.slots or {}
+    tool = str(slots.get("tool") or "").lower()
+    if not (tool.startswith("machine.") or slots.get("path") or slots.get("kind") or slots.get("listed") or slots.get("evidence")):
+        return ""  # the last ask was not about files: there is no folder to move
+    words = re.findall(r"[a-z0-9~/'.-]+", compact.lower())
+    start = 0
+    while start < len(words) and words[start] in _REDIRECT_LEAD:
+        start += 1
+    rest_text = " ".join(words[start:])
+    head = _REDIRECT_HEAD_RE.match(rest_text)
+    if head is not None:
+        rest_text = rest_text[head.end():].strip()
+    elif not re.search(r"\b(?:instead|rather)$", rest_text):
+        return ""
+    from core.execution import constants as c
+
+    rest = [w for w in re.findall(r"[a-z0-9~/'.-]+", rest_text)]
+    if not rest:
+        return ""
+    for index, word in enumerate(rest):
+        if word == "for" and (index + 1 >= len(rest) or rest[index + 1] not in {"it", "that"}):
+            return ""  # "look in downloads for the newest screenshot" names what to look for: an ask of its own
+        if word in _REDIRECT_REST or word in c._KNOWN_USER_FOLDERS or word in c._LISTING_KIND_WORDS or word.isdigit():
+            continue
+        return ""
+    change = " ".join(rest)
+    return change if apply_change(slots, change) != dict(slots) else ""
+
+
+_STRONG_CUE_RE = re.compile(
+    r"\b(?:re-?try|re-?run|re-?do|re-?send|re-?check|repeat|again|once\s+more|one\s+more\s+(?:time|try|go|shot)|another\s+(?:go|shot|try|attempt|crack)|"
+    r"same\s+again|(?:the\s+)?same\s+thing|the\s+same)\b", re.IGNORECASE,
+)
+
+
+def _try_with_a_subject(compact: str, pending: PendingRequest) -> bool:
+    """A message whose only cue is a leading "try" and that names a subject of its own ("try finding my passport scan in
+    documents") after a file ask: a new ask, not the last one with a change. "try the documents folder instead" is a redirect
+    (`_redirect_change`); "try again" and the other cues are not this."""
+    if _STRONG_CUE_RE.search(compact):
+        return False
+    slots = pending.slots or {}
+    if not (str(slots.get("tool") or "").lower().startswith("machine.") or slots.get("path") or slots.get("kind") or slots.get("listed")):
+        return False
+    return not _redirect_change(compact, pending)
+
+
 
 def resolve(
     session_id: str,
@@ -777,12 +850,16 @@ def resolve(
         if re.match(r"^(?:what|who|whom|whose|why|how|when|where|which)\b", compact, re.IGNORECASE):
             has_cue = False  # a question ABOUT retrying ("how do i try again?") is not a retry
         unfinished = pending.outcome in _UNFINISHED
+        if not has_cue and pending.turns_since <= _CUE_MAX_AGE and (unfinished or pending.outcome in {DONE, ANSWERED}) and _read_only(pending):
+            redirect = _redirect_change(compact, pending)
+            if redirect:
+                return Resolution("retry_changed", pending.request, apply_change(pending.slots, redirect), _retry_note(pending), change=redirect)
         if has_cue and pending.turns_since <= _CUE_MAX_AGE and (unfinished or pending.outcome in {DONE, ANSWERED}):
             if _DISMISS_RE.search(rest) or _DISMISS_WHOLE_RE.match(rest):
                 pass
             elif _is_plain_remainder(rest, pending.slots):
                 return Resolution("retry", pending.request, dict(pending.slots), _retry_note(pending))
-            elif _read_only(pending):
+            elif _read_only(pending) and not _try_with_a_subject(compact, pending):
                 return Resolution("retry_changed", pending.request, apply_change(pending.slots, rest), _retry_note(pending), change=rest)
         elif not has_cue and unfinished and pending.turns_since <= _ARBITRATE_MAX_AGE:
             state = blocker_cleared(pending, source_context) if cleared == "probe" else cleared

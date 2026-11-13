@@ -29,6 +29,7 @@ _HISTORY_TURNS = 6
 _HISTORY_CHARS = 800
 _EVIDENCE_TTL_S = 900.0
 _EVIDENCE_CHARS = 1500
+_RECORD_EVIDENCE_CHARS = 6000
 _EVIDENCE: dict[str, tuple[float, str]] = {}
 _EVIDENCE_LOCK = threading.Lock()
 
@@ -133,6 +134,100 @@ def _record_observations(context: dict[str, Any], receipts: list[dict[str, Any]]
         record_typed_observations(context, entries=rows)
     except Exception:
         return
+
+
+def _recorded_folder_label(ctx: ToolContext) -> str:
+    """The folder this turn's last listing printed, as `~/Downloads`, or "" (none, or the home folder itself)."""
+    for listing in reversed(ctx.listings):
+        try:
+            from core.clean_loop.tools import scope_path
+
+            folder = scope_path(listing.get("path"), ctx.home)
+        except Exception:
+            continue
+        if folder == ctx.home or not folder.is_dir():
+            continue
+        return "~/" + folder.relative_to(ctx.home).as_posix()
+    return ""
+
+
+def _history_reply(context: dict[str, Any]) -> str:
+    """The last reply the owner saw in this chat (what the chat printed for the previous turn)."""
+    for row in reversed(list(context.get("conversation_history") or [])):
+        if isinstance(row, dict) and row.get("role") == "assistant" and str(row.get("content") or "").strip():
+            return str(row.get("content"))
+    return ""
+
+
+def _claim_evidence(loop_result: Any, ctx: ToolContext, context: dict[str, Any], prior_evidence: str, text: str) -> list[str]:
+    """What a file name, size or date in the answer may come from: this turn's tool results, the evidence the chat's
+    record and the previous turn hold, the previous reply the owner saw, and the owner's own words."""
+    slots = context.get("_conversation_slots") if isinstance(context.get("_conversation_slots"), dict) else {}
+    listed = [f"- {item.get('name') or item.get('path') or ''}" for item in (slots.get("listed") or []) if isinstance(item, dict)]
+    return [
+        *[str(x) for x in getattr(loop_result, "seen", None) or []],
+        *[str(r.get("response_preview") or "") for r in ctx.receipts],
+        prior_evidence,
+        str(slots.get("evidence") or ""),
+        "\n".join(listed),
+        _history_reply(context),
+        text,
+    ]
+
+
+def _merged(first: Any, listing_step: dict[str, Any], second: Any) -> Any:
+    from core.clean_loop.loop import LoopResult
+
+    return LoopResult(
+        answer=second.answer,
+        steps=[*first.steps, listing_step, *second.steps],
+        proposals=second.proposals,
+        model_calls=first.model_calls + second.model_calls,
+        stopped=second.stopped,
+        think_ms=first.think_ms + second.think_ms,
+        seen=[*first.seen, *second.seen],
+    )
+
+
+def _guard_file_claims(
+    loop_result: Any, *, text: str, brain: Any, ctx: ToolContext, context: dict[str, Any], prior_evidence: str,
+) -> Any:
+    """A file name, size or date in the answer that no tool result of this turn (nor the chat's recorded evidence)
+    holds is never published. With the chat's recorded folder the folder is listed again and the model answers from
+    that listing; if the answer still names something the evidence does not hold, or there is no folder to list,
+    the reply says plainly that it could not check."""
+    from core.clean_loop.tools import UNCHECKED_FILE_CLAIM_TEXT, list_dir, unbacked_file_claims
+
+    if loop_result.stopped != "answered" or loop_result.proposals:
+        return loop_result
+    bad = unbacked_file_claims(loop_result.answer, _claim_evidence(loop_result, ctx, context, prior_evidence, text))
+    if not bad:
+        return loop_result
+    slots = context.get("_conversation_slots") if isinstance(context.get("_conversation_slots"), dict) else {}
+    folder = str(slots.get("path") or "").strip()
+    if folder:
+        started = time.monotonic()
+        outcome = list_dir({"path": folder}, ctx)
+        if outcome.ok:
+            step = {
+                "step": len(loop_result.steps), "tool": "list_dir", "args": {"path": folder}, "ok": True, "status": outcome.status,
+                "empty": False, "intents": list(outcome.intents), "result_chars": len(outcome.text), "think_ms": 0,
+                "tool_ms": int((time.monotonic() - started) * 1000), "by": "claim_guard",
+            }
+            second = run_loop(
+                text, brain=brain, registry=default_registry(), ctx=ctx, history=_history(context, text),
+                prior_evidence=outcome.text, looked=True,
+            )
+            second.seen.insert(0, outcome.text)
+            merged = _merged(loop_result, step, second)
+            if merged.stopped == "answered" and not merged.proposals and not unbacked_file_claims(
+                merged.answer, _claim_evidence(merged, ctx, context, prior_evidence, text)
+            ):
+                return merged
+            merged.answer = UNCHECKED_FILE_CLAIM_TEXT
+            return merged
+    loop_result.answer = UNCHECKED_FILE_CLAIM_TEXT
+    return loop_result
 
 
 def front_door_needs_web(text: str, context: dict[str, Any]) -> bool:
@@ -303,10 +398,17 @@ def maybe_answer(
     from core.clean_loop.brain import make_brain, model_label
     ctx = route_ctx
     provider_id, model_id = model_label(decision.brain)
+    loop_brain = make_brain(router, decision.brain, context)
+    loop_ask = text
+    changed_slots = context.get("_conversation_slots") if isinstance(context.get("_conversation_slots"), dict) else {}
+    if context.get("_conversation_changed") and str(changed_slots.get("path") or "").strip():
+        # The owner moved the last ask to another folder ("try the documents folder instead"): the search keeps to it.
+        ctx.scope = str(changed_slots["path"]).strip()
+        loop_ask = f"{text}\n[Look only in {ctx.scope}.]"
     try:
         loop_result = run_loop(
-            text,
-            brain=make_brain(router, decision.brain, context),
+            loop_ask,
+            brain=loop_brain,
             registry=default_registry(),
             ctx=ctx,
             history=_history(context, text),
@@ -316,6 +418,10 @@ def maybe_answer(
         return _boundary_stopped(
             agent, stop, context=context, session_id=session_id, effective_input=effective_input, ctx=ctx,
             provider_id=provider_id, model_id=model_id,
+        )
+    if loop_result.stopped == "answered" and not loop_result.proposals:
+        loop_result = _guard_file_claims(
+            loop_result, text=text, brain=loop_brain, ctx=ctx, context=context, prior_evidence=prior_evidence
         )
     _LOG.info(
         "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
@@ -377,6 +483,14 @@ def maybe_answer(
         _remember_evidence(session_id, evidence)
     else:
         _clear_evidence(session_id)
+    if productive:
+        # What this turn printed rides on the chat's record: the folder it listed (so "the largest one" next has a folder)
+        # and the tool text a later file name, size or date must be backed by.
+        recorded: dict[str, Any] = {"evidence": "\n".join(str(x) for x in loop_result.seen if str(x).strip())[:_RECORD_EVIDENCE_CHARS]}
+        folder_label = _recorded_folder_label(ctx)
+        if folder_label:
+            recorded["path"] = folder_label
+        context["_conversation_kind_listing"] = {**dict(context.get("_conversation_kind_listing") or {}), **recorded}
     _record_observations(context, ctx.receipts)
     trace = {**loop_result.trace(), "provider_id": provider_id, "model_id": model_id}
     context["tool_receipts"] = list(context.get("tool_receipts") or []) + ctx.receipts

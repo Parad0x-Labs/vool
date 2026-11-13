@@ -4493,7 +4493,34 @@ def points_back_at_the_folder(text: str) -> bool:
     return bool(_POINTS_AT_IT_RE.search(" ".join(str(text or "").split())))
 
 
-def _folder_follow_up(clean: str, folder_hint: str) -> dict[str, Any] | None:
+#: The closed class of a short follow-up that asks about "the entries" of the folder just listed and names nothing else:
+#: asking words, fillers, the superlatives and counting words, and the words for an entry or a kind of file. Any other word
+#: (a noun, a place) means the message has a subject of its own.
+_ENTRY_ASK_WORDS = frozenset({
+    "meh", "ok", "okay", "so", "just", "tell", "me", "show", "give", "gimme", "lemme", "let", "see", "what", "whats", "what's", "which",
+    "is", "are", "the", "a", "an", "of", "them", "these", "those", "it", "that", "this", "one", "ones", "file", "files", "item", "items",
+    "thing", "things", "entry", "entries", "there", "here", "in", "folder", "please", "pls", "plz", "and", "then", "now", "again", "how",
+    "many", "big", "large", "small", "biggest", "largest", "smallest", "tiniest", "lightest", "heaviest", "number", "count", "total",
+    "all", "do", "i", "have", "can", "you", "could", "out", "among", "from", "hmm", "um", "well", "actually", "also", "anyway", "but",
+    "any", "only", "newest", "latest", "most", "recent", "was", "did", "got", "much", "thanks", "thx", "i'd", "id", "like", "to", "know", "find", "get", "check",
+})
+
+
+def _is_implicit_entry_ask(clean: str, *, allow_kinds: bool = False) -> bool:
+    """A message that asks about the entries of the folder in view without naming a folder or any other subject."""
+    tokens = re.findall(r"[a-z0-9'\u2019]+", clean.lower().replace("\u2019", "'"))
+    if not tokens or len(tokens) > 14 or "/" in clean or "~" in clean:
+        return False
+    for token in tokens:
+        if token in _ENTRY_ASK_WORDS:
+            continue
+        if allow_kinds and token in _LISTING_KIND_WORDS:
+            continue
+        return False
+    return True
+
+
+def _folder_follow_up(clean: str, folder_hint: str, kind_hint: str = "") -> dict[str, Any] | None:
     """A count or a size question about the folder this chat just listed, with no kind of file named.
 
     Red team R1-12 (2026-11-12): one turn after VOOL listed `~/Documents/Invoices old`, "how many files
@@ -4501,16 +4528,22 @@ def _folder_follow_up(clean: str, folder_hint: str) -> dict[str, Any] | None:
     is the biggest one there" with "I don't have access to file sizes". The folder is the chat's own
     record of the listing (`folder_hint`), never a guess from the wording.
     """
-    if not folder_hint or not _POINTS_AT_IT_RE.search(clean):
+    if not folder_hint or not (_POINTS_AT_IT_RE.search(clean) or _is_implicit_entry_ask(clean)):
         return None
     size = _SIZE_ORDER_RE.search(clean)
+    kind = {"kind": kind_hint} if kind_hint in _LISTING_KIND_LABELS_FOR_HINT else {}
     if size is not None:
         count = _NEWEST_COUNT_RE.search(clean)
         digits = (count.group(1) or count.group(2)) if count else ""
         return {"path": folder_hint, "size_order": "largest" if size.group("big") else "smallest",
-                "limit": max(1, min(int(digits), 200)) if digits else 1}
+                "limit": max(1, min(int(digits), 200)) if digits else 1, **kind}
     if _COUNT_ASK_RE.search(clean):
-        return {"path": folder_hint, "count_only": True}
+        return {"path": folder_hint, "count_only": True, **kind}
+    newest = re.search(r"\b(?:newest|latest|most\s+recent)\b", clean, re.IGNORECASE)
+    if newest is not None:
+        count = _NEWEST_COUNT_RE.search(clean)
+        digits = (count.group(1) or count.group(2)) if count else ""
+        return {"path": folder_hint, "newest_first": True, "limit": max(1, min(int(digits), 200)) if digits else 1, **kind}
     return None
 
 
@@ -4567,7 +4600,7 @@ def machine_kind_listing_intent(
         return {"path": folder_hint, "kind": kind_hint, "limit": max(1, min(int(digits), 200)) if digits else 20,
                 "newest_first": True}
     if kind_match is None:
-        return _folder_follow_up(clean, folder_hint)
+        return _folder_follow_up(clean, folder_hint, kind_hint)
     if not _LISTING_ASK_RE.search(clean) and not (
         # "same for photos in that folder": a kind of file pointed at the folder already in view.
         _POINTS_BACK_AT_THE_FOLDER_RE.search(clean) or re.search(r"\bsame\s+for\b", clean, re.IGNORECASE)
@@ -4588,6 +4621,8 @@ def machine_kind_listing_intent(
             path = f"{path}/{below.group(1)}"
     if not path and folder_hint and (
         _FOLDER_ANAPHORA_RE.search(clean) or re.search(r"\bsame\s+for\b", clean, re.IGNORECASE)
+        # "which one is a pdf": a kind of file asked about with no subject but the folder in view.
+        or _is_implicit_entry_ask(clean, allow_kinds=True)
     ):
         path = str(folder_hint)  # the folder the chat's own record resolved beats re-reading earlier wording
     if not path and _FOLDER_ANAPHORA_RE.search(clean):

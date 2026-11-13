@@ -44,6 +44,8 @@ class ToolContext:
     task_id: str = ""
     #: The owner's ask this turn, so a search can tell a distinguishing word from a kind word.
     ask: str = ""
+    #: A folder (`~/Documents`) the owner moved the last ask to ("try the documents folder instead"): a search keeps to it.
+    scope: str = ""
     proposals: list[dict[str, Any]] = field(default_factory=list)
     receipts: list[dict[str, Any]] = field(default_factory=list)
     # Changes rehearsed this turn (core.clean_loop.changes.Plan); the hook keeps the last one
@@ -52,6 +54,8 @@ class ToolContext:
     # A change card's steps: a call VOOL parks for its own approval is withdrawn at once, so a
     # change that was put back never runs later from a queue (review 2026-10-28, N2).
     withdraw_pending_approvals: bool = False
+    #: Folder listings this turn's tools printed, as {"path": absolute folder, "text": the listing the model saw}.
+    listings: list[dict[str, str]] = field(default_factory=list)
     # The authorized boundary; replaceable only so tests can observe calls without a runtime.
     execute: Callable[..., Any] | None = None
 

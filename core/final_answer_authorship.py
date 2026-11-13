@@ -1718,6 +1718,34 @@ _ACTION_LEAD_RE = re.compile(
 )
 
 
+def _turn_result_text(source_context: Any) -> str:
+    """Everything this turn's tools returned, as the turn's own records hold it: receipt previews, the
+    observation channel and the grounding lifecycle's typed observations. Never raises."""
+    parts: list[str] = []
+    ctx = source_context if isinstance(source_context, dict) else {}
+    for key in ("tool_receipts", "runtime_tool_observations"):
+        rows = ctx.get(key)
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict):
+                parts.extend(str(row.get(field) or "") for field in ("response_preview", "summary"))
+    try:
+        from core.grounding_lifecycle import lifecycle_for_publication
+
+        lifecycle = lifecycle_for_publication(turn_id=str(ctx.get("turn_id") or ""))
+        for row in list(getattr(lifecycle, "typed_observations", None) or []):
+            parts.append(str((row.get("summary") if isinstance(row, dict) else getattr(row, "summary", "")) or ""))
+    except Exception:
+        pass
+    return "\n".join(part for part in parts if part)
+
+
+def _name_in_text(name: str, text: str) -> bool:
+    """Whether `name` stands in `text` as a whole name (a file the tool listed), not inside a longer one."""
+    return bool(name) and bool(
+        re.search(r"(?<![\w.\-])" + re.escape(name) + r"(?![\w\-]|\.\w)", text, re.IGNORECASE)
+    )
+
+
 def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str, Any]] | None:
     """A reply that lists the runtime's own intents as if they ran, when some never ran this turn.
 
@@ -1736,6 +1764,7 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     if not variants:
         return None
     lines = text.split("\n")
+    tool_text = _turn_result_text(source_context)
     unrun: list[str] = []
     removed: set[int] = set()
     # A reply that says a change was MADE when only reads or previews ran this turn. Measured on
@@ -1753,8 +1782,14 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
         match = _LISTED_INTENT_LINE_RE.match(line)
         if not match:
             continue
-        intent = _claimed_intent(match.group("name"), variants)
+        # The line must BE a tool's name. A file whose name only holds one ("project_backup.zip" beside a tool
+        # labelled "backup", "email.send.log") is a listed file, never a claim to have run that tool.
+        intent = variants.get(_NAME_FOLD_RE.sub(" ", match.group("name").lower()).strip(), "")
         if intent and intent.lower() not in executed:
+            if _name_in_text(match.group("name"), tool_text):
+                # A file whose name looks like a tool name (a backup file on the Desktop): this turn's own tool
+                # result lists it, so the line is a result, not a claim to have run anything.
+                continue
             unrun.append(intent)
             removed.add(index)
     if not unrun:
