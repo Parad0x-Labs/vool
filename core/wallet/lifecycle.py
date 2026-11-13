@@ -1385,6 +1385,10 @@ class PaymentLifecycle:
                         settlement.release_claimed(cid, reason="payment_cancelled_before_signing")
                     raise self._fault("wallet_approval_rejected", proposal, reason="owner_cancelled_before_signing") from None
                 release_both(f"sign_cas_lost:{exc}")
+                if isinstance(signer, pilot_custody.LedgerPilotSigner):
+                    # the press on the Ledger came after the claim on the money ended: nothing was sent and the money is
+                    # free again, which is not a duplicate; say so in the Ledger's words
+                    raise self._fault("wallet_signing_unavailable", proposal, reason="ledger_pressed_too_late", detail=f"sign_cas_lost:{exc}"[:120]) from None
                 raise self._fault("wallet_duplicate_payment", proposal, reason=f"sign_cas_lost:{exc}") from None
             except WalletFault as exc:
                 for effect in (*effects.values(), *companion_effects.values()):

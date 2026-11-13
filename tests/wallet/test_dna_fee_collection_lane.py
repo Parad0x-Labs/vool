@@ -483,3 +483,40 @@ def test_a_model_cannot_propose_a_fee_collection_the_rate_is_a_constant_and_a_co
         quotes.mint_quote(standalone.proposal_id)
     assert (no_sheet.value.code, no_sheet.value.context.get("reason")) == ("wallet_quote_unavailable", "dna_fee_collection_rides_its_payment")
     assert lane.node.distinct_sends() == 0
+
+
+def test_a_ledger_wallet_never_carries_the_collection_so_the_person_presses_once(lane) -> None:
+    """The collection would be a second transaction to press on the Ledger inside the same claim, which the sheet does
+    not tell the person about: a Ledger wallet's payment goes alone and the debt stays owed."""
+    from core.wallet import dna_fees, ledger, pilot_custody
+    from tests.wallet._soft_ledger import SoftLedger
+
+    soft = SoftLedger("A")
+    ledger.set_transport_source_for_tests(lambda: [soft])
+    try:
+        wallet = pilot_custody.add_ledger_wallet(network=SOLANA_MAINNET, method="pin", credential=PIN, credential_confirmation=PIN,
+                                                 creation_key=f"l-{uuid.uuid4().hex}", label="Ledger")
+        soft.shown.clear()  # the proof press when adding
+        node = lane.node
+        node.fund_sol(wallet["address"], 20_000_000)
+        node.fund_token(wallet["address"], USDC_MAINNET_MINT, 5_000_000)
+        payer = wallet["address"]
+        for _ in range(3):
+            _accrue(payer, 400_000)
+        assert dna_fees.set_collect_min_atomic("USDC", 1_000) == 1_000
+        _bound(1, 1_000)
+        assert dna_fees.position_for(payer=payer, network=SOLANA_MAINNET, asset="USDC")["collectible_atomic"] == 1_200
+        payment = _x402_payment(node, wallet, amount=50_000)
+        pid = payment["proposal_id"]
+        quote = _quote(pid)
+        fields = quote["fields"]
+        assert fields["companion"] is None and [action["kind"] for action in fields["actions"]] == ["provider_payment"]
+        assert fields["signs_on_ledger"] is True
+        result = _approve_with(pid, quote)
+        assert result["transfer"]["state"] == "confirmed" and node.distinct_sends() == 1
+        assert len(soft.shown) == 1, "one transaction read and pressed on the Ledger"
+        assert _companion_row(pid) is None
+        after = dna_fees.position_for(payer=payer, network=SOLANA_MAINNET, asset="USDC")
+        assert after["owed_atomic"] == 1_200 and after["collectible_atomic"] == 1_200, "the debt stays owed for a wallet VOOL holds"
+    finally:
+        ledger.set_transport_source_for_tests(None)

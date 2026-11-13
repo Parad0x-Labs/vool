@@ -41,8 +41,12 @@ def soft():
 def _ledger_wallet(network: str) -> dict:
     from core.wallet import pilot_custody
 
-    return pilot_custody.add_ledger_wallet(network=network, method="pin", credential=PIN, credential_confirmation=PIN,
+    made = pilot_custody.add_ledger_wallet(network=network, method="pin", credential=PIN, credential_confirmation=PIN,
                                            creation_key=f"l-{uuid.uuid4().hex}", label="Ledger")
+    for soft in ledger._transport_source():
+        assert len(soft.shown) == 1, "adding the Ledger asks it to sign the proof transfer once"
+        soft.shown.clear()  # count only the payment's presses from here
+    return made
 
 
 @pytest.mark.parametrize("kind", ["x402-site-pays-fee", "mpp-wallet-pays-fee"])

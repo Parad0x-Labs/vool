@@ -19,6 +19,9 @@ class SoftLedger:
         self.locked = locked
         self.shown: list[bytes] = []  # every message the person was shown on the Ledger's screen
         self.closed = 0
+        self.timeouts: list[float] = []  # the time VOOL gave each exchange
+        self.stale: list[tuple[bytes, int]] = []  # answers still in the USB buffer (a press after VOOL stopped waiting)
+        self.drained = 0
         self._pending = b""
 
     def _key(self, path: bytes) -> Ed25519PrivateKey:
@@ -61,11 +64,20 @@ class SoftLedger:
             return self._key(path).sign(message), ledger.SW_OK
         return b"", 0x6D00
 
+    def drain(self) -> None:
+        self.drained += len(self.stale)
+        self.stale = []
+
     def exchange(self, apdu: bytes, *, timeout: float = ledger.ADDRESS_TIMEOUT_SECONDS) -> tuple[bytes, int]:
         # Through the real HID packet framing both ways.
+        self.timeouts.append(float(timeout))
         packets = ledger.frame(apdu)
         received = ledger.unframe(iter(packets).__next__)
         data, status = self._answer(received)
+        if self.stale:
+            # what a real USB buffer does: the oldest waiting answer is read first
+            self.stale.append((data, status))
+            data, status = self.stale.pop(0)
         if status == -1:
             return ledger.unframe(lambda: b""), 0  # no packet before the timeout
         back = ledger.frame(data + struct.pack(">H", status))

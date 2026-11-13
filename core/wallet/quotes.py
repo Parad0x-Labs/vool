@@ -798,7 +798,11 @@ def _attach_fee_and_review(
         record = usepod.operation_for_proposal(proposal.proposal_id) or {}
         fields["provider_payment_kind"] = str(record.get("payment_kind") or usepod.KIND_UNKNOWN)
         plan = None
-        if rpc is not None and blockhash:
+        from core.wallet import pilot_custody
+
+        # a Ledger wallet never carries the collection: it would be a second transaction to press on the Ledger inside
+        # the same claim, which the sheet does not tell the person about; it is collected from a wallet VOOL holds
+        if rpc is not None and blockhash and pilot_custody.ledger_of(proposal.wallet_id) is None:
             plan = dna_fees.plan_companion_collection(
                 proposal, rpc=rpc, blockhash=blockhash, payment_fee_max_atomic=int(fields.get("fee_max_minor") or 0), principal_balance_atomic=int(principal_balance),
                 held_principal_atomic=int(held_principal), fee_balance_atomic=int(fee_balance), held_native_atomic=int(held_native), rent_minimum_atomic=int(rent_minimum),

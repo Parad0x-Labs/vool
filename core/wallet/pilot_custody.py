@@ -1383,8 +1383,9 @@ def _remove_security_key(wallet_id: str, *, credential: str = "", source_context
 
 def add_ledger_wallet(*, network: str, account: int = 0, method: str, credential: str = "", credential_confirmation: str = "",
                       creation_key: str = "", label: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Add the Solana account on the ONE Ledger plugged in as a VOOL wallet. The Ledger shows the address and the
-    person presses to confirm it; VOOL keeps only that address and its path. The new PIN (or password) is sealed like
+    """Add the Solana account on the ONE Ledger plugged in as a VOOL wallet. The Ledger proves it holds the key: it
+    shows a 0 SOL transfer to the wallet's own address that can never land, and the person presses approve; VOOL keeps
+    only the address and its path. The new PIN (or password) is sealed like
     any wallet's, but the seal holds no key: it proves the PIN through the same throttle, and every send is then read
     and pressed on the Ledger. The same quote, caps, approval and receipt path as every VOOL wallet; never an agent's.
 
@@ -1411,7 +1412,11 @@ def add_ledger_wallet(*, network: str, account: int = 0, method: str, credential
     if not ledger.library_available():
         raise _fault("wallet_signing_unavailable", reason="ledger_support_not_installed", source_context=source_context)
     try:
-        address = ledger.public_key(path, confirm=True)
+        address = ledger.public_key(path)
+        # an address is public, so anything can answer with one: before any PIN is set (first add, or the same Ledger
+        # added again after a forgotten PIN), the Ledger signs a transfer that can never land and the signature must
+        # check against the address. Only the device that HOLDS the key can set a PIN on a Ledger wallet.
+        ledger.prove_key(path, address)
     except ledger.LedgerProblem as problem:
         raise _fault("wallet_signing_unavailable", reason=f"ledger_{problem.reason}", source_context=source_context) from None
     path_text = ledger.path_text(path)

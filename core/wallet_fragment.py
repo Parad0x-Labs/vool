@@ -1341,7 +1341,7 @@ function ledgerAdd(r, cp, msg){
   var box = el('div', 'vw-cx-ledger'); box.setAttribute('data-network', r.network);
   var open = el('button', 'vw-btn vw-cx-ledger-add', 'Add a Ledger'); open.type = 'button'; box.appendChild(open);
   var f = el('div', 'vw-cx-form vw-cx-ledger-form'); f.hidden = true; box.appendChild(f);
-  f.appendChild(el('div', 'vw-line', 'Plug in your Ledger, unlock it and open its Solana app. VOOL reads its Solana address; check that the address on the Ledger matches and press to confirm. The key never leaves the Ledger. Every payment from it will ask for the PIN or password you choose here, then show on the Ledger for you to check and press. If you forget this PIN, add the same Ledger again.'));
+  f.appendChild(el('div', 'vw-line', 'Plug in your Ledger, unlock it and open its Solana app. To prove it is your Ledger, it shows a 0 SOL transfer to its own address that can never be sent: press approve on the Ledger. Nothing is sent. The key never leaves the Ledger. Every payment from it will ask for the PIN or password you choose here, then show on the Ledger for you to check and press. If you forget this PIN, add the same Ledger again.'));
   var nid = 'vwLd-' + r.network.replace(/[^a-zA-Z0-9]/g, '');
   var al = el('label', null, 'Ledger account (0 is the first)'); al.setAttribute('for', nid + 'Account'); f.appendChild(al);
   var account = el('input'); account.type = 'number'; account.min = '0'; account.max = '999'; account.value = '0'; account.id = nid + 'Account'; f.appendChild(account);
@@ -1366,7 +1366,7 @@ function ledgerAdd(r, cp, msg){
     if (creds.cred.value !== creds.conf.value) { cxMsg(msg, 'The two entries differ. Type the same PIN or password twice.', true); return; }
     var body = { network: r.network, account: account.value || '0', method: creds.method.value, credential: creds.cred.value, credential_confirmation: creds.conf.value,
                  creation_key: cryptoCreationKeys['ledger:' + r.network], label: label.value || '' };
-    creds.clear(); go.disabled = true; cxMsg(msg, 'Check the address on your Ledger and press to confirm it…');
+    creds.clear(); go.disabled = true; cxMsg(msg, 'On your Ledger: a 0 SOL transfer to its own address. Press approve to prove it is yours. Nothing is sent…');
     postJson('/api/wallet/ledger/add', body).then(function(res){
       body = null; go.disabled = false;
       if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not added. Nothing changed.'), true); return; }

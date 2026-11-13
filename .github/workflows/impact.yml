@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,browser,companion,evm]"
+          python -m pip install -e ".[dev,browser,companion,evm,keys]"
       - name: Audit the invariant registry
         # Runs on every event: a registry that names a proof which no longer exists, or claims a
         # surface none of its proofs executes, is broken whether or not this push changed it.

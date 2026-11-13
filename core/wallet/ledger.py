@@ -11,8 +11,10 @@ quote, caps, approval and receipt path stays where it is, and the Ledger is only
 from __future__ import annotations
 
 import contextlib
+import secrets
 import struct
 import threading
+import time
 from collections.abc import Callable, Iterable
 from typing import Protocol
 
@@ -42,9 +44,17 @@ SW_USER_REFUSED = 0x6985
 SW_LOCKED = 0x5515
 SW_WRONG_APP = (0x6E00, 0x6D00, 0x6E01, 0x6511, 0x6A82)
 
-#: How long the person has to read and press on the Ledger. A send's claim on the money is held 30 seconds
-#: (``settlement.SIGNER_BUDGET_SECONDS``), so a signature never arrives after its claim lapsed.
+#: ONE deadline for everything a send asks of the Ledger: waiting for the Ledger to be free, the address check and the
+#: press. A send's claim on the money is held 30 seconds (``settlement.SIGNER_BUDGET_SECONDS``) from just before the
+#: signer is asked; this budget ends a few seconds before that, so a press never lands after its claim lapsed.
+SIGN_BUDGET_SECONDS = 26.0
+#: Kept for callers that show the time: the person has about this long to read and press.
 SIGN_TIMEOUT_SECONDS = 25.0
+#: How long one approval waits for another one using the same Ledger before it says the Ledger is busy.
+LOCK_WAIT_SECONDS = 2.0
+#: The address check before a press needs no press, so a Ledger that does not answer within this is not ready.
+ADDRESS_CHECK_SECONDS = 5.0
+#: Adding a Ledger: time to read the proof transfer on the Ledger and press.
 ADDRESS_TIMEOUT_SECONDS = 60.0
 
 #: Solana's standard account path, 44'/501'/<account>'/0' (Phantom, Solflare and Ledger Live agree on it).
@@ -53,7 +63,7 @@ HARDENED = 0x80000000
 
 class LedgerProblem(Exception):
     """A plain reason the Ledger could not answer: no_ledger, more_than_one_ledger, ledger_locked, open_solana_app,
-    refused_on_ledger, ledger_timeout, not_this_ledger, ledger_error."""
+    refused_on_ledger, ledger_timeout, ledger_busy, not_this_ledger, ledger_error."""
 
     def __init__(self, reason: str):
         super().__init__(reason)
@@ -62,6 +72,8 @@ class LedgerProblem(Exception):
 
 class Transport(Protocol):
     def exchange(self, apdu: bytes, *, timeout: float = ...) -> tuple[bytes, int]: ...
+
+    def drain(self) -> None: ...
 
     def close(self) -> None: ...
 
@@ -160,6 +172,13 @@ class HidTransport:
         self._device.open_path(path)
         self._device.set_nonblocking(False)
 
+    def drain(self) -> None:
+        """Throw away any answer still waiting from an earlier exchange (a press that came after VOOL stopped
+        waiting), so it is never read as the answer to the next question."""
+        for _ in range(64):
+            if not bytes(self._device.read(PACKET, 0) or b""):
+                return
+
     def exchange(self, apdu: bytes, *, timeout: float = ADDRESS_TIMEOUT_SECONDS) -> tuple[bytes, int]:
         for packet in frame(apdu):
             self._device.write(b"\x00" + packet)
@@ -227,8 +246,30 @@ def _one(transports: list[Transport]) -> Transport:
     return transports[0]
 
 
-def _pubkey(transport: Transport, path: list[int], *, confirm: bool) -> str:
-    data, status = transport.exchange(bytes([CLA, INS_GET_PUBKEY, P1_CONFIRM if confirm else P1_NON_CONFIRM, 0x00]) + _with_len(_path_bytes(path)))
+def _exchange(transport: Transport, apdu: bytes, *, timeout: float) -> tuple[bytes, int]:
+    if timeout <= 0:
+        raise LedgerProblem("ledger_timeout")
+    drain = getattr(transport, "drain", None)
+    if drain is not None:
+        drain()
+    return transport.exchange(apdu, timeout=timeout)
+
+
+@contextlib.contextmanager
+def _held(wait: float):
+    """The Ledger answers one question at a time. Another approval using it gets "busy" after ``wait`` seconds instead
+    of eating its own deadline in a queue."""
+    if not _LOCK.acquire(timeout=max(0.0, float(wait))):
+        raise LedgerProblem("ledger_busy")
+    try:
+        yield
+    finally:
+        _LOCK.release()
+
+
+def _pubkey(transport: Transport, path: list[int], *, confirm: bool, timeout: float = ADDRESS_TIMEOUT_SECONDS) -> str:
+    data, status = _exchange(transport, bytes([CLA, INS_GET_PUBKEY, P1_CONFIRM if confirm else P1_NON_CONFIRM, 0x00]) + _with_len(_path_bytes(path)),
+                             timeout=timeout)
     _check(status)
     if len(data) != 32:
         raise LedgerProblem("ledger_error")
@@ -242,34 +283,67 @@ def _with_len(body: bytes) -> bytes:
 
 
 def plugged_in() -> bool:
-    with _LOCK:
+    """Whether a Ledger is plugged in. Never waits behind a press: while an approval holds the Ledger, it is plugged in."""
+    if not _LOCK.acquire(blocking=False):
+        return True
+    try:
         transports = _transports()
         for transport in transports:
             transport.close()
         return bool(transports)
+    finally:
+        _LOCK.release()
 
 
 def public_key(path: list[int], *, confirm: bool = False) -> str:
-    """The Solana address at ``path`` on the one Ledger plugged in. ``confirm`` shows it on the Ledger's screen."""
-    with _LOCK:
+    """The Solana address at ``path`` on the one Ledger plugged in. ``confirm`` shows it on the Ledger's screen.
+    An address alone proves nothing (it is public): see :func:`prove_key`."""
+    with _held(LOCK_WAIT_SECONDS):
         transport = _one(_transports())
         try:
-            return _pubkey(transport, path, confirm=confirm)
+            return _pubkey(transport, path, confirm=confirm, timeout=ADDRESS_TIMEOUT_SECONDS if confirm else ADDRESS_CHECK_SECONDS)
         finally:
             transport.close()
 
 
-def sign_solana_message(path: list[int], message: bytes, *, expected_public_key: str) -> bytes:
+def proof_message(address: str) -> bytes:
+    """A transaction that can never land: a 0 SOL transfer from the address to itself, with 32 fresh random bytes where
+    the recent blockhash goes (no cluster has that blockhash, so no node accepts it). Every Solana app version reads
+    and signs a plain transfer, so the person sees "0 SOL" to their own address and presses."""
+    from solders.hash import Hash
+    from solders.message import Message
+    from solders.pubkey import Pubkey
+    from solders.system_program import TransferParams, transfer
+
+    owner = Pubkey.from_string(str(address))
+    instruction = transfer(TransferParams(from_pubkey=owner, to_pubkey=owner, lamports=0))
+    return bytes(Message.new_with_blockhash([instruction], owner, Hash(secrets.token_bytes(32))))
+
+
+def prove_key(path: list[int], address: str) -> None:
+    """Prove the Ledger plugged in HOLDS the key of ``address`` at ``path``, not merely that something answers with the
+    address (anything can echo a public address). The Ledger signs :func:`proof_message`, a transfer that can never
+    land, and the signature must check against the address. Raises :class:`LedgerProblem` otherwise."""
+    sign_solana_message(path, proof_message(address), expected_public_key=address, deadline=time.monotonic() + ADDRESS_TIMEOUT_SECONDS)
+
+
+def sign_solana_message(path: list[int], message: bytes, *, expected_public_key: str, deadline: float | None = None) -> bytes:
     """Ask the Ledger to sign this exact Solana transaction message. The person reads it and presses the buttons on
     the Ledger. The Ledger must hold ``expected_public_key`` at ``path``; the 64-byte signature is checked before it is
-    returned."""
+    returned. ``deadline`` (``time.monotonic()``) bounds the WHOLE call: the wait for the Ledger, the address check and
+    the press; by default :data:`SIGN_BUDGET_SECONDS` from now."""
     message = bytes(message)
     if not message or len(message) > MAX_MESSAGE_BYTES:
         raise LedgerProblem("ledger_error")
-    with _LOCK:
+    end = float(deadline) if deadline is not None else time.monotonic() + SIGN_BUDGET_SECONDS
+
+    def left() -> float:
+        return end - time.monotonic()
+
+    with _held(min(LOCK_WAIT_SECONDS, left())):
         transport = _one(_transports())
         try:
-            if _pubkey(transport, path, confirm=False) != expected_public_key:
+            if _pubkey(transport, path, confirm=False, timeout=min(ADDRESS_CHECK_SECONDS, left())) != expected_public_key:
                 raise LedgerProblem("not_this_ledger")
             head = bytes([1]) + _path_bytes(path)
             payload = head + message
@@ -277,7 +351,7 @@ def sign_solana_message(path: list[int], message: bytes, *, expected_public_key:
             signature = b""
             for index, chunk in enumerate(chunks):
                 p2 = (P2_EXTEND if index else 0) | (P2_MORE if index < len(chunks) - 1 else 0)
-                data, status = transport.exchange(bytes([CLA, INS_SIGN_MESSAGE, P1_CONFIRM, p2]) + _with_len(chunk), timeout=SIGN_TIMEOUT_SECONDS)
+                data, status = _exchange(transport, bytes([CLA, INS_SIGN_MESSAGE, P1_CONFIRM, p2]) + _with_len(chunk), timeout=left())
                 _check(status)
                 signature = bytes(data)
         finally:
@@ -291,5 +365,5 @@ def sign_solana_message(path: list[int], message: bytes, *, expected_public_key:
     return signature
 
 
-__all__ = ["LedgerProblem", "library_available", "parse_path", "path_text", "plugged_in", "public_key", "set_transport_source_for_tests",
-           "sign_solana_message", "solana_path"]
+__all__ = ["LedgerProblem", "library_available", "parse_path", "path_text", "plugged_in", "proof_message", "prove_key", "public_key",
+           "set_transport_source_for_tests", "sign_solana_message", "solana_path"]
