@@ -1418,6 +1418,9 @@ label.inline { cursor:pointer; }
 .vs-adopted { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; border:none; padding:0; margin:0; background:none; }
 #myThingsSetting.vs-adopted label { display:inline-flex; align-items:center; font-size:0; }
 #routinesSetting.vs-adopted > div { display:none; }
+/* The My things panel names itself; inside its row the row's own label and line already say it. */
+#myThingsSetting.vs-adopted > div > strong, #myThingsSetting.vs-adopted > div > p { display:none; }
+#myThingsSetting.vs-adopted > div { display:flex; align-items:center; }
 </style>
 </head>
 <body>
