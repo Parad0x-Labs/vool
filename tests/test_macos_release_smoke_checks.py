@@ -32,7 +32,7 @@ def test_dmg_staging_uses_the_system_mount_point(monkeypatch, tmp_path):
     assert calls[-1] == ['hdiutil', 'detach', str(mount)]
 
 
-@pytest.mark.parametrize('leak', [False, True])
+@pytest.mark.parametrize('leak', ['', 'history', 'pin'])
 def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak):
     home = tmp_path / 'home'
     db = home / 'Library/Application Support/VOOL/runtime/data/vool_web0_v2.db'
@@ -41,6 +41,9 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
         connection.execute('create table local_inference_benchmarks(raw_result_json text)')
         connection.execute('insert into local_inference_benchmarks values (?)', ('{"tokens": 42}',))
     seen = []
+    # every chat's listing shows the profile facts all chats share (cross-chat recall)
+    profile = {'record_id': 'memory-teal', 'fact': 'my favourite colour is teal.', 'scope': 'user_profile'}
+    pin_rows = [profile]
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -55,16 +58,18 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
                 answer = 'teal'
             if message == 'What is my locker number?':
                 answer = 'I do not have that number.'
+            if 'PIN' in message and leak == 'pin':
+                pin_rows.append({'record_id': 'memory-pin', 'fact': 'my card PIN is [redacted]', 'scope': 'chat'})
             data = {'message': {'content': answer}}
             self.reply(data)
 
         def do_GET(self):
             if '/api/chat/history' in self.path:
-                self.reply({'messages': [smoke.SECRET] if leak else []})
+                self.reply({'messages': [smoke.SECRET] if leak == 'history' else []})
             elif smoke.PIN_SESSION in self.path:
-                self.reply({'entries': []})
+                self.reply({'entries': list(pin_rows)})
             else:
-                self.reply({'entries': [{'text': 'favourite colour is teal'}]})
+                self.reply({'entries': [profile]})
 
         def reply(self, data):
             self.send_response(200)
@@ -83,7 +88,9 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
         server.server_close()
         thread.join(timeout=5)
     assert len(run.steps) == 5
-    assert sum(not row['ok'] for row in run.steps) == int(leak)
+    failed = [row['step'] for row in run.steps if not row['ok']]
+    assert failed == ({'': [], 'history': ['private chat leaves no transcript, memory or file'],
+                       'pin': ['PIN not echoed and not stored']}[leak])
     assert len(seen) == 9
     assert all(body['model'] == 'local-model' and body['model_selection'] == 'pin' for body in seen)
     assert {body['session_id'] for body in seen} == {
