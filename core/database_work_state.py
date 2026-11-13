@@ -294,6 +294,12 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                     order = " ORDER BY %s %s" % (hit, "ASC" if ascending and not descending else "DESC")
                     limit = " LIMIT 1" if re.search(r"\b(who|which|what)\b", lowered) and not re.search(r"\b(list|all|every)\b", lowered) else ""
                     return ("name=%s, sql=SELECT * FROM %s%s%s" % (path.stem, table, order, limit))[:max_chars]
+                # 4. the database itself is named, and it holds one table: "whats in my pantry db" is that table's rows
+                #    (Mac run 16i, pantry 1: the schema was listed and the items never read)
+                if len(shapes) == 1 and re.search(r"\b%s\b" % re.escape(path.stem.lower()), lowered) and re.search(
+                    r"\b(?:what(?:'?s|\s+is|\s+do\s+i\s+have)?|show|list|see|have)\b", lowered
+                ):
+                    return ("name=%s, sql=SELECT * FROM %s" % (path.stem, next(iter(shapes))))[:max_chars]
             finally:
                 conn.close()
         return ""

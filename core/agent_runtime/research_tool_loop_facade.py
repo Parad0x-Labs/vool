@@ -2345,7 +2345,7 @@ class ResearchToolLoopFacadeMixin:
                             (
                                 _is_database_no_answer(direct_message)
                                 and (
-                                    not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
+                                    not any(step.get("tool_name") == "vool-database.query" and step.get("ok") is True for step in executed_steps)
                                     or _database_last_result_empty(executed_steps)
                                 )
                             )

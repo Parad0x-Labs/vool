@@ -358,3 +358,96 @@ def test_a_one_row_cap_is_not_the_size_of_the_answer() -> None:
     capped = {"arguments": {"sql": "SELECT who FROM b ORDER BY id LIMIT 1", "row_limit": 1}}
     _database_query_contradicts_the_ask("vool-database.query", capped, "who is first", [], None)
     assert capped["arguments"]["row_limit"] == 1
+
+
+def test_a_named_one_table_database_is_read_when_asked_whats_in_it(world, tmp_path) -> None:  # noqa: F811
+    from core.database_work_state import suggest_database_query
+    from core.plugin_tools import plugin_scratch_dir
+    from core.tool_demand_signals import _VOCAB_CACHE
+
+    root = plugin_scratch_dir("vool-database") / "databases"
+    root.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(root / "pantry.sqlite")
+    c.executescript("create table items(id integer primary key, name text, shelf text); insert into items values (1,'Rice','top');")
+    c.commit()
+    c.close()
+    _VOCAB_CACHE.clear()
+    assert suggest_database_query("whats in my pantry db") == "name=pantry, sql=SELECT * FROM items"
+    assert suggest_database_query("what do I have in my pantry") == "name=pantry, sql=SELECT * FROM items"
+    assert suggest_database_query("tell me a joke") == ""
+
+
+def test_the_loop_reads_the_items_when_the_model_stops_at_the_schema_and_asks_leave(tmp_path, monkeypatch) -> None:
+    """Pantry 1 (run 16i): schema, a failed query on a table that is not there, then 'Would you like to proceed?'."""
+    import uuid
+    from types import SimpleNamespace
+
+    from apps.vool_agent import VoolAgent
+    from core import plugin_tools, tool_registry
+    from core.database_work_state import note_database_demand
+    from core.execution.models import ToolIntentExecution
+    from core.memory_first_router import ModelExecutionDecision
+    from core.plugin_tools import plugin_scratch_dir
+    from core.runtime_flags import override
+    from core.tool_demand_signals import _VOCAB_CACHE
+    from tests._vool_database_pack import isolated_db_world
+    from tests.test_a_narrated_batch_does_not_vanish import _call
+
+    def decision(intent: str, **arguments):
+        return ModelExecutionDecision(
+            source="scripted", task_hash="h", used_model=True, confidence=0.8,
+            structured_output={"intent": intent, "arguments": arguments},
+            tool_calls=(_call(intent, **arguments),), validation_state="validated", provider_id="p",
+        )
+
+    class Router:
+        def __init__(self):
+            self.calls = 0
+
+        def resolve_tool_intent(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return decision("vool-database.schema", name="pantry")
+            return decision("respond.direct", message="The table items has id, name, shelf. Would you like to proceed?")
+
+    with override("plugin_runtime_tools", True):
+        isolated_db_world(tmp_path, monkeypatch)
+        plugin_tools.load_all(tmp_path)
+        root = plugin_scratch_dir("vool-database") / "databases"
+        root.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(root / "pantry.sqlite")
+        c.executescript("create table items(id integer primary key, name text, shelf text); insert into items values (1,'Rice','top');")
+        c.commit(); c.close()
+        _VOCAB_CACHE.clear()
+        seen: list[str] = []
+
+        def fake_execute(payload, **_kw):
+            seen.append(str(payload.get("intent")))
+            if payload.get("intent") == "vool-database.schema":
+                return ToolIntentExecution(handled=True, ok=True, status="executed", mode="tool_executed", tool_name="vool-database.schema",
+                                           response_text="ok", user_safe_response_text="ok", details={"observation": {"tables": ["items"]}})
+            return ToolIntentExecution(handled=True, ok=True, status="executed", mode="tool_executed", tool_name="vool-database.query",
+                                       response_text="ok", user_safe_response_text="ok",
+                                       details={"observation": {"rows": [[1, "Rice", "top"]], "columns": ["id", "name", "shelf"]}, "sql": payload.get("arguments")})
+
+        router = Router()
+        agent = VoolAgent.__new__(VoolAgent)
+        agent.memory_router = router
+        agent._should_keep_ai_first_chat_lane = lambda **_kw: False
+        agent._should_run_builder_controller = lambda **_kw: False
+        agent._plan_tool_workflow = lambda **_kw: SimpleNamespace(handled=False, stop_after=False, next_payload=None, reason="")
+        agent.hive_activity_tracker = None
+        agent.public_hive_bridge = None
+        agent._execute_tool_intent = fake_execute
+        sid = f"openclaw:{uuid.uuid4().hex[:20]}"
+        ctx = {"surface": "api", "session_id": sid, "runtime_session_id": sid}
+        note_database_demand(ctx)
+        try:
+            agent._maybe_execute_model_tool_intent(
+                task=SimpleNamespace(task_id="t3"), effective_input="whats in my pantry db",
+                classification={"task_class": "unknown"}, interpretation=SimpleNamespace(), context_result=SimpleNamespace(),
+                persona=SimpleNamespace(), session_id=sid, source_context=ctx, surface="api",
+            )
+        finally:
+            tool_registry.reset()
+    assert seen.count("vool-database.query") >= 1, seen
