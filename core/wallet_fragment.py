@@ -964,7 +964,7 @@ var AGENT_PAUSE_TEXT = {
   breaker_refusals: 'VOOL paused it after three requests in a row that looked wrong (a changed pay-to address, a sudden price jump or requests coming too fast).',
   breaker_undelivered: 'VOOL paused it after two payments whose service did not deliver.'
 };
-var agentsBlock = null;
+var agentsBlock = null, agentsJustRead = false;
 function agentControls(cp){
   // Agent spending: an agent's own small wallet and the limits a payment must pass before it goes out without asking.
   // Every rule is the wallet's; this block only shows them and sends what the person typed to the trusted Settings doors.
@@ -972,7 +972,10 @@ function agentControls(cp){
   // This block is ONE node that survives those redraws: what the person is typing, an open PIN box and the message
   // line stay as they are, and its facts are read again in place only when nothing is open in it.
   if (agentsBlock) {
-    if (!agentsBlock.node.querySelector('[data-agent-form], #vwOwnerProof')) agentsBlock.reload();
+    // a create that just read the list itself asks this one redraw to leave it be: a second read landing a moment
+    // later would wipe a form or PIN box the person has already opened
+    if (agentsJustRead) agentsJustRead = false;
+    else if (!agentsBlock.node.querySelector('[data-agent-form], #vwOwnerProof')) agentsBlock.reload();
     return agentsBlock.node;
   }
   var box = el('div', 'vw-cx-row vw-cx-agents'); box.id = 'vwCxAgents';
@@ -1042,16 +1045,21 @@ function agentControls(cp){
     var save = el('button', 'vw-btn primary', current ? 'Save changes' : 'Set allowance'); save.type = 'button'; save.id = 'vwAgSave_' + key;
     var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
     acts.appendChild(more); acts.appendChild(save); acts.appendChild(cancel); form.appendChild(acts);
+    // what a save says stays in the form, next to the fields, not at the foot of the whole section
+    var fmsg = el('div', 'vw-msg'); fmsg.id = 'vwAgentMsg_form_' + key; fmsg.setAttribute('role', 'status'); form.appendChild(fmsg);
     cancel.addEventListener('click', function(){ form.remove(); cxMsg(msg, ''); });
     save.addEventListener('click', function(){
       var payload = { per_payment: per.value, period: period.value, period_amount: periodAmount.value, total: total.value, max_payments: count.value, days: days.value, ask_above: ask.value, helper_per_payment: helperPer.value, helper_total: helperTotal.value,
         services: rows.map(function(r){ return { address: r.address.value, limit: r.limit.value }; }).filter(function(s){ return String(s.address || '').trim(); }) };
       if (current) payload.allowance_id = current.allowance_id; else { payload.wallet_id = wallet.wallet_id; payload.asset = coin.value; }
-      save.disabled = true;
-      proved('/api/wallet/agents/allowance', payload).then(function(res){
+      var typed = [per, periodAmount, total, count].some(function(i){ return String(i.value || '').trim(); }) || payload.services.length;
+      if (!current && !typed) { cxMsg(fmsg, WT('wallet.agents.allowance_empty', 'Fill in the limits and at least one service address first. Nothing was saved.'), true); return; }
+      save.disabled = true; cxMsg(fmsg, '');
+      postOwnerProved('/api/wallet/agents/allowance', payload, fmsg).then(function(res){
         save.disabled = false;
+        if (!res.ok) { cxMsg(fmsg, faultMessage(res, 'The allowance was not saved.'), true); return; }
         after(res, current ? 'Saved.' : 'The allowance is set. VOOL can now pay these services inside these limits without asking.', 'The allowance was not saved.');
-      }).catch(function(){ save.disabled = false; cxMsg(msg, 'The request did not complete. Nothing was changed.', true); });
+      }).catch(function(){ save.disabled = false; cxMsg(fmsg, 'The request did not complete. Nothing was changed.', true); });
     });
     return form;
   }
@@ -1202,7 +1210,9 @@ function agentControls(cp){
             showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: chosen.name, address: w.address }, res.data.backup, function(done){
               say(done ? WTF('wallet.agents.ready', 'Done: {name} has its own wallet now, shown above. Send it only what you are willing to let VOOL spend.', { name: whose })
                 : WTF('wallet.agents.unfinished', '{name} has its own wallet now, shown above, but it is not finished: its backup key was not confirmed and will not be shown again.', { name: whose }));
-              renderCrypto();
+              // re-read the list here: the section's own refresh skips it while a form is open (an allowance form left
+              // open on another wallet), and then the new wallet was not shown until the page was reloaded
+              load(); agentsJustRead = true; renderCrypto();
             });
           }).catch(function(){ create.disabled = false; say('The request did not complete.', true); load(); });
         });

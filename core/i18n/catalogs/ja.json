@@ -5155,9 +5155,10 @@
     "wallet.agents.create_addons": "スキルとプラグインのウォレットを作成",
     "wallet.agents.create_agent": "{name} のウォレットを作成",
     "wallet.agents.ready": "完了：{name} に専用のウォレットができました（上に表示）。VOOL に使わせてもよい額だけを送ってください。",
-    "wallet.agents.unfinished": "{name} に専用のウォレットができました（上に表示）が、まだ完了していません。バックアップキーが確認されておらず、もう表示されません。"
+    "wallet.agents.unfinished": "{name} に専用のウォレットができました（上に表示）が、まだ完了していません。バックアップキーが確認されておらず、もう表示されません。",
+    "wallet.agents.allowance_empty": "先に上限と、少なくとも 1 つのサービスのアドレスを入力してください。何も保存されていません。"
   },
-  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
+  "source_catalog_sha256": "b298ee03c738a61ea5df6eb0aabf8c176673ab020de5973052679845bf44a978",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

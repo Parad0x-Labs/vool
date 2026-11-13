@@ -5155,9 +5155,10 @@
     "wallet.agents.create_addons": "Створити гаманець для навичок і плагінів",
     "wallet.agents.create_agent": "Створити гаманець для: {name}",
     "wallet.agents.ready": "Готово: у {name} тепер є власний гаманець, його показано вище. Надсилайте на нього лише те, що готові дозволити VOOL витратити.",
-    "wallet.agents.unfinished": "У {name} тепер є власний гаманець, його показано вище, але він не завершений: ключ резервної копії не підтверджено, і його більше не буде показано."
+    "wallet.agents.unfinished": "У {name} тепер є власний гаманець, його показано вище, але він не завершений: ключ резервної копії не підтверджено, і його більше не буде показано.",
+    "wallet.agents.allowance_empty": "Спершу заповніть ліміти й принаймні одну адресу сервісу. Нічого не збережено."
   },
-  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
+  "source_catalog_sha256": "b298ee03c738a61ea5df6eb0aabf8c176673ab020de5973052679845bf44a978",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

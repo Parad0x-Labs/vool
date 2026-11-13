@@ -5155,9 +5155,10 @@
     "wallet.agents.create_addons": "스킬 및 플러그인 지갑 만들기",
     "wallet.agents.create_agent": "{name}의 지갑 만들기",
     "wallet.agents.ready": "완료: 이제 {name}에 자체 지갑이 있으며 위에 표시됩니다. VOOL이 써도 괜찮은 만큼만 보내세요.",
-    "wallet.agents.unfinished": "이제 {name}에 자체 지갑이 있으며 위에 표시되지만 완료되지 않았습니다. 백업 키가 확인되지 않았고 다시 표시되지 않습니다."
+    "wallet.agents.unfinished": "이제 {name}에 자체 지갑이 있으며 위에 표시되지만 완료되지 않았습니다. 백업 키가 확인되지 않았고 다시 표시되지 않습니다.",
+    "wallet.agents.allowance_empty": "먼저 한도와 서비스 주소를 하나 이상 입력하세요. 아무것도 저장되지 않았습니다."
   },
-  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
+  "source_catalog_sha256": "b298ee03c738a61ea5df6eb0aabf8c176673ab020de5973052679845bf44a978",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

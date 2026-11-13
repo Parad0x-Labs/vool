@@ -5155,9 +5155,10 @@
     "wallet.agents.create_addons": "Создать кошелёк для навыков и плагинов",
     "wallet.agents.create_agent": "Создать кошелёк для: {name}",
     "wallet.agents.ready": "Готово: у {name} теперь есть свой кошелёк, он показан выше. Отправляйте на него только то, что готовы позволить VOOL потратить.",
-    "wallet.agents.unfinished": "У {name} теперь есть свой кошелёк, он показан выше, но он не готов: ключ резервной копии не подтверждён и больше не будет показан."
+    "wallet.agents.unfinished": "У {name} теперь есть свой кошелёк, он показан выше, но он не готов: ключ резервной копии не подтверждён и больше не будет показан.",
+    "wallet.agents.allowance_empty": "Сначала заполните лимиты и хотя бы один адрес сервиса. Ничего не сохранено."
   },
-  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
+  "source_catalog_sha256": "b298ee03c738a61ea5df6eb0aabf8c176673ab020de5973052679845bf44a978",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

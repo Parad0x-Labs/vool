@@ -5155,9 +5155,10 @@
     "wallet.agents.create_addons": "Créer le portefeuille Skills et plugins",
     "wallet.agents.create_agent": "Créer un portefeuille pour {name}",
     "wallet.agents.ready": "C’est fait : {name} a maintenant son propre portefeuille, affiché plus haut. N’y envoyez que ce que vous acceptez de laisser VOOL dépenser.",
-    "wallet.agents.unfinished": "{name} a maintenant son propre portefeuille, affiché plus haut, mais il n’est pas terminé : sa clé de sauvegarde n’a pas été confirmée et ne sera plus affichée."
+    "wallet.agents.unfinished": "{name} a maintenant son propre portefeuille, affiché plus haut, mais il n’est pas terminé : sa clé de sauvegarde n’a pas été confirmée et ne sera plus affichée.",
+    "wallet.agents.allowance_empty": "Remplissez d’abord les limites et au moins une adresse de service. Rien n’a été enregistré."
   },
-  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
+  "source_catalog_sha256": "b298ee03c738a61ea5df6eb0aabf8c176673ab020de5973052679845bf44a978",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

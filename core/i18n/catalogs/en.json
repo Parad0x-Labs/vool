@@ -5155,7 +5155,8 @@
     "wallet.agents.create_addons": "Create the Skills & plugins wallet",
     "wallet.agents.create_agent": "Create a wallet for {name}",
     "wallet.agents.ready": "Done: {name} has its own wallet now, shown above. Send it only what you are willing to let VOOL spend.",
-    "wallet.agents.unfinished": "{name} has its own wallet now, shown above, but it is not finished: its backup key was not confirmed and will not be shown again."
+    "wallet.agents.unfinished": "{name} has its own wallet now, shown above, but it is not finished: its backup key was not confirmed and will not be shown again.",
+    "wallet.agents.allowance_empty": "Fill in the limits and at least one service address first. Nothing was saved."
   },
   "html_keys": [
     "bypass.modal_limits",

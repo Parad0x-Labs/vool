@@ -5155,9 +5155,10 @@
     "wallet.agents.create_addons": "Sukurti įgūdžių ir papildinių piniginę",
     "wallet.agents.create_agent": "Sukurti piniginę: {name}",
     "wallet.agents.ready": "Atlikta: {name} dabar turi savo piniginę, ji parodyta aukščiau. Siųskite jai tik tiek, kiek leidžiate VOOL išleisti.",
-    "wallet.agents.unfinished": "{name} dabar turi savo piniginę, ji parodyta aukščiau, bet ji nebaigta: atsarginės kopijos raktas nepatvirtintas ir daugiau nebus parodytas."
+    "wallet.agents.unfinished": "{name} dabar turi savo piniginę, ji parodyta aukščiau, bet ji nebaigta: atsarginės kopijos raktas nepatvirtintas ir daugiau nebus parodytas.",
+    "wallet.agents.allowance_empty": "Pirmiausia įrašykite ribas ir bent vieną paslaugos adresą. Niekas neišsaugota."
   },
-  "source_catalog_sha256": "b13b0d01f44603ea389e8b7e1f272bce775299690c27c28b8562ac05011bcdf7",
+  "source_catalog_sha256": "b298ee03c738a61ea5df6eb0aabf8c176673ab020de5973052679845bf44a978",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
