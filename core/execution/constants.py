@@ -2860,6 +2860,10 @@ _LOCAL_FACT_LARGEST_RE = re.compile(
     r"\b(?:biggest|largest|heaviest|hugest|fattest|bulkiest|top)\b[\w\s,'-]*\b(?:file|files|folder|folders)\b"
     r"|\b(?:file|files|folder|folders)\b[\w\s,'-]*\b(?:biggest|largest|heaviest|hugest|fattest|bulkiest|top\s+\d+)\b"
     r"|\bspace\s+(?:hogs?|eaters?|guzzlers?)\b"
+    # "the heaviest thing on my whole computer", "the biggest stuff on my mac": the same ask without the
+    # word file (red/blue round 7 M5, Mac, 2026-11-13: answered "I don't have that saved").
+    r"|\b(?:biggest|largest|heaviest|hugest|fattest|bulkiest)\s+(?:things?|items?|stuff|space\s+users?)\b[\w\s,'-]*"
+    r"\b(?:on|in)\s+(?:my|this|the)\s+(?:whole\s+|entire\s+)?(?:computer|mac|macbook|laptop|pc|machine|disk|drive|ssd|hard\s+drive|storage)\b"
     # "what's eating up my disk space" / "what is hogging my storage" asks for the biggest
     # consumers, not the free-space total it was answered with (measured 2026-09-07).
     r"|\b(?:eating|hogging|filling|chewing)\s+(?:up\s+)?(?:all\s+)?(?:of\s+)?(?:my\s+|the\s+)?"

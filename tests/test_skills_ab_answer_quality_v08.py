@@ -130,3 +130,34 @@ def test_parking_rules_of_a_place_are_an_online_ask(asked):
 @pytest.mark.parametrize("asked", ("where did i park the car?", "is parking free at my office", "how do i parallel park"))
 def test_the_persons_own_parking_is_not(asked):
     assert not asks_for_online_facts(asked)
+
+
+# Red/blue round 7 on f4f048f7 (Mac, 2026-11-13): M5 and M6 were answered by the saved-chat search.
+
+@pytest.mark.parametrize("asked", (
+    "what is the heaviest thing on my whole computer",   # measured M5
+    "whats the biggest stuff on my mac",
+    "which are the largest items on this laptop",
+))
+def test_the_biggest_things_on_this_computer_is_the_largest_files_ask(asked):
+    from core.execution.constants import machine_largest_intent
+
+    assert machine_largest_intent(asked) == "machine.find_largest"
+
+
+def test_the_heaviest_thing_in_general_is_not_a_files_ask():
+    from core.execution.constants import machine_largest_intent
+
+    assert machine_largest_intent("what is the heaviest thing a horse can carry") is None
+
+
+@pytest.mark.parametrize(("asked", "topic"), (
+    ("do i have a note about the boiler service anywhere", "boiler service"),   # measured M6
+    ("is there a note about my car insurance", "my car insurance"),
+    ("did i write a note on the dentist?", "dentist"),
+))
+def test_asking_whether_a_note_exists_is_a_notes_search(searched, asked, topic):
+    found = parse_operator_action_intent(asked)
+    assert found is not None and found.kind == "find_notes", found
+    assert recall.cross_chat_recall(asked, session_id=SID, source_context=_asked(asked)) is None
+    assert searched == []

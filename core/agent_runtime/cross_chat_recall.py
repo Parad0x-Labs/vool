@@ -202,7 +202,8 @@ _LIVE_DOMAIN_RE = re.compile(
     # mac out of space" were answered "I don't have that saved").
     r"busy|(?:free|available)\s+(?:to\s+meet|on|at|for\s+(?:a\s+)?(?:call|meeting|lunch|dinner|coffee)|this|next)|"
     r"mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekend|"
-    r"storage|(?:out\s+of|free|disk|running\s+out\s+of)\s+space|space\s+left)\b",
+    r"storage|(?:out\s+of|free|disk|running\s+out\s+of)\s+space|space\s+left|"
+    r"(?:on|in)\s+(?:my|this)\s+(?:whole\s+|entire\s+)?(?:computer|mac|macbook|laptop|pc|machine|hard\s+drive))\b",
     re.IGNORECASE,
 )
 #: Not a saved fact of the person's: a request for an explanation or a cause ("why is my mac out of
@@ -222,7 +223,10 @@ _NOT_A_SAVED_FACT_RE = re.compile(
 #: "according to my notes" is still a records question, and this lane answers it: it searches every
 #: chat and project and says plainly when nothing is saved (served: "How many tonnes does the yard
 #: currently hold according to my notes?" went to a web lookup once the notes words alone sent it away).
-_OWN_WRITING_RE = re.compile(r"\b(?:notes|notebooks?|journal|diary)\b", re.IGNORECASE)
+_OWN_WRITING_RE = re.compile(
+    r"\b(?:notes|notebooks?|journal|diary)\b|\b(?:a|an|any|some)\s+(?:[\w'’-]+\s+)?note\s+(?:about|on|for|regarding)\b",
+    re.IGNORECASE,
+)
 _RECORDS_SOURCE_RE = re.compile(
     r"\b(?:according\s+to|based\s+on|per|going\s+by)\s+(?:my|our|the)\s+(?:notes|notebooks?|journal|diary)\b",
     re.IGNORECASE,
