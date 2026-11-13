@@ -16,7 +16,7 @@ import pytest
 from core import conversation_state as cs
 from core.clean_loop.tools import UNCHECKED_FILE_CLAIM_TEXT, unbacked_file_claims
 from core.execution.constants import machine_kind_listing_intent
-from tests.test_clean_local_loop_turn import turn_setup  # noqa: F401  (fixture)
+from tests.test_clean_local_loop_turn import turn_setup
 
 SC = {"surface": "openclaw", "_owner_local": True, "platform": "cli"}
 
@@ -207,7 +207,7 @@ ORDERED = [
 def test_m2_every_ordering_direction_names_the_right_file(turn_setup, monkeypatch, ask, expected):
     agent, fake, home = turn_setup
     r, model_calls = _after_a_listing(agent, fake, monkeypatch, home, ask, [WRONG_OLDEST])
-    first_line = [ln for ln in r["response"].splitlines() if ln.startswith("- ")][0]
+    first_line = next(ln for ln in r["response"].splitlines() if ln.startswith("- "))
     assert expected in first_line, r["response"]
     assert model_calls == 0, "the folder answers, no model compares dates or sizes"
 
