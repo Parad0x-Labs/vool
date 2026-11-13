@@ -689,6 +689,19 @@ def _target_path_for(evidence: Any, effective_input: str) -> str:
     return next(iter(evidence.sources), "")
 
 
+def _named_nomination_targets(evidence: Any, effective_input: str) -> tuple[str, ...]:
+    """Every file the request names that this audit read, in the order named, without repeats."""
+    from core.agent_runtime.audit_claim_verifier import _resolve_cited_path
+    from core.agent_runtime.workspace_audit import audit_targets_in
+
+    found: list[str] = []
+    for named in audit_targets_in(effective_input):
+        resolved = _resolve_cited_path(named, evidence)
+        if resolved and evidence.sources.get(resolved) and resolved not in found:
+            found.append(resolved)
+    return tuple(found)
+
+
 def _reported_target_path(evidence: Any, target_path: str) -> str:
     """The target the REPORT may name, or "" when this pass had no single subject.
 
@@ -964,9 +977,9 @@ _BAD_VALUE_RE = re.compile(
 #: stock" can be run as surely as "ship('A', 5) with on_hand 3". It must compare or sign a value; "if something
 #: goes wrong" is not one.
 _CONDITION_RE = re.compile(
-    r"\b(?:if|when|whenever|once|after)\s+(?:the\s+)?[A-Za-z_][\w.\[\]]*\s+"
-    r"(?:exceeds?|is\s+(?:greater|larger|bigger|more|less|smaller|fewer|lower|higher)\s+than"
-    r"|is\s+(?:above|below|over|under|negative|zero)|[<>]=?)\s*[^,.;]*",
+    r"\b(?:if|when|whenever|once|after)\s+(?:the\s+)?(?P<name>[A-Za-z_][\w.\[\]]*)\s+"
+    r"(?P<pred>exceeds?|is\s+(?:already\s+|still\s+|ever\s+)?(?:(?:greater|larger|bigger|more|less|smaller|fewer"
+    r"|lower|higher)\s+than|above|below|over|under|negative|zero)|[<>]=?)\s*[^,.;]*",
     re.IGNORECASE,
 )
 #: An assignment on a cited line, and whether it clamps the value at zero.
@@ -1025,6 +1038,88 @@ def _cited_lines_contradict(text: str, evidence: Any, path: str, start: int, end
     return bool(named) and all(named)
 
 
+_GUARD_RE = re.compile(r"^\s*if\s+(?P<test>.+?):\s*(?P<then>.*)$")
+_COMPARISON_RE = re.compile(r"([A-Za-z_][\w.]*)\s*(<=|>=|==|<|>)\s*([A-Za-z_][\w.]*|-?\d+(?:\.\d+)?)")
+_REFUSES_RE = re.compile(r"^\s*(?:raise\b|return\s*(?:False|None)?\s*$)")
+_DEF_RE = re.compile(r"^(\s*)def\s+([A-Za-z_]\w*)\s*\(")
+
+
+def _bare_name(name: str) -> str:
+    return re.sub(r"\[.*$", "", name.strip()).removeprefix("self.").lower()
+
+
+def _guards(lines: list[str]) -> list[tuple[str, str, str]]:
+    """The comparisons these lines refuse on: `if <a> <op> <b>:` followed by a raise or a bare/False return."""
+    found: list[tuple[str, str, str]] = []
+    for index, line in enumerate(lines):
+        match = _GUARD_RE.match(line)
+        if not match:
+            continue
+        then = match.group("then").strip()
+        following = next((nxt for nxt in lines[index + 1:] if nxt.strip()), "")
+        if not (_REFUSES_RE.match(then) if then else _REFUSES_RE.match(following)):
+            continue
+        for left, op, right in _COMPARISON_RE.findall(match.group("test")):
+            found.append((_bare_name(left), op, _bare_name(right)))
+    return found
+
+
+def _lines_the_citation_reaches(lines: list[str], start: int, end: int) -> list[str]:
+    """The cited lines (±1) and the bodies of same-file functions those lines call, one level deep."""
+    reached = list(lines[max(0, start - 2): min(len(lines), end + 1)])
+    called = {name for line in lines[max(0, start - 1): min(len(lines), end)]
+              for name in re.findall(r"([A-Za-z_]\w*)\s*\(", line)}
+    for index, line in enumerate(lines):
+        match = _DEF_RE.match(line)
+        if not match or match.group(2) not in called or start - 1 <= index < end:
+            continue
+        indent = len(match.group(1))
+        for body in lines[index + 1:]:
+            if body.strip() and len(body) - len(body.lstrip()) <= indent:
+                break
+            reached.append(body)
+    return reached
+
+
+def _condition_is_refused(pred: str, name: str, guards: list[tuple[str, str, str]]) -> bool:
+    """Whether a guard refuses the story's condition `<name> <pred>` before it can do harm."""
+    pred = re.sub(r"\s+", " ", pred.lower()).replace("already ", "").replace("still ", "").replace("ever ", "")
+    for left, op, right in guards:
+        # `if 0 > qty` reads as `if qty < 0`.
+        if right == name and left != name:
+            left, right, op = right, left, {"<": ">", ">": "<", "<=": ">=", ">=": "<="}.get(op, op)
+        if left != name:
+            continue
+        if pred in {"is negative", "is below", "is under"} or pred.startswith("is less") or pred.startswith(
+                "is smaller") or pred.startswith("is fewer") or pred.startswith("is lower") or pred in {"<", "<="}:
+            if op in {"<", "<="}:
+                return True
+        elif pred == "is zero":
+            if (op == "<=" and right == "0") or (op == "==" and right == "0") or (op == "<" and right == "1"):
+                return True
+        elif op in {">", ">="}:
+            return True
+    return False
+
+
+def _cited_code_contradicts(text: str, evidence: Any, path: str, start: int, end: int) -> bool:
+    """Whether the cited code already rules out what the story claims, so no wording may back it.
+
+    Two shapes, both measured on the real-model audit of 3.21: a value said to go negative that every named
+    assignment on the cited lines clamps at zero (attempt 3, stock.py:25 `max(0, ...)`), and a condition the
+    cited lines, or a same-file function they call, refuse with a raise or a False return (attempt 4,
+    stock.py:20: "if qty is negative" while can_reserve returns False for qty <= 0 and reserve raises).
+    """
+    if _cited_lines_contradict(text, evidence, path, start, end):
+        return True
+    lines = str(evidence.sources.get(path, "") or "").splitlines()
+    guards = _guards(_lines_the_citation_reaches(lines, start, end))
+    if not guards:
+        return False
+    return any(_condition_is_refused(m.group("pred"), _bare_name(m.group("name")), guards)
+               for m in _CONDITION_RE.finditer(text))
+
+
 def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, start: int, end: int) -> bool:
     """Whether a failure scenario can be settled by running something: it gives a concrete input (a literal of
     its own, or a condition on a value) AND names code that sits on the cited lines (±1), AND those lines do not
@@ -1045,7 +1140,7 @@ def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, 
     window = "\n".join(lines[max(0, start - 2): min(len(lines), end + 1)])
     if not (_literals_beyond_the_code(text, window) or _CONDITION_RE.search(text)):
         return False
-    if _cited_lines_contradict(text, evidence, path, start, end):
+    if _cited_code_contradicts(text, evidence, path, start, end):
         return False
     tokens = {t for t in _CODE_TOKEN_RE.findall(window) if len(t) >= 4 and t not in _NOT_GROUNDING}
     # Inside a method `self.available` is called `available` (review of 6ad76ec7: "can_reserve('A', 5) with
@@ -1108,9 +1203,12 @@ def _finding_defect(
     # Words decide only where no challenge runs: a survey row's declared class and an undeclared class.
     # A declared primary goes to the challenge either way, so its flag below follows the vocabulary as before.
     worded = bool(_OUTPUT_INTEGRITY_HARM_RE.search(claim_text))
-    provable = worded or _scenario_is_concrete_and_grounded(
+    # Neither way backs a claim the cited code already rules out (`_cited_code_contradicts`): a user sees a
+    # false High whichever way it was backed (real-model audit of 3.21, attempt 4: "if qty is negative ...
+    # incorrect reservations" at stock.py:20, where reserve() refuses qty <= 0).
+    provable = (worded or _scenario_is_concrete_and_grounded(
         failure_scenario, evidence, resolved, line_start, line_end
-    )
+    )) and not _cited_code_contradicts(failure_scenario, evidence, resolved, line_start, line_end)
     if declared in PROVABLE_HARM_CLASSES and allow_observations and not provable:
         # A survey row is shown without any challenge, so its declared crash/integrity has to be
         # backed by its words or it is downgraded to the undeclared-inference rule below.
@@ -1951,8 +2049,13 @@ def _nominate_finding(
     refuted_titles: tuple[str, ...] = (),
     screened_titles: tuple[str, ...] = (),
     already_found_titles: tuple[str, ...] = (),
+    target: str = "",
+    attempts: int = _MAX_NOMINATION_ATTEMPTS,
 ) -> tuple[SteppedFinding | None, str, SteppedCallResult | None, bool, str, list[dict[str, Any]]]:
     """(finding, resolved path, last call, terminal, failure note, survey rows).
+
+    ``target`` names the file this nomination is about (default: the named or first file), and
+    ``attempts`` caps its calls, so an audit of several named files can give each one a turn.
 
     ``terminal`` means "do not try another manifest": the model produced VALID JSON twice and both
     citations were refuted by the evidence — a different model will not fix a claim the evidence
@@ -1966,7 +2069,7 @@ def _nominate_finding(
     from core.model_output_contracts import validate_contract
 
     batch_rows: list[dict[str, Any]] = []
-    target = _target_path_for(evidence, effective_input)
+    target = target or _target_path_for(evidence, effective_input)
     body = evidence.sources.get(target, "")
     if not target or not body:
         return None, "", None, False, "no_readable_target", []
@@ -2030,7 +2133,7 @@ def _nominate_finding(
     # `_MAX_NOMINATION_ATTEMPTS` is per manifest; the LEDGER bounds the turn. Those used to be the
     # same budget composed twice — three attempts per manifest across four manifests across three
     # candidates — which is how one file audit reached nine calls.
-    for _attempt in range(_MAX_NOMINATION_ATTEMPTS):
+    for _attempt in range(max(1, int(attempts))):
         if not budget.may_call("nominate"):
             # The budget stopping the loop must not overwrite WHY the loop was still going. The
             # last rejection is what the operator needs; that the ceiling then ended the search is
@@ -3553,7 +3656,20 @@ def run_stepped_audit(
     # from here; this stage's number honestly covers audit-turn setup, not file I/O.
     stage_timing["context_collection"] = time.monotonic() - _context_collection_started
 
+    # Every file the operator named gets a nomination of its own, in the order named. The nomination
+    # prompt shows ONE file with numbered lines ("what is wrong with THIS file"), and that file was
+    # always the LAST one named, so "Audit orders.py, pricing.py and stock.py" read all three and
+    # nominated from stock.py alone: real-model audit of 3.21, attempts 3 and 4 (qwen3:8b,
+    # 2026-11-12/13), no row for orders.py or pricing.py in 12 turns, though both hold keyed bugs.
+    # The read-only ceiling is three nominations, one per file for three files, so this spends no
+    # call the old loop could not; a file that yields nothing no longer ends the search while a
+    # named file is still unvisited.
+    named_targets = _named_nomination_targets(evidence, effective_input)
+
     for _candidate_index in range(_MAX_CANDIDATES):
+        rotating = len(named_targets) > 1
+        nomination_target = named_targets[_candidate_index % len(named_targets)] if rotating else ""
+        files_still_unvisited = rotating and _candidate_index + 1 < len(named_targets)
         carried_candidate = carried is not None
         if carried is not None:
             finding, carried = carried, None
@@ -3588,6 +3704,10 @@ def run_stepped_audit(
                             if row.get("title")
                         )
                     ),
+                    target=nomination_target,
+                    # One call per file while named files wait, so the first file's retries cannot
+                    # spend the turn's nominations; the last named file gets the usual retries.
+                    attempts=1 if files_still_unvisited else _MAX_NOMINATION_ATTEMPTS,
                 )
                 stage_timing["nomination"] += time.monotonic() - _nominate_started
                 used_manifest = manifest
@@ -3660,6 +3780,8 @@ def run_stepped_audit(
                 if str(fail_note).startswith("evidence_rejected:"):
                     break
         if finding is None:
+            if files_still_unvisited and budget.may_call("nominate"):
+                continue
             break
         capsule.nominated.append(finding.title)
 

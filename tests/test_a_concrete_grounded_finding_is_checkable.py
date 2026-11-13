@@ -297,3 +297,50 @@ def test_a_condition_without_a_bad_value_is_not_promoted(scenario):
     assert _as_survey_row(candidate)["harm_class"] not in {"integrity", "crash"}, scenario
     defect, _ = _undeclared(candidate)
     assert REFUSED_AS_PRIMARY in defect, scenario
+
+
+# ---- real-model audit attempt 4 (qwen3:8b through /api/chat, 2026-11-13, 6c030f6a): stock.py:20 was served High
+# through the harm vocabulary ("incorrect") and the new rule both, though reserve() refuses exactly that input:
+# can_reserve, which line 20 calls, returns False for qty <= 0 and reserve raises. Words may not back a claim
+# whose condition the cited code, or the function it calls, already refuses. Wording verbatim from the row.
+GUARDED_BY_THE_CODE = [
+    {"title": "No Validation for Negative qty in Reserve", "file": "stock.py", "line_start": 20, "line_end": 20,
+     "cited_line_text": "        if not self.can_reserve(sku, qty):",
+     "failure_scenario": "The can_reserve method checks if qty is positive, but if qty is negative, it could lead "
+                         "to incorrect reservations. The code does not handle negative quantities properly.",
+     "harm_class": "integrity"},
+    # Authored: the same claim on the guard's own lines, and the guard of orders.py's cancel_line.
+    {"title": "can_reserve accepts zero", "file": "stock.py", "line_start": 15, "line_end": 17,
+     "cited_line_text": "        if qty <= 0:",
+     "failure_scenario": "If qty is zero, can_reserve returns True and the recorded reservation is wrong.",
+     "harm_class": "integrity"},
+    {"title": "cancel more than ordered", "file": "orders.py", "line_start": 23, "line_end": 25,
+     "cited_line_text": "    if qty > current:",
+     "failure_scenario": "If qty exceeds current, order.lines[sku] becomes negative and the order is corrupted.",
+     "harm_class": "integrity"},
+]
+
+
+@pytest.mark.parametrize("candidate", GUARDED_BY_THE_CODE, ids=lambda c: c["title"])
+def test_words_do_not_back_a_claim_the_cited_code_already_refuses(candidate):
+    assert _as_survey_row(candidate)["harm_class"] not in {"integrity", "crash"}, candidate["failure_scenario"]
+    defect, bare = _undeclared(candidate)
+    assert REFUSED_AS_PRIMARY in defect, (bare["harm_class"], candidate["failure_scenario"])
+
+
+# The same words still back real bugs whose condition nothing refuses: ship() calls release(), which clamps
+# reserved but guards nothing, and the harm vocabulary keeps its say there.
+UNGUARDED_REAL_BUGS = [
+    "If the on_hand is already zero and qty is positive, this line could result in a negative on_hand value, which "
+    "is invalid.",
+    "If the quantity shipped exceeds the available stock, the on_hand value could become negative, which is "
+    "incorrect. The code does not validate this scenario.",
+]
+
+
+@pytest.mark.parametrize("scenario", UNGUARDED_REAL_BUGS)
+def test_an_unguarded_real_bug_keeps_its_class(scenario):
+    candidate = dict(SHIP_NEGATIVE, failure_scenario=scenario)
+    assert _as_survey_row(candidate)["harm_class"] == "integrity", scenario
+    defect, bare = _undeclared(candidate)
+    assert defect == "" and bare["harm_class"] == "integrity", (defect, scenario)
