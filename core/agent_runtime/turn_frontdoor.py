@@ -1003,7 +1003,12 @@ def handle_turn_frontdoor(
     # (core.wallet.money_answers), read-only. Before the spend-cap explainer and the live price lookup: a wallet's
     # limits are not the cloud AI spend cap, and "how much SOL is in my main wallet" is not the price of SOL. With
     # crypto off, or no wallet yet, it says so plainly instead of a model guessing numbers.
-    if _intent_input and _owner_local:
+    # A question about material bound to this turn ("What is the total on the attached receipt?") asks about that
+    # material: the wallet answered it with "Crypto is switched off" and the receipt never reached the model (CI #683
+    # macos, test_media_product_served and test_artifact_readers_served_m2, once OCR ran there).
+    from core.execution.constants import bound_chat_attachment_present
+
+    if _intent_input and _owner_local and not bound_chat_attachment_present(source_context):
         from core.wallet import config as wallet_config
         from core.wallet import money_answers
 
