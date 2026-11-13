@@ -5206,9 +5206,11 @@
     "xbook.short": "让 VOOL 读取并保存你的 X 书签。每个请求都会等待你的批准。",
     "wallet.review.over_cap_payment": "这笔付款加上网络费最多为 {total} {asset}，超过了此钱包单笔 {cap} {asset} 的限额。请最多发送 {room} {asset}，或在设置、加密货币中提高限额。没有发送任何内容。",
     "wallet.review.over_cap_day": "这笔付款加上网络费会超过此钱包的一项支出限额（今天的限额，或今天对该收款人的限额）。没有发送任何内容。",
-    "wallet.review.over_cap_frozen": "此钱包的支出已冻结，因此现在无法批准这笔付款。没有发送任何内容。"
+    "wallet.review.over_cap_frozen": "此钱包的支出已冻结，因此现在无法批准这笔付款。没有发送任何内容。",
+    "settings.scam.read_more": "展开阅读（还有 {count} 条）",
+    "settings.scam.show_less": "收起"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

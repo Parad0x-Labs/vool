@@ -5206,9 +5206,11 @@
     "xbook.short": "VOOL が X のブックマークを読み取り・保存できるようにします。各リクエストはあなたの承認を待ちます。",
     "wallet.review.over_cap_payment": "この支払いはネットワーク手数料を含めて最大 {total} {asset} で、このウォレットの 1 回の上限 {cap} {asset} を超えています。{room} {asset} 以下で送るか、設定の暗号資産で上限を上げてください。何も送信されていません。",
     "wallet.review.over_cap_day": "この支払いはネットワーク手数料を含めると、このウォレットの支出上限 (今日の上限、または今日のこの受取人への上限) を超えます。何も送信されていません。",
-    "wallet.review.over_cap_frozen": "このウォレットでは支出が凍結されているため、今はこの支払いを承認できません。何も送信されていません。"
+    "wallet.review.over_cap_frozen": "このウォレットでは支出が凍結されているため、今はこの支払いを承認できません。何も送信されていません。",
+    "settings.scam.read_more": "続きを読む（あと {count} 件）",
+    "settings.scam.show_less": "折りたたむ"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

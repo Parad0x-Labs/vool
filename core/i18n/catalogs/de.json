@@ -5206,9 +5206,11 @@
     "xbook.short": "Lässt VOOL deine X-Lesezeichen lesen und speichern. Jede Anfrage wartet auf deine Zustimmung.",
     "wallet.review.over_cap_payment": "Diese Zahlung kostet mit Netzwerkgebühr höchstens {total} {asset} und liegt damit über dem Limit dieser Wallet von {cap} {asset} pro Zahlung. Sende höchstens {room} {asset} oder erhöhe das Limit unter Einstellungen, Krypto. Es wurde nichts gesendet.",
     "wallet.review.over_cap_day": "Diese Zahlung würde mit Netzwerkgebühr ein Ausgabelimit dieser Wallet überschreiten (für heute oder für diesen Empfänger heute). Es wurde nichts gesendet.",
-    "wallet.review.over_cap_frozen": "Ausgaben sind in dieser Wallet eingefroren, daher kann diese Zahlung jetzt nicht genehmigt werden. Es wurde nichts gesendet."
+    "wallet.review.over_cap_frozen": "Ausgaben sind in dieser Wallet eingefroren, daher kann diese Zahlung jetzt nicht genehmigt werden. Es wurde nichts gesendet.",
+    "settings.scam.read_more": "Mehr lesen ({count} weitere)",
+    "settings.scam.show_less": "Weniger anzeigen"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

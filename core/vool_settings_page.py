@@ -1296,6 +1296,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .scam-title { font-weight:700; margin-bottom:6px; font-size:13px; }
 .scam-line { margin:3px 0; color:var(--muted); }
 .scam-line.scam-do { color:var(--ink); font-weight:600; }
+.scam-more { margin-top:10px; align-self:flex-start; width:auto; }
 .scam-principle { margin-top:12px; padding:8px 12px; border-left:3px solid #34d399; font-weight:600; }
 
 /* ---- content ---- */
@@ -1520,12 +1521,13 @@ const ALL_ROWS = MODEL.flatMap(g => g.rows.map(r => ({ ...r, group: g.id, groupT
 function urlsForGroup(groupId) {
   return [...new Set(ALL_ROWS.filter(r => r.group === groupId && r.read && r.read.url).map(r => r.read.url))];
 }
-async function ensureGroupSources(groupId, force) {
+async function ensureGroupSources(groupId, force, quiet) {
   const urls = urlsForGroup(groupId).filter(u => force || (state.sources[u] === undefined && state.sourceErr[u] === undefined));
   if (!urls.length) return;
-  urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'loading', T('settings.row_loading', 'Loading…'))); });
+  /* quiet: a background re-read (the window regained focus) shows no Loading… on rows the person is looking at */
+  if (!quiet) urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'loading', T('settings.row_loading', 'Loading…'))); });
   await Promise.all(urls.map(readSource));
-  urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'idle', '')); });
+  if (!quiet) urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'idle', '')); });
 }
 
 /* ------------------------------------------------------------------ reads */
@@ -2031,6 +2033,11 @@ function renderPane() {
     metaEl.hidden = !state.paneMeta;
   }
   const body = $('#paneBody');
+  /* A repaint keeps the reader where they were: the body holds its height while it is rebuilt, so the pane's scroll
+     is never clamped toward the top, and the same scroll position is put back afterwards. */
+  const pane = $('#pane');
+  const keepTop = pane ? pane.scrollTop : 0;
+  if (keepTop) body.style.minHeight = body.offsetHeight + 'px';
   body.textContent = '';
   const kit = !LEGACY_GROUPS.has(g.id);
   const card = el('div', kit ? 'card vs-card' : 'card');
@@ -2100,11 +2107,12 @@ function renderPane() {
   (g.cards || []).forEach(c => { if (cardNodes[c.id]) body.appendChild(cardNodes[c.id]); });
   if (card.childNodes.length || !Object.keys(cardNodes).length) body.appendChild(card);
   Object.keys(state.rows).forEach(paintState);
+  body.style.minHeight = '';
   if (state.focusRow) {
     const target = body.querySelector('[data-row="' + CSS.escape(state.focusRow) + '"]');
     if (target) { $('#pane').scrollTop = state.onlyRow ? 0 : target.offsetTop; target.classList.add('hit'); }
     state.focusRow = '';
-  }
+  } else if (pane && keepTop && pane.scrollTop !== keepTop) pane.scrollTop = keepTop;
 }
 
 async function go(groupId, rowId) {
@@ -2126,7 +2134,8 @@ async function go(groupId, rowId) {
   if (groupId === 'setup') await ensureGroupSources(groupId, true);
   else await ensureGroupSources(groupId);
   if (rowId) state.focusRow = rowId;
-  renderPane();
+  state.paneOpened = true;   /* the person opened this page: surfaces mounted into it read fresh once */
+  try { renderPane(); } finally { state.paneOpened = false; }
 }
 </script>
 """
@@ -2620,6 +2629,8 @@ function widgetSetupProgress(stack) {
 
 /* --- Stay safe: the scam cards from core/wallet/scam_school.py (one authority; the SVGs are the server's own
    static drawings, never user content). Available with the wallet off: knowledge first, custody later. */
+const SCAM_SHOWN = 2;
+let scamMoreOpen = false;
 function widgetScamSchool(stack) {
   const src = state.sources['/api/wallet/safety'];
   const err = state.sourceErr['/api/wallet/safety'];
@@ -2627,9 +2638,11 @@ function widgetScamSchool(stack) {
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const rule = el('div', 'scam-rule'); rule.setAttribute('role', 'note'); rule.textContent = src.golden_rule || '';
   stack.appendChild(rule);
-  const grid = el('div', 'scam-grid');
-  (src.cards || []).forEach(c => {
+  const grid = el('div', 'scam-grid'); grid.id = 'scamGrid';
+  const cards = src.cards || [];
+  cards.forEach((c, i) => {
     const card = el('div', 'scam-card'); card.dataset.card = c.id;
+    if (i >= SCAM_SHOWN && !scamMoreOpen) card.hidden = true;
     const ill = el('div', 'scam-ill'); ill.innerHTML = c.svg || ''; card.appendChild(ill);
     const body = el('div', 'scam-body');
     body.appendChild(el('div', 'scam-title', (c.emoji ? c.emoji + ' ' : '') + c.title));
@@ -2639,6 +2652,21 @@ function widgetScamSchool(stack) {
     card.appendChild(body); grid.appendChild(card);
   });
   stack.appendChild(grid);
+  /* Two cards show; the rest open in place with Read more, so the page stays short. The open state survives the
+     pane's repaints, and nothing is fetched again. */
+  if (cards.length > SCAM_SHOWN) {
+    const hiddenCount = cards.length - SCAM_SHOWN;
+    const more = el('button', 'btn scam-more'); more.type = 'button'; more.id = 'scamMore';
+    more.setAttribute('aria-controls', 'scamGrid');
+    const paint = () => {
+      more.setAttribute('aria-expanded', scamMoreOpen ? 'true' : 'false');
+      more.textContent = scamMoreOpen ? T('settings.scam.show_less', 'Show less') : tfmt('settings.scam.read_more', 'Read more ({count} more)', { count: hiddenCount });
+      Array.prototype.forEach.call(grid.children, (card, i) => { card.hidden = i >= SCAM_SHOWN && !scamMoreOpen; });
+    };
+    more.addEventListener('click', () => { scamMoreOpen = !scamMoreOpen; paint(); });
+    paint();
+    stack.appendChild(more);
+  }
   if (src.principle) stack.appendChild(el('div', 'scam-principle', src.principle));
 }
 
@@ -2673,7 +2701,7 @@ function widgetWallet(stack) {
 function widgetCrypto(stack) {
   const host = el('div'); host.id = 'cryptoHost';
   stack.appendChild(host);
-  if (window.VoolWallet && typeof window.VoolWallet.mountCrypto === 'function') { window.VoolWallet.mountCrypto(host); return; }
+  if (window.VoolWallet && typeof window.VoolWallet.mountCrypto === 'function') { window.VoolWallet.mountCrypto(host, { refresh: !!state.paneOpened }); return; }
   stack.appendChild(el('div', 'empty', 'The crypto surface did not load.'));
 }
 
@@ -5843,21 +5871,29 @@ function widgetProfile(stack) {
    open group is re-read: a row the user has not edited follows the runtime, and a row they HAVE
    edited keeps their text and is told the stored value moved. */
 async function reconcile() {
+  let navChanged = false;
   if (MODEL.some(g => g.id === 'setup')) {
     await readSource(SETUP_STATE_URL);
     const setup = state.sources[SETUP_STATE_URL];
-    if (!setup || !setup.show_entry) { removeSetupGroup(); renderNav(); }
+    if (!setup || !setup.show_entry) { removeSetupGroup(); renderNav(); navChanged = true; }
   }
+  const group = state.group;
   const before = {};
-  ALL_ROWS.filter(r => r.group === state.group && r.read).forEach(r => { before[r.id] = valueOf(r); });
-  await ensureGroupSources(state.group, true);
-  ALL_ROWS.filter(r => r.group === state.group && r.read).forEach(r => {
+  ALL_ROWS.filter(r => r.group === group && r.read).forEach(r => { before[r.id] = valueOf(r); });
+  /* What the open group was drawn from; when a re-read brings back exactly the same, nothing is repainted, so
+     coming back to the window (after a Keychain prompt, or copying a wallet's backup elsewhere) never flickers
+     the page or moves it. */
+  const drawnFrom = () => JSON.stringify(urlsForGroup(group).map(u => [state.sources[u], state.sourceErr[u]]));
+  const drawn = drawnFrom();
+  await ensureGroupSources(group, true, true);
+  ALL_ROWS.filter(r => r.group === group && r.read).forEach(r => {
     const st = rowState(r.id);
     const now = valueOf(r);
     if (same(before[r.id], now)) return;
     if (st.dirty !== undefined && !same(st.dirty, now)) setState(r.id, 'stale', 'Changed elsewhere to ' + JSON.stringify(now) + '.');
     else if (st.status !== 'saving') setState(r.id, 'idle', '');
   });
+  if (!navChanged && group === state.group && drawnFrom() === drawn) return;
   renderPane();
 }
 

@@ -5206,9 +5206,11 @@
     "xbook.short": "Cho phép VOOL đọc và lưu dấu trang X của bạn. Mỗi yêu cầu đều chờ bạn phê duyệt.",
     "wallet.review.over_cap_payment": "Khoản thanh toán này cộng phí mạng tối đa là {total} {asset}, vượt giới hạn {cap} {asset} cho một lần thanh toán của ví này. Hãy gửi tối đa {room} {asset}, hoặc nâng giới hạn trong Cài đặt, Tiền mã hóa. Chưa có gì được gửi.",
     "wallet.review.over_cap_day": "Khoản thanh toán này cộng phí mạng sẽ vượt một giới hạn chi tiêu của ví này (cho hôm nay, hoặc cho người nhận này hôm nay). Chưa có gì được gửi.",
-    "wallet.review.over_cap_frozen": "Chi tiêu trong ví này đang bị đóng băng, nên chưa thể duyệt khoản thanh toán này. Chưa có gì được gửi."
+    "wallet.review.over_cap_frozen": "Chi tiêu trong ví này đang bị đóng băng, nên chưa thể duyệt khoản thanh toán này. Chưa có gì được gửi.",
+    "settings.scam.read_more": "Đọc thêm (thêm {count})",
+    "settings.scam.show_less": "Thu gọn"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

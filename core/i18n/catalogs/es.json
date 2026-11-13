@@ -5206,9 +5206,11 @@
     "xbook.short": "Permite que VOOL lea y guarde tus marcadores de X. Cada solicitud espera tu aprobación.",
     "wallet.review.over_cap_payment": "Este pago más su comisión de red suma como máximo {total} {asset}, por encima del límite de este monedero de {cap} {asset} por pago. Envía como máximo {room} {asset} o sube el límite en Ajustes, Cripto. No se envió nada.",
     "wallet.review.over_cap_day": "Este pago más su comisión de red superaría un límite de gasto de este monedero (para hoy, o para este destinatario hoy). No se envió nada.",
-    "wallet.review.over_cap_frozen": "El gasto está congelado en este monedero, así que este pago no se puede aprobar ahora. No se envió nada."
+    "wallet.review.over_cap_frozen": "El gasto está congelado en este monedero, así que este pago no se puede aprobar ahora. No se envió nada.",
+    "settings.scam.read_more": "Leer más ({count} más)",
+    "settings.scam.show_less": "Mostrar menos"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5206,9 +5206,11 @@
     "xbook.short": "يتيح لـ VOOL قراءة إشاراتك المرجعية على X وحفظها. كل طلب ينتظر موافقتك.",
     "wallet.review.over_cap_payment": "تبلغ هذه الدفعة مع رسوم الشبكة {total} {asset} كحد أقصى، وهذا فوق حد هذه المحفظة البالغ {cap} {asset} للدفعة الواحدة. أرسل {room} {asset} كحد أقصى، أو ارفع الحد من الإعدادات، العملات المشفرة. لم يُرسل شيء.",
     "wallet.review.over_cap_day": "ستتجاوز هذه الدفعة مع رسوم الشبكة حدًّا للإنفاق في هذه المحفظة (لليوم، أو لهذا المستلم اليوم). لم يُرسل شيء.",
-    "wallet.review.over_cap_frozen": "الإنفاق مجمَّد في هذه المحفظة، لذا لا يمكن الموافقة على هذه الدفعة الآن. لم يُرسل شيء."
+    "wallet.review.over_cap_frozen": "الإنفاق مجمَّد في هذه المحفظة، لذا لا يمكن الموافقة على هذه الدفعة الآن. لم يُرسل شيء.",
+    "settings.scam.read_more": "اقرأ المزيد ({count} أخرى)",
+    "settings.scam.show_less": "عرض أقل"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

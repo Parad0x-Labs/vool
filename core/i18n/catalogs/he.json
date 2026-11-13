@@ -5206,9 +5206,11 @@
     "xbook.short": "מאפשר ל-VOOL לקרוא ולשמור את הסימניות שלך ב-X. כל בקשה ממתינה לאישורך.",
     "wallet.review.over_cap_payment": "התשלום הזה יחד עם עמלת הרשת מגיע לכל היותר ל-{total} {asset}, מעל המגבלה של הארנק הזה – {cap} {asset} לתשלום אחד. שלחו לכל היותר {room} {asset}, או הגדילו את המגבלה בהגדרות, קריפטו. שום דבר לא נשלח.",
     "wallet.review.over_cap_day": "התשלום הזה יחד עם עמלת הרשת יחרוג ממגבלת הוצאה של הארנק הזה (להיום, או לנמען הזה היום). שום דבר לא נשלח.",
-    "wallet.review.over_cap_frozen": "ההוצאות בארנק הזה מוקפאות, ולכן אי אפשר לאשר את התשלום הזה עכשיו. שום דבר לא נשלח."
+    "wallet.review.over_cap_frozen": "ההוצאות בארנק הזה מוקפאות, ולכן אי אפשר לאשר את התשלום הזה עכשיו. שום דבר לא נשלח.",
+    "settings.scam.read_more": "קרא עוד ({count} נוספים)",
+    "settings.scam.show_less": "הצג פחות"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5206,9 +5206,11 @@
     "xbook.short": "Leidžia VOOL skaityti ir išsaugoti jūsų X žymes. Kiekviena užklausa laukia jūsų patvirtinimo.",
     "wallet.review.over_cap_payment": "Šis mokėjimas su tinklo mokesčiu sudaro daugiausia {total} {asset}, daugiau nei šios piniginės riba – {cap} {asset} vienam mokėjimui. Siųskite daugiausia {room} {asset} arba padidinkite ribą: Nustatymai, Kriptovaliuta. Niekas neišsiųsta.",
     "wallet.review.over_cap_day": "Šis mokėjimas su tinklo mokesčiu viršytų šios piniginės išlaidų ribą (šiandienai arba šiam gavėjui šiandien). Niekas neišsiųsta.",
-    "wallet.review.over_cap_frozen": "Šioje piniginėje išlaidos užšaldytos, todėl šio mokėjimo dabar patvirtinti negalima. Niekas neišsiųsta."
+    "wallet.review.over_cap_frozen": "Šioje piniginėje išlaidos užšaldytos, todėl šio mokėjimo dabar patvirtinti negalima. Niekas neišsiųsta.",
+    "settings.scam.read_more": "Skaityti daugiau (dar {count})",
+    "settings.scam.show_less": "Rodyti mažiau"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

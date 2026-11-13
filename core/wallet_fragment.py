@@ -846,7 +846,7 @@ function buildSection(){
 // Every row, capability, account state, environment and policy text comes from /api/wallet/status (crypto_pilot): the
 // page names no network, no capability and no rule of its own. The backup is placed in ONE detachable node, cleared
 // on every exit, never stored, never logged, never copied without a deliberate click.
-var cryptoHost = null, cryptoStatus = null, cryptoCreationKeys = {}, cryptoOpenForm = null, cryptoChannelsOpen = false;
+var cryptoHost = null, cryptoBox = null, cryptoStatus = null, cryptoCreationKeys = {}, cryptoOpenForm = null, cryptoChannelsOpen = false;
 // the reasons and setup states read in the app language (WT is hoisted; the i18n bootstrap runs first)
 var CAP_REASONS = {
   environment_inactive: WT('wallet.reason.environment_inactive', 'not on the active network environment'),
@@ -931,15 +931,19 @@ function failText(res, fallback){
   return msg || (d && d.error) || fallback;
 }
 function faultMessage(res, fallback){ return (res && res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.reason) || res.data.error)) || fallback; }
-function mountCrypto(host){
+function mountCrypto(host, opts){
   // The Settings page repaints its pane whenever another widget's source arrives; the live surface (an open create
   // form, a credential prompt, the backup dialog) must survive that, so the ONE surface node moves into the new host
   // instead of being rebuilt -- exactly how the legacy section keeps its state. A fresh read happens only when no
   // surface exists yet or when an action asks for one.
+  // The surface is kept by reference, not looked up by id: Settings empties its pane before it builds the new one,
+  // so by the time this runs the surface is already out of the document and an id lookup would miss it, redraw it
+  // from a fresh read and leave the pane short (it flickered and jumped up). opts.refresh (the person opened this
+  // page) redraws it from a fresh read in place, with the last surface showing until the read answers.
   if (!host) return false;
   cryptoHost = host;
-  var existing = document.getElementById('vwCx');
-  if (existing) { if (existing.parentNode !== host) host.appendChild(existing); return true; }
+  var existing = cryptoBox || document.getElementById('vwCx');
+  if (existing) { if (existing.parentNode !== host) host.appendChild(existing); if (opts && opts.refresh) renderCrypto(); return true; }
   renderCrypto();
   return true;
 }
@@ -947,13 +951,19 @@ function renderCrypto(){
   if (!cryptoHost) return Promise.resolve(null);
   return getJson('/api/wallet/status').then(function(j){
     cryptoStatus = (j && j.status) || {};
-    drawCrypto(cryptoStatus);
+    // redrawn in one step where it stands: the surface keeps its height while it is rebuilt (the page above the
+    // person never shrinks, so nothing scrolls), and the folds they opened stay open
+    var host = cryptoHost, open = {};
+    if (cryptoBox) Array.prototype.forEach.call(cryptoBox.querySelectorAll('details[id]'), function(d){ open[d.id] = d.open; });
+    if (host.offsetHeight) host.style.minHeight = host.offsetHeight + 'px';
+    try { drawCrypto(cryptoStatus); } finally { host.style.minHeight = ''; }
+    Object.keys(open).forEach(function(id){ var d = host.querySelector('details#' + CSS.escape(id)); if (d) d.open = open[id]; });
     return cryptoStatus;
-  }).catch(function(){ cryptoHost.textContent = ''; cryptoHost.appendChild(el('div', 'vw-line', 'The crypto status could not be read.')); return null; });
+  }).catch(function(){ cryptoBox = null; cryptoHost.textContent = ''; cryptoHost.appendChild(el('div', 'vw-line', 'The crypto status could not be read.')); return null; });
 }
 function drawCrypto(st){
   var host = cryptoHost; host.textContent = '';
-  var box = el('div', 'vw-cx'); box.id = 'vwCx'; host.appendChild(box);
+  var box = el('div', 'vw-cx'); box.id = 'vwCx'; host.appendChild(box); cryptoBox = box;
   if (!st.enabled) {
     var off = el('div', 'vw-line', 'Crypto is off. Turn on "Enable Crypto" above to see the supported networks and create a wallet. Turning it on creates, signs and pays nothing.');
     off.id = 'vwCxOff'; box.appendChild(off);
@@ -2263,13 +2273,15 @@ function devOptions(cp, inactiveEmpty){
   details.appendChild(box);
   return details;
 }
+var sectionNode = null;
 function mountInto(host){
   // The integrated Settings page (/settings#wallet) renders a host for this section; the same
   // section object moves there so its state is never rebuilt twice. Returns whether it mounted.
+  // kept by reference for the same reason as the crypto surface: a repaint empties the pane before mounting again
   if (!host) return false;
-  var existing = document.getElementById('vwSec');
+  var existing = sectionNode || document.getElementById('vwSec');
   if (existing) { if (existing.parentNode !== host) host.appendChild(existing); }
-  else host.appendChild(buildSection());
+  else { sectionNode = buildSection(); host.appendChild(sectionNode); }
   renderStatus();
   return true;
 }

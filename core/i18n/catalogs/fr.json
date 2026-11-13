@@ -5206,9 +5206,11 @@
     "xbook.short": "Permet à VOOL de lire et d’enregistrer tes signets X. Chaque demande attend ton accord.",
     "wallet.review.over_cap_payment": "Ce paiement, frais de réseau compris, atteint au plus {total} {asset}, au-dessus de la limite de ce portefeuille de {cap} {asset} par paiement. Envoyez au plus {room} {asset}, ou relevez la limite dans Réglages, Crypto. Rien n’a été envoyé.",
     "wallet.review.over_cap_day": "Ce paiement, frais de réseau compris, dépasserait une limite de dépense de ce portefeuille (pour aujourd’hui, ou pour ce destinataire aujourd’hui). Rien n’a été envoyé.",
-    "wallet.review.over_cap_frozen": "Les dépenses sont gelées dans ce portefeuille : ce paiement ne peut pas être approuvé maintenant. Rien n’a été envoyé."
+    "wallet.review.over_cap_frozen": "Les dépenses sont gelées dans ce portefeuille : ce paiement ne peut pas être approuvé maintenant. Rien n’a été envoyé.",
+    "settings.scam.read_more": "Lire la suite ({count} de plus)",
+    "settings.scam.show_less": "Afficher moins"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5206,9 +5206,11 @@
     "xbook.short": "VOOL'un X yer imlerinizi okumasına ve kaydetmesine izin verir. Her istek onayınızı bekler.",
     "wallet.review.over_cap_payment": "Bu ödeme ağ ücretiyle birlikte en fazla {total} {asset} tutuyor; bu, cüzdanın tek ödeme limiti olan {cap} {asset} üzerinde. En fazla {room} {asset} gönderin ya da limiti Ayarlar, Kripto bölümünden yükseltin. Hiçbir şey gönderilmedi.",
     "wallet.review.over_cap_day": "Bu ödeme ağ ücretiyle birlikte bu cüzdanın bir harcama limitini aşar (bugün için ya da bugün bu alıcı için). Hiçbir şey gönderilmedi.",
-    "wallet.review.over_cap_frozen": "Bu cüzdanda harcamalar dondurulmuş, bu yüzden bu ödeme şu anda onaylanamaz. Hiçbir şey gönderilmedi."
+    "wallet.review.over_cap_frozen": "Bu cüzdanda harcamalar dondurulmuş, bu yüzden bu ödeme şu anda onaylanamaz. Hiçbir şey gönderilmedi.",
+    "settings.scam.read_more": "Devamını oku ({count} tane daha)",
+    "settings.scam.show_less": "Daha az göster"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

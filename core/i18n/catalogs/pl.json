@@ -5206,9 +5206,11 @@
     "xbook.short": "Pozwala VOOL czytać i zapisywać Twoje zakładki z X. Każde żądanie czeka na Twoją zgodę.",
     "wallet.review.over_cap_payment": "Ta płatność z opłatą sieciową wynosi najwyżej {total} {asset}, ponad limit tego portfela {cap} {asset} na jedną płatność. Wyślij najwyżej {room} {asset} albo podnieś limit w Ustawieniach, Krypto. Nic nie wysłano.",
     "wallet.review.over_cap_day": "Ta płatność z opłatą sieciową przekroczyłaby limit wydatków tego portfela (na dziś albo dla tego odbiorcy na dziś). Nic nie wysłano.",
-    "wallet.review.over_cap_frozen": "Wydatki w tym portfelu są zamrożone, więc tej płatności nie można teraz zatwierdzić. Nic nie wysłano."
+    "wallet.review.over_cap_frozen": "Wydatki w tym portfelu są zamrożone, więc tej płatności nie można teraz zatwierdzić. Nic nie wysłano.",
+    "settings.scam.read_more": "Czytaj więcej (jeszcze {count})",
+    "settings.scam.show_less": "Pokaż mniej"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

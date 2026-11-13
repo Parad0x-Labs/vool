@@ -5206,9 +5206,11 @@
     "xbook.short": "Permite que o VOOL leia e guarde os teus favoritos do X. Cada pedido aguarda a tua aprovação.",
     "wallet.review.over_cap_payment": "Este pagamento com a taxa de rede chega a no máximo {total} {asset}, acima do limite desta carteira de {cap} {asset} por pagamento. Envie no máximo {room} {asset} ou aumente o limite em Definições, Cripto. Nada foi enviado.",
     "wallet.review.over_cap_day": "Este pagamento com a taxa de rede ultrapassaria um limite de gastos desta carteira (para hoje, ou para este destinatário hoje). Nada foi enviado.",
-    "wallet.review.over_cap_frozen": "Os gastos estão congelados nesta carteira, por isso este pagamento não pode ser aprovado agora. Nada foi enviado."
+    "wallet.review.over_cap_frozen": "Os gastos estão congelados nesta carteira, por isso este pagamento não pode ser aprovado agora. Nada foi enviado.",
+    "settings.scam.read_more": "Ler mais (mais {count})",
+    "settings.scam.show_less": "Mostrar menos"
   },
-  "source_catalog_sha256": "2000dfe85c109c355aa780314f202cf58e7c4a85bf53c33371f6f851576960f6",
+  "source_catalog_sha256": "7219b902606f15fecae2884026a054efdbe65e1b1f84aec2cec20bb93bfa2aaa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
