@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
+import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -559,6 +561,41 @@ class TestLiveOwnerLeftAlone:
         finally:
             sleeper.terminate()
             sleeper.wait(timeout=10)
+
+    def test_exited_owner_not_yet_reaped_is_recovered_normally(self, rig):
+        # The app that started the update has exited (the update itself stops it), but the
+        # process that launched it has not collected its exit status yet, so the kernel still
+        # lists the pid as a zombie. It runs nothing: recovery must act, not leave the update
+        # "running" forever (the installed-source interrupted journey timed out this way).
+        owner = subprocess.Popen(["sleep", "60"])
+        try:
+            with pytest.raises(SimulatedCrashError):
+                rig.make_flow(crash_after=Step.DOWNLOADED).run(rig.raw_manifest, rig.manifest, rig.decision)
+            journal = _single_journal(rig)
+            journal_path = journal.dir / "journal.jsonl"
+            entries = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            entries[0]["owner_pid"] = owner.pid
+            entries[0]["owner_start"] = _process_signature(owner.pid)
+            journal_path.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+
+            os.kill(owner.pid, signal.SIGKILL)  # never poll()/wait() here: that would reap it
+            deadline = time.monotonic() + 10
+            state = ""
+            while time.monotonic() < deadline:
+                state = subprocess.run(["ps", "-p", str(owner.pid), "-o", "stat="],
+                                       capture_output=True, text=True, check=False).stdout.strip()
+                if state.startswith("Z"):
+                    break
+                time.sleep(0.05)
+            assert state.startswith("Z"), f"the owner never became an unreaped exited process: {state!r}"
+
+            results = _recover(rig)
+            assert [r.action for r in results] == ["aborted"], (
+                f"an exited owner its parent had not reaped yet was treated as alive: {[r.action for r in results]}"
+            )
+        finally:
+            owner.kill()
+            owner.wait(timeout=10)
 
 
 # --------------------------------------------------------------------------- #
