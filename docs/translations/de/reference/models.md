@@ -1,17 +1,18 @@
 ---
 description: Welche KI-Modelle mit VOOL funktionieren — lokale Modelle auf deiner eigenen Hardware und Cloud-Modelle über dein Konto bei einem Anbieter.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Unterstützte Modelle
 
-VOOL bringt kein Modell mit. Es verbindet sich mit Laufzeitumgebungen und Anbietern, die du wählst.
+VOOL bringt kein Modell mit — das erste lokale Modell wird heruntergeladen, wenn du es zum ersten Mal
+verwendest. Es verbindet sich mit Laufzeitumgebungen und Anbietern, die du wählst.
 
 ## Lokale Laufzeitumgebungen
 
-Jede Laufzeitumgebung, die einen OpenAI-kompatiblen Endpunkt auf localhost bereitstellt, ist nutzbar. Die
-gängigen werden automatisch erkannt.
+Ollama, llama.cpp, vLLM und MLX werden automatisch erkannt. Andere Laufzeitumgebungen, die einen
+OpenAI-kompatiblen Endpunkt auf localhost bereitstellen, kannst du von Hand eintragen.
 
 ## Cloud-Anbieter
 

@@ -1,7 +1,7 @@
 ---
 description: VOOL'un hangi aşamada olduğu, açıkça.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Sürüm durumu
@@ -45,7 +45,7 @@ Bu deponun sürüm kayıtları GitHub kanalını kapsar. Diğer indirme kanallar
 | Mainnet transferleri | Bu cihazda oluşturulmuş bir VOOL Cüzdanından gönderilen yerel paralar ile Solana, Ethereum, BNB Smart Chain ve Arbitrum One'da USDT. Solana ve Base'de USDC yalnızca ödeme kanalları içindir. Bağlı ya da yalnızca izlenen bir hesap ödeme alabilir ve bakiyesini gösterebilir ama VOOL'dan gönderim yapamaz. |
 | x402 ile ödeme | Base ya da Base Sepolia üzerinde USDC ile x402 ödemesi isteyen web siteleri Crypto Pilot cüzdanınızdan ödenebilir: sınırlarınız içinde, PIN'inizle tek bir onay. Ağ ücretini web sitesinin ödeme hizmeti karşılar. **Ayarlar → Kripto → Payment channels**, cüzdanın bir web sitesine ödeme yapabileceği her yol için bir açma/kapama anahtarı içerir; kapalı bir kanal herhangi bir şey imzalanmadan önce reddeder. Bununla henüz canlı bir mainnet ödemesi yapılmadı. Solana pay-kit ile ödeme indirmelere dahil değildir; bu kanal kullanılamaz olarak görünür. |
 | X | Herhangi bir sohbetten: gönderileri ve hesapları, Spaces'i, gündemleri ve DM'leri arayın ve bir token hakkındaki geçmiş call'lara bakın. Hesabınız üzerinde işlem yapan her şey onayınızı bekler. |
-| Diktleme | Bu beta derlemesinde geçici olarak kullanılamıyor; bir güncellemeyle geri dönecek. |
+| Diktleme | Bu beta derlemesinde kullanılamıyor. |
 | Bulut "burst" soru modu | Çağrı başına istem bu derlemede henüz bağlanmadı. |
 | Yerel modeller | Yerel bir modelin yanıt verebilmesi için önce **Ayarlar → Modeller ve sağlayıcılar → Yerel modeller**'i açın ve o model için bir kez **Certify**'a basın. |
 | Intel Mac'ler | Yerel modeller işlemcide çalışır ve yavaştır. Sertifikalama daha yavaş işlemcileri hesaba katar, ancak hafızaya dayanan uzun bir yanıt zaman aşımına uğrayabilir; bu yüzden şimdilik orada bir bulut modeli kullanın. |

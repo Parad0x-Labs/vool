@@ -1,7 +1,7 @@
 ---
 description: En qué fase está VOOL, dicho sin rodeos.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Estado de las versiones
@@ -56,7 +56,7 @@ de GitHub.
 | Transferencias en mainnet | Monedas nativas, y USDT en Solana, Ethereum, BNB Smart Chain y Arbitrum One, enviadas desde un VOOL Wallet creado en este dispositivo. USDC en Solana y Base es solo para canales de pago. Una cuenta conectada o de solo lectura puede recibir y mostrar su saldo, pero no puede enviar desde VOOL. |
 | Pagar con x402 | Los sitios web que piden un pago x402 en USDC en Base o Base Sepolia pueden cobrarse desde tu monedero Crypto Pilot: una aprobación con tu PIN, dentro de tus límites. El servicio de pago del sitio web cubre la comisión de red. **Ajustes → Cripto → Payment channels** tiene un interruptor para cada forma en que el monedero puede pagar a un sitio web; un canal desactivado rechaza el pago antes de firmar nada. Todavía no se ha hecho ningún pago real en mainnet con esto. Pagar mediante Solana pay-kit no está incluido en las descargas; ese canal aparece como no utilizable. |
 | X | Desde cualquier chat: busca publicaciones y cuentas, Spaces, tendencias y mensajes directos, y consulta los calls anteriores sobre un token. Todo lo que actúa sobre tu cuenta espera tu confirmación. |
-| Dictado | No disponible temporalmente en esta versión beta; volverá en una actualización. |
+| Dictado | No disponible en esta versión beta. |
 | Modo de consulta «ráfaga» en la nube | La confirmación por llamada aún no está conectada en esta versión. |
 | Modelos locales | Antes de que un modelo local pueda responder, abre **Ajustes → Modelos y proveedores → Modelos locales** y pulsa **Certify** para ese modelo una vez. |
 | Mac con Intel | Los modelos locales se ejecutan en el procesador y son lentos. La certificación tiene en cuenta los procesadores más lentos, pero una respuesta larga de memoria puede agotar el tiempo de espera, así que de momento usa ahí un modelo en la nube. |

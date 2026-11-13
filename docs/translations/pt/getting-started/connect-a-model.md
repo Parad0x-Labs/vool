@@ -1,13 +1,13 @@
 ---
 description: Como conectar um modelo de IA ao VOOL: um modelo local rodando no seu próprio computador ou um provedor na nuvem usando a sua própria chave de API.
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # Conectar um modelo
 
-O VOOL não vem com nenhum modelo. Você escolhe um, e essa escolha determina se um pedido
-fica na sua máquina ou sai dela.
+O VOOL não vem com nenhum modelo. Ele escolhe um modelo local por padrão, e você pode escolher outro;
+essa escolha determina se um pedido fica na sua máquina ou sai dela.
 
 ## Local
 

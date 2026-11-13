@@ -1,14 +1,15 @@
 ---
 description: Języki, dostępność, historia aktywności, potwierdzenia i sposób weryfikowania odpowiedzi modeli.
 translation: machine
-source_sha256: 2e135f9673ae465cee9db53572ab89c93235805dfea713efd73d7f4244b6b1f5
+source_sha256: 519707395e736b24ba96005597cca3bc59dcf12ca85d905c70f8a50884c5bba2
 ---
 
 # Języki, dostępność i zapisy
 
 ## Języki interfejsu
 
-Interfejs VOOL jest dostępny w wielu językach. Wybór języka dotyczy wyłącznie sposobu prezentacji: decyzje
+Interfejs VOOL jest dostępny w wielu językach; nowsze teksty mogą jeszcze wyświetlać się po angielsku,
+dopóki nie pojawi się tłumaczenie. Wybór języka dotyczy wyłącznie sposobu prezentacji: decyzje
 o uprawnieniach, upoważnienie do wydatków i kody błędów są **z założenia niezależne od języka** — przetłumaczony
 komunikat o błędzie nigdy nie może poszerzyć ani zawęzić tego, o czym przesądziła rozstrzygająca wersja angielska.
 

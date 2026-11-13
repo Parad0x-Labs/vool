@@ -1,14 +1,14 @@
 ---
 description: Diller, erişilebilirlik, etkinlik geçmişi, makbuzlar ve model yanıtlarının nasıl doğrulandığı.
 translation: machine
-source_sha256: 2e135f9673ae465cee9db53572ab89c93235805dfea713efd73d7f4244b6b1f5
+source_sha256: 519707395e736b24ba96005597cca3bc59dcf12ca85d905c70f8a50884c5bba2
 ---
 
 # Diller, erişilebilirlik ve kayıtlar
 
 ## Arayüz dilleri
 
-VOOL'un arayüzü birden çok dilde kullanılabilir. Dil seçimi yalnızca bir sunum meselesidir: izin kararları, harcama yetkisi ve hata kodları **yapıları gereği dilden bağımsızdır**; çevrilmiş bir hata iletisi, İngilizce yetkinin verdiği kararı asla genişletemez ya da daraltamaz.
+VOOL'un arayüzü birden çok dilde kullanılabilir; daha yeni metinler, çevirileri gelene kadar İngilizce görünebilir. Dil seçimi yalnızca bir sunum meselesidir: izin kararları, harcama yetkisi ve hata kodları **yapıları gereği dilden bağımsızdır**; çevrilmiş bir hata iletisi, İngilizce yetkinin verdiği kararı asla genişletemez ya da daraltamaz.
 
 ## Erişilebilirlik
 

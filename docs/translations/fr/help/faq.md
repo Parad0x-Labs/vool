@@ -1,14 +1,15 @@
 ---
 description: Questions fréquentes sur VOOL — s’il fonctionne hors ligne, où votre clé API est stockée, s’il est gratuit et quels systèmes il prend en charge.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # FAQ
 
 ## VOOL fonctionne-t-il hors ligne ?
 
-Oui, avec un modèle local. Les modèles cloud ont besoin d’une connexion réseau, par définition.
+Oui, avec un modèle local, pour vos conversations et vos fichiers. Les modèles cloud ont besoin d’une connexion
+réseau, par définition. Les informations en direct comme la météo ou les prix viennent de services web publics uniquement lorsque Recherches web est activé (désactivé sur une nouvelle installation), et jamais en Local uniquement.
 
 ## Ai-je besoin d’une clé cloud ?
 

@@ -1,14 +1,15 @@
 ---
 description: Sprachen, Barrierefreiheit, Aktivitätsverlauf, Belege und wie Antworten von Modellen überprüft werden.
 translation: machine
-source_sha256: 2e135f9673ae465cee9db53572ab89c93235805dfea713efd73d7f4244b6b1f5
+source_sha256: 519707395e736b24ba96005597cca3bc59dcf12ca85d905c70f8a50884c5bba2
 ---
 
 # Sprachen, Barrierefreiheit und Aufzeichnungen
 
 ## Sprachen der Oberfläche
 
-Die Oberfläche von VOOL gibt es in mehreren Sprachen. Die Wahl der Sprache betrifft nur die Darstellung:
+Die Oberfläche von VOOL gibt es in mehreren Sprachen; neuere Texte können noch auf
+Englisch erscheinen, bis eine Übersetzung da ist. Die Wahl der Sprache betrifft nur die Darstellung:
 Berechtigungsentscheidungen, Ausgabebefugnisse und Fehlercodes sind **schon durch ihren Aufbau
 sprachunabhängig** — eine übersetzte Fehlermeldung kann nie erweitern oder einschränken, was die maßgebliche
 englische Instanz entschieden hat.

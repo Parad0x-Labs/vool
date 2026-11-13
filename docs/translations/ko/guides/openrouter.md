@@ -1,15 +1,15 @@
 ---
 description: OpenRouter를 VOOL에 연결해 API 키 하나로 여러 클라우드 AI 모델을 쓰는 방법.
 translation: machine
-source_sha256: 3a09fe6c636e2b8dd14a2d627c4653055dbb10bf8fd8221b7a3bcccf3044cb19
+source_sha256: 75cb20d43eb37adb1d30913959ca1cb46864ad57ba7a1a22ec261f0e0eaf2e9a
 ---
 
 # OpenRouter 연결
 
-OpenRouter는 키 하나로 여러 공급자에 접근할 수 있게 해 줍니다. VOOL은 OpenRouter 계정 연결을
+OpenRouter는 키 하나로 여러 공급자에 접근할 수 있게 해 줍니다. VOOL은 OpenRouter 키 추가를
 지원합니다.
 
-## 연결
+## 키 추가
 
 OpenRouter 계정에서 키를 만들고 **설정 → API 키**에 붙여넣은 다음 **키 저장**을 누르세요. VOOL은
 OpenRouter에 키를 한 번 확인한 뒤, 이 컴퓨터의 암호화된 파일에 보관합니다
@@ -24,7 +24,7 @@ OpenRouter에서 공개되는 VOOL의 집계 통계에 나타날 수 있지만, 
 않습니다.
 {% endhint %}
 
-## 연결 해제
+## 키 제거
 
 **설정 → API 키**에서 키를 제거하세요. 서버 쪽에서도 키를 무효로 만들려면 OpenRouter 계정에서도
 키를 폐기하세요.

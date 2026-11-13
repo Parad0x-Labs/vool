@@ -1,18 +1,19 @@
 ---
 description: Jakie dokładnie dane wysyła VOOL, kiedy i do kogo. Co zostaje na twoim komputerze, a co trafia do twojego dostawcy AI.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Przetwarzanie danych
 
 ## Dwa stany
 
-**LOKALNIE** — wszystko zostaje na tym komputerze.
+**Lokalnie** — model i twoje pliki zostają na tym komputerze. Bieżące informacje, takie jak pogoda czy ceny, pochodzą z publicznych usług internetowych tylko wtedy, gdy włączone jest „Wyszukiwanie w sieci” (po świeżej instalacji jest wyłączone), i nigdy w trybie „Tylko lokalnie”.
 
-**CHMURA** — wybrany kontekst jest wysyłany bezpośrednio do wybranego dostawcy.
+**Chmura** — wybrany kontekst jest wysyłany bezpośrednio do wybranego dostawcy.
 
-Wskaźnik w interfejsie pokazuje, który stan jest aktywny, zanim cokolwiek wyślesz.
+Nagłówek czatu pokazuje, w który sposób zostanie wykonane następne żądanie — na przykład **AUTO** z
+**Najpierw lokalnie**, gdy VOOL Auto odpowiada z tego komputera.
 
 ## Czego VOOL nie robi
 

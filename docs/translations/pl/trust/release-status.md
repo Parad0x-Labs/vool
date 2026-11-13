@@ -1,7 +1,7 @@
 ---
 description: Na jakim etapie jest VOOL, powiedziane wprost.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Stan wydań
@@ -55,7 +55,7 @@ pobrany plik sprawdzaj względem sumy kontrolnej opublikowanej w wydaniu w GitHu
 | Przelewy w mainnecie | Rodzime monety oraz USDT w Solanie, Ethereum, BNB Smart Chain i Arbitrum One, wysyłane z portfela VOOL utworzonego na tym urządzeniu. USDC w Solanie i Base służy tylko do kanałów płatności. Konto podłączone lub tylko do podglądu może odbierać środki i pokazywać saldo, ale nie może wysyłać z VOOL. |
 | Płacenie przez x402 | Strony internetowe, które żądają płatności x402 w USDC w sieci Base lub Base Sepolia, mogą być opłacane z twojego portfela Crypto Pilot: jednym zatwierdzeniem PIN-em, w ramach twoich limitów. Usługa płatności strony pokrywa opłatę sieciową. **Ustawienia → Krypto → Payment channels** ma przełącznik wł./wył. dla każdego sposobu, w jaki portfel może zapłacić stronie; wyłączony kanał odmawia, zanim cokolwiek zostanie podpisane. Żadna płatność na żywo w mainnecie nie została jeszcze w ten sposób wykonana. Płacenia przez Solana pay-kit nie ma w plikach do pobrania; ten kanał jest pokazywany jako niedostępny. |
 | X | Z dowolnego czatu: wyszukiwanie postów i kont, Spaces, trendów i wiadomości prywatnych (DM) oraz przeglądanie wcześniejszych typowań dotyczących tokena. Wszystko, co działa na twoim koncie, czeka na twoją zgodę. |
-| Dyktowanie | Tymczasowo niedostępne w tej kompilacji beta; wróci w jednej z aktualizacji. |
+| Dyktowanie | Niedostępne w tej kompilacji beta. |
 | Tryb chmury „burst” z pytaniem | Pytanie przed każdym wywołaniem nie jest jeszcze podłączone w tej kompilacji. |
 | Modele lokalne | Zanim model lokalny będzie mógł odpowiadać, otwórz **Ustawienia → Modele i dostawcy → Modele lokalne** i raz naciśnij dla niego **Certify**. |
 | Maki z procesorem Intel | Modele lokalne działają na procesorze i są powolne. Certyfikacja uwzględnia wolniejsze procesory, ale długa odpowiedź korzystająca z pamięci może przekroczyć limit czasu, więc na razie używaj tam modelu w chmurze. |

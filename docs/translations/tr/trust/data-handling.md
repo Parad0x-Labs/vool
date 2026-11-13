@@ -1,18 +1,18 @@
 ---
 description: VOOL'un tam olarak hangi verileri, ne zaman ve kime gönderdiği. Bilgisayarınızda neyin kaldığı ve yapay zekâ sağlayıcınıza neyin ulaştığı.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Verilerin işlenmesi
 
 ## İki durum
 
-**YEREL** — her şey bu bilgisayarda kalır.
+**Yerel** — model ve dosyalarınız bu bilgisayarda kalır. Hava durumu veya fiyatlar gibi güncel bilgiler yalnızca "Web aramaları" açıkken herkese açık web hizmetlerinden gelir (yeni bir kurulumda kapalıdır), "Yalnızca yerel" modunda ise asla gelmez.
 
-**BULUT** — seçilen bağlam doğrudan seçilen sağlayıcıya gönderilir.
+**Bulut** — seçilen bağlam doğrudan seçilen sağlayıcıya gönderilir.
 
-Arayüzdeki gösterge, siz bir şey göndermeden önce hangi durumun etkin olduğunu gösterir.
+Sohbet başlığı bir sonraki isteğin hangi yolla çalışacağını gösterir; örneğin VOOL Auto bu bilgisayardan yanıt verirken **Otomatik** ile **Önce yerel**.
 
 ## VOOL'un yapmadıkları
 

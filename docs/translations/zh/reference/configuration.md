@@ -1,7 +1,7 @@
 ---
 description: VOOL 把配置存放在哪里，以及各项设置的含义。
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # 配置
@@ -16,7 +16,7 @@ VOOL 把它的设置、聊天、记忆和记录保存在一个运行时主目录
 | Linux tar 包和源码安装 | `~/.vool_runtime` |
 | Windows（实验性，从源码安装） | `%LOCALAPPDATA%\VOOL` |
 
-在启动 VOOL 之前设置 `VOOL_HOME`，就会改用那个文件夹。启动日志会打印正在使用的主目录。
+在启动 VOOL 之前设置 `VOOL_HOME`，就会改用那个文件夹。`vool` 命令会打印正在使用的主目录。
 
 密钥 **不会** 被写入设置文件或日志。它们加密保存在这个运行时主目录中一个单独的凭据文件里，只有你的用户账户可以读取；在 Mac 上，VOOL 之前已经保存在 macOS 钥匙串中的密钥会继续留在那里。见[安全模型](../trust/security.md#密钥)。
 

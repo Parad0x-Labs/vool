@@ -1,17 +1,17 @@
 ---
 description: Những mô hình AI nào hoạt động với VOOL — mô hình cục bộ trên phần cứng của chính bạn và mô hình đám mây qua tài khoản nhà cung cấp của bạn.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Mô hình được hỗ trợ
 
-VOOL không đi kèm mô hình nào. Nó kết nối với các môi trường chạy và nhà cung cấp mà bạn chọn.
+VOOL không đi kèm mô hình nào — mô hình cục bộ đầu tiên được tải về vào lần đầu bạn dùng nó. Nó kết nối với các môi trường chạy và nhà cung cấp mà bạn chọn.
 
 ## Môi trường chạy cục bộ
 
-Mọi môi trường chạy cung cấp một điểm cuối (endpoint) tương thích OpenAI trên localhost đều dùng được. Việc
-phát hiện diễn ra tự động với các môi trường chạy phổ biến.
+Ollama, llama.cpp, vLLM và MLX được phát hiện tự động. Các môi trường chạy khác cung cấp một điểm cuối (endpoint) tương thích OpenAI trên localhost
+có thể được chỉ định thủ công.
 
 ## Nhà cung cấp đám mây
 

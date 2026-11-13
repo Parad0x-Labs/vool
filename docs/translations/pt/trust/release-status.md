@@ -1,7 +1,7 @@
 ---
 description: Em que fase o VOOL está, dito sem rodeios.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Status das versões
@@ -56,7 +56,7 @@ do GitHub.
 | Transferências na mainnet | Moedas nativas, e USDT na Solana, Ethereum, BNB Smart Chain e Arbitrum One, enviados de um VOOL Wallet criado neste dispositivo. USDC na Solana e na Base é só para canais de pagamento. Uma conta conectada ou somente leitura pode receber e mostrar o próprio saldo, mas não pode enviar pelo VOOL. |
 | Pagar com x402 | Sites que pedem pagamento x402 em USDC na Base ou na Base Sepolia podem ser pagos pela sua carteira Crypto Pilot: uma aprovação com o seu PIN, dentro dos seus limites. O serviço de pagamento do site cobre a taxa de rede. **Configurações → Cripto → Payment channels** tem um botão liga/desliga para cada forma como a carteira pode pagar um site; um canal desligado recusa antes de qualquer coisa ser assinada. Nenhum pagamento real na mainnet foi feito com isso ainda. Pagar pelo Solana pay-kit não está incluído nos downloads; esse canal aparece como não utilizável. |
 | X | De qualquer conversa: pesquise posts e contas, Spaces, tendências e DMs, e consulte calls anteriores sobre um token. Qualquer coisa que aja na sua conta espera o seu OK. |
-| Ditado | Temporariamente indisponível nesta versão beta; volta em uma atualização. |
+| Ditado | Indisponível nesta versão beta. |
 | Modo de pergunta “rajada” na nuvem | A confirmação por chamada ainda não está ligada nesta versão. |
 | Modelos locais | Antes que um modelo local possa responder, abra **Configurações → Modelos e provedores → Modelos locais** e pressione **Certify** para ele uma vez. |
 | Macs com Intel | Os modelos locais rodam no processador e são lentos. A certificação leva em conta processadores mais lentos, mas uma resposta longa de memória pode estourar o tempo limite, então use por enquanto um modelo na nuvem nesses Macs. |

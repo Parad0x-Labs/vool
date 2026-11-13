@@ -1,7 +1,7 @@
 ---
 description: En sık karşılaşılan sorunların çözümleri.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Sorun giderme
@@ -19,9 +19,12 @@ deneyseldir; bkz. [kurulum kılavuzu](../getting-started/install.md#kaynak-kodda
 
 ## Hiç yerel model listelenmiyor
 
-1. Çalışma ortamının çalıştığından emin olun.
-2. En az bir modelin indirildiğinden (pull) emin olun.
-3. Bağlantı noktasının VOOL'un beklediğiyle eşleştiğinden emin olun.
+1. Yerel model çalışma ortamının kurulu olduğundan emin olun; Linux'ta henüz kurmadıysanız önce
+   [Ollama](https://ollama.com)'yı kurun
+   (bkz. [Yerel model çalıştırma](../guides/local-models.md#bir-çalışma-ortamı-kurun)).
+2. Çalışma ortamının çalıştığından emin olun.
+3. En az bir modelin indirildiğinden (pull) emin olun.
+4. Bağlantı noktasının VOOL'un beklediğiyle eşleştiğinden emin olun.
 
 ```bash
 curl http://localhost:11434/api/tags

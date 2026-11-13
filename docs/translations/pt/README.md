@@ -1,7 +1,7 @@
 ---
 description: VOOL é um assistente de IA para desktop que executa modelos de IA localmente no seu computador ou se conecta a modelos na nuvem com a sua própria chave. Gratuito e privado. Downloads para Mac (Apple Silicon e Intel) e Linux; o Windows é experimental e instala a partir do código-fonte.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,8 +10,10 @@ VOOL é um assistente de IA para desktop. Ele é instalado como um aplicativo no
 executar modelos de IA localmente nessa máquina ou se conectar a um provedor de IA na nuvem usando a sua
 própria chave de API. Ele mantém um registro legível de cada ação que realiza.
 
-Ele é gratuito e funciona offline com modelos locais. Há downloads para Mac (Apple Silicon
-e Intel) e Linux x86_64; o Windows é experimental e instala a partir do código-fonte.
+Ele é gratuito. Com um modelo local, suas conversas e seus arquivos não precisam de conexão com a internet; fatos
+ao vivo, como clima ou preços, vêm de serviços web públicos somente enquanto Pesquisas na web estiver ativado. Há
+downloads para Mac (Apple Silicon e Intel) e Linux x86_64; o Windows é experimental e instala a partir do
+código-fonte.
 
 Esta documentação mostra como instalar o VOOL e conectar um modelo, e explica os conceitos por trás de como ele
 trata os seus arquivos, a sua memória e as suas chaves.
@@ -45,7 +47,8 @@ Cada execução, a configuração e os pontos fracos estão publicados: [benchma
 
 * **Um aplicativo para desktop.** Ele é instalado no seu computador — não é uma aba do navegador nem um
   serviço hospedado.
-* **Funciona offline.** Com um modelo local selecionado, o VOOL não precisa de conexão com a internet.
+* **Funciona offline para conversas e arquivos.** Com um modelo local selecionado, suas conversas e seus arquivos
+  não precisam de conexão com a internet. Fatos ao vivo, como clima ou preços, vêm de serviços web públicos somente enquanto Pesquisas na web estiver ativado (fica desativado em uma instalação nova), e nunca em Somente local.
 * **Local por padrão.** Com um modelo local selecionado, os prompts e os arquivos são processados
   na sua máquina.
 * **Independente de modelo.** Tanto ambientes de execução locais quanto provedores na nuvem podem ser
@@ -60,15 +63,16 @@ a página de [Instalação](getting-started/install.md#primeira-abertura-em-um-m
 [Status das versões](trust/release-status.md) antes de instalar.
 {% endhint %}
 
-## Dois modos, sem rodeios
+## Duas formas de responder, sem rodeios
 
-O VOOL distingue exatamente dois estados, e a interface sempre mostra qual deles está ativo:
+O VOOL responde de duas formas, e o cabeçalho da conversa sempre mostra de que forma a próxima solicitação
+é executada — por exemplo, **Auto** com **Local primeiro**:
 
 1. **Local** — o trabalho fica neste computador.
 2. **Nuvem** — o contexto selecionado é enviado diretamente ao provedor que você escolheu,
    a partir da sua máquina, usando a sua chave.
 
-Não existe um terceiro estado, e não há nenhum retransmissor operado pela Parad0x no meio. Os detalhes
+Não há nenhum retransmissor operado pela Parad0x no meio. Os detalhes
 estão em [Tratamento de dados](trust/data-handling.md).
 
 ## Como obter ajuda

@@ -1,7 +1,7 @@
 ---
 description: Cách cài trợ lý AI VOOL trên macOS (Apple Silicon hoặc Intel) hoặc Linux từ các bản tải xuống của bản phát hành, hoặc từ mã nguồn trên macOS, Windows hoặc Linux, kèm yêu cầu hệ thống và cách xác minh tệp tải xuống.
 translation: machine
-source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
+source_sha256: a674148a99297acd314681d6a04bcf2e87e1c88bf00c9e3f25cd22a4083f2177
 ---
 
 # Cài đặt VOOL
@@ -19,7 +19,7 @@ Xem [Trạng thái phát hành](../trust/release-status.md) để biết chi ti�
 | Ổ đĩa | 2 GB cho ứng dụng | 20 GB kèm mô hình cục bộ |
 | macOS | 14 Sonoma, Apple Silicon hoặc Intel ([giới hạn](#mac-dùng-intel)) | 14 Sonoma trở lên, Apple Silicon |
 | Windows | 10 (64-bit) | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 trở lên |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 
 Mô hình cục bộ cần nhiều bộ nhớ RAM hơn hẳn bản thân ứng dụng. Hướng dẫn chọn kích thước có trong
 [Chạy mô hình cục bộ](../guides/local-models.md).
@@ -69,12 +69,12 @@ một mục vào menu ứng dụng. Bản cho máy tính mở cuộc trò chuy�
 không làm VOOL dừng. Để gỡ VOOL, hãy chạy `bash ~/.local/share/vool/current/uninstall.sh`.
 Các cuộc trò chuyện và thiết lập của bạn vẫn nằm trong hồ sơ của bạn.
 
-Từ 0.7.5 trở đi, bản tải xuống cho Linux được cập nhật ngay trong VOOL. Phiên bản mới được cài cạnh
+Từ 0.7.5 trở đi, khi **Tự lên mạng** đang bật, bản tải xuống cho Linux được cập nhật ngay trong VOOL. Phiên bản mới được cài cạnh
 phiên bản cũ. Nếu nó không khởi động đúng cách, VOOL tự quay lại phiên bản trước.
 
 ### Sau khi cài
 
-Trước khi một mô hình cục bộ có thể trả lời, hãy mở **Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ** và nhấn **Certify** cho mô hình đó một lần. Thao tác này chạy một bước kiểm tra ngắn trên máy của bạn.
+Trước khi một mô hình cục bộ có thể trả lời, hãy mở **Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ** và nhấn **Certify** cho mô hình đó một lần (nếu đã có một lần kiểm tra được ghi lại, nút sẽ hiện **Re-run certification**). Thao tác này chạy một bước kiểm tra trên máy của bạn; trên máy tính không có card đồ họa, lần đầu có thể mất vài phút.
 
 Từ 0.7.5 trở đi, VOOL tự cập nhật: khi "Tự lên mạng" đang bật, nó hiện thông báo và cài phiên bản mới chỉ với một lần nhấn. Cập nhật từ 0.7.4 hoặc 0.7.3 trên Mac: bật "Tự lên mạng" (Cài đặt > Riêng tư và Quyền) rồi nhấn "Kiểm tra bản cập nhật" một lần. Từ 0.7.4 trở về trước trên Linux, hoặc 0.7.2 trở về trước trên Mac: tải 0.7.7 và cài đè lên phiên bản hiện tại. Các cuộc trò chuyện và thiết lập của bạn
 nằm trong hồ sơ của bạn, bên ngoài ứng dụng. Các tính năng tiền mã hóa mặc định đều tắt.
@@ -95,8 +95,8 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 
 Các lệnh cho macOS / Linux cố định cả tập lệnh khởi tạo lẫn phần tải mã nguồn của nó ở `v0.7.7-beta`. Để chọn bản phát hành khác, hãy đổi cả thẻ trong URL của tập lệnh lẫn `--ref`. Tập lệnh khởi tạo chấp nhận tên nhánh hoặc thẻ phát hành, không chấp nhận mã băm commit.
 
-Cài từ mã nguồn cần Python 3.11 trở lên. Nếu không tìm thấy, trình cài đặt sẽ thử
-thiết lập một bản. Các bản tải xuống ứng dụng đã có sẵn Python riêng.
+Cài từ mã nguồn cần Python 3.11 trở lên. Nếu không tìm thấy, trình cài đặt sẽ tải
+về và thiết lập một bản. Các bản tải xuống ứng dụng đã có sẵn Python riêng.
 
 Trình cài đặt chuẩn bị môi trường Python, kiểm tra phần cứng của bạn, thiết lập mô hình
 cục bộ và khởi chạy các dịch vụ cục bộ. Hãy chừa thời gian và dung lượng ổ đĩa cho lần tải mô hình đầu tiên.
@@ -113,8 +113,8 @@ cài bản dựng cho Intel của mọi phần phụ thuộc. Có hai giới h�
   trình cài đặt bỏ qua nó và chức năng huấn luyện LoRA báo là không khả dụng. Trò chuyện, bộ nhớ,
   công cụ và mô hình đám mây không bị ảnh hưởng.
 * **Mô hình cục bộ chỉ chạy trên CPU.** Các trình chạy mô hình cục bộ không có tăng tốc GPU cho đồ họa Intel,
-  nên câu trả lời cục bộ chậm hơn vài lần so với trên Apple Silicon. Trên Mac 8 GB, hãy dùng mô hình đám mây
-  để trò chuyện; với 16 GB, mô hình cục bộ nhỏ mặc định của trình cài đặt vẫn chạy được nhưng chậm.
+  nên câu trả lời cục bộ chậm hơn so với trên Apple Silicon. Trên Mac 8 GB, hãy dùng mô hình đám mây
+  để trò chuyện; với 16 GB, mô hình cục bộ mặc định của trình cài đặt (một mô hình Qwen) vẫn chạy được nhưng chậm.
 
 Trên Mac dùng Intel, mô hình cục bộ chạy trên bộ xử lý và chậm. Một câu trả lời dài dựa vào bộ nhớ có thể bị quá thời gian chờ, vì vậy hiện tại hãy dùng mô hình đám mây trên các máy này. Bước chứng nhận mô hình cục bộ có tính đến bộ xử lý chậm hơn.
 

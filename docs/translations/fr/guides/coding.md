@@ -1,7 +1,7 @@
 ---
 description: Comment utiliser VOOL comme assistant IA de programmation sur votre propre base de code — définir l’espace de travail, poser des questions sur le code et relire les modifications.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # Coder avec VOOL
@@ -29,4 +29,5 @@ que le diff soit facile à lire et facile à annuler.
 
 La programmation fonctionne dans les deux modes. Un modèle local de code 7B gère la plupart des
 modifications courantes ; les modèles cloud plus grands gèrent les raisonnements plus longs. L’indicateur
-de mode vous dit lequel est actif avant l’envoi.
+de modèle vous dit lequel est actif avant l’envoi : `LOCAL` pour un modèle local, `CLOUD` pour un modèle cloud,
+et par défaut `AUTO` (`VOOL Auto`, `Local first`) lorsque VOOL choisit.

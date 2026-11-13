@@ -1,7 +1,7 @@
 ---
 description: Kaip įdiegti DI asistentą VOOL macOS (Apple Silicon arba Intel) ar Linux sistemoje iš leidimo atsisiuntimų arba iš šaltinio kodo macOS, Windows ar Linux sistemoje, įskaitant sistemos reikalavimus ir atsisiuntimo patikrą.
 translation: machine
-source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
+source_sha256: a674148a99297acd314681d6a04bcf2e87e1c88bf00c9e3f25cd22a4083f2177
 ---
 
 # Diegimas
@@ -19,7 +19,7 @@ Apie pasirašymą ir atnaujinimus skaitykite skyriuje [Leidimų būsena](../trus
 | Diskas | 2 GB programai | 20 GB su vietiniais modeliais |
 | macOS | 14 Sonoma, Apple Silicon arba Intel ([apribojimai](#mac-kompiuteriai-su-intel)) | 14 Sonoma ar naujesnė, Apple Silicon |
 | Windows | 10 (64 bitų) | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 ar naujesnė |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 
 Vietiniams modeliams reikia gerokai daugiau operatyviosios atminties nei pačiai programai. Patarimai dėl dydžio pateikti skyriuje
 [Vietinio modelio paleidimas](../guides/local-models.md).
@@ -70,12 +70,13 @@ VOOL įsidiegia į `~/.local/share/vool`, komandą `vool` įdeda į `~/.local/bi
 VOOL nesustoja. Norėdami pašalinti VOOL, paleiskite `bash ~/.local/share/vool/current/uninstall.sh`.
 Jūsų pokalbiai ir nustatymai lieka jūsų profilyje.
 
-Nuo 0.7.5 Linux versija atnaujinama pačiame VOOL. Nauja versija įdiegiama šalia
+Nuo 0.7.5, kai įjungta „Prisijungti prie interneto savarankiškai“, Linux versija atnaujinama pačiame
+VOOL. Nauja versija įdiegiama šalia
 senosios. Jei ji tinkamai nepasileidžia, VOOL pats grįžta prie ankstesnės.
 
 ### Po diegimo
 
-Kad vietinis modelis galėtų atsakyti, atidarykite **Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai** ir vieną kartą paspauskite jam **Certify**. Taip jūsų kompiuteryje paleidžiamas trumpas patikrinimas.
+Kad vietinis modelis galėtų atsakyti, atidarykite **Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai** ir vieną kartą paspauskite jam **Certify** (jei patikrinimas jau įrašytas, mygtukas vadinasi **Re-run certification**). Taip jūsų kompiuteryje paleidžiamas patikrinimas; kompiuteryje be vaizdo plokštės pirmasis gali užtrukti kelias minutes.
 
 Nuo 0.7.5 VOOL atsinaujina pats: įjungus „Prisijungti prie interneto savarankiškai“, jis parodo pranešimą ir vienu paspaudimu įdiegia naują versiją. Atnaujinant iš 0.7.4 ar 0.7.3 Mac kompiuteryje: įjunkite „Prisijungti prie interneto savarankiškai“ (Nustatymai > Privatumas ir leidimai) ir vieną kartą paspauskite „Tikrinti atnaujinimus“. Iš 0.7.4 ar senesnės Linux sistemoje arba iš 0.7.2 ar senesnės Mac kompiuteryje: atsisiųskite 0.7.7 ir įdiekite ją ant dabartinės versijos. Jūsų pokalbiai ir nustatymai
 saugomi jūsų profilyje, už programos ribų. Kriptovaliutų funkcijos pagal numatytuosius nustatymus išjungtos.
@@ -96,8 +97,8 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 
 macOS / Linux komandos prie `v0.7.7-beta` pririša ir paleidimo scenarijų, ir jo šaltinio kodo atsisiuntimą. Norėdami pasirinkti kitą leidimą, pakeiskite ir žymę scenarijaus URL, ir `--ref`. Paleidimo scenarijus priima šakos pavadinimą arba leidimo žymę, bet ne įsipareigojimo maišą.
 
-Diegiant iš šaltinio kodo reikia Python 3.11 ar naujesnio. Jei jo nerandama, diegimo programa bando
-jį parengti. Programos atsisiuntimuose yra savas Python.
+Diegiant iš šaltinio kodo reikia Python 3.11 ar naujesnio. Jei jo nerandama, diegimo programa
+jį atsisiunčia ir parengia. Programos atsisiuntimuose yra savas Python.
 
 Diegimo programa paruošia Python aplinką, patikrina jūsų aparatinę įrangą, parengia vietinį
 modelį ir paleidžia vietines paslaugas. Numatykite laiko ir vietos diske pirmajam modelio atsisiuntimui.
@@ -114,8 +115,8 @@ iš Intel atsisiuntimo arba iš šaltinio kodo. Diegimo iš šaltinio kodo progr
   diegimo programa jį praleidžia, o LoRA mokymas praneša, kad yra nepasiekiamas. Pokalbiai, atmintis,
   įrankiai ir debesijos modeliai nepaveikiami.
 * **Vietiniai modeliai veikia tik CPU.** Vietinių modelių paleidimo programos neturi GPU spartinimo Intel
-  grafikai, todėl vietiniai atsakymai kelis kartus lėtesni nei su Apple Silicon. Mac kompiuteryje su 8 GB
-  pokalbiams naudokite debesijos modelį; su 16 GB numatytasis mažas diegimo programos vietinis modelis veikia,
+  grafikai, todėl vietiniai atsakymai lėtesni nei su Apple Silicon. Mac kompiuteryje su 8 GB
+  pokalbiams naudokite debesijos modelį; su 16 GB numatytasis diegimo programos vietinis modelis (Qwen modelis) veikia,
   bet lėtai.
 
 Mac kompiuteriuose su Intel vietiniai modeliai veikia procesoriuje ir yra lėti. Ilgas atsakymas iš atminties gali viršyti laukimo laiką, todėl kol kas ten naudokite debesijos modelį. Vietinių modelių sertifikavimas atsižvelgia į lėtesnius procesorius.

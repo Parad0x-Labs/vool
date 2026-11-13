@@ -1,7 +1,7 @@
 ---
 description: Cách khắc phục những sự cố thường gặp nhất.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Khắc phục sự cố
@@ -19,9 +19,10 @@ thử nghiệm; xem [hướng dẫn cài đặt](../getting-started/install.md#c
 
 ## Không có mô hình cục bộ nào được liệt kê
 
-1. Xác nhận môi trường chạy đang hoạt động.
-2. Xác nhận đã tải về ít nhất một mô hình.
-3. Xác nhận cổng khớp với cổng mà VOOL cần.
+1. Xác nhận môi trường chạy mô hình cục bộ đã được cài — trên Linux, hãy cài [Ollama](https://ollama.com) trước nếu bạn chưa cài (xem [Chạy mô hình cục bộ](../guides/local-models.md#cài-một-môi-trường-chạy)).
+2. Xác nhận môi trường chạy đang hoạt động.
+3. Xác nhận đã tải về ít nhất một mô hình.
+4. Xác nhận cổng khớp với cổng mà VOOL cần.
 
 ```bash
 curl http://localhost:11434/api/tags

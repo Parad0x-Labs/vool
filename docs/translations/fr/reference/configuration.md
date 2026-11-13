@@ -1,7 +1,7 @@
 ---
 description: Où VOOL stocke sa configuration et ce que signifient les réglages.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Configuration
@@ -16,8 +16,8 @@ VOOL conserve ses réglages, ses discussions, sa mémoire et ses enregistrements
 | Archive tar Linux et installations depuis les sources | `~/.vool_runtime` |
 | Windows (expérimental, depuis les sources) | `%LOCALAPPDATA%\VOOL` |
 
-Définir `VOOL_HOME` avant de démarrer VOOL fait utiliser ce dossier à la place. Les journaux de démarrage
-affichent le « runtime home » utilisé.
+Définir `VOOL_HOME` avant de démarrer VOOL fait utiliser ce dossier à la place. La commande `vool`
+affiche le « runtime home » utilisé.
 
 Les clés ne sont **pas** écrites dans les fichiers de réglages ni dans les journaux. Elles sont conservées
 chiffrées dans un fichier d’identifiants distinct dans ce « runtime home », lisible uniquement par votre

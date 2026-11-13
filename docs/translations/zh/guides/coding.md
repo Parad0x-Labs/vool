@@ -1,7 +1,7 @@
 ---
 description: 如何把 VOOL 用作针对你自己代码库的 AI 编程助手——设置工作区、询问代码问题，以及审查编辑。
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # 用 VOOL 编程
@@ -22,4 +22,4 @@ source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
 
 ## 本地还是云端
 
-两种模式都可以编程。一个 7B 的本地编程模型就能处理大部分日常编辑；更大的云端模型适合更长的推理。在你发送之前，模式指示会告诉你当前是哪一种。
+两种模式都可以编程。一个 7B 的本地编程模型就能处理大部分日常编辑；更大的云端模型适合更长的推理。在你发送之前，模型指示会告诉你当前是哪一种：本地模型显示 `LOCAL`，云端模型显示 `CLOUD`，由 VOOL 选择时默认显示 `AUTO`（`VOOL Auto`、`Local first`）。

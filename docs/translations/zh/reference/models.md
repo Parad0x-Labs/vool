@@ -1,16 +1,16 @@
 ---
 description: 哪些 AI 模型可以与 VOOL 配合使用——在你自己的硬件上运行的本地模型，以及通过你的提供方账户使用的云端模型。
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # 支持的模型
 
-VOOL 不附带模型。它连接你选择的运行时和提供方。
+VOOL 不附带模型——第一个本地模型会在你第一次使用它时下载。它连接你选择的运行时和提供方。
 
 ## 本地运行时
 
-任何在 localhost 上提供 OpenAI 兼容端点的运行时都可以使用。常见的运行时会被自动检测到。
+Ollama、llama.cpp、vLLM 和 MLX 会被自动检测到。其他在 localhost 上提供 OpenAI 兼容端点的运行时可以手动指定。
 
 ## 云端提供方
 

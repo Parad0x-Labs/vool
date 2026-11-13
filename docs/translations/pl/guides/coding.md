@@ -1,7 +1,7 @@
 ---
 description: Jak używać VOOL jako asystenta AI do programowania we własnym kodzie — ustawianie obszaru roboczego, pytania o kod i przeglądanie edycji.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # Programowanie z VOOL
@@ -27,5 +27,6 @@ zmianą zrób commit, aby diff był łatwy do przeczytania i łatwy do cofnięci
 ## Lokalnie czy w chmurze
 
 Programowanie działa w obu trybach. Lokalny model do programowania 7B radzi sobie z większością codziennych
-edycji; większe modele w chmurze radzą sobie z dłuższym rozumowaniem. Wskaźnik trybu pokazuje, który z nich
-jest aktywny, zanim wyślesz.
+edycji; większe modele w chmurze radzą sobie z dłuższym rozumowaniem. Wskaźnik modelu pokazuje, który z nich
+jest aktywny, zanim wyślesz: `LOCAL` dla modelu lokalnego, `CLOUD` dla modelu w chmurze i domyślnie `AUTO`
+(`VOOL Auto`, `Local first`), gdy wybiera VOOL.

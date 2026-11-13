@@ -1,14 +1,15 @@
 ---
 description: Preguntas habituales sobre VOOL: si funciona sin conexión, dónde se guarda tu clave API, si es gratuito y qué sistemas admite.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # Preguntas frecuentes
 
 ## ¿Funciona VOOL sin conexión?
 
-Sí, con un modelo local. Los modelos en la nube necesitan conexión a la red por definición.
+Sí, con un modelo local, para tus chats y archivos. Los modelos en la nube necesitan conexión
+a la red por definición. Los datos en directo como el tiempo o los precios vienen de servicios web públicos solo mientras Búsquedas web está activado (está desactivado en una instalación nueva), y nunca en Solo local.
 
 ## ¿Necesito una clave de la nube?
 

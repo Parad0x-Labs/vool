@@ -1,7 +1,7 @@
 ---
 description: VOOL ist ein KI-Assistent für den Desktop, der KI-Modelle lokal auf deinem Computer ausführt oder sich mit deinem eigenen Schlüssel mit Cloud-Modellen verbindet. Kostenlos und privat. Downloads für Mac (Apple Silicon und Intel) und Linux; Windows ist experimentell und wird aus dem Quellcode installiert.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,8 +10,10 @@ VOOL ist ein KI-Assistent für den Desktop. Er wird als App auf deinem Computer 
 KI-Modelle lokal auf diesem Rechner ausführen oder sich mit deinem eigenen API-Schlüssel mit einem
 Cloud-KI-Anbieter verbinden. Über jede Aktion, die er ausführt, führt er ein lesbares Protokoll.
 
-Er ist kostenlos und funktioniert mit lokalen Modellen offline. Es gibt Downloads für Macs (Apple Silicon
-und Intel) und Linux x86_64; Windows ist experimentell und wird aus dem Quellcode installiert.
+Er ist kostenlos. Mit einem lokalen Modell brauchen deine Chats und Dateien keine Internetverbindung; aktuelle Fakten
+wie Wetter oder Preise kommen nur von öffentlichen Webdiensten, solange Websuchen eingeschaltet ist. Es gibt
+Downloads für Macs (Apple Silicon und Intel) und Linux x86_64; Windows ist experimentell und
+wird aus dem Quellcode installiert.
 
 Diese Doku zeigt, wie du VOOL installierst und ein Modell verbindest, und erklärt, wie VOOL mit
 deinen Dateien, deinem Gedächtnis in VOOL und deinen Schlüsseln umgeht.
@@ -45,7 +47,8 @@ Jeder Lauf, der Aufbau und die Schwachstellen sind veröffentlicht: [Gedächtnis
 
 * **Eine Desktop-App.** Sie wird auf deinem Computer installiert — kein Browser-Tab, kein
   gehosteter Dienst.
-* **Funktioniert offline.** Mit einem ausgewählten lokalen Modell braucht VOOL keine Internetverbindung.
+* **Funktioniert offline für Chats und Dateien.** Mit einem ausgewählten lokalen Modell brauchen deine Chats und Dateien
+  keine Internetverbindung. Aktuelle Fakten wie Wetter oder Preise kommen nur von öffentlichen Webdiensten, solange Websuchen eingeschaltet ist (bei einer frischen Installation ist es aus), und nie in Nur lokal.
 * **Standardmäßig lokal.** Mit einem ausgewählten lokalen Modell werden Prompts und Dateien
   auf deinem Rechner verarbeitet.
 * **Modellunabhängig.** Lokale Laufzeitumgebungen und Cloud-Anbieter sind beide auswählbar. Den
@@ -60,15 +63,16 @@ Bestätigung; die Seite [Installation](getting-started/install.md#erstes-öffnen
 Lies vor der Installation den [Release-Status](trust/release-status.md).
 {% endhint %}
 
-## Zwei Modi, klar benannt
+## Zwei Wege zu antworten, klar benannt
 
-VOOL unterscheidet genau zwei Zustände, und die Oberfläche zeigt immer, welcher gerade aktiv ist:
+VOOL antwortet auf zwei Wegen, und die Kopfzeile des Chats zeigt immer, auf welchem Weg die nächste Anfrage
+läuft — zum Beispiel **Auto** mit **Lokal zuerst**:
 
 1. **Lokal** — die Arbeit bleibt auf diesem Computer.
 2. **Cloud** — der ausgewählte Kontext wird direkt an den von dir ausgewählten Anbieter gesendet,
    von deinem Rechner aus, mit deinem Schlüssel.
 
-Es gibt keinen dritten Zustand und kein von Parad0x betriebenes Relay dazwischen. Die Details
+Es gibt kein von Parad0x betriebenes Relay dazwischen. Die Details
 stehen unter [Umgang mit Daten](trust/data-handling.md).
 
 ## Hilfe bekommen

@@ -1,14 +1,14 @@
 ---
 description: Những câu hỏi thường gặp về VOOL — nó có hoạt động ngoại tuyến không, khóa API của bạn được lưu ở đâu, nó có miễn phí không, và nó hỗ trợ những hệ thống nào.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # Câu hỏi thường gặp
 
 ## VOOL có hoạt động ngoại tuyến không?
 
-Có, với một mô hình cục bộ. Mô hình đám mây theo định nghĩa cần kết nối mạng.
+Có, với một mô hình cục bộ, cho các cuộc trò chuyện và tệp của bạn. Mô hình đám mây theo định nghĩa cần kết nối mạng. Thông tin trực tiếp như thời tiết hay giá cả chỉ được lấy từ các dịch vụ web công khai khi "Tra cứu web" đang bật (bản cài mới thì nó tắt), và không bao giờ trong "Chỉ cục bộ".
 
 ## Tôi có cần khóa đám mây không?
 

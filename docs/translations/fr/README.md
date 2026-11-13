@@ -1,7 +1,7 @@
 ---
 description: VOOL est un assistant IA de bureau qui exécute des modèles d’IA en local sur votre ordinateur ou se connecte à des modèles cloud avec votre propre clé. Gratuit et privé. Téléchargements pour Mac (Apple Silicon et Intel) et Linux ; Windows est expérimental et s’installe depuis les sources.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,8 +10,10 @@ VOOL est un assistant IA de bureau. Il s’installe comme une application sur vo
 exécuter des modèles d’IA en local sur cette machine, ou se connecter à un fournisseur d’IA dans le cloud
 avec votre propre clé API. Il tient un journal lisible de chaque action qu’il effectue.
 
-Il est gratuit et fonctionne hors ligne avec des modèles locaux. Des téléchargements existent pour les Mac
-(Apple Silicon et Intel) et Linux x86_64 ; Windows est expérimental et s’installe depuis les sources.
+Il est gratuit. Avec un modèle local, vos conversations et vos fichiers n’ont besoin d’aucune connexion Internet ; les
+informations en direct comme la météo ou les prix viennent de services web publics uniquement lorsque Recherches web est
+activé. Des téléchargements existent pour les Mac (Apple Silicon et Intel) et Linux x86_64 ; Windows est expérimental
+et s’installe depuis les sources.
 
 Cette documentation explique comment installer VOOL et connecter un modèle, ainsi que les principes de la
 façon dont il traite vos fichiers, votre mémoire et vos clés.
@@ -45,7 +47,8 @@ Chaque exécution, la configuration et les points faibles sont publiés : [bench
 
 * **Une application de bureau.** Elle s’installe sur votre ordinateur — ni un onglet de navigateur, ni un
   service hébergé.
-* **Fonctionne hors ligne.** Avec un modèle local sélectionné, VOOL n’a besoin d’aucune connexion Internet.
+* **Fonctionne hors ligne pour les conversations et les fichiers.** Avec un modèle local sélectionné, vos conversations
+  et vos fichiers n’ont besoin d’aucune connexion Internet. Les informations en direct comme la météo ou les prix viennent de services web publics uniquement lorsque Recherches web est activé (désactivé sur une nouvelle installation), et jamais en Local uniquement.
 * **Local par défaut.** Avec un modèle local sélectionné, les prompts et les fichiers sont traités
   sur votre machine.
 * **Indépendant du modèle.** Les moteurs locaux et les fournisseurs cloud sont tous deux sélectionnables. Vous
@@ -60,15 +63,16 @@ ouvrez une ; la page [Installation](getting-started/install.md#première-ouvertu
 Consultez [État des versions](trust/release-status.md) avant d’installer.
 {% endhint %}
 
-## Deux modes, sans ambiguïté
+## Deux façons de répondre, sans ambiguïté
 
-VOOL distingue exactement deux états, et l’interface indique toujours lequel est actif :
+VOOL répond de deux façons, et l’en-tête de la conversation indique toujours de quelle façon la prochaine
+requête s’exécute — par exemple **Auto** avec **Local en priorité** :
 
 1. **Local** — le travail reste sur cet ordinateur.
 2. **Cloud** — le contexte sélectionné est envoyé directement au fournisseur que vous avez choisi,
    depuis votre machine, avec votre clé.
 
-Il n’y a pas de troisième état, ni de relais exploité par Parad0x entre les deux. Le détail
+Il n’y a pas de relais exploité par Parad0x entre les deux. Le détail
 se trouve dans [Traitement des données](trust/data-handling.md).
 
 ## Obtenir de l’aide

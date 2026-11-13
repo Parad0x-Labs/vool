@@ -1,14 +1,15 @@
 ---
 description: Dažni klausimai apie VOOL — ar jis veikia be interneto, kur saugomas jūsų API raktas, ar jis nemokamas ir kokias sistemas palaiko.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # DUK
 
 ## Ar VOOL veikia be interneto?
 
-Taip, su vietiniu modeliu. Debesijos modeliams pagal apibrėžimą reikia tinklo ryšio.
+Taip, su vietiniu modeliu, jūsų pokalbiams ir failams. Debesijos modeliams pagal apibrėžimą reikia tinklo
+ryšio. Naujausia informacija, pavyzdžiui, orai ar kainos, gaunama iš viešųjų žiniatinklio paslaugų tik tada, kai įjungta „Interneto paieška“ (po naujo įdiegimo ji išjungta), ir niekada režimu „Tik lokaliai“.
 
 ## Ar man reikia debesijos rakto?
 

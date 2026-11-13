@@ -1,14 +1,14 @@
 ---
 description: Ngôn ngữ, trợ năng, lịch sử hoạt động, biên nhận, và cách các câu trả lời của mô hình được kiểm chứng.
 translation: machine
-source_sha256: 2e135f9673ae465cee9db53572ab89c93235805dfea713efd73d7f4244b6b1f5
+source_sha256: 519707395e736b24ba96005597cca3bc59dcf12ca85d905c70f8a50884c5bba2
 ---
 
 # Ngôn ngữ, trợ năng và bản ghi
 
 ## Ngôn ngữ giao diện
 
-Giao diện của VOOL có sẵn bằng nhiều ngôn ngữ. Việc chọn ngôn ngữ chỉ là chuyện trình bày: các quyết định
+Giao diện của VOOL có sẵn bằng nhiều ngôn ngữ; các chuỗi mới hơn có thể vẫn hiện bằng tiếng Anh cho đến khi có bản dịch. Việc chọn ngôn ngữ chỉ là chuyện trình bày: các quyết định
 về quyền, thẩm quyền chi tiêu và mã lỗi **không phụ thuộc vào ngôn ngữ ngay từ cấu trúc** — một thông báo
 lỗi đã dịch không bao giờ có thể nới rộng hay thu hẹp điều mà quyết định gốc bằng tiếng Anh đã định ra.
 

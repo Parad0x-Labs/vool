@@ -1,18 +1,20 @@
 ---
 description: Genau welche Daten VOOL sendet, wann und an wen. Was auf deinem Computer bleibt und was deinen KI-Anbieter erreicht.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Umgang mit Daten
 
 ## Die zwei Zustände
 
-**LOKAL** — alles bleibt auf diesem Computer.
+**Lokal** — das Modell und deine Dateien bleiben auf diesem Computer. Aktuelle Fakten wie
+Wetter oder Preise kommen nur von öffentlichen Webdiensten, solange Websuchen eingeschaltet ist (bei einer frischen Installation ist es aus), und nie in Nur lokal.
 
-**CLOUD** — der ausgewählte Kontext wird direkt an den ausgewählten Anbieter gesendet.
+**Cloud** — der ausgewählte Kontext wird direkt an den ausgewählten Anbieter gesendet.
 
-Die Anzeige in der Oberfläche zeigt, welcher Zustand aktiv ist, bevor du etwas sendest.
+Die Kopfzeile des Chats zeigt, auf welchem Weg die nächste Anfrage läuft — zum Beispiel **Auto** mit
+**Lokal zuerst**, wenn VOOL Auto von diesem Computer aus antwortet.
 
 ## Was VOOL nicht tut
 

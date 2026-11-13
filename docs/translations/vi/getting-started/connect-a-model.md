@@ -1,12 +1,12 @@
 ---
 description: Cách kết nối một mô hình AI với VOOL: mô hình cục bộ chạy trên chính máy tính của bạn, hoặc nhà cung cấp đám mây dùng khóa API của chính bạn.
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # Kết nối mô hình
 
-VOOL không đi kèm mô hình nào. Bạn tự chọn một mô hình, và lựa chọn đó quyết định một yêu cầu
+VOOL không đi kèm mô hình nào. Mặc định nó chọn một mô hình cục bộ, và bạn có thể chọn mô hình khác; lựa chọn đó quyết định một yêu cầu
 ở lại trên máy của bạn hay rời khỏi nó.
 
 ## Cục bộ

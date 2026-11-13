@@ -1,16 +1,16 @@
 ---
 description: VOOL ile hangi yapay zekâ modellerinin çalıştığı: kendi donanımınızdaki yerel modeller ve sağlayıcı hesabınız üzerinden bulut modelleri.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Desteklenen modeller
 
-VOOL bir modelle birlikte gelmez. Seçtiğiniz çalışma ortamlarına ve sağlayıcılara bağlanır.
+VOOL bir modelle birlikte gelmez; ilk yerel model, onu ilk kullandığınızda indirilir. Seçtiğiniz çalışma ortamlarına ve sağlayıcılara bağlanır.
 
 ## Yerel çalışma ortamları
 
-localhost üzerinde OpenAI uyumlu bir uç nokta sunan her çalışma ortamı kullanılabilir. Yaygın olanlar otomatik olarak algılanır.
+Ollama, llama.cpp, vLLM ve MLX otomatik olarak algılanır. localhost üzerinde OpenAI uyumlu bir uç nokta sunan diğer çalışma ortamlarını elle gösterebilirsiniz.
 
 ## Bulut sağlayıcıları
 

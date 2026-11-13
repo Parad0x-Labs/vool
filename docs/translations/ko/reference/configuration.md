@@ -1,7 +1,7 @@
 ---
 description: VOOL이 구성을 저장하는 위치와 각 설정의 의미.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # 구성
@@ -16,8 +16,8 @@ VOOL은 설정, 채팅, 메모리, 기록을 하나의 런타임 홈(runtime hom
 | Linux tarball 및 소스 설치 | `~/.vool_runtime` |
 | Windows(실험적, 소스에서 설치) | `%LOCALAPPDATA%\VOOL` |
 
-VOOL을 시작하기 전에 `VOOL_HOME`을 설정하면 그 폴더를 대신 사용합니다. 시작 로그에는 사용 중인
-홈이 출력됩니다.
+VOOL을 시작하기 전에 `VOOL_HOME`을 설정하면 그 폴더를 대신 사용합니다. `vool` 명령은 사용 중인
+홈을 출력합니다.
 
 키는 설정 파일이나 로그에 기록되지 **않습니다**. 키는 이 런타임 홈 안의 별도 자격 증명 파일에
 암호화되어 보관되며, 내 사용자 계정만 읽을 수 있습니다. Mac에서 VOOL이 이미 macOS 키체인에

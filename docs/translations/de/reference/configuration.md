@@ -1,7 +1,7 @@
 ---
 description: Wo VOOL seine Konfiguration speichert und was die Einstellungen bedeuten.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Konfiguration
@@ -16,8 +16,8 @@ VOOL bewahrt seine Einstellungen, Chats, sein Gedächtnis und seine Aufzeichnung
 | Linux-Tarball und Installationen aus dem Quellcode | `~/.vool_runtime` |
 | Windows (experimentell, aus dem Quellcode) | `%LOCALAPPDATA%\VOOL` |
 
-Wenn du `VOOL_HOME` setzt, bevor du VOOL startest, wird stattdessen dieser Ordner verwendet. Die
-Startprotokolle zeigen das verwendete „runtime home“.
+Wenn du `VOOL_HOME` setzt, bevor du VOOL startest, wird stattdessen dieser Ordner verwendet. Der
+Befehl `vool` zeigt das verwendete „runtime home“.
 
 Schlüssel werden **nicht** in Einstellungsdateien oder Protokolle geschrieben. Sie werden verschlüsselt in einer
 eigenen Datei für Zugangsdaten in diesem „runtime home“ aufbewahrt, die nur dein Benutzerkonto lesen kann;

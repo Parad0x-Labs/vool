@@ -1,14 +1,14 @@
 ---
 description: VOOL hakkında sık sorulan sorular: çevrimdışı çalışıp çalışmadığı, API anahtarınızın nerede saklandığı, ücretsiz olup olmadığı ve hangi sistemleri desteklediği.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # SSS
 
 ## VOOL çevrimdışı çalışır mı?
 
-Evet, yerel bir modelle. Bulut modelleri, tanımları gereği bir ağ bağlantısına ihtiyaç duyar.
+Evet, yerel bir modelle, sohbetleriniz ve dosyalarınız için. Bulut modelleri, tanımları gereği bir ağ bağlantısına ihtiyaç duyar. Hava durumu veya fiyatlar gibi güncel bilgiler yalnızca "Web aramaları" açıkken herkese açık web hizmetlerinden gelir (yeni bir kurulumda kapalıdır), "Yalnızca yerel" modunda ise asla gelmez.
 
 ## Bir bulut anahtarına ihtiyacım var mı?
 

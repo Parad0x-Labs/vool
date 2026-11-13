@@ -1,7 +1,7 @@
 ---
 description: Kaip naudoti VOOL kaip DI programavimo asistentą su savo kodo baze — darbo srities nustatymas, klausimai apie kodą ir redagavimų peržiūra.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # Programavimas su VOOL
@@ -28,5 +28,6 @@ lengva atšaukti.
 ## Lokaliai ar debesijoje
 
 Programavimas veikia abiem režimais. 7B vietinis programavimo modelis susidoroja su dauguma kasdienių
-redagavimų; didesni debesijos modeliai susidoroja su ilgesniu samprotavimu. Režimo indikatorius parodo,
-kuris iš jų aktyvus, dar prieš jums išsiunčiant.
+redagavimų; didesni debesijos modeliai susidoroja su ilgesniu samprotavimu. Modelio indikatorius parodo,
+kuris iš jų aktyvus, dar prieš jums išsiunčiant: `LOCAL` vietiniam modeliui, `CLOUD` debesijos modeliui ir
+numatytai `AUTO` (`VOOL Auto`, `Local first`), kai renkasi VOOL.

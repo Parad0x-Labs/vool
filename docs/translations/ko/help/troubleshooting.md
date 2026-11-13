@@ -1,7 +1,7 @@
 ---
 description: 가장 자주 생기는 문제의 해결 방법.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # 문제 해결
@@ -19,9 +19,10 @@ source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 
 ## 로컬 모델이 목록에 없을 때
 
-1. 런타임이 실행 중인지 확인합니다.
-2. 모델을 하나 이상 내려받았는지(pull) 확인합니다.
-3. 포트가 VOOL이 기대하는 포트와 같은지 확인합니다.
+1. 로컬 모델 런타임이 설치되어 있는지 확인합니다. Linux에서는 아직 설치하지 않았다면 먼저 [Ollama](https://ollama.com)를 설치하세요([로컬 모델 실행](../guides/local-models.md#런타임-설치) 참고).
+2. 런타임이 실행 중인지 확인합니다.
+3. 모델을 하나 이상 내려받았는지(pull) 확인합니다.
+4. 포트가 VOOL이 기대하는 포트와 같은지 확인합니다.
 
 ```bash
 curl http://localhost:11434/api/tags

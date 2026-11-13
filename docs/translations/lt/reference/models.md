@@ -1,17 +1,18 @@
 ---
 description: Kurie DI modeliai veikia su VOOL — vietiniai modeliai jūsų pačių aparatinėje įrangoje ir debesijos modeliai per jūsų tiekėjo paskyrą.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Palaikomi modeliai
 
-VOOL nepateikiamas su modeliu. Jis jungiasi prie jūsų pasirinktų vykdymo aplinkų ir tiekėjų.
+VOOL nepateikiamas su modeliu — pirmasis vietinis modelis atsisiunčiamas, kai jį panaudojate pirmą kartą.
+Jis jungiasi prie jūsų pasirinktų vykdymo aplinkų ir tiekėjų.
 
 ## Vietinės vykdymo aplinkos
 
-Galima naudoti bet kurią vykdymo aplinką, kuri localhost adresu teikia su OpenAI suderinamą galinį tašką.
-Populiariausios aptinkamos automatiškai.
+Ollama, llama.cpp, vLLM ir MLX aptinkamos automatiškai. Kitas vykdymo aplinkas, kurios localhost adresu teikia
+su OpenAI suderinamą galinį tašką, galima nurodyti rankiniu būdu.
 
 ## Debesijos tiekėjai
 

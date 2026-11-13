@@ -1,7 +1,7 @@
 ---
 description: Les solutions aux problèmes les plus fréquents.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Dépannage
@@ -19,9 +19,12 @@ reste expérimental ; voir le [guide d’installation](../getting-started/instal
 
 ## Aucun modèle local n’est listé
 
-1. Vérifiez que le moteur local est en marche.
-2. Vérifiez qu’au moins un modèle est téléchargé.
-3. Vérifiez que le port correspond à celui qu’attend VOOL.
+1. Vérifiez que le moteur de modèles locaux est installé — sous Linux, installez d’abord
+   [Ollama](https://ollama.com) si ce n’est pas encore fait
+   (voir [Exécuter un modèle local](../guides/local-models.md#installer-un-moteur-local)).
+2. Vérifiez que le moteur local est en marche.
+3. Vérifiez qu’au moins un modèle est téléchargé.
+4. Vérifiez que le port correspond à celui qu’attend VOOL.
 
 ```bash
 curl http://localhost:11434/api/tags

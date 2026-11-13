@@ -1,15 +1,15 @@
 ---
 description: Comment connecter OpenRouter à VOOL pour qu’une seule clé API donne accès à de nombreux modèles d’IA dans le cloud.
 translation: machine
-source_sha256: 3a09fe6c636e2b8dd14a2d627c4653055dbb10bf8fd8221b7a3bcccf3044cb19
+source_sha256: 75cb20d43eb37adb1d30913959ca1cb46864ad57ba7a1a22ec261f0e0eaf2e9a
 ---
 
 # Connecter OpenRouter
 
-OpenRouter donne accès à de nombreux fournisseurs derrière une seule clé. VOOL permet de connecter un
-compte OpenRouter.
+OpenRouter donne accès à de nombreux fournisseurs derrière une seule clé. VOOL permet d’ajouter une
+clé OpenRouter.
 
-## Connecter
+## Ajouter la clé
 
 Créez une clé dans votre compte OpenRouter, collez-la sous **Réglages → Clés API** et appuyez sur
 **Enregistrer la clé**. VOOL vérifie la clé une fois auprès d’OpenRouter, puis la conserve dans un
@@ -24,6 +24,6 @@ de VOOL peut apparaître dans les statistiques OpenRouter publiques et agrégée
 individuels et les identités ne sont pas publiés.
 {% endhint %}
 
-## Déconnecter
+## Retirer la clé
 
 Supprimez la clé sous **Réglages → Clés API**. Révoquez aussi la clé dans votre compte OpenRouter si vous voulez qu’elle soit désactivée côté serveur.

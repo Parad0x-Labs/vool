@@ -1,7 +1,7 @@
 ---
 description: VOOL'u kendi kod tabanınızda bir yapay zekâ kodlama asistanı olarak kullanma: çalışma alanını ayarlama, kod hakkında soru sorma ve düzenlemeleri inceleme.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # VOOL ile kod yazma
@@ -22,4 +22,4 @@ Manuel modda her düzenleme önce sorar. Otomatik modda günlük düzenlemeler v
 
 ## Yerel ya da bulut
 
-Kodlama her iki modda da çalışır. 7B'lik yerel bir kodlama modeli günlük düzenlemelerin çoğunu halleder; daha büyük bulut modelleri daha uzun akıl yürütmeyi üstlenir. Mod göstergesi, göndermeden önce hangisinin etkin olduğunu söyler.
+Kodlama her iki modda da çalışır. 7B'lik yerel bir kodlama modeli günlük düzenlemelerin çoğunu halleder; daha büyük bulut modelleri daha uzun akıl yürütmeyi üstlenir. Model göstergesi, göndermeden önce hangisinin etkin olduğunu söyler: yerel bir model için `LOCAL`, bulut modeli için `CLOUD` ve VOOL seçtiğinde varsayılan olarak `AUTO` (`VOOL Auto`, `Local first`).

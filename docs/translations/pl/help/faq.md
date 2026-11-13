@@ -1,14 +1,15 @@
 ---
 description: Częste pytania o VOOL — czy działa offline, gdzie przechowywany jest twój klucz API, czy jest darmowy i jakie systemy obsługuje.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # FAQ
 
 ## Czy VOOL działa offline?
 
-Tak, z modelem lokalnym. Modele w chmurze z definicji wymagają połączenia z siecią.
+Tak, z modelem lokalnym, dla twoich czatów i plików. Modele w chmurze z definicji wymagają połączenia
+z siecią. Bieżące informacje, takie jak pogoda czy ceny, pochodzą z publicznych usług internetowych tylko wtedy, gdy włączone jest „Wyszukiwanie w sieci” (po świeżej instalacji jest wyłączone), i nigdy w trybie „Tylko lokalnie”.
 
 ## Czy potrzebuję klucza do chmury?
 

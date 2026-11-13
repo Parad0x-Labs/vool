@@ -1,14 +1,15 @@
 ---
 description: Kalbos, prieinamumas, veiklos istorija, kvitai ir kaip tikrinami modelių atsakymai.
 translation: machine
-source_sha256: 2e135f9673ae465cee9db53572ab89c93235805dfea713efd73d7f4244b6b1f5
+source_sha256: 519707395e736b24ba96005597cca3bc59dcf12ca85d905c70f8a50884c5bba2
 ---
 
 # Kalbos, prieinamumas ir įrašai
 
 ## Sąsajos kalbos
 
-VOOL sąsaja prieinama keliomis kalbomis. Kalbos pasirinkimas lemia tik pateikimą: sprendimai dėl leidimų,
+VOOL sąsaja prieinama keliomis kalbomis; naujesni tekstai gali dar būti rodomi angliškai, kol
+atsiras vertimas. Kalbos pasirinkimas lemia tik pateikimą: sprendimai dėl leidimų,
 įgaliojimai išlaidoms ir klaidų kodai yra **nepriklausomi nuo kalbos pačia savo sandara** — išverstas
 klaidos pranešimas niekada negali išplėsti ar susiaurinti to, ką nusprendė angliškasis sprendimų šaltinis.
 

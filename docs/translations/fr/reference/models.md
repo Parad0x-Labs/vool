@@ -1,17 +1,18 @@
 ---
 description: Quels modèles d’IA fonctionnent avec VOOL — des modèles locaux sur votre propre matériel et des modèles cloud via votre compte chez un fournisseur.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Modèles pris en charge
 
-VOOL n’intègre pas de modèle. Il se connecte aux moteurs et aux fournisseurs que vous choisissez.
+VOOL n’intègre pas de modèle — le premier modèle local est téléchargé la première fois que vous
+l’utilisez. Il se connecte aux moteurs et aux fournisseurs que vous choisissez.
 
 ## Moteurs locaux
 
-Tout moteur qui expose un point de terminaison compatible OpenAI sur localhost est utilisable. La
-détection est automatique pour les plus courants.
+Ollama, llama.cpp, vLLM et MLX sont détectés automatiquement. Les autres moteurs qui exposent un point
+de terminaison compatible OpenAI sur localhost peuvent être indiqués à la main.
 
 ## Fournisseurs cloud
 

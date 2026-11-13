@@ -1,7 +1,7 @@
 ---
 description: Dažniausių problemų sprendimai.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Problemų sprendimas
@@ -19,9 +19,12 @@ eksperimentinis; žr. [diegimo vadovą](../getting-started/install.md#diegimas-i
 
 ## Nerodomas nė vienas vietinis modelis
 
-1. Įsitikinkite, kad vykdymo aplinka veikia.
-2. Įsitikinkite, kad atsisiųstas bent vienas modelis.
-3. Įsitikinkite, kad prievadas atitinka tą, kurio tikisi VOOL.
+1. Įsitikinkite, kad vietinių modelių vykdymo aplinka įdiegta — Linux sistemoje pirmiausia įdiekite
+   [Ollama](https://ollama.com), jei dar to nepadarėte
+   (žr. [Vietinio modelio paleidimas](../guides/local-models.md#vykdymo-aplinkos-diegimas)).
+2. Įsitikinkite, kad vykdymo aplinka veikia.
+3. Įsitikinkite, kad atsisiųstas bent vienas modelis.
+4. Įsitikinkite, kad prievadas atitinka tą, kurio tikisi VOOL.
 
 ```bash
 curl http://localhost:11434/api/tags

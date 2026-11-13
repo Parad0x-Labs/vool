@@ -1,18 +1,20 @@
 ---
 description: Exactement quelles données VOOL envoie, quand et à qui. Ce qui reste sur votre ordinateur et ce qui parvient à votre fournisseur d’IA.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Traitement des données
 
 ## Les deux états
 
-**LOCAL** — tout reste sur cet ordinateur.
+**Local** — le modèle et vos fichiers restent sur cet ordinateur. Les informations en direct comme
+la météo ou les prix viennent de services web publics uniquement lorsque Recherches web est activé (désactivé sur une nouvelle installation), et jamais en Local uniquement.
 
-**CLOUD** — le contexte sélectionné est envoyé directement au fournisseur sélectionné.
+**Cloud** — le contexte sélectionné est envoyé directement au fournisseur sélectionné.
 
-L’indicateur de l’interface montre quel état est actif avant que vous n’envoyiez quoi que ce soit.
+L’en-tête de la conversation indique de quelle façon la prochaine requête s’exécute — par exemple **Auto** avec
+**Local en priorité** lorsque VOOL Auto répond depuis cet ordinateur.
 
 ## Ce que VOOL ne fait pas
 

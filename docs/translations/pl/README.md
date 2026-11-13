@@ -1,7 +1,7 @@
 ---
 description: VOOL to asystent AI na komputer, który uruchamia modele AI lokalnie na twoim komputerze albo łączy się z modelami w chmurze za pomocą twojego własnego klucza. Darmowy i prywatny. Pliki do pobrania dla Maca (Apple Silicon i Intel) oraz Linuksa; Windows jest eksperymentalny i instaluje się ze źródeł.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,8 +10,10 @@ VOOL to asystent AI na komputer. Instaluje się na twoim komputerze jako aplikac
 uruchamiać modele AI lokalnie na tej maszynie albo łączyć się z dostawcą AI w chmurze za pomocą twojego
 własnego klucza API. Prowadzi czytelny zapis każdej wykonanej czynności.
 
-Jest darmowy i z modelami lokalnymi działa offline. Są pliki do pobrania dla Maców (Apple Silicon
-i Intel) oraz Linuksa x86_64; Windows jest eksperymentalny i instaluje się ze źródeł.
+Jest darmowy. Z modelem lokalnym twoje czaty i pliki nie potrzebują połączenia z internetem; bieżące
+informacje, takie jak pogoda czy ceny, pochodzą z publicznych usług internetowych tylko wtedy, gdy włączone
+jest „Wyszukiwanie w sieci”. Są pliki do pobrania dla Maców (Apple Silicon i Intel) oraz Linuksa x86_64;
+Windows jest eksperymentalny i instaluje się ze źródeł.
 
 Ta dokumentacja opisuje instalację VOOL, podłączanie modelu oraz zasady tego, jak VOOL
 obchodzi się z twoimi plikami, twoją pamięcią i twoimi kluczami.
@@ -45,7 +47,8 @@ Każdy przebieg, konfiguracja i słabe punkty są opublikowane: [testy porównaw
 
 * **Aplikacją na komputer.** Instaluje się na twoim komputerze — to nie karta przeglądarki ani
   usługa hostowana.
-* **Działa offline.** Gdy wybrany jest model lokalny, VOOL nie potrzebuje połączenia z internetem.
+* **Działa offline dla czatów i plików.** Gdy wybrany jest model lokalny, twoje czaty i pliki nie potrzebują
+  połączenia z internetem. Bieżące informacje, takie jak pogoda czy ceny, pochodzą z publicznych usług internetowych tylko wtedy, gdy włączone jest „Wyszukiwanie w sieci” (po świeżej instalacji jest wyłączone), i nigdy w trybie „Tylko lokalnie”.
 * **Domyślnie lokalny.** Gdy wybrany jest model lokalny, prompty i pliki są przetwarzane
   na twoim komputerze.
 * **Niezależny od modelu.** Można wybrać zarówno lokalne środowiska uruchomieniowe, jak i dostawców chmurowych. Klucz
@@ -60,15 +63,16 @@ strona [Instalacja](getting-started/install.md#pierwsze-otwarcie-na-macu) pokazu
 przeczytaj [Stan wydań](trust/release-status.md).
 {% endhint %}
 
-## Dwa tryby, bez niedomówień
+## Dwa sposoby odpowiadania, bez niedomówień
 
-VOOL rozróżnia dokładnie dwa stany, a interfejs zawsze pokazuje, który z nich jest aktywny:
+VOOL odpowiada na dwa sposoby, a nagłówek czatu zawsze pokazuje, w który sposób zostanie wykonane
+następne żądanie — na przykład **AUTO** z **Najpierw lokalnie**:
 
 1. **Lokalnie** — praca zostaje na tym komputerze.
 2. **Chmura** — wybrany kontekst jest wysyłany bezpośrednio do wybranego przez ciebie dostawcy,
    z twojego komputera, z użyciem twojego klucza.
 
-Nie ma trzeciego stanu ani żadnego przekaźnika obsługiwanego przez Parad0x pośrodku. Szczegóły
+Pośrodku nie ma żadnego przekaźnika obsługiwanego przez Parad0x. Szczegóły
 są w sekcji [Przetwarzanie danych](trust/data-handling.md).
 
 ## Pomoc

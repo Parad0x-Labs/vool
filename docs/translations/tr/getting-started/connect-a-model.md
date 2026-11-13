@@ -1,12 +1,12 @@
 ---
 description: VOOL'a bir yapay zekâ modeli bağlama: kendi bilgisayarınızda çalışan yerel bir model ya da kendi API anahtarınızla bir bulut sağlayıcısı.
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # Model bağlama
 
-VOOL bir modelle birlikte gelmez. Bir model siz seçersiniz ve bu seçim, bir isteğin
+VOOL bir modelle birlikte gelmez. Varsayılan olarak yerel bir model seçer, siz de başka birini seçebilirsiniz; bu seçim, bir isteğin
 makinenizde mi kalacağını yoksa makinenizden mi çıkacağını belirler.
 
 ## Yerel

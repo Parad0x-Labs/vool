@@ -1,7 +1,7 @@
 ---
 description: Onde o VOOL guarda a configuração e o que as configurações significam.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Configuração
@@ -16,7 +16,7 @@ O VOOL guarda as configurações, as conversas, a memória e os registros em uma
 | Arquivo tar para Linux e instalações a partir do código-fonte | `~/.vool_runtime` |
 | Windows (experimental, a partir do código-fonte) | `%LOCALAPPDATA%\VOOL` |
 
-Definir `VOOL_HOME` antes de iniciar o VOOL faz com que ele use essa pasta. Os logs de inicialização mostram a
+Definir `VOOL_HOME` antes de iniciar o VOOL faz com que ele use essa pasta. O comando `vool` mostra a
 pasta em uso.
 
 As chaves **não** são gravadas em arquivos de configuração nem em logs. Elas ficam criptografadas em um arquivo

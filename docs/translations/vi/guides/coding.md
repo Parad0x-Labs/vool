@@ -1,7 +1,7 @@
 ---
 description: Cách dùng VOOL làm trợ lý lập trình AI trên mã nguồn của chính bạn — đặt không gian làm việc, hỏi về mã và xem lại các chỉnh sửa.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # Lập trình với VOOL
@@ -27,5 +27,5 @@ thay đổi lớn để phần khác biệt (diff) dễ đọc và dễ hoàn t�
 ## Cục bộ hay đám mây
 
 Lập trình hoạt động ở cả hai chế độ. Một mô hình lập trình cục bộ 7B xử lý được phần lớn các chỉnh sửa
-hằng ngày; các mô hình đám mây lớn hơn xử lý suy luận dài hơn. Chỉ báo chế độ cho bạn biết chế độ nào
-đang bật trước khi bạn gửi.
+hằng ngày; các mô hình đám mây lớn hơn xử lý suy luận dài hơn. Chỉ báo mô hình cho bạn biết chế độ nào
+đang bật trước khi bạn gửi: `LOCAL` cho mô hình cục bộ, `CLOUD` cho mô hình đám mây, và mặc định là `AUTO` (`VOOL Auto`, `Local first`) khi VOOL tự chọn.

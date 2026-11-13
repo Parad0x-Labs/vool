@@ -1,7 +1,7 @@
 ---
 description: VOOL, yapay zekâ modellerini bilgisayarınızda yerel olarak çalıştıran ya da kendi anahtarınızla bulut modellerine bağlanan bir masaüstü yapay zekâ asistanıdır. Ücretsiz ve gizli. Mac (Apple Silicon ve Intel) ve Linux için indirmeler; Windows deneyseldir ve kaynak koddan kurulur.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,7 +10,8 @@ VOOL bir masaüstü yapay zekâ asistanıdır. Bilgisayarınıza bir uygulama ol
 modellerini o makinede yerel olarak çalıştırabilir ya da kendi API anahtarınızla bir bulut yapay zekâ
 sağlayıcısına bağlanabilir. Yaptığı her işlemin okunabilir bir kaydını tutar.
 
-Ücretsizdir ve yerel modellerle çevrimdışı çalışır. Mac (Apple Silicon ve Intel) ve Linux x86_64 için
+Ücretsizdir. Yerel bir modelle sohbetleriniz ve dosyalarınız internet bağlantısına ihtiyaç duymaz; hava durumu veya fiyatlar
+gibi güncel bilgiler yalnızca "Web aramaları" açıkken herkese açık web hizmetlerinden gelir. Mac (Apple Silicon ve Intel) ve Linux x86_64 için
 indirmeler vardır; Windows deneyseldir ve kaynak koddan kurulur.
 
 Bu belgeler VOOL'u kurmayı, bir model bağlamayı ve VOOL'un dosyalarınızı, hafızanızı ve anahtarlarınızı
@@ -45,7 +46,8 @@ Her çalıştırma, kurulum ve zayıf noktalar yayımlanmıştır: [hafıza kar�
 
 * **Bir masaüstü uygulaması.** Bilgisayarınıza kurulur; bir tarayıcı sekmesi ya da barındırılan bir
   hizmet değildir.
-* **Çevrimdışı çalışır.** Yerel bir model seçiliyken VOOL'un internet bağlantısına ihtiyacı yoktur.
+* **Sohbetler ve dosyalar için çevrimdışı çalışır.** Yerel bir model seçiliyken sohbetleriniz ve dosyalarınız internet
+  bağlantısına ihtiyaç duymaz. Hava durumu veya fiyatlar gibi güncel bilgiler yalnızca "Web aramaları" açıkken herkese açık web hizmetlerinden gelir (yeni bir kurulumda kapalıdır), "Yalnızca yerel" modunda ise asla gelmez.
 * **Varsayılan olarak yerel.** Yerel bir model seçiliyken istemler ve dosyalar
   makinenizde işlenir.
 * **Modelden bağımsız.** Hem yerel çalışma ortamları hem de bulut sağlayıcıları seçilebilir. Bulut anahtarını
@@ -60,15 +62,16 @@ henüz Apple tarafından onaylanmadığı (noter tasdikli olmadığı) için mac
 [Sürüm durumu](trust/release-status.md) sayfasına bakın.
 {% endhint %}
 
-## Açıkça iki mod
+## Açıkça iki yanıt yolu
 
-VOOL tam olarak iki durumu birbirinden ayırır ve arayüz hangisinin etkin olduğunu her zaman gösterir:
+VOOL iki yolla yanıt verir ve sohbet başlığı bir sonraki isteğin hangi yolla çalışacağını her zaman gösterir; örneğin
+**Otomatik** ile **Önce yerel**:
 
 1. **Yerel** — iş bu bilgisayarda kalır.
 2. **Bulut** — seçilen bağlam, makinenizden ve sizin anahtarınızla, seçtiğiniz sağlayıcıya
    doğrudan gönderilir.
 
-Üçüncü bir durum yoktur ve arada Parad0x tarafından işletilen bir aktarıcı da yoktur. Ayrıntılar
+Arada Parad0x tarafından işletilen bir aktarıcı da yoktur. Ayrıntılar
 [Verilerin işlenmesi](trust/data-handling.md) sayfasındadır.
 
 ## Yardım almak

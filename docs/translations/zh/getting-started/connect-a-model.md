@@ -1,12 +1,12 @@
 ---
 description: 如何为 VOOL 连接 AI 模型：在你自己的电脑上运行的本地模型，或使用你自己的 API 密钥的云端提供方。
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # 连接模型
 
-VOOL 不附带模型。由你来选择一个，而这个选择决定了请求是留在你的电脑上还是离开它。
+VOOL 不附带模型。它默认选择一个本地模型，你也可以选择别的；这个选择决定了请求是留在你的电脑上还是离开它。
 
 ## 本地
 

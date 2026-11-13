@@ -1,7 +1,7 @@
 ---
 description: VOOL yra darbalaukio DI asistentas, kuris DI modelius paleidžia vietoje jūsų kompiuteryje arba jungiasi prie debesijos modelių su jūsų pačių raktu. Nemokamas ir privatus. Atsisiuntimai Mac (Apple Silicon ir Intel) ir Linux kompiuteriams; Windows palaikymas eksperimentinis, diegiama iš šaltinio kodo.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,8 +10,10 @@ VOOL yra darbalaukio DI asistentas. Jis įdiegiamas jūsų kompiuteryje kaip pro
 paleisti DI modelius vietoje tame kompiuteryje arba prisijungti prie debesijos DI tiekėjo su jūsų pačių
 API raktu. Jis saugo skaitomą kiekvieno savo atlikto veiksmo įrašą.
 
-Jis nemokamas ir su vietiniais modeliais veikia be interneto. Yra atsisiuntimai Mac kompiuteriams (Apple Silicon
-ir Intel) ir Linux x86_64; Windows palaikymas eksperimentinis, diegiama iš šaltinio kodo.
+Jis nemokamas. Su vietiniu modeliu jūsų pokalbiams ir failams nereikia interneto ryšio; naujausia informacija,
+pavyzdžiui, orai ar kainos, gaunama iš viešųjų žiniatinklio paslaugų tik tada, kai įjungta „Interneto paieška“.
+Yra atsisiuntimai Mac kompiuteriams (Apple Silicon ir Intel) ir Linux x86_64; Windows palaikymas
+eksperimentinis, diegiama iš šaltinio kodo.
 
 Šioje dokumentacijoje aprašyta, kaip įdiegti VOOL ir prijungti modelį, taip pat principai, kaip jis
 tvarko jūsų failus, jūsų atmintį ir jūsų raktus.
@@ -45,7 +47,8 @@ Kiekvienas paleidimas, sąlygos ir silpnosios vietos paskelbti: [atminties lygin
 
 * **Darbalaukio programa.** Ji įdiegiama jūsų kompiuteryje — tai ne naršyklės kortelė ir ne
   talpinama paslauga.
-* **Veikia be interneto.** Pasirinkus vietinį modelį, VOOL nereikia interneto ryšio.
+* **Pokalbiams ir failams veikia be interneto.** Pasirinkus vietinį modelį, jūsų pokalbiams ir failams nereikia
+  interneto ryšio. Naujausia informacija, pavyzdžiui, orai ar kainos, gaunama iš viešųjų žiniatinklio paslaugų tik tada, kai įjungta „Interneto paieška“ (po naujo įdiegimo ji išjungta), ir niekada režimu „Tik lokaliai“.
 * **Pagal numatytuosius nustatymus vietinis.** Pasirinkus vietinį modelį, užklausos ir failai apdorojami
   jūsų kompiuteryje.
 * **Nepriklausomas nuo modelio.** Galima rinktis ir vietines vykdymo aplinkas, ir debesijos tiekėjus. Debesijos
@@ -60,15 +63,16 @@ dar nėra notarizuotos Apple, todėl pirmą kartą atidarant macOS paprašys pat
 perskaitykite [Leidimų būseną](trust/release-status.md).
 {% endhint %}
 
-## Du režimai, be užuolankų
+## Du atsakymo būdai, be užuolankų
 
-VOOL skiria lygiai dvi būsenas, o sąsaja visada rodo, kuri iš jų aktyvi:
+VOOL atsako dviem būdais, o pokalbio antraštė visada rodo, kuriuo būdu bus vykdoma kita
+užklausa, — pavyzdžiui, **AUTOMATINIS** su **Pirmiausia vietoje**:
 
 1. **Lokaliai** — darbas lieka šiame kompiuteryje.
 2. **Debesys** — pasirinktas kontekstas siunčiamas tiesiai jūsų pasirinktam tiekėjui,
    iš jūsų kompiuterio, naudojant jūsų raktą.
 
-Trečios būsenos nėra, ir tarp jų nėra jokio Parad0x valdomo tarpininko. Išsamiau
+Tarp jų nėra jokio Parad0x valdomo tarpininko. Išsamiau
 rašoma skyriuje [Duomenų tvarkymas](trust/data-handling.md).
 
 ## Pagalba

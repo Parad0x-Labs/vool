@@ -1,7 +1,7 @@
 ---
 description: Cómo usar VOOL como asistente de IA para programar en tu propio código: configurar el espacio de trabajo, preguntar sobre el código y revisar las ediciones.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # Programar con VOOL
@@ -27,5 +27,6 @@ siguen preguntando. Haz un commit antes de un cambio grande para que el diff sea
 ## Local o nube
 
 Programar funciona en ambos modos. Un modelo local de programación de 7B se encarga de la mayoría de las ediciones del
-día a día; los modelos en la nube más grandes se encargan de los razonamientos más largos. El indicador de modo te
-dice cuál está activo antes de enviar.
+día a día; los modelos en la nube más grandes se encargan de los razonamientos más largos. El indicador de modelo te
+dice cuál está activo antes de enviar: `LOCAL` para un modelo local, `CLOUD` para uno en la nube y, de forma
+predeterminada, `AUTO` (`VOOL Auto`, `Local first`) cuando VOOL elige.

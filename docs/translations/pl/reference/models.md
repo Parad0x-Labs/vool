@@ -1,17 +1,18 @@
 ---
 description: Które modele AI działają z VOOL — modele lokalne na twoim własnym sprzęcie i modele w chmurze przez twoje konto u dostawcy.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Obsługiwane modele
 
-VOOL nie zawiera żadnego modelu. Łączy się z wybranymi przez ciebie środowiskami uruchomieniowymi i dostawcami.
+VOOL nie zawiera żadnego modelu — pierwszy model lokalny jest pobierany, gdy użyjesz go po raz pierwszy.
+Łączy się z wybranymi przez ciebie środowiskami uruchomieniowymi i dostawcami.
 
 ## Lokalne środowiska uruchomieniowe
 
-Można używać dowolnego środowiska uruchomieniowego, które udostępnia na localhost punkt końcowy zgodny z OpenAI.
-Popularne środowiska są wykrywane automatycznie.
+Ollama, llama.cpp, vLLM i MLX są wykrywane automatycznie. Inne środowiska uruchomieniowe, które udostępniają
+na localhost punkt końcowy zgodny z OpenAI, można wskazać ręcznie.
 
 ## Dostawcy chmurowi
 

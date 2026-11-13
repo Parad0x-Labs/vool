@@ -1,7 +1,7 @@
 ---
 description: VOOL lưu cấu hình của nó ở đâu và các cài đặt có ý nghĩa gì.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Cấu hình
@@ -16,7 +16,7 @@ VOOL giữ cài đặt, cuộc trò chuyện, bộ nhớ và bản ghi của nó
 | Gói tar Linux và bản cài từ mã nguồn | `~/.vool_runtime` |
 | Windows (thử nghiệm, cài từ mã nguồn) | `%LOCALAPPDATA%\VOOL` |
 
-Đặt `VOOL_HOME` trước khi khởi động VOOL sẽ khiến VOOL dùng thư mục đó thay thế. Nhật ký khởi động in ra
+Đặt `VOOL_HOME` trước khi khởi động VOOL sẽ khiến VOOL dùng thư mục đó thay thế. Lệnh `vool` in ra
 thư mục home đang được dùng.
 
 Khóa **không** được ghi vào tệp cài đặt hay nhật ký. Chúng được giữ ở dạng mã hóa trong một tệp thông tin

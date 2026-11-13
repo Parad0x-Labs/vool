@@ -1,7 +1,7 @@
 ---
 description: Kur VOOL saugo savo konfigūraciją ir ką reiškia nustatymai.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Konfigūracija
@@ -16,8 +16,8 @@ VOOL savo nustatymus, pokalbius, atmintį ir įrašus laiko viename aplanke „r
 | Linux tar archyvas ir įdiegimai iš šaltinio kodo | `~/.vool_runtime` |
 | Windows (eksperimentinis, iš šaltinio kodo) | `%LOCALAPPDATA%\VOOL` |
 
-Jei prieš paleisdami VOOL nustatote `VOOL_HOME`, vietoj šio aplanko naudojamas nurodytasis. Paleidimo
-žurnaluose nurodomas naudojamas aplankas.
+Jei prieš paleisdami VOOL nustatote `VOOL_HOME`, vietoj šio aplanko naudojamas nurodytasis. Komanda `vool`
+parodo naudojamą aplanką.
 
 Raktai **nėra** įrašomi į nustatymų failus ar žurnalus. Jie laikomi užšifruoti atskirame prisijungimo
 duomenų faile šiame aplanke „runtime home“, kurį gali perskaityti tik jūsų naudotojo paskyra; raktai,

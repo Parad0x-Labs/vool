@@ -1,7 +1,7 @@
 ---
 description: Dónde guarda VOOL su configuración y qué significan los ajustes.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Configuración
@@ -16,7 +16,7 @@ VOOL guarda sus ajustes, chats, memoria y registros en una sola carpeta, la «ru
 | Archivo tar para Linux e instalaciones desde el código fuente | `~/.vool_runtime` |
 | Windows (experimental, desde el código fuente) | `%LOCALAPPDATA%\VOOL` |
 
-Si defines `VOOL_HOME` antes de iniciar VOOL, se usa esa carpeta en su lugar. Los registros de inicio muestran
+Si defines `VOOL_HOME` antes de iniciar VOOL, se usa esa carpeta en su lugar. El comando `vool` muestra
 la carpeta que se está usando.
 
 Las claves **no** se escriben en los archivos de ajustes ni en los registros. Se guardan cifradas en un archivo de

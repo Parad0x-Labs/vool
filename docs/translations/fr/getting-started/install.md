@@ -1,7 +1,7 @@
 ---
 description: Comment installer l’assistant IA VOOL sur macOS (Apple Silicon ou Intel) ou Linux à partir des téléchargements de la version, ou depuis les sources sur macOS, Windows ou Linux, avec la configuration requise et la vérification d’un téléchargement.
 translation: machine
-source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
+source_sha256: a674148a99297acd314681d6a04bcf2e87e1c88bf00c9e3f25cd22a4083f2177
 ---
 
 # Installation
@@ -19,7 +19,7 @@ Consultez [État des versions](../trust/release-status.md) pour la signature et 
 | Disque | 2 Go pour l’app | 20 Go avec des modèles locaux |
 | macOS | 14 Sonoma, Apple Silicon ou Intel ([limites](#mac-intel)) | 14 Sonoma ou plus récent, Apple Silicon |
 | Windows | 10 (64 bits) | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 ou plus récent |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 
 Les modèles locaux demandent nettement plus de mémoire vive que l’app elle-même. Les conseils de
 dimensionnement se trouvent dans [Exécuter un modèle local](../guides/local-models.md).
@@ -69,12 +69,13 @@ une entrée au menu des applications. L’app de bureau ouvre la discussion dans
 navigateur n’arrête pas VOOL. Pour supprimer VOOL, exécutez `bash ~/.local/share/vool/current/uninstall.sh`.
 Vos discussions et vos réglages restent dans votre profil.
 
-À partir de 0.7.5, le téléchargement Linux se met à jour depuis VOOL. La nouvelle version est installée à côté
+À partir de 0.7.5, avec **Se connecter de lui-même** activé, le téléchargement Linux se met à jour depuis
+VOOL. La nouvelle version est installée à côté
 de l’ancienne. Si elle ne démarre pas correctement, VOOL revient de lui-même à l’ancienne.
 
 ### Après l’installation
 
-Avant qu’un modèle local puisse répondre, ouvrez **Réglages → Modèles et fournisseurs → Modèles locaux** et appuyez une fois sur **Certify** pour ce modèle. Cela lance une courte vérification sur votre machine.
+Avant qu’un modèle local puisse répondre, ouvrez **Réglages → Modèles et fournisseurs → Modèles locaux** et appuyez une fois sur **Certify** pour ce modèle (si une vérification a déjà été enregistrée, le bouton indique **Re-run certification**). Cela lance une vérification sur votre machine ; sur un ordinateur sans carte graphique, la première peut prendre plusieurs minutes.
 
 À partir de 0.7.5, VOOL se met à jour tout seul : avec « Se connecter de lui-même » activé, il affiche un avis et installe une nouvelle version en un clic. Mise à jour depuis 0.7.4 ou 0.7.3 sur un Mac : activez « Se connecter de lui-même » (Réglages > Confidentialité et permissions) et appuyez une fois sur « Rechercher des mises à jour ». Depuis 0.7.4 ou antérieur sous Linux, ou 0.7.2 et antérieur sur un Mac : téléchargez 0.7.7 et installez-le par-dessus votre version actuelle. Vos discussions et vos réglages
 se trouvent dans votre profil, en dehors de l’app. Les fonctions crypto sont désactivées par défaut.
@@ -96,7 +97,7 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 Les commandes macOS / Linux fixent à la fois le script d’amorçage et son téléchargement des sources sur `v0.7.7-beta`. Pour choisir une autre version, changez à la fois le tag dans l’URL du script et `--ref`. Le script d’amorçage accepte un nom de branche ou un tag de version, pas un hash de commit.
 
 L’installation depuis les sources nécessite Python 3.11 ou plus récent. S’il n’en trouve aucun, l’installateur
-essaie d’en installer un. Les téléchargements de l’app incluent leur propre Python.
+en télécharge un et l’installe. Les téléchargements de l’app incluent leur propre Python.
 
 L’installateur prépare l’environnement Python, vérifie votre matériel, configure le modèle
 local et lance les services locaux. Prévoyez du temps et de l’espace disque pour le premier téléchargement
@@ -113,9 +114,9 @@ et installe les versions Intel de chaque dépendance. Deux limites sont propres 
   donc l’installateur l’ignore et l’entraînement LoRA se signale comme indisponible. La discussion, la mémoire,
   les outils et les modèles cloud ne sont pas concernés.
 * **Les modèles locaux tournent uniquement sur le CPU.** Les moteurs de modèles locaux n’ont pas d’accélération
-  GPU pour les puces graphiques Intel, donc les réponses locales sont plusieurs fois plus lentes que sur Apple
-  Silicon. Sur un Mac avec 8 Go, utilisez un modèle cloud pour la discussion ; avec 16 Go, le petit modèle local
-  par défaut de l’installateur fonctionne mais il est lent.
+  GPU pour les puces graphiques Intel, donc les réponses locales sont plus lentes que sur Apple
+  Silicon. Sur un Mac avec 8 Go, utilisez un modèle cloud pour la discussion ; avec 16 Go, le modèle local
+  par défaut de l’installateur (un modèle Qwen) fonctionne mais il est lent.
 
 Sur les Mac Intel, les modèles locaux tournent sur le processeur et sont lents. Une longue réponse de mémoire peut dépasser le délai, donc utilisez pour l’instant un modèle cloud sur ces Mac. La certification des modèles locaux tient compte des processeurs plus lents.
 

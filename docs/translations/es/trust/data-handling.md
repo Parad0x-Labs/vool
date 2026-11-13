@@ -1,18 +1,20 @@
 ---
 description: Qué datos envía VOOL exactamente, cuándo y a quién. Qué se queda en tu ordenador y qué llega a tu proveedor de IA.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Tratamiento de datos
 
 ## Los dos estados
 
-**LOCAL**: todo se queda en este ordenador.
+**Local**: el modelo y tus archivos se quedan en este ordenador. Los datos en directo como
+el tiempo o los precios vienen de servicios web públicos solo mientras Búsquedas web está activado (está desactivado en una instalación nueva), y nunca en Solo local.
 
-**NUBE**: el contexto seleccionado se envía directamente al proveedor seleccionado.
+**Nube**: el contexto seleccionado se envía directamente al proveedor seleccionado.
 
-El indicador de la interfaz muestra qué estado está activo antes de que envíes nada.
+La cabecera del chat muestra de qué forma se ejecuta la siguiente petición; por ejemplo, **Auto** con
+**Local primero** cuando VOOL Auto responde desde este ordenador.
 
 ## Qué no hace VOOL
 

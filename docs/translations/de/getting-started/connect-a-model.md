@@ -1,13 +1,13 @@
 ---
 description: So verbindest du ein KI-Modell mit VOOL: ein lokales Modell auf deinem eigenen Computer oder einen Cloud-Anbieter mit deinem eigenen API-Schlüssel.
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # Ein Modell verbinden
 
-VOOL bringt kein Modell mit. Du wählst eins aus, und diese Wahl entscheidet, ob eine Anfrage
-auf deinem Rechner bleibt oder ihn verlässt.
+VOOL bringt kein Modell mit. Standardmäßig wählt es ein lokales Modell, und du kannst ein anderes auswählen;
+diese Wahl entscheidet, ob eine Anfrage auf deinem Rechner bleibt oder ihn verlässt.
 
 ## Lokal
 

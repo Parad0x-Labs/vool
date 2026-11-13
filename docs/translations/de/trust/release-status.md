@@ -1,7 +1,7 @@
 ---
 description: Wo VOOL steht, klar gesagt.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Release-Status
@@ -55,7 +55,7 @@ getrennt betrieben; prüfe jeden Download anhand der Prüfsumme, die im GitHub-R
 | Mainnet-Überweisungen | Native Coins sowie USDT auf Solana, Ethereum, BNB Smart Chain und Arbitrum One, gesendet aus einer VOOL-Wallet, die auf diesem Gerät erstellt wurde. USDC auf Solana und Base dient nur für Zahlungskanäle. Ein verbundenes oder nur beobachtetes Konto kann empfangen und sein Guthaben zeigen, aber nicht aus VOOL senden. |
 | Bezahlen mit x402 | Websites, die eine x402-Zahlung in USDC auf Base oder Base Sepolia verlangen, können aus deiner Krypto-Pilot-Wallet bezahlt werden: eine Freigabe mit deiner PIN, innerhalb deiner Limits. Der Zahlungsdienst der Website übernimmt die Netzwerkgebühr. **Einstellungen → Krypto → Payment channels** hat für jeden Weg, auf dem die Wallet eine Website bezahlen kann, einen Ein/Aus-Schalter; ein ausgeschalteter Kanal lehnt ab, bevor irgendetwas signiert wird. Damit wurde noch keine echte Mainnet-Zahlung durchgeführt. Bezahlen über Solana pay-kit ist in den Downloads nicht enthalten; dieser Kanal wird als nicht nutzbar angezeigt. |
 | X | Aus jedem Chat: Beiträge und Konten, Spaces, Trends und DMs durchsuchen und frühere Calls zu einem Token nachschlagen. Alles, was in deinem Konto handelt, wartet auf dein OK. |
-| Diktat | In diesem Beta-Build vorübergehend nicht verfügbar; es kommt mit einem Update zurück. |
+| Diktat | In diesem Beta-Build nicht verfügbar. |
 | Cloud-Fragemodus „Burst“ | Die Rückfrage bei jedem Aufruf ist in diesem Build noch nicht angebunden. |
 | Lokale Modelle | Bevor ein lokales Modell antworten kann, öffne **Einstellungen → Modelle & Anbieter → Lokale Modelle** und drücke dafür einmal **Certify**. |
 | Intel-Macs | Lokale Modelle laufen auf dem Prozessor und sind langsam. Die Zertifizierung berücksichtigt langsamere Prozessoren, aber eine lange Antwort aus dem Gedächtnis kann in eine Zeitüberschreitung laufen, nutze dort also vorerst ein Cloud-Modell. |

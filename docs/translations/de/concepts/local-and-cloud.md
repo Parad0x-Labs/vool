@@ -1,17 +1,20 @@
 ---
 description: Welche Daten deinen Computer verlassen, wenn du VOOL nutzt, und wann. Der Unterschied zwischen KI, die lokal läuft, und einem Cloud-Modell.
 translation: machine
-source_sha256: 3217e13bf6d684853b92d19097627d07e64bdd17745560b1204871cb0b7b0753
+source_sha256: 2c2b9e26e99579c00a032dfeac95fd216fe9229497c965c1bc08aface7a6c071
 ---
 
 # Lokal und Cloud
 
-VOOL kennt zwei Zustände. Die Oberfläche zeigt immer, welcher gerade aktiv ist.
+VOOL kann auf zwei Wegen antworten: auf diesem Computer oder über einen Cloud-Anbieter. Die Kopfzeile
+des Chats zeigt, auf welchem Weg die nächste Anfrage läuft — zum Beispiel **Auto** mit
+**Lokal zuerst**, wenn VOOL Auto von diesem Computer aus antwortet.
 
 ## Lokal
 
-Alles bleibt auf diesem Computer. Das Modell läuft über eine lokale Laufzeitumgebung, Dateien werden
-von der Festplatte gelesen, und an keinen Anbieter wird eine Anfrage gestellt.
+Das Modell und deine Dateien bleiben auf diesem Computer. Das Modell läuft über eine lokale Laufzeitumgebung, Dateien werden
+von der Festplatte gelesen, und an keinen Anbieter wird eine Anfrage gestellt. Aktuelle Fakten wie Wetter
+oder Preise kommen nur von öffentlichen Webdiensten, solange Websuchen eingeschaltet ist (bei einer frischen Installation ist es aus), und nie in Nur lokal.
 
 ## Cloud (Name des Anbieters)
 
@@ -19,7 +22,7 @@ Der ausgewählte Kontext wird direkt an den von dir ausgewählten Anbieter gesen
 mit deinem Schlüssel.
 
 „Der ausgewählte Kontext“ ist das, was die App für diese Anfrage zusammengestellt hat: dein Prompt plus
-die Dateien und früheren Gesprächsrunden, die die Anfrage braucht. Er wird vor dem Senden angezeigt.
+die Dateien und früheren Gesprächsrunden, die die Anfrage braucht.
 
 {% hint style="danger" %}
 Der Cloud-Modus sendet Daten von deinem Rechner weg. Genau dafür ist der Cloud-Modus da. Was VOOL zusichert,

@@ -1,14 +1,15 @@
 ---
 description: Idiomas, acessibilidade, histórico de atividade, recibos e como as respostas dos modelos são verificadas.
 translation: machine
-source_sha256: 2e135f9673ae465cee9db53572ab89c93235805dfea713efd73d7f4244b6b1f5
+source_sha256: 519707395e736b24ba96005597cca3bc59dcf12ca85d905c70f8a50884c5bba2
 ---
 
 # Idiomas, acessibilidade e registros
 
 ## Idiomas da interface
 
-A interface do VOOL está disponível em vários idiomas. A escolha do idioma afeta só a
+A interface do VOOL está disponível em vários idiomas; textos mais novos ainda podem aparecer
+em inglês até que chegue uma tradução. A escolha do idioma afeta só a
 apresentação: decisões de permissão, autoridade de gastos e códigos de erro são
 **independentes do idioma por construção** — uma mensagem de erro traduzida nunca pode ampliar nem
 restringir o que a autoridade em inglês decidiu.

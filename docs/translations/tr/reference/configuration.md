@@ -1,7 +1,7 @@
 ---
 description: VOOL'un yapılandırmasını nerede sakladığı ve ayarların ne anlama geldiği.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Yapılandırma
@@ -16,7 +16,7 @@ VOOL ayarlarını, sohbetlerini, hafızasını ve kayıtlarını tek bir "runtim
 | Linux tar arşivi ve kaynak koddan kurulumlar | `~/.vool_runtime` |
 | Windows (deneysel, kaynak koddan) | `%LOCALAPPDATA%\VOOL` |
 
-VOOL'u başlatmadan önce `VOOL_HOME` ayarlanırsa onun yerine o klasör kullanılır. Başlangıç günlükleri kullanılan klasörü yazdırır.
+VOOL'u başlatmadan önce `VOOL_HOME` ayarlanırsa onun yerine o klasör kullanılır. `vool` komutu kullanılan klasörü yazdırır.
 
 Anahtarlar ayar dosyalarına ya da günlüklere **yazılmaz**. Bu "runtime home" klasöründe, yalnızca kullanıcı hesabınızın okuyabildiği ayrı bir kimlik bilgisi dosyasında şifrelenmiş olarak tutulur; VOOL'un bir Mac'te zaten macOS anahtar zincirinde tuttuğu anahtarlar orada kalır. Bkz. [Güvenlik modeli](../trust/security.md#anahtarlar).
 

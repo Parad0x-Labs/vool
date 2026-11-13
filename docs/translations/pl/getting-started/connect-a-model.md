@@ -1,13 +1,13 @@
 ---
 description: Jak podłączyć model AI do VOOL: model lokalny działający na twoim komputerze albo dostawcę chmurowego z twoim własnym kluczem API.
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # Podłączanie modelu
 
-VOOL nie zawiera żadnego modelu. Wybierasz go sam, a ten wybór decyduje, czy żądanie
-zostaje na twoim komputerze, czy go opuszcza.
+VOOL nie zawiera żadnego modelu. Domyślnie wybiera model lokalny, a ty możesz wybrać inny;
+ten wybór decyduje, czy żądanie zostaje na twoim komputerze, czy go opuszcza.
 
 ## Lokalnie
 

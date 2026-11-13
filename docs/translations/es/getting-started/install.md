@@ -1,7 +1,7 @@
 ---
 description: Cómo instalar el asistente de IA VOOL en macOS (Apple Silicon o Intel) o Linux desde las descargas de la versión, o desde el código fuente en macOS, Windows o Linux, con los requisitos del sistema y cómo verificar una descarga.
 translation: machine
-source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
+source_sha256: a674148a99297acd314681d6a04bcf2e87e1c88bf00c9e3f25cd22a4083f2177
 ---
 
 # Instalación
@@ -19,7 +19,7 @@ Consulta el [Estado de las versiones](../trust/release-status.md) para los detal
 | Disco | 2 GB para la app | 20 GB con modelos locales |
 | macOS | 14 Sonoma, Apple Silicon o Intel ([límites](#mac-con-intel)) | 14 Sonoma o posterior, Apple Silicon |
 | Windows | 10 (64 bits) | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 o posterior |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 
 Los modelos locales necesitan bastante más memoria RAM que la propia app. Hay orientación sobre tamaños en
 [Ejecutar un modelo local](../guides/local-models.md).
@@ -69,12 +69,13 @@ una entrada al menú de aplicaciones. La app de escritorio abre el chat en tu na
 no detiene VOOL. Para eliminar VOOL, ejecuta `bash ~/.local/share/vool/current/uninstall.sh`.
 Tus chats y ajustes se quedan en tu perfil.
 
-A partir de 0.7.5, la descarga para Linux se actualiza desde dentro de VOOL. La nueva versión se instala junto
+A partir de 0.7.5, con **Conectarse por su cuenta** activado, la descarga para Linux se actualiza desde
+dentro de VOOL. La nueva versión se instala junto
 a la anterior. Si no arranca bien, VOOL vuelve por sí solo a la anterior.
 
 ### Después de instalar
 
-Antes de que un modelo local pueda responder, abre **Ajustes → Modelos y proveedores → Modelos locales** y pulsa **Certify** para ese modelo una vez. Ejecuta una breve comprobación en tu equipo.
+Antes de que un modelo local pueda responder, abre **Ajustes → Modelos y proveedores → Modelos locales** y pulsa **Certify** para ese modelo una vez (si ya hay una comprobación registrada, el botón dice **Re-run certification**). Ejecuta una comprobación en tu equipo; en un ordenador sin tarjeta gráfica, la primera puede tardar varios minutos.
 
 A partir de 0.7.5, VOOL se actualiza solo: con «Conectarse por su cuenta» activado, muestra un aviso e instala una nueva versión con una sola pulsación. Si actualizas desde 0.7.4 o 0.7.3 en un Mac: activa «Conectarse por su cuenta» (Ajustes > Privacidad y permisos) y pulsa «Buscar actualizaciones» una vez. Desde 0.7.4 o anterior en Linux, o desde 0.7.2 y anteriores en un Mac: descarga 0.7.7 e instálala sobre tu versión actual. Tus chats y ajustes
 están en tu perfil, fuera de la app. Las funciones de criptomonedas están desactivadas de forma predeterminada.
@@ -95,8 +96,8 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 
 Los comandos de macOS / Linux fijan tanto el script de arranque como su descarga del código fuente en `v0.7.7-beta`. Para elegir otra versión, cambia tanto la etiqueta en la URL del script como `--ref`. El script de arranque acepta un nombre de rama o una etiqueta de versión, no un hash de commit.
 
-Instalar desde el código fuente requiere Python 3.11 o posterior. Si no encuentra ninguno, el instalador intenta
-configurar uno. Las descargas de la app incluyen su propio Python.
+Instalar desde el código fuente requiere Python 3.11 o posterior. Si no encuentra ninguno, el instalador
+descarga uno y lo configura. Las descargas de la app incluyen su propio Python.
 
 El instalador prepara el entorno de Python, comprueba tu hardware, configura el modelo
 local e inicia los servicios locales. Reserva tiempo y espacio en disco para la primera descarga del modelo.
@@ -113,9 +114,9 @@ e instala las versiones para Intel de todas las dependencias. Hay dos límites p
   así que el instalador lo omite y el entrenamiento LoRA indica que no está disponible. El chat, la memoria,
   las herramientas y los modelos en la nube no se ven afectados.
 * **Los modelos locales solo se ejecutan en la CPU.** Los motores de modelos locales no tienen aceleración por GPU
-  para los gráficos Intel, así que las respuestas locales son varias veces más lentas que en Apple Silicon. En un
-  Mac con 8 GB, usa un modelo en la nube para el chat; con 16 GB, el pequeño modelo local predeterminado del
-  instalador funciona, pero es lento.
+  para los gráficos Intel, así que las respuestas locales son más lentas que en Apple Silicon. En un
+  Mac con 8 GB, usa un modelo en la nube para el chat; con 16 GB, el modelo local predeterminado del
+  instalador (un modelo Qwen) funciona, pero es lento.
 
 En los Mac con Intel, los modelos locales se ejecutan en el procesador y son lentos. Una respuesta larga de memoria puede agotar el tiempo de espera, así que de momento usa ahí un modelo en la nube. La certificación de modelos locales tiene en cuenta los procesadores más lentos.
 

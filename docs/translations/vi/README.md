@@ -1,7 +1,7 @@
 ---
 description: VOOL là trợ lý AI trên máy tính, chạy các mô hình AI cục bộ ngay trên máy của bạn hoặc kết nối với mô hình đám mây bằng khóa của chính bạn. Miễn phí và riêng tư. Có bản tải xuống cho Mac (Apple Silicon và Intel) và Linux; Windows ở mức thử nghiệm và cài từ mã nguồn.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,7 +10,7 @@ VOOL là trợ lý AI trên máy tính. Nó được cài như một ứng dụn
 chạy các mô hình AI cục bộ trên chính máy đó, hoặc kết nối với nhà cung cấp AI đám mây bằng khóa API
 của chính bạn. Nó lưu lại bản ghi dễ đọc cho mọi thao tác nó thực hiện.
 
-Nó miễn phí và hoạt động ngoại tuyến với các mô hình cục bộ. Có bản tải xuống cho Mac (Apple Silicon
+Nó miễn phí. Với một mô hình cục bộ, các cuộc trò chuyện và tệp của bạn không cần kết nối internet; thông tin trực tiếp như thời tiết hay giá cả chỉ được lấy từ các dịch vụ web công khai khi "Tra cứu web" đang bật. Có bản tải xuống cho Mac (Apple Silicon
 và Intel) và Linux x86_64; Windows ở mức thử nghiệm và cài từ mã nguồn.
 
 Tài liệu này hướng dẫn cài đặt VOOL, kết nối mô hình, và giải thích các khái niệm đằng sau cách nó
@@ -45,7 +45,7 @@ Mọi lần chạy, cách thiết lập và các điểm yếu đều được c
 
 * **Một ứng dụng máy tính.** Nó được cài trên máy tính của bạn — không phải một thẻ trình duyệt, cũng không
   phải một dịch vụ lưu trữ trên mạng.
-* **Hoạt động ngoại tuyến.** Khi đã chọn một mô hình cục bộ, VOOL không cần kết nối internet.
+* **Hoạt động ngoại tuyến với trò chuyện và tệp.** Khi đã chọn một mô hình cục bộ, các cuộc trò chuyện và tệp của bạn không cần kết nối internet. Thông tin trực tiếp như thời tiết hay giá cả chỉ được lấy từ các dịch vụ web công khai khi "Tra cứu web" đang bật (bản cài mới thì nó tắt), và không bao giờ trong "Chỉ cục bộ".
 * **Mặc định là cục bộ.** Khi đã chọn một mô hình cục bộ, lời nhắc và tệp được xử lý
   trên máy của bạn.
 * **Không phụ thuộc mô hình.** Có thể chọn cả môi trường chạy cục bộ lẫn nhà cung cấp đám mây. Bạn tự cung cấp
@@ -60,15 +60,15 @@ chưa được Apple công chứng, nên macOS sẽ yêu cầu bạn xác nhận
 [Trạng thái phát hành](trust/release-status.md) trước khi cài.
 {% endhint %}
 
-## Hai chế độ, nói rõ ràng
+## Hai cách trả lời, nói rõ ràng
 
-VOOL phân biệt đúng hai trạng thái, và giao diện luôn cho biết trạng thái nào đang bật:
+VOOL trả lời theo hai cách, và phần đầu khung trò chuyện luôn cho biết yêu cầu tiếp theo chạy theo cách nào — ví dụ **Tự động** cùng **Ưu tiên cục bộ**:
 
 1. **Cục bộ** — công việc ở lại trên máy tính này.
 2. **Đám mây** — ngữ cảnh đã chọn được gửi thẳng tới nhà cung cấp bạn đã chọn,
    từ máy của bạn, bằng khóa của bạn.
 
-Không có trạng thái thứ ba, và cũng không có máy chủ chuyển tiếp nào do Parad0x vận hành ở giữa. Chi tiết
+Không có máy chủ chuyển tiếp nào do Parad0x vận hành ở giữa. Chi tiết
 có trong [Xử lý dữ liệu](trust/data-handling.md).
 
 ## Nhận trợ giúp

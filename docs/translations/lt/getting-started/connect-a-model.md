@@ -1,13 +1,13 @@
 ---
 description: Kaip prie VOOL prijungti DI modelį: vietinį modelį, veikiantį jūsų kompiuteryje, arba debesijos tiekėją su jūsų pačių API raktu.
 translation: machine
-source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+source_sha256: 53f84267e6c9d76240039e6119dfb654fc0e2f479f3bd293ad48232d2df0dd01
 ---
 
 # Modelio prijungimas
 
-VOOL nepateikiamas su modeliu. Modelį pasirenkate jūs, ir šis pasirinkimas lemia, ar užklausa
-lieka jūsų kompiuteryje, ar jį palieka.
+VOOL nepateikiamas su modeliu. Numatytai jis parenka vietinį modelį, o jūs galite pasirinkti kitą;
+šis pasirinkimas lemia, ar užklausa lieka jūsų kompiuteryje, ar jį palieka.
 
 ## Lokaliai
 

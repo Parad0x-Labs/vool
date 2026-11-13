@@ -1,17 +1,19 @@
 ---
 description: Jakie dane opuszczają twój komputer, gdy korzystasz z VOOL, i kiedy. Różnica między uruchamianiem AI lokalnie a korzystaniem z modelu w chmurze.
 translation: machine
-source_sha256: 3217e13bf6d684853b92d19097627d07e64bdd17745560b1204871cb0b7b0753
+source_sha256: 2c2b9e26e99579c00a032dfeac95fd216fe9229497c965c1bc08aface7a6c071
 ---
 
 # Lokalnie i w chmurze
 
-VOOL ma dwa stany. Interfejs zawsze pokazuje, który z nich jest aktywny.
+VOOL może odpowiadać na dwa sposoby: na tym komputerze albo przez dostawcę w chmurze. Nagłówek czatu
+pokazuje, w który sposób zostanie wykonane następne żądanie — na przykład **AUTO** z
+**Najpierw lokalnie**, gdy VOOL Auto odpowiada z tego komputera.
 
 ## Lokalnie
 
-Wszystko zostaje na tym komputerze. Model działa w lokalnym środowisku uruchomieniowym, pliki są odczytywane
-z dysku i do żadnego dostawcy nie trafia żadne żądanie.
+Model i twoje pliki zostają na tym komputerze. Model działa w lokalnym środowisku uruchomieniowym, pliki są
+odczytywane z dysku i do żadnego dostawcy nie trafia żadne żądanie. Bieżące informacje, takie jak pogoda czy ceny, pochodzą z publicznych usług internetowych tylko wtedy, gdy włączone jest „Wyszukiwanie w sieci” (po świeżej instalacji jest wyłączone), i nigdy w trybie „Tylko lokalnie”.
 
 ## Chmura (nazwa dostawcy)
 
@@ -19,7 +21,7 @@ Wybrany kontekst jest wysyłany bezpośrednio do wybranego przez ciebie dostawcy
 z użyciem twojego klucza.
 
 „Wybrany kontekst” oznacza to, co aplikacja zebrała dla danego żądania: twój prompt oraz
-pliki i wcześniejsze tury, których to żądanie potrzebuje. Jest pokazywany przed wysłaniem.
+pliki i wcześniejsze tury, których to żądanie potrzebuje.
 
 {% hint style="danger" %}
 Tryb chmury wysyła dane poza twój komputer. Na tym właśnie polega tryb chmury. Zapewnienie VOOL dotyczy

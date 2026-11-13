@@ -1,7 +1,7 @@
 ---
 description: Soluciones a los problemas más habituales.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Solución de problemas
@@ -19,9 +19,12 @@ experimental; consulta la [guía de instalación](../getting-started/install.md#
 
 ## No aparece ningún modelo local
 
-1. Comprueba que el entorno de ejecución está en marcha.
-2. Comprueba que hay al menos un modelo descargado.
-3. Comprueba que el puerto coincide con el que espera VOOL.
+1. Comprueba que el entorno de ejecución de modelos locales está instalado; en Linux, instala primero
+   [Ollama](https://ollama.com) si aún no lo has hecho
+   (consulta [Ejecutar un modelo local](../guides/local-models.md#instalar-un-entorno-de-ejecución)).
+2. Comprueba que el entorno de ejecución está en marcha.
+3. Comprueba que hay al menos un modelo descargado.
+4. Comprueba que el puerto coincide con el que espera VOOL.
 
 ```bash
 curl http://localhost:11434/api/tags

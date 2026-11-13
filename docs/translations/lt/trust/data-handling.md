@@ -1,18 +1,19 @@
 ---
 description: Kokius tiksliai duomenis VOOL siunčia, kada ir kam. Kas lieka jūsų kompiuteryje ir kas pasiekia jūsų DI tiekėją.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Duomenų tvarkymas
 
 ## Dvi būsenos
 
-**LOKALIAI** — viskas lieka šiame kompiuteryje.
+**Lokaliai** — modelis ir jūsų failai lieka šiame kompiuteryje. Naujausia informacija, pavyzdžiui, orai ar kainos, gaunama iš viešųjų žiniatinklio paslaugų tik tada, kai įjungta „Interneto paieška“ (po naujo įdiegimo ji išjungta), ir niekada režimu „Tik lokaliai“.
 
-**DEBESYS** — pasirinktas kontekstas siunčiamas tiesiai pasirinktam tiekėjui.
+**Debesys** — pasirinktas kontekstas siunčiamas tiesiai pasirinktam tiekėjui.
 
-Sąsajos indikatorius parodo, kuri būsena aktyvi, dar prieš jums ką nors išsiunčiant.
+Pokalbio antraštė rodo, kuriuo būdu bus vykdoma kita užklausa, — pavyzdžiui, **AUTOMATINIS** su
+**Pirmiausia vietoje**, kai VOOL Auto atsako iš šio kompiuterio.
 
 ## Ko VOOL nedaro
 

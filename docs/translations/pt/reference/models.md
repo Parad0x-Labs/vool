@@ -1,17 +1,18 @@
 ---
 description: Quais modelos de IA funcionam com o VOOL — modelos locais no seu próprio hardware e modelos na nuvem pela sua conta no provedor.
 translation: machine
-source_sha256: 1528dfca8e391868d09156c42c1dd51514770ffab17077d9260d248842c82060
+source_sha256: 2ce84ebed0545059de772cb175bd8f088ee2d22feb60d4256ee7800f20097824
 ---
 
 # Modelos compatíveis
 
-O VOOL não vem com nenhum modelo. Ele se conecta aos ambientes de execução e aos provedores que você escolhe.
+O VOOL não vem com nenhum modelo — o primeiro modelo local é baixado na primeira vez que você o
+usa. Ele se conecta aos ambientes de execução e aos provedores que você escolhe.
 
 ## Ambientes de execução locais
 
-Qualquer ambiente de execução que exponha um endpoint compatível com a OpenAI em localhost pode ser usado. A
-detecção é automática para os mais comuns.
+Ollama, llama.cpp, vLLM e MLX são detectados automaticamente. Outros ambientes de execução que exponham um
+endpoint compatível com a OpenAI em localhost podem ser indicados manualmente.
 
 ## Provedores na nuvem
 

@@ -1,7 +1,7 @@
 ---
 description: So nutzt du VOOL als KI-Programmierassistenten für deine eigene Codebasis — den Arbeitsbereich festlegen, Fragen zum Code stellen und Bearbeitungen prüfen.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # Mit VOOL programmieren
@@ -27,5 +27,6 @@ Committe vor einer großen Änderung, damit der Diff leicht zu lesen und leicht 
 ## Lokal oder Cloud
 
 Programmieren funktioniert in beiden Modi. Ein lokales 7B-Programmiermodell bewältigt die meisten alltäglichen
-Bearbeitungen; größere Cloud-Modelle bewältigen längeres Nachdenken. Die Modusanzeige sagt dir, welcher Modus
-aktiv ist, bevor du sendest.
+Bearbeitungen; größere Cloud-Modelle bewältigen längeres Nachdenken. Die Modellanzeige sagt dir, was
+aktiv ist, bevor du sendest: `LOCAL` für ein lokales Modell, `CLOUD` für ein Cloud-Modell und standardmäßig `AUTO`
+(`VOOL Auto`, `Local first`), wenn VOOL auswählt.

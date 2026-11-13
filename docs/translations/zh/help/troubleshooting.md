@@ -1,7 +1,7 @@
 ---
 description: 最常见问题的解决方法。
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # 故障排除
@@ -16,9 +16,10 @@ source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 
 ## 没有列出任何本地模型
 
-1. 确认运行时正在运行。
-2. 确认至少已拉取一个模型。
-3. 确认端口与 VOOL 预期的一致。
+1. 确认已安装本地模型运行时——在 Linux 上，如果还没有安装，请先安装 [Ollama](https://ollama.com)（见[运行本地模型](../guides/local-models.md#安装运行时)）。
+2. 确认运行时正在运行。
+3. 确认至少已拉取一个模型。
+4. 确认端口与 VOOL 预期的一致。
 
 ```bash
 curl http://localhost:11434/api/tags

@@ -1,14 +1,15 @@
 ---
 description: Perguntas comuns sobre o VOOL — se funciona offline, onde a sua chave de API fica guardada, se é gratuito e quais sistemas ele suporta.
 translation: machine
-source_sha256: d98db6dcf1791e9de7aed2dbb7204ab774afd9ea47d883bc0211640a8895413e
+source_sha256: 4366d0e907cc16c3206be768f984f5a525f4187024d16aae541a2ec8937e0aa0
 ---
 
 # Perguntas frequentes
 
 ## O VOOL funciona offline?
 
-Sim, com um modelo local. Os modelos na nuvem precisam de conexão de rede, por definição.
+Sim, com um modelo local, para as suas conversas e os seus arquivos. Os modelos na nuvem precisam de conexão
+de rede, por definição. Fatos ao vivo, como clima ou preços, vêm de serviços web públicos somente enquanto Pesquisas na web estiver ativado (fica desativado em uma instalação nova), e nunca em Somente local.
 
 ## Preciso de uma chave da nuvem?
 

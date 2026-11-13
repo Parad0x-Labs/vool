@@ -1,7 +1,7 @@
 ---
 description: Kokiame etape yra VOOL, pasakyta tiesiai.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Leidimų būsena
@@ -55,7 +55,7 @@ kokį atsisiuntimą patikrinkite pagal kontrolinę sumą, paskelbtą GitHub leid
 | Pervedimai mainnet tinkle | Natyviosios monetos ir USDT Solana, Ethereum, BNB Smart Chain ir Arbitrum One tinkluose, siunčiami iš šiame įrenginyje sukurtos VOOL piniginės. USDC Solana ir Base tinkluose skirtas tik mokėjimų kanalams. Prijungta ar tik stebima paskyra gali gauti lėšas ir rodyti savo likutį, bet negali siųsti iš VOOL. |
 | Mokėjimas per x402 | Svetainėms, kurios prašo x402 mokėjimo USDC tinkle Base arba Base Sepolia, galima sumokėti iš jūsų Crypto Pilot piniginės: vienu patvirtinimu PIN kodu, neviršijant jūsų limitų. Svetainės mokėjimų paslauga padengia tinklo mokestį. **Nustatymai → Kriptovaliutos → Payment channels** turi įjungimo / išjungimo jungiklį kiekvienam būdui, kuriuo piniginė gali sumokėti svetainei; išjungtas kanalas atmeta dar prieš ką nors pasirašant. Tokiu būdu dar nebuvo atliktas nė vienas tikras mokėjimas mainnet tinkle. Mokėjimo per Solana pay-kit atsisiuntimuose nėra; tas kanalas rodomas kaip nenaudojamas. |
 | X | Iš bet kurio pokalbio: įrašų ir paskyrų, Spaces, tendencijų ir asmeninių žinučių (DM) paieška bei ankstesnių prognozių apie žetoną peržiūra. Viskas, kas veikia jūsų paskyroje, laukia jūsų sutikimo. |
-| Diktavimas | Šioje beta versijoje laikinai nepasiekiamas; jis sugrįš su atnaujinimu. |
+| Diktavimas | Šioje beta versijoje nepasiekiamas. |
 | Debesijos „burst“ režimas su klausimu | Klausimas prieš kiekvieną iškvietimą šioje versijoje dar neprijungtas. |
 | Vietiniai modeliai | Kad vietinis modelis galėtų atsakyti, atidarykite **Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai** ir vieną kartą paspauskite jam **Certify**. |
 | Mac kompiuteriai su Intel | Vietiniai modeliai veikia procesoriuje ir yra lėti. Sertifikavimas atsižvelgia į lėtesnius procesorius, bet ilgas atsakymas iš atminties gali viršyti laukimo laiką, todėl kol kas ten naudokite debesijos modelį. |

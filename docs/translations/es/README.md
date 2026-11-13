@@ -1,7 +1,7 @@
 ---
 description: VOOL es un asistente de IA de escritorio que ejecuta modelos de IA en local en tu ordenador o se conecta a modelos en la nube con tu propia clave. Gratuito y privado. Descargas para Mac (Apple Silicon e Intel) y Linux; Windows es experimental y se instala desde el código fuente.
 translation: machine
-source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
+source_sha256: dc6715130dd5dcfe7a6adc926aeff095413e59b7eecc1735d1c2ee1d88990ac5
 ---
 
 # VOOL
@@ -10,8 +10,10 @@ VOOL es un asistente de IA de escritorio. Se instala como una aplicación en tu 
 ejecutar modelos de IA en local en esa máquina, o conectarse a un proveedor de IA en la nube con tu propia
 clave API. Guarda un registro legible de cada acción que realiza.
 
-Es gratuito y funciona sin conexión con modelos locales. Hay descargas para Mac (Apple Silicon
-e Intel) y Linux x86_64; Windows es experimental y se instala desde el código fuente.
+Es gratuito. Con un modelo local, tus chats y archivos no necesitan conexión a internet; los datos en directo
+como el tiempo o los precios vienen de servicios web públicos solo mientras Búsquedas web está activado. Hay
+descargas para Mac (Apple Silicon e Intel) y Linux x86_64; Windows es experimental y se instala desde el
+código fuente.
 
 Esta documentación explica cómo instalar VOOL y conectar un modelo, y los conceptos que hay detrás de cómo
 trata tus archivos, tu memoria y tus claves.
@@ -45,7 +47,8 @@ Cada ejecución, la configuración y los puntos débiles están publicados: [ben
 
 * **Una aplicación de escritorio.** Se instala en tu ordenador; no es una pestaña del navegador ni un
   servicio alojado.
-* **Funciona sin conexión.** Con un modelo local seleccionado, VOOL no necesita conexión a internet.
+* **Funciona sin conexión para chats y archivos.** Con un modelo local seleccionado, tus chats y archivos no
+  necesitan conexión a internet. Los datos en directo como el tiempo o los precios vienen de servicios web públicos solo mientras Búsquedas web está activado (está desactivado en una instalación nueva), y nunca en Solo local.
 * **Local de forma predeterminada.** Con un modelo local seleccionado, los prompts y los archivos se procesan
   en tu equipo.
 * **Independiente del modelo.** Se pueden seleccionar tanto entornos de ejecución locales como proveedores en la
@@ -60,15 +63,16 @@ página de [Instalación](getting-started/install.md#primera-apertura-en-un-mac)
 [Estado de las versiones](trust/release-status.md) antes de instalar.
 {% endhint %}
 
-## Dos modos, sin rodeos
+## Dos formas de responder, sin rodeos
 
-VOOL distingue exactamente dos estados, y la interfaz siempre muestra cuál está activo:
+VOOL responde de dos formas, y la cabecera del chat siempre muestra de qué forma se ejecuta la siguiente
+solicitud; por ejemplo, **Auto** con **Local primero**:
 
 1. **Local**: el trabajo se queda en este ordenador.
 2. **Nube**: el contexto seleccionado se envía directamente al proveedor que hayas elegido,
    desde tu equipo y con tu clave.
 
-No hay un tercer estado, ni ningún relé operado por Parad0x en medio. Los detalles
+No hay ningún relé operado por Parad0x en medio. Los detalles
 están en [Tratamiento de datos](trust/data-handling.md).
 
 ## Obtener ayuda

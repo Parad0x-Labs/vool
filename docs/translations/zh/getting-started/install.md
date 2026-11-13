@@ -1,7 +1,7 @@
 ---
 description: 如何通过发布版下载在 macOS（Apple Silicon 或 Intel）或 Linux 上安装 AI 助手 VOOL，或在 macOS、Windows、Linux 上从源码安装，包括系统要求以及如何校验下载的文件。
 translation: machine
-source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
+source_sha256: a674148a99297acd314681d6a04bcf2e87e1c88bf00c9e3f25cd22a4083f2177
 ---
 
 # 安装
@@ -16,7 +16,7 @@ VOOL 0.7.7-beta 在 [v0.7.7-beta 发布版](https://github.com/Parad0x-Labs/vool
 | 磁盘 | 应用本身 2 GB | 含本地模型 20 GB |
 | macOS | 14 Sonoma，Apple Silicon 或 Intel（[限制](#intel-mac)） | 14 Sonoma 或更新版本，Apple Silicon |
 | Windows | 10（64 位） | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 或更新版本 |
+| Linux | Ubuntu 22.04，x86_64 | Ubuntu 24.04 |
 
 本地模型需要的内存比应用本身多得多。模型大小的建议见[运行本地模型](../guides/local-models.md)。
 
@@ -56,12 +56,12 @@ bash vool-0.7.7-beta-linux-x86_64/install.sh
 
 VOOL 安装在 `~/.local/share/vool` 中，把 `vool` 命令放到 `~/.local/bin`，并添加一个应用程序菜单项。桌面版会在浏览器中打开聊天界面；关闭浏览器并不会停止 VOOL。要移除 VOOL，请运行 `bash ~/.local/share/vool/current/uninstall.sh`。你的聊天记录和设置会保留在你的用户资料目录中。
 
-从 0.7.5 起，Linux 下载版会在 VOOL 内部更新。新版本会安装在旧版本旁边。如果新版本无法正常启动，
+从 0.7.5 起，在打开 **自行联网** 时，Linux 下载版会在 VOOL 内部更新。新版本会安装在旧版本旁边。如果新版本无法正常启动，
 VOOL 会自动切换回旧版本。
 
 ### 安装之后
 
-在本地模型能够回答之前，请打开 **设置 → 模型与提供方 → 本地模型**，为该模型按一次 **Certify**。这会在你的电脑上运行一项简短的检查。
+在本地模型能够回答之前，请打开 **设置 → 模型与提供方 → 本地模型**，为该模型按一次 **Certify**（如果已经记录过一次检查，按钮会显示为 **Re-run certification**）。这会在你的电脑上运行一项检查；在没有显卡的电脑上，第一次检查可能需要几分钟。
 
 从 0.7.5 起，VOOL 会自行更新：打开“自行联网”后，它会显示通知，只需按一下即可安装新版本。在 Mac 上从 0.7.4 或 0.7.3 更新：打开“自行联网”（设置 > 隐私与权限），然后按一次“检查更新”。在 Linux 上从 0.7.4 或更早版本，或在 Mac 上从 0.7.2 及更早版本更新：下载 0.7.7，直接覆盖安装到当前版本上。你的聊天记录和设置保存在应用之外的用户资料目录中。加密货币功能默认关闭。
 
@@ -81,7 +81,7 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 
 macOS / Linux 命令会把引导脚本及其源码下载都固定到 `v0.7.7-beta`。要选择其他发布版，请同时修改脚本 URL 中的标签和 `--ref`。引导脚本接受分支名或发布标签，不接受提交哈希。
 
-从源码安装需要 Python 3.11 或更新版本。如果找不到，安装程序会尝试自行配置一个。应用下载版自带 Python。
+从源码安装需要 Python 3.11 或更新版本。如果找不到，安装程序会下载一个并完成配置。应用下载版自带 Python。
 
 安装程序会准备 Python 环境、检查你的硬件、配置本地模型并启动本地服务。首次下载模型需要一些时间和磁盘空间。配置完成后，本地模型推理可以离线工作；网络工具和云端模型需要联网。
 
@@ -92,7 +92,7 @@ VOOL 可以在装有 macOS 14 或更新版本的 Intel Mac 上运行（例如 20
 * **不支持本地模型训练。** 自 2.3 起，PyTorch 不再发布 Intel macOS 版本，因此安装程序会跳过它，
   LoRA 训练会显示为不可用。聊天、记忆、工具和云端模型不受影响。
 * **本地模型只在 CPU 上运行。** 本地模型运行器对 Intel 显卡没有 GPU 加速，因此本地回答比在
-  Apple Silicon 上慢好几倍。在 8 GB 内存的 Mac 上，请用云端模型聊天；在 16 GB 上，安装程序默认的小型本地模型可以工作，但速度较慢。
+  Apple Silicon 上慢。在 8 GB 内存的 Mac 上，请用云端模型聊天；在 16 GB 上，安装程序默认的本地模型（一个 Qwen 模型）可以工作，但速度较慢。
 
 在 Intel Mac 上，本地模型在处理器上运行，速度较慢。较长的记忆类回答可能会超时，因此目前请在这些 Mac 上使用云端模型。本地模型认证已考虑到较慢的处理器。
 

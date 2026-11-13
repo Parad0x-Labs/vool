@@ -1,7 +1,7 @@
 ---
 description: VOOL đang ở giai đoạn nào, nói rõ ràng.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # Trạng thái phát hành
@@ -55,7 +55,7 @@ minh mọi tệp tải xuống dựa trên mã kiểm tra được công bố tr
 | Chuyển tiền trên mainnet | Coin gốc, và USDT trên Solana, Ethereum, BNB Smart Chain và Arbitrum One, được gửi từ một Ví VOOL được tạo trên thiết bị này. USDC trên Solana và Base chỉ dùng cho kênh thanh toán. Một tài khoản đã kết nối hoặc chỉ xem có thể nhận và hiển thị số dư nhưng không thể gửi từ VOOL. |
 | Thanh toán bằng x402 | Các trang web yêu cầu thanh toán x402 bằng USDC trên Base hoặc Base Sepolia có thể được thanh toán từ ví Crypto Pilot của bạn: một lần phê duyệt bằng PIN, trong phạm vi giới hạn của bạn. Dịch vụ thanh toán của trang web chịu phí mạng. **Cài đặt → Tiền điện tử → Payment channels** có một công tắc bật/tắt cho mỗi cách ví có thể thanh toán cho một trang web; một kênh đang tắt sẽ từ chối trước khi bất cứ thứ gì được ký. Chưa có khoản thanh toán mainnet thật nào được thực hiện theo cách này. Thanh toán qua Solana pay-kit không có trong các bản tải xuống; kênh đó hiện là không dùng được. |
 | X | Từ bất kỳ cuộc trò chuyện nào: tìm bài đăng và tài khoản, Spaces, xu hướng và tin nhắn riêng (DM), và tra cứu các lần call trước đây về một token. Mọi thao tác tác động lên tài khoản của bạn đều chờ bạn đồng ý. |
-| Đọc thành tiếng | Tạm thời không khả dụng trong bản dựng beta này; tính năng sẽ trở lại trong một bản cập nhật. |
+| Đọc thành tiếng | Không khả dụng trong bản dựng beta này. |
 | Chế độ hỏi "tăng tốc" (burst) trên đám mây | Hộp hỏi xác nhận cho từng lệnh gọi chưa được kết nối trong bản dựng này. |
 | Mô hình cục bộ | Trước khi một mô hình cục bộ có thể trả lời, hãy mở **Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ** và nhấn **Certify** cho mô hình đó một lần. |
 | Mac dùng Intel | Mô hình cục bộ chạy trên bộ xử lý và chậm. Bước chứng nhận có tính đến bộ xử lý chậm hơn, nhưng một câu trả lời dài dựa vào bộ nhớ có thể bị quá thời gian chờ, vì vậy hiện tại hãy dùng mô hình đám mây trên các máy này. |

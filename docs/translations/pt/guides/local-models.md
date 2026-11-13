@@ -1,33 +1,50 @@
 ---
 description: Como executar modelos de IA localmente no seu próprio computador com o VOOL — instalar um servidor de modelos local, escolher o tamanho do modelo e trabalhar totalmente offline.
 translation: machine
-source_sha256: d93b9995b0f4fec8aca12bb90d8d6f9ff0fd9623c43d4529913dc76f055ac24c
+source_sha256: a19d4790729d13ed5e1b134bcb67ed3e7a80609561be4227ab9480492100c8a6
 ---
 
 # Executar um modelo local
 
 ## Instalar um ambiente de execução
 
-O VOOL conversa com um servidor de modelos local. O app para macOS inclui o próprio executor de modelos locais,
-então em um Mac você pode pular esta etapa. No Linux e nas instalações a partir do código-fonte, instale um
-servidor como o Ollama, inicie-o e baixe um modelo.
+O VOOL usa o Ollama por padrão para rodar modelos locais; outros ambientes de execução locais com um
+endpoint compatível com a OpenAI também funcionam. O Ollama é um programa separado, instalado à parte
+a partir de [ollama.com](https://ollama.com). O app para macOS inclui o próprio executor de modelos locais,
+então em um Mac você pode pular esta etapa. No Linux e nas instalações a partir do código-fonte, instale o
+Ollama, inicie-o e baixe um modelo.
 
 ```bash
 ollama serve
-ollama pull qwen2.5-coder:7b
+ollama pull qwen3:4b
 ```
+
+O VOOL escolhe o modelo local para você por padrão — um modelo Qwen do tamanho certo para o seu computador. Em
+muitos computadores esse modelo é o `qwen3:4b`; em computadores com 32 GB de memória ou mais, o
+padrão é um modelo Qwen maior.
 
 ## Apontar o VOOL para ele
 
 Abra **Configurações → Modelos e provedores**. Os ambientes de execução locais em funcionamento são detectados
 automaticamente. Selecione um modelo e o indicador de modo muda para Local.
 
-## Certifique-o uma vez
+## Deixe-o pronto uma vez
 
-Um modelo local só escreve respostas depois de ser certificado. Abra **Configurações → Modelos e provedores → Modelos locais**,
-registre o modelo e depois escolha **Certify**. A certificação executa uma verificação rápida de ferramentas na
-sua máquina; nada é baixado e ninguém é contatado. Até um modelo passar, o VOOL não
-deixa que ele escreva respostas finais.
+Um modelo local só escreve respostas depois que o VOOL o verifica. Abra
+**Configurações → Modelos e provedores → Modelos locais** e pressione **Usar este modelo** ao lado do modelo.
+O VOOL verifica discretamente, no seu computador, se o modelo consegue usar as ferramentas do VOOL bem o bastante
+para responder por você. A verificação pode levar um ou dois minutos; nada é baixado e ninguém é contatado. Quando
+ele passa, o modelo mostra **Pronto** e o VOOL responde com ele. Até lá, o VOOL não deixa que ele escreva
+respostas finais.
+
+* **Não é uma boa escolha:** o modelo não consegue usar as ferramentas do VOOL bem o bastante. O VOOL mostra o que você
+  pode fazer em vez disso: usar ou baixar o modelo que ele escolheu para este computador, ou usar um modelo na nuvem.
+* **A verificação não terminou:** confira se o Ollama está aberto e pressione **Tentar de novo**. Um computador lento
+  pode precisar de uma segunda tentativa.
+
+Se nenhum modelo local estiver pronto quando o VOOL iniciar, ele verifica até três dos modelos deste computador,
+começando pelo que você escolheu, e usa o primeiro que passar. Ele pula um modelo grande demais para este
+computador. Um modelo pronto sempre vem antes de um que não está pronto.
 
 ## Tamanho
 

@@ -1,7 +1,7 @@
 ---
 description: 내 코드베이스에서 VOOL을 AI 코딩 어시스턴트로 쓰는 방법. 작업 공간 설정, 코드에 관해 묻기, 편집 검토.
 translation: machine
-source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
+source_sha256: 1d1c4e7c4222eed4dc6caae24dca70729496ead8b88b1fc45a81a61ed548241a
 ---
 
 # VOOL로 코딩하기
@@ -27,5 +27,5 @@ source_sha256: 112dfd866a96b0f7fd22f6f57f7f6480d7ac293466fdf0260a74f3bc0b870036
 ## 로컬 또는 클라우드
 
 코딩은 두 모드 모두에서 됩니다. 7B 로컬 코딩 모델로 대부분의 일상적인 편집을 처리할 수 있고,
-더 큰 클라우드 모델은 더 긴 추론을 처리합니다. 보내기 전에 모드 표시가 어느 쪽이 활성인지
-알려 줍니다.
+더 큰 클라우드 모델은 더 긴 추론을 처리합니다. 보내기 전에 모델 표시가 어느 쪽이 활성인지
+알려 줍니다. 로컬 모델이면 `LOCAL`, 클라우드 모델이면 `CLOUD`, VOOL이 고를 때는 기본으로 `AUTO`(`VOOL Auto`, `Local first`)가 표시됩니다.

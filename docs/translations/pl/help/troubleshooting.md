@@ -1,7 +1,7 @@
 ---
 description: Rozwiązania najczęstszych problemów.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Rozwiązywanie problemów
@@ -19,9 +19,12 @@ wsparcie eksperymentalne; zobacz [instrukcję instalacji](../getting-started/ins
 
 ## Nie widać żadnych modeli lokalnych
 
-1. Upewnij się, że środowisko uruchomieniowe działa.
-2. Upewnij się, że pobrano co najmniej jeden model.
-3. Upewnij się, że port jest zgodny z tym, którego oczekuje VOOL.
+1. Upewnij się, że lokalne środowisko uruchomieniowe modeli jest zainstalowane — w Linuksie najpierw
+   zainstaluj [Ollamę](https://ollama.com), jeśli jeszcze jej nie masz
+   (zob. [Uruchamianie modelu lokalnego](../guides/local-models.md#instalacja-środowiska-uruchomieniowego)).
+2. Upewnij się, że środowisko uruchomieniowe działa.
+3. Upewnij się, że pobrano co najmniej jeden model.
+4. Upewnij się, że port jest zgodny z tym, którego oczekuje VOOL.
 
 ```bash
 curl http://localhost:11434/api/tags

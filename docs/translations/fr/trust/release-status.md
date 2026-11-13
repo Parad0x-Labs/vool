@@ -1,7 +1,7 @@
 ---
 description: Où en est VOOL, dit simplement.
 translation: machine
-source_sha256: bf79dfc262c1aca9c489c8474ad2de5fa633b0b60a515f2835f52954c66ad73f
+source_sha256: ad4e68eba0b8f45c35cf4ce8b87f79ee04e3aaee23c83f2ff6d794fa35d56c06
 ---
 
 # État des versions
@@ -58,7 +58,7 @@ sur la version GitHub.
 | Transferts sur le mainnet | Les coins natifs, et l’USDT sur Solana, Ethereum, BNB Smart Chain et Arbitrum One, envoyés depuis un portefeuille VOOL créé sur cet appareil. L’USDC sur Solana et Base sert uniquement aux canaux de paiement. Un compte connecté ou en lecture seule peut recevoir et afficher son solde, mais ne peut pas envoyer depuis VOOL. |
 | Payer avec x402 | Les sites web qui demandent un paiement x402 en USDC sur Base ou Base Sepolia peuvent être payés depuis votre portefeuille Pilote Crypto : une approbation avec votre PIN, dans vos limites. Le service de paiement du site web prend en charge les frais de réseau. **Réglages → Crypto → Payment channels** a un interrupteur pour chaque façon dont le portefeuille peut payer un site web ; un canal désactivé refuse avant que quoi que ce soit soit signé. Aucun paiement réel sur le mainnet n’a encore été effectué ainsi. Le paiement via Solana pay-kit n’est pas inclus dans les téléchargements ; ce canal apparaît comme inutilisable. |
 | X | Depuis n’importe quelle discussion : rechercher des publications et des comptes, des Spaces, des tendances et des DM, et consulter les anciens calls sur un token. Tout ce qui agit sur votre compte attend votre accord. |
-| Dictée | Temporairement indisponible dans cette version bêta ; elle reviendra dans une mise à jour. |
+| Dictée | Indisponible dans cette version bêta. |
 | Mode de question cloud « rafale » | La demande de confirmation par appel n’est pas encore branchée dans cette version. |
 | Modèles locaux | Avant qu’un modèle local puisse répondre, ouvrez **Réglages → Modèles et fournisseurs → Modèles locaux** et appuyez une fois sur **Certify** pour ce modèle. |
 | Mac Intel | Les modèles locaux tournent sur le processeur et sont lents. La certification tient compte des processeurs plus lents, mais une longue réponse de mémoire peut dépasser le délai, donc utilisez pour l’instant un modèle cloud sur ces Mac. |

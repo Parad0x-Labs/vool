@@ -1,7 +1,7 @@
 ---
 description: Gdzie VOOL przechowuje swoją konfigurację i co oznaczają ustawienia.
 translation: machine
-source_sha256: 3bbb23b29003bdd8c973c2d88a34faf974f6436405b7c90da4d0307c0962f887
+source_sha256: 628a20ac7c08e03575690eb673731afc27ec1196b1514bf1ed75dfb7c21e3daf
 ---
 
 # Konfiguracja
@@ -16,8 +16,8 @@ VOOL przechowuje ustawienia, czaty, pamięć i zapisy w jednym folderze „runti
 | Archiwum tar dla Linuksa i instalacje ze źródeł | `~/.vool_runtime` |
 | Windows (eksperymentalnie, ze źródeł) | `%LOCALAPPDATA%\VOOL` |
 
-Jeśli przed uruchomieniem VOOL ustawisz `VOOL_HOME`, VOOL użyje zamiast tego wskazanego folderu. Logi startowe
-podają używany folder.
+Jeśli przed uruchomieniem VOOL ustawisz `VOOL_HOME`, VOOL użyje zamiast tego wskazanego folderu. Polecenie `vool`
+podaje używany folder.
 
 Klucze **nie** są zapisywane w plikach ustawień ani w logach. Są przechowywane w postaci zaszyfrowanej w osobnym
 pliku poświadczeń w tym folderze runtime home, czytelnym tylko dla twojego konta użytkownika; klucze, które VOOL

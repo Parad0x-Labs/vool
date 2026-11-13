@@ -1,7 +1,7 @@
 ---
 description: Lösungen für die Probleme, die am häufigsten auftreten.
 translation: machine
-source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
+source_sha256: a681cc81febcca3f8c24291a03f3a9acd6b09cbf6573f251f03114e1d69ac61d
 ---
 
 # Fehlerbehebung
@@ -19,9 +19,12 @@ das ist experimentell; siehe die [Installationsanleitung](../getting-started/ins
 
 ## Es werden keine lokalen Modelle angezeigt
 
-1. Prüfe, ob die Laufzeitumgebung läuft.
-2. Prüfe, ob mindestens ein Modell heruntergeladen ist.
-3. Prüfe, ob der Port dem entspricht, den VOOL erwartet.
+1. Prüfe, ob die Laufzeitumgebung für lokale Modelle installiert ist — unter Linux installiere zuerst
+   [Ollama](https://ollama.com), falls du das noch nicht getan hast
+   (siehe [Ein lokales Modell ausführen](../guides/local-models.md#eine-laufzeitumgebung-installieren)).
+2. Prüfe, ob die Laufzeitumgebung läuft.
+3. Prüfe, ob mindestens ein Modell heruntergeladen ist.
+4. Prüfe, ob der Port dem entspricht, den VOOL erwartet.
 
 ```bash
 curl http://localhost:11434/api/tags

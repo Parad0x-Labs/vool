@@ -1,18 +1,18 @@
 ---
 description: VOOL gửi chính xác những dữ liệu nào, khi nào và cho ai. Những gì ở lại trên máy tính của bạn và những gì đến được nhà cung cấp AI của bạn.
 translation: machine
-source_sha256: ec76a421c8153c33d699b77f7b069d9c2708eb129ba5ceaeb088fd75d60f41f0
+source_sha256: 4fd0aaa4d2480ae80b94aa7132c46c8263113450e4b02c5747388791e7bc8710
 ---
 
 # Xử lý dữ liệu
 
 ## Hai trạng thái
 
-**CỤC BỘ** — mọi thứ ở lại trên máy tính này.
+**Cục bộ** — mô hình và các tệp của bạn ở lại trên máy tính này. Thông tin trực tiếp như thời tiết hay giá cả chỉ được lấy từ các dịch vụ web công khai khi "Tra cứu web" đang bật (bản cài mới thì nó tắt), và không bao giờ trong "Chỉ cục bộ".
 
-**ĐÁM MÂY** — ngữ cảnh đã chọn được gửi thẳng tới nhà cung cấp đã chọn.
+**Đám mây** — ngữ cảnh đã chọn được gửi thẳng tới nhà cung cấp đã chọn.
 
-Chỉ báo trên giao diện cho biết trạng thái nào đang bật trước khi bạn gửi bất cứ thứ gì.
+Phần đầu khung trò chuyện cho biết yêu cầu tiếp theo chạy theo cách nào — ví dụ **Tự động** cùng **Ưu tiên cục bộ** khi VOOL Auto trả lời từ máy tính này.
 
 ## Những gì VOOL không làm
 
