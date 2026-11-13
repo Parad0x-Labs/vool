@@ -1,9 +1,12 @@
-"""Served: a new agent wallet shows at once, even with an allowance form left open (sls, Nov 13).
+"""Served: a new agent wallet shows at once after an allowance form was opened and left (sls, Nov 13).
 
 Measured on 9c86f47b on the Mac: the owner made the assistant's wallet, pressed "Set an allowance" and saved it
 empty (the door refused it and the form stayed open), then made the Skills & plugins wallet with the PIN and
 "I have saved my backup". The page said the wallet was ready, but the Skills & plugins box still said it had none:
 the section's refresh skips the agent list while any form is open in it, and nothing else read the list again.
+Since the Crypto page redesign the allowance form is a sheet over the page, so the owner closes it (Escape) before
+pressing another Create: this walks that real path, and still proves the open sheet keeps what is typed through a
+section refresh, that Escape closes only the sheet (not Settings), and that the new wallet shows with no reload.
 Real daemon, real Chromium, the owner's clicks only. No x402 extra and no chain are needed: creating an agent
 wallet moves no money and reads no balance.
 """
@@ -61,7 +64,7 @@ def _create_agent_wallet(page, agent_id: str) -> None:
 
 
 @pytest.mark.timeout(600)
-def test_a_new_skills_wallet_shows_even_with_an_allowance_form_left_open(tmp_path):
+def test_a_new_skills_wallet_shows_after_an_allowance_form_was_left(tmp_path):
     import tests._reader_served_rig as rig
     from tests.served_browser import launch_chromium
 
@@ -104,7 +107,7 @@ def test_a_new_skills_wallet_shows_even_with_an_allowance_form_left_open(tmp_pat
             wallet_id = assistant.locator("[data-agent-wallet]").get_attribute("data-agent-wallet")
             page.wait_for_load_state("networkidle")
 
-            # --- "Set an allowance" saved empty: a plain answer inside the form, nothing sent, the form stays open
+            # --- "Set an allowance" saved empty: a plain answer inside the sheet, nothing sent, the sheet stays open
             assistant.locator("button", has_text="Set an allowance").click()
             form = assistant.locator("[data-agent-form]")
             form.wait_for(timeout=10_000)
@@ -112,15 +115,35 @@ def test_a_new_skills_wallet_shows_even_with_an_allowance_form_left_open(tmp_pat
             page.wait_for_function("(t) => (document.getElementById('vwAgentMsg_form_' + t[0]) || {textContent: ''}).textContent.trim() === t[1]", arg=[wallet_id, EMPTY_SAVE], timeout=10_000)
             assert allowance_posts == [], allowance_posts
             assert form.count() == 1, "the empty form stays open for the owner to fill in"
+            assert form.get_attribute("role") == "dialog" and form.get_attribute("aria-modal") == "true", "the allowance opens as a sheet over the page"
+            # while it is open it covers the page: the point under the Skills & plugins Create button is the sheet
+            covered = page.evaluate("""() => { const b = document.getElementById('vwAgentCreate_addons'); b.scrollIntoView({block: 'center'});
+                const r = b.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                return !!top && !!top.closest('[data-agent-form]'); }""")
+            assert covered, "the open sheet does not block the page"
+            # the section reading its status again (its own refresh) keeps what is being typed in the open sheet
+            page.fill(f"#vwAgPer_{wallet_id}", "0.05")
+            page.evaluate("window.VoolWallet.refresh()")
+            page.wait_for_timeout(1500)
+            assert form.count() == 1 and page.input_value(f"#vwAgPer_{wallet_id}") == "0.05", "a refresh wiped the open sheet"
 
-            # --- the Skills & plugins wallet with that form still open: the box shows it without a reload
+            # --- Escape closes only the sheet: Settings stays open on Crypto
+            page.keyboard.press("Escape")
+            page.wait_for_selector("[data-agent-form]", state="detached", timeout=10_000)
+            assert page.evaluate("location.hash") == "#wallet" and page.locator("#vwAddons").is_visible(), "Escape left Settings"
+
+            # --- then the Skills & plugins wallet: the box shows it without a reload
             assert "no wallet yet" in page.inner_text("#vwAddons")
+            page.evaluate("window.__sameDocument = true")
             _create_agent_wallet(page, "addons")
             page.wait_for_function("() => { const x = document.getElementById('vwAddons'); return !!x && !/no wallet yet/.test(x.innerText) && !!x.querySelector('[data-agent-wallet]'); }", timeout=20_000)
+            assert page.evaluate("window.__sameDocument === true"), "the page was reloaded"
             said = page.inner_text("#vwAgentMsg_addons")
             assert said.startswith("Done: Skills & plugins has its own wallet now, shown above."), said
             stored = _agents(base)
             assert [w["network"] for w in stored["addons"]["wallets"]] == [BASE_SEPOLIA], stored["addons"]
+            shown = page.locator("#vwAddons [data-agent-wallet] .vw-cx-address").first.text_content()
+            assert shown == stored["addons"]["wallets"][0]["address"], (shown, stored["addons"]["wallets"][0])
             assert [w["network"] for w in stored["agents"][0]["wallets"]] == [BASE_SEPOLIA], stored["agents"]
             assert errors == [], errors
         finally:
