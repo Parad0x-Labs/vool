@@ -1,6 +1,6 @@
 {
   "channel_name": "beta",
-  "release_version": "0.8.0-beta",
+  "release_version": "0.8.1-beta",
   "protocol_version": 1,
   "schema_generation": 1,
   "minimum_compatible_release": "0.4.0-closed-test",
