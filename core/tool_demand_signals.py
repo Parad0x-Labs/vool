@@ -166,6 +166,27 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    # -- project archaeology (file history across VOOL's own records) ---------
+    # "Which task changed this file?" asks for a file's history: which turn, task or effect wrote
+    # it and when. That is the archaeology trace (core/project_archaeology.py), not a code task's
+    # report: with only `code.task.report` on the table the model passed the question itself as a
+    # task id and answered "No code task `which task changed this file` exists in the journal"
+    # (skills A/B on f4f048f7, qwen3:8b). A question head is required, so an instruction to
+    # change a file never seats it.
+    (
+        "operator.command.archaeology.trace",
+        "operator",
+        re.compile(
+            r"\b(?:which|what)\s+(?:of\s+(?:your|the|my|our|these|those)\s+)?(?:(?:code|coding|earlier|past|previous|last)\s+)?(?:tasks?|turns?|runs?|jobs?|chats?|sessions?|steps?|actions?)\b"
+            r"[^.?!]{0,40}?\b(?:changed|modified|edited|touched|wrote|rewrote|overwrote|deleted|removed|moved|renamed|created|updated|broke)\b"
+            r"[^.?!]{0,40}?(?:\bfiles?\b|\bfolders?\b|[\w./-]+\.[A-Za-z0-9]{1,6}\b)"
+            r"|\bwho\s+(?:last\s+)?(?:changed|modified|edited|touched|wrote|overwrote|deleted|removed|moved|renamed)\b"
+            r"[^.?!]{0,40}?(?:\bfiles?\b|[\w./-]+\.[A-Za-z0-9]{1,6}\b)"
+            r"|\b(?:history|lineage)\s+of\s+(?:this|that|the|my|our)\s+(?:file|folder)\b"
+            r"|\bwhat\s+happened\s+to\s+(?:this|that|the|my|our)\s+(?:file|folder)\b",
+            re.I,
+        ),
+    ),
     # -- wallet (propose/read only; approval is never a tool) ----------------
     # a decimal amount ("0.0005 SOL", "0.001 ETH") is not a sentence boundary; the native coins of every pilot row count.
     # The recipient may also be a bare address with no "to" ("pay 0x... 1 USDC on base"): then an exact amount must

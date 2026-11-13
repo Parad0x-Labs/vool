@@ -1393,6 +1393,37 @@ def _intent_is_owner_only(intent: str) -> bool:
         return False
 
 
+def _command_registry_spec(intent: str) -> dict[str, Any] | None:
+    """The offer row of a model-offerable command-registry read, built from its registered contract.
+
+    Only ``operator.command.*`` contracts that are supported and read-only qualify; anything else
+    keeps its existing path (the builtin spec list or a graph candidate).
+    """
+    if not str(intent or "").startswith("operator.command."):
+        return None
+    try:
+        from core.tool_registry import tool_for_intent
+
+        contract = tool_for_intent(intent)
+    except Exception:
+        return None
+    if contract is None or not contract.supported or not contract.read_only:
+        return None
+    # Every registry input field has a default, so each argument is optional on the wire. Marked
+    # as such: a bare "str" reads as required, and a model's call that set only `path` was refused
+    # as "missing required key: turn_id" before the command ever ran.
+    words = {"str": "string", "int": "integer", "bool": "boolean", "float": "number"}
+    return {
+        "intent": contract.intent,
+        "description": contract.description,
+        "read_only": True,
+        "arguments": {
+            str(name): f"{words.get(str(kind), 'string')} optional"
+            for name, kind in dict(contract.input_schema or {}).items()
+        },
+    }
+
+
 def model_visible_specs(
     *,
     capability_hint: str | None = None,
@@ -1628,6 +1659,12 @@ def model_visible_specs(
             # it there. Enforced here, not just declared.
             return
         spec = spec_map.get(intent)
+        if spec is None:
+            # A model-offerable command-registry read (``operator.command.*``) has no row in the
+            # builtin spec list; its contract lives in the tool registry. Without this an ask that
+            # names one by demand ("which task changed this file" -> archaeology.trace) could never
+            # seat it, and the ranked fill offered whatever else the words touched.
+            spec = _command_registry_spec(intent)
         if spec is None and candidate is not None:
             # Candidate is registered only in the capability graph (synthetic
             # test tools, plugin/MCP tools whose spec is registry-built) —

@@ -107,6 +107,8 @@ MAX_TOTAL_SKILL_CHARS = MAX_SKILL_CHARS + MAX_DOCTRINE_CHARS
 _MIN_SKILL_CHARS = 200  # a body that would be cut below this is dropped rather than mangled
 
 PROVENANCE = "core.tool_offer_assembly"
+#: The file-history tool (core/project_archaeology.py through the command registry).
+_ARCHAEOLOGY_TRACE = "operator.command.archaeology.trace"
 
 _lock = threading.RLock()
 # (skill path, package identity or legacy mtime) -> parsed Skill. The cache exists so repeated turns do not
@@ -1909,6 +1911,11 @@ def assemble_tool_offer(
         # graph and the skill's seats would offer them, and a call ends the turn on core's
         # refusal. Any other turn keeps the native seam's offer and a named tool its refusal.
         specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
+    if not task_seats and _ARCHAEOLOGY_TRACE in set(resolve_demand_signals(str(user_text or "")).explicit_intents):
+        # A file-history question with no code task open: the archaeology trace answers it. A code
+        # task's report beside it was ranked in by the word "task" alone, and the model took it,
+        # passing the question as the task id (skills A/B on f4f048f7).
+        specs = [spec for spec in specs if spec.get("intent") != "code.task.report"]
     if task_seats and "code.task.open" not in task_seats:
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.
