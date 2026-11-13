@@ -249,7 +249,7 @@ def test_a_word_given_to_a_flag_column_is_refused_with_its_real_values(tmp_path,
 
 # ── a closing reply that denies or contradicts the rows the query read ────────────────────────────────────────
 
-from core.agent_runtime.research_tool_loop_facade import _database_reply_contradicts_its_rows  # noqa: E402
+from core.agent_runtime.research_tool_loop_facade import _database_reply_contradicts_its_rows
 
 
 def _query_step(sql: str, rows: list, columns: list[str]) -> dict:
