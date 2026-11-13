@@ -357,6 +357,15 @@ def _pending_delivery_formats(context: dict[str, Any], steps: list[dict[str, Any
     return wanted - made
 
 
+def _no_unread_document_contents(request: str, executed_steps: list[dict[str, Any]], rendered: str) -> str:
+    """The loop's answer, unless it would state what a document of the person's says while no read of a
+    document ran on this turn (core.agent_runtime.unread_document_guard): then what was found, and that
+    nothing was read."""
+    from core.agent_runtime.unread_document_guard import unread_document_reply
+
+    return unread_document_reply(request, executed_steps, rendered) or rendered
+
+
 def _code_task_report_completed_the_turn(executed_steps: list[dict[str, Any]]) -> bool:
     """Whether this turn's last real step published a completed code task report and no coding task the
     turn worked on is unfinished (the completion law in `enforce_code_task_completion`)."""
@@ -1992,10 +2001,14 @@ class ResearchToolLoopFacadeMixin:
                         )
                         confidence = max(0.35, min(0.96, float(tool_decision.trust_score or tool_decision.confidence or 0.55)))
                         direct_rendered = apply_verifier_draft_caveat(
-                            self._render_tool_loop_response(
-                                final_message=direct_message,
-                                executed_steps=executed_steps,
-                                include_step_summary=not self._live_runtime_stream_enabled(loop_source_context),
+                            _no_unread_document_contents(
+                                effective_input,
+                                executed_steps,
+                                self._render_tool_loop_response(
+                                    final_message=direct_message,
+                                    executed_steps=executed_steps,
+                                    include_step_summary=not self._live_runtime_stream_enabled(loop_source_context),
+                                ),
                             ),
                             tool_decision,
                             # Without these the seal at memory_first_router.py:5145 is guarded by
@@ -3094,10 +3107,14 @@ class ResearchToolLoopFacadeMixin:
                 ),
             ),
         )
-        rendered = self._render_tool_loop_response(
-            final_message=final_message,
-            executed_steps=executed_steps,
-            include_step_summary=not self._live_runtime_stream_enabled(loop_source_context),
+        rendered = _no_unread_document_contents(
+            effective_input,
+            executed_steps,
+            self._render_tool_loop_response(
+                final_message=final_message,
+                executed_steps=executed_steps,
+                include_step_summary=not self._live_runtime_stream_enabled(loop_source_context),
+            ),
         )
         # Verifier gate -> visible caveat on the tool-loop final answer too (Codex F5):
         # if the synthesis was flagged by the verifier, mark it a draft. Non-blocking.

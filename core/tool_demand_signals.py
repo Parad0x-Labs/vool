@@ -476,7 +476,16 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "pdf.extract_text",
         "pdf",
         re.compile(
-            r"\b(?:extract|get|pull|read)\b[^.?!]{0,30}?\b(?:the\s+)?text\b[^.?!]{0,20}?\b\.?pdf\b|\bpdf\b[^.?!]{0,30}?\b(?:text|extract)",
+            r"\b(?:extract|get|pull|read)\b[^.?!]{0,30}?\b(?:the\s+)?text\b[^.?!]{0,20}?\b\.?pdf\b|\bpdf\b[^.?!]{0,30}?\b(?:text|extract)"
+            # What a PDF of the person's says: "what does the lease pdf in my downloads say about notice".
+            # Answer-quality Mac check on the v0.8 head f4f048f7 (loop off, 2026-11-13): the offer held
+            # machine.find_file and machine.read_file but no PDF reader, so the files were found, none
+            # was read, and the reply invented three leases' notice periods.
+            r"|\b(?:the|my|this|that|these|those|our)\s+(?:[\w'’-]+\s+){0,3}?pdfs?\b[^.?!]{0,60}?"
+            r"\b(?:say|says|said|mention|mentions|state|states|cover|covers|contain|contains|include|includes|"
+            r"tell|tells|explain|explains|specify|specifies)\b"
+            r"|\b(?:read|summari[sz]e|explain|go\s+(?:over|through)|check|open)\s+(?:me\s+)?(?:the|my|this|that|our)\s+"
+            r"(?:[\w'’-]+\s+){0,3}?pdfs?\b(?!\s+(?:format|version|export)\b)",
             re.I,
         ),
     ),
