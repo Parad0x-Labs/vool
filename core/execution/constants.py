@@ -1593,6 +1593,14 @@ class PresentFileAsk(NamedTuple):
     kind: str  # "", image, video, pdf, audio, csv, doc, txt or md -- a kind word from the ask
     words: tuple[str, ...]  # 1-4 lowercase words the file's name must contain
     place: str  # "Desktop"/"Downloads"/"Documents"/"Pictures" when the ask names one, else ""
+    # Whether the ask itself says it wants a file: a kind or document word ("the bank csv", "the
+    # plumber invoice"), a name with an extension, or a folder to look in. Without one, the words
+    # may as well name a calendar slot, an email thread or a report ("look at thursday morning",
+    # "open the estimate thread"), so a search that finds nothing is not this lane's answer to give.
+    named_as_file: bool = False
+
+
+_PRESENT_MAIL_HEAD_WORDS = frozenset({"thread", "threads", "email", "emails", "mail", "message", "messages", "conversation"})
 
 
 def machine_present_file_intent(text: str) -> PresentFileAsk | None:
@@ -1641,6 +1649,11 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
            or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None
+    if kept[-1] in _PRESENT_MAIL_HEAD_WORDS:
+        # "open that invoice thread and tell me what it says": the thing asked for is a mail
+        # conversation, whatever document word describes it. Measured on the v0.8 line (CI #681):
+        # the served mailbox journey got a disk search for "invoice thread" and never opened it.
+        return None
     names_a_document = any(word in _PRESENT_KIND_WORDS or word in _PRESENT_DOCUMENT_WORDS for word in kept)
     if not names_a_document and any(word in _PRESENT_ORGANIZER_WORDS or word in _PRESENT_SOCIAL_WORDS for word in kept):
         return None
@@ -1656,7 +1669,11 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         words.extend(part for part in re.findall(r"[0-9a-z]+", word) if len(part) >= 3)
     if not words:
         return None  # "show me the biggest file" ranks files; it does not name one
-    return PresentFileAsk(kind, tuple(dict.fromkeys(words))[:4], _named_place(raw[offset:]))
+    place = _named_place(raw[offset:])
+    has_extension = any(re.search(r"[0-9a-z]\.[a-z][0-9a-z]{1,4}$", word) for word in kept)
+    return PresentFileAsk(
+        kind, tuple(dict.fromkeys(words))[:4], place, bool(names_a_document or has_extension or place)
+    )
 
 
 # "Which of my videos is the biggest, the trailer or the school play?": a size COMPARE of files

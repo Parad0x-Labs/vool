@@ -1746,6 +1746,19 @@ def _name_in_text(name: str, text: str) -> bool:
     )
 
 
+_NOTHING_SUBJECT_RE = re.compile(r"\b(?:nothing|none|no\s+[\w-]+|no\s+one|nobody)\s*$", re.IGNORECASE)
+
+
+def _claims_a_change_was_made(line: str) -> bool:
+    """Whether `line` says a change was made. "Nothing has been sent" says the opposite.
+
+    Measured on the v0.8 line (CI #681, the served two-mailbox journey): the saved-draft reply
+    "Draft ed-... from account personal ...: Wednesday at 10:00 works. Nothing has been sent." was
+    replaced whole by "only a preview ran", so the next "approve and send it" had no draft to point
+    at and went to the older one."""
+    return any(not _NOTHING_SUBJECT_RE.search(line[: found.start()]) for found in _COMPLETION_CLAIM_RE.finditer(line))
+
+
 def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str, Any]] | None:
     """A reply that lists the runtime's own intents as if they ran, when some never ran this turn.
 
@@ -1772,7 +1785,7 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     # vool-database.migrate.preview ran; the table was unchanged.
     changing_ran_any = any(_CHANGING_INTENT_RE.search(i) for i in executed)
     if executed and not changing_ran_any:
-        claimed = [i for i, line in enumerate(lines) if _COMPLETION_CLAIM_RE.search(line)]
+        claimed = [i for i, line in enumerate(lines) if _claims_a_change_was_made(line)]
         if claimed:
             for index in claimed:
                 lines[index] = "This change has not been made: only a preview ran, nothing was applied."

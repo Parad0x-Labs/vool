@@ -3730,6 +3730,18 @@ def maybe_handle_direct_machine_read_request(
         present_ask = None
     if present_ask is not None:
         presented = present_named_file(present_ask, session_id=session_id, source_context=source_context)
+        if (
+            presented is not None
+            and not (getattr(presented, "details", None) or {}).get("matches")
+            and not getattr(present_ask, "named_as_file", False)
+        ):
+            # Nothing on the disk carries these words and the ask never said it wanted a file:
+            # "look at thursday morning on my calendar", "open the estimate thread", "show me the
+            # evidence report", "find tool intent wiring" are the calendar's, the mailbox's and
+            # the model's to answer. Measured on the v0.8 line (CI #681): each was answered "I
+            # couldn't find a file matching ..." (or "none of the searchable folders are readable",
+            # where the folders are closed to this turn) before its own lane could run.
+            presented = None
         if presented is not None:
             shown = [str(path) for path in (getattr(presented, "details", None) or {}).get("matches") or []]
             _remember_file_answer(session_id, shown, turn_id=_turn_id(source_context))

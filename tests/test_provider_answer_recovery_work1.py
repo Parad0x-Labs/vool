@@ -381,7 +381,7 @@ def test_reservation_sizes_completion_tokens_from_the_lane_resolution(monkeypatc
     )
     captured: dict[str, object] = {}
 
-    def _fake_authorize(*, context, task_id, model_id, local_model_id):
+    def _fake_authorize(*, context, task_id, model_id, local_model_id, spender="", spender_monthly_usd=None):
         captured["completion_tokens"] = context.get("paid_call_completion_tokens")
         return None
 

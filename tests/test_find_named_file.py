@@ -398,3 +398,24 @@ def test_a_name_the_person_did_not_say_is_not_searched(monkeypatch):
     # The menu's words are never searched; the phone branch reads the person's own words ("lisbon holiday",
     # the picture word saying where to look) and searches those.
     assert searched in ([], [("machine.find_folder", {"name": "lisbon holiday"})]), searched
+
+
+def test_an_ask_that_never_names_a_file_is_marked_so_other_lanes_can_answer():
+    """CI #681 on the v0.8 line: calendar, mailbox and model asks were answered "I couldn't find a file"."""
+    from core.execution.constants import machine_present_file_intent
+
+    assert machine_present_file_intent("Open that invoice thread and tell me what it says.") is None
+    assert machine_present_file_intent("find the invoice email") is None
+    loose = machine_present_file_intent("find tool intent wiring")
+    assert loose is not None and loose.named_as_file is False
+    assert machine_present_file_intent("pull up the bank csv").named_as_file is True
+    assert machine_present_file_intent("open lease.pdf").named_as_file is True
+    assert machine_present_file_intent("find harbor manifest in my downloads").named_as_file is True
+
+
+def test_nothing_has_been_sent_is_not_a_claim_that_a_change_was_made():
+    from core.final_answer_authorship import _claims_a_change_was_made
+
+    assert not _claims_a_change_was_made("Draft ed-1 (version 1, not approved): Wednesday works. Nothing has been sent.")
+    assert not _claims_a_change_was_made("No email has been sent.")
+    assert _claims_a_change_was_made("The column 'email' has been successfully added")

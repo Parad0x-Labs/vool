@@ -2006,7 +2006,9 @@ def _machine_find_largest(
     # real path. Skills A/B on the v0.8 head (2026-11-13): the reply opened with the absolute home path.
     shown_root = _home_relative_label(Path(str(root))) if root else ""
     shown_root = "your home folder" if shown_root == "~" else (shown_root or str(root))
-    lines = [f"Largest {noun} in {shown_root} (measured, largest first):"]
+    # A drive or any other absolute place is "on C:\\"; a folder named from home is "in ~/Downloads".
+    where = "in" if shown_root.startswith(("~", "your ")) else "on"
+    lines = [f"Largest {noun} {where} {shown_root} (measured, largest first):"]
     for entry in entries:
         partial = "" if entry.get("complete") else " (partial — scan hit its time limit)"
         safety = f" · {entry['delete_safety']}" if cleanup_context else ""

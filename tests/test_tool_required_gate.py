@@ -120,14 +120,16 @@ class TestGateBlocksFabricationEndToEnd(unittest.TestCase):
         ):
             result = self._run("what are the biggest 5 folders on C drive?")
         resp = str(result.get("response") or "")
-        # Grounded measured output with a delete-safety class -- never a fabricated guess. A
-        # "biggest FOLDERS" query lists folders only: pagefile.sys (a file) is filtered out.
+        # Grounded measured output -- never a fabricated guess. A "biggest FOLDERS" query lists
+        # folders only: pagefile.sys (a file) is filtered out.
         self.assertIn("Largest folders on", resp)
         self.assertIn("Projects", resp)
         self.assertIn("3.0 GB", resp)
-        self.assertIn("review before deleting", resp)
         self.assertNotIn("pagefile.sys", resp)
-        self.assertIn("won't delete anything without your explicit go-ahead", resp)
+        # A plain size question carries no delete notes (audit of 2026-10-29: a delete warning on
+        # every row answered a question nobody asked). The notes on a cleanup ask are pinned in
+        # tests/test_machine_tools.py.
+        self.assertNotIn("review before deleting", resp)
 
     def test_nounless_storage_question_refuses_before_model_when_tool_does_not_run(self) -> None:
         with (
