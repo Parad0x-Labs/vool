@@ -194,6 +194,16 @@ def upsert_active_mission_slots(
     sid = str(session_id or "").strip()
     if not sid or not slots:
         return 0
+    from core.secret_redaction import redact_secrets
+
+    # A secret never reaches this table: the source line is kept masked, and a slot whose value is only in
+    # the line before masking (a PIN, a card number) is that secret and is not kept at all.
+    raw_source = str(source_text or "")
+    source_text = redact_secrets(raw_source)
+    if source_text != raw_source:
+        slots = [s for s in slots if not s.value_raw or s.value_raw in source_text or s.value_raw not in raw_source]
+        if not slots:
+            return 0
     now = _utcnow()
     conn = get_connection()
     try:

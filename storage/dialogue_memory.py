@@ -262,6 +262,23 @@ def get_dialogue_session(session_id: str) -> dict[str, Any]:
 
 
 @fenced_writer(on_refused=None, store_home=lambda values: _authority_home_for_store())
+def _masked(value: Any) -> Any:
+    """``value`` with secrets masked: a string, or each string of a list. None stays None.
+
+    The dialogue tables hold what a chat is about (its goal, subject, topics, the assistant's promises),
+    derived from the user's own words. "My card PIN is 4821, please remember it." became the chat's
+    current goal word for word (measured on the served app, Nov 13 2026) while every memory store refused
+    it, so the mask applies here, at the write, to every free-text field.
+    """
+    from core.secret_redaction import redact_secrets
+
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return [redact_secrets(str(item)) if isinstance(item, str) else item for item in value]
+    return redact_secrets(str(value))
+
+
 def update_dialogue_session(
     session_id: str,
     *,
@@ -275,6 +292,11 @@ def update_dialogue_session(
     emotional_tone: str | None = None,
 ) -> None:
     _init_tables()
+    last_subject = _masked(last_subject)
+    topic_hints = _masked(list(topic_hints or []))
+    current_user_goal = _masked(current_user_goal)
+    assistant_commitments = _masked(assistant_commitments)
+    unresolved_followups = _masked(unresolved_followups)
     # Merge from the raw row: a withheld public read must not silently null
     # retained fields. The fenced write below still refuses any payload that
     # carries revoked content while a barrier holds.
@@ -361,6 +383,11 @@ def archive_dialogue_topic(
 
     closing_user_input = redact_secrets(str(closing_user_input or ""))
     closing_assistant_output = redact_secrets(str(closing_assistant_output or ""))
+    last_subject = _masked(last_subject)
+    topic_hints = _masked(topic_hints)
+    current_user_goal = _masked(current_user_goal)
+    assistant_commitments = _masked(assistant_commitments)
+    unresolved_followups = _masked(unresolved_followups)
     normalized_session = str(session_id or "").strip()
     normalized_goal = str(current_user_goal or "").strip()
     normalized_subject = str(last_subject or "").strip()
@@ -668,6 +695,8 @@ def record_response_feedback(
     user_correction: the corrected text if the user rephrased/fixed the answer
     """
     _init_tables()
+    user_correction = _masked(user_correction)
+    context_snapshot = _masked(context_snapshot)
     feedback_id = str(uuid.uuid4())
     conn = get_connection()
     try:
