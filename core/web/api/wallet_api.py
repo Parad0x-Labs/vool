@@ -110,6 +110,7 @@ _ROLE_REFUSALS = {
     "security_key_change_in_progress": "A security key change for this wallet is already in progress in another window. Finish that one first. Nothing changed.",
     "ledger_wallet_backup_is_on_the_ledger": "This wallet's key is only on your Ledger. Its backup is the Ledger's own recovery words. Nothing changed.",
     "ledger_wallet_needs_no_security_key": "This wallet already signs on your Ledger, so it needs no security key. Nothing changed.",
+    "hardware_keys_not_offered": "Security keys and Ledgers are not turned on in this VOOL yet. Nothing changed.",
     "ledger_solana_only": "A Ledger can be added for Solana wallets for now. Nothing changed.",
     "ledger_needs_pin_or_password": "Choose a PIN or a password for the Ledger wallet. Nothing changed.",
     "ledger_account_invalid": "That Ledger account number is not valid. Use 0 for the first account. Nothing changed.",

@@ -492,6 +492,7 @@ def test_a_ledger_wallet_never_carries_the_collection_so_the_person_presses_once
     from tests.wallet._soft_ledger import SoftLedger
 
     soft = SoftLedger("A")
+    lane.monkeypatch.setenv("VOOL_WALLET_HARDWARE_KEYS", "1")
     ledger.set_transport_source_for_tests(lambda: [soft])
     try:
         wallet = pilot_custody.add_ledger_wallet(network=SOLANA_MAINNET, method="pin", credential=PIN, credential_confirmation=PIN,

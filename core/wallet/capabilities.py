@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.wallet import chains
+from core.wallet import chains, hardware_keys
 
 CAPABILITIES: tuple[str, ...] = ("list", "create", "backup", "balance", "quote", "sign", "send", "receipt")
 
@@ -193,6 +193,8 @@ def network_rows(*, active_environment: str, wallets: list[dict[str, Any]]) -> l
             "fee_model": spec.fee_model, "finality": spec.finality,
             "accounts": row_accounts,
             "capabilities": row_capabilities(spec, active_environment=active_environment, accounts=row_accounts, evm_missing=missing),
+            # a security key and a Ledger are offered only once proven on real hardware (core.wallet.hardware_keys)
+            "hardware_keys": hardware_keys.offered(),
         })
     return rows
 

@@ -14,6 +14,12 @@ from tests.wallet._soft_fido2 import SoftKey
 
 pytestmark = [pytest.mark.safety]
 
+@pytest.fixture(autouse=True)
+def _hardware_keys_offered(monkeypatch):
+    """These tests prove the security key and the Ledger themselves, so the switch that offers them is on."""
+    monkeypatch.setenv("VOOL_WALLET_HARDWARE_KEYS", "1")
+
+
 SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 PIN = "482913"
 NEW_PIN = "551177"

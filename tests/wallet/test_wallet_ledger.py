@@ -10,6 +10,12 @@ from tests.wallet._soft_ledger import SoftLedger
 
 pytestmark = [pytest.mark.safety]
 
+@pytest.fixture(autouse=True)
+def _hardware_keys_offered(monkeypatch):
+    """These tests prove the security key and the Ledger themselves, so the switch that offers them is on."""
+    monkeypatch.setenv("VOOL_WALLET_HARDWARE_KEYS", "1")
+
+
 
 @pytest.fixture
 def plugged():
@@ -497,3 +503,27 @@ def test_the_real_usb_transport_never_asks_hidapi_to_wait_forever(monkeypatch):
     made[0].inbox.extend(ledger.frame(b"\x07" * 64 + b"\x90\x00"))
     data, status = ledger._exchange(transport, bytes([ledger.CLA, ledger.INS_GET_PUBKEY, 0, 0]) + ledger._with_len(ledger._path_bytes(path)), timeout=1.0)
     assert bytes(data) == expected and min(made[0].reads) >= 1
+
+
+def test_until_proven_on_real_hardware_neither_a_ledger_nor_a_security_key_is_offered(on_ledger, monkeypatch):
+    """Off by default: no "Add a Ledger", no "Add a security key", both doors refuse with nothing changed. A wallet
+    that already has one keeps working, so the switch never locks anyone out."""
+    from core.wallet import capabilities, pilot_custody
+    from core.wallet.store import connection
+    from core.wallet_fragment import render_wallet_fragment
+
+    made = _add()  # added while the switch was on (a hardware test run)
+    monkeypatch.delenv("VOOL_WALLET_HARDWARE_KEYS")
+    assert _refusal(lambda: _add(account=1)) == ("wallet_setup_state_invalid", "hardware_keys_not_offered")
+    assert _refusal(lambda: pilot_custody.add_security_key(made["wallet_id"], credential=PIN))[1] == "hardware_keys_not_offered"
+    with connection() as conn:
+        assert conn.execute("SELECT count(*) FROM wallet_ledgers").fetchone()[0] == 1
+    rows = capabilities.network_rows(active_environment="testnet", wallets=[])
+    assert rows and all(row["hardware_keys"] is False for row in rows)
+    page = render_wallet_fragment()
+    assert "r.active && r.hardware_keys && caps.create" in page, "the page offers Add a Ledger only when the row says so"
+    assert "(r.hardware_keys || a.security_key)) host.appendChild(securityKeyControls" in page, "and Add a security key likewise; an added key stays removable"
+    with pilot_custody.signing_session(made["wallet_id"], PIN) as signer:
+        assert len(signer.sign_svm(b"still signs on the Ledger")) == 64
+    monkeypatch.setenv("VOOL_WALLET_HARDWARE_KEYS", "1")
+    assert all(row["hardware_keys"] is True for row in capabilities.network_rows(active_environment="testnet", wallets=[]))

@@ -1332,7 +1332,7 @@ function rowCard(r, cp, st){
   } else if (r.active && !(caps.create && caps.create.available) && !accounts.length) {
     card.appendChild(el('div', 'vw-cx-env', 'Create wallet is unavailable here: ' + (CAP_REASONS[(caps.create || {}).reason] || (caps.create || {}).reason || 'unavailable') + '.'));
   }
-  if (r.active && caps.create && caps.create.available && String(r.network).indexOf('solana:') === 0 && !inProgress.length) card.appendChild(ledgerAdd(r, cp, msg));
+  if (r.active && r.hardware_keys && caps.create && caps.create.available && String(r.network).indexOf('solana:') === 0 && !inProgress.length) card.appendChild(ledgerAdd(r, cp, msg));
   card.appendChild(msg);
   return card;
 }
@@ -1729,7 +1729,7 @@ function walletRoleControls(a, cp, msg){
     }).catch(function(){ body = null; dGo.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
   });
   bar.appendChild(delBtn);
-  if (a.mode === 'pocket_sealed' && !a.ledger) { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready') host.appendChild(securityKeyControls(a, cp, msg)); }
+  if (a.mode === 'pocket_sealed' && !a.ledger) { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready' && (r.hardware_keys || a.security_key)) host.appendChild(securityKeyControls(a, cp, msg)); }
   if (a.kind === 'everyday' && a.mode === 'pocket_sealed' && (a.setup_state || 'ready') === 'ready') {
     var mainBtn = el('button', 'vw-btn vw-cx-make-main', 'Make main'); mainBtn.type = 'button';
     bar.appendChild(mainBtn);

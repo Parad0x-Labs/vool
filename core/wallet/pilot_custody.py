@@ -1317,6 +1317,10 @@ def _add_security_key(wallet_id: str, *, credential: str = "", key_pin: str = ""
     """Make this wallet need a security key as well as its PIN (or Touch ID). The PIN opens the seal first; the ONE
     key plugged in makes a new credential (touch 1) and answers for this wallet (touch 2); the same key is sealed
     again under the PIN AND that answer, in one fenced write that records the key. Nothing is signed or sent."""
+    from core.wallet import hardware_keys
+
+    if not hardware_keys.offered():
+        raise _fault("wallet_setup_state_invalid", wallet_id=str(wallet_id), reason=hardware_keys.REASON_NOT_OFFERED, source_context=source_context)
     from core.wallet import security_key as keys
 
     custody.require_enabled(source_context=source_context)
@@ -1390,9 +1394,11 @@ def add_ledger_wallet(*, network: str, account: int = 0, method: str, credential
     and pressed on the Ledger. The same quote, caps, approval and receipt path as every VOOL wallet; never an agent's.
 
     The same Ledger account added again (after a delete, or a forgotten PIN) gets the new PIN on the same wallet."""
-    from core.wallet import ledger, wallet_roles
+    from core.wallet import hardware_keys, ledger, wallet_roles
 
     custody.require_enabled(source_context=source_context)
+    if not hardware_keys.offered():
+        raise _fault("wallet_setup_state_invalid", reason=hardware_keys.REASON_NOT_OFFERED, source_context=source_context)
     net = custody.require_network(network, source_context=source_context)
     spec = environment.require_active(net, source_context=source_context)
     if not spec.is_svm:

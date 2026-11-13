@@ -30,6 +30,12 @@ pytest.importorskip("solana_pay_kit", reason="the pay-kit lane is the optional `
 pytestmark = [pytest.mark.safety]
 
 
+@pytest.fixture(autouse=True)
+def _hardware_keys_offered(monkeypatch):
+    """These tests prove the security key and the Ledger themselves, so the switch that offers them is on."""
+    monkeypatch.setenv("VOOL_WALLET_HARDWARE_KEYS", "1")
+
+
 @pytest.fixture
 def soft():
     device = SoftLedger("A")
