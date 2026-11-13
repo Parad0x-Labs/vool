@@ -157,8 +157,12 @@ def x_connected() -> bool:
         return False
 
 
-def asks_for_x_read(text: str) -> bool:
-    """Whether the turn asks VOOL to read X (trends, what people are saying, usage), not to write."""
+def asks_for_x_read(text: str, *, web_available: bool = False) -> bool:
+    """Whether the turn asks VOOL to read X (trends, what people are saying, usage), not to write.
+
+    Trends, buzz and the owner's X usage can only come from X. Any other ask that only names X (an
+    account or a person "on X") is claimed only while the web cannot answer it: with Web lookups on,
+    the web finds the person or the profile, so it stays the ordinary lookup it was before X existed."""
     value = str(text or "")
     readable = _without_negated_publish(value)
     if not value.strip() or _COMPOSING.search(readable):
@@ -167,6 +171,8 @@ def asks_for_x_read(text: str) -> bool:
         return True
     if _BARE_TREND.search(readable) and _SOCIAL_CUE.search(value):
         return True
+    if web_available:
+        return False
     try:
         from core.tool_demand_signals import resolve_demand_signals
 
@@ -192,11 +198,20 @@ def _social_content_turn(text: str) -> bool:
         return False
 
 
+def _web_available(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.remote_fetch_policy import effective_web_available
+
+        return bool(effective_web_available(source_context))
+    except Exception:
+        return False
+
+
 def reply_if_not_connected(agent: Any, text: str, *, session_id: str, source_context: dict[str, Any] | None):
     """A finished chat result for an X read asked while X is not connected; None otherwise."""
     if _social_content_turn(text):
         return None
-    reading = asks_for_x_read(text)
+    reading = asks_for_x_read(text, web_available=_web_available(source_context))
     posting = not reading and asks_to_post_on_x(text)
     if not (reading or posting) or x_connected():
         return None

@@ -302,8 +302,7 @@ def test_with_x_connected_an_ask_about_an_x_account_is_never_searched_on_the_web
     assert door == [], door
     for question in asks:
         assert str(answers[question].get("response") or "") == "A stand-in answer.", question
-    # Control: without X connected the same ask is told where to connect X, and nothing is searched.
-    answers, door = _searched(["look up the X account @harbor_tides"], connected=False, chat="x-not-connected")
-    assert door == [], door
-    reply = str(answers["look up the X account @harbor_tides"].get("response") or "")
-    assert reply.startswith("X is not connected yet."), reply
+    # Control: without X connected and with Web lookups on, the same ask is an ordinary web lookup
+    # (with them off it is told where to connect X, see the test above).
+    _answers, door = _searched(["look up the X account @harbor_tides"], connected=False, chat="x-not-connected")
+    assert any("harbor_tides" in url for url in door), door
