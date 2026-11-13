@@ -203,3 +203,24 @@ def test_the_ready_call_is_a_read_only_payload(tmp_path, monkeypatch) -> None:
     assert payload["intent"] == "vool-database.query"
     assert payload["arguments"]["name"] == "library" and payload["arguments"]["sql"].startswith("SELECT * FROM members")
     assert _database_call_payload("what is the weather") is None
+
+
+def test_a_column_word_alone_picks_the_table_for_the_ready_call(tmp_path, monkeypatch) -> None:
+    from core.database_work_state import suggest_database_query
+
+    _library(tmp_path, monkeypatch)
+    assert suggest_database_query("who joined most recently") == "name=library, sql=SELECT * FROM members ORDER BY joined DESC LIMIT 1"
+
+
+def test_the_rows_answer_reads_ids_as_the_names_they_point_at() -> None:
+    from core.agent_runtime.orchestrator import database_rows_answer
+
+    step = {
+        "tool_name": "vool-database.query", "ok": True,
+        "observation": {
+            "columns": ["tool_id", "neighbour_id"], "rows": [[2, 2], [4, 2]],
+            "resolved_ids": {"tool_id": {"labels": {"2": "Ladder", "4": "Sander"}}, "neighbour_id": {"labels": {"2": "Pavel"}}},
+        },
+    }
+    text = database_rows_answer([step])
+    assert "tool_id: 2 (Ladder)" in text and "tool_id: 4 (Sander)" in text and "neighbour_id: 2 (Pavel)" in text

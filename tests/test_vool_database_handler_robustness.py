@@ -138,3 +138,42 @@ def test_is_null_on_a_column_with_no_nulls_is_refused_with_its_real_values(h, mo
     assert ok["ok"] is True
     ok = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from loans where returned is not null"})
     assert ok["ok"] is True
+
+
+@pytest.fixture()
+def shed(h, monkeypatch):
+    c = sqlite3.connect(h.scratch_root() + "/databases/orders.sqlite")
+    c.executescript(
+        "create table tools(id integer primary key, name text, kind text);"
+        "create table neighbours(id integer primary key, name text);"
+        "create table borrowings(id integer primary key, tool_id int, neighbour_id int, returned_on text);"
+        "insert into tools values (1,'Drill','power'),(2,'Ladder','hand');"
+        "insert into neighbours values (1,'Marta'),(2,'Pavel');"
+        "insert into borrowings values (1,1,1,'2026-10-03'),(2,2,2,NULL);"
+    )
+    c.commit(); c.close()
+    return h
+
+
+def test_ids_in_a_result_are_read_out_as_the_names_they_point_at(shed, monkeypatch) -> None:
+    r = _call(shed, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select * from borrowings where neighbour_id = 2"})
+    assert r["ok"] is True
+    assert r["observation"]["resolved_ids"]["tool_id"]["labels"] == {"2": "Ladder"}
+    assert r["observation"]["resolved_ids"]["neighbour_id"]["labels"] == {"2": "Pavel"}
+    assert "tool = Ladder, neighbour = Pavel" in r["text"]
+
+
+def test_a_name_given_to_an_id_column_is_refused_with_the_join_and_the_id(shed, monkeypatch) -> None:
+    r = _call(shed, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select * from borrowings where neighbour_id = 'Pavel'"})
+    assert r["ok"] is False and r["status"] == "sql_error"
+    assert "neighbours" in r["error"] and "id 2" in r["error"] and "JOIN neighbours ON borrowings.neighbour_id = neighbours.id" in r["error"]
+    ok = _call(shed, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select * from borrowings where neighbour_id = 2"})
+    assert ok["ok"] is True
+
+
+def test_an_empty_text_match_says_what_the_column_really_holds(shed, monkeypatch) -> None:
+    r = _call(shed, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select * from tools where kind = 'power tool'"})
+    assert r["ok"] is True and r["observation"]["rows"] == []
+    assert "tools.kind holds 'power', 'hand'" in r["text"] or "tools.kind holds 'hand', 'power'" in r["text"]
+    found = _call(shed, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select * from tools where kind = 'power'"})
+    assert "No row matched" not in found["text"]

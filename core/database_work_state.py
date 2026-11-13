@@ -264,6 +264,25 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                     elif date_col and re.search(r"\b(oldest|earliest)\b", lowered):
                         order = " ORDER BY %s ASC" % date_col
                     return ("name=%s, sql=SELECT * FROM %s%s" % (path.stem, table, order))[:max_chars]
+                # 3. no table named, but a column is: "who joined most recently" -> the table with `joined`
+                for table, columns in shapes.items():
+                    hit = next(
+                        (
+                            c for c in columns
+                            if c.lower() != "id" and not c.lower().endswith("_id") and len(c) >= 4
+                            and re.search(r"\b%s" % re.escape(c.lower()[:5]), lowered)
+                        ),
+                        "",
+                    )
+                    if not hit:
+                        continue
+                    descending = re.search(r"\b(newest|latest|most recent(?:ly)?|largest|biggest|highest|most)\b", lowered)
+                    ascending = re.search(r"\b(oldest|earliest|soonest|smallest|lowest|least)\b", lowered)
+                    if not (descending or ascending):
+                        continue
+                    order = " ORDER BY %s %s" % (hit, "ASC" if ascending and not descending else "DESC")
+                    limit = " LIMIT 1" if re.search(r"\b(who|which|what)\b", lowered) and not re.search(r"\b(list|all|every)\b", lowered) else ""
+                    return ("name=%s, sql=SELECT * FROM %s%s%s" % (path.stem, table, order, limit))[:max_chars]
             finally:
                 conn.close()
         return ""

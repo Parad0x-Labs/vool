@@ -936,6 +936,129 @@ def _refuse_null_test_on_a_column_with_no_nulls(conn, body):
             )
 
 
+_ID_VS_NAME_RE = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b([A-Za-z_]\w*)_id\s*=\s*'([^']*)'", re.IGNORECASE)
+_NAME_LIKE_COLUMNS = ("name", "title", "label")
+
+
+def _link_target(snapshot, column_stem, own_table):
+    """The table a column `<stem>_id` points at, by the usual naming (stem, stems, stemes), else None."""
+    lowered = {t.lower(): t for t in snapshot}
+    for candidate in (column_stem, column_stem + "s", column_stem + "es"):
+        found = lowered.get(candidate.lower())
+        if found and found.lower() != own_table.lower():
+            return found
+    return None
+
+
+def _label_column(shape):
+    names = [c["name"] for c in shape["columns"]]
+    for wanted in _NAME_LIKE_COLUMNS:
+        for n in names:
+            if n.lower() == wanted:
+                return n
+    for c in shape["columns"]:
+        if c["name"].lower() != "id" and not c["name"].lower().endswith("_id") and "char" in (c["type"] or "").lower() + "char" and (c["type"] or "").upper() in ("TEXT", "VARCHAR", "") :
+            return c["name"]
+    return None
+
+
+def _refuse_a_name_given_to_an_id_column(conn, body):
+    """`neighbour_id = 'Gustav'`: an id column holds numbers; the name lives in the table it points at.
+
+    Database run 16h (three worlds): a question about a named person was answered from a query that never joined
+    the link table. The refusal names the table and the id of the row, so the next call can use it."""
+    matches = _ID_VS_NAME_RE.findall(body)
+    if not matches:
+        return
+    snapshot = _schema_snapshot(conn)
+    for _qualifier, stem, literal in matches:
+        if literal.strip().lstrip("-").isdigit():
+            continue
+        target = None
+        for table, shape in snapshot.items():
+            if any(c["name"].lower() == stem.lower() + "_id" for c in shape["columns"]):
+                target = _link_target(snapshot, stem, table)
+                if target:
+                    owner = table
+                    break
+        if not target:
+            continue
+        label = _label_column(snapshot[target])
+        if not label:
+            continue
+        row = conn.execute('SELECT id FROM "%s" WHERE lower("%s") = lower(?)' % (target.replace('"', '""'), label.replace('"', '""')), (literal,)).fetchone()
+        found = " (%s.%s = %r is id %s)" % (target, label, literal, row[0]) if row else ""
+        raise Fail(
+            "sql_error",
+            "%s_id holds the number of a row in %s, not a name%s. Join it: ... FROM %s JOIN %s ON %s.%s_id = %s.id "
+            "WHERE %s.%s = %r, or use the id."
+            % (stem, target, found, owner, target, owner, stem, target, target, label, literal),
+        )
+
+
+def _resolve_ids(conn, columns, rows, own_tables):
+    """For each `<stem>_id` column in a result, the label of the row it points at ({column: {id: label}})."""
+    if not rows or not any(str(c).lower().endswith("_id") for c in columns):
+        return {}
+    snapshot = _schema_snapshot(conn)
+    resolved = {}
+    for index, column in enumerate(columns):
+        lowered = str(column).lower()
+        if not lowered.endswith("_id") or lowered == "_id":
+            continue
+        stem = lowered[:-3]
+        target = None
+        for own in own_tables or [None]:
+            target = _link_target(snapshot, stem, own or "")
+            if target:
+                break
+        if not target:
+            continue
+        label = _label_column(snapshot[target])
+        if not label:
+            continue
+        ids = []
+        for row in rows[:50]:
+            value = row[index]
+            if isinstance(value, int) and value not in ids:
+                ids.append(value)
+        mapping = {}
+        for ident in ids[:30]:
+            hit = conn.execute('SELECT "%s" FROM "%s" WHERE id = ?' % (label.replace('"', '""'), target.replace('"', '""')), (ident,)).fetchone()
+            if hit is not None:
+                mapping[str(ident)] = hit[0]
+        if mapping:
+            resolved[column] = {"table": target, "label_column": label, "labels": mapping}
+    return resolved
+
+
+_EQ_LITERAL_RE = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b([A-Za-z_]\w*)\s*=\s*'([^']*)'", re.IGNORECASE)
+
+
+def _no_match_hint(conn, body):
+    """For an empty result with `col = 'text'`: what that column really holds (kind = 'power tool' -> hand, power, garden)."""
+    snapshot = _schema_snapshot(conn)
+    hints = []
+    for qualifier, column, literal in _EQ_LITERAL_RE.findall(body):
+        if column.lower().endswith("_id"):
+            continue
+        for table, shape in snapshot.items():
+            if qualifier and qualifier.lower() != table.lower():
+                continue
+            if column.lower() not in [c["name"].lower() for c in shape["columns"]]:
+                continue
+            try:
+                values = [r[0] for r in conn.execute('SELECT DISTINCT "%s" FROM "%s" LIMIT 13' % (column.replace('"', '""'), table.replace('"', '""')))]
+            except sqlite3.Error:
+                continue
+            if len(values) > 12 or any(v is None or not isinstance(v, str) for v in values):
+                continue
+            if literal.lower() not in [v.lower() for v in values]:
+                hints.append({"table": table, "column": column, "asked": literal, "holds": values})
+            break
+    return hints
+
+
 def tool_query(args):
     path, name = db_path(args.get("name"))
     if not os.path.isfile(path):
@@ -952,6 +1075,7 @@ def tool_query(args):
     conn = open_ro(path)
     try:
         _refuse_null_test_on_a_column_with_no_nulls(conn, body)
+        _refuse_a_name_given_to_an_id_column(conn, body)
         deadline_guard(conn, max_seconds)
         started = time.monotonic()
         try:
@@ -965,6 +1089,12 @@ def tool_query(args):
                 return _cancelled(name, max_seconds)
             raise
         elapsed_ms = int((time.monotonic() - started) * 1000)
+        own_tables = [t for t in re.findall(r"(?:\bFROM|\bJOIN)\s+\"?([A-Za-z_]\w*)", body, re.IGNORECASE)]
+        try:
+            resolved = _resolve_ids(conn, columns, rows, own_tables)
+            hints = [] if rows else _no_match_hint(conn, body)
+        except sqlite3.Error:
+            resolved, hints = {}, []
     finally:
         conn.close()
     observation = {
@@ -980,6 +1110,26 @@ def tool_query(args):
         "engine": "sqlite",
     }
     text = "%d row(s)%s from %r in %dms." % (len(rows), (" (TRUNCATED at row_limit=%d: not the full result, and the rows shown are not a count -- use SELECT COUNT(*))" % row_limit) if truncated else "", name, elapsed_ms)
+    if resolved:
+        observation["resolved_ids"] = resolved
+        meanings = []
+        for number, row in enumerate(rows[:10], 1):
+            parts = []
+            for index, column in enumerate(columns):
+                info = resolved.get(column)
+                if info:
+                    label = info["labels"].get(str(row[index]))
+                    if label is not None:
+                        parts.append("%s = %s" % (str(column)[:-3], label))
+            if parts:
+                meanings.append("row %d: %s" % (number, ", ".join(parts)))
+        if meanings:
+            text += " What the ids mean: " + "; ".join(meanings) + "."
+    if hints:
+        observation["no_match_hints"] = hints
+        text += " No row matched. " + " ".join(
+            "%s.%s holds %s, not %r." % (h["table"], h["column"], ", ".join(repr(v) for v in h["holds"]), h["asked"]) for h in hints
+        )
     return text, observation, "sqlite:" + name
 
 
