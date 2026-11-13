@@ -4188,8 +4188,9 @@ function groupCount(pid, pageLength) {
 
 function renderSessions(sessions) {
   // Until the server has answered the chat list even once, the list is unknown -- never painted
-  // as empty. The loading/retry row is the only thing the sidebar shows in that window.
-  if (!sessionsFirstLoadDone) { paintSessionsLoadState(); return; }
+  // as EMPTY: an empty render in that window shows the loading/retry row instead. Chats the page
+  // already holds (a re-render with real rows) are not an unknown list, so they paint as they are.
+  if (!sessionsFirstLoadDone && !(Array.isArray(sessions) && sessions.length) && !_pendingSessions.size) { paintSessionsLoadState(); return; }
   // A chat that has sent its first message but is not yet in the server's log is overlaid here, so
   // it survives every re-render until the server's own record replaces it.
   _lastSessions = mergePendingSessions(sessions);
