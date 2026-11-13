@@ -222,20 +222,38 @@ def _diskutil(monkeypatch, info: dict) -> None:
     monkeypatch.setattr(usb_backup.subprocess, "run", fake_run)
 
 
-@pytest.mark.parametrize(("info", "removable"), [
-    ({"MountPoint": "/Volumes/SANDISK", "Internal": False, "Ejectable": True, "RemovableMedia": True, "WritableVolume": True, "BusProtocol": "USB"}, True),
-    ({"MountPoint": "/Volumes/T7", "Internal": False, "Ejectable": True, "RemovableMedia": False, "WritableVolume": True, "BusProtocol": "USB"}, True),
-    ({"MountPoint": "/Volumes/Data", "Internal": True, "Ejectable": False, "WritableVolume": True, "BusProtocol": "Apple Fabric"}, False),
-    ({"MountPoint": "/Volumes/VOOL", "Internal": False, "Ejectable": True, "WritableVolume": False, "BusProtocol": "Disk Image", "VirtualOrPhysical": "Virtual"}, False),
-    ({"MountPoint": "/Volumes/Locked", "Internal": False, "Ejectable": True, "RemovableMedia": True, "WritableVolume": False, "BusProtocol": "USB"}, False),
-    ({"MountPoint": "/Volumes/Other", "Internal": False, "Ejectable": True, "WritableVolume": True}, False),  # diskutil answered for another mount
+@pytest.mark.parametrize(("info", "kind"), [
+    ({"MountPoint": "/Volumes/SANDISK", "Internal": False, "Ejectable": True, "RemovableMedia": True, "WritableVolume": True, "BusProtocol": "USB"}, "usb_stick"),
+    ({"MountPoint": "/Volumes/T7", "Internal": False, "Ejectable": True, "RemovableMedia": False, "WritableVolume": True, "BusProtocol": "USB"}, "external_drive"),
+    ({"MountPoint": "/Volumes/Data", "Internal": True, "Ejectable": False, "WritableVolume": True, "BusProtocol": "Apple Fabric"}, None),
+    ({"MountPoint": "/Volumes/VOOL", "Internal": False, "Ejectable": True, "WritableVolume": False, "BusProtocol": "Disk Image", "VirtualOrPhysical": "Virtual"}, None),
+    ({"MountPoint": "/Volumes/Locked", "Internal": False, "Ejectable": True, "RemovableMedia": True, "WritableVolume": False, "BusProtocol": "USB"}, None),
+    ({"MountPoint": "/Volumes/Other", "Internal": False, "Ejectable": True, "WritableVolume": True}, None),  # diskutil answered for another mount
 ])
-def test_a_mac_volume_counts_only_when_diskutil_says_it_is_external_and_writable(monkeypatch, info, removable):
+def test_a_mac_volume_counts_only_when_diskutil_says_it_is_external_and_writable(monkeypatch, info, kind):
+    """A stick (removable media) and an external drive (a fixed disk in its own case, like an SSD) both take an offline
+    backup; each is called what it is."""
     from core.wallet import usb_backup
 
     _diskutil(monkeypatch, info)
     mount = Path(info["MountPoint"]) if info["MountPoint"] != "/Volumes/Other" else Path("/Volumes/Mine")
-    assert usb_backup._mac_volume_is_removable(mount) is removable
+    assert usb_backup._mac_volume_kind(mount) == kind
+    assert usb_backup._mac_volume_is_removable(mount) is (kind is not None)
+
+
+def test_the_page_names_each_drive_by_its_kind(stick, monkeypatch):
+    from core.wallet import usb_backup
+    from core.wallet_fragment import render_wallet_fragment
+
+    made = _create()
+    usb_backup.save(made["wallet_id"], drive_id=_drive_id(), credential=PIN, password=BACKUP_PASSWORD, confirmation=BACKUP_PASSWORD)
+    assert [(d["name"], d["kind"]) for d in usb_backup.drives()] == [("SANDISK", "usb_stick")]
+    monkeypatch.setattr(usb_backup, "_mounts", lambda: [(stick["mount"], "VOOL_WORK", "external_drive")])
+    assert [(d["name"], d["kind"]) for d in usb_backup.drives()] == [("VOOL_WORK", "external_drive")]
+    assert [(b["drive"], b["drive_kind"]) for b in usb_backup.overview()["backups"]] == [("VOOL_WORK", "external_drive")]
+    page = render_wallet_fragment()
+    assert "(d.kind === 'external_drive' ? ' (external drive)' : ' (USB stick)')" in page
+    assert "USB stick or external drive" in page and "Look on USB sticks" not in page
 
 
 @pytest.mark.parametrize("bad", [

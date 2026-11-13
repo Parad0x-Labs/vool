@@ -7,7 +7,8 @@ computer and lives in a drawer, not online.
 
 How it stays safe:
 
-* VOOL writes only to a drive this computer reports as removable (USB stick, SD card), never to an internal disk,
+* VOOL writes only to a drive this computer reports as removable or external (USB stick, SD card, external
+  drive), each listed as what it is, never to an internal disk,
   a disk image or a network share. The page names a drive by an opaque id from :func:`drives`; it can never hand
   VOOL a path, so no door here writes or reads anywhere else.
 * The file holds the sealed copy plus the wallet's name, network and public address (needed to open it and to
@@ -53,32 +54,45 @@ def _fault(reason: str, *, code: str = "wallet_setup_state_invalid", source_cont
 
 # --- which drives count as removable -------------------------------------------------------------------------
 
+KIND_STICK = "usb_stick"
+KIND_EXTERNAL = "external_drive"
+
+
 def _mac_volume_is_removable(mount: Path) -> bool:
-    """diskutil's own answer: an external, ejectable or removable physical volume that is writable. A disk image,
-    a network share, the boot disk and its siblings are never one."""
+    return _mac_volume_kind(mount) is not None
+
+
+def _mac_volume_kind(mount: Path) -> str | None:
+    """diskutil's own answer: an external, ejectable or removable physical volume that is writable, as a USB stick
+    (removable media: a stick or a card) or an external drive (a fixed disk in its own case, like an SSD). An offline
+    backup is as good on either, so both are offered, each called what it is. A disk image, a network share, the boot
+    disk and its siblings are never one."""
     try:
         out = subprocess.run(["/usr/sbin/diskutil", "info", "-plist", str(mount)], capture_output=True, timeout=_DISKUTIL_TIMEOUT, check=False)
     except Exception:
-        return False
+        return None
     if out.returncode != 0 or not out.stdout:
-        return False
+        return None
     try:
         info = plistlib.loads(out.stdout)
     except Exception:
-        return False
+        return None
     if str(info.get("MountPoint") or "") != str(mount):
-        return False
+        return None
     if info.get("Internal") is True or str(info.get("VirtualOrPhysical") or "") == "Virtual" or str(info.get("BusProtocol") or "") == "Disk Image":
-        return False
+        return None
     if info.get("WritableVolume") is False:
-        return False
-    return bool(info.get("Ejectable") or info.get("Removable") or info.get("RemovableMedia") or info.get("RemovableMediaOrExternalDevice")
-                or info.get("Internal") is False)
+        return None
+    if info.get("Removable") or info.get("RemovableMedia"):
+        return KIND_STICK
+    if info.get("Ejectable") or info.get("RemovableMediaOrExternalDevice") or info.get("Internal") is False:
+        return KIND_EXTERNAL
+    return None
 
 
-def _mac_mounts() -> list[tuple[Path, str]]:
+def _mac_mounts() -> list[tuple[Path, str, str]]:
     root = Path("/Volumes")
-    found: list[tuple[Path, str]] = []
+    found: list[tuple[Path, str, str]] = []
     try:
         entries = sorted(root.iterdir())
     except OSError:
@@ -89,38 +103,44 @@ def _mac_mounts() -> list[tuple[Path, str]]:
                 continue  # the boot disk shows here as a link to "/"
         except OSError:
             continue
-        if _mac_volume_is_removable(entry):
-            found.append((entry, entry.name))
+        kind = _mac_volume_kind(entry)
+        if kind is not None:
+            found.append((entry, entry.name, kind))
     return found
 
 
 def _linux_block_is_removable(device: str) -> bool:
-    """A /dev/sdX1 style device whose disk says it is removable or hangs off a USB bus."""
+    return _linux_block_kind(device) is not None
+
+
+def _linux_block_kind(device: str) -> str | None:
+    """A /dev/sdX1 style device whose disk says it is removable (a USB stick or a card), or a fixed disk that hangs off
+    a USB bus (an external drive)."""
     name = os.path.basename(os.path.realpath(device))
     if not name or not re.fullmatch(r"[A-Za-z0-9._-]+", name):
-        return False
+        return None
     block = Path("/sys/class/block") / name
     if not block.exists():
-        return False
+        return None
     disk = block if not (block / "partition").exists() else block.resolve().parent
     with contextlib.suppress(OSError):
         if (disk / "removable").read_text().strip() == "1":
-            return True
+            return KIND_STICK
     with contextlib.suppress(OSError):
-        return "/usb" in str(disk.resolve())
-    return False
+        return KIND_EXTERNAL if "/usb" in str(disk.resolve()) else None
+    return None
 
 
 def _unescape_mount(text: str) -> str:
     return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), text)
 
 
-def _linux_mounts() -> list[tuple[Path, str]]:
+def _linux_mounts() -> list[tuple[Path, str, str]]:
     try:
         lines = Path("/proc/self/mounts").read_text().splitlines()
     except OSError:
         return []
-    found: list[tuple[Path, str]] = []
+    found: list[tuple[Path, str, str]] = []
     for line in lines:
         parts = line.split()
         if len(parts) < 4:
@@ -130,13 +150,21 @@ def _linux_mounts() -> list[tuple[Path, str]]:
             continue
         if not (str(mount).startswith("/media/") or str(mount).startswith("/run/media/")):
             continue
-        if _linux_block_is_removable(device):
-            found.append((mount, mount.name))
+        kind = _linux_block_kind(device)
+        if kind is not None:
+            found.append((mount, mount.name, kind))
     return found
 
 
-def _mounts() -> list[tuple[Path, str]]:
-    """(mount point, display name) of every removable drive this computer has mounted and writable now."""
+def _drives_now() -> list[tuple[Path, str, str]]:
+    """(mount point, display name, kind) of every drive :func:`_mounts` lists; a drive listed without its kind is a
+    USB stick."""
+    return [(Path(item[0]), str(item[1]), str(item[2]) if len(item) > 2 else KIND_STICK) for item in _mounts()]
+
+
+def _mounts() -> list[tuple]:
+    """(mount point, display name, kind) of every removable or external drive this computer has mounted and writable
+    now."""
     if sys.platform == "darwin":
         return _mac_mounts()
     if sys.platform.startswith("linux"):
@@ -158,11 +186,11 @@ def _free_bytes(mount: Path) -> int:
 
 def drives() -> list[dict[str, Any]]:
     """The removable drives VOOL may write a backup to, by opaque id and name. Never a path."""
-    return [{"drive_id": _drive_id(mount), "name": name, "free_bytes": _free_bytes(mount)} for mount, name in _mounts()]
+    return [{"drive_id": _drive_id(mount), "name": name, "kind": kind, "free_bytes": _free_bytes(mount)} for mount, name, kind in _drives_now()]
 
 
 def _mount_for(drive_id: str, *, source_context: dict[str, Any] | None) -> tuple[Path, str]:
-    for mount, name in _mounts():
+    for mount, name, _kind in _drives_now():
         if _drive_id(mount) == str(drive_id or ""):
             return mount, name
     raise _fault("usb_drive_not_found", source_context=source_context)
@@ -353,11 +381,12 @@ def found() -> list[dict[str, Any]]:
         with contextlib.suppress(Exception):
             present[(chains.resolve_network(entry["network"]).network, entry["public_key"])] = entry
     shown: list[dict[str, Any]] = []
-    for mount, drive_name in _mounts():
+    for mount, drive_name, kind in _drives_now():
         drive_id = _drive_id(mount)
         for path in _backup_files(mount):
             with contextlib.suppress(Exception):  # one odd file is skipped; it never hides the others
-                shown.append(_listed(path, drive_id, drive_name, present))
+                row = _listed(path, drive_id, drive_name, present)
+                shown.append({**row, "drive_kind": kind} if row else row)
     return [row for row in shown if row]
 
 
@@ -439,4 +468,4 @@ def overview() -> dict[str, Any]:
             "min_password": kb.MIN_PASSWORD}
 
 
-__all__ = ["FOLDER", "SUFFIX", "drives", "found", "open_backup", "overview", "save", "saved_on"]
+__all__ = ["FOLDER", "KIND_EXTERNAL", "KIND_STICK", "SUFFIX", "drives", "found", "open_backup", "overview", "save", "saved_on"]
