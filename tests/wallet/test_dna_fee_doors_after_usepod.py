@@ -100,8 +100,7 @@ def test_a_model_cannot_propose_a_fee_collection_the_rate_is_a_constant_and_a_co
     from core.wallet.errors import WalletFault
 
     wallet = _payer(lane.node)
-    # the token lane on Mainnet stays closed to a skill's origin (the owner's own chat transfers may send USDC, approved
-    # on their own sheet like any send); a fee collection is minted only by the runtime
+    # the token lane on Mainnet stays closed to a skill's origin; a fee collection is minted only by the runtime
     with pytest.raises(WalletFault) as closed:
         proposals.propose_transaction(wallet_id=wallet["wallet_id"], destination=lane.treasury, amount_minor=5, asset="USDC", origin=proposals.ORIGIN_SKILL, network=SOLANA_MAINNET)
     assert closed.value.context.get("reason") == "mainnet_tokens_move_only_for_service_payments"
@@ -122,3 +121,39 @@ def test_a_model_cannot_propose_a_fee_collection_the_rate_is_a_constant_and_a_co
         quotes.mint_quote(standalone.proposal_id)
     assert (no_sheet.value.code, no_sheet.value.context.get("reason")) == ("wallet_quote_unavailable", "dna_fee_collection_rides_its_payment")
     assert lane.node.distinct_sends() == 0
+
+
+def test_a_model_usdc_proposal_on_mainnet_is_only_a_card_moves_nothing_without_the_pin_and_stays_inside_the_caps(lane) -> None:
+    """Chat may now ASK to send USDC on Mainnet ("send 10 USDC to Maya", the owner's own transfer). That ask is a card and
+    nothing more: a model origin still cannot move funds. Nothing is signed or sent until the owner's PIN, a wrong PIN
+    moves nothing, no allowance door pays it, and the wallet's own caps refuse anything above them before any card."""
+    from core.wallet import agent_pay, approval, lifecycle, limits, proposals, quotes
+    from core.wallet.errors import WalletFault
+
+    wallet = _payer(lane.node)
+    limits.set_limits(wallet["wallet_id"], "USDC", limits.SpendLimits(per_tx_minor=3_000_000, daily_minor=3_000_000, per_destination_daily_minor=3_000_000))
+    asked = proposals.propose_transaction(wallet_id=wallet["wallet_id"], destination=lane.treasury, amount_minor=1_000_000, asset="USDC", origin=proposals.ORIGIN_MODEL, network=SOLANA_MAINNET)
+    prepared = lifecycle.default_lifecycle().prepare(asked.proposal_id)
+    # only a card: it waits for the owner, and nothing has been signed or sent
+    assert prepared.state == proposals.STATE_PENDING_APPROVAL
+    assert lane.node.distinct_sends() == 0
+    quote = quotes.mint_quote(asked.proposal_id)
+    # no allowance door pays a model's proposal on the owner's wallet: it stays with the owner
+    unridden = agent_pay.pay(asked.proposal_id, agent_id=agent_pay.ASSISTANT_AGENT)
+    assert unridden["paid"] is False and unridden["decision"] != "pay", unridden
+    # a wrong PIN signs nothing and moves nothing
+    with pytest.raises(WalletFault):
+        lifecycle.default_lifecycle().approve_pilot_transfer(asked.proposal_id, quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=approval.PinApprover("000000"))
+    assert lane.node.distinct_sends() == 0
+    assert lane.node.token_balance(lane.treasury, USDC_MAINNET_MINT) == 0
+    # above the wallet's own cap: refused before any card, nothing sent
+    over = proposals.propose_transaction(wallet_id=wallet["wallet_id"], destination=lane.treasury, amount_minor=4_000_000, asset="USDC", origin=proposals.ORIGIN_MODEL, network=SOLANA_MAINNET)
+    with pytest.raises(WalletFault) as capped:
+        lifecycle.default_lifecycle().prepare(over.proposal_id)
+    assert capped.value.code == "wallet_limit_exceeded", capped.value.to_dict()
+    assert proposals.get_proposal(over.proposal_id).state != proposals.STATE_PENDING_APPROVAL
+    assert lane.node.distinct_sends() == 0
+    # only the owner's PIN moves it, exactly the amount on the card
+    sent = lifecycle.default_lifecycle().approve_pilot_transfer(asked.proposal_id, quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=approval.PinApprover(PIN))
+    assert sent["transfer"]["state"] == "confirmed", sent
+    assert lane.node.token_balance(lane.treasury, USDC_MAINNET_MINT) == 1_000_000 and lane.node.distinct_sends() == 1
