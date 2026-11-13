@@ -9,7 +9,7 @@ import pytest
 
 from core.wallet import agent_wallets, caller_binding, custody, limits
 from core.web.api.wallet_api import handle_wallet_get, handle_wallet_post
-from tests.wallet._rig import wallet_env  # noqa: F401  (fixture)
+from tests.wallet._rig import wallet_env
 
 PIN = "730461"
 HEADERS = {"host": "127.0.0.1:8731", "origin": "http://127.0.0.1:8731", "content-type": "application/json"}
@@ -29,7 +29,7 @@ def _overview() -> dict:
 
 
 @pytest.fixture
-def owner(wallet_env):  # noqa: F811
+def owner(wallet_env):
     return custody.create_pocket_wallet(acknowledged_warning=True, confirmation_phrase=custody.POCKET_CONFIRMATION_PHRASE, pin=PIN).profile
 
 

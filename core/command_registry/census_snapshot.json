@@ -3067,6 +3067,13 @@
       "registry_command_id": "wallet.agents.backup.reveal",
       "surface": "http"
     },
+    "http:POST:/api/wallet/agents/caps": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/caps",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.caps.set",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/agents/wallet": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/agents/wallet",
@@ -3708,7 +3715,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 345,
-    "GENERATED_ADAPTER": 175,
+    "GENERATED_ADAPTER": 176,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
