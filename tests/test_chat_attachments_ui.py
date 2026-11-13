@@ -323,7 +323,9 @@ def test_refusals_are_shown_on_the_chip_and_never_reach_a_send(page) -> None:
     _wait_chips(page, "chips.length === 3 && chips.filter((c) => c.dataset.state === 'ready').length === 1")
     chips = {c["name"]: c for c in _chips(page)}
     assert chips["huge.txt"]["state"] == "failed" and "10 MB" in chips["huge.txt"]["error"]
-    assert chips["forged.png"]["state"] == "failed" and "not a PNG" in chips["forged.png"]["error"]
+    # The door's typed code picks the keyed reason; the door's own words never reach the chip.
+    assert chips["forged.png"]["state"] == "failed" and "contents do not match its type" in chips["forged.png"]["error"]
+    assert "the bytes do not match the extension" not in chips["forged.png"]["error"]
     assert chips["fine.txt"]["state"] == "ready"
     page.fill("#input", "go")
     page.click("#send")

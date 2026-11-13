@@ -205,7 +205,8 @@ def _route(route):
         if CAPTURED["pin_mode"] == "unavailable":
             # The provider no longer resolves this id: the server's typed refusal.
             route.fulfill(status=404, content_type="application/json",
-                          body=json.dumps({"ok": False, "error": "model not resolvable on this provider"}))
+                          body=json.dumps({"ok": False, "error": "model not resolvable on this provider",
+                                         "code": "model_unresolvable"}))
             return
         requested = str(body.get("model", ""))
         # The chat-scoped server authority releases a pin for these commands.
@@ -723,7 +724,9 @@ def test_an_unavailable_model_is_refused_without_touching_the_selection(session)
         """() => { const n = [...document.querySelectorAll('#modelPop .cloud-dyn.pop-item')]
              .find((x) => x.getAttribute('data-model') === 'vendor/model-2');
              return n ? n.querySelector('.pi-body').textContent : null; }""")
-    assert row_text and "model not resolvable on this provider" in row_text, f"the refusal was not shown on the row: {row_text!r}"
+    # The row names the cause in the keyed words its typed code picks, never the server's text.
+    assert row_text and "its provider cannot find it right now" in row_text, f"the refusal was not shown on the row: {row_text!r}"
+    assert "model not resolvable on this provider" not in row_text, f"the server's words reached the row: {row_text!r}"
     label = page.evaluate("() => document.getElementById('modelLbl').textContent")
     assert "Meta: Llama 4 Maverick 402B" in label, f"the standing selection was disturbed: {label!r}"
     body = _send_and_capture(page, "still the old pin")

@@ -58,12 +58,16 @@ def _send(status: int, body: object) -> dict:
 
 def test_an_archived_chat_refusal_shows_its_reason():
     state = _send(409, {"error": REASON, "lifecycle_state": "archived"})
-    assert REASON in state["text"], state
+    # The typed lifecycle state picks the keyed reason; the server's own words never show.
+    assert "This chat is archived. Restore it before sending messages." in state["text"], state
+    assert REASON not in state["text"], state
     assert "(no response)" not in state["text"], state
     assert state["sendDisabled"] is False, "the composer stayed locked after a refused turn"
 
 
 def test_a_refusal_without_a_json_body_still_names_its_status():
     state = _send(503, "upstream unavailable")
-    assert "503" in state["text"], state
+    # An outage reads the keyed outage reason (picked by the 5xx class), never a status number.
+    assert "its engine is not available" in state["text"], state
+    assert "503" not in state["text"], state
     assert "(no response)" not in state["text"], state
