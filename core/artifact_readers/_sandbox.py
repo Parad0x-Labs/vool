@@ -893,7 +893,7 @@ def run_confined(
         budget.check(fmt)
     if process.returncode is not None and process.returncode < 0:
         raise ReaderFailed(
-            f"Reading this {fmt or 'file'} was stopped partway; the file was not read.",
+            f"Reading this {fmt or 'file'} was stopped partway (signal {-process.returncode}); the file was not read.",
             code="decoder_killed",
             remediation="The file is larger or more complex than this reader's limits allow.",
             fmt=fmt,
