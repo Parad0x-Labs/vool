@@ -4089,6 +4089,14 @@ def _response_commit(
             root_cause = riding.to_dict()
         elif isinstance(riding, dict):
             root_cause = riding
+    # A lane's render stamp (`record_deterministic_render`) rides the payload too: the runtime stamped its own copy of
+    # the context, and the claim gate here needs it to tell the memory lane's "Locked in" after a save from a model's
+    # promise. Byte-exact, so text changed on the way is judged as before.
+    from core.agent_runtime.response import DETERMINISTIC_RENDER_KEY
+
+    stashed_render = result_payload.get("_deterministic_render")
+    if isinstance(stashed_render, dict) and isinstance(source_context, dict):
+        source_context = {**source_context, DETERMINISTIC_RENDER_KEY: dict(stashed_render)}
     response_text = str(result_payload.get("response") or "")
     canonical_content = response_text if raw_only else strip_provenance_footer(response_text)
     # Legacy/fast providers can reach this transport seam without an attached A7 commit. This is

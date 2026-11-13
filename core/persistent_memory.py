@@ -2512,6 +2512,109 @@ def _command_erasure_fence(fn):
     return wrapped
 
 
+#: The answer to an everyday remember ask that names no fact yet ("few things to remember for me pls").
+EVERYDAY_LIST_OPENED = "Go ahead. I'll remember what you tell me."
+#: The answer when a saved fact was replaced by the person's update; {fact} is the new one.
+EVERYDAY_UPDATE_SAVED = "Updated. I now have: {fact}. The old one is replaced."
+
+
+def _chat_earlier_user_turns(session_id: str | None) -> list[str]:
+    """This chat's earlier user messages, newest first (the current turn is not written yet)."""
+    if not str(session_id or "").strip():
+        return []
+    try:
+        rows = memory_entries.recent_conversation_events(str(session_id), limit=12)
+    except Exception:
+        return []
+    return [str(row.get("user") or "") for row in reversed(rows) if str(row.get("user") or "").strip()]
+
+
+def _everyday_remember_turn(
+    text: str,
+    *,
+    session_id: str | None,
+    access_policy: ContextAccessPolicy | None,
+    source_context: dict[str, Any] | None = None,
+) -> tuple[bool, str] | None:
+    """An everyday remember ask, a fact said inside the list it opened, or an update to a saved fact.
+
+    None hands the turn on unchanged: explicit commands ("Remember that ...", corrections, forgets) keep their own
+    path below, and anything else is not this lane's. What is saved goes through the same admission, scope rule,
+    secret refusal and forget fence as an explicit "Remember that ..." (core/memory/everyday_remember.py has the
+    measurement this answers).
+    """
+    from core.memory import everyday_remember as everyday
+
+    if _CORRECTION_RE.match(text) or _FORGET_RE.match(text) or whole_memory_erase_request(text) or "\n" in text:
+        return None
+    lead = everyday.everyday_lead(text)
+    # An everyday lead that starts with a capture verb ("keep in mind that ...", "note this down: ...") is read here,
+    # so the verb's own words do not end up in the saved fact ("in mind that I'm allergic ..."). Every other capture
+    # keeps its own path below.
+    if lead is None and _memory_capture_match(text):
+        return None
+    if lead is not None and lead.fact and _ANSWER_REQUEST_RE.search(lead.fact):
+        return None
+    listed = lead is None and everyday.personal_statement(text) and everyday.list_is_open(
+        _chat_earlier_user_turns(session_id)
+    )
+    update = lead is None and not listed and everyday.update_shaped(text)
+    if lead is None and not listed and not update:
+        return None
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
+    except (TypeError, ValueError):
+        return None
+    replaced = None
+    if update or listed or (lead is not None and lead.fact):
+        try:
+            saved = memory_entries.list_memory_entries(access_policy=policy, limit=200)
+        except Exception:
+            saved = []
+        if everyday.update_shaped(lead.fact if lead is not None else text):
+            replaced = everyday.updated_entry(lead.fact if lead is not None else text, saved)
+    if update and replaced is None:
+        return None  # an update to nothing saved is ordinary conversation
+    from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
+    from core.request_trust import turn_speaks_for_owner
+
+    if turn_is_private(source_context, policy.chat_id):
+        return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+    if not turn_speaks_for_owner(source_context, policy.chat_id):
+        return True, AGENT_TURN_REMEMBER_REFUSED
+    if lead is not None and not lead.fact:
+        return True, EVERYDAY_LIST_OPENED
+    said = lead.fact if lead is not None else everyday.strip_continuation(text)
+    if replaced is not None:
+        old = " ".join(str(replaced.get("fact") or replaced.get("text") or "").split())
+        body = everyday.update_body(said) or said
+        try:
+            kept = add_memory_fact(
+                f"{body.rstrip('.')} (this replaces: {old.rstrip('.')})",
+                session_id=policy.chat_id,
+                scope=str(replaced.get("scope") or "chat"),
+                authority="user_correction",
+                fact_key=str(replaced.get("fact_key") or "") or None,
+                access_policy=policy,
+            )
+        except RevokedContentWrite:
+            return True, ("You asked me to forget that in this chat, so I won't keep it here. "
+                          "In a new chat I can remember it again.")
+        return (True, EVERYDAY_UPDATE_SAVED.format(fact=body.rstrip('.'))) if kept else None
+    added = 0
+    try:
+        for memory_fact in _split_explicit_memory_facts(said):
+            for fact, scope, source in _admitted_remember_facts(memory_fact, policy=policy):
+                added += int(add_memory_fact(" ".join(fact.split()), session_id=policy.chat_id, scope=scope,
+                                             authority="confirmed_memory", source=source, access_policy=policy))
+    except RevokedContentWrite:
+        return True, ("You asked me to forget that in this chat, so I won't keep it here. "
+                      "In a new chat I can remember it again.")
+    if added:
+        return True, "Locked in. I’ll remember that."
+    return (True, "I already had that in memory.") if lead is not None else None
+
+
 #: The answer to a "remember" a team agent's brief carries: the brief is not the owner speaking.
 AGENT_TURN_REMEMBER_REFUSED = (
     "This chat belongs to a team agent, so I won't keep that. "
@@ -2530,6 +2633,11 @@ def maybe_handle_memory_command(
     text = str(user_text or "").strip()
     if not text:
         return False, ""
+    everyday = _everyday_remember_turn(
+        text, session_id=session_id, access_policy=access_policy, source_context=source_context
+    )
+    if everyday is not None:
+        return everyday
     lowered = text.lower()
     scope_command = _parse_session_scope_command(text)
     if not (

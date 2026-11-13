@@ -446,6 +446,20 @@ def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any
     return False
 
 
+#: Stems that name the ANSWER's slot in "what's my manager's name?" / "what is my dentist called?". The saved fact
+#: ("my manager is Pieter") holds the value, not the word, so counting them as terms read a saved fact as half a
+#: match and answered "I don't have that saved" (served on 066ac524 after "Remember that my manager is Pieter").
+_ANSWER_SLOT_STEMS = frozenset({"nam", "call"})
+
+
+def _asked_terms(text: str) -> tuple[str, ...]:
+    from core.chat_housekeeping import query_terms
+
+    terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
+    subject = tuple(t for t in terms if t not in _ANSWER_SLOT_STEMS)
+    return subject or terms
+
+
 def _memory_rows(
     question: str, terms: tuple[str, ...], session_id: str, source_context: dict[str, Any] | None
 ) -> tuple[list[str], list[str]] | None:
@@ -665,9 +679,9 @@ def _short_question_the_owner_answered(text: str, session_id: str, source_contex
     if _LIVE_DOMAIN_RE.search(text) or _owned_by_another_lane(text):
         return False
     try:
-        from core.chat_housekeeping import query_terms, search_chats
+        from core.chat_housekeeping import search_chats
 
-        terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
+        terms = _asked_terms(text)
         if not terms:
             return False
         rows = _memory_rows(text, terms, session_id, source_context)
@@ -747,7 +761,7 @@ def cross_chat_recall(
         return None
     from core.chat_housekeeping import query_terms, search_chats
 
-    terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
+    terms = _asked_terms(text)
     if not terms:
         return None
     if _current_chat_holds_it(terms, source_context):
@@ -817,4 +831,10 @@ def cross_chat_recall(
     return CrossChatRecall(response=response, found=False, chats_searched=result.chats_searched)
 
 
-__all__ = ["LANE_ID", "CrossChatRecall", "accept_pending_offer", "as_question", "cross_chat_recall"]
+__all__ = [
+    "LANE_ID",
+    "CrossChatRecall",
+    "accept_pending_offer",
+    "as_question",
+    "cross_chat_recall",
+]

@@ -125,6 +125,17 @@ _HARD_ENTITY_LOOKUP_QUESTION_PATTERNS = (
     re.compile(r"\bwho\s+(?:runs?|owns?|founded|created|built|leads?)\b"),
     re.compile(r"\bfind\s+(?:me\s+)?who\b"),
 )
+#: "who is my dentist?" asks about someone in the person's own life, which only their own memory knows; no web page
+#: does. Read as a public entity lookup it was refused with Web lookups off, and its correct answer from the saved
+#: fact was withheld as an unobserved current claim (served on 066ac524). An office the public holds for the person
+#: ("who is my MP?") is still a lookup.
+_OWN_PERSON_RE = re.compile(
+    r"^(?:(?:and|so|ok|okay|hey|also)\b[\s,]*)?(?:remind\s+me\s+)?who(?:'s|\s+is|\s+was)\s+(?:my|our)\s+"
+    r"(?!(?:local\s+|current\s+|new\s+)?(?:mp|mep|mla|member\s+of\s+parliament|representative|rep|congress\w*|senators?|"
+    r"councill?or|council\s+member|alderman|mayor|governor|state\s+rep\w*|premier|president|prime\s+minister|"
+    r"ambassador|consul|minister|bishop|pope)\b)"
+    r"[\w'-]+(?:\s+[\w'-]+){0,2}(?<!\bto)(?<!\bwith)(?<!\bof)(?<!\bfor)(?<!\bby)\s*\??$"
+)
 _SOFT_ENTITY_LOOKUP_QUESTION_PATTERNS = (
     re.compile(r"\btell\s+me\s+about\b"),
     re.compile(r"\bwhat\s+do\s+you\s+know\s+about\b"),
@@ -411,7 +422,9 @@ def looks_like_public_entity_lookup_request(text: str) -> bool:
         return False
     if any(marker in lowered for marker in _NON_WEB_LOOKUP_EXCLUSIONS) or _is_mailbox_request(lowered):
         return False
-    if any(pattern.search(lowered) for pattern in _HARD_ENTITY_LOOKUP_QUESTION_PATTERNS):
+    if any(pattern.search(lowered) for pattern in _HARD_ENTITY_LOOKUP_QUESTION_PATTERNS) and not _OWN_PERSON_RE.search(
+        lowered
+    ):
         return True
     soft_entity_prompt = any(pattern.search(lowered) for pattern in _SOFT_ENTITY_LOOKUP_QUESTION_PATTERNS)
     has_lookup_marker = any(marker in lowered for marker in _EXPLICIT_LOOKUP_MARKERS)

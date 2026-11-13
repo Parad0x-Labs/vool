@@ -7263,6 +7263,14 @@ def _admit_user_statement_to_index(
     secret_redacted = content != raw_text.strip()
     if len(content) < _MIN_STORE_CHARS:
         return 0, secret_redacted
+    # A message that only asks is not something the person stated. "remind me what my manager is called" was
+    # indexed here as confirmed memory with importance 0.9 (v0.8 head-to-head on f4f048f7): no question mark, and
+    # "remind" scored as a memory word. Questions still stay byte for byte in layer 1.
+    from core.memory.everyday_remember import is_question
+
+    chunks = [chunk for chunk in _sentence_chunks(content) if chunk.strip()]
+    if chunks and all(is_question(chunk) for chunk in chunks):
+        return 0, secret_redacted
     importance = _score_importance(content)
     if importance < _IMPORTANCE_THRESHOLD:
         return 0, secret_redacted

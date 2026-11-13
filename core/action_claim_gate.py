@@ -797,6 +797,12 @@ def gate_action_claims(
     authored, recorded_request = model_authored_turn(turn_id=turn_id, source_context=source_context)
     if not authored:
         return text, {"publication": "stood_down:not_model_authored"}
+    from core.agent_runtime.response import _is_recorded_deterministic_render
+
+    if _is_recorded_deterministic_render(text, source_context if isinstance(source_context, dict) else None):
+        # A lane composed these exact bytes from what it did (the memory lane's "Locked in" after it saved); a
+        # planner call earlier in the turn is not a model writing them.
+        return text, {"publication": "stood_down:recorded_runtime_render"}
     spans = _claim_spans(text)
     if not spans:
         return text, {"publication": "stood_down:no_action_claims"}
