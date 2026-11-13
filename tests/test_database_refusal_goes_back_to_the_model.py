@@ -27,9 +27,10 @@ def test_unknown_database_is_retried_but_not_for_other_tools_with_the_same_word(
     assert _retry("sql_error", intent="vool-jira.search")[0] is False
 
 
-def test_the_bound_is_two_corrections() -> None:
-    steps = [{"correction": True}, {"correction": True}]
-    assert _retry("sql_error", steps)[0] is False
+def test_the_bound_is_four_corrections_for_the_database_and_two_for_other_tools() -> None:
+    assert _retry("sql_error", [{"correction": True}] * 3)[0] is True
+    assert _retry("sql_error", [{"correction": True}] * 4)[0] is False
+    assert _retry("invalid_arguments", [{"correction": True}] * 2, intent="vool-jira.search")[0] is False
 
 
 def test_real_world_failures_are_still_answers() -> None:

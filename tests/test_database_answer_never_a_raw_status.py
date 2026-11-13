@@ -162,3 +162,44 @@ def test_the_no_answer_detector_knows_the_16f_wordings() -> None:
     empty = [{"tool_name": "vool-database.query", "ok": True, "observation": {"rows": [[0]]}}]
     assert _database_last_result_empty(empty)
     assert not _database_last_result_empty([{"tool_name": "vool-database.query", "ok": True, "observation": {"rows": [["Tomas", 1]]}}])
+
+
+def test_a_query_that_sorts_against_the_ask_is_refused_before_it_runs() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_query_contradicts_the_ask as refuse
+
+    def call(sql):
+        return {"intent": "vool-database.query", "arguments": {"name": "library", "sql": sql}}
+
+    wrong = refuse("vool-database.query", call("SELECT * FROM books ORDER BY year DESC LIMIT 1"), "hey what's the oldest book in there")
+    assert wrong is not None and wrong.status == "sql_error" and wrong.mode == "refused" and "ASC" in wrong.response_text
+    assert refuse("vool-database.query", call("SELECT * FROM books ORDER BY year ASC LIMIT 1"), "what's the oldest book") is None
+    assert refuse("vool-database.query", call("SELECT * FROM members ORDER BY joined ASC LIMIT 1"), "which member joined most recently") is not None
+    assert refuse("vool-database.query", call("SELECT * FROM members ORDER BY joined DESC"), "list the members, newest first") is None
+    assert refuse("vool-database.query", call("SELECT * FROM books ORDER BY year DESC"), "what do I have") is None
+    assert refuse("web.search", call("x ORDER BY y DESC"), "oldest") is None
+
+
+def test_the_answer_is_read_off_the_query_that_matches_the_ask_not_the_last_one() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_step_answering
+
+    def step(sql, rows):
+        return {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": sql}, "observation": {"columns": ["count"], "rows": rows}}
+
+    steps = [
+        step("SELECT COUNT(*) AS count FROM loans WHERE returned = 0;", [[3]]),
+        step("SELECT COUNT(*) AS count FROM books WHERE year < 1950;", [[2]]),
+        step("SELECT COUNT(*) AS count FROM books WHERE year < 1950", [[2]]),
+    ]
+    assert _database_step_answering("ok and how many are still out on loan", steps) == 0
+    assert _database_step_answering("which books came out before 1950", steps) == 2
+    assert _database_step_answering("anything", [{"tool_name": "web.search", "ok": True}]) == -1
+
+
+def test_the_ready_call_is_a_read_only_payload(tmp_path, monkeypatch) -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_call_payload
+
+    _library(tmp_path, monkeypatch)
+    payload = _database_call_payload("list the members, newest first")
+    assert payload["intent"] == "vool-database.query"
+    assert payload["arguments"]["name"] == "library" and payload["arguments"]["sql"].startswith("SELECT * FROM members")
+    assert _database_call_payload("what is the weather") is None

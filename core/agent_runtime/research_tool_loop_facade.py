@@ -362,6 +362,90 @@ def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
     return False
 
 
+def _database_call_payload(question: str) -> dict[str, Any] | None:
+    """The ready read-only call for a question as a tool payload, or None."""
+    text = _database_call_suggestion(question)
+    if not text.startswith("name=") or ", sql=" not in text:
+        return None
+    name, sql = text[len("name="):].split(", sql=", 1)
+    if not name.strip() or not sql.strip().upper().startswith("SELECT"):
+        return None
+    return {
+        "intent": "vool-database.query",
+        "arguments": {"name": name.strip(), "sql": sql.strip(), "row_limit": 20, "max_seconds": 5},
+    }
+
+
+_ASKS_OLDEST_RE = re.compile(r"\b(?:oldest|earliest)\b", re.IGNORECASE)
+_ASKS_NEWEST_RE = re.compile(r"\b(?:newest|latest|most\s+recent(?:ly)?)\b", re.IGNORECASE)
+_ORDER_DIRECTION_RE = re.compile(r"\border\s+by\s+[^;]*?\b(asc|desc)\b", re.IGNORECASE)
+
+
+def _database_query_contradicts_the_ask(intent: str, payload: dict[str, Any], question: str) -> Any:
+    """Refuse a query that sorts the wrong way for what was asked ("oldest" sorted DESC), before it runs.
+
+    Database run 16g: "what's the oldest book" was answered Kafka (2002) from `ORDER BY year DESC LIMIT 1`. The
+    refusal is a typed `sql_error`, so the loop hands it back to the model like any other correctable mistake."""
+    if intent != "vool-database.query":
+        return None
+    sql = str(dict(payload.get("arguments") or {}).get("sql") or "")
+    match = _ORDER_DIRECTION_RE.search(sql)
+    if not match:
+        return None
+    oldest, newest = bool(_ASKS_OLDEST_RE.search(question)), bool(_ASKS_NEWEST_RE.search(question))
+    direction = match.group(1).lower()
+    if oldest == newest:
+        return None
+    if oldest and direction == "desc":
+        message = "The question asks for the OLDEST, but this query sorts DESC, which puts the newest first. Sort ASC (ORDER BY ... ASC) and call again."
+    elif newest and direction == "asc":
+        message = "The question asks for the NEWEST, but this query sorts ASC, which puts the oldest first. Sort DESC (ORDER BY ... DESC) and call again."
+    else:
+        return None
+    from core.execution.models import ToolIntentExecution
+
+    return ToolIntentExecution(
+        handled=True,
+        ok=False,
+        status="sql_error",
+        mode="refused",
+        tool_name=intent,
+        response_text=message,
+        user_safe_response_text=message,
+        details={"executed": False, "reason": "query_sorts_against_the_ask"},
+    )
+
+
+_QUESTION_STOP_WORDS = frozenset(
+    "the and are was were how many much what which who whom whose does did has have had any all out there here again "
+    "that this with from for you your mine our their them they just still ever very can could would should please "
+    "ok okay sorry thanks tell show give list find get".split()
+)
+
+
+def _database_step_answering(question: str, steps: list[dict[str, Any]]) -> int:
+    """The index of the successful database query whose SQL best matches the words of the ask, or -1.
+
+    Database run 16g: after the right query the model ran two unrelated ones (copies of an earlier turn's), and the
+    answer was read off the LAST. A query is judged by how many of the ask's content words (and their plurals)
+    its SQL carries; ties go to the latest."""
+    words = {
+        w for w in re.findall(r"[a-z]{3,}", str(question or "").lower()) if w not in _QUESTION_STOP_WORDS
+    }
+    best, best_score = -1, -1
+    for index, step in enumerate(steps):
+        if str(step.get("tool_name") or "") != "vool-database.query" or step.get("ok") is not True:
+            continue
+        observation = step.get("observation")
+        if not isinstance(observation, dict) or not observation.get("rows"):
+            continue
+        sql = str(dict(step.get("arguments") or {}).get("sql") or "").lower()
+        score = sum(1 for w in words if w in sql or w.rstrip("s") in sql or w.rstrip("es") in sql)
+        if score >= best_score:
+            best, best_score = index, score
+    return best
+
+
 def _database_call_suggestion(question: str) -> str:
     try:
         from core.database_work_state import suggest_database_query
@@ -1406,7 +1490,9 @@ class ResearchToolLoopFacadeMixin:
         ):
             return False
         corrections = sum(1 for step in executed_steps if step.get("correction"))
-        if corrections >= self._MAX_ARGUMENT_CORRECTIONS:
+        # A local model needs more than two tries to land on the real column names (run 16g: three failed
+        # queries in a row, then the engine's raw error was the reply); the database refusals get four.
+        if corrections >= (4 if database_refusal else self._MAX_ARGUMENT_CORRECTIONS):
             return False
 
         detail = str(
@@ -1976,7 +2062,7 @@ class ResearchToolLoopFacadeMixin:
                     if (
                         selected_response
                         and direct_message is not None
-                        and database_no_tool_corrections < 2
+                        and database_no_tool_corrections < 3
                         and _is_database_no_answer(direct_message)
                         and (
                             not any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
@@ -1988,6 +2074,28 @@ class ResearchToolLoopFacadeMixin:
                         # answered "I don't have access ..." with the database tools in hand and no call made.
                         # One nudge, then the model's reply stands.
                         database_no_tool_corrections += 1
+                        _ready_call = _database_call_payload(effective_input) if database_no_tool_corrections > 2 else None
+                        if _ready_call is not None:
+                            # Run 16g: told twice, with the exact call written out, the local model still answered
+                            # "I don't have access". The call is read-only and built from the person's own tables;
+                            # it runs as if the model had made it, and the model answers from its rows.
+                            self._emit_runtime_event(
+                                loop_source_context,
+                                event_type="database_call_made_for_the_model",
+                                message="The model would not look; running the ready read-only database call.",
+                                status="database_call_made_for_the_model",
+                                step_count=len(executed_steps),
+                            )
+                            tool_decision.structured_output = _ready_call
+                            selected_response = False
+                            direct_message = None
+                    if (
+                        selected_response
+                        and direct_message is not None
+                        and database_no_tool_corrections in (1, 2)
+                        and _is_database_no_answer(direct_message)
+                        and _database_work_turn(effective_input, loop_source_context)
+                    ):
                         executed_steps.append(
                             {
                                 "tool_name": "respond.direct",
@@ -2305,7 +2413,9 @@ class ResearchToolLoopFacadeMixin:
             # The privacy gate runs BEFORE dispatch, on the ask's own words: a drive-stats read a
             # model reaches for on a turn that never asked about the drives is refused with plain
             # words, so the machine's numbers neither run nor ride the conversation back out.
-            execution = _drive_stats_privacy_refusal(tool_name, effective_input) or self._execute_tool_intent(
+            execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
+                tool_name, tool_payload, effective_input
+            ) or self._execute_tool_intent(
                 tool_payload,
                 task_id=task.task_id,
                 session_id=session_id,
@@ -2765,6 +2875,15 @@ class ResearchToolLoopFacadeMixin:
                 # refusal in front of it. An unusable intent (nothing ran) and a bare operational
                 # failure (no user-facing text from the tool) still degrade through research, as the
                 # tests above and `test_openclaw_safe_local_file_read_returns_grounded_text` pin.
+                if (
+                    execution.mode != "tool_preview"
+                    and str(execution.tool_name or tool_name or "").startswith("vool-database.")
+                    and _database_step_answering(effective_input, executed_steps) >= 0
+                ):
+                    # A later query failed after an earlier one returned rows: the rows are the evidence, the
+                    # failed attempt is not the answer.
+                    loop_stop_reason = "tool_failed_after_evidence"
+                    break
                 if execution.mode != "tool_preview":
                     from core.execution_requirements import requirements_for
 
@@ -2825,6 +2944,16 @@ class ResearchToolLoopFacadeMixin:
                     effective_input=effective_input,
                     session_id=session_id,
                 )
+                if (
+                    execution.mode != "tool_preview"
+                    and str(execution.tool_name or tool_name or "").startswith("vool-database.")
+                    and str(execution.status or "") in self._DATABASE_RECOVERABLE_STATUSES
+                ):
+                    # An engine error is never the answer (run 16g published "no such column: loans.title ...").
+                    safe_response = (
+                        "I could not get a query for that to run against your database, so I have no answer to "
+                        "give. Nothing was changed. Ask again, or name the table you mean."
+                    )
                 return {
                     "response": self._render_tool_loop_response(
                         final_message=safe_response,
@@ -3183,8 +3312,11 @@ class ResearchToolLoopFacadeMixin:
                 tool_name=str(executed_steps[-1].get("tool_name") or ""),
                 status=reject_reason,
             )
-            # A database answer is read off its rows (below), not off the tool's one-line report.
-            plugin_result = "" if database_rows_answer(executed_steps) else plugin_result_in_plain_words(executed_steps)
+            # A database answer is read off the rows of the query that matches the ask (below), not off the
+            # tool's one-line report.
+            _answering = _database_step_answering(effective_input, executed_steps)
+            _message_steps = executed_steps[: _answering + 1] if _answering >= 0 else executed_steps
+            plugin_result = "" if database_rows_answer(_message_steps) else plugin_result_in_plain_words(executed_steps)
             if plugin_result:
                 # The tool's own result is the answer the person asked for; only the model's
                 # wording was refused. The turn is complete, not a failed audit.
@@ -3195,8 +3327,8 @@ class ResearchToolLoopFacadeMixin:
                 synthesis = None
                 plugin_result_shown = True
             else:
-                final_message = self._tool_loop_final_message(None, executed_steps)
-                if database_rows_answer(executed_steps):
+                final_message = self._tool_loop_final_message(None, _message_steps)
+                if database_rows_answer(_message_steps):
                     # The rows the database returned ARE the grounded answer (run 16e: "COUNT(*): 1" under an
                     # "Incomplete" banner). The rejection stays on the event ledger; the turn is not a failure.
                     reject_reason = ""
