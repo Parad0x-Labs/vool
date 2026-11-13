@@ -133,3 +133,27 @@ def test_a_folder_match_shows_the_home_folder_as_a_tilde(setup):
     result = _machine_find_folder({"name": "documents"})
     assert result.ok and str(home) not in result.response_text
     assert "- ~/Documents" in result.response_text
+
+
+def test_a_redirect_that_finds_nothing_there_keeps_the_loops_answer(setup, caplog):
+    # Chat R8 C6 on f50e52eb: the scoped search found nothing, the loop's answer was dropped, and a notes-only lane said
+    # "no notes mention 'boiler service' or 'documents'". Nothing found in the folder the owner named is the answer.
+    caplog.set_level("INFO", logger=hook._LOG.name)
+    redirect = {
+        **OWNER,
+        "_conversation_changed": True,
+        "_conversation_slots": {"path": "~/Downloads"},
+        "_conversation_request": "any note about the boiler service in my stuff (change: downloads instead)",
+    }
+    out, ctx = _ask("no thanks, try downloads instead", "r8-c6-nothing", redirect)
+    assert out is not None, ctx.get("clean_local_loop_route")
+    assert "boiler_service_2026.txt" not in out["response"]
+    assert [r["tool_name"] for r in out["tool_receipts"]][:1] == ["machine.find_file"]
+    assert not any("fell through" in r.getMessage() for r in caplog.records)
+
+
+def test_a_fall_through_says_why_in_the_log(setup, caplog):
+    caplog.set_level("INFO", logger=hook._LOG.name)
+    out, ctx = _ask("whats on my desktop", "r8-fall-through", {**OWNER, "unresolved_referent": True})
+    assert out is None
+    assert any(r.getMessage() == "clean loop fell through: unresolved_referent" for r in caplog.records)

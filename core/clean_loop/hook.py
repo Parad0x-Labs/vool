@@ -412,6 +412,7 @@ def maybe_answer(
         # The chat's record cannot supply what the message points at ("that folder", "the third one" of a list this
         # chat never printed). The loop would pick something from the folders it can see; the turn's model asks.
         context["clean_local_loop_route"] = "unresolved_referent"
+        _LOG.info("clean loop fell through: %s", "unresolved_referent")
         return None
     # A short follow-up to a loop turn that left evidence stays with the loop: its answer may come from that
     # evidence alone, so "no new read" is not a reason to decline it.
@@ -419,11 +420,20 @@ def maybe_answer(
     # A follow-up only when the previous loop turn left evidence (a follow-up to a found-nothing turn has nothing
     # to follow up on) (the front door's fresh-ask reading does not override that: it misreads elliptical follow-ups).
     follow_up = bool(prior_evidence) or route._is_follow_up(text, session_id)
-    explicit_own = route.asks_explicitly_about_own_things(text) or follow_up
+    # The owner moved the last ask to a folder of their own ("no thanks, try documents instead"): what the loop finds
+    # there, or that it finds nothing there, is the answer. Handed on, the turn met a notes-only lane that cannot see
+    # files and said "no notes mention ... documents" (Chat R8 C6 on f50e52eb).
+    redirected = bool(
+        context.get("_conversation_changed")
+        and isinstance(context.get("_conversation_slots"), dict)
+        and str(context["_conversation_slots"].get("path") or "").strip()
+    )
+    explicit_own = route.asks_explicitly_about_own_things(text) or follow_up or redirected
     if not explicit_own and needs_web:
         # Order: an ask the front door classes as fresh/online meets the web switch (or its refusal)
         # before this loop; only an ask that says it is the owner's own keeps the loop's first turn.
         context["clean_local_loop_route"] = "fresh_ask_to_front_door"
+        _LOG.info("clean loop fell through: %s", "fresh_ask_to_front_door")
         return None
     exact = _exact_read_first(agent, effective_input or text, session_id=session_id, context=context)
     if exact is not None:
@@ -482,6 +492,7 @@ def maybe_answer(
         # The owner's cloud model did not answer: the normal pipeline owns its own provider errors
         # and wording, so nothing here claims a local-memory cause.
         context["clean_local_loop_route"] = "cloud_brain_error_fell_through"
+        _LOG.info("clean loop fell through: %s", "cloud_brain_error_fell_through")
         return None
     if loop_result.stopped == "brain_error" and not loop_result.tools_used and not loop_result.proposals:
         # The local model never answered (VOOL refuses to load it on low memory). This ask is about
@@ -494,6 +505,7 @@ def maybe_answer(
         # No answer came out of the loop (the audit's "mac or windows" and "what is a dmg" turns):
         # an apology is never better than the normal pipeline's own try. Only reads ran so far.
         context["clean_local_loop_route"] = "no_answer_fell_through"
+        _LOG.info("clean loop fell through: %s", "no_answer_fell_through")
         return None
     if not loop_result.proposals and _is_a_foreign_tool_call(loop_result.answer):
         # The brain's last word was a tool call in its own format (`<tool_call>{"name": ...}`), not
@@ -502,12 +514,14 @@ def maybe_answer(
         # v0.8 candidate, served, with the loop on). The normal pipeline gets the turn; a reply it
         # refuses carries a receipt naming the check. Only reads ran so far.
         context["clean_local_loop_route"] = "foreign_tool_call_fell_through"
+        _LOG.info("clean loop fell through: %s", "foreign_tool_call_fell_through")
         return None
-    if decision.by_documents and not loop_result.proposals and content_absence_claim(loop_result.answer):
+    if decision.by_documents and not redirected and not loop_result.proposals and content_absence_claim(loop_result.answer):
         # Only the owner's documents brought this turn here, and they did not answer it. It may be
         # something the owner told VOOL in chat, which lives in memory the loop cannot read: the
         # normal pipeline (and its memory lane) gets the turn. Only reads ran so far.
         context["clean_local_loop_route"] = "documents_found_nothing_fell_through"
+        _LOG.info("clean loop fell through: %s", "documents_found_nothing_fell_through")
         _clear_evidence(session_id)
         return None
     if not explicit_own and not loop_result.proposals:
@@ -516,6 +530,7 @@ def maybe_answer(
             # Admitted on a word, not on the owner's own things, and the reads found nothing for it: not this
             # loop's turn. Only reads ran; none of them is recorded as this turn's observation.
             context["clean_local_loop_route"] = declined
+            _LOG.info("clean loop fell through: %s", declined)
             _clear_evidence(session_id)
             return None
     # A listing a pre-step staged is a read that ran too (its receipts are this turn's): the model answered from it in
