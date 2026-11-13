@@ -419,3 +419,9 @@ def test_nothing_has_been_sent_is_not_a_claim_that_a_change_was_made():
     assert not _claims_a_change_was_made("Draft ed-1 (version 1, not approved): Wednesday works. Nothing has been sent.")
     assert not _claims_a_change_was_made("No email has been sent.")
     assert _claims_a_change_was_made("The column 'email' has been successfully added")
+    for negated in ("No new rows have been added.", "None of them have been deleted.", "Nothing else has been changed.",
+                    "No rows have been dropped", "Draft ed-1 is approved and held; nothing has been sent."):
+        assert not _claims_a_change_was_made(negated), negated
+    for claim in ("The table no doubt has been migrated.", "The migration no question has been applied",
+                  "The rename, done in no time has been applied", "Nothing has been sent, but 3 rows have been updated"):
+        assert _claims_a_change_was_made(claim), claim

@@ -1746,7 +1746,13 @@ def _name_in_text(name: str, text: str) -> bool:
     )
 
 
-_NOTHING_SUBJECT_RE = re.compile(r"\b(?:nothing|none|no\s+[\w-]+|no\s+one|nobody)\s*$", re.IGNORECASE)
+# The negating subject must open its clause ("Nothing has been sent", "..., but no rows have been
+# dropped"); "no doubt" / "in no time" before the verb is an idiom and the claim stands.
+_NOTHING_SUBJECT_RE = re.compile(
+    r"(?:^|[.;:!?,]\s*|\b(?:and|but|so)\s+)(?:nothing(?:\s+else)?|none(?:\s+of\s+(?:it|them|these|those))?|no\s+one|nobody|"
+    r"no\s+(?!doubt\b|question\b|problem\b|worries\b|time\b|longer\b|matter\b|sooner\b)(?:[\w-]+\s+){0,2}[\w-]+)\s*$",
+    re.IGNORECASE,
+)
 
 
 def _claims_a_change_was_made(line: str) -> bool:
