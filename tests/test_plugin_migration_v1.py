@@ -16,7 +16,6 @@ from core.credential_store import get_credential, store_credential
 from tests.test_plugin_manager_v1 import installed, package
 from tests.test_plugin_services_v1 import https_service
 
-
 RETIRED = Path(__file__).resolve().parent / 'fixtures/retired_first_party_plugins'
 
 
