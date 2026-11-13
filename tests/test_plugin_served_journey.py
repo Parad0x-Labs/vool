@@ -21,6 +21,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
+from playwright.sync_api import expect
 
 from tests.test_plugin_services_v1 import https_service
 
@@ -156,7 +157,12 @@ def select_provider(page):
     page.locator("#modelBtn").click()
     page.get_by_label("Model provider", exact=True).select_option("plugin-sample-path-provider")
     page.locator('.cloud-dyn[data-model="plugin-sample-path-provider:fixture-model"]').click()
-    page.get_by_role("button", name="Accept price and select", exact=True).click()
+    # A provider plugin's prices are the service's own report, not rates VOOL vouches for, so the
+    # paid-model dialog names no price and never offers "Accept price" for this model (07e3d5a7).
+    choose = page.get_by_role("button", name="Select without a known price", exact=True)
+    expect(choose).to_be_enabled()
+    assert not page.get_by_role("button", name="Accept price and select", exact=True).count()
+    choose.click()
     page.locator("#modelLbl").filter(has_text="Fixture model").wait_for(timeout=10000)
 
 
@@ -193,12 +199,16 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         plugins_page(page, daemon)
         card = install_folder(page, ROOT / "examples/plugins/template", "vool-plugin-template")
         accept_access(page, card)
-        # Plugin tools stay unused until the owner turns them on, off by default.
+        # Plugin tools ship on in 0.8: with no choice saved, chats may use an enabled plugin's
+        # tools. The owner's switch still turns them off, and on again.
         switch = page.get_by_label("Let chats use plugin tools")
-        assert not switch.is_checked()
-        switch.check()
-        page.get_by_label("Let chats use plugin tools").wait_for()
-        assert page.get_by_label("Let chats use plugin tools").is_checked()
+        expect(switch).to_be_checked()
+        assert daemon.get("/api/addons")[1]["plugin_tools_enabled"] is True
+        switch.uncheck()
+        expect(page.get_by_label("Let chats use plugin tools")).not_to_be_checked()
+        assert daemon.get("/api/addons")[1]["plugin_tools_enabled"] is False
+        page.get_by_label("Let chats use plugin tools").check()
+        expect(page.get_by_label("Let chats use plugin tools")).to_be_checked()
         assert daemon.get("/api/addons")[1]["plugin_tools_enabled"] is True
         page.screenshot(path=str(tmp_path / "plugin-tools-setting.png"), full_page=True)
         page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
@@ -227,11 +237,12 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         card.get_by_text("Disabled", exact=True).wait_for()
         page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
         before = len(https_service["log"].read_text().splitlines())
-        (tmp_path / "disabled-chat.ndjson").write_bytes(send_chat(page, prompt, "Unavailable: vool-plugin-template.sha256"))
-        # The model was never offered the disabled plugin's tool; the answer is not the fixture's guess.
+        disabled = send_chat(page, prompt, "The Text digest example plugin is turned off, so I can\u2019t use it.")
+        (tmp_path / "disabled-chat.ndjson").write_bytes(disabled)
+        # The turn says the plugin is off before any model answers, so no model can guess the digest.
         after = [json.loads(line) for line in https_service["log"].read_text().splitlines()[before:]]
-        inferences = [row for row in after if row.get("event") == "inference"]
-        assert inferences and not any("sha256" in str(name).lower() for row in inferences for name in row["tool_offers"])
+        assert not [row for row in after if row.get("event") == "inference"]
+        assert digest not in disabled.decode("utf-8", errors="replace")
         plugins_page(page, daemon)
         card = page.locator('[data-plugin-id="vool-plugin-template"]')
         card.get_by_role("button", name="Uninstall", exact=True).click()
@@ -279,8 +290,10 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
         # The UsePod token pays from a balance funded through VOOL's wallet: it stays in its
         # own slot for the retained lane and never becomes a plain plugin provider key.
         assert not card.get_by_text("Key saved.", exact=True).count()
-        card.get_by_role("button", name="Refresh model list", exact=True).click()
-        page.get_by_text("wallet approvals", exact=False).first.wait_for()
+        # A wallet-paid service is never offered a model refresh, a key or a test (345e180a): its
+        # card says VOOL uses it only with wallet approvals, and no model list is fetched.
+        card.get_by_text("wallet approvals", exact=False).first.wait_for()
+        assert not card.get_by_role("button", name="Refresh model list", exact=True).count()
         assert not card.get_by_text("1 models available", exact=True).count()
         assert not daemon.routes.exists() and not https_service["log"].exists()
         # A scanner key is an ordinary service key: enabling its plugin reuses it explicitly.
