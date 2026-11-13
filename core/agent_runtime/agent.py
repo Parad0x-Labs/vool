@@ -2928,7 +2928,7 @@ class VoolAgent(
         # (core.agent_runtime.task_continuation; 0.7.8 sweep blocks 1c/1e).
         with contextlib.suppress(Exception):
             from core import conversation_state
-            from core.agent_runtime.task_continuation import compose_continuation, last_task_request
+            from core.agent_runtime.task_continuation import continuation_for_chat, last_task_request
 
             # One resolver before any handler reads the message: a retry of the chat's recorded request (state, not a
             # phrase list), or a pointer ("that folder") the record cannot supply, which handlers must not guess at.
@@ -2981,8 +2981,8 @@ class VoolAgent(
                         reason="conversation_pick_outside_list",
                     )
                 )
-            _carried = _resolution.text if _resolution.kind in {"retry", "retry_changed", "pick"} else compose_continuation(
-                effective_input, last_task_request(session_id)
+            _carried = _resolution.text if _resolution.kind in {"retry", "retry_changed", "pick"} else continuation_for_chat(
+                effective_input, last_task_request(session_id), runtime_source_context
             )
             if _carried:
                 # The rewrite is for routing only. The chat keeps what the person typed ("retry pls"),

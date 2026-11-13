@@ -96,4 +96,20 @@ def compose_continuation(text: str, previous_request: str) -> str:
     return f"Same as my previous request — “{previous}” — but for: {obj}"
 
 
-__all__ = ["compose_continuation", "last_task_request"]
+def continuation_for_chat(text: str, previous_request: str, source_context: dict | None) -> str:
+    """`compose_continuation`, except in a chat where the person's database is at work.
+
+    There a short follow-up is its own question: "who joined most recently" was read as the bill-split change
+    "someone joined", rewritten into "Redo my previous request ... with this change", pulled off the database
+    lane and answered from chat context (Mac run 16i, toolshed 10)."""
+    try:
+        from core.database_work_state import active_database_work_intents
+
+        if active_database_work_intents(source_context):
+            return ""
+    except Exception:
+        pass
+    return compose_continuation(text, previous_request)
+
+
+__all__ = ["compose_continuation", "continuation_for_chat", "last_task_request"]
