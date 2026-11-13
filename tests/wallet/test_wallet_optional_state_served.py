@@ -145,6 +145,7 @@ def test_off_refusals_enable_create_disable_reenable_without_loss(served):
         _prefs(daemon, False)
         # the integrated Settings page (the current Home/Settings pattern) hosts the wallet section
         page.goto(daemon.base_url + "/settings#wallet", wait_until="domcontentloaded")
+        page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
         page.wait_for_selector("#vwSec", timeout=15_000)
         page.wait_for_function("document.getElementById('vwEnableBtn') !== null", timeout=10_000)
         assert page.locator("#vwActions").is_hidden(), "creation entries wait for the enabled state"

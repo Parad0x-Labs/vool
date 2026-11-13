@@ -139,7 +139,7 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
             page.goto(base + "/my-things?ui_locale=ar")
             assert page.locator("html").get_attribute("dir") == "rtl"
             shot(page, "07-rtl")
-            page.goto(base + "/settings?ui_locale=en")
+            page.goto(base + "/settings?ui_locale=en#memory")  # the My things card lives with Memory & Personalisation
             expect(page.locator("#myThingsSetting input")).to_be_checked()
             page.locator("#myThingsSetting input").uncheck()
             expect(page.locator("#myThingsSetting input")).to_be_enabled()

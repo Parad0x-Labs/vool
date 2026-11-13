@@ -43,6 +43,7 @@ def test_export_flow_in_a_real_browser_through_the_fake_device_seam(tmp_path):
             pubkey = created["wallet"]["public_key"] if "wallet" in created else created["profile"]["public_key"]
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+            page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
             page.wait_for_selector("#vwExportBtn", state="visible", timeout=20000)
             assert page.query_selector("#vwExport input[type=password]") is None, "the export flow has no PIN box"
             page.select_option("#vwExportTarget", "phantom")

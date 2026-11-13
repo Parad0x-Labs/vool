@@ -31,7 +31,7 @@ def test_states_and_networks_are_distinguished_not_blurred(fragment):
     for mode in ("watch_only", "pocket_sealed", "external_signer"):
         assert mode in fragment
     # testnet is badged; mainnet would be too; chains are named, not just CAIP-2 ids
-    assert "testnet only" in fragment and "Base Sepolia" in fragment and "Solana Devnet" in fragment
+    assert "test coins only" in fragment and "Base Sepolia" in fragment and "Solana Devnet" in fragment
 
 
 def test_payment_cards_show_the_network_and_testnet_truth_pre_approval(fragment):
@@ -79,7 +79,7 @@ def test_creation_entries_wait_for_the_enabled_state(fragment):
 
 
 def test_user_facing_branding_is_vool_wallet(fragment):
-    assert "Create VOOL Wallet…" in fragment and "VOOL Wallet created." in fragment
+    assert "Create an older 12-word wallet…" in fragment and "VOOL Wallet created." in fragment
     assert "Create pocket wallet" not in fragment and "Pocket wallet created" not in fragment
     # stored identifiers stay: the custody mode value is not renamed for branding
     assert "pocket_sealed" in fragment

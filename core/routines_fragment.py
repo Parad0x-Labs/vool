@@ -11,7 +11,7 @@ from base64 import b64encode
 from pathlib import Path
 
 CSS = r"""
-#routinesSetting{padding:12px 18px;border:1px solid var(--border,#c7cfd8);border-radius:10px;margin:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#routinesSetting[hidden]{display:none}#routinesSetting{padding:12px 18px;border:1px solid var(--border,#c7cfd8);border-radius:10px;margin:0 0 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 #routinesSetting p{margin:2px 0 0;opacity:.8;font-size:14px}#routinesSetting a{display:inline-flex;padding:8px 12px;border:1px solid var(--border,#c7cfd8);border-radius:8px;color:inherit;text-decoration:none}
 #routinesSetting a:focus-visible,#routinesLink:focus-visible{outline:2px solid var(--accent,#b0812b);outline-offset:2px}#routinesLink{text-decoration:none;color:inherit}
 .rt-page{--rt-bg:#f7f8f4;--rt-fg:#21332f;--rt-muted:#56685f;--rt-card:#fff;--rt-line:#c9d4c8;--rt-accent:#275846;--rt-accent-fg:#fff;--rt-warn:#7a4310;--rt-danger:#8c302e;--rt-soft:#edf2e9;--rt-banner:#fff6dc;--rt-focus:#b0812b;
@@ -74,9 +74,16 @@ if(!root){
     var words=el('div');add(words,el('strong',T('title')),el('p',T('settings_help')));
     var open=el('a',T('open'));open.href='/routines';open.id='routinesSettingLink';
     add(row,words,open);
-    var things=document.getElementById('myThingsSetting');
+    row.hidden=true;
+    var things=document.getElementById('myThingsSetting'),body=document.getElementById('paneBody');
     if(things&&things.parentNode)things.parentNode.insertBefore(row,things.nextSibling);
+    else if(body&&body.parentNode)body.parentNode.insertBefore(row,body);
     else{var host=document.querySelector('main')||document.body;host.insertBefore(row,host.firstChild);}
+    /* Shown with the Memory & Personalisation section only, so it never sits above an unrelated page. */
+    var nav=document.getElementById('nav');
+    var place=function(){var on=nav&&nav.querySelector('[aria-current="true"][data-group]');row.hidden=!(on&&on.dataset.group==='memory');};
+    place();
+    if(nav&&window.MutationObserver)new MutationObserver(place).observe(nav,{subtree:true,childList:true,attributes:true,attributeFilter:['aria-current']});
   }
   return;
 }

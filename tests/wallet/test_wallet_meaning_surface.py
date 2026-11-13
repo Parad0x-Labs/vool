@@ -112,6 +112,7 @@ def test_served_fragment_gates_red_behind_the_capability_and_shows_green_on_the_
         try:
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+            page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
             page.wait_for_selector("#vwStatus", state="visible", timeout=20000)
             result = page.evaluate(
                 "(m) => { const host = document.createElement('div'); document.body.appendChild(host); const ack = window.VoolWallet.renderMeaning(host, m);"

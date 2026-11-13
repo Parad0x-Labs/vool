@@ -64,6 +64,8 @@ def test_caps_and_approval_method_are_set_from_the_page_and_stored_by_the_doors(
             assert before["approval_method"] == "pin" and before["wallet_id"]
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+            page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
+            page.locator("#vwLegacyDev > summary").click()  # spending caps sit under Developer options
 
             # --- spending caps: three whole numbers, one Save; the door stores them and the status line re-reads them
             page.wait_for_selector("#vwLimitsSave", state="visible", timeout=20000)

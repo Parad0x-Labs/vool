@@ -148,6 +148,7 @@ def test_the_threshold_is_saved_from_the_page_and_the_door_stores_it(tmp_path):
         _put_a_fee_on_record(daemon)  # the threshold is shown to a person with DNA fees on record
         page = browser.new_page()
         page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+        page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
         page.wait_for_selector("#vwDnaFeeSave", state="visible", timeout=20000)
 
         # --- before any save: the documented default is in the box and SAID to be the default
@@ -213,6 +214,7 @@ def test_an_operator_override_is_said_beside_the_saved_value_and_never_shown_as_
         _put_a_fee_on_record(daemon)  # the threshold is shown to a person with DNA fees on record
         page = browser.new_page()
         page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+        page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
         page.wait_for_selector("#vwDnaFeeSave", state="visible", timeout=20000)
 
         # --- nothing saved yet: the override is in force and SAID to be one, not called the owner's value
@@ -253,6 +255,8 @@ def test_a_wallet_with_no_dna_fee_on_record_shows_none_and_one_on_record_shows_t
     try:
         page = browser.new_page()
         page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
+        page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
+        page.locator("#vwLegacyDev > summary").click()  # spending caps sit under Developer options
         page.wait_for_selector("#vwLimits", state="visible", timeout=20000)
         assert _get(daemon.base_url, "/api/wallet/dna-fees")["dna_fees"]["identities"] == []
         assert page.locator("#vwDnaFeesLine").count() == 0 and page.locator("#vwDnaFees").count() == 0
@@ -261,6 +265,7 @@ def test_a_wallet_with_no_dna_fee_on_record_shows_none_and_one_on_record_shows_t
 
         _put_a_fee_on_record(daemon)
         page.reload(wait_until="networkidle")
+        page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
         page.wait_for_selector("#vwDnaFeeSave", state="visible", timeout=20000)
         line = _text(page, "#vwDnaFeesLine")
         assert line.startswith("DNA service fee 0.1% on native x402 payments · 0.0004 USDC owed"), line

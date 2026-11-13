@@ -66,24 +66,24 @@ CHANNELS: tuple[PaymentChannel, ...] = (
     PaymentChannel(
         channel_id=CHANNEL_X402, label="x402, built into VOOL", protocol=PROTOCOL_X402, built_by="VOOL",
         origins=(proposals.ORIGIN_X402,), default_on=True,
-        description="VOOL's own x402 client: USDC offers signed with EIP-3009 on the EVM test networks, and VOOL's own Solana Devnet offers.",
+        description="VOOL's own way to pay a website that asks for a small payment: USDC on the test networks, and test SOL on Solana Devnet.",
     ),
     PaymentChannel(
         channel_id=CHANNEL_PAYKIT_X402, label="x402 on Solana, through Solana pay-kit", protocol=PROTOCOL_X402, built_by="Solana pay-kit (Solana Foundation)",
         origins=(proposals.ORIGIN_X402_PAYKIT,), default_on=True,
-        description="Canonical Solana x402 offers, where the resource's fee payer cosigns and settles: pay-kit builds the payment, this wallet approves and signs it.",
+        description="Pays websites that ask for a small payment on Solana. The Solana pay-kit prepares the payment, and you approve it in your wallet.",
         needs="pay extra",
     ),
     PaymentChannel(
         channel_id=CHANNEL_PAYKIT_MPP, label="MPP on Solana, through Solana pay-kit", protocol=PROTOCOL_MPP, built_by="Solana pay-kit (Solana Foundation)",
         origins=(proposals.ORIGIN_MPP_PAYKIT,), default_on=True,
-        description="MPP charges on Solana (WWW-Authenticate: Payment): pay-kit builds the charge, this wallet approves and signs it.",
+        description="Pays services that charge per use on Solana. The Solana pay-kit prepares the charge, and you approve it in your wallet.",
         needs="pay extra",
     ),
     PaymentChannel(
         channel_id=CHANNEL_X402_SDK, label="x402 on Base, through the x402 Foundation SDK", protocol=PROTOCOL_X402, built_by="x402 Foundation SDK",
         origins=(proposals.ORIGIN_X402_SDK,), default_on=True,
-        description="USDC offers on Base, paid from a Crypto Pilot wallet: the SDK builds the EIP-3009 authorization, this wallet approves and signs it, and the site's facilitator settles it and pays the network fee.",
+        description="Pays websites that ask for USDC on Base. The x402 kit prepares the payment, you approve it in your wallet, and the website pays the network fee.",
         needs="x402 extra",
     ),
 )

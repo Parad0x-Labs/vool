@@ -98,6 +98,7 @@ def _page(browser, base: str, *, init_script: str = ""):
 def _open_wallet_settings(page, base: str) -> None:
     """Integrated UI (2026-09-07): Settings is its own page; the Wallet section is /settings#wallet."""
     page.goto(f"{base}/settings#wallet", wait_until="networkidle")
+    page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
     page.wait_for_selector("#vwStatus", state="visible", timeout=20000)
 
 
@@ -166,7 +167,7 @@ def test_browser_one_time_recovery_display_leaves_no_trace(browser, daemon):
     assert phrase not in page.content()
     _open_wallet_settings(page, daemon["base"])
     status_text = page.inner_text("#vwStatus")
-    assert "pocket_sealed" in status_text and phrase not in status_text
+    assert "VOOL wallet: its key stays on this computer" in status_text and phrase not in status_text
     api_surface = page.evaluate("async () => { const r = await fetch('/api/wallet/status'); return await r.text(); }")
     assert phrase not in api_surface
     # model context: an ordinary chat turn after creation carries nothing of it to the model
@@ -234,7 +235,7 @@ def test_browser_phantom_compatible_external_signing_path(browser, daemon):
         _open_wallet_settings(page, daemon["base"])
         page.wait_for_selector("#vwConnectPhantom", timeout=15000)
         page.click("#vwConnectPhantom")
-        page.wait_for_function("() => /external_signer/.test(document.querySelector('#vwStatus').textContent)", timeout=30000)
+        page.wait_for_function("() => /Connected wallet/.test(document.querySelector('#vwStatus').textContent)", timeout=30000)
         _back_to_chat(page, daemon["base"])
         _select_model(page, daemon["model"])
         page.fill("#input", f"Please pay 1200 lamports to {DESTINATION} for hosting")

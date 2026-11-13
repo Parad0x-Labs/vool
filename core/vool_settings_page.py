@@ -871,10 +871,9 @@ def _settings_groups() -> list[dict]:
                     label="Enable Crypto",
                     badge="Pilot",
                     help=(
-                        "Off by default. On, this section lists the supported networks with what each can do right now and lets you "
-                        "create a VOOL wallet on this device (credential first, one backup shown once). Nothing is created, signed or "
-                        "sent by turning this on. This code has not been audited by an external party: keep small test amounts and "
-                        "do not use it as a main wallet."
+                        "Off until you turn it on. Then pick a network below and press Create wallet: you choose a PIN, save one "
+                        "backup, and the wallet is ready. Turning this on creates, signs and sends nothing. This code has not been "
+                        "checked by an outside reviewer yet, so keep small amounts in it."
                     ),
                     kind="toggle",
                     read={"url": PREFS, "field": "wallet_enabled"},
@@ -894,9 +893,8 @@ def _settings_groups() -> list[dict]:
                     id="crypto_networks",
                     label="Networks and wallets",
                     help=(
-                        "Every supported network from the runtime's own registry, in its order: what each row can do now, the "
-                        "accounts on it with their address and balance, Create wallet where none exists, and Developer options "
-                        "for Test networks. Existing accounts keep Receive, balance refresh, payment history and recovery."
+                        "Each network VOOL supports, with your wallets on it. Press Create wallet on a network to make one. Every "
+                        "wallet has Receive, its balance, payment history and backup."
                     ),
                     kind="custom",
                     widget="crypto",
@@ -904,11 +902,10 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="wallet_legacy",
-                    label="Other accounts: watch-only, connected wallets, legacy pocket",
+                    label="More ways to add a wallet",
                     help=(
-                        "The earlier account kinds stay reachable here: a watch-only address, a connected Phantom or EVM wallet "
-                        "(signing stays in that wallet), and the phrase-based legacy pocket (test networks only). New VOOL wallets "
-                        "are created above."
+                        "Watch an address, connect Phantom or MetaMask, or open an older 12-word wallet. To make a new VOOL wallet, "
+                        "use Create wallet in the list above."
                     ),
                     kind="custom",
                     widget="wallet",
@@ -2470,9 +2467,16 @@ function widgetSurface(stack, name, missing) {
 
 /* --- Wallet: the wallet fragment's own section, mounted into this pane. The fragment is the one
    authority for that surface (core/wallet_fragment.py); this widget only gives it a reachable home. */
+let walletMoreOpen = false;
 function widgetWallet(stack) {
+  /* Folded by default: new wallets are made in the list above, so a first-time owner is not sent here by mistake.
+     The open state survives the pane's repaints. */
+  const more = el('details'); more.id = 'walletMore'; more.open = walletMoreOpen;
+  more.appendChild(el('summary', null, T('settings.wallet.more_show', 'Show the other ways')));
+  more.addEventListener('toggle', () => { walletMoreOpen = more.open; });
   const host = el('div'); host.id = 'walletHost';
-  stack.appendChild(host);
+  more.appendChild(host);
+  stack.appendChild(more);
   if (window.VoolWallet && typeof window.VoolWallet.mountInto === 'function') { window.VoolWallet.mountInto(host); return; }
   stack.appendChild(el('div', 'empty', T('settings.pane.wallet_missing', 'The wallet surface did not load.')));
 }

@@ -259,6 +259,7 @@ def _connect_evm_in_browser(page, chain_value: str) -> None:
     EIP-1193 shim stays installed; model and mode are pinned by the caller AFTER this returns."""
     base = _status_base(page)
     page.goto(f"{base}/settings#wallet", wait_until="networkidle")
+    page.locator("#walletMore > summary").click()  # the other ways to add a wallet start folded
     page.wait_for_selector("#vwConnectEvm", state="visible", timeout=15000)
     page.select_option("#vwEvmChain", chain_value)
     page.click("#vwConnectEvm")

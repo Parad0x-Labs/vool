@@ -307,7 +307,7 @@ def crypto_pilot_status() -> dict[str, Any]:
             "device": {"available": device_available, "text": "Touch ID or your Mac password" if device_available else "not available on this machine"},
         },
         "asset_support": _asset_support(),
-        "pilot_notice": "A pilot feature: keep small test amounts, do not use it as a main wallet, and save the one-time backup offline.",
+        "pilot_notice": "A pilot feature: keep small amounts in it, and save the backup key offline when it is shown.",
     }
 
 
