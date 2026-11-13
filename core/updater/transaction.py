@@ -110,7 +110,9 @@ def _process_start(pid: int) -> str:
 
 def _owner_alive(created: dict) -> bool:
     """True only while another process that started this transaction still runs. This process
-    never counts: the process that runs recovery cannot also be the one still doing the update."""
+    never counts: the process that runs recovery cannot also be the one still doing the update.
+    Nor does one that has exited while its parent has not collected it yet (a zombie): the kernel
+    still lists that pid, but it runs nothing."""
     pid = int(created.get("owner_pid") or 0)
     if pid <= 1 or pid == os.getpid():
         return False
@@ -122,6 +124,11 @@ def _owner_alive(created: dict) -> bool:
         pass  # it exists; this process just may not signal it
     except OSError:
         return False
+    else:
+        from core.updater.macos import _pid_has_exited
+
+        if _pid_has_exited(pid):
+            return False
     recorded, current = str(created.get("owner_start") or ""), _process_start(pid)
     return not (recorded and current and recorded != current)  # a different start = a reused pid
 
