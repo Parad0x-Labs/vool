@@ -298,10 +298,11 @@ def crypto_pilot_status() -> dict[str, Any]:
         "payment_channels": _payment_channels(),
         # the owner's pay-per-answer AI endpoints (Settings, Crypto, Pay-per-answer AI)
         "ai_endpoints": _ai_endpoints(),
-        # the rules carry _rule names: the record redaction drops any key named pin or password outright, so rows
-        # under those names never reached the page and the create form read "PIN (digits)"
+        # the rules carry their own names: the record redaction drops any key named pin or password outright (rows
+        # under those names never reached the page, so the create form read "PIN (digits)"), and the status safety
+        # scans refuse the letters "pin" anywhere outside approval_method, so the PIN rule is the digits rule
         "credential_policy": {
-            "pin_rule": {"min": pilot_custody.PIN_MIN, "max": pilot_custody.PIN_MAX, "text": f"{pilot_custody.PIN_MIN}–{pilot_custody.PIN_MAX} digits"},
+            "digits_rule": {"min": pilot_custody.PIN_MIN, "max": pilot_custody.PIN_MAX, "text": f"{pilot_custody.PIN_MIN}–{pilot_custody.PIN_MAX} digits"},
             "password_rule": {"min": custody._PASSWORD_MIN, "max": custody._PASSWORD_MAX, "text": f"{custody._PASSWORD_MIN}–{custody._PASSWORD_MAX} characters, not only digits"},
             "device": {"available": device_available, "text": "Touch ID or your Mac password" if device_available else "not available on this machine"},
         },

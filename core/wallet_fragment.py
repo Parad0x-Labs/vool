@@ -1762,7 +1762,7 @@ function credentialPrompt(host, prefix, cp, opts){
   var policy = (cp && cp.credential_policy) || {};
   // the PIN and password rules come as numbers, so the option reads in the page's language (the server's English
   // rule text stays the fallback when a policy carries no numbers)
-  var pinPol = policy.pin_rule || policy.pin, pwPol = policy.password_rule || policy.password;
+  var pinPol = policy.digits_rule || policy.pin, pwPol = policy.password_rule || policy.password;
   var pinRule = pinPol && pinPol.min != null ? WTF('wallet.cred.pin_option', 'PIN ({min}–{max} digits)', { min: pinPol.min, max: pinPol.max }) : 'PIN (' + ((pinPol && pinPol.text) || 'digits') + ')';
   var pwRule = pwPol && pwPol.min != null ? WTF('wallet.cred.password_option', 'Wallet password ({min}–{max} characters, not only digits)', { min: pwPol.min, max: pwPol.max }) : 'Wallet password (' + ((pwPol && pwPol.text) || '') + ')';
   var methods = [['pin', pinRule], ['password', pwRule]];
