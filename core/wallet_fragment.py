@@ -1442,7 +1442,7 @@ function accountCard(a, r, cp, st){
     if (a.mode === 'pocket_sealed' && !a.agent_id && !a.ledger) { var forgot = forgotLink(a.wallet_id, 'Forgot PIN or password?'); forgot.className += ' vw-cx-forgot'; actions.appendChild(forgot); }
     if (a.ledger) actions.appendChild(el('span', 'vw-cx-env vw-cx-ledger-forgot', 'Forgot the PIN? Add the same Ledger again below: same wallet, new PIN.'));
     box.appendChild(actions); box.appendChild(historyBox);
-    if (!a.agent_id && a.kind) box.appendChild(walletRoleControls(a, cp, msg));
+    if (!a.agent_id && a.kind) box.appendChild(walletRoleControls(a, cp, msg, r));
   } else {
     // a Crypto Pilot setup that has not finished: exactly the actions its durable state allows
     if (a.agent_id) cxMsg(msg, 'Finish this wallet under Agent spending below.'); else setupActions(actions, msg, a, r, cp);
@@ -1681,7 +1681,7 @@ function securityKeyControls(a, cp, msg){
   });
   return box;
 }
-function walletRoleControls(a, cp, msg){
+function walletRoleControls(a, cp, msg, r){
   // rename (no PIN: it loosens nothing) and Make main (this wallet's own PIN or password)
   var host = el('div', 'vw-cx-roles'); host.setAttribute('data-wallet', a.wallet_id);
   var bar = el('div', 'vw-cx-actions');
@@ -1729,7 +1729,7 @@ function walletRoleControls(a, cp, msg){
     }).catch(function(){ body = null; dGo.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
   });
   bar.appendChild(delBtn);
-  if (a.mode === 'pocket_sealed' && !a.ledger) { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready' && (r.hardware_keys || a.security_key)) host.appendChild(securityKeyControls(a, cp, msg)); }
+  if (a.mode === 'pocket_sealed' && !a.ledger) { host.appendChild(keychainControls(a, cp, msg)); host.appendChild(usbControls(a, cp, msg)); if ((a.setup_state || 'ready') === 'ready' && ((r && r.hardware_keys) || a.security_key)) host.appendChild(securityKeyControls(a, cp, msg)); }
   if (a.kind === 'everyday' && a.mode === 'pocket_sealed' && (a.setup_state || 'ready') === 'ready') {
     var mainBtn = el('button', 'vw-btn vw-cx-make-main', 'Make main'); mainBtn.type = 'button';
     bar.appendChild(mainBtn);

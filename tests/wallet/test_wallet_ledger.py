@@ -522,7 +522,7 @@ def test_until_proven_on_real_hardware_neither_a_ledger_nor_a_security_key_is_of
     assert rows and all(row["hardware_keys"] is False for row in rows)
     page = render_wallet_fragment()
     assert "r.active && r.hardware_keys && caps.create" in page, "the page offers Add a Ledger only when the row says so"
-    assert "(r.hardware_keys || a.security_key)) host.appendChild(securityKeyControls" in page, "and Add a security key likewise; an added key stays removable"
+    assert "((r && r.hardware_keys) || a.security_key)) host.appendChild(securityKeyControls" in page, "and Add a security key likewise; an added key stays removable"
     with pilot_custody.signing_session(made["wallet_id"], PIN) as signer:
         assert len(signer.sign_svm(b"still signs on the Ledger")) == 64
     monkeypatch.setenv("VOOL_WALLET_HARDWARE_KEYS", "1")
