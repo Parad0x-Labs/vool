@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 # Bounded so a single turn cannot flood its own offer with explicit seats.
 MAX_EXPLICIT_INTENTS = 3
@@ -873,18 +874,36 @@ def _spoken_variant_patterns(intent: str, expansions: dict[str, str]) -> re.Patt
         return None
 
 
-def _plugin_intents(text: str) -> tuple[str, ...]:
-    """Explicitly named plugin tool intents (``pack.tool`` tokens in the message).
+def _registry_now() -> tuple[Any, ...] | None:
+    """One read of the live tool registry, or None when it cannot be read.
 
-    Plugin intents are dynamic, so they cannot live in the static rule table: the
-    registered plugin contracts are the vocabulary. A plugin tool the user names by its
-    intent token is the sharpest explicit request there is.
+    Each read rebuilds the whole builtin catalog, and ``resolve_demand_signals`` runs dozens of
+    times a turn: its two dotted-name readers share one read (measured on the v0.8 replay corpus,
+    where they rebuilt the catalog about seventy times a turn between them).
     """
     try:
         from core.tool_registry import registered_tools
 
+        return tuple(registered_tools())
+    except Exception:
+        return None
+
+
+def _plugin_intents(text: str, registry: tuple[Any, ...] | None = None) -> tuple[str, ...]:
+    """Explicitly named plugin tool intents (``pack.tool`` tokens in the message).
+
+    Plugin intents are dynamic, so they cannot live in the static rule table: the
+    registered plugin contracts are the vocabulary. A plugin tool the user names by its
+    intent token is the sharpest explicit request there is. ``registry`` is the caller's own
+    read of the registry (``_registry_now``); left out, it is read here.
+    """
+    try:
+        if registry is None:
+            from core.tool_registry import registered_tools
+
+            registry = tuple(registered_tools())
         plugin_intents = [
-            str(contract.intent) for contract in registered_tools() if str(contract.source or "").startswith("plugin:")
+            str(contract.intent) for contract in registry if str(contract.source or "").startswith("plugin:")
         ]
     except Exception:
         return ()
@@ -1216,21 +1235,23 @@ def plugin_follow_up(text: str, source_context) -> bool:
     return bool(plugin_follow_up_targets(text, source_context))
 
 
-def _browser_lane_intents(text: str) -> tuple[str, ...]:
+def _browser_lane_intents(text: str, registry: tuple[Any, ...] | None = None) -> tuple[str, ...]:
     """Explicitly named vool-browser intents (the C06 native product browser).
 
     Same law as plugin intents, and the same prose hazard: the vocabulary is the
     closed set of the lane's registered contracts, and the fused-text match
     undoes the normalizer's sentence-space split of a dotted intent token. A
     user naming `vool-browser.navigate` in prose is the sharpest explicit
-    request there is.
+    request there is. ``registry`` as for ``_plugin_intents``.
     """
     try:
-        from core.tool_registry import registered_tools
+        if registry is None:
+            from core.tool_registry import registered_tools
 
+            registry = tuple(registered_tools())
         lane_intents = [
             str(contract.intent)
-            for contract in registered_tools()
+            for contract in registry
             if str(contract.intent or "").startswith("vool-browser.")
         ]
     except Exception:
@@ -2535,7 +2556,8 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     for intent in outgoing_message_intents(cleaned):
         _note(intent, "email")
 
-    for intent in _plugin_intents(cleaned):
+    registry = _registry_now()
+    for intent in _plugin_intents(cleaned, registry):
         _note(intent, "plugin")
     # Named in plain words rather than by a dotted token: the family is wanted, no tool is
     # singled out. Only when nothing else already claimed the turn, so a plugin's vocabulary can
@@ -2543,7 +2565,7 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     if not intents and not families and _plugin_spoken(cleaned):
         families.append("plugin")
 
-    for intent in _browser_lane_intents(cleaned):
+    for intent in _browser_lane_intents(cleaned, registry):
         _note(intent, "web")
 
     if _MCP_FAMILY_PATTERN.search(cleaned) and "mcp" not in families and len(families) < MAX_REQUIRED_FAMILIES:

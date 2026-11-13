@@ -42,10 +42,13 @@ and the permission controller never reads skills. Pinned by test, not by prose.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import shutil
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -290,10 +293,37 @@ def contract_from_frontmatter(
     )
 
 
+#: ``contract_violations`` was given no tool names and reads the runtime's own.
+_UNSET: Any = object()
+
+
+def _runtime_tool_names() -> frozenset[str] | None:
+    """The tool intents this runtime has right now, or None when its catalog cannot answer.
+
+    Read live, never kept: the catalog's names move with the lanes a person switches on (the
+    Zcash tools are absent, not refused, while that lane is off). A library load reads it ONCE
+    and checks every contract against that one read (``load_native_library``).
+    """
+    try:
+        from core.runtime_tool_contracts import runtime_tool_contract_map
+
+        return frozenset(runtime_tool_contract_map())
+    except Exception:
+        return None
+
+
 def contract_violations(
-    contract: SkillContract, *, known_skill_ids: frozenset[str] = frozenset()
+    contract: SkillContract,
+    *,
+    known_skill_ids: frozenset[str] = frozenset(),
+    known_intents: Any = _UNSET,
 ) -> tuple[str, ...]:
-    """Everything that makes this contract unusable, typed. Empty tuple = valid."""
+    """Everything that makes this contract unusable, typed. Empty tuple = valid.
+
+    ``known_intents`` is the runtime's tool names as the caller read them for the whole load
+    (``_runtime_tool_names``; None when the catalog could not answer). Left out, they are read
+    here, for this one contract.
+    """
     violations: list[str] = []
     if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", contract.id or ""):
         violations.append(f"id {contract.id!r} is not a kebab-case skill id")
@@ -310,12 +340,8 @@ def contract_violations(
     if unknown_tasks:
         violations.append(f"task-families not in the production vocabulary: {unknown_tasks}")
 
-    try:
-        from core.runtime_tool_contracts import runtime_tool_contract_map
-
-        known_intents = set(runtime_tool_contract_map())
-    except Exception:
-        known_intents = None
+    if known_intents is _UNSET:
+        known_intents = _runtime_tool_names()
     if known_intents is not None:
         # Tools of a plugin the contract DECLARES as a prerequisite (`plugin:<id>`) are not
         # unknowns — they exist exactly when the pack is installed, which is what the
@@ -574,9 +600,14 @@ def shown_to_people(skill_id: str) -> bool:
 
 
 def load_native_library(root: Path | None = None) -> LibraryLoad:
-    """Parse and validate every native SKILL.md. Invalid contracts are refused, not injected."""
-    from core.plugin_skills import parse_skill
+    """Parse and validate every native SKILL.md. Invalid contracts are refused, not injected.
 
+    Every load judges every contract again, against ONE read of the runtime's tool names; only
+    the parse of a file whose text has not changed is reused (``_read_skill_file``). Measured on
+    CI #681 (v0.8 c8ae4380) and on b9530c3c: each load parsed every file's header twice and rebuilt the
+    whole tool catalog (218 contracts) once per contract just to read its names, about two loads
+    a turn, and the semantic replay corpus ran past its shard budget with the stack here.
+    """
     base = Path(root) if root is not None else native_skills_root()
     contracts: list[SkillContract] = []
     errors: list[SkillContractError] = []
@@ -584,13 +615,13 @@ def load_native_library(root: Path | None = None) -> LibraryLoad:
         return LibraryLoad(contracts=(), invalid=())
 
     # First pass collects ids so incompatible-with can be validated against the real library.
-    parsed: list[tuple[SkillContract, Any]] = []
+    parsed: list[SkillContract] = []
     for entry in sorted(base.iterdir()):
         candidate = entry / "SKILL.md" if entry.is_dir() else entry
         if candidate.name != "SKILL.md" or not candidate.is_file():
             continue
-        skill = parse_skill(candidate)
-        if skill is None:
+        read = _read_skill_file(candidate)
+        if read is None:
             errors.append(
                 SkillContractError(
                     id=entry.name if entry.is_dir() else candidate.stem,
@@ -599,15 +630,13 @@ def load_native_library(root: Path | None = None) -> LibraryLoad:
                 )
             )
             continue
-        front = _frontmatter_of(candidate)
-        contract = contract_from_frontmatter(
-            front, path=str(candidate), body=str(getattr(skill, "body", "") or "")
-        )
-        parsed.append((contract, skill))
+        front, body = read
+        parsed.append(contract_from_frontmatter(front, path=str(candidate), body=body))
 
-    known_ids = frozenset(c.id for c, _ in parsed)
-    for contract, _skill in parsed:
-        violations = contract_violations(contract, known_skill_ids=known_ids)
+    known_ids = frozenset(c.id for c in parsed)
+    tool_names = _runtime_tool_names() if parsed else None
+    for contract in parsed:
+        violations = contract_violations(contract, known_skill_ids=known_ids, known_intents=tool_names)
         if violations:
             errors.append(SkillContractError(id=contract.id or "?", path=contract.path, violations=violations))
         else:
@@ -639,6 +668,7 @@ def reset_contract_caches() -> None:
     """Drop every cached parse. Tests call this between worlds; a config edit calls it too."""
     with _contract_lock():
         _MCP_SKILL_CACHE.clear()
+        _SKILL_FILE_PARSES.clear()
 
 
 def parse_skill_text(text: str, *, source: str = "native", path: str = "") -> SkillContract | None:
@@ -730,8 +760,6 @@ def load_plugin_typed_contracts() -> LibraryLoad:
     any other pack is reported (so its author can see why it never seats by task class) and its
     skill stays in the lexical lane, where only the person's own words select it.
     """
-    from core.plugin_skills import parse_skill
-
     try:
         from core.tool_offer_assembly import _plugin_dirs
 
@@ -740,6 +768,7 @@ def load_plugin_typed_contracts() -> LibraryLoad:
         dirs = ()
     contracts: list[SkillContract] = []
     errors: list[SkillContractError] = []
+    tool_names: Any = _UNSET  # read once, at the first typed skill
     for plugin_id, plugin_dir in dirs:
         skills_dir = plugin_dir / "skills"
         if not skills_dir.is_dir():
@@ -750,17 +779,19 @@ def load_plugin_typed_contracts() -> LibraryLoad:
             candidate = entry / "SKILL.md" if entry.is_dir() else entry
             if candidate.name != "SKILL.md" or not candidate.is_file():
                 continue
-            front = _frontmatter_of(candidate)
+            read = _read_skill_file(candidate)
+            front = read[0] if read is not None else {}
             if not _is_typed_frontmatter(front):
                 continue  # legacy plugin skill: lexical world, untouched
-            skill = parse_skill(candidate)
             contract = contract_from_frontmatter(
                 front,
                 path=str(candidate),
-                body=str(getattr(skill, "body", "") or "") if skill else "",
+                body=read[1] if read is not None else "",
                 source=source,
             )
-            violations = contract_violations(contract)
+            if tool_names is _UNSET:
+                tool_names = _runtime_tool_names()
+            violations = contract_violations(contract, known_intents=tool_names)
             if not trusted:
                 errors.append(
                     SkillContractError(
@@ -818,6 +849,7 @@ def load_mcp_skill_contracts() -> LibraryLoad:
 
     contracts: list[SkillContract] = []
     errors: list[SkillContractError] = []
+    tool_names: Any = _UNSET  # read once, at the first skill a server ships
     for cfg in load_mcp_server_configs():
         server = str(cfg.get("name") or "")
         client = _client_for(cfg["name"])
@@ -849,7 +881,9 @@ def load_mcp_skill_contracts() -> LibraryLoad:
                                        violations=("no YAML frontmatter",))
                 )
                 continue
-            violations = contract_violations(contract)
+            if tool_names is _UNSET:
+                tool_names = _runtime_tool_names()
+            violations = contract_violations(contract, known_intents=tool_names)
             if violations:
                 errors.append(
                     SkillContractError(id=contract.id or "?", path=uri, violations=violations)
@@ -933,12 +967,16 @@ def load_skill_contracts() -> LibraryLoad:
 
 def _frontmatter_of(path: Path) -> dict[str, Any]:
     """The parsed YAML frontmatter of a SKILL.md, through the same loader the plugins use."""
-    from core.plugin_skills import _FRONTMATTER_RE
-
     try:
         text = Path(path).read_text(encoding="utf-8")
     except OSError:
         return {}
+    return _frontmatter_from_text(text)
+
+
+def _frontmatter_from_text(text: str) -> dict[str, Any]:
+    from core.plugin_skills import _FRONTMATTER_RE
+
     match = _FRONTMATTER_RE.match(text)
     if not match:
         return {}
@@ -948,6 +986,44 @@ def _frontmatter_of(path: Path) -> dict[str, Any]:
         return load_header(match.group(1))
     except Exception:
         return {}
+
+
+#: Each SKILL.md parsed once per TEXT: ``{path: (sha256 of the text, frontmatter, body)}``, the
+#: body None when the skill loader refuses the file. Keyed on the text itself, not on a clock or
+#: a size, so an edit is seen by the next load however fast it follows the last one.
+_SKILL_FILE_PARSES: dict[str, tuple[str, dict[str, Any], str | None]] = {}
+_SKILL_FILE_PARSES_MAX = 1024
+
+
+def _read_skill_file(path: Path) -> tuple[dict[str, Any], str] | None:
+    """(frontmatter, body) of one SKILL.md, or None when the skill loader refuses it.
+
+    What ``core.plugin_skills.parse_skill`` and ``_frontmatter_of`` each read, from one read of
+    the file. The file is read on every call; its header is parsed again only when the text
+    differs from the last parse of that path.
+    """
+    from core.plugin_skills import parse_skill_content
+
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    key = str(path)
+    with _contract_lock():
+        cached = _SKILL_FILE_PARSES.get(key)
+    if cached is None or cached[0] != digest:
+        skill = parse_skill_content(text, path=Path(path))
+        body = None if skill is None else str(getattr(skill, "body", "") or "")
+        cached = (digest, _frontmatter_from_text(text), body)
+        with _contract_lock():
+            if len(_SKILL_FILE_PARSES) >= _SKILL_FILE_PARSES_MAX:
+                _SKILL_FILE_PARSES.clear()
+            _SKILL_FILE_PARSES[key] = cached
+    _digest, front, body = cached
+    if body is None:
+        return None
+    return dict(front), body
 
 
 # ---------------------------------------------------------------------------
@@ -1039,6 +1115,50 @@ def contract_to_dict(contract: SkillContract) -> dict[str, Any]:
     }
 
 
+#: What bringing the capability graph up to date said, for the pass over the library under way
+#: (a selection, the inventory): empty until a skill of the pass needs the graph. Outside a
+#: pass there is none, and each check brings the graph up to date itself.
+_GRAPH_PASS: ContextVar[list[bool] | None] = ContextVar("vool_skill_graph_pass", default=None)
+
+
+@contextmanager
+def _one_graph_check_per_pass():
+    """Bring the capability graph up to the live registry ONCE for a pass over the library.
+
+    Each up-to-date check reads the whole tool catalog (``capability_graph._index_is_stale``),
+    and a selection made it once per skill that declares capabilities: 13 catalog reads on
+    every selection, measured on the v0.8 replay corpus.
+    """
+    token = _GRAPH_PASS.set([])
+    try:
+        yield
+    finally:
+        _GRAPH_PASS.reset(token)
+
+
+def _graph_up_to_date() -> None:
+    """Bring the capability graph up to the live registry: once per pass, or now outside one.
+
+    Raises when it cannot be brought up to date, for the first skill that asks and for every
+    later one of the same pass.
+    """
+    from core.capability_graph import ensure_registry_bootstrap
+
+    held = _GRAPH_PASS.get()
+    if held is None:
+        ensure_registry_bootstrap()
+        return
+    if not held:
+        try:
+            ensure_registry_bootstrap()
+        except Exception:
+            held.append(False)
+            raise
+        held.append(True)
+    elif not held[0]:
+        raise RuntimeError("the capability graph could not be brought up to date")
+
+
 def _unmet_capabilities(contract: SkillContract) -> tuple[str, ...]:
     """Which declared capabilities this runtime cannot honour, judged against the real graph.
 
@@ -1050,15 +1170,11 @@ def _unmet_capabilities(contract: SkillContract) -> tuple[str, ...]:
     if not contract.capabilities:
         return ()
     try:
-        from core.capability_graph import (
-            capabilities_for_skill,
-            ensure_registry_bootstrap,
-            implementations_for_capability,
-        )
+        from core.capability_graph import capabilities_for_skill, implementations_for_capability
 
         # Judge against the graph the runtime ACTUALLY bootstrapped — an unbootstrapped graph
         # answers "nothing exists", which would refuse every skill on a healthy machine.
-        ensure_registry_bootstrap()
+        _graph_up_to_date()
         absent: list[str] = []
         for requirement in contract.capabilities:
             resolved = capabilities_for_skill("", [requirement])
@@ -1198,35 +1314,37 @@ def skill_inventory(root: Path | None = None) -> list[dict[str, Any]]:
         library = load_skill_contracts()
     disabled = _read_disabled_ids()
     rows: list[dict[str, Any]] = []
-    for contract in library.contracts:
-        unmet = _unmet_prerequisites(contract)
-        absent_capabilities = _unmet_capabilities(contract)
-        is_disabled = contract.id in disabled
-        available = not is_disabled and not unmet and not absent_capabilities
-        if is_disabled:
-            reason = "disabled by operator"
-        elif unmet:
-            reason = f"unmet prerequisites: {unmet}"
-        elif absent_capabilities:
-            reason = f"unavailable capabilities: {absent_capabilities}"
-        else:
-            reason = ""
-        rows.append(
-            {
-                "id": contract.id,
-                "name": contract.name,
-                "description": contract.description,
-                "version": contract.version,
-                "risk_class": contract.risk_class,
-                "source": contract.source,
-                "enabled": not is_disabled,
-                "available": available,
-                "reason": reason,
-                "plain_reason": "" if is_disabled else plain_unavailable_reason(unmet, absent_capabilities),
-                "task_families": list(contract.task_families),
-                "capability_families": list(contract.capability_families),
-            }
-        )
+    # One capability-graph check for the whole inventory, not one per skill.
+    with _one_graph_check_per_pass():
+        for contract in library.contracts:
+            unmet = _unmet_prerequisites(contract)
+            absent_capabilities = _unmet_capabilities(contract)
+            is_disabled = contract.id in disabled
+            available = not is_disabled and not unmet and not absent_capabilities
+            if is_disabled:
+                reason = "disabled by operator"
+            elif unmet:
+                reason = f"unmet prerequisites: {unmet}"
+            elif absent_capabilities:
+                reason = f"unavailable capabilities: {absent_capabilities}"
+            else:
+                reason = ""
+            rows.append(
+                {
+                    "id": contract.id,
+                    "name": contract.name,
+                    "description": contract.description,
+                    "version": contract.version,
+                    "risk_class": contract.risk_class,
+                    "source": contract.source,
+                    "enabled": not is_disabled,
+                    "available": available,
+                    "reason": reason,
+                    "plain_reason": "" if is_disabled else plain_unavailable_reason(unmet, absent_capabilities),
+                    "task_families": list(contract.task_families),
+                    "capability_families": list(contract.capability_families),
+                }
+            )
     for error in library.invalid:
         # An invalid row whose id a VALID contract already owns is the cross-source duplicate
         # report (native kept, plugin/mcp dropped) -- not a second state of that skill. The
@@ -1613,33 +1731,35 @@ def select_native_skills(
         )
 
     available: list[SkillContract] = []
-    for contract in library.contracts:
-        if contract.id in disabled:
-            records.append(
-                SkillAvailabilityRecord(
-                    id=contract.id, state="disabled", reason="disabled by operator",
-                    version=contract.version,
+    # One capability-graph check for the whole selection, not one per skill.
+    with _one_graph_check_per_pass():
+        for contract in library.contracts:
+            if contract.id in disabled:
+                records.append(
+                    SkillAvailabilityRecord(
+                        id=contract.id, state="disabled", reason="disabled by operator",
+                        version=contract.version,
+                    )
                 )
-            )
-            continue
-        unmet = _unmet_prerequisites(contract)
-        absent_capabilities = _unmet_capabilities(contract)
-        if unmet or absent_capabilities:
-            reason_bits = []
-            if unmet:
-                reason_bits.append(f"unmet prerequisites: {unmet}")
-            if absent_capabilities:
-                reason_bits.append(f"unavailable capabilities: {absent_capabilities}")
-            records.append(
-                SkillAvailabilityRecord(
-                    id=contract.id,
-                    state="prerequisite_missing" if unmet else "capability_unavailable",
-                    reason="; ".join(reason_bits),
-                    version=contract.version,
+                continue
+            unmet = _unmet_prerequisites(contract)
+            absent_capabilities = _unmet_capabilities(contract)
+            if unmet or absent_capabilities:
+                reason_bits = []
+                if unmet:
+                    reason_bits.append(f"unmet prerequisites: {unmet}")
+                if absent_capabilities:
+                    reason_bits.append(f"unavailable capabilities: {absent_capabilities}")
+                records.append(
+                    SkillAvailabilityRecord(
+                        id=contract.id,
+                        state="prerequisite_missing" if unmet else "capability_unavailable",
+                        reason="; ".join(reason_bits),
+                        version=contract.version,
+                    )
                 )
-            )
-            continue
-        available.append(contract)
+                continue
+            available.append(contract)
 
     from core.plugin_skills import _content_stems
 
