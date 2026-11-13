@@ -36,6 +36,12 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           version: '0.11.1'
+      # Private web ships wireproxy built from its pinned module with Go (installer/private_web_helpers.py
+      # pins its SHA-256 for go1.26.0, -trimpath, CGO off). The hosted runners carry no Go on PATH.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.0'
+          cache: false
       - name: Record the exact packaged source
         id: source
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
