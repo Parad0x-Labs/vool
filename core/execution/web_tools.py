@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from types import SimpleNamespace
@@ -16,6 +17,82 @@ WEB_OFF_REFUSAL_EN = (
     "Web lookups are off. You can turn them on in Settings, Privacy & Permissions. You can also paste the "
     "article text, links or notes you want me to use, and I will work from them."
 )
+
+
+_SHOPPING_RE = re.compile(
+    r"\b(?:best|top\s+\d+|prices?|priced|costs?|cheap(?:est)?|budget|buy(?:ing)?|deals?|recommend\w*|reviews?|"
+    r"reviewed|tested)\b",
+    re.IGNORECASE,
+)
+_PAGE_PRICE_RE = re.compile(
+    r"(?:[$€£]\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|EUR|GBP|dollars|euros)\b)"
+)
+#: How many search hits a shopping search reads, and how many priced lines each page gives the model.
+_PAGES_READ = 2
+_LINES_PER_PAGE = 8
+
+
+def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE) -> list[str]:
+    """The lines of a fetched page that state a price, each with the short heading just above it when the price
+    stands alone ("Peak Design Travel Tripod -- $379.95"). Only the page's own words, clipped, in page order."""
+    chunks: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = " ".join(raw.split())
+        if not line:
+            continue
+        if len(line) > 300:
+            chunks.extend(part.strip() for part in re.split(r"(?<=[.!?])\s+", line) if part.strip())
+        else:
+            chunks.append(line)
+    found: list[str] = []
+    for index, chunk in enumerate(chunks):
+        if not _PAGE_PRICE_RE.search(chunk):
+            continue
+        entry = chunk[:220]
+        alone = len(_PAGE_PRICE_RE.sub("", chunk).strip(" :-|")) <= 12  # "$379.95", "Price: $219"
+        if alone and index and len(chunks[index - 1]) < 100 and not _PAGE_PRICE_RE.search(chunks[index - 1]):
+            entry = f"{chunks[index - 1]} -- {entry}"
+        if entry not in found:
+            found.append(entry)
+        if len(found) >= limit:
+            break
+    return found
+
+
+def _read_shopping_hits(
+    query: str, results: list[dict[str, Any]], *, source_context: dict[str, Any] | None, call_tool_fn: Callable[..., Any]
+) -> list[dict[str, Any]]:
+    """For a search that asks what to buy or what it costs, read the top hits and keep their priced lines.
+
+    Measured on the Mac (AQ row 12 on 0a84ca8f, "suggest a good tripod for travel and tell me what it costs today"):
+    the search gave the model only 180-character snippets of guide articles, so it listed the articles, named no
+    tripod and gave no price. A hit is a page an engine returned, so it is read with the same public-only guard as
+    research (`not_local`); a remote turn reads public addresses only. A page that fails or states no price adds
+    nothing."""
+    titles = " ".join(str(row.get("title") or "") for row in results)
+    if not _SHOPPING_RE.search(f"{query} {titles}"):
+        return []
+    from core.request_trust import turn_is_remote
+
+    remote = turn_is_remote(source_context)
+    excerpts: list[dict[str, Any]] = []
+    for row in results[:_PAGES_READ]:
+        url = str(row.get("url") or "").strip()
+        if not url.lower().startswith(("http://", "https://")):
+            continue
+        try:
+            fetched = (
+                call_tool_fn("web.fetch", url=url, timeout_s=8.0, public_only=True) if remote
+                else call_tool_fn("web.fetch", url=url, timeout_s=8.0, not_local=True)
+            )
+        except Exception:
+            continue
+        if str((fetched or {}).get("status") or "") != "ok":
+            continue
+        lines = priced_page_lines(str((fetched or {}).get("text") or ""))
+        if lines:
+            excerpts.append({"title": str(row.get("title") or url), "url": url, "priced_lines": lines})
+    return excerpts
 
 
 def normalize_item(item: Any) -> dict[str, Any]:
@@ -187,6 +264,13 @@ def execute_web_tool(
                 lines.append(line)
                 if snippet:
                     lines.append(f"  {snippet[:180]}")
+            page_excerpts = _read_shopping_hits(
+                query, observation_results, source_context=source_context, call_tool_fn=call_tool_fn
+            )
+            for page in page_excerpts:
+                lines.append(f"Read from {page['title']} - {page['url']}:")
+                lines.extend(f"  {line}" for line in page["priced_lines"])
+            extra = {"page_excerpts": page_excerpts} if page_excerpts else {}
             return ToolIntentExecution(
                 handled=True,
                 ok=True,
@@ -206,7 +290,9 @@ def execute_web_tool(
                         query=query,
                         result_count=len(rows),
                         results=observation_results,
+                        **extra,
                     ),
+                    **extra,
                 },
             )
 

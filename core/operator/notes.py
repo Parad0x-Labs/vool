@@ -483,14 +483,62 @@ def _ends_in_save_offer(answer: str) -> bool:
     return _is_save_offer(last)
 
 
-def _answer_note(answer: str) -> tuple[str, str]:
-    """(title, body) of a note made from an answer: its closing save offer dropped, its first line as the title."""
+_REFERENT_RE = re.compile(
+    r"\b(?:that|this|the|those|these)\s+(?P<noun>[a-z][\w'-]*)\s+(?:in|into|to|on|as)\b", re.IGNORECASE
+)
+_VAGUE_REFERENTS = frozenset({"answer", "reply", "response", "one", "note", "text", "message", "bit", "stuff", "thing"})
+_TITLE_STOP_WORDS = frozenset(
+    [
+        "a", "an", "the", "this", "that", "these", "those", "your", "my", "our", "some", "any", "here", "here's",
+        "is", "are", "of", "for", "to", "and", "or", "with", "quick", "short", "simple", "easy", "basic", "good",
+        "great", "nice", "little",
+    ]
+)
+_LEAD_IN_RE = re.compile(
+    r"^(?:(?:sure|of course|absolutely|okay|ok|certainly|great|alright|no problem)\b[!.,]*\s*)?"
+    r"(?:here(?:'s|’s| is| are)\s+)?(?:(?:a|an|the|your|some)\s+)?",
+    re.IGNORECASE,
+)
+
+
+def _subject_title(answer: str, words: str) -> str:
+    """The thing the person pointed at, named as the answer names it: "keep that routine in my notes" after "Here's
+    a short, easy-to-do desk stretching routine" -> "Desk stretching routine" (Mac AQ row 4a-2 on 0a84ca8f titled the
+    note with the reply's opening words)."""
+    found = _REFERENT_RE.search(str(words or ""))
+    noun = found.group("noun").lower() if found else ""
+    if not noun or noun in _VAGUE_REFERENTS:
+        return ""
+    for line in str(answer or "").splitlines():
+        tokens = re.sub(r"[*_`#>]+", " ", line).split()
+        for index, token in enumerate(tokens):
+            if token.lower().strip(".,;:!?") != noun:
+                continue
+            phrase = [token.strip(".,;:!?")]
+            for previous in reversed(tokens[max(0, index - 2):index]):
+                if previous[-1:] in ",;:!?." or previous.lower() in _TITLE_STOP_WORDS or "-" in previous:
+                    break
+                phrase.insert(0, previous)
+            title = " ".join(phrase)
+            return title[:1].upper() + title[1:]
+    return ""
+
+
+def _answer_note(answer: str, words: str = "") -> tuple[str, str]:
+    """(title, body) of a note made from an answer: its closing save offer dropped; titled by the thing the person
+    pointed at when the answer names it, else by the answer's first line without a chatty lead-in."""
     lines = [line.rstrip() for line in str(answer or "").strip().splitlines()]
     while lines and (not lines[-1].strip() or _is_save_offer(lines[-1])):
         lines.pop()
     body = "\n".join(lines).strip()
+    subject = _subject_title(body, words)
+    if subject:
+        return subject, body
     first = next((line for line in lines if line.strip()), "")
     title = re.sub(r"[*_`]+", "", re.sub(r"^[\s#>*\-\d.)]+", "", first)).strip().rstrip(":").strip()
+    trimmed = _LEAD_IN_RE.sub("", title, count=1).strip()
+    if trimmed and trimmed != title:
+        title = trimmed[:1].upper() + trimmed[1:]
     if len(title) > 60:
         title = title[:60].rsplit(" ", 1)[0].rstrip(",;:")
     return title, body
@@ -535,7 +583,7 @@ def with_the_answer_it_follows(
         # An answer that did not offer the save is still saved when the person names their notes as the place
         # ("keep that routine in my notes", Mac AQ row 4a on cbc915ec).
         return intent
-    title, body = _answer_note(answer)
+    title, body = _answer_note(answer, words)
     if not body:
         return intent
     from dataclasses import replace
