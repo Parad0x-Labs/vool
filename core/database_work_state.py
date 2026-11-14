@@ -196,6 +196,34 @@ def database_catalog_block(max_chars: int = 2600) -> str:
 _NAME_TOKEN_RE = None
 
 
+def _where_for_named_value(conn: Any, table: str, columns: list[str], lowered: str) -> str:
+    """` WHERE column = 'Value'` when the question names a value one text column of the table holds, else "".
+
+    Mac run 16i (toolshed 10, 12): "which neighbour lives on Oak Ave" was read as the whole table and dumped, never
+    saying Pavel. A one- to three-word phrase of the question that equals a stored text (any case) is the filter.
+    Exactly one column may hold it. Read-only, never raises."""
+    try:
+        import re
+
+        words = re.findall(r"[a-z0-9']+", lowered)
+        phrases = {" ".join(words[i:i + n]) for n in (3, 2, 1) for i in range(len(words) - n + 1)}
+        phrases = {p for p in phrases if len(p) >= 3 and p not in {"the", "and", "who", "what", "which", "how", "any", "are", "has", "does"}}
+        found: list[tuple[str, str]] = []
+        for column in columns:
+            if column.lower() == "id" or column.lower().endswith("_id"):
+                continue
+            for (value,) in conn.execute('select distinct "%s" from "%s" limit 200' % (column.replace('"', ""), table.replace('"', ""))):
+                if isinstance(value, str) and value.strip().lower() in phrases and len(value.strip()) >= 3:
+                    found.append((column, value))
+                    break
+        if len(found) == 1:
+            column, value = found[0]
+            return " WHERE %s = '%s'" % (column, value.replace("'", "''"))
+    except Exception:
+        return ""
+    return ""
+
+
 def suggest_database_query(question: str, max_chars: int = 600) -> str:
     """One concrete read-only call for a question, built from the person's own tables ("" when none fits).
 
@@ -282,7 +310,8 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                         r"\b(oldest|earliest|soonest)\b|\b(?:expir\w*|due)\s+(?:first|soonest|next)\b", lowered
                     ):
                         order = " ORDER BY %s ASC" % date_col
-                    return ("name=%s, sql=SELECT * FROM %s%s" % (path.stem, table, order))[:max_chars]
+                    where = "" if order else _where_for_named_value(conn, table, columns, lowered)
+                    return ("name=%s, sql=SELECT * FROM %s%s%s" % (path.stem, table, where, order))[:max_chars]
                 # 2b. "how many are out right now": the count of the rows not yet returned, in whichever table holds
                 #     them (run 16r, toolshed 5: the tools were counted and the borrowings never read)
                 if re.search(r"\bhow\s+many\b", lowered) and re.search(

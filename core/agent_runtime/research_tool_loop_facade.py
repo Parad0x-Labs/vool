@@ -597,6 +597,21 @@ def _database_query_contradicts_the_ask_checks(
     carried = _database_query_carries_over_the_last_ask(sql, question, steps or [])
     if carried:
         return _database_refusal(intent, carried, "query_carries_over_from_the_last_ask")
+    _ready = _database_call_suggestion(question)
+    _ready_where = re.search(r"sql=(SELECT \* FROM (\w+) WHERE .+)$", _ready or "", re.IGNORECASE)
+    if (
+        _ready_where
+        and re.fullmatch(r"\s*select\s+\*\s+from\s+%s\s*;?\s*" % re.escape(_ready_where.group(2)), sql, re.IGNORECASE)
+        and not any("names a value" in str(x.get("observation") or "") for x in (steps or []) if x.get("correction"))
+    ):
+        # Run 16i (toolshed 10, 12): "which neighbour lives on Oak Ave" read the whole table and dumped four rows that
+        # never said Pavel. The question names a value one column holds; the read filters on it. Said once.
+        return _database_refusal(
+            intent,
+            "The question names a value one column holds, so the read filters on it instead of reading every row. "
+            f"Call vool-database.query with: {_ready}.",
+            "read_without_the_named_value",
+        )
     told_sum = " ".join(str(s.get("observation") or "") for s in (steps or []) if s.get("correction") and isinstance(s.get("observation"), str))
     if (
         re.search(r"\bsum\s*\(", sql, re.IGNORECASE)
@@ -3609,6 +3624,25 @@ class ResearchToolLoopFacadeMixin:
                         "arguments": {**_args, "name": _db, "sql": _fixed, **({"params": _params} if isinstance(_params, dict) else {})},
                     }
                     continue
+                elif not database_ready_failure_made and _database_work_turn(effective_input, loop_source_context):
+                    # Run 16i (toolshed 5, 9): `status` and `date` have no close real column. The ready read-only call for
+                    # the ask shape ("how many are out" over the returns, "newest first" over the date column) runs once.
+                    _ready_here = _database_call_payload(effective_input)
+                    if _ready_here is not None and not any(
+                        str(dict(step.get("arguments") or {}).get("sql") or "").strip().lower()
+                        == str(_ready_here["arguments"]["sql"]).strip().lower()
+                        for step in executed_steps
+                    ):
+                        database_ready_failure_made = True
+                        self._emit_runtime_event(
+                            loop_source_context,
+                            event_type="database_call_made_after_failures",
+                            message="The read named a column that does not exist; running the ready read-only database call.",
+                            status="database_call_made_after_failures",
+                            step_count=len(executed_steps),
+                        )
+                        pending_tool_payload = _ready_here
+                        continue
             if execution.mode != "tool_executed" and self._retry_as_observation(
                 execution=execution,
                 tool_payload=tool_payload,

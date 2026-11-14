@@ -284,3 +284,32 @@ def test_a_database_turn_does_not_carry_the_workspace_file_tools() -> None:
 
     assert not _FILE_WORDS_RE.search("whos got the ladder")
     assert _FILE_WORDS_RE.search("find the file with my tools list")
+
+
+def test_the_ready_call_filters_on_a_value_the_question_names(tmp_path, monkeypatch) -> None:
+    import core.plugin_tools as pt
+    from core.database_work_state import suggest_database_query
+
+    root = tmp_path / "databases"
+    root.mkdir()
+    monkeypatch.setattr(pt, "plugin_scratch_dir", lambda _n: tmp_path)
+    c = sqlite3.connect(root / "toolshed.sqlite")
+    c.executescript(
+        "create table neighbours(id integer primary key, name text, street text, joined text);"
+        "insert into neighbours values (1,'Noor','Elm','2024-01-01'),(2,'Pavel','Oak Ave','2025-02-02');"
+    )
+    c.commit()
+    c.close()
+    assert suggest_database_query("which neighbour lives on Oak Ave") == "name=toolshed, sql=SELECT * FROM neighbours WHERE street = 'Oak Ave'"
+    assert suggest_database_query("list the neighbours") == "name=toolshed, sql=SELECT * FROM neighbours"
+
+
+def test_a_whole_table_read_is_refused_once_when_the_question_names_a_value(monkeypatch) -> None:
+    import core.agent_runtime.research_tool_loop_facade as facade
+
+    monkeypatch.setattr(facade, "_database_call_suggestion", lambda _q: "name=toolshed, sql=SELECT * FROM neighbours WHERE street = 'Oak Ave'")
+    payload = {"arguments": {"name": "toolshed", "sql": "SELECT * FROM neighbours"}}
+    refused = facade._database_query_contradicts_the_ask_checks("vool-database.query", payload, "which neighbour lives on Oak Ave", [])
+    assert refused is not None and "WHERE street = 'Oak Ave'" in refused.response_text
+    told = [{"correction": True, "observation": str(refused.response_text)}]
+    assert facade._database_query_contradicts_the_ask_checks("vool-database.query", payload, "which neighbour lives on Oak Ave", told) is None
