@@ -862,7 +862,33 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
         return rows
     if _ORDERED_ASK_RE.search(str(question or "")) and _listed_out_of_order(text, used):
         return rows
+    if _reply_leaves_out_a_row(text, used):
+        # Run 16i (toolshed 13): the read held Marta and Noor, the reply named Noor.
+        return rows
     return ""
+
+
+def _reply_leaves_out_a_row(reply: str, steps: list[dict[str, Any]]) -> bool:
+    """The reply names some of the few rows a read returned, by a text column, and leaves another row out."""
+    for step in reversed(steps):
+        if step.get("tool_name") != "vool-database.query" or step.get("ok") is not True:
+            continue
+        observation = step.get("observation")
+        rows = list(observation.get("rows") or []) if isinstance(observation, dict) else []
+        if not 2 <= len(rows) <= 6 or not all(isinstance(r, (list, tuple)) for r in rows):
+            return False
+        text = str(reply or "").lower()
+        for index in range(len(rows[0])):
+            values = [r[index] if index < len(r) else None for r in rows]
+            if not all(isinstance(v, str) and len(v.strip()) >= 3 and not v.strip().isdigit() for v in values):
+                continue
+            lowered = [v.strip().lower() for v in values]
+            if len(set(lowered)) != len(lowered):
+                continue
+            named = [v in text for v in lowered]
+            return any(named) and not all(named)
+        return False
+    return False
 
 
 def _database_work_turn(text: str, source_context: dict[str, Any] | None) -> bool:
@@ -3503,7 +3529,18 @@ class ResearchToolLoopFacadeMixin:
                         status="database_column_repaired",
                         step_count=len(executed_steps),
                     )
-                    pending_tool_payload = {"intent": "vool-database.query", "arguments": {**_args, "name": _db, "sql": _fixed}}
+                    _params = _args.get("params")
+                    if isinstance(_params, dict):
+                        # Run 16i (toolshed 14): `:tool_name` was renamed to `:name` and the params kept `tool_name`.
+                        _holders = set(re.findall(r":(\w+)", _fixed))
+                        _orphans = [key for key in _params if key not in _holders]
+                        _missing = [key for key in _holders if key not in _params]
+                        if len(_orphans) == 1 and len(_missing) == 1:
+                            _params = {(_missing[0] if key == _orphans[0] else key): value for key, value in _params.items()}
+                    pending_tool_payload = {
+                        "intent": "vool-database.query",
+                        "arguments": {**_args, "name": _db, "sql": _fixed, **({"params": _params} if isinstance(_params, dict) else {})},
+                    }
                     continue
             if execution.mode != "tool_executed" and self._retry_as_observation(
                 execution=execution,

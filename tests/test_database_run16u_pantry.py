@@ -196,3 +196,28 @@ def test_a_schema_observation_supports_a_sentence_about_the_tables() -> None:
                                 details={"observation": {"intent": "vool-database.schema", "tables": ["books", "members", "loans"], "ok": True}})
     note = tool_history_observation_payload(execution=execution, tool_name="vool-database.schema")
     assert "members" in str(note.get("summary"))
+
+
+def test_the_column_that_holds_the_matched_value_is_the_column_meant(tmp_path, monkeypatch) -> None:
+    import core.plugin_tools as pt
+    from core.database_work_state import sql_with_real_columns
+
+    root = tmp_path / "databases"
+    root.mkdir()
+    monkeypatch.setattr(pt, "plugin_scratch_dir", lambda _n: tmp_path)
+    c = sqlite3.connect(root / "toolshed.sqlite")
+    c.execute("create table tools(id integer, name text, kind text)")
+    c.execute("insert into tools values (1,'Drill','power'),(2,'Saw','hand')")
+    c.commit()
+    c.close()
+    db, sql = sql_with_real_columns("workspace", "SELECT * FROM tools WHERE category = 'power tools'", "no such column: category")
+    assert db == "toolshed" and "kind = 'power tools'" in sql
+
+
+def test_a_reply_that_names_only_some_of_the_rows_is_the_rows() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _reply_leaves_out_a_row
+
+    step = {"tool_name": "vool-database.query", "ok": True, "observation": {"columns": ["name"], "rows": [["Marta"], ["Noor"]]}}
+    assert _reply_leaves_out_a_row("The Drill was had by Noor.", [step]) is True
+    assert _reply_leaves_out_a_row("Marta and Noor.", [step]) is False
+    assert _reply_leaves_out_a_row("Nobody.", [step]) is False

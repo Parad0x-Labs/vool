@@ -486,6 +486,26 @@ def sql_with_real_columns(name: str, sql: str, error: str) -> tuple[str, str]:
             close = [c for c in real if len(low) >= 4 and len(c) >= 4 and c.lower()[:4] == low[:4]]
         if not close and table_of_bad and low.rstrip("s") == table_of_bad.rstrip("s"):
             close = [c for c in real if c.lower() in ("name", "title")]
+        if not close:
+            # Run 16i (toolshed 3): `category = 'power tools'` on a table whose `kind` column holds 'power'. The one
+            # column that holds the value the read matched on is the column meant.
+            literal = re.search(r"\b%s\s*(?:=|like)\s*'([^']{2,40})'" % re.escape(bad), sql, re.IGNORECASE)
+            if literal:
+                wanted = literal.group(1).strip("% ").lower()
+                holders: list[str] = []
+                conn = sqlite3.connect(f"file:{root / (pick + '.sqlite')}?mode=ro", uri=True, timeout=0.2)
+                try:
+                    for table in sorted(named):
+                        for column in [r[1] for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]:
+                            for (value,) in conn.execute('select distinct "%s" from "%s" limit 60' % (column.replace('"', ""), table.replace('"', ""))):
+                                low_value = str(value or "").lower()
+                                if low_value and isinstance(value, str) and (low_value in wanted or wanted in low_value):
+                                    holders.append(column)
+                                    break
+                finally:
+                    conn.close()
+                if len(set(holders)) == 1:
+                    close = [holders[0]]
         if len(close) != 1:
             return "", ""
         return pick, re.sub(r"\b%s\b" % re.escape(bad), close[0], sql)
