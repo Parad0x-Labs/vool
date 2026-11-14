@@ -955,7 +955,18 @@ _MONTH_WORD = (
 _SUPPLIED_TODAY_RE = re.compile(
     r"\b(?:if|say|assuming|suppose|given\s+(?:that\s+)?)\s+(?:today|it)\s*(?:is|'s|’s|were|was)\s+(?:the\s+)?"
     rf"(?:\d{{1,2}}(?:st|nd|rd|th)?\s+(?:of\s+)?{_MONTH_WORD}\b|{_MONTH_WORD}\s+\d{{1,2}}(?:st|nd|rd|th)?\b|"
-    r"\d{4}-\d{2}-\d{2}\b|\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?\b)",
+    r"\d{4}-\d{2}-\d{2}\b|\d{1,2}[./]\d{1,2}[./]\d{2,4}\b|\d{1,2}/\d{1,2}\b(?![./]?\d))",
+    re.IGNORECASE,
+)
+#: What a supplied date is FOR: date arithmetic. Anything else in the turn ("if today is 1 march, what is the weather
+#: in Oslo?", "say it is 12.30, is the pharmacy open now?") keeps its current-information need (independent review of
+#: job 19, C4).
+_DATE_ARITHMETIC_RE = re.compile(
+    r"\bhow\s+many\s+(?:more\s+)?(?:days?|weeks?|months?|nights?|years?|weekends?|sleeps?|mondays?|tuesdays?|wednesdays?|"
+    r"thursdays?|fridays?|saturdays?|sundays?)\b|\bhow\s+long\s+(?:until|till|til|before|since|ago|to|is\s+it)\b|"
+    r"\b(?:what|which)\s+(?:day|date|weekday)\b|\bwhat\s+(?:is|'s|’s)\s+the\s+date\b|"
+    r"\b(?:days?|weeks?|months?)\s+(?:until|till|left|before|since|ago|from|to)\b|\bhow\s+old\b|\bcount\s*down\b|"
+    r"\b(?:in|after)\s+\d+\s+(?:days?|weeks?|months?)\b",
     re.IGNORECASE,
 )
 
@@ -976,7 +987,12 @@ def _points_back_at_figures_given(text: str, source_context: dict[str, Any] | No
 def _supplies_todays_date(text: str) -> bool:
     """Measured on the real local model (H2H memory set): "if today is 1 march, how many days until the cabin trip
     starts?" was held to current information and withheld ("That is not mentioned in the records I have ...")."""
-    return bool(_SUPPLIED_TODAY_RE.search(str(text or "")))
+    value = str(text or "")
+    supplied = _SUPPLIED_TODAY_RE.search(value)
+    if not supplied:
+        return False
+    rest = (value[: supplied.start()] + " " + value[supplied.end():]).strip()
+    return bool(_DATE_ARITHMETIC_RE.search(rest))
 
 
 def _compute_requirements(
