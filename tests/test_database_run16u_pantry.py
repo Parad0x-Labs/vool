@@ -231,3 +231,12 @@ def test_the_person_the_question_names_is_the_subject_of_what_is_out() -> None:
     text = database_holding_answer("what does Noor have out right now", [step])
     assert text.startswith("Noor has out right now: Ladder, Sander")
     assert database_holding_answer("what is out right now", [step]).startswith("They have")
+
+
+def test_the_database_name_used_as_a_table_is_replaced_by_the_table_that_holds_the_columns(tmp_path, monkeypatch) -> None:
+    from core.database_work_state import sql_with_real_table
+
+    _make(tmp_path, monkeypatch)
+    db, sql = sql_with_real_table("pantry", "SELECT name, expires FROM kitchen ORDER BY expires", "no such table: kitchen")
+    assert (db, sql) == ("kitchen", "SELECT name, expires FROM items ORDER BY expires")
+    assert sql_with_real_table("workspace", "SELECT * FROM pantry WHERE id = 1", "no such table: pantry") == ("", "")  # nothing to tell tables apart by

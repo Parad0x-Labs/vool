@@ -2374,6 +2374,7 @@ class ResearchToolLoopFacadeMixin:
         database_ready_join_made = False
         database_ready_failure_made = False
         database_column_repaired = False
+        database_table_repaired = False
         # Per-turn tool candidate fingerprint.  Reset each turn so a fresh
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
@@ -3501,6 +3502,36 @@ class ResearchToolLoopFacadeMixin:
                 # never replaces it, and is not retried.
                 loop_stop_reason = "tool_failed_after_evidence"
                 break
+            if (
+                execution.mode != "tool_executed"
+                and not database_table_repaired
+                and str(execution.status or "") == "sql_error"
+                and str(tool_payload.get("intent") or "") == "vool-database.query"
+                and "no such table" in (
+                    str(getattr(execution, "response_text", "") or "")
+                    + str((getattr(execution, "details", None) or {}).get("error") or "")
+                ).lower()
+            ):
+                # Run 16i (pantry 6): `FROM pantry` where "pantry" is the database; the table that holds the columns the
+                # read names is read once instead.
+                from core.database_work_state import sql_with_real_table
+
+                _targs = dict(tool_payload.get("arguments") or {})
+                _tdb, _tfixed = sql_with_real_table(
+                    str(_targs.get("name") or ""), str(_targs.get("sql") or ""),
+                    str(execution.response_text or "") + " " + str((execution.details or {}).get("error") or ""),
+                )
+                if _tfixed:
+                    database_table_repaired = True
+                    self._emit_runtime_event(
+                        loop_source_context,
+                        event_type="database_table_repaired",
+                        message="The read named a table the database does not have; reading again with the real one.",
+                        status="database_table_repaired",
+                        step_count=len(executed_steps),
+                    )
+                    pending_tool_payload = {"intent": "vool-database.query", "arguments": {**_targs, "name": _tdb, "sql": _tfixed}}
+                    continue
             if (
                 execution.mode != "tool_executed"
                 and not database_column_repaired

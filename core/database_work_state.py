@@ -433,6 +433,49 @@ def sql_with_real_values(name: str, sql: str) -> str:
         return ""
 
 
+def sql_with_real_table(name: str, sql: str, error: str) -> tuple[str, str]:
+    """(database, SQL) with the one table the read named wrongly replaced by the real one, or ("", "").
+
+    Mac run 16i (pantry 6): `SELECT item, quantity FROM pantry` failed with "no such table: pantry" ("pantry" is the
+    database), and the model named the right table in its reply without reading it. The table is the only one of the
+    database named (or of the person's databases) that holds the columns the read names. Read-only, never raises."""
+    try:
+        import re
+        import sqlite3
+
+        from core.plugin_tools import plugin_scratch_dir
+
+        match = re.search(r"no such table:\s*\"?(?:\w+\.)?(\w+)\"?", str(error or ""), re.IGNORECASE)
+        if not match:
+            return "", ""
+        bad = match.group(1)
+        root = plugin_scratch_dir("vool-database") / "databases"
+        stems = sorted(p.stem for p in root.glob("*.sqlite") if p.is_file())
+        preferred = [s_ for s_ in stems if s_ in (str(name or "").strip().lower(), bad.lower())]
+        words = {w.lower() for w in re.findall(r"[A-Za-z_]\w*", sql)} - {bad.lower(), "id"}
+        best: list[tuple[int, str, str]] = []
+        for stem in (preferred or stems):
+            conn = sqlite3.connect(f"file:{root / (stem + '.sqlite')}?mode=ro", uri=True, timeout=0.2)
+            try:
+                for (table,) in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'").fetchall():
+                    cols = {r[1].lower() for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))}
+                    best.append((len(cols & words), stem, table))
+            finally:
+                conn.close()
+        if not best:
+            return "", ""
+        top = max(score for score, _s, _t in best)
+        winners = [(stem, table) for score, stem, table in best if score == top]
+        if top < 1 or len(winners) != 1:
+            return "", ""
+        stem, table = winners[0]
+        if table.lower() == bad.lower():
+            return "", ""
+        return stem, re.sub(r"\b%s\b" % re.escape(bad), table, sql)
+    except Exception:
+        return "", ""
+
+
 def sql_with_real_columns(name: str, sql: str, error: str) -> tuple[str, str]:
     """(database, SQL) with the one column the read named wrongly replaced by the real one, or ("", "").
 
