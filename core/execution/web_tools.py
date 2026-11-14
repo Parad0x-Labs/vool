@@ -83,6 +83,7 @@ def _on_topic_rows(query: str, rows: list[dict[str, Any]]) -> list[dict[str, Any
 
 #: How many search hits a shopping search reads, and how many priced lines each page gives the model.
 _PAGES_READ = 2
+_PAGES_TRIED = 4
 _LINES_PER_PAGE = 8
 
 
@@ -90,12 +91,75 @@ _LINES_PER_PAGE = 8
 _LIST_HEADING_RE = re.compile(r"\b(?:best|top\s+\d+|reviews?|reviewed|tested|guide|buying)\b", re.IGNORECASE)
 
 
+# A run of capitalised words or model codes: what a product name looks like ("Peak Design Travel Tripod (Carbon)",
+# "Gitzo Traveler Series 1 Kit", "Zero Y"). Leading sentence words and dates are not part of a name.
+_NAME_RUN_RE = re.compile(r"[A-Z][A-Za-z0-9'’&+.-]*(?:\s+\(?[A-Z0-9][A-Za-z0-9'’&+.-]*\)?)+")
+_NOT_A_NAME_WORDS = frozenset(
+    [
+        "the", "a", "an", "our", "my", "your", "this", "that", "these", "those", "it", "its", "is", "are", "can",
+        "how", "will", "do", "does", "what", "why", "which", "when", "where", "who", "price", "prices", "check",
+        "buy", "see", "read", "written", "best", "top", "here", "there", "if", "for", "and", "in", "on", "at", "to",
+        "with", "by", "from", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept", "oct", "nov",
+        "dec", "january", "february", "march", "april", "june", "july", "august", "september", "october",
+        "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    ]
+)
+# Words about the writer or the reader, not a product: a byline ("Written by ... I'm Laurence"), a note to the reader,
+# an FAQ ("Can you take a tripod on a plane?").
+_ABOUT_PEOPLE_RE = re.compile(
+    r"\b(?:written\s+by|I|I'm|I’m|I've|I’ve|I'd|I’d|me|my|we|we're|we’re|we've|we’ve|our|us|you|your)\b",
+    re.IGNORECASE,
+)
+# A price span, not a price: "from $20 to $600", "$30–$600", "between £100 and £200".
+_PRICE_RANGE_RE = re.compile(
+    r"(?:\b(?:from|between)\s+(?:[$€£]\s?)?\d[\d,.]*\s*(?:to|and|-|–|—)\s*(?:[$€£]\s?)?\d"
+    r"|[$€£]\s?\d[\d,.]*\s*(?:-|–|—|to)\s*[$€£]?\s?\d)",
+    re.IGNORECASE,
+)
+
+
+def _names_a_thing(line: str) -> bool:
+    """Whether `line` holds a product-name-like phrase: two or more capitalised words or codes, not counting a
+    sentence's first word, a month or a weekday ("Sep 11"), or a guide's own heading."""
+    for match in _NAME_RUN_RE.finditer(str(line or "")):
+        words = match.group(0).replace("(", " ").replace(")", " ").split()
+        while words and words[0].lower().strip(".'’") in _NOT_A_NAME_WORDS:
+            words = words[1:]
+        if len(words) < 2 or all(word.lower().strip(".") in _NOT_A_NAME_WORDS or word.isdigit() for word in words):
+            continue
+        if _LIST_HEADING_RE.search(" ".join(words)) and not re.search(r"\d", " ".join(words[1:])):
+            continue
+        return True
+    return False
+
+
+def page_line_is_a_pick(line: str) -> bool:
+    """A page line that names a product with its price or a short value ("Gitzo Traveler Series 1 Kit -- £540"),
+    not a byline, a question to the reader or a price span."""
+    text = str(line or "").strip()
+    return bool(text) and not text.endswith("?") and not _PRICE_RANGE_RE.search(text) and _names_a_thing(
+        text.split(" -- ")[0] if " -- " in text else text
+    )
+
+
+def _a_name_heading(chunk: str) -> bool:
+    return (
+        len(chunk) <= 100 and not chunk.endswith("?") and not _PAGE_PRICE_RE.search(chunk) and "|" not in chunk
+        and not _ABOUT_PEOPLE_RE.search(chunk) and _names_a_thing(chunk)
+    )
+
+
 def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE, topic: tuple[str, ...] | list[str] = ()) -> list[str]:
-    """The lines of a fetched page that state a price, each with the short heading just above it when the price
-    stands alone ("Peak Design Travel Tripod -- $379.95"), and, given the search's topic words, the short lines that
-    name the thing searched for with a short value under them ("Peak Design Travel Tripod (Carbon) -- 2.8 lb").
-    Mac AQ row 12 on 66ffc11f: the guide's table named the Peak Design Travel Tripod with its weight and "Check
-    price on Amazon", and no line of it reached the model. Only the page's own words, clipped, in page order."""
+    """The priced product lines of a fetched page: a product-name-like phrase with a price on the same line, or the
+    name heading just above a price that stands alone ("Peak Design Travel Tripod -- $379.95"); and, given the
+    search's topic words, a name with a short value under it ("Peak Design Travel Tripod (Carbon) -- 2.8 lb").
+    Priced picks come first, then named values, then priced lines that name nothing and price spans.
+
+    Mac AQ row 12 on 66ffc11f: the guide's table named the Peak Design Travel Tripod with its weight, and no line of
+    it reached the model. On b7a5266d the topic lines were the guide's byline ("Written by Laurence Norah ... a
+    professional travel photographer") and its FAQ ("Can you take a tripod on a plane in hand luggage?"), and no
+    tripod or price reached the model. Bylines, questions and lines about the writer are never kept. Only the page's
+    own words, clipped."""
     chunks: list[str] = []
     for raw in str(text or "").splitlines():
         line = " ".join(raw.split())
@@ -105,40 +169,50 @@ def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE, topic: tuple[s
             chunks.extend(part.strip() for part in re.split(r"(?<=[.!?])\s+", line) if part.strip())
         else:
             chunks.append(line)
-    found: list[str] = []
+    ranked: list[tuple[int, int, str]] = []
     words = [str(word).lower() for word in topic if str(word).strip()]
 
     def _priced_alone(chunk: str) -> bool:
         return bool(_PAGE_PRICE_RE.search(chunk)) and len(_PAGE_PRICE_RE.sub("", chunk).strip(" :-|")) <= 12
 
+    def _keep(rank: int, index: int, entry: str) -> None:
+        if all(entry != kept for _, _, kept in ranked):
+            ranked.append((rank, index, entry))
+
     for index, chunk in enumerate(chunks):
-        if (
-            words and not _PAGE_PRICE_RE.search(chunk) and 8 <= len(chunk) <= 120
-            and any(w in chunk.lower() for w in words)
-            and "|" not in chunk and not _LIST_HEADING_RE.search(chunk)
-        ):
+        if "?" in chunk:
+            continue  # a question to the reader, and the FAQ answer run on after it
+        if not _PAGE_PRICE_RE.search(chunk):
+            # A name with a short value under it ("Peak Design Travel Tripod (Carbon)" / "2.8 lb").
             following = chunks[index + 1] if index + 1 < len(chunks) else ""
-            if _priced_alone(following):
-                continue  # the price line below carries this heading
-            entry = f"{chunk} -- {following}" if following and len(following) <= 24 and not any(
-                w in following.lower() for w in words
-            ) else chunk
-            if entry not in found:
-                found.append(entry)
-            if len(found) >= limit:
-                break
+            if (
+                words and len(chunk.split()) <= 12 and any(w in chunk.lower() for w in words)
+                and not _LIST_HEADING_RE.search(chunk) and _a_name_heading(chunk)
+                and following and len(following) <= 24 and re.search(r"\d", following)
+                and not following.endswith("?") and not _priced_alone(following)
+                and not any(w in following.lower() for w in words)
+            ):
+                _keep(1, index, f"{chunk} -- {following}")
             continue
-        if not _PAGE_PRICE_RE.search(chunk) or _BIG_AMOUNT_RE.search(chunk):
+        if _BIG_AMOUNT_RE.search(chunk):
             continue
         entry = chunk[:220]
-        alone = len(_PAGE_PRICE_RE.sub("", chunk).strip(" :-|")) <= 12  # "$379.95", "Price: $219"
-        if alone and index and len(chunks[index - 1]) < 100 and not _PAGE_PRICE_RE.search(chunks[index - 1]):
-            entry = f"{chunks[index - 1]} -- {entry}"
-        if entry not in found:
-            found.append(entry)
-        if len(found) >= limit:
-            break
-    return found
+        spans = bool(_PRICE_RANGE_RE.search(chunk))
+        named = _names_a_thing(_PAGE_PRICE_RE.sub("", chunk))
+        if not named and not spans:
+            # The name heading a few lines above a price that names nothing ("1. Peak Design Travel Tripod
+            # (Carbon)" / "Our top pick, around $599.").
+            for back in range(index - 1, max(-1, index - 4), -1):
+                above = chunks[back]
+                if _PAGE_PRICE_RE.search(above):
+                    break
+                if not _LIST_HEADING_RE.search(above) and _a_name_heading(above):
+                    entry = f"{above} -- {entry}"
+                    named = True
+                    break
+        _keep(0 if named and not spans else 2, index, entry)
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    return [entry for _, _, entry in ranked[:limit]]
 
 
 def _read_shopping_hits(
@@ -159,7 +233,12 @@ def _read_shopping_hits(
     remote = turn_is_remote(source_context)
     excerpts: list[dict[str, Any]] = []
     topic = _topic_words(query)
-    for row in [hit for hit in results if _hit_is_on_topic(hit, topic)][:_PAGES_READ]:
+    # A page that fails or names no priced pick does not use up a read: the next on-topic hit is read instead (Mac
+    # AQ row 12 on b7a5266d read one guide of two and kept its byline).
+    with_picks = 0
+    for row in [hit for hit in results if _hit_is_on_topic(hit, topic)][:_PAGES_TRIED]:
+        if with_picks >= _PAGES_READ:
+            break
         url = str(row.get("url") or "").strip()
         if not url.lower().startswith(("http://", "https://")):
             continue
@@ -175,6 +254,7 @@ def _read_shopping_hits(
         lines = priced_page_lines(str((fetched or {}).get("text") or ""), topic=topic)
         if lines:
             excerpts.append({"title": str(row.get("title") or url), "url": url, "priced_lines": lines})
+            with_picks += any(page_line_is_a_pick(line) for line in lines)
     return excerpts
 
 

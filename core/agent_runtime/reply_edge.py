@@ -171,6 +171,12 @@ _LEANS_ON_A_PRICE_RE = re.compile(
     r"estimate|range|pricing)\b",
     re.IGNORECASE,
 )
+# A sentence whose subject is the thing the sentence before it named ("It's a bit more expensive, but ...").
+_LEANS_ON_A_NAME_RE = re.compile(
+    r"^\W*(?:\d+[.)]\s*)?(?:it|it's|it’s|its|this\s+one|that\s+one|this\s+model|that\s+model|this\s+tripod|"
+    r"that\s+tripod|the\s+latter|the\s+former|they|they're|they’re|both)\b",
+    re.IGNORECASE,
+)
 _LIST_MARKER_ONLY_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*$")
 
 
@@ -215,7 +221,7 @@ def _names_an_unnamed_model(sentence: str, pages: str) -> bool:
     return False
 
 
-def _pages_block(source_context: dict[str, Any] | None, lead: str) -> str:
+def _pages_block(source_context: dict[str, Any] | None, lead: str, *, picks_only: bool = False) -> str:
     """The pages this turn's web lookups read, in their own words (titles, addresses, product and price lines)."""
     context = source_context if isinstance(source_context, dict) else {}
     steps = []
@@ -228,7 +234,7 @@ def _pages_block(source_context: dict[str, Any] | None, lead: str) -> str:
             steps.append({"tool_name": str(observation.get("intent") or ""), "ok": True, "observation": observation})
     from core.agent_runtime.research_tool_loop_facade import web_lookup_in_plain_words
 
-    return web_lookup_in_plain_words(steps, lead=lead)
+    return web_lookup_in_plain_words(steps, lead=lead, picks_only=picks_only)
 
 
 #: Shown when a shopping answer lost a name or a price at the edge: what the pages did say.
@@ -265,11 +271,15 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
         dropped = False
         names_dropped = False
         kept_lines: list[str] = []
+        # After a sentence naming a product the pages don't have is dropped, the sentences that go on about "it" go
+        # too, up to the next sentence that isn't about "it" (Mac AQ row 12 on b7a5266d: "It's highly recommended
+        # for its stability ... It's a bit more expensive, but it's worth the investment" was left about nothing).
+        leaning = False
         for line in str(text or "").split("\n"):
             priced = bool(_PRICE_RE.search(line))
             if not priced and not (shopping and (_MODEL_CODE_RE.search(line) or _NAMED_MODEL_RE.search(line))) and not (
                 dropped and _LEANS_ON_A_PRICE_RE.search(line)
-            ):
+            ) and not (leaning and line.strip()):
                 kept_lines.append(line)
                 continue
             if priced and "|" in line:
@@ -281,12 +291,17 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
             sentences = _SENTENCE_END_RE.split(line)
             kept = []
             for sentence in sentences:
+                if leaning and _LEANS_ON_A_NAME_RE.search(sentence):
+                    dropped = True
+                    continue
+                leaning = False
                 said = _priced_sentence_kept(sentence, stated, pages)
                 if said.strip() and shopping and (
                     _names_an_unfetched_model(said, pages) or _names_an_unnamed_model(said, pages)
                 ):
                     said = ""
                     names_dropped = True
+                    leaning = True
                 if said.strip() and dropped and _LEANS_ON_A_PRICE_RE.search(said) and not _PRICE_RE.search(said):
                     said = ""
                 if said != sentence:
@@ -307,8 +322,11 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
         body = re.sub(r"\n{3,}", "\n\n", _LOOKUP_NOTICE_RE.sub("", body)).strip()
         # On a shopping ask, what the pages did say goes with what was left out (Mac AQ row 12 on ff3afc71: the pages
         # had the Peak Design Travel Tripod "around $599" and the reply used none of it).
-        said = _pages_block(context, PAGES_SAY_TOO_LEAD) if shopping else ""
-        return "\n\n".join(part for part in (body, said, notice) if part)
+        # Only the pages' priced picks, and when the model's own product names went, the answer leads with them (Mac AQ
+        # row 12 on b7a5266d: the block showed a guide's byline and FAQ, under two dangling "It's ..." sentences).
+        said = _pages_block(context, PAGES_SAY_TOO_LEAD, picks_only=True) if shopping else ""
+        parts = (said, body, notice) if names_dropped else (body, said, notice)
+        return "\n\n".join(part for part in parts if part)
     except Exception:
         return text
 

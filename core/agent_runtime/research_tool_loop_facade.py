@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import re
 from contextlib import suppress
@@ -1191,7 +1192,9 @@ _PAGES_SAY_LEAD = (
 )
 
 
-def web_lookup_in_plain_words(executed_steps: list[dict[str, Any]], *, lead: str = _PAGES_SAY_LEAD) -> str:
+def web_lookup_in_plain_words(
+    executed_steps: list[dict[str, Any]], *, lead: str = _PAGES_SAY_LEAD, picks_only: bool = False
+) -> str:
     """What the turn's web lookups found, said plainly, for a turn whose model failed after the lookup.
 
     Measured on the Mac (AQ row 12 on 98b42315, qwen3:8b under load): web.search returned two on-topic guides, the
@@ -1199,6 +1202,9 @@ def web_lookup_in_plain_words(executed_steps: list[dict[str, Any]], *, lead: str
     turn was stopped before it published anything. The pages are already in hand, so they are the answer: each
     source's title and address, and the priced lines read from it, in the pages' own words. "" unless every step was
     a web lookup that ran and something came back.
+
+    With `picks_only`, only the pages' priced product lines are shown, under the pages that state them: no
+    snippets, bylines, questions or price spans (Mac AQ row 12 on b7a5266d showed a guide's byline and FAQ).
     """
     web_intents = {"web.search", "web.research", "web.fetch"}
     if not executed_steps or not all(
@@ -1218,13 +1224,22 @@ def web_lookup_in_plain_words(executed_steps: list[dict[str, Any]], *, lead: str
             if not isinstance(row, dict):
                 continue
             url = str(row.get("url") or "").strip()
-            title = " ".join(str(row.get("title") or url).split()).strip()
+            title = html.unescape(" ".join(str(row.get("title") or url).split()).strip())
             if not title or url in seen:
                 continue
+            page_lines = excerpts.get(url, [])
+            if picks_only:
+                from core.execution.web_tools import page_line_is_a_pick
+
+                page_lines = [line for line in page_lines if page_line_is_a_pick(line)]
+                if not page_lines:
+                    continue
             seen.add(url)
             lines.append(f"- {title}" + (f" ({url})" if url else ""))
-            for line in excerpts.get(url, [])[:6]:
+            for line in page_lines[:6]:
                 lines.append(f"  - {line}")
+            if picks_only:
+                continue
             snippet = " ".join(str(row.get("snippet") or "").split()).strip()
             if snippet and not excerpts.get(url):
                 lines.append(f"  {snippet}")
