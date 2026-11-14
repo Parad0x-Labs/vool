@@ -1363,6 +1363,10 @@ _CALENDAR_ENTRY_MUTATES = frozenset({
     "operator.propose_calendar_event",
 })
 
+# The command registry's model-offerable reads (``operator.command.*``): the last class of an
+# overflowing expanded family (see _expanded_family_rank).
+_COMMAND_READ_PREFIX = "operator.command."
+
 
 def _demand_rule_intents() -> tuple[str, ...]:
     """The intents a tool_demand_signals rule can name (the explicit-demand path)."""
@@ -1791,6 +1795,14 @@ def model_visible_specs(
     def _expanded_family_rank(candidate: CapabilityCandidate) -> int:
         if candidate.tool_intent in explicit:
             return 0
+        if candidate.tool_intent.startswith(_COMMAND_READ_PREFIX):
+            # The command registry's diagnostic reads (status, capabilities) seat in an
+            # expanded family only where room is left: when the family overflows the cap they
+            # step down first, before the reminder mutates and before an everyday write such as
+            # operator.save_note. Measured on the served world (the reads are projected on boot):
+            # expanding operator beside web and a token ask seated status.show and
+            # capabilities.list and dropped save_note.
+            return 7
         if not _has_path_besides_expansion(candidate):
             return 1 if not candidate.read_only else 2
         # Inside the path-covered tail the 6c read-before-mutate order holds. A tool this

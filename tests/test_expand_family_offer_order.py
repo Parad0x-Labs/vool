@@ -3,11 +3,12 @@
 The 6c overflow order put every wording-seated tool into the droppable tail, so inside that
 tail the stable sort dropped ``operator.propose_calendar_event`` (declared after the reminder
 mutates) and the E bar fell to 0/3. That overflow only happens with the two
-``operator.command.*`` reads seated (the served rig projects them; a bare in-process world
-does not, and there nothing overflows at the cap), so this file seats them first, exactly as
-the command registry does on boot. Rule now: the pre-lane family tools seat ahead of the
-reminder mutates Job 6 added, the two reminder tools are exactly what steps down at today's
-cap, and one seat below the cap the calendar's entry mutate still holds (Job 6e).
+``operator.command.*`` reads projected (the served rig projects them; a bare in-process world
+does not, and there nothing overflows at the cap), so this file projects them first, exactly
+as the command registry does on boot. Rule now: the command registry's diagnostic reads step
+down first (an everyday write such as ``operator.save_note`` must never leave the offer for
+status/capabilities reads), then the reminder mutates Job 6 added; the pre-lane family tools
+seat ahead of both, and one seat below the cap the calendar's entry mutate still holds (Job 6e).
 
 Also pins ``_WORDING_SEATED_INTENTS`` against the seat source it mirrors, so the hand-kept
 copy cannot drift from ``core.tool_demand_signals.owner_local_operator_intents``.
@@ -46,8 +47,8 @@ PRE_LANE_OPERATOR = {
 }
 #: The reminder mutates this lane added: the first to step down when the family overflows.
 LANE_ADDED = {"operator.schedule_reminder", "operator.cancel_reminder"}
-#: The model-offerable command reads the command registry projects on boot. They have no
-#: path but the expansion, so they always seat, and they are what makes the family overflow.
+#: The model-offerable command reads the command registry projects on boot. They are what
+#: makes the family overflow, and they are the first to step down when it does.
 COMMAND_READS = {"operator.command.status.show", "operator.command.capabilities.list"}
 
 #: The harness E cases (harness/sets/visible.json), owner-local expand turns.
@@ -89,46 +90,71 @@ def _offer_after_expand(text: str) -> set[str]:
         end_turn_navigation(context, scope)
 
 
+def _assert_command_reads_projected() -> None:
+    from core.tool_registry import registry_map
+
+    live = registry_map()
+    assert set(live) >= COMMAND_READS, (
+        "the command reads are not projected, so the overflow this test pins is not reproduced"
+    )
+
+
 def test_e01_e03_expand_keeps_the_calendar_tool_and_the_pre_lane_family():
-    """After "expand operator" the offer keeps every pre-lane operator tool and both command
-    reads; the tools that step down for the cap are exactly the two reminder tools."""
+    """After "expand operator" the offer keeps every pre-lane operator tool and both reminder
+    tools; what steps down for the cap is exactly the two command reads."""
     restore = _reset_registry()
     try:
+        _assert_command_reads_projected()
         for case_id, text in E_CASES:
             intents = _offer_after_expand(text)
             seated_operator = {i for i in intents if i.startswith("operator.")}
-            assert seated_operator >= COMMAND_READS, (
-                f"{case_id}: the command reads are not seated, so the overflow this test pins "
-                f"is not reproduced: {sorted(seated_operator)}"
-            )
             missing = PRE_LANE_OPERATOR - seated_operator
             assert not missing, f"{case_id} lost pre-lane operator tools: {sorted(missing)}"
             assert "capability.expand_family" in intents
             assert len(intents) == cg._HARD_MAX_CANDIDATES, (case_id, len(intents))
-            stepped = (PRE_LANE_OPERATOR | LANE_ADDED) - seated_operator
-            assert stepped == LANE_ADDED, f"{case_id}: stepped down {sorted(stepped)}"
+            stepped = (PRE_LANE_OPERATOR | LANE_ADDED | COMMAND_READS) - seated_operator
+            assert stepped == COMMAND_READS, f"{case_id}: stepped down {sorted(stepped)}"
+    finally:
+        restore()
+
+
+def test_the_command_reads_seat_when_the_cap_leaves_room(monkeypatch):
+    """Ranked last is not removed: with two more seats the command reads seat beside the
+    whole family."""
+    restore = _reset_registry()
+    monkeypatch.setattr(cg, "_HARD_MAX_CANDIDATES", cg._HARD_MAX_CANDIDATES + 2)
+    monkeypatch.setattr(cg, "_EXPANSION_SEAT_BONUS", cg._EXPANSION_SEAT_BONUS + 2)
+    try:
+        for case_id, text in E_CASES:
+            seated_operator = {i for i in _offer_after_expand(text) if i.startswith("operator.")}
+            assert seated_operator >= PRE_LANE_OPERATOR | LANE_ADDED | COMMAND_READS, (
+                case_id, sorted(seated_operator))
     finally:
         restore()
 
 
 def test_one_seat_below_the_cap_the_calendar_entry_tool_still_seats(monkeypatch):
-    """One more seat of overflow (the cap one below today's): the third tool to step down is
-    operator.save_note, never propose_calendar_event, and the calendar tools stay together."""
+    """One more seat of overflow (the cap one below today's): after the two command reads the
+    next to step down is a reminder mutate, never operator.save_note or
+    propose_calendar_event, and the calendar tools stay together."""
     restore = _reset_registry()
     monkeypatch.setattr(cg, "_HARD_MAX_CANDIDATES", cg._HARD_MAX_CANDIDATES - 1)
     try:
+        _assert_command_reads_projected()
         for case_id, text in E_CASES:
             intents = _offer_after_expand(text)
             seated_operator = {i for i in intents if i.startswith("operator.")}
-            assert seated_operator >= COMMAND_READS, (case_id, sorted(seated_operator))
             assert len(intents) == cg._HARD_MAX_CANDIDATES, (case_id, len(intents))
             assert {
                 "operator.propose_calendar_event",
                 "operator.update_calendar_event",
                 "operator.schedule_calendar_event",
+                "operator.save_note",
             } <= seated_operator, f"{case_id}: {sorted(seated_operator)}"
-            stepped = (PRE_LANE_OPERATOR | LANE_ADDED) - seated_operator
-            assert stepped == LANE_ADDED | {"operator.save_note"}, f"{case_id}: stepped down {sorted(stepped)}"
+            stepped = (PRE_LANE_OPERATOR | LANE_ADDED | COMMAND_READS) - seated_operator
+            assert stepped - COMMAND_READS <= LANE_ADDED and len(stepped) == len(COMMAND_READS) + 1, (
+                f"{case_id}: stepped down {sorted(stepped)}")
+            assert stepped >= COMMAND_READS, f"{case_id}: stepped down {sorted(stepped)}"
     finally:
         restore()
 

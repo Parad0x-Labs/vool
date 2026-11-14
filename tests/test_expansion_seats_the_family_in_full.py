@@ -46,7 +46,14 @@ OPERATOR_EXPECTED = {
 @pytest.fixture(autouse=True)
 def _real_registry_world():
     """The live registry bootstrap, not the legacy-only mapping: the operator family's
-    notes/agenda/calendar tools reach the graph only through registry projection."""
+    notes/agenda/calendar tools reach the graph only through registry projection. The command
+    registry's model-offerable reads are projected too, as the served daemon does on boot, so
+    the operator family is measured at its real size whatever ran before this file."""
+    from core.command_registry.model_tools import project_model_tools
+    from core.command_registry.registry import registry
+
+    registry()
+    project_model_tools()
     cg.reset()
     yield
     cg.reset()
