@@ -25,7 +25,7 @@ def _decide(text: str, session: str, words: set[str]) -> route.RouteDecision:
 @pytest.mark.parametrize(
     "text",
     ["when is the rent due?", "who is my team lead?", "what day does Anselm water the plants?",
-     "where is the boat booking letter?", "how much is my rent?"],
+     "how much is my rent?"],
 )
 def test_a_topic_word_alone_does_not_point_at_files(text):
     assert not route.points_at_files(text)
@@ -35,7 +35,7 @@ def test_a_topic_word_alone_does_not_point_at_files(text):
     "text",
     ["find the quarterly report", "what's in the quarterly report?", "open the boat booking update file",
      "what does the parking permit renewal checklist say?", "where did I save the rent receipts?",
-     "is the quarterly report pdf still on my desktop?"],
+     "is the quarterly report pdf still on my desktop?", "where is the boat booking letter?"],
 )
 def test_an_ask_that_reads_finds_or_opens_points_at_files(text):
     assert route.points_at_files(text)

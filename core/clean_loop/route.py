@@ -673,7 +673,10 @@ _TOLD_VOOL_RE = re.compile(
 _FILE_ACT_RE = re.compile(
     r"\b(?:find|open|read|show\s+me|search|locate|look\s+(?:for|in|through|up)|summari[sz]e|contents?\s+of)\b"
     r"|\bwhat'?s\s+in\b|\bwhat\s+(?:is|was)\s+in\b|\bwhat\s+(?:does|do|did)\s+[^?]{1,60}?\b(?:say|says|show|list)\b"
-    r"|\bwhere\s+(?:did|have|had)\s+(?:i|we)\s+(?:\w+\s+)?(?:save|saved|put|store|stored|keep|kept|download|downloaded|file|filed|move|moved)\b",
+    r"|\bwhere\s+(?:did|have|had)\s+(?:i|we)\s+(?:\w+\s+)?(?:save|saved|put|store|stored|keep|kept|download|downloaded|file|filed|move|moved)\b"
+    # A document by its kind ("the boat booking letter", "the rent receipts", "the parking permit form").
+    r"|\b(?:letters?|receipts?|invoices?|contracts?|scans?|forms?|certificates?|statements?|checklists?|handbooks?|"
+    r"brochures?|manuals?|screenshots?|attachments?|documents?|docs?|files?|folders?|pdfs?|spreadsheets?)\b",
     re.I,
 )
 
@@ -691,6 +694,37 @@ def points_at_files(text: str) -> bool:
 def asks_what_owner_told(text: str) -> bool:
     """Whether the ask is about something the owner told VOOL, not about their files."""
     return bool(_TOLD_VOOL_RE.search(str(text or "")))
+
+
+def _saved_fact_holds_file_words(
+    text: str, session_id: str, source_context: Mapping[str, Any] | None, file_words: Callable[[], set[str]] | None
+) -> bool:
+    """The only words that tie the ask to the owner's files ("cabin" of "cabin booking.md") are the subject of a fact the
+    owner saved ("we booked the cabin at lake Varna ..."), and the ask points at no file: it asks about that subject.
+
+    H2H memory set on the real local model (88b3247e): "if today is 1 march, how many days until the cabin trip
+    starts?" was admitted because "cabin" names a file, the loop read "cabin booking.md" and its answer was withheld
+    ("I didn't look anything up for this ..."); the follow-up "and how many nights are we staying?" stayed in the loop
+    and answered "182 days"."""
+    if file_words is None:
+        return False
+    try:
+        matched = ask_words(text) & set(file_words())
+        if not matched:
+            return False
+        from core.chat_housekeeping import _doc_stems, _term_in, query_terms
+        from core.context_scope import ContextAccessPolicy
+        from core.memory.entries import search_relevant_memory
+
+        wanted = [term for word in matched for term in query_terms(word)] or sorted(matched)
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=dict(source_context or {}))
+        for row in search_relevant_memory(" ".join(sorted(matched)), access_policy=policy, limit=6):
+            stems = _doc_stems(" ".join(str(row.get("text") or "").split()))
+            if all(_term_in(term, stems) for term in wanted):
+                return True
+    except Exception:
+        return False
+    return False
 
 
 def _saved_memory_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
@@ -814,6 +848,16 @@ def decide(
         # because "seat" names a file, the loop's model read the seat notes and answered "You mentioned preferring an
         # aisle seat" while "window seats" was saved. What the owner said is memory's and the chat's, not the disk's.
         return RouteDecision(False, "asks_what_owner_told")
+    if (
+        not points_at_files(text)
+        and not asks_about_own_files_or_computer(text)
+        and not is_privacy_ask(text)
+        and not _is_follow_up(text, session_id)
+        and not by_documents
+        and _saved_fact_holds_file_words(text, session_id, source_context, file_words)
+    ):
+        # Admitted only because a word names a file, and that word is what a saved fact is about.
+        return RouteDecision(False, "saved_fact_subject")
     if not points_at_files(text) and _saved_memory_answers(text, session_id, source_context):
         # Its words name a file, yet a fact the owner saved answers it and the ask does not point at files: memory
         # answers, not a search of the disk.
