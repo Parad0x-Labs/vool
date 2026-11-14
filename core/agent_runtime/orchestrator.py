@@ -339,6 +339,12 @@ def database_holding_answer(question: str, executed_steps: list[dict[str, Any]])
             outstanding = value in (None, "", 0, "0", False) if is_flag else value in (None, "")
             (out if outstanding else back).append(str(row[item]))
         out, back = list(dict.fromkeys(out)), list(dict.fromkeys(back))
+        if not person:
+            # Run 16i (toolshed 6, 8): "what does Noor have out" over a read of the tool names alone said "They have
+            # out right now". The person the question names is the subject.
+            named = re.findall(r"(?<!^)(?<![.?!]\s)\b([A-Z][a-z]{2,})\b", str(question or "").strip())
+            named = [n for n in named if n.lower() not in {"what", "who", "whos", "which", "does", "did", "has", "have", "how", "the", "are", "any", "and"}]
+            person = named[0] if len(set(named)) == 1 else ""
         who, verb = (person, "has") if person else ("They", "have")
         lines = [f"{who} {verb} out right now: {', '.join(out)}." if out else f"{who} {verb} nothing out right now."]
         if back:

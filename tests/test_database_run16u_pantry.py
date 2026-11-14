@@ -221,3 +221,13 @@ def test_a_reply_that_names_only_some_of_the_rows_is_the_rows() -> None:
     assert _reply_leaves_out_a_row("The Drill was had by Noor.", [step]) is True
     assert _reply_leaves_out_a_row("Marta and Noor.", [step]) is False
     assert _reply_leaves_out_a_row("Nobody.", [step]) is False
+
+
+def test_the_person_the_question_names_is_the_subject_of_what_is_out() -> None:
+    from core.agent_runtime.orchestrator import database_holding_answer
+
+    step = {"tool_name": "vool-database.query", "ok": True,
+            "observation": {"columns": ["name", "returned_on"], "rows": [["Ladder", None], ["Sander", None]]}}
+    text = database_holding_answer("what does Noor have out right now", [step])
+    assert text.startswith("Noor has out right now: Ladder, Sander")
+    assert database_holding_answer("what is out right now", [step]).startswith("They have")
