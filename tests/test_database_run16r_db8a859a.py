@@ -138,19 +138,19 @@ def test_the_loop_reads_again_with_the_real_column_before_the_model_is_asked(tmp
 
 # ── the toolshed world of the same run ──────────────────────────────────────────────────────────────────────
 
-from tests.test_database_run16i_cbc915ec import TOOLSHED  # noqa: E402
+from tests.test_database_run16i_cbc915ec import TOOLSHED
 
 TOOLSHED2 = TOOLSHED + "insert into neighbours values (2,'Pavel'); insert into tools values (3,'Ladder','hand');"
 
 
-def test_how_many_are_out_counts_the_rows_not_yet_returned_in_the_table_that_holds_them(world) -> None:  # noqa: F811
+def test_how_many_are_out_counts_the_rows_not_yet_returned_in_the_table_that_holds_them(world) -> None:
     from core.database_work_state import suggest_database_query
 
     _db("toolshed", TOOLSHED2)
     assert suggest_database_query("ok and how many are out right now") == "name=toolshed, sql=SELECT COUNT(*) AS count FROM borrowings WHERE returned_on IS NULL"
 
 
-def test_a_case_only_difference_is_swapped_for_the_stored_spelling(world) -> None:  # noqa: F811
+def test_a_case_only_difference_is_swapped_for_the_stored_spelling(world) -> None:
     from core.database_work_state import sql_with_real_values
 
     _db("toolshed", TOOLSHED2)
@@ -168,7 +168,7 @@ def test_who_has_had_it_is_not_limited_to_what_is_still_out() -> None:
     assert _database_query_carries_over_the_last_ask(sql, "is anything still out", []) == ""
 
 
-def test_a_count_that_never_read_the_borrowings_does_not_answer_how_many_are_out(world) -> None:  # noqa: F811
+def test_a_count_that_never_read_the_borrowings_does_not_answer_how_many_are_out(world) -> None:
     from core.agent_runtime.research_tool_loop_facade import _database_join_missing
 
     _db("toolshed", TOOLSHED2)
