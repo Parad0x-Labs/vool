@@ -138,14 +138,67 @@ _CLOSING_RE = re.compile(
 )
 
 
-def list_statement(text: str) -> bool:
-    """A fact said inside a list the person opened: a statement, not a question, a request or a closing.
+#: Taking back or correcting what was just said ("never mind, don't keep that one", "actually scratch the last one",
+#: "the second one was wrong"): never a fact of the list (independent review of job 19, C2: these were saved and
+#: answered "Locked in", with the retracted fact still kept).
+_RETRACTION_RE = re.compile(
+    r"\b(?:never\s*mind|nvm|scratch\s+(?:that|this|it|the|my)|strike\s+that|take\s+(?:that|it)\s+back|"
+    r"(?:don'?t|do\s+not|no\s+need\s+to)\s+(?:keep|save|remember|store|note|bother)|forget\s+(?:that|it|this|the|what|about)|"
+    r"ignore\s+(?:that|it|this|the|what|my)|(?:delete|remove|drop|cancel|undo)\s+(?:that|it|this|the\s+last)|"
+    r"(?:was|is|'s|’s|were|are)\s+wrong|wrong\s+one|not\s+right|my\s+(?:bad|mistake)|i\s+(?:was|am)\s+wrong|"
+    r"i\s+meant|correction|actually\s+no)\b",
+    re.IGNORECASE,
+)
+#: Who a list fact can be about without "I" or "my": someone named or pointed at ("his daughter is called Marta").
+_THIRD_PERSON_RE = re.compile(r"\b(?:he|he's|she|she's|his|her|hers|him|they|they're|their|theirs|them)\b", re.IGNORECASE)
+#: Words a list's turns share without sharing a subject.
+_LIST_FILLER = frozenset(
+    ["things", "thing", "remember", "remind", "note", "notes", "list", "couple", "few", "some", "this", "that", "these",
+     "those", "with", "from", "have", "has", "had", "about", "just", "also", "what", "when", "where", "there", "here",
+     "been", "will", "would", "your", "yours", "for", "the", "and", "but", "then", "than", "very", "really", "today"]
+)
+
+
+def _list_subject_words(text: str) -> set[str]:
+    return {w for w in topic_tokens(text) if len(w) >= 4 and w not in _LIST_FILLER}
+
+
+#: The take-back part of the retractions alone (no correction words such as "wrong" or "i meant", which carry a new
+#: value): "never mind, don't keep that one" holds no fact at all.
+_TAKE_BACK_RE = re.compile(
+    r"\b(?:never\s*mind|nvm|scratch\s+(?:that|this|it|the\s+last)|strike\s+that|take\s+(?:that|it)\s+back|"
+    r"(?:don'?t|do\s+not|no\s+need\s+to)\s+(?:keep|save|remember|store|note)\s+(?:that|this|it|the\s+last)|"
+    r"forget\s+(?:that|it|this)|ignore\s+(?:that|it|this)|(?:delete|remove|drop|cancel|undo)\s+(?:that|it|this|the\s+last))\b",
+    re.IGNORECASE,
+)
+
+
+def takes_back(text: str) -> bool:
+    """Whether the statement takes back what was said before ("never mind, don't keep that one")."""
+    return bool(_TAKE_BACK_RE.search(" ".join(str(text or "").split())))
+
+
+def retracts_or_corrects(text: str) -> bool:
+    return bool(_RETRACTION_RE.search(" ".join(str(text or "").split())))
+
+
+def list_statement(text: str, earlier_user_turns: list[str] | None = None) -> bool:
+    """A fact said inside a list the person opened: a statement about the person, the list's people or its subject.
 
     First person is not needed there. Measured on the real local model (held-out set): after "ok a few things to
     remember for me. my brother Tobiah lives in Quillon", "his daughter is called Marta and she turns 7 on 3 august"
-    and "oh and Tobiah is vegetarian" were answered "Got it ... Nothing was saved"; they name the people of the list."""
+    and "oh and Tobiah is vegetarian" were answered "Got it ... Nothing was saved"; they name the people of the list.
+    A question, a request, a closing, a retraction or a correction is no fact, and neither is chatter that is about
+    nobody in the list ("the weather is awful today"). `earlier_user_turns` are the list's earlier turns: a statement
+    sharing a subject word with them ("tobiah is vegetarian") belongs to the list."""
     clean = _CONTINUATION_HEAD_RE.sub("", " ".join(str(text or "").split()))
-    return not (len(clean.split()) < 3 or _CLOSING_RE.match(clean) or is_question(clean) or _REQUEST_HEAD_RE.match(clean))
+    if (len(clean.split()) < 3 or _CLOSING_RE.match(clean) or is_question(clean) or _REQUEST_HEAD_RE.match(clean)
+            or _RETRACTION_RE.search(clean)):
+        return False
+    if _FIRST_PERSON_RE.search(clean) or _THIRD_PERSON_RE.search(clean):
+        return True
+    earlier = " ".join(str(t or "") for t in (earlier_user_turns or [])[:LIST_TURNS])
+    return bool(_list_subject_words(clean) & _list_subject_words(earlier))
 
 
 def strip_continuation(text: str) -> str:
@@ -154,11 +207,12 @@ def strip_continuation(text: str) -> str:
 
 def list_is_open(earlier_user_turns: list[str]) -> bool:
     """True when this chat's earlier turns, newest first, reach a list-opening remember ask through statements only."""
-    for said in earlier_user_turns[:LIST_TURNS]:
+    window = list(earlier_user_turns[:LIST_TURNS])
+    for index, said in enumerate(window):
         lead = everyday_lead(said)
         if lead is not None:
             return lead.opens_list
-        if not (list_statement(said) or update_shaped(said)):
+        if not (list_statement(said, window[index + 1:]) or update_shaped(said)):
             return False
     return False
 

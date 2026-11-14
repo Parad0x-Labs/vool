@@ -458,6 +458,15 @@ def record_assistant_dialogue_turn(*, session_id: str, assistant_output: str) ->
     )
 
 
+def _takes_back(text: str) -> bool:
+    try:
+        from core.memory.everyday_remember import takes_back
+
+        return takes_back(text)
+    except Exception:
+        return False
+
+
 def auto_capture_memory(*, session_id: str, user_input: str, project_id: str | None = None) -> None:
     if not should_auto_extract(user_input):
         return
@@ -479,8 +488,8 @@ def auto_capture_memory(*, session_id: str, user_input: str, project_id: str | N
     )
     for candidate in extract_memory_candidates(admission_text):
         text = memory_entries.sanitize_fact(str(candidate.get("text") or ""))
-        if not text:
-            continue
+        if not text or _takes_back(text):
+            continue  # "never mind, don't keep that one" was kept as a fact (review of job 19, C2)
         lowered = text.lower()
         if lowered in seen:
             continue

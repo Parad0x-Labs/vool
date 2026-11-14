@@ -2547,10 +2547,9 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
         return None
     if lead is not None and lead.fact and _ANSWER_REQUEST_RE.search(lead.fact):
         return None
-    listed = lead is None and everyday.list_statement(text) and everyday.list_is_open(
-        _chat_earlier_user_turns(session_id)
-    )
-    update = lead is None and not listed and everyday.update_shaped(text)
+    earlier_turns = _chat_earlier_user_turns(session_id) if lead is None else []
+    listed = lead is None and everyday.list_statement(text, earlier_turns) and everyday.list_is_open(earlier_turns)
+    update = lead is None and not listed and everyday.update_shaped(text) and not everyday.retracts_or_corrects(text)
     if lead is None and not listed and not update:
         return None
     try:
