@@ -160,14 +160,32 @@ def topic_tokens(text: str) -> set[str]:
     return {w for w in words if len(w) > 2 and w not in _GENERIC and w not in _MONTHS}
 
 
+#: A file, a folder or a place on the computer: "I moved the quarterly report pdf to the archive folder" is about where
+#: a file is.
+_FILE_PLACE_RE = re.compile(
+    r"\b(?:files?|folders?|subfolders?|directory|directories|pdfs?|spreadsheets?|screenshots?|downloads|desktop|"
+    r"documents\s+folder|icloud\s+drive|dropbox|google\s+drive|onedrive)\b"
+    r"|\b[\w-]+\.(?:pdf|docx?|txt|md|csv|xlsx?|pages|numbers|key|png|jpe?g|zip)\b",
+    re.IGNORECASE,
+)
+
+
 def updated_entry(text: str, entries: list[dict]) -> dict | None:
-    """The one saved entry an update statement replaces: the most shared topic words, newest on a tie."""
+    """The one saved entry an update statement replaces: the most shared topic words, newest on a tie.
+
+    A statement about a file or folder replaces only a saved fact about a file or folder: with "the quarterly report
+    is due on the 3rd" saved, "I moved the quarterly report pdf to the archive folder" replaced the due date (the clean
+    loop hands everyday updates to this lane before it reads files)."""
     wanted = topic_tokens(update_body(text))
     if not wanted:
         return None
+    about_files = bool(_FILE_PLACE_RE.search(text))
     best, best_score = None, 0
     for row in entries:
-        score = len(wanted & topic_tokens(str(row.get("fact") or row.get("text") or "")))
+        saved = str(row.get("fact") or row.get("text") or "")
+        if about_files and not _FILE_PLACE_RE.search(saved):
+            continue
+        score = len(wanted & topic_tokens(saved))
         if score and score >= best_score:
             best, best_score = row, score
     return best
