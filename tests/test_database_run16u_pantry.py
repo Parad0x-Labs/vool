@@ -159,3 +159,21 @@ def test_a_case_only_swap_finds_the_database_when_the_name_given_is_wrong(tmp_pa
     sql = "SELECT * FROM items WHERE name = 'flour'"
     assert database_named_by_tables("workspace", sql) == "kitchen"
     assert "'Flour'" in sql_with_real_values("kitchen", sql)
+
+
+def test_a_reply_that_says_there_is_none_after_a_read_that_found_rows_is_the_rows() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_reply_contradicts_its_rows
+
+    step = {"tool_name": "vool-database.query", "ok": True, "arguments": {"name": "pantry", "sql": "SELECT name FROM items WHERE quantity = 0"},
+            "observation": {"columns": ["name"], "rows": [["Lentils"]]}}
+    out = _database_reply_contradicts_its_rows("There are no items listed as out of stock.", "which ones are out of stock", [step])
+    assert "Lentils" in out
+    assert _database_reply_contradicts_its_rows("Lentils is out of stock.", "which ones are out of stock", [step]) == ""
+
+
+def test_how_many_is_counted_in_rows_not_summed_over_a_quantity_column() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_query_contradicts_the_ask_checks
+
+    payload = {"arguments": {"name": "pantry", "sql": "SELECT SUM(quantity) FROM items WHERE shelf = 'bottom'"}}
+    assert _database_query_contradicts_the_ask_checks("vool-database.query", payload, "how many are on the bottom shelf", []) is not None
+    assert _database_query_contradicts_the_ask_checks("vool-database.query", payload, "what is the total quantity on the bottom shelf", []) is None

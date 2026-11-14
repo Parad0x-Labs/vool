@@ -374,6 +374,13 @@ _DATABASE_DENIES_ROWS_RE = re.compile(
 )
 
 
+_DATABASE_CLAIMS_NONE_RE = re.compile(
+    r"\b(?:there\s+(?:are|is|were|was)\s+(?:currently\s+)?(?:no|none)\b|no\s+(?:\w+\s+){0,4}?(?:are|is|were|was|listed|found|match\w*|exist\w*|available)\b|"
+    r"none\s+of\b|nothing\s+(?:is|was|matches|found)\b|not\s+any\b|(?:don'?t|do\s+not|doesn'?t|does\s+not)\s+(?:see|have|find|show)\s+any)",
+    re.IGNORECASE,
+)
+
+
 def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
     """The last database step succeeded with no rows, or a lone count of 0 (or failed): nothing it found is a fact."""
     for step in reversed(steps):
@@ -580,6 +587,21 @@ def _database_query_contradicts_the_ask_checks(
     carried = _database_query_carries_over_the_last_ask(sql, question, steps or [])
     if carried:
         return _database_refusal(intent, carried, "query_carries_over_from_the_last_ask")
+    told_sum = " ".join(str(s.get("observation") or "") for s in (steps or []) if s.get("correction") and isinstance(s.get("observation"), str))
+    if (
+        re.search(r"\bsum\s*\(", sql, re.IGNORECASE)
+        and re.search(r"\bhow\s+many\b", str(question or ""), re.IGNORECASE)
+        and not re.search(r"\b(?:total|sum|altogether|units?|quantity|pieces?|stock)\b", str(question or ""), re.IGNORECASE)
+        and "counts the rows" not in told_sum
+    ):
+        # Run 16i (pantry 7): "how many are on the bottom shelf" was read with SUM(quantity), which adds up the
+        # quantities (5), not the items (2). Said once per turn.
+        return _database_refusal(
+            intent,
+            "How many asks for a count of the rows: use COUNT(*) over the rows that match, which counts the rows. "
+            "Do not add up a quantity column.",
+            "sum_for_how_many",
+        )
     match = _ORDER_DIRECTION_RE.search(sql)
     if not match:
         return None
@@ -811,7 +833,14 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
     if not rows or _database_last_result_empty(steps):
         return ""
     text = str(reply or "")
-    if _DATABASE_NO_ANSWER_RE.search(text) or _DATABASE_DENIES_ROWS_RE.search(text) or database_claims_unsupported(text, used, question):
+    if (
+        _DATABASE_NO_ANSWER_RE.search(text)
+        or _DATABASE_DENIES_ROWS_RE.search(text)
+        or _DATABASE_CLAIMS_NONE_RE.search(text)
+        or database_claims_unsupported(text, used, question)
+    ):
+        # Run 16i (pantry 5): the read found Lentils at quantity 0 and the reply said "no items listed as out of
+        # stock". A reply that says there is none, after a read that found rows, is the rows' answer.
         return rows
     if _ORDERED_ASK_RE.search(str(question or "")) and _listed_out_of_order(text, used):
         return rows
