@@ -6,13 +6,12 @@ import sqlite3
 import uuid
 from types import SimpleNamespace
 
-from tests.test_database_plain_ask_lane import world  # noqa: F401  (fixture)
-
 from core.agent_runtime.research_tool_loop_facade import (
     _database_empty_read,
     _database_reread_payload,
     _is_database_no_answer,
 )
+from tests.test_database_plain_ask_lane import world
 
 
 def _db(name: str, script: str) -> None:
@@ -40,7 +39,7 @@ TOOLSHED = (
 )
 
 
-def test_an_overview_ask_of_a_named_many_table_database_counts_each_table(world) -> None:  # noqa: F811
+def test_an_overview_ask_of_a_named_many_table_database_counts_each_table(world) -> None:
     from core.database_work_state import suggest_database_query
 
     _db("library", LIBRARY)
@@ -48,14 +47,14 @@ def test_an_overview_ask_of_a_named_many_table_database_counts_each_table(world)
     assert said.startswith("name=library, sql=SELECT 'books' AS table_name") and "UNION ALL" in said and "loans" in said
 
 
-def test_the_loans_count_is_the_count_of_the_rows_not_yet_returned(world) -> None:  # noqa: F811
+def test_the_loans_count_is_the_count_of_the_rows_not_yet_returned(world) -> None:
     from core.database_work_state import suggest_database_query
 
     _db("library", LIBRARY)
     assert suggest_database_query("ok and how many are still out on loan") == "name=library, sql=SELECT COUNT(*) AS count FROM loans WHERE returned = 0"
 
 
-def test_a_text_the_column_does_not_hold_is_swapped_for_the_one_it_does(world) -> None:  # noqa: F811
+def test_a_text_the_column_does_not_hold_is_swapped_for_the_one_it_does(world) -> None:
     from core.database_work_state import sql_with_real_values
 
     _db("toolshed", TOOLSHED)
@@ -64,7 +63,7 @@ def test_a_text_the_column_does_not_hold_is_swapped_for_the_one_it_does(world) -
     assert sql_with_real_values("nope", "SELECT * FROM tools WHERE kind = 'power tool'") == ""
 
 
-def test_an_empty_read_is_read_again_with_the_real_value_or_the_ready_call(world) -> None:  # noqa: F811
+def test_an_empty_read_is_read_again_with_the_real_value_or_the_ready_call(world) -> None:
     _db("toolshed", TOOLSHED)
     empty = {"tool_name": "vool-database.query", "ok": True,
              "arguments": {"name": "toolshed", "sql": "SELECT * FROM tools WHERE kind = 'power tool'", "row_limit": 20},
