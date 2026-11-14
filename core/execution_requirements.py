@@ -960,6 +960,19 @@ _SUPPLIED_TODAY_RE = re.compile(
 )
 
 
+def _points_back_at_figures_given(text: str, source_context: dict[str, Any] | None) -> bool:
+    """"how much is the second one?" right after the person gave both figures: the chat holds the answer.
+
+    Held-out set on the real local model: the model's answer was replaced by "Web lookups are off" because this turn
+    was held to current information; the front door's own exemption (0a5474f5) could not reach the later guards."""
+    try:
+        from core.online_asks import asks_about_a_chat_referent
+
+        return asks_about_a_chat_referent(text, source_context)
+    except Exception:
+        return False
+
+
 def _supplies_todays_date(text: str) -> bool:
     """Measured on the real local model (H2H memory set): "if today is 1 march, how many days until the cabin trip
     starts?" was held to current information and withheld ("That is not mentioned in the records I have ...")."""
@@ -983,7 +996,11 @@ def _compute_requirements(
     text = " ".join(str(user_input or "").split())
     if _dated_chat_records_scope(text, source_context):
         return _record_scoped_requirements()
-    if stipulated_frame_active(text, source_context=source_context) or _supplies_todays_date(text):
+    if (
+        stipulated_frame_active(text, source_context=source_context)
+        or _supplies_todays_date(text)
+        or _points_back_at_figures_given(text, source_context)
+    ):
         return ExecutionRequirements(
             answer_mode="DIRECT",
             external_evidence_required=False,
