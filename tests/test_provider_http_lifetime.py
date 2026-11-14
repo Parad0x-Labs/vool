@@ -251,7 +251,9 @@ def test_loopback_transport_never_uses_proxy_or_follows_redirect(controlled_olla
     assert state["trap_calls"] == []
 
 
-def test_background_model_job_keeps_selected_endpoint_when_process_environment_changes(controlled_ollama_transport, monkeypatch):
+def test_background_model_job_keeps_selected_endpoint_when_process_environment_changes(
+    controlled_ollama_transport, monkeypatch, tmp_path
+):
     from core import local_ollama_inventory, policy_engine
     from core.web.api.runtime import start_ollama_model_pull
 
@@ -261,12 +263,23 @@ def test_background_model_job_keeps_selected_endpoint_when_process_environment_c
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
     monkeypatch.setattr(local_ollama_inventory, "_ollama_models_payload", _REAL_INVENTORY_PAYLOAD)
-    policy_engine.set_operator_policy_values({"network.outbound_enabled": True, "system.local_only_mode": False})
-    progress = start_ollama_model_pull("missing-transport-contract:1b", env={"VOOL_RAW_OLLAMA_API_URL": state["origin"]})
-    assert progress.wait(timeout=5)
-    assert progress.status == "ready"
-    assert state["origin_calls"] == [("GET", "/api/tags"), ("POST", "/api/pull")]
-    assert state["trap_calls"] == []
+    # The outbound switch this test turns on is written into this test's own home, and the policy
+    # is read back from the session home afterwards: in the shared home it switched outbound on
+    # for every later test, and a fresh-home cloud probe was no longer refused
+    # (tests/disclosure/test_fresh_home_after_a_model_job_policy_write.py).
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setenv("VOOL_HOME", str(tmp_path / "home"))
+            policy_engine.set_operator_policy_values({"network.outbound_enabled": True, "system.local_only_mode": False})
+            progress = start_ollama_model_pull(
+                "missing-transport-contract:1b", env={"VOOL_RAW_OLLAMA_API_URL": state["origin"]}
+            )
+            assert progress.wait(timeout=5)
+            assert progress.status == "ready"
+            assert state["origin_calls"] == [("GET", "/api/tags"), ("POST", "/api/pull")]
+            assert state["trap_calls"] == []
+    finally:
+        policy_engine.load(force_reload=True)
 
 
 def test_disabled_local_model_job_does_not_probe_inventory_during_default_selection(controlled_ollama_transport, monkeypatch):
