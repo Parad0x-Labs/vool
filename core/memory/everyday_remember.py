@@ -243,20 +243,32 @@ _FILE_PLACE_RE = re.compile(
 )
 
 
+def _word_form(word: str) -> str:
+    return re.sub(r"(?:'s|’s|s)$", "", word)
+
+
 def updated_entry(text: str, entries: list[dict]) -> dict | None:
     """The one saved entry an update statement replaces: the most shared topic words, newest on a tie.
 
     A statement about a file or folder replaces only a saved fact about a file or folder: with "the quarterly report
     is due on the 3rd" saved, "I moved the quarterly report pdf to the archive folder" replaced the due date (the clean
     loop hands everyday updates to this lane before it reads files)."""
-    wanted = topic_tokens(update_body(text))
+    body = update_body(text)
+    wanted = topic_tokens(body)
     if not wanted:
         return None
     about_files = bool(_FILE_PLACE_RE.search(text))
+    # What the update is about: the words before its change word ("the STREET PARTY moved to saturday"). Every one of
+    # them must be in the fact it replaces: with "my dentist is dr Okafor on Brill street" saved, the street party
+    # replaced the dentist on the one word "street" (independent review of job 19, C6).
+    cue = _UPDATE_RE.search(body)
+    subject = {_word_form(w) for w in topic_tokens(body[: cue.start()])} if cue else set()
     best, best_score = None, 0
     for row in entries:
         saved = str(row.get("fact") or row.get("text") or "")
         if about_files and not _FILE_PLACE_RE.search(saved):
+            continue
+        if subject and not subject <= {_word_form(w) for w in topic_tokens(saved)}:
             continue
         score = len(wanted & topic_tokens(saved))
         if score and score >= best_score:
