@@ -1420,6 +1420,25 @@ def _overlay_interrupted_turns(
         entry["interrupted_request"] = preview
 
 
+#: Endings that only inflect a word ("seats", "preference", "booked", "lives"): a question and a saved fact match on the
+#: word, not on its form.
+_MATCH_SUFFIXES = ("ences", "ence", "ances", "ance", "ings", "ing", "ed", "s")
+
+
+def _match_stem(token: str) -> str:
+    """The form a memory search compares: "any seat preference?" against "i always prefer window seats when i fly" shared
+    no token and the fact never reached the model, which answered "you didn't mention a seat preference" (H2H memory set,
+    real local model)."""
+    word = str(token or "").casefold()
+    if not word.isalpha():
+        return word
+    for suffix in _MATCH_SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            word = word[: -len(suffix)]
+            break
+    return word
+
+
 @_memory_reader
 def search_relevant_memory(
     query_text: str,
@@ -1434,7 +1453,7 @@ def search_relevant_memory(
         policy = resolve_memory_access_policy(access_policy=access_policy)
     except (TypeError, ValueError):
         return []
-    query_tokens = set(keyword_tokens_filtered(" ".join([query_text, *(topic_hints or [])])))
+    query_tokens = {_match_stem(token) for token in keyword_tokens_filtered(" ".join([query_text, *(topic_hints or [])]))}
     # Scope is applied while reading the store, before semantic scoring,
     # temporal ordering, or any other retrieval reinforcement.
     rows = [
@@ -1445,7 +1464,9 @@ def search_relevant_memory(
     ]
     ranked: list[tuple[float, dict[str, Any]]] = []
     for row in rows:
-        item_tokens = set(row.get("keywords") or keyword_tokens_filtered(str(row.get("text") or "")))
+        item_tokens = {
+            _match_stem(token) for token in (row.get("keywords") or keyword_tokens_filtered(str(row.get("text") or "")))
+        }
         overlap = len(query_tokens & item_tokens) if query_tokens else 0
         if query_tokens and overlap <= 0:
             continue
