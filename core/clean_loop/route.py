@@ -657,6 +657,17 @@ def _memory_lane_owns(text: str, session_id: str = "", source_context: Mapping[s
     )
 
 
+#: The ask points at what the owner told VOOL ("any seat preference i told you about?", "did I mention my dentist's
+#: number?", "do you remember where Tobiah lives?"): the answer is in what was said, never in a file on the disk.
+_TOLD_VOOL_RE = re.compile(
+    r"\b(?:i|we)\s+(?:(?:have|had|'ve|’ve|already|just)\s+)?(?:told|tell|gave|give|mentioned|mention|said|say)\s+"
+    r"(?:to\s+)?(?:you|u)\b"
+    r"|\b(?:did|have|had)\s+(?:i|we)\s+(?:ever\s+|already\s+)?(?:tell|told|mention(?:ed)?|give|gave|say|said)\b"
+    r"|\b(?:do|did)\s+(?:you|u)\s+(?:still\s+)?(?:remember|recall)\b",
+    re.I,
+)
+
+
 #: An ask that reads, finds or opens something ("what's in the quarterly report?", "find the boat letter", "where did i
 #: save the receipts?"): a file's, whatever a saved fact shares with it.
 _FILE_ACT_RE = re.compile(
@@ -675,6 +686,11 @@ def points_at_files(text: str) -> bool:
     searched on the disk and answered "The rent receipts are in the blue folder" (held-out set, real model)."""
     value = str(text or "")
     return bool(asks_explicitly_about_own_things(value) or _NAMES_FILES_RE.search(value) or _FILE_ACT_RE.search(value))
+
+
+def asks_what_owner_told(text: str) -> bool:
+    """Whether the ask is about something the owner told VOOL, not about their files."""
+    return bool(_TOLD_VOOL_RE.search(str(text or "")))
 
 
 def _saved_memory_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
@@ -793,6 +809,11 @@ def decide(
         by_documents = document_match is not None and bool(document_match(text))
         if not by_documents:
             return RouteDecision(False, "not_about_own_files")
+    if not points_at_files(text) and asks_what_owner_told(text):
+        # "booking a flight later, any seat preference i told you about?" (H2H memory set on the real model): admitted
+        # because "seat" names a file, the loop's model read the seat notes and answered "You mentioned preferring an
+        # aisle seat" while "window seats" was saved. What the owner said is memory's and the chat's, not the disk's.
+        return RouteDecision(False, "asks_what_owner_told")
     if not points_at_files(text) and _saved_memory_answers(text, session_id, source_context):
         # Its words name a file, yet a fact the owner saved answers it and the ask does not point at files: memory
         # answers, not a search of the disk.
@@ -815,6 +836,7 @@ __all__ = [
     "asks_about_chat_attachment",
     "asks_about_own_files_or_computer",
     "asks_explicitly_about_own_things",
+    "asks_what_owner_told",
     "change_reply",
     "changes_enabled",
     "decide",
