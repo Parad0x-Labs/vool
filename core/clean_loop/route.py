@@ -727,6 +727,18 @@ def _saved_fact_holds_file_words(
     return False
 
 
+def _names_owners_person(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
+    """A question naming someone a saved fact ties to the owner ("my brother Tobiah", "his daughter is called Marta")."""
+    try:
+        from core.agent_runtime.cross_chat_recall import saved_memory_names
+
+        return is_question(text) and saved_memory_names(
+            text, session_id=session_id, source_context=dict(source_context or {})
+        )
+    except Exception:
+        return False
+
+
 def _saved_memory_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
     """A question a fact the owner saved answers ("what's the booking code for the boat?" after it was saved), when
     the ask does not itself point at files. On the Mac (cbc915ec) such questions were admitted because their words
@@ -858,6 +870,11 @@ def decide(
     ):
         # Admitted only because a word names a file, and that word is what a saved fact is about.
         return RouteDecision(False, "saved_fact_subject")
+    if not points_at_files(text) and _names_owners_person(text, session_id, source_context):
+        # "when does Marta have her birthday?" with "his daughter is called Marta and she turns 7 on 3 august" saved
+        # (held-out set, real model): admitted because "birthday" names a file, answered "Marta's birthday is not
+        # mentioned in the file". A question about someone the owner told VOOL about is memory's and the model's.
+        return RouteDecision(False, "names_owners_person")
     if not points_at_files(text) and _saved_memory_answers(text, session_id, source_context):
         # Its words name a file, yet a fact the owner saved answers it and the ask does not point at files: memory
         # answers, not a search of the disk.
