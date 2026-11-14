@@ -646,7 +646,8 @@ def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: lis
         return None
     best = None
     forget_state = None
-    for row in load_jsonl(conversation_log_path()):
+    later: list[tuple[int, Any, str, str]] = []  # the owner's statements that share a term, in the order said
+    for index, row in enumerate(load_jsonl(conversation_log_path())):
         sid = str(row.get("session_id") or "")
         hit = chats.get(sid)
         if hit is None or str(row.get("artifact_kind") or "").strip():
@@ -655,7 +656,7 @@ def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: lis
         if not said or not _is_statement(said):
             continue
         found = set(query_terms(said)) & set(terms)
-        if not _covers(terms, tuple(found)):
+        if not found:
             continue
         if any(saved and saved in said.casefold() for saved in saved_folded):
             continue
@@ -663,10 +664,51 @@ def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: lis
             forget_state = _forget_state()
         if not _not_forgotten(said, str(row.get("ts") or ""), forget_state):
             continue
+        later.append((index, hit, said, str(row.get("ts") or "")))
+        if not _covers(terms, tuple(found)):
+            continue
         rank = (len(found), str(row.get("ts") or ""))
         if best is None or rank > best[0]:
             best = (rank, hit, said, str(row.get("ts") or ""))
-    return None if best is None else best[1:]
+    return None if best is None else _still_current(best[1:], later)
+
+
+def _still_current(best: tuple[Any, str, str], said_in_order: list[tuple[int, Any, str, str]]):
+    """The statement that is current for the subject of ``best``, by the capsule's own updated-fact chain rules.
+
+    The best match covers the most question terms, which is often the FIRST time a thing was said ("the gym gave me
+    locker 214 this season"); said in passing in a long chat it may have been replaced ("they put me in locker 87")
+    and even restored ("I'm back in my old locker"). Served on 0a84ca8f, a new chat asking "what room is my desk in
+    at work?" was quoted the old room. Only statements of the best match's own chat take part."""
+    from core.updated_fact_marking import CURRENT_MARKER, SUPERSEDED_MARKER, compute_markers
+
+    hit, said, ts = best
+    rows = [(i, h, s, t) for i, h, s, t in said_in_order if h is hit]
+    if len(rows) < 2:
+        return best
+
+    def line(text: str, stamp: str) -> str:
+        return f"- user said (recorded {str(stamp)[:10]}): {text}"
+
+    receipts = [{"line": line(s, t), "role": "user", "delivered": True, "statement_at": None, "source_sequence": i}
+                for i, _h, s, t in rows]
+    try:
+        markers = compute_markers(receipts, [])
+    except Exception:
+        return best
+    if markers.get(line(said, ts)) != SUPERSEDED_MARKER:
+        return best
+    from core.temporal_selection import anchor_terms, value_tokens
+
+    subject = set(anchor_terms(said))
+    current = [(i, h, s, t) for i, h, s, t in rows
+               if markers.get(line(s, t)) == CURRENT_MARKER and subject & set(anchor_terms(s))]
+    if not current:
+        return best
+    # the line that carries a value first ("locker 214"), then the newest
+    current.sort(key=lambda row: (bool(value_tokens(row[2])), row[0]))
+    _i, h, s, t = current[-1]
+    return (h, s, t)
 
 
 #: The statement this lane last offered to remember, per chat. A plain "yes" on the next turn

@@ -187,6 +187,12 @@ def turn_may_hold_several_requests(text: str) -> bool:
     return any(token in lowered for token in _JOINING_TOKENS)
 
 
+_REMIND_ME_LEAD_PUNCT_RE = re.compile(
+    r"^(\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me)\s*[,:\u2013\u2014-]\s*",
+    re.IGNORECASE,
+)
+
+
 def recall_question_needs_no_planner(text: str) -> bool:
     """Whether a planner call on *text* can only learn that it is one request.
 
@@ -203,6 +209,9 @@ def recall_question_needs_no_planner(text: str) -> bool:
     try:
         from core.plain_task_routing import single_clause_recall_question
 
+        # "remind me, what's my locker number now?" is "remind me what's ...": the comma after the lead is not a
+        # second request (on 0a84ca8f the planner split it and "remind me" alone was refused as a reminder).
+        text = _REMIND_ME_LEAD_PUNCT_RE.sub(r"\1 ", str(text or ""), count=1)
         subject = _subject_without_answer_frame(text)
         if not single_clause_recall_question(subject):
             return False

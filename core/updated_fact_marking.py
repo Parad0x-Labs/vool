@@ -80,7 +80,21 @@ _SWITCH_CUE_RE = re.compile(
     r"no\s+longer|instead\s+of|updated\s+(?:my|the)|revised\s+(?:my|the|to)|"
     r"raised\s+(?:my|the|it\s+to)?|increased\s+(?:my|the|it\s+to)?|"
     r"bumped\s+(?:my|the|it\s+to)?|cut\s+(?:my|the|it\s+to)?|"
-    r"actually[, ]|scratch\s+that|new\s+(?:plan|schedule|target|goal|number))\b",
+    r"actually[, ]|scratch\s+that|new\s+(?:plan|schedule|target|goal|number)|"
+    r"instead(?=\s*[.!,;]|\s*$)|after\s+all)\b",
+    re.IGNORECASE,
+)
+#: a user statement that RESTORES an earlier value without repeating it ("I'm back in my old locker", "found the first
+#: padlock, using that one again", "we switched back"). Said in passing in a long chat (sls, 2026-11-14: padlock 5555,
+#: lost, new 9999, "found my first padlock so we use it again" -> 5555), the newest number in the chain is no longer
+#: current; the one before it is.
+_REVERT_CUE_RE = re.compile(
+    r"\b(?:back\s+(?:in|to|on|at|with|into)\s+(?:my|the|our)\s+(?:old|original|first|previous|former|usual)\b"
+    r"|(?:switch|switched|switching|go|going|went|gone|change|changed|changing|move|moved|moving)\s+back\b"
+    r"|back\s+to\s+(?:the\s+)?(?:old|original|first|previous|former|usual)\b"
+    r"|(?:old|original|first|previous|former)\s+(?:one|\w+)\s+(?:again|back)\b"
+    r"|(?:that|the\s+(?:old|first|original|previous))\s+one\s+again\b"
+    r"|found\s+(?:my|the|our)\s+(?:first|old|original|previous)\b)",
     re.IGNORECASE,
 )
 #: how many lines one render may mark (marker tokens come out of the capsule
@@ -245,7 +259,81 @@ def _pair_kind(a: dict[str, Any], b: dict[str, Any]) -> str:
     if len(shared) >= 2 and (
             _SWITCH_CUE_RE.search(a["line"]) or _SWITCH_CUE_RE.search(b["line"])):
         return "cue"
+    if _SWITCH_CUE_RE.search(a["line"]) or _SWITCH_CUE_RE.search(b["line"]):
+        # one shared subject word: a chain only inside one sitting (see compute_markers)
+        return "cue_one_sitting"
     return "none"
+
+
+def _seq(entry: dict[str, Any]) -> float | None:
+    try:
+        return float(entry["source_sequence"]) if entry.get("source_sequence") is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _same_day_capture_order(
+    a: dict[str, Any], b: dict[str, Any], da: tuple[int, int, int] | None, db: tuple[int, int, int] | None,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """(older, newer) for two records whose lines show the same day and that both carry a capture order.
+
+    The capture order is the conversation log's own order when both records were found in it ("said_order"), else the
+    store's write sequence; inside one day either is the order the person said things in. Records with no day or no
+    order, or with the same one, stay unordered."""
+    if da is None or db is None or da != db:
+        return None
+    if a.get("said_order") is not None and b.get("said_order") is not None:
+        sa, sb = float(a["said_order"]), float(b["said_order"])
+    else:
+        sa, sb = _seq(a), _seq(b)
+    if sa is None or sb is None or sa == sb:
+        return None
+    return (a, b) if sa < sb else (b, a)
+
+
+def _newer_of(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any] | None:
+    """The later of two records by the same rules the chain pass uses, or None when they cannot be ordered."""
+    ka, kb = _order_key(a), _order_key(b)
+    if ka is not None and kb is not None:
+        if _same_moment(ka, kb):
+            return None
+        return b if kb > ka else a
+    da, db = _line_day(a["line"]), _line_day(b["line"])
+    if da is not None and db is not None and da != db:
+        return b if db > da else a
+    ordered = _same_day_capture_order(a, b, da, db)
+    return ordered[1] if ordered else None
+
+
+def _mark_restored_values(entries: Sequence[dict[str, Any]], markers: dict[str, str]) -> None:
+    """A later user statement that goes back to an earlier value ("I'm back in my old locker") makes the value before
+    the current one current again.
+
+    Only for a numeric chain already marked here (a [current value] line and a [superseded] line sharing a subject
+    word with it and with the restoring statement), only when the restoring statement is the user's own, carries no
+    number of its own and is orderably newer than the current value. Anything less leaves the marks as they are."""
+    for current in [e for e in entries if markers.get(e["line"]) == CURRENT_MARKER and e["values"]]:
+        older = [e for e in entries
+                 if markers.get(e["line"]) == SUPERSEDED_MARKER and e["values"] and e["role"] == "user"
+                 and not (e["values"] & current["values"]) and (e["anchors"] & current["anchors"])
+                 and _newer_of(e, current) is current]
+        if not older:
+            continue
+        subject = frozenset().union(*(e["anchors"] & current["anchors"] for e in older))
+        reverts = [e for e in entries
+                   if e["role"] == "user" and not e["values"] and _REVERT_CUE_RE.search(e["line"])
+                   and (e["anchors"] & subject) and _newer_of(e, current) is e]
+        if not reverts:
+            continue
+        # the value it goes back to: the newest superseded value before the current one
+        restored = older[0]
+        for e in older[1:]:
+            if _newer_of(restored, e) is e:
+                restored = e
+        markers[current["line"]] = SUPERSEDED_MARKER
+        markers[restored["line"]] = CURRENT_MARKER
+        for e in reverts:
+            markers.setdefault(e["line"], CURRENT_MARKER)
 
 
 def compute_markers(
@@ -268,12 +356,25 @@ def compute_markers(
         # one record and unorderable against another says both
         if markers.get(line) == CONFLICT_MARKER:
             return
+        if markers.get(line) == SUPERSEDED_MARKER and marker == CURRENT_MARKER:
+            return  # a newer record replaced it; another, older pair cannot make it current again
         markers[line] = marker
 
     for i, a in enumerate(entries):
         for b in entries[i + 1:]:
             kind = _pair_kind(a, b)
             if kind == "none":
+                continue
+            if kind == "cue_one_sitting":
+                # "van's in the garage, so it's the train to the wedding instead" after "we're driving to the
+                # wedding in the van": one shared word is enough when both are the user's own lines of one day in
+                # capture order (one chat said in passing); never across days or roles
+                ordered = (_same_day_capture_order(a, b, _line_day(a["line"]), _line_day(b["line"]))
+                           if a["role"] == b["role"] == "user" else None)
+                if ordered is None or not _SWITCH_CUE_RE.search(ordered[1]["line"]):
+                    continue
+                _set(ordered[0]["line"], SUPERSEDED_MARKER)
+                _set(ordered[1]["line"], CURRENT_MARKER)
                 continue
             ka, kb = _order_key(a), _order_key(b)
             if ka is None or kb is None:
@@ -283,6 +384,10 @@ def compute_markers(
                 da, db = _line_day(a["line"]), _line_day(b["line"])
                 if da is not None and db is not None and da != db:
                     older, newer = (a, b) if da < db else (b, a)
+                elif _same_day_capture_order(a, b, da, db) is not None:
+                    # one day, both captured with a sequence: the capture order is the order they were said in (a
+                    # long chat's turns on one day were all "conflicting records, give both" on 0a84ca8f)
+                    older, newer = _same_day_capture_order(a, b, da, db)
                 elif (kind == "numeric"
                       and ("user" in (a["role"], b["role"]))):
                     # the direction law's floor: a conflict mark too needs a
@@ -315,6 +420,7 @@ def compute_markers(
                 continue
             _set(older["line"], SUPERSEDED_MARKER)
             _set(newer["line"], CURRENT_MARKER)
+    _mark_restored_values(entries, markers)
     if len(markers) > _MAX_MARKED_LINES:
         # keep conflicts first (they change what the reader should say at all),
         # then current, then superseded
@@ -324,11 +430,65 @@ def compute_markers(
     return markers
 
 
+def _record_body(line: str) -> str:
+    body = _RECORD_LINE_RE.sub("", str(line or ""), count=1)
+    body = _TURN_TAIL_RE.sub("", _DATE_PARENS_RE.sub(" ", body))
+    return " ".join(body.lstrip(": ").split()).strip().strip('"').casefold()
+
+
+def conversation_log_order(bodies: Sequence[str]) -> dict[str, int]:
+    """Where each user statement sits in the conversation log (its last occurrence), for the bodies found there.
+
+    Reads only; nothing is delivered from it. A body shorter than 12 characters is not looked up (too common)."""
+    wanted = {b for b in bodies if len(b) >= 12}
+    if not wanted:
+        return {}
+    try:
+        from core.memory.files import conversation_log_path, load_jsonl
+
+        rows = load_jsonl(conversation_log_path())
+    except Exception:
+        return {}
+    found: dict[str, int] = {}
+    for index, row in enumerate(rows):
+        said = " ".join(str(row.get("user") or "").split()).casefold()
+        if not said:
+            continue
+        for body in wanted:
+            if body == said or body in said:
+                found[body] = index
+    return found
+
+
+def _add_said_order(entries: list[dict[str, Any]], said_order: Any) -> None:
+    """Give the user's records of one day their order in the conversation log, when two or more of them have no
+    statement time: the distilled lines of a long chat carry only their day, and every change said in passing on that
+    day was "conflicting records, give both" (served on 0a84ca8f: "my desk moved to room 3B", later "room 2F")."""
+    by_day: dict[tuple[int, int, int], list[dict[str, Any]]] = {}
+    for entry in entries:
+        day = _line_day(entry["line"])
+        if entry["role"] == "user" and entry.get("statement_at") is None and day is not None:
+            by_day.setdefault(day, []).append(entry)
+    pending = [e for group in by_day.values() if len(group) >= 2 for e in group]
+    if not pending or said_order is None:
+        return
+    bodies = {id(e): _record_body(e["line"]) for e in pending}
+    try:
+        order = said_order(list(set(bodies.values())))
+    except Exception:
+        return
+    for entry in pending:
+        position = order.get(bodies[id(entry)])
+        if position is not None:
+            entry["said_order"] = position
+
+
 def mark_updated_fact_lines(
     render_block: str,
     *,
     receipts: Sequence[Mapping[str, Any]] | None = None,
     lane_records: Sequence[tuple[Any, str]] | None = None,
+    said_order: Any = None,
 ) -> str:
     """The render block with updated-fact markers suffixed to its record lines.
 
@@ -343,8 +503,9 @@ def mark_updated_fact_lines(
         text, {entry["line"] for entry in receipt_entries})
     # metadata-bearing entries first: a line both sources know keeps its
     # capture sequence, not its label-only shadow
-    markers = compute_markers(
-        [], [], _entries=receipt_entries + render_extra)
+    entries = receipt_entries + render_extra
+    _add_said_order(entries, said_order)
+    markers = compute_markers([], [], _entries=entries)
     if not markers:
         return text
     out_lines: list[str] = []
@@ -361,6 +522,7 @@ __all__ = [
     "CURRENT_MARKER",
     "SUPERSEDED_MARKER",
     "compute_markers",
+    "conversation_log_order",
     "mark_updated_fact_lines",
     "updated_fact_rule_sentence",
 ]

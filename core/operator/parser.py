@@ -681,9 +681,12 @@ _NOTE_DELETE_ACTION_RE = _head_words_re("delete", "remove")
 _PROPOSE_ACTION_RE = _head_words_re("propose", "book", "schedule", "create")
 
 
+# "remind me, what's my locker number now?" (a comma after "me", "what's") is the same recall: on 0a84ca8f it was
+# parsed as a reminder to schedule and answered "I could not read a date or time in that" (served, 2026-11-14).
 _REMIND_ME_OWN_FACT_RE = re.compile(
-    r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?"
-    r"(?:(?:of\s+|about\s+|what\s+)?(?:is\s+)?my\s+|(?:which|what|who|where|when|how)\s+|the\s+)"
+    r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\s*[,:\u2013\u2014-]?\s*(?:again\s*,?\s+)?"
+    r"(?:(?:of\s+|about\s+|what(?:\s+|['\u2019]s\s+))?(?:is\s+)?my\s+"
+    r"|(?:which|what|who|where|when|how)(?:\s+|['\u2019]s\s+)|the\s+)"
     r"(?![^.!?]*\bto\s+\w)[^.!?]+?[.!?]?\s*$",
     re.IGNORECASE,
 )

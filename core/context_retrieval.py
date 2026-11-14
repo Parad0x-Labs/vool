@@ -13350,6 +13350,7 @@ def _capsule_v2_inject_retrieved(
             CONFLICT_MARKER,
             CURRENT_MARKER,
             SUPERSEDED_MARKER,
+            conversation_log_order,
             mark_updated_fact_lines,
             updated_fact_rule_sentence,
         )
@@ -13358,6 +13359,7 @@ def _capsule_v2_inject_retrieved(
             render_block,
             receipts=[dict(r) for r in evidence_receipts if r.get("delivered")],
             lane_records=[(occ, line) for occ, line in lane_rendered],
+            said_order=conversation_log_order,
         )
         if any(m in render_block for m in (CURRENT_MARKER, SUPERSEDED_MARKER, CONFLICT_MARKER)):
             # the answering rule rides the already-attached header line, one
