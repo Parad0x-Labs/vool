@@ -6899,9 +6899,13 @@ class VoolAgent(
             # A fact the owner saved answers it, so no world entity is in question: "what day does Anselm water the
             # plants?" with "my neighbour Anselm waters the plants on fridays" saved was asked back "Anselm of
             # Canterbury or the actor?" on the Mac (cbc915ec, real local model).
-            from core.agent_runtime.cross_chat_recall import saved_memory_answers
+            # Nor when a saved fact ties the name to the owner: "whats Tobiah's phone number?" with "my brother Tobiah
+            # lives in Quillon" saved was asked "the biblical Tobiah or the Lion King character?" (held-out set).
+            from core.agent_runtime.cross_chat_recall import saved_memory_answers, saved_memory_names
 
             if saved_memory_answers(question, session_id=str(session_id or ""), source_context=source_context):
+                return None
+            if saved_memory_names(question, session_id=str(session_id or ""), source_context=source_context):
                 return None
             prior_events: list = []
             try:

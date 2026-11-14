@@ -535,6 +535,38 @@ def saved_memory_answers(question: str, *, session_id: str, source_context: dict
     return bool(rows) and any(all(_term_in(term, _doc_stems(row)) for term in subject) for row in rows[0])
 
 
+#: A name the owner's saved fact ties to them: "my brother Tobiah lives in Quillon", "my manager is Pieter", "our landlord
+#: is called Feodora Lask".
+_OWNED_NAME_RE = re.compile(
+    r"\b(?:[Mm]y|[Oo]ur|[Hh]is|[Hh]er|[Tt]heir)\s+(?:[a-z][\w'-]*\s+){1,2}?(?:(?:is|was)\s+(?:called\s+|named\s+)?)?([A-Z][\w'-]+)"
+)
+
+
+def saved_memory_names(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether the question names someone or something a saved fact ties to the owner ("my brother Tobiah ...").
+
+    For the entity check: "whats Tobiah's phone number?" with "my brother Tobiah lives in Quillon" saved was asked back
+    "the biblical Tobiah or the Lion King character?" (held-out set, real local model); the owner means their brother,
+    whether or not a saved fact holds the number. Reads only."""
+    text = " ".join(str(question or "").split())
+    if not text or len(text) > 300:
+        return False
+    try:
+        from core.context_scope import ContextAccessPolicy
+        from core.memory.entries import search_relevant_memory
+
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
+        names = {
+            name.casefold()
+            for row in search_relevant_memory(text, access_policy=policy, limit=6)
+            for name in _OWNED_NAME_RE.findall(" ".join(str(row.get("text") or "").split()))
+        }
+    except Exception:
+        return False
+    asked = {word.casefold() for word in re.findall(r"[A-Za-z][\w-]*", re.sub(r"['’]s\b", "", text))}
+    return bool(names & asked)
+
+
 def _iso_utc(value: Any) -> str:
     """A revocation time as the conversation log writes times (ISO-8601 UTC), so they compare."""
     from datetime import datetime, timezone
@@ -919,4 +951,5 @@ __all__ = [
     "as_question",
     "cross_chat_recall",
     "saved_memory_answers",
+    "saved_memory_names",
 ]
