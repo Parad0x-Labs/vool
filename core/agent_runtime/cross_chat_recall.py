@@ -452,11 +452,17 @@ def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any
 _ANSWER_SLOT_STEMS = frozenset({"nam", "call"})
 
 
+#: Stems of the frame around an intention ("what did i WANT to do for Pickle?", "what was I SUPPOSED to buy?"): the saved
+#: fact is the thing itself ("book the vet for Pickle"). Counted as terms, "what did i want to do for Pickle?" held one
+#: of two and was answered "I don't have that saved" with that fact saved (held-out set, real local model).
+_INTENT_FRAME_STEMS = frozenset({"want", "wanna", "need", "suppos"})
+
+
 def _asked_terms(text: str) -> tuple[str, ...]:
     from core.chat_housekeeping import query_terms
 
     terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
-    subject = tuple(t for t in terms if t not in _ANSWER_SLOT_STEMS)
+    subject = tuple(t for t in terms if t not in _ANSWER_SLOT_STEMS and t not in _INTENT_FRAME_STEMS)
     return subject or terms
 
 
