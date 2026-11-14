@@ -356,6 +356,38 @@ def last_database_query(source_context: dict[str, Any] | None) -> tuple[str, str
         return ("", "")
 
 
+def _table_names(path) -> set[str]:
+    """The lower-case table names of one database file, read-only; empty on any error."""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+        try:
+            return {r[0].lower() for r in conn.execute("select name from sqlite_master where type='table'")}
+        finally:
+            conn.close()
+    except Exception:
+        return set()
+
+
+def database_named_by_tables(name: str, sql: str) -> str:
+    """The database a read means: the one it names when that exists, else the one holding every table the SQL reads.
+
+    Mac run 16i (toolshed 14, pantry 3): the model named "workspace", which is no database. Never raises."""
+    try:
+        import re
+
+        from core.plugin_tools import plugin_scratch_dir
+
+        root = plugin_scratch_dir("vool-database") / "databases"
+        if (root / f"{name}.sqlite").is_file():
+            return name
+        named = {t.lower() for t in re.findall(r"\b(?:from|join)\s+[\"`]?(\w+)", sql, re.IGNORECASE)}
+        return next((c.stem for c in sorted(root.glob("*.sqlite")) if named and named <= _table_names(c)), name)
+    except Exception:
+        return name
+
+
 def sql_with_real_values(name: str, sql: str) -> str:
     """The same read with each text it matched on swapped for the value the column really holds, or "".
 

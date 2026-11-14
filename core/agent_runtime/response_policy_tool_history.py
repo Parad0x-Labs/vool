@@ -275,6 +275,19 @@ def tool_history_observation_payload(
         }
     payload.setdefault("mode", str(getattr(execution, "mode", "") or "").strip())
     intent = str(payload.get("intent") or tool_name or "").strip().lower()
+    if intent.startswith("vool-database.") and not str(payload.get("summary") or "").strip() and (
+        payload.get("rows") or payload.get("columns") or payload.get("tables")
+    ):
+        # Mac run 16i (library 2, toolshed 9): a count the model wrote was withheld as "the pages I found don't state
+        # it". The query's observation carries rows and columns but none of the fields a claim is matched against,
+        # so the person's own rows supported nothing. The rows are the support, as text.
+        try:
+            payload["summary"] = f"{intent}: " + json.dumps(
+                {key: payload.get(key) for key in ("columns", "rows", "tables") if payload.get(key)},
+                ensure_ascii=False, default=str,
+            )[:1800]
+        except Exception:
+            pass
     if intent.startswith("code.task."):
         # The task wrapper owns state, but its inner tool owns evidence formatting.
         # Preserve both: a success label alone hides the source bytes and next stage.

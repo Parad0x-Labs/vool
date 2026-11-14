@@ -611,6 +611,7 @@ def _database_step_answering(question: str, steps: list[dict[str, Any]]) -> int:
         w for w in re.findall(r"[a-z]{3,}", str(question or "").lower()) if w not in _QUESTION_STOP_WORDS
     }
     best, best_score = -1, -1
+    holding = bool(_HOLDING_RE.search(str(question or "")))
     for index, step in enumerate(steps):
         if str(step.get("tool_name") or "") != "vool-database.query" or step.get("ok") is not True:
             continue
@@ -619,6 +620,10 @@ def _database_step_answering(question: str, steps: list[dict[str, Any]]) -> int:
             continue
         sql = str(dict(step.get("arguments") or {}).get("sql") or "").lower()
         score = sum(1 for w in words if w in sql or w.rstrip("s") in sql or w.rstrip("es") in sql)
+        if holding and re.search(r"\breturned", sql):
+            # Toolshed 5 (run 16i): "how many are out right now" read the tools bought (6), then the borrowings not
+            # returned (3), and the answer used the first. A who-holds-what ask is answered by the read of the returns.
+            score += 5
         if score >= best_score:
             best, best_score = index, score
     return best
@@ -687,13 +692,14 @@ def _database_reread_payload(question: str, steps: list[dict[str, Any]]) -> dict
         arguments = dict(step.get("arguments") or {})
         sql = str(arguments.get("sql") or "")
         try:
-            from core.database_work_state import sql_with_real_values
+            from core.database_work_state import database_named_by_tables, sql_with_real_values
 
-            swapped = sql_with_real_values(str(arguments.get("name") or ""), sql)
+            real_name = database_named_by_tables(str(arguments.get("name") or ""), sql)
+            swapped = sql_with_real_values(real_name, sql)
         except Exception:
-            swapped = ""
+            swapped, real_name = "", str(arguments.get("name") or "")
         if swapped:
-            return {"intent": "vool-database.query", "arguments": {**arguments, "sql": swapped}}
+            return {"intent": "vool-database.query", "arguments": {**arguments, "name": real_name, "sql": swapped}}
         ready = _database_call_payload(question)
         if ready is not None and " ".join(str(ready["arguments"]["sql"]).lower().split()) != " ".join(sql.lower().split()):
             return ready

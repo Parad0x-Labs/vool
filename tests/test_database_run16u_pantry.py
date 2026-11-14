@@ -123,3 +123,39 @@ def test_a_preview_only_reply_says_nothing_was_applied(monkeypatch) -> None:
     out = fa._preview_only_stated("Let me preview the change first.", {})
     assert out is not None and "nothing was applied" in out[0]
     assert fa._preview_only_stated(out[0], {}) is None
+
+
+def test_the_database_rows_support_the_count_the_model_wrote() -> None:
+    from core.agent_runtime.response_policy_tool_history import tool_history_observation_payload
+    from core.claim_support import match_claims
+
+    execution = SimpleNamespace(ok=True, status="executed", mode="tool_executed", tool_name="vool-database.query", response_text="x",
+                                details={"observation": {"rows": [[5]], "columns": ["count"], "ok": True}})
+    note = tool_history_observation_payload(execution=execution, tool_name="vool-database.query")
+    claims = match_claims(answer="There are 5 books.", notes=[note], request_text="how many books are there").claims
+    assert claims and all(c.status == "supported" for c in claims)
+
+
+def test_the_read_of_the_returns_answers_how_many_are_out() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_step_answering
+
+    tools = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT COUNT(*) FROM tools WHERE bought IS NOT NULL"}, "observation": {"rows": [[6]]}}
+    out = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT COUNT(*) FROM tools WHERE x"}, "observation": {"rows": [[3]]}}
+    out["arguments"]["sql"] = "SELECT COUNT(*) FROM borrowings WHERE returned_on IS NULL"
+    assert _database_step_answering("how many are out right now", [tools, out]) == 1
+    assert _database_step_answering("how many are out right now", [out, tools]) == 0
+
+
+def test_a_case_only_swap_finds_the_database_when_the_name_given_is_wrong(tmp_path, monkeypatch) -> None:
+    from core.database_work_state import sql_with_real_values
+
+    _make(tmp_path, monkeypatch)
+    c = sqlite3.connect(tmp_path / "databases" / "kitchen.sqlite")
+    c.execute("insert into items values (1,'Flour','2026-11-20','top')")
+    c.commit()
+    c.close()
+    from core.database_work_state import database_named_by_tables
+
+    sql = "SELECT * FROM items WHERE name = 'flour'"
+    assert database_named_by_tables("workspace", sql) == "kitchen"
+    assert "'Flour'" in sql_with_real_values("kitchen", sql)
