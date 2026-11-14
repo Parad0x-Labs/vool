@@ -150,6 +150,7 @@
     "everyday_lead": "transform",
     "is_question": "transform",
     "personal_statement": "transform",
+    "list_statement": "transform",
     "strip_continuation": "transform",
     "list_is_open": "transform",
     "update_shaped": "transform",
