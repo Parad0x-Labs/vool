@@ -788,6 +788,27 @@ def _requests_shared_context(user_input: str, topic_hints: list[str]) -> bool:
     return bool(_SHARED_CONTEXT_RE.search(f"{classified} {topics}"))
 
 
+#: A short follow-up that leans on the ask before it ("and how many nights are we staying?", "what about the other one?").
+_FOLLOW_UP_HEAD_RE = re.compile(r"^\s*(?:and|so|then|also|but|what\s+about|how\s+about|ok(?:ay)?\s+and)\b", re.IGNORECASE)
+
+
+def _follow_up_subject(query_text: str, earlier_user_texts: list[str]) -> list[str]:
+    """The previous ask of this chat, as a memory search hint for a short follow-up.
+
+    Measured on the real local model (H2H memory set): after "if today is 1 march, how many days until the cabin trip
+    starts?", "and how many nights are we staying?" was answered "The details about the cabin trip ... aren't in the
+    information I have": its own words share nothing with "the cabin dates changed, its now 13-16 march", so the saved
+    fact was not shown to the model."""
+    query = " ".join(str(query_text or "").split())
+    if not query or len(query.split()) > 12 or not _FOLLOW_UP_HEAD_RE.match(query):
+        return []
+    for text in earlier_user_texts:  # newest first; the current turn may already be recorded
+        said = " ".join(str(text or "").split())
+        if said and said.casefold() != query.casefold():
+            return [said]
+    return []
+
+
 def _persistent_memory_items(
     query_text: str,
     topic_hints: list[str],
@@ -802,14 +823,15 @@ def _persistent_memory_items(
     # those rows here, at context assembly (content identity, never wording rules); rows from
     # OTHER conversations, or the extractor's reworded rows, still ride (and a reworded row is
     # how recall normally reads, so a needle never depends on this skip).
-    history_blob = " \x01 ".join(
+    earlier = [
         str(turn.get("normalized_input") or turn.get("raw_input") or turn.get("reconstructed_input") or "")
         for turn in recent_dialogue_turns(session_id, limit=10)
-    ).lower()
+    ]
+    history_blob = " \x01 ".join(earlier).lower()
     for entry in search_relevant_memory(
         query_text,
         access_policy=policy,
-        topic_hints=topic_hints,
+        topic_hints=[*topic_hints, *_follow_up_subject(query_text, earlier)],
         limit=12,
     ):
         category = str(entry.get("category") or "fact")
