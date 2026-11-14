@@ -12,10 +12,9 @@ import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
-from tests.test_database_plain_ask_lane import world  # noqa: F401  (fixture)
-from tests.test_database_run16i_cbc915ec import LIBRARY, _db
-
 from core.agent_runtime.research_tool_loop_facade import _database_query_carries_over_the_last_ask
+from tests.test_database_plain_ask_lane import world
+from tests.test_database_run16i_cbc915ec import LIBRARY, _db
 
 HANDLER = Path(__file__).resolve().parent.parent / "plugins" / "vool-database" / "bin" / "db_handler"
 BOOKS = "create table books(id integer primary key, title text, author text, year int); insert into books values (1,'Emma','Austen',1815),(2,'Ulysses','Joyce',1922);"
@@ -53,7 +52,7 @@ def test_the_name_the_person_used_for_a_database_that_exists_is_accepted(tmp_pat
     assert two("vool-database.migrate.apply", name="library_db", statements=["ALTER TABLE books ADD COLUMN x TEXT;"])["ok"] is False
 
 
-def test_a_column_named_wrongly_is_replaced_by_the_real_one(world) -> None:  # noqa: F811
+def test_a_column_named_wrongly_is_replaced_by_the_real_one(world) -> None:
     from core.database_work_state import sql_with_real_columns
 
     _db("library", BOOKS)
