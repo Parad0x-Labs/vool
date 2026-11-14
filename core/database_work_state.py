@@ -322,6 +322,13 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                         if returned:
                             test = "%s = 0" % returned if returned.lower() == "returned" else "%s IS NULL" % returned
                             return ("name=%s, sql=SELECT COUNT(*) AS count FROM %s WHERE %s" % (path.stem, table, test))[:max_chars]
+                # 2c. "which ones are out of stock": the rows whose quantity is 0 (Mac run 16i, pantry 5: three failed
+                #     reads and no answer)
+                if re.search(r"\b(?:out\s+of\s+stock|run(?:ning)?\s+out|ran\s+out|sold\s+out|none\s+left|empty|used\s+up)\b", lowered):
+                    for table, columns in shapes.items():
+                        qty = next((c for c in columns if re.fullmatch(r"quantity|qty|stock|in_stock|amount|count|units", c, re.I)), "")
+                        if qty:
+                            return ("name=%s, sql=SELECT * FROM %s WHERE %s = 0" % (path.stem, table, qty))[:max_chars]
                 # 3. no table named, but a column is: "who joined most recently" -> the table with `joined`
                 for table, columns in shapes.items():
                     hit = next(

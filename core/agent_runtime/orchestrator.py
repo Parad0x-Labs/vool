@@ -430,6 +430,9 @@ def _database_observation_message(executed_steps: list[dict[str, Any]]) -> str:
     return ""
 
 
+_NOT_A_NOUN = frozenset({"are", "is", "do", "does", "did", "have", "has", "were", "was", "in", "on", "out", "there", "still", "now", "right", "all", "we", "i", "you", "they", "the", "a", "an", "of", "total", "currently", "open", "left"})
+
+
 def database_plain_answer(question: str, executed_steps: list[dict[str, Any]]) -> str:
     """The rows of the last successful database query as plain sentences, or "" when they do not fit that shape.
 
@@ -454,11 +457,15 @@ def database_plain_answer(question: str, executed_steps: list[dict[str, Any]]) -
             number = int(number) if float(number).is_integer() else number
             noun = re.search(r"\bhow\s+many\s+((?:[a-z]+\s+)??[a-z]+)\s+(?:are|is|do|does|did|have|has|were|in|on|out|there)\b", ask, re.IGNORECASE)
             word = noun.group(1).strip() if noun else ""
+            if set(word.lower().split()) & _NOT_A_NOUN:
+                word = ""
             if word and re.fullmatch(r"[A-Za-z ]{3,30}", word):
                 if number == 1:
                     return f"There is 1 {word[:-1] if word.endswith('s') else word}."
                 return f"There are {number} {word}."
-            return f"The answer is {number}."
+            if re.search(r"\b(?:how\s+many|count|number\s+of|total)\b", ask, re.IGNORECASE):
+                return f"The answer is {number}."
+            return ""
         lowered = [c.lower() for c in columns]
         if lowered == ["table_name", "row_count"]:
             parts = [f"{name} ({count} {'row' if count == 1 else 'rows'})" for name, count in rows]

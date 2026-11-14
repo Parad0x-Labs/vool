@@ -313,3 +313,34 @@ def test_a_whole_table_read_is_refused_once_when_the_question_names_a_value(monk
     assert refused is not None and "WHERE street = 'Oak Ave'" in refused.response_text
     told = [{"correction": True, "observation": str(refused.response_text)}]
     assert facade._database_query_contradicts_the_ask_checks("vool-database.query", payload, "which neighbour lives on Oak Ave", told) is None
+
+
+def test_the_noun_after_how_many_is_never_a_verb_or_a_filler_word() -> None:
+    from core.agent_runtime.orchestrator import database_plain_answer
+
+    for ask in ("how many are on the bottom shelf", "how many are still out on loan", "how many titles do we have in total"):
+        text = database_plain_answer(ask, [_q(["COUNT(*)"], [[2]])])
+        assert " are." not in text and " still." not in text
+    assert database_plain_answer("how many titles do we have in total", [_q(["COUNT(*)"], [[5]])]) == "There are 5 titles."
+
+
+def test_a_count_the_model_wrapped_in_more_than_the_row_holds_is_said_from_the_row() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_reply_contradicts_its_rows
+
+    step = {**_q(["COUNT(*)"], [[5]]), "arguments": {"name": "library", "sql": "SELECT COUNT(*) FROM books"}}
+    out = _database_reply_contradicts_its_rows("You have 5 titles in total, including Emma and Ulysses.", "how many titles do we have in total", [step])
+    assert out == "There are 5 titles."
+
+
+def test_out_of_stock_reads_the_rows_whose_quantity_is_zero(tmp_path, monkeypatch) -> None:
+    import core.plugin_tools as pt
+    from core.database_work_state import suggest_database_query
+
+    root = tmp_path / "databases"
+    root.mkdir()
+    monkeypatch.setattr(pt, "plugin_scratch_dir", lambda _n: tmp_path)
+    c = sqlite3.connect(root / "pantry.sqlite")
+    c.execute("create table items(id integer, name text, quantity int, shelf text)")
+    c.commit()
+    c.close()
+    assert suggest_database_query("which ones are out of stock") == "name=pantry, sql=SELECT * FROM items WHERE quantity = 0"
