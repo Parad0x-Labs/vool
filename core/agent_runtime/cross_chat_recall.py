@@ -502,6 +502,9 @@ _NOW_WORD_RE = re.compile(
     r"\b(?:now|today|tonight|currently|current|latest|still|anymore|live|this\s+(?:week|month|year|morning))\b",
     re.IGNORECASE,
 )
+#: Words that only name the kind of answer asked for ("which DAY does ...", "the booking CODE", "the plate NUMBER"):
+#: the saved fact holds the value ("fridays", "KV-3381"), not the word.
+_SLOT_STEMS = _ANSWER_SLOT_STEMS | frozenset({"day", "dat", "number", "cod", "many"})
 
 
 def saved_memory_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
@@ -518,8 +521,16 @@ def saved_memory_answers(question: str, *, session_id: str, source_context: dict
     terms = _asked_terms(as_question(text))
     if not terms:
         return False
-    rows = _memory_rows(text, terms, session_id, source_context)
-    return bool(rows and rows[0])
+    # The recall lane's rule (more than half the terms) picks rows to quote as saved; here a saved row takes the turn
+    # from the lane that could answer it, so it must hold every word of the subject. With only "we booked the cabin
+    # ... booking code KV-3381" saved, "what's the booking code for the boat?" held two of three, the file search
+    # stood down and the model was shown the cabin's code; "where is the boat booking letter?" was kept from the
+    # files the same way.
+    from core.chat_housekeeping import _doc_stems, _term_in
+
+    subject = tuple(term for term in terms if term not in _SLOT_STEMS) or terms
+    rows = _memory_rows(text, subject, session_id, source_context)
+    return bool(rows) and any(all(_term_in(term, _doc_stems(row)) for term in subject) for row in rows[0])
 
 
 def _iso_utc(value: Any) -> str:
