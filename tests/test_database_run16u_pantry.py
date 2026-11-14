@@ -177,3 +177,22 @@ def test_how_many_is_counted_in_rows_not_summed_over_a_quantity_column() -> None
     payload = {"arguments": {"name": "pantry", "sql": "SELECT SUM(quantity) FROM items WHERE shelf = 'bottom'"}}
     assert _database_query_contradicts_the_ask_checks("vool-database.query", payload, "how many are on the bottom shelf", []) is not None
     assert _database_query_contradicts_the_ask_checks("vool-database.query", payload, "what is the total quantity on the bottom shelf", []) is None
+
+
+def test_a_count_of_zero_on_an_is_null_filter_is_an_empty_read_and_not_evidence() -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_empty_read, _database_rows_are_evidence
+
+    zero = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT COUNT(*) FROM loans WHERE returned IS NULL"},
+            "observation": {"rows": [[0]], "columns": ["count"]}}
+    assert _database_empty_read([zero]) is True
+    assert _database_rows_are_evidence(zero) is False
+    assert _database_rows_are_evidence({**zero, "observation": {"rows": [[3]]}}) is True
+
+
+def test_a_schema_observation_supports_a_sentence_about_the_tables() -> None:
+    from core.agent_runtime.response_policy_tool_history import tool_history_observation_payload
+
+    execution = SimpleNamespace(ok=True, status="executed", mode="tool_executed", tool_name="vool-database.schema", response_text="x",
+                                details={"observation": {"intent": "vool-database.schema", "tables": ["books", "members", "loans"], "ok": True}})
+    note = tool_history_observation_payload(execution=execution, tool_name="vool-database.schema")
+    assert "members" in str(note.get("summary"))

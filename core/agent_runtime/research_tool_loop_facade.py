@@ -381,6 +381,15 @@ _DATABASE_CLAIMS_NONE_RE = re.compile(
 )
 
 
+def _database_rows_are_evidence(step: dict[str, Any]) -> bool:
+    """A successful query step whose rows say something: not empty, not a lone count of 0 (or none)."""
+    observation = step.get("observation")
+    if step.get("ok") is not True or not isinstance(observation, dict):
+        return False
+    rows = list(observation.get("rows") or [])
+    return bool(rows) and not (len(rows) == 1 and len(rows[0]) == 1 and rows[0][0] in (0, "0", None))
+
+
 def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
     """The last database step succeeded with no rows, or a lone count of 0 (or failed): nothing it found is a fact."""
     for step in reversed(steps):
@@ -393,7 +402,7 @@ def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
             # Run 16i pantry 7: a later read of a table that does not exist is not the answer to the question when an
             # earlier read returned rows; the earlier read stands.
             if any(
-                prior.get("ok") is True and isinstance(prior.get("observation"), dict) and prior["observation"].get("rows")
+                _database_rows_are_evidence(prior)
                 for prior in steps
                 if str(prior.get("tool_name") or "").startswith("vool-database.") and not prior.get("correction")
             ):
@@ -737,11 +746,20 @@ def _database_empty_read(steps: list[dict[str, Any]]) -> bool:
         observation = step.get("observation")
         if str(step.get("tool_name")) != "vool-database.query" or step.get("ok") is not True or not isinstance(observation, dict):
             return False
-        if list(observation.get("rows") or []) or "rows" not in observation:
+        if "rows" not in observation:
+            return False
+        rows = list(observation.get("rows") or [])
+        lone_zero = len(rows) == 1 and len(rows[0]) == 1 and rows[0][0] in (0, "0")
+        if rows and not lone_zero:
             return False
         arguments = dict(step.get("arguments") or {})
         where = re.split(r"\bwhere\b", str(arguments.get("sql") or ""), maxsplit=1, flags=re.IGNORECASE)
-        return len(where) == 2 and (bool(_WHERE_LITERAL_RE.search(where[1])) or ":" in where[1] or bool(arguments.get("params")))
+        # Run 16i (library 5): `returned IS NULL` counted 0 because the column holds 0 and 1; a count of 0 on a
+        # filter is read again like an empty read.
+        return len(where) == 2 and (
+            bool(_WHERE_LITERAL_RE.search(where[1])) or ":" in where[1] or bool(arguments.get("params"))
+            or (lone_zero and bool(re.search(r"\bis\s+(?:not\s+)?null\b", where[1], re.IGNORECASE)))
+        )
     return False
 
 
@@ -3449,6 +3467,7 @@ class ResearchToolLoopFacadeMixin:
                 execution.mode not in ("tool_executed", "tool_preview")
                 and str(execution.tool_name or tool_name or "").startswith("vool-database.")
                 and _database_step_answering(effective_input, executed_steps) >= 0
+                and _database_rows_are_evidence(executed_steps[_database_step_answering(effective_input, executed_steps)])
                 and not _database_join_missing(effective_input, executed_steps)
             ):
                 # Run 16i pantry 7: the first read was right (2 rows on the bottom shelf), a later read named a table
@@ -4028,6 +4047,17 @@ class ResearchToolLoopFacadeMixin:
                 final_message = self._tool_loop_final_message(None, _message_steps)
                 # a who-holds-what question is answered from the returned column, not as a raw row (run 16r, library 7)
                 final_message = database_holding_answer(effective_input, _message_steps) or final_message
+                if (
+                    not database_rows_answer(_message_steps)
+                    and any(str(step.get("tool_name") or "").startswith("vool-database.") for step in executed_steps)
+                    and _database_work_turn(effective_input, loop_source_context)
+                ):
+                    # Run 16i (library 5 and 9): audit-report text ("Incomplete -- model synthesis failed ...") in a chat
+                    # answer. The person gets a plain sentence.
+                    final_message = (
+                        "I could not get a reading of your database for that, so I have no answer to give. Nothing was "
+                        "changed. Ask again, or name the table you mean."
+                    )
                 if database_rows_answer(_message_steps):
                     # The rows the database returned ARE the grounded answer (run 16e: "COUNT(*): 1" under an
                     # "Incomplete" banner). The rejection stays on the event ledger; the turn is not a failure.
