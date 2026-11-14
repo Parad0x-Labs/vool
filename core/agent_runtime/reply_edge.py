@@ -186,6 +186,55 @@ def _names_an_unfetched_model(sentence: str, pages: str) -> bool:
     return False
 
 
+# A product named with its model number ("Gitzo Traveler 2", "Manfrotto Befree 190"), not a measure ("2.8 lb").
+_NAMED_MODEL_RE = re.compile(
+    r"\b((?:[A-Z][\w'’-]*\s+){0,3}[A-Z][\w'’-]*)\s+(\d{1,4}[A-Za-z]{0,3})\b(?![.,]\d)"
+    r"(?!\s*(?:%|lbs?|kg|g|oz|mm|cm|in|inch(?:es)?|ft|x|×|mph|km|years?|months?|weeks?|days?|hours?|minutes?)\b)"
+)
+_NOT_A_MODEL_WORDS = frozenset(
+    {
+        "step", "steps", "option", "part", "day", "week", "chapter", "section", "top", "tip", "pick", "no", "number",
+        "level", "page", "table", "list", "item", "version", "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december", "q", "phase", "round", "row", "rule",
+    }
+)
+
+
+def _names_an_unnamed_model(sentence: str, pages: str) -> bool:
+    """A product named with a model number no fetched page has. Mac AQ row 12 on ff3afc71: the reply named the
+    "Gitzo Traveler 2" and the "Manfrotto Befree 190" while the pages had "Gitzo Traveler Series 1 Kit", "Manfrotto
+    Befree" and "Befree GT XPRO", and no "190" anywhere. The name's last word with its number must be on a page."""
+    folded = " ".join(pages.lower().split())
+    for match in _NAMED_MODEL_RE.finditer(sentence):
+        last = match.group(1).split()[-1].strip("*_").lower()
+        number = match.group(2).lower()
+        if last in _NOT_A_MODEL_WORDS or (number.isdigit() and len(number) == 4 and 1900 <= int(number) <= 2100):
+            continue
+        if f"{last} {number}" not in folded:
+            return True
+    return False
+
+
+def _pages_block(source_context: dict[str, Any] | None, lead: str) -> str:
+    """The pages this turn's web lookups read, in their own words (titles, addresses, product and price lines)."""
+    context = source_context if isinstance(source_context, dict) else {}
+    steps = []
+    for line in str(context.get("_tool_loop_web_text") or "").splitlines():
+        try:
+            observation = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(observation, dict) and observation.get("ok") is not False:
+            steps.append({"tool_name": str(observation.get("intent") or ""), "ok": True, "observation": observation})
+    from core.agent_runtime.research_tool_loop_facade import web_lookup_in_plain_words
+
+    return web_lookup_in_plain_words(steps, lead=lead)
+
+
+#: Shown when a shopping answer lost a name or a price at the edge: what the pages did say.
+PAGES_SAY_TOO_LEAD = "Here is what the pages I read say, in their own words:"
+
+
 def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, request: str = "") -> str:
     """`text` without the sentences that state a price no page the turn's web lookup fetched states.
 
@@ -218,7 +267,7 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
         kept_lines: list[str] = []
         for line in str(text or "").split("\n"):
             priced = bool(_PRICE_RE.search(line))
-            if not priced and not (shopping and _MODEL_CODE_RE.search(line)) and not (
+            if not priced and not (shopping and (_MODEL_CODE_RE.search(line) or _NAMED_MODEL_RE.search(line))) and not (
                 dropped and _LEANS_ON_A_PRICE_RE.search(line)
             ):
                 kept_lines.append(line)
@@ -233,7 +282,9 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
             kept = []
             for sentence in sentences:
                 said = _priced_sentence_kept(sentence, stated, pages)
-                if said.strip() and shopping and _names_an_unfetched_model(said, pages):
+                if said.strip() and shopping and (
+                    _names_an_unfetched_model(said, pages) or _names_an_unnamed_model(said, pages)
+                ):
                     said = ""
                     names_dropped = True
                 if said.strip() and dropped and _LEANS_ON_A_PRICE_RE.search(said) and not _PRICE_RE.search(said):
@@ -249,10 +300,15 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
             return text
         kept_lines = [line for line in kept_lines if not _LIST_MARKER_ONLY_RE.match(line)]
         body = re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
-        if UNFETCHED_PRICES_LINE in body or "The lookup I ran didn't confirm" in body:
+        had_notice = _LOOKUP_NOTICE_RE.search(body)
+        if had_notice and not names_dropped and not shopping:
             return body
-        notice = UNFETCHED_PRICES_NAMES_LINE if names_dropped else UNFETCHED_PRICES_LINE
-        return f"{body}\n\n{notice}" if body else notice
+        notice = UNFETCHED_PRICES_NAMES_LINE if names_dropped else (had_notice.group(0) if had_notice else UNFETCHED_PRICES_LINE)
+        body = re.sub(r"\n{3,}", "\n\n", _LOOKUP_NOTICE_RE.sub("", body)).strip()
+        # On a shopping ask, what the pages did say goes with what was left out (Mac AQ row 12 on ff3afc71: the pages
+        # had the Peak Design Travel Tripod "around $599" and the reply used none of it).
+        said = _pages_block(context, PAGES_SAY_TOO_LEAD) if shopping else ""
+        return "\n\n".join(part for part in (body, said, notice) if part)
     except Exception:
         return text
 
@@ -331,18 +387,7 @@ def pages_instead_of_a_bare_notice(text: str, source_context: dict[str, Any] | N
     try:
         if _LOOKUP_NOTICE_RE.sub("", str(text or "")).strip():
             return text
-        context = source_context if isinstance(source_context, dict) else {}
-        steps = []
-        for line in str(context.get("_tool_loop_web_text") or "").splitlines():
-            try:
-                observation = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(observation, dict) and observation.get("ok") is not False:
-                steps.append({"tool_name": str(observation.get("intent") or ""), "ok": True, "observation": observation})
-        from core.agent_runtime.research_tool_loop_facade import web_lookup_in_plain_words
-
-        pages = web_lookup_in_plain_words(steps, lead=PAGES_SAY_INSTEAD_LEAD)
+        pages = _pages_block(source_context, PAGES_SAY_INSTEAD_LEAD)
         return f"{pages}\n\n{str(text).strip()}" if pages else text
     except Exception:
         return text
