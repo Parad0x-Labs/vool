@@ -331,7 +331,8 @@
     "set_session_meta": "writer",
     "summarize_memory": "reader",
     "memory_command_owns_turn": "transform",
-    "whole_memory_erase_request": "transform"
+    "whole_memory_erase_request": "transform",
+    "everyday_memory_turn": "transform"
   },
   "core/vool_memory.py": {
     "MemoryNode.to_row": "transform",

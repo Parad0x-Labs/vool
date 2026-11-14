@@ -6,6 +6,7 @@ import logging
 import re
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -134,6 +135,7 @@ __all__ = [
     "conversation_log_path",
     "describe_session_memory_policy",
     "ensure_memory_files",
+    "everyday_memory_turn",
     "flush_staged_conversation_events",
     "forget_memory",
     "has_relevant_memory_candidate",
@@ -2529,20 +2531,10 @@ def _chat_earlier_user_turns(session_id: str | None) -> list[str]:
     return [str(row.get("user") or "") for row in reversed(rows) if str(row.get("user") or "").strip()]
 
 
-def _everyday_remember_turn(
-    text: str,
-    *,
-    session_id: str | None,
-    access_policy: ContextAccessPolicy | None,
-    source_context: dict[str, Any] | None = None,
-) -> tuple[bool, str] | None:
-    """An everyday remember ask, a fact said inside the list it opened, or an update to a saved fact.
-
-    None hands the turn on unchanged: explicit commands ("Remember that ...", corrections, forgets) keep their own
-    path below, and anything else is not this lane's. What is saved goes through the same admission, scope rule,
-    secret refusal and forget fence as an explicit "Remember that ..." (core/memory/everyday_remember.py has the
-    measurement this answers).
-    """
+def _everyday_decision(text: str, *, session_id: str | None, access_policy: ContextAccessPolicy | None):
+    """(lead, policy, replaced) when this turn is the everyday lane's -- a lead, a fact inside the list a lead
+    opened, or an update to a fact that is saved -- else None. Reads the chat's earlier turns and the saved
+    entries; writes nothing."""
     from core.memory import everyday_remember as everyday
 
     if _CORRECTION_RE.match(text) or _FORGET_RE.match(text) or whole_memory_erase_request(text) or "\n" in text:
@@ -2575,6 +2567,46 @@ def _everyday_remember_turn(
             replaced = everyday.updated_entry(lead.fact if lead is not None else text, saved)
     if update and replaced is None:
         return None  # an update to nothing saved is ordinary conversation
+    return lead, policy, replaced
+
+
+def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
+    """Whether the memory lane will take this turn as an everyday remember ask, a list fact or an update.
+
+    For the lanes that run ahead of it. Measured on the Mac (cbc915ec, a real local model, a home with files):
+    the clean loop admitted "small update: the boat dates changed ...", "and the planning call went back to
+    10:00" and "keep in mind to renew the parking permit" because their words name the owner's files, searched
+    the disk, and nothing was saved or replaced. Reads only; writes nothing."""
+    embedded = (source_context or {}).get("_context_access_policy")
+    policy = embedded if isinstance(embedded, ContextAccessPolicy) else None
+    try:
+        return _everyday_decision(
+            " ".join(str(text or "").split()), session_id=session_id, access_policy=policy
+        ) is not None
+    except Exception:
+        return False
+
+
+def _everyday_remember_turn(
+    text: str,
+    *,
+    session_id: str | None,
+    access_policy: ContextAccessPolicy | None,
+    source_context: dict[str, Any] | None = None,
+) -> tuple[bool, str] | None:
+    """An everyday remember ask, a fact said inside the list it opened, or an update to a saved fact.
+
+    None hands the turn on unchanged: explicit commands ("Remember that ...", corrections, forgets) keep their own
+    path below, and anything else is not this lane's. What is saved goes through the same admission, scope rule,
+    secret refusal and forget fence as an explicit "Remember that ..." (core/memory/everyday_remember.py has the
+    measurement this answers).
+    """
+    from core.memory import everyday_remember as everyday
+
+    decided = _everyday_decision(text, session_id=session_id, access_policy=access_policy)
+    if decided is None:
+        return None
+    lead, policy, replaced = decided
     from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
     from core.request_trust import turn_speaks_for_owner
 

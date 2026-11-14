@@ -641,15 +641,38 @@ def _database_work_owns(text: str, source_context: Mapping[str, Any]) -> bool:
         return False
 
 
-def _memory_lane_owns(text: str) -> bool:
+def _memory_lane_owns(text: str, session_id: str = "", source_context: Mapping[str, Any] | None = None) -> bool:
     """A forget, a "remember that", the memory list: the memory lane's commands. Taken here as a follow-up of
-    a files turn, a forget was answered by the loop's model and nothing was forgotten (served, 2026-11-12)."""
+    a files turn, a forget was answered by the loop's model and nothing was forgotten (served, 2026-11-12).
+    Also its everyday asks, the facts of a list one opened, and an update to a saved fact: on the Mac (cbc915ec,
+    real local model) "small update: the boat dates changed ..." and "keep in mind to renew the parking permit"
+    named the owner's files, were searched for on the disk, and nothing was saved or replaced."""
     try:
-        from core.persistent_memory import memory_command_owns_turn
+        from core.persistent_memory import everyday_memory_turn, memory_command_owns_turn
     except Exception:
         # The memory lane cannot be asked: the turn keeps the old pipeline, which owns these commands.
         return True
-    return memory_command_owns_turn(text)
+    return memory_command_owns_turn(text) or everyday_memory_turn(
+        text, session_id=session_id, source_context=source_context
+    )
+
+
+def _saved_memory_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
+    """A question a fact the owner saved answers ("what's the booking code for the boat?" after it was saved), when
+    the ask does not itself point at files. On the Mac (cbc915ec) such questions were admitted because their words
+    name a file, and the loop answered from the disk ("I have not completed a search inside your files") while the
+    answer sat in memory."""
+    try:
+        from core.agent_runtime.cross_chat_recall import saved_memory_answers
+        from core.memory.everyday_remember import is_question as asks_back  # "remind me what my lead is called"
+
+        if not (is_question(text) or asks_back(text)):
+            return False
+        return saved_memory_answers(text, session_id=session_id, source_context=dict(source_context or {}))
+    except Exception:
+        return False
+
+
 #: The runtime tools this loop's own file and computer tools run (core.clean_loop.tools): a skill
 #: from Browse whose tools are among these, and which the normal lane may not seat, is better
 #: served here (skill_keeps_turn).
@@ -709,7 +732,7 @@ def decide(
 ) -> RouteDecision:
     if not flag_on(env):
         return RouteDecision(False, "flag_off")
-    if _memory_lane_owns(text):
+    if _memory_lane_owns(text, session_id, source_context):
         return RouteDecision(False, "memory_command")
     if is_red(text):
         return RouteDecision(False, "red_turn")
@@ -750,6 +773,10 @@ def decide(
         by_documents = document_match is not None and bool(document_match(text))
         if not by_documents:
             return RouteDecision(False, "not_about_own_files")
+    if not asks_about_own_files_or_computer(text) and _saved_memory_answers(text, session_id, source_context):
+        # Its words name a file, yet a fact the owner saved answers it and the ask does not point at files: memory
+        # answers, not a search of the disk.
+        return RouteDecision(False, "saved_memory_answers")
     kept = skill_keeps_turn(text, source_context)
     if kept:
         return RouteDecision(False, kept)

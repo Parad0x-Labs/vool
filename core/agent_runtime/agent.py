@@ -500,6 +500,12 @@ def _serves_a_stipulated_contract(result: object) -> bool:
     return reason.endswith("_contract") or bool(result.get("exact_response_control"))
 
 
+#: Lanes whose reply bytes are composed from what the runtime did or holds, never by a model: the memory lane's own
+#: reply and the recall lane's quote of saved facts and the owner's own words. Their results carry a render stamp
+#: (`_deterministic_render`) the claim gates read.
+_RECORDED_RENDER_REASONS = frozenset({"memory_command", "cross_chat_recall"})
+
+
 #: Keys a real serving lane puts on its result. None of them appears on a bare stub.
 _ENTRANCE_SERVED_MARKERS = frozenset(
     {
@@ -6890,6 +6896,13 @@ class VoolAgent(
                 question, has_attachments=turn_has_attachments, source_context=source_context
             ):
                 return None
+            # A fact the owner saved answers it, so no world entity is in question: "what day does Anselm water the
+            # plants?" with "my neighbour Anselm waters the plants on fridays" saved was asked back "Anselm of
+            # Canterbury or the actor?" on the Mac (cbc915ec, real local model).
+            from core.agent_runtime.cross_chat_recall import saved_memory_answers
+
+            if saved_memory_answers(question, session_id=str(session_id or ""), source_context=source_context):
+                return None
             prior_events: list = []
             try:
                 from core.chat_session_identity import canonical_chat_session_id
@@ -7355,15 +7368,17 @@ class VoolAgent(
             self,
             **kwargs,
         )
-        if reason == "memory_command" and isinstance(response, str) and isinstance(result, dict):
+        if reason in _RECORDED_RENDER_REASONS and isinstance(response, str) and isinstance(result, dict):
             # The memory lane wrote (or refused) the fact itself and composed these bytes from what it did. The
             # transport's claim gate finalizes with its own context, so the render stamp rides the result, like the
             # closure verdict: without it a planner call earlier in the turn made "Locked in. I'll remember that."
             # read as a model's promise and "Nothing was saved" was added under a fact that WAS saved (served on
             # 066ac524). Byte-exact: text changed after this point is judged as before.
+            # The recall lane's "Here is what I have saved:" is the same: the saved rows, quoted, and nothing a model
+            # wrote ("the boat dates changed" inside a quoted fact read as a claimed action).
             served = result.get("response")
             if isinstance(served, str):
-                result["_deterministic_render"] = {"render": served, "route": "memory_command"}
+                result["_deterministic_render"] = {"render": served, "route": reason}
         return result
 
     def _action_fast_path_result(

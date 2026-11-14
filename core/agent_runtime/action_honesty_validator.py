@@ -2034,6 +2034,11 @@ def enforce_final_action_honesty(
     )
     output = _verify_audit_claims_against_evidence(output, source_context=source_context)
     response = str(output.get("response") or "").strip()
+    stamp = output.get("_deterministic_render")
+    if isinstance(stamp, dict) and str(stamp.get("render") or "") == str(output.get("response") or ""):
+        # The memory lane's own reply, or the recall lane quoting saved facts, byte for byte as the lane composed it:
+        # no model claimed anything ("the boat dates changed" inside a quoted fact is the owner's words).
+        return output
     claim_kind = _final_claim_kind(
         output, user_input=user_input, effective_input=effective_input,
         session_id=session_id, source_context=source_context,

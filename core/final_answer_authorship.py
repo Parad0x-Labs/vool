@@ -1891,6 +1891,12 @@ def gate_execution_claims(
     model_authored, request_text = model_authored_turn(turn_id=turn_id, source_context=source_context)
     if not model_authored:
         return text, {"publication": "stood_down:not_model_authored"}
+    from core.agent_runtime.response import _is_recorded_deterministic_render
+
+    if _is_recorded_deterministic_render(text, source_context if isinstance(source_context, dict) else None):
+        # A lane composed these exact bytes from what the runtime holds (the recall lane quoting a saved fact); a
+        # planner call earlier in the turn is not a model writing them.
+        return text, {"publication": "stood_down:recorded_runtime_render"}
     claims = execution_claims(text)
     if not claims:
         listed = _unrun_listed_intents(text, source_context)

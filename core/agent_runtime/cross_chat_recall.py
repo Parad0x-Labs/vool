@@ -496,6 +496,32 @@ def _memory_rows(
         return None
 
 
+#: A question about the value NOW ("what's my balance today?") is not one a saved fact answers: a stored reading is
+#: never a current one.
+_NOW_WORD_RE = re.compile(
+    r"\b(?:now|today|tonight|currently|current|latest|still|anymore|live|this\s+(?:week|month|year|morning))\b",
+    re.IGNORECASE,
+)
+
+
+def saved_memory_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether a fact the owner saved covers this question ("what's the booking code for the boat?" once the booking
+    is saved), by the recall lane's own coverage rule (`_memory_rows`).
+
+    For the lanes ahead of memory that would otherwise answer it from somewhere else: on the Mac (cbc915ec, real
+    local model) the clean loop searched the owner's files for it, and the entity check asked "Anselm of Canterbury
+    or the actor?" about "what day does Anselm water the plants?" with that fact saved. Reads only.
+    """
+    text = " ".join(str(question or "").split())
+    if not text or len(text) > 300 or _NOW_WORD_RE.search(text):
+        return False
+    terms = _asked_terms(as_question(text))
+    if not terms:
+        return False
+    rows = _memory_rows(text, terms, session_id, source_context)
+    return bool(rows and rows[0])
+
+
 def _iso_utc(value: Any) -> str:
     """A revocation time as the conversation log writes times (ISO-8601 UTC), so they compare."""
     from datetime import datetime, timezone
@@ -837,4 +863,5 @@ __all__ = [
     "accept_pending_offer",
     "as_question",
     "cross_chat_recall",
+    "saved_memory_answers",
 ]
