@@ -30,6 +30,10 @@ def plugins(vault_home, tmp_path, monkeypatch):
     from core.runtime_flags import override
 
     monkeypatch.setenv('VOOL_PLUGINS_DIR', str(tmp_path / 'plugins'))
+    # make_plugin admits its pack into the plugin-lifecycle store, which reset_toolchain_state
+    # deliberately keeps. Point that store at this test's own file so the admission of
+    # 'local-skills' ends with the test and never shadows a later test's installed skill.
+    monkeypatch.setenv('VOOL_PLUGIN_LIFECYCLE_PATH', str(tmp_path / 'lifecycle.json'))
     reset_toolchain_state()
     with override('plugin_runtime_tools', True):
         yield tmp_path / 'plugins'
