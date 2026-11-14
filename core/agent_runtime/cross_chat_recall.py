@@ -456,13 +456,21 @@ _ANSWER_SLOT_STEMS = frozenset({"nam", "call"})
 #: fact is the thing itself ("book the vet for Pickle"). Counted as terms, "what did i want to do for Pickle?" held one
 #: of two and was answered "I don't have that saved" with that fact saved (held-out set, real local model).
 _INTENT_FRAME_STEMS = frozenset({"want", "wanna", "need", "suppos"})
+#: The same frame said with "going to", "meant to", "planning to" ("what was i going to cancel?" with "cancel the magazine
+#: subscription" saved was answered "I don't have that saved"; Mac, job 19 fold ff3afc71, heldout2 g11). Only before
+#: "to": "what's the plan for saturday?" keeps "plan".
+_INTENT_TO_RE = re.compile(
+    r"\b(?:going|gonna|mean|meant|plan|planned|planning|intend|intended|intending)\s+(?:to\b|on\b)|\bgonna\b", re.IGNORECASE
+)
+_INTENT_TO_STEMS = frozenset({"going", "gonna", "mean", "meant", "plan", "intend"})
 
 
 def _asked_terms(text: str) -> tuple[str, ...]:
     from core.chat_housekeeping import query_terms
 
     terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
-    subject = tuple(t for t in terms if t not in _ANSWER_SLOT_STEMS and t not in _INTENT_FRAME_STEMS)
+    frame = _INTENT_FRAME_STEMS | (_INTENT_TO_STEMS if _INTENT_TO_RE.search(text) else frozenset())
+    subject = tuple(t for t in terms if t not in _ANSWER_SLOT_STEMS and t not in frame)
     return subject or terms
 
 
@@ -863,6 +871,53 @@ def _owners_own_subject(typed: str, rows: list[str]) -> bool:
     return bool(owned & asked)
 
 
+#: A part of a person's name asked for: "whats Pieter's last name?", "what is Feodora's surname?".
+_NAME_PART_RE = re.compile(
+    r"\b([A-Za-z][\w-]+?)(?:'s|’s|s')?\s+(last\s+name|surname|family\s+name|second\s+name|middle\s+name)\b", re.IGNORECASE
+)
+
+
+def _name_part_never_told(typed: str, saved: list[str]) -> str | None:
+    """The reply when the owner asks for a part of a name the saved facts never gave, else None.
+
+    Mac, job 19 fold ff3afc71 (H2H memory set m-p11, real local model): with "my manager is Pieter and the quarterly
+    review is on december 2" saved, "whats Pieter's last name?" was answered "Your manager's last name is Pieter."
+    Quoting the saved row alone read as an answer (run 8 on 9a156361), so the reply says first that it was never told.
+    Only a name a saved row writes with a capital, and only when no saved row gives that name a second capitalised word
+    ("Pieter Lask")."""
+    match = _NAME_PART_RE.search(" ".join(str(typed or "").split()))
+    if match is None or not saved:
+        return None
+    name, part = match.group(1), " ".join(match.group(2).lower().split())
+    named = re.compile(rf"\b{re.escape(name[:1].upper() + name[1:])}\b")
+    holders = [row for row in saved if named.search(row)]
+    if not holders:
+        return None
+    if any(re.search(rf"{named.pattern}\s+[A-Z][\w'-]+", row) for row in holders):
+        return None  # a saved row may hold it; the ordinary path reads it
+    if any(re.search(rf"\b{re.escape(part)}\b", row, re.IGNORECASE) for row in holders):
+        return None
+    shown = name[:1].upper() + name[1:]
+    return (f"You haven't told me {shown}'s {part}. What I have saved about {shown}:\n"
+            + "\n".join(f"- {row}" for row in holders[:3]))
+
+
+def untold_name_part(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> str | None:
+    """For a question the recall lane hands on to the model: the reply when it asks for a part of a name the saved
+    facts never gave ("whats Pieter's last name?" with only "my manager is Pieter ..." saved), else None. Reads only;
+    the same owner, privacy and agent-turn gates as the recall lane."""
+    typed = " ".join(str(question or "").split())
+    if not typed or len(typed) > 300 or not _NAME_PART_RE.search(typed):
+        return None
+    if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
+        return None
+    try:
+        rows = saved_memory_rows(typed, session_id=session_id, source_context=source_context)
+    except Exception:
+        return None
+    return _name_part_never_told(typed, rows)
+
+
 def _saved_rows_answer_it(typed: str, session_id: str, source_context: dict[str, Any] | None) -> list[str]:
     """Saved facts that answer the question outright, unless it points at files or an attachment.
 
@@ -1055,4 +1110,5 @@ __all__ = [
     "saved_memory_answers",
     "saved_memory_names",
     "saved_memory_rows",
+    "untold_name_part",
 ]

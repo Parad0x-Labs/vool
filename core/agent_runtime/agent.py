@@ -3325,6 +3325,14 @@ class VoolAgent(
                                      "fast_path_hit": True})
                 return _guard_final_result(count_result)
             cross_recall = cross_chat_recall(effective_input, session_id=session_id, source_context=runtime_source_context)
+            if cross_recall is None:
+                # Handed on to the model, "whats Pieter's last name?" with only "my manager is Pieter ..." saved was
+                # answered "Your manager's last name is Pieter." (Mac, job 19 fold ff3afc71, real local model).
+                from core.agent_runtime.cross_chat_recall import CrossChatRecall, untold_name_part
+
+                untold = untold_name_part(effective_input, session_id=session_id, source_context=runtime_source_context)
+                if untold is not None:
+                    cross_recall = CrossChatRecall(response=untold, found=True)
             if cross_recall is not None:
                 recall_result = self._fast_path_result(
                     session_id=session_id,
