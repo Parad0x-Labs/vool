@@ -946,6 +946,26 @@ def _record_retrieval_is_prohibited(record: CurrentRequirementRecord) -> bool:
         return False
 
 
+#: The turn gives today's date itself ("if today is 1 march, how many days until ...", "say it's the 3rd of may"): the
+#: date is the user's premise, not a current reading to look up.
+_MONTH_WORD = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|"
+    r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+)
+_SUPPLIED_TODAY_RE = re.compile(
+    r"\b(?:if|say|assuming|suppose|given\s+(?:that\s+)?)\s+(?:today|it)\s*(?:is|'s|’s|were|was)\s+(?:the\s+)?"
+    rf"(?:\d{{1,2}}(?:st|nd|rd|th)?\s+(?:of\s+)?{_MONTH_WORD}\b|{_MONTH_WORD}\s+\d{{1,2}}(?:st|nd|rd|th)?\b|"
+    r"\d{4}-\d{2}-\d{2}\b|\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?\b)",
+    re.IGNORECASE,
+)
+
+
+def _supplies_todays_date(text: str) -> bool:
+    """Measured on the real local model (H2H memory set): "if today is 1 march, how many days until the cabin trip
+    starts?" was held to current information and withheld ("That is not mentioned in the records I have ...")."""
+    return bool(_SUPPLIED_TODAY_RE.search(str(text or "")))
+
+
 def _compute_requirements(
     user_input: str,
     *,
@@ -963,7 +983,7 @@ def _compute_requirements(
     text = " ".join(str(user_input or "").split())
     if _dated_chat_records_scope(text, source_context):
         return _record_scoped_requirements()
-    if stipulated_frame_active(text, source_context=source_context):
+    if stipulated_frame_active(text, source_context=source_context) or _supplies_todays_date(text):
         return ExecutionRequirements(
             answer_mode="DIRECT",
             external_evidence_required=False,
