@@ -458,6 +458,17 @@ def _database_query_carries_over_the_last_ask(sql: str, question: str, steps: li
             f"This query filters on '{value}', and the question does not mention it. Take that filter out unless "
             "the question asked for it, then call again."
         )
+    only_value = re.fullmatch(
+        r"\s*select\s+(min|max)\(\s*(\w+)\s*\)(?:\s+as\s+\w+)?\s+from\s+(\w+)\s*;?\s*", sql, re.IGNORECASE
+    )
+    if only_value and "returns only the" not in told and re.search(
+        r"\b(?:which|what(?:'?s|\s+is)?|who)\b[^?]*\b(?:oldest|newest|latest|earliest|biggest|largest|smallest|highest|lowest|first|last)\b", text
+    ):
+        direction = "ASC" if only_value.group(1).lower() == "min" else "DESC"
+        return (
+            f"This query returns only the {only_value.group(2)}, and the question asks which row. Read the whole row: "
+            f"SELECT * FROM {only_value.group(3)} ORDER BY {only_value.group(2)} {direction} LIMIT 1."
+        )
     if re.search(r"\border\s+by\b", sql, re.IGNORECASE):
         # a 0/1 filter the question never names, in a query that sorts ("expires soonest" run as
         # `WHERE opened = 1 ORDER BY expires LIMIT 1`)
@@ -2207,6 +2218,7 @@ class ResearchToolLoopFacadeMixin:
         database_no_tool_corrections = 0
         database_ready_join_made = False
         database_ready_failure_made = False
+        database_column_repaired = False
         # Per-turn tool candidate fingerprint.  Reset each turn so a fresh
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
@@ -3297,6 +3309,36 @@ class ResearchToolLoopFacadeMixin:
             # below still owns it. Finalization records failure when the turn actually ends.
             # Marking it failed here seals the checkpoint and discards a later approval pause,
             # forcing the same reviewed edit to ask again under a fresh turn on resume.
+            if (
+                execution.mode != "tool_executed"
+                and not database_column_repaired
+                and str(execution.status or "") == "sql_error"
+                and str(tool_payload.get("intent") or "") == "vool-database.query"
+                and "no such column" in (
+                    str(getattr(execution, "response_text", "") or "")
+                    + str((getattr(execution, "details", None) or {}).get("error") or "")
+                ).lower()
+            ):
+                # Run 16r (library 4, 5, 9): `publication_year` for `year`. The read is run once more with the real
+                # column of the table it names, before the model is asked to correct it (it answered instead).
+                from core.database_work_state import sql_with_real_columns
+
+                _args = dict(tool_payload.get("arguments") or {})
+                _db, _fixed = sql_with_real_columns(
+                    str(_args.get("name") or ""), str(_args.get("sql") or ""),
+                    str(execution.response_text or "") + " " + str((execution.details or {}).get("error") or ""),
+                )
+                if _fixed:
+                    database_column_repaired = True
+                    self._emit_runtime_event(
+                        loop_source_context,
+                        event_type="database_column_repaired",
+                        message="The read named a column the table does not have; reading again with the real one.",
+                        status="database_column_repaired",
+                        step_count=len(executed_steps),
+                    )
+                    pending_tool_payload = {"intent": "vool-database.query", "arguments": {**_args, "name": _db, "sql": _fixed}}
+                    continue
             if execution.mode != "tool_executed" and self._retry_as_observation(
                 execution=execution,
                 tool_payload=tool_payload,
@@ -3822,12 +3864,15 @@ class ResearchToolLoopFacadeMixin:
                 plugin_result_shown = True
             else:
                 final_message = self._tool_loop_final_message(None, _message_steps)
+                # a who-holds-what question is answered from the returned column, not as a raw row (run 16r, library 7)
+                final_message = database_holding_answer(effective_input, _message_steps) or final_message
                 if database_rows_answer(_message_steps):
                     # The rows the database returned ARE the grounded answer (run 16e: "COUNT(*): 1" under an
                     # "Incomplete" banner). The rejection stays on the event ledger; the turn is not a failure.
                     reject_reason = ""
         else:
             final_message = self._tool_loop_final_message(synthesis, executed_steps)
+            final_message = _database_reply_contradicts_its_rows(final_message, effective_input, executed_steps) or final_message
         _syn_provider = str(getattr(synthesis, "provider_id", "") or "")
         final_provider_id = _syn_provider if _syn_provider else (
             last_tool_decision.provider_id if last_tool_decision else None

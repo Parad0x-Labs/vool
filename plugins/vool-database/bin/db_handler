@@ -534,6 +534,23 @@ def db_path(name):
     return os.path.join(databases_root(), clean + ".sqlite"), clean
 
 
+def db_path_existing(name):
+    """`db_path` for the read tools, accepting the name the person used for a database that exists.
+
+    Mac run 16r (library 1, 4): the model wrote `workspace` and `library_db` for the database `library`, and no
+    query ran. A name that is not a database resolves to the one that contains it or is contained in it, or to the
+    only database there is; anything else is `unknown_database` as before, with the real names listed."""
+    path, clean = db_path(name)
+    if os.path.isfile(path):
+        return path, clean
+    names = available_databases()
+    near = [n for n in names if n in clean or clean in n]
+    pick = near[0] if len(near) == 1 else (names[0] if len(names) == 1 else "")
+    if pick:
+        return os.path.join(databases_root(), pick + ".sqlite"), pick
+    return path, clean
+
+
 def backup_path(name, backup_name):
     clean = str(backup_name or "").strip().lower()
     if not NAME_RE.match(clean):
@@ -803,7 +820,7 @@ def _diff_schemas(before, after):
 
 
 def tool_schema(args):
-    path, name = db_path(args.get("name"))
+    path, name = db_path_existing(args.get("name"))
     if not os.path.isfile(path):
         raise unknown_database(name)
     table_filter = str(args.get("table") or "").strip().lower() or None
@@ -1095,7 +1112,7 @@ def _no_match_hint(conn, body):
 
 
 def tool_query(args):
-    path, name = db_path(args.get("name"))
+    path, name = db_path_existing(args.get("name"))
     if not os.path.isfile(path):
         raise unknown_database(name)
     body = single_select(args.get("sql"))
@@ -1170,7 +1187,7 @@ def tool_query(args):
 
 
 def tool_explain(args):
-    path, name = db_path(args.get("name"))
+    path, name = db_path_existing(args.get("name"))
     if not os.path.isfile(path):
         raise unknown_database(name)
     body = single_select(args.get("sql"))
@@ -1377,7 +1394,7 @@ def execute_migration(conn, statements, params, *, path=None, preimage=None):
 
 
 def tool_migrate_preview(args):
-    path, name = db_path(args.get("name"))
+    path, name = db_path_existing(args.get("name"))
     if not os.path.isfile(path):
         raise unknown_database(name)
     statements = classify_migration_statements(args.get("statements"))

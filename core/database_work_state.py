@@ -389,3 +389,50 @@ def sql_with_real_values(name: str, sql: str) -> str:
             conn.close()
     except Exception:
         return ""
+
+
+def sql_with_real_columns(name: str, sql: str, error: str) -> tuple[str, str]:
+    """(database, SQL) with the one column the read named wrongly replaced by the real one, or ("", "").
+
+    Mac run 16r (library 4, 5, 9): the model wrote `publication_year` for `year`, the read failed with "no such
+    column", and the reply either gave up or answered from a second read that lost the title. The replacement is
+    taken from the real columns of the tables the read names: the one that contains the wrong name or is contained
+    in it, or is spelled nearly like it. Read-only, never raises."""
+    try:
+        import difflib
+        import re
+        import sqlite3
+
+        from core.plugin_tools import plugin_scratch_dir
+
+        match = re.search(r"no such column:\s*(?:\"?(\w+)\"?\.)?\"?(\w+)\"?", str(error or ""), re.IGNORECASE)
+        if not match:
+            return "", ""
+        bad = match.group(2)
+        root = plugin_scratch_dir("vool-database") / "databases"
+        stems = sorted(p.stem for p in root.glob("*.sqlite") if p.is_file())
+        clean = str(name or "").strip().lower()
+        pick = clean if clean in stems else next(iter([s for s in stems if s in clean or clean in s]), "") or (stems[0] if len(stems) == 1 else "")
+        if not pick:
+            return "", ""
+        conn = sqlite3.connect(f"file:{root / (pick + '.sqlite')}?mode=ro", uri=True, timeout=0.2)
+        try:
+            tables = {t.lower() for t in re.findall(r"\b(?:from|join)\s+[\"`]?(\w+)", sql, re.IGNORECASE)}
+            real: list[str] = []
+            for (table,) in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'").fetchall():
+                if table.lower() in tables:
+                    real += [r[1] for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
+        finally:
+            conn.close()
+        low = bad.lower()
+        if not real or low in [c.lower() for c in real]:
+            return "", ""
+        close = [c for c in real if c.lower() != "id" and not c.lower().endswith("_id") and (c.lower() in low or low in c.lower())]
+        if not close:
+            close = difflib.get_close_matches(low, [c.lower() for c in real], n=1, cutoff=0.7)
+            close = [c for c in real if c.lower() in close]
+        if len(close) != 1:
+            return "", ""
+        return pick, re.sub(r"\b%s\b" % re.escape(bad), close[0], sql)
+    except Exception:
+        return "", ""
