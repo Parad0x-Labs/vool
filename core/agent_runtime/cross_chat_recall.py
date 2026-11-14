@@ -515,20 +515,30 @@ _NOW_WORD_RE = re.compile(
 _SLOT_STEMS = _ANSWER_SLOT_STEMS | frozenset({"day", "dat", "number", "cod", "many"})
 
 
-def saved_memory_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
-    """Whether a fact the owner saved covers this question ("what's the booking code for the boat?" once the booking
-    is saved), by the recall lane's own coverage rule (`_memory_rows`).
+#: A saved fact that records a change ("my dentist moved. new one is dr Okafor", "standup went back to 9:30"): it holds
+#: the value as it is NOW, as far as the owner told VOOL.
+_CHANGE_RE = re.compile(
+    r"\b(?:moved|new|now|changed|switched|went\s+back|instead|no\s+longer|this\s+replaces|rescheduled|postponed)\b",
+    re.IGNORECASE,
+)
+_NOW_ONLY_RE = re.compile(r"^(?:now|currently|current)$", re.IGNORECASE)
 
-    For the lanes ahead of memory that would otherwise answer it from somewhere else: on the Mac (cbc915ec, real
-    local model) the clean loop searched the owner's files for it, and the entity check asked "Anselm of Canterbury
-    or the actor?" about "what day does Anselm water the plants?" with that fact saved. Reads only.
-    """
+
+def saved_memory_rows(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> list[str]:
+    """The saved facts that answer this question: rows holding every subject word of it. [] when none (or unknown).
+
+    "now" asks for the value as it is; a saved fact answers that only when it records the change ("who's my dentist now
+    and where are they?" with "my dentist moved. new one is dr Okafor on Brill street" saved). Any other now-word
+    ("today", "latest", "still") keeps a saved fact from answering. Reads only."""
     text = " ".join(str(question or "").split())
-    if not text or len(text) > 300 or _NOW_WORD_RE.search(text):
-        return False
+    if not text or len(text) > 300:
+        return []
+    now_words = [m.group(0) for m in _NOW_WORD_RE.finditer(text)]
+    if any(not _NOW_ONLY_RE.match(word) for word in now_words):
+        return []
     terms = _asked_terms(as_question(text))
     if not terms:
-        return False
+        return []
     # The recall lane's rule (more than half the terms) picks rows to quote as saved; here a saved row takes the turn
     # from the lane that could answer it, so it must hold every word of the subject. With only "we booked the cabin
     # ... booking code KV-3381" saved, "what's the booking code for the boat?" held two of three, the file search
@@ -536,9 +546,23 @@ def saved_memory_answers(question: str, *, session_id: str, source_context: dict
     # files the same way.
     from core.chat_housekeeping import _doc_stems, _term_in
 
-    subject = tuple(term for term in terms if term not in _SLOT_STEMS) or terms
+    subject = tuple(term for term in terms if term not in _SLOT_STEMS and term not in {"now", "current"}) or terms
     rows = _memory_rows(text, subject, session_id, source_context)
-    return bool(rows) and any(all(_term_in(term, _doc_stems(row)) for term in subject) for row in rows[0])
+    found = [row for row in (rows[0] if rows else []) if all(_term_in(term, _doc_stems(row)) for term in subject)]
+    if now_words:
+        found = [row for row in found if _CHANGE_RE.search(row)]
+    return found
+
+
+def saved_memory_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether a fact the owner saved answers this question ("what's the booking code for the boat?" once the booking
+    is saved): `saved_memory_rows` holds one.
+
+    For the lanes ahead of memory that would otherwise answer it from somewhere else: on the Mac (cbc915ec, real
+    local model) the clean loop searched the owner's files for it, and the entity check asked "Anselm of Canterbury
+    or the actor?" about "what day does Anselm water the plants?" with that fact saved. Reads only.
+    """
+    return bool(saved_memory_rows(question, session_id=session_id, source_context=source_context))
 
 
 #: A name the owner's saved fact ties to them: "my brother Tobiah lives in Quillon", "my manager is Pieter", "our landlord
@@ -811,6 +835,18 @@ def _short_question_the_owner_answered(text: str, session_id: str, source_contex
     except Exception:
         return False
 
+def _saved_rows_answer_it(typed: str, session_id: str, source_context: dict[str, Any] | None) -> list[str]:
+    """Saved facts that answer the question outright, unless it points at files or an attachment."""
+    try:
+        from core.clean_loop.route import points_at_files
+
+        if points_at_files(typed) or _ATTACHMENT_RE.search(typed):
+            return []
+    except Exception:
+        return []
+    return saved_memory_rows(typed, session_id=session_id, source_context=source_context)
+
+
 def cross_chat_recall(
     question: str,
     *,
@@ -855,10 +891,17 @@ def cross_chat_recall(
     # chat that holds an exchange (a continued or imported one) that exchange is the answer.
     if RESUME_RE.search(text) and not _OTHER_CHAT_RE.search(text) and _chat_holds_an_exchange(source_context):
         return None
+    # A saved fact that answers the question outright is the owner's own record of it, and it answers ahead of a lane
+    # that would only search a calendar or the web for it. H2H memory set on the real local model (88b3247e): "what
+    # time is our standup?" with "standup went back to 9:30" saved got "No calendars are chosen for sync in Settings
+    # yet", and "who's my dentist now and where are they?" with "my dentist moved. new one is dr Okafor on Brill
+    # street" saved got "Web lookups are off". A question that points at files or an attachment keeps its own lane.
+    answered_by_saved = _saved_rows_answer_it(typed, session_id, source_context)
     try:
         from core.agent_runtime.turn_planner import recall_question_needs_no_planner
 
-        if not (recall_question_needs_no_planner(text) or _personal_question(text) or explicit_recall):
+        if not (recall_question_needs_no_planner(text) or _personal_question(text) or explicit_recall
+                or answered_by_saved):
             # A short question about something only the owner's own chats know ("what day is
             # piano?" after "my piano lesson is on Tuesdays") is theirs too -- the world question
             # it resembles got a clarifier about a 2013 film (acceptance runner, 2026-11-11).
@@ -870,7 +913,9 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if _owned_by_another_lane(text, " ".join(str(question or "").split()), source_context) or _operator_store_ask(typed):
+    if not answered_by_saved and (
+        _owned_by_another_lane(text, " ".join(str(question or "").split()), source_context) or _operator_store_ask(typed)
+    ):
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them
@@ -901,12 +946,20 @@ def cross_chat_recall(
     if rows is None:
         return None  # unknown is not "absent": the ordinary path answers
     saved, closest = rows
+    if answered_by_saved and not saved:
+        saved = list(answered_by_saved)  # the subject rule found them; never report them absent
     result = search_chats(text, current_session_id=session_id, limit=12)
     if not result.ok:
         return None
     saved_folded = [row.casefold().rstrip(" .") for row in saved]
     best = _best_owner_statement(result, terms, saved_folded)
     if best is None and saved:
+        if answered_by_saved:
+            # Handed on, a calendar or web lane ahead of the model would answer it instead of the saved fact.
+            return CrossChatRecall(
+                response="Here is what I have saved:\n" + "\n".join(f"- {row}" for row in answered_by_saved[:4]),
+                found=True, chats_searched=result.chats_searched,
+            )
         return None  # saved memory answers; the ordinary path reads it
     if best is not None:
         hit, said, said_ts = best
@@ -958,4 +1011,5 @@ __all__ = [
     "cross_chat_recall",
     "saved_memory_answers",
     "saved_memory_names",
+    "saved_memory_rows",
 ]
