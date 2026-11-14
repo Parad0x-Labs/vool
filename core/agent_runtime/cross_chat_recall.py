@@ -913,9 +913,10 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if not answered_by_saved and (
-        _owned_by_another_lane(text, " ".join(str(question or "").split()), source_context) or _operator_store_ask(typed)
-    ):
+    claimed_elsewhere = _owned_by_another_lane(text, " ".join(str(question or "").split()), source_context) or (
+        _operator_store_ask(typed)
+    )
+    if claimed_elsewhere and not answered_by_saved:
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them
@@ -954,8 +955,10 @@ def cross_chat_recall(
     saved_folded = [row.casefold().rstrip(" .") for row in saved]
     best = _best_owner_statement(result, terms, saved_folded)
     if best is None and saved:
-        if answered_by_saved:
-            # Handed on, a calendar or web lane ahead of the model would answer it instead of the saved fact.
+        if answered_by_saved and claimed_elsewhere:
+            # Handed on, a calendar or web lane ahead of the model would answer it instead of the saved fact. Any
+            # other question goes on to the model, which reads the saved facts and answers in words ("whats Pieter's
+            # last name?" is not answered by quoting "my manager is Pieter ...", run 8 on 9a156361).
             return CrossChatRecall(
                 response="Here is what I have saved:\n" + "\n".join(f"- {row}" for row in answered_by_saved[:4]),
                 found=True, chats_searched=result.chats_searched,

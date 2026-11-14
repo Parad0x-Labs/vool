@@ -48,3 +48,10 @@ def test_the_saved_fact_is_the_answer(isolated_home, saved, asked, value):
 def test_no_saved_answer_when_it_asks_for_today_or_points_at_files(isolated_home, saved, asked):
     _seed(saved)
     assert not saved_memory_rows(asked, session_id="ask", source_context=OWNER)
+
+
+def test_a_question_no_other_lane_claims_goes_on_to_the_model(isolated_home):
+    # Run 8 on 9a156361: "whats Pieter's last name?" was answered by quoting "my manager is Pieter ..."; the model,
+    # which reads the saved facts, says it was never told.
+    _seed("my manager is Pieter and the quarterly review is on december 2")
+    assert cross_chat_recall("whats Pieter's last name?", session_id="ask", source_context=OWNER) is None
