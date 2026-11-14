@@ -27,6 +27,38 @@ _SHOPPING_RE = re.compile(
 _PAGE_PRICE_RE = re.compile(
     r"(?:[$€£]\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|EUR|GBP|dollars|euros)\b)"
 )
+_QUERY_FILLER = frozenset(
+    [
+        "a", "an", "the", "and", "or", "for", "of", "to", "in", "on", "with", "my", "me", "i", "you", "what", "which",
+        "how", "is", "are", "it", "its", "best", "top", "good", "great", "cheap", "cheapest", "budget", "buy", "buying",
+        "price", "prices", "priced", "cost", "costs", "today", "now", "current", "latest", "new", "review", "reviews",
+        "reviewed", "tested", "deal", "deals", "recommend", "recommended", "recommendation", "recommendations", "vs",
+        "suggest", "suggestion"
+    ]
+)
+_BIG_AMOUNT_RE = re.compile(r"\b(?:million|billion|trillion|bn|mn)\b", re.IGNORECASE)
+
+
+def _topic_words(query: str) -> list[str]:
+    """The words a search is about ("best travel tripod 2026 price" -> travel, tripod), singular, years dropped."""
+    words: list[str] = []
+    for word in re.findall(r"[a-z][a-z'-]+", str(query or "").lower()):
+        if word in _QUERY_FILLER or len(word) < 3:
+            continue
+        stem = word[:-1] if word.endswith("s") and not word.endswith("ss") else word
+        if stem not in words:
+            words.append(stem)
+    return words[:4]
+
+
+def _hit_is_on_topic(row: dict[str, Any], topic: list[str]) -> bool:
+    """A hit is read only when its title, snippet and address name every word the search is about. Measured on the
+    Mac (AQ row 12 on f7a80b44): "travel tripod" read Wikipedia's "Tripod (web hosting)" and "The Tripods" novels,
+    and the model was handed "US$4 million venture capital" as a priced line."""
+    seen = " ".join(str(row.get(key) or "") for key in ("title", "snippet", "url")).lower()
+    return bool(topic) and all(word in seen for word in topic)
+
+
 #: How many search hits a shopping search reads, and how many priced lines each page gives the model.
 _PAGES_READ = 2
 _LINES_PER_PAGE = 8
@@ -46,7 +78,7 @@ def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE) -> list[str]:
             chunks.append(line)
     found: list[str] = []
     for index, chunk in enumerate(chunks):
-        if not _PAGE_PRICE_RE.search(chunk):
+        if not _PAGE_PRICE_RE.search(chunk) or _BIG_AMOUNT_RE.search(chunk):
             continue
         entry = chunk[:220]
         alone = len(_PAGE_PRICE_RE.sub("", chunk).strip(" :-|")) <= 12  # "$379.95", "Price: $219"
@@ -67,8 +99,8 @@ def _read_shopping_hits(
     Measured on the Mac (AQ row 12 on 0a84ca8f, "suggest a good tripod for travel and tell me what it costs today"):
     the search gave the model only 180-character snippets of guide articles, so it listed the articles, named no
     tripod and gave no price. A hit is a page an engine returned, so it is read with the same public-only guard as
-    research (`not_local`); a remote turn reads public addresses only. A page that fails or states no price adds
-    nothing."""
+    research (`not_local`); a remote turn reads public addresses only. Only hits about what was searched are read
+    (`_hit_is_on_topic`). A page that fails or states no price adds nothing."""
     titles = " ".join(str(row.get("title") or "") for row in results)
     if not _SHOPPING_RE.search(f"{query} {titles}"):
         return []
@@ -76,7 +108,8 @@ def _read_shopping_hits(
 
     remote = turn_is_remote(source_context)
     excerpts: list[dict[str, Any]] = []
-    for row in results[:_PAGES_READ]:
+    topic = _topic_words(query)
+    for row in [hit for hit in results if _hit_is_on_topic(hit, topic)][:_PAGES_READ]:
         url = str(row.get("url") or "").strip()
         if not url.lower().startswith(("http://", "https://")):
             continue

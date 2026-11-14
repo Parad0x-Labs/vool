@@ -550,6 +550,22 @@ _NAMES_THE_NOTES_STORE_RE = re.compile(
 )
 
 
+# The runtime's own ask-back carries the asked words back ("... (You asked: “...”)", core.entity_ambiguity).
+_ASK_BACK_MARK_RE = re.compile(r"\(You asked: [“\"]")
+
+
+def _is_an_ask_back(answer: str) -> bool:
+    """Whether the answer only asks something back: the runtime's clarification, or a reply whose every sentence is a
+    question. An answer that also says something is not."""
+    text = " ".join(str(answer or "").split())
+    if not text:
+        return False
+    if _ASK_BACK_MARK_RE.search(text):
+        return True
+    sentences = [part for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    return bool(sentences) and all(part.rstrip(" )\"”").endswith("?") for part in sentences)
+
+
 def _asks_to_save(words: str) -> bool:
     asked = _SAVE_ASK_RE.match(words)
     return bool(asked) and not _DECLINE_RE.search(words) and ("?" not in words or bool(asked.group("asked")))
@@ -579,6 +595,13 @@ def with_the_answer_it_follows(
     except Exception:
         return intent
     answer = str((message or {}).get("text") or "")
+    from core.context_history_authority import assistant_text_is_no_answer
+
+    if assistant_text_is_no_answer(answer) or _is_an_ask_back(answer):
+        # A stop, a refusal or a question back is not the thing "that" points at. Mac AQ 4a-2 on f7a80b44 saved the
+        # certification stop, then the entity check's "Which place, person or thing do you mean?", as "the routine"
+        # and reported it saved. Nothing is saved; the request still asks what the note should say.
+        return intent
     if not _ends_in_save_offer(answer) and not _NAMES_THE_NOTES_STORE_RE.search(words):
         # An answer that did not offer the save is still saved when the person names their notes as the place
         # ("keep that routine in my notes", Mac AQ row 4a on cbc915ec).

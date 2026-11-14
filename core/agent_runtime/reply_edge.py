@@ -93,6 +93,9 @@ def web_off_prices_reply(text: str, request: str, source_context: dict[str, Any]
 
 
 UNFETCHED_PRICES_LINE = "The lookup I ran didn't confirm current prices, so I've left out any figure it didn't state."
+UNFETCHED_PRICES_NAMES_LINE = (
+    "The lookup I ran didn't confirm current prices, so I've left out any figure or model the pages I read didn't state."
+)
 _AMOUNT_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
 _PRICE_RE = re.compile(
     r"[$£€¥₹]\s?\d[\d,]*(?:\.\d+)?(?:\s?[-–—]\s?[$£€¥₹]?\s?\d[\d,]*(?:\.\d+)?)?"
@@ -155,6 +158,33 @@ def _priced_sentence_kept(sentence: str, stated: set[str], pages: str) -> str:
     return trimmed
 
 
+# An ask for something to buy or its price: there a product named beside the pages is a claim about the pages too.
+_SHOPPING_ASK_RE = re.compile(
+    r"\b(?:suggest|recommend\w*|best|buy|buying|which\s+\w+\s+should|cost|costs|price|prices|cheap\w*|budget|"
+    r"worth\s+it)\b",
+    re.IGNORECASE,
+)
+# A sentence that leans on a price said before it ("2. This price is based on the latest reviews").
+_LEANS_ON_A_PRICE_RE = re.compile(
+    r"^\W*(?:\d+[.)]\s*)?(?:this|that|these|those|the|said)\s+(?:price|prices|figure|figures|cost|costs|amount|"
+    r"estimate|range|pricing)\b",
+    re.IGNORECASE,
+)
+_LIST_MARKER_ONLY_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*$")
+
+
+def _names_an_unfetched_model(sentence: str, pages: str) -> bool:
+    """A full model code ("MT055XPRO3": two or more letters and digits) no fetched page names. Mac AQ row 12 on
+    f7a80b44: "the **Manfrotto MT055XPRO3 Travel Light Carbon Tripod**" was on none of the pages read."""
+    page_words = pages.lower()
+    for code in _MODEL_CODE_RE.findall(sentence):
+        letters = sum(ch.isalpha() for ch in code)
+        digits = sum(ch.isdigit() for ch in code)
+        if letters >= 2 and digits >= 2 and code.lower() not in page_words:
+            return True
+    return False
+
+
 def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, request: str = "") -> str:
     """`text` without the sentences that state a price no page the turn's web lookup fetched states.
 
@@ -181,13 +211,18 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
         for item in context.get("conversation_history") or []:
             if isinstance(item, dict) and item.get("role") == "user":
                 stated |= _stated_amounts(str(item.get("content") or ""))
+        shopping = bool(_SHOPPING_ASK_RE.search(str(request or "")))
         dropped = False
+        names_dropped = False
         kept_lines: list[str] = []
         for line in str(text or "").split("\n"):
-            if not _PRICE_RE.search(line):
+            priced = bool(_PRICE_RE.search(line))
+            if not priced and not (shopping and _MODEL_CODE_RE.search(line)) and not (
+                dropped and _LEANS_ON_A_PRICE_RE.search(line)
+            ):
                 kept_lines.append(line)
                 continue
-            if "|" in line:
+            if priced and "|" in line:
                 cells = line.split("|")
                 blanked = ["—" if _PRICE_RE.search(cell) and _unstated_price(cell, stated) else cell for cell in cells]
                 dropped = dropped or blanked != cells
@@ -197,6 +232,11 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
             kept = []
             for sentence in sentences:
                 said = _priced_sentence_kept(sentence, stated, pages)
+                if said.strip() and shopping and _names_an_unfetched_model(said, pages):
+                    said = ""
+                    names_dropped = True
+                if said.strip() and dropped and _LEANS_ON_A_PRICE_RE.search(said) and not _PRICE_RE.search(said):
+                    said = ""
                 if said != sentence:
                     dropped = True
                 if said.strip():
@@ -206,10 +246,12 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
             kept_lines.append(" ".join(kept))
         if not dropped:
             return text
+        kept_lines = [line for line in kept_lines if not _LIST_MARKER_ONLY_RE.match(line)]
         body = re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
         if UNFETCHED_PRICES_LINE in body or "The lookup I ran didn't confirm" in body:
             return body
-        return f"{body}\n\n{UNFETCHED_PRICES_LINE}" if body else UNFETCHED_PRICES_LINE
+        notice = UNFETCHED_PRICES_NAMES_LINE if names_dropped else UNFETCHED_PRICES_LINE
+        return f"{body}\n\n{notice}" if body else notice
     except Exception:
         return text
 
@@ -290,4 +332,12 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
         return result
 
 
-__all__ = ["UNFETCHED_PRICES_LINE", "WEB_OFF_PRICES_LINE", "edge_reply", "missing_collection_reply", "unfetched_prices_reply", "web_off_prices_reply"]
+__all__ = [
+    "UNFETCHED_PRICES_LINE",
+    "UNFETCHED_PRICES_NAMES_LINE",
+    "WEB_OFF_PRICES_LINE",
+    "edge_reply",
+    "missing_collection_reply",
+    "unfetched_prices_reply",
+    "web_off_prices_reply",
+]

@@ -206,6 +206,15 @@ _OWN_DATA_STORE_RE = re.compile(
 )
 
 
+# A request to make something, said as the request itself: "could you put together ...", "please draw up ...".
+# "who put together the first periodic table?" is a question about the world and stays with the probe.
+_COMPOSE_ASK_RE = re.compile(
+    r"^\s*(?:(?:hey|hi|ok|okay|so)[,!]?\s+)?(?:please\s+)?(?:(?:could|can|would|will)\s+you\s+(?:please\s+)?)?"
+    r"(?:(?:put|throw|pull)\s+together|(?:come|whip)\s+up\s+with|whip\s+up|draw\s+up|sketch\s+out|map\s+out)\b",
+    re.IGNORECASE,
+)
+
+
 def single_plain_know_question(
     text: str, *, has_attachments: bool = False, source_context: Mapping[str, Any] | None = None
 ) -> bool:
@@ -253,6 +262,11 @@ def single_plain_know_question(
     # back as "Did you mean Olaf, Elin?", names that are not in the data (database run 6,
     # 2026-11-12). Same for any ask a tool family is seated for.
     if _OWN_DATA_STORE_RE.search(message):
+        return False
+    # An ask to make something ("could you put together a short stretching routine I can do at my desk?") names no
+    # place, person or thing to tell apart. Turn IR reads its "could you put" head as KNOW, the probe ran, timed out
+    # under load and the turn asked "Which place, person or thing do you mean?" (Mac AQ 4a-1 on f7a80b44).
+    if _COMPOSE_ASK_RE.search(message):
         return False
     try:
         from core.tool_demand_signals import resolve_demand_signals
