@@ -788,6 +788,31 @@ def _requests_shared_context(user_input: str, topic_hints: list[str]) -> bool:
     return bool(_SHARED_CONTEXT_RE.search(f"{classified} {topics}"))
 
 
+#: A stay written as a day range in one month: "13-16 march", "from 9 to 13 may", "june 4-7", "4th to 7th of june".
+_DAY_RANGE_RE = re.compile(
+    r"\b(?:from\s+)?(?P<a>\d{1,2})(?:st|nd|rd|th)?\s*(?:-|–|to|until|till)\s*(?P<b>\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?"
+    r"(?P<m>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b"
+    r"|\b(?P<m2>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(?P<a2>\d{1,2})(?:st|nd|rd|th)?\s*(?:-|–|to|until|till)\s*"
+    r"(?P<b2>\d{1,2})(?:st|nd|rd|th)?\b",
+    re.IGNORECASE,
+)
+
+
+def _with_night_counts(content: str) -> str:
+    """A saved fact with a day range, as the model is shown it, with the nights the range spans.
+
+    Measured on the real local model (H2H memory set): with "the cabin dates changed, its now 13-16 march" saved,
+    "and how many nights are we staying?" was answered "We're staying for 4 nights, from 13 March to 16 March": the
+    model counted days. The stored fact is unchanged; only the context line carries the count."""
+    notes = []
+    for match in _DAY_RANGE_RE.finditer(str(content or "")):
+        first, last = (match.group("a"), match.group("b")) if match.group("a") else (match.group("a2"), match.group("b2"))
+        nights = int(last) - int(first)
+        if 0 < nights <= 31:
+            notes.append(f"{match.group(0).strip()} is {nights} night{'s' if nights != 1 else ''}")
+    return f"{content} ({'; '.join(notes)})" if notes else content
+
+
 #: A short follow-up that leans on the ask before it ("and how many nights are we staying?", "what about the other one?").
 _FOLLOW_UP_HEAD_RE = re.compile(r"^\s*(?:and|so|then|also|but|what\s+about|how\s+about|ok(?:ay)?\s+and)\b", re.IGNORECASE)
 
@@ -840,6 +865,7 @@ def _persistent_memory_items(
         content = str(entry.get("text") or "")[:320]
         if content and history_blob and content.lower() in history_blob:
             continue
+        content = _with_night_counts(content)
         items.append(
             ContextItem(
                 item_id=f"runtime-memory-{category}-{abs(hash(str(entry.get('text') or '')))}",
