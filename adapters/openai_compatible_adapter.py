@@ -879,15 +879,23 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # the call. Bounded to exactly one re-ask: the retry carries the original payload
             # plus one explicit instruction, is sealed and admitted like the first, and on a
             # second prose reply the typed refusal below stands.
+            first_reply = data
+            continuation = bool((getattr(request, "metadata", None) or {}).get("tool_loop_continuation"))
             if not request.is_cancelled():
                 repair_payload = {
                     **payload,
                     "messages": [
                         *payload.get("messages", []),
                         {"role": "user", "content": (
-                            "Your previous reply was plain prose, but this task requires a tool "
-                            "call. Respond with exactly one tool call from the offered tools for "
-                            "the user's request — no prose, no plan."
+                            # After a tool already ran, the answer itself closes the loop: asking for "a tool call,
+                            # no prose" there forbade the one reply that finishes the turn. Mac AQ row 12 on
+                            # 98b42315 and 66ffc11f: qwen3:8b sent no usable reply on the round after a good
+                            # web.search three runs in a row.
+                            _CONTINUATION_REASK if continuation else (
+                                "Your previous reply was plain prose, but this task requires a tool "
+                                "call. Respond with exactly one tool call from the offered tools for "
+                                "the user's request — no prose, no plan."
+                            )
                         )},
                     ],
                 }
@@ -898,8 +906,14 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     )
                 if not output_text:
                     output_text = strip_reasoning_block(_extract_ollama_chat_text(data))
+                if continuation and native_tools and not native_tool_calls:
+                    native_tool_calls = _prose_closes_tool_loop(request, output_text, native_tools)
+                    if native_tool_calls:
+                        output_text = canonical_intent_text(native_tool_calls[0])
         if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
-            raise MalformedToolArgumentsError("required native tool call is missing")
+            raise MalformedToolArgumentsError(
+                "required native tool call is missing" + _missing_call_shape(first_reply, data)
+            )
         usage = {
             "prompt_eval_count": data.get("prompt_eval_count"),
             "prompt_eval_duration": data.get("prompt_eval_duration"),
@@ -2882,6 +2896,34 @@ def _prose_closes_tool_loop(
     )
     request.metadata["tool_call_resolution"] = {"state": "prose_closed_loop", "intent": "respond.direct"}
     return calls
+
+#: The re-ask on a round after a tool already ran: the answer or one more call, both are a finished round.
+_CONTINUATION_REASK = (
+    "You already have the tool results above. Reply now: either answer the user's request in plain text from those "
+    "results, or call one more tool if something the user asked for is still missing."
+)
+
+
+def _missing_call_shape(first: Any, last: Any) -> str:
+    """What came back instead of a call, for the failure record: the done reason and how much content and reasoning
+    each reply carried. The row 12 failures recorded none of it, so "only thinking" could not be told from "nothing"."""
+    def _shape(data: Any) -> str:
+        message = (data or {}).get("message") if isinstance(data, dict) else None
+        message = message if isinstance(message, dict) else {}
+        return (
+            f"done_reason={str((data or {}).get('done_reason') or '') if isinstance(data, dict) else ''},"
+            f"eval_count={(data or {}).get('eval_count') if isinstance(data, dict) else None},"
+            f"content_chars={len(str(message.get('content') or ''))},"
+            f"thinking_chars={len(str(message.get('thinking') or ''))}"
+        )
+
+    try:
+        return f" (first reply: {_shape(first)}; re-ask reply: {_shape(last)})" if first is not last else (
+            f" ({_shape(last)})"
+        )
+    except Exception:
+        return ""
+
 
 def _ollama_tool_calls_with_recovery(
     payload: dict[str, Any],

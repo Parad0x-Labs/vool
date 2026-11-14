@@ -52,10 +52,12 @@ def _topic_words(query: str) -> list[str]:
 
 
 def _hit_is_on_topic(row: dict[str, Any], topic: list[str]) -> bool:
-    """A hit is read only when its title, snippet and address name every word the search is about. Measured on the
+    """A hit is read only when its title and address name every word the search is about. Measured on the
     Mac (AQ row 12 on f7a80b44): "travel tripod" read Wikipedia's "Tripod (web hosting)" and "The Tripods" novels,
     and the model was handed "US$4 million venture capital" as a priced line."""
-    seen = " ".join(str(row.get(key) or "") for key in ("title", "snippet", "url")).lower()
+    # Title and address only: a snippet mentions everything near the subject. Mac AQ row 12 on 66ffc11f kept a
+    # Wikipedia article in the sources for "travel tripod" because its snippet said travel tripods fold small.
+    seen = " ".join(str(row.get(key) or "") for key in ("title", "url")).lower()
     return bool(topic) and all(word in seen for word in topic)
 
 
@@ -84,9 +86,16 @@ _PAGES_READ = 2
 _LINES_PER_PAGE = 8
 
 
-def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE) -> list[str]:
+# A guide's own heading or a table header, not a thing it names ("12 Best Travel Tripods", "Tripod | Weight").
+_LIST_HEADING_RE = re.compile(r"\b(?:best|top\s+\d+|reviews?|reviewed|tested|guide|buying)\b", re.IGNORECASE)
+
+
+def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE, topic: tuple[str, ...] | list[str] = ()) -> list[str]:
     """The lines of a fetched page that state a price, each with the short heading just above it when the price
-    stands alone ("Peak Design Travel Tripod -- $379.95"). Only the page's own words, clipped, in page order."""
+    stands alone ("Peak Design Travel Tripod -- $379.95"), and, given the search's topic words, the short lines that
+    name the thing searched for with a short value under them ("Peak Design Travel Tripod (Carbon) -- 2.8 lb").
+    Mac AQ row 12 on 66ffc11f: the guide's table named the Peak Design Travel Tripod with its weight and "Check
+    price on Amazon", and no line of it reached the model. Only the page's own words, clipped, in page order."""
     chunks: list[str] = []
     for raw in str(text or "").splitlines():
         line = " ".join(raw.split())
@@ -97,7 +106,28 @@ def priced_page_lines(text: str, *, limit: int = _LINES_PER_PAGE) -> list[str]:
         else:
             chunks.append(line)
     found: list[str] = []
+    words = [str(word).lower() for word in topic if str(word).strip()]
+
+    def _priced_alone(chunk: str) -> bool:
+        return bool(_PAGE_PRICE_RE.search(chunk)) and len(_PAGE_PRICE_RE.sub("", chunk).strip(" :-|")) <= 12
+
     for index, chunk in enumerate(chunks):
+        if (
+            words and not _PAGE_PRICE_RE.search(chunk) and 8 <= len(chunk) <= 120
+            and any(w in chunk.lower() for w in words)
+            and "|" not in chunk and not _LIST_HEADING_RE.search(chunk)
+        ):
+            following = chunks[index + 1] if index + 1 < len(chunks) else ""
+            if _priced_alone(following):
+                continue  # the price line below carries this heading
+            entry = f"{chunk} -- {following}" if following and len(following) <= 24 and not any(
+                w in following.lower() for w in words
+            ) else chunk
+            if entry not in found:
+                found.append(entry)
+            if len(found) >= limit:
+                break
+            continue
         if not _PAGE_PRICE_RE.search(chunk) or _BIG_AMOUNT_RE.search(chunk):
             continue
         entry = chunk[:220]
@@ -142,7 +172,7 @@ def _read_shopping_hits(
             continue
         if str((fetched or {}).get("status") or "") != "ok":
             continue
-        lines = priced_page_lines(str((fetched or {}).get("text") or ""))
+        lines = priced_page_lines(str((fetched or {}).get("text") or ""), topic=topic)
         if lines:
             excerpts.append({"title": str(row.get("title") or url), "url": url, "priced_lines": lines})
     return excerpts

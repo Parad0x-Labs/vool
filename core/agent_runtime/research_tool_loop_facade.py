@@ -4116,6 +4116,7 @@ class ResearchToolLoopFacadeMixin:
         synthesis_observations = synthesis_grounding_observations(executed_steps)
         reject_reason = ""
         plugin_result_shown = False
+        web_pages_shown = False
         if renders_final:
             reject_reason = ""
         elif not synthesis_text:
@@ -4168,10 +4169,10 @@ class ResearchToolLoopFacadeMixin:
             # tool's one-line report.
             _answering = _database_step_answering(effective_input, executed_steps)
             _message_steps = executed_steps[: _answering + 1] if _answering >= 0 else executed_steps
-            plugin_result = "" if database_rows_answer(_message_steps) else (
-                plugin_result_in_plain_words(executed_steps)
-                or (web_lookup_in_plain_words(executed_steps) if loop_stop_reason == "provider_did_not_answer" else "")
-            )
+            plugin_result = "" if database_rows_answer(_message_steps) else plugin_result_in_plain_words(executed_steps)
+            if not plugin_result and loop_stop_reason == "provider_did_not_answer":
+                plugin_result = web_lookup_in_plain_words(executed_steps)
+                web_pages_shown = bool(plugin_result)
             if plugin_result:
                 # The tool's own result is the answer the person asked for; only the model's
                 # wording was refused. The turn is complete, not a failed audit.
@@ -4276,11 +4277,13 @@ class ResearchToolLoopFacadeMixin:
                 from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
 
                 rendered = browser_synthesis_failed_reply() or rendered
-        if reject_reason and not renders_final:
+        if (reject_reason or web_pages_shown) and not renders_final:
             # No model wrote these bytes: runtime code composed them from the executed steps'
             # own results. They are minted as such, so the publication gate reads them as backed
             # runtime output (measured 2026-11-12, served chat: a command ran under a model not
             # certified to write answers, and the gate refused the runtime's own report of it).
+            # The pages a failed round leaves are the same (Mac AQ row 12 on 66ffc11f: "what I found
+            # doesn't back the answer I wrote" for the pages' own lines).
             try:
                 from core.final_answer_authorship import record_runtime_support
 
