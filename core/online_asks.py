@@ -525,7 +525,25 @@ _CHAT_REFERENT_RE = re.compile(
     r"|\b(?:that|this)\s+one\b|\b(?:is|was|does|did|for|of)\s+(?:it|that|them|those)\b",
     re.IGNORECASE,
 )
-_CHAT_FIGURE_RE = re.compile(r"\d")
+#: The previous message must GIVE an amount ("for 950 a month", "$40", "1100 a night", "costs 12"), not just hold a
+#: digit: "the pharmacy at 12 Kell Lane" or "i bought 20 shares of Vexa" gave no figure the ask can point back at
+#: (independent review of job 19, C1).
+_CHAT_FIGURE_RE = re.compile(
+    r"[$€£¥]\s?\d"
+    r"|\d[\d,.]*\s?(?:k\b|usd\b|eur\b|gbp\b|dollars?\b|euros?\b|pounds?\b|bucks\b|quid\b|"
+    r"(?:a|an|per|each|every)\s+(?:month|week|night|year|day|hour|person|head|kg|kilo|piece|item)s?\b|each\b|"
+    r"/\s?(?:mo|month|night|wk|week|yr|year|day|h|hr|hour)\b)"
+    r"|\b(?:for|costs?|priced\s+at|cost\s+me|paid|pay)\s+(?:about\s+|around\s+)?\d",
+    re.IGNORECASE,
+)
+#: A pointer back that still asks for a present reading ("what is the share price of it now?", "is it open on
+#: sundays?", "is that still available?", "how much does it cost today?") is a lookup, whatever the chat said before.
+_CHAT_REFERENT_LIVE_RE = re.compile(
+    r"\b(?:now|today|tonight|tomorrow|currently|current|still|anymore|any\s+more|latest|live|right\s+now|these\s+days|"
+    r"this\s+(?:week|weekend|month|year)|open|opens|opening|close[sd]?|closing|hours|available|availability|in\s+stock|"
+    r"weather|forecast|share|shares|stock|stocks|market|exchange\s+rate|rate|rates|trading|news|score)\b",
+    re.IGNORECASE,
+)
 
 
 def asks_about_a_chat_referent(text: str, source_context: dict | None) -> bool:
@@ -533,9 +551,12 @@ def asks_about_a_chat_referent(text: str, source_context: dict | None) -> bool:
 
     Held-out set on the real local model: after "i'm comparing two flats: one on Birch Row for 950 a month and one on
     Kell Lane for 1100 a month", "how much is the second one?" was refused "Web lookups are off". Only the immediately
-    preceding user message counts, and it must hold a figure."""
+    preceding user message counts, and it must give an amount. An ask that still wants a present reading (a now-word,
+    opening hours, availability, a share price, the weather) stays a lookup even after such a message."""
     value = " ".join(str(text or "").split())
     if not value or len(value.split()) > 12 or not _CHAT_REFERENT_RE.search(value):
+        return False
+    if _CHAT_REFERENT_LIVE_RE.search(value):
         return False
     history = list((source_context or {}).get("conversation_history") or [])
     users = [str(item.get("content") or "") for item in history if isinstance(item, dict) and item.get("role") == "user"]
