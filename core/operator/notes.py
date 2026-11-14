@@ -364,7 +364,17 @@ def parse_note_request(text: str) -> dict[str, Any]:
     labeled = re.search(r"\bwith\s+([A-Za-z][\w \-]{0,30}?)\s*(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
     bare = re.search(r"\bwith\s*:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
     unlabeled = re.search(r"\b(?:saying|that\s+says|containing|with\s+body|with\s+text)\s*:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
-    if labeled:
+    logged = re.match(
+        r"^\W*(?:please\s+)?(?:log|track)\s+(?P<title>(?:(?:today|tonight|yesterday)['’]?s?|my)\s+[^:\n]{1,40}?)\s*:\s*(?P<body>\S.*)$",
+        raw, re.IGNORECASE | re.DOTALL,
+    )
+    if logged and not labeled and not bare and not unlabeled:
+        # "log today's session: 5k run, 28 minutes" (Mac AQ row 4b): the entry after the colon, titled by its thing.
+        body = logged.group("body").strip()
+        if not title:
+            title = logged.group("title").strip()
+            title = title[:1].upper() + title[1:]
+    elif labeled:
         body = labeled.group(2).strip()
         if not title:
             title = labeled.group(1).strip().capitalize()
@@ -486,6 +496,12 @@ def _answer_note(answer: str) -> tuple[str, str]:
     return title, body
 
 
+_NAMES_THE_NOTES_STORE_RE = re.compile(
+    r"\b(?:to|in|into|inside|on)\s+(?:(?:my|the)\s+)?(?:own\s+)?(?:notes|notes\s+app|notebook|apple\s+notes)\b",
+    re.IGNORECASE,
+)
+
+
 def _asks_to_save(words: str) -> bool:
     asked = _SAVE_ASK_RE.match(words)
     return bool(asked) and not _DECLINE_RE.search(words) and ("?" not in words or bool(asked.group("asked")))
@@ -515,7 +531,9 @@ def with_the_answer_it_follows(
     except Exception:
         return intent
     answer = str((message or {}).get("text") or "")
-    if not _ends_in_save_offer(answer):
+    if not _ends_in_save_offer(answer) and not _NAMES_THE_NOTES_STORE_RE.search(words):
+        # An answer that did not offer the save is still saved when the person names their notes as the place
+        # ("keep that routine in my notes", Mac AQ row 4a on cbc915ec).
         return intent
     title, body = _answer_note(answer)
     if not body:

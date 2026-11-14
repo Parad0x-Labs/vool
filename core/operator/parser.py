@@ -402,6 +402,26 @@ _KEEP_NOTE_STORE_PLACE_RE = re.compile(_STORE_PLACE_WORDS, re.IGNORECASE)
 _KEEP_NOTE_DOWN_PLACE_RE = re.compile(r"down(?:\s+(?:" + _STORE_PLACE_WORDS + r"))?", re.IGNORECASE)
 
 
+# "log today's session: 5k run, 28 minutes" / "track my run: 5k in 28 minutes": a log of the person's own day, with
+# its entry after the colon, is a note. Mac AQ row 4b on cbc915ec: "Got it -- 5k run in 28 minutes. ... How did it
+# feel?" with nothing kept. Only log/track, only "my/today's/this/the <thing>:" and only with an entry after the colon.
+_LOG_ENTRY_RE = re.compile(
+    r"\b(?:log|track)\s+(?:(?:today|tonight|yesterday)['’]?s?|my)\s+(?:[a-z][\w'-]*\s+){0,3}?[a-z][\w'-]*"
+    r"\s*:\s*\S",
+    re.IGNORECASE,
+)
+
+
+# What may stand between "keep that" and the notes store when the referent is the whole object: a short noun
+# phrase naming the answer ("routine", "plan", "list for me"), then the notes store, then the sentence end.
+_REFERENT_INTO_NOTES_RE = re.compile(
+    r"\s*(?:[a-z][\w'-]*\s+){0,3}?"
+    r"(?:to|in|into|inside|on)\s+(?:(?:my|the)\s+)?(?:own\s+)?(?:notes|notes\s+app|notebook|apple\s+notes)"
+    r"(?:\s+(?:please|pls|for\s+me|for\s+later|too))?\s*$",
+    re.IGNORECASE,
+)
+
+
 def _note_ask_is_positioned(text: str, start: int) -> bool:
     """True when the verb at `start` opens its own sentence, or follows only ask cues.
 
@@ -473,6 +493,9 @@ class _NoteSaveRecognizer:
         stored = _STORE_NOTE_RE.search(text)
         if stored:
             return stored
+        logged = _LOG_ENTRY_RE.search(text)
+        if logged and _note_ask_is_positioned(text, logged.start()):
+            return logged
         for match in _KEEP_NOTE_RE.finditer(text):
             after = match.group("after")
             # The ask gate first (a statement or question about keeping is never a save), then
@@ -504,6 +527,13 @@ class _NoteSaveRecognizer:
                 continue
             place = _KEEP_NOTE_STORE_PLACE_RE.search(after)
             cue = _keep_note_first_cue(after)
+            if place is not None and cue is None and _REFERENT_INTO_NOTES_RE.fullmatch(after):
+                # "keep that routine in my notes" after an answer: the referent is the chat's own last answer, which
+                # `core.operator.notes.with_the_answer_it_follows` saves. Mac AQ row 4a on cbc915ec: the memory lane
+                # took it and answered "I already had that in memory." with nothing saved anywhere.
+                if not _note_is_addressed(after):
+                    return match
+                continue
             if place is None or cue is None or cue < place.end():
                 continue
             if _note_is_addressed(after):

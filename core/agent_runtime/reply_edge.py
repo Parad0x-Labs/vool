@@ -92,7 +92,7 @@ def web_off_prices_reply(text: str, request: str, source_context: dict[str, Any]
         return text
 
 
-UNFETCHED_PRICES_LINE = "I've left out prices the pages I found didn't state."
+UNFETCHED_PRICES_LINE = "The lookup I ran didn't confirm current prices, so I've left out any figure it didn't state."
 _AMOUNT_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
 _PRICE_RE = re.compile(
     r"[$£€¥₹]\s?\d[\d,]*(?:\.\d+)?(?:\s?[-–—]\s?[$£€¥₹]?\s?\d[\d,]*(?:\.\d+)?)?"
@@ -120,6 +120,39 @@ def _unstated_price(sentence: str, stated: set[str]) -> bool:
         if any(_amount(number.group(0)) not in stated for number in _AMOUNT_RE.finditer(price.group(0))):
             return True
     return False
+
+
+# An alphanumeric model code ("V10", "MT055X", "BeFree2"): a price beside one is a claim about that model.
+_MODEL_CODE_RE = re.compile(r"\b(?=[A-Za-z0-9-]*[A-Za-z])(?=[A-Za-z0-9-]*\d)[A-Za-z][A-Za-z0-9-]{1,11}\b")
+_PRICE_CORE = r"[$£€¥₹]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:[-–—]|to)\s?[$£€¥₹]?\s?\d[\d,]*(?:\.\d+)?)?"
+# A price said as an aside the sentence stands without: "(from $200)", ", around $150,", "for about $90".
+_PRICE_ASIDE_RE = re.compile(
+    r"\s*\((?:[^()]*?)" + _PRICE_CORE + r"(?:[^()]*?)\)"
+    r"|,\s*(?:for|at|from|around|about|roughly|under|over|starting\s+at|priced\s+at)\s+(?:about\s+|around\s+|roughly\s+|just\s+)?"
+    + _PRICE_CORE + r"\s*,(?=\s)"
+    r"|,?\s*(?:for|at|from|around|about|roughly|under|over|starting\s+at|priced\s+at)\s+(?:about\s+|around\s+|roughly\s+|just\s+)?"
+    + _PRICE_CORE + r"(?=\s*[,.;!?)]|\s*$)",
+    re.IGNORECASE,
+)
+
+
+def _priced_sentence_kept(sentence: str, stated: set[str], pages: str) -> str:
+    """The sentence as sent: unchanged when every price in it is stated; without its unstated price asides when
+    that leaves it whole (the tripod it names stays); "" when a price is its claim or it pins one on a model code the
+    pages never name."""
+    if not _PRICE_RE.search(sentence):
+        return sentence
+    page_words = pages.lower()
+    for code in _MODEL_CODE_RE.findall(sentence):
+        if code.lower() not in page_words and not code.isdigit():
+            return ""
+    if not _unstated_price(sentence, stated):
+        return sentence
+    trimmed = _PRICE_ASIDE_RE.sub(lambda m: "" if _unstated_price(m.group(0), stated) else m.group(0), sentence)
+    trimmed = re.sub(r"\s+([,.;!?])", r"\1", trimmed).strip()
+    if trimmed == sentence.strip() or _unstated_price(trimmed, stated) or len(trimmed.split()) < 4:
+        return ""
+    return trimmed
 
 
 def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, request: str = "") -> str:
@@ -161,11 +194,15 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
                 kept_lines.append("|".join(blanked))
                 continue
             sentences = _SENTENCE_END_RE.split(line)
-            kept = [sentence for sentence in sentences if not _unstated_price(sentence, stated)]
-            if len(kept) != len(sentences):
-                dropped = True
-                if not "".join(kept).strip():
-                    continue
+            kept = []
+            for sentence in sentences:
+                said = _priced_sentence_kept(sentence, stated, pages)
+                if said != sentence:
+                    dropped = True
+                if said.strip():
+                    kept.append(said)
+            if not "".join(kept).strip():
+                continue
             kept_lines.append(" ".join(kept))
         if not dropped:
             return text
@@ -173,6 +210,66 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, req
         if UNFETCHED_PRICES_LINE in body or "The lookup I ran didn't confirm" in body:
             return body
         return f"{body}\n\n{UNFETCHED_PRICES_LINE}" if body else UNFETCHED_PRICES_LINE
+    except Exception:
+        return text
+
+
+_ASKS_TO_PROCEED_RE = re.compile(
+    r"\b(?:please\s+confirm|confirm\s+(?:if|whether|that)\s+you(?:['’]d|\s+would)\s+like|shall\s+i\s+(?:proceed|go\s+ahead)"
+    r"|should\s+i\s+(?:proceed|go\s+ahead)|(?:would|do)\s+you\s+(?:like|want)\s+me\s+to\s+(?:proceed|go\s+ahead))\b",
+    re.IGNORECASE,
+)
+_OWN_COLLECTION_RE = re.compile(
+    r"\bmy\s+(?P<name>[a-z][a-z'-]{2,24})\s+(?:items|inventory|stock|list|entries|records|rows|db|database|table)\b",
+    re.IGNORECASE,
+)
+
+
+def _database_names() -> list[str]:
+    try:
+        from core.plugin_tools import plugin_scratch_dir
+
+        root = plugin_scratch_dir("vool-database") / "databases"
+        return sorted(path.stem for path in root.glob("*.sqlite") if path.is_file())[:12]
+    except Exception:
+        return []
+
+
+def _no_tool_ran(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.final_answer_authorship import _turn_executed_anything
+
+        context = source_context if isinstance(source_context, dict) else {}
+        return not _turn_executed_anything(str(context.get("turn_id") or ""), context)
+    except Exception:
+        return False
+
+
+def missing_collection_reply(text: str, request: str, source_context: dict[str, Any] | None) -> str:
+    """A reply that only asks leave to read a collection the person does not have, said plainly instead.
+
+    Mac AQ row 3 on cbc915ec (qwen3:8b): "show my freezer items, the ones expiring last at the top", with no freezer
+    database (chat cannot create one in 0.8), came back "Let me check your freezer items and sort them ... Please
+    confirm if you'd like to proceed." with no tool run. Only a reply that asks to proceed, on a turn where nothing
+    ran, about "my <name> items/list/db" when no database has that name.
+    """
+    try:
+        body = str(text or "")
+        if len(body) > 500 or not _ASKS_TO_PROCEED_RE.search(body):
+            return text
+        named = _OWN_COLLECTION_RE.search(str(request or ""))
+        if named is None:
+            return text
+        name = named.group("name").lower()
+        databases = _database_names()
+        if any(name == db.lower() or name.rstrip("s") == db.lower().rstrip("s") for db in databases):
+            return text
+        if not _no_tool_ran(source_context):
+            return text
+        reply = f"There's no {name} database here, so I have nothing to show. I can't create or change a database from chat."
+        if databases:
+            reply += " Your databases: " + ", ".join(databases) + "."
+        return reply
     except Exception:
         return text
 
@@ -185,6 +282,7 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
             return result
         changed = web_off_prices_reply(response, request, source_context)
         changed = unfetched_prices_reply(changed, source_context, request)
+        changed = missing_collection_reply(changed, request, source_context)
         if changed == response:
             return result
         return {**result, "response": changed}
@@ -192,4 +290,4 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
         return result
 
 
-__all__ = ["UNFETCHED_PRICES_LINE", "WEB_OFF_PRICES_LINE", "edge_reply", "unfetched_prices_reply", "web_off_prices_reply"]
+__all__ = ["UNFETCHED_PRICES_LINE", "WEB_OFF_PRICES_LINE", "edge_reply", "missing_collection_reply", "unfetched_prices_reply", "web_off_prices_reply"]
