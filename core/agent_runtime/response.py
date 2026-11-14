@@ -630,7 +630,7 @@ def _validate_final_chat_output(
                     from core.model_output_guard import looked_up_live_value_notice, turn_ran_a_lookup
 
                     if turn_ran_a_lookup(source_context):
-                        withdrawn = looked_up_live_value_notice(withdrawn)
+                        withdrawn = looked_up_live_value_notice(withdrawn, _current_user_text)
                 except Exception:
                     pass
                 final_text = withdrawn

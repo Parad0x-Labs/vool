@@ -1770,7 +1770,7 @@ def execute_grounded_turn(
             from core.model_output_guard import looked_up_live_value_notice, turn_ran_a_lookup
 
             if turn_ran_a_lookup(source_context, web_notes):
-                response = looked_up_live_value_notice(response)
+                response = looked_up_live_value_notice(response, str(effective_input or ""))
     except Exception:
         pass
     if not web_notes and not _current_claim.unsupported:

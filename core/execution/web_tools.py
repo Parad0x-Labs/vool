@@ -59,6 +59,26 @@ def _hit_is_on_topic(row: dict[str, Any], topic: list[str]) -> bool:
     return bool(topic) and all(word in seen for word in topic)
 
 
+def _on_topic_rows(query: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A shopping search's rows without the off-topic ones, when at least one row is on topic.
+
+    Mac AQ row 12 on 98b42315: the receipt and the model still carried Wikipedia's "Tripod (web hosting)" after the
+    page reads skipped it. A search that is not about buying, or whose rows are all off topic, keeps every row."""
+    titles = " ".join(str(row.get("result_title") or row.get("title") or "") for row in rows)
+    if not _SHOPPING_RE.search(f"{query} {titles}"):
+        return rows
+    topic = _topic_words(query)
+    kept = [
+        row for row in rows
+        if _hit_is_on_topic({
+            "title": row.get("result_title") or row.get("title"),
+            "snippet": row.get("summary") or row.get("snippet"),
+            "url": row.get("result_url") or row.get("url"),
+        }, topic)
+    ]
+    return kept or rows
+
+
 #: How many search hits a shopping search reads, and how many priced lines each page gives the model.
 _PAGES_READ = 2
 _LINES_PER_PAGE = 8
@@ -249,6 +269,7 @@ def execute_web_tool(
             except Exception as exc:
                 finish_web_retrieval(source_context, retrieval_receipt, failure=exc)
                 raise
+            rows = _on_topic_rows(query, list(rows or []))
             finish_web_retrieval(source_context, retrieval_receipt, notes=list(rows or []))
             if not rows:
                 return ToolIntentExecution(

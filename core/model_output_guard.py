@@ -2062,7 +2062,10 @@ def turn_ran_a_lookup(source_context: Any, web_notes: Any = None) -> bool:
     return bool(isinstance(receipts, list) and receipts)
 
 
-def looked_up_live_value_notice(text: str) -> str:
+_PRICE_ASK_RE = re.compile(r"\b(?:cost|costs|price|prices|priced|pay|cheap\w*|expensive|how\s+much)\b", re.IGNORECASE)
+
+
+def looked_up_live_value_notice(text: str, request: str = "") -> str:
     """`text` with the unverified-live-value notice said for a turn whose web lookup DID run.
 
     Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, Web lookups on): web.search ran and bound four pages for
@@ -2073,8 +2076,12 @@ def looked_up_live_value_notice(text: str) -> str:
     """
     def _said(match: re.Match[str]) -> str:
         named = str(match.group("named") or "").strip()
-        if named:
-            what = "current prices" if named in {"price", "live"} else f"current {named} figures"
+        if named in {"price", "live"} or (named and _PRICE_ASK_RE.search(str(request or ""))):
+            # A price ask is about prices, whatever kind of figure was withheld (Mac AQ row 12 on 98b42315 said
+            # "didn't confirm current measured-quantity figures" for "what it costs today").
+            what = "current prices"
+        elif named:
+            what = "current figures" if named == "measured-quantity" else f"current {named} figures"
         else:
             what = str(match.group("subject") or "that").strip()
         return f"The lookup I ran didn't confirm {what}, so I've left out any figure it didn't state."

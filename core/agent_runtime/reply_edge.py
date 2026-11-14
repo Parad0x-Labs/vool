@@ -9,6 +9,7 @@ to turn them on. Read only on the reply text; never raises.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -316,6 +317,37 @@ def missing_collection_reply(text: str, request: str, source_context: dict[str, 
         return text
 
 
+_LOOKUP_NOTICE_RE = re.compile(r"The lookup I ran didn't confirm [^.]*?, so I've left out any [^.]*?\.")
+PAGES_SAY_INSTEAD_LEAD = "Here is what the pages I found say, in their own words:"
+
+
+def pages_instead_of_a_bare_notice(text: str, source_context: dict[str, Any] | None) -> str:
+    """A reply that is nothing but the lookup notice, with the pages the lookup read in front of it.
+
+    Mac AQ row 12 on 98b42315 (quiet machine, Web on): the whole reply was "The lookup I ran didn't confirm current
+    ... figures, so I've left out any figure it didn't state." while the page read held the tripods and their
+    weights. The notice is never the whole reply when pages were read: their titles, addresses and priced lines come
+    first, in the pages' own words, and the notice stays under them."""
+    try:
+        if _LOOKUP_NOTICE_RE.sub("", str(text or "")).strip():
+            return text
+        context = source_context if isinstance(source_context, dict) else {}
+        steps = []
+        for line in str(context.get("_tool_loop_web_text") or "").splitlines():
+            try:
+                observation = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(observation, dict) and observation.get("ok") is not False:
+                steps.append({"tool_name": str(observation.get("intent") or ""), "ok": True, "observation": observation})
+        from core.agent_runtime.research_tool_loop_facade import web_lookup_in_plain_words
+
+        pages = web_lookup_in_plain_words(steps, lead=PAGES_SAY_INSTEAD_LEAD)
+        return f"{pages}\n\n{str(text).strip()}" if pages else text
+    except Exception:
+        return text
+
+
 def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, Any] | None) -> dict[str, Any]:
     """The result with its reply read at the edge. Never raises; returns `result` itself when nothing changes."""
     try:
@@ -325,6 +357,7 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
         changed = web_off_prices_reply(response, request, source_context)
         changed = unfetched_prices_reply(changed, source_context, request)
         changed = missing_collection_reply(changed, request, source_context)
+        changed = pages_instead_of_a_bare_notice(changed, source_context)
         if changed == response:
             return result
         return {**result, "response": changed}
@@ -338,6 +371,7 @@ __all__ = [
     "WEB_OFF_PRICES_LINE",
     "edge_reply",
     "missing_collection_reply",
+    "pages_instead_of_a_bare_notice",
     "unfetched_prices_reply",
     "web_off_prices_reply",
 ]

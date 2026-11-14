@@ -1100,6 +1100,54 @@ _PLUGIN_OUTPUT_HEADER = re.compile(r"^\[untrusted output from MCP server '[^']*'
 _PLUGIN_RESULT_LIMIT = 1500
 
 
+_PAGES_SAY_LEAD = (
+    "I looked this up, but I couldn't finish writing the answer in time. Here is what the pages I found say, "
+    "in their own words:"
+)
+
+
+def web_lookup_in_plain_words(executed_steps: list[dict[str, Any]], *, lead: str = _PAGES_SAY_LEAD) -> str:
+    """What the turn's web lookups found, said plainly, for a turn whose model failed after the lookup.
+
+    Measured on the Mac (AQ row 12 on 98b42315, qwen3:8b under load): web.search returned two on-topic guides, the
+    next round sent no usable call after 103 s, the loop went on to a second model call to write the answer, and the
+    turn was stopped before it published anything. The pages are already in hand, so they are the answer: each
+    source's title and address, and the priced lines read from it, in the pages' own words. "" unless every step was
+    a web lookup that ran and something came back.
+    """
+    web_intents = {"web.search", "web.research", "web.fetch"}
+    if not executed_steps or not all(
+        str(step.get("tool_name") or "") in web_intents and step.get("ok") for step in executed_steps
+    ):
+        return ""
+    lines: list[str] = []
+    seen: set[str] = set()
+    for step in executed_steps:
+        observation = step.get("observation") if isinstance(step.get("observation"), dict) else {}
+        excerpts = {
+            str(page.get("url") or ""): [str(line) for line in page.get("priced_lines") or []]
+            for page in observation.get("page_excerpts") or []
+            if isinstance(page, dict)
+        }
+        for row in list(observation.get("results") or observation.get("hits") or [])[:5]:
+            if not isinstance(row, dict):
+                continue
+            url = str(row.get("url") or "").strip()
+            title = " ".join(str(row.get("title") or url).split()).strip()
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            lines.append(f"- {title}" + (f" ({url})" if url else ""))
+            for line in excerpts.get(url, [])[:6]:
+                lines.append(f"  - {line}")
+            snippet = " ".join(str(row.get("snippet") or "").split()).strip()
+            if snippet and not excerpts.get(url):
+                lines.append(f"  {snippet}")
+    if not lines:
+        return ""
+    return f"{lead}\n\n" + "\n".join(lines)
+
+
 def plugin_result_in_plain_words(executed_steps: list[dict[str, Any]]) -> str:
     """What an added plugin returned, said plainly, for a turn whose model wording was refused.
 
@@ -3877,6 +3925,18 @@ class ResearchToolLoopFacadeMixin:
                 message="The tool declares its result as the answer; published the grounded tool result without model synthesis.",
                 tool_name=str(executed_steps[-1].get("tool_name") or ""),
             )
+        elif loop_stop_reason == "provider_did_not_answer" and web_lookup_in_plain_words(executed_steps):
+            # The model already failed a round after the lookup; a second model call to write the answer is where a
+            # loaded machine loses the turn (Mac AQ row 12 on 98b42315). The pages answer instead (below).
+            synthesis = None
+            synthesis_text = ""
+            self._emit_runtime_event(
+                loop_source_context,
+                event_type="tool_synthesis_skipped",
+                message="The model failed after the web lookup; answering from the pages it found instead of asking it again.",
+                tool_name=str(executed_steps[-1].get("tool_name") or ""),
+                status="provider_did_not_answer",
+            )
         else:
             synthesis = self.memory_router.resolve(
                 task=task,
@@ -3951,7 +4011,10 @@ class ResearchToolLoopFacadeMixin:
             # tool's one-line report.
             _answering = _database_step_answering(effective_input, executed_steps)
             _message_steps = executed_steps[: _answering + 1] if _answering >= 0 else executed_steps
-            plugin_result = "" if database_rows_answer(_message_steps) else plugin_result_in_plain_words(executed_steps)
+            plugin_result = "" if database_rows_answer(_message_steps) else (
+                plugin_result_in_plain_words(executed_steps)
+                or (web_lookup_in_plain_words(executed_steps) if loop_stop_reason == "provider_did_not_answer" else "")
+            )
             if plugin_result:
                 # The tool's own result is the answer the person asked for; only the model's
                 # wording was refused. The turn is complete, not a failed audit.
