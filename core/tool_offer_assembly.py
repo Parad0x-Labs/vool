@@ -576,6 +576,10 @@ _ASKS_VOOLS_OWN_TOOLS_RE = re.compile(
     r"|\bwhat\s+can\s+you\s+do\b|\bcapabilit(?:y|ies)\b|\blist\s+(?:all\s+)?(?:the\s+)?(?:available\s+|your\s+)?tools\b",
     re.IGNORECASE,
 )
+_FILE_WORDS_RE = re.compile(
+    r"\b(?:files?|folders?|director(?:y|ies)|paths?|documents?|desktop|downloads?|repo(?:sitory)?|code|project|readme|workspace|pdf|csv|spreadsheet)\b",
+    re.IGNORECASE,
+)
 _DATABASE_TURN_DROPS = frozenset({"operator.list_tools", "capability.expand_family"})
 
 
@@ -1933,6 +1937,10 @@ def assemble_tool_offer(
         # tools, and expansion for a turn whose words name another family.
         if not _ASKS_VOOLS_OWN_TOOLS_RE.search(str(user_text or "")):
             specs = [spec for spec in specs if spec.get("intent") not in _DATABASE_TURN_DROPS]
+        if not _FILE_WORDS_RE.search(str(user_text or "")):
+            # Mac run 16i (toolshed 14): "whos got the ladder" in a toolshed database went to workspace.list_tree and
+            # said no files matched. A database turn that names no file or folder does not carry the workspace file tools.
+            specs = [spec for spec in specs if not str(spec.get("intent") or "").startswith("workspace.")]
     from core.vool_browser.live_contracts import SUPPORTED as BROWSER_INTENTS
     from core.vool_browser.live_requests import confined as browser_confined
     from core.vool_browser.live_requests import requested as browser_requested

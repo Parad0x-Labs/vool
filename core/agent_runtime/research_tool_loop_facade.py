@@ -836,7 +836,7 @@ def _listed_out_of_order(reply: str, steps: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[dict[str, Any]]) -> str:
+def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[dict[str, Any]], *, told: bool = False) -> str:
     """The rows' own answer when a reply, sent after a database query that found rows, denies them or states a
     value no row holds; "" when the reply stands. Mac run 16i: "The Drill has been borrowed by **Pavel**" after
     a read of the tools table that held no borrower at all; "does not have a column for stock status" after
@@ -851,6 +851,22 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
                 "give. Nothing was changed. Ask again, or name the table you mean."
             )
         return ""
+    if (
+        told
+        and db_steps
+        and not any(
+            step.get("ok") is True and re.search(r"\bjoin\b", str(dict(step.get("arguments") or {}).get("sql") or ""), re.IGNORECASE)
+            for step in db_steps
+        )
+        and _database_join_missing(question, steps)
+        and not _is_database_no_answer(str(reply or ""))
+    ):
+        # Run 16i (toolshed 13): "Noor has had the Drill" after a read of the tools table alone; no row of the turn held
+        # a borrower. A who-has-had-what reply with no read of the loans is not sent as a fact.
+        return (
+            "I have not read who held that from your database, so I will not guess. Ask again and I will look at the "
+            "loans. Nothing was changed."
+        )
     answering = _database_step_answering(question, steps)
     used = steps[: answering + 1] if answering >= 0 else steps
     holding = database_holding_answer(question, used)
@@ -2746,7 +2762,9 @@ class ResearchToolLoopFacadeMixin:
                             "missing from your database, so I am not saying it is. Ask again and I will look again."
                         )
                     if direct_message is not None and selected_response and executed_steps:
-                        _rows_say = _database_reply_contradicts_its_rows(str(direct_message), effective_input, executed_steps)
+                        _rows_say = _database_reply_contradicts_its_rows(
+                            str(direct_message), effective_input, executed_steps, told=database_no_tool_corrections >= 2
+                        )
                         if _rows_say:
                             self._emit_runtime_event(
                                 loop_source_context,
@@ -3562,6 +3580,14 @@ class ResearchToolLoopFacadeMixin:
                     str(execution.response_text or "") + " " + str((execution.details or {}).get("error") or ""),
                 )
                 if _fixed:
+                    # Run 16i (toolshed 3): `kind = 'power tools'` after the column repair matched nothing; the value is
+                    # swapped for the stored one in the same step.
+                    try:
+                        from core.database_work_state import sql_with_real_values
+
+                        _fixed = sql_with_real_values(_db, _fixed) or _fixed
+                    except Exception:
+                        pass
                     database_column_repaired = True
                     self._emit_runtime_event(
                         loop_source_context,
@@ -4148,7 +4174,7 @@ class ResearchToolLoopFacadeMixin:
                     reject_reason = ""
         else:
             final_message = self._tool_loop_final_message(synthesis, executed_steps)
-            final_message = _database_reply_contradicts_its_rows(final_message, effective_input, executed_steps) or final_message
+            final_message = _database_reply_contradicts_its_rows(final_message, effective_input, executed_steps, told=database_no_tool_corrections >= 2) or final_message
         _syn_provider = str(getattr(synthesis, "provider_id", "") or "")
         final_provider_id = _syn_provider if _syn_provider else (
             last_tool_decision.provider_id if last_tool_decision else None

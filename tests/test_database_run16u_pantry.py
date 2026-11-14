@@ -268,3 +268,19 @@ def test_an_overview_is_not_answered_from_one_table_alone(tmp_path, monkeypatch)
     union = {**one, "arguments": {"sql": "SELECT 'items' AS table_name, COUNT(*) AS row_count FROM items UNION ALL SELECT 't', COUNT(*) FROM t"}}
     assert _database_join_missing("what do I have in my kitchen db", [one]) is True
     assert _database_join_missing("what do I have in my kitchen db", [one, union]) is False
+
+
+def test_a_who_had_it_reply_with_no_read_of_the_loans_is_not_sent_as_a_fact(monkeypatch) -> None:
+    import core.agent_runtime.research_tool_loop_facade as facade
+
+    monkeypatch.setattr(facade, "_database_call_suggestion", lambda _q: "name=toolshed, sql=SELECT n.name FROM borrowings b JOIN neighbours n ON n.id = b.neighbour_id WHERE b.tool_id = 1")
+    step = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM tools"}, "observation": {"columns": ["id", "name"], "rows": [[1, "Drill"]]}}
+    out = facade._database_reply_contradicts_its_rows("Noor has had the Drill.", "who has had the Drill", [step], told=True)
+    assert "will not guess" in out and "Noor" not in out
+
+
+def test_a_database_turn_does_not_carry_the_workspace_file_tools() -> None:
+    from core.tool_offer_assembly import _FILE_WORDS_RE
+
+    assert not _FILE_WORDS_RE.search("whos got the ladder")
+    assert _FILE_WORDS_RE.search("find the file with my tools list")
