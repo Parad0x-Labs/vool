@@ -129,6 +129,25 @@ def personal_statement(text: str) -> bool:
     return bool(_FIRST_PERSON_RE.search(clean))
 
 
+#: A closing or a bare reaction inside a list ("ok that's all", "thanks!"): no fact.
+_CLOSING_RE = re.compile(
+    r"^(?:ok(?:ay)?|k|thanks?|thank\s+you|thx|ty|cool|great|perfect|nice|awesome|got\s+it|"
+    r"that'?s\s+(?:it|all|everything)|nothing\s+else|done|no(?:pe)?|yes|yeah|yep|sure)\b[\s,.!]*"
+    r"(?:(?:that'?s\s+(?:it|all|everything)|for\s+now|thanks?|thank\s+you|bye)[\s,.!]*)*$",
+    re.IGNORECASE,
+)
+
+
+def list_statement(text: str) -> bool:
+    """A fact said inside a list the person opened: a statement, not a question, a request or a closing.
+
+    First person is not needed there. Measured on the real local model (held-out set): after "ok a few things to
+    remember for me. my brother Tobiah lives in Quillon", "his daughter is called Marta and she turns 7 on 3 august"
+    and "oh and Tobiah is vegetarian" were answered "Got it ... Nothing was saved"; they name the people of the list."""
+    clean = _CONTINUATION_HEAD_RE.sub("", " ".join(str(text or "").split()))
+    return not (len(clean.split()) < 3 or _CLOSING_RE.match(clean) or is_question(clean) or _REQUEST_HEAD_RE.match(clean))
+
+
 def strip_continuation(text: str) -> str:
     return _CONTINUATION_HEAD_RE.sub("", " ".join(str(text or "").split())).strip()
 
@@ -139,7 +158,7 @@ def list_is_open(earlier_user_turns: list[str]) -> bool:
         lead = everyday_lead(said)
         if lead is not None:
             return lead.opens_list
-        if not (personal_statement(said) or update_shaped(said)):
+        if not (list_statement(said) or update_shaped(said)):
             return False
     return False
 
