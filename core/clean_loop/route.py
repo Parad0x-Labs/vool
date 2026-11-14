@@ -657,6 +657,26 @@ def _memory_lane_owns(text: str, session_id: str = "", source_context: Mapping[s
     )
 
 
+#: An ask that reads, finds or opens something ("what's in the quarterly report?", "find the boat letter", "where did i
+#: save the receipts?"): a file's, whatever a saved fact shares with it.
+_FILE_ACT_RE = re.compile(
+    r"\b(?:find|open|read|show\s+me|search|locate|look\s+(?:for|in|through|up)|summari[sz]e|contents?\s+of)\b"
+    r"|\bwhat'?s\s+in\b|\bwhat\s+(?:is|was)\s+in\b|\bwhat\s+(?:does|do|did)\s+[^?]{1,60}?\b(?:say|says|show|list)\b"
+    r"|\bwhere\s+(?:did|have|had)\s+(?:i|we)\s+(?:\w+\s+)?(?:save|saved|put|store|stored|keep|kept|download|downloaded|file|filed|move|moved)\b",
+    re.I,
+)
+
+
+def points_at_files(text: str) -> bool:
+    """Whether the ask itself points at the owner's files or computer, beyond sharing a topic word with them.
+
+    `asks_about_own_files_or_computer` admits on topic words ("rent", "reports", "notes"): enough to TRY the loop,
+    not to say the ask is about a file. "when is the rent due?" with "the rent is now due on the 1st" saved was
+    searched on the disk and answered "The rent receipts are in the blue folder" (held-out set, real model)."""
+    value = str(text or "")
+    return bool(asks_explicitly_about_own_things(value) or _NAMES_FILES_RE.search(value) or _FILE_ACT_RE.search(value))
+
+
 def _saved_memory_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
     """A question a fact the owner saved answers ("what's the booking code for the boat?" after it was saved), when
     the ask does not itself point at files. On the Mac (cbc915ec) such questions were admitted because their words
@@ -773,7 +793,7 @@ def decide(
         by_documents = document_match is not None and bool(document_match(text))
         if not by_documents:
             return RouteDecision(False, "not_about_own_files")
-    if not asks_about_own_files_or_computer(text) and _saved_memory_answers(text, session_id, source_context):
+    if not points_at_files(text) and _saved_memory_answers(text, session_id, source_context):
         # Its words name a file, yet a fact the owner saved answers it and the ask does not point at files: memory
         # answers, not a search of the disk.
         return RouteDecision(False, "saved_memory_answers")
@@ -810,6 +830,7 @@ __all__ = [
     "names_owner_file",
     "note_clean_turn",
     "own_content_words",
+    "points_at_files",
     "skill_keeps_turn",
     "skill_owns_turn",
 ]
