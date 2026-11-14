@@ -1,5 +1,6 @@
-from core.database_work_state import sql_with_real_columns
 import sqlite3
+
+from core.database_work_state import sql_with_real_columns
 
 
 def _make(tmp_path, monkeypatch):
@@ -28,10 +29,11 @@ def test_item_column_becomes_name(tmp_path, monkeypatch):
     assert (db, sql) == ("kitchen", "SELECT name FROM items")
 
 
-from tests.test_database_run16r_db8a859a import BOOKS  # noqa: E402,F401
-from tests.test_database_run16i_cbc915ec import _db  # noqa: E402,F401
-import uuid  # noqa: E402
-from types import SimpleNamespace  # noqa: E402
+import uuid
+from types import SimpleNamespace
+
+from tests.test_database_run16i_cbc915ec import _db
+from tests.test_database_run16r_db8a859a import BOOKS
 
 
 def test_a_failed_read_after_a_good_one_never_replaces_it(tmp_path, monkeypatch) -> None:
