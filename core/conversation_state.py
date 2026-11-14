@@ -579,8 +579,12 @@ def _read_only(pending: PendingRequest) -> bool:
     if (str(pending.reason or "") == "web_off" or str(pending.reason or "").startswith("missing_right:")) and not pending.slots.get("tool"):
         return True
     try:
-        from core.capability_graph import capability_for_intent
+        from core.capability_graph import capability_for_intent, ensure_registry_bootstrap
 
+        # Never read the graph before it is built: an unbuilt graph knows no tool, so a recorded read
+        # ("machine.list_directory") counted as not read-only and "ok tools are on now, go" was no retry (CI #697
+        # shard order; the same holds for a retry sent as the first turn after a restart).
+        ensure_registry_bootstrap()
         capability = capability_for_intent(str(pending.slots.get("tool") or ""))
     except Exception:
         return False
