@@ -344,7 +344,7 @@ from core.tool_use_retry import TOOL_USE_RETRY_KEY, needed_tool_intents, tool_us
 _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
 
 _DATABASE_NO_ANSWER_RE = re.compile(
-    r"(?:\bdon'?t have access\b|\bdo not have access\b|\bnot (?:mentioned|specified|provided|stated)\b|\bdoes not (?:mention|include|specify)\b|"
+    r"(?:\bdon'?t have access\b|\b(?:don'?t|do not|doesn'?t|does not) have (?:any )?information\b|\bhelp (?:you )?with something else\b|\bdo not have access\b|\bnot (?:mentioned|specified|provided|stated)\b|\bdoes not (?:mention|include|specify)\b|"
     r"\bplease (?:provide|clarify|specify)\b|\bcould you (?:please )?(?:clarify|specify|provide)\b|\bunclear\b|"
     r"\bcannot determine\b|\bcan'?t determine\b|\bno (?:information|data|record)s? (?:about|on|of)\b|"
     r"\breal-time information\b|\bdoes not contain (?:any )?(?:information|data|records?)\b|\bnot (?:in|part of) (?:the|your) database\b|"
@@ -362,6 +362,7 @@ _DATABASE_NO_ANSWER_RE = re.compile(
 # the schema and asked leave to look; toolshed 6 read Pavel's loans and said "no indication they belong to Pavel".
 _DATABASE_HANDS_BACK_RE = re.compile(
     r"\b(?:would\s+you\s+like\s+(?:me\s+)?to\s+(?:proceed|continue|retrieve|see|fetch)|"
+    r"let\s+me\s+know\s+if\s+you(?:'d|\s+would)\s+like\s+me\s+to|if\s+you(?:'d|\s+would)\s+like\s+me\s+to\s+(?:run|try|look)|"
     r"(?:i|let\s+me)\s+can\s+(?:retrieve|fetch|show)|shall\s+i\s+(?:proceed|retrieve|fetch))\b",
     re.IGNORECASE,
 )
@@ -635,6 +636,48 @@ def _database_join_missing(question: str, steps: list[dict[str, Any]]) -> bool:
     return True
 
 
+def _database_reread_payload(question: str, steps: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The read to run in place of a last read that matched nothing: the same query with each text it matched on
+    swapped for the value the column really holds, else the ready call for the question. None when neither is new.
+
+    Mac run 16i: "which tools are power tools" ('power tool' vs 'power') and "who has had the Drill" both ended on
+    "no matching rows"; the model did not ask again."""
+    for step in reversed(steps):
+        if str(step.get("tool_name") or "") != "vool-database.query" or step.get("correction"):
+            continue
+        arguments = dict(step.get("arguments") or {})
+        sql = str(arguments.get("sql") or "")
+        try:
+            from core.database_work_state import sql_with_real_values
+
+            swapped = sql_with_real_values(str(arguments.get("name") or ""), sql)
+        except Exception:
+            swapped = ""
+        if swapped:
+            return {"intent": "vool-database.query", "arguments": {**arguments, "sql": swapped}}
+        ready = _database_call_payload(question)
+        if ready is not None and " ".join(str(ready["arguments"]["sql"]).lower().split()) != " ".join(sql.lower().split()):
+            return ready
+        return None
+    return None
+
+
+def _database_empty_read(steps: list[dict[str, Any]]) -> bool:
+    """The last database query ran and matched no row, and it matched on a text or a named parameter."""
+    for step in reversed(steps):
+        if not str(step.get("tool_name") or "").startswith("vool-database.") or step.get("correction"):
+            continue
+        observation = step.get("observation")
+        if str(step.get("tool_name")) != "vool-database.query" or step.get("ok") is not True or not isinstance(observation, dict):
+            return False
+        if list(observation.get("rows") or []) or "rows" not in observation:
+            return False
+        arguments = dict(step.get("arguments") or {})
+        where = re.split(r"\bwhere\b", str(arguments.get("sql") or ""), maxsplit=1, flags=re.IGNORECASE)
+        return len(where) == 2 and (bool(_WHERE_LITERAL_RE.search(where[1])) or ":" in where[1] or bool(arguments.get("params")))
+    return False
+
+
 def _database_empty_on_a_literal(steps: list[dict[str, Any]]) -> bool:
     """The last database query ran, matched no row, and filtered on a text value the person never said as such.
 
@@ -655,7 +698,11 @@ def _database_empty_on_a_literal(steps: list[dict[str, Any]]) -> bool:
 
 def _is_database_no_answer(text: str) -> bool:
     """A reply that gives up or asks what is meant instead of answering."""
-    return bool(_DATABASE_NO_ANSWER_RE.search(str(text or "")) or _DATABASE_HANDS_BACK_RE.search(str(text or "")))
+    return bool(
+        _DATABASE_NO_ANSWER_RE.search(str(text or ""))
+        or _DATABASE_HANDS_BACK_RE.search(str(text or ""))
+        or _DATABASE_DENIES_ROWS_RE.search(str(text or ""))
+    )
 
 
 _CLAIM_AFTER_NO_ROWS_RE = re.compile(r"\*\*[^*\n]{2,60}\*\*|\*[A-Z][^*\n]{2,60}\*|\b(?:1[0-9]|20)\d\d\b|\b\d+\s+(?:books?|rows?|items?|tools?|members?|records?)\b")
@@ -2159,6 +2206,7 @@ class ResearchToolLoopFacadeMixin:
         tool_use_retry_spent = False
         database_no_tool_corrections = 0
         database_ready_join_made = False
+        database_ready_failure_made = False
         # Per-turn tool candidate fingerprint.  Reset each turn so a fresh
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
@@ -2381,6 +2429,29 @@ class ResearchToolLoopFacadeMixin:
                             )
                             continue
                     direct_message = self._tool_intent_direct_message(tool_decision.structured_output)
+                    if (
+                        selected_response
+                        and direct_message is not None
+                        and database_no_tool_corrections == 0
+                        and _database_empty_read(executed_steps)
+                        and _database_work_turn(effective_input, loop_source_context)
+                    ):
+                        # Run 16i (toolshed 3 and 13): the read matched nothing because of how it named a value
+                        # ('power tool' for 'power') or the thing asked about, and the reply gave up on it. One
+                        # more read runs: the same query with the real value, else the ready call.
+                        _reread = _database_reread_payload(effective_input, executed_steps)
+                        if _reread is not None:
+                            database_no_tool_corrections += 1
+                            self._emit_runtime_event(
+                                loop_source_context,
+                                event_type="database_reread_after_empty",
+                                message="The read matched no row; reading again with the value the column holds.",
+                                status="database_reread_after_empty",
+                                step_count=len(executed_steps),
+                            )
+                            tool_decision.structured_output = _reread
+                            selected_response = False
+                            direct_message = None
                     if (
                         selected_response
                         and direct_message is not None
@@ -3259,6 +3330,32 @@ class ResearchToolLoopFacadeMixin:
                 # refusal in front of it. An unusable intent (nothing ran) and a bare operational
                 # failure (no user-facing text from the tool) still degrade through research, as the
                 # tests above and `test_openclaw_safe_local_file_read_returns_grounded_text` pin.
+                if (
+                    execution.mode != "tool_preview"
+                    and not database_ready_failure_made
+                    and str(execution.tool_name or tool_name or "").startswith("vool-database.")
+                    and str(execution.status or "") in self._DATABASE_RECOVERABLE_STATUSES
+                    and _database_work_turn(effective_input, loop_source_context)
+                ):
+                    # Run 16i (library 1, 5, pantry 1): the model's reads failed until the turn gave up with
+                    # "I could not get a query for that to run". The ready read-only call for the question runs once
+                    # before that is said.
+                    _ready_failure = _database_call_payload(effective_input)
+                    if _ready_failure is not None and not any(
+                        str(dict(step.get("arguments") or {}).get("sql") or "").strip().lower()
+                        == str(_ready_failure["arguments"]["sql"]).strip().lower()
+                        for step in executed_steps
+                    ):
+                        database_ready_failure_made = True
+                        self._emit_runtime_event(
+                            loop_source_context,
+                            event_type="database_call_made_after_failures",
+                            message="The model's reads failed; running the ready read-only database call.",
+                            status="database_call_made_after_failures",
+                            step_count=len(executed_steps),
+                        )
+                        pending_tool_payload = _ready_failure
+                        continue
                 if (
                     execution.mode != "tool_preview"
                     and str(execution.tool_name or tool_name or "").startswith("vool-database.")

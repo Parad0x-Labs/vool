@@ -258,6 +258,14 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                     if not any(re.search(r"\b%s(?:s|es)?\b" % re.escape(n), lowered) for n in names if n):
                         continue
                     order = ""
+                    # "how many are still out on loan": the count of the rows not yet returned (Mac run 16i on
+                    # cbc915ec, library 5: the model's own count query was refused until the turn failed)
+                    returned = next((c for c in columns if re.fullmatch(r"returned(?:_on|_at|_date)?", c, re.I)), "")
+                    if returned and re.search(r"\bhow\s+many\b", lowered) and re.search(
+                        r"\b(?:out|still|not\s+(?:yet\s+)?(?:back|returned)|on\s+loan|outstanding|open)\b", lowered
+                    ):
+                        test = "%s = 0" % returned if returned.lower() == "returned" else "%s IS NULL" % returned
+                        return ("name=%s, sql=SELECT COUNT(*) AS count FROM %s WHERE %s" % (path.stem, table, test))[:max_chars]
                     # An expiry or due date is the column a "latest expiry first" ask sorts by (Mac answer-quality
                     # row 3 on d5d044b0: "show my freezer items, the ones expiring last at the top").
                     date_col = next(
@@ -296,10 +304,16 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                     return ("name=%s, sql=SELECT * FROM %s%s%s" % (path.stem, table, order, limit))[:max_chars]
                 # 4. the database itself is named, and it holds one table: "whats in my pantry db" is that table's rows
                 #    (Mac run 16i, pantry 1: the schema was listed and the items never read)
-                if len(shapes) == 1 and re.search(r"\b%s\b" % re.escape(path.stem.lower()), lowered) and re.search(
+                if shapes and re.search(r"\b%s\b" % re.escape(path.stem.lower()), lowered) and re.search(
                     r"\b(?:what(?:'?s|\s+is|\s+do\s+i\s+have)?|show|list|see|have)\b", lowered
                 ):
-                    return ("name=%s, sql=SELECT * FROM %s" % (path.stem, next(iter(shapes))))[:max_chars]
+                    if len(shapes) == 1:
+                        return ("name=%s, sql=SELECT * FROM %s" % (path.stem, next(iter(shapes))))[:max_chars]
+                    # several tables: what is in each (library 1, pantry 1 of run 16i: no query ever ran)
+                    union = " UNION ALL ".join(
+                        "SELECT '%s' AS table_name, COUNT(*) AS row_count FROM %s" % (t, t) for t in list(shapes)[:8]
+                    )
+                    return ("name=%s, sql=%s" % (path.stem, union))[: max(max_chars, 1200)]
             finally:
                 conn.close()
         return ""
@@ -330,3 +344,48 @@ def last_database_query(source_context: dict[str, Any] | None) -> tuple[str, str
         return _LAST_QUERY.get(_session_of(source_context), ("", ""))
     except Exception:
         return ("", "")
+
+
+def sql_with_real_values(name: str, sql: str) -> str:
+    """The same read with each text it matched on swapped for the value the column really holds, or "".
+
+    Mac run 16i (toolshed 3): "which tools are power tools" ran `kind = 'power tool'`, matched nothing, and the
+    reply said the column holds 'power'. A text is swapped only for a value of that column that contains it or is
+    contained in it (or is nearly spelled the same). Read-only, never raises."""
+    try:
+        import difflib
+        import re
+        import sqlite3
+
+        from core.plugin_tools import plugin_scratch_dir
+
+        path = plugin_scratch_dir("vool-database") / "databases" / f"{name}.sqlite"
+        if not path.is_file():
+            return ""
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+        try:
+            tables = [r[0] for r in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'")]
+            changed = sql
+            for match in re.finditer(r"([\w.]+)\s*(?:=|LIKE)\s*'([^']{2,40})'", sql, re.IGNORECASE):
+                column, literal = match.group(1).split(".")[-1], match.group(2)
+                wanted = literal.strip("% ").lower()
+                best = ""
+                for table in tables:
+                    cols = [r[1].lower() for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
+                    if column.lower() not in cols:
+                        continue
+                    for (value,) in conn.execute('select distinct "%s" from "%s" limit 60' % (column.replace('"', ""), table.replace('"', ""))):
+                        text = str(value or "")
+                        low = text.lower()
+                        if not low or low == wanted:
+                            continue
+                        if low in wanted or wanted in low or difflib.SequenceMatcher(None, low, wanted).ratio() >= 0.75:
+                            if len(low) > len(best):
+                                best = text
+                if best:
+                    changed = changed.replace("'%s'" % literal, "'%s'" % best.replace("'", "''"), 1)
+            return changed if changed != sql else ""
+        finally:
+            conn.close()
+    except Exception:
+        return ""

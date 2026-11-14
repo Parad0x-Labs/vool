@@ -339,8 +339,8 @@ def database_holding_answer(question: str, executed_steps: list[dict[str, Any]])
             outstanding = value in (None, "", 0, "0", False) if is_flag else value in (None, "")
             (out if outstanding else back).append(str(row[item]))
         out, back = list(dict.fromkeys(out)), list(dict.fromkeys(back))
-        who = person or "They"
-        lines = [f"{who} has out right now: {', '.join(out)}." if out else f"{who} has nothing out right now."]
+        who, verb = (person, "has") if person else ("They", "have")
+        lines = [f"{who} {verb} out right now: {', '.join(out)}." if out else f"{who} {verb} nothing out right now."]
         if back:
             lines.append(f"Already returned: {', '.join(back)}.")
         return " ".join(lines)
