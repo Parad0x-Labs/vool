@@ -260,9 +260,8 @@ def test_counts_overviews_and_lists_are_said_in_words() -> None:
 
 
 def test_an_overview_is_not_answered_from_one_table_alone(tmp_path, monkeypatch) -> None:
-    from core.agent_runtime.research_tool_loop_facade import _database_join_missing
-
     import core.agent_runtime.research_tool_loop_facade as facade
+    from core.agent_runtime.research_tool_loop_facade import _database_join_missing
 
     monkeypatch.setattr(facade, "_database_call_suggestion", lambda _q: "name=kitchen, sql=SELECT 'items' AS table_name, COUNT(*) AS row_count FROM items UNION ALL SELECT 't', COUNT(*) FROM t")
     one = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM items"}, "observation": {"rows": [[1]]}}
