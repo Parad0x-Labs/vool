@@ -122,7 +122,7 @@ def _unstated_price(sentence: str, stated: set[str]) -> bool:
     return False
 
 
-def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None) -> str:
+def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None, request: str = "") -> str:
     """`text` without the sentences that state a price no page the turn's web lookup fetched states.
 
     Mac recheck 2026-11-13 on f50e52eb (qwen3:8b, Web lookups on): web.search returned pages saying "from $20 to
@@ -136,6 +136,18 @@ def unfetched_prices_reply(text: str, source_context: dict[str, Any] | None) -> 
         if not pages.strip():
             return text
         stated = _stated_amounts(pages)
+        # The person's own words and records are a source too: a figure they gave (and the turn's ask) is never
+        # an unfetched price.
+        stated |= _stated_amounts(request)
+        try:
+            from core.bootstrap_context import admitted_capsule_evidence_text
+
+            stated |= _stated_amounts(admitted_capsule_evidence_text(context))
+        except Exception:
+            pass
+        for item in context.get("conversation_history") or []:
+            if isinstance(item, dict) and item.get("role") == "user":
+                stated |= _stated_amounts(str(item.get("content") or ""))
         dropped = False
         kept_lines: list[str] = []
         for line in str(text or "").split("\n"):
@@ -172,7 +184,7 @@ def edge_reply(result: dict[str, Any], request: str, source_context: dict[str, A
         if not response.strip():
             return result
         changed = web_off_prices_reply(response, request, source_context)
-        changed = unfetched_prices_reply(changed, source_context)
+        changed = unfetched_prices_reply(changed, source_context, request)
         if changed == response:
             return result
         return {**result, "response": changed}

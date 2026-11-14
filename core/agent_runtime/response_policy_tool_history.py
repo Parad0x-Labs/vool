@@ -123,8 +123,15 @@ def append_tool_result_to_source_context(
     if not observations or observations[-1] != observation_payload:
         observations.append(observation_payload)
     sink = updated.get("_tool_loop_web_text_sink")
-    if isinstance(sink, list) and str(tool_name or "").strip().lower().startswith("web."):
-        # What a web tool returned, for the reply edge's price check (`core.agent_runtime.reply_edge`).
+    if (
+        isinstance(sink, list)
+        and str(tool_name or "").strip().lower().startswith("web.")
+        and bool(getattr(execution, "ok", False))
+        and observation_payload.get("ok") is not False
+    ):
+        # What a web tool fetched, for the reply edge's price check (`core.agent_runtime.reply_edge`). A refused or
+        # failed step fetched no page, so it gives the check nothing to read (CI #687: a vetoed web step's refusal
+        # text made the person's own recorded prices read as unfetched).
         sink.append(json.dumps(observation_payload, ensure_ascii=False, default=str))
     # This typed same-turn channel is consumed directly by prompt assembly.  Conversation history
     # alone is insufficient because canonical structured dialogue may outrank the caller-provided
