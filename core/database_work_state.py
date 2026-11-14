@@ -422,18 +422,26 @@ def sql_with_real_columns(name: str, sql: str, error: str) -> tuple[str, str]:
         root = plugin_scratch_dir("vool-database") / "databases"
         stems = sorted(p.stem for p in root.glob("*.sqlite") if p.is_file())
         clean = str(name or "").strip().lower()
-        pick = clean if clean in stems else next(iter([s for s in stems if s in clean or clean in s]), "") or (stems[0] if len(stems) == 1 else "")
-        if not pick:
-            return "", ""
-        conn = sqlite3.connect(f"file:{root / (pick + '.sqlite')}?mode=ro", uri=True, timeout=0.2)
-        try:
-            tables = {t.lower() for t in re.findall(r"\b(?:from|join)\s+[\"`]?(\w+)", sql, re.IGNORECASE)}
-            real: list[str] = []
-            for (table,) in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'").fetchall():
-                if table.lower() in tables:
-                    real += [r[1] for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
-        finally:
-            conn.close()
+        named = {t.lower() for t in re.findall(r"\b(?:from|join)\s+[\"`]?(\w+)", sql, re.IGNORECASE)}
+        ordered = ([clean] if clean in stems else []) + [s_ for s_ in stems if s_ != clean]
+        pick, real, table_of_bad = "", [], ""
+        for stem in ordered:
+            conn = sqlite3.connect(f"file:{root / (stem + '.sqlite')}?mode=ro", uri=True, timeout=0.2)
+            try:
+                found: list[str] = []
+                for (table,) in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'").fetchall():
+                    if table.lower() in named:
+                        found += [r[1] for r in conn.execute('pragma table_info("%s")' % table.replace('"', ""))]
+                        table_of_bad = table_of_bad or table.lower()
+            finally:
+                conn.close()
+            if found and bad.lower() not in [c.lower() for c in found]:
+                # Run 16i pantry 3: the model named "workspace", which is no database; the tables the read names
+                # pick the database.
+                pick, real = stem, found
+                break
+            if found:
+                break
         low = bad.lower()
         if not real or low in [c.lower() for c in real]:
             return "", ""
@@ -441,6 +449,11 @@ def sql_with_real_columns(name: str, sql: str, error: str) -> tuple[str, str]:
         if not close:
             close = difflib.get_close_matches(low, [c.lower() for c in real], n=1, cutoff=0.7)
             close = [c for c in real if c.lower() in close]
+        if not close:
+            # a shared stem of four letters ("expiration_date" and "expires"), or the table's own word for its name column
+            close = [c for c in real if len(low) >= 4 and len(c) >= 4 and c.lower()[:4] == low[:4]]
+        if not close and table_of_bad and low.rstrip("s") == table_of_bad.rstrip("s"):
+            close = [c for c in real if c.lower() in ("name", "title")]
         if len(close) != 1:
             return "", ""
         return pick, re.sub(r"\b%s\b" % re.escape(bad), close[0], sql)

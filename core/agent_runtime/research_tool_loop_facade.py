@@ -383,6 +383,14 @@ def _database_last_result_empty(steps: list[dict[str, Any]]) -> bool:
             continue
         observation = step.get("observation")
         if step.get("ok") is False:
+            # Run 16i pantry 7: a later read of a table that does not exist is not the answer to the question when an
+            # earlier read returned rows; the earlier read stands.
+            if any(
+                prior.get("ok") is True and isinstance(prior.get("observation"), dict) and prior["observation"].get("rows")
+                for prior in steps
+                if str(prior.get("tool_name") or "").startswith("vool-database.") and not prior.get("correction")
+            ):
+                continue
             return True
         if not isinstance(observation, dict) or "rows" not in observation:
             return False
@@ -3354,6 +3362,17 @@ class ResearchToolLoopFacadeMixin:
             # below still owns it. Finalization records failure when the turn actually ends.
             # Marking it failed here seals the checkpoint and discards a later approval pause,
             # forcing the same reviewed edit to ask again under a fresh turn on resume.
+            if (
+                execution.mode not in ("tool_executed", "tool_preview")
+                and str(execution.tool_name or tool_name or "").startswith("vool-database.")
+                and _database_step_answering(effective_input, executed_steps) >= 0
+                and not _database_join_missing(effective_input, executed_steps)
+            ):
+                # Run 16i pantry 7: the first read was right (2 rows on the bottom shelf), a later read named a table
+                # that does not exist, and the reply said "could not find that". A failed read after a good one
+                # never replaces it, and is not retried.
+                loop_stop_reason = "tool_failed_after_evidence"
+                break
             if (
                 execution.mode != "tool_executed"
                 and not database_column_repaired

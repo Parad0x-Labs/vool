@@ -1845,6 +1845,30 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     return (f"{body}\n\n{notice}" if body else notice), payload
 
 
+def _preview_only_stated(text: str, source_context: Any) -> tuple[str, dict[str, Any]] | None:
+    """A reply after a database migration PREVIEW alone that never says nothing was applied.
+
+    Mac run 16i (library 10, "add a notes column"): only the preview ran and the reply said "Let me preview the
+    change first". None when the turn ran more than the preview or the reply already says so."""
+    try:
+        from core.turn_model_call_ledger import turn_call_accounting
+
+        executed = {str(t).strip().lower() for t in (turn_call_accounting(source_context).get("tools") or [])}
+    except Exception:
+        return None
+    if "vool-database.migrate.preview" not in executed or any(_CHANGING_INTENT_RE.search(i) for i in executed):
+        return None
+    if re.search(
+        r"\b(?:nothing\s+(?:was|has\s+been)\s+(?:applied|changed|made)|not\s+(?:been\s+)?(?:made|applied)|"
+        r"no\s+change\s+(?:was|has\s+been)\s+made)\b", text, re.IGNORECASE,
+    ):
+        return None
+    return (
+        f"{text.rstrip()}\n\nThis change has not been made: only a preview ran, nothing was applied.",
+        {"execution_claims": ["preview_only"], "publication": "preview_only_stated"},
+    )
+
+
 def model_authored_turn(*, turn_id: str = "", source_context: Any = None) -> tuple[bool, str]:
     """Whether a model served this turn's bytes, and the request text the recorders hold.
 
@@ -1899,7 +1923,7 @@ def gate_execution_claims(
         return text, {"publication": "stood_down:recorded_runtime_render"}
     claims = execution_claims(text)
     if not claims:
-        listed = _unrun_listed_intents(text, source_context)
+        listed = _unrun_listed_intents(text, source_context) or _preview_only_stated(text, source_context)
         if listed is not None:
             return listed
         return text, {"publication": "stood_down:no_execution_claims"}
@@ -1910,7 +1934,7 @@ def gate_execution_claims(
     except Exception:
         pass
     if _turn_executed_anything(turn_id, source_context):
-        listed = _unrun_listed_intents(text, source_context)
+        listed = _unrun_listed_intents(text, source_context) or _preview_only_stated(text, source_context)
         if listed is not None:
             return listed
         return text, {"execution_claims": [c[2] for c in claims], "publication": "execution_evidence_present"}
