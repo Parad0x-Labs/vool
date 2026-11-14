@@ -41,22 +41,52 @@ def watchdog(seconds):
     threading.Thread(target=watch, daemon=True).start()
 
 
-def limit_memory(headroom=MEMORY_HEADROOM):
-    """Install an RLIMIT_AS ceiling at the current mapped size plus headroom; decoders inherit it.
+# A fresh interpreter reports its own mapped size, measured exactly as the worker measures itself.
+FRESH_SIZE = (
+    "import ctypes,os\n"
+    "info=(ctypes.c_uint64*12)()\n"
+    "proc=ctypes.CDLL('/usr/lib/libproc.dylib')\n"
+    "n=proc.proc_pidinfo(os.getpid(),4,ctypes.c_uint64(0),info,ctypes.sizeof(info))\n"
+    "print(info[0] if n==ctypes.sizeof(info) else 0)\n"
+)
 
-    macOS refuses a small absolute RLIMIT_AS (a fresh process already maps hundreds of GiB of
-    shared regions), so the ceiling is relative to this process. It bounds growth, not resident
-    memory. Not measurable means not started: the job fails closed.
-    """
+
+def mapped_size():
     import ctypes
-    import resource
 
     info = (ctypes.c_uint64 * 12)()
     proc = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
     # PROC_PIDTASKINFO: struct proc_taskinfo is 96 bytes; pti_virtual_size is its first field.
     if proc.proc_pidinfo(os.getpid(), 4, ctypes.c_uint64(0), info, ctypes.sizeof(info)) != ctypes.sizeof(info):
         raise OSError('worker memory size unavailable')
-    ceiling = info[0] + headroom
+    return info[0]
+
+
+def limit_memory(headroom=MEMORY_HEADROOM):
+    """Install an RLIMIT_AS ceiling at the smaller mapped size plus headroom; decoders inherit it.
+
+    macOS refuses a small absolute RLIMIT_AS (a fresh process already maps hundreds of GiB of
+    shared regions), so the ceiling is relative. It is absolute once set, though, and a decoder
+    starts as a fresh process that maps less than this worker does: a ceiling taken from the
+    worker alone left a decoder the worker's start-up size as extra room. The ceiling is therefore
+    taken from the smaller of this worker and a fresh interpreter, so neither grows past the
+    headroom. It bounds growth, not resident memory. Not measurable means not started: the job
+    fails closed.
+    """
+    import resource
+
+    try:
+        fresh = subprocess.run([sys.executable, '-I', '-c', FRESH_SIZE], stdin=subprocess.DEVNULL,
+                               capture_output=True, check=True, timeout=5)
+        fresh = int(fresh.stdout)
+    except (subprocess.SubprocessError, ValueError) as exc:
+        raise OSError('decoder memory size unavailable') from exc
+    if fresh <= 0:
+        raise OSError('decoder memory size unavailable')
+    own = mapped_size()
+    ceiling = min(own, fresh) + headroom
+    if ceiling <= own:
+        raise OSError('worker memory budget unavailable')
     resource.setrlimit(resource.RLIMIT_AS, (ceiling, ceiling))
     if resource.getrlimit(resource.RLIMIT_AS) != (ceiling, ceiling):
         raise OSError('worker memory limit not applied')
