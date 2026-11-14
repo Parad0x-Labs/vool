@@ -497,9 +497,11 @@ def _memory_rows(
 
 
 #: A question about the value NOW ("what's my balance today?") is not one a saved fact answers: a stored reading is
-#: never a current one.
+#: never a current one. "live" counts only as in a live score or feed: "where does Tobiah live?" with "my brother
+#: Tobiah lives in Quillon" saved was asked back "the biblical Tobiah or a modern person?" (held-out set, real model).
 _NOW_WORD_RE = re.compile(
-    r"\b(?:now|today|tonight|currently|current|latest|still|anymore|live|this\s+(?:week|month|year|morning))\b",
+    r"\b(?:now|today|tonight|currently|current|latest|still|anymore|this\s+(?:week|month|year|morning))\b"
+    r"|\blive\s+(?:scores?|results?|prices?|feeds?|streams?|data|updates?|coverage|traffic|status)\b|\b(?:is|are)\s+[\w\s]{0,30}\blive\b(?!\s+in\b)",
     re.IGNORECASE,
 )
 #: Words that only name the kind of answer asked for ("which DAY does ...", "the booking CODE", "the plate NUMBER"):
