@@ -518,8 +518,35 @@ def advice_beside_live_prices(text: str, source_context: dict | None = None) -> 
     return bool(advice and live and not set(advice) & set(live))
 
 
+#: A question whose only object points back into the chat ("how much is the second one?", "and the other one?", "what
+#: does it cost?"): the figures are in what the person just said, not on the web.
+_CHAT_REFERENT_RE = re.compile(
+    r"\b(?:the\s+)?(?:first|second|third|last|other|earlier|later|former|latter|cheaper|bigger|smaller|same)\s+(?:one|option)s?\b"
+    r"|\b(?:that|this)\s+one\b|\b(?:is|was|does|did|for|of)\s+(?:it|that|them|those)\b",
+    re.IGNORECASE,
+)
+_CHAT_FIGURE_RE = re.compile(r"\d")
+
+
+def asks_about_a_chat_referent(text: str, source_context: dict | None) -> bool:
+    """Whether the ask points back at something the person's previous message in this chat gave with its figures.
+
+    Held-out set on the real local model: after "i'm comparing two flats: one on Birch Row for 950 a month and one on
+    Kell Lane for 1100 a month", "how much is the second one?" was refused "Web lookups are off". Only the immediately
+    preceding user message counts, and it must hold a figure."""
+    value = " ".join(str(text or "").split())
+    if not value or len(value.split()) > 12 or not _CHAT_REFERENT_RE.search(value):
+        return False
+    history = list((source_context or {}).get("conversation_history") or [])
+    users = [str(item.get("content") or "") for item in history if isinstance(item, dict) and item.get("role") == "user"]
+    if users and " ".join(users[-1].split()) == value:
+        users = users[:-1]  # the history carries the current turn
+    return bool(users) and bool(_CHAT_FIGURE_RE.search(users[-1]))
+
+
 __all__ = [
     "advice_beside_live_prices",
+    "asks_about_a_chat_referent",
     "asks_about_this_computer_or_project",
     "asks_for_online_facts",
     "reads_an_owned_thing",

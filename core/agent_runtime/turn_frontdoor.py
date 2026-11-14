@@ -2463,6 +2463,16 @@ def handle_turn_frontdoor(
                         _ask_needs_web = _ask_is_live_data = False
                 except Exception:
                     pass
+            if (_ask_needs_web or _ask_is_live_data):
+                # "how much is the second one?" right after the person named two flats with their rents: the chat
+                # answers it (held-out set, real local model: it was refused "Web lookups are off").
+                try:
+                    from core.online_asks import asks_about_a_chat_referent
+
+                    if asks_about_a_chat_referent(effective_input, source_context):
+                        _ask_needs_web = _ask_is_live_data = False
+                except Exception:
+                    pass
             if (_ask_needs_web or _ask_is_live_data) and _reads_own_notes(effective_input):
                 # A read of the person's own notes ('look up my Apple note "Plan"', "look up my notes
                 # about the trip") is answered on this computer by the Notes lane, which needs no web.
