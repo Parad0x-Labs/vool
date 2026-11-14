@@ -506,7 +506,7 @@ def _memory_rows(
 #: never a current one. "live" counts only as in a live score or feed: "where does Tobiah live?" with "my brother
 #: Tobiah lives in Quillon" saved was asked back "the biblical Tobiah or a modern person?" (held-out set, real model).
 _NOW_WORD_RE = re.compile(
-    r"\b(?:now|today|tonight|currently|current|latest|still|anymore|this\s+(?:week|month|year|morning))\b"
+    r"\b(?:now|today|tonight|currently|current|latest|still|anymore|this\s+(?:week(?:end)?|month|year|morning))\b"
     r"|\blive\s+(?:scores?|results?|prices?|feeds?|streams?|data|updates?|coverage|traffic|status)\b|\b(?:is|are)\s+[\w\s]{0,30}\blive\b(?!\s+in\b)",
     re.IGNORECASE,
 )
@@ -522,6 +522,14 @@ _CHANGE_RE = re.compile(
     re.IGNORECASE,
 )
 _NOW_ONLY_RE = re.compile(r"^(?:now|currently|current)$", re.IGNORECASE)
+#: A saved reading (a price, a balance, a rate, a score): what it was when the owner said it, never what it is now
+#: ("what's the gas price now?" with "gas went up, its now 1.89 a litre at the corner station" saved; review of job 19,
+#: C3).
+_READING_RE = re.compile(
+    r"\b(?:prices?|costs?|balance|scores?|rates?|fares?|quotes?)\b|[$€£¥]\s?\d|\d\s?(?:usd|eur|gbp|dollars?|euros?|pounds?)\b"
+    r"|\ba\s+(?:litre|liter|gallon|kwh)\b|\bper\s+(?:litre|liter|gallon|kg|kwh|share)\b",
+    re.IGNORECASE,
+)
 
 
 def saved_memory_rows(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> list[str]:
@@ -550,7 +558,7 @@ def saved_memory_rows(question: str, *, session_id: str, source_context: dict[st
     rows = _memory_rows(text, subject, session_id, source_context)
     found = [row for row in (rows[0] if rows else []) if all(_term_in(term, _doc_stems(row)) for term in subject)]
     if now_words:
-        found = [row for row in found if _CHANGE_RE.search(row)]
+        found = [row for row in found if _CHANGE_RE.search(row) and not _READING_RE.search(row)]
     return found
 
 
@@ -835,8 +843,33 @@ def _short_question_the_owner_answered(text: str, session_id: str, source_contex
     except Exception:
         return False
 
+#: The owner's own thing in the question: "what time is OUR standup?", "who's MY dentist now?".
+_OWNER_WORD_RE = re.compile(r"\b(?:my|our|mine|ours|i|i'm|i've|we|we're|me|us)\b", re.IGNORECASE)
+#: A question for a live reading or a world service (weather, prices, news, scores, opening hours, traffic).
+_LIVE_WORLD_ASK_RE = re.compile(
+    r"\b(?:weather|forecast|temperature|rain(?:ing)?|snow(?:ing)?|prices?|stocks?|shares?|exchange\s+rate|rates?|news|"
+    r"headlines?|scores?|traffic|open|opens|opening\s+hours|hours|flights?\s+status|delayed)\b",
+    re.IGNORECASE,
+)
+
+
+def _owners_own_subject(typed: str, rows: list[str]) -> bool:
+    """Whether the question asks about the owner's own thing: a possessive, or a name a saved row ties to the owner
+    ("my brother Tobiah ..." saved, "where does Tobiah live?")."""
+    if _OWNER_WORD_RE.search(typed):
+        return True
+    owned = {match.group(1).casefold() for row in rows for match in _OWNED_NAME_RE.finditer(row)}
+    asked = {word.casefold() for word in re.findall(r"[A-Za-z][\w'-]+", typed)}
+    return bool(owned & asked)
+
+
 def _saved_rows_answer_it(typed: str, session_id: str, source_context: dict[str, Any] | None) -> list[str]:
-    """Saved facts that answer the question outright, unless it points at files or an attachment."""
+    """Saved facts that answer the question outright, unless it points at files or an attachment.
+
+    These rows take the question from the web, calendar and live lanes, so a world question that only shares the
+    fact's words keeps its lane (independent review of job 19, C3): "who is the president?" with "my brother is
+    president of the chess club" saved was answered from the saved row. A live-domain question needs the owner's own
+    subject; any other question needs that or a subject of two or more words."""
     try:
         from core.clean_loop.route import points_at_files
 
@@ -844,7 +877,14 @@ def _saved_rows_answer_it(typed: str, session_id: str, source_context: dict[str,
             return []
     except Exception:
         return []
-    return saved_memory_rows(typed, session_id=session_id, source_context=source_context)
+    rows = saved_memory_rows(typed, session_id=session_id, source_context=source_context)
+    if not rows or _owners_own_subject(typed, rows):
+        return rows
+    if _LIVE_WORLD_ASK_RE.search(typed):
+        return []
+    terms = _asked_terms(as_question(typed))
+    subject = [term for term in terms if term not in _SLOT_STEMS and term not in {"now", "current"}]
+    return rows if len(subject) >= 2 else []
 
 
 def cross_chat_recall(
