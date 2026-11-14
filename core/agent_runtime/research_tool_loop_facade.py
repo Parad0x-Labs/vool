@@ -458,6 +458,16 @@ def _database_query_carries_over_the_last_ask(sql: str, question: str, steps: li
             f"This query filters on '{value}', and the question does not mention it. Take that filter out unless "
             "the question asked for it, then call again."
         )
+    if (
+        re.search(r"\breturned\w*\s+is\s+null\b|\breturned\s*=\s*0\b", sql, re.IGNORECASE)
+        and re.search(r"\b(?:has|have|had)\s+had\b|\bever\b|\bwho\s+(?:borrowed|had)\b", text)
+        and not re.search(r"\b(?:now|currently|still|right\s+now|at\s+the\s+moment|holding|checked\s+out)\b", text)
+        and "who has ever had it" not in told
+    ):
+        return (
+            "The question asks who has EVER had it, so do not limit the read to rows not yet returned: "
+            "drop the returned test (who has EVER had it needs every row)."
+        )
     only_value = re.fullmatch(
         r"\s*select\s+(min|max)\(\s*(\w+)\s*\)(?:\s+as\s+\w+)?\s+from\s+(\w+)\s*;?\s*", sql, re.IGNORECASE
     )
@@ -631,9 +641,19 @@ def _database_join_missing(question: str, steps: list[dict[str, Any]]) -> bool:
     this turn joined, the reply is not an answer to it."""
     if not _HOLDING_RE.search(str(question or "")):
         return False
-    if " join " not in f" {_database_call_suggestion(question).lower()} ":
-        return False
+    suggestion = _database_call_suggestion(question).lower()
     from core.agent_runtime.orchestrator import _HOLDING_ASK_RE
+
+    if " join " not in f" {suggestion} ":
+        # "how many are out right now": the count of the rows not yet returned. A turn that never read a table
+        # with a returned column answered about something else (run 16r, toolshed 5: the tools were counted).
+        if _HOLDING_ASK_RE.search(str(question or "")) and re.search(r"\bwhere\s+returned", suggestion):
+            return not any(
+                step.get("tool_name") == "vool-database.query" and step.get("ok") is True
+                and re.search(r"\breturned", str(dict(step.get("arguments") or {}).get("sql") or ""), re.IGNORECASE)
+                for step in steps
+            )
+        return False
 
     narrow = bool(_HOLDING_ASK_RE.search(str(question or "")))
     for step in steps:
@@ -2441,6 +2461,31 @@ class ResearchToolLoopFacadeMixin:
                             )
                             continue
                     direct_message = self._tool_intent_direct_message(tool_decision.structured_output)
+                    if (
+                        selected_response
+                        and direct_message is not None
+                        and database_no_tool_corrections == 0
+                        and not any(s.get("tool_name") == "vool-database.query" and s.get("ok") is True for s in executed_steps)
+                        and not _is_database_no_answer(direct_message)
+                        and _database_work_turn(effective_input, loop_source_context)
+                    ):
+                        # Run 16r (toolshed 1, 3, 12; library 1): the model read the schema, or named a database
+                        # that was not there, and answered with no query run ("named Alice": there is no Alice).
+                        # What the turn has read is not an answer to a question about the rows: the ready read-only
+                        # call for it runs once first.
+                        _first_read = _database_call_payload(effective_input)
+                        if _first_read is not None:
+                            database_no_tool_corrections += 1
+                            self._emit_runtime_event(
+                                loop_source_context,
+                                event_type="database_call_made_for_the_model",
+                                message="No row was read; running the ready read-only database call.",
+                                status="database_call_made_for_the_model",
+                                step_count=len(executed_steps),
+                            )
+                            tool_decision.structured_output = _first_read
+                            selected_response = False
+                            direct_message = None
                     if (
                         selected_response
                         and direct_message is not None

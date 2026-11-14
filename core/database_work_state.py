@@ -283,6 +283,16 @@ def suggest_database_query(question: str, max_chars: int = 600) -> str:
                     ):
                         order = " ORDER BY %s ASC" % date_col
                     return ("name=%s, sql=SELECT * FROM %s%s" % (path.stem, table, order))[:max_chars]
+                # 2b. "how many are out right now": the count of the rows not yet returned, in whichever table holds
+                #     them (run 16r, toolshed 5: the tools were counted and the borrowings never read)
+                if re.search(r"\bhow\s+many\b", lowered) and re.search(
+                    r"\b(?:out|still\s+out|not\s+(?:yet\s+)?(?:back|returned)|on\s+loan|outstanding)\b", lowered
+                ):
+                    for table, columns in shapes.items():
+                        returned = next((c for c in columns if re.fullmatch(r"returned(?:_on|_at|_date)?", c, re.I)), "")
+                        if returned:
+                            test = "%s = 0" % returned if returned.lower() == "returned" else "%s IS NULL" % returned
+                            return ("name=%s, sql=SELECT COUNT(*) AS count FROM %s WHERE %s" % (path.stem, table, test))[:max_chars]
                 # 3. no table named, but a column is: "who joined most recently" -> the table with `joined`
                 for table, columns in shapes.items():
                     hit = next(
@@ -377,7 +387,7 @@ def sql_with_real_values(name: str, sql: str) -> str:
                     for (value,) in conn.execute('select distinct "%s" from "%s" limit 60' % (column.replace('"', ""), table.replace('"', ""))):
                         text = str(value or "")
                         low = text.lower()
-                        if not low or low == wanted:
+                        if not low or text == literal.strip("% "):
                             continue
                         if low in wanted or wanted in low or difflib.SequenceMatcher(None, low, wanted).ratio() >= 0.75:
                             if len(low) > len(best):

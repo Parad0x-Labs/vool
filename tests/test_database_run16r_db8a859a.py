@@ -134,3 +134,118 @@ def test_the_loop_reads_again_with_the_real_column_before_the_model_is_asked(tmp
         finally:
             tool_registry.reset()
     assert "SELECT title, year FROM books WHERE year < 1950" in sent, sent
+
+
+# ── the toolshed world of the same run ──────────────────────────────────────────────────────────────────────
+
+from tests.test_database_run16i_cbc915ec import TOOLSHED  # noqa: E402
+
+TOOLSHED2 = TOOLSHED + "insert into neighbours values (2,'Pavel'); insert into tools values (3,'Ladder','hand');"
+
+
+def test_how_many_are_out_counts_the_rows_not_yet_returned_in_the_table_that_holds_them(world) -> None:  # noqa: F811
+    from core.database_work_state import suggest_database_query
+
+    _db("toolshed", TOOLSHED2)
+    assert suggest_database_query("ok and how many are out right now") == "name=toolshed, sql=SELECT COUNT(*) AS count FROM borrowings WHERE returned_on IS NULL"
+
+
+def test_a_case_only_difference_is_swapped_for_the_stored_spelling(world) -> None:  # noqa: F811
+    from core.database_work_state import sql_with_real_values
+
+    _db("toolshed", TOOLSHED2)
+    assert sql_with_real_values("toolshed", "SELECT * FROM tools WHERE name = 'ladder'") == "SELECT * FROM tools WHERE name = 'Ladder'"
+    assert sql_with_real_values("toolshed", "SELECT * FROM tools WHERE name = 'Ladder'") == ""
+
+
+def test_who_has_had_it_is_not_limited_to_what_is_still_out() -> None:
+    sql = "SELECT * FROM borrowings WHERE tool_id = 1 AND returned_on IS NULL"
+    said = _database_query_carries_over_the_last_ask(sql, "who has had the Drill", [])
+    assert "EVER" in said
+    told = [{"correction": True, "observation": f"failed and nothing was changed: {said}"}]
+    assert _database_query_carries_over_the_last_ask(sql, "who has had the Drill", told) == ""
+    assert _database_query_carries_over_the_last_ask(sql, "who has the Drill right now", []) == ""
+    assert _database_query_carries_over_the_last_ask(sql, "is anything still out", []) == ""
+
+
+def test_a_count_that_never_read_the_borrowings_does_not_answer_how_many_are_out(world) -> None:  # noqa: F811
+    from core.agent_runtime.research_tool_loop_facade import _database_join_missing
+
+    _db("toolshed", TOOLSHED2)
+    tools = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT COUNT(*) FROM tools"},
+             "observation": {"rows": [[6]], "columns": ["COUNT(*)"]}}
+    assert _database_join_missing("ok and how many are out right now", [tools]) is True
+    borrowings = {**tools, "arguments": {"sql": "SELECT COUNT(*) FROM borrowings WHERE returned_on IS NULL"}}
+    assert _database_join_missing("ok and how many are out right now", [tools, borrowings]) is False
+
+
+def test_the_loop_reads_the_rows_when_the_model_answered_after_a_schema_read_alone(tmp_path, monkeypatch) -> None:
+    """Toolshed 12 of run 16r: schema(name='shed_db'), no query, and a neighbour 'named Alice' who is not there."""
+    from apps.vool_agent import VoolAgent
+    from core import plugin_tools, tool_registry
+    from core.database_work_state import note_database_demand
+    from core.execution.models import ToolIntentExecution
+    from core.memory_first_router import ModelExecutionDecision
+    from core.runtime_flags import override
+    from tests._vool_database_pack import isolated_db_world
+    from tests.test_a_narrated_batch_does_not_vanish import _call
+
+    def decision(intent: str, **arguments):
+        return ModelExecutionDecision(
+            source="scripted", task_hash="h", used_model=True, confidence=0.8,
+            structured_output={"intent": intent, "arguments": arguments},
+            tool_calls=(_call(intent, **arguments),), validation_state="validated", provider_id="p",
+        )
+
+    class Router:
+        calls = 0
+
+        def resolve_tool_intent(self, **kwargs):
+            Router.calls += 1
+            if Router.calls == 1:
+                return decision("vool-database.schema", name="shed_db", table="tools")
+            if Router.calls == 2:
+                return decision("respond.direct", message="The neighbour who lives on Oak Ave is named Alice.")
+            return decision("respond.direct", message="Pavel lives on Oak Ave.")
+
+        def resolve(self, **kwargs):
+            return SimpleNamespace(output_text="Pavel lives on Oak Ave.", structured_output=None, provider_id="p", used_model=True,
+                                   source="scripted", validation_state="validated", confidence=0.8, trust_score=0.8, details={},
+                                   task_hash="h", tool_calls=())
+
+    with override("plugin_runtime_tools", True):
+        isolated_db_world(tmp_path, monkeypatch)
+        plugin_tools.load_all(tmp_path)
+        _db("toolshed", TOOLSHED2)
+        sent: list[str] = []
+
+        def fake_execute(payload, **_kw):
+            sent.append(str(payload.get("intent")) + ":" + str(dict(payload.get("arguments") or {}).get("sql") or ""))
+            if payload.get("intent") == "vool-database.schema":
+                return ToolIntentExecution(handled=True, ok=True, status="executed", mode="tool_executed", tool_name="vool-database.schema",
+                                           response_text="ok", user_safe_response_text="ok", details={"observation": {"tables": ["tools"]}})
+            return ToolIntentExecution(handled=True, ok=True, status="executed", mode="tool_executed", tool_name="vool-database.query",
+                                       response_text="ok", user_safe_response_text="ok",
+                                       details={"observation": {"rows": [[1, "Pavel"]], "columns": ["id", "name"]}})
+
+        agent = VoolAgent.__new__(VoolAgent)
+        agent.memory_router = Router()
+        agent._should_keep_ai_first_chat_lane = lambda **_kw: False
+        agent._should_run_builder_controller = lambda **_kw: False
+        agent._plan_tool_workflow = lambda **_kw: SimpleNamespace(handled=False, stop_after=False, next_payload=None, reason="")
+        agent.hive_activity_tracker = None
+        agent.public_hive_bridge = None
+        agent._execute_tool_intent = fake_execute
+        sid = f"openclaw:{uuid.uuid4().hex[:20]}"
+        ctx = {"surface": "api", "session_id": sid, "runtime_session_id": sid}
+        note_database_demand(ctx)
+        try:
+            result = agent._maybe_execute_model_tool_intent(
+                task=SimpleNamespace(task_id="t7"), effective_input="sorry, which neighbour lives on Oak Ave",
+                classification={"task_class": "unknown"}, interpretation=SimpleNamespace(), context_result=SimpleNamespace(),
+                persona=SimpleNamespace(), session_id=sid, source_context=ctx, surface="api",
+            )
+        finally:
+            tool_registry.reset()
+    assert any(call.startswith("vool-database.query:SELECT * FROM neighbours") for call in sent), sent
+    assert "Alice" not in str((result or {}).get("response") or "")
