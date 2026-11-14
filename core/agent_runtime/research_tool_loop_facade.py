@@ -9,6 +9,7 @@ from core import audit_logger, policy_engine
 from core.agent_runtime.orchestrator import (
     database_claims_unsupported,
     database_holding_answer,
+    database_plain_answer,
     database_rows_answer,
     synthesis_echoes_prior_reply,
 )
@@ -683,11 +684,19 @@ def _database_join_missing(question: str, steps: list[dict[str, Any]]) -> bool:
     Mac run 16i: "does Yara have anything checked out" was answered from the one members row ("Yara, joined
     2025-01-09"); the loans were never read. The ask has a ready join (`suggest_database_query`); until a query
     this turn joined, the reply is not an answer to it."""
-    if not _HOLDING_RE.search(str(question or "")):
-        return False
     suggestion = _database_call_suggestion(question).lower()
+    if not _HOLDING_RE.search(str(question or "")) and "union all" not in suggestion:
+        return False
     from core.agent_runtime.orchestrator import _HOLDING_ASK_RE
 
+    if "union all" in suggestion.lower():
+        # Run 16i (library 1): "what do I have in my library db" was answered from the books table alone. The overview is
+        # the row count of every table.
+        return not any(
+            step.get("tool_name") == "vool-database.query" and step.get("ok") is True
+            and re.search(r"\bunion\s+all\b", str(dict(step.get("arguments") or {}).get("sql") or ""), re.IGNORECASE)
+            for step in steps
+        )
     if " join " not in f" {suggestion} ":
         # "how many are out right now": the count of the rows not yet returned. A turn that never read a table
         # with a returned column answered about something else (run 16r, toolshed 5: the tools were counted).
@@ -848,6 +857,7 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
     if holding:
         return holding
     rows = database_rows_answer(used)
+    rows_plain = (database_plain_answer(question, used) if rows else "") or rows
     if not rows or _database_last_result_empty(steps):
         return ""
     text = str(reply or "")
@@ -859,12 +869,12 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
     ):
         # Run 16i (pantry 5): the read found Lentils at quantity 0 and the reply said "no items listed as out of
         # stock". A reply that says there is none, after a read that found rows, is the rows' answer.
-        return rows
+        return rows_plain
     if _ORDERED_ASK_RE.search(str(question or "")) and _listed_out_of_order(text, used):
-        return rows
+        return rows_plain
     if _reply_leaves_out_a_row(text, used):
         # Run 16i (toolshed 13): the read held Marta and Noor, the reply named Noor.
-        return rows
+        return rows_plain
     return ""
 
 
@@ -4125,6 +4135,12 @@ class ResearchToolLoopFacadeMixin:
                     final_message = (
                         "I could not get a reading of your database for that, so I have no answer to give. Nothing was "
                         "changed. Ask again, or name the table you mean."
+                    )
+                if database_rows_answer(_message_steps):
+                    final_message = (
+                        database_holding_answer(effective_input, _message_steps)
+                        or database_plain_answer(effective_input, _message_steps)
+                        or final_message
                     )
                 if database_rows_answer(_message_steps):
                     # The rows the database returned ARE the grounded answer (run 16e: "COUNT(*): 1" under an

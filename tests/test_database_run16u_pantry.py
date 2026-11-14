@@ -240,3 +240,32 @@ def test_the_database_name_used_as_a_table_is_replaced_by_the_table_that_holds_t
     db, sql = sql_with_real_table("pantry", "SELECT name, expires FROM kitchen ORDER BY expires", "no such table: kitchen")
     assert (db, sql) == ("kitchen", "SELECT name, expires FROM items ORDER BY expires")
     assert sql_with_real_table("workspace", "SELECT * FROM pantry WHERE id = 1", "no such table: pantry") == ("", "")  # nothing to tell tables apart by
+
+
+def _q(columns, rows):
+    return {"tool_name": "vool-database.query", "ok": True, "observation": {"columns": columns, "rows": rows}}
+
+
+def test_counts_overviews_and_lists_are_said_in_words() -> None:
+    from core.agent_runtime.orchestrator import database_plain_answer
+
+    assert database_plain_answer("how many books are there", [_q(["COUNT(*)"], [[5]])]) == "There are 5 books."
+    assert database_plain_answer("how many members are there", [_q(["COUNT(*)"], [[1]])]) == "There is 1 member."
+    assert database_plain_answer("count the loans", [_q(["COUNT(*)"], [[3]])]) == "The answer is 3."
+    assert database_plain_answer("what do I have in my library db", [_q(["table_name", "row_count"], [["books", 5], ["members", 3]])]) == (
+        "Your database has these tables: books (5 rows), members (3 rows)."
+    )
+    listed = database_plain_answer("how many are still out on loan", [_q(["id", "title"], [[1, "Dune"], [2, "Emma"], [3, "Ulysses"]])])
+    assert listed.startswith("3 in all:") and "- Dune" in listed and "id:" not in listed
+
+
+def test_an_overview_is_not_answered_from_one_table_alone(tmp_path, monkeypatch) -> None:
+    from core.agent_runtime.research_tool_loop_facade import _database_join_missing
+
+    import core.agent_runtime.research_tool_loop_facade as facade
+
+    monkeypatch.setattr(facade, "_database_call_suggestion", lambda _q: "name=kitchen, sql=SELECT 'items' AS table_name, COUNT(*) AS row_count FROM items UNION ALL SELECT 't', COUNT(*) FROM t")
+    one = {"tool_name": "vool-database.query", "ok": True, "arguments": {"sql": "SELECT * FROM items"}, "observation": {"rows": [[1]]}}
+    union = {**one, "arguments": {"sql": "SELECT 'items' AS table_name, COUNT(*) AS row_count FROM items UNION ALL SELECT 't', COUNT(*) FROM t"}}
+    assert _database_join_missing("what do I have in my kitchen db", [one]) is True
+    assert _database_join_missing("what do I have in my kitchen db", [one, union]) is False

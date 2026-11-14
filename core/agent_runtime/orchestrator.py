@@ -430,6 +430,51 @@ def _database_observation_message(executed_steps: list[dict[str, Any]]) -> str:
     return ""
 
 
+def database_plain_answer(question: str, executed_steps: list[dict[str, Any]]) -> str:
+    """The rows of the last successful database query as plain sentences, or "" when they do not fit that shape.
+
+    Mac run 16i (library 1, 5, 8): "COUNT(*): 1", "id: 1, title: Dune ..." and a list with no number for "how many"
+    read like a dev tool. A lone count, a table overview and a short list are said in words; anything with resolved
+    labels, truncation or many columns keeps the raw rendering (`database_rows_answer`)."""
+    for step in reversed(executed_steps):
+        if not str(step.get("tool_name") or "").startswith("vool-database."):
+            continue
+        observation = step.get("observation")
+        if str(step.get("tool_name")) != "vool-database.query" or not _step_succeeded(step) or not isinstance(observation, dict):
+            return ""
+        if observation.get("truncated") or observation.get("resolved_ids"):
+            return ""
+        columns = [str(c) for c in list(observation.get("columns") or [])]
+        rows = [list(r) for r in list(observation.get("rows") or []) if isinstance(r, (list, tuple))]
+        if not rows or any(len(r) != len(columns) for r in rows):
+            return ""
+        ask = str(question or "")
+        if len(rows) == 1 and len(columns) == 1 and isinstance(rows[0][0], (int, float)) and not isinstance(rows[0][0], bool):
+            number = rows[0][0]
+            number = int(number) if float(number).is_integer() else number
+            noun = re.search(r"\bhow\s+many\s+((?:[a-z]+\s+)??[a-z]+)\s+(?:are|is|do|does|did|have|has|were|in|on|out|there)\b", ask, re.IGNORECASE)
+            word = noun.group(1).strip() if noun else ""
+            if word and re.fullmatch(r"[A-Za-z ]{3,30}", word):
+                if number == 1:
+                    return f"There is 1 {word[:-1] if word.endswith('s') else word}."
+                return f"There are {number} {word}."
+            return f"The answer is {number}."
+        lowered = [c.lower() for c in columns]
+        if lowered == ["table_name", "row_count"]:
+            parts = [f"{name} ({count} {'row' if count == 1 else 'rows'})" for name, count in rows]
+            return "Your database has these tables: " + ", ".join(parts) + "."
+        if len(rows) > 12 or len(columns) > 5:
+            return ""
+        lines = []
+        for row in rows:
+            shown = [str(v) for c, v in zip(lowered, row, strict=False) if v not in (None, "") and not (c == "id" or c.endswith("_id")) and len(columns) > 1] \
+                or [str(v) for v in row if v not in (None, "")]
+            lines.append("- " + ", ".join(shown))
+        head = f"{len(rows)} in all:" if re.search(r"\bhow\s+many\b", ask, re.IGNORECASE) else (f"I found {len(rows)}:" if len(rows) > 1 else "I found:")
+        return head + "\n" + "\n".join(lines)
+    return ""
+
+
 def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]) -> str:
     structured = getattr(synthesis, "structured_output", None)
     if isinstance(structured, dict):
