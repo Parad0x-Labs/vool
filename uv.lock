@@ -4577,7 +4577,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'models'", specifier = ">=4.48" },
     { name = "transformers", marker = "extra == 'runtime'", specifier = ">=4.48" },
     { name = "uvicorn", specifier = ">=0.30,<1.0" },
-    { name = "x402", extras = ["evm"], marker = "extra == 'x402'", specifier = "==2.25.0" },
+    { name = "x402", extras = ["evm"], marker = "extra == 'x402'", specifier = "==2.28.0" },
     { name = "xlrd", specifier = "==2.0.2" },
     { name = "xxhash", marker = "extra == 'companion'", specifier = ">=3.4.0" },
     { name = "xxhash", marker = "extra == 'runtime'", specifier = ">=3.4.0" },
@@ -4657,16 +4657,16 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "2.25.0"
+version = "2.28.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "nest-asyncio" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/dc/1dfb1f568c5a635d1312f21ba5bd7eadca3b6996fd03c0e68820aca11d59/x402-2.25.0.tar.gz", hash = "sha256:bd3ce10d1baa9c91dbd89a0517b135e28641cfbfcc26df01276c1fc0c6ed6e82", size = 2140579, upload-time = "2026-09-29T19:36:31.703Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/05/372a039dbc3cfd0b21c13c2ab1a2252c3d30870cd86cb1fcf1d6da777fc8/x402-2.28.0.tar.gz", hash = "sha256:45791cc8b1c16ad63d759d32f09770719807530693d8535a8a45fbfdc4e94bc7", size = 2411732, upload-time = "2026-11-12T22:19:20.854Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fd/0b/a3409d3d96ed71253978623eba3c93381bc7d74457227e3e4e7a4f960ac8/x402-2.25.0-py3-none-any.whl", hash = "sha256:ce813932133db263fb8501d4aafedc9fd665dfbc67a9e98a5dc86acb79da9485", size = 2278713, upload-time = "2026-09-29T19:36:29.27Z" },
+    { url = "https://files.pythonhosted.org/packages/33/d4/3ff679406cde9773ef9eee22900a5961fa317ba60de899aad03507a1041c/x402-2.28.0-py3-none-any.whl", hash = "sha256:67e6704c075f93cd7e4a4339ee89feb58c9276ba4e7edf2e27c5758797170bc0", size = 2575554, upload-time = "2026-11-12T22:19:18.568Z" },
 ]
 
 [package.optional-dependencies]
