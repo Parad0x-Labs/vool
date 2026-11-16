@@ -523,6 +523,12 @@ _LINES: dict[str, dict[str, str]] = {
         "database_read": "I haven't read your database in this reply. Ask me again and I'll run the query.",
         "contacts_read": "I haven't looked in your contacts. Ask me to look them up and I'll check.",
         "memory": "Nothing was saved: no tool stored it. Ask me to save it as a note and I'll keep it.",
+        "memory_none": "Nothing from this message was saved to memory. Say \"remember that ...\" with the fact and I'll keep it.",
+        "memory_refused_secret": "I didn't save that. VOOL never keeps PINs, card numbers or passwords in memory, so I won't be able to tell you later.",
+        "memory_refused_private_chat": "I didn't save that: this is a private chat, and nothing said here is kept.",
+        "memory_refused_agent_turn": "I didn't save that: this chat belongs to a team agent. Say it in your own chat and I'll remember it.",
+        "memory_refused_forgotten_here": "I didn't save that: you asked me to forget it in this chat. In a new chat I can remember it again.",
+        "memory_kept": "Saved to memory: {facts}.",
         "generic": "Nothing was done yet: no tool ran for this request. Ask again and I'll do it with the right tool.",
     },
     "fr": {
@@ -711,6 +717,157 @@ def no_action_reply(
     return "\n\n".join(table[k] for k in dict.fromkeys(keys))
 
 
+# ---- the turn's keep receipt -------------------------------------------------------------------
+# A save claim is held to what the turn's keep step wrote (core.memory.keep_receipt), not to the reply's wording
+# alone and not to "some tool ran". The wording below only FINDS the sentences; the receipt decides them.
+#
+# Measured (the diagnosis probes of 2026-11-16, 18 save-style replies of a model that wrote nothing): `_MEMORY_CLAIM`
+# read 2. These are the other ways a reply says a thing is now kept. They are read only on a turn whose receipt
+# holds no write, where every one of them is untrue; with a write on the receipt they are never looked for.
+_RETENTION_CLAIM = re.compile(
+    r"\b(?:i" + _A + r"ll|i will|i" + _A + r"m going to|i am going to|i" + _A + r"ve|i have|i" + _A + r"m|i am|i)\s+"
+    r"(?:(?:also|now|just|already|definitely|certainly|safely)\s+)*"
+    r"(?:keep(?:ing)?|kept|hold(?:ing)?|held|hang(?:ing)?|hung|have|got|log(?:ged)?|filed?|jot(?:ted)?|tuck(?:ed)?"
+    r"|record(?:ed)?|not(?:e|ed)|sav(?:e|ed|ing)|stor(?:e|ed|ing)|remember(?:ed|ing)?|add(?:ed)?|put|lock(?:ed)?)\b"
+    r"[^.?!\n]{0,60}?\b(?:safe|on file|in (?:my |your )?memory|for (?:you|later|next time|future reference)"
+    r"|on (?:the|your) list|track of|in mind|on ?to (?:that|this|it)|(?:that|this|it) down|locked in)\b"
+    r"|\b(?:it|that|this|everything|your [^.?!\n]{1,40}?)[\"”’']?(?:" + _A + r"s| is| are| has been| have been| was)\s+"
+    r"(?:now\s+|all\s+|safely\s+)?(?:saved|stored|remembered|noted|kept|on file|logged|filed|recorded|locked in"
+    r"|in (?:my )?memory)\b"
+    r"|\b(?:consider it|got it|all)\s+(?:remembered|saved|stored|noted|logged|filed)\b"
+    r"|^(?:logged|filed away|locked in|kept safe)\b",
+    re.I,
+)
+
+
+_DENIES_OR_OFFERS = re.compile(
+    r"\b(?:not|never|nothing|no|none|cannot|unable|without|if you|once you|want me to|would you like|should i|shall i"
+    r"|i can|i could|you can|you could|let me know|tell me|ask me)\b|n" + _A + r"t\b",
+    re.I,
+)
+
+
+def _keep_receipt(turn_id: str, source_context: Any) -> dict[str, Any] | None:
+    try:
+        from core.memory.keep_receipt import receipt_for
+
+        return receipt_for(source_context, turn_id)
+    except Exception:
+        return None
+
+
+def _retention_spans(
+    content: str, known: set[tuple[int, int, int]], *, asked_about_a_save: bool = False
+) -> list[tuple[int, int, int, str, str, str]]:
+    """Sentences that say something is now kept, in the wider wording, as memory claims.
+
+    When the person's own message asks about a save ("so that's saved now, right?"), a sentence of the reply that
+    uses the save words without denying or hedging is the answer to that question, whatever its grammar (measured on
+    the real app, local model: `Whatever you meant by "that" is saved -- just as you said.`)."""
+    raw = str(content or "")
+    lines = raw.split("\n")
+    memory_words = dict(_SOURCES)["memory"]
+    found: list[tuple[int, int, int, str, str, str]] = []
+    for index, masked in _readable_lines(raw):
+        for a, b in _sentence_spans(masked):
+            sentence = masked[a:b].strip()
+            if (index, a, b) in known or not sentence or sentence.rstrip().endswith("?"):
+                continue
+            body = _LEAD_FILLER.sub("", _ABBREVIATION.sub(r"\1", sentence)).strip(" *_")
+            if asked_about_a_save and memory_words.search(body) and not _DENIES_OR_OFFERS.search(sentence):
+                # The answer to the person's own question. "... is saved, just as you said" relays nothing: the
+                # relay and hedge exemptions below are for a reply to some other ask.
+                pass
+            elif _NOT_A_CLAIM.search(sentence) or _ATTRIBUTION.search(sentence) or not _RETENTION_CLAIM.search(body):
+                continue
+            if [name for name, words in _SOURCES if name != "memory" and words.search(sentence)]:
+                continue  # "I've kept it on your calendar" is that source's claim, judged by its own evidence
+            found.append((index, a, b, lines[index][a:b].strip(), "action", "memory"))
+    return found
+
+
+def _tools_ran(source_context: Any) -> bool:
+    """Whether a tool or an effect ran this turn. A retrieval or a read alone is not a save and vouches for none."""
+    try:
+        from core.turn_model_call_ledger import turn_call_accounting
+
+        if turn_call_accounting(source_context).get("tools"):
+            return True
+    except Exception:
+        return True
+    try:
+        from core.effect_gateway import effect_receipts
+
+        if effect_receipts():
+            return True
+    except Exception:
+        return True
+    if isinstance(source_context, dict):
+        if source_context.get("runtime_tool_observations"):
+            return True
+        try:
+            from core.model_own_tools import turn_stamped
+
+            if turn_stamped(source_context):
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def _quoted_facts(facts: list[str]) -> str:
+    return "; ".join('"' + str(fact).rstrip(".!? ") + '"' for fact in facts[:3])
+
+
+def _judge_by_receipt(
+    text: str,
+    spans: list[tuple[int, int, int, str, str, str]],
+    receipt: dict[str, Any],
+    *,
+    source_context: Any,
+    language: str,
+    request: str = "",
+) -> tuple[str, list[tuple[int, int, int, str, str, str]], dict[str, Any]] | None:
+    """Hold the reply's save claims to the turn's receipt.
+
+    Returns (reply, the claims still to be judged by the ordinary evidence, record), or None when the receipt has
+    nothing to say about this reply. With a write on the receipt the save claims are true and stand; a reply that
+    never mentions the save gets one line naming what was kept. With no write, every save claim is cut and one plain
+    line says nothing was saved -- or why the write was refused."""
+    table = _LINES["en"] if language not in _LINES or "memory_none" not in _LINES[language] else _LINES[language]
+    saved = [str(f) for f in receipt.get("saved") or [] if str(f).strip()]
+    refused = [str(r) for r in receipt.get("refused") or [] if f"memory_refused_{r}" in table]
+    memory = [c for c in spans if c[5] == "memory"]
+    rest = [c for c in spans if c[5] != "memory"]
+    if saved:
+        if memory or not receipt.get("in_passing"):
+            return text, rest, {"memory_receipt": "claims_match_receipt", "kept": len(saved)}
+        line = table["memory_kept"].format(facts=_quoted_facts(saved))
+        return f"{text.rstrip()}\n\n{line}", rest, {"memory_receipt": "kept_line_added", "kept": len(saved)}
+    wide = _retention_spans(
+        text, {(c[0], c[1], c[2]) for c in spans},
+        asked_about_a_save=bool(request and dict(_SOURCES)["memory"].search(request)),
+    )
+    claimed = memory + wide
+    if not claimed:
+        # No save is claimed. A write refused on a turn that never asked for one (a fact said in passing in a
+        # private chat) needs no line; an explicit ask is answered by the memory lane itself, in its own words.
+        return None
+    if not refused and _tools_ran(source_context):
+        # A tool ran: what the reply calls saved may be what that tool kept (a note, a to-do, the profile).
+        return None
+    line = table[f"memory_refused_{refused[0]}"] if refused else table["memory_none"]
+    remainder = _without_claims(text, {(c[0], c[1], c[2]) for c in claimed})
+    if remainder == text.strip():
+        return None  # nothing could be cut: never add a correction under a claim that stays
+    published = f"{remainder}\n\n{line}" if remainder else line
+    return published, rest, {
+        "memory_receipt": "refused_said_plainly" if refused else "claims_without_receipt_corrected",
+        "claimed_sentences": [c[3] for c in claimed][:6],
+        "refused": refused,
+    }
+
+
 # ---- evidence ----------------------------------------------------------------------------------
 
 
@@ -804,6 +961,26 @@ def gate_action_claims(
         # planner call earlier in the turn is not a model writing them.
         return text, {"publication": "stood_down:recorded_runtime_render"}
     spans = _claim_spans(text)
+    receipt = _keep_receipt(turn_id, source_context)
+    receipt_record: dict[str, Any] = {}
+    if receipt is not None:
+        judged = _judge_by_receipt(
+            text, spans, receipt, source_context=source_context, language=reply_language(text),
+            request=str(request_text or "") or recorded_request,
+        )
+        if judged is not None:
+            text, spans, receipt_record = judged
+            if not spans:
+                corrected = receipt_record.get("memory_receipt") in {"refused_said_plainly", "claims_without_receipt_corrected"}
+                return text, {
+                    **receipt_record,
+                    **({"action_claims": ["memory"]} if corrected else {}),
+                    "publication": "action_claims_corrected" if corrected else "stood_down:memory_receipt",
+                }
+            # The reply changed: the other sources' sentences are read again where they now stand.
+            spans = [c for c in _claim_spans(text) if c[5] != "memory"]
+            if not spans:
+                return text, {**receipt_record, "publication": "stood_down:memory_receipt"}
     if not spans:
         return text, {"publication": "stood_down:no_action_claims"}
     claims = [(c[3], c[4], c[5]) for c in spans]

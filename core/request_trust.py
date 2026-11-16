@@ -123,6 +123,9 @@ RESERVED_TRUST_KEYS = (
     # A caller-written marker would let a client switch the reply guard off.
     "_user_rules_command",
     "_secret_intake_consumed",
+    # core.memory.keep_receipt: what the turn's keep step wrote and refused. A caller-written receipt would let a
+    # client vouch for a save that never happened.
+    "_memory_keep_receipt",
     "access_policy",
     "context_access_policy",
     "_context_access_policy",

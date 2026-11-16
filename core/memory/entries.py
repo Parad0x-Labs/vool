@@ -831,11 +831,15 @@ def add_memory_fact(
 ) -> bool:
     _ensure_memory_files()
     clean = sanitize_fact(fact)
-    if not clean or contains_secret(clean):
+    from core.memory import keep_receipt
+
+    if not clean:
         return False
-    if _REDACTION_MARK_RE.search(clean):
-        # The shell of a secret ("My card PIN is [redacted]") is nothing to remember, whichever writer found it
-        # (measured on the v0.7.1 Mac smoke: the background dialogue writer kept it on the real-model path).
+    if contains_secret(clean) or _REDACTION_MARK_RE.search(clean):
+        # A secret, or its shell ("My card PIN is [redacted]"), is nothing to remember, whichever writer found it
+        # (measured on the v0.7.1 Mac smoke: the background dialogue writer kept it on the real-model path). The
+        # turn's receipt says a write was refused, so no reply beside it can claim a save.
+        keep_receipt.note_refused(keep_receipt.REFUSED_SECRET)
         return False
     clean_session = str(
         session_id
@@ -896,6 +900,7 @@ def add_memory_fact(
     # eligible for provider context without structured provenance.
     with _entry_lock():
         _rewrite_memory_mirror_locked()
+    keep_receipt.note_saved(clean)
     return True
 
 

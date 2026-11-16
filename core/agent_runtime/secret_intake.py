@@ -235,10 +235,17 @@ _STATEMENT_LEAD_RE = re.compile(
     r"^(?:please\s+)?(?:remember|note|save|store|keep\s+in\s+mind|don'?t\s+forget|memori[sz]e)(?:\s+that)?\s+",
     re.IGNORECASE,
 )
-# "..., please remember it." once the secret's clause is gone: the ask only points back at the secret.
+# "..., please remember it." once the secret's clause is gone: the ask only points back at the secret. Read from
+# its shape -- one verb, with its particle, whose whole object is a pointer -- not from a list of keep verbs.
+# Measured on the real app (94ce6169, c3c3b8c2): "My phone unlock passcode is ..., keep it for me." left "keep it for
+# me.", which the memory lane saved as the row "it for me." with "Locked in" beside the refusal; "..., hold on to it
+# for me." left an ask the model answered "I've got it". A question ("is it safe?") is an ask of its own and stays.
 _BACK_REFERENCE_RE = re.compile(
-    r"^(?:please\s+)?(?:(?:remember|note|save|store|memori[sz]e|don'?t\s+forget)\s+(?:it|that|this|them|those)"
-    r"|keep\s+(?:it|that|this|them|those)\s+in\s+mind)(?:\s+for\s+me)?(?:,?\s+please)?\s*[.!?]*$",
+    r"^(?:and\s+|so\s+)?(?:please\s+|pls\s+|can\s+you\s+|could\s+you\s+|just\s+)*(?:don'?t\s+|do\s+not\s+)?"
+    r"(?!(?:is|are|was|were|do|does|did|can|could|will|would|should|shall|has|have|had|what|why|how|where|when|who)\b)"
+    r"[a-z]+(?:\s+(?:on\s+to|onto|on|up|down|hold\s+of|track\s+of))?\s+(?:it|that|this|them|those|these)"
+    r"(?:\s+(?:for\s+me|for\s+later|in\s+mind|down|safe|somewhere(?:\s+safe)?|handy|please|pls|too|ok|okay|thanks))*"
+    r"\s*[.!]*$",
     re.IGNORECASE,
 )
 _PERSONAL_MARKERS = ("[redacted]", "[redacted-card-number]")

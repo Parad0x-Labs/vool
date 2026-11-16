@@ -2853,6 +2853,13 @@ class VoolAgent(
         if isinstance(runtime_source_context, dict) and raw_turn_text.strip():
             runtime_source_context.setdefault("_typed_user_text", raw_turn_text)
 
+        # THE KEEP STEP, after the secret intake (a carved credential is never read) and before every lane, planner
+        # and model: what the person states about their own life is saved now and recorded on the turn's receipt,
+        # which is what any save claim in the reply is later held to.
+        agent_memory_runtime.keep_what_the_turn_states(
+            raw_turn_text, session_id=session_id, source_context=runtime_source_context, access_policy=access_policy,
+        )
+
         prune_stale_hive_interaction_state(session_id)
         self._emit_runtime_event(
             source_context,

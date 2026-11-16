@@ -13,12 +13,19 @@ def maybe_handle_memory_fast_path(
     access_policy: Any | None = None,
     maybe_handle_memory_command_fn: Any,
 ) -> dict[str, Any] | None:
-    handled, response = maybe_handle_memory_command_fn(
-        user_input,
-        session_id=session_id,
-        access_policy=access_policy,
-        source_context=source_context,
-    )
+    # What the memory lane writes and refuses is recorded on the turn's receipt, beside what the keep step wrote at
+    # the turn's start (`keep_what_the_turn_states`). Finalization holds every save claim of the reply to that
+    # receipt, not to the reply's wording (core.memory.keep_receipt, core.action_claim_gate).
+    from core.memory import keep_receipt
+
+    with keep_receipt.collecting() as receipt:
+        handled, response = maybe_handle_memory_command_fn(
+            user_input,
+            session_id=session_id,
+            access_policy=access_policy,
+            source_context=source_context,
+        )
+    keep_receipt.stamp(source_context, receipt)
     if handled:
         response = _gate_memory_response(response, session_id, source_context)
         result = agent._fast_path_result(
@@ -42,6 +49,46 @@ def maybe_handle_memory_fast_path(
     if isinstance(result, dict) and "response" in result:
         return {**result, "response": _gate_memory_response(result["response"], session_id, source_context)}
     return result
+
+
+def keep_what_the_turn_states(
+    user_text: str,
+    *,
+    session_id: str,
+    source_context: dict[str, object] | None,
+    access_policy: Any | None = None,
+) -> None:
+    """THE KEEP STEP: what the person states about their own life in this message is written to saved memory now,
+    at the turn's start -- before any lane, planner or model answers -- and recorded on the turn's receipt.
+
+    Measured on the real app (the step build before this function, local model): run from the memory door, the
+    keep step never saw "I'm allergic to starfruit, by the way. What fruit goes well ...": the turn was answered in
+    parts by a path that does not pass that door, the reply said the statement "cannot be answered", and no row was
+    written. The turn's start is the one place every answered turn passes.
+
+    A turn the memory lane will take itself (its commands, an open list's item, an update to a saved fact) is left
+    to it, so one fact is never written twice under two rules. A turn that may not act writes nothing. The step
+    never ends a working turn: on a fault the receipt holds no write, and the reply is held to that."""
+    from core.memory import keep_receipt
+
+    text = str(user_text or "").strip()
+    context = source_context if isinstance(source_context, dict) else {}
+    if not text or str(context.get("action_policy") or "").strip().lower() == "forbidden":
+        return
+    with keep_receipt.collecting() as receipt:
+        try:
+            from core.persistent_memory import everyday_memory_turn, keep_stated_facts, memory_command_owns_turn
+
+            if not (memory_command_owns_turn(text)
+                    or everyday_memory_turn(text, session_id=session_id, source_context=context)):
+                receipt.in_passing = keep_stated_facts(
+                    text, session_id=session_id, access_policy=access_policy, source_context=context
+                ) > 0
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("keep step failed; nothing was kept from this turn")
+    keep_receipt.stamp(source_context, receipt)
 
 
 def _gate_memory_response(response, session_id, source_context):

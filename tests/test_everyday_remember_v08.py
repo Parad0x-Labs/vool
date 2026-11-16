@@ -83,7 +83,8 @@ def test_a_list_stays_open_only_across_statements():
     opener = "few things to remember for me: my locker is 214"
     assert everyday.list_is_open(["also our cat is called Brindle", opener])
     assert not everyday.list_is_open(["can you tell me a joke", opener])
-    assert not everyday.list_is_open(["what's the capital of Peru?", opener])
+    # A question on the way is answered and the list goes on; a request for something else (above) closes it.
+    assert everyday.list_is_open(["what's the capital of Peru?", opener])
 
 
 @pytest.mark.parametrize(

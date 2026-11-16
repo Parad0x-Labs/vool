@@ -136,6 +136,7 @@ __all__ = [
     "describe_session_memory_policy",
     "ensure_memory_files",
     "everyday_memory_turn",
+    "keep_stated_facts",
     "flush_staged_conversation_events",
     "forget_memory",
     "has_relevant_memory_candidate",
@@ -2532,9 +2533,10 @@ def _chat_earlier_user_turns(session_id: str | None) -> list[str]:
 
 
 def _everyday_decision(text: str, *, session_id: str | None, access_policy: ContextAccessPolicy | None):
-    """(lead, policy, replaced) when this turn is the everyday lane's -- a lead, a fact inside the list a lead
-    opened, or an update to a fact that is saved -- else None. Reads the chat's earlier turns and the saved
-    entries; writes nothing."""
+    """(lead, policy, replaced, list_subject) when this turn is the everyday lane's -- a lead, a fact inside the
+    list a lead opened, or an update to a fact that is saved -- else None. `list_subject` is what the open list is
+    for when its lead named it ("for my kayak trip"), else "". Reads the chat's earlier turns and the saved entries;
+    writes nothing."""
     from core.memory import everyday_remember as everyday
 
     if _CORRECTION_RE.match(text) or _FORGET_RE.match(text) or whole_memory_erase_request(text) or "\n" in text:
@@ -2548,7 +2550,8 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
     if lead is not None and lead.fact and _ANSWER_REQUEST_RE.search(lead.fact):
         return None
     earlier_turns = _chat_earlier_user_turns(session_id) if lead is None else []
-    listed = lead is None and everyday.list_statement(text, earlier_turns) and everyday.list_is_open(earlier_turns)
+    opened = everyday.open_list(earlier_turns) if lead is None and everyday.list_item(text, earlier_turns) else None
+    listed = opened is not None
     update = lead is None and not listed and everyday.update_shaped(text) and not everyday.retracts_or_corrects(text)
     if lead is None and not listed and not update:
         return None
@@ -2566,7 +2569,7 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
             replaced = everyday.updated_entry(lead.fact if lead is not None else text, saved)
     if update and replaced is None:
         return None  # an update to nothing saved is ordinary conversation
-    return lead, policy, replaced
+    return lead, policy, replaced, (opened.subject if opened is not None else "")
 
 
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
@@ -2605,17 +2608,24 @@ def _everyday_remember_turn(
     decided = _everyday_decision(text, session_id=session_id, access_policy=access_policy)
     if decided is None:
         return None
-    lead, policy, replaced = decided
+    lead, policy, replaced, list_subject = decided
+    from core.memory import keep_receipt
     from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
     from core.request_trust import turn_speaks_for_owner
 
     if turn_is_private(source_context, policy.chat_id):
+        keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
         return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
     if not turn_speaks_for_owner(source_context, policy.chat_id):
+        keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return True, AGENT_TURN_REMEMBER_REFUSED
     if lead is not None and not lead.fact:
         return True, EVERYDAY_LIST_OPENED
     said = lead.fact if lead is not None else everyday.strip_continuation(text)
+    if lead is None and list_subject and replaced is None:
+        # An item of a list the person named ("Remember these for my kayak trip: ...") is kept under that name:
+        # "a spare paddle leash" alone says nothing about what it is for.
+        said = f"{list_subject}: {said}"
     if replaced is not None:
         old = " ".join(str(replaced.get("fact") or replaced.get("text") or "").split())
         body = everyday.update_body(said) or said
@@ -2629,6 +2639,7 @@ def _everyday_remember_turn(
                 access_policy=policy,
             )
         except RevokedContentWrite:
+            keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
             return True, ("You asked me to forget that in this chat, so I won't keep it here. "
                           "In a new chat I can remember it again.")
         return (True, EVERYDAY_UPDATE_SAVED.format(fact=body.rstrip('.'))) if kept else None
@@ -2639,11 +2650,59 @@ def _everyday_remember_turn(
                 added += int(add_memory_fact(" ".join(fact.split()), session_id=policy.chat_id, scope=scope,
                                              authority="confirmed_memory", source=source, access_policy=policy))
     except RevokedContentWrite:
+        keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
         return True, ("You asked me to forget that in this chat, so I won't keep it here. "
                       "In a new chat I can remember it again.")
     if added:
         return True, "Locked in. I’ll remember that."
     return (True, "I already had that in memory.") if lead is not None else None
+
+
+def keep_stated_facts(
+    text: str,
+    *,
+    session_id: str | None,
+    access_policy: ContextAccessPolicy | None = None,
+    source_context: Mapping[str, Any] | None = None,
+) -> int:
+    """The keep step of a turn the memory lane did not answer: what the person states about their own life in
+    passing is written now, before any model answers, through the same admission, scope rule, secret refusal and
+    forget fence as "Remember that ...". Returns how many rows were written; the writes and the refusals are on the
+    turn's receipt (`core.memory.keep_receipt`), which is what the reply is later held to.
+
+    Nothing is written from a private chat, a team agent's brief, a turn that may not act, or a turn whose memory is
+    switched off; a question, a request and pasted material state nothing (`everyday_remember.stated_facts`)."""
+    from core.memory import everyday_remember as everyday
+    from core.memory import keep_receipt
+
+    clean = str(text or "").strip()
+    if not clean or _memory_persistence_suppressed(dict(source_context or {}), session_id):
+        return 0
+    facts = everyday.stated_facts(clean)
+    if not facts:
+        return 0
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
+    except (TypeError, ValueError):
+        return 0
+    from core.private_chat import turn_is_private
+    from core.request_trust import turn_speaks_for_owner
+
+    if turn_is_private(source_context, policy.chat_id):
+        keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
+        return 0
+    if not turn_speaks_for_owner(source_context, policy.chat_id):
+        keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
+        return 0
+    added = 0
+    for stated in facts:
+        try:
+            for fact, scope, source in _admitted_remember_facts(stated, policy=policy):
+                added += int(add_memory_fact(" ".join(fact.split()), session_id=policy.chat_id, scope=scope,
+                                             authority="confirmed_memory", source=source, access_policy=policy))
+        except RevokedContentWrite:
+            keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
+    return added
 
 
 #: The answer to a "remember" a team agent's brief carries: the brief is not the owner speaking.
@@ -2686,6 +2745,16 @@ def maybe_handle_memory_command(
     if capture_match and _ANSWER_REQUEST_RE.search(capture_match.group("fact")):
         return False, ""
     if capture_match:
+        from core.memory.everyday_remember import points_back_only
+
+        # The verb's own "that" / "this" ("store THIS somewhere safe") is the object when nothing else follows it.
+        _capture_verb = str(capture_match.group("verb") or "").split()
+        _capture_object = " ".join(_capture_verb[1:] + [str(capture_match.group("fact") or "")])
+        if points_back_only(_capture_object):
+            # "keep it for me": the object only points back at something said before, so there is no fact here to
+            # keep (measured: beside a refused passcode it was saved as the row "it for me." with "Locked in"). The
+            # turn is not this lane's; whoever answers it is held to the turn's receipt, which holds no write.
+            return False, ""
         # "Keep the existing tasks intact. Change only index.html." constrains an edit; it does not
         # ask to store a fact. Stored, the edit was answered with "I'll remember that" and no edit.
         from core.agent_runtime.build_request_intent import is_preservation_constraint
@@ -2713,13 +2782,17 @@ def maybe_handle_memory_command(
         # "remember" included. Said plainly instead of claiming a save that never happens.
         from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
 
+        from core.memory import keep_receipt
+
         if turn_is_private(source_context, session_id):
+            keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
             return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
         # A team agent's turn carries the orchestrator's brief, not the owner speaking: a "remember" in it
         # would file the brief as the owner's fact (core.request_trust.turn_speaks_for_owner).
         from core.request_trust import turn_speaks_for_owner
 
         if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
             return True, AGENT_TURN_REMEMBER_REFUSED
     independent_groups: list[list[Any]] = []
     parsed_forget = _FORGET_RE.match(text)
@@ -2953,6 +3026,9 @@ def maybe_handle_memory_command(
                     # The forget law holds in this chat; it is an answer, not a failed turn (measured 2026-10-14:
                     # saying a forgotten fact again here ended the turn with HTTP 500).
                     refused = True
+                    from core.memory import keep_receipt
+
+                    keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
         if refused:
             kept = "Locked in for the rest. " if added_count else ""
             return True, (kept + "You asked me to forget that in this chat, so I won't keep it here. "
