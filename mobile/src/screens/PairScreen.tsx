@@ -15,6 +15,8 @@ import { generateDeviceKeypair, keypairFromSeed } from "../protocol/ed25519.ts";
 import { claimSealedPairing } from "../protocol/sealed.ts";
 import { credentialStoreForEnvironment } from "../store/credentials.ts";
 import {prepareApprovalKey, deleteApprovalKey} from "../security/approvalKey.ts";
+import {C} from "../ui/theme.ts";
+import Face from "../ui/Face.tsx";
 
 interface Props {
   onPaired: (creds: DeviceCredentials) => void | Promise<void>;
@@ -173,30 +175,31 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     return () => clearTimeout(timer);
   }, [connecting]);
   if (connecting) return <Frame style={styles.connecting}>
-    <ActivityIndicator color="#edece7" size="large" />
+    <ActivityIndicator color={C.ink} size="large" />
     <Text style={styles.connectingText}>{tr("Connecting to your computer…")}</Text>
     {slow && awayAddress ? <Text style={styles.connectingHint}>{tr("Looking for your computer, at home and away. Away from home this can take a minute.")}</Text> : null}
   </Frame>;
 
   return (
     <Frame><ScrollView style={[styles.root,{direction:rightToLeft()?"rtl":"ltr"}]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <View style={styles.face}><Face size={124} /></View>
       <Text style={styles.title}>{tr("Pair a phone")}</Text>
       <Text style={styles.hint}>
         {tr("On your computer, open Settings, choose Phone and chat apps, then Pair a phone. Scan its code or enter the details below.")}</Text>
-      <Pressable style={styles.scanButton} android_ripple={{color: "rgba(17,19,20,0.12)"}} onPress={() => void startScanning()}>
-        <Icon name="qrcode-scan" size={20} color="#111314" />
+      <Pressable style={styles.scanButton} android_ripple={{color: C.rippleDark}} onPress={() => void startScanning()}>
+        <Icon name="qrcode-scan" size={20} color={C.sendInk} />
         <Text style={styles.scanButtonText}>{tr("Scan pairing QR")}</Text>
       </Pressable>
       {error && !manual ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.advanced} accessibilityRole="button" accessibilityState={{expanded: manual}} onPress={() => setManual(value => !value)}>
         <Text style={styles.advancedText}>{tr("Advanced")}</Text>
-        <Icon name={manual ? "chevron-up" : "chevron-down"} size={20} color="#868b90" />
+        <Icon name={manual ? "chevron-up" : "chevron-down"} size={20} color={C.mute} />
       </Pressable>
       {manual ? <View>
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Computer address")}
-        placeholderTextColor="#868b90"
+        placeholderTextColor={C.mute}
         autoCapitalize="none"
         autoCorrect={false}
         value={desktopUrl}
@@ -205,7 +208,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Pairing ID")}
-        placeholderTextColor="#868b90"
+        placeholderTextColor={C.mute}
         autoCapitalize="none"
         value={pairingId}
         onChangeText={setPairingId}
@@ -213,7 +216,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input, styles.codeInput]}
         placeholder={tr("8-character code")}
-        placeholderTextColor="#868b90"
+        placeholderTextColor={C.mute}
         autoCapitalize="characters"
         value={code}
         onChangeText={setCode}
@@ -221,7 +224,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Computer check code")}
-        placeholderTextColor="#868b90"
+        placeholderTextColor={C.mute}
         autoCapitalize="none"
         autoCorrect={false}
         value={fingerprint}
@@ -230,13 +233,13 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Device name")}
-        placeholderTextColor="#868b90"
+        placeholderTextColor={C.mute}
         value={deviceName}
         onChangeText={setDeviceName}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={pair} disabled={busy}>
-        {busy ? <ActivityIndicator color="#edece7" /> : <Text style={styles.buttonText}>{tr("Pair")}</Text>}
+        {busy ? <ActivityIndicator color={C.sendInk} /> : <Text style={styles.buttonText}>{tr("Pair")}</Text>}
       </Pressable>
       </View> : null}
       <Text style={styles.footnote}>
@@ -246,25 +249,26 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#111314" },
-  content: { padding: 20, paddingTop: 36, paddingBottom: 40 },
-  title: { color: "#edece7", fontSize: 30, fontWeight: "600", marginBottom: 10 },
-  hint: { color: "#bfc2c4", fontSize: 15, lineHeight: 22, marginBottom: 22 },
-  scanButton: { backgroundColor: "#edece7", borderRadius: 28, overflow: "hidden", minHeight: 56, padding: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, marginBottom: 12 },
-  scanButtonText: { color: "#111314", fontWeight: "700", fontSize: 16 },
-  input: { backgroundColor: "#1f2224", color: "#edece7", borderRadius: 16, padding: 14, marginBottom: 12, fontSize: 15 },
+  root: { flex: 1, backgroundColor: C.bg },
+  content: { padding: 22, paddingTop: 40, paddingBottom: 40 },
+  face: { alignItems: "center", marginBottom: 6 },
+  title: { color: C.ink, fontSize: 30, fontWeight: "700", letterSpacing: -0.6, marginBottom: 10, textAlign: "center" },
+  hint: { color: C.soft, fontSize: 15, lineHeight: 22, marginBottom: 26, textAlign: "center" },
+  scanButton: { backgroundColor: C.send, borderRadius: 28, overflow: "hidden", minHeight: 56, padding: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, marginBottom: 12 },
+  scanButtonText: { color: C.sendInk, fontWeight: "700", fontSize: 16 },
+  input: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, color: C.ink, borderRadius: 16, padding: 14, marginBottom: 12, fontSize: 15 },
   codeInput: { letterSpacing: 3, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  error: { color: "#d86a56", marginBottom: 12, fontSize: 13 },
-  button: { backgroundColor: "#26292c", borderRadius: 28, padding: 16, alignItems: "center" },
-  buttonText: { color: "#edece7", fontWeight: "600", fontSize: 16 },
-  footnote: { color: "#868b90", fontSize: 12, lineHeight: 18, marginTop: 18, textAlign: "center" },
+  error: { color: C.bad, marginBottom: 12, fontSize: 13 },
+  button: { backgroundColor: C.send, borderRadius: 28, padding: 16, alignItems: "center" },
+  buttonText: { color: C.sendInk, fontWeight: "600", fontSize: 16 },
+  footnote: { color: C.mute, fontSize: 12, lineHeight: 18, marginTop: 18, textAlign: "center" },
   advanced: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 48, marginBottom: 8 },
-  advancedText: { color: "#868b90", fontSize: 14, fontWeight: "600" },
+  advancedText: { color: C.mute, fontSize: 14, fontWeight: "600" },
   connecting: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 18 },
-  connectingText: { color: "#edece7", fontSize: 18, fontWeight: "600", textAlign: "center" },
-  connectingHint: { color: "#bfc2c4", fontSize: 14, lineHeight: 21, textAlign: "center" },
+  connectingText: { color: C.ink, fontSize: 18, fontWeight: "600", textAlign: "center" },
+  connectingHint: { color: C.soft, fontSize: 14, lineHeight: 21, textAlign: "center" },
   scanRoot: { flex: 1, backgroundColor: "#000" },
-  scanFrame: { position: "absolute", left: 40, right: 40, top: 140, bottom: 260, borderWidth: 2, borderColor: "#edece7", borderRadius: 24 },
+  scanFrame: { position: "absolute", left: 40, right: 40, top: 140, bottom: 260, borderWidth: 2, borderColor: C.ink, borderRadius: 24 },
   scanCancel: { position: "absolute", bottom: 60, alignSelf: "center", padding: 12 },
-  scanCancelText: { color: "#edece7", fontSize: 16 },
+  scanCancelText: { color: C.ink, fontSize: 16 },
 });
