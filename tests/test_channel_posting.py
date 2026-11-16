@@ -185,7 +185,9 @@ class ChannelPostingTests(unittest.TestCase):
         agent = VoolAgent(backend_name="test-backend", device="openclaw-test", persona_id="default")
         agent.start()
         before = _count_learning_shards()
-        with mock.patch(
+        # The developer bridge (relay mirror) is what this fast path queues to; a normal install with no
+        # chat app connected is told where to connect instead (tests/channels/test_chat_apps_easy_setup.py).
+        with mock.patch.dict("os.environ", {"VOOL_MIRROR_URL": "http://127.0.0.1:8787"}), mock.patch(
             "core.agent_runtime.agent.dispatch_outbound_post_intent",
             return_value=ChannelPostDispatchResult(
                 ok=True,

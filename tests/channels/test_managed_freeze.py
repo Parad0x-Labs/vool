@@ -20,7 +20,8 @@ def test_private_bound_owner_freezes_but_never_unfreezes_or_approves(bots, platf
     assert http(base, '/api/mobile/settings')[1]['frozen'] is False
     host.add(platform, '/pair ' + linked['code'])
     wait_for(lambda: record(base, platform)['binding_state'] == 'bound')
-    assert record(base, platform)['rules']['chat'] is False
+    # Pairing turns chat on and nothing else; /freeze needs no right at all.
+    assert {k for k, v in record(base, platform)['rules'].items() if v} == {'chat'}
     host.add(platform, '/freeze', user='333')
     wait_for(lambda: any(row['kind'] == 'bot.request_refused' and row['detail']['reason'] == 'stranger'
                          for row in receipts(base)))

@@ -573,32 +573,51 @@ _TELEGRAM_SETUP_RE = re.compile(
     r"(?:vool|you)\s+(?:from|on|via|through)\s+(?:my\s+)?(?:phone|mobile|telegram)"
     r"|vool\s+(?:on|to|via|through)\s+telegram"
     r"|(?:connect|link)\s+(?:my\s+)?(?:tg|telegram)"
+    # Discord: the same explicit connect/setup language only. "discord bot" alone is a build ask.
+    r"|connect\s+(?:me\s+|my\s+|vool\s+)?(?:to\s+)?discord"
+    r"|discord\s+(?:bridge|setup|integration)"
+    r"|(?:use|run|access|control|reach|talk\s+to|chat\s+with|work\s+(?:with|on|from))\s+"
+    r"(?:vool|you)\s+(?:from|on|via|through)\s+(?:my\s+)?discord"
+    r"|vool\s+(?:on|to|via|through)\s+discord"
+    r"|link\s+(?:my\s+)?discord"
     r")",
     re.IGNORECASE,
 )
 
 
 def maybe_handle_telegram_setup_intent(user_input: str, *, owner_local: bool = False) -> str | None:
-    """Guide the user to connect VOOL to Telegram (chat from your phone) instead of fumbling it as a
-    file write. VOOL ships a chat bridge (relay.bridge_workers.telegram_chat_bridge); point the user
-    at @BotFather + how to start it, owner-locked."""
+    """Lead "connect VOOL to Telegram / Discord" into the Settings flow (Settings > Phone and chat apps).
+
+    The flow there is the managed chat app (core/mobile_companion/bot_runtime.py): the key is pasted
+    into Settings, never into chat; pairing is Telegram's Start button or Discord's invite; the bot
+    answers only its owner. No terminal, no command, no file.
+    """
     text = " ".join(str(user_input or "").split())
     if not text or not _TELEGRAM_SETUP_RE.search(text):
         return None
+    lowered = text.lower()
+    discord = "discord" in lowered and "telegram" not in lowered and not re.search(r"\btg\b", lowered)
+    link = "[Settings > Phone and chat apps](/settings#phone)"
+    if discord:
+        return (
+            "Yes. You can chat with me from Discord. It takes three steps:\n\n"
+            f"1. Open {link} and press **Connect Discord**.\n"
+            "2. Discord makes you create the bot yourself: press the button to open Discord's developer page, "
+            "press **New Application**, open **Bot**, press **Reset Token** and copy the key. Paste it into "
+            "Settings. It connects as soon as you paste it.\n"
+            "3. Press **Add to Discord** and pick your server. I then open a private chat with you.\n\n"
+            "Only you can talk to it. Discord can read what is sent there. Payments and actions still need "
+            "this computer. Don't paste the key here in chat."
+        )
     return (
-        "Yes — I can bridge to Telegram so you can chat with me from your phone. No cloud, no open ports: "
-        "the bridge runs here and reaches out to Telegram.\n\n"
-        "**Setup (~2 min):**\n"
-        "1. In Telegram, message **@BotFather** → `/newbot` → pick a name → it hands you a **bot token**.\n"
-        "2. On this Mac, start the bridge with that token:\n"
-        "   ```\n"
-        "   TELEGRAM_BOT_TOKEN=<your-token> ~/Applications/vool/.venv/bin/python -m relay.bridge_workers.telegram_chat_bridge\n"
-        "   ```\n"
-        "3. Open your new bot and send it any message. **The first chat to message becomes the owner** — "
-        "after that only your phone can drive this VOOL; everyone else is refused.\n\n"
-        "Your phone → your bot → the bridge → me, and the reply comes back the same way. Messages from the "
-        "bridge run as a remote *channel*, so I can chat and read but never act with your local owner "
-        "privileges. Paste the token into your own terminal — I never handle it."
+        "Yes. You can chat with me from Telegram. It takes three steps:\n\n"
+        f"1. Open {link} and press **Connect Telegram**.\n"
+        "2. Telegram makes you create the bot yourself: press **Open BotFather** and send /newbot to @BotFather, then choose a "
+        "name and a username. Copy the key BotFather sends and paste it into Settings. It connects as soon "
+        "as you paste it.\n"
+        "3. Press **Open in Telegram** (or scan the code with your phone) and press **Start**.\n\n"
+        "Only you can talk to it. Telegram can read what is sent there. Payments and actions still need "
+        "this computer. Don't paste the key here in chat."
     )
 
 

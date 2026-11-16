@@ -471,6 +471,54 @@ _ARBITRATE_ON_AMBIGUITY = "ambiguity"
 _ARBITRATE_ON_NEAR_MISS = "near_miss"
 
 
+def _chat_app_post_turn(
+    agent: Any,
+    *,
+    raw_user_input: str,
+    effective_input: str,
+    session_id: str,
+    source_context: dict[str, object] | None,
+    action_forbidden: bool,
+) -> dict[str, Any] | None:
+    from core import chat_app_posts
+    from core.channel_actions import dispatch_outbound_post_intent, parse_channel_post_intent
+
+    post_id = chat_app_posts.approval_requested(raw_user_input, session_id=session_id, source_context=source_context)
+    if post_id is not None:
+        words = chat_app_posts.approve(post_id, session_id=session_id, source_context=source_context)
+        reason = "channel_post_sent" if words.startswith("Posted to ") else "channel_post_not_sent"
+    else:
+        if action_forbidden:
+            return None
+        intent, _error = parse_channel_post_intent(effective_input)
+        # The narrowed text decides whether this is a post; the person's own words keep its exact
+        # target and text (intake normalization can drop a "#channel").
+        own, _own_error = parse_channel_post_intent(raw_user_input) if intent is not None else (None, None)
+        if own is not None and own.platform == intent.platform:
+            intent = own
+        if intent is None:
+            return None
+        if not chat_app_posts.connected(intent.platform):
+            if chat_app_posts.developer_bridge_configured(intent.platform):
+                return None  # a developer's own bridge (environment keys, relay mirror) keeps its lane
+            # Nothing would ever deliver it: say so, and where to connect, instead of queueing it.
+            words = chat_app_posts.not_connected_words(intent.platform)
+            reason = "channel_post_not_connected"
+        else:
+            staged = dispatch_outbound_post_intent(intent, task_id="", session_id=session_id, source_context=source_context)
+            words, reason = staged.response_text, "channel_post_" + staged.status
+    return {
+        "result": agent._fast_path_result(
+            session_id=session_id,
+            user_input=effective_input,
+            response=words,
+            confidence=0.95,
+            source_context=source_context,
+            reason=reason,
+        )
+    }
+
+
 def handle_turn_frontdoor(
     agent: Any,
     *,
@@ -504,6 +552,17 @@ def handle_turn_frontdoor(
                 reason="startup_sequence_fast_path",
             )
         }
+
+    # Telegram and Discord through the bot connected in Settings (core.chat_app_posts): "approve post
+    # <id>" (or a bare "yes" right after the preview) sends the one staged post; "post to Telegram: ..."
+    # stages one exact post. Read first, before any other reader can take these words for itself
+    # (measured: "approve post <id>" read as a Hive moderation command, a Discord post as a web lookup).
+    chat_app_turn = _chat_app_post_turn(
+        agent, raw_user_input=raw_user_input, effective_input=effective_input, session_id=session_id,
+        source_context=source_context, action_forbidden=action_forbidden,
+    )
+    if chat_app_turn is not None:
+        return chat_app_turn
 
     heavy_model_block = agent._explicit_heavy_model_block_response(effective_input)
     if heavy_model_block:
