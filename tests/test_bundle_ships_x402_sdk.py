@@ -31,7 +31,7 @@ def test_the_macos_bundle_installs_the_x402_extra_from_the_lock() -> None:
     from ops.macos_locked_requirements import EXTRAS
 
     assert "x402" in EXTRAS, "the Mac bundle dropped the x402 SDK: the Base x402 channel would be unusable in the app"
-    assert _x402_pin() == "x402[evm]==2.25.0" and _locked("x402") == "2.25.0"
+    assert _x402_pin() == "x402[evm]==2.28.0" and _locked("x402") == "2.28.0"
     lock = tomllib.loads((REPO / "uv.lock").read_text(encoding="utf-8"))
     x402 = next(package for package in lock["package"] if package["name"] == "x402")
     assert any(dep["name"] == "web3" for dep in x402["optional-dependencies"]["evm"]), "the lock lost x402's web3"
