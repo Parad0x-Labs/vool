@@ -15,6 +15,8 @@ from tests.mobile.test_phone_listener_served import http, process_desktop
 class FakeChatHost:
     def __init__(self):
         self.incoming=[];self.outgoing=[];self.requests=[];self.lock=threading.Lock();self.identity_valid=True;self.files={};self.poll_unavailable=False
+        # Discord: the bot can write to its owner only once they share a server (the invite).
+        self.invited=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False
         parent=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*_):pass
@@ -28,14 +30,27 @@ class FakeChatHost:
                     self.send_response(200);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
                 with parent.lock:
                     parent.requests.append((self.command,path))
-                    if path.endswith('/getMe'):result={'ok':parent.identity_valid,'result':{'id':88,'is_bot':parent.identity_valid}}
-                    elif path=='/users/@me':result={'id':'88','bot':parent.identity_valid}
+                    if path.endswith('/getMe'):result={'ok':parent.identity_valid,'result':{'id':88,'is_bot':parent.identity_valid,'username':'my_vool_bot'}}
+                    elif path=='/users/@me':result={'id':'88','bot':parent.identity_valid,'username':'My VOOL'}
+                    elif path=='/oauth2/applications/@me':result={'id':'77'} if parent.no_owner else {'id':'77','owner':{'id':parent.owner_id},'team':None}
+                    elif path=='/users/@me/channels' and self.command=='POST':result={'id':'444','type':1} if data.get('recipient_id')==parent.owner_id else {'id':'999','type':1}
+                    elif path=='/channels/444/messages' and self.command=='POST' and not parent.invited and not any(r.get('content','').startswith('Paired') for r in parent.outgoing) and parent.owner_mode:
+                        raw=b'{"code":50007}';self.send_response(403);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                    elif path.endswith('/getChat'):
+                        if data.get('chat_id')=='@vool_news':result={'ok':True,'result':{'id':-100,'type':'channel'}}
+                        else:
+                            raw=b'{"ok":false}';self.send_response(400);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                    elif path=='/users/@me/guilds':result=[{'id':'9','name':'Home'}]
+                    elif path=='/guilds/9/channels':result=[{'id':'321','type':0,'name':'news'},{'id':'322','type':2,'name':'voice'}]
+                    elif path=='/channels/321/messages' and self.command=='POST':parent.posts.append(('321',data));result={'id':'5000'}
                     elif path.endswith('/getFile'):result={'ok':True,'result':{'file_path':'files/'+data['file_id']}}
                     elif path.endswith('/getUpdates') and parent.poll_unavailable:result=[]
                     elif path.endswith('/getUpdates'):
                         result={'ok':True,'result':[x for x in parent.incoming if x.get('update_id',0)>=data.get('offset',0)]}
                     elif path.endswith('/sendMessage'):
-                        parent.outgoing.append(data); result={'ok':True,'result':{'message_id':len(parent.outgoing)}}
+                        if data.get('chat_id')=='@vool_news':parent.posts.append(('@vool_news',data))
+                        else:parent.outgoing.append(data)
+                        result={'ok':True,'result':{'message_id':len(parent.outgoing)}}
                     elif path=='/channels/444':result=[] if parent.poll_unavailable else {'id':'444','type':1}
                     elif path=='/channels/444/messages' and self.command=='GET':
                         after=int((parse_qs(urlsplit(self.path).query).get('after') or [0])[0]);result=[x for x in parent.incoming if int(x.get('id',0))>after]
@@ -105,8 +120,10 @@ def test_one_time_binding_real_channel_turn_rules_and_disconnect(bots,platform):
     assert record(base,platform)['binding_state']=='waiting'
     host.add(platform,'/pair '+connection['code'])
     wait_for(lambda:record(base,platform)['binding_state']=='bound')
-    assert not any(record(base,platform)['rules'].values())
-    host.add(platform,'Chat is denied until the computer grants it')
+    # Paired means chat is on and nothing else: no history, files, alerts, wallet or payments.
+    assert {k for k,v in record(base,platform)['rules'].items() if v}=={'chat'}
+    assert http(base,'/api/mobile/settings',{'operation':'device_rules','device_id':'bot:'+platform,'rules':{'chat':False}})[0]==200
+    host.add(platform,'Chat is denied while the computer has it off')
     wait_for(lambda:any(r['kind']=='bot.request_refused' and r.get('detail',{}).get('reason')=='chat_right_off_or_expired' for r in receipts(base)))
     allow_chat(base,platform)
     host.add(platform,'stranger after pairing',user='333')
@@ -148,7 +165,7 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
         browser=playwright.chromium.launch(executable_path=os.environ.get('VOOL_TEST_CHROMIUM'))
         try:
             page=browser.new_page(viewport={'width':1280,'height':1050});page.goto(base+'/settings#phone');page.locator('[data-group="phone"]').click()
-            page.locator('.phone-bot-connect summary').click();page.get_by_label('Bot key (from Telegram or Discord)',exact=True).fill(token)
+            page.locator('.phone-bot-connect').get_by_role('button',name='Connect Telegram',exact=True).click();page.get_by_label('Bot key (from Telegram or Discord)',exact=True).fill(token)
             page.locator('.phone-bot-connect').get_by_role('button',name='Connect chat app',exact=True).click()
             row=page.locator('[data-device="bot:telegram"]');row.wait_for()
             import re
@@ -161,13 +178,14 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
             hosts['telegram'].add('telegram','/pair '+match[1]);wait_for(lambda:record(base,'telegram')['binding_state']=='bound')
             page.get_by_role('button',name='Refresh permissions',exact=True).click()
             row=page.locator('[data-device="bot:telegram"]')
-            assert not row.locator('[data-right="chat"]').is_checked()
-            row.locator('[data-right="chat"]').check()
-            row.get_by_role('button',name='Save permissions',exact=True).click();wait_for(lambda:record(base,'telegram')['rules']['chat'])
-            from playwright.sync_api import expect
-            expect(row.get_by_role('button',name='Save permissions',exact=True)).to_be_enabled()
+            # Pairing turns chat on; the computer can still turn it off and on.
+            assert row.locator('[data-right="chat"]').is_checked()
             row.locator('[data-right="chat"]').uncheck()
             row.get_by_role('button',name='Save permissions',exact=True).click();wait_for(lambda:not record(base,'telegram')['rules']['chat'])
+            from playwright.sync_api import expect
+            expect(row.get_by_role('button',name='Save permissions',exact=True)).to_be_enabled()
+            row.locator('[data-right="chat"]').check()
+            row.get_by_role('button',name='Save permissions',exact=True).click();wait_for(lambda:record(base,'telegram')['rules']['chat'])
             from playwright.sync_api import expect
             expect(row.get_by_role('button',name='Save permissions',exact=True)).to_be_enabled()
             notice=row.locator('.phone-bot-notifications');notice.locator('select').select_option('everything')
@@ -300,7 +318,10 @@ def test_a_refused_connection_says_its_own_reason_and_never_echoes_the_key(bots)
         return secrets.token_urlsafe(40)
     assert refused('telegram','')==words.KEY_SHAPE
     assert refused('telegram','hello')==words.KEY_SHAPE
-    assert refused('discord',good(),'')==words.PRIVATE_LINK_NEEDED
+    # No link is the easy path (Discord names the bot's owner); when Discord does not, that is said.
+    hosts['discord'].no_owner=True
+    assert refused('discord',good(),'')==words.NOT_DISCORD_OWNER
+    hosts['discord'].no_owner=False
     assert refused('discord',good(),'https://discord.com/channels/123/444')==words.PRIVATE_LINK_NEEDED
     for platform in ('telegram','discord'):
         hosts[platform].identity_valid=False
@@ -308,4 +329,4 @@ def test_a_refused_connection_says_its_own_reason_and_never_echoes_the_key(bots)
         hosts[platform].identity_valid=True
     hosts['discord'].poll_unavailable=True   # the conversation lookup no longer answers as a private one
     assert refused('discord',good(),private)==words.NOT_A_PRIVATE_CONVERSATION
-    assert len({words.KEY_SHAPE,words.PRIVATE_LINK_NEEDED,words.KEY_NOT_ACCEPTED,words.NOT_A_PRIVATE_CONVERSATION,words.NOT_REACHED})==5
+    assert len({words.KEY_SHAPE,words.PRIVATE_LINK_NEEDED,words.KEY_NOT_ACCEPTED,words.NOT_A_PRIVATE_CONVERSATION,words.NOT_REACHED,words.NOT_DISCORD_OWNER})==6

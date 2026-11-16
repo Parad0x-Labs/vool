@@ -28,8 +28,17 @@ class ConnectRefused(ValueError):
     sentences written for them, and never carry anything they typed."""
 
 
-ACCESS_OFF = "Turn on \u201cUse VOOL from my phone\u201d first."
+# Chat apps run on their own: they reach out to Telegram or Discord, so they need no phone access
+# switch and no open port on this computer (owner, 2026-11-16: setup with as few steps as possible).
 KEY_SHAPE = "That does not look like a bot key. Copy the whole key and paste it here."
+#: How long a new connection waits for its owner: Telegram's Start button, or Discord's invite.
+PAIRING_SECONDS = {"telegram": 300, "discord": 900}
+#: Rights a chat app has once its owner is paired. Chat only: history, files, alerts, wallet views and
+#: payments stay off until the owner turns them on, and payments and actions still need this computer.
+PAIRED_RULES = frozenset({"chat"})
+NOT_DISCORD_OWNER = (
+    "Discord did not say who owns this bot. Paste the link to your private conversation with it instead."
+)
 PRIVATE_LINK_NEEDED = (
     "Paste the link to your private conversation with this bot. It starts with https://discord.com/channels/@me/"
 )
@@ -39,6 +48,17 @@ NOT_A_PRIVATE_CONVERSATION = (
     "Discord could not open that link as a private conversation with this bot. "
     "Send the bot a direct message, then copy that conversation\u2019s link."
 )
+
+
+PAIRED_WORDS = "Paired. Chat with your VOOL here. Payments and actions still need your computer."
+
+
+def paired_rules(device):
+    """The rights a newly paired chat app starts with: chat, and nothing that spends or acts."""
+    rules = dict(device.get("rules") or defaults())
+    for right in PAIRED_RULES:
+        rules[right] = True
+    return rules
 
 
 def background_scope(platform):
@@ -78,19 +98,17 @@ def private_discord_channel(value):
 
 def connect(runtime, platform, token, *, channel_link=""):
     from core.credential_store import store_credential
-    from core.mobile_companion.listener import load_settings
     from core.mobile_companion.notifications import initial_state
     from core.mobile_companion.sealing import VERSION
     from core.secret_redaction import register_exact_secret
 
     if platform not in PLATFORMS:
         raise ValueError("Unknown chat app.")
-    if not load_settings()["enabled"]:
-        raise ConnectRefused(ACCESS_OFF)
     if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{20,256}", token):
         raise ConnectRefused(KEY_SHAPE)
     app = platform.capitalize()
-    channel_id = private_discord_channel(channel_link) if platform == "discord" else ""
+    channel_id = private_discord_channel(channel_link) if platform == "discord" and channel_link.strip() else ""
+    bot_name, app_id, owner_id = "", "", ""
     register_exact_secret(token)
     target = manager_for(runtime)
     # Validate only with the selected provider before replacing a working connection.
@@ -109,9 +127,27 @@ def connect(runtime, platform, token, *, channel_link=""):
             )
             if not valid:
                 raise ValueError("invalid bot identity")
-            asking, said_no = NOT_A_PRIVATE_CONVERSATION, {400, 403, 404}
-            if platform == "discord" and probe.call("/channels/" + channel_id).get("type") != 1:
-                raise ValueError("private conversation required")
+            if platform == "telegram":
+                bot_name = str((identity.get("result") or {}).get("username") or "")
+            else:
+                bot_name = str(identity.get("username") or "")
+            if not re.fullmatch(r"[A-Za-z0-9_.]{2,32}", bot_name):
+                bot_name = ""
+            if platform == "discord" and channel_id:
+                asking, said_no = NOT_A_PRIVATE_CONVERSATION, {400, 403, 404}
+                if probe.call("/channels/" + channel_id).get("type") != 1:
+                    raise ValueError("private conversation required")
+            elif platform == "discord":
+                # The person who made this bot in Discord's developer page is the owner VOOL talks to.
+                # Discord names them; nobody types an id or copies a conversation link.
+                asking, said_no = NOT_DISCORD_OWNER, {403, 404}
+                application = probe.call("/oauth2/applications/@me")
+                app_id = str(application.get("id") or "")
+                team = application.get("team") or {}
+                owner = team.get("owner_user_id") if team else (application.get("owner") or {}).get("id")
+                owner_id = str(owner or "")
+                if not re.fullmatch(r"[0-9]{1,22}", app_id) or not re.fullmatch(r"[0-9]{1,22}", owner_id):
+                    raise ValueError("no Discord owner")
     except urllib.error.HTTPError as answered:
         # The service answered and said no. Only its own "no such key" / "not yours to open"
         # answers count; a busy service or a network gate in between is not the key's fault.
@@ -147,17 +183,29 @@ def connect(runtime, platform, token, *, channel_link=""):
             "binding": {
                 "state": "waiting",
                 "code_hash": hashlib.sha256(code.encode()).hexdigest(),
-                "expires_at": time.time() + 300,
+                "expires_at": time.time() + PAIRING_SECONDS[platform],
                 "attempts": 0,
                 "channel_id": channel_id,
                 "user_id": "",
+                "owner_id": owner_id,
             },
+            "bot_name": bot_name,
             "last_update": 0,
         }
     )
     service().store.append_receipt("bot.connection_started", device_id="bot:" + platform, detail={"platform": platform})
     target.start(platform)
-    return {"platform": platform, "code": code, "expires_in": 300}
+    result = {"platform": platform, "code": code, "expires_in": PAIRING_SECONDS[platform], "bot_name": bot_name}
+    if platform == "telegram" and bot_name:
+        # Telegram's own deep link: opening it shows the bot with a Start button, and pressing Start
+        # sends "/start CODE". Nobody types the code.
+        result["start_link"] = "https://t.me/" + bot_name + "?start=" + code
+    if platform == "discord" and owner_id:
+        # Discord's own invite page for this bot; no permissions are asked for.
+        result["invite_url"] = (
+            "https://discord.com/oauth2/authorize?client_id=" + app_id + "&scope=bot&permissions=0"
+        )
+    return result
 
 
 def disconnect(runtime, platform):
@@ -201,11 +249,8 @@ class ManagedBot:
         return service().store.device(self.device_id) or {}
 
     def active(self):
-        from core.mobile_companion.listener import load_settings
-
         return (
             not self.stop_event.is_set()
-            and load_settings()["enabled"]
             and self.device().get("status") == "active"
             and self.device().get("connection_id") == self.connection_id
         )
@@ -276,6 +321,10 @@ class ManagedBot:
             device = self.device()
             binding = device.get("binding") or {}
             if binding.get("state") != "bound":
+                start = re.fullmatch(r"/start\s+([A-Za-z0-9]{6,32})", text.strip())
+                if start:
+                    # Telegram's Start button sends the code from the link VOOL showed.
+                    text = "/pair " + start[1]
                 if not text.startswith("/pair "):
                     return self.refused("not_paired")
                 if binding.get("expires_at", 0) <= time.time() or binding.get("attempts", 0) >= 5:
@@ -289,17 +338,20 @@ class ManagedBot:
                 )
                 if correct:
                     binding = {"state": "bound", "channel_id": channel, "user_id": user}
-                service().store.mark_device(self.device_id, binding=binding)
+                    service().store.mark_device(
+                        self.device_id,
+                        binding=binding,
+                        rules=paired_rules(device),
+                        permission_revision=int(device.get("permission_revision") or 0) + 1,
+                    )
+                else:
+                    service().store.mark_device(self.device_id, binding=binding)
                 if not correct:
                     return self.refused("wrong_pairing_code", channel)
                 service().store.append_receipt(
                     "bot.owner_bound", device_id=self.device_id, detail={"platform": self.platform}
                 )
-                self.send(
-                    channel,
-                    "Paired. Allow chat on your computer to begin. Approve payments and actions there.",
-                    right=None,
-                )
+                self.send(channel, PAIRED_WORDS, right=None)
                 return
             if binding.get("channel_id") != channel or binding.get("user_id") != user:
                 return self.refused("stranger", channel)
@@ -561,7 +613,7 @@ class ManagedBot:
         else:
             channel = (device.get("binding") or {}).get("channel_id")
             if not re.fullmatch(r"[0-9]{1,22}", str(channel or "")):
-                return 0
+                return self._reach_discord_owner(device)
             info = self.call("/channels/" + channel)
             if info.get("type") != 1:
                 return self.refused("private_conversation_required") or 0
@@ -607,6 +659,46 @@ class ManagedBot:
                     if event.get("os_notification_allowed") is not False:
                         self.send(current["binding"]["channel_id"], event["message"], right="alerts")
         return count
+
+    def _reach_discord_owner(self, device):
+        """Open the private conversation with the bot's owner once Discord lets the bot write to them.
+
+        Discord lets a bot write to a person only after they share a server, so this waits for the
+        owner to add the bot with the invite VOOL showed. The owner is the person Discord names as the
+        bot's maker, read with the key itself; nobody else can be chosen here. Returns 0 (no messages).
+        """
+        binding = device.get("binding") or {}
+        owner = str(binding.get("owner_id") or "")
+        if binding.get("state") != "waiting" or not re.fullmatch(r"[0-9]{1,22}", owner):
+            return 0
+        if binding.get("expires_at", 0) <= time.time() or time.monotonic() < getattr(self, "_next_owner_try", 0):
+            return 0
+        self._next_owner_try = time.monotonic() + 5
+        try:
+            conversation = self.call("/users/@me/channels", {"recipient_id": owner})
+            channel = str(conversation.get("id") or "")
+            if conversation.get("type") != 1 or not re.fullmatch(r"[0-9]{1,22}", channel):
+                return 0
+            self.call(
+                "/channels/" + channel + "/messages",
+                {"content": PAIRED_WORDS, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
+            )
+        except urllib.error.HTTPError as answer:
+            if answer.code in {400, 403}:
+                return 0  # Not in a shared server yet: Discord refuses the message until the invite is done.
+            raise
+        with service().dispatch_lock:
+            current = self.device()
+            if not self.active() or (current.get("binding") or {}).get("state") != "waiting":
+                return 0
+            service().store.mark_device(
+                self.device_id,
+                binding={"state": "bound", "channel_id": channel, "user_id": owner},
+                rules=paired_rules(current),
+                permission_revision=int(current.get("permission_revision") or 0) + 1,
+            )
+        service().store.append_receipt("bot.owner_bound", device_id=self.device_id, detail={"platform": self.platform})
+        return 0
 
     def run_forever(self):
         while self.active():

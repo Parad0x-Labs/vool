@@ -684,6 +684,13 @@ def main() -> int:
         from core.mobile_companion.listener import listener_for
 
         listener_for(runtime).restore()
+        from core.mobile_companion.bot_runtime import manager_for
+
+        # Connected chat apps start on their own, whether or not phone access is on.
+        try:
+            manager_for(runtime).restore()
+        except Exception:
+            logger.exception("chat apps did not start; the server continues without them")
         import uvicorn
 
         _write_pidfile()
@@ -800,6 +807,9 @@ def main() -> int:
             from core.mobile_companion.listener import listener_for
 
             listener_for(runtime).close()
+            bots = getattr(runtime, "phone_bot_manager", None)
+            if bots is not None:
+                bots.close()
         _remove_pidfile()
         try:
             from core.operator.reminder_dispatcher import stop_default_dispatcher

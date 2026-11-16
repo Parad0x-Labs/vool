@@ -488,9 +488,8 @@ class CompanionListener:
 
     def close(self):
         with self._lock:
-            bots = getattr(self.runtime, "phone_bot_manager", None)
-            if bots is not None:
-                bots.close()
+            # Chat apps (Telegram, Discord) are not part of phone access: they keep running when it
+            # is off and are stopped by their own Disconnect, a freeze, or VOOL shutting down.
             relay, self.relay = self.relay, None
             if relay is not None:
                 relay.close()

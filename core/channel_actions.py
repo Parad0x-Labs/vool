@@ -16,6 +16,7 @@ _EXPLICIT_CHANNEL_ACTION_RE = re.compile(
 )
 _QUOTED_RE = re.compile(r"['\"]([^'\"]{1,4000})['\"]")
 _TARGET_RE = re.compile(r"#([A-Za-z0-9_\-]{1,64})")
+_HANDLE_RE = re.compile(r"(?<![\w@])@([A-Za-z][A-Za-z0-9_]{4,31})\b")
 
 
 @dataclass(frozen=True)
@@ -55,8 +56,11 @@ def parse_channel_post_intent(text: str) -> tuple[ChannelPostIntent | None, str 
     else:
         return None, None
 
-    target_match = _TARGET_RE.search(raw)
-    target = target_match.group(1) if target_match else "default"
+    # The target is named before the words to post ("post to dc #news: ..."), never inside them.
+    head = re.split(r"[:\"']", raw, maxsplit=1)[0]
+    target_match = _TARGET_RE.search(head)
+    handle_match = _HANDLE_RE.search(head) if platform == "telegram" else None
+    target = target_match.group(1) if target_match else ("@" + handle_match.group(1) if handle_match else "default")
 
     quoted = _QUOTED_RE.search(raw)
     if quoted:
@@ -115,6 +119,29 @@ def dispatch_outbound_post_intent(
     session_id: str,
     source_context: dict[str, Any] | None,
 ) -> ChannelPostDispatchResult:
+    from core import chat_app_posts
+
+    if chat_app_posts.connected(intent.platform):
+        # The chat app connected in Settings: stage the exact post and wait for the owner's approval.
+        _mode = str((source_context or {}).get("operating_mode") or "").strip().lower()
+        if _mode in {"ask", "plan"}:
+            return ChannelPostDispatchResult(
+                ok=False, status="blocked_read_only", platform=intent.platform, target=intent.target,
+                record_id=None, error="read_only_mode",
+                response_text=(f"You're in {_mode.capitalize()} mode, which is read-only, so I did not prepare that "
+                               "post. Switch the mode selector to Build or Auto to post."),
+            )
+        try:
+            preview = chat_app_posts.stage(intent.platform, intent.message, intent.target, session_id=session_id)
+        except chat_app_posts.PostRefused as refused:
+            return ChannelPostDispatchResult(
+                ok=False, status="refused", platform=intent.platform, target=intent.target,
+                record_id=None, response_text=str(refused), error="post_refused",
+            )
+        return ChannelPostDispatchResult(
+            ok=True, status="awaiting_approval", platform=intent.platform, target=intent.target,
+            record_id=None, response_text=preview, error=None,
+        )
     try:
         ok, record = append_outbound_post(
             platform=intent.platform,
@@ -181,11 +208,7 @@ def dispatch_outbound_post_intent(
             platform=intent.platform,
             target=intent.target,
             record_id=str(record.get("record_id") or ""),
-            response_text=(
-                f"I parsed the {intent.platform} post, but the outbound relay mirror was unreachable "
-                f"and direct delivery failed ({delivery_error or 'unknown_error'}). "
-                f"Start the mirror and bridge, or configure direct platform credentials, then retry."
-            ),
+            response_text=chat_app_posts.not_connected_words(intent.platform),
             error=delivery_error or "mirror_unreachable",
         )
 

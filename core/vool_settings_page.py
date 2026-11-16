@@ -1221,6 +1221,9 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
 
 .phone-device {border-top:1px solid var(--line); margin-top:22px; padding-top:18px;}
+.phone-bot-connect .inline {gap:8px; flex-wrap:wrap;}
+.phone-bot-steps .btn, .phone-bot-pairing .btn {display:inline-block; margin:6px 0; text-decoration:none;}
+.phone-bot-qr {display:block; margin:10px 0; border-radius:6px; max-width:200px;}
 .phone-rights {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; margin:16px 0;}
 .phone-right {display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere;}
 .phone-cap {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,180px); align-items:center; gap:12px; margin:10px 0;}
@@ -4693,6 +4696,36 @@ function widgetAutomaticChecks(stack) {
 
 let phoneSettingsNode = null, phoneSettingsReady = false, phoneSettingsLanguage = '';
 const phoneBotPairing = {};
+let phoneBotOpen = '', phoneBotTimer = 0;
+/* While a chat app waits for its owner, Settings looks again every two seconds, so the row turns to
+   Connected by itself once Start is pressed in Telegram or the bot is added in Discord. */
+function phoneBotWatch() {
+  if (phoneBotTimer) return;
+  const url = '/api/mobile/settings';
+  phoneBotTimer = setInterval(async () => {
+    const waiting = Object.entries(phoneBotPairing).filter(([, p]) => p.expires > Date.now());
+    if (!waiting.length) {clearInterval(phoneBotTimer); phoneBotTimer = 0; return;}
+    try {
+      const back = await getJSON(url);
+      const before = JSON.stringify((state.sources[url] && state.sources[url].devices || []).map(d => [d.device_id, d.binding_state, d.status]));
+      const after = JSON.stringify((back.devices || []).map(d => [d.device_id, d.binding_state, d.status]));
+      if (before !== after) {state.sources[url] = back; redrawPhoneSettings();}
+    } catch (_) {}
+  }, 2000);
+}
+/* The offline QR generator the wallet uses, kept inside this function's scope. */
+const phoneQr = (function(){ /*__PHONE_QR_VENDOR__*/ return typeof qrcode === 'function' ? qrcode : null; })();
+function phoneQrCanvas(text, label) {
+  if (!phoneQr) return null;
+  try {
+    const qr = phoneQr(0, 'M'); qr.addData(String(text)); qr.make();
+    const n = qr.getModuleCount(), px = 4, quiet = 4; const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = (n + quiet * 2) * px; const ctx = canvas.getContext('2d'); if (!ctx) return null;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#111318';
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * px, (r + quiet) * px, px, px);
+    canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', label); canvas.className = 'phone-bot-qr'; return canvas;
+  } catch (_) { return null; }
+}
 /* Set when the pairing page hands over a phone that was just paired: its setup opens first. */
 let setupFor = (()=>{try{return new URLSearchParams(location.search).get('phone_setup') || '';}catch(_){return '';}})();
 const phonePrepared = {};
@@ -4776,18 +4809,57 @@ function widgetPhoneAccess(host) {
     const j = await r.json(); if (!r.ok || !j.ok) throw phoneFail(j.error);
     state.sources[url] = await getJSON(url); redrawPhoneSettings();
   }
-  const chatApps=el('details','phone-bot-connect'); stack.appendChild(chatApps);
-  chatApps.appendChild(el('summary','',T('phone.bot_connect','Connect chat app')));
+  /* Telegram and Discord: the steps each app forces, and nothing more. A pasted key connects on its own;
+     pairing is Telegram's Start button or Discord's invite (core/mobile_companion/bot_runtime.py). */
+  const chatApps=el('section','phone-bot-connect'); stack.prepend(chatApps);
+  chatApps.appendChild(el('h3','',T('phone.bot_title','Telegram and Discord')));
   chatApps.appendChild(el('p','help',T('phone.bot_privacy','Telegram and Discord can read messages sent through them. Use a private conversation.')));
-  const botPlatform=el('select','inp'); ['Telegram','Discord'].forEach(name=>{const option=el('option','',name);option.value=name.toLowerCase();botPlatform.appendChild(option);});chatApps.appendChild(botPlatform);
-  const botTokenLabel=el('label','phone-cap',T('phone.bot_token','Bot key (from Telegram or Discord)'));const botToken=el('input','inp');botToken.type='password';botToken.autocomplete='off';botTokenLabel.appendChild(botToken);chatApps.appendChild(botTokenLabel);
-  const dmLabel=el('label','phone-cap',T('phone.bot_dm','Private Discord conversation link'));const dmLink=el('input','inp');dmLabel.appendChild(dmLink);chatApps.appendChild(dmLabel);dmLabel.hidden=true;
-  botPlatform.onchange=()=>{dmLabel.hidden=botPlatform.value!=='discord';};
-  const connectBot=el('button','btn',T('phone.bot_connect','Connect chat app'));connectBot.type='button';connectBot.disabled=!src.enabled;chatApps.appendChild(connectBot);
-  connectBot.onclick=async()=>{const token=botToken.value;botToken.value='';connectBot.disabled=true;try {
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform:botPlatform.value,token,channel_link:dmLink.value})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
-    phoneBotPairing[j.platform]={code:j.code,expires:Date.now()+j.expires_in*1000};state.sources[url]=await getJSON(url);redrawPhoneSettings();
-  }catch(e){note.textContent=phoneFailWords(e);connectBot.disabled=false;}};
+  const botSay=el('p','note phone-bot-note'); botSay.setAttribute('role','status');
+  const botChoices=el('div','inline'); chatApps.appendChild(botChoices);
+  const botSteps=el('div','phone-bot-steps'); chatApps.appendChild(botSteps); chatApps.appendChild(botSay);
+  const botGuide={
+    telegram:{open:'https://t.me/BotFather',openKey:'phone.bot_open_botfather',openText:'Open BotFather',
+      stepKey:'phone.bot_steps_telegram',stepText:'In Telegram, send /newbot to BotFather, then choose a name and a username. BotFather answers with a key. Copy it.',
+      shape:/^[0-9]{5,16}:[A-Za-z0-9_-]{30,64}$/},
+    discord:{open:'https://discord.com/developers/applications',openKey:'phone.bot_open_discord',openText:'Open Discord developer page',
+      stepKey:'phone.bot_steps_discord',stepText:'Press New Application and give it a name. Open Bot, press Reset and copy the key.',
+      shape:/^[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{20,}$/}};
+  function botForm(platform){
+    botSteps.replaceChildren(); botSay.textContent='';
+    const guide=botGuide[platform];
+    const one=el('p','help',T(guide.stepKey,guide.stepText)); botSteps.appendChild(one);
+    const open=el('a','btn',T(guide.openKey,guide.openText)); open.href=guide.open; open.target='_blank'; open.rel='noopener noreferrer'; botSteps.appendChild(open);
+    const keyLabel=el('label','phone-cap',T('phone.bot_token','Bot key (from Telegram or Discord)'));const key=el('input','inp');key.type='password';key.autocomplete='off';
+    key.placeholder=T('phone.bot_paste','Paste the key here');keyLabel.appendChild(key);botSteps.appendChild(keyLabel);
+    let link=null;
+    if(platform==='discord'){
+      const other=el('details','phone-bot-other');other.appendChild(el('summary','',T('phone.bot_other_way','Another way')));
+      const dmLabel=el('label','phone-cap',T('phone.bot_dm','Private Discord conversation link'));link=el('input','inp');dmLabel.appendChild(link);other.appendChild(dmLabel);botSteps.appendChild(other);
+    }
+    const go=el('button','btn',T('phone.bot_connect','Connect chat app'));go.type='button';botSteps.appendChild(go);
+    let busy=false;
+    async function connect(){
+      if(busy)return; const token=key.value.trim(); if(!token){botSay.textContent=T('phone.bot_need_key','Paste the bot key first.');return;}
+      busy=true;go.disabled=true;key.disabled=true;botSay.textContent=T('phone.bot_checking','Checking the key…');
+      try{
+        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform,token,channel_link:link?link.value:''})});
+        const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
+        key.value='';
+        phoneBotPairing[j.platform]={code:j.code,start:j.start_link||'',invite:j.invite_url||'',expires:Date.now()+j.expires_in*1000};
+        phoneBotOpen=''; state.sources[url]=await getJSON(url); redrawPhoneSettings(); phoneBotWatch();
+      }catch(e){botSay.textContent=phoneFailWords(e);busy=false;go.disabled=false;key.disabled=false;key.focus();}
+    }
+    go.onclick=connect;
+    /* A whole key pasted connects at once: no extra click. */
+    key.addEventListener('input',()=>{if(guide.shape.test(key.value.trim()))connect();});
+    key.focus();
+  }
+  ['telegram','discord'].forEach(platform=>{
+    const label=platform==='telegram'?T('phone.bot_connect_telegram','Connect Telegram'):T('phone.bot_connect_discord','Connect Discord');
+    const b=el('button','btn',label);b.type='button';b.dataset.botPlatform=platform;botChoices.appendChild(b);
+    b.onclick=()=>{phoneBotOpen=platform;botForm(platform);};
+  });
+  if(phoneBotOpen)botForm(phoneBotOpen);
   const relayForm=el('details','phone-relay'); stack.appendChild(relayForm);
   relayForm.appendChild(el('summary','',T('phone.relay_title','Connect away from home (advanced)')));
   relayForm.appendChild(el('p','help',T('phone.relay_help','Your own server passes encrypted messages between phone and computer. It can see when they connect. Pair at home first.')));
@@ -4925,7 +4997,28 @@ function widgetPhoneAccess(host) {
     const holder=isBot?row:el('details','phone-advanced');
     if(!isBot){row.appendChild(phoneQuickSetup(device));holder.appendChild(el('summary','',T('phone.setup.advanced','Advanced')));row.appendChild(holder);}
     const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
-    if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
+    if (isBot && device.binding_state==='waiting') {
+      const pairing=phoneBotPairing[device.platform];
+      const box=el('div','phone-bot-pairing'); row.insertBefore(box, rightsGrid);
+      if (!pairing || pairing.expires<=Date.now()) {
+        box.appendChild(el('p','help',T('phone.bot_pair_expired','This connection timed out. Paste the key again to get a new link.')));
+      } else if (device.platform==='telegram' && pairing.start) {
+        box.appendChild(el('p','help',T('phone.bot_pair_telegram','Open your bot in Telegram and press Start. Use the button on this computer, or scan the code with your phone.')));
+        const open=el('a','btn',T('phone.bot_open_telegram','Open in Telegram')); open.href=pairing.start; open.target='_blank'; open.rel='noopener noreferrer'; box.appendChild(open);
+        const qr=phoneQrCanvas(pairing.start,T('phone.bot_qr','QR code that opens your bot in Telegram')); if (qr) box.appendChild(qr);
+        box.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',pairing.code)));
+        phoneBotWatch();
+      } else if (device.platform==='discord' && pairing.invite) {
+        box.appendChild(el('p','help',T('phone.bot_pair_discord','Add the bot to a Discord server you manage. VOOL then opens your private chat with it.')));
+        const open=el('a','btn',T('phone.bot_add_discord','Add to Discord')); open.href=pairing.invite; open.target='_blank'; open.rel='noopener noreferrer'; box.appendChild(open);
+        box.appendChild(el('p','help',T('phone.bot_discord_server','No server yet? In Discord, press + and create one, then come back.')));
+        phoneBotWatch();
+      } else {
+        box.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',pairing.code)));
+        phoneBotWatch();
+      }
+    }
+    if (isBot && device.binding_state==='bound') row.insertBefore(el('p','help phone-bot-connected',T('phone.bot_connected','Connected. Chat with your VOOL there.')), rightsGrid);
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
       if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
@@ -6236,7 +6329,11 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
+    from core.wallet_fragment import _qr_vendor_js
+
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("/*__X_FEATURES__*/", X_FEATURES_JS, 1).replace(
+        "/*__PHONE_QR_VENDOR__*/", _qr_vendor_js(), 1
+    ).replace(
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS + "\n" + SETTINGS_KIT_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
