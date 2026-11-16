@@ -495,8 +495,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         return restore_response(request, response)
 
     def _invoke_openai_compatible(self, request: ModelRequest, *, force_json: bool) -> ModelResponse:
-        if request.is_cancelled():
-            raise RuntimeError("model_call_cancelled")
+        request.raise_if_cancelled()
         # ONE coherent binding for the whole dispatch (URL, headers, and every same-lane retry
         # below): a replaceable custom endpoint cannot combine a stale manifest destination
         # with the current key (review F3), and a mid-dispatch replacement cannot split this
@@ -582,8 +581,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     continue
                 break
             _raise_for_status_with_cause(response)
-            if request.is_cancelled():
-                raise RuntimeError("model_call_cancelled")
+            request.raise_if_cancelled()
             data = response.json()
             if not native_tools:
                 # A cloud reasoning model that has no separate reasoning channel writes its
@@ -767,8 +765,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         )
 
     def _invoke_ollama_chat(self, request: ModelRequest, *, force_json: bool) -> ModelResponse:
-        if request.is_cancelled():
-            raise RuntimeError("model_call_cancelled")
+        request.raise_if_cancelled()
         base_url = _native_ollama_base_url(str(self.manifest.runtime_config.get("base_url") or "").rstrip("/"))
         if not base_url:
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
@@ -826,8 +823,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 )
             _assert_response_timely(request, response)
             _raise_for_status_with_cause(response)
-            if request.is_cancelled():
-                raise RuntimeError("model_call_cancelled")
+            request.raise_if_cancelled()
             data = response.json()
             self._record_benchmark_best_effort(request=request, response_payload=data)
             return data
@@ -1008,8 +1004,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             try:
                 for raw_line in response.iter_lines(decode_unicode=True):
                     _assert_response_timely(request, response)
-                    if request.is_cancelled():
-                        raise RuntimeError("model_call_cancelled")
+                    request.raise_if_cancelled()
                     line = _normalize_stream_line(raw_line)
                     if not line:
                         continue
@@ -1136,8 +1131,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             try:
                 for raw_line in response.iter_lines(decode_unicode=True):
                     _assert_response_timely(request, response)
-                    if request.is_cancelled():
-                        raise RuntimeError("model_call_cancelled")
+                    request.raise_if_cancelled()
                     line = _normalize_stream_line(raw_line)
                     if not line:
                         continue

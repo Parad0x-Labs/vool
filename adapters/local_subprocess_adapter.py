@@ -123,9 +123,10 @@ class LocalSubprocessAdapter(ModelAdapter):
                 if time.monotonic() >= deadline:
                     _terminate_process_tree(process)
                     raise subprocess.TimeoutExpired(command, timeout_seconds)
-                if request.is_cancelled():
+                cancelled = request.cancelled_error()
+                if cancelled is not None:
                     _terminate_process_tree(process)
-                    raise RuntimeError("model_call_cancelled")
+                    raise cancelled
         if process.returncode != 0:
             raise RuntimeError(
                 f"{self.manifest.provider_id}: subprocess failed with code {process.returncode}: {stderr.strip()}"

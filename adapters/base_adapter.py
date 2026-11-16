@@ -56,6 +56,34 @@ class ModelRequest:
     def is_cancelled(self) -> bool:
         return bool(self.cancel_check and self.cancel_check())
 
+    def cancelled_error(self) -> Exception | None:
+        """The typed reason this call must end now, or None while it may continue.
+
+        A check that also folds in the provider deadline (the router's ``_cancel_check``) exposes
+        ``person_cancelled``; when the deadline ran out and nobody pressed Stop, the call ends as a
+        deadline, never as ``model_call_cancelled`` (which every surface words as a user stop).
+        """
+        if not self.is_cancelled():
+            return None
+        person_cancelled = getattr(self.cancel_check, "person_cancelled", None)
+        if callable(person_cancelled):
+            from core.provider_call_deadline import ProviderCallDeadlineExceededError, deadline_expired
+
+            try:
+                person = bool(person_cancelled())
+            except Exception:
+                person = True
+            if not person and deadline_expired(self):
+                return ProviderCallDeadlineExceededError(
+                    "provider timeout: the turn's deadline expired before the model finished"
+                )
+        return RuntimeError("model_call_cancelled")
+
+    def raise_if_cancelled(self) -> None:
+        error = self.cancelled_error()
+        if error is not None:
+            raise error
+
 
 @dataclass
 class ModelResponse:

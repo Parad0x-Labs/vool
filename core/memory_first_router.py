@@ -985,15 +985,21 @@ def _cancel_check(source_context: dict[str, Any] | None):
     if marker_check is None and not has_deadline:
         return None
 
-    def _cancelled() -> bool:
-        externally_cancelled = False
-        if marker_check is not None:
-            try:
-                externally_cancelled = bool(marker_check())
-            except Exception:
-                externally_cancelled = False
-        return externally_cancelled or deadline_expired(source_context)
+    def _person_cancelled() -> bool:
+        if marker_check is None:
+            return False
+        try:
+            return bool(marker_check())
+        except Exception:
+            return False
 
+    def _cancelled() -> bool:
+        return _person_cancelled() or deadline_expired(source_context)
+
+    # The streaming loop stops on either cause, but the two are not the same outcome: the adapter
+    # reads this to raise a typed deadline error instead of the user-stop code when only the
+    # deadline fired (ModelRequest.cancelled_error).
+    _cancelled.person_cancelled = _person_cancelled
     return _cancelled
 
 
@@ -3019,7 +3025,7 @@ class MemoryFirstRouter:
 
         try:
             if _model_request_cancelled(call_request):
-                raise RuntimeError("model_call_cancelled")
+                raise call_request.cancelled_error() or RuntimeError("model_call_cancelled")
             # REACH: the real invocation seam. Recorded BEFORE the call, because a provider that was
             # reached and then failed was still reached -- and because the previous design derived
             # "a model ran" from the turn result's `model_calls`, which is orchestration telemetry a

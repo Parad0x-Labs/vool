@@ -152,11 +152,18 @@ _TTL = 300.0
 _LIMIT = 128
 
 
+def _waiting_on_owner(item: Preview) -> bool:
+    """An attached preview the turn is still blocked on: its own wait loop owns its expiry."""
+    return not item.detached and not item.sent and item.decision is None and not item.invalidated
+
+
 def _prune() -> None:
     now = time.monotonic()
     for ident, item in list(_PREVIEWS.items()):
-        if now - item.created > _TTL:
-            _invalidate(item)
+        if now - item.created > _TTL and not _waiting_on_owner(item):
+            # Age is not a stop. The turn that made this call may still be working (a slow local
+            # model, the next tool step); expiring the cached request must never cancel it.
+            _expire(item)
             del _PREVIEWS[ident]
     live = {(p.home, p.chat_id, p.turn_id) for p in _PREVIEWS.values()}
     for key in set(_APPROVED) - live:
@@ -189,16 +196,29 @@ def _current(item: Preview) -> bool:
 
 
 def _invalidate(item: Preview) -> None:
+    """A stop: the chat closed, its privacy state changed or a council scope broke.
+
+    The turn is cancelled and stays cancelled; any further call on it is refused.
+    """
     with _LOCK:
-        key = (item.home, item.chat_id, item.turn_id)
-        _CANCELLED.add(key)
-        _FILES_APPROVED.discard(key[:2])
+        _CANCELLED.add((item.home, item.chat_id, item.turn_id))
+        _expire(item)
+        item.decision = {"action": "cancel"}
+        item.event.set()
+        if isinstance(item.cancel_event, threading.Event):
+            item.cancel_event.set()
+
+
+def _expire(item: Preview) -> None:
+    """Drop a preview's cached request bytes. Never touches the turn's cancel state."""
+    with _LOCK:
+        _FILES_APPROVED.discard((item.home, item.chat_id))
         item.invalidated = True
         if item.council_scope is not None:
             item.council_scope.clear_sources()
             item.council_scope = None
-        # Keep only an expiring cancellation tombstone so an in-flight retry
-        # cannot reopen the erased turn. No request text remains in the cache.
+        # No request text remains in the cache. A stop (_invalidate) also leaves an expiring
+        # cancellation tombstone so an in-flight retry cannot reopen the erased turn.
         item.output_text = ""
         item.ready = False
         item.restore_map = None
@@ -211,10 +231,6 @@ def _invalidate(item: Preview) -> None:
         item.attachments = ()
         item.url = ""
         item.provider = ""
-        item.decision = {"action": "cancel"}
-        item.event.set()
-        if isinstance(item.cancel_event, threading.Event):
-            item.cancel_event.set()
 
 
 def previews(*, chat_id: str | None = None) -> list[dict[str, Any]]:
