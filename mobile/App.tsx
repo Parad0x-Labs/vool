@@ -15,7 +15,7 @@ import ChatsScreen from "./src/screens/ChatsScreen.tsx";
 import CaptureScreen from "./src/screens/CaptureScreen.tsx";
 import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
 import CompressionSettings from "./src/screens/CompressionSettings.tsx";
-import {useCaptureQueue} from "./src/capture/useCaptureQueue.ts";
+import {useCaptureQueue, type CaptureQueue} from "./src/capture/useCaptureQueue.ts";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen.tsx";
 import StatusScreen from "./src/screens/StatusScreen.tsx";
 import {notificationText, rightToLeft, subscribeLanguage, tr} from "./src/i18n/index.ts";
@@ -103,6 +103,8 @@ function Root() {
   const identity = creds ? credentialIdentity(creds) : '';
   const client = useMemo(() => (creds && isSealedCredentials(creds) ? new SealedMobileCompanionClient(creds) : null), [identity]);
   const lock = useSessionLock(client?.deviceId || null);
+  // Sending private captures carries on while VOOL is locked; only the screens need the unlock.
+  const captureQueue = useCaptureQueue(client);
   useEffect(() => {void setNativePrivateSession(!!client).catch(() => {});}, [client, lock.locked, lock.activity]);
   useEffect(() => {resetLink();}, [client]);
   useEffect(() => {if (lock.locked) setStartTab("chats");}, [lock.locked]);
@@ -161,7 +163,7 @@ function Root() {
   </Frame>;
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
-    onTouch={lock.touch} startTab={startTab} cameraAsked={cameraAsked} onCameraShown={() => setCameraAsked(false)} onConnection={async address => {
+    onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => setCameraAsked(false)} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
     }} onAwayConnection={async address => {
       if (creds) {
@@ -181,15 +183,15 @@ interface ShellProps {
   onConnection: (address: string) => Promise<void>;
   onAwayConnection: (address: string) => Promise<void>;
   startTab?: Tab;
+  queue: CaptureQueue;
   /** The camera was asked for from outside (home icon, quick settings). */
   cameraAsked?: boolean;
   onCameraShown?: () => void;
 }
 
 /** Everything a paired, unlocked phone shows: the five screens and the row of tabs under them. */
-export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", cameraAsked = false, onCameraShown}: ShellProps) {
+export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
-  const queue = useCaptureQueue(client);
   const [cameraOpen, setCameraOpen] = useState(false);
   useEffect(() => {
     if (!cameraAsked) return;

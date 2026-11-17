@@ -53,6 +53,11 @@ class VoolCaptureModule : Module() {
 
     Function("savingCount") { CaptureStore.savingCount }
 
+    /** On while captures are being sent: keeps sending when the phone locks, with a quiet notice. */
+    Function("keepSending") { on: Boolean, text: String ->
+      if (on) CaptureSendService.start(context, text) else { CaptureSendService.stop(context); false }
+    }
+
     Function("getCompressionSettings") { compression("getJson", context) as? String ?: "" }
 
     Function("setCompressionSettings") { json: String -> compression("setJson", context, json) as? String ?: "" }

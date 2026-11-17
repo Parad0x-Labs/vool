@@ -42,6 +42,7 @@ export async function sendOne(item: CaptureItem, vault: CaptureVault, link: Capt
         const next = (await link.captureChunk(uploadId, offset, piece)).next_offset;
         if (next !== offset + byteLength(piece)) throw new CompanionError(409, "wrong_offset", "");
         offset = next;
+        progressAt = Date.now();
       } catch (error) {
         // The computer holds a different amount than expected: ask once where to carry on.
         if (error instanceof CompanionError && error.code === "wrong_offset" && !resynced) {
@@ -64,11 +65,19 @@ export async function sendOne(item: CaptureItem, vault: CaptureVault, link: Capt
 }
 
 let running: Promise<SendReport> | null = null;
+let progressAt = 0;
+/** A run with no progress for this long is left behind (a request that never answered while the phone slept). */
+export const STALL_MS = 2 * 60_000;
 
-/** Send everything waiting, oldest first. One run at a time; a second call joins the running one. */
-export function sendWaiting(vault: CaptureVault, link: CaptureLink): Promise<SendReport> {
-  if (running) return running;
-  running = (async () => {
+/**
+ * Send everything waiting, oldest first. One run at a time; a second call joins the running one,
+ * unless that run has made no progress for STALL_MS, in which case a fresh run takes over (the
+ * computer tells it where to carry on, so nothing is sent twice).
+ */
+export function sendWaiting(vault: CaptureVault, link: CaptureLink, now: () => number = Date.now): Promise<SendReport> {
+  if (running && now() - progressAt < STALL_MS) return running;
+  progressAt = now();
+  const run: Promise<SendReport> = (async () => {
     const items = await vault.list();
     let sent = 0;
     let problem: SendProblem = "";
@@ -83,6 +92,7 @@ export function sendWaiting(vault: CaptureVault, link: CaptureLink): Promise<Sen
       }
     }
     return {sent, waiting: items.length - sent, problem};
-  })().finally(() => {running = null;});
-  return running;
+  })().finally(() => {if (running === run) running = null;});
+  running = run;
+  return run;
 }
