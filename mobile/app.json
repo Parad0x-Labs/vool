@@ -13,10 +13,10 @@
       "bundleIdentifier": "systems.vool.companion",
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Scan the pairing QR code shown on your VOOL desktop.",
+        "NSCameraUsageDescription": "Take private photos and videos that stay locked inside VOOL, and scan the pairing QR code from your computer.",
         "NSPhotoLibraryUsageDescription": "Attach photos to VOOL chats from your phone.",
         "NSFaceIDUsageDescription": "Unlock your private VOOL session with Face ID.",
-        "NSMicrophoneUsageDescription": "Record a note only while you hold the talk button.",
+        "NSMicrophoneUsageDescription": "Record sound for private videos and recordings, and a note while you hold the talk button.",
         "NSLocationWhenInUseUsageDescription": "Add your location to a message only when you choose to share it.",
         "CFBundleLocalizations": [
           "ar",

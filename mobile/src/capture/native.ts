@@ -41,13 +41,16 @@ interface VoolCaptureNative {
   iconUsed?(which: "camera" | "vault"): boolean;
   /** Tablets turn freely; phones, and any device while the camera is open, stay upright. Answers the short side in dp. */
   fitScreen?(camera: boolean): number;
+  /** iPhone and iPad: asks for the camera or the microphone (true when allowed). */
+  allow?(kind: "camera" | "microphone"): Promise<boolean>;
   getCameraPrefs(): string;
   setCameraPrefs(json: string): void;
   photoSizes(facing: "back" | "front"): Promise<{sizes: string[]; sensorMax: string}>;
 }
 
-/** The private capture's native side. Android only; elsewhere the feature is simply absent. */
-export const capture: VoolCaptureNative | null = Platform.OS === "android" ? requireOptionalNativeModule<VoolCaptureNative>("VoolCapture") : null;
+/** The private capture's native side, on Android, iPhone and iPad; elsewhere the feature is simply absent. */
+export const capture: VoolCaptureNative | null = Platform.OS === "android" || Platform.OS === "ios"
+  ? requireOptionalNativeModule<VoolCaptureNative>("VoolCapture") : null;
 
 export const vault: CaptureVault | null = capture
   ? {list: () => capture.list(), readFrom: (id, offset) => capture.readFrom(id, offset), remove: id => capture.remove(id),

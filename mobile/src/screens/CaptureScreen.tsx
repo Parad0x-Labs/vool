@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
-import {ActivityIndicator, Animated, Linking, PermissionsAndroid, Pressable, ScrollView, StyleSheet, Text, View} from "react-native";
+import {ActivityIndicator, Animated, Linking, PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, View} from "react-native";
 import {StatusBar} from "expo-status-bar";
 
 import {errorText, tr} from "../i18n/index.ts";
@@ -54,6 +54,13 @@ interface Props {
 }
 
 async function allowed(kind: Kind): Promise<"" | "camera" | "microphone"> {
+  if (Platform.OS === "ios") {
+    const ask = (what: "camera" | "microphone") => capture?.allow?.(what).catch(() => false) ?? Promise.resolve(false);
+    if (kind !== "sound" && !(await ask("camera"))) return "camera";
+    if (kind === "sound" && !(await ask("microphone"))) return "microphone";
+    if (kind === "video") await ask("microphone");
+    return "";
+  }
   const ask = async (permission: (typeof PermissionsAndroid.PERMISSIONS)[keyof typeof PermissionsAndroid.PERMISSIONS]) =>
     (await PermissionsAndroid.check(permission)) || (await PermissionsAndroid.request(permission)) === PermissionsAndroid.RESULTS.GRANTED;
   if (kind !== "sound" && !(await ask(PermissionsAndroid.PERMISSIONS.CAMERA))) return "camera";

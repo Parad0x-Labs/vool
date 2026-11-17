@@ -1,15 +1,15 @@
 import ExpoModulesCore
 import UIKit
 
-/// The VOOL icon's long-press menu on iPhone and iPad: VOOL Vault (and VOOL Camera once this build has it).
+/// The VOOL icon's long-press menu on iPhone and iPad: VOOL Camera and VOOL Vault.
 /// iOS gives an app one home-screen icon, so these stand in for Android's separate Camera and Vault icons.
 /// A pick becomes the same link the Android icons open ("vool-pair://vault"), so the app treats both alike:
 /// the Vault still opens only after VOOL's unlock.
 public class VoolShortcutSubscriber: ExpoAppDelegateSubscriber {
   static let vault = "systems.vool.companion.vault"
   static let camera = "systems.vool.companion.camera"
-  /// Set when this build has the private camera on iPhone.
-  static var cameraBuilt = false
+  /// This build has the private camera on iPhone.
+  static var cameraBuilt = true
 
   private static let lock = NSLock()
   private static var pending: String?
@@ -59,6 +59,8 @@ public class VoolShortcutSubscriber: ExpoAppDelegateSubscriber {
   public func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem,
                           completionHandler: @escaping (Bool) -> Void) {
     guard let link = Self.link(for: shortcutItem.type) else { completionHandler(false); return }
+    // The camera opens at once, before VOOL's unlock (only the camera, never chats, wallet or settings).
+    if shortcutItem.type == Self.camera { CameraLaunch.mark() }
     Self.deliver(link)
     completionHandler(true)
   }

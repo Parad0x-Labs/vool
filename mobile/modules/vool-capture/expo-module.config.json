@@ -11,6 +11,7 @@
   },
   "apple": {
     "modules": [
+      "VoolCaptureModule",
       "VoolVaultModule"
     ],
     "appDelegateSubscribers": [

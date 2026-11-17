@@ -234,7 +234,8 @@ function Root() {
 
 /** The optional smaller files, as a card in the camera's own settings. */
 function SmallerFiles() {
-  return capture ? <SettingsCard icon="archive-arrow-down-outline" title={tr("Smaller files")}><CompressionSettings /></SettingsCard> : null;
+  // Shown only where this build can make smaller files (not on iPhone yet).
+  return capture?.getCompressionSettings() ? <SettingsCard icon="archive-arrow-down-outline" title={tr("Smaller files")}><CompressionSettings /></SettingsCard> : null;
 }
 
 interface ShellProps {
@@ -365,7 +366,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
             {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection}
               captureSettings={<>
-                {openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}><CompressionSettings /></PrivateCaptureSettings> : null}
+                {openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}>{capture?.getCompressionSettings() ? <CompressionSettings /> : null}</PrivateCaptureSettings> : null}
                 {openVault ? <VaultSettings onOpen={openVault} /> : null}
                 <ScreenRecordingSettings />
               </>} />}

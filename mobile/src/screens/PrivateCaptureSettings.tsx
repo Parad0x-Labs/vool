@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import {Pressable, StyleSheet, Text, View} from "react-native";
+import {Platform, Pressable, StyleSheet, Text, View} from "react-native";
 
 import {tr} from "../i18n/index.ts";
 import {capture} from "../capture/native.ts";
@@ -42,11 +42,11 @@ export default function PrivateCaptureSettings({waiting, saving, onOpen, childre
         </View>
         <Icon name="chevron-right" size={22} color={C.faint} />
       </Pressable>
-      <Pressable style={[styles.row, styles.rule]} onPress={toggleHome} accessibilityRole="switch" accessibilityState={{checked: homeIcon}}
+      {Platform.OS === "android" ? <Pressable style={[styles.row, styles.rule]} onPress={toggleHome} accessibilityRole="switch" accessibilityState={{checked: homeIcon}}
         android_ripple={{color: C.ripple}}>
         <View style={styles.fill}><Text style={styles.text}>{tr("VOOL Camera on the home screen")}</Text></View>
         <Text style={[styles.value, homeIcon && {color: C.ok}]}>{homeIcon ? tr("On") : tr("Off")}</Text>
-      </Pressable>
+      </Pressable> : null}
       {capture.canAddTile() ? <Pressable style={[styles.row, styles.rule]} onPress={addTile} accessibilityRole="button" android_ripple={{color: C.ripple}}>
         <View style={styles.fill}>
           <Text style={styles.text}>{tr("Add to quick settings")}</Text>
