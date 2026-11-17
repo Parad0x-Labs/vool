@@ -20,12 +20,20 @@ import java.io.File
 object CameraLaunch {
   @Volatile private var at = 0L
 
-  fun mark() { at = SystemClock.elapsedRealtime() }
+  /** The icon or tile ran in this process at least once: a camera link without it is a stale one Android kept. */
+  @Volatile var used = false
+
+  fun mark() { at = SystemClock.elapsedRealtime(); used = true }
 
   /** True for a few seconds after the icon or tile was used; reading it does not clear it. */
   fun recent(): Boolean = at != 0L && SystemClock.elapsedRealtime() - at < 5_000
 
   fun clear() { at = 0L }
+}
+
+/** The VOOL Vault icon ran in this process: a Vault link without it is a stale one Android kept. */
+object VaultLaunch {
+  @Volatile var used = false
 }
 
 /** The camera's own choices (flash, timer, grid, filter ...), kept as one small JSON text the app shapes. */

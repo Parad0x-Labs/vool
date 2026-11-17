@@ -202,9 +202,11 @@ class Library:
 
     # --- reading -------------------------------------------------------------------------------------------------
 
-    def items(self, *, section: str = "", kind: str = "", sort: str = "date", descending: bool = True) -> list[dict[str, Any]]:
+    def items(self, *, section: str = "", kind: str = "", sort: str = "date", descending: bool = True,
+              favorites: bool = False) -> list[dict[str, Any]]:
         listed = [dict(meta) for meta in self._load().values()
-                  if (not section or meta.get("section") == section) and (not kind or meta.get("kind") == kind)]
+                  if (not section or meta.get("section") == section) and (not kind or meta.get("kind") == kind)
+                  and (not favorites or meta.get("favorite"))]
         field = "size" if sort == "size" else "taken_at"
         listed.sort(key=lambda m: (m.get(field) or 0, m.get("added_at") or 0, m.get("id")), reverse=descending)
         return listed
@@ -243,6 +245,20 @@ class Library:
         if path.exists():
             return False
         sealed.write_file(path, sealed.seal_small(bytes(jpeg), wrap_key=self.key(), ident=item_id + ":thumb"))
+        return True
+
+    def set_favorite(self, item_id: str, on: bool) -> bool:
+        """Stars an item (or takes the star away), kept sealed with its other details. True when it changed."""
+        meta = self.get(item_id)
+        if meta.get("damaged") or bool(meta.get("favorite")) == bool(on):
+            return False
+        if on:
+            meta["favorite"] = True
+        else:
+            meta.pop("favorite", None)
+        with self._lock:
+            sealed.write_file(self._meta_path(item_id), sealed.seal_small(json.dumps(meta).encode("utf-8"), wrap_key=self.key(), ident=item_id))
+            self._load()[item_id] = meta
         return True
 
     def check(self, item_id: str) -> bool:

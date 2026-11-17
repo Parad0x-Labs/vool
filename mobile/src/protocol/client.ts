@@ -332,8 +332,12 @@ export class MobileCompanionClient {
 
   // -- VOOL Vault: browse and open the computer's protected media library --
 
-  mediaList(query: {section: "mobile" | "local"; kind: "photo" | "video" | "audio"; sort: "date" | "size"; order: "asc" | "desc"; offset?: number; limit?: number}): Promise<{items: MediaItem[]; total: number}> {
+  mediaList(query: {section: "mobile" | "local"; kind: "photo" | "video" | "audio"; sort: "date" | "size"; order: "asc" | "desc"; offset?: number; limit?: number; favorites?: boolean}): Promise<{items: MediaItem[]; total: number}> {
     return this.request("media.list", {...query});
+  }
+  /** Stars items (or takes the stars away), up to 200 at once. */
+  mediaFavorite(ids: string[], on: boolean): Promise<{changed: number; missing: number; on: boolean}> {
+    return this.request("media.favorite", {ids, on});
   }
   /** The small JPEG preview of a photo, as base64. */
   async mediaThumb(id: string): Promise<string> {

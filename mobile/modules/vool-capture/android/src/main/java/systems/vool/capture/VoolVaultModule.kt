@@ -61,6 +61,10 @@ class VoolVaultModule : Module() {
       val ctx = context
       off(promise, "ERR_VAULT_SHARE") { VaultStreams.share(ctx, stream, name, title); null }
     }
+    AsyncFunction("shareMany") { ids: List<String>, names: List<String>, title: String, promise: Promise ->
+      val ctx = context
+      off(promise, "ERR_VAULT_SHARE") { VaultStreams.shareMany(ctx, ids, names, title); null }
+    }
     AsyncFunction("save") { stream: String, name: String, promise: Promise ->
       val ctx = context
       off(promise, "ERR_VAULT_SAVE") { VaultStreams.save(ctx, stream, name) }

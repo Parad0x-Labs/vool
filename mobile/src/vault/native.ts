@@ -12,6 +12,8 @@ export interface VaultNative {
   close(stream: string): void;
   closeAll(): void;
   share(stream: string, name: string, title: string): Promise<void>;
+  /** One share sheet for several whole streams. */
+  shareMany(streams: string[], names: string[], title: string): Promise<void>;
   save(stream: string, name: string): Promise<string>;
   homeIconOn(): boolean;
   setHomeIcon(on: boolean): Promise<"listed" | "off">;

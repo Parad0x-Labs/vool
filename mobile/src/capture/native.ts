@@ -24,6 +24,8 @@ interface VoolCaptureNative {
   /** On: keep VOOL running (with a notice) while sending; false when Android refused to start it. */
   keepSending(on: boolean, text: string): boolean;
   addListener(event: "onStored", listener: (event: StoredEvent) => void): {remove(): void};
+  /** The plain VOOL icon was tapped while VOOL was running. */
+  addListener(event: "onAppIcon", listener: (event: {at: number}) => void): {remove(): void};
   soundRecording(): boolean;
   homeIconOn(): boolean;
   setHomeIcon(on: boolean): Promise<void>;
@@ -36,6 +38,8 @@ interface VoolCaptureNative {
   /** The VOOL Camera icon or tile opened VOOL a moment ago: the camera opens without VOOL's unlock. */
   cameraLaunchRecent(): boolean;
   clearCameraLaunch(): void;
+  /** The camera or Vault icon ran since VOOL started (absent on older builds). */
+  iconUsed?(which: "camera" | "vault"): boolean;
   getCameraPrefs(): string;
   setCameraPrefs(json: string): void;
   photoSizes(facing: "back" | "front"): Promise<{sizes: string[]; sensorMax: string}>;

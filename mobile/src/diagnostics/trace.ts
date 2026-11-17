@@ -1,3 +1,4 @@
+import {AppState} from "react-native";
 import {capture} from "../capture/native.ts";
 
 /**
@@ -41,10 +42,12 @@ export function keepTrace(lines: string[]): void {
 }
 
 // The app's own thread: a tick every 100 ms; a tick that comes late means taps wait that long too.
+// Timers stop while VOOL is in the background, so that gap is not counted.
 let last = Date.now();
 setInterval(() => {
   const now = Date.now();
   const late = now - last - 100;
-  if (late >= 250) trace("js busy", {ms: late});
+  if (late >= 250 && (AppState.currentState || "active") === "active") trace("js busy", {ms: late});
   last = now;
 }, 100);
+AppState.addEventListener("change", () => {last = Date.now();});
