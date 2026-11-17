@@ -13,6 +13,7 @@ READERS = {
     "load_memory_excerpt", "list_memory_entries", "summarize_memory", "recent_conversation_events",
     "load_session_meta", "list_conversation_sessions", "search_relevant_memory", "find_disputed_memory_facts",
     "search_session_summaries", "search_user_heuristics", "combined_memory_entries", "legacy_memory_entries",
+    "list_replaced_entries",
 }
 NON_READERS = {
     "forget_profile_derivatives", "resolve_memory_access_policy", "add_memory_fact", "forget_memory",

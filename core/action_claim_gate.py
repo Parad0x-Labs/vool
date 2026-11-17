@@ -934,6 +934,30 @@ def _without_claims(content: str, spans: set[tuple[int, int, int]]) -> str:
     return body if meaningful else ""
 
 
+def _with_kept_line(text: str, turn_id: str, source_context: Any, publication: str) -> tuple[str, dict[str, Any]]:
+    """A reply no model wrote, with the one line that says what the keep step saved from this message.
+
+    Measured on the served step 2 build (05ebbcae), the model endpoint dead: "My godfather's birthday is 9 March,
+    by the way. What would make a good present ...?" wrote its row before the model was called, and the reply was
+    the no-answer notice alone, so the person was told nothing was made up and not that the fact was kept. The
+    notice, and any other reply a lane composed, says nothing about the save by itself; a fact kept in passing is
+    named under it. A lane that saved on request (the memory lane's own reply) already says so and gets no line."""
+    record: dict[str, Any] = {"publication": publication}
+    try:
+        receipt = _keep_receipt(turn_id, source_context)
+        saved = [str(f) for f in (receipt or {}).get("saved") or [] if str(f).strip()]
+        if not saved or not (receipt or {}).get("in_passing") or not text.strip():
+            return text, record
+        language = reply_language(text)
+        table = _LINES[language] if language in _LINES and "memory_kept" in _LINES[language] else _LINES["en"]
+        line = table["memory_kept"].format(facts=_quoted_facts(saved))
+        if line in text or [c for c in _claim_spans(text) if c[5] == "memory"]:
+            return text, record
+        return f"{text.rstrip()}\n\n{line}", {**record, "memory_receipt": "kept_line_added", "kept": len(saved)}
+    except Exception:  # pragma: no cover - the line must never cost the reply
+        return text, record
+
+
 def gate_action_claims(
     content: str,
     *,
@@ -953,13 +977,13 @@ def gate_action_claims(
     text = str(content or "")
     authored, recorded_request = model_authored_turn(turn_id=turn_id, source_context=source_context)
     if not authored:
-        return text, {"publication": "stood_down:not_model_authored"}
+        return _with_kept_line(text, turn_id, source_context, "stood_down:not_model_authored")
     from core.agent_runtime.response import _is_recorded_deterministic_render
 
     if _is_recorded_deterministic_render(text, source_context if isinstance(source_context, dict) else None):
         # A lane composed these exact bytes from what it did (the memory lane's "Locked in" after it saved); a
         # planner call earlier in the turn is not a model writing them.
-        return text, {"publication": "stood_down:recorded_runtime_render"}
+        return _with_kept_line(text, turn_id, source_context, "stood_down:recorded_runtime_render")
     spans = _claim_spans(text)
     receipt = _keep_receipt(turn_id, source_context)
     receipt_record: dict[str, Any] = {}

@@ -2532,6 +2532,44 @@ def _chat_earlier_user_turns(session_id: str | None) -> list[str]:
     return [str(row.get("user") or "") for row in reversed(rows) if str(row.get("user") or "").strip()]
 
 
+#: Added when the replaced row held other facts the update did not speak about; {facts} are those, kept current.
+EVERYDAY_UPDATE_STILL = " Still saved with it: {facts}."
+
+
+def _correction_command_takes(text: str) -> bool:
+    """Whether the correction command below takes this turn: "correction/update/replace ..." that names a value
+    of the kind it corrects (an identifier, a code, an ISO date). Measured on the served base (94ce6169): "Update:
+    my bin collection is on Fridays now" matched the command's lead, carried no such value, and was then nobody's:
+    the everyday update stood down for the command and the command did nothing, so the saved Tuesdays stayed and a
+    model was asked instead."""
+    correction = _CORRECTION_RE.match(text)
+    return bool(correction and _correction_values(str(correction.group("body") or "").lstrip(" :,;-")))
+
+
+def _replace_saved_fact(body: str, replaced: Mapping[str, Any], policy: ContextAccessPolicy) -> tuple[bool, list[str]]:
+    """Write `body` as the current value of the saved fact it updates. (written, the row's other facts kept.)
+
+    The new row holds the statement as the person said it, and the facts of the old row the statement does not
+    speak about; the old row becomes its history (`superseded`, linked to the new row by the store). Nothing of the
+    old value is written into the new row: on the served base the row read "... on Saturdays now (this replaces: my
+    pottery class is on Wednesdays and the teacher is called Ottoline)", so the old value was delivered with every
+    read of the new one, and a second update marked both rows disputed."""
+    from core.memory import everyday_remember as everyday
+
+    old = " ".join(str(replaced.get("fact") or replaced.get("text") or "").split())
+    still = everyday.clauses_kept(old, body)
+    written = add_memory_fact(
+        "; ".join([body.rstrip(". "), *still]),
+        session_id=policy.chat_id,
+        scope=str(replaced.get("scope") or "chat"),
+        authority="user_correction",
+        fact_key=str(replaced.get("fact_key") or "") or None,
+        access_policy=policy,
+        replaces_record_id=str(replaced.get("record_id") or "") or None,
+    )
+    return written, (still if written else [])
+
+
 def _everyday_decision(text: str, *, session_id: str | None, access_policy: ContextAccessPolicy | None):
     """(lead, policy, replaced, list_subject) when this turn is the everyday lane's -- a lead, a fact inside the
     list a lead opened, or an update to a fact that is saved -- else None. `list_subject` is what the open list is
@@ -2539,7 +2577,7 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
     writes nothing."""
     from core.memory import everyday_remember as everyday
 
-    if _CORRECTION_RE.match(text) or _FORGET_RE.match(text) or whole_memory_erase_request(text) or "\n" in text:
+    if _correction_command_takes(text) or _FORGET_RE.match(text) or whole_memory_erase_request(text) or "\n" in text:
         return None
     lead = everyday.everyday_lead(text)
     # An everyday lead that starts with a capture verb ("keep in mind that ...", "note this down: ...") is read here,
@@ -2553,21 +2591,27 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
     opened = everyday.open_list(earlier_turns) if lead is None and everyday.list_item(text, earlier_turns) else None
     listed = opened is not None
     update = lead is None and not listed and everyday.update_shaped(text) and not everyday.retracts_or_corrects(text)
-    if lead is None and not listed and not update:
+    # A plain statement that gives a new value for a saved fact ("My pottery class is moving to Mondays", no change
+    # word) is an update too: whether it is one is read from the saved facts below.
+    restated = lead is None and not listed and not update and everyday.may_restate(text)
+    if lead is None and not listed and not update and not restated:
         return None
     try:
         policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
     except (TypeError, ValueError):
         return None
     replaced = None
-    if update or listed or (lead is not None and lead.fact):
+    if update or restated or listed or (lead is not None and lead.fact):
         try:
             saved = memory_entries.list_memory_entries(access_policy=policy, limit=200)
         except Exception:
             saved = []
-        if everyday.update_shaped(lead.fact if lead is not None else text):
-            replaced = everyday.updated_entry(lead.fact if lead is not None else text, saved)
-    if update and replaced is None:
+        said = lead.fact if lead is not None else text
+        if everyday.update_shaped(said):
+            replaced = everyday.updated_entry(said, saved)
+        if replaced is None:
+            replaced = everyday.restated_entry(everyday.strip_continuation(said), saved)
+    if (update or restated) and replaced is None:
         return None  # an update to nothing saved is ordinary conversation
     return lead, policy, replaced, (opened.subject if opened is not None else "")
 
@@ -2627,22 +2671,17 @@ def _everyday_remember_turn(
         # "a spare paddle leash" alone says nothing about what it is for.
         said = f"{list_subject}: {said}"
     if replaced is not None:
-        old = " ".join(str(replaced.get("fact") or replaced.get("text") or "").split())
         body = everyday.update_body(said) or said
         try:
-            kept = add_memory_fact(
-                f"{body.rstrip('.')} (this replaces: {old.rstrip('.')})",
-                session_id=policy.chat_id,
-                scope=str(replaced.get("scope") or "chat"),
-                authority="user_correction",
-                fact_key=str(replaced.get("fact_key") or "") or None,
-                access_policy=policy,
-            )
+            kept, still = _replace_saved_fact(body, replaced, policy)
         except RevokedContentWrite:
             keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
             return True, ("You asked me to forget that in this chat, so I won't keep it here. "
                           "In a new chat I can remember it again.")
-        return (True, EVERYDAY_UPDATE_SAVED.format(fact=body.rstrip('.'))) if kept else None
+        if not kept:
+            return None
+        reply = EVERYDAY_UPDATE_SAVED.format(fact=body.rstrip('.'))
+        return True, (reply + EVERYDAY_UPDATE_STILL.format(facts="; ".join(still)) if still else reply)
     added = 0
     try:
         for memory_fact in _split_explicit_memory_facts(said):
@@ -2656,6 +2695,16 @@ def _everyday_remember_turn(
     if added:
         return True, "Locked in. I’ll remember that."
     return (True, "I already had that in memory.") if lead is not None else None
+
+
+def _profile_keeps(statement: str) -> bool:
+    """Whether the profile lane reads this statement as its own (core.operator_profile_interpretation)."""
+    try:
+        from core.operator_profile_interpretation import interpret_profile_turn
+
+        return bool(interpret_profile_turn(statement))
+    except Exception:
+        return False
 
 
 def keep_stated_facts(
@@ -2678,7 +2727,10 @@ def keep_stated_facts(
     clean = str(text or "").strip()
     if not clean or _memory_persistence_suppressed(dict(source_context or {}), session_id):
         return 0
-    facts = everyday.stated_facts(clean)
+    # What the owner's profile keeps (their name, how they want to be answered) is the profile's alone: one fact,
+    # one store. On the step 2 commit (05ebbcae) "my name is Noor" was written to the profile AND as a memory row,
+    # so a whole erase counted four entries where three were saved.
+    facts = [fact for fact in everyday.stated_facts(clean) if not _profile_keeps(fact)]
     if not facts:
         return 0
     try:
@@ -2695,8 +2747,18 @@ def keep_stated_facts(
         keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return 0
     added = 0
+    try:
+        saved = memory_entries.list_memory_entries(access_policy=policy, limit=200)
+    except Exception:
+        saved = []
     for stated in facts:
         try:
+            # A new value for a saved fact, said in passing, replaces it: a second current row would answer with
+            # both ("my pottery class is on Mondays" beside "... on Saturdays").
+            replaced = everyday.restated_entry(stated, saved)
+            if replaced is not None:
+                added += int(_replace_saved_fact(stated, replaced, policy)[0])
+                continue
             for fact, scope, source in _admitted_remember_facts(stated, policy=policy):
                 added += int(add_memory_fact(" ".join(fact.split()), session_id=policy.chat_id, scope=scope,
                                              authority="confirmed_memory", source=source, access_policy=policy))

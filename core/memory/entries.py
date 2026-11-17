@@ -828,6 +828,7 @@ def add_memory_fact(
     expires_at: str | None = None,
     review_after: str | None = None,
     access_policy: ContextAccessPolicy | None = None,
+    replaces_record_id: str | None = None,
 ) -> bool:
     _ensure_memory_files()
     clean = sanitize_fact(fact)
@@ -889,6 +890,7 @@ def add_memory_fact(
         expires_at=expires_at,
         review_after=review_after,
         access_policy=resolved_policy,
+        replaces_record_id=replaces_record_id,
     )
     if not recorded:
         return False
@@ -975,6 +977,41 @@ def sweep_governed_memory_rows(request_id: str) -> bool:
         rewrite_jsonl(memory_entries_path(), kept)
         _rewrite_memory_mirror_locked()
         return True
+
+
+@_memory_reader
+def list_replaced_entries(
+    *,
+    access_policy: ContextAccessPolicy | None = None,
+    chat_id: str | None = None,
+    limit: int = 400,
+) -> list[dict[str, Any]]:
+    """The saved rows a later statement replaced, oldest first: the history of what the person told VOOL.
+
+    Each carries `superseded_record_id`, the row that replaced it. A replaced row is never a current value and no
+    recall path reads it as one; it answers only "what was it before?", and a forget removes it with its fact. The
+    scope, chat, expiry and secret rules are the ones a current row passes (`list_memory_entries`)."""
+    from core.memory.revocation import authorize_payload
+
+    _ensure_memory_files()
+    policy = resolve_memory_access_policy(
+        access_policy=access_policy,
+        chat_id=chat_id,
+    )
+    rows = []
+    for row in _load_jsonl(memory_entries_path()):
+        if str(row.get("status") or "").strip().lower() != "superseded":
+            continue
+        if not str(row.get("superseded_record_id") or "").strip() or not str(row.get("text") or "").strip():
+            continue
+        # The policy admits a row by scope and chat on its current status; history is read by the same rule.
+        if _memory_command_row_allowed({**row, "status": "active"}, access_policy=policy) and authorize_payload(
+            row, chat_id=policy.chat_id
+        ):
+            rows.append(dict(row))
+    rows.sort(key=lambda row: (str(row.get("created_at") or ""), str(row.get("record_id") or "")))
+    selected = rows[-max(1, int(limit)) :]
+    return selected if authorize_payload(selected, chat_id=policy.chat_id) else []
 
 
 @_memory_reader
@@ -2012,7 +2049,12 @@ def record_memory_entry(
     expires_at: str | None,
     review_after: str | None,
     access_policy: ContextAccessPolicy | None = None,
+    replaces_record_id: str | None = None,
 ) -> bool:
+    """Write one row. `replaces_record_id` names the saved row this statement replaces (the person's update of a
+    fact): that row, and any other current row under the same key and scope, becomes its history -- status
+    `superseded`, linked to the new row -- and the new row is the one current value. Without it the authority ranks
+    decide, as before."""
     _ensure_memory_files()
     clean = sanitize_fact(text)
     if not clean:
@@ -2138,7 +2180,23 @@ def record_memory_entry(
             and _memory_scope_identity(row) == scope_identity
             and str(row.get("status") or "").strip().lower() == "active"
         ]
-        if initial_status == "active" and active_conflicts:
+        clean_replaces = str(replaces_record_id or "").strip()
+        if initial_status == "active" and clean_replaces:
+            # The person said this fact changed and the lane named the row it replaces. The later statement is the
+            # current one; the earlier rows stay as its history. Measured on the served base (94ce6169): the second
+            # update of one fact arrived with the first update's own authority, the equal-rank rule below marked
+            # BOTH rows `disputed`, and no current value was left.
+            for row in existing:
+                if str(row.get("status") or "").strip().lower() not in {"active", "disputed"}:
+                    continue
+                if str(row.get("record_id") or "").strip() == clean_replaces or (
+                    str(row.get("fact_key") or "").strip() == clean_fact_key
+                    and _memory_scope_identity(row) == scope_identity
+                ):
+                    row["status"] = "superseded"
+                    row["superseded_record_id"] = record_id
+                    row["superseded_at"] = created_at
+        elif initial_status == "active" and active_conflicts:
             strongest_rank = max(
                 _AUTHORITY_RANK.get(
                     str(row.get("authority") or "").strip().lower(),
@@ -2288,6 +2346,9 @@ def forget_structured_memory(
             if bare_ids:
                 target_ids = bare_ids
                 clean_token = bare_token
+        # A forgotten fact goes with its history: the rows it replaced hold its earlier values ("bin collection
+        # is on Tuesdays" under "... on Fridays now") and need not carry the words of the forget.
+        target_ids = _with_replaced_rows(target_ids, [row for row in rows if _memory_erasure_row_owned(row, policy)])
         erased_texts = _erase_rows_locked(target_ids)
         if erased_texts:
             retained = _load_erasure_rows(memory_entries_path())
@@ -2337,6 +2398,26 @@ def forget_structured_memory(
     if summary_error is not None:
         raise MemoryErasureError("session summaries could not be erased and verified") from summary_error
     return len(erased_texts)
+
+
+def _with_replaced_rows(record_ids: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """`record_ids` plus every row they replaced, directly or through an earlier replacement."""
+    out = [rid for rid in dict.fromkeys(record_ids) if rid]
+    seen = set(out)
+    grew = True
+    while grew:
+        grew = False
+        for row in rows:
+            rid = str(row.get("record_id") or "").strip()
+            if (
+                rid and rid not in seen
+                and str(row.get("status") or "").strip().lower() == "superseded"
+                and str(row.get("superseded_record_id") or "").strip() in seen
+            ):
+                out.append(rid)
+                seen.add(rid)
+                grew = True
+    return out
 
 
 def _memory_erasure_row_owned(row: dict[str, Any], policy: ContextAccessPolicy) -> bool:

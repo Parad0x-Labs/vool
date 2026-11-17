@@ -451,6 +451,25 @@ def _word_form(word: str) -> str:
     return re.sub(r"(?:'s|’s|s)$", "", word)
 
 
+def _fact_holds(word: str, saved: str) -> bool:
+    """Whether a saved fact holds a word of an update's subject, in any of its forms.
+
+    The forms are the ones a question is matched by (core.chat_housekeeping), so the fact a question finds is the
+    fact an update finds. Served on the first cut of step 3 (9f910ead): with "the chalet is now booked for 11
+    september" saved, "the chalet booking changed again, it's on 13 september now" replaced nothing, because
+    "booking" and "booked" were compared as written; a question about "our chalet booking" found the row."""
+    if _word_form(word) in {_word_form(w) for w in topic_tokens(saved)}:
+        return True
+    try:
+        from core.chat_housekeeping import _doc_stems, _term_in, query_terms
+
+        stems = _doc_stems(saved)
+        terms = query_terms(word)
+        return bool(terms) and all(_term_in(term, stems) for term in terms)
+    except Exception:
+        return False
+
+
 def updated_entry(text: str, entries: list[dict]) -> dict | None:
     """The one saved entry an update statement replaces: the most shared topic words, newest on a tie.
 
@@ -465,16 +484,194 @@ def updated_entry(text: str, entries: list[dict]) -> dict | None:
     # What the update is about: the words before its change word ("the STREET PARTY moved to saturday"). Every one of
     # them must be in the fact it replaces: with "my dentist is dr Okafor on Brill street" saved, the street party
     # replaced the dentist on the one word "street" (independent review of job 19, C6).
-    cue = _UPDATE_RE.search(body)
-    subject = {_word_form(w) for w in topic_tokens(body[: cue.start()])} if cue else set()
+    # A statement may open with a change phrase of its own ("Change of plan: my pottery class login password is
+    # now ..."): the subject stands before the first change word that has any words before it. Read from the
+    # opening phrase the subject was empty, and the statement replaced "my pottery class is on Mondays" on the two
+    # words they share (served base 94ce6169 and the first cut of step 3).
+    subject: set[str] = set()
+    said_from = 0
+    for cue in _UPDATE_RE.finditer(body):
+        subject = topic_tokens(body[said_from: cue.start()])
+        if subject:
+            break
+        said_from = cue.end()
     best, best_score = None, 0
     for row in entries:
         saved = str(row.get("fact") or row.get("text") or "")
         if about_files and not _FILE_PLACE_RE.search(saved):
             continue
-        if subject and not subject <= {_word_form(w) for w in topic_tokens(saved)}:
+        if subject and not all(_fact_holds(word, saved) for word in subject):
             continue
         score = len(wanted & topic_tokens(saved))
         if score and score >= best_score:
             best, best_score = row, score
     return best
+
+
+# --- one fact of a saved row, and the value it holds ----------------------------------------------------------
+#
+# Measured on the served base (94ce6169, a real local model): "Remember that my pottery class is on Wednesdays and
+# the teacher is called Ottoline", then "Small change: my pottery class is on Saturdays now", was stored as "my
+# pottery class is on Saturdays now (this replaces: my pottery class is on Wednesdays and the teacher is called
+# Ottoline)": the whole row was replaced as a unit and its second fact lived on only inside the tail. An update
+# speaks about one fact of a row; the others stay current.
+
+#: Where a saved row holds more than one fact: a semicolon, a sentence end, a comma ("... for 4-7 june, booking code
+#: BR-5527"), or an "and" whose right side opens a clause of its own ("... on Wednesdays and the teacher is called
+#: Ottoline"; not "bread and milk"). A piece of one or two words is no fact of its own and stays with the one before.
+_CLAUSE_SPLIT_RE = re.compile(
+    r"\s*;\s*|(?<=[.!?])\s+|,\s+(?!and\b)"
+    r"|,?\s+and\s+(?=(?:my|our|the|her|his|their|its|it|she|he|they|we|i)\b(?:\s+\S+){2,})",
+    re.IGNORECASE,
+)
+
+
+def fact_clauses(text: str) -> list[str]:
+    """The facts one saved row holds, in order."""
+    clean = " ".join(str(text or "").split())
+    parts: list[str] = []
+    for piece in _CLAUSE_SPLIT_RE.split(clean):
+        piece = piece.strip(" .;")
+        if not piece:
+            continue
+        if parts and len(piece.split()) < 3:
+            parts[-1] = f"{parts[-1]} {piece}"  # a fragment is not a fact of its own
+        else:
+            parts.append(piece)
+    return parts
+
+
+def _forms(text: str) -> set[str]:
+    return {_word_form(word) for word in topic_tokens(text)}
+
+
+def clauses_kept(saved: str, update: str) -> list[str]:
+    """The facts of a saved row that an update does not speak about, in order: they stay current.
+
+    Which fact the update speaks about is read in this order, and the first reading that names one decides:
+    the fact it gives a new value for (`restates`); the facts holding a value of the kind the update gives, with
+    another value ("the boat dates changed, its now 11-14 june, same booking code" replaces "... for 4-7 june" and
+    leaves "booking code BR-5527"); the fact whose subject one of the update's own parts names ("my vet moved, THE
+    SURGERY is on Orchard row now" replaces "her surgery is on Pell lane" and leaves "my vet is Dr Halloran"); the
+    fact it shares the most topic words with (every fact that ties). A row of one fact, or an update that shares no
+    word with any single fact of the row, is replaced whole."""
+    parts = fact_clauses(saved)
+    if len(parts) < 2:
+        return []
+    plain = strip_continuation(update_body(update))
+    given = typed_values(plain)
+    kind = next((name for name, _ in _VALUE_KINDS if name in given), "")
+    named = {head for head in (_head_and_rest(piece)[0] for piece in _UPDATE_PART_RE.split(plain)) if head}
+    for spoken in (
+        [restates(plain, part) for part in parts],
+        [bool(kind) and kind in typed_values(part) and given[kind].isdisjoint(typed_values(part)[kind]) for part in parts],
+        [bool(_head_and_rest(part)[0] and _head_and_rest(part)[0] in named) for part in parts],
+    ):
+        if any(spoken):
+            return [part for part, hit in zip(parts, spoken) if not hit]
+    wanted = _forms(update_body(update))
+    scores = [len(wanted & _forms(part)) for part in parts]
+    top = max(scores)
+    if top <= 0:
+        return []
+    return [part for part, score in zip(parts, scores) if score < top]
+
+
+#: The kinds of value a plain statement gives, most specific first. A value's kind is a closed class (the seven
+#: days, the twelve months, a clock time, a number), not a cue word: it says what sort of thing a fact holds.
+_VALUE_KINDS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("weekday", re.compile(r"\b(?:mon|tues|wednes|thurs|fri|satur|sun)days?\b", re.IGNORECASE)),
+    ("date", re.compile(
+        r"\b\d{1,2}(?:\s*[-–]\s*\d{1,2})?(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b"
+        r"|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?\b",
+        re.IGNORECASE,
+    )),
+    ("clock", re.compile(r"\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s?(?:am|pm)\b|\b(?:noon|midday|midnight)\b", re.IGNORECASE)),
+    # A number standing alone: not the digits of a code ("BR-5527") or the second half of a range.
+    ("number", re.compile(r"(?<![\w.\-–])\d+(?:[.,]\d+)?(?![\w])")),
+)
+_HEAD_DETERMINERS = frozenset(["my", "our", "the", "a", "an", "this", "that", "her", "his", "their", "its"])
+#: The parts of one update statement: "my vet moved | the surgery is on Orchard row now".
+_UPDATE_PART_RE = re.compile(r"\s*[,;]\s*|(?<=[.!?])\s+|\s+and\s+", re.IGNORECASE)
+#: Where the subject of a plain statement ends: "my pottery class | is on Saturdays".
+_HEAD_END_RE = re.compile(r"\s(?:is|are|was|were|will)\b|(?:'s|’s)\s", re.IGNORECASE)
+
+
+def typed_values(text: str) -> dict[str, frozenset[str]]:
+    """{kind: values} for the values a statement gives. A span read as one kind is not read again as another
+    (the "3" of "3 July" is a date, not a number)."""
+    rest = " ".join(str(text or "").split())
+    found: dict[str, frozenset[str]] = {}
+    for kind, pattern in _VALUE_KINDS:
+        values = frozenset(re.sub(r"s$", "", " ".join(m.group(0).casefold().split())) for m in pattern.finditer(rest))
+        if values:
+            found[kind] = values
+            rest = pattern.sub(" ", rest)
+    return found
+
+
+def _without_values(text: str) -> str:
+    rest = str(text or "")
+    for _, pattern in _VALUE_KINDS:
+        rest = pattern.sub(" ", rest)
+    return rest
+
+
+def _head_and_rest(clause: str) -> tuple[frozenset[str], frozenset[str]]:
+    clean = strip_continuation(" ".join(str(clause or "").split()))
+    end = _HEAD_END_RE.search(clean)
+    if end is None:
+        return frozenset(), frozenset()
+    # Every word of the subject counts ("my flight back" is not "my flight"); only the determiner is dropped.
+    head = {
+        _word_form(word)
+        for word in re.findall(r"[a-z0-9][a-z0-9'’-]*", clean[: end.start()].casefold())
+        if word not in _HEAD_DETERMINERS
+    }
+    return frozenset(head), frozenset(_forms(_without_values(clean[end.end():])))
+
+
+def restates(statement: str, saved_fact: str) -> bool:
+    """Whether a plain statement gives a new value for the thing a saved fact is about: the same subject ("my
+    pottery class"), a value of the same kind (a weekday, a date, a clock time, a number), and a different value.
+
+    "My pottery class is moving to Mondays" restates "my pottery class is on Saturdays now"; "my sister is a nurse"
+    does not restate "my sister is 34", and "my flat is 80 square metres" does not restate "my flat is number 12"
+    (both say something else about the subject). The later statement is then the current one. No change word is
+    needed, and none decides."""
+    head, said = _head_and_rest(statement)
+    saved_head, saved_said = _head_and_rest(saved_fact)
+    if not head or head != saved_head:
+        return False
+    if said and saved_said and said.isdisjoint(saved_said):
+        return False
+    new, old = typed_values(statement), typed_values(saved_fact)
+    for kind, _ in _VALUE_KINDS:
+        if kind in new or kind in old:
+            return kind in new and kind in old and new[kind].isdisjoint(old[kind])
+    return False
+
+
+def may_restate(text: str) -> bool:
+    """Cheap test before the saved facts are read: one plain statement that gives a typed value."""
+    clean = " ".join(str(text or "").split())
+    if not clean or len(clean) > 300 or is_question(clean) or _REQUEST_HEAD_RE.match(strip_continuation(clean)):
+        return False
+    if len(fact_clauses(clean)) != 1 or retracts_or_corrects(clean):
+        return False
+    return bool(_head_and_rest(clean)[0]) and bool(typed_values(clean))
+
+
+def restated_entry(text: str, entries: list[dict]) -> dict | None:
+    """The saved entry holding a fact this statement restates (newest on a tie), else None."""
+    clean = " ".join(str(text or "").split())
+    if not may_restate(clean):
+        return None
+    best = None
+    for row in entries:
+        saved = str(row.get("fact") or row.get("text") or "")
+        if any(restates(clean, part) for part in fact_clauses(saved)):
+            best = row
+    return best
+
+

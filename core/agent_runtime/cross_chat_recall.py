@@ -566,8 +566,126 @@ def saved_memory_rows(question: str, *, session_id: str, source_context: dict[st
     rows = _memory_rows(text, subject, session_id, source_context)
     found = [row for row in (rows[0] if rows else []) if all(_term_in(term, _doc_stems(row)) for term in subject)]
     if now_words:
-        found = [row for row in found if _CHANGE_RE.search(row) and not _READING_RE.search(row)]
+        # A row that replaced another is the value as it is now, whatever its words ("my pottery class is on
+        # Mondays"). The change words also read rows an earlier build wrote with the old value in their text.
+        replaced_another = _texts_that_replaced_a_row(session_id, source_context)
+        found = [
+            row for row in found
+            if (_CHANGE_RE.search(row) or row in replaced_another) and not _READING_RE.search(row)
+        ]
     return found
+
+
+def _replaced_rows(session_id: str, source_context: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """The saved rows a later statement replaced, as this chat may read them (oldest first); [] when unknown."""
+    try:
+        from core.context_scope import ContextAccessPolicy
+        from core.memory.entries import list_replaced_entries
+
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
+        return list(list_replaced_entries(access_policy=policy))
+    except Exception:
+        return []
+
+
+def _texts_that_replaced_a_row(session_id: str, source_context: dict[str, Any] | None) -> set[str]:
+    replaced = _replaced_rows(session_id, source_context)
+    if not replaced:
+        return set()
+    try:
+        from core.context_scope import ContextAccessPolicy
+        from core.memory.entries import list_memory_entries
+
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
+        successors = {str(row.get("superseded_record_id") or "") for row in replaced}
+        return {
+            " ".join(str(row.get("text") or "").split())
+            for row in list_memory_entries(access_policy=policy, limit=400)
+            if str(row.get("record_id") or "") in successors
+        }
+    except Exception:
+        return set()
+
+
+#: A question about what a saved fact WAS: a past frame and a word that points before the change ("which day was
+#: my pottery class before it moved?", "what did the chalet booking used to be?"). It picks the kind of question;
+#: which fact it is about is read from the saved rows and their history.
+_WAS_BEFORE_RE = re.compile(
+    r"\b(?:was|were|did|had)\b.*\b(?:used\s+to|before|previously|originally|formerly|earlier)\b"
+    r"|\b(?:used\s+to|previously|originally|formerly)\b.*\b(?:was|were|did|had|be)\b",
+    re.IGNORECASE,
+)
+_HISTORY_POINTER_RE = re.compile(r"\b(?:used\s+to|before|previously|originally|formerly|earlier)\b", re.IGNORECASE)
+_HISTORY_WORD_STEMS = frozenset(["use", "used", "before", "previous", "previously", "original", "originally", "former",
+                                 "formerly", "earlier", "early"])
+
+
+def replaced_values_answer(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> str:
+    """The answer to "what was it before?" from the history of a saved fact, or "" when no saved fact with a
+    history is asked about.
+
+    A replaced row is never read as a current value by any recall path; it is read here only, for the question
+    that asks for it. Measured on the served base (94ce6169, a real local model): "Which day was my pottery class
+    before it moved to Mondays?" was answered "on Fridays", a day never said, because nothing held the earlier
+    values apart from the current one."""
+    text = " ".join(str(question or "").split())
+    if not text or len(text) > 300 or _is_statement(text) or not _WAS_BEFORE_RE.search(text):
+        return ""
+    replaced = _replaced_rows(session_id, source_context)
+    if not replaced:
+        return ""
+    try:
+        from core.chat_housekeeping import _doc_stems, _term_in
+        from core.context_scope import ContextAccessPolicy
+        from core.memory.entries import list_memory_entries
+
+        # What the question is about stands before its pointer to the past ("which day was MY POTTERY CLASS before
+        # it moved to Mondays?"); what follows describes the change, in words the saved rows need not hold.
+        subject_part = _HISTORY_POINTER_RE.split(text, maxsplit=1)[0]
+        terms = ()
+        for part in (subject_part, text):
+            terms = tuple(
+                term for term in _asked_terms(as_question(part))
+                if term not in _HISTORY_WORD_STEMS and term not in _SLOT_STEMS
+            )
+            if terms:
+                break
+        if not terms:
+            return ""
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
+        current = list_memory_entries(access_policy=policy, limit=400)
+    except Exception:
+        return ""
+    before: dict[str, list[dict[str, Any]]] = {}
+    for row in replaced:
+        before.setdefault(str(row.get("superseded_record_id") or ""), []).append(row)
+    best: tuple[int, str, list[dict[str, Any]]] | None = None
+    for row in current:
+        chain: list[dict[str, Any]] = []
+        frontier = [str(row.get("record_id") or "")]
+        while frontier:
+            earlier = before.get(frontier.pop(), [])
+            chain.extend(earlier)
+            frontier.extend(str(item.get("record_id") or "") for item in earlier)
+        if not chain:
+            continue
+        stems = set()
+        for item in (row, *chain):
+            stems |= set(_doc_stems(" ".join(str(item.get("text") or "").split())))
+        held = sum(1 for term in terms if _term_in(term, stems))
+        if held < len(terms):
+            continue  # the fact must hold every word of the subject, as a saved row that answers a question does
+        rank = (held, str(row.get("created_at") or ""))
+        if best is None or rank > best[:2]:
+            best = (held, str(row.get("created_at") or ""), chain)
+    if best is None:
+        return ""
+    chain = sorted(best[2], key=lambda item: str(item.get("superseded_at") or item.get("created_at") or ""), reverse=True)
+    lines = [" ".join(str(item.get("text") or "").split()) for item in chain]
+    response = "Before the last change, I had saved:\n- " + lines[0]
+    if len(lines) > 1:
+        response += "\n\nEarlier than that:\n" + "\n".join(f"- {line}" for line in lines[1:4])
+    return response
 
 
 def saved_memory_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
@@ -723,7 +841,8 @@ def _when(ts: str) -> str:
 
 
 
-def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: list[str]):
+def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: list[str],
+                          replaced_folded: list[str] | None = None):
     """(hit, statement, ts) for the owner's best statement in another matching chat, or None.
 
     ``search_chats`` ranks chats by their best turn, which is often VOOL's reply; only what the
@@ -750,6 +869,11 @@ def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: lis
         if not found:
             continue
         if any(saved and saved in said.casefold() for saved in saved_folded):
+            continue
+        if any(old and old in said.casefold() for old in replaced_folded or ()):
+            # The owner's own earlier statement of a fact they have since changed: the saved row that held it is
+            # history now, and quoting it under "You also mentioned this" gave the old value beside the current one
+            # (served base 94ce6169: Wednesdays quoted under the saved Saturdays).
             continue
         if forget_state is None:
             forget_state = _forget_state()
@@ -971,7 +1095,12 @@ def cross_chat_recall(
     # earlier turns, which the transcript reader quotes in order (core.agent_runtime.same_chat_recall).
     # Searched across the other chats instead, it was answered "I don't have that saved" in the
     # served app while the first question sat two turns up (train port real-app run, 2026-11-12).
-    if not _OTHER_CHAT_RE.search(typed):
+    # "Which day was my pottery class before it moved?" points at the past of a SAVED fact, not at this chat's
+    # earlier turns: when a saved fact with a history holds the subject asked about, its replaced rows answer.
+    # Served on the first cut of this change (9f910ead): the word "before" sent the question to the transcript
+    # reader, which had nothing, and the model answered "on Fridays", a day never said.
+    was_before = replaced_values_answer(typed, session_id=session_id, source_context=source_context)
+    if not _OTHER_CHAT_RE.search(typed) and not was_before:
         from core.context_history_authority import is_same_chat_history_recall
 
         if is_same_chat_history_recall(typed):
@@ -980,11 +1109,12 @@ def cross_chat_recall(
         _CONVERSATION_POINTER_RE.search(_OTHER_CHAT_RE.sub(" ", text))
         and not _OTHER_CHAT_RE.search(text)
         and _chat_has_owner_statements(source_context)
+        and not was_before
     ):
         return None
     # "where did we leave off?": the conversation's own course, with no fact in it to look for. In a
     # chat that holds an exchange (a continued or imported one) that exchange is the answer.
-    if RESUME_RE.search(text) and not _OTHER_CHAT_RE.search(text) and _chat_holds_an_exchange(source_context):
+    if RESUME_RE.search(text) and not _OTHER_CHAT_RE.search(text) and _chat_holds_an_exchange(source_context) and not was_before:
         return None
     # A saved fact that answers the question outright is the owner's own record of it, and it answers ahead of a lane
     # that would only search a calendar or the web for it. H2H memory set on the real local model (88b3247e): "what
@@ -996,7 +1126,7 @@ def cross_chat_recall(
         from core.agent_runtime.turn_planner import recall_question_needs_no_planner
 
         if not (recall_question_needs_no_planner(text) or _personal_question(text) or explicit_recall
-                or answered_by_saved):
+                or answered_by_saved or was_before):
             # A short question about something only the owner's own chats know ("what day is
             # piano?" after "my piano lesson is on Tuesdays") is theirs too -- the world question
             # it resembles got a clarifier about a 2013 film (acceptance runner, 2026-11-11).
@@ -1008,6 +1138,8 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
+    if was_before:
+        return CrossChatRecall(response=was_before, found=True)
     claimed_elsewhere = _owned_by_another_lane(text, " ".join(str(question or "").split()), source_context) or (
         _operator_store_ask(typed)
     )
@@ -1047,8 +1179,18 @@ def cross_chat_recall(
     result = search_chats(text, current_session_id=session_id, limit=12)
     if not result.ok:
         return None
-    saved_folded = [row.casefold().rstrip(" .") for row in saved]
-    best = _best_owner_statement(result, terms, saved_folded)
+    from core.memory.everyday_remember import fact_clauses
+
+    # A saved row may hold several facts; a statement of any one of them is the saved fact said again.
+    saved_folded = list(dict.fromkeys(
+        fact.casefold().rstrip(" .") for row in saved for fact in (row, *fact_clauses(row))
+    ))
+    replaced_folded = list(dict.fromkeys(
+        fact.casefold().rstrip(" .")
+        for old in _replaced_rows(session_id, source_context)
+        for fact in (" ".join(str(old.get("text") or "").split()), *fact_clauses(str(old.get("text") or "")))
+    ))
+    best = _best_owner_statement(result, terms, saved_folded, replaced_folded)
     if best is None and saved:
         if answered_by_saved and claimed_elsewhere:
             # Handed on, a calendar or web lane ahead of the model would answer it instead of the saved fact. Any
