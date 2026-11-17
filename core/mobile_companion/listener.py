@@ -428,8 +428,13 @@ class CompanionListener:
             if away:
                 # The home network stays usable when the private route cannot start; the choice
                 # stays saved, so the next start tries again.
-                with suppress(OSError, ValueError, RuntimeError):
+                try:
                     self._set_away(True)
+                except (OSError, ValueError, RuntimeError) as error:
+                    # Said once in the log, so a phone that cannot reach the computer away from home has a reason.
+                    import logging
+
+                    logging.getLogger(__name__).warning("Phone away-from-home route did not start: %s", error)
             return self.snapshot()
 
     def _set_away(self, wanted):
