@@ -5,7 +5,7 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
-/** Quick settings tile: one tap opens VOOL's private camera. VOOL's own lock still asks first. */
+/** Quick settings tile: one tap opens VOOL's private camera. The phone's own screen lock still asks first; VOOL's unlock does not (only the camera opens). */
 class CaptureTileService : TileService() {
   override fun onStartListening() {
     qsTile?.let {
@@ -19,6 +19,7 @@ class CaptureTileService : TileService() {
   }
 
   private fun open() {
+    CameraLaunch.mark()
     val intent = CameraLauncherActivity.captureIntent(this)
     if (Build.VERSION.SDK_INT >= 34) {
       startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))

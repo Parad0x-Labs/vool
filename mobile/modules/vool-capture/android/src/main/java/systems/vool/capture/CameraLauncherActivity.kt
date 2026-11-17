@@ -5,10 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 
-/** The optional "VOOL Camera" home-screen icon: opens VOOL straight at the private camera (behind its lock). */
+/** The optional "VOOL Camera" home-screen icon: opens VOOL straight at the private camera, without VOOL's unlock (the rest of VOOL stays locked). */
 class CameraLauncherActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    CameraLaunch.mark()
     startActivity(captureIntent(this))
     finish()
   }

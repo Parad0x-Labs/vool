@@ -191,6 +191,12 @@ Notes: Adapter code is ours; remote provider services remain under their own ter
 - bundled: yes, inside the macOS, Linux and Windows app bundles (the Media Studio worker)
 - notes: standard library only; it runs `ffmpeg` and `ffprobe` from the computer, and neither is bundled
 
+### Phone app: private camera settings (credit)
+
+- path: `mobile/src/screens/CaptureScreen.tsx`, `mobile/modules/vool-capture/android/src/main/java/systems/vool/capture/VoolCameraView.kt`
+- credit: the camera's settings (flash, self-timer, grid, 4:3 or 16:9, video quality, steady video, mirrored selfies, pinch to zoom, tap to focus) follow the GrapheneOS Camera app, https://github.com/GrapheneOS/Camera, MIT license, Copyright © 2021-2025 GrapheneOS
+- bundled: no GrapheneOS Camera code is copied; VOOL's own code, written for CameraX. If code is taken from it later, its MIT notice goes into `LICENSES/` next to this entry
+
 ## Disclaimer
 
 This document is an operational licensing guide for the repository structure.

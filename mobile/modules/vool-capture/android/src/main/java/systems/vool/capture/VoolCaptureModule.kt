@@ -53,6 +53,17 @@ class VoolCaptureModule : Module() {
 
     Function("savingCount") { CaptureStore.savingCount }
 
+    /** The VOOL Camera icon or tile just opened VOOL: show the camera without asking for the unlock. */
+    Function("cameraLaunchRecent") { CameraLaunch.recent() }
+    Function("clearCameraLaunch") { CameraLaunch.clear() }
+
+    /** The camera's own settings, as JSON text the app shapes. */
+    Function("getCameraPrefs") { CameraPrefs.get(context) }
+    Function("setCameraPrefs") { json: String -> CameraPrefs.set(context, json) }
+
+    /** Photo sizes this phone gives apps (largest first), and the sensor's own largest. */
+    AsyncFunction("photoSizes") { facing: String -> PhotoSizes.of(context, facing) }
+
     /** On while captures are being sent: keeps sending when the phone locks, with a quiet notice. */
     Function("keepSending") { on: Boolean, text: String ->
       if (on) CaptureSendService.start(context, text) else { CaptureSendService.stop(context); false }
@@ -116,10 +127,18 @@ class VoolCaptureModule : Module() {
     }
 
     View(VoolCameraView::class) {
-      Events("onModes", "onCaptured", "onCameraError")
+      Events("onModes", "onCaptured", "onCameraError", "onZoom", "onFocus")
       Prop("facing") { view: VoolCameraView, value: String -> view.setFacing(value) }
       Prop("mode") { view: VoolCameraView, value: String -> view.setMode(value) }
       Prop("video") { view: VoolCameraView, value: Boolean -> view.setVideo(value) }
+      Prop("flash") { view: VoolCameraView, value: String -> view.setFlash(value) }
+      Prop("aspect") { view: VoolCameraView, value: String -> view.setAspect(value) }
+      Prop("photoSize") { view: VoolCameraView, value: String -> view.setPhotoSize(value) }
+      Prop("videoQuality") { view: VoolCameraView, value: String -> view.setVideoQuality(value) }
+      Prop("steady") { view: VoolCameraView, value: Boolean -> view.setSteady(value) }
+      Prop("mirror") { view: VoolCameraView, value: Boolean -> view.setMirror(value) }
+      Prop("filter") { view: VoolCameraView, value: String -> view.setFilter(value) }
+      AsyncFunction("setZoom") { view: VoolCameraView, ratio: Double -> view.setZoom(ratio) }
       AsyncFunction("takePhoto") { view: VoolCameraView, promise: Promise -> view.takePhoto(promise) }
       AsyncFunction("startVideo") { view: VoolCameraView, promise: Promise -> view.startVideo(promise) }
       AsyncFunction("stopVideo") { view: VoolCameraView, promise: Promise -> view.stopVideo(promise) }
