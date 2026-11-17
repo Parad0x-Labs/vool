@@ -699,6 +699,58 @@ def arbitrate_answered(
     )
 
 
+def _meaning_prompt(question: str, fact: str) -> str:
+    """A balanced yes/no: does a saved fact, in whatever words, give what the question asks for?"""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "A person asked their assistant a question. The assistant holds one saved fact the person told it earlier.",
+        "Question: does the saved fact give what the person asked for?",
+        'Answer {"answer": "yes"} when the fact states the thing asked for, even in quite different words.',
+        'Answer {"answer": "no"} when the fact is about a different thing or a different person, even if a word is '
+        "shared, or when it does not hold what is asked.",
+        "",
+        'Asked: "what should I not drink before bed?" Saved fact: "coffee after 3 pm keeps me awake all night." '
+        '-> {"answer": "yes"}',
+        'Asked: "what is my bank\'s sort code?" Saved fact: "my bike lock code is 4471." -> {"answer": "no"}',
+        'Asked: "who looks after my teeth?" Saved fact: "Dr Ferro is my dentist." -> {"answer": "yes"}',
+        'Asked: "when is my sister\'s birthday?" Saved fact: "my brother\'s birthday is 2 June." -> {"answer": "no"}',
+        'Asked: "where do we go on holiday?" Saved fact: "we rent the same cottage on Skye every August." '
+        '-> {"answer": "yes"}',
+        'Asked: "what is my running pace?" Saved fact: "my running shoes are size 44." -> {"answer": "no"}',
+        "",
+        f'Asked: "{flat(question, 240)}" Saved fact: "{flat(fact, 400)}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_meaning(
+    question: str,
+    fact: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a saved fact gives what a question asks for: ``"yes"`` / ``"no"``, or None when nothing judged it.
+
+    An embed model puts a saved row NEAR a question; near is not an answer ("my punting pole is 12 feet" is near
+    "what's my pole vault record?"). Before the recall lane treats a row that shares too few words with the
+    question as the saved fact asked for, the loaded local model is asked this one yes/no, like the keep ask, the
+    restore and the answered reading (same lane, sealed site, ledger role). None changes nothing: the row is not
+    the answer and the lane says what it said before."""
+    if not str(question or "").strip() or not str(fact or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_meaning_prompt(question, fact), operation="meaning_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _judgement_role() -> str:
     from core.turn_model_call_ledger import JUDGEMENT_ROLE
 

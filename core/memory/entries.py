@@ -1481,6 +1481,59 @@ def _match_stem(token: str) -> str:
     return word
 
 
+#: How close in meaning (cosine, embed model space) a saved row must be to a question that shares no word with it
+#: before the row is a candidate at all. Measured with nomic-embed-text on pairs that are not the acceptance sets
+#: (tools of the fix mission, probe of 2026-11-17): the floor only keeps plainly unrelated rows out; it never decides
+#: that a row ANSWERS a question -- its readers do that (the model that reads the row, or the recall lane's judgement).
+_MEANING_FLOOR = 0.5
+#: Rows found by meaning alone that one search may add: the closest few, never the store.
+_MEANING_ROWS = 3
+_MEANING_CACHE_ROWS = 4096
+_meaning_vectors: dict[str, list[float]] = {}
+_meaning_lock = threading.Lock()
+
+
+def _meaning_key(space: str, role: str, text: str) -> str:
+    return hashlib.sha256(f"{space}\x00{role}\x00{text}".encode()).hexdigest()
+
+
+def _meaning_scores(query_text: str, rows: list[dict[str, Any]]) -> dict[int, float]:
+    """How close each allowed row is to the question in meaning: {index in rows: cosine}. {} when no embed model
+    answers, and then the search is the word search it was.
+
+    Vectors are kept for the life of the process, keyed by a hash of the embedding space and the text: no row text
+    is stored here, nothing is written to disk, and a row that is forgotten, replaced or out of scope is never
+    scored because it is not in ``rows`` (scope and erasure are applied before this is called)."""
+    query = " ".join(str(query_text or "").split())
+    texts = [" ".join(str(row.get("text") or "").split()) for row in rows]
+    if not query or not any(texts):
+        return {}
+    try:
+        from core.embedding_service import cosine_similarity, embed_texts_neural
+
+        asked = embed_texts_neural([query], query=True)
+        if not asked:
+            return {}
+        (query_vector,), space = asked
+        keys = {i: _meaning_key(space, "row", text) for i, text in enumerate(texts) if text}
+        with _meaning_lock:
+            missing = [i for i, key in keys.items() if key not in _meaning_vectors]
+        if missing:
+            fresh = embed_texts_neural([texts[i] for i in missing])
+            if not fresh or fresh[1] != space:
+                return {}
+            with _meaning_lock:
+                if len(_meaning_vectors) + len(missing) > _MEANING_CACHE_ROWS:
+                    _meaning_vectors.clear()
+                for i, vector in zip(missing, fresh[0], strict=True):
+                    _meaning_vectors[keys[i]] = vector
+        with _meaning_lock:
+            vectors = {i: _meaning_vectors.get(key) for i, key in keys.items()}
+        return {i: float(cosine_similarity(query_vector, vector)) for i, vector in vectors.items() if vector}
+    except Exception:
+        return {}
+
+
 @_memory_reader
 def search_relevant_memory(
     query_text: str,
@@ -1488,7 +1541,15 @@ def search_relevant_memory(
     access_policy: ContextAccessPolicy,
     topic_hints: list[str] | None = None,
     limit: int = 4,
+    by_meaning: bool = False,
 ) -> list[dict[str, Any]]:
+    """Saved rows this reader may see that bear on the question, best first.
+
+    A row is found by the words it shares with the question. With ``by_meaning`` a row that shares none is also a
+    candidate when an embed model puts it close to the question ("is there any food I can't eat?" and "kiwi fruit
+    makes my throat swell up" share no word). Such a row carries ``"found_by": "meaning"`` and every row carries its
+    ``"meaning"`` score when there is one; rows found by words keep the score and order they had. With no embed
+    model the result is the word search, unchanged, and nothing says so to the person."""
     from core.memory.revocation import authorize_payload
 
     try:
@@ -1504,26 +1565,39 @@ def search_relevant_memory(
         if _memory_row_allowed(row, access_policy=policy)
         and authorize_payload(row, chat_id=policy.chat_id)
     ]
+    meaning = _meaning_scores(query_text, rows) if by_meaning and query_tokens else {}
     ranked: list[tuple[float, dict[str, Any]]] = []
-    for row in rows:
+    meant: list[tuple[float, dict[str, Any]]] = []
+    for index, row in enumerate(rows):
         item_tokens = {
             _match_stem(token) for token in (row.get("keywords") or keyword_tokens_filtered(str(row.get("text") or "")))
         }
         overlap = len(query_tokens & item_tokens) if query_tokens else 0
+        near = meaning.get(index)
+        marks = {} if near is None else {"meaning": round(near, 4)}
         if query_tokens and overlap <= 0:
+            if near is not None and near >= _MEANING_FLOOR:
+                meant.append((near, {**row, **marks, "found_by": "meaning", "score": round(0.55 * near * 0.5, 4)}))
             continue
         semantic = overlap / max(1, len(query_tokens)) if query_tokens else 0.0
         recency = recency_score(str(row.get("created_at") or ""))
         category_boost = 0.08 if str(row.get("category") or "") in {"instruction", "preference"} else 0.0
         confidence = max(0.2, min(1.0, float(row.get("confidence") or 0.7)))
         score = (0.55 * semantic) + (0.20 * confidence) + (0.17 * recency) + category_boost
-        ranked.append((score, {**row, "score": round(score, 4)}))
+        ranked.append((score, {**row, **marks, "score": round(score, 4)}))
     ranked.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
+    meant.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
+    # Rows found by words come first, as they always did; the few closest in meaning follow, and keep their
+    # places when the limit is short (one of them is the only row a question in other words can find).
+    extra = [row for _, row in meant[:_MEANING_ROWS]]
+    room = max(1, int(limit))
+    by_words = [row for _, row in ranked[: room - (min(len(extra), room // 2) if ranked else 0)]]
+    chosen = (by_words + extra)[:room]
     # Same read-point rule as load_memory_excerpt: a stored row saying "**My name**: VOOL" is the
     # user's data and stays on disk, but it must not reach the model as a competing fact.
     selected = [
         {**row, "text": _canonical_agent_name_in_memory(str(row.get("text") or ""))}
-        for _, row in ranked[: max(1, int(limit))]
+        for row in chosen
     ]
     return selected if authorize_payload(selected, chat_id=policy.chat_id) else []
 

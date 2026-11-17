@@ -411,6 +411,43 @@ def _embed_chunks_resilient(chunks: list[str], model: str) -> list[list[float]] 
     return vecs
 
 
+def embed_texts_neural(texts: Sequence[str], *, query: bool = False) -> tuple[list[list[float]], str] | None:
+    """Vectors from the installed embed model for several short texts, and the space they are in.
+
+    None when no embed model answers -- never the hash fallback: hashed words are word overlap again, and a caller
+    that wants meaning next to word overlap must be told there is none to have (it then keeps to the words). The
+    breaker and the model probe are the ones `embed_stamped` uses, so an outage costs one failed request per
+    cooldown, not one per call. ``query`` binds the retrieval role of the texts (a question, not a stored line)."""
+    global _neural_down_until
+    clean = [str(text or "").strip()[:EMBED_MAX_CHARS] for text in texts]
+    if not clean or any(not text for text in clean) or time.monotonic() < _neural_down_until:
+        return None
+    model = _best_embed_model()
+    if not model:
+        return None
+    vectors: list[list[float]] = []
+    token = _RETRIEVAL_TASK.set("search_query") if query else None
+    try:
+        for start in range(0, len(clean), 32):
+            part = _embed_chunks_resilient(clean[start:start + 32], model)
+            if not part:
+                with _stats_lock:
+                    _stats["neural_failures"] += 1
+                _neural_down_until = time.monotonic() + _NEURAL_COOLDOWN_S
+                return None
+            vectors.extend(part)
+    finally:
+        if token is not None:
+            _RETRIEVAL_TASK.reset(token)
+    with _stats_lock:
+        _stats["neural_calls"] += 1
+        _stats["chunks_embedded"] += len(clean)
+    is_nomic = model.split(":")[0] == "nomic-embed-text"
+    backend = (f"{NEURAL_BACKEND_PREFIX}{model}#retrieval-mrl{EMBED_DIM}-v1"
+               if is_nomic else f"{NEURAL_BACKEND_PREFIX}{model}#p{EMBED_DIM}")
+    return [_nomic_retrieval_vector(v) if is_nomic else project_to_dim(v, EMBED_DIM) for v in vectors], backend
+
+
 def embedding_stats() -> dict[str, int | str]:
     """Observable embedding accounting: neural vs fallback calls, chunk counts,
     and the active backend label. Fallback must never be silent or relabeled."""
@@ -467,6 +504,7 @@ __all__ = [
     "embed",
     "embed_batch",
     "embed_stamped",
+    "embed_texts_neural",
     "embedding_backend",
     "embedding_stats",
     "project_to_dim",

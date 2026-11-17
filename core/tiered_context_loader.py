@@ -834,6 +834,23 @@ def _follow_up_subject(query_text: str, earlier_user_texts: list[str]) -> list[s
     return []
 
 
+def _may_read_by_meaning(source_context: dict[str, Any] | None, session_id: str) -> bool:
+    """Whether this turn's context may hold saved rows found by meaning alone: the owner's own turn, outside a
+    private chat -- the memory lane's own gate (core.persistent_memory). A switch that cannot be read is a no.
+
+    Served on the first cut of this change, "is there any food the owner can't eat?" sent as a team agent's turn was
+    answered with the owner's saved allergy: the row shares no word with the question, and the wider search handed
+    it to a turn that is not the owner's. What such a turn is shown by its own words is unchanged here."""
+    try:
+        from core.private_chat import turn_is_private
+        from core.request_trust import turn_speaks_for_owner
+
+        context = dict(source_context or {})
+        return not turn_is_private(context, session_id) and turn_speaks_for_owner(context, str(session_id or ""))
+    except Exception:
+        return False
+
+
 def _persistent_memory_items(
     query_text: str,
     topic_hints: list[str],
@@ -841,6 +858,7 @@ def _persistent_memory_items(
     session_id: str,
     policy: ContextScopePolicy,
     allow_instruction_memory: bool = True,
+    by_meaning: bool = False,
 ) -> list[ContextItem]:
     items: list[ContextItem] = []
     # A stored row whose text this chat's own history already carries verbatim is the same fact
@@ -858,6 +876,9 @@ def _persistent_memory_items(
         access_policy=policy,
         topic_hints=[*topic_hints, *_follow_up_subject(query_text, earlier)],
         limit=12,
+        # A question in other words than the saved fact ("who do I ring when the drains back up?") shares no word
+        # with it; the model that answers may still read the few rows closest in meaning, and decides what they say.
+        by_meaning=by_meaning,
     ):
         category = str(entry.get("category") or "fact")
         if category == "instruction" and not allow_instruction_memory:
@@ -1835,6 +1856,7 @@ class TieredContextLoader:
                     session_id=session_id,
                     policy=scope_policy,
                     allow_instruction_memory=exact_recall_current_session_only,
+                    by_meaning=_may_read_by_meaning(scoped_source_context, session_id),
                 )
                 if source_authority.admits(ContextSource.PERSISTENT_RETRIEVAL)
                 else []

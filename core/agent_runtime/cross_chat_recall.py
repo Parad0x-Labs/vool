@@ -510,6 +510,60 @@ def _memory_rows(
         return None
 
 
+#: Rows the recall lane asks the judgement about, per question: the closest in meaning, never the store.
+_MEANT_ROWS = 2
+#: How near (the saved-row search's own floor) a row must be before the judgement is asked about it at all.
+_MEANT_FLOOR = 0.5
+
+
+def _rows_that_mean_it(
+    question: str, session_id: str, source_context: dict[str, Any] | None
+) -> tuple[list[str], bool]:
+    """Saved rows that give what the question asks for in OTHER words than its own, and whether that is KNOWN.
+
+    The words decide first (`_memory_rows`); this is asked only when no row covers the question. An embed model
+    names the rows nearest the question in meaning, and near is not an answer, so each of the closest few is put to
+    the loaded local model as a yes/no (core.intent_arbiter.arbitrate_meaning). ([], True): no embed model, no row
+    near, or every near row judged not to be it -- the lane answers as it did. (rows, True): the saved fact asked
+    for. ([], False): rows are near and nobody could judge them (no local model loaded, a failed call); the lane
+    then cannot say the fact is not saved.
+
+    Only rows that share NO word with the question are put to the judgement. A row that shares a word and does not
+    cover the question stays under the covering law of `_memory_rows`: one shared word is not the fact asked for,
+    and the judgement does not hold that line (served on the cut before this rule, with "my punting pole is 12
+    feet" saved, "what's my pole vault record?" was judged a yes four times of four and answered "12 feet")."""
+    try:
+        from core.context_scope import ContextAccessPolicy
+        from core.intent_arbiter import arbitrate_meaning
+        from core.memory.entries import search_relevant_memory
+        from core.request_trust import turn_speaks_for_owner
+
+        if _private(session_id, source_context) or not turn_speaks_for_owner(dict(source_context or {}), str(session_id or "")):
+            return [], True  # the memory lane's gate: only the owner's own turn, outside a private chat, reads by meaning
+        policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
+        near = sorted(
+            (
+                (float(row.get("meaning") or 0.0), " ".join(str(row.get("text") or "").split()))
+                for row in search_relevant_memory(question, access_policy=policy, limit=8, by_meaning=True)
+                if row.get("found_by") == "meaning" and float(row.get("meaning") or 0.0) >= _MEANT_FLOOR
+            ),
+            reverse=True,
+        )
+        found: list[str] = []
+        known = True
+        for _, text in near[:_MEANT_ROWS]:
+            if not text:
+                continue
+            verdict = arbitrate_meaning(question, text, chat_id=str(session_id or ""), source_context=source_context)
+            if verdict == "yes":
+                found.append(text)
+            elif verdict != "no":
+                known = False
+        return found, known or bool(found)
+    except Exception:
+        return [], True
+
+
 #: A question about the value NOW ("what's my balance today?") is not one a saved fact answers: a stored reading is
 #: never a current one. "live" counts only as in a live score or feed: "where does Tobiah live?" with "my brother
 #: Tobiah lives in Quillon" saved was asked back "the biblical Tobiah or a modern person?" (held-out set, real model).
@@ -1224,6 +1278,11 @@ def cross_chat_recall(
     saved, closest = rows
     if answered_by_saved and not saved:
         saved = list(answered_by_saved)  # the subject rule found them; never report them absent
+    meaning_known = True
+    if not saved:
+        # Asked in other words than the saved fact's own: the rows closest in meaning, each judged to give what is
+        # asked, are the saved fact, and the model reads them and answers in words like any other saved row.
+        saved, meaning_known = _rows_that_mean_it(text, session_id, source_context)
     result = search_chats(text, current_session_id=session_id, limit=12)
     if not result.ok:
         return None
@@ -1272,6 +1331,8 @@ def cross_chat_recall(
             _PENDING_OFFERS[session_id] = said
         return CrossChatRecall(response=response, found=True, session_id=hit.session_id,
                                chats_searched=result.chats_searched)
+    if not meaning_known:
+        return None  # rows near in meaning that nobody could judge: unknown is not "absent", the ordinary path answers
     chats = f"{result.chats_searched} chat" + ("" if result.chats_searched == 1 else "s")
     projects = (
         f" or {result.projects_searched} project" + ("" if result.projects_searched == 1 else "s")
