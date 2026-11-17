@@ -319,6 +319,39 @@ def says_nothing_found(answer: str) -> bool:
     return bool(text) and (text.startswith(NOT_FOUND_TEXT) or text == UNSEARCHED_TEXT or content_absence_claim(text))
 
 
+def found_nothing(question: str, answer: str, judged: Any = None) -> bool:
+    """Whether the loop's reply gives nothing of what was asked: one of the readings `says_nothing_found` knows, or,
+    for any other wording, the judgement `judged(question, answer)` (True = the reply answers, False = it only
+    reports a miss, None = nobody judged). With no judgement the reply counts as an answer, as before."""
+    text = str(answer or "").strip()
+    if content_absence_claim(text):
+        return True  # the reading the hook has always had, for every ask
+    if route.points_at_files(question):
+        # The ask is about a file ("is there a file about lawnmowers in my workspace?"): what the loop says about
+        # the files, a miss included, is its answer. Measured on the first cut of this change: judged a miss, that
+        # turn was handed on and answered "I couldn't get a usable model response in this run".
+        return False
+    if says_nothing_found(text):
+        return True
+    if judged is None or not text:
+        return False
+    try:
+        return judged(question, text) is False
+    except Exception:
+        return False
+
+
+def _reply_answers(question: str, answer: str, *, context: dict[str, Any], session_id: str) -> bool | None:
+    """The judgement behind `found_nothing` (core.intent_arbiter.arbitrate_answered)."""
+    try:
+        from core.intent_arbiter import arbitrate_answered
+
+        verdict = arbitrate_answered(question, answer, chat_id=str(session_id or ""), source_context=context)
+    except Exception:
+        return None
+    return None if verdict not in {"yes", "no"} else verdict == "yes"
+
+
 def productive_steps(loop_result: Any) -> list[int]:
     """Indexes of the loop's tool steps that returned something: a read that ran, ok, and was not an empty search."""
     return [
@@ -328,7 +361,10 @@ def productive_steps(loop_result: Any) -> list[int]:
     ]
 
 
-def loop_should_decline(text: str, loop_result: Any, receipts: list[dict[str, Any]] | None = None, *, follow_up: bool = False) -> str:
+def loop_should_decline(
+    text: str, loop_result: Any, receipts: list[dict[str, Any]] | None = None, *, follow_up: bool = False,
+    judged: Any = None,
+) -> str:
     """A reason when the loop's tools did not produce evidence for this ask, "" when it may answer.
 
     Read from what the tools returned: no read ran at all, every search came back empty, or what was read shares
@@ -350,7 +386,7 @@ def loop_should_decline(text: str, loop_result: Any, receipts: list[dict[str, An
     blob = " ".join([*seen, *observed]).lower()
     if words and not any(w in blob for w in words):
         return "irrelevant_matches_fell_through"
-    if says_nothing_found(loop_result.answer) and not follow_up:
+    if not follow_up and found_nothing(text, loop_result.answer, judged):
         return "found_nothing_fell_through"
     return ""
 
@@ -533,7 +569,10 @@ def maybe_answer(
         context["clean_local_loop_route"] = "foreign_tool_call_fell_through"
         _LOG.info("clean loop fell through: %s", "foreign_tool_call_fell_through")
         return None
-    if decision.by_documents and not redirected and not loop_result.proposals and says_nothing_found(loop_result.answer):
+    def judged(question: str, answer: str) -> bool | None:
+        return _reply_answers(question, answer, context=context, session_id=session_id)
+
+    if decision.by_documents and not redirected and not loop_result.proposals and found_nothing(text, loop_result.answer, judged):
         # Only the owner's documents brought this turn here, and they did not answer it. It may be
         # something the owner told VOOL in chat, which lives in memory the loop cannot read: the
         # normal pipeline (and its memory lane) gets the turn. Only reads ran so far.
@@ -543,7 +582,7 @@ def maybe_answer(
         return None
     if (
         follow_up and not own_ask and not loop_result.proposals
-        and route.stands_alone(text) and says_nothing_found(loop_result.answer)
+        and route.stands_alone(text) and found_nothing(text, loop_result.answer, judged)
     ):
         # Here only because it came soon after a files turn. It is a question of its own and the files did not
         # answer it: measured on the real app, "how often does the wormery get fed?" asked after a files turn (the
@@ -555,7 +594,7 @@ def maybe_answer(
         route.forget_clean_turn(session_id)
         return None
     if not explicit_own and not loop_result.proposals:
-        declined = loop_should_decline(carried or text, loop_result, ctx.receipts, follow_up=follow_up)
+        declined = loop_should_decline(carried or text, loop_result, ctx.receipts, follow_up=follow_up, judged=judged)
         if declined:
             # Admitted on a word, not on the owner's own things, and the reads found nothing for it: not this
             # loop's turn. Only reads ran; none of them is recorded as this turn's observation.

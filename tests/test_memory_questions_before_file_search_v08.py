@@ -256,3 +256,85 @@ def test_a_file_search_that_ran_does_not_vouch_for_a_save_claim(isolated_home):
     # A tool that can keep something still stands the gate down: what the reply calls saved may be its doing.
     published, _ = _gate(reply, dict(NOTHING_KEPT), tools=["notes.create"], request=ask)
     assert "is saved" in published
+
+
+# --- the hand-off does not depend on how the loop's model words a miss -------------------------------------------------
+
+
+MISS_IN_OTHER_WORDS = "Your pump oil grade is not mentioned in the files. Is there a file you'd like me to check?"
+
+
+def test_a_miss_in_words_the_hook_does_not_know_is_read_by_the_judgement():
+    assert not hook.says_nothing_found(MISS_IN_OTHER_WORDS)  # the gap: measured on the real app, 1 run in 5
+    assert not hook.found_nothing("what grade is my pump oil?", MISS_IN_OTHER_WORDS)  # nobody judging: as before
+    assert hook.found_nothing("what grade is my pump oil?", MISS_IN_OTHER_WORDS, lambda q, a: False)
+    assert not hook.found_nothing("what grade is my pump oil?", MISS_IN_OTHER_WORDS, lambda q, a: True)
+    assert not hook.found_nothing("what grade is my pump oil?", MISS_IN_OTHER_WORDS, lambda q, a: None)
+
+    def broken(question, answer):
+        raise RuntimeError("judge down")
+
+    assert not hook.found_nothing("what grade is my pump oil?", MISS_IN_OTHER_WORDS, broken)
+    # A reading the hook already has needs no judgement.
+    def never(question, answer):
+        raise AssertionError("judged a reply the hook can read")
+
+    assert hook.found_nothing("what grade is my pump oil?", UNSEARCHED_TEXT, never)
+
+
+def test_a_word_admitted_ask_with_a_miss_in_other_words_falls_through_when_judged_a_miss():
+    steps = [{"tool": "find", "ok": True, "empty": False, "status": "ok", "result_chars": 40}]
+    result = SimpleNamespace(steps=steps, staged="", seen=["pump oil chart.txt mentions pump oil"], answer=MISS_IN_OTHER_WORDS)
+    ask = "what grade is my pump oil?"
+    assert hook.loop_should_decline(ask, result, []) == ""
+    assert hook.loop_should_decline(ask, result, [], judged=lambda q, a: False) == "found_nothing_fell_through"
+    assert hook.loop_should_decline(ask, result, [], judged=lambda q, a: True) == ""
+    # A follow-up that the chat's own evidence may answer is not declined on this rule, judged or not.
+    assert hook.loop_should_decline(ask, result, [], follow_up=True, judged=lambda q, a: False) == ""
+    answered = SimpleNamespace(steps=steps, staged="", seen=["pump oil chart.txt mentions pump oil"],
+                               answer="The pump oil chart says thin grade.")
+    assert hook.loop_should_decline(ask, answered, [], judged=lambda q, a: True) == ""
+
+
+def test_the_answered_question_is_a_judgement_on_the_chat_models_runner(monkeypatch):
+    from unittest import mock
+
+    from core import intent_arbiter as arbiter
+    from core.turn_model_call_ledger import begin_turn, turn_call_accounting
+
+    monkeypatch.setenv("VOOL_INTENT_ARBITER", "1")
+    monkeypatch.setenv("VOOL_KEEP_JUDGE_MODEL", "qwen3:8b")
+    monkeypatch.setattr(arbiter, "_local_models_disabled", lambda: False)
+    arbiter.reset_breaker()
+    reply = mock.Mock()
+    reply.raise_for_status = mock.Mock()
+    reply.json.return_value = {"message": {"content": '{"answer": "no"}'}}
+    context: dict = {}
+    begin_turn(context)
+    with mock.patch("requests.post", return_value=reply) as post:
+        assert arbiter.arbitrate_answered("what grade is my pump oil?", MISS_IN_OTHER_WORDS, source_context=context) == "no"
+        assert hook._reply_answers("what grade is my pump oil?", MISS_IN_OTHER_WORDS, context=context, session_id="s") is False
+    sent = post.call_args.kwargs["json"]
+    assert sent["model"] == "qwen3:8b" and "Asked: \"what grade is my pump oil?\"" in sent["messages"][0]["content"]
+    accounting = turn_call_accounting(context)
+    assert accounting["completed_calls"] == accounting["judgement_calls"] == 2  # counted, never authorship
+    monkeypatch.setattr(arbiter, "_local_models_disabled", lambda: True)
+    with mock.patch("requests.post", side_effect=AssertionError("must not be called")):
+        assert arbiter.arbitrate_answered("a question", "a reply") is None
+        assert hook._reply_answers("a question", "a reply", context={}, session_id="s") is None
+
+
+def test_a_miss_is_the_answer_to_a_question_about_a_file():
+    def never(question, answer):
+        raise AssertionError("judged the reply to a file question")
+
+    file_ask = "is there a file about pump oil in my workspace?"
+    assert route.points_at_files(file_ask)
+    for reply in (MISS_IN_OTHER_WORDS, UNSEARCHED_TEXT, NOT_FOUND_TEXT):
+        assert not hook.found_nothing(file_ask, reply, never) or hook.content_absence_claim(reply)
+    assert not hook.found_nothing(file_ask, "I looked and there is nothing about pump oil. Shall I try another folder?", never)
+    # The same replies to a question about the person's own fact are a miss and are handed on.
+    own_ask = "what grade is my pump oil?"
+    assert not route.points_at_files(own_ask)
+    assert hook.found_nothing(own_ask, UNSEARCHED_TEXT, never)
+    assert hook.found_nothing(own_ask, MISS_IN_OTHER_WORDS, lambda q, a: False)

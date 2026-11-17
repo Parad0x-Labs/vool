@@ -641,6 +641,64 @@ def arbitrate_restore(
     )
 
 
+def _answered_prompt(question: str, reply: str) -> str:
+    """A balanced yes/no: does a reply written after a file search give what was asked, or only report a miss?"""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "An assistant searched a person's own files to answer their question, then wrote a reply.",
+        "Question: does the reply give what the person asked for?",
+        'Answer {"answer": "yes"} when the reply states the thing asked for: a value, a name, a date, a place, or '
+        "what a document says about it.",
+        'Answer {"answer": "no"} when the reply only reports that it was not found, is not there, could not be '
+        "checked, or asks where to look, and does not give the thing asked for.",
+        "",
+        'Asked: "when does my car insurance run out?" Reply: "Your policy document says cover ends on 14 March." '
+        '-> {"answer": "yes"}',
+        'Asked: "what is my boiler\'s model number?" Reply: "I went through your documents and none of them gives a '
+        'boiler model. Want me to try another folder?" -> {"answer": "no"}',
+        'Asked: "who is my landlord?" Reply: "The tenancy agreement names Harlow Lettings as the landlord." '
+        '-> {"answer": "yes"}',
+        'Asked: "how many guests are coming on Saturday?" Reply: "Nothing I opened says how many guests are '
+        'coming." -> {"answer": "no"}',
+        'Asked: "what time is the school play?" Reply: "The newsletter lists the school play at 6:30 pm on '
+        'Thursday." -> {"answer": "yes"}',
+        'Asked: "what is my bike frame size?" Reply: "That detail does not appear anywhere in what I can read on '
+        'this computer." -> {"answer": "no"}',
+        "",
+        f'Asked: "{flat(question, 240)}" Reply: "{flat(reply, 600)}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_answered(
+    question: str,
+    reply: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a reply written after a file search gives what was asked: ``"yes"`` / ``"no"``, or None when
+    nothing judged it.
+
+    The file loop's model words a miss as it likes ("is not mentioned in the files", "I don't see any files
+    containing ...", "none of them gives ..."), and a list of such wordings is never complete: measured on the real
+    app, the same never-told question was handed on to memory in four runs and answered with the loop's miss in a
+    fifth. So the reading of the reply is a judgement, asked of the loaded local model like the keep-ask and the
+    restore (same lane, sealed site, ledger role). None changes nothing: the caller keeps its own reading."""
+    if not str(question or "").strip() or not str(reply or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_answered_prompt(question, reply), operation="answered_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _judgement_role() -> str:
     from core.turn_model_call_ledger import JUDGEMENT_ROLE
 
