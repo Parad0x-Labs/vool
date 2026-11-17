@@ -113,12 +113,34 @@ def _index(device_id: str) -> dict[str, Any]:
         return {}
 
 
+def _sync_file(path: Path) -> None:
+    """Asks the operating system to put this file on the disk now (not just in its memory)."""
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _sync_dir(folder: Path) -> None:
+    """Makes a rename or new file in this folder survive a power cut (where the system allows it)."""
+    with contextlib.suppress(OSError, AttributeError):
+        descriptor = os.open(folder, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
 def _write_json(path: Path, value: Any) -> None:
     temp = path.with_name(path.name + "." + secrets.token_hex(4) + ".tmp")
     descriptor = os.open(temp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(value, handle, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(temp, path)
+    _sync_dir(path.parent)
 
 
 def _sweep(stage: Path, now: float) -> None:
@@ -225,6 +247,8 @@ def finish(device_id: str, upload_id: str) -> dict[str, Any]:
             size += len(piece)
     if size != int(meta["size_bytes"]):
         raise MediaRefused("capture_incomplete", "The computer does not have the whole file yet.", 409)
+    # On the disk before anything is confirmed: the phone deletes its copy when it hears "done".
+    _sync_file(part)
     if digest.hexdigest() != meta["sha256"]:
         part.unlink(missing_ok=True)
         meta_path.unlink(missing_ok=True)
@@ -242,9 +266,18 @@ def finish(device_id: str, upload_id: str) -> dict[str, Any]:
         os.replace(part, target)
     except OSError:  # the photos folder is on another disk than VOOL's data
         shutil.copyfile(part, target)
+        _sync_file(target)
         part.unlink(missing_ok=True)
     with contextlib.suppress(OSError):
         os.chmod(target, 0o600)
+    _sync_dir(target.parent)
+    # Read back from the disk: the hash the phone hears is the hash of the file as stored.
+    stored = hashlib.sha256()
+    with open(target, "rb") as handle:
+        for piece in iter(lambda: handle.read(1 << 20), b""):
+            stored.update(piece)
+    if stored.hexdigest() != meta["sha256"]:
+        raise MediaRefused("capture_not_stored", "The computer could not store it. It stays on your phone and will be sent again.", 500)
     record = {"sha256": meta["sha256"], "path": str(target), "name": target.name, "size_bytes": size,
               "saved_at": time.time()}
     index = _index(device_id)
@@ -252,3 +285,15 @@ def finish(device_id: str, upload_id: str) -> dict[str, Any]:
     _write_json(_index_path(device_id), index)
     meta_path.unlink(missing_ok=True)
     return _saved_answer(record)
+
+
+def record_removed(device_id: str, sha256: str) -> dict[str, Any]:
+    """The phone removed its copy of a capture this computer stored. Only a capture this computer
+    holds for this phone can be recorded; the answer names the stored file."""
+    sha256 = str(sha256 or "").strip().lower()
+    if not _SHA_RE.fullmatch(sha256):
+        raise MediaRefused("bad_capture_hash", "This file could not be checked.")
+    saved = _index(device_id).get(sha256)
+    if not isinstance(saved, dict):
+        raise MediaRefused("unknown_capture", "This computer has no such file from this phone.", 404)
+    return {"recorded": True, "sha256": sha256, "saved_as": saved.get("name", "")}

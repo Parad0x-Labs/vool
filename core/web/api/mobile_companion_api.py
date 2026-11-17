@@ -167,7 +167,7 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "devices.switch_off", "devices.lost_computer",
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
-    "capture.begin", "capture.chunk", "capture.finish",
+    "capture.begin", "capture.chunk", "capture.finish", "capture.removed",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -1756,8 +1756,25 @@ def _capture_action(step):
     return handler
 
 
+def _capture_removed(params, *, service, device, **_kw):
+    """The phone deleted its copy after this computer confirmed it: kept as a receipt, so every capture
+    has an auditable life (saved here with its hash, then removed on the phone, key destroyed or not)."""
+    from core.mobile_companion import incoming_media
+
+    device_id = str(device.get("device_id") or "")
+    try:
+        result = incoming_media.record_removed(device_id, str(params.get("sha256") or ""))
+    except incoming_media.MediaRefused as refused:
+        return refused.status, {"code": refused.code, "error": refused.message}
+    removed_at = params.get("removed_at")
+    service.store.append_receipt("capture.removed_on_phone", device_id=device_id, detail={
+        "sha256": result["sha256"], "key_destroyed": params.get("key_destroyed") is True,
+        "removed_at": removed_at if type(removed_at) in (int, float) else None})
+    return 200, result
+
+
 _ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
-                         "capture.finish": _capture_action("finish")})
+                         "capture.finish": _capture_action("finish"), "capture.removed": _capture_removed})
 
 
 def _devices_payload(service: MobileCompanionService) -> dict[str, Any]:

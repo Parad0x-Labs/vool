@@ -34,8 +34,14 @@ import javax.crypto.spec.SecretKeySpec
  * read back on its own when it is sent to the computer. The SHA-256 of the original bytes is
  * computed while encrypting; the computer must answer with the same hash before the phone deletes.
  *
- * File layout: "VCAP1\n" | sealed-key nonce (12) | sealed key (48) | piece... where each piece is
+ * File layout: "VCAP2\n" | sealed-key nonce (12) | sealed key (48) | piece... where each piece is
  * nonce (12) | ciphertext | tag (16).
+ *
+ * Erasing: since VCAP2 every capture's file key is sealed by its OWN Keystore key, and removing a
+ * capture destroys that Keystore key first (crypto-erasure). Whatever the flash memory keeps of the
+ * deleted file can then never be opened again, even by VOOL. Older VCAP1 files (sealed by the one
+ * shared key) are still read and sent. After removal a small "gone" note (hash only) waits until the
+ * computer has recorded it, so the computer keeps an auditable record of the deletion.
  */
 object CaptureStore {
   const val PIECE = 768 * 1024
@@ -43,7 +49,9 @@ object CaptureStore {
   private const val TAG = 16
   private const val SEALED_KEY = 32 + TAG
   private const val KEY_ALIAS = "vool_capture_v1"
-  private val MAGIC = "VCAP1\n".toByteArray()
+  private val MAGIC_V1 = "VCAP1\n".toByteArray()
+  private val MAGIC = "VCAP2\n".toByteArray()
+  private const val FILE_ALIAS = "vool_capture_f_"
   private val HEADER = MAGIC.size + NONCE + SEALED_KEY
   private val random = SecureRandom()
 
@@ -123,6 +131,16 @@ object CaptureStore {
     val folder = dir(context)
     val now = System.currentTimeMillis()
     val files = folder.listFiles().orEmpty()
+    // Sweep first, then resume: a resumed save must never have its half-written file swept away.
+    files.forEach { f ->
+      val queued = File(folder, f.name + ".job").isFile
+      when {
+        f.name.startsWith("work-") || f.name.endsWith(".part") -> f.delete()
+        // a raw capture with no note was cut off while recording; a live recording is never this old
+        f.name.startsWith("raw-") && !f.name.endsWith(".job") && !queued && now - f.lastModified() > 10 * 60_000L -> f.delete()
+      }
+    }
+    sweepKeys(context)
     files.filter { it.name.startsWith("raw-") && it.name.endsWith(".job") }.forEach { job ->
       val raw = File(folder, job.name.removeSuffix(".job"))
       try {
@@ -133,22 +151,23 @@ object CaptureStore {
         job.delete()
       }
     }
-    files.forEach { f ->
-      val queued = File(folder, f.name + ".job").isFile
-      when {
-        f.name.startsWith("work-") || f.name.endsWith(".part") -> f.delete()
-        // a raw capture with no note was cut off while recording; a live recording is never this old
-        f.name.startsWith("raw-") && !f.name.endsWith(".job") && !queued && now - f.lastModified() > 10 * 60_000L -> f.delete()
-      }
-    }
   }
 
-  private fun masterKey(): SecretKey {
-    val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-    (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+
+  private fun masterKey(): SecretKey = keystoreKey(KEY_ALIAS, create = true)!!
+
+  /** The Keystore key that seals one capture's file key (VCAP2). Null when it was destroyed. */
+  private fun fileSealKey(id: String, create: Boolean): SecretKey? = keystoreKey(FILE_ALIAS + id, create)
+
+  private fun keystore(): KeyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+
+  private fun keystoreKey(alias: String, create: Boolean): SecretKey? {
+    val store = keystore()
+    (store.getKey(alias, null) as? SecretKey)?.let { return it }
+    if (!create) return null
     val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
     generator.init(
-      KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+      KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
         .setKeySize(256)
@@ -174,6 +193,7 @@ object CaptureStore {
   @Synchronized
   fun ingest(context: Context, captured: File, mediaType: String, kind: String, takenAt: Long): Item {
     var plain = captured
+    var sealedId: String? = null
     try {
       beforeStore?.let { step ->
         // A failed or empty change never loses the capture: the original is stored instead.
@@ -184,6 +204,7 @@ object CaptureStore {
       if (!plain.isFile || plain.length() == 0L) throw IllegalStateException("Nothing was captured.")
       val storedType = if (plain != captured) typeFor(plain, mediaType) else mediaType
       val id = UUID.randomUUID().toString().replace("-", "")
+      sealedId = id
       val folder = dir(context)
       val sealing = File(folder, "$id.enc.part")
       val fileKey = ByteArray(32).also { random.nextBytes(it) }
@@ -193,7 +214,7 @@ object CaptureStore {
         BufferedOutputStream(FileOutputStream(sealing), 1 shl 16).use { out ->
           out.write(MAGIC)
           val wrap = Cipher.getInstance("AES/GCM/NoPadding")
-          wrap.init(Cipher.ENCRYPT_MODE, masterKey())
+          wrap.init(Cipher.ENCRYPT_MODE, fileSealKey(id, create = true))
           wrap.updateAAD(id.toByteArray())
           val sealedKey = wrap.doFinal(fileKey)
           out.write(wrap.iv)
@@ -228,12 +249,16 @@ object CaptureStore {
       val metaPart = File(folder, "$id.json.part")
       metaPart.writeBytes(meta)
       if (!sealing.renameTo(File(folder, "$id.enc")) || !metaPart.renameTo(File(folder, "$id.json"))) {
+        sealing.delete(); metaPart.delete(); destroyKey(id)
         throw IllegalStateException("The capture could not be stored.")
       }
+      sealedId = null
       return item
     } finally {
       plain.delete()
       if (captured != plain) captured.delete()
+      // failed half way: nothing usable was kept, so its key goes too
+      sealedId?.let { id -> File(dir(context), "$id.enc.part").delete(); destroyKey(id) }
     }
   }
 
@@ -272,11 +297,15 @@ object CaptureStore {
     RandomAccessFile(file, "r").use { handle ->
       val magic = ByteArray(MAGIC.size)
       handle.readFully(magic)
-      require(magic.contentEquals(MAGIC)) { "This capture cannot be read." }
+      val sealer = when {
+        magic.contentEquals(MAGIC) -> fileSealKey(id, create = false) ?: throw IllegalStateException("This capture was erased.")
+        magic.contentEquals(MAGIC_V1) -> masterKey()
+        else -> throw IllegalArgumentException("This capture cannot be read.")
+      }
       val wrapNonce = ByteArray(NONCE).also { handle.readFully(it) }
       val sealedKey = ByteArray(SEALED_KEY).also { handle.readFully(it) }
       val unwrap = Cipher.getInstance("AES/GCM/NoPadding")
-      unwrap.init(Cipher.DECRYPT_MODE, masterKey(), GCMParameterSpec(TAG * 8, wrapNonce))
+      unwrap.init(Cipher.DECRYPT_MODE, sealer, GCMParameterSpec(TAG * 8, wrapNonce))
       unwrap.updateAAD(id.toByteArray())
       val fileKey = unwrap.doFinal(sealedKey)
       try {
@@ -299,9 +328,70 @@ object CaptureStore {
     }
   }
 
+  /** Destroys one capture's own Keystore key. True when it is gone (or never existed). */
+  private fun destroyKey(id: String): Boolean = try {
+    val store = keystore()
+    if (store.containsAlias(FILE_ALIAS + id)) store.deleteEntry(FILE_ALIAS + id)
+    !store.containsAlias(FILE_ALIAS + id)
+  } catch (_: Exception) {
+    false
+  }
+
+  /**
+   * Removes a capture the computer has confirmed: its key is destroyed first (crypto-erasure), the
+   * sealed key in the file is overwritten, then the files are deleted. A "gone" note with the hash and
+   * whether the key was destroyed waits for the computer's record (see gone / goneRecorded).
+   */
   fun remove(context: Context, rawId: String) {
     val id = checkedId(rawId)
-    File(dir(context), "$id.enc").delete()
-    File(dir(context), "$id.json").delete()
+    val folder = dir(context)
+    val enc = File(folder, "$id.enc")
+    val meta = File(folder, "$id.json")
+    val sha = try { JSONObject(meta.readText()).getString("sha256") } catch (_: Exception) { "" }
+    var v2 = false
+    try {
+      RandomAccessFile(enc, "rw").use { handle ->
+        val magic = ByteArray(MAGIC.size)
+        handle.readFully(magic)
+        v2 = magic.contentEquals(MAGIC)
+        handle.seek(MAGIC.size.toLong())
+        handle.write(ByteArray(NONCE + SEALED_KEY))
+        handle.fd.sync()
+      }
+    } catch (_: Exception) {}
+    val keyDestroyed = v2 && destroyKey(id)
+    enc.delete()
+    meta.delete()
+    if (sha.matches(Regex("[0-9a-f]{64}"))) {
+      val note = JSONObject(mapOf("sha256" to sha, "keyDestroyed" to keyDestroyed, "removedAt" to System.currentTimeMillis().toDouble()))
+      File(folder, "gone-$sha.json").writeText(note.toString())
+    }
+  }
+
+  /** Deletions the computer has not recorded yet. */
+  fun gone(context: Context): List<Map<String, Any>> = dir(context).listFiles { f -> f.name.startsWith("gone-") && f.name.endsWith(".json") }
+    .orEmpty().mapNotNull { file ->
+      try {
+        val o = JSONObject(file.readText())
+        mapOf("sha256" to o.getString("sha256"), "keyDestroyed" to o.getBoolean("keyDestroyed"), "removedAt" to o.getDouble("removedAt"))
+      } catch (_: Exception) { file.delete(); null }
+    }
+
+  /** The computer recorded this deletion. */
+  fun goneRecorded(context: Context, sha256: String) {
+    if (sha256.matches(Regex("[0-9a-f]{64}"))) File(dir(context), "gone-$sha256.json").delete()
+  }
+
+  /** Keystore keys whose capture no longer exists (an interrupted removal): destroyed. */
+  fun sweepKeys(context: Context) {
+    try {
+      val folder = dir(context)
+      val store = keystore()
+      for (alias in store.aliases().toList()) {
+        if (!alias.startsWith(FILE_ALIAS)) continue
+        val id = alias.removePrefix(FILE_ALIAS)
+        if (!File(folder, "$id.enc").isFile && !File(folder, "$id.enc.part").isFile) store.deleteEntry(alias)
+      }
+    } catch (_: Exception) {}
   }
 }

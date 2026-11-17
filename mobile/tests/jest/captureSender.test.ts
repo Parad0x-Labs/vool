@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {CompanionError} from "../../src/protocol/client";
-import {sendOne, sendWaiting, STALL_MS, type CaptureItem, type CaptureVault, type CaptureLink} from "../../src/capture/sender";
+import {reportGone, sendOne, sendWaiting, STALL_MS, type CaptureItem, type CaptureVault, type CaptureLink} from "../../src/capture/sender";
 
 const PIECE = 768 * 1024;
 
@@ -154,4 +154,30 @@ test("a run stuck on a request that never answered is taken over, and the video 
   expect(await sendWaiting(vault, pc, () => clock)).toEqual({sent: 1, waiting: 0, problem: ""});
   expect(pc.saved.get(item.sha256)!.equals(big)).toBe(true);
   expect(vault.items.size).toBe(0);
+});
+
+describe("deletion records", () => {
+  const note = {sha256: "a".repeat(64), keyDestroyed: true, removedAt: 1795000100000};
+
+  it("tells the computer about each removal and forgets the note once recorded", async () => {
+    const left = [note];
+    const vault = {list: async () => [], readFrom: async () => "", remove: async () => {},
+      gone: async () => [...left], goneRecorded: async (sha: string) => {left.splice(left.findIndex(n => n.sha256 === sha), 1);}};
+    const seen: string[] = [];
+    const link = {captureBegin: async () => {throw new Error("unused");}, captureChunk: async () => {throw new Error("unused");},
+      captureFinish: async () => {throw new Error("unused");}, captureRemoved: async (n: typeof note) => {seen.push(n.sha256); return {recorded: true};}};
+    expect(await reportGone(vault as never, link as never)).toBe(1);
+    expect(seen).toEqual([note.sha256]);
+    expect(left).toEqual([]);
+  });
+
+  it("keeps the note when the computer is out of reach", async () => {
+    const left = [note];
+    const vault = {list: async () => [], readFrom: async () => "", remove: async () => {},
+      gone: async () => [...left], goneRecorded: async () => {left.length = 0;}};
+    const link = {captureBegin: async () => {throw new Error("unused");}, captureChunk: async () => {throw new Error("unused");},
+      captureFinish: async () => {throw new Error("unused");}, captureRemoved: async () => {throw new TypeError("Network request failed");}};
+    expect(await reportGone(vault as never, link as never)).toBe(0);
+    expect(left).toHaveLength(1);
+  });
 });

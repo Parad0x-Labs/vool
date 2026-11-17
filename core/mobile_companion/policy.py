@@ -60,6 +60,8 @@ ACTIONS = {
     "capture.begin": "attachments",
     "capture.chunk": "attachments",
     "capture.finish": "attachments",
+    # the phone reports it removed a capture this computer confirmed (for the receipt trail)
+    "capture.removed": "attachments",
 }
 
 

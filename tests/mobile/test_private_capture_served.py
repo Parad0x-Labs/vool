@@ -150,3 +150,44 @@ def test_a_video_cannot_pretend_to_be_a_photo(desktop):
     phone = _camera_phone(desktop)
     status, value = _send(phone, VIDEO, sha=hashlib.sha256(VIDEO).hexdigest(), media_type="image/jpeg")
     assert status == 400 and value["code"] == "capture_type_not_allowed"
+
+
+def _receipts(kind):
+    from core.web.api.mobile_companion_api import mobile_companion_service
+
+    rows, _, verified = mobile_companion_service().store.receipts()
+    assert verified is True
+    return [row for row in rows if row["kind"] == kind]
+
+
+def test_the_saved_file_is_on_disk_with_the_confirmed_hash(desktop):
+    """The "done" answer only comes after the file is synced and read back with the same hash."""
+    phone = _camera_phone(desktop)
+    data = b"\xff\xd8\xff\xe1" + os.urandom(300_000) + b"\xff\xd9"
+    sha = hashlib.sha256(data).hexdigest()
+    status, value = _send(phone, data, sha=sha)
+    assert status == 200, value
+    from core.mobile_companion import incoming_media
+
+    saved = [p for p in incoming_media.photos_root().rglob("*.jpg") if p.name == value["result"]["saved_as"]]
+    assert len(saved) == 1 and hashlib.sha256(saved[0].read_bytes()).hexdigest() == sha
+    assert [r["detail"]["sha256"] for r in _receipts("capture.saved")][-1] == sha
+
+
+def test_the_phone_reports_its_deletion_and_the_computer_keeps_a_receipt(desktop):
+    phone = _camera_phone(desktop)
+    data = b"\xff\xd8\xff\xe1" + os.urandom(100_000) + b"\xff\xd9"
+    sha = hashlib.sha256(data).hexdigest()
+    assert _send(phone, data, sha=sha)[0] == 200
+    status, value = call(*phone, "capture.removed", {"sha256": sha, "key_destroyed": True, "removed_at": 1795000100})
+    assert status == 200, value
+    assert value["result"]["recorded"] is True and value["result"]["sha256"] == sha
+    rows = _receipts("capture.removed_on_phone")
+    assert rows[-1]["detail"] == {"sha256": sha, "key_destroyed": True, "removed_at": 1795000100}
+
+
+def test_a_deletion_for_a_file_the_computer_never_stored_is_refused(desktop):
+    phone = _camera_phone(desktop)
+    status, value = call(*phone, "capture.removed", {"sha256": "ab" * 32, "key_destroyed": True})
+    assert status == 404 and value["code"] == "unknown_capture"
+    assert not _receipts("capture.removed_on_phone")
