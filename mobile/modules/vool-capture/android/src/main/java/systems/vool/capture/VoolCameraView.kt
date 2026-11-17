@@ -124,7 +124,13 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
         val selector = if (manager != null && chosen != null && mode in available) manager.getExtensionEnabledCameraSelector(base, chosen) else base
         val capture = ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-          .setResolutionSelector(ResolutionSelector.Builder().setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build())
+          .setResolutionSelector(
+            ResolutionSelector.Builder()
+              .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+              // also the sensor's full sizes that the phone lists only as "slow" (many phones keep their real megapixels there)
+              .setAllowedResolutionMode(ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
+              .build(),
+          )
           .setTargetRotation(display?.rotation ?: 0)
           .build()
         imageCapture = capture
