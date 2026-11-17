@@ -74,18 +74,22 @@ object PhotoSizes {
 }
 
 /**
- * Colour filters for photos. The viewfinder shows the same matrix live (Android 12 and later); the
+ * Colour looks for photos. The viewfinder shows the same matrix live (Android 12 and later); the
  * saved photo gets it after the shot, before it is locked away. Video keeps its true colours.
+ * Photo modes (Enhance, Beauty, Document) ride along as "look|mode"; see ImageEdits.
  */
 object PhotoFilters {
-  val names = listOf("none", "warm", "cool", "vivid", "fade", "mono", "noir")
+  val names = listOf("none", "natural", "warm", "cool", "vivid", "film", "fade", "mono", "noir")
 
   fun matrix(name: String): ColorMatrix? {
     val m = ColorMatrix()
     when (name) {
       "warm" -> m.set(floatArrayOf(1.08f, 0f, 0f, 0f, 8f, 0f, 1.01f, 0f, 0f, 2f, 0f, 0f, 0.9f, 0f, 0f, 0f, 0f, 0f, 1f, 0f))
       "cool" -> m.set(floatArrayOf(0.92f, 0f, 0f, 0f, 0f, 0f, 1.0f, 0f, 0f, 2f, 0f, 0f, 1.08f, 0f, 8f, 0f, 0f, 0f, 1f, 0f))
+      "natural" -> { m.setSaturation(1.08f); m.postConcat(contrast(1.04f)) }
       "vivid" -> { m.setSaturation(1.35f); m.postConcat(contrast(1.08f)) }
+      // Film: softer blacks, a warm-green cast and slightly calmer colour, like a colour negative print.
+      "film" -> { m.setSaturation(0.88f); m.postConcat(contrast(0.94f)); m.postConcat(ColorMatrix(floatArrayOf(1.04f, 0f, 0f, 0f, 10f, 0f, 1.02f, 0f, 0f, 8f, 0f, 0f, 0.92f, 0f, 4f, 0f, 0f, 0f, 1f, 0f))) }
       "fade" -> { m.setSaturation(0.8f); m.postConcat(contrast(0.86f)); m.postConcat(ColorMatrix(floatArrayOf(1f, 0f, 0f, 0f, 14f, 0f, 1f, 0f, 0f, 12f, 0f, 0f, 1f, 0f, 10f, 0f, 0f, 0f, 1f, 0f))) }
       "mono" -> m.setSaturation(0f)
       "noir" -> { m.setSaturation(0f); m.postConcat(contrast(1.3f)) }
@@ -112,11 +116,22 @@ object PhotoFilters {
    * Works in strips so a large photo does not need a second copy in memory. Any trouble (too little
    * memory, a file it cannot read) leaves the photo exactly as the camera took it.
    */
+  /** The date, orientation and camera details worth keeping when a photo is written again. */
+  fun tagsOf(file: File): List<Pair<String, String>> {
+    val old = ExifInterface(file.absolutePath)
+    return keepTags.mapNotNull { tag -> old.getAttribute(tag)?.let { tag to it } }
+  }
+
+  fun putTags(file: File, tags: List<Pair<String, String>>) {
+    val fresh = ExifInterface(file.absolutePath)
+    for ((tag, value) in tags) fresh.setAttribute(tag, value)
+    fresh.saveAttributes()
+  }
+
   fun apply(file: File, name: String) {
     val m = matrix(name)?.array ?: return
     try {
-      val old = ExifInterface(file.absolutePath)
-      val tags = keepTags.mapNotNull { tag -> old.getAttribute(tag)?.let { tag to it } }
+      val tags = tagsOf(file)
       val bitmap = BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inMutable = true }) ?: return
       val width = bitmap.width
       val rows = 64
@@ -139,9 +154,7 @@ object PhotoFilters {
       val out = File(file.parentFile, file.name + ".filter")
       out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) }
       bitmap.recycle()
-      val fresh = ExifInterface(out.absolutePath)
-      for ((tag, value) in tags) fresh.setAttribute(tag, value)
-      fresh.saveAttributes()
+      putTags(out, tags)
       if (!out.renameTo(file)) out.delete()
     } catch (_: Throwable) {
       File(file.parentFile, file.name + ".filter").delete()

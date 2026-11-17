@@ -197,6 +197,14 @@ Notes: Adapter code is ours; remote provider services remain under their own ter
 - credit: the camera's settings (flash, self-timer, grid, 4:3 or 16:9, video quality, steady video, mirrored selfies, pinch to zoom, tap to focus) follow the GrapheneOS Camera app, https://github.com/GrapheneOS/Camera, MIT license, Copyright © 2021-2025 GrapheneOS
 - bundled: no GrapheneOS Camera code is copied; VOOL's own code, written for CameraX. If code is taken from it later, its MIT notice goes into `LICENSES/` next to this entry
 
+### Phone app: OpenCV 4.12.0 (camera photo modes)
+
+- path: `mobile/modules/vool-capture/android/build.gradle` (`org.opencv:opencv:4.12.0` from Maven Central, AAR sha256 `f71846a313388d9da667a59be1e921669fcf792d1ba264b3898253ca789bc3f0`); used by `ImageEdits.kt` and `PageOutline.kt` for Enhance, Beauty and Document
+- license: Apache-2.0, https://github.com/opencv/opencv/blob/4.12.0/LICENSE
+- bundled: yes, `libopencv_java4.so` and `libc++_shared.so` for arm64-v8a only. The app ships arm64 only (`app.json` excludes `lib/x86/**`, `lib/x86_64/**`, `lib/armeabi-v7a/**`); OpenCV's x86 builds link Intel IPP-ICV, which has its own license and is therefore never shipped
+- built into the arm64 library (from its own build report): libjpeg-turbo 3.1.0 (IJG + BSD-3-Clause + zlib), libpng 1.6.43 (libpng license), libtiff 4.6.0 (libtiff license), libwebp (BSD-3-Clause), OpenJPEG 2.5.3 (BSD-2-Clause), OpenEXR 2.3.0 (BSD-3-Clause), zlib (zlib), protobuf 3.19.1 (BSD-3-Clause), flatbuffers 23.5.9 (Apache-2.0), oneTBB 2022.1 (Apache-2.0), ittnotify (BSD-3-Clause), ade (Apache-2.0), carotene (BSD-3-Clause), KleidiCV 0.5.0 (Apache-2.0), cpufeatures (BSD-2-Clause). No FFmpeg, no non-free modules
+- notes: GPUPixel, android-gpuimage-plus and Google ML Kit are not used. Photo modes run on the phone, on the private working copy, before compression and sealing
+
 ## Disclaimer
 
 This document is an operational licensing guide for the repository structure.

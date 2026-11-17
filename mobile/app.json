@@ -108,7 +108,10 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "packagingOptions": {
+              "exclude": ["lib/x86/**", "lib/x86_64/**", "lib/armeabi-v7a/**"]
+            }
           }
         }
       ],

@@ -57,8 +57,10 @@ export const vault: CaptureVault | null = capture
 export type CameraMode = "standard" | "night" | "hdr" | "portrait" | "retouch";
 
 export type FlashMode = "off" | "auto" | "on";
-export type PhotoFilter = "none" | "warm" | "cool" | "vivid" | "fade" | "mono" | "noir";
-export const PHOTO_FILTERS: PhotoFilter[] = ["none", "warm", "cool", "vivid", "fade", "mono", "noir"];
+export type PhotoFilter = "none" | "natural" | "warm" | "cool" | "vivid" | "film" | "fade" | "mono" | "noir";
+export const PHOTO_FILTERS: PhotoFilter[] = ["none", "natural", "warm", "cool", "vivid", "film", "fade", "mono", "noir"];
+/** VOOL's own photo modes, made on the phone after the shot, before the photo is locked away. */
+export type PhotoEdit = "" | "enhance" | "beauty1" | "beauty2" | "beauty3" | "doc-color" | "doc-gray" | "doc-bw";
 
 export interface CameraViewProps extends ViewProps {
   facing: "back" | "front";
@@ -72,6 +74,9 @@ export interface CameraViewProps extends ViewProps {
   steady?: boolean;
   mirror?: boolean;
   filter?: PhotoFilter;
+  edit?: PhotoEdit;
+  /** Document mode: whether a page is seen in the viewfinder right now. */
+  onPage?: (event: {nativeEvent: {found: boolean}}) => void;
   onZoom?: (event: {nativeEvent: {ratio: number; min: number; max: number}}) => void;
   onFocus?: (event: {nativeEvent: {x: number; y: number}}) => void;
   /** How the phone is held: 0, 90, 180 or 270. Photos and videos are saved the same way round. */

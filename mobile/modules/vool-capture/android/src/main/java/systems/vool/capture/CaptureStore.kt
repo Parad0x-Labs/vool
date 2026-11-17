@@ -127,7 +127,7 @@ object CaptureStore {
    *
    * The plain file is sealed straight away into a "held" file under its own Keystore key and then
    * overwritten and deleted, so shots waiting in a queue never sit on the phone as plain files. Only
-   * the step that changes a capture (filter, compression) opens one held capture at a time, in a
+   * the step that changes a capture (look, photo mode, compression) opens one held capture at a time, in a
    * working file that is wiped right after. A note next to each step lets everything be finished
    * after the app was closed or killed: nothing is lost, and plain leftovers are wiped at the next start.
    */
@@ -144,7 +144,7 @@ object CaptureStore {
         try {
           val item = if (id != null) finishHeld(context, id) else {
             waitForQuiet()
-            if (filter != "none") PhotoFilters.apply(captured, filter)
+            if (filter != "none") ImageEdits.apply(captured, filter)
             ingest(context, captured, mediaType, kind, takenAt).also { note.delete() }
           }
           onStored?.invoke(mapOf("ok" to true) + item.toMap())
@@ -194,7 +194,7 @@ object CaptureStore {
     try {
       unsealFile(File(folder, "hold-$id.enc"), holdKey(id), work)
       val filter = o.optString("filter", "none")
-      if (filter != "none") PhotoFilters.apply(work, filter)
+      if (filter != "none") ImageEdits.apply(work, filter)
       val item = ingest(context, work, o.getString("mediaType"), o.getString("kind"), o.getDouble("takenAt").toLong(), fixedId = id)
       dropHold(folder, id)
       return item
