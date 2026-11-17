@@ -14,9 +14,12 @@ travel in pieces and are hashed as a stream, so a long video never has to fit in
           file saved and the hash returned; the phone deletes its copy only on that answer.
           A mismatch throws the partial away and the phone keeps its file to try again.
 
-Partial uploads live in VOOL's own data folder, readable only by this user. Saved files go to
-``~/Pictures/VOOL Phone Camera/<date>/`` on a normal install (inside the VOOL home on an isolated
-test profile), one folder per day, never into a photo library.
+Partial uploads live in VOOL's own data folder, readable only by this user. A finished file is sealed into
+the protected media library (core.media_library, its "From your phone" section): encrypted at rest, kept
+out of the system's search and photo apps, opened only by VOOL's own media page. The sealed copy is
+read back and checked against the phone's hash before "done" is answered, and the plain partial is then
+overwritten and removed. Files saved by older versions under ``~/Pictures/VOOL Phone Camera`` stay where
+they are and still count as saved.
 """
 
 from __future__ import annotations
@@ -173,7 +176,7 @@ def begin(device_id: str, params: dict[str, Any], *, now: float | None = None) -
     stage = _staging(device_id)
     _sweep(stage, moment)
     saved = _index(device_id).get(sha256)
-    if isinstance(saved, dict) and Path(str(saved.get("path") or "")).is_file():
+    if isinstance(saved, dict) and _still_saved(saved):
         return _saved_answer(saved)
     upload_id = _upload_id(device_id, sha256)
     meta_path = stage / f"{upload_id}.json"
@@ -226,12 +229,38 @@ def chunk(device_id: str, upload_id: str, offset: int, data: bytes) -> dict[str,
     return {"next_offset": have + len(data)}
 
 
-def _destination(meta: dict[str, Any]) -> Path:
+def _name(meta: dict[str, Any]) -> str:
     taken = datetime.fromtimestamp(float(meta["taken_at"]))
-    folder = photos_root() / taken.strftime("%Y-%m-%d")
-    folder.mkdir(parents=True, exist_ok=True)
-    stem = "VOOL_" + taken.strftime("%Y%m%d_%H%M%S") + "_" + str(meta["sha256"])[:8]
-    return folder / (stem + _TYPES[meta["media_type"]][0])
+    return "VOOL_" + taken.strftime("%Y%m%d_%H%M%S") + "_" + str(meta["sha256"])[:8] + _TYPES[meta["media_type"]][0]
+
+
+def _still_saved(record: dict[str, Any]) -> bool:
+    """Whether a capture recorded as saved is still held: sealed in the media library, or (saved by an older
+    version) a plain file in the phone photos folder."""
+    if record.get("item_id"):
+        from core.media_library.store import LibraryError, library
+
+        try:
+            library().get(str(record["item_id"]))
+            return True
+        except (LibraryError, OSError):
+            return False
+    return Path(str(record.get("path") or "")).is_file()
+
+
+def _wipe(path: Path) -> None:
+    """Overwrites a plain partial with zeros, puts that on the disk, then removes it."""
+    with contextlib.suppress(OSError):
+        size = path.stat().st_size
+        with open(path, "r+b") as handle:
+            block = bytes(1 << 20)
+            left = size
+            while left > 0:
+                handle.write(block[:min(left, len(block))])
+                left -= min(left, len(block))
+            handle.flush()
+            os.fsync(handle.fileno())
+    path.unlink(missing_ok=True)
 
 
 def finish(device_id: str, upload_id: str) -> dict[str, Any]:
@@ -257,28 +286,21 @@ def finish(device_id: str, upload_id: str) -> dict[str, Any]:
         part.unlink(missing_ok=True)
         meta_path.unlink(missing_ok=True)
         raise MediaRefused("capture_type_not_allowed", "Only photos, videos and recordings from VOOL can be sent this way.")
-    target = _destination(meta)
-    count = 1
-    while target.exists():
-        count += 1
-        target = target.with_name(f"{target.stem.rsplit('~', 1)[0]}~{count}{target.suffix}")
+    # Sealed into the protected media library; the library reads its sealed copy back and checks it against
+    # this hash before it answers, so the hash the phone hears is the hash of the file as stored.
+    from core.media_library.store import LibraryError, library
+
+    def pieces():
+        with open(part, "rb") as handle:
+            yield from iter(lambda: handle.read(1 << 20), b"")
+
     try:
-        os.replace(part, target)
-    except OSError:  # the photos folder is on another disk than VOOL's data
-        shutil.copyfile(part, target)
-        _sync_file(target)
-        part.unlink(missing_ok=True)
-    with contextlib.suppress(OSError):
-        os.chmod(target, 0o600)
-    _sync_dir(target.parent)
-    # Read back from the disk: the hash the phone hears is the hash of the file as stored.
-    stored = hashlib.sha256()
-    with open(target, "rb") as handle:
-        for piece in iter(lambda: handle.read(1 << 20), b""):
-            stored.update(piece)
-    if stored.hexdigest() != meta["sha256"]:
-        raise MediaRefused("capture_not_stored", "The computer could not store it. It stays on your phone and will be sent again.", 500)
-    record = {"sha256": meta["sha256"], "path": str(target), "name": target.name, "size_bytes": size,
+        item = library().add(pieces(), section="mobile", name=_name(meta), media_type=str(meta["media_type"]),
+                             taken_at=float(meta["taken_at"]), expect_sha256=str(meta["sha256"]))
+    except (LibraryError, OSError):
+        raise MediaRefused("capture_not_stored", "The computer could not store it. It stays on your phone and will be sent again.", 500) from None
+    _wipe(part)
+    record = {"sha256": meta["sha256"], "item_id": item["id"], "name": str(item.get("name") or _name(meta)), "size_bytes": size,
               "saved_at": time.time()}
     index = _index(device_id)
     index[meta["sha256"]] = record

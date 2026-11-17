@@ -48,10 +48,15 @@ def test_photo_arrives_whole_and_the_hash_comes_back(desktop):
     assert status == 200, value
     result = value["result"]
     assert result["done"] is True and result["sha256"] == SHA and result["size_bytes"] == len(PHOTO)
-    saved = list((desktop[2] / "phone-camera").rglob("*.jpg"))
-    assert len(saved) == 1 and saved[0].name == result["saved_as"]
-    assert saved[0].read_bytes() == PHOTO
-    assert oct(saved[0].stat().st_mode & 0o777) == "0o600"
+    # Sealed into the protected media library ("From your phone"), never left as a plain file anywhere.
+    from core.media_library.store import library
+
+    item = library().find_sha(SHA, section="mobile")
+    assert item is not None and item["name"] == result["saved_as"] and item["kind"] == "photo"
+    assert b"".join(library().open(item["id"]).chunks()) == PHOTO
+    assert not list((desktop[2] / "phone-camera").rglob("*.jpg"))
+    probe = PHOTO[1_000_000:1_000_064]
+    assert not [p for p in desktop[2].rglob("*") if p.is_file() and probe in p.read_bytes()]
 
 
 def test_retry_after_a_lost_answer_never_makes_a_second_copy(desktop):
@@ -59,7 +64,9 @@ def test_retry_after_a_lost_answer_never_makes_a_second_copy(desktop):
     assert _send(phone, PHOTO)[0] == 200
     again = _send(phone, PHOTO)
     assert again["done"] is True and again["sha256"] == SHA
-    assert len(list((desktop[2] / "phone-camera").rglob("*.jpg"))) == 1
+    from core.media_library.store import library
+
+    assert [i["sha256"] for i in library().items(section="mobile")] == [SHA]
 
 
 def test_a_half_sent_photo_carries_on_from_where_it_stopped(desktop):
@@ -120,8 +127,11 @@ def test_video_and_sound_arrive_the_same_way(desktop):
         status, value = _send(phone, data, sha=hashlib.sha256(data).hexdigest(), media_type=media_type)
         assert status == 200, value
         assert value["result"]["saved_as"].endswith(ending)
-    saved = {p.suffix: p.read_bytes() for p in (desktop[2] / "phone-camera").rglob("*") if p.is_file()}
-    assert saved == {".mp4": VIDEO, ".m4a": SOUND}
+    from core.media_library.store import library
+
+    lib = library()
+    saved = {i["kind"]: b"".join(lib.open(i["id"]).chunks()) for i in lib.items(section="mobile")}
+    assert saved == {"video": VIDEO, "audio": SOUND}
 
 
 HEIC = b"\x00\x00\x00\x18ftypheic" + os.urandom(900_000)
@@ -167,10 +177,11 @@ def test_the_saved_file_is_on_disk_with_the_confirmed_hash(desktop):
     sha = hashlib.sha256(data).hexdigest()
     status, value = _send(phone, data, sha=sha)
     assert status == 200, value
-    from core.mobile_companion import incoming_media
+    from core.media_library.store import library
 
-    saved = [p for p in incoming_media.photos_root().rglob("*.jpg") if p.name == value["result"]["saved_as"]]
-    assert len(saved) == 1 and hashlib.sha256(saved[0].read_bytes()).hexdigest() == sha
+    item = library().find_sha(sha, section="mobile")
+    assert item is not None and item["name"] == value["result"]["saved_as"]
+    assert hashlib.sha256(b"".join(library().open(item["id"]).chunks())).hexdigest() == sha
     assert [r["detail"]["sha256"] for r in _receipts("capture.saved")][-1] == sha
 
 
