@@ -55,6 +55,11 @@ ACTIONS = {
     "wallet.approve": "payment_approve",
     "abilities.dictate": "microphone",
     "abilities.location": "location",
+    # The phone's private capture: photos, videos and recordings come to this computer instead of the
+    # phone's gallery. Sound needs the microphone right instead; the handler checks that per file.
+    "capture.begin": "attachments",
+    "capture.chunk": "attachments",
+    "capture.finish": "attachments",
 }
 
 

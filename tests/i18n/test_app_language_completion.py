@@ -254,6 +254,8 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "vx.toolbelt.plugins",
         "wallet.pin_short",
         "wallet.signature",
+        # the private camera's "Video" tab: the locale's own word in de/tr/vi
+        "phone.capture.video",
     }
 )
 

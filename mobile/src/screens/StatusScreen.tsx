@@ -18,10 +18,12 @@ interface Props {
   onIdleMinutes:(value:number)=>Promise<void>;
   onConnection?: (address: string) => Promise<void>;
   onAwayConnection?: (address: string) => Promise<void>;
+  /** The private camera's settings, shown under the lock time. */
+  captureSettings?: React.ReactNode;
 }
 
 /** Current model, local/cloud status, Proof Chip, and the device's own standing. */
-export default function StatusScreen({ client, onRevoked, onConnection, onAwayConnection, idleMinutes, onIdleMinutes }: Props) {
+export default function StatusScreen({ client, onRevoked, onConnection, onAwayConnection, idleMinutes, onIdleMinutes, captureSettings }: Props) {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null);
   const [device,setDevice]=useState<DeviceInfo|null>(null);
   const [proof, setProof] = useState<TurnProof | null>(null);
@@ -267,6 +269,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
       </Pressable>)}</View>
 
+      {captureSettings}
       {advanced}
       {danger}
     </ScrollView>

@@ -1,0 +1,32 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- The optional second home-screen icon. Off until the person turns it on in VOOL's settings. -->
+    <activity
+      android:name="systems.vool.capture.CameraLauncherActivity"
+      android:label="VOOL Camera"
+      android:icon="@mipmap/ic_vool_camera"
+      android:roundIcon="@mipmap/ic_vool_camera"
+      android:enabled="false"
+      android:exported="true"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:taskAffinity=""
+      android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <!-- Quick settings tile: one tap opens the private camera (behind VOOL's lock). -->
+    <service
+      android:name="systems.vool.capture.CaptureTileService"
+      android:label="VOOL Camera"
+      android:icon="@drawable/ic_vool_capture_tile"
+      android:exported="true"
+      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

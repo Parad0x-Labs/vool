@@ -167,6 +167,7 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "devices.switch_off", "devices.lost_computer",
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
+    "capture.begin", "capture.chunk", "capture.finish",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -1710,6 +1711,53 @@ from core.mobile_companion.abilities import dictate as _ability_dictate
 from core.mobile_companion.abilities import location as _ability_location
 
 _ACTION_HANDLERS.update({"abilities.check": _ability_check, "abilities.dictate": _ability_dictate, "abilities.location": _ability_location})
+
+
+def _capture_action(step):
+    """The phone's private capture hands a photo, video or recording to this computer (core.mobile_companion.incoming_media)."""
+
+    def handler(params, *, service, device, **_kw):
+        import binascii
+
+        from core.mobile_companion import incoming_media
+        from core.mobile_companion.abilities import check
+
+        device_id = str(device.get("device_id") or "")
+        upload_id = str(params.get("upload_id") or "")
+        media_type = str(params.get("media_type") or "") if step == "begin" else incoming_media.upload_media_type(device_id, upload_id)
+        code, value = check({"ability": incoming_media.ability_for(media_type)}, service=service, device=device)
+        if code != 200:
+            return code, value
+        try:
+            if step == "begin":
+                result = incoming_media.begin(device_id, params)
+            elif step == "chunk":
+                encoded = params.get("content_b64")
+                if not isinstance(encoded, str) or len(encoded) > incoming_media.CHUNK_BYTES * 4 // 3 + 4:
+                    return 413, {"code": "bad_chunk", "error": "This piece of the file is too big."}
+                try:
+                    data = base64.b64decode(encoded, validate=True)
+                except (binascii.Error, ValueError):
+                    return 400, {"code": "bad_chunk", "error": "This piece of the file could not be read."}
+                offset = params.get("offset")
+                if type(offset) is not int or offset < 0:
+                    return 400, {"code": "bad_chunk", "error": "This piece of the file could not be placed."}
+                result = incoming_media.chunk(device_id, upload_id, offset, data)
+            else:
+                result = incoming_media.finish(device_id, upload_id)
+                service.store.append_receipt("capture.saved", device_id=device_id,
+                                             detail={"sha256": result["sha256"], "size_bytes": result["size_bytes"]})
+        except incoming_media.MediaRefused as refused:
+            if refused.code == "capture_hash_mismatch":
+                service.store.append_receipt("capture.hash_mismatch", device_id=device_id, detail={})
+            return refused.status, {"code": refused.code, "error": refused.message}
+        return 200, result
+
+    return handler
+
+
+_ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
+                         "capture.finish": _capture_action("finish")})
 
 
 def _devices_payload(service: MobileCompanionService) -> dict[str, Any]:

@@ -12,6 +12,9 @@ import {NotificationCursorStore} from "./src/notifications/cursor.ts";
 import type {NotificationEvent} from "./src/protocol/models.ts";
 import PairScreen from "./src/screens/PairScreen.tsx";
 import ChatsScreen from "./src/screens/ChatsScreen.tsx";
+import CaptureScreen from "./src/screens/CaptureScreen.tsx";
+import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
+import {useCaptureQueue} from "./src/capture/useCaptureQueue.ts";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen.tsx";
 import StatusScreen from "./src/screens/StatusScreen.tsx";
 import {notificationText, rightToLeft, subscribeLanguage, tr} from "./src/i18n/index.ts";
@@ -55,6 +58,11 @@ export default function App() {
   return <SafeAreaProvider><Root /></SafeAreaProvider>;
 }
 
+/** The VOOL Camera home icon and quick settings tile open this link; it never carries pairing data. */
+function isCaptureLink(url: string): boolean {
+  return /^vool-pair:\/\/capture\/?(\?.*)?$/i.test(url.trim());
+}
+
 function Root() {
   useEffect(() => {void requestPrivateTyping();}, []);
   const [, setLocaleTick] = useState(0);
@@ -65,14 +73,19 @@ function Root() {
   const [bootAttempt, setBootAttempt] = useState(0);
   const [startTab, setStartTab] = useState<Tab>("chats");
   const [incomingLink, setIncomingLink] = useState<string | null>(null);
+  // The VOOL Camera home icon and quick settings tile open the private camera, after the unlock.
+  const [cameraAsked, setCameraAsked] = useState(false);
   const store = useMemo(() => credentialStoreForEnvironment(false), []);
 
   // vool-pair:// deep links (QR scanned outside the app, link tapped in a
   // browser): the SAME typed payload the in-app camera parser reads.
   useEffect(() => {
-    const handle = (event: { url: string }) => setIncomingLink(event.url);
-    const sub = Linking.addEventListener("url", handle);
-    Linking.getInitialURL().then((url) => { if (url) setIncomingLink(url); });
+    const take = (url: string) => {
+      if (isCaptureLink(url)) setCameraAsked(true);
+      else setIncomingLink(url);
+    };
+    const sub = Linking.addEventListener("url", (event: { url: string }) => take(event.url));
+    Linking.getInitialURL().then((url) => { if (url) take(url); });
     return () => sub.remove();
   }, []);
 
@@ -98,6 +111,7 @@ function Root() {
       await store.saveDeviceCredentials(next);
       setCreds(next);
       setStartTab("chats");
+      setCameraAsked(false);
     },
     [store],
   );
@@ -146,7 +160,7 @@ function Root() {
   </Frame>;
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
-    onTouch={lock.touch} startTab={startTab} onConnection={async address => {
+    onTouch={lock.touch} startTab={startTab} cameraAsked={cameraAsked} onCameraShown={() => setCameraAsked(false)} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
     }} onAwayConnection={async address => {
       if (creds) {
@@ -166,11 +180,22 @@ interface ShellProps {
   onConnection: (address: string) => Promise<void>;
   onAwayConnection: (address: string) => Promise<void>;
   startTab?: Tab;
+  /** The camera was asked for from outside (home icon, quick settings). */
+  cameraAsked?: boolean;
+  onCameraShown?: () => void;
 }
 
 /** Everything a paired, unlocked phone shows: the five screens and the row of tabs under them. */
-export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats"}: ShellProps) {
+export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", cameraAsked = false, onCameraShown}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
+  const queue = useCaptureQueue(client);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  useEffect(() => {
+    if (!cameraAsked) return;
+    if (queue.available) setCameraOpen(true);
+    onCameraShown?.();
+  }, [cameraAsked, queue.available, onCameraShown]);
+  const openCamera = queue.available ? () => setCameraOpen(true) : undefined;
   const [pick, setPick] = useState<{id: string | null; seq: number} | null>(null);
   const [recent, setRecent] = useState<ChatSummary[]>([]);
   // Inside one chat the message box takes the place of the tabs.
@@ -246,9 +271,9 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
       <StatusBar style="light" />
       {tab === "chats"
         ? <ChatsScreen client={client} onRevoked={onRevoked} pick={pick}
-            onLink={() => selectTab("status")} onChats={setRecent} onThread={setInChat} />
+            onLink={() => selectTab("status")} onChats={setRecent} onThread={setInChat} onCamera={openCamera} />
         : <>
-          <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} />
+          <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} onCamera={openCamera} />
           {showTicker && lastEvent ? (
             <Pressable style={styles.ticker} onPress={() => openAlert(lastEvent)}>
               <Icon name="bell-outline" size={16} color={C.acc} />
@@ -257,7 +282,8 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
           ) : null}
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
-            {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection} />}
+            {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection}
+              captureSettings={openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera} /> : null} />}
             {tab === "wallet" && <WalletScreen client={client} onRevoked={onRevoked} />}
             {tab === "notifications" && <NotificationsScreen client={client} onOpen={openAlert} osEnabled={notifications.osEnabled}
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
@@ -265,6 +291,10 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
         </>}
       {tab === "chats" && inChat ? null : <TabBar items={items} active={tab} onSelect={key => selectTab(key as Tab)} />}
       {recent.length > 0 && <KeyboardTip />}
+      {cameraOpen ? <View style={StyleSheet.absoluteFill}>
+        <CaptureScreen waiting={queue.waiting} sending={queue.sending} problem={queue.problem} saving={queue.saving} saveFailed={queue.saveFailed}
+          onCaptured={queue.captured} onClose={() => setCameraOpen(false)} />
+      </View> : null}
     </Frame>
   );
 }
