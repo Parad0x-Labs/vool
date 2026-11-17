@@ -13,14 +13,19 @@ interface Props {
   onLink?: () => void;
   /** Opens the private camera (shown on the large title only). */
   onCamera?: () => void;
+  /** Opens VOOL Vault (shown on the large title only). */
+  onVault?: () => void;
 }
 
 /** The top of every screen: its name, and how the computer stands right now. */
-export default function Header({title, onBack, onLink, onCamera}: Props) {
+export default function Header({title, onBack, onLink, onCamera, onVault}: Props) {
   if (!onBack) return (
     <View style={styles.tab}>
       <View style={styles.titleRow}>
         <Text style={[styles.big, styles.fill]} numberOfLines={1} accessibilityRole="header">{title}</Text>
+        {onVault ? <Pressable onPress={onVault} hitSlop={8} style={styles.camera} accessibilityRole="button" accessibilityLabel={tr("VOOL Vault")}>
+          <Icon name="safe-square-outline" size={23} color={C.ink} />
+        </Pressable> : null}
         {onCamera ? <Pressable onPress={onCamera} hitSlop={8} style={styles.camera} accessibilityRole="button" accessibilityLabel={tr("Private camera")}>
           <Icon name="camera-outline" size={24} color={C.ink} />
         </Pressable> : null}

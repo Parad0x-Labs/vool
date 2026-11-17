@@ -258,6 +258,7 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "phone.capture.video",
         # the media page's "Photos" (fr) and "Videos" (de): the locale's own words
         "medialib.kind_photo",
+        "phone.vault.title",
         "medialib.kind_video",
         # camera words that are the locale's own: "Flash" (es/fr/pt), "Filter" and "Warm" (de)
         "phone.camera.flash",

@@ -15,7 +15,7 @@ import { reportLink, resetLink } from "./linkState.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
-  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences, SentFile,
+  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences, SentFile, MediaItem,
 } from "./models.ts";
 
 export interface DeviceCredentials {
@@ -330,6 +330,23 @@ export class MobileCompanionClient {
   /** The phone removed its copy (and destroyed its key) after the computer confirmed it. */
   captureRemoved(note: {sha256: string; keyDestroyed: boolean; removedAt: number}): Promise<{recorded: boolean}> {
     return this.request("capture.removed", {sha256: note.sha256, key_destroyed: note.keyDestroyed, removed_at: note.removedAt / 1000});
+  }
+
+  // -- VOOL Vault: browse and open the computer's protected media library --
+
+  mediaList(query: {section: "mobile" | "local"; kind: "photo" | "video" | "audio"; sort: "date" | "size"; order: "asc" | "desc"; offset?: number; limit?: number}): Promise<{items: MediaItem[]; total: number}> {
+    return this.request("media.list", {...query});
+  }
+  /** The small JPEG preview of a photo, as base64. */
+  async mediaThumb(id: string): Promise<string> {
+    return (await this.request<{content_b64: string}>("media.thumb", {id})).content_b64;
+  }
+  mediaRead(id: string, offset: number, length: number): Promise<{content_b64: string; next_offset: number; size: number; done: boolean}> {
+    return this.request("media.read", {id, offset, length});
+  }
+  /** The person saved or shared a copy outside the Vault: the computer keeps a receipt. */
+  mediaExported(id: string, how: "save" | "share"): Promise<{recorded: boolean}> {
+    return this.request("media.exported", {id, how});
   }
 
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
