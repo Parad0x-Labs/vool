@@ -740,6 +740,20 @@ _RETENTION_CLAIM = re.compile(
 )
 
 
+#: Where a thing is kept, said about the thing: "your snorkel set is kept in the beach hut", "the key is stored
+#: under the mat". The verb's complement is a place, not the assistant's memory, so nothing is claimed about a save.
+#: Measured on the real app (the keep-ask run after the step 3 commit): asked "where is my snorkel set kept?" in a
+#: new chat, the model answered from the saved row, and the gate cut the answer as a save claim with no receipt,
+#: leaving "Need help finding it or anything else?" and "Nothing from this message was saved".
+_KEPT_IN_A_PLACE = re.compile(
+    r"\b(?:is|are|was|were|be|been|being|gets?|stays?|" + _A + r"s)\s+(?:(?:usually|always|now|still|normally)\s+)*"
+    r"(?:kept|stored|filed|held|hung|logged|recorded|saved|put|tucked|locked)\s+"
+    r"(?:in|at|on|under|behind|inside|beside|near|by|with|above|below|between|next\s+to|over|outside|upstairs"
+    r"|downstairs)\b(?!\s+(?:my\s+|your\s+|the\s+|vool" + _A + r"s\s+)?(?:memory|mind|file|records?|notes?|list)\b)",
+    re.I,
+)
+
+
 _DENIES_OR_OFFERS = re.compile(
     r"\b(?:not|never|nothing|no|none|cannot|unable|without|if you|once you|want me to|would you like|should i|shall i"
     r"|i can|i could|you can|you could|let me know|tell me|ask me)\b|n" + _A + r"t\b",
@@ -774,6 +788,8 @@ def _retention_spans(
             if (index, a, b) in known or not sentence or sentence.rstrip().endswith("?"):
                 continue
             body = _LEAD_FILLER.sub("", _ABBREVIATION.sub(r"\1", sentence)).strip(" *_")
+            if _KEPT_IN_A_PLACE.search(body):
+                continue  # where the thing is, not what the assistant did with it
             if asked_about_a_save and memory_words.search(body) and not _DENIES_OR_OFFERS.search(sentence):
                 # The answer to the person's own question. "... is saved, just as you said" relays nothing: the
                 # relay and hedge exemptions below are for a reply to some other ask.

@@ -167,7 +167,7 @@ def _local_models_disabled() -> bool:
         return False
 
 
-def _arbiter_runner_options(model: str) -> dict[str, int]:
+def _arbiter_runner_options(model: str, role: str = "") -> dict[str, int]:
     """The sized context (and runner keys) this lane loads at, from the runtime's own authority.
 
     Both calls in this module post straight to Ollama rather than through the provider adapter --
@@ -191,7 +191,9 @@ def _arbiter_runner_options(model: str) -> dict[str, int]:
     sized the window alone still reloaded the helper model on every alternation with the adapter.
     """
 
-    return ollama_direct_runner_options(str(model or ""), bundle_role="classifier")
+    # `role` is given when the model asked is not this lane's helper but one registered under another role (the
+    # chat model, "general"): the call then names the runner that model is already loaded on.
+    return ollama_direct_runner_options(str(model or ""), bundle_role=role or "classifier")
 
 
 def _build_prompt(text: str, options: list[str]) -> str:
@@ -456,8 +458,18 @@ def arbitrate_followup(
     request_id: str = "",
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
+    prompt: str = "",
+    operation: str = "followup_arbitration",
+    model: str = "",
+    runner_role: str = "",
+    call_role: str = "",
 ) -> str | None:
-    """``"yes"`` / ``"no"``, or None (disabled, no model, breaker open, error, unparseable)."""
+    """``"yes"`` / ``"no"``, or None (disabled, no model, breaker open, error, unparseable).
+
+    `prompt` and `operation` let another balanced yes/no judgement (`arbitrate_keep_ask`) go out through this one
+    sealed site instead of opening a second one; without them this asks the follow-up question. `model` names the
+    local model to ask instead of the helper tag, and `runner_role` the role that model is registered under, so the
+    call names the runner already loaded and Ollama does not reload it."""
     _LAST_FAILURE["reason"] = ""
     if not arbiter_enabled():
         _LAST_FAILURE["reason"] = "disabled"
@@ -465,7 +477,7 @@ def arbitrate_followup(
     if _breaker_open():
         _LAST_FAILURE["reason"] = "breaker_open"
         return None
-    model = _resolve_model()
+    model = str(model or "").strip() or _resolve_model()
     if not model:
         _LAST_FAILURE["reason"] = "no_model"
         return None
@@ -475,27 +487,28 @@ def arbitrate_followup(
 
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": _followup_prompt(request, reason, message)}],
+            "messages": [{"role": "user", "content": prompt or _followup_prompt(request, reason, message)}],
             "stream": False,
             "format": "json",
             "think": False,
             "keep_alive": "30m",
-            "options": {"temperature": 0, "num_predict": 24, **_arbiter_runner_options(model)},
+            "options": {"temperature": 0, "num_predict": 24, **_arbiter_runner_options(model, runner_role)},
         }
         permit = seal_direct_provider_invocation(
             destination_url=_ollama_chat_url(),
             provider_id="ollama",
             model_id=model,
-            operation="followup_arbitration",
+            operation=operation,
             payload=payload,
-            request_id=str(request_id or "").strip() or f"followup-arbiter-{uuid.uuid4().hex}",
+            request_id=str(request_id or "").strip() or f"{operation}-{uuid.uuid4().hex}",
             context_manifest={"chat_id": str(chat_id or ""), "project_id": "", "items_included": [],
                               "items_excluded": [], "capsule_version": "none"},
             max_output_tokens=24,
         )
         from core.turn_model_call_ledger import record_provider_call
 
-        call_id = record_provider_call(source_context, provider_id="ollama", model_id=str(model or ""), cost_class="free_local")
+        call_id = record_provider_call(source_context, provider_id="ollama", model_id=str(model or ""), cost_class="free_local",
+                                       call_role=call_role)
         response = requests.post(_ollama_chat_url(), json=permit.consume(), timeout=(1.5, _TIMEOUT_S))
         response.raise_for_status()
         content = str(((response.json().get("message") or {}).get("content")) or "")
@@ -522,6 +535,100 @@ def arbitrate_followup(
             error_class="" if decision else ProviderErrorClass.MALFORMED_PROVIDER_RESPONSE.value,
         )
     return decision
+
+
+def _keep_ask_prompt(lead: str, body: str) -> str:
+    """A balanced yes/no: does the lead ask for the text behind it to be kept, or for something else?"""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "A person wrote to their assistant in two parts: a lead, then a text.",
+        "Question: does the lead ask the assistant to keep the text for later (remember it, store it, put it on a "
+        "list, a log or a record of theirs), or announce things that are to be kept?",
+        'Answer {"answer": "yes"} or {"answer": "no"}. A lead that asks for anything else to be done with the text '
+        "(translate, rewrite, check, explain, answer, reply, summarise, continue, search) is no. A lead that only "
+        "introduces an opinion, a report, a question or a quote is no.",
+        "",
+        'Lead: "hang on to this for me" Text: "the meter key is on the hook by the door" -> {"answer": "yes"}',
+        'Lead: "make this sound more formal" Text: "my flat is on the third floor" -> {"answer": "no"}',
+        'Lead: "one for the packing list" Text: "bring the travel adapter" -> {"answer": "yes"}',
+        'Lead: "here is what I think" Text: "the second option is cheaper" -> {"answer": "no"}',
+        'Lead: "a couple of things for the recipe binder" Text: "the scones need 12 minutes" -> {"answer": "yes"}',
+        'Lead: "put this into German" Text: "our dog sleeps in the kitchen" -> {"answer": "no"}',
+        'Lead: "note to self" Text: "the car is due its service in April" -> {"answer": "yes"}',
+        'Lead: "does this read well" Text: "my sister is moving to Leeds next year" -> {"answer": "no"}',
+        'Lead: "quick question" Text: "the oven is making a clicking noise" -> {"answer": "no"}',
+        'Lead: "don\'t let me lose this" Text: "the warranty runs until 2029" -> {"answer": "yes"}',
+        "",
+        f'Lead: "{flat(lead, 120)}" Text: "{flat(body, 300)}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_keep_ask(
+    lead: str,
+    body: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether "<lead>: <body>" asks for the body to be kept: ``"yes"`` / ``"no"``, or None when nothing judged it.
+
+    A remember ask is said in any words ("hang on to this for me: ...", "one for the packing list: ..."), and the
+    same shape carries every other task ("put this into German: ..."). Its meaning is not in a list of verbs, so the
+    smallest local model is asked one balanced question -- the lane, the sealed site, the ledger and the breaker of
+    `arbitrate_followup`. None is never a keep: the caller writes nothing on it."""
+    if not str(lead or "").strip() or not str(body or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_keep_ask_prompt(lead, body), operation="keep_ask_arbitration", model=model, runner_role="general",
+        call_role=_judgement_role(),
+    )
+
+
+def _judgement_role() -> str:
+    from core.turn_model_call_ledger import JUDGEMENT_ROLE
+
+    return JUDGEMENT_ROLE
+
+
+#: The smallest local model the keep judgement is asked of, in billions of parameters. Measured on this lane's own
+#: probe (24 leads, half of them other tasks): qwen3:8b read 24 of 24, qwen3:4b read every keep ask and every task
+#: that points at its text, and qwen3:0.6b -- the helper tag the rest of this module asks -- answered yes to all 24.
+_KEEP_JUDGE_MIN_BILLIONS = 4.0
+
+
+def _keep_judge_model() -> str:
+    """The local model that judges a keep ask: the largest one Ollama already has loaded, or "".
+
+    Loaded, because that is the model the chat is being answered by: asking it costs under a second and loads
+    nothing (a cold multi-gigabyte load in the middle of a turn is the failure this module's helper tag exists to
+    avoid). Largest and at least `_KEEP_JUDGE_MIN_BILLIONS`, because the helper tag cannot make this judgement.
+    A tag that does not state its size is not asked. "" is "nobody judged": the caller keeps nothing."""
+    if _local_models_disabled():
+        return ""
+    explicit = str(os.environ.get("VOOL_KEEP_JUDGE_MODEL") or "").strip()
+    if explicit:
+        return explicit
+    try:
+        from core.local_ollama_inventory import loaded_ollama_model_names
+
+        sized: list[tuple[float, str]] = []
+        for name in loaded_ollama_model_names():
+            match = re.search(r":(\d+(?:\.\d+)?)b\b", str(name).lower())
+            if match is not None and "embed" not in str(name).lower():
+                sized.append((float(match.group(1)), str(name)))
+        if not sized:
+            return ""
+        billions, name = max(sized)
+        return name if billions >= _KEEP_JUDGE_MIN_BILLIONS else ""
+    except Exception:
+        return ""
 
 
 def parse_followup_decision(content: str) -> str | None:

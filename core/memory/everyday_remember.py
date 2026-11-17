@@ -95,6 +95,14 @@ class EverydayLead:
     fact: str
     opens_list: bool
     subject: str = ""
+    #: The subject is written after the item, in brackets, not in front of it (a lead a judge read: `judged_lead`).
+    subject_last: bool = False
+
+    def under_subject(self, item: str) -> str:
+        """An item of this list as it is saved: with what the list is for."""
+        if not self.subject:
+            return item
+        return f"{item.rstrip('. ')} ({self.subject})" if self.subject_last else f"{self.subject}: {item}"
 
 
 _ASK_HEAD = (
@@ -153,6 +161,71 @@ def _ask_that_fact(clean: str) -> str:
         return ""
     fact = match.group("fact").strip()
     return fact if _personal_fact_clause(fact) else ""
+
+
+#: "<a short lead>: <a text>". The colon is followed by a space, so a clock time ("9:40") is not a lead.
+_LED_RE = re.compile(r"^(?P<lead>[^:?!\n]{3,90}?)\s*:\s+(?P<body>\S.*)$", re.DOTALL)
+#: What a lead says the text is for, when it names something of the person's: "for the flock book", "on my jobs
+#: list". Kept with the fact, as a named list's subject is ("for my kayak trip: a dry bag").
+_LEAD_SUBJECT_RE = re.compile(
+    r"\b(?:for|on|onto|in|into|to|about)\s+(?P<subject>(?:my|our|the)\s+[\w'’-]+(?:\s+[\w'’-]+){0,3}?)"
+    r"(?:\s+(?:for\s+me|please|pls|plz))?\s*(?=,|$)",
+    re.IGNORECASE,
+)
+#: A lead that announces more than one thing ("two things for ...", "a few bits about ..."): a count, not a verb.
+_SEVERAL_RE = re.compile(r"\b(?:few|some|several|couple|two|three|four|five|six|seven|eight|nine|ten|[2-9]|\d{2})\b",
+                         re.IGNORECASE)
+
+
+def led_statement(text: str) -> tuple[str, str] | None:
+    """(lead, body) when the message is one short lead, a colon, and a text behind it; else None.
+
+    Measured on the real app (94ce6169 and e24e867c, an independent question set): "stash this for me: the spare
+    key is under the blue watering can", "add to my list: replace the greenhouse glass in spring" and "Two things
+    for the flock book: shearing day is 19 june" wrote no row, and the model answered "Got it" or "added to your
+    list". The words of such a lead are open-ended, and the same shape carries every other task ("put this into
+    German: ..."), so this only reads the shape. Whether the lead asks for a keep is judged where it is used
+    (`core.persistent_memory`), by a model and not by a list of verbs."""
+    whole = str(text or "").strip()
+    if not whole or len(whole) > 600 or "\n" in whole:
+        return None
+    match = _LED_RE.match(" ".join(whole.split()))
+    if match is None:
+        return None
+    lead = match.group("lead").strip()
+    body = match.group("body").strip()
+    if not 1 <= len(lead.split()) <= 12 or not 2 <= len(body.split()) <= 60 or "?" in body:
+        return None
+    return lead, body
+
+
+#: What a lead points at the text behind it with: "stash THIS for me", "keep THESE", "hang on to IT".
+_LEAD_POINTER_RE = re.compile(r"\b(?:this|these|that|those|it|them)\b", re.IGNORECASE)
+
+
+def lead_may_ask(lead: str) -> bool:
+    """Whether a lead has the shape of an ask about the text behind it: it points at the text ("stash this for
+    me"), or names something of the person's the text is for ("for the flock book", "to my list").
+
+    A bare label ("error", "idea", "heads up", "my problem") has neither and is never sent to the judge: measured
+    on the judge's probe, a 4b local model read such labels as keep asks, and read every lead of this shape right.
+    A keep ask with neither ("note to self: ...") is not read here; it is answered as before."""
+    return bool(_LEAD_POINTER_RE.search(lead) or _LEAD_SUBJECT_RE.search(lead))
+
+
+def judged_lead(lead: str, body: str) -> EverydayLead:
+    """The everyday lead of a "<lead>: <body>" a judge read as a keep ask. The fact carries what the lead says it
+    is for ("shearing day is 19 june (the flock book)"); a lead that announces several things opens a list.
+
+    The subject goes behind the item. In front of it ("for the recipe binder: the scones need 12 minutes", then
+    "for the recipe binder: the flapjacks keep for a week") two items of one list got one fact key, the key being
+    read from a row's first words, and the second write marked both rows disputed: neither was listed again."""
+    named = _LEAD_SUBJECT_RE.search(lead)
+    subject = " ".join(named.group("subject").split()).lower() if named is not None else ""
+    several = bool(_SEVERAL_RE.search(lead))
+    titled = EverydayLead(fact="", opens_list=several, subject=subject, subject_last=True)
+    return EverydayLead(fact=titled.under_subject(body), opens_list=several, subject=subject if several else "",
+                        subject_last=True)
 
 
 def everyday_lead(text: str) -> EverydayLead | None:
@@ -294,13 +367,16 @@ def list_item(text: str, earlier_user_turns: list[str] | None = None) -> bool:
     )
 
 
-def open_list(earlier_user_turns: list[str]) -> EverydayLead | None:
+def open_list(earlier_user_turns: list[str], judged=None) -> EverydayLead | None:
     """The list-opening remember ask this chat's earlier turns, newest first, reach.
 
     The way back goes through the list's own items and updates, and through questions: a question asked in the middle
     of a list is answered and the list stays open (measured on the v0.8 line: "... / how long do you boil an egg? /
     oh and his school is Fernhill" lost the last fact, because the question closed the list). A closing ("that's
-    all"), a take-back, or talk about something else still closes it, and so does LIST_TURNS."""
+    all"), a take-back, or talk about something else still closes it, and so does LIST_TURNS.
+
+    `judged(said)` is asked about an earlier turn none of the readers here knows: it returns the lead of a keep ask
+    said in other words ("Two things for the flock book: ..."), or None."""
     window = list(earlier_user_turns[:LIST_TURNS])
     for index, said in enumerate(window):
         lead = everyday_lead(said)
@@ -312,7 +388,8 @@ def open_list(earlier_user_turns: list[str]) -> EverydayLead | None:
         if (clean and is_question(clean) and not _REQUEST_HEAD_RE.match(clean) and not _CLOSING_RE.match(clean)
                 and not _RETRACTION_RE.search(clean)):
             continue  # a question; a request for something else ("can you tell me a joke") still closes the list
-        return None
+        lead = judged(said) if judged is not None else None
+        return lead if lead is not None and lead.opens_list else None
     return None
 
 

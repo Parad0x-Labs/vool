@@ -6,6 +6,7 @@ import logging
 import re
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -2570,9 +2571,80 @@ def _replace_saved_fact(body: str, replaced: Mapping[str, Any], policy: ContextA
     return written, (still if written else [])
 
 
-def _everyday_decision(text: str, *, session_id: str | None, access_policy: ContextAccessPolicy | None):
-    """(lead, policy, replaced, list_subject) when this turn is the everyday lane's -- a lead, a fact inside the
-    list a lead opened, or an update to a fact that is saved -- else None. `list_subject` is what the open list is
+#: Judged leads of this process, by lead and body: one turn asks several times (the keep step, the lanes ahead of
+#: the memory lane, the lane itself), and a list's later turns ask about its opener again.
+_JUDGED_LEADS: OrderedDict[tuple[str, str], bool] = OrderedDict()
+_JUDGED_LEADS_LIMIT = 256
+#: Said instead of "I already had that" when nothing was written because what was to be kept is a secret.
+EVERYDAY_SECRET_REFUSED = "That looks like a password or another secret, so I did not save it."
+
+
+def _judged_everyday_lead(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None):
+    """The everyday lead of "<lead>: <text>" when the lead asks for a keep in words no reader here lists ("stash
+    this for me: ...", "Two things for the flock book: ..."), else None.
+
+    The shape is read here; what the lead means is judged by the smallest local model
+    (`core.intent_arbiter.arbitrate_keep_ask`), because the same shape carries every other task ("put this into
+    German: ..."). No judge, a failed call or an unreadable answer is None: nothing is kept on a guess, and a reply
+    that then claims a save is corrected against the turn's receipt. A secret behind the lead is never sent to the
+    judge; the lead is judged with the text masked, and the writer refuses the secret as it does everywhere."""
+    from core.memory import everyday_remember as everyday
+
+    led = everyday.led_statement(text)
+    if led is None:
+        return None
+    lead_words, body = led
+    if not everyday.lead_may_ask(lead_words) or _ANSWER_REQUEST_RE.search(body) or everyday.is_question(lead_words):
+        return None
+    try:
+        from core.operator.notes import _NAMES_THE_NOTES_STORE_RE
+        from core.operator.parser import parse_operator_action_intent
+        from core.stipulated_frame import has_stipulated_frame
+
+        if has_stipulated_frame(text):
+            return None  # a made-up frame keeps nothing
+        action = parse_operator_action_intent(text)
+        if action is not None and (action.kind != "save_note" or _NAMES_THE_NOTES_STORE_RE.search(lead_words)):
+            # A reminder, a calendar row, or a note the person sends to their notes is that lane's own object. A
+            # lead the note reader takes for a save without the notes being named ("pop this in your head for
+            # later: ...") is judged like any other: measured on the real app, the notes lane saved nothing for
+            # it and the model answered with a claim.
+            return None
+    except Exception:
+        return None
+    key = (lead_words.casefold(), body.casefold())
+    known = _JUDGED_LEADS.get(key)
+    if known is None:
+        from core.intent_arbiter import arbitrate_keep_ask
+        from core.secret_redaction import contains_secret
+
+        shown = "(a password or another secret)" if contains_secret(body) else body
+        try:
+            answer = arbitrate_keep_ask(
+                lead_words, shown, chat_id=str(session_id or ""),
+                source_context=source_context if isinstance(source_context, dict) else None,
+            )
+        except Exception:
+            answer = None
+        if answer not in {"yes", "no"}:
+            return None
+        known = answer == "yes"
+        _JUDGED_LEADS[key] = known
+        while len(_JUDGED_LEADS) > _JUDGED_LEADS_LIMIT:
+            _JUDGED_LEADS.popitem(last=False)
+    return everyday.judged_lead(lead_words, body) if known else None
+
+
+def _everyday_decision(
+    text: str,
+    *,
+    session_id: str | None,
+    access_policy: ContextAccessPolicy | None,
+    source_context: Mapping[str, Any] | None = None,
+):
+    """(lead, policy, replaced, opened) when this turn is the everyday lane's -- a lead, a fact inside the
+    list a lead opened, or an update to a fact that is saved -- else None. `opened` is the lead of the open list
+    this turn adds to, or None; its subject is what the list is
     for when its lead named it ("for my kayak trip"), else "". Reads the chat's earlier turns and the saved entries;
     writes nothing."""
     from core.memory import everyday_remember as everyday
@@ -2587,8 +2659,17 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
         return None
     if lead is not None and lead.fact and _ANSWER_REQUEST_RE.search(lead.fact):
         return None
+
+    def judged(said: str):
+        return _judged_everyday_lead(said, session_id=session_id, source_context=source_context)
+
+    # A keep ask in words no reader lists ("stash this for me: ..."). A statement of change is first read as an
+    # update to what is saved (below); its lead is judged only when it updates nothing.
+    if lead is None and not everyday.update_shaped(text):
+        lead = judged(text)
     earlier_turns = _chat_earlier_user_turns(session_id) if lead is None else []
-    opened = everyday.open_list(earlier_turns) if lead is None and everyday.list_item(text, earlier_turns) else None
+    opened = (everyday.open_list(earlier_turns, judged=judged)
+              if lead is None and everyday.list_item(text, earlier_turns) else None)
     listed = opened is not None
     update = lead is None and not listed and everyday.update_shaped(text) and not everyday.retracts_or_corrects(text)
     # A plain statement that gives a new value for a saved fact ("My pottery class is moving to Mondays", no change
@@ -2612,8 +2693,10 @@ def _everyday_decision(text: str, *, session_id: str | None, access_policy: Cont
         if replaced is None:
             replaced = everyday.restated_entry(everyday.strip_continuation(said), saved)
     if (update or restated) and replaced is None:
-        return None  # an update to nothing saved is ordinary conversation
-    return lead, policy, replaced, (opened.subject if opened is not None else "")
+        lead = judged(text) if update else None
+        if lead is None:
+            return None  # an update to nothing saved is ordinary conversation
+    return lead, policy, replaced, opened
 
 
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
@@ -2627,7 +2710,8 @@ def everyday_memory_turn(text: str, *, session_id: str | None, source_context: M
     policy = embedded if isinstance(embedded, ContextAccessPolicy) else None
     try:
         return _everyday_decision(
-            " ".join(str(text or "").split()), session_id=session_id, access_policy=policy
+            " ".join(str(text or "").split()), session_id=session_id, access_policy=policy,
+            source_context=source_context,
         ) is not None
     except Exception:
         return False
@@ -2649,10 +2733,12 @@ def _everyday_remember_turn(
     """
     from core.memory import everyday_remember as everyday
 
-    decided = _everyday_decision(text, session_id=session_id, access_policy=access_policy)
+    decided = _everyday_decision(
+        text, session_id=session_id, access_policy=access_policy, source_context=source_context
+    )
     if decided is None:
         return None
-    lead, policy, replaced, list_subject = decided
+    lead, policy, replaced, opened = decided
     from core.memory import keep_receipt
     from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
     from core.request_trust import turn_speaks_for_owner
@@ -2666,10 +2752,10 @@ def _everyday_remember_turn(
     if lead is not None and not lead.fact:
         return True, EVERYDAY_LIST_OPENED
     said = lead.fact if lead is not None else everyday.strip_continuation(text)
-    if lead is None and list_subject and replaced is None:
+    if lead is None and opened is not None and opened.subject and replaced is None:
         # An item of a list the person named ("Remember these for my kayak trip: ...") is kept under that name:
         # "a spare paddle leash" alone says nothing about what it is for.
-        said = f"{list_subject}: {said}"
+        said = opened.under_subject(said)
     if replaced is not None:
         body = everyday.update_body(said) or said
         try:
@@ -2694,7 +2780,14 @@ def _everyday_remember_turn(
                       "In a new chat I can remember it again.")
     if added:
         return True, "Locked in. I’ll remember that."
-    return (True, "I already had that in memory.") if lead is not None else None
+    if lead is not None:
+        from core.secret_redaction import contains_secret
+
+        if contains_secret(said):
+            # The writer refused it (and said so on the turn's receipt); "I already had that" would be untrue.
+            return True, EVERYDAY_SECRET_REFUSED
+        return True, "I already had that in memory."
+    return None
 
 
 def _profile_keeps(statement: str) -> bool:

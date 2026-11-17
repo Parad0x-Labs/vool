@@ -698,6 +698,12 @@ def turn_served_usage(source_context: dict[str, Any] | None) -> dict[str, Any] |
         return None
 
 
+#: The role of a call whose whole output is a yes or a no read by the runtime (the keep-ask judge of
+#: `core.intent_arbiter`). It is a model call of the turn, counted and shown as one, but it writes none of the reply:
+#: a reply a lane composed after it is still the lane's (`core.final_answer_authorship.model_authored_turn`).
+JUDGEMENT_ROLE = "judgement"
+
+
 def turn_call_accounting(source_context: dict[str, Any] | None) -> dict[str, Any]:
     """A plain-dict summary of what this turn invoked, safe to attach to a turn result.
 
@@ -720,6 +726,7 @@ def turn_call_accounting(source_context: dict[str, Any] | None) -> dict[str, Any
     providers: list[str] = []
     models: list[str] = []
     completed_calls = 0
+    judgement_calls = 0
     failed_calls = 0
     pending_calls = 0
     failed_error_classes: list[str] = []
@@ -732,6 +739,7 @@ def turn_call_accounting(source_context: dict[str, Any] | None) -> dict[str, Any
             models.append(call.model_id)
         if call.outcome == "completed":
             completed_calls += 1
+            judgement_calls += int(call.call_role == JUDGEMENT_ROLE)
         elif call.outcome == "failed":
             failed_calls += 1
             if call.error_class and call.error_class not in failed_error_classes:
@@ -741,6 +749,8 @@ def turn_call_accounting(source_context: dict[str, Any] | None) -> dict[str, Any
     return {
         "calls": len(calls),
         "completed_calls": completed_calls,
+        # Of the completed calls, those that only answered yes or no to the runtime (`JUDGEMENT_ROLE`).
+        "judgement_calls": judgement_calls,
         "failed_calls": failed_calls,
         "pending_calls": pending_calls,
         "failed_error_classes": failed_error_classes,

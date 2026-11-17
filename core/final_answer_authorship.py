@@ -1891,7 +1891,11 @@ def model_authored_turn(*, turn_id: str = "", source_context: Any = None) -> tup
         try:
             from core.turn_model_call_ledger import turn_call_accounting
             accounting = turn_call_accounting(source_context)
-            model_authored = int(accounting.get("completed_calls") or 0) > 0 or bool(accounting.get("served_usage"))
+            # A yes/no judgement the runtime read writes no reply bytes. Measured on the real app: a keep-ask
+            # judge answered "no", the notes lane then saved a note and said so, and the reply was corrected to
+            # "No note was saved" because the judge's call alone made the turn count as model-written.
+            authoring = int(accounting.get("completed_calls") or 0) - int(accounting.get("judgement_calls") or 0)
+            model_authored = authoring > 0 or bool(accounting.get("served_usage"))
         except Exception:
             model_authored = False
     request_text = str(getattr(record, "request_text", "") or "") or str(
