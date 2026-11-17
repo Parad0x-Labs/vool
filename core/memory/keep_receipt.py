@@ -112,8 +112,7 @@ def stamp(source_context: Any, receipt: KeepReceipt) -> None:
                 _BY_TURN.popitem(last=False)
 
 
-def receipt_for(source_context: Any, turn_id: str = "") -> dict[str, Any] | None:
-    """The turn's receipt, or None when the keep step did not see this turn."""
+def _recorded(source_context: Any, turn_id: str = "") -> dict[str, Any] | None:
     if isinstance(source_context, dict):
         record = source_context.get(CONTEXT_KEY)
         if isinstance(record, dict):
@@ -123,6 +122,29 @@ def receipt_for(source_context: Any, turn_id: str = "") -> dict[str, Any] | None
             if key and key in _BY_TURN:
                 return _BY_TURN[key]
     return None
+
+
+def receipt_for(source_context: Any, turn_id: str = "") -> dict[str, Any] | None:
+    """The turn's receipt as a reply may use it, or None when the keep step did not see this turn.
+
+    The saved facts it names are memory content on its way into a reply (the line `Saved to memory: "..."`), so each
+    passes the one serving gate (`core.memory.revocation.authorize_payload`) like any other row that is read. A fact
+    the gate withholds is not returned; `withheld` says how many were, so a reader can tell "nothing was written"
+    from "something was written that may not be shown" and neither claims nor denies the save."""
+    record = _recorded(source_context, turn_id)
+    if record is None:
+        return None
+    saved = [str(fact) for fact in record.get("saved") or []]
+    if not saved:
+        return record
+    from core.memory.revocation import authorize_payload
+
+    context = source_context if isinstance(source_context, dict) else {}
+    chat = str(context.get("session_id") or context.get("chat_id") or "").strip() or None
+    served = [fact for fact in saved if authorize_payload(fact, chat, context.get("runtime_home"))]
+    if len(served) == len(saved):
+        return record
+    return {**record, "saved": served, "withheld": len(saved) - len(served)}
 
 
 __all__ = [

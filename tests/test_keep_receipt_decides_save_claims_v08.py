@@ -335,3 +335,49 @@ def test_an_ask_that_only_points_back_at_a_refused_secret_leaves_nothing_to_answ
 def test_a_question_after_a_refused_secret_is_still_asked() -> None:
     intake = consume_secret_intake("My tablet unlock passcode is 730915, is it long enough?", owner_local=True)
     assert intake is not None and intake.remainder == "is it long enough?"
+
+
+# --- the receipt is read through the serving gate -------------------------------------------------------------------
+
+
+def test_the_receipt_is_served_through_the_one_gate(isolated_home, monkeypatch) -> None:
+    from core.memory import revocation
+
+    context = {"session_id": CHAT, keep_receipt.CONTEXT_KEY: {
+        "saved": ["my tram stop is Calder Row", "my bus pass ends in March"], "refused": [], "in_passing": True}}
+    asked: list = []
+
+    def gate(payload, chat_id=None, runtime_home=None, **_):
+        asked.append((payload, chat_id))
+        return "tram" not in payload
+
+    monkeypatch.setattr(revocation, "authorize_payload", gate)
+    served = keep_receipt.receipt_for(context)
+    assert served["saved"] == ["my bus pass ends in March"] and served["withheld"] == 1
+    assert asked == [("my tram stop is Calder Row", CHAT), ("my bus pass ends in March", CHAT)]
+    assert context[keep_receipt.CONTEXT_KEY]["saved"] == ["my tram stop is Calder Row", "my bus pass ends in March"]
+
+
+def test_a_receipt_whose_words_are_withheld_neither_backs_nor_denies_a_save(isolated_home, monkeypatch) -> None:
+    from core.memory import revocation
+
+    # A real write: it is what sets up the forget authority the serving gate reads.
+    _handled, _reply, receipt = _turn("My tram stop is Calder Row, by the way. What goes well with rye bread?")
+    assert receipt["in_passing"] and receipt["saved"] == ["My tram stop is Calder Row"]
+    reply = "Good to know. Anything else?"
+    published, _record = _gate(reply, dict(receipt))
+    assert published.endswith('Saved to memory: "My tram stop is Calder Row".'), published
+    monkeypatch.setattr(revocation, "authorize_payload", lambda *a, **k: False)
+    published, _record = _gate(reply, dict(receipt))
+    assert published == reply  # no kept line with the withheld words, and no "nothing was saved" either
+    published, _record = _gate("Got it, I'll keep that safe for you.", dict(receipt))
+    assert "Nothing from this message was saved" not in published
+    assert "Calder Row" not in published
+
+
+def test_the_memory_reader_registry_has_every_module_and_public_function() -> None:
+    from pathlib import Path
+
+    from core.memory.reader_registry import _audit
+
+    assert _audit(Path(__file__).resolve().parents[1]) == []

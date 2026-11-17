@@ -861,6 +861,10 @@ def _judge_by_receipt(
     refused = [str(r) for r in receipt.get("refused") or [] if f"memory_refused_{r}" in table]
     memory = [c for c in spans if c[5] == "memory"]
     rest = [c for c in spans if c[5] != "memory"]
+    if not saved and receipt.get("withheld"):
+        # Something was written this turn and the serving gate withholds its words: the receipt neither backs a
+        # save claim nor says nothing was saved. The ordinary evidence judges the reply.
+        return None
     if saved:
         if memory or not receipt.get("in_passing"):
             return text, rest, {"memory_receipt": "claims_match_receipt", "kept": len(saved)}

@@ -4,7 +4,8 @@
     "model_final_response_text": "transform",
     "chat_surface_cache_or_memory_source": "transform",
     "chat_surface_model_final_text": "transform",
-    "chat_surface_honest_degraded_response": "transform"
+    "chat_surface_honest_degraded_response": "transform",
+    "keep_what_the_turn_states": "writer"
   },
   "core/agent_runtime/same_chat_recall.py": {
     "gate_transcript_recall": "reader",
@@ -144,7 +145,8 @@
     "keyword_tokens_filtered": "transform",
     "trim_text": "writer",
     "recency_score": "transform",
-    "canonical_agent_name_in_memory": "transform"
+    "canonical_agent_name_in_memory": "transform",
+    "list_replaced_entries": "reader"
   },
   "core/memory/everyday_remember.py": {
     "everyday_lead": "transform",
@@ -158,7 +160,32 @@
     "update_shaped": "transform",
     "update_body": "transform",
     "topic_tokens": "transform",
-    "updated_entry": "transform"
+    "updated_entry": "transform",
+    "EverydayLead.under_subject": "transform",
+    "clauses_kept": "transform",
+    "fact_clauses": "transform",
+    "judged_lead": "transform",
+    "lead_may_ask": "transform",
+    "led_statement": "transform",
+    "list_item": "transform",
+    "may_restate": "transform",
+    "may_restore": "transform",
+    "may_revalue": "transform",
+    "names_by_owned_phrase": "transform",
+    "names_subject": "transform",
+    "open_list": "transform",
+    "owned_phrases": "transform",
+    "points_back": "transform",
+    "points_back_only": "transform",
+    "restated_entry": "transform",
+    "restates": "transform",
+    "restore_cue": "transform",
+    "restore_wants_first": "transform",
+    "restored_body": "transform",
+    "revalued_entry": "transform",
+    "row_list_subject": "transform",
+    "stated_facts": "transform",
+    "typed_values": "transform"
   },
   "core/memory/files.py": {
     "memory_path": "configuration",
@@ -335,7 +362,8 @@
     "summarize_memory": "reader",
     "memory_command_owns_turn": "transform",
     "whole_memory_erase_request": "transform",
-    "everyday_memory_turn": "transform"
+    "everyday_memory_turn": "transform",
+    "keep_stated_facts": "writer"
   },
   "core/vool_memory.py": {
     "MemoryNode.to_row": "transform",
@@ -417,5 +445,13 @@
     "save_sniffed_context": "writer",
     "get_recent_contexts": "reader",
     "search_recent_contexts": "reader"
+  },
+  "core/memory/keep_receipt.py": {
+    "KeepReceipt.as_dict": "transform",
+    "collecting": "transform",
+    "note_saved": "writer",
+    "note_refused": "writer",
+    "stamp": "writer",
+    "receipt_for": "reader"
   }
 }
