@@ -1,5 +1,5 @@
 import React, {useState} from "react";
-import {Pressable, StyleSheet, Text, View} from "react-native";
+import {Platform, Pressable, StyleSheet, Text, View} from "react-native";
 
 import {tr} from "../i18n/index.ts";
 import {vaultNative} from "../vault/native.ts";
@@ -22,11 +22,12 @@ export default function VaultSettings({onOpen}: {onOpen: () => void}) {
       <View style={styles.fill}><Text style={styles.text}>{tr("Open VOOL Vault")}</Text></View>
       <Icon name="chevron-right" size={22} color={C.faint} />
     </Pressable>
-    <Pressable style={[styles.row, styles.rule]} onPress={toggleHome} accessibilityRole="switch" accessibilityState={{checked: homeIcon}}
+    {/* iPhone and iPad give an app one home-screen icon: the Vault is in the VOOL icon's long-press menu there. */}
+    {Platform.OS === "android" ? <Pressable style={[styles.row, styles.rule]} onPress={toggleHome} accessibilityRole="switch" accessibilityState={{checked: homeIcon}}
       android_ripple={{color: C.ripple}}>
       <View style={styles.fill}><Text style={styles.text}>{tr("VOOL Vault on the home screen")}</Text></View>
       <Text style={[styles.value, homeIcon && {color: C.ok}]}>{homeIcon ? tr("On") : tr("Off")}</Text>
-    </Pressable>
+    </Pressable> : null}
     <View style={[styles.row, styles.rule]}>
       <Text style={styles.note}>{tr("Photos, videos and sound from your computer’s protected library. They open here without a plain copy on this phone, and only while VOOL is unlocked.")}</Text>
     </View>

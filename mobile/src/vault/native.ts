@@ -19,20 +19,27 @@ export interface VaultNative {
   setHomeIcon(on: boolean): Promise<"listed" | "off">;
   /** A JPEG (base64) made here from the stream: a photo at about maxEdge, a video frame, a recording's cover; "" when none. */
   preview(stream: string, maxEdge: number, kind: string): Promise<string>;
+  /** iPhone: the native crypto passed its built-in known answer (absent on Android, where it is always used). */
+  cryptoReady?(): boolean;
   cryptoSha256Hex(text: string): string;
   cryptoHmacSha256Hex(key: string, text: string): string;
   cryptoSeal(text: string, nonceHex: string, keyHex: string): string;
   /** "" when it does not authenticate (a sealed body is never empty). */
   cryptoOpen(data: string, nonceHex: string, keyHex: string): string;
   addListener(event: "onWant", listener: (event: {stream: string; index: number}) => void): {remove(): void};
+  /** iPhone: a pick from the VOOL icon's long-press menu happened (take it with takeShortcut). */
+  addListener(event: "onShortcut", listener: (event: {url: string}) => void): {remove(): void};
+  /** iPhone: the long-press pick not yet handled, as a VOOL link ("" when none); taken once. */
+  takeShortcut?(): string;
 }
 
-export const vaultNative: VaultNative | null = Platform.OS === "android" ? requireOptionalNativeModule<VaultNative>("VoolVault") : null;
+export const vaultNative: VaultNative | null = Platform.OS === "android" || Platform.OS === "ios" ? requireOptionalNativeModule<VaultNative>("VoolVault") : null;
 
 /** The link's hashing and sealing in native code, when this build has it. */
 export function nativeFastCrypto(): FastCrypto | null {
   const n = vaultNative;
   if (!n || typeof n.cryptoSeal !== "function" || typeof n.cryptoOpen !== "function") return null;
+  if (typeof n.cryptoReady === "function" && !n.cryptoReady()) return null;
   return {
     sha256Hex: text => n.cryptoSha256Hex(text),
     hmacSha256Hex: (key, text) => n.cryptoHmacSha256Hex(key, text),

@@ -1,11 +1,21 @@
 {
   "platforms": [
+    "apple",
     "android"
   ],
   "android": {
     "modules": [
       "systems.vool.capture.VoolCaptureModule",
       "systems.vool.capture.VoolVaultModule"
+    ]
+  },
+  "apple": {
+    "modules": [
+      "VoolVaultModule"
+    ],
+    "appDelegateSubscribers": [
+      "VoolScreenSubscriber",
+      "VoolShortcutSubscriber"
     ]
   }
 }
