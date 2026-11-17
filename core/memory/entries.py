@@ -2401,21 +2401,31 @@ def forget_structured_memory(
 
 
 def _with_replaced_rows(record_ids: list[str], rows: list[dict[str, Any]]) -> list[str]:
-    """`record_ids` plus every row they replaced, directly or through an earlier replacement."""
+    """`record_ids` plus the whole value history they belong to: every row they replaced, and every row that
+    replaced them, directly or through other replacements.
+
+    The second half matters once a value can come back: after "... rating this season: 1276", "they recalculated my
+    table tennis rating, it's 1202 now" and a restore, "forget my table tennis rating" matched the 1202 row by its
+    words, took the first row with it, and left the restored 1276 row current and served (measured on the real
+    app)."""
     out = [rid for rid in dict.fromkeys(record_ids) if rid]
     seen = set(out)
+    known = {str(row.get("record_id") or "").strip() for row in rows}
     grew = True
     while grew:
         grew = False
         for row in rows:
             rid = str(row.get("record_id") or "").strip()
-            if (
-                rid and rid not in seen
-                and str(row.get("status") or "").strip().lower() == "superseded"
-                and str(row.get("superseded_record_id") or "").strip() in seen
-            ):
+            if not rid or str(row.get("status") or "").strip().lower() != "superseded":
+                continue
+            successor = str(row.get("superseded_record_id") or "").strip()
+            if rid not in seen and successor in seen:
                 out.append(rid)
                 seen.add(rid)
+                grew = True
+            elif rid in seen and successor and successor in known and successor not in seen:
+                out.append(successor)
+                seen.add(successor)
                 grew = True
     return out
 

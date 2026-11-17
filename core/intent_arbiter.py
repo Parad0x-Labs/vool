@@ -591,6 +591,56 @@ def arbitrate_keep_ask(
     )
 
 
+def _restore_prompt(message: str, current: str, earlier: str) -> str:
+    """A balanced yes/no: does the message say the person is back to the earlier value of a saved fact?"""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "An assistant keeps facts a person told it. One fact was changed earlier; the old value is kept as history.",
+        "Question: does the person's new message say that the change no longer holds, so the earlier value is "
+        "the right one again?",
+        'Answer {"answer": "yes"} or {"answer": "no"}. A new value, a remark about something else, a question '
+        "alone, or thanks is no.",
+        "",
+        'Current: "my parking space is number 12 now" Earlier: "my parking space is number 5"',
+        'Message: "they reversed the decision, the space I had before is mine again" -> {"answer": "yes"}',
+        'Message: "the car needs a wash" -> {"answer": "no"}',
+        'Message: "forget the switch, I am keeping what I had at the start" -> {"answer": "yes"}',
+        'Message: "is the car park open on sundays" -> {"answer": "no"}',
+        'Message: "the reshuffle was called off so nothing changed after all" -> {"answer": "yes"}',
+        'Message: "I like the new space" -> {"answer": "no"}',
+        "",
+        f'Current: "{flat(current, 200)}" Earlier: "{flat(earlier, 200)}"',
+        f'Message: "{flat(message, 300)}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_restore(
+    message: str,
+    current: str,
+    earlier: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether the message says a saved fact is back to its earlier value: ``"yes"`` / ``"no"``, or None when
+    nothing judged it. Asked only about a fact that has a stored history and a message that gives no new value;
+    which value comes back is read from that history, never from this answer. The lane, the sealed site, the
+    ledger role and the model of `arbitrate_keep_ask`. None restores nothing."""
+    if not str(message or "").strip() or not str(current or "").strip() or not str(earlier or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_restore_prompt(message, current, earlier), operation="restore_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _judgement_role() -> str:
     from core.turn_model_call_ledger import JUDGEMENT_ROLE
 

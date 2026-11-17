@@ -555,6 +555,10 @@ def _subject_terms(text: str, terms: tuple[str, ...]) -> tuple[str, ...]:
     from core.chat_housekeeping import query_terms
 
     measure = {term for word in _HOW_MEASURE_RE.findall(text) for term in query_terms(word)}
+    # "which saddle rack is MINE?": the pronoun stands for "my", which a saved fact says as "my saddle rack". Read
+    # as a subject word it was required of the row, no row held it, and the question was asked back ("Did you mean
+    # saddle rack, saddle rack?", measured on the real app).
+    measure |= {term for word in ("mine", "ours", "yours") for term in query_terms(word)}
     return tuple(
         term for term in terms if term not in _SLOT_STEMS and term not in measure and term not in {"now", "current"}
     ) or terms

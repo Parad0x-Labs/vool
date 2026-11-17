@@ -115,9 +115,59 @@ def _values(text: str) -> frozenset[str]:
     try:
         from core.temporal_selection import value_tokens
 
-        return frozenset(value_tokens(text))
+        # "one" is not a value here: it stands for a thing already named ("found the first one", "that one again")
+        # or counts something else ("I dropped one rating point"). Read as a value it kept a restoring line from
+        # restoring and let a remark supersede a number (diagnosis probes of 2026-11-16, chain A1).
+        return frozenset(value_tokens(text)) - {"one"}
     except Exception:
         return frozenset()
+
+
+#: Words that make a subject more than a plain noun compound ("the call WITH the director").
+_SUBJECT_LINKS = frozenset(["with", "of", "for", "at", "in", "on", "to", "from", "about", "and", "or"])
+
+
+def _subject_words(line: str) -> tuple[str, ...]:
+    """The subject a record line names, in order, when it names one as "<subject> is ...": "the garage code is
+    6641" -> ("garage", "code"). Empty when the line has no such form."""
+    try:
+        from core.memory.everyday_remember import (
+            _HEAD_DETERMINERS,
+            _HEAD_END_RE,
+            _TIME_ADJECTIVES,
+            _word_form,
+            strip_continuation,
+        )
+
+        body = _TURN_TAIL_RE.sub("", _DATE_PARENS_RE.sub(" ", _RECORD_LINE_RE.sub("", str(line or ""), count=1)))
+        for marker in (CURRENT_MARKER, SUPERSEDED_MARKER, CONFLICT_MARKER):
+            body = body.replace(marker, " ")
+        body = strip_continuation(" ".join(body.lstrip(": ").split()))
+        end = _HEAD_END_RE.search(body)
+        if end is None:
+            return ()
+        return tuple(
+            _word_form(word) for word in re.findall(r"[a-z0-9][a-z0-9'’-]*", body[: end.start()].casefold())
+            if word not in _HEAD_DETERMINERS and word not in _TIME_ADJECTIVES
+        )
+    except Exception:
+        return ()
+
+
+def _different_things(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Two plain noun compounds with the same last word and different words in front of it: "the garage code is
+    6641" and "new gate code is 3158" are two things that share the word "code" (probe E1 of the diagnosis marked
+    the garage code superseded by the gate code). A subject with a linking word ("the call with the director") or a
+    line that names no subject this way keeps the anchor rule."""
+    try:
+        from core.memory.everyday_remember import _fact_holds
+
+        sa, sb = _subject_words(a["line"]), _subject_words(b["line"])
+        if len(sa) < 2 or len(sb) < 2 or sa[-1] != sb[-1] or (set(sa) | set(sb)) & _SUBJECT_LINKS:
+            return False
+        return any(not _fact_holds(w, b["line"]) for w in sa[:-1]) and any(not _fact_holds(w, a["line"]) for w in sb[:-1])
+    except Exception:
+        return False
 
 
 def _line_day(text: str) -> tuple[int, int, int] | None:
@@ -255,7 +305,7 @@ def _pair_kind(a: dict[str, Any], b: dict[str, Any]) -> str:
     if not shared:
         return "none"
     if a["values"] and b["values"] and not (a["values"] & b["values"]):
-        return "numeric"
+        return "none" if _different_things(a, b) else "numeric"
     if len(shared) >= 2 and (
             _SWITCH_CUE_RE.search(a["line"]) or _SWITCH_CUE_RE.search(b["line"])):
         return "cue"

@@ -447,6 +447,43 @@ _ASIDE_TAIL_RE = re.compile(
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 
 
+#: "<my thing> is <one value>" and nothing after it: "my scout hut door code is 5308", "our rent day is 4 March".
+_ONLY_A_VALUE_RE = re.compile(r"\s(?:is|are)\s+(?:number\s+|no\.?\s*|#\s*)?(?P<value>\S+(?:\s+\S+)?)[.!]*$", re.IGNORECASE)
+
+
+def _gives_only_a_value(clause: str) -> bool:
+    found = _ONLY_A_VALUE_RE.search(clause)
+    if found is None:
+        return False
+    value = found.group("value")
+    return bool(typed_values(value)) and not _without_values(value).strip(" .,!")
+
+
+#: "<something about me or mine>: <one value>": "the gym gave me a new table tennis rating this season: 1276".
+_COLON_VALUE_RE = re.compile(r"^(?P<said>[^:?]{8,200}?)\s*:\s*(?P<value>\S+(?:\s+\S+)?)[.!]*$")
+
+
+_OWN_OR_GIVEN_RE = re.compile(r"\b(?:my|our|mine|ours|me|us)\b", re.IGNORECASE)
+
+
+def _gives_a_value_after_a_colon(clause: str) -> bool:
+    """A statement in the first person that ends in a colon and one bare value (a number, a date, a clock time, a
+    weekday): it gives something of the person's its value. Measured on the real app (an independent question set):
+    "oh, the gym gave me a new table tennis rating this season: 1276." was answered "That's a solid rating!" and
+    nothing was kept, so the later change and its undoing had no history to stand on."""
+    clean = " ".join(str(clause or "").split())
+    found = _COLON_VALUE_RE.match(clean)
+    if found is None or not 4 <= len(clean.split()) <= 40:
+        return False
+    said, value = found.group("said"), found.group("value")
+    # Something of the person's ("my ...") or given to them ("... gave me ..."); "I need the report by: 5 March"
+    # is a need, not a thing of theirs with a value.
+    if not _OWN_OR_GIVEN_RE.search(said) or _MOMENT_RE.search(clean) or _REQUEST_HEAD_RE.match(said):
+        return False
+    opening = {_word_form(w) for w in re.findall(r"[a-z][a-z-]+", said.casefold())}
+    return bool(typed_values(value)) and not _without_values(value).strip(" .,!") and not (opening & _TASK_TALK)
+
+
 def _personal_fact_clause(clause: str) -> bool:
     clean = " ".join(str(clause or "").split())
     if not 3 <= len(clean.split()) <= 40:
@@ -454,7 +491,11 @@ def _personal_fact_clause(clause: str) -> bool:
     owned = _POSSESSIVE_FACT_RE.match(clean)
     if owned is not None:
         subject = {_word_form(w) for w in re.findall(r"[a-z][a-z-]+", owned.group("subject").casefold())}
-        return not (subject & _TASK_TALK) and not _FILE_PLACE_RE.search(clean) and not _MOMENT_RE.search(clean)
+        # "my code is throwing an error" is talk about the task; "my scout hut door code is 5308" gives the thing
+        # its value and nothing else, which is a fact whatever the thing is called. Measured on the real app: a
+        # door code said in passing was never kept, because "code" is a task word.
+        task_talk = bool(subject & _TASK_TALK) and not _gives_only_a_value(clean)
+        return not task_talk and not _FILE_PLACE_RE.search(clean) and not _MOMENT_RE.search(clean)
     if not _SELF_FACT_RE.match(clean) or _MOMENT_RE.search(clean):
         return False
     opening = {_word_form(w) for w in re.findall(r"[a-z][a-z-]+", clean.casefold())[:7]}
@@ -489,7 +530,7 @@ def stated_facts(text: str) -> list[str]:
             # lane's; any other stays in the chat's own record, where the newest statement is the current one. A
             # row written here would outlive the next change said in passing and be answered as the saved value.
             continue
-        if _personal_fact_clause(clean) and not is_question(clean):
+        if (_personal_fact_clause(clean) or _gives_a_value_after_a_colon(clean)) and not is_question(clean):
             facts.append(clean)
     return facts[:3]
 
@@ -559,6 +600,132 @@ def _fact_holds(word: str, saved: str) -> bool:
         return False
 
 
+#: Who can stand in front of a change word without being what changed (the personal pronouns; a closed class).
+_ACTOR_PRONOUNS = frozenset(["they", "them", "she", "her", "him", "you", "someone", "somebody", "people"])
+
+#: "one" used for a thing already named ("the first one", "that one"), not as a count ("one stirrup leather").
+_POINTS_BACK_RE = re.compile(
+    r"\b(?:that|this|it|them|those|these)\b|\b(?:the|that|this|my|our|first|old|previous|original|other|same)\s+one\b",
+    re.IGNORECASE,
+)
+_FIRST_VALUE_RE = re.compile(r"\b(?:first|original|very\s+first|earliest)\b", re.IGNORECASE)
+
+
+#: What "my ..." names in a statement: "my old RATING is live again", "they recalculated my TABLE TENNIS RATING, ...".
+_OWNED_PHRASE_RE = re.compile(
+    r"\b(?:my|our)\s+(?P<phrase>[a-z][\w'’-]*(?:\s+[a-z][\w'’-]*){0,3}?)"
+    r"(?=\s*[,.;:!?]|\s+(?:is|are|was|were|has|have|had|it'?s|it’s|now|again|back)\b|\s*$)",
+    re.IGNORECASE,
+)
+#: Words of such a phrase that place a value in time and name nothing ("my OLD saddle rack").
+_TIME_ADJECTIVES = frozenset(["old", "previous", "first", "original", "former", "usual", "new", "current", "last"])
+
+
+#: A thing placed in time with "the": "the PREVIOUS desk", "the OLD rack". It refers to a thing already known.
+_EARLIER_THING_RE = re.compile(
+    r"\bthe\s+(?:old|previous|first|original|former|usual|last)\s+(?P<phrase>[a-z][\w'’-]*(?:\s+[a-z][\w'’-]*){0,3}?)"
+    r"(?=\s*[,.;:!?]|\s+(?:is|are|was|were|has|have|had|it'?s|it’s|now|again|back)\b|\s*$)",
+    re.IGNORECASE,
+)
+
+
+def owned_phrases(text: str) -> list[frozenset[str]]:
+    """The things a statement calls the person's own, each as its words ("my old rating" -> {rating}), and the
+    things it places in time ("the previous desk" -> {desk})."""
+    found = []
+    clean = " ".join(str(text or "").split())
+    for match in [*_OWNED_PHRASE_RE.finditer(clean), *_EARLIER_THING_RE.finditer(clean)]:
+        words = frozenset(
+            _word_form(word) for word in re.findall(r"[a-z0-9][a-z0-9'’-]*", match.group("phrase").casefold())
+            if word not in _TIME_ADJECTIVES and word not in _HEAD_DETERMINERS
+        )
+        if words:
+            found.append(words)
+    return found
+
+
+def names_by_owned_phrase(text: str, fact: str) -> bool:
+    """Whether a statement names a saved fact by a phrase of the person's own: every word of the phrase is in the
+    fact ("my old rating" names "... a new table tennis rating this season: 1276"). The caller takes it only when
+    exactly one fact is named."""
+    return any(all(_fact_holds(word, fact) for word in phrase) for phrase in owned_phrases(text))
+
+
+def may_revalue(text: str) -> bool:
+    """Cheap test before the saved facts are read: a statement, one kind of typed value, and a thing of the
+    person's own named in it ("they recalculated my table tennis rating, it's 1202 now")."""
+    clean = " ".join(str(text or "").split())
+    if not clean or len(clean) > 300 or is_question(clean) or _REQUEST_HEAD_RE.match(strip_continuation(clean)):
+        return False
+    return len(typed_values(clean)) == 1 and bool(owned_phrases(clean)) and not retracts_or_corrects(clean)
+
+
+def revalued_entry(text: str, entries: list[dict]) -> dict | None:
+    """The ONE saved entry this statement gives a new value for: it names the entry by a phrase of the person's own
+    and gives a value of the kind the entry holds, with another value. None when no entry or more than one fits.
+
+    `restates` needs both statements in the "<subject> is <value>" form; this reads a change told as a story."""
+    clean = " ".join(str(text or "").split())
+    if not may_revalue(clean):
+        return None
+    given = typed_values(clean)
+    kind = next(iter(given))
+    hits = []
+    for row in entries:
+        saved = " ".join(str(row.get("fact") or row.get("text") or "").split())
+        held = typed_values(saved)
+        if kind in held and given[kind].isdisjoint(held[kind]) and names_by_owned_phrase(clean, saved):
+            hits.append(row)
+    return hits[0] if len(hits) == 1 else None
+
+
+def points_back(text: str) -> bool:
+    """Whether a statement points at something said before instead of naming it ("scrap that", "the first one")."""
+    return bool(_POINTS_BACK_RE.search(" ".join(str(text or "").split())))
+
+
+def restore_cue(text: str) -> bool:
+    """Whether a statement says, in the words the capsule marking already reads, that an earlier value is back
+    ("I'm back on my old saddle rack", "I went back to the previous desk"). Other wordings are judged by a model
+    where this is used (core.persistent_memory); neither decides WHICH value is back: the stored history does."""
+    try:
+        from core.updated_fact_marking import _REVERT_CUE_RE
+
+        return bool(_REVERT_CUE_RE.search(" ".join(str(text or "").split())))
+    except Exception:
+        return False
+
+
+def restore_wants_first(text: str) -> bool:
+    """"the first one", "my original desk": the first value of the history, not the one before the current."""
+    return bool(_FIRST_VALUE_RE.search(" ".join(str(text or "").split())))
+
+
+def may_restore(text: str) -> bool:
+    """Cheap test before the saved facts are read: a short message that gives no new value of its own. A question
+    may ride behind the statement ("... my old rating is live again - what's my rating?")."""
+    clean = " ".join(str(text or "").split())
+    if not clean or len(clean) > 300 or "\n" in str(text or "").strip() or _REQUEST_HEAD_RE.match(strip_continuation(clean)):
+        return False
+    return not typed_values(clean) and len(clean.split()) >= 3
+
+
+def names_subject(text: str, fact: str) -> bool:
+    """Whether a statement names the subject of a saved fact: every word of the fact's subject ("my saddle rack")
+    is in the statement. One shared word is not the subject ("door code" names neither the scout hut's nor the
+    bike store's)."""
+    head, _ = _head_and_rest(fact)
+    return bool(head) and all(_fact_holds(word, text) for word in head)
+
+
+def restored_body(previous: str, current: str) -> str:
+    """What a restore writes back: the earlier row as it stood. Whatever else that row held was carried into the
+    current row when it was changed, so the earlier row whole is the state before the change. (Measured on the
+    first cut of this step: writing back only "the changed fact" and keeping the current row's other parts left
+    "my saddle rack is number 58; they moved my saddle rack".)"""
+    return " ".join(str(previous or "").split()).rstrip(". ")
+
+
 def updated_entry(text: str, entries: list[dict]) -> dict | None:
     """The one saved entry an update statement replaces: the most shared topic words, newest on a tie.
 
@@ -580,7 +747,10 @@ def updated_entry(text: str, entries: list[dict]) -> dict | None:
     subject: set[str] = set()
     said_from = 0
     for cue in _UPDATE_RE.finditer(body):
-        subject = topic_tokens(body[said_from: cue.start()])
+        # Who made the change is not what changed: in "they moved my saddle rack, it's number 73 now" the words
+        # before the change word are a pronoun, and the thing stands behind it. Read as the subject, "they" was
+        # required of the saved fact, no fact held it, and the update was dropped (measured on the real app).
+        subject = topic_tokens(body[said_from: cue.start()]) - _ACTOR_PRONOUNS
         if subject:
             break
         said_from = cue.end()

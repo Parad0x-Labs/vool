@@ -2655,6 +2655,124 @@ def _judged_everyday_lead(text: str, *, session_id: str | None, source_context: 
     return everyday.judged_lead(lead_words, body) if known else None
 
 
+#: Said when a saved fact is put back to its earlier value.
+EVERYDAY_RESTORED = "Changed back. I now have: {fact}."
+#: A message in two parts: a statement, and a question riding behind it ("... is live again - what's my rating?").
+_MESSAGE_PART_RE = re.compile(r"(?<=[.!?])\s+|\s+[-–—]\s+")
+
+
+def _statement_part(text: str) -> str:
+    """The message without the parts that only ask ("what's my rating?")."""
+    from core.memory import everyday_remember as everyday
+
+    parts = [part.strip() for part in _MESSAGE_PART_RE.split(" ".join(str(text or "").split())) if part.strip()]
+    return " ".join(part for part in parts if not part.endswith("?") and not everyday.is_question(part))
+
+
+def _restore_target(
+    text: str,
+    *,
+    access_policy: ContextAccessPolicy | None,
+    session_id: str | None,
+    source_context: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """(the current row, the earlier row that is the value again) when this message puts a saved fact back to an
+    earlier value, else None. Reads only.
+
+    The restore is bound through the STORED HISTORY of the fact (`list_replaced_entries`: each replaced row names
+    the row that replaced it), not through what a later question happens to deliver. Measured on the long-chat
+    proof and the diagnosis probes: "found the first one, using it again" left the newest number current, and a
+    restore sentence was itself saved as the value. Here:
+
+    - only a fact that has a history can be restored, and the message must give no new value of its own;
+    - the fact is the one the message names by its whole subject ("my old saddle rack"), or, when the message only
+      points back ("scrap that, I'm keeping the first one"), the one fact this chat changed in its last turns;
+    - "first" / "original" picks the first value of the history, anything else the value before the current one;
+    - that the message is a restore at all is read from the wordings the capsule marking already knows, and for
+      any other wording judged by a local model with a yes/no (`core.intent_arbiter.arbitrate_restore`). Nobody
+      judging restores nothing."""
+    from core.memory import everyday_remember as everyday
+
+    said = _statement_part(text)
+    if not said or not everyday.may_restore(said):
+        return None
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
+        current_rows = memory_entries.list_memory_entries(access_policy=policy, limit=200)
+        replaced_rows = memory_entries.list_replaced_entries(access_policy=policy)
+    except Exception:
+        return None
+    before: dict[str, dict[str, Any]] = {}
+    for row in replaced_rows:  # oldest first: the newest row a successor replaced is the one kept
+        before[str(row.get("superseded_record_id") or "")] = row
+
+    def words(row: Mapping[str, Any]) -> str:
+        return " ".join(str(row.get("fact") or row.get("text") or "").split())
+
+    chains: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
+    for row in current_rows:
+        chain, cursor, seen = [], str(row.get("record_id") or ""), set()
+        while cursor and cursor in before and cursor not in seen:
+            seen.add(cursor)
+            chain.append(before[cursor])
+            cursor = str(before[cursor].get("record_id") or "")
+        if chain:
+            chains.append((row, chain))  # the earlier values, newest first
+    if not chains:
+        return None
+    named = [
+        pair for pair in chains
+        if any(everyday.names_subject(said, words(row)) or everyday.names_by_owned_phrase(said, words(row))
+               for row in (pair[0], *pair[1]))
+    ]
+    bound = named[0] if len(named) == 1 else None
+    if bound is None and not named and everyday.points_back(said):
+        recent = [" ".join(str(turn or "").split()).casefold() for turn in _chat_earlier_user_turns(session_id)[:3]]
+        here = [
+            pair for pair in chains
+            if any(part.casefold().rstrip(". ") in turn for turn in recent for part in everyday.fact_clauses(words(pair[0]))[:1])
+        ]
+        bound = here[0] if len(here) == 1 else None
+    if bound is None:
+        return None
+    current, chain = bound
+    earlier = chain[-1] if everyday.restore_wants_first(said) else chain[0]
+    if not everyday.restore_cue(said):
+        try:
+            from core.intent_arbiter import arbitrate_restore
+
+            verdict = arbitrate_restore(
+                said, words(current), words(earlier), chat_id=str(session_id or ""),
+                source_context=source_context if isinstance(source_context, dict) else None,
+            )
+        except Exception:
+            verdict = None
+        if verdict != "yes":
+            return None
+    return dict(current), dict(earlier)
+
+
+def _put_back(restore: tuple[dict[str, Any], dict[str, Any]], policy: ContextAccessPolicy) -> tuple[bool, str, list[str]]:
+    """Make the earlier value current again: it replaces the current row, which becomes history in its turn."""
+    from core.memory import everyday_remember as everyday
+
+    current, earlier = restore
+    body = everyday.restored_body(
+        " ".join(str(earlier.get("fact") or earlier.get("text") or "").split()),
+        " ".join(str(current.get("fact") or current.get("text") or "").split()),
+    )
+    written = add_memory_fact(
+        body,
+        session_id=policy.chat_id,
+        scope=str(current.get("scope") or "chat"),
+        authority="user_correction",
+        fact_key=str(current.get("fact_key") or "") or None,
+        access_policy=policy,
+        replaces_record_id=str(current.get("record_id") or "") or None,
+    )
+    return written, body, []
+
+
 def _everyday_decision(
     text: str,
     *,
@@ -2698,17 +2816,35 @@ def _everyday_decision(
               if lead is None and everyday.list_item(text, earlier_turns) else None)
     listed = opened is not None
     update = lead is None and not listed and everyday.update_shaped(text) and not everyday.retracts_or_corrects(text)
+    # A statement that puts a saved fact back to an earlier value is read before the update: "I went back to the
+    # previous desk" carries a change word and no value, and as an update it was saved as the desk's value. A
+    # question riding behind it leaves the turn to the model; the keep step then puts the value back first.
+    if lead is None and not listed and not everyday.is_question(text):
+        restore = _restore_target(text, access_policy=access_policy, session_id=session_id, source_context=source_context)
+        if restore is not None:
+            try:
+                policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
+            except (TypeError, ValueError):
+                return None
+            return None, policy, None, None, restore
+    if update and everyday.restore_cue(text) and not everyday.typed_values(text):
+        # It says something went back and gives no value: with nothing bound above there is nothing to put back,
+        # and as an update the sentence itself would become the fact's value ("Updated. I now have: I went back to
+        # the previous desk", measured on the real app; the desk's number was gone after it).
+        return None
     # A plain statement that gives a new value for a saved fact ("My pottery class is moving to Mondays", no change
     # word) is an update too: whether it is one is read from the saved facts below.
     restated = lead is None and not listed and not update and everyday.may_restate(text)
-    if lead is None and not listed and not update and not restated:
+    # So is a change told as a story about a saved thing ("they recalculated my table tennis rating, it's 1202 now").
+    revalued = lead is None and not listed and not update and not restated and everyday.may_revalue(text)
+    if lead is None and not listed and not update and not restated and not revalued:
         return None
     try:
         policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
     except (TypeError, ValueError):
         return None
     replaced = None
-    if update or restated or listed or (lead is not None and lead.fact):
+    if update or restated or revalued or listed or (lead is not None and lead.fact):
         try:
             saved = memory_entries.list_memory_entries(access_policy=policy, limit=200)
         except Exception:
@@ -2718,11 +2854,13 @@ def _everyday_decision(
             replaced = everyday.updated_entry(said, saved)
         if replaced is None:
             replaced = everyday.restated_entry(everyday.strip_continuation(said), saved)
-    if (update or restated) and replaced is None:
+        if replaced is None and (revalued or update):
+            replaced = everyday.revalued_entry(everyday.strip_continuation(said), saved)
+    if (update or restated or revalued) and replaced is None:
         lead = judged(text) if update else None
         if lead is None:
             return None  # an update to nothing saved is ordinary conversation
-    return lead, policy, replaced, opened
+    return lead, policy, replaced, opened, None
 
 
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
@@ -2764,7 +2902,7 @@ def _everyday_remember_turn(
     )
     if decided is None:
         return None
-    lead, policy, replaced, opened = decided
+    lead, policy, replaced, opened, restore = decided
     from core.memory import keep_receipt
     from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
     from core.request_trust import turn_speaks_for_owner
@@ -2775,6 +2913,17 @@ def _everyday_remember_turn(
     if not turn_speaks_for_owner(source_context, policy.chat_id):
         keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return True, AGENT_TURN_REMEMBER_REFUSED
+    if restore is not None:
+        try:
+            written, body, still = _put_back(restore, policy)
+        except RevokedContentWrite:
+            keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
+            return True, ("You asked me to forget that in this chat, so I won't keep it here. "
+                          "In a new chat I can remember it again.")
+        if not written:
+            return None
+        reply = EVERYDAY_RESTORED.format(fact=body.rstrip("."))
+        return True, (reply + EVERYDAY_UPDATE_STILL.format(facts="; ".join(still)) if still else reply)
     if lead is not None and not lead.fact:
         return True, EVERYDAY_LIST_OPENED
     said = lead.fact if lead is not None else everyday.strip_continuation(text)
@@ -2850,7 +2999,10 @@ def keep_stated_facts(
     # one store. On the step 2 commit (05ebbcae) "my name is Noor" was written to the profile AND as a memory row,
     # so a whole erase counted four entries where three were saved.
     facts = [fact for fact in everyday.stated_facts(clean) if not _profile_keeps(fact)]
-    if not facts:
+    # A restore said beside a question ("... my old rating is live again - what's my rating?") is put back here,
+    # before the model answers from the saved value.
+    may_restore = bool(_statement_part(clean)) and everyday.may_restore(_statement_part(clean))
+    if not facts and not may_restore:
         return 0
     try:
         policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
@@ -2860,12 +3012,23 @@ def keep_stated_facts(
     from core.request_trust import turn_speaks_for_owner
 
     if turn_is_private(source_context, policy.chat_id):
-        keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
+        if facts:
+            keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
         return 0
     if not turn_speaks_for_owner(source_context, policy.chat_id):
-        keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
+        if facts:
+            keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return 0
     added = 0
+    if may_restore:
+        try:
+            restore = _restore_target(clean, access_policy=policy, session_id=session_id, source_context=source_context)
+            if restore is not None:
+                added += int(_put_back(restore, policy)[0])
+        except RevokedContentWrite:
+            keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
+    if not facts:
+        return added
     try:
         saved = memory_entries.list_memory_entries(access_policy=policy, limit=200)
     except Exception:
