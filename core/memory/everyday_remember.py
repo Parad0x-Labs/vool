@@ -213,6 +213,18 @@ def lead_may_ask(lead: str) -> bool:
     return bool(_LEAD_POINTER_RE.search(lead) or _LEAD_SUBJECT_RE.search(lead))
 
 
+_ROW_SUBJECT_LAST_RE = re.compile(r"\((?P<subject>(?:my|our|the)\s+[^()]{2,60})\)\s*$", re.IGNORECASE)
+_ROW_SUBJECT_FIRST_RE = re.compile(r"^(?:for|about)\s+(?P<subject>(?:my|our|the)\s+[^:]{2,60}):\s+\S", re.IGNORECASE)
+
+
+def row_list_subject(row_text: str) -> str:
+    """The list a saved row was kept under, as `EverydayLead.under_subject` wrote it: "shearing day is 19 june
+    (the flock book)" and "for my kayak trip: a dry bag" give "the flock book" and "my kayak trip"; else ""."""
+    clean = " ".join(str(row_text or "").split())
+    found = _ROW_SUBJECT_LAST_RE.search(clean) or _ROW_SUBJECT_FIRST_RE.match(clean)
+    return " ".join(found.group("subject").split()).lower() if found is not None else ""
+
+
 def judged_lead(lead: str, body: str) -> EverydayLead:
     """The everyday lead of a "<lead>: <body>" a judge read as a keep ask. The fact carries what the lead says it
     is for ("shearing day is 19 june (the flock book)"); a lead that announces several things opens a list.

@@ -3399,7 +3399,9 @@ def maybe_handle_direct_machine_read_request(
     # specs block answered "what is this machine's uptime?" with a chip name, and the model lane
     # answered "is this a laptop, and what's the battery percentage?" by inventing "Laptop.
     # Battery at 72%." on a desktop iMac that has no battery.
-    if machine_host_state_intent(user_input) is not None:
+    if machine_host_state_intent(user_input) is not None and not _a_saved_fact_answers(
+        user_input, session_id, source_context
+    ):
         execution = execute_authorized_runtime_tool("machine.host_state", {}, source_context=dict(source_context or {}))
         if execution is not None:
             return _machine_tool_fast_path_result(
@@ -3949,3 +3951,20 @@ def maybe_answer_exact_read_first(
     return maybe_handle_direct_machine_read_request(
         agent, text, session_id=session_id, source_surface=source_surface, source_context=source_context
     )
+
+
+
+def _a_saved_fact_answers(user_input: str, session_id: str | None, source_context: dict[str, Any] | None) -> bool:
+    """Whether a fact the owner saved holds every subject word of this question, so it is about that fact and not
+    about this computer. Measured on the real app (the v0.8 line base, an independent question set): "how big is my
+    caravan battery?", asked after "my caravan's leisure battery is a 110 amp-hour one.", was answered "Current
+    state of this host: ... Battery: none (this machine has no battery)". Reads only; an error leaves the lane as
+    it was."""
+    try:
+        from core.agent_runtime.cross_chat_recall import saved_memory_answers
+
+        return saved_memory_answers(
+            str(user_input or ""), session_id=str(session_id or ""), source_context=dict(source_context or {})
+        )
+    except Exception:
+        return False

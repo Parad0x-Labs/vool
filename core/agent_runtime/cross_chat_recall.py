@@ -540,6 +540,26 @@ _READING_RE = re.compile(
 )
 
 
+#: The measure a "how ..." question asks for: "how BIG is my caravan battery?", "how LONG is the awning pole?".
+_HOW_MEASURE_RE = re.compile(r"\bhow\s+([a-z]+)\b", re.IGNORECASE)
+
+
+def _subject_terms(text: str, terms: tuple[str, ...]) -> tuple[str, ...]:
+    """The terms a saved fact must hold to answer the question: its subject, without the words that only name the
+    kind of answer (`_SLOT_STEMS`) and without the measure of a "how ..." question.
+
+    The measure is the answer's slot too: the saved fact holds the value ("a 110 amp-hour one", "215 cm"), not the
+    word. Measured on the real app: with "my caravan's leisure battery is a 110 amp-hour one." saved, "how big is
+    my caravan battery?" was required to find "big" in the row, found no answer in memory, and the lanes ahead of
+    memory answered it from this computer's battery state."""
+    from core.chat_housekeeping import query_terms
+
+    measure = {term for word in _HOW_MEASURE_RE.findall(text) for term in query_terms(word)}
+    return tuple(
+        term for term in terms if term not in _SLOT_STEMS and term not in measure and term not in {"now", "current"}
+    ) or terms
+
+
 def saved_memory_rows(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> list[str]:
     """The saved facts that answer this question: rows holding every subject word of it. [] when none (or unknown).
 
@@ -562,7 +582,7 @@ def saved_memory_rows(question: str, *, session_id: str, source_context: dict[st
     # files the same way.
     from core.chat_housekeeping import _doc_stems, _term_in
 
-    subject = tuple(term for term in terms if term not in _SLOT_STEMS and term not in {"now", "current"}) or terms
+    subject = _subject_terms(text, terms)
     rows = _memory_rows(text, subject, session_id, source_context)
     found = [row for row in (rows[0] if rows else []) if all(_term_in(term, _doc_stems(row)) for term in subject)]
     if now_words:
@@ -697,6 +717,30 @@ def saved_memory_answers(question: str, *, session_id: str, source_context: dict
     or the actor?" about "what day does Anselm water the plants?" with that fact saved. Reads only.
     """
     return bool(saved_memory_rows(question, session_id=session_id, source_context=source_context))
+
+
+def saved_list_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether the question asks into a list the owner keeps in memory, by the list's own name: every subject word
+    of it is in the name saved rows were kept under ("what's in the flock book?" with "shearing day is 19 june (the
+    flock book)" saved). Reads only.
+
+    For the lanes ahead of memory: "what's in ..." reads as a file ask by its words, and the file search answered it
+    from documents that share a word with the list's name."""
+    try:
+        from core.chat_housekeeping import _doc_stems, _term_in
+        from core.memory.everyday_remember import row_list_subject
+
+        text = " ".join(str(question or "").split())
+        subject = _subject_terms(text, _asked_terms(as_question(text)))
+        if not subject:
+            return False
+        for row in saved_memory_rows(text, session_id=session_id, source_context=source_context):
+            name = row_list_subject(row)
+            if name and all(_term_in(term, _doc_stems(name)) for term in subject):
+                return True
+    except Exception:
+        return False
+    return False
 
 
 #: A name the owner's saved fact ties to them: "my brother Tobiah lives in Quillon", "my manager is Pieter", "our landlord

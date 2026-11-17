@@ -2579,6 +2579,26 @@ _JUDGED_LEADS_LIMIT = 256
 EVERYDAY_SECRET_REFUSED = "That looks like a password or another secret, so I did not save it."
 
 
+#: Said to a turn that is not the owner's when it asks what is saved.
+AGENT_TURN_READ_REFUSED = (
+    "This chat belongs to a team agent, so I won't show what is saved in memory here. "
+    "Ask in your own chat."
+)
+
+
+def _turn_may_read_memory(source_context: Mapping[str, Any] | None, session_id: str | None) -> bool:
+    """Whether this turn may have the memory lane read the chat's earlier turns and the saved rows for it: the
+    owner's own turn, outside a private chat. A switch that cannot be read is a no."""
+    try:
+        from core.private_chat import turn_is_private
+        from core.request_trust import turn_speaks_for_owner
+
+        context = dict(source_context or {})
+        return not turn_is_private(context, session_id) and turn_speaks_for_owner(context, str(session_id or ""))
+    except Exception:
+        return False
+
+
 def _judged_everyday_lead(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None):
     """The everyday lead of "<lead>: <text>" when the lead asks for a keep in words no reader here lists ("stash
     this for me: ...", "Two things for the flock book: ..."), else None.
@@ -2658,6 +2678,12 @@ def _everyday_decision(
     if lead is None and _memory_capture_match(text):
         return None
     if lead is not None and lead.fact and _ANSWER_REQUEST_RE.search(lead.fact):
+        return None
+
+    if lead is None and not _turn_may_read_memory(source_context, session_id):
+        # THE TRUST GATE at the lane's door. What follows reads this chat's earlier turns and the saved rows, and may
+        # ask a local model about the lead. A private chat and a turn that is not the owner's get none of that: an
+        # explicit lead above is still the lane's, which answers it with its own refusal and reads nothing.
         return None
 
     def judged(said: str):
@@ -3038,7 +3064,17 @@ def maybe_handle_memory_command(
             f", forced local by privacy guard: {int(result.get('blocked_shards') or 0)}."
         )
         return True, f"Session scope set to {label}. {scope_note}{protected}{stats}"
-    if lowered in {"/memory", "what do you remember", "show memory"} or _MEMORY_INVENTORY_RE.fullmatch(" ".join(lowered.split()).strip(" ?.!")):
+    asks_inventory = lowered in {"/memory", "what do you remember", "show memory"} or bool(
+        _MEMORY_INVENTORY_RE.fullmatch(" ".join(lowered.split()).strip(" ?.!"))
+    )
+    if asks_inventory or _is_memory_recall_question(text):
+        # The read branches had no owner check: measured on the real app, "what do you remember?" sent as a team
+        # agent's brief listed the owner's saved facts. The write branches above already refuse such a turn.
+        from core.request_trust import turn_speaks_for_owner
+
+        if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            return True, AGENT_TURN_READ_REFUSED
+    if asks_inventory:
         summary = summarize_memory(
             access_policy=resolved_policy,
             limit=8,

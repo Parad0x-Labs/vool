@@ -539,6 +539,20 @@ def _is_follow_up(text: str, session_id: str) -> bool:
     return seen is not None and time.monotonic() - seen < _FOLLOW_UP_TTL_S
 
 
+#: A word that points back at what the chat just showed: "how big is IT?", "and THAT one?", "the OTHER one".
+_POINTS_BACK_RE = re.compile(r"\b(?:it|its|that|this|those|these|them|they|one|ones|other|others|same|there)\b", re.I)
+
+
+def stands_alone(text: str) -> bool:
+    """Whether a message that arrived right after a files turn is a question of its own: it has distinctive words
+    and none that points back ("how often does the wormery get fed?", not "and what does that sheet say?").
+
+    `_is_follow_up` goes by time and length alone, so such a question is run through the files too. When the files
+    then answer nothing, it was never a follow-up (core.clean_loop.hook hands it on)."""
+    value = str(text or "")
+    return bool(ask_words(value)) and not _POINTS_BACK_RE.search(_LEAD_IN_RE.sub("", value))
+
+
 def _carries_attachments(source_context: Mapping[str, Any]) -> bool:
     """A turn that carries files (the chat's attachments, a channel's media) belongs to the lanes
     that read them: this loop's brain sees only the words and its own tools, so "what token is in
@@ -691,6 +705,64 @@ def points_at_files(text: str) -> bool:
     return bool(asks_explicitly_about_own_things(value) or _NAMES_FILES_RE.search(value) or _FILE_ACT_RE.search(value))
 
 
+#: What "my ..." names when it is a matter of the owner's life and not a file kind or the machine: "our chalet
+#: booking", "my lease", "my flight". Every word here is already in `_OWN_NOUN`; this is the part of that list a
+#: saved fact can be about.
+_OWN_MATTER_RE = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'-]+\s+){0,3}?(?:leases?|tickets?|flights?|bookings?|reservations?|itinerar(?:y|ies)|"
+    r"recipes?|budget|taxes|insurance|polic(?:y|ies)|passports?|licen[sc]es?|warrant(?:y|ies)|mortgage|loan)\b",
+    re.I,
+)
+
+
+def points_at_a_file_or_the_machine(text: str) -> bool:
+    """`points_at_files`, except that a bare "my <matter>" ("our chalet booking", "my lease") does not count.
+
+    Such a phrase is enough to try the loop and to keep its answer when nothing else knows the matter ("when does
+    my lease end?" with a lease PDF and nothing told). It does not say the ask is about a file: measured on the real
+    app with "our chalet booking is on 13 september" saved, "when is our chalet booking?" was searched on the disk
+    and answered from a document that mentions a chalet. A file kind ("my lease pdf"), a file act ("open", "where
+    did I save"), a place or the machine still point at files, whatever a saved fact shares with them."""
+    value = str(text or "")
+    if not points_at_files(value):
+        return False
+    if _NAMES_FILES_RE.search(value) or _FILE_ACT_RE.search(value):
+        return True
+    # Only the owner's own things point at files here: do they still, once the bare "my <matter>" is set aside?
+    return asks_explicitly_about_own_things(_OWN_MATTER_RE.sub(" ", value))
+
+
+def _stated_fact_was_kept(text: str, source_context: Mapping[str, Any] | None) -> bool:
+    """The message states a fact about the owner's life, and the turn's keep step saved it (the turn's receipt).
+
+    Measured on the real app (base): "my shredder oil is type F, the thin one." was admitted because "oil" names a
+    file, and answered "I see files related to oil and purchase plans". A statement the keep step kept is the owner
+    telling VOOL something; nothing in it asks about a file."""
+    try:
+        from core.memory import keep_receipt
+        from core.memory.everyday_remember import is_question as asks_back
+
+        receipt = keep_receipt.receipt_for(dict(source_context or {}))
+        if not (isinstance(receipt, dict) and receipt.get("in_passing") and receipt.get("saved")):
+            return False
+        return not is_question(text) and not asks_back(text) and not points_at_files(text)
+    except Exception:
+        return False
+
+
+def _saved_list_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
+    """A question into a list the owner keeps in memory, by the list's name ("what's in the flock book?")."""
+    try:
+        from core.agent_runtime.cross_chat_recall import saved_list_answers
+        from core.memory.everyday_remember import is_question as asks_back
+
+        if not (is_question(text) or asks_back(text)):
+            return False
+        return saved_list_answers(text, session_id=session_id, source_context=dict(source_context or {}))
+    except Exception:
+        return False
+
+
 def asks_what_owner_told(text: str) -> bool:
     """Whether the ask is about something the owner told VOOL, not about their files."""
     return bool(_TOLD_VOOL_RE.search(str(text or "")))
@@ -814,10 +886,20 @@ def decide(
 ) -> RouteDecision:
     if not flag_on(env):
         return RouteDecision(False, "flag_off")
-    if _memory_lane_owns(text, session_id, source_context):
-        return RouteDecision(False, "memory_command")
+    # The trust checks first: a red turn, a private chat and a turn that is not the owner's are decided before the
+    # memory lane is asked anything. Asking it reads this chat's earlier turns and the saved rows, and may ask a
+    # local model about a lead (core.persistent_memory._everyday_decision); none of that belongs ahead of the fence.
+    # Every outcome here is "not admitted", so the old pipeline, and with it the memory lane's own refusal texts
+    # and a forget said in a files chat, still gets the turn.
     if is_red(text):
         return RouteDecision(False, "red_turn")
+    fenced = _owner_context_blocks(dict(source_context or {}), session_id)
+    if fenced in {"private_turn", "not_owner_local"}:
+        return RouteDecision(False, fenced)
+    if _memory_lane_owns(text, session_id, source_context):
+        return RouteDecision(False, "memory_command")
+    if _stated_fact_was_kept(text, source_context):
+        return RouteDecision(False, "stated_fact_kept")
     if is_write(text) and not changes_enabled(env):
         return RouteDecision(False, "write_turn")
     if is_run_order(text):
@@ -855,6 +937,11 @@ def decide(
         by_documents = document_match is not None and bool(document_match(text))
         if not by_documents:
             return RouteDecision(False, "not_about_own_files")
+    if not _NAMES_FILES_RE.search(str(text or "")) and _saved_list_answers(text, session_id, source_context):
+        # "what's in the flock book?" with "shearing day is 19 june (the flock book)" saved: the thing asked into is
+        # a list the owner keeps in memory, not a file (measured on the real app: the loop answered "the term appears
+        # in several documents").
+        return RouteDecision(False, "saved_list")
     if not points_at_files(text) and asks_what_owner_told(text):
         # "booking a flight later, any seat preference i told you about?" (H2H memory set on the real model): admitted
         # because "seat" names a file, the loop's model read the seat notes and answered "You mentioned preferring an
@@ -875,7 +962,7 @@ def decide(
         # (held-out set, real model): admitted because "birthday" names a file, answered "Marta's birthday is not
         # mentioned in the file". A question about someone the owner told VOOL about is memory's and the model's.
         return RouteDecision(False, "names_owners_person")
-    if not points_at_files(text) and _saved_memory_answers(text, session_id, source_context):
+    if not points_at_a_file_or_the_machine(text) and _saved_memory_answers(text, session_id, source_context):
         # Its words name a file, yet a fact the owner saved answers it and the ask does not point at files: memory
         # answers, not a search of the disk.
         return RouteDecision(False, "saved_memory_answers")
@@ -916,4 +1003,5 @@ __all__ = [
     "points_at_files",
     "skill_keeps_turn",
     "skill_owns_turn",
+    "stands_alone",
 ]

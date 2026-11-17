@@ -303,6 +303,22 @@ def _is_a_foreign_tool_call(answer: str) -> bool:
 _EMPTY_STATUSES = frozenset({"repeated_failure", "error", "unsupported", "outside_home"})
 
 
+def says_nothing_found(answer: str) -> bool:
+    """Whether the loop's answer is that the files did not answer the ask: an absence claim, or one of the two
+    replies the loop itself puts in its place ("I didn't find it in your files", "I have not completed a search
+    inside your files").
+
+    Measured on the real app (the v0.8 line base and the step commits): "what size is my trailer tent's gas
+    bottle?" and "when is my roof tiler coming?", never told and in no file, were admitted because a word of them
+    names a file, the loop read files for two minutes, and "I have not completed a search inside your files, so I
+    can't say whether it is there." was published as the answer. That reply is not an absence claim by its words,
+    so the decline below did not see it; the turn is the normal flow's, whose memory says it has nothing saved."""
+    from core.clean_loop.tools import NOT_FOUND_TEXT, UNSEARCHED_TEXT
+
+    text = str(answer or "").strip()
+    return bool(text) and (text.startswith(NOT_FOUND_TEXT) or text == UNSEARCHED_TEXT or content_absence_claim(text))
+
+
 def productive_steps(loop_result: Any) -> list[int]:
     """Indexes of the loop's tool steps that returned something: a read that ran, ok, and was not an empty search."""
     return [
@@ -334,7 +350,7 @@ def loop_should_decline(text: str, loop_result: Any, receipts: list[dict[str, An
     blob = " ".join([*seen, *observed]).lower()
     if words and not any(w in blob for w in words):
         return "irrelevant_matches_fell_through"
-    if content_absence_claim(loop_result.answer) and not follow_up:
+    if says_nothing_found(loop_result.answer) and not follow_up:
         return "found_nothing_fell_through"
     return ""
 
@@ -428,7 +444,8 @@ def maybe_answer(
         and isinstance(context.get("_conversation_slots"), dict)
         and str(context["_conversation_slots"].get("path") or "").strip()
     )
-    explicit_own = route.asks_explicitly_about_own_things(text) or follow_up or redirected
+    own_ask = route.asks_explicitly_about_own_things(text) or redirected
+    explicit_own = own_ask or follow_up
     if not explicit_own and needs_web:
         # Order: an ask the front door classes as fresh/online meets the web switch (or its refusal)
         # before this loop; only an ask that says it is the owner's own keeps the loop's first turn.
@@ -516,13 +533,26 @@ def maybe_answer(
         context["clean_local_loop_route"] = "foreign_tool_call_fell_through"
         _LOG.info("clean loop fell through: %s", "foreign_tool_call_fell_through")
         return None
-    if decision.by_documents and not redirected and not loop_result.proposals and content_absence_claim(loop_result.answer):
+    if decision.by_documents and not redirected and not loop_result.proposals and says_nothing_found(loop_result.answer):
         # Only the owner's documents brought this turn here, and they did not answer it. It may be
         # something the owner told VOOL in chat, which lives in memory the loop cannot read: the
         # normal pipeline (and its memory lane) gets the turn. Only reads ran so far.
         context["clean_local_loop_route"] = "documents_found_nothing_fell_through"
         _LOG.info("clean loop fell through: %s", "documents_found_nothing_fell_through")
         _clear_evidence(session_id)
+        return None
+    if (
+        follow_up and not own_ask and not loop_result.proposals
+        and route.stands_alone(text) and says_nothing_found(loop_result.answer)
+    ):
+        # Here only because it came soon after a files turn. It is a question of its own and the files did not
+        # answer it: measured on the real app, "how often does the wormery get fed?" asked after a files turn (the
+        # fact just forgotten) was answered "I have not completed a search inside your files". The normal flow,
+        # whose memory can say it has nothing saved, gets the turn. Only reads ran.
+        context["clean_local_loop_route"] = "follow_up_found_nothing_fell_through"
+        _LOG.info("clean loop fell through: %s", "follow_up_found_nothing_fell_through")
+        _clear_evidence(session_id)
+        route.forget_clean_turn(session_id)
         return None
     if not explicit_own and not loop_result.proposals:
         declined = loop_should_decline(carried or text, loop_result, ctx.receipts, follow_up=follow_up)
