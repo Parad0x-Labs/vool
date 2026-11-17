@@ -112,7 +112,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       const credentials = await claimSealedPairing(reached.base, {
         pairingId: pairingId.trim(),
         code: code.trim(),
-        deviceName: (deviceName.trim() || "VOOL companion").slice(0, 64),
+        deviceName: (deviceName.trim() || "VOOL phone").slice(0, 64),
         platform: "react-native",
         deviceSeedHex: keypair.seedHex,
         devicePublicKeyHex: keypair.publicKeyHex,
