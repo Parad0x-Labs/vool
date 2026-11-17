@@ -215,16 +215,16 @@ def render(mark: tuple[int, list[float]], size: int, scale: float, tile: bool, g
     # Blur on a smaller copy: an exact divisor of the size, so the glow sits right under the lines.
     n_small = size // max(1, size // SMALL)
     small = _shrink(lines, size, n_small)
-    wide = _blur(small, n_small, 0.07 * n_small)
-    near = _blur(small, n_small, 0.03 * n_small)
+    wide = _blur(small, n_small, 0.035 * n_small)
+    near = _blur(small, n_small, 0.015 * n_small)
     up = (n_small - 1) / (size - 1)
     out = bytearray(size * size * 4)
     for y in range(size):
         v = y / (size - 1)
         for x in range(size):
             u = x / (size - 1)
-            g1 = min(1.0, _sample(wide, n_small, x * up, y * up) * 1.15) * 0.9
-            g2 = min(1.0, _sample(near, n_small, x * up, y * up) * 1.1) * 0.8
+            g1 = min(1.0, _sample(wide, n_small, x * up, y * up) * 1.15) * 0.35
+            g2 = min(1.0, _sample(near, n_small, x * up, y * up) * 1.1) * 0.7
             core = min(1.0, lines[y * size + x])
             if tile:
                 r, g, b = _background(min(1.0, math.hypot(u - 0.5, v - 0.52) / 0.7))
