@@ -348,6 +348,14 @@ export class MobileCompanionClient {
   mediaExported(id: string, how: "save" | "share"): Promise<{recorded: boolean}> {
     return this.request("media.exported", {id, how});
   }
+  /** A preview this phone made (HEIC photos, videos) for an item the computer has none for. */
+  mediaSetThumb(id: string, base64: string): Promise<{kept: boolean}> {
+    return this.request("media.set_thumb", {id, content_b64: base64});
+  }
+  /** The phone's trace lines (what was tapped, what opened, timings; never content) for the computer's trace file. */
+  tracePhone(lines: string[]): Promise<{kept: number}> {
+    return this.request("trace.phone", {lines});
+  }
 
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
     return this.request("abilities.check", {ability});

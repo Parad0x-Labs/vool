@@ -235,6 +235,16 @@ class Library:
         except sealed.SealedError:
             return None
 
+    def set_thumb(self, item_id: str, jpeg: bytes) -> bool:
+        """Keeps a small preview made elsewhere (the phone decodes formats this computer cannot, such as HEIC, and
+        takes a frame from videos). Never replaces a preview the library already has."""
+        self.get(item_id)
+        path = self._thumb_path(item_id)
+        if path.exists():
+            return False
+        sealed.write_file(path, sealed.seal_small(bytes(jpeg), wrap_key=self.key(), ident=item_id + ":thumb"))
+        return True
+
     def check(self, item_id: str) -> bool:
         """Reads an item back whole; True when every piece opens and the hash matches."""
         meta = self.get(item_id)

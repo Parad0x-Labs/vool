@@ -9,6 +9,7 @@ import android.os.Bundle
 class VaultLauncherActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    android.util.Log.i("VoolCapture", "icon: VOOL Vault tapped")
     startActivity(
       Intent(Intent.ACTION_VIEW, Uri.parse("vool-pair://vault"))
         .setPackage(packageName)

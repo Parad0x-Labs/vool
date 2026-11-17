@@ -6,6 +6,7 @@ import type {MobileCompanionClient} from "../protocol/client.ts";
 import type {MediaItem} from "../protocol/models.ts";
 import {language, rightToLeft, tr} from "../i18n/index.ts";
 import {VaultStream, type StreamState} from "../vault/stream.ts";
+import {trace} from "../diagnostics/trace.ts";
 import {VaultPlayer, vaultNative} from "../vault/native.ts";
 import Icon, {type IconName} from "../ui/Icon.tsx";
 import {useEdges} from "../ui/Frame.tsx";
@@ -39,26 +40,55 @@ function dateText(seconds: number): string {
   catch {return new Date(seconds * 1000).toDateString();}
 }
 
-/** Previews, kept in memory only while the Vault is open, fetched three at a time. */
+/** Previews, kept in memory only while the Vault is open: the computer's, fetched three at a time; when it has none
+ * (HEIC photos, videos, recordings), made here one at a time from a sealed stream and given to the computer to keep. */
 const thumbs = new Map<string, string>();
-let running = 0;
-const waiting: Array<() => void> = [];
-async function thumbFor(client: MobileCompanionClient, id: string): Promise<string> {
-  const known = thumbs.get(id);
-  if (known !== undefined) return known;
-  if (running >= 3) await new Promise<void>(resolve => waiting.push(resolve));
-  running += 1;
+const PREVIEW_EDGE = 360;
+const PHOTO_PREVIEW_LIMIT = 96 * 1024 * 1024;
+
+function lane(width: number) {
+  let running = 0;
+  const queue: Array<() => void> = [];
+  return async function run<T>(job: () => Promise<T>): Promise<T> {
+    if (running >= width) await new Promise<void>(resolve => queue.push(resolve));
+    running += 1;
+    try {return await job();} finally {running -= 1; queue.shift()?.();}
+  };
+}
+const fetchLane = lane(3);
+const makeLane = lane(1);
+
+async function makePreview(client: MobileCompanionClient, item: MediaItem, edge: number): Promise<string> {
+  if (!vaultNative || (item.kind === "photo" && item.size > PHOTO_PREVIEW_LIMIT)) return "";
+  const started = Date.now();
+  // A photo is read whole; a video or a recording only where the phone's reader looks (its index, one frame).
+  const stream = new VaultStream(client, item, () => {}, item.kind !== "photo");
   try {
-    const base64 = await client.mediaThumb(id).catch(error => {
-      if (String((error as {code?: string})?.code || "") === "media_no_preview") return "";
-      throw error;
-    });
-    thumbs.set(id, base64);
-    return base64;
+    const made = await vaultNative.preview(stream.id, edge, item.kind);
+    trace("vault preview made", {kind: item.kind, ok: !!made, edge, ms: Date.now() - started});
+    return made;
+  } catch {
+    trace("vault preview failed", {kind: item.kind, ms: Date.now() - started});
+    return "";
   } finally {
-    running -= 1;
-    waiting.shift()?.();
+    stream.close();
   }
+}
+
+async function thumbFor(client: MobileCompanionClient, item: MediaItem, stillWanted: () => boolean): Promise<string> {
+  const known = thumbs.get(item.id);
+  if (known !== undefined) return known;
+  const fromComputer = await fetchLane(() => client.mediaThumb(item.id).catch(error => {
+    if (String((error as {code?: string})?.code || "") === "media_no_preview") return "";
+    throw error;
+  }));
+  if (fromComputer || item.damaged) {thumbs.set(item.id, fromComputer); return fromComputer;}
+  if (!stillWanted()) return "";
+  const made = await makeLane(() => (stillWanted() ? makePreview(client, item, PREVIEW_EDGE) : Promise.resolve("")));
+  if (!made && !stillWanted()) return "";
+  thumbs.set(item.id, made);
+  if (made) void client.mediaSetThumb(item.id, made).catch(() => {});
+  return made;
 }
 
 type ListState = "loading" | "ready" | "away" | "right_off";
@@ -103,13 +133,16 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
   const load = useCallback(async (from: number) => {
     const asked = from === 0 ? ++query.current : query.current;
     if (from === 0) setState(previous => (previous === "ready" ? previous : "loading"));
+    const started = Date.now();
     try {
       const page = await client.mediaList({section, kind, ...SORT_QUERY[sort], offset: from, limit: PAGE});
+      trace("vault list", {section, kind, sort, from, got: page.items.length, total: page.total, ms: Date.now() - started});
       if (asked !== query.current) return;
       setItems(previous => (from === 0 ? page.items : [...previous, ...page.items.filter(item => !previous.some(p => p.id === item.id))]));
       setTotal(page.total);
       setState("ready");
     } catch (error) {
+      trace("vault list failed", {code: String((error as {code?: string})?.code || "unreachable"), ms: Date.now() - started});
       if (asked !== query.current) return;
       setState(String((error as {code?: string})?.code || "") === "phone_right_off_or_expired" ? "right_off" : "away");
     } finally {
@@ -171,7 +204,7 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
       if (more.current || items.length >= total) return;
       more.current = true; void load(items.length);
     }}
-    renderItem={({item}) => <Card client={client} item={item} width={cardWidth} size={size} onOpen={() => setOpen(item)} />} />;
+    renderItem={({item}) => <Card client={client} item={item} width={cardWidth} size={size} onOpen={() => {trace("vault item open", {kind: item.kind, kb: Math.round(item.size / 1024)}); setOpen(item);}} />} />;
 
   return <View style={[StyleSheet.absoluteFill, styles.screen]}>
     {header}
@@ -183,11 +216,11 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
 function useThumb(client: MobileCompanionClient, item: MediaItem): string {
   const [thumb, setThumb] = useState(() => thumbs.get(item.id) || "");
   useEffect(() => {
-    if (item.kind !== "photo" || item.damaged) return;
+    if (item.damaged) return;
     let alive = true;
-    void thumbFor(client, item.id).then(value => {if (alive) setThumb(value);}).catch(() => {});
+    void thumbFor(client, item, () => alive).then(value => {if (alive) setThumb(value);}).catch(() => {});
     return () => {alive = false;};
-  }, [client, item.id, item.kind, item.damaged]);
+  }, [client, item]);
   return thumb;
 }
 
@@ -237,8 +270,22 @@ function Viewer({client, item, onClose}: {client: MobileCompanionClient; item: M
     else setReplay(previous => ({...previous, wanted: true, at: progress.held}));
   };
 
-  const photo = useMemo(() => (item.kind === "photo" && progress.done ? stream.current?.photoBase64() || "" : ""),
-    [item.kind, progress.done]);
+  // The photo at screen size, made here from the sealed stream once it has all arrived (HEIC and 108 MP included).
+  const {width: screenWidth, height: screenHeight} = useWindowDimensions();
+  const [photo, setPhoto] = useState("");
+  const [photoFailed, setPhotoFailed] = useState(false);
+  useEffect(() => {
+    if (item.kind !== "photo" || !progress.done || !streamId || !vaultNative) return;
+    let alive = true;
+    const started = Date.now();
+    const edge = Math.min(4096, Math.round(Math.max(screenWidth, screenHeight) * 2));
+    void vaultNative.preview(streamId, edge, "photo").then(made => {
+      trace("vault photo shown", {ok: !!made, edge, ms: Date.now() - started});
+      if (!alive) return;
+      if (made) setPhoto(made); else setPhotoFailed(true);
+    }).catch(() => {if (alive) setPhotoFailed(true);});
+    return () => {alive = false;};
+  }, [item.kind, progress.done, streamId, screenWidth, screenHeight]);
 
   const exportCopy = async (how: "save" | "share") => {
     const current = stream.current;
@@ -258,6 +305,7 @@ function Viewer({client, item, onClose}: {client: MobileCompanionClient; item: M
 
   const percent = Math.floor((progress.held / Math.max(1, progress.pieces)) * 100);
   const line = startFailed ? tr("This phone cannot open the Vault.")
+    : photoFailed ? tr("This item cannot be opened right now.")
     : playFailed ? tr("This phone cannot play this file.")
     : progress.failed === "away" ? tr("Your computer is out of reach. It carries on from here when it answers.")
     : progress.failed ? tr("This item cannot be opened right now.")
@@ -275,14 +323,16 @@ function Viewer({client, item, onClose}: {client: MobileCompanionClient; item: M
     </View>
     <View style={styles.stage}>
       {item.kind === "photo"
-        ? (photo || thumb ? <Image source={{uri: photo ? `data:${item.media_type};base64,${photo}` : `data:image/jpeg;base64,${thumb}`}}
+        ? (photo || thumb ? <Image source={{uri: `data:image/jpeg;base64,${photo || thumb}`}}
             style={[StyleSheet.absoluteFill, !photo && styles.dim]} resizeMode="contain" blurRadius={photo ? 0 : 6} /> : null)
         : streamId && VaultPlayer && !playFailed
           ? (replay.wanted ? null : <VaultPlayer key={replay.round} stream={streamId}
-              style={item.kind === "audio" ? styles.audioPlayer : StyleSheet.absoluteFill} onPlayerError={playerFailed} />)
+              style={item.kind === "audio" ? styles.audioPlayer : StyleSheet.absoluteFill} onPlayerError={event => {
+                trace("vault player error", {code: event.nativeEvent?.message || "", held: progress.held, of: progress.pieces}); playerFailed();
+              }} onPlayerReady={() => trace("vault player ready", {held: progress.held, of: progress.pieces})} />)
           : null}
       {item.kind === "audio" ? <View pointerEvents="none" style={styles.audioMark}><Icon name="music-note-outline" size={56} color={C.mute} /></View> : null}
-      {item.kind === "photo" && !photo && !progress.failed && !startFailed ? <ActivityIndicator style={styles.spinner} color={C.acc} /> : null}
+      {item.kind === "photo" && !photo && !photoFailed && !progress.failed && !startFailed ? <ActivityIndicator style={styles.spinner} color={C.acc} /> : null}
     </View>
     <View style={[styles.viewerBottom, {paddingBottom: edges.bottom + 14}]}>
       {line ? <Text style={styles.line}>{line}</Text> : null}

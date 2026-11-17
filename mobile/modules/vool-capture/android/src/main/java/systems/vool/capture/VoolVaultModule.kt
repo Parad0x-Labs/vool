@@ -2,12 +2,7 @@ package systems.vool.capture
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.core.content.pm.ShortcutInfoCompat
-import androidx.core.content.pm.ShortcutManagerCompat
-import androidx.core.graphics.drawable.IconCompat
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -28,6 +23,7 @@ class VoolVaultModule : Module() {
     Events("onWant")
 
     OnCreate {
+      MainWatch.start()
       appContext.reactContext?.let { VaultStreams.sweep(it) }
       VaultStreams.onWant = { stream, index -> sendEvent("onWant", mapOf("stream" to stream, "index" to index)) }
     }
@@ -52,16 +48,13 @@ class VoolVaultModule : Module() {
         if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
         PackageManager.DONT_KILL_APP,
       )
-      if (!on) return@AsyncFunction "off"
-      if (!ShortcutManagerCompat.isRequestPinShortcutSupported(context)) return@AsyncFunction "listed"
-      val intent = Intent(Intent.ACTION_VIEW, Uri.parse("vool-pair://vault")).setPackage(context.packageName)
-      val shortcut = ShortcutInfoCompat.Builder(context, "vool-vault")
-        .setShortLabel("VOOL Vault")
-        .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_vool_vault))
-        .setIntent(intent)
-        .build()
-      if (ShortcutManagerCompat.requestPinShortcut(context, shortcut, null)) "asked" else "listed"
+      // Like VOOL Camera: its own entry in the app list, which the launcher places like any app (a pinned
+      // shortcut would carry the small VOOL mark on its corner).
+      if (on) "listed" else "off"
     }
+
+    /** A card preview or a screen-size picture made here from the stream, as JPEG base64 ("" when none). */
+    AsyncFunction("preview") { stream: String, maxEdge: Int, kind: String -> VaultPreview.make(stream, maxEdge, kind) }
 
     View(VaultPlayerView::class) {
       Events("onPlayerError", "onPlayerReady")

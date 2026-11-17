@@ -87,3 +87,47 @@ def test_a_whole_phone_piece_crosses_the_sealed_link(desktop):
     status, piece = call(*phone, "media.read", {"id": item["id"], "offset": 768 * 1024, "length": 768 * 1024})
     assert status == 200, piece
     assert base64.b64decode(piece["result"]["content_b64"]) == photo[768 * 1024:2 * 768 * 1024]
+
+
+def _small_jpeg() -> bytes:
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", (320, 240), (40, 90, 160)).save(out, format="JPEG", quality=80)
+    return out.getvalue()
+
+
+def test_the_phone_gives_a_preview_the_computer_could_not_make_and_it_is_kept_once(desktop):
+    from core.media_library.store import library
+
+    phone = _phone(desktop, media=True)
+    photo = _jpeg()
+    assert _send(phone, photo, sha=hashlib.sha256(photo).hexdigest())[0] == 200
+    item = call(*phone, "media.list", {"section": "mobile", "kind": "photo"})[1]["result"]["items"][0]
+    preview = _small_jpeg()
+    # the computer already made one: the phone's is not taken in its place
+    assert call(*phone, "media.set_thumb", {"id": item["id"], "content_b64": base64.b64encode(preview).decode()})[1]["result"] == {"kept": False}
+    library()._thumb_path(item["id"]).unlink()  # as for a HEIC photo this computer cannot open
+    assert call(*phone, "media.thumb", {"id": item["id"]})[0] == 404
+    assert call(*phone, "media.set_thumb", {"id": item["id"], "content_b64": base64.b64encode(preview).decode()})[1]["result"] == {"kept": True}
+    assert base64.b64decode(call(*phone, "media.thumb", {"id": item["id"]})[1]["result"]["content_b64"]) == preview
+    for bad in (b"not a jpeg", b"\xff\xd8\xff" + os.urandom(200_000)):
+        assert call(*phone, "media.set_thumb", {"id": item["id"], "content_b64": base64.b64encode(bad).decode()})[0] == 400
+
+
+def test_the_trace_keeps_what_happened_never_what_was_in_it(desktop):
+    from core.mobile_companion import trace
+
+    phone = _phone(desktop, media=True)
+    photo = _jpeg()
+    assert _send(phone, photo, sha=hashlib.sha256(photo).hexdigest())[0] == 200
+    item = call(*phone, "media.list", {"section": "mobile", "kind": "photo"})[1]["result"]["items"][0]
+    assert call(*phone, "media.read", {"id": item["id"], "offset": 0, "length": 5000})[0] == 200
+    assert call(*phone, "trace.phone", {"lines": ["vault.open from=icon", "shutter press ms=12"]})[0] == 200
+    text = trace._path().read_text()
+    lines = [__import__("json").loads(line) for line in text.splitlines()]
+    read = [line for line in lines if line.get("action") == "media.read"][-1]
+    assert read["status"] == 200 and read["item"] == item["id"][:8] and read["offset"] == 0 and read["length"] == 5000
+    assert {"from": "phone", "line": "shutter press ms=12"}.items() <= [l for l in lines if l.get("from") == "phone"][-1].items()
+    assert item["name"] not in text and "content_b64" not in text and item["id"] not in text
+    assert call(*phone, "trace.phone", {"lines": ["x"] * 201})[0] == 400
