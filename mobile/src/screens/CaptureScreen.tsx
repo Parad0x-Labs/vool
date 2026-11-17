@@ -122,6 +122,12 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
     return () => clearInterval(timer);
   }, [recording]);
 
+  // The camera stays upright on every device, a tablet too; leaving it lets a tablet turn again.
+  useEffect(() => {
+    try {capture?.fitScreen?.(true);} catch {/* older build */}
+    return () => {try {capture?.fitScreen?.(false);} catch {/* older build */}};
+  }, []);
+
   // Leaving the screen (or the app locking) ends a sound recording and keeps what was recorded.
   useEffect(() => () => {if (capture?.soundRecording()) void capture.stopSound().then(onCaptured).catch(() => {});}, [onCaptured]);
 

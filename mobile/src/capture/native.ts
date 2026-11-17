@@ -40,6 +40,8 @@ interface VoolCaptureNative {
   clearCameraLaunch(): void;
   /** The camera or Vault icon ran since VOOL started (absent on older builds). */
   iconUsed?(which: "camera" | "vault"): boolean;
+  /** Tablets turn freely; phones, and any device while the camera is open, stay upright. Answers the short side in dp. */
+  fitScreen?(camera: boolean): number;
   getCameraPrefs(): string;
   setCameraPrefs(json: string): void;
   photoSizes(facing: "back" | "front"): Promise<{sizes: string[]; sensorMax: string}>;

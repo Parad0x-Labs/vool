@@ -24,6 +24,8 @@ const SORT_QUERY: Record<Sort, {sort: "date" | "size"; order: "asc" | "desc"}> =
 };
 const SIZES: Size[] = ["small", "medium", "large"];
 const COLUMNS: Record<Size, number> = {small: 4, medium: 3, large: 2};
+// About how wide one card is on a phone; a tablet or a turned screen fits more of them in a row.
+const CARD: Record<Size, number> = {small: 96, medium: 128, large: 190};
 const SIZE_ICON: Record<Size, IconName> = {small: "view-comfy-outline", medium: "view-grid-outline", large: "view-agenda-outline"};
 const kindLabel = (kind: Kind) => ({photo: tr("Photos"), video: tr("Videos"), audio: tr("Sound")})[kind];
 const KIND_ICON: Record<Kind, IconName> = {photo: "image-outline", video: "play-circle-outline", audio: "music-note-outline"};
@@ -266,7 +268,7 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
     }
   };
 
-  const columns = COLUMNS[size];
+  const columns = Math.max(COLUMNS[size], Math.floor((width - 32) / CARD[size]));
   const gap = size === "small" ? 4 : 10;
   const cardWidth = Math.floor((width - 32 - gap * (columns - 1)) / columns);
 

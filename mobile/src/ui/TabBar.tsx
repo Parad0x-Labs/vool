@@ -8,26 +8,30 @@ export interface TabItem {key: string; label: string; icon: IconName; iconOn: Ic
 /** The row at the bottom: every part of the app, one tap away. */
 export default function TabBar({items, active, onSelect}: {items: TabItem[]; active: string; onSelect: (key: string) => void}) {
   return (
-    <View style={styles.bar} accessibilityRole="tablist">
-      {items.map(item => {
-        const on = item.key === active;
-        return (
-          <Pressable key={item.key} style={styles.tab} onPress={() => onSelect(item.key)} android_ripple={{color: C.ripple, borderless: true}}
-            accessibilityRole="tab" accessibilityState={{selected: on}} accessibilityLabel={item.label}>
-            <View>
-              <Icon name={on ? item.iconOn : item.icon} size={25} color={on ? C.acc : C.mute} />
-              {item.badge ? <View style={styles.badge}><Text style={styles.badgeText}>{item.badge > 9 ? "9+" : String(item.badge)}</Text></View> : null}
-            </View>
-            <Text style={[styles.label, on && styles.labelOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.label}</Text>
-          </Pressable>
-        );
-      })}
+    <View style={styles.bar}>
+      <View style={styles.row} accessibilityRole="tablist">
+        {items.map(item => {
+          const on = item.key === active;
+          return (
+            <Pressable key={item.key} style={styles.tab} onPress={() => onSelect(item.key)} android_ripple={{color: C.ripple, borderless: true}}
+              accessibilityRole="tab" accessibilityState={{selected: on}} accessibilityLabel={item.label}>
+              <View>
+                <Icon name={on ? item.iconOn : item.icon} size={25} color={on ? C.acc : C.mute} />
+                {item.badge ? <View style={styles.badge}><Text style={styles.badgeText}>{item.badge > 9 ? "9+" : String(item.badge)}</Text></View> : null}
+              </View>
+              <Text style={[styles.label, on && styles.labelOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {flexDirection: "row", borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.bg, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 4},
+  // On a tablet the tabs stay together in the middle instead of spreading across the whole width.
+  row: {flexDirection: "row", width: "100%", maxWidth: 640, alignSelf: "center"},
+  bar: {borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.bg, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 4},
   tab: {flex: 1, alignItems: "center", justifyContent: "center", gap: 3, minHeight: 50},
   label: {color: C.mute, fontSize: 11, fontWeight: "500", paddingHorizontal: 2},
   labelOn: {color: C.acc, fontWeight: "600"},

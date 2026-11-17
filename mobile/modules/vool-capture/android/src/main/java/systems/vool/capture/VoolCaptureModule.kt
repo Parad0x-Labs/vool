@@ -4,6 +4,7 @@ import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -35,6 +36,21 @@ class VoolCaptureModule : Module() {
     return method.invoke(target, *args)
   }
 
+  // The camera is open somewhere in VOOL: the screen stays upright while it is.
+  @Volatile private var cameraUp = false
+
+  /**
+   * Tablets (the short side at least 600 dp) turn with the device, as the person's own rotation setting allows.
+   * Phones stay upright, and the camera stays upright on every device. Answers the short side in dp.
+   */
+  private fun fitTurning(): Int {
+    val activity = appContext.currentActivity ?: return 0
+    val shortSide = activity.resources.configuration.smallestScreenWidthDp
+    val want = if (shortSide >= 600 && !cameraUp) ActivityInfo.SCREEN_ORIENTATION_FULL_USER else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    activity.runOnUiThread { if (activity.requestedOrientation != want) activity.requestedOrientation = want }
+    return shortSide
+  }
+
   override fun definition() = ModuleDefinition {
     Name("VoolCapture")
 
@@ -60,6 +76,10 @@ class VoolCaptureModule : Module() {
     }
 
     OnDestroy { CaptureStore.onStored = null }
+
+    OnActivityEntersForeground { fitTurning() }
+    /** Sets how the screen may turn: free on a tablet, upright on a phone or while the camera is open. */
+    Function("fitScreen") { camera: Boolean -> cameraUp = camera; fitTurning() }
 
     Function("savingCount") { CaptureStore.savingCount }
     // One line to the phone's system log (tag VoolCapture) for tracing a test run: steps and timings only.
