@@ -42,8 +42,9 @@ export function directionalKey(shared: Uint8Array, direction: "request" | "respo
 }
 
 function base64(bytes: Uint8Array): string {
+  // in slices: one character at a time is far too slow for a large body on the phone
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000) as unknown as number[]);
   return btoa(binary);
 }
 function unbase64(text: string): Uint8Array {

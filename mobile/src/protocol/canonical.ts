@@ -61,7 +61,11 @@ const SHORT_ESCAPES: Record<string, string> = {
   "\f": "\\f",
 };
 
+// Printable ASCII with nothing to escape (base64 file pieces, ids, hex): already canonical as is.
+const PLAIN = /^[\x20\x21\x23-\x5b\x5d-\x7e]*$/;
+
 function serializeString(s: string): string {
+  if (PLAIN.test(s)) return '"' + s + '"';
   let out = '"';
   for (const ch of s) {
     const code = ch.codePointAt(0) as number;
