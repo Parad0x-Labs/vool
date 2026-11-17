@@ -19,6 +19,8 @@ interface VoolCaptureNative {
   startSound(): Promise<void>;
   stopSound(): Promise<CaptureNote>;
   savingCount(): number;
+  /** One line to the phone's system log, for tracing a test run (steps and timings only). */
+  trace?(line: string): void;
   /** On: keep VOOL running (with a notice) while sending; false when Android refused to start it. */
   keepSending(on: boolean, text: string): boolean;
   addListener(event: "onStored", listener: (event: StoredEvent) => void): {remove(): void};

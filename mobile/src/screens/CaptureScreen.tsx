@@ -139,9 +139,11 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
     setNote("");
     try {
       if (kind === "photo") {
+        const pressed = Date.now();
         setFlash(true);
-        setTimeout(() => setFlash(false), 120);
+        setTimeout(() => {setFlash(false); capture?.trace?.(`screen: white flash off after ${Date.now() - pressed} ms`);}, 120);
         await camera.current?.takePhoto();
+        capture?.trace?.(`screen: shutter free after ${Date.now() - pressed} ms`);
         stored();
       } else if (kind === "video") {
         if (!recording) {await camera.current?.startVideo(); setRecording(true);}
