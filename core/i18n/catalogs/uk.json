@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "Найвища якість у найкращому форматі, який вміє цей телефон.",
     "phone.capture.compress.balanced_hint": "Менші файли, майже як оригінал.",
     "phone.capture.compress.small_hint": "Набагато менші. Фото до 2560 пікс., відео до 1080p.",
-    "phone.capture.compress.custom_hint": "Оберіть кожне налаштування самі."
+    "phone.capture.compress.custom_hint": "Оберіть кожне налаштування самі.",
+    "phone.settings.permissions": "Дозволи",
+    "phone.settings.screen_lock": "Блокування екрана",
+    "phone.settings.smaller_files": "Менші файли",
+    "phone.settings.trouble": "Якщо щось пішло не так"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

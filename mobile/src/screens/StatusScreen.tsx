@@ -7,6 +7,7 @@ import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../prot
 import {connectionAddress} from "../protocol/connection.ts";
 import {useLink} from "../ui/LinkBadge.tsx";
 import Icon from "../ui/Icon.tsx";
+import SettingsCard, {cardRow} from "../ui/SettingsCard.tsx";
 import {C} from "../ui/theme.ts";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { parsePairingUri } from "../protocol/pairing.ts";
@@ -101,9 +102,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   const stateColor = link === "connected" ? C.ok : link === "offline" && looking !== "looking" ? C.bad : C.wait;
 
   // One block for the connection: how it stands, and one button. A scanned code saves itself.
-  const computerCard = <View style={styles.card}>
+  const computerCard = <SettingsCard icon="monitor" title={tr("Your computer")}><View style={cardRow}>
     <View style={styles.stateRow}>
-      <Icon name={link === "offline" && looking !== "looking" ? "monitor-off" : "monitor"} size={22} color={stateColor} />
+      <View style={[styles.dot, {backgroundColor: stateColor}]} />
       <Text style={[styles.stateText, {color: stateColor}]}>{stateLine}</Text>
     </View>
     {snapshot ? <Text style={styles.detail}>{snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")} · {snapshot.model.cloud_state === "ok" ? tr("Cloud connected") : tr("Local")}</Text> : null}
@@ -137,15 +138,11 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       <Pressable style={styles.scanCancel} onPress={() => setScanning(false)}><Text style={styles.proofButtonText}>{tr("Cancel")}</Text></Pressable>
     </View>}
     {error ? <Text style={styles.error}>{error}</Text> : null}
-  </View>;
+  </View></SettingsCard>;
 
   // The addresses are filled in by the scan. They stay out of the way for the rare manual change.
-  const advanced = <View>
-    <Pressable style={styles.advancedRow} accessibilityRole="button" accessibilityState={{expanded: showAdvanced}} onPress={() => setShowAdvanced(value => !value)}>
-      <Text style={styles.label}>{tr("Advanced")}</Text>
-      <Icon name={showAdvanced ? "chevron-up" : "chevron-down"} size={22} color={C.mute} />
-    </Pressable>
-    {showAdvanced ? <View style={styles.card}>
+  const advanced = <SettingsCard icon="tune-variant" title={tr("Advanced")} open={showAdvanced} onToggle={() => setShowAdvanced(value => !value)}>
+    {showAdvanced ? <View style={cardRow}>
       <Text style={styles.fieldLabel}>{tr("Computer’s address on your home network")}</Text>
       <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Computer’s address on your home network")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
       <Text style={[styles.fieldLabel, {marginTop: 14}]}>{tr("Address away from home")}</Text>
@@ -184,9 +181,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         )}
       </View> : null}
     </View> : null}
-  </View>;
+  </SettingsCard>;
 
-  const danger = <View style={{marginTop: 18}}>
+  const danger = <SettingsCard icon="lifebuoy" title={tr("If something goes wrong")}><View style={[cardRow, {paddingTop: 0}]}>
         <Pressable
           style={styles.unpairButton}
           onPress={() => {
@@ -234,10 +231,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
           })();}}])}>
           <Text style={styles.unpairButtonText}>{tr("My computer is lost")}</Text>
         </Pressable>
-  </View>;
+  </View></SettingsCard>;
 
-  if (!snapshot) return <ScrollView keyboardShouldPersistTaps="handled">
-    <Text style={styles.section}>{tr("Your computer")}</Text>
+  if (!snapshot) return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
     {computerCard}
     {!error && link !== "offline" ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
     {advanced}
@@ -245,15 +241,13 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   </ScrollView>;
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled">
-      <Text style={styles.section}>{tr("Your computer")}</Text>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
       {computerCard}
 
-      <Text style={styles.section}>{tr("This device")}</Text>
-      {Object.keys(device?.rules || {}).length ? <View style={styles.list}>
-        {Object.entries(device?.rules || {}).map(([right,value], index)=>{
+      <SettingsCard icon="shield-check-outline" title={tr("Permissions")}>
+        {Object.entries(device?.rules || {}).map(([right,value])=>{
           const on = !!value && (!(device?.right_expiry?.[right]) || (device!.right_expiry![right] > Date.now()/1000));
-          return <View key={right} style={[styles.listRow, index > 0 && styles.listRule]}>
+          return <View key={right} style={[styles.listRow, styles.listRule]}>
             <View style={styles.fill}>
               <Text style={styles.listText}>{permissionText(right)}</Text>
               {device?.right_expiry?.[right] ? <Text style={styles.listNote}>{tr("Expires")} {new Date(device.right_expiry[right]*1000).toLocaleString()}</Text> : null}
@@ -261,13 +255,18 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
             <Text style={[styles.listValue, on && {color: C.ok}]}>{on ? tr("On") : tr("Off")}</Text>
           </View>;
         })}
-      </View> : null}
-      <Text style={styles.footnote}>{tr("Change this phone’s permissions on your computer.")}</Text>
-      <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
-      <View style={styles.segment}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
-        style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
-        <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
-      </Pressable>)}</View>
+        <View style={cardRow}><Text style={styles.cardNote}>{tr("Change this phone’s permissions on your computer.")}</Text></View>
+      </SettingsCard>
+
+      <SettingsCard icon="lock-clock" title={tr("Screen lock")}>
+        <View style={cardRow}>
+          <Text style={styles.cardNote}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
+          <View style={[styles.segment, {marginTop: 10}]}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
+            style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
+            <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
+          </Pressable>)}</View>
+        </View>
+      </SettingsCard>
 
       {captureSettings}
       {advanced}
@@ -277,9 +276,10 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
 }
 
 const styles = StyleSheet.create({
+  page: { paddingBottom: 28 },
+  cardNote: { color: C.mute, fontSize: 13, lineHeight: 18 },
+  dot: { width: 9, height: 9, borderRadius: 5 },
   center: { marginTop: 40 },
-  section: { color: C.mute, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginTop: 22, marginBottom: 8 },
-  card: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, padding: 16, marginBottom: 6 },
   fill: { flex: 1 },
   list: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, overflow: "hidden" },
   listRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, minHeight: 52, paddingVertical: 12 },
@@ -311,7 +311,6 @@ const styles = StyleSheet.create({
   error: { color: C.bad, fontSize: 13, marginTop: 8 },
   stateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
   stateText: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 21 },
-  advancedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 52, marginTop: 18, paddingHorizontal: 16, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20 },
   fieldLabel: { color: C.soft, fontSize: 13, marginBottom: 6 },
   address: { color: C.ink, fontSize: 14, backgroundColor: C.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
 });

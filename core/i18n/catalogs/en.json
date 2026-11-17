@@ -4983,7 +4983,11 @@
     "phone.capture.compress.best_hint": "Highest quality, in the best format this phone can make.",
     "phone.capture.compress.balanced_hint": "Smaller files, very close to the original.",
     "phone.capture.compress.small_hint": "Much smaller. Photos up to 2560 px, video up to 1080p.",
-    "phone.capture.compress.custom_hint": "Choose every setting yourself."
+    "phone.capture.compress.custom_hint": "Choose every setting yourself.",
+    "phone.settings.permissions": "Permissions",
+    "phone.settings.screen_lock": "Screen lock",
+    "phone.settings.smaller_files": "Smaller files",
+    "phone.settings.trouble": "If something goes wrong"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -4,6 +4,7 @@ import {Pressable, StyleSheet, Text, View} from "react-native";
 import {tr} from "../i18n/index.ts";
 import {capture} from "../capture/native.ts";
 import Icon from "../ui/Icon.tsx";
+import SettingsCard from "../ui/SettingsCard.tsx";
 import {C} from "../ui/theme.ts";
 
 interface Props {
@@ -33,10 +34,8 @@ export default function PrivateCaptureSettings({waiting, saving, onOpen, childre
   const state = saving ? tr("Locking it away…") : waiting ? tr("Waiting for your computer: {count}", {count: waiting}) : tr("Everything is on your computer.");
 
   return <>
-    <Text style={styles.section}>{tr("Private camera")}</Text>
-    <View style={styles.list}>
-      <Pressable style={styles.row} onPress={onOpen} accessibilityRole="button" android_ripple={{color: C.ripple}}>
-        <Icon name="camera-outline" size={22} color={C.acc} />
+    <SettingsCard icon="camera-iris" title={tr("Private camera")}>
+      <Pressable style={[styles.row, styles.rule]} onPress={onOpen} accessibilityRole="button" android_ripple={{color: C.ripple}}>
         <View style={styles.fill}>
           <Text style={styles.text}>{tr("Open private camera")}</Text>
           <Text style={styles.note}>{state}</Text>
@@ -54,20 +53,19 @@ export default function PrivateCaptureSettings({waiting, saving, onOpen, childre
           {tileNote ? <Text style={styles.note}>{tileNote}</Text> : null}
         </View>
       </Pressable> : null}
-      {children}
-    </View>
-    <Text style={styles.footnote}>{tr("What you take here never reaches the gallery or any cloud. It stays locked on this phone, goes to your computer, and is removed here once your computer has the very same file.")}</Text>
+      <View style={[styles.row, styles.rule]}>
+        <Text style={styles.note}>{tr("What you take here never reaches the gallery or any cloud. It stays locked on this phone, goes to your computer, and is removed here once your computer has the very same file.")}</Text>
+      </View>
+    </SettingsCard>
+    {children ? <SettingsCard icon="archive-arrow-down-outline" title={tr("Smaller files")}>{children}</SettingsCard> : null}
   </>;
 }
 
 const styles = StyleSheet.create({
-  section: {color: C.mute, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginTop: 22, marginBottom: 8},
-  list: {backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, overflow: "hidden"},
   row: {flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, minHeight: 52, paddingVertical: 12},
   rule: {borderTopWidth: 1, borderTopColor: C.line},
   fill: {flex: 1},
   text: {color: C.ink, fontSize: 15},
   note: {color: C.mute, fontSize: 12, marginTop: 2},
   value: {color: C.mute, fontSize: 14, fontWeight: "600"},
-  footnote: {color: C.mute, fontSize: 12, marginTop: 10, lineHeight: 16},
 });
