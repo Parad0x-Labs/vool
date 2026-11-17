@@ -23,9 +23,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE = REPO_ROOT / "installer" / "assets" / "approved" / "vool.icns"
 
-GLOW = (207, 224, 255)        # ice white halo
+GLOW = (232, 238, 248)        # ice white halo, kept neutral so the lines stay white, not blue
 CORE = (255, 255, 255)        # the lines themselves
-BG_STOPS = ((0.0, (29, 32, 38)), (0.6, (14, 15, 19)), (1.0, (4, 4, 5)))
+BG_STOPS = ((0.0, (36, 38, 43)), (0.6, (14, 15, 18)), (1.0, (4, 4, 5)))
 BG_EDGE = "#040405"           # what app.json uses behind the adaptive icon and splash
 SMALL = 256                   # the glow is soft, so it is blurred at about this size and scaled up
 
@@ -215,20 +215,27 @@ def render(mark: tuple[int, list[float]], size: int, scale: float, tile: bool, g
     # Blur on a smaller copy: an exact divisor of the size, so the glow sits right under the lines.
     n_small = size // max(1, size // SMALL)
     small = _shrink(lines, size, n_small)
-    wide = _blur(small, n_small, 0.035 * n_small)
-    near = _blur(small, n_small, 0.015 * n_small)
+    wide = _blur(small, n_small, 0.016 * n_small)
+    near = _blur(small, n_small, 0.006 * n_small)
+    drop = _blur(small, n_small, 0.012 * n_small)   # soft shadow under the lines, gives the face some depth
     up = (n_small - 1) / (size - 1)
+    lift_x, lift_y = 0.011 * (n_small - 1), 0.018 * (n_small - 1)
     out = bytearray(size * size * 4)
     for y in range(size):
         v = y / (size - 1)
         for x in range(size):
             u = x / (size - 1)
-            g1 = min(1.0, _sample(wide, n_small, x * up, y * up) * 1.15) * 0.35
-            g2 = min(1.0, _sample(near, n_small, x * up, y * up) * 1.1) * 0.7
-            core = min(1.0, lines[y * size + x])
+            g1 = min(1.0, _sample(wide, n_small, x * up, y * up) * 1.15) * 0.30
+            g2 = min(1.0, _sample(near, n_small, x * up, y * up) * 1.1) * 0.55
+            raw = min(1.0, lines[y * size + x])
+            # hard-edged core: a smoothstep on the line coverage keeps the drawing crisp
+            t = min(1.0, max(0.0, (raw - 0.22) / 0.40))
+            core = t * t * (3 - 2 * t)
             if tile:
-                r, g, b = _background(min(1.0, math.hypot(u - 0.5, v - 0.52) / 0.7))
+                r, g, b = _background(min(1.0, math.hypot(u - 0.5, v - 0.40) / 0.78))
                 alpha = 1.0
+                dark = 0.6 * _sample(drop, n_small, x * up - lift_x, y * up - lift_y)
+                r, g, b = r * (1 - dark), g * (1 - dark), b * (1 - dark)
             else:
                 r = g = b = 0.0
                 alpha = 0.0
@@ -244,7 +251,7 @@ def render(mark: tuple[int, list[float]], size: int, scale: float, tile: bool, g
             if gloss:
                 edge = 0.34 + 0.36 * u * (1 - u)
                 if v < edge:
-                    shine = 0.13 * (1 - v / 0.43)
+                    shine = 0.10 * (1 - v / edge) ** 2   # fades to nothing at the edge, so no visible line
                     r, g, b = r + (255 - r) * shine, g + (255 - g) * shine, b + (255 - b) * shine
             o = (y * size + x) * 4
             out[o] = round(r)
