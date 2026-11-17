@@ -26,6 +26,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
+import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -514,6 +515,9 @@ def _memory_rows(
 _MEANT_ROWS = 2
 #: How near (the saved-row search's own floor) a row must be before the judgement is asked about it at all.
 _MEANT_FLOOR = 0.5
+#: Judgements already made, by a hash of the question and the row: no text is kept here.
+_MEANING_VERDICTS: dict[str, str] = {}
+_MEANING_VERDICTS_KEPT = 512
 
 
 def _rows_that_mean_it(
@@ -541,11 +545,32 @@ def _rows_that_mean_it(
         if _private(session_id, source_context) or not turn_speaks_for_owner(dict(source_context or {}), str(session_id or "")):
             return [], True  # the memory lane's gate: only the owner's own turn, outside a private chat, reads by meaning
         policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
+        # "Shares no word" means no CONTENT word, and each of the two word measures here has a weak spot of its own,
+        # both seen on the real app (2026-11-17). The saved-row search counts "the": "who should mend the cracked
+        # teapot?" was never put to the judgement about "Mrs Pellow at the china stall fixes our crockery". The
+        # covering law's terms count a weak verb: "where does my ripped jacket need to go?" lost its answer when
+        # "the coat with the torn lining goes to the tailor ..." was held to share "go". A word is a shared content
+        # word when BOTH count it: "pole" (punting pole / pole vault), "milk", "pitch" are; "the" and "go" are not.
+        from core.chat_housekeeping import _doc_stems, _term_in
+        from core.memory.entries import _match_stem, keyword_tokens_filtered
+
+        terms = _asked_terms(question)
+        asked_words = {_match_stem(token) for token in keyword_tokens_filtered(question)}
+
+        def shares_a_term(text: str) -> bool:
+            stems = _doc_stems(text)
+            common = asked_words & {_match_stem(token) for token in keyword_tokens_filtered(text)}
+            return any(
+                _term_in(term, stems) and any(_term_in(term, _doc_stems(word)) for word in common) for term in terms
+            )
+
         near = sorted(
             (
-                (float(row.get("meaning") or 0.0), " ".join(str(row.get("text") or "").split()))
-                for row in search_relevant_memory(question, access_policy=policy, limit=8, by_meaning=True)
-                if row.get("found_by") == "meaning" and float(row.get("meaning") or 0.0) >= _MEANT_FLOOR
+                (float(row.get("meaning") or 0.0), text)
+                for row in search_relevant_memory(question, access_policy=policy, limit=24, by_meaning=True)
+                for text in [" ".join(str(row.get("text") or "").split())]
+                if row.get("meaning") is not None and float(row.get("meaning") or 0.0) >= _MEANT_FLOOR
+                and text and terms and not shares_a_term(text)
             ),
             reverse=True,
         )
@@ -554,7 +579,16 @@ def _rows_that_mean_it(
         for _, text in near[:_MEANT_ROWS]:
             if not text:
                 continue
-            verdict = arbitrate_meaning(question, text, chat_id=str(session_id or ""), source_context=source_context)
+            # One judgement per question and row for the life of the process: the guards ahead of memory and this
+            # lane ask about the same pair within one turn. Only a yes or a no is kept; "nobody judged" is asked again.
+            key = hashlib.sha256(f"{question}\x00{text}".encode()).hexdigest()
+            verdict = _MEANING_VERDICTS.get(key)
+            if verdict is None:
+                verdict = arbitrate_meaning(question, text, chat_id=str(session_id or ""), source_context=source_context)
+                if verdict in {"yes", "no"}:
+                    if len(_MEANING_VERDICTS) >= _MEANING_VERDICTS_KEPT:
+                        _MEANING_VERDICTS.clear()
+                    _MEANING_VERDICTS[key] = verdict
             if verdict == "yes":
                 found.append(text)
             elif verdict != "no":
@@ -774,7 +808,32 @@ def saved_memory_answers(question: str, *, session_id: str, source_context: dict
     local model) the clean loop searched the owner's files for it, and the entity check asked "Anselm of Canterbury
     or the actor?" about "what day does Anselm water the plants?" with that fact saved. Reads only.
     """
-    return bool(saved_memory_rows(question, session_id=session_id, source_context=source_context))
+    if saved_memory_rows(question, session_id=session_id, source_context=source_context):
+        return True
+    # Asked in other words than the saved fact's own. Measured on the real app (2026-11-17, the fix mission): with
+    # "the green suitcase with the broken zip goes to the repair stall at the covered market" saved, "where does my
+    # damaged case need to go?" went to the file search first and its file answer was published; "which loaf should
+    # I buy?" was asked back by the entity check with the rye bread fact saved; "where's my instrument stored these
+    # days?" was answered with a folder of pictures while the cello's row sat in memory. The lanes ahead of memory
+    # read saved rows through this guard, and it read them by shared words only.
+    return _a_saved_row_means_it(question, session_id, source_context)
+
+
+def _a_saved_row_means_it(question: str, session_id: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether a saved row that shares no word with the question gives what it asks, by the recall lane's own leg
+    (`_rows_that_mean_it`: the embed model names the nearest rows, the loaded local model judges each).
+
+    The same preconditions as `saved_memory_rows`: a question this lane could ask about, and no now-word (a stored
+    fact is never the value as it is today). No embed model, nobody to judge, or a no: False, and the lanes ahead
+    of memory decide as they did. Reads only."""
+    text = " ".join(str(question or "").split())
+    if not text or len(text) > 300 or _NOW_WORD_RE.search(text):
+        return False
+    asked = as_question(text)
+    if not _asked_terms(asked):
+        return False
+    rows, _known = _rows_that_mean_it(asked, session_id, source_context)
+    return bool(rows)
 
 
 def saved_list_answers(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:

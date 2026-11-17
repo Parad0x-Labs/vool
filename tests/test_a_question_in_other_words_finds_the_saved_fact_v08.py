@@ -28,6 +28,8 @@ SUBJECTS = {
     "plumbing": ("drains", "septic", "plumber"),
     "music": ("cello", "instrument", "violin"),
     "pitch": ("pitch",),
+    "crockery": ("crockery", "teapot"),
+    "clothes": ("coat", "jacket"),
 }
 
 
@@ -48,8 +50,10 @@ def embed_model(monkeypatch):
 
     monkeypatch.setattr(embedding_service, "embed_texts_neural", embed)
     entries._meaning_vectors.clear()
+    recall._MEANING_VERDICTS.clear()
     yield seen
     entries._meaning_vectors.clear()
+    recall._MEANING_VERDICTS.clear()
 
 
 def _texts(rows) -> list[str]:
@@ -152,12 +156,15 @@ def test_the_recall_lane_takes_a_near_row_as_the_saved_fact_only_on_a_yes(isolat
     # judged the saved fact: the lane stands down and the model reads the row
     assert recall.cross_chat_recall(question, session_id="ask", source_context=dict(OWNER)) is None
     # judged not to be it: the fact asked for is not saved, and the lane says so as before
+    # (a judgement is kept per question and row for the life of the process; a new one needs a fresh process)
     verdict["value"] = "no"
+    recall._MEANING_VERDICTS.clear()
     assert recall._rows_that_mean_it(question, "ask", dict(OWNER)) == ([], True)
     found = recall.cross_chat_recall(question, session_id="ask", source_context=dict(OWNER))
     assert found is not None and not found.found and found.response.startswith("I don't have that saved"), found
     # nobody could judge the near row: the lane does not know that nothing is saved, so it does not say so
     verdict["value"] = None
+    recall._MEANING_VERDICTS.clear()
     assert recall._rows_that_mean_it(question, "ask", dict(OWNER)) == ([], False)
     assert recall.cross_chat_recall(question, session_id="ask", source_context=dict(OWNER)) is None
 
@@ -197,3 +204,96 @@ def test_the_meaning_question_is_a_judgement_on_the_chat_models_runner(monkeypat
     assert "punting pole" in calls[0]["prompt"] and "pole vault" in calls[0]["prompt"]
     monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
     assert intent_arbiter.arbitrate_meaning("what's my pole vault record?", "my punting pole is 12 feet.") is None
+
+
+# --- the lanes ahead of memory ask the same question --------------------------------------------------------------
+
+
+def test_the_guard_ahead_of_the_file_search_knows_a_saved_fact_asked_in_other_words(isolated_home, embed_model, monkeypatch):
+    from core.clean_loop import route
+
+    assert _say("Remember that Mrs Thackeray looks after our septic tank", "seed")[1].startswith("Locked in")
+    _policy("ask")
+    asked: list[tuple[str, str]] = []
+    verdict = {"value": "yes"}
+
+    def judge(question, fact, **_):
+        asked.append((question, fact))
+        return verdict["value"]
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", judge)
+    question = "who do I ring when the drains back up?"
+    assert recall.saved_memory_rows(question, session_id="ask", source_context=dict(OWNER)) == []  # no shared word
+    assert recall.saved_memory_answers(question, session_id="ask", source_context=dict(OWNER)) is True
+    # the file search is not started for it: its words name a file, and a saved fact answers it
+    decision = route.decide(question, source_context=dict(OWNER), session_id="ask", resolve_brain=lambda: object(),
+                            env={}, file_words=lambda: {"drains", "ring"})
+    assert not decision.admit and decision.reason == "saved_memory_answers", decision
+    # one judgement for the pair, however many lanes ask
+    assert recall._rows_that_mean_it(question, "ask", dict(OWNER)) == (["Mrs Thackeray looks after our septic tank"], True)
+    assert len(asked) == 1
+
+
+@pytest.mark.parametrize("answer", ["no", None])
+def test_a_near_row_that_is_not_judged_the_answer_leaves_the_lanes_as_they_were(isolated_home, embed_model, monkeypatch, answer):
+    from core.clean_loop import route
+
+    assert _say("Remember that Mrs Thackeray looks after our septic tank", "seed")[1].startswith("Locked in")
+    _policy("ask")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", lambda *a, **k: answer)
+    question = "who do I ring when the drains back up?"
+    assert recall.saved_memory_answers(question, session_id="ask", source_context=dict(OWNER)) is False
+    decision = route.decide(question, source_context=dict(OWNER), session_id="ask", resolve_brain=lambda: object(),
+                            env={}, file_words=lambda: {"drains", "ring"})
+    assert decision.reason != "saved_memory_answers", decision
+
+
+def test_the_guard_asks_nothing_for_a_question_about_now_an_agents_turn_or_without_an_embed_model(isolated_home, monkeypatch):
+    assert _say("Remember that Mrs Thackeray looks after our septic tank", "seed")[1].startswith("Locked in")
+    _policy("ask")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", lambda *a, **k: pytest.fail("judged"))
+    # no embed model in the tests: nothing is near, nothing is judged
+    assert recall.saved_memory_answers("who do I ring when the drains back up?", session_id="ask", source_context=dict(OWNER)) is False
+    monkeypatch.setattr(embedding_service, "embed_texts_neural", lambda texts, *, query=False: ([_direction(t) for t in texts], "test-space"))
+    entries._meaning_vectors.clear()
+    assert recall.saved_memory_answers("who is fixing the drains today?", session_id="ask", source_context=dict(OWNER)) is False
+    assert recall.saved_memory_answers("who do I ring when the drains back up?", session_id="ask",
+                                       source_context={**OWNER, "turn_author": "agent"}) is False
+    entries._meaning_vectors.clear()
+
+
+def test_an_ask_that_points_at_files_is_not_put_to_the_guard(isolated_home, embed_model, monkeypatch):
+    from core.clean_loop import route
+
+    assert _say("Remember that Mrs Thackeray looks after our septic tank", "seed")[1].startswith("Locked in")
+    _policy("ask")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", lambda *a, **k: pytest.fail("judged for a file ask"))
+    decision = route.decide("is there a file about the drains in my Documents folder?", source_context=dict(OWNER),
+                            session_id="ask", resolve_brain=lambda: object(), env={}, file_words=lambda: {"drains"})
+    assert decision.reason != "saved_memory_answers", decision
+
+
+def test_a_row_that_shares_only_a_filler_word_with_the_question_is_still_put_to_the_judgement(isolated_home, embed_model, monkeypatch):
+    assert _say("Remember that Mrs Pellow at the china stall fixes our crockery", "seed")[1].startswith("Locked in")
+    _policy("ask")
+    asked: list[str] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", lambda question, fact, **_: asked.append(fact) or "yes")
+    question = "who should mend the cracked teapot?"  # shares "the" with the row, and no word of its subject
+    rows = search_relevant_memory(question, access_policy=_policy("ask"), limit=6, by_meaning=True)
+    assert _texts(rows) == ["Mrs Pellow at the china stall fixes our crockery"] and "found_by" not in rows[0], rows
+    assert recall._rows_that_mean_it(question, "ask", dict(OWNER)) == (["Mrs Pellow at the china stall fixes our crockery"], True)
+    assert recall.saved_memory_answers(question, session_id="ask", source_context=dict(OWNER)) is True
+    assert asked == ["Mrs Pellow at the china stall fixes our crockery"]
+
+
+def test_a_weak_verb_in_both_is_not_a_shared_word_and_a_shared_noun_is(isolated_home, embed_model, monkeypatch):
+    assert _say("Remember that the coat with the torn lining goes to the tailor on mill street", "seed")[1].startswith("Locked in")
+    assert _say("Remember that my camping pitch is number 83", "seed")[1].startswith("Locked in")
+    _policy("ask")
+    asked: list[tuple[str, str]] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", lambda question, fact, **_: asked.append((question, fact)) or "yes")
+    jacket = "where does my ripped jacket need to go?"  # "go" / "goes": a term of the covering law, no word to the search
+    assert recall._rows_that_mean_it(jacket, "ask", dict(OWNER)) == (["the coat with the torn lining goes to the tailor on mill street"], True)
+    pitch = "what's the pitch of my singing voice?"  # "pitch": a word to both, so the covering law keeps the row
+    assert recall._rows_that_mean_it(pitch, "ask", dict(OWNER)) == ([], True)
+    assert [question for question, _ in asked] == [jacket]
