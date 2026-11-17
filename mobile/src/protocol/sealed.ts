@@ -1,5 +1,6 @@
 import nacl from "../vendor/nacl-fast.cjs";
-import { canonicalBytes } from "./canonical.ts";
+import { canonicalBytes, canonicalJson } from "./canonical.ts";
+import { fast } from "./fast.ts";
 import { fromHex, randomBytes, sha256, toHex } from "./sha256.ts";
 import { verifyBytes } from "./ed25519.ts";
 import {
@@ -41,27 +42,17 @@ export function directionalKey(shared: Uint8Array, direction: "request" | "respo
   return sha256(input);
 }
 
-function base64(bytes: Uint8Array): string {
-  // in slices: one character at a time is far too slow for a large body on the phone
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000) as unknown as number[]);
-  return btoa(binary);
-}
-function unbase64(text: string): Uint8Array {
-  return Uint8Array.from(atob(text), c => c.charCodeAt(0));
-}
 export interface SealedEnvelope { protocol: string; nonce: string; ciphertext: string }
 export function sealBody(value: unknown, shared: Uint8Array, direction: "request" | "response", nonce = randomBytes(24)): SealedEnvelope {
   return {protocol: SEALED_PROTOCOL, nonce: toHex(nonce),
-    ciphertext: base64(nacl.secretbox(canonicalBytes(value), nonce, directionalKey(shared, direction)))};
+    ciphertext: fast.seal(canonicalJson(value), toHex(nonce), toHex(directionalKey(shared, direction)))};
 }
 export function openBody(envelope: SealedEnvelope, shared: Uint8Array, direction: "request" | "response"): Record<string, unknown> {
   if (envelope?.protocol !== SEALED_PROTOCOL) throw new Error("Sealed response required");
-  const nonce = fromHex(envelope.nonce);
-  if (nonce.length !== 24) throw new Error("Invalid sealed nonce");
-  const plain = nacl.secretbox.open(unbase64(envelope.ciphertext), nonce, directionalKey(shared, direction));
-  if (!plain) throw new Error("Sealed response authentication failed");
-  return JSON.parse(new TextDecoder().decode(plain));
+  if (!/^[0-9a-fA-F]{48}$/.test(String(envelope.nonce))) throw new Error("Invalid sealed nonce");
+  const plain = fast.open(String(envelope.ciphertext), envelope.nonce, toHex(directionalKey(shared, direction)));
+  if (plain === null) throw new Error("Sealed response authentication failed");
+  return JSON.parse(plain);
 }
 
 export function sealedTransport(seed: string, desktopKey: string, deviceId: string, wire: FetchLike, claim = false): FetchLike {
@@ -77,7 +68,7 @@ export function sealedTransport(seed: string, desktopKey: string, deviceId: stri
     let decoded;
     try {
       decoded = openBody(parsed, shared, "response");
-      if (decoded.kind !== SEALED_PROTOCOL + ":response" || decoded.request_hash !== toHex(sha256(canonicalBytes(envelope)))) {
+      if (decoded.kind !== SEALED_PROTOCOL + ":response" || decoded.request_hash !== fast.sha256Hex(canonicalJson(envelope))) {
         throw new Error("Response does not belong to this request");
       }
     } catch (_) {

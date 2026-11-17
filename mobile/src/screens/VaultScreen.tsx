@@ -57,6 +57,9 @@ function lane(width: number) {
 }
 const fetchLane = lane(3);
 const makeLane = lane(1);
+// While a photo or video is open it has the link to itself: card previews wait.
+let viewing = 0;
+const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function makePreview(client: MobileCompanionClient, item: MediaItem, edge: number): Promise<string> {
   if (!vaultNative || (item.kind === "photo" && item.size > PHOTO_PREVIEW_LIMIT)) return "";
@@ -84,7 +87,10 @@ async function thumbFor(client: MobileCompanionClient, item: MediaItem, stillWan
   }));
   if (fromComputer || item.damaged) {thumbs.set(item.id, fromComputer); return fromComputer;}
   if (!stillWanted()) return "";
-  const made = await makeLane(() => (stillWanted() ? makePreview(client, item, PREVIEW_EDGE) : Promise.resolve("")));
+  const made = await makeLane(async () => {
+    while (viewing > 0 && stillWanted()) await pause(400);
+    return stillWanted() ? makePreview(client, item, PREVIEW_EDGE) : "";
+  });
   if (!made && !stillWanted()) return "";
   thumbs.set(item.id, made);
   if (made) void client.mediaSetThumb(item.id, made).catch(() => {});
@@ -255,6 +261,11 @@ function Viewer({client, item, onClose}: {client: MobileCompanionClient; item: M
   const thumb = thumbs.get(item.id) || "";
 
   useEffect(() => {
+    viewing += 1;
+    return () => {viewing -= 1;};
+  }, []);
+
+  useEffect(() => {
     let opened: VaultStream | null = null;
     try {opened = new VaultStream(client, item, setProgress);} catch {setStartFailed(true);}
     stream.current = opened;
@@ -294,9 +305,12 @@ function Viewer({client, item, onClose}: {client: MobileCompanionClient; item: M
     // The computer keeps a receipt of every copy that leaves the Vault; the copy is made even when it is out of reach.
     void client.mediaExported(item.id, how).catch(() => {});
     try {
+      const started = Date.now();
       if (how === "save") setNote(tr("Saved to {folder}.", {folder: await vaultNative.save(current.id, item.name)}));
       else await vaultNative.share(current.id, item.name, tr("Share"));
+      trace("vault export", {how, ms: Date.now() - started});
     } catch {
+      trace("vault export failed", {how});
       setNote(tr("Could not make the copy. Try again."));
     } finally {
       setBusy(false);
