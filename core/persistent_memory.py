@@ -2997,7 +2997,10 @@ def _judged_lasting_facts(
     statements: list[str], *, session_id: str | None, source_context: Mapping[str, Any] | None = None
 ) -> list[str]:
     """Of the sentences no shape lists as a personal fact, those the loaded local model judges to be a lasting fact
-    about the person's own life (`core.intent_arbiter.arbitrate_lasting_fact`).
+    about the person's private life AND to say how things are rather than what happened once
+    (`core.intent_arbiter.arbitrate_lasting_fact`, then `arbitrate_standing_state`): two questions, a keep only on a
+    yes to both. Asked alone, the first kept single past events on the real app ("I lost one stirrup leather last
+    week"), and the second kept work remarks in the probe; the second is asked only after a yes to the first.
 
     Called only past the keep step's trust gate (the owner's own turn, outside a private chat, memory on). A
     sentence that holds a secret, or names a kind of secret, is never sent to the judge and is not kept. No judge,
@@ -3006,7 +3009,7 @@ def _judged_lasting_facts(
     kept: list[str] = []
     for said in statements:
         try:
-            from core.intent_arbiter import arbitrate_lasting_fact
+            from core.intent_arbiter import arbitrate_lasting_fact, arbitrate_standing_state
             from core.secret_redaction import contains_secret
 
             if contains_secret(said) or _names_a_secrets_label(said):
@@ -3017,6 +3020,13 @@ def _judged_lasting_facts(
             )
         except Exception:
             verdict = None
+        if verdict == "yes":
+            try:
+                verdict = arbitrate_standing_state(
+                    said, chat_id=str(session_id or ""), source_context=dict(source_context or {})
+                )
+            except Exception:
+                verdict = None
         if verdict == "yes":
             kept.append(said)
     return kept

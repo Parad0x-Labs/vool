@@ -788,6 +788,50 @@ def _lasting_fact_prompt(sentence: str) -> str:
     ])
 
 
+def _standing_state_prompt(sentence: str) -> str:
+    """A balanced yes/no: does a sentence say how things ARE in the person's private life, not what HAPPENED?
+
+    The second question of the keep step's judgement, asked only of a sentence the first one
+    (`_lasting_fact_prompt`) read as a lasting private fact. Measured on the real app (2026-11-17), the first
+    question alone said yes to single past events ("I lost one stirrup leather last week", "i dropped one rating
+    point at the last tournament") and each wrote a memory row. This question holds that line and is weaker than
+    the first on work remarks (the fix mission's probe: asked alone it read "the pipeline is green again" as a
+    yes), so neither is asked alone: a sentence is kept only on a yes to both."""
+    flat = " ".join(str(sentence or "").split())[:400]
+    return "\n".join([
+        "A person said one sentence to their assistant in passing. They did not ask for it to be remembered.",
+        "Question: does the sentence say how things ARE in the person's PRIVATE life, in a way that will still hold "
+        "next month?",
+        'Answer {"answer": "yes"} only when it tells a standing state, habit, taste, routine or arrangement of '
+        "their private life: where their things are kept or go, who the people and animals around them are and what "
+        "they do, what suits or upsets their body, what they eat and drink, what they regularly do. "
+        'It counts even with no "I" or "my" in it.',
+        'Answer {"answer": "no"} when it tells something that HAPPENED: one event at one time, however personal '
+        "(something lost, broken, bought, won, dropped, a visit, an accident, a day out).",
+        'Answer {"answer": "no"} when it is about work or a project (code, builds, systems, files, documents, '
+        "drafts, charts, clients, suppliers, deadlines, meetings), about this conversation, about the world at "
+        "large or general knowledge, about today's mood, weather or traffic, or something imagined.",
+        "",
+        'Said: "the spare duvet lives in the top of the hall cupboard." -> {"answer": "yes"}',
+        'Said: "I left my umbrella on the bus." -> {"answer": "no"}',
+        'Said: "our neighbour Petra feeds the cat when we are away." -> {"answer": "yes"}',
+        'Said: "the export job timed out twice on the staging box." -> {"answer": "no"}',
+        'Said: "the bike with the red frame is Jonas\'s, mine is the grey one." -> {"answer": "yes"}',
+        'Said: "we had the boiler serviced on Tuesday." -> {"answer": "no"}',
+        'Said: "peppermint tea settles me after a long shift." -> {"answer": "yes"}',
+        'Said: "that last paragraph reads much better than the first draft." -> {"answer": "no"}',
+        'Said: "the gate at the allotment sticks unless you lift it." -> {"answer": "yes"}',
+        'Said: "my sister came up for the bank holiday." -> {"answer": "no"}',
+        'Said: "bees can recognise human faces." -> {"answer": "no"}',
+        'Said: "the dog chewed through the hall rug." -> {"answer": "no"}',
+        'Said: "the supplier pushed the delivery date to next week." -> {"answer": "no"}',
+        'Said: "suppose the train were cancelled and we had to drive." -> {"answer": "no"}',
+        "",
+        f'Said: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
 def arbitrate_lasting_fact(
     sentence: str,
     *,
@@ -812,6 +856,29 @@ def arbitrate_lasting_fact(
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_lasting_fact_prompt(sentence), operation="lasting_fact_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
+def arbitrate_standing_state(
+    sentence: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a sentence says how things are in the person's private life rather than something that happened
+    once: ``"yes"`` / ``"no"``, or None when nothing judged it. The keep step's second question
+    (`_standing_state_prompt` says why there are two). None keeps nothing."""
+    if not str(sentence or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_standing_state_prompt(sentence), operation="standing_state_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(),
     )
 

@@ -549,6 +549,37 @@ _ONE_OCCASION_RE = re.compile(
 )
 
 
+#: Words a sentence about something can start with: the closed class of pronouns and determiners, with their
+#: contractions ("I'm", "it's"). Used only to tell a subject from a lead in `_opens_with_a_lead`.
+_SUBJECT_STARTERS = frozenset(
+    """i we you he she they it this that these those there the a an my our your his her their its one some all every
+    each no most many both""".split()
+)
+_THAT_LEAD_RE = re.compile(r"^(?P<lead>[^,.;:?!]+?)\s+that\s+\S", re.IGNORECASE)
+
+
+def _opens_with_a_lead(clean: str) -> bool:
+    """Whether a sentence opens with a short lead about the text behind it: "<lead>: <text>" (`led_statement`) or
+    "<lead> that <text>" where the lead has no subject of its own ("Scribble down that ...", "Stick it in your
+    notes that ...").
+
+    Such a sentence is said TO the assistant about its text: a keep ask, a note ask or another task. It belongs to
+    the lanes that read leads; said in passing it is not. Measured in the fix mission (function level, 2026-11-17):
+    "Jot down that my godmother's birthday is 27 August." reached the lasting-fact judgement and read yes, which
+    with a model up writes a memory row holding the lead words beside the note the notes lane saves. The verbs of
+    such leads are open-ended, so only the shape is read: at most five words in front of "that", the first of them
+    not a pronoun or a determiner ("I think that ...", "the trouble is that ..." have a subject and are not leads).
+    A noun subject ("Mum says that ...") reads as a lead too; that sentence is then simply not kept in passing."""
+    if led_statement(clean) is not None:
+        return True
+    found = _THAT_LEAD_RE.match(clean)
+    if found is None:
+        return False
+    words = found.group("lead").split()
+    first = re.split(r"['’]", words[0].casefold())[0] if words else ""
+    return 1 <= len(words) <= 5 and first not in _SUBJECT_STARTERS
+
+
 def unlisted_statements(text: str) -> list[str]:
     """The sentences of a message that state something and are NOT personal facts by any shape `stated_facts` lists.
 
@@ -559,8 +590,8 @@ def unlisted_statements(text: str) -> list[str]:
     such things, so whether one of these sentences is a lasting fact about the person is a judgement, made by the
     caller (`core.persistent_memory.keep_stated_facts`). This only reads: it returns the sentences that could be
     one, under the exclusions `stated_facts` already applies (a question, a request, a take-back, a change, pasted
-    material, a made-up frame, a remark about this moment or about files) and one of its own (a sentence about one
-    past occasion or a supposition), at most two of them."""
+    material, a made-up frame, a remark about this moment or about files) and two of its own (a sentence about one
+    past occasion or a supposition; a sentence that opens with a lead), at most two of them."""
     whole = str(text or "")
     if not whole.strip() or len(whole) > 600 or "\n" in whole.strip():
         return []
@@ -581,7 +612,7 @@ def unlisted_statements(text: str) -> list[str]:
             continue
         if not 4 <= len(clean.split()) <= 40 or _MOMENT_RE.search(clean) or _FILE_PLACE_RE.search(clean):
             continue
-        if _ONE_OCCASION_RE.search(clean):
+        if _ONE_OCCASION_RE.search(clean) or _opens_with_a_lead(clean):
             continue
         found.append(clean)
     return found[:2]

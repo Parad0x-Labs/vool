@@ -47,6 +47,7 @@ def judge(monkeypatch):
         return verdict["value"]
 
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lasting)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: verdict.get("standing", "yes"))
     asked_and_verdict = (asked, verdict)
     return asked_and_verdict
 
@@ -70,6 +71,9 @@ def test_a_sentence_no_shape_lists_is_one_the_judge_may_be_asked_about(text):
         "I lost one stirrup leather last week.",  # one past occasion
         "the vet rang about the dog an hour ago.",  # one past occasion
         "if we won the lottery we'd move to the coast.",  # a supposition
+        "Scribble down that the knife grinder comes on the first Monday of the month.",  # opens with a lead
+        "Stick it in your notes that the gutters get cleared every October.",  # opens with a lead
+        "For the record: the loft pole is behind the wardrobe.",  # a colon lead: the lead lanes' business
     ],
 )
 def test_what_states_no_lasting_fact_by_its_form_is_not_put_to_the_judge(text):
@@ -155,3 +159,45 @@ def test_a_reply_that_says_it_noted_a_fact_the_keep_step_wrote_is_not_replaced_b
     assert kept["response"] == said
     denied = validator.enforce_final_action_honesty({"response": said}, user_input=RYE, session_id="c1", source_context=dict(OWNER))
     assert denied["response"] == validator._HONEST_NO_PERSISTENCE_RESPONSE
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I think that the cedar chest is the best place for the blankets.",
+        "the trouble is that the back door needs a shoulder to close.",
+        "it's the wool that brings my neck out in a rash.",
+        RYE,  # "... is the only one that agrees with my stomach": "that" far from the start, a subject in front
+    ],
+)
+def test_a_sentence_with_a_subject_in_front_of_that_does_not_open_with_a_lead(text):
+    assert everyday.unlisted_statements(text) == [text]
+
+
+def test_a_sentence_is_kept_only_on_a_yes_to_both_questions(isolated_home, judge):
+    asked, verdict = judge
+    event = "I chipped a tooth on an olive stone at my cousin's christening."
+    verdict["standing"] = "no"  # a lasting private fact by the first question, something that happened by the second
+    assert _keep(event) == 0 and asked == [event] and _rows() == []
+    verdict["standing"] = None  # nobody could answer the second question
+    assert _keep(event) == 0 and _rows() == []
+    verdict["standing"] = "yes"
+    assert _keep(CASE) == 1
+
+
+def test_the_second_question_is_asked_only_after_a_yes_to_the_first(isolated_home, monkeypatch):
+    second: list[str] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda sentence, **_: "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: second.append(sentence) or "yes")
+    assert _keep(CASE) == 0 and second == []
+
+
+def test_the_standing_state_question_is_a_judgement_on_the_chat_models_runner(monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "qwen3:8b")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_followup", lambda *a, **k: calls.append(k) or "no")
+    assert intent_arbiter.arbitrate_standing_state(CASE) == "no"
+    assert calls[0]["operation"] == "standing_state_arbitration" and calls[0]["call_role"] == intent_arbiter._judgement_role()
+    assert calls[0]["prompt"] != intent_arbiter._lasting_fact_prompt(CASE) and CASE in calls[0]["prompt"]
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
+    assert intent_arbiter.arbitrate_standing_state(CASE) is None
