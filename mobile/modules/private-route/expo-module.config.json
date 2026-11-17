@@ -1,10 +1,16 @@
 {
   "platforms": [
+    "apple",
     "android"
   ],
   "android": {
     "modules": [
       "systems.vool.privateroute.VoolPrivateRouteModule"
+    ]
+  },
+  "apple": {
+    "modules": [
+      "VoolPrivateRouteModule"
     ]
   }
 }

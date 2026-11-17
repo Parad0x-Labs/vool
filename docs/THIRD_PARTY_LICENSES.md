@@ -193,9 +193,18 @@ Notes: Adapter code is ours; remote provider services remain under their own ter
 
 ### Phone app: private camera settings (credit)
 
-- path: `mobile/src/screens/CaptureScreen.tsx`, `mobile/modules/vool-capture/android/src/main/java/systems/vool/capture/VoolCameraView.kt`
+- path: `mobile/src/screens/CaptureScreen.tsx`, `mobile/modules/vool-capture/android/src/main/java/systems/vool/capture/VoolCameraView.kt`, `mobile/modules/vool-capture/ios/PrivateCameraView.swift`
 - credit: the camera's settings (flash, self-timer, grid, 4:3 or 16:9, video quality, steady video, mirrored selfies, pinch to zoom, tap to focus) follow the GrapheneOS Camera app, https://github.com/GrapheneOS/Camera, MIT license, Copyright © 2021-2025 GrapheneOS
-- bundled: no GrapheneOS Camera code is copied; VOOL's own code, written for CameraX. If code is taken from it later, its MIT notice goes into `LICENSES/` next to this entry
+- bundled: no GrapheneOS Camera code is copied; VOOL's own code, written for CameraX on Android and AVFoundation on iPhone. If code is taken from it later, its MIT notice goes into `LICENSES/` next to this entry
+
+### Phone app: away-from-home route (Tor inside the app)
+
+- path: `mobile/modules/private-route/`
+- Android: tor-android by the Guardian Project (BSD-3-Clause), jtorctl (BSD-3-Clause), OkHttp (Apache-2.0)
+- iPhone and iPad: Tor.framework by the iCepa contributors (MIT), the no-LZMA build, installed through CocoaPods as a prebuilt framework checked against its published SHA-256
+- inside both: tor by The Tor Project (BSD-3-Clause), libevent (BSD-3-Clause), OpenSSL (Apache-2.0)
+- credit: the away-from-home route runs on Tor, by The Tor Project, https://www.torproject.org
+- bundled: yes, inside the phone app only; their licence notices ship with the app
 
 ### Phone app: OpenCV 4.12.0 (camera photo modes)
 
