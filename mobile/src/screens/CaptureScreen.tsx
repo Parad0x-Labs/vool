@@ -77,6 +77,9 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   const [filters, setFilters] = useState(false);
   const [zoom, setZoom] = useState<{ratio: number; min: number; max: number} | null>(null);
   const [focus, setFocus] = useState<{x: number; y: number} | null>(null);
+  // The screen stays upright; the round buttons' symbols turn with the phone, like the phone's own camera.
+  const [turn, setTurn] = useState(0);
+  const spin = {transform: [{rotate: `${turn}deg`}]};
   const [countdown, setCountdown] = useState(0);
   const [area, setArea] = useState({width: 0, height: 0});
   const [sizes, setSizes] = useState<{sizes: string[]; sensorMax: string}>({sizes: [], sensorMax: ""});
@@ -185,6 +188,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
         flash={prefs.flash} aspect={prefs.aspect} photoSize={facing === "back" ? prefs.photoSize : "max"} videoQuality={prefs.videoQuality}
         steady={prefs.steady} mirror={prefs.mirror} filter={kind === "photo" ? prefs.filter : "none"}
         onZoom={event => setZoom(event.nativeEvent)} onFocus={event => setFocus(event.nativeEvent)}
+        onTurn={event => setTurn(event.nativeEvent.degrees)}
         onModes={event => {const list = event.nativeEvent.modes; setModes(list); if (mode !== "standard" && !list.includes(mode)) setMode("standard");}}
         onCaptured={() => stored()}
         onCameraError={() => setNote(tr("The camera could not start. Close it and try again."))} /> : null}
@@ -205,7 +209,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
 
       <View style={[styles.top, {paddingTop: edges.top + 8}]}>
         <Pressable style={styles.round} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={tr("Close")} disabled={recording}>
-          <Icon name="close" size={24} color={recording ? C.faint : C.ink} />
+          <View style={spin}><Icon name="close" size={24} color={recording ? C.faint : C.ink} /></View>
         </Pressable>
         <View style={styles.status}>
           {saving || (sending && waiting) ? <ActivityIndicator size="small" color={C.acc} /> :
@@ -214,11 +218,11 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
         </View>
         {kind !== "sound" ? <Pressable style={styles.round} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${tr("Flash")}: ${flashWord}`}
           onPress={() => change({flash: kind === "video" ? (prefs.flash === "on" ? "off" : "on") : prefs.flash === "off" ? "auto" : prefs.flash === "auto" ? "on" : "off"})}>
-          <Icon name={kind === "video" ? (prefs.flash === "on" ? "flashlight" : "flashlight-off") : prefs.flash === "on" ? "flash" : prefs.flash === "auto" ? "flash-auto" : "flash-off"}
-            size={22} color={prefs.flash === "on" || (kind === "photo" && prefs.flash === "auto") ? C.acc : C.ink} />
+          <View style={spin}><Icon name={kind === "video" ? (prefs.flash === "on" ? "flashlight" : "flashlight-off") : prefs.flash === "on" ? "flash" : prefs.flash === "auto" ? "flash-auto" : "flash-off"}
+            size={22} color={prefs.flash === "on" || (kind === "photo" && prefs.flash === "auto") ? C.acc : C.ink} /></View>
         </Pressable> : null}
         <Pressable style={styles.round} onPress={() => setSheet(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={tr("Camera settings")} disabled={recording}>
-          <Icon name="tune-variant" size={22} color={recording ? C.faint : C.ink} />
+          <View style={spin}><Icon name="tune-variant" size={22} color={recording ? C.faint : C.ink} /></View>
         </Pressable>
       </View>
 
@@ -247,7 +251,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
         <View style={styles.shutterRow}>
           {kind === "photo" ? <Pressable style={[styles.round, filters && styles.roundOn]} onPress={() => setFilters(open => !open)} hitSlop={8}
             accessibilityRole="button" accessibilityLabel={tr("Filter")} accessibilityState={{expanded: filters}}>
-            <Icon name="palette-outline" size={22} color={prefs.filter !== "none" ? C.acc : C.ink} />
+            <View style={spin}><Icon name="palette-outline" size={22} color={prefs.filter !== "none" ? C.acc : C.ink} /></View>
           </Pressable> : <View style={styles.round} />}
           <Pressable onPress={() => void shutter()} disabled={busy && !recording || !!denied || (kind !== "sound" && !ready)}
             style={[styles.shutter, recording && styles.shutterRec]} accessibilityRole="button"
@@ -256,7 +260,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
           </Pressable>
           {kind !== "sound" ? <Pressable style={styles.round} onPress={() => setFacing(f => f === "back" ? "front" : "back")} hitSlop={8}
             accessibilityRole="button" accessibilityLabel={tr("Switch camera")} disabled={recording}>
-            <Icon name="camera-flip-outline" size={24} color={recording ? C.faint : C.ink} />
+            <View style={spin}><Icon name="camera-flip-outline" size={24} color={recording ? C.faint : C.ink} /></View>
           </Pressable> : <View style={styles.round} />}
         </View>
         <View style={styles.kinds}>
