@@ -299,21 +299,33 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     capture.targetRotation = turn
     val metadata = ImageCapture.Metadata().apply { isReversedHorizontal = facing == "front" && mirror }
     val chosenFilter = filter
+    // The shutter is free again as soon as the picture is taken: writing, the filter, compression and
+    // locking it away all happen behind, in order, so shots in a row never wait for each other.
+    val answered = java.util.concurrent.atomic.AtomicBoolean(false)
+    fun answer() { if (answered.compareAndSet(false, true)) promise.resolve(mapOf("saving" to true, "kind" to "photo")) }
+    fun lost(code: String, message: String, error: Exception?) {
+      target.delete()
+      if (answered.compareAndSet(false, true)) promise.reject(code, message, error)
+      else post { onCaptured(mapOf("ok" to false, "kind" to "photo")) }
+    }
+    CaptureStore.shot()
     capture.takePicture(ImageCapture.OutputFileOptions.Builder(target).setMetadata(metadata).build(), worker, object : ImageCapture.OnImageSavedCallback {
+      override fun onCaptureStarted() {
+        CaptureStore.shot()
+        answer()
+      }
+
       override fun onImageSaved(output: ImageCapture.OutputFileResults) {
         try {
-          PhotoFilters.apply(target, chosenFilter)
-          CaptureStore.keep(context, target, "image/jpeg", "photo", takenAt)
-          promise.resolve(mapOf("saving" to true, "kind" to "photo"))
+          CaptureStore.keep(context, target, "image/jpeg", "photo", takenAt, chosenFilter)
+          answer()
         } catch (error: Exception) {
-          target.delete()
-          promise.reject("capture_not_stored", error.message ?: "The photo could not be stored.", error)
+          lost("capture_not_stored", error.message ?: "The photo could not be stored.", error)
         }
       }
 
       override fun onError(error: ImageCaptureException) {
-        target.delete()
-        promise.reject("photo_failed", error.message ?: "The photo could not be taken.", error)
+        lost("photo_failed", error.message ?: "The photo could not be taken.", error)
       }
     })
   }

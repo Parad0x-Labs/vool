@@ -1,6 +1,8 @@
 package systems.vool.capture
 
 import android.content.Context
+import android.os.Process
+import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -52,6 +54,7 @@ object CaptureStore {
   private val MAGIC_V1 = "VCAP1\n".toByteArray()
   private val MAGIC = "VCAP2\n".toByteArray()
   private const val FILE_ALIAS = "vool_capture_f_"
+  private const val QUIET_MS = 2_500L
   private val HEADER = MAGIC.size + NONCE + SEALED_KEY
   private val random = SecureRandom()
 
@@ -87,7 +90,22 @@ object CaptureStore {
     else -> fallback
   }
 
-  private val saver = Executors.newSingleThreadExecutor()
+  // One capture at a time, at background priority, so the camera and the screen stay smooth.
+  private val saver = Executors.newSingleThreadExecutor { work ->
+    Thread({ Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND); work.run() }, "vool-capture-saver")
+  }
+  @Volatile private var lastShot = 0L
+
+  /** The shutter was just pressed: heavy saving work waits for a quiet moment. */
+  fun shot() { lastShot = SystemClock.elapsedRealtime() }
+
+  /** While shots come in a row, let the camera have the phone; start saving work once it is quiet. */
+  private fun waitForQuiet() {
+    val until = SystemClock.elapsedRealtime() + 20_000
+    while (SystemClock.elapsedRealtime() - lastShot < QUIET_MS && SystemClock.elapsedRealtime() < until) {
+      Thread.sleep(200)
+    }
+  }
   private val saving = AtomicInteger()
 
   /** How many captures are still being locked away (a change such as compression can take a minute). */
@@ -102,14 +120,20 @@ object CaptureStore {
    * Hands a fresh capture to the saver and returns at once, so the camera never waits for a change
    * such as compression. A small note next to the capture lets it be finished after the app was closed.
    */
-  fun keep(context: Context, captured: File, mediaType: String, kind: String, takenAt: Long) {
+  fun keep(context: Context, captured: File, mediaType: String, kind: String, takenAt: Long, filter: String = "none") {
     val job = jobFor(captured)
     if (!job.isFile) {
-      job.writeText(JSONObject(mapOf("mediaType" to mediaType, "kind" to kind, "takenAt" to takenAt.toDouble())).toString())
+      job.writeText(JSONObject(mapOf("mediaType" to mediaType, "kind" to kind, "takenAt" to takenAt.toDouble(), "filter" to filter)).toString())
     }
     saving.incrementAndGet()
     saver.execute {
       try {
+        waitForQuiet()
+        if (filter != "none") {
+          PhotoFilters.apply(captured, filter)
+          // Filtered once: a save resumed after a restart must not filter it again.
+          job.writeText(JSONObject(mapOf("mediaType" to mediaType, "kind" to kind, "takenAt" to takenAt.toDouble(), "filter" to "none")).toString())
+        }
         val item = ingest(context, captured, mediaType, kind, takenAt)
         onStored?.invoke(mapOf("ok" to true) + item.toMap())
       } catch (error: Exception) {
@@ -146,7 +170,7 @@ object CaptureStore {
       try {
         if (!raw.isFile || raw.length() == 0L) { job.delete(); raw.delete(); return@forEach }
         val o = JSONObject(job.readText())
-        keep(context, raw, o.getString("mediaType"), o.getString("kind"), o.getDouble("takenAt").toLong())
+        keep(context, raw, o.getString("mediaType"), o.getString("kind"), o.getDouble("takenAt").toLong(), o.optString("filter", "none"))
       } catch (_: Exception) {
         job.delete()
       }

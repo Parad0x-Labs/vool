@@ -1,9 +1,10 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Pressable, StyleSheet, Text, TextInput, View} from "react-native";
 
 import {tr} from "../i18n/index.ts";
 import {capture} from "../capture/native.ts";
 import Icon from "../ui/Icon.tsx";
+import {useReveal} from "../ui/Reveal.tsx";
 import {C} from "../ui/theme.ts";
 
 /**
@@ -65,6 +66,18 @@ export default function CompressionSettings() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {setState(read());}, [open]);
+  // Opening the list or switching Compress on shows what appeared below, without dragging the page.
+  const reveal = useReveal();
+  const panel = useRef<View>(null);
+  const enabled = !!state?.enabled;
+  const shown = useRef({open, enabled});
+  useEffect(() => {
+    const before = shown.current;
+    shown.current = {open, enabled};
+    if (!open || (before.open && before.enabled === enabled) || (before.open && !enabled)) return;
+    const timer = setTimeout(() => reveal(panel.current), 60);
+    return () => clearTimeout(timer);
+  }, [open, enabled, reveal]);
 
   const save = useCallback((next: Partial<State>) => {
     if (!capture || !state) return;
@@ -101,7 +114,7 @@ export default function CompressionSettings() {
       <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={C.faint} />
     </Pressable>
 
-    {open ? <View style={[styles.panel, styles.rule]}>
+    {open ? <View ref={panel} collapsable={false} style={[styles.panel, styles.rule]}>
       <Toggle label={tr("Compress")} on={state.enabled} onPress={() => save({enabled: !state.enabled})} />
       <Text style={styles.note}>{tr("Off sends the originals. When on, anything that would not get much smaller, or cannot be compressed, is sent as the original.")}</Text>
 
