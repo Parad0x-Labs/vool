@@ -17,6 +17,8 @@ import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
 import CompressionSettings from "./src/screens/CompressionSettings.tsx";
 import VaultScreen from "./src/screens/VaultScreen.tsx";
 import VaultSettings from "./src/screens/VaultSettings.tsx";
+import ScreenRecordingSettings from "./src/screens/ScreenRecordingSettings.tsx";
+import {useScreenGuard} from "./src/security/screenRecording.ts";
 import {nativeFastCrypto, vaultNative} from "./src/vault/native.ts";
 import {setFastCrypto} from "./src/protocol/fast.ts";
 import {keepTrace, takeTrace, trace} from "./src/diagnostics/trace.ts";
@@ -292,10 +294,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
   const [inChat, setInChat] = useState(false);
   // Screenshots work in chats and settings. Only the money screens stay out of screenshots and the app switcher.
   const moneyScreen = tab === "wallet" || tab === "approvals";
-  useEffect(() => {
-    if (moneyScreen) void ScreenCapture.preventScreenCaptureAsync("money-screen").catch(() => {});
-    return () => {void ScreenCapture.allowScreenCaptureAsync("money-screen").catch(() => {});};
-  }, [moneyScreen]);
+  useScreenGuard("money-screen", moneyScreen);
 
   // Home or away: ask which way reaches the computer when the app opens and each time it comes back to the front.
   useEffect(() => {
@@ -377,6 +376,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
               captureSettings={<>
                 {openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}><CompressionSettings /></PrivateCaptureSettings> : null}
                 {openVault ? <VaultSettings onOpen={openVault} /> : null}
+                <ScreenRecordingSettings />
               </>} />}
             {tab === "wallet" && <WalletScreen client={client} onRevoked={onRevoked} />}
             {tab === "notifications" && <NotificationsScreen client={client} onOpen={openAlert} osEnabled={notifications.osEnabled}

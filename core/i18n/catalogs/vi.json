@@ -3936,6 +3936,10 @@
     "phone.vault.saved_many": "Đã lưu {count} vào {folder}.",
     "phone.vault.export_some": "Đã tạo {done}/{count} bản sao. Hãy thử lại cho phần còn lại.",
     "phone.vault.star_away": "Không kết nối được với máy tính. Hãy thử lại khi máy tính phản hồi.",
+    "phone.screen_rec.title": "Ghi màn hình",
+    "phone.screen_rec.allow": "Cho phép ghi màn hình",
+    "phone.screen_rec.on_note": "Giờ đây Vault, Ví và Phê duyệt có thể được ghi lại và hiện trong trình chuyển ứng dụng. Tự tắt sau {minutes} phút hoặc khi VOOL đóng.",
+    "phone.screen_rec.off_note": "Vault, Ví và Phê duyệt không xuất hiện trong bản ghi màn hình, ảnh chụp màn hình và trình chuyển ứng dụng. Bật lên khi cần trình diễn.",
     "phone.right.tool_approval": "Phê duyệt hành động",
     "phone.right.wallet_view": "Số dư và biên nhận ví",
     "phone.right_expiry": "Hết hạn",
@@ -5101,7 +5105,7 @@
     "settings.row.media_library.help": "Ảnh, video và âm thanh từ camera riêng tư của điện thoại, cùng các tệp bạn tự thêm. Chúng được khóa trên máy tính này và không bao giờ hiện trong ứng dụng khác hay trong tìm kiếm.",
     "settings.media_open": "Mở phương tiện được bảo vệ"
   },
-  "source_catalog_sha256": "2499f61ff0a4b7eda993b2343a7811b3c93c22d55a0048b9bb92a45bc3d93f3a",
+  "source_catalog_sha256": "874a7f867fb5cfb23d95bdac7c053ccb2560b60b95b531d330b75c99d1bb35cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

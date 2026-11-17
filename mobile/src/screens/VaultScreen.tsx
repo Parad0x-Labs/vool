@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {ActivityIndicator, BackHandler, FlatList, Image, Pressable, StyleSheet, Text, useWindowDimensions, View} from "react-native";
-import * as ScreenCapture from "expo-screen-capture";
+import {useScreenGuard} from "../security/screenRecording.ts";
 
 import type {MobileCompanionClient} from "../protocol/client.ts";
 import type {MediaItem} from "../protocol/models.ts";
@@ -159,11 +159,11 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
   const query = useRef(0);
   const more = useRef(false);
 
-  // Out of screenshots and the app switcher while the Vault is open; everything it holds goes when it closes.
+  // Out of screenshots and the app switcher while the Vault is open (unless the owner allowed recording for a demo);
+  // everything it holds goes when it closes.
+  useScreenGuard("vool-vault", true);
   useEffect(() => {
-    void ScreenCapture.preventScreenCaptureAsync("vool-vault").catch(() => {});
     return () => {
-      void ScreenCapture.allowScreenCaptureAsync("vool-vault").catch(() => {});
       thumbs.clear();
       vaultNative?.closeAll();
     };

@@ -3936,6 +3936,10 @@
     "phone.vault.saved_many": "Сохранено {count} в {folder}.",
     "phone.vault.export_some": "Сделано копий: {done} из {count}. Повторите для остальных.",
     "phone.vault.star_away": "Компьютер недоступен. Повторите, когда он ответит.",
+    "phone.screen_rec.title": "Запись экрана",
+    "phone.screen_rec.allow": "Разрешить запись экрана",
+    "phone.screen_rec.on_note": "Теперь Vault, кошелёк и подтверждения можно записывать, и они видны в списке приложений. Это выключится само через {minutes} мин или при закрытии VOOL.",
+    "phone.screen_rec.off_note": "Vault, кошелёк и подтверждения не попадают в записи экрана, скриншоты и список приложений. Включите для демонстрации.",
     "phone.right.tool_approval": "Подтверждать действия",
     "phone.right.wallet_view": "Балансы и квитанции кошелька",
     "phone.right_expiry": "Срок действия",
@@ -5101,7 +5105,7 @@
     "settings.row.media_library.help": "Фото, видео и звук из приватной камеры вашего телефона и файлы, которые вы добавляете сами. Они остаются под замком на этом компьютере и никогда не появляются в других приложениях или в поиске.",
     "settings.media_open": "Открыть защищённые медиа"
   },
-  "source_catalog_sha256": "2499f61ff0a4b7eda993b2343a7811b3c93c22d55a0048b9bb92a45bc3d93f3a",
+  "source_catalog_sha256": "874a7f867fb5cfb23d95bdac7c053ccb2560b60b95b531d330b75c99d1bb35cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
