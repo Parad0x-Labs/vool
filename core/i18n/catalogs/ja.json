@@ -3906,6 +3906,7 @@
     "phone.right.payment_approve": "支払いの承認",
     "phone.right.payment_propose": "支払いの提案",
     "phone.right.photos": "写真",
+    "phone.right.media": "保護されたメディアを見る（VOOL Vault）",
     "phone.right.tool_approval": "操作の承認",
     "phone.right.wallet_view": "ウォレットの残高と領収書",
     "phone.right_expiry": "有効期限",
@@ -5071,7 +5072,7 @@
     "settings.row.media_library.help": "スマートフォンのプライベートカメラの写真、動画、音声と、自分で追加したファイルです。このコンピューターに鍵をかけたまま保管され、ほかのアプリや検索に表示されることはありません。",
     "settings.media_open": "保護されたメディアを開く"
   },
-  "source_catalog_sha256": "148048200cc697886466614d633df36743022cbf83e063433830e78b274e13de",
+  "source_catalog_sha256": "adaa6acb8e4bad0ea826c60fc79212e37bc7450222b7db3cd5d0dea3f18847cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

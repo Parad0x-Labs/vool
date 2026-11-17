@@ -3906,6 +3906,7 @@
     "phone.right.payment_approve": "الموافقة على المدفوعات",
     "phone.right.payment_propose": "اقتراح المدفوعات",
     "phone.right.photos": "الصور",
+    "phone.right.media": "عرض الوسائط المحمية (VOOL Vault)",
     "phone.right.tool_approval": "الموافقة على الإجراءات",
     "phone.right.wallet_view": "أرصدة المحفظة والإيصالات",
     "phone.right_expiry": "تنتهي الصلاحية",
@@ -5071,7 +5072,7 @@
     "settings.row.media_library.help": "صور وفيديوهات وأصوات من الكاميرا الخاصة في هاتفك، وملفات تضيفها بنفسك. تبقى مقفلة على هذا الكمبيوتر ولا تظهر أبدًا في تطبيقات أخرى أو في البحث.",
     "settings.media_open": "افتح الوسائط المحمية"
   },
-  "source_catalog_sha256": "148048200cc697886466614d633df36743022cbf83e063433830e78b274e13de",
+  "source_catalog_sha256": "adaa6acb8e4bad0ea826c60fc79212e37bc7450222b7db3cd5d0dea3f18847cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

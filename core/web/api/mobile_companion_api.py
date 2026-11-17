@@ -168,6 +168,7 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
     "capture.begin", "capture.chunk", "capture.finish", "capture.removed",
+    "media.list", "media.thumb", "media.read", "media.exported",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -1772,6 +1773,91 @@ def _capture_removed(params, *, service, device, **_kw):
         "removed_at": removed_at if type(removed_at) in (int, float) else None})
     return 200, result
 
+
+# --- VOOL Vault: the phone browses this computer's protected media library ----------------------------------------
+
+_MEDIA_PIECE = 768 * 1024  # a multiple of 3: the phone joins base64 pieces as text when it wants to
+
+
+def _media_refused(error):
+    code = getattr(error, "code", "failed")
+    return (404 if code == "not_found" else 409), {"code": "media_" + code, "error": "This item cannot be opened right now."}
+
+
+def _media_list(params, *, service, device, **_kw):
+    """One page of the library, newest (or largest) first: names, kinds, sizes and dates, never the files."""
+    from core.media_library.store import KINDS, SECTIONS, LibraryError, library
+
+    section = str(params.get("section") or "")
+    kind = str(params.get("kind") or "")
+    if (section and section not in SECTIONS) or (kind and kind not in KINDS):
+        return 400, {"code": "bad_media_filter", "error": "Choose photos, videos or sound."}
+    offset = _clamp_int(params.get("offset"), default=0, lo=0, hi=1_000_000)
+    limit = _clamp_int(params.get("limit"), default=60, lo=1, hi=120)
+    try:
+        items = library().items(section=section, kind=kind, sort="size" if params.get("sort") == "size" else "date",
+                                descending=params.get("order") != "asc")
+    except LibraryError as error:
+        if error.code != "empty":
+            return _media_refused(error)
+        items = []
+    public = [{k: meta.get(k) for k in ("id", "section", "kind", "name", "media_type", "size", "taken_at", "added_at", "damaged")}
+              for meta in items[offset:offset + limit]]
+    return 200, {"items": public, "total": len(items), "offset": offset}
+
+
+def _media_thumb(params, *, service, device, **_kw):
+    """The small preview of one photo (a JPEG of a few dozen kilobytes), or none."""
+    from core.media_library.store import LibraryError, library
+
+    try:
+        thumb = library().thumb(str(params.get("id") or ""))
+    except (LibraryError, OSError) as error:
+        return _media_refused(error)
+    if thumb is None:
+        return 404, {"code": "media_no_preview", "error": "No preview."}
+    return 200, {"content_b64": base64.b64encode(thumb).decode("ascii")}
+
+
+def _media_read(params, *, service, device, **_kw):
+    """One piece of one item, opened from its sealed copy and checked as it is read. The phone streams a video
+    piece by piece from wherever the player is, and carries on from the last whole piece after a break."""
+    from core.media_library import sealed
+    from core.media_library.store import LibraryError, library
+
+    item_id = str(params.get("id") or "")
+    lib = library()
+    try:
+        meta = lib.get(item_id)
+        opened = lib.open(item_id)
+    except (LibraryError, sealed.SealedError, OSError) as error:
+        return _media_refused(error if isinstance(error, LibraryError) else LibraryError("damaged"))
+    size = opened.plain_size
+    offset = _clamp_int(params.get("offset"), default=0, lo=0, hi=max(0, size))
+    length = _clamp_int(params.get("length"), default=_MEDIA_PIECE, lo=1, hi=_MEDIA_PIECE)
+    try:
+        data = b"".join(opened.range(offset, min(size, offset + length))) if offset < size else b""
+    except (sealed.SealedError, OSError):
+        return 409, {"code": "media_damaged", "error": "This item is damaged on the computer."}
+    if offset == 0:
+        service.store.append_receipt("media.opened_on_phone", device_id=str(device.get("device_id") or ""),
+                                     detail={"item": item_id, "kind": meta.get("kind"), "size_bytes": size})
+    return 200, {"offset": offset, "next_offset": offset + len(data), "size": size, "media_type": meta.get("media_type"),
+                 "content_b64": base64.b64encode(data).decode("ascii"), "done": offset + len(data) >= size}
+
+
+def _media_exported(params, *, service, device, **_kw):
+    """The phone saved or shared a copy outside the Vault, at the person's own request: kept as a receipt."""
+    how = str(params.get("how") or "")
+    if how not in ("save", "share"):
+        return 400, {"code": "bad_export", "error": "Save or share."}
+    service.store.append_receipt("media.exported_on_phone", device_id=str(device.get("device_id") or ""),
+                                 detail={"item": str(params.get("id") or "")[:64], "how": how})
+    return 200, {"recorded": True}
+
+
+_ACTION_HANDLERS.update({"media.list": _media_list, "media.thumb": _media_thumb, "media.read": _media_read,
+                         "media.exported": _media_exported})
 
 _ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
                          "capture.finish": _capture_action("finish"), "capture.removed": _capture_removed})

@@ -4825,7 +4825,7 @@ function widgetPhoneAccess(host) {
     button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=phoneFailWords(e);button.disabled=false;});};
   };
   const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
-    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
+    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice', media:'See protected media (VOOL Vault)',
     computer_tools:'Use tools on my computer', paid_services:'Look things up online'};
   const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
     task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
@@ -4941,7 +4941,7 @@ function widgetPhoneAccess(host) {
     const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
     if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
-      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
+      if (isBot && ['camera','photos','location','microphone','media','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
       /* An expired right shows as off, so saving anything else never sends it back on. */
       const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());

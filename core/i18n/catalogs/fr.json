@@ -3906,6 +3906,7 @@
     "phone.right.payment_approve": "Approuver les paiements",
     "phone.right.payment_propose": "Proposer des paiements",
     "phone.right.photos": "Photographies",
+    "phone.right.media": "Voir les médias protégés (VOOL Vault)",
     "phone.right.tool_approval": "Approuver les actions",
     "phone.right.wallet_view": "Soldes et reçus du portefeuille",
     "phone.right_expiry": "Expire le",
@@ -5071,7 +5072,7 @@
     "settings.row.media_library.help": "Photos, vidéos et sons de l’appareil photo privé de ton téléphone, et fichiers que tu ajoutes toi-même. Ils restent sous clé sur cet ordinateur et n’apparaissent jamais dans d’autres apps ni dans la recherche.",
     "settings.media_open": "Ouvrir les médias protégés"
   },
-  "source_catalog_sha256": "148048200cc697886466614d633df36743022cbf83e063433830e78b274e13de",
+  "source_catalog_sha256": "adaa6acb8e4bad0ea826c60fc79212e37bc7450222b7db3cd5d0dea3f18847cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
