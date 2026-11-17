@@ -751,6 +751,71 @@ def arbitrate_meaning(
     )
 
 
+def _lasting_fact_prompt(sentence: str) -> str:
+    """A balanced yes/no: is a sentence said in passing a lasting fact about the person's private life?
+
+    The question is about PRIVATE life on purpose. Asked whether a sentence is "a lasting fact about the person's
+    life", the local model said yes to half of a set of plain work remarks ("the staging database is out of disk",
+    "the client moved the deadline to Friday"; the fix mission's probe of 2026-11-17), and a row written from each
+    of those would fill memory with the day's work."""
+    flat = " ".join(str(sentence or "").split())[:400]
+    return "\n".join([
+        "A person said one sentence to their assistant in passing. They did not ask for it to be remembered.",
+        "Question: does the sentence tell a lasting fact about the person's PRIVATE life?",
+        'Answer {"answer": "yes"} only when it is about their home and belongings and where those are kept or go, '
+        "their family, friends, neighbours or pets, their health and body, what they eat and drink, their habits and "
+        "routines, or a standing arrangement in their personal life, and it will still be true next month. "
+        'It counts even with no "I" or "my" in it.',
+        'Answer {"answer": "no"} when it is about work or a project (code, builds, systems, files, documents, '
+        "drafts, charts, clients, suppliers, deadlines, meetings), about this conversation, about the world at "
+        "large or general knowledge, about today's mood, weather, traffic or a one-off event, or something imagined.",
+        "",
+        'Said: "the spare duvet lives in the top of the hall cupboard." -> {"answer": "yes"}',
+        'Said: "the export job timed out twice on the staging box." -> {"answer": "no"}',
+        'Said: "our neighbour Petra feeds the cat when we are away." -> {"answer": "yes"}',
+        'Said: "that last paragraph reads much better than the first draft." -> {"answer": "no"}',
+        'Said: "the bike with the red frame is Jonas\'s, mine is the grey one." -> {"answer": "yes"}',
+        'Said: "the supplier pushed the delivery date to next week." -> {"answer": "no"}',
+        'Said: "peppermint tea settles me after a long shift." -> {"answer": "yes"}',
+        'Said: "bees can recognise human faces." -> {"answer": "no"}',
+        'Said: "the gate at the allotment sticks unless you lift it." -> {"answer": "yes"}',
+        'Said: "the report template looks fine now." -> {"answer": "no"}',
+        'Said: "ugh, the wifi dropped twice during that call." -> {"answer": "no"}',
+        'Said: "suppose the train were cancelled and we had to drive." -> {"answer": "no"}',
+        "",
+        f'Said: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_lasting_fact(
+    sentence: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a sentence said in passing states a lasting fact about the person's own life: ``"yes"`` / ``"no"``,
+    or None when nothing judged it.
+
+    The keep step keeps what the person states about their life without being asked. Its readers know such a
+    statement by shape ("my ... is ...", "I'm allergic to ..."), and people mention lasting things in any shape
+    ("lavender oil on the pillow eases my hay fever"); the same shapes carry moods, remarks about the task and
+    talk about the world. So for a sentence no shape lists, the loaded local model is asked this one yes/no, like
+    the keep ask (same lane, sealed site, ledger role). None keeps nothing: no fact is written on a guess."""
+    if not str(sentence or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_lasting_fact_prompt(sentence), operation="lasting_fact_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _judgement_role() -> str:
     from core.turn_model_call_ledger import JUDGEMENT_ROLE
 

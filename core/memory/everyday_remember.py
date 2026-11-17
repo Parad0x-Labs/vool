@@ -535,6 +535,58 @@ def stated_facts(text: str) -> list[str]:
     return facts[:3]
 
 
+#: Said about one past occasion or about something imagined: "I lost one stirrup leather last week", "lunch was hours
+#: ago", "if we won the lottery we'd move to the coast". Used only by `unlisted_statements`: the judgement it feeds
+#: read each of these as a lasting fact (the first on the real app, where it wrote a row; the other two in the fix
+#: mission's probe), and a sentence anchored to one past occasion, or opened as a supposition, is not a standing fact
+#: whatever a model says. The shapes `stated_facts` reads keep their own rule (`_MOMENT_RE`).
+_ONE_OCCASION_RE = re.compile(
+    r"\b(?:yesterday|last\s+(?:night|week|weekend|month|year|time|(?:mon|tues|wednes|thurs|fri|satur|sun)day)|"
+    r"the\s+other\s+(?:day|night|week)|\w+\s+ago|earlier\s+(?:on|today)|just\s+(?:now|then)|"
+    r"this\s+(?:week|weekend|month))\b"
+    r"|^\s*(?:if|suppose|supposing|imagine|say|what\s+if)\b",
+    re.IGNORECASE,
+)
+
+
+def unlisted_statements(text: str) -> list[str]:
+    """The sentences of a message that state something and are NOT personal facts by any shape `stated_facts` lists.
+
+    Measured on the real app (an independent question set, the v0.8 line with the keep step): "lavender oil on the
+    pillow eases my hay fever.", "a spoon of blackstrap molasses goes in my evening milk, nothing else." and "the
+    coat with the torn lining goes to the tailor on mill street." were answered with a pleasant remark and no row
+    was written; the later questions about them had nothing to find. No list of shapes covers how people mention
+    such things, so whether one of these sentences is a lasting fact about the person is a judgement, made by the
+    caller (`core.persistent_memory.keep_stated_facts`). This only reads: it returns the sentences that could be
+    one, under the exclusions `stated_facts` already applies (a question, a request, a take-back, a change, pasted
+    material, a made-up frame, a remark about this moment or about files) and one of its own (a sentence about one
+    past occasion or a supposition), at most two of them."""
+    whole = str(text or "")
+    if not whole.strip() or len(whole) > 600 or "\n" in whole.strip():
+        return []
+    try:
+        from core.stipulated_frame import has_stipulated_frame
+
+        if has_stipulated_frame(whole):
+            return []
+    except Exception:
+        return []
+    listed = set(stated_facts(whole))
+    found: list[str] = []
+    for sentence in _SENTENCE_END_RE.split(" ".join(whole.split())):
+        clean = _ASIDE_TAIL_RE.sub("", strip_continuation(sentence)).strip()
+        if not clean or clean in listed or "?" in clean or is_question(clean):
+            continue
+        if _REQUEST_HEAD_RE.match(clean) or _RETRACTION_RE.search(clean) or update_shaped(clean):
+            continue
+        if not 4 <= len(clean.split()) <= 40 or _MOMENT_RE.search(clean) or _FILE_PLACE_RE.search(clean):
+            continue
+        if _ONE_OCCASION_RE.search(clean):
+            continue
+        found.append(clean)
+    return found[:2]
+
+
 #: What a capture's object is when it only points back at something said before: "keep IT for me", "save THAT".
 _POINTER_ONLY_RE = re.compile(
     r"^(?:it|that|this|them|those|these)\b(?:\s+(?:all|one|too|for\s+me|for\s+later|safe|somewhere(?:\s+safe)?|in\s+mind|"

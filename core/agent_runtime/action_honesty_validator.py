@@ -2089,6 +2089,12 @@ def enforce_final_action_honesty(
         claim_kind = "deliverable"
     if _location_answer_has_verified_past_receipt(output, session_id=session_id, source_context=source_context):
         return output
+    if claim_kind == "persistence" and _keep_step_wrote(source_context):
+        # The turn's keep step wrote a fact before the model answered (core.memory.keep_receipt): "I've noted
+        # that" is then true, and the reply already ends with what was saved. Served on the real app before this
+        # check, such a reply was replaced by "I did not write anything to memory ..." and the same reply ended
+        # 'Saved to memory: "I lost one stirrup leather last week".'
+        return output
 
     output["response"] = {
         "deliverable": _HONEST_NO_DELIVERABLE_RESPONSE,
@@ -2106,6 +2112,17 @@ def enforce_final_action_honesty(
     output["route_reason"] = "false_action_claim_blocked"
     output["web_calls"] = int(output.get("web_calls") or 0)
     return output
+
+
+def _keep_step_wrote(source_context: dict[str, object] | None) -> bool:
+    """Whether this turn's keep receipt names a write: a saved fact, or one written that may not be shown."""
+    try:
+        from core.memory.keep_receipt import receipt_for
+
+        receipt = receipt_for(source_context) or {}
+        return bool(receipt.get("saved") or receipt.get("withheld"))
+    except Exception:
+        return False
 
 
 def _final_claim_kind(

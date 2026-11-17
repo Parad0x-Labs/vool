@@ -185,7 +185,8 @@
     "revalued_entry": "transform",
     "row_list_subject": "transform",
     "stated_facts": "transform",
-    "typed_values": "transform"
+    "typed_values": "transform",
+    "unlisted_statements": "transform"
   },
   "core/memory/files.py": {
     "memory_path": "configuration",

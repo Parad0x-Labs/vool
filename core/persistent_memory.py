@@ -2975,6 +2975,53 @@ def _profile_keeps(statement: str) -> bool:
         return False
 
 
+def _names_a_secrets_label(said: str) -> bool:
+    """Whether a sentence names a kind of secret by one of the labels the secret reader itself reads (password,
+    passcode, PIN, token, ...), whatever follows the label.
+
+    The secret reader knows a secret by label AND shape ("password is <x>", "PIN: 4471"). A sentence said in passing
+    carries the label in any shape ("the film club login wants the password <x> these days"), which that reader
+    does not take for a secret; measured in this function's own tests, the judged keep would have stored it. This
+    path is new and must never keep more secrets than the paths before it, so a sentence that names such a label is
+    not this path's at all. What counts as a secret is unchanged: the labels are the secret reader's own."""
+    try:
+        from core import secret_redaction as secrets_reader
+
+        labels = "|".join((secrets_reader._SECRET_LABEL, secrets_reader._PIN_LABEL, secrets_reader._WORD_VALUE_LABEL))
+        return bool(re.search(r"(?<![A-Za-z0-9])(?:" + labels + r")s?(?![A-Za-z0-9])", said, re.IGNORECASE))
+    except Exception:
+        return True  # a reader that cannot be read keeps nothing
+
+
+def _judged_lasting_facts(
+    statements: list[str], *, session_id: str | None, source_context: Mapping[str, Any] | None = None
+) -> list[str]:
+    """Of the sentences no shape lists as a personal fact, those the loaded local model judges to be a lasting fact
+    about the person's own life (`core.intent_arbiter.arbitrate_lasting_fact`).
+
+    Called only past the keep step's trust gate (the owner's own turn, outside a private chat, memory on). A
+    sentence that holds a secret, or names a kind of secret, is never sent to the judge and is not kept. No judge,
+    a failed call or an unreadable answer keeps nothing: a fact is not written on a guess, and a reply that then
+    claims a save is corrected against the turn's receipt."""
+    kept: list[str] = []
+    for said in statements:
+        try:
+            from core.intent_arbiter import arbitrate_lasting_fact
+            from core.secret_redaction import contains_secret
+
+            if contains_secret(said) or _names_a_secrets_label(said):
+                continue
+
+            verdict = arbitrate_lasting_fact(
+                said, chat_id=str(session_id or ""), source_context=dict(source_context or {})
+            )
+        except Exception:
+            verdict = None
+        if verdict == "yes":
+            kept.append(said)
+    return kept
+
+
 def keep_stated_facts(
     text: str,
     *,
@@ -2999,10 +3046,13 @@ def keep_stated_facts(
     # one store. On the step 2 commit (05ebbcae) "my name is Noor" was written to the profile AND as a memory row,
     # so a whole erase counted four entries where three were saved.
     facts = [fact for fact in everyday.stated_facts(clean) if not _profile_keeps(fact)]
+    # Sentences no shape lists as a personal fact: whether one is a lasting fact about the person is judged below,
+    # after the trust gate, never before it.
+    unlisted = [said for said in everyday.unlisted_statements(clean) if not _profile_keeps(said)]
     # A restore said beside a question ("... my old rating is live again - what's my rating?") is put back here,
     # before the model answers from the saved value.
     may_restore = bool(_statement_part(clean)) and everyday.may_restore(_statement_part(clean))
-    if not facts and not may_restore:
+    if not facts and not may_restore and not unlisted:
         return 0
     try:
         policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
@@ -3019,6 +3069,7 @@ def keep_stated_facts(
         if facts:
             keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return 0
+    facts = [*facts, *_judged_lasting_facts(unlisted, session_id=policy.chat_id, source_context=source_context)]
     added = 0
     if may_restore:
         try:
