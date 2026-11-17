@@ -1,7 +1,7 @@
 import {errorText, rightToLeft, tr} from "../i18n/index.ts";
 import {chatUpdatedText, messageTimeText, stepTimeText} from "../i18n/time.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import PhoneAbilities from "./PhoneAbilities.tsx";
 import FromComputer from "./FromComputer.tsx";
 import Header from "../ui/Header.tsx";
@@ -12,6 +12,8 @@ import Gears from "../ui/Gears.tsx";
 import Face from "../ui/Face.tsx";
 import {C, R} from "../ui/theme.ts";
 import {LIST_PANE, THREAD_WIDTH, useWide} from "../ui/wide.ts";
+import SwipeRow from "../ui/SwipeRow.tsx";
+import Sheet from "../ui/Sheet.tsx";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, ChatSummary } from "../protocol/models.ts";
@@ -62,6 +64,12 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   const [timeShown, setTimeShown] = useState<number | null>(null);
   const [proof, setProof] = useState("");
   const [filesKey, setFilesKey] = useState(0);
+  // Managing chats: the archived list, the hold menu, renaming, and the short Undo after an archive.
+  const [showArchived, setShowArchived] = useState(false);
+  const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
+  const [renaming, setRenaming] = useState<ChatSummary | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [undo, setUndo] = useState<{chat: ChatSummary; text: string} | null>(null);
   const hadHistory = useRef(false);
   const activeRef = useRef(activeChat);
   activeRef.current = activeChat;
@@ -181,6 +189,52 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
     setMessages([]); setProof(""); setTimeShown(null); setAbilityNote("");
   }, []);
 
+  // Changes show at once; if the computer refuses, the list goes back and says so.
+  const patchChat = useCallback((chatId: string, patch: Partial<ChatSummary> | null) => {
+    setChats(previous => previous && (patch ? previous.map(chat => chat.chat_id === chatId ? {...chat, ...patch} : chat)
+      : previous.filter(chat => chat.chat_id !== chatId)));
+  }, []);
+  const setArchived = useCallback(async (chat: ChatSummary, on: boolean, offerUndo = true) => {
+    patchChat(chat.chat_id, {archived: on});
+    if (activeRef.current === chat.chat_id && on) {setActiveChat(null); activeRef.current = null;}
+    if (offerUndo) setUndo({chat, text: on ? tr("Chat archived.") : tr("Chat restored.")});
+    try {await client.archiveChat(chat.chat_id, on);}
+    catch (exc) {
+      patchChat(chat.chat_id, {archived: !on}); setUndo(null);
+      if (!guard(exc)) setNotice(tr("Could not change this chat. Check your computer."));
+    }
+  }, [client, guard, patchChat]);
+  const rename = useCallback(async () => {
+    const chat = renaming; const title = newTitle.replace(/\s+/g, " ").trim();
+    setRenaming(null);
+    if (!chat || !title || title === chat.title) return;
+    patchChat(chat.chat_id, {title});
+    try {await client.renameChat(chat.chat_id, title);}
+    catch (exc) {
+      patchChat(chat.chat_id, {title: chat.title});
+      if (!guard(exc)) setNotice(tr("Could not change this chat. Check your computer."));
+    }
+  }, [client, guard, newTitle, patchChat, renaming]);
+  const remove = useCallback((chat: ChatSummary) => {
+    Alert.alert(tr("Delete this chat?"), tr("It is deleted on your computer too, with everything VOOL kept from it. This can't be undone."), [
+      {text: tr("Cancel"), style: "cancel"},
+      {text: tr("Delete"), style: "destructive", onPress: () => void (async () => {
+        try {
+          await client.deleteChat(chat.chat_id);
+          patchChat(chat.chat_id, null);
+          if (activeRef.current === chat.chat_id) {setActiveChat(null); activeRef.current = null;}
+        } catch (exc) {
+          if (!guard(exc)) setNotice(tr("Could not change this chat. Check your computer."));
+        }
+      })()},
+    ]);
+  }, [client, guard, patchChat]);
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), 5000);
+    return () => clearTimeout(timer);
+  }, [undo]);
+
   const pickSeq = pick?.seq;
   useEffect(() => {
     if (!pick) return;
@@ -207,9 +261,12 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
     }
   }, [activeChat, attachmentIds, draft, guard, outbox]);
 
+  const archivedCount = (chats || []).filter(chat => chat.archived).length;
+  const shown = (chats || []).filter(chat => !!chat.archived === showArchived);
   const listView = (
       <View style={styles.screen}>
-        <Header title={tr("Chats")} onLink={onLink} onCamera={onCamera} onVault={onVault} />
+        {showArchived ? <Header title={tr("Archived")} onBack={() => setShowArchived(false)} onLink={onLink} />
+          : <Header title={tr("Chats")} onLink={onLink} onCamera={onCamera} onVault={onVault} />}
         <ScrollView style={styles.fill} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
           {(chats?.length || search) ? <View style={styles.search}>
             <Icon name="magnify" size={20} color={C.mute} />
@@ -220,7 +277,8 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
           {queued.length ? <Text style={styles.note}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
           <FromComputer client={client} refreshKey={filesKey} />
           {chats === null && !notice ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
-          {chats?.length === 0 && !search && !notice ? <View style={styles.empty}>
+          {showArchived && !shown.length && chats !== null ? <Text style={styles.note}>{tr("No archived chats.")}</Text> : null}
+          {!showArchived && shown.length === 0 && !search && !notice && chats !== null ? <View style={styles.empty}>
             <Face size={104} />
             <Text style={styles.emptyTitle}>{tr("What can I help with?")}</Text>
             <View style={styles.starters}>
@@ -232,8 +290,11 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
               </Pressable>)}
             </View>
           </View> : null}
-          {(chats || []).map((chat) => (
-            <Pressable key={chat.chat_id} style={styles.chatRow} android_ripple={{color: C.ripple}} onPress={() => void openChat(chat.chat_id)} accessibilityRole="button">
+          {shown.map((chat) => (
+            <SwipeRow key={chat.chat_id} label={showArchived ? tr("Restore") : tr("Archive")} icon={showArchived ? "archive-arrow-up-outline" : "archive-arrow-down-outline"}
+              onSwipe={() => void setArchived(chat, !showArchived)}>
+            <Pressable style={styles.chatRow} android_ripple={{color: C.ripple}} onPress={() => void openChat(chat.chat_id)}
+              onLongPress={() => setMenuFor(chat)} delayLongPress={350} accessibilityRole="button">
               <View style={styles.chatMark}><Text style={styles.chatLetter}>{Array.from((chat.title || tr("New chat")).trim())[0]?.toLocaleUpperCase() || "•"}</Text></View>
               <View style={styles.fill}>
                 <Text style={[styles.chatTitle, twoPane && chat.chat_id === activeChat && styles.chatTitleOn]} numberOfLines={1}>
@@ -244,12 +305,45 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
                 </Text>
               </View>
             </Pressable>
+            </SwipeRow>
           ))}
+          {!showArchived && archivedCount > 0 ? <Pressable style={styles.archivedRow} android_ripple={{color: C.ripple}} onPress={() => setShowArchived(true)} accessibilityRole="button">
+            <Icon name="archive-outline" size={20} color={C.mute} />
+            <Text style={styles.archivedText}>{tr("Archived ({count})", {count: archivedCount})}</Text>
+            <Icon name={rightToLeft() ? "chevron-left" : "chevron-right"} size={20} color={C.mute} />
+          </Pressable> : null}
         </ScrollView>
-        <Pressable style={styles.newChat} android_ripple={{color: C.rippleDark}} onPress={newChat} accessibilityRole="button">
+        {undo ? <View style={styles.undoBar}>
+          <Text style={styles.undoText} numberOfLines={1}>{undo.text}</Text>
+          <Pressable onPress={() => {const last = undo; setUndo(null); void setArchived(last.chat, !!last.chat.archived, false);}} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.undoAction}>{tr("Undo")}</Text>
+          </Pressable>
+        </View> : null}
+        <Sheet open={menuFor !== null} onClose={() => setMenuFor(null)} actions={menuFor ? [
+          {key: "rename", label: tr("Rename"), icon: "pencil-outline", onPress: () => {setNewTitle(menuFor.title || ""); setRenaming(menuFor);}},
+          menuFor.archived
+            ? {key: "restore", label: tr("Restore"), icon: "archive-arrow-up-outline", onPress: () => void setArchived(menuFor, false)}
+            : {key: "archive", label: tr("Archive"), icon: "archive-arrow-down-outline", onPress: () => void setArchived(menuFor, true)},
+          {key: "delete", label: tr("Delete"), icon: "trash-can-outline", onPress: () => remove(menuFor)},
+        ] : []} />
+        <Modal visible={renaming !== null} transparent animationType="fade" onRequestClose={() => setRenaming(null)} statusBarTranslucent>
+          <View style={styles.dialogScrim}>
+            <View style={styles.dialog}>
+              <Text style={styles.dialogTitle}>{tr("Rename chat")}</Text>
+              <TextInput style={styles.dialogInput} value={newTitle} onChangeText={setNewTitle} autoFocus maxLength={200}
+                selectTextOnFocus returnKeyType="done" onSubmitEditing={() => void rename()} placeholderTextColor={C.mute} />
+              <View style={styles.dialogRow}>
+                <Pressable style={styles.chip} onPress={() => setRenaming(null)}><Text style={styles.chipText}>{tr("Cancel")}</Text></Pressable>
+                <Pressable style={[styles.chip, styles.chipMain]} onPress={() => void rename()} disabled={!newTitle.trim()}>
+                  <Text style={[styles.chipText, styles.chipMainText]}>{tr("Save")}</Text></Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        {showArchived ? null : <Pressable style={styles.newChat} android_ripple={{color: C.rippleDark}} onPress={newChat} accessibilityRole="button">
           <Icon name="plus" size={20} color={C.sendInk} />
           <Text style={styles.newChatText}>{tr("New chat")}</Text>
-        </Pressable>
+        </Pressable>}
       </View>
   );
 
@@ -397,6 +491,19 @@ const styles = StyleSheet.create({
   starterText: { flex: 1, color: C.ink, fontSize: 15, lineHeight: 20 },
   chatTitle: { color: C.ink, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 },
   chatTitleOn: { color: C.acc },
+  archivedRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingVertical: 12, overflow: "hidden" },
+  archivedText: { flex: 1, color: C.soft, fontSize: 15, fontWeight: "500" },
+  undoBar: { position: "absolute", left: 16, right: 16, bottom: 84, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.raised,
+    borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 16, minHeight: 52, elevation: 6 },
+  undoText: { flex: 1, color: C.ink, fontSize: 14 },
+  undoAction: { color: C.acc, fontSize: 15, fontWeight: "700" },
+  dialogScrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24 },
+  dialog: { width: "100%", maxWidth: 420, backgroundColor: C.panel, borderRadius: 22, padding: 20, gap: 14 },
+  dialogTitle: { color: C.ink, fontSize: 18, fontWeight: "700" },
+  dialogInput: { color: C.ink, fontSize: 16, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 14, height: 50 },
+  dialogRow: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
+  chipMain: { backgroundColor: C.send, borderColor: C.send },
+  chipMainText: { color: C.sendInk },
   panes: { flexDirection: "row" },
   listPane: { width: LIST_PANE, borderEndWidth: 1, borderEndColor: C.line },
   pickChat: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },

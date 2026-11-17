@@ -285,6 +285,17 @@ export class MobileCompanionClient {
     return this.request("chats.cancel", {idempotency_key: key});
   }
 
+  /** Renames, archives or restores, or deletes one chat, under the computer's own rules for its chats. */
+  renameChat(chatId: string, title: string): Promise<{ok: boolean}> {
+    return this.request("chats.rename", {chat_id: chatId, title});
+  }
+  archiveChat(chatId: string, on: boolean): Promise<{ok: boolean}> {
+    return this.request("chats.archive", {chat_id: chatId, on});
+  }
+  deleteChat(chatId: string): Promise<{ok: boolean; deleted?: boolean}> {
+    return this.request("chats.delete", {chat_id: chatId});
+  }
+
   attachmentLimits(): Promise<Record<string, unknown>> {
     return this.request<Record<string, unknown>>("attachments.limits");
   }
