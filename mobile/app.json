@@ -129,7 +129,8 @@
         }
       ],
       "./plugins/withoutGoogleReporting.cjs",
-      "./plugins/withAppleKeyboardOnly.cjs"
+      "./plugins/withAppleKeyboardOnly.cjs",
+      "./plugins/withFmtForNewXcode.cjs"
     ]
   }
 }
