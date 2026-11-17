@@ -24,6 +24,7 @@ public class VoolCaptureModule: Module {
 
     OnCreate {
       CaptureStore.onStored = { [weak self] note in self?.sendEvent("onStored", note) }
+      CaptureCompression.install()
       CaptureStore.resume()
     }
 
@@ -70,10 +71,10 @@ public class VoolCaptureModule: Module {
     /// On while captures are being sent: iOS gives VOOL a little time to finish when it leaves the screen.
     Function("keepSending") { (on: Bool, _: String) -> Bool in self.keepSending(on) }
 
-    // Smaller files: not on iPhone yet (the app hides the setting when these answer "").
-    Function("getCompressionSettings") { "" }
-    Function("setCompressionSettings") { (_: String) in "" }
-    Function("getCompressionCapabilities") { "" }
+    // Smaller files: optional compression before a capture is sealed (off by default).
+    Function("getCompressionSettings") { CaptureCompression.getJson() }
+    Function("setCompressionSettings") { (json: String) in CaptureCompression.setJson(json) }
+    Function("getCompressionCapabilities") { CaptureCompression.capabilitiesJson() }
 
     AsyncFunction("list") { (promise: Promise) in self.off(promise, "ERR_CAPTURE_LIST") { CaptureStore.list().map { $0.map } } }
     AsyncFunction("readFrom") { (id: String, offset: Double, promise: Promise) in

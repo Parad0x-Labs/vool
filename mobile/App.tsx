@@ -234,7 +234,7 @@ function Root() {
 
 /** The optional smaller files, as a card in the camera's own settings. */
 function SmallerFiles() {
-  // Shown only where this build can make smaller files (not on iPhone yet).
+  // Shown only where this build can make smaller files.
   return capture?.getCompressionSettings() ? <SettingsCard icon="archive-arrow-down-outline" title={tr("Smaller files")}><CompressionSettings /></SettingsCard> : null;
 }
 
