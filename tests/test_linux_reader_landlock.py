@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -357,10 +358,20 @@ def test_a_decoder_cannot_take_more_memory_than_its_ceiling(landlock):
 def test_the_scratch_quota_and_output_caps_still_hold(landlock):
     with _sandbox.Scratch("vool-test-") as scratch, _sandbox.extraction_budget(scratch=scratch.path, seconds=60) as budget:
         budget.quota_bytes = 4096
-        with pytest.raises(ReaderRefused) as quota:
-            _sandbox.run_confined(["/bin/sh", "-c", 'exec 1>&- 2>&-; /bin/dd if=/dev/zero of="$1/big" bs=8192 count=1; /bin/sleep 5',
-                                   "sh", str(scratch.path)], scratch=scratch.path, timeout=30)
-    assert quota.value.code == "scratch_quota_exceeded"
+        # The budget measures this test's own scratch (a budget left open elsewhere would be reused).
+        assert budget.scratch == scratch.path, (budget.scratch, scratch.path)
+        started = time.monotonic()
+        try:
+            ran = _sandbox.run_confined(["/bin/sh", "-c", 'exec 1>&- 2>&-; /bin/dd if=/dev/zero of="$1/big" bs=8192 count=1; /bin/sleep 5',
+                                         "sh", str(scratch.path)], scratch=scratch.path, timeout=30)
+        except ReaderRefused as refused:
+            quota = refused
+        else:
+            big = scratch.path / "big"
+            pytest.fail(f"not refused: returncode={ran.returncode} after {time.monotonic() - started:.2f}s, "
+                        f"big={'%d bytes' % big.stat().st_size if big.exists() else 'not written'}, "
+                        f"scratch bytes={_sandbox._directory_bytes(scratch.path)}")
+    assert quota.code == "scratch_quota_exceeded"
     with _sandbox.Scratch("vool-test-") as scratch, pytest.raises(ReaderRefused) as flood:
         _sandbox.run_confined(["/usr/bin/yes", "flood"], scratch=scratch.path, max_stdout=256 * 1024, timeout=30)
     assert flood.value.code == "decoder_output_too_large"
