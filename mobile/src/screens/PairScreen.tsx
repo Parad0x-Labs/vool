@@ -46,6 +46,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   const [scanned, setScanned] = useState(false);
   const [manual, setManual] = useState(false);
   const [slow, setSlow] = useState(false);
+  // Pairing went the long way (the private route), so the wait can be long.
+  const [goingAway, setGoingAway] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const store = useMemo(() => credentialStoreForEnvironment(false), []);
   const handledLinkRef = useRef<string | null>(null);
@@ -95,12 +97,16 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       return;
     }
     setBusy(true);
+    setGoingAway(false);
     let approvalAlias: string | null = null;
     try {
       // 1. Fetch the server-held challenge (also pins the desktop identity
       //    for the manual-entry path, where no QR fingerprint was scanned).
       //    Away from home the pairing code's away address is used, so pairing works anywhere.
-      const reached = await reachForPairing(base, awayAddress, pairingId.trim());
+      // On iPhone and iPad the first try at the home network fails while the system asks whether VOOL
+      // may find devices on it, so home is tried again for a while before the long way.
+      const reached = await reachForPairing(base, awayAddress, pairingId.trim(), undefined,
+        {homePatienceMs: Platform.OS === "ios" ? 30_000 : 0, onAway: () => setGoingAway(true)});
       const challenge = reached.challenge;
       // 2. The phone's identity: generated once, seed stays in the keystore.
       const keypair = generateDeviceKeypair();
@@ -126,7 +132,10 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     } catch (exc) {
       if (approvalAlias) await deleteApprovalKey(approvalAlias).catch(() => {});
       setScanned(false);
-      setError(errorText(exc));
+      // No answer at all while pairing: the usual cause is another Wi-Fi, so say that.
+      const said = errorText(exc);
+      setError(said === tr("Can't reach your computer. Check that it is on and VOOL is open.")
+        ? tr("Your computer did not answer. Check that this device is on the same Wi-Fi as your computer, then scan again.") : said);
     } finally {
       setBusy(false);
     }
@@ -178,7 +187,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   if (connecting) return <Frame style={styles.connecting}>
     <ActivityIndicator color={C.ink} size="large" />
     <Text style={styles.connectingText}>{tr("Connecting to your computer…")}</Text>
-    {slow && awayAddress ? <Text style={styles.connectingHint}>{tr("Looking for your computer, at home and away. Away from home this can take a minute.")}</Text> : null}
+    {Platform.OS === "ios" && !goingAway ? <Text style={styles.connectingHint}>{tr("If VOOL asks to find devices on your network, tap Allow. That is how it reaches your computer on your Wi-Fi.")}</Text> : null}
+    {slow && awayAddress && (Platform.OS !== "ios" || goingAway) ? <Text style={styles.connectingHint}>{tr("Looking for your computer, at home and away. Away from home this can take a minute.")}</Text> : null}
   </Frame>;
 
   return (

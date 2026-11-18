@@ -111,6 +111,33 @@ describe("pairing from anywhere", () => {
     expect(ready).not.toHaveBeenCalled();
   });
 
+  it("keeps trying home while the device asks for network access, then pairs at home", async () => {
+    const ready = jest.fn(async () => {});
+    const onAway = jest.fn();
+    setPrivateRoute({fetch: async () => {throw new Error("unused");}, ready, stop() {}});
+    let tries = 0;
+    const reached = await reachForPairing(HOME, HIDDEN, "p", async () => {
+      tries += 1;
+      if (tries < 3) throw new TypeError("Network request failed");
+      return {status: 200, json: async () => challenge};
+    }, {homePatienceMs: 5000, retryEveryMs: 1, onAway});
+    expect(reached.base).toBe(HOME);
+    expect(tries).toBe(3);
+    expect(ready).not.toHaveBeenCalled();
+    expect(onAway).not.toHaveBeenCalled();
+  });
+
+  it("says when it goes the long way after home stays silent", async () => {
+    const onAway = jest.fn();
+    setPrivateRoute({fetch: async () => {throw new Error("unused");}, ready: async () => {}, stop() {}});
+    const reached = await reachForPairing(HOME, HIDDEN, "p", async url => {
+      if (!url.startsWith(HIDDEN)) throw new TypeError("Network request failed");
+      return {status: 200, json: async () => challenge};
+    }, {homePatienceMs: 20, retryEveryMs: 1, onAway});
+    expect(reached.base).toBe(HIDDEN);
+    expect(onAway).toHaveBeenCalledTimes(1);
+  });
+
   it("fails plainly without an away address", async () => {
     await expect(reachForPairing(HOME, "", "p", async () => {throw new TypeError("Network request failed");})).rejects.toThrow("Network request failed");
   });
