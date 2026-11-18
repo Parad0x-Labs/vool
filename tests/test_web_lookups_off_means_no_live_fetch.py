@@ -284,6 +284,7 @@ def test_with_x_connected_an_ask_about_an_x_account_is_never_searched_on_the_web
     on, sent it to three search engines; X was never asked. It is the X tools' to read. Every fetch
     is counted at the one outbound door, where every search engine and price index passes."""
     from core import remote_fetch_policy, x_api
+    from tools.web import web_research
 
     def _searched(asks: list[str], *, connected: bool, chat: str) -> tuple[dict[str, dict], list[str]]:
         door: list[str] = []
@@ -292,8 +293,16 @@ def test_with_x_connected_an_ask_about_an_x_account_is_never_searched_on_the_web
             door.append(str(getattr(request, "full_url", request)))
             raise OSError("network is not reachable in this test")
 
+        def _browser(query, *args, **kwargs):
+            # The browser search engine drives a real browser, not the fetch door: where a browser and
+            # the network exist (the CI runner) it searched for real and only the result pages it chose
+            # came through the door (CI #697/#699). It is counted here as one more search.
+            door.append("browser-search:" + str(query))
+            return []
+
         with mock.patch.object(x_api, "connected", return_value=connected), \
-                mock.patch.object(remote_fetch_policy, "_open_enforced", _record):
+                mock.patch.object(remote_fetch_policy, "_open_enforced", _record), \
+                mock.patch.object(web_research, "_browser_search_hits", _browser):
             answers, _public = _ask_all(asks, web_on=True, chat=chat)
         return answers, door
 
