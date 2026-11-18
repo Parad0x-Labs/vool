@@ -338,6 +338,10 @@ def _prime_chat(daemon, tab, session_id):
         45,
         "greeting turn's slot never freed server-side",
     )
+    # The page's post-turn queue pump holds the chat across its claim round-trip; a send inside that
+    # window is queued by design. On a slow runner it was still open when the next message was sent,
+    # so that message went through chat X's queue (CI #717). The starting point waits it out.
+    _wait_for(lambda: tab.evaluate("(id) => !isChatBusy(id)", session_id), 20, "the page's queue pump never let go")
 
 
 def _history(daemon, session_id):
@@ -493,6 +497,7 @@ def test_a_different_chat_is_never_blocked_by_the_first(two_tabs):
         return [call for call in provider.generation_calls() if message in str(call.get("text") or "")]
 
     _prime_chat(daemon, tab_a, session_id)
+    _wait_for(lambda: tab_b.evaluate("(id) => !isChatBusy(id)", session_id), 20, "tab B's queue pump never let go")
     tab_a.locator("#input").fill(M1)
     tab_a.locator("#send").click()
     _wait_for(lambda: len(calls_for(M1)) >= 1, 30, "chat X's turn never reached the provider")
