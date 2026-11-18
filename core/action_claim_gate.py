@@ -392,7 +392,13 @@ def _claim_form(sentence: str) -> str:
 
 def _sources_of(sentence: str, form: str) -> list[str]:
     found = [name for name, words in _SOURCES if words.search(sentence)]
-    if "memory" in found and len(found) > 1:
+    if "memory" in found and (len(found) > 1 or form == "read"):
+        # The memory source is a promise to KEEP something, said with no tool. A sentence in the read form that
+        # holds one of its words ("I don't have that saved, and I looked through your other chats ...") promises
+        # nothing: it says what was looked for and not found. Measured on base 94ce6169 at function level and on
+        # the served fb46ab5c (r6 t29 turn 2): the model repeated that sentence of the recall lane's from the turn
+        # before, it was cut as a memory claim nothing backs, and "Nothing was saved: no tool stored it." was put
+        # under a reply that claimed no save.
         found.remove("memory")
     if not found and form == "read" and _FREE_SLOT.search(_LEAD_FILLER.sub("", sentence).strip()):
         found = ["calendar"]

@@ -291,10 +291,41 @@ def test_a_sentence_that_says_vool_looked_is_not_a_save_claim() -> None:
     assert "Nothing from this message was saved to memory" not in published, record
     assert record.get("memory_receipt") != "claims_without_receipt_corrected", record
     assert published == _gate(reply, None)[0]
+    # And the ordinary check does not answer it with a line about saving either: it promises to keep nothing.
+    # Measured on base 94ce6169 at function level and on the served fb46ab5c (r6 t29 turn 2), the reply came out as
+    # "If you tell me, I'll remember it for every chat.\n\nNothing was saved: no tool stored it. ...".
+    assert published == reply, record
     # A done-form claim beside it is still held to the receipt.
     published, record = _gate(reply + " I've saved your question for later.", NOTHING_KEPT)
     assert record["memory_receipt"] == "claims_without_receipt_corrected", record
     assert "I've saved your question" not in published and "Nothing from this message was saved to memory" in published
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I looked through what I have saved and there is nothing about a dentist.",
+        "I went through everything I remember about the allotment and no plot number is in it.",
+        "I checked my memory and your other chats, and the rent day isn't mentioned.",
+    ],
+)
+def test_saying_it_looked_in_memory_promises_to_keep_nothing(reply: str) -> None:
+    for receipt in (NOTHING_KEPT, None):
+        published, record = _gate(reply, receipt)
+        assert published == reply, record
+
+
+@pytest.mark.parametrize(
+    ("reply", "gone"),
+    [
+        ("I looked and then I saved it for you.", "saved it"),
+        ("I checked your calendar and Friday afternoon is free.", "Friday afternoon is free"),
+        ("I've stored that for later.", "stored"),
+    ],
+)
+def test_a_save_or_another_sources_read_with_nothing_behind_it_is_still_corrected(reply: str, gone: str) -> None:
+    published, record = _gate(reply, NOTHING_KEPT)
+    assert published != reply and gone not in published, record
 
 
 def test_a_turn_the_keep_step_never_saw_is_judged_as_before() -> None:
