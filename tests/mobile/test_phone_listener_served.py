@@ -5,6 +5,7 @@ import json
 import socket
 import threading
 import time
+from contextlib import suppress
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -112,6 +113,11 @@ def process_desktop(home):
                 process.wait(timeout=10)
             (home / "process.json").write_text(json.dumps({"pid": process.pid, "desktop_port": desktop_port,
                                                            "phone_port": phone_port, "exit": process.returncode}))
+            # The daemon's own lines about the phone socket, shown with a failing test's teardown output: a
+            # dropped phone request on CI (#716) left nothing to read once the temporary home was gone.
+            with suppress(OSError):
+                lines = (home / "daemon.log").read_text(errors="replace").splitlines()
+                print("\n".join(line for line in lines if "phone listener" in line or "Traceback" in line)[-4000:])
 
 
 def test_fresh_off_and_upgrade_ignore_legacy_bind(desktop, monkeypatch):
