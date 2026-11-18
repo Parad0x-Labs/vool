@@ -209,7 +209,7 @@ object VaultStreams {
     context.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
   }
 
-  /** Saves a copy into the phone's own Pictures, Movies or Music (folder "VOOL"), where the gallery sees it. */
+  /** Saves a copy into the phone's own Pictures, Movies or Music (folder "VOOL"), where the gallery sees it. Answers "folder|link". */
   fun save(context: Context, id: String, name: String): String {
     val stream = streams[id] ?: throw IllegalStateException("closed")
     val file = plainCopy(context, id, name)
@@ -231,7 +231,8 @@ object VaultStreams {
       resolver.openOutputStream(target)!!.use { out -> file.inputStream().use { it.copyTo(out) } }
       values.clear(); values.put(MediaStore.MediaColumns.IS_PENDING, 0)
       resolver.update(target, values, null, null)
-      return "$folder/VOOL"
+      // Where it went, and the gallery's own link to it so the phone can open it there.
+      return "$folder/VOOL|$target"
     } finally {
       wipe(file)
     }

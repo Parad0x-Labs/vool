@@ -13,10 +13,24 @@ export function language() {return locale;}
 export function rightToLeft() {return locale === "ar" || locale === "he";}
 export function subscribeLanguage(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};}
 export function setLanguage(value: string) {locale = resolveLanguage(value); for (const listener of listeners) listener();}
+// A tablet is not called a phone. English only for now: other languages still say phone.
+let tablet = false;
+export function setTablet(value: boolean) {tablet = value;}
+// Names of the computer's own buttons and pages keep their word, so the steps still match the screen there.
+const COMPUTER_NAMES = ["Phone and chat apps", "Pair a phone"];
+function deviceWord(text: string): string {
+  if (!tablet || locale !== "en") return text;
+  const kept = COMPUTER_NAMES.filter(name => text.includes(name));
+  let out = text;
+  kept.forEach((name, index) => {out = out.split(name).join("\u0000" + index + "\u0000");});
+  out = out.replace(/\bphone(s?)\b/g, "tablet$1").replace(/\bPhone(s?)\b/g, "Tablet$1");
+  kept.forEach((name, index) => {out = out.split("\u0000" + index + "\u0000").join(name);});
+  return out;
+}
 export function tr(source: string, values: Record<string, string | number> = {}): string {
   const key = Object.prototype.hasOwnProperty.call(sourceIndex, source) ? (sourceIndex as Record<string, string>)[source] : undefined;
   const catalog = (messages as Record<string, Record<string, string>>)[locale] || messages.en;
-  const text = key ? catalog[key] || (messages.en as Record<string, string>)[key] || source : source;
+  const text = deviceWord(key ? catalog[key] || (messages.en as Record<string, string>)[key] || source : source);
   return text.replace(/\{(\w+)\}/g, (whole, name) => !Object.prototype.hasOwnProperty.call(values, name) ? whole : String(values[name]));
 }
 
@@ -26,7 +40,7 @@ export function errorText(value: unknown): string {
   if (Object.prototype.hasOwnProperty.call(sourceIndex, message)) return tr(message);
   if (error?.code === "device_revoked") return tr("This phone is unpaired. Pair it again on your computer.");
   if (error?.code === "sealed_response_invalid" || error?.code === "sealed_authentication_failed") return tr("The computer’s identity could not be verified. Check it before pairing again.");
-  if (error?.code === "phone_right_off_or_expired" || error?.code === "phone_history_required") return tr("Change this phone’s permissions on your computer.");
+  if (error?.code === "phone_right_off_or_expired" || error?.code === "phone_history_required") return tr("On your computer, open Settings, then Phone and chat apps, choose what this phone may do and press Done.");
   if (error?.code === "pairing_expired" || error?.code === "pairing_code_expired") return tr("This pairing QR has expired — start a new pairing on the computer.");
   if (error?.code === "pairing_used" || error?.code === "pairing_unknown" || error?.code === "pairing_locked" || error?.code === "pairing_unavailable") return tr("This pairing code no longer works. Start a new pairing on the computer.");
   if (error?.code === "phone_access_off") return tr("Phone access is off on your computer. Switch it on in Settings there.");

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {ActivityIndicator, BackHandler, FlatList, Image, Pressable, StyleSheet, Text, useWindowDimensions, View} from "react-native";
+import {ActivityIndicator, BackHandler, FlatList, Image, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View} from "react-native";
 import {useScreenGuard} from "../security/screenRecording.ts";
 
 import type {MobileCompanionClient} from "../protocol/client.ts";
@@ -27,6 +27,24 @@ const COLUMNS: Record<Size, number> = {small: 4, medium: 3, large: 2};
 const CARD: Record<Size, number> = {small: 96, medium: 128, large: 190};
 const SIZE_ICON: Record<Size, IconName> = {small: "view-comfy-outline", medium: "view-grid-outline", large: "view-agenda-outline"};
 const kindLabel = (kind: Kind) => ({photo: tr("Photos"), video: tr("Videos"), audio: tr("Sound")})[kind];
+/** Where a saved copy went, in words, and the link that opens it there. The phone answers "place" or "place|link". */
+function savedPlace(answer: string, count = 0): {text: string; link: string} {
+  const [place, link = ""] = answer.split("|");
+  const gallery = !!link && /^(Pictures|Movies)\//.test(place);
+  const folder = gallery ? tr("your gallery (VOOL album)") : place;
+  const text = count ? tr("Saved {count} to {folder}.", {count, folder}) : tr("Saved to {folder}.", {folder});
+  // iPhone and iPad: photos and videos go into the Photos app itself.
+  return {text, link: gallery ? link : place === "Photos" ? "photos-redirect://" : ""};
+}
+
+function SavedLine({note, link}: {note: string; link: string}) {
+  return <View style={styles.savedRow}>
+    <Text style={[styles.line, styles.fill]}>{note}</Text>
+    {link ? <Pressable style={styles.quiet} onPress={() => void Linking.openURL(link).catch(() => {})} accessibilityRole="button">
+      <Text style={styles.quietText}>{tr("Open")}</Text></Pressable> : null}
+  </View>;
+}
+
 const KIND_ICON: Record<Kind, IconName> = {photo: "image-outline", video: "play-circle-outline", audio: "music-note-outline"};
 const PAGE = 60;
 
@@ -153,6 +171,7 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
   const [ask, setAsk] = useState<"save" | "share" | null>(null);
   const [work, setWork] = useState<{done: number; count: number} | null>(null);
   const [note, setNote] = useState("");
+  const [savedLink, setSavedLink] = useState("");
   const stopWork = useRef(false);
   const query = useRef(0);
   const more = useRef(false);
@@ -232,6 +251,7 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
     setWork({done: 0, count: list.length});
     const held: VaultStream[] = [];
     let done = 0, folder = "";
+    setSavedLink("");
     try {
       for (const item of list) {
         if (stopWork.current) break;
@@ -246,7 +266,7 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
       }
       if (how === "share" && held.length && !stopWork.current) await vaultNative.shareMany(held.map(stream => stream.id), distinctNames(held.map(stream => stream.item.name)), tr("Share"));
       if (done < list.length) setNote(tr("Made {done} of {count} copies. Try again for the rest.", {done, count: list.length}));
-      else if (how === "save") setNote(tr("Saved {count} to {folder}.", {count: done, folder}));
+      else if (how === "save") {const saved = savedPlace(folder, done); setNote(saved.text); setSavedLink(saved.link);}
       if (done === list.length) setChosen(null);
     } catch {
       setNote(tr("Could not make the copy. Try again."));
@@ -332,7 +352,7 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
 
   const bar = chosen ? <View style={[styles.viewerBottom, styles.bar, {paddingBottom: edges.bottom + 14}]}>
     {work ? <Text style={styles.line}>{tr("Getting {done} of {count}", {done: work.done, count: work.count})}</Text>
-      : note ? <Text style={styles.line}>{note}</Text> : null}
+      : note ? <SavedLine note={note} link={savedLink} /> : null}
     {ask ? <View style={styles.warn}>
       <Icon name="alert-outline" size={18} color={C.wait} />
       <Text style={styles.warnText}>{tr("These copies leave the Vault, where other apps and backups can see them.")}</Text>
@@ -409,6 +429,7 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
   const [ask, setAsk] = useState<"save" | "share" | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [savedLink, setSavedLink] = useState("");
   const thumb = thumbs.get(item.id) || "";
 
   useEffect(() => {
@@ -450,11 +471,11 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
   const exportCopy = async (how: "save" | "share") => {
     const current = stream.current;
     if (!current || !vaultNative || busy) return;
-    setBusy(true); setAsk(null); setNote("");
+    setBusy(true); setAsk(null); setNote(""); setSavedLink("");
     // The computer keeps a receipt of every copy that leaves the Vault; the copy is made even when it is out of reach.
     void client.mediaExported(item.id, how).catch(() => {});
     try {
-      if (how === "save") setNote(tr("Saved to {folder}.", {folder: await vaultNative.save(current.id, item.name)}));
+      if (how === "save") {const saved = savedPlace(await vaultNative.save(current.id, item.name)); setNote(saved.text); setSavedLink(saved.link);}
       else await vaultNative.share(current.id, item.name, tr("Share"));
     } catch {
       setNote(tr("Could not make the copy. Try again."));
@@ -497,7 +518,7 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
       {item.kind === "photo" && !photo && !photoFailed && !progress.failed && !startFailed ? <ActivityIndicator style={styles.spinner} color={C.acc} /> : null}
     </View>
     <View style={[styles.viewerBottom, {paddingBottom: edges.bottom + 14}]}>
-      {line ? <Text style={styles.line}>{line}</Text> : null}
+      {line ? (line === note ? <SavedLine note={note} link={savedLink} /> : <Text style={styles.line}>{line}</Text>) : null}
       {ask ? <View style={styles.warn}>
         <Icon name="alert-outline" size={18} color={C.wait} />
         <Text style={styles.warnText}>{tr("This copy leaves the Vault, where other apps and backups can see it.")}</Text>
@@ -520,6 +541,7 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
 const styles = StyleSheet.create({
   screen: {backgroundColor: C.bg},
   fill: {flex: 1},
+  savedRow: {flexDirection: "row", alignItems: "center", gap: 10},
   top: {paddingHorizontal: 16, paddingBottom: 10, gap: 12},
   titleRow: {flexDirection: "row", alignItems: "center", gap: 8},
   round: {width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center"},

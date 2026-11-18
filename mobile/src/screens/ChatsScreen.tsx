@@ -80,7 +80,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   threadRef.current = onThread;
   const inThread = activeChat !== null;
   // On a wide screen the list stays beside the chat, and the tabs stay too.
-  const {width, twoPane} = useWide();
+  const {width, tablet, twoPane} = useWide();
   useEffect(() => {threadRef.current?.(inThread && !twoPane);}, [inThread, twoPane]);
 
   const guard = useCallback(
@@ -110,7 +110,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
         hadHistory.current = false;
       }
       if (!guard(exc)) setNotice(exc instanceof CompanionError && exc.code === "phone_right_off_or_expired"
-        ? tr("Change this phone’s permissions on your computer.")
+        ? tr("On your computer, open Settings, then Phone and chat apps, choose what this phone may do and press Done.")
         : linkState() === "connecting" ? "" : tr("Can't reach your computer. Your saved messages will wait here."));
     }
   }, [client, guard, search]);
@@ -441,6 +441,10 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
           value={draft}
           onChangeText={setDraft}
           multiline
+          // On a tablet the keyboard's Return sends, as on a computer; on a phone it starts a new line.
+          returnKeyType={tablet ? "send" : "default"}
+          submitBehavior={tablet ? "submit" : "newline"}
+          onSubmitEditing={tablet ? () => {if (canSend) void send();} : undefined}
         />
         <PhoneAbilities client={client} chatId={activeChat} attachmentCount={attachmentIds.length} onChat={setActiveChat}
           sheetOpen={sheet} onSheetClose={() => setSheet(false)} onNote={setAbilityNote}

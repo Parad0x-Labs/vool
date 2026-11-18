@@ -1,5 +1,5 @@
-import React from "react";
-import {Platform, StatusBar, View, type ViewProps} from "react-native";
+import React, {useEffect, useState} from "react";
+import {Dimensions, Keyboard, LayoutAnimation, Platform, StatusBar, View, type KeyboardEvent, type ViewProps} from "react-native";
 import {useSafeAreaInsets} from "react-native-safe-area-context";
 import {C} from "./theme.ts";
 
@@ -11,8 +11,26 @@ export function useEdges(): {top: number; bottom: number} {
   return {top: Math.max(insets.top, bar), bottom: insets.bottom};
 }
 
-/** A full screen that starts below the clock bar and ends above the bottom bar. */
+/** How much of the window the keyboard covers. Android shrinks the window by itself; iPhone and iPad do not. */
+export function useKeyboardCover(): number {
+  const [cover, setCover] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const moved = (event: KeyboardEvent, hidden = false) => {
+      const next = hidden ? 0 : Math.max(0, Math.round(Dimensions.get("window").height - event.endCoordinates.screenY));
+      if (event.duration) LayoutAnimation.configureNext({duration: event.duration, update: {type: LayoutAnimation.Types.keyboard}});
+      setCover(next);
+    };
+    const changes = Keyboard.addListener("keyboardWillChangeFrame", event => moved(event));
+    const hides = Keyboard.addListener("keyboardWillHide", event => moved(event, true));
+    return () => {changes.remove(); hides.remove();};
+  }, []);
+  return cover;
+}
+
+/** A full screen that starts below the clock bar and ends above the bottom bar, or above the keyboard while it is open. */
 export default function Frame({style, children, ...rest}: ViewProps) {
   const edges = useEdges();
-  return <View {...rest} style={[{flex: 1, backgroundColor: C.bg, paddingTop: edges.top, paddingBottom: edges.bottom}, style]}>{children}</View>;
+  const keyboard = useKeyboardCover();
+  return <View {...rest} style={[{flex: 1, backgroundColor: C.bg, paddingTop: edges.top, paddingBottom: Math.max(edges.bottom, keyboard)}, style]}>{children}</View>;
 }
