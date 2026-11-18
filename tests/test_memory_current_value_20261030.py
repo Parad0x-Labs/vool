@@ -14,6 +14,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.updated_fact_marking import (
@@ -120,6 +122,36 @@ def test_render_marker_is_a_suffix_and_leaves_other_lines_alone():
     assert "1,800 words. " + CURRENT_MARKER in out
     assert "Distilled local facts. Answer from these records.\n" in out  # header untouched
     assert out.count("\n") == body.count("\n")  # no lines added or merged
+
+
+_PRODUCT_ENV_NAMES = (
+    "VOOL_CONTEXT_CAPSULE_V2", "VOOL_MEMORY_RECEIPTS", "VOOL_EVIDENCE_COMPILER", "VOOL_EVIDENCE_HOP",
+    "VOOL_EVIDENCE_VERIFY", "VOOL_EVIDENCE_KERNEL", "VOOL_HOME", "NULLA_HOME", "VOOL_WORKSPACE_ROOT",
+)
+
+
+@pytest.fixture(autouse=True)
+def _restore_product_env():
+    """_product_env sets the process environment and the runtime home for the product path; both are put
+    back after each test. Left set, NULLA_HOME and the runtime home made a later test in the same CI shard
+    resolve the dev checkout's workspace under this test's tmp home (CI #714, test_bundle_immutability)."""
+    import core.runtime_paths as runtime_paths
+
+    before = {name: os.environ.get(name) for name in _PRODUCT_ENV_NAMES}
+    names = ("_VOOL_HOME_OVERRIDE", "_VOOL_HOME_ENV_AT_OVERRIDE", "_RUNTIME_HOME_ENV_LAST_SEEN", "_CONFIGURED_HOME_OVERRIDE")
+    paths_before = {name: getattr(runtime_paths, name) for name in names if hasattr(runtime_paths, name)}
+    try:
+        yield
+    finally:
+        for name, value in before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        for name, value in paths_before.items():
+            setattr(runtime_paths, name, value)
+        # A new generation, as configure_runtime_home makes, so nothing cached under this test's home is reused.
+        runtime_paths._RUNTIME_HOME_GENERATION += 1
 
 
 def _product_env(tmp_path: Path) -> None:
