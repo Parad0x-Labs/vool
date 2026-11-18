@@ -105,11 +105,27 @@ def cloud_enabled(env: Any = None) -> bool:
     return not value or value in _TRUTHY
 
 
+def _cloud_refused(context: dict[str, Any]) -> bool:
+    """Whether this turn may not reach a cloud model at all, read exactly as the turn's routing plan reads it
+    (`turn_is_local_only`). The loop's steps cross the router's provider seam without the turn's routing plan,
+    so the plan's local-only fence does not see them (CI #697/#699: under the local-only install profile a model
+    pinned at a paid cloud lane got two loop generations; the ordinary turn refused it). Unreadable: refused.
+    """
+    try:
+        from core.auto_local_only_mode import turn_is_local_only
+
+        return bool(turn_is_local_only(context))
+    except Exception:
+        return True
+
+
 def resolve_cloud_manifest(router: Any, source_context: dict[str, Any] | None) -> Any | None:
     """The owner's own cloud manifest for this turn (pinned, or saved for Auto), or None."""
     if not cloud_enabled():
         return None
     context = dict(source_context or {})
+    if _cloud_refused(context):
+        return None
     requested = str(context.get("requested_model") or "").strip()
     try:
         from core.auto_local_only_mode import is_auto_selection
@@ -132,7 +148,32 @@ def resolve_cloud_manifest(router: Any, source_context: dict[str, Any] | None) -
         manifest = router._requested_model_manifest(context)
     except Exception:
         return None
-    return manifest if manifest is not None and not _is_local(manifest) else None
+    if manifest is None or _is_local(manifest):
+        return None
+    return manifest if _may_write_answers(manifest, str(context.get("user_text") or "")) else None
+
+
+def _may_write_answers(manifest: Any, request_text: str = "") -> bool:
+    """Whether this cloud model may write a final answer: the loop's brain writes the reply the owner reads.
+
+    The turn's own answer call meets this authority before it is sent (`precall_author_verdict` at the router's
+    provider seam); the loop's steps reach that seam under the step role, which the authority does not judge. On
+    CI #697/#699 a model pinned at a paid lane that had not passed the answer check was refused by the turn
+    ("hasn't passed VOOL's answer check yet") after the loop had already sent it two generations. Unreadable: no.
+    """
+    try:
+        from core.final_answer_authorship import FINAL_ANSWER_ROLE, decide_final_answer_author
+
+        decision = decide_final_answer_author(
+            request_text=request_text,
+            author_role=FINAL_ANSWER_ROLE,
+            requested_manifest=manifest,
+            requested_model=str(getattr(manifest, "provider_id", "") or ""),
+            allow_escalation=False,
+        )
+        return bool(decision.eligible)
+    except Exception:
+        return False
 
 
 @dataclass(frozen=True)
