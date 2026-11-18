@@ -68,10 +68,27 @@ def _plain_reply(body: dict[str, Any]) -> dict[str, Any]:
     return _or_certification(body) or _or_completion(body, content="A plain answer from the pinned model.")
 
 
+class _OwnerHomeDaemon(OpenRouterCompatibleDaemon):
+    """The owner's home is an empty one of its own: inheriting the runner's home (which holds the
+    repository on CI) let the clean loop take "What changed in Rust compiler performance this year?"
+    on the words of a repository file, and the loop's own calls reached the provider (CI #697/#699)."""
+
+    def __init__(self, home, service, owner_home) -> None:
+        super().__init__(home, service)
+        self.owner_home = owner_home
+
+    def env(self) -> dict[str, str]:
+        env = super().env()
+        env["HOME"] = str(self.owner_home)
+        return env
+
+
 @pytest.fixture(scope="module")
 def served(tmp_path_factory):
     service = OpenAICompatibleService().start()
-    daemon = OpenRouterCompatibleDaemon(tmp_path_factory.mktemp("own-tools") / "home", service)
+    root = tmp_path_factory.mktemp("own-tools")
+    (root / "owner-home").mkdir()
+    daemon = _OwnerHomeDaemon(root / "home", service, root / "owner-home")
     try:
         daemon.start()
         status, catalog = daemon.call("GET", "/api/cloud/models?provider=openrouter")
