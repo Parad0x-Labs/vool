@@ -940,9 +940,42 @@ def saved_list_answers(question: str, *, session_id: str, source_context: dict[s
 
 #: A name the owner's saved fact ties to them: "my brother Tobiah lives in Quillon", "my manager is Pieter", "our landlord
 #: is called Feodora Lask".
-_OWNED_NAME_RE = re.compile(
-    r"\b(?:[Mm]y|[Oo]ur|[Hh]is|[Hh]er|[Tt]heir)\s+(?:[a-z][\w'-]*\s+){1,2}?(?:(?:is|was)\s+(?:called\s+|named\s+)?)?([A-Z][\w'-]+)"
+#: Who a person is to the owner: the noun that makes the capitalised word after it a name ("my cousin Leontine",
+#: "my manager is Duarte"). Kin come from the one list the runtime already has (core.personal_knowledge); the rest
+#: are the roles people hold in someone's daily life.
+_RELATION_NOUN = (
+    r"(?:sister|brother|mother|father|mom|dad|mum|parent|son|daughter|child|kid|wife|husband|spouse|girlfriend|boyfriend"
+    r"|partner|fiance|fiancee|aunt|uncle|cousin|niece|nephew|grand(?:mother|father|ma|pa|son|daughter)|god(?:mother|father"
+    r"|son|daughter)|step(?:mother|father|son|daughter|brother|sister)|(?:mother|father|sister|brother|son|daughter)-in-law"
+    r"|friend|mate|neighbou?r|colleague|co-?worker|boss|manager|landlord|landlady|tenant|lodger|flatmate|roommate|housemate"
+    r"|doctor|gp|dentist|vet|nurse|teacher|tutor|coach|trainer|lawyer|solicitor|accountant|plumber|electrician|builder"
+    r"|gardener|cleaner|babysitter|childminder|nanny|hairdresser|barber|mechanic|therapist|physio|optician|pharmacist"
+    r"|assistant|client)"
 )
+#: A name a saved fact ties to the owner, in the three shapes that say so:
+#:   "my cousin Leontine ..."            one noun, then the name (any noun: the name stands in apposition to it);
+#:   "my allotment neighbour Wim ...", "my manager is Duarte"   a relation noun last before the name or the copula;
+#:   "our lock keeper is called Osgood"  "called" / "named" after any one or two words.
+#: Measured before this rule (the diagnosis probes of 2026-11-16 and the fix mission's own cases): the pattern took
+#: ANY capitalised word after "my <word> <word>" -- "my bus leaves Tuesday", "our last stop is Rotterdam", "my
+#: favourite painter is Vermeer" -- and a later question that named it was handled as a question about someone of the
+#: owner's. A weekday or a month is never such a name, whatever stands before it (`_owned_names`).
+_OWNED_NAME_RE = re.compile(
+    r"\b(?:[Mm]y|[Oo]ur|[Hh]is|[Hh]er|[Tt]heir)\s+(?:"
+    r"(?:[a-z][\w'-]*\s+){1,2}?(?:is|was)\s+(?:called|named)\s+"
+    r"|(?:[a-z][\w'-]*\s+)??" + _RELATION_NOUN + r"s?\s+(?:(?:is|was)\s+)?"
+    r"|(?!(?:favou?rite|new|old|next|last|first|other|own)\b)[a-z][\w'-]*\s+"
+    r")([A-Z][\w'-]+)"
+)
+_NOT_A_NAME = frozenset({
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "january", "february", "march",
+    "april", "may", "june", "july", "august", "september", "october", "november", "december",
+})
+
+
+def _owned_names(text: str) -> set[str]:
+    """The names a saved fact ties to the owner, casefolded; a weekday or a month is none."""
+    return {name.casefold() for name in _OWNED_NAME_RE.findall(str(text or ""))} - _NOT_A_NAME
 
 
 def saved_memory_names(question: str, *, session_id: str, source_context: dict[str, Any] | None) -> bool:
@@ -960,9 +993,9 @@ def saved_memory_names(question: str, *, session_id: str, source_context: dict[s
 
         policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
         names = {
-            name.casefold()
+            name
             for row in search_relevant_memory(text, access_policy=policy, limit=6)
-            for name in _OWNED_NAME_RE.findall(" ".join(str(row.get("text") or "").split()))
+            for name in _owned_names(" ".join(str(row.get("text") or "").split()))
         }
     except Exception:
         return False
@@ -1229,7 +1262,7 @@ def _owners_own_subject(typed: str, rows: list[str]) -> bool:
     ("my brother Tobiah ..." saved, "where does Tobiah live?")."""
     if _OWNER_WORD_RE.search(typed):
         return True
-    owned = {match.group(1).casefold() for row in rows for match in _OWNED_NAME_RE.finditer(row)}
+    owned = {name for row in rows for name in _owned_names(row)}
     asked = {word.casefold() for word in re.findall(r"[A-Za-z][\w'-]+", typed)}
     return bool(owned & asked)
 

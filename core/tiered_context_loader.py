@@ -798,6 +798,19 @@ _DAY_RANGE_RE = re.compile(
 )
 
 
+#: What makes a line with a day range a stay: a word for staying somewhere, for a place one stays in, or for the
+#: booking of one.
+_STAY_RE = re.compile(
+    r"\b(?:stay(?:s|ed|ing)?|nights?|book(?:ed|ing)|reserv(?:ed|ation)|trip|holidays?|vacation|getaway|hotel|hostel|motel"
+    r"|b&b|airbnb|cabin|cottage|chalet|lodge|villa|apartment|campsite|camping|rental|check(?:ing)?[\s-]?(?:in|out)"
+    r"|dates|away|visit(?:s|ing)?)\b",
+    re.IGNORECASE,
+)
+
+
+_ORDINAL_RE = re.compile(r"\d(?:st|nd|rd|th)\b", re.IGNORECASE)
+
+
 def _with_night_counts(content: str) -> str:
     """A saved fact with a day range, as the model is shown it, with the nights the range spans.
 
@@ -805,7 +818,13 @@ def _with_night_counts(content: str) -> str:
     "and how many nights are we staying?" was answered "We're staying for 4 nights, from 13 March to 16 March": the
     model counted days. The stored fact is unchanged; only the context line carries the count."""
     notes = []
+    # A day range is a stay where the line speaks of one. Measured (the diagnosis probes of 2026-11-16): "chapters
+    # 3-9 may need a rewrite" was shown to the model with "(3-9 may is 6 nights)". A range written as dates ("the 4th
+    # to 7th of june") is days whatever stands around it, and keeps its count.
+    speaks_of_a_stay = bool(_STAY_RE.search(str(content or "")))
     for match in _DAY_RANGE_RE.finditer(str(content or "")):
+        if not speaks_of_a_stay and not _ORDINAL_RE.search(match.group(0)):
+            continue
         first, last = (match.group("a"), match.group("b")) if match.group("a") else (match.group("a2"), match.group("b2"))
         nights = int(last) - int(first)
         if 0 < nights <= 31:

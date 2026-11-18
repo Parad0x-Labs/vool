@@ -1475,10 +1475,24 @@ def _match_stem(token: str) -> str:
     if not word.isalpha():
         return word
     for suffix in _MATCH_SUFFIXES:
-        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+        # Four letters must remain: with three, "rating" met "rats", "evening" met "even" and "morning" met "morn"
+        # (the diagnosis probes of 2026-11-16), and one shared stem is all it takes to be found.
+        if word.endswith(suffix) and len(word) - len(suffix) >= _MATCH_STEM_FLOOR:
             word = word[: -len(suffix)]
             break
     return word
+
+
+_MATCH_STEM_FLOOR = 4
+#: A two-letter word in capitals is a word of its own ("my PT is Callum", "the TV in the den"): the keyword reader
+#: drops everything under three letters, so "who is my PT?" shared no word with the fact that answers it.
+_SHORT_CAPITALS_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2}(?![A-Za-z0-9])")
+
+
+def _search_tokens(text: str, keywords: Any = None) -> set[str]:
+    """The words a memory search compares for one text: its keyword stems and its two-letter capitals."""
+    plain = {_match_stem(token) for token in (keywords or keyword_tokens_filtered(str(text or "")))}
+    return plain | {found.casefold() for found in _SHORT_CAPITALS_RE.findall(str(text or ""))}
 
 
 #: How close in meaning (cosine, embed model space) a saved row must be to a question that shares no word with it
@@ -1556,7 +1570,7 @@ def search_relevant_memory(
         policy = resolve_memory_access_policy(access_policy=access_policy)
     except (TypeError, ValueError):
         return []
-    query_tokens = {_match_stem(token) for token in keyword_tokens_filtered(" ".join([query_text, *(topic_hints or [])]))}
+    query_tokens = _search_tokens(" ".join([query_text, *(topic_hints or [])]))
     # Scope is applied while reading the store, before semantic scoring,
     # temporal ordering, or any other retrieval reinforcement.
     rows = [
@@ -1569,9 +1583,7 @@ def search_relevant_memory(
     ranked: list[tuple[float, dict[str, Any]]] = []
     meant: list[tuple[float, dict[str, Any]]] = []
     for index, row in enumerate(rows):
-        item_tokens = {
-            _match_stem(token) for token in (row.get("keywords") or keyword_tokens_filtered(str(row.get("text") or "")))
-        }
+        item_tokens = _search_tokens(str(row.get("text") or ""), row.get("keywords"))
         overlap = len(query_tokens & item_tokens) if query_tokens else 0
         near = meaning.get(index)
         marks = {} if near is None else {"meaning": round(near, 4)}
