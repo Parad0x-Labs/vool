@@ -456,13 +456,21 @@ _OWN_THING_RE = re.compile(
     re.IGNORECASE,
 )
 _IN_OWN_THING_RE = re.compile(r"\b(?:in|inside|of|at)\s+(?:my|our)\b", re.IGNORECASE)
+#: A size or record of the person's own thing: "how long is my longest bean row?", "what's my heaviest
+#: marrow?". The amount heads above ("how much", "how tall") do not cover a length or a superlative record.
+_OWN_MEASURE_ASK_RE = re.compile(
+    r"\bhow\s+(?:long|wide|big|large|heavy|old)\b"
+    r"|\bwhat(?:'s|’s|\s+is|\s+are|\s+was)\s+(?:my|our)\s+(?:[a-z]+est|most\s+[a-z]+|least\s+[a-z]+)\b",
+    re.IGNORECASE,
+)
 
 
 def reads_an_owned_thing(text: str, *, weather_shaped: bool = False) -> bool:
     """Whether the ask is a reading of something the person owns, which no web lookup can answer.
 
     "How much water is in my workshop tank right now?", "How tall is my tallest sunflower?",
-    "What is the temperature in my workshop?": the web holds nothing about the person's tank,
+    "What is the temperature in my workshop?", "How long is my longest bean row?", "What's my heaviest
+    marrow?": the web holds nothing about the person's tank,
     flowers or workshop, so "Web lookups are off" names a cause that is not one. Those turns go on
     to the model with the person's records, where the current-claim guard withholds a stale or
     unobserved reading. A public place ("the weather in my city") and anything that is not a
@@ -474,7 +482,7 @@ def reads_an_owned_thing(text: str, *, weather_shaped: bool = False) -> bool:
     if weather_shaped:
         if not _IN_OWN_THING_RE.search(clean):
             return False
-    elif not question_asks_for_measured_amount(clean):
+    elif not (question_asks_for_measured_amount(clean) or _OWN_MEASURE_ASK_RE.search(clean)):
         return False
     heads = [match.group(1).split()[-1].casefold() for match in _OWN_THING_RE.finditer(clean)]
     return bool(heads) and not any(head in _PUBLIC_PLACE_HEADS for head in heads)

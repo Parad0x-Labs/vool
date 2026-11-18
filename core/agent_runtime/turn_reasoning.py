@@ -1765,7 +1765,15 @@ def execute_grounded_turn(
         from core.remote_fetch_policy import effective_web_available
 
         if not effective_web_available(source_context):
-            response = web_off_live_value_notice(response)
+            from core.online_asks import reads_an_owned_thing
+
+            if reads_an_owned_thing(str(effective_input or "")):
+                # No lookup could answer a reading of the person's own thing: the records say nothing.
+                from core.model_output_guard import records_live_value_notice
+
+                response = records_live_value_notice(response)
+            else:
+                response = web_off_live_value_notice(response)
         else:
             from core.model_output_guard import looked_up_live_value_notice, turn_ran_a_lookup
 

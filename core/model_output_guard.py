@@ -2047,6 +2047,19 @@ def web_off_live_value_notice(text: str) -> str:
     return _UNVERIFIED_NOTICE_RE.sub(_said, str(text or ""))
 
 
+def records_live_value_notice(text: str) -> str:
+    """`text` with the unverified-live-value notice said for a reading of the person's own thing.
+
+    "How long is my longest bean row?" with the saved value retracted, Web lookups off: the notice was
+    rewritten to "Current measured-quantity figures need Web lookups, which are off", which names a
+    cause that is not one (no web page holds the person's bean row) and leaks a kind name (CI #697/#699,
+    p300 served workflow). The value is not in the person's records, and that is what is said.
+    """
+    from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
+
+    return _UNVERIFIED_NOTICE_RE.sub(lambda _match: RECORDS_WITHDRAWAL_NOTICE, str(text or ""))
+
+
 def turn_ran_a_lookup(source_context: Any, web_notes: Any = None) -> bool:
     """Whether this turn started a web lookup at all, whatever it returned.
 
