@@ -368,9 +368,14 @@ def test_the_scratch_quota_and_output_caps_still_hold(landlock):
             quota = refused
         else:
             big = scratch.path / "big"
+            # The same writes again with their own words kept, so the report says why nothing was written.
+            probe = _sandbox.run_confined(["/bin/sh", "-c", '/bin/dd if=/dev/zero of="$1/probe" bs=8192 count=1 2>&1; echo "dd=$?";'
+                                           ' echo x > "$1/probe2" 2>&1; echo "echo=$?"; /bin/uname -r', "sh", str(scratch.path)],
+                                          scratch=scratch.path, timeout=30)
             pytest.fail(f"not refused: returncode={ran.returncode} after {time.monotonic() - started:.2f}s, "
                         f"big={'%d bytes' % big.stat().st_size if big.exists() else 'not written'}, "
-                        f"scratch bytes={_sandbox._directory_bytes(scratch.path)}")
+                        f"scratch bytes={_sandbox._directory_bytes(scratch.path)}, scratch={scratch.path}, "
+                        f"probe={probe.stdout!r} {probe.stderr!r}")
     assert quota.code == "scratch_quota_exceeded"
     with _sandbox.Scratch("vool-test-") as scratch, pytest.raises(ReaderRefused) as flood:
         _sandbox.run_confined(["/usr/bin/yes", "flood"], scratch=scratch.path, max_stdout=256 * 1024, timeout=30)
