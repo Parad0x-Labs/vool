@@ -130,7 +130,8 @@
       ],
       "./plugins/withoutGoogleReporting.cjs",
       "./plugins/withAppleKeyboardOnly.cjs",
-      "./plugins/withFmtForNewXcode.cjs"
+      "./plugins/withFmtForNewXcode.cjs",
+      "./plugins/withoutPushEntitlement.cjs"
     ]
   }
 }
