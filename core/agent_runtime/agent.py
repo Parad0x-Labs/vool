@@ -2856,6 +2856,11 @@ class VoolAgent(
         # THE KEEP STEP, after the secret intake (a carved credential is never read) and before every lane, planner
         # and model: what the person states about their own life is saved now and recorded on the turn's receipt,
         # which is what any save claim in the reply is later held to.
+        # On a turn no local model answers, the memory judgements are put to the model that does (the owner's own
+        # cloud model): bound here, before the keep step asks its first one.
+        from core.agent_runtime import turn_judge as agent_turn_judge
+
+        agent_turn_judge.bind_for_turn(self, runtime_source_context, session_id)
         agent_memory_runtime.keep_what_the_turn_states(
             raw_turn_text, session_id=session_id, source_context=runtime_source_context, access_policy=access_policy,
         )

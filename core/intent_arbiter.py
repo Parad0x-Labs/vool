@@ -18,7 +18,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import uuid
+from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from core.agent_runtime.intent_claims import (
@@ -537,6 +540,61 @@ def arbitrate_followup(
     return decision
 
 
+# ---- the judgements on a turn no local model answers --------------------------------------------------------
+# Every judgement below asks the LOADED LOCAL model (`_keep_judge_model`). On a turn the owner's own cloud model
+# answers, with local models off, there is none: the keep ask in other words, the fact said in passing, the
+# restore, the question in other words and the same-thing gate each got "nobody judged" and fell back to what they
+# did before they existed (measured on the real app on the cloud route, 2026-11-18). The runtime binds, for such a
+# turn, a judge that sends the same one-question prompt to the model that answers the turn
+# (`core.agent_runtime.turn_judge`): the owner's own choice, the owner's own key, the same reservation and caps
+# as any other call to it. Nothing here knows which model that is.
+_TURN_JUDGES: OrderedDict[str, Callable[[str], str]] = OrderedDict()
+_TURN_JUDGES_KEPT = 64
+_THIS_THREAD = threading.local()
+
+
+def _turn_key(source_context: object) -> str:
+    try:
+        from core.memory.keep_receipt import _turn_id
+
+        return _turn_id(source_context)
+    except Exception:
+        return ""
+
+
+def bind_turn_judge(source_context: object, judge: Callable[[str], str] | None) -> None:
+    """Set, or with None clear, the judge of this turn: a ``prompt -> text`` callable. Called once at the turn's
+    start, for every turn, so a judge never outlives its turn on a thread."""
+    _THIS_THREAD.judge = judge
+    turn = _turn_key(source_context)
+    if not turn:
+        return
+    if judge is None:
+        _TURN_JUDGES.pop(turn, None)
+        return
+    _TURN_JUDGES[turn] = judge
+    while len(_TURN_JUDGES) > _TURN_JUDGES_KEPT:
+        _TURN_JUDGES.popitem(last=False)
+
+
+def _judged_for_the_turn(prompt: str, source_context: object) -> str | None:
+    """``"yes"`` / ``"no"`` from the judge bound for this turn, or None: no judge bound, a failed call, an
+    unreadable answer. None is what "no local model" always was: the caller decides nothing on it."""
+    judge = _TURN_JUDGES.get(_turn_key(source_context)) or getattr(_THIS_THREAD, "judge", None)
+    if judge is None:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    try:
+        content = str(judge(prompt) or "")
+    except Exception as exc:
+        _LAST_FAILURE["reason"] = f"turn_judge:{type(exc).__name__}"
+        return None
+    decision = parse_followup_decision(content)
+    if decision is None:
+        _LAST_FAILURE["reason"] = "turn_judge:unreadable"
+    return decision
+
+
 def _keep_ask_prompt(lead: str, body: str) -> str:
     """A balanced yes/no: does the lead ask for the text behind it to be kept, or for something else?"""
     flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
@@ -582,8 +640,7 @@ def arbitrate_keep_ask(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_keep_ask_prompt(lead, body), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_keep_ask_prompt(lead, body), operation="keep_ask_arbitration", model=model, runner_role="general",
@@ -632,8 +689,7 @@ def arbitrate_restore(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_restore_prompt(message, current, earlier), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_restore_prompt(message, current, earlier), operation="restore_arbitration", model=model,
@@ -690,8 +746,7 @@ def arbitrate_answered(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_answered_prompt(question, reply), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_answered_prompt(question, reply), operation="answered_arbitration", model=model,
@@ -742,8 +797,7 @@ def arbitrate_meaning(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_meaning_prompt(question, fact), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_meaning_prompt(question, fact), operation="meaning_arbitration", model=model,
@@ -805,8 +859,7 @@ def arbitrate_same_thing(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_same_thing_prompt(question, fact), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_same_thing_prompt(question, fact), operation="same_thing_arbitration", model=model,
@@ -962,8 +1015,7 @@ def arbitrate_lasting_fact(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_lasting_fact_prompt(sentence), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_lasting_fact_prompt(sentence), operation="lasting_fact_arbitration", model=model,
@@ -985,8 +1037,7 @@ def arbitrate_standing_state(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_standing_state_prompt(sentence), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_standing_state_prompt(sentence), operation="standing_state_arbitration", model=model,
@@ -1008,8 +1059,7 @@ def arbitrate_told_as_fact(
         return None
     model = _keep_judge_model()
     if not model:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
-        return None
+        return _judged_for_the_turn(_told_as_fact_prompt(sentence), source_context)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_told_as_fact_prompt(sentence), operation="told_as_fact_arbitration", model=model,
