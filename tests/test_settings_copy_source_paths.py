@@ -153,7 +153,7 @@ def test_served_settings_copy_names_no_repository_path(tag: str) -> None:
     assert not leaks, f"{tag}: Settings copy names repository paths:\n" + "\n".join(leaks)
 
 
-def test_every_settings_group_paints_without_a_repository_path(tmp_path) -> None:
+def test_every_settings_group_paints_without_a_repository_path(tmp_path, monkeypatch) -> None:
     from core.vool_settings_page import settings_groups
     from tests._blackbox_served_rig import ServedDaemon
     from tests.served_browser import launch_chromium
@@ -172,6 +172,11 @@ def test_every_settings_group_paints_without_a_repository_path(tmp_path) -> None
       return parts.join('\\n');
     }"""
     painted: dict[str, str] = {}
+    # The expected groups are read under the daemon's own environment: research networking off, as
+    # it is given above. A research app imported earlier in the same pytest process (apps/vool_daemon
+    # and the other research entry points set VOOL_RESEARCH_NETWORKING=1 at import) must not add the
+    # Network group to the list the served page is compared against (CI #697/#699 shard 8).
+    monkeypatch.delenv("VOOL_RESEARCH_NETWORKING", raising=False)
     groups = settings_groups()
     try:
         daemon.start()
