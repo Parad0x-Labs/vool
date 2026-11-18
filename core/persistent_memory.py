@@ -2396,6 +2396,27 @@ def _agent_turn_forget_refusal(user_text, *, session_id, source_context):
     )
 
 
+#: The answer to a forget given in a private chat. A private chat saves nothing, so it holds nothing of its own to
+#: forget; what the words would erase is a fact saved from another chat. Measured on the real app (2a3f9786, the
+#: required qa set): with "my darts partner is Osgood." kept from a normal chat, "forget my darts partner." in a
+#: private chat answered "Forget applied. Removed 1 memory entry." and no chat knew the partner after. A forget
+#: cannot be undone and a private chat leaves no record of having given it, so it erases nothing outside itself.
+PRIVATE_CHAT_FORGET_REFUSED = (
+    "Private chat is on, so nothing was forgotten. "
+    "Ask me in a normal chat and I'll forget it there."
+)
+
+
+def _private_chat_forget_refusal(user_text, *, session_id, source_context):
+    """A forget in a private chat, refused before any barrier or erasure starts (recorded as not started)."""
+    parsed = _FORGET_RE.match(user_text)
+    return _forget_outcomes.record(
+        PRIVATE_CHAT_FORGET_REFUSED, request=user_text, session=session_id or "", source_context=source_context,
+        argument=parsed.group(1) if parsed else user_text, status="not_started",
+        stores={"private_chat": {"status": "refused"}},
+    )
+
+
 def _forget_start_failure(user_text, *, session_id, source_context, started):
     reply = ("Forget could not be verified as fully applied: independent revocation authority is unavailable. Please retry the forget."
              if started else
@@ -2427,6 +2448,10 @@ def _preadmit_forget_turn(user_text, *, session_id, source_context):
     if not turn_speaks_for_owner(source_context, str(session_id or "")):
         # A team agent's brief erases nothing of the owner's: refused before any barrier or erasure begins.
         return True, _agent_turn_forget_refusal(user_text, session_id=session_id, source_context=source_context)
+    from core.private_chat import turn_is_private
+
+    if turn_is_private(source_context, session_id):
+        return True, _private_chat_forget_refusal(user_text, session_id=session_id, source_context=source_context)
     owner = dict(request=user_text, session=session_id, source_context=source_context)
     if _forget_outcomes.admission(**owner) is not None:
         return True, None
@@ -3213,8 +3238,19 @@ def maybe_handle_memory_command(
     independent_groups: list[list[Any]] = []
     parsed_forget = _FORGET_RE.match(text)
     forget_arguments = _forget_command_arguments(text)
+    #: Each target as the person typed it, beside the words it is erased by (the same unless it describes a saved fact).
+    forget_typed: list[str] = []
     whole_erase = whole_memory_erase_request(text)
     profile_report = ""
+    if parsed_forget or whole_erase:
+        from core.private_chat import turn_is_private
+        from core.request_trust import turn_speaks_for_owner
+
+        if turn_speaks_for_owner(source_context, str(session_id or "")) and turn_is_private(source_context, session_id):
+            # A private chat erases nothing outside itself, and it saved nothing of its own. Before the whole-erase
+            # reading below, which acts on the profile as it goes.
+            barrier_chat = str(getattr(access_policy, "chat_id", None) or session_id or (source_context or {}).get("chat_id") or "")
+            return True, _private_chat_forget_refusal(text, session_id=barrier_chat, source_context=source_context)
     if whole_erase:
         from core.request_trust import turn_speaks_for_owner
 
@@ -3246,6 +3282,20 @@ def maybe_handle_memory_command(
 
         from core.memory import revocation
         from core.runtime_paths import active_vool_home
+        if not whole_erase:
+            # A target that describes a saved fact is erased by that fact's own words.
+            # A read that decides nothing on its own: when it cannot be made (no chat yet, a store that will not
+            # open), the targets stay as typed and the barrier and policy steps below answer as they always did.
+            try:
+                resolved_targets = _forget_arguments_by_what_they_name(
+                    forget_arguments, policy=memory_entries.resolve_memory_access_policy(
+                        access_policy=access_policy, chat_id=session_id),
+                    session_id=str(session_id or ""), source_context=source_context)
+            except Exception as exc:
+                LOGGER.warning("forget targets could not be read for what they name: %s", type(exc).__name__)
+                resolved_targets = [(argument, argument) for argument in forget_arguments]
+            forget_arguments = [erase_by for erase_by, _ in resolved_targets]
+            forget_typed = [typed for _, typed in resolved_targets]
         runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
         barrier_chat = str(getattr(access_policy, "chat_id", None) or session_id or (source_context or {}).get("chat_id") or "")
         homes = {active_vool_home(), Path(runtime_home).resolve() if runtime_home else active_vool_home()}
@@ -3468,8 +3518,15 @@ def maybe_handle_memory_command(
         return True, "I already had that in memory."
 
     if parsed_forget:
-        def forget_target(argument: str, independent_operations: list[Any]) -> tuple[str, str, dict[str, Any]]:
-            """Forget one named target; the reply, its status and the erasure stores."""
+        def forget_target(
+            argument: str, independent_operations: list[Any], *, resolved_session: str = resolved_session,
+            resolved_policy: ContextAccessPolicy = resolved_policy,
+            source_context: dict[str, Any] | None = source_context, exact_words: str = "",
+        ) -> tuple[str, str, dict[str, Any]]:
+            """Forget one named target; the reply, its status and the erasure stores.
+
+            The chat, its policy and its context are parameters so the same erasure can run for another chat that
+            holds the same words (`exact_words`: the words already resolved in the chat the order was given in)."""
             erasures: dict[str, Any] = {}
             # Saved records (My things, Contacts) the words also match: said once, after the reply.
             record_scope = {"note": ""}
@@ -3483,13 +3540,16 @@ def maybe_handle_memory_command(
                     reply = f"{reply} {record_scope['note']}"
                 return reply, status, erasures
 
-            referential, token = _referential_forget_token(
-                argument,
-                access_policy=resolved_policy,
-            )
+            if exact_words:
+                referential, token = False, exact_words
+            else:
+                referential, token = _referential_forget_token(
+                    argument,
+                    access_policy=resolved_policy,
+                )
             if referential and not token:
                 return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
-            if not referential:
+            if not referential and not exact_words:
                 token = _normalize_forget_target(argument)
                 try:
                     described, value = _described_forget_value(
@@ -3508,6 +3568,7 @@ def maybe_handle_memory_command(
                     independent_operations.append((home, revocation.begin(resolved_session, token, home)))
             if len(token) < 2:
                 return outcome("Forget command skipped: provide a clearer keyword.", "needs_target")
+            erasures[_FORGOTTEN_WORDS] = token
             # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
             # removes 0, but the mirror may still carry the plaintext and is healed by this very forget. That outcome
             # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
@@ -3827,16 +3888,77 @@ def maybe_handle_memory_command(
                                 {"stores": {"independent_revocation": {"status": "incomplete", "removed": 0}}}))
                 continue
             results.append(forget_target(argument, operations))
+        # A target that described its fact was erased by the fact's words, so the words of the order itself are on
+        # no forget list. Measured on the real app (cut 3bdfffa2): after "Forget who my solicitor is.", "who is my
+        # solicitor?" in another chat was answered "I don't have that saved, but you mentioned it in a chat on 18
+        # Nov: > Forget who my solicitor is. Want me to remember it ...". The order's own words are forgotten the way
+        # a forget of them is (they select no row: that is why the target was resolved), which puts them on the
+        # forget list and keeps the order out of what later turns read.
+        if len(forget_typed) == len(results):
+            for erased_by, typed in zip(list(forget_arguments), forget_typed, strict=True):
+                typed_words = _normalize_forget_target(typed)
+                if typed == erased_by or len(typed_words) < 2:
+                    continue
+                try:
+                    forget_target(typed_words, revocation.begin_group(barrier_chat, typed_words, homes),
+                                  exact_words=typed_words)
+                except Exception as exc:
+                    LOGGER.warning("the words of a resolved forget order could not be forgotten: %s", type(exc).__name__)
+        # A fact saved from another chat is held there too: in that chat's log, summary, capsule and pages. The row
+        # is erased above (a profile row is read from every chat); the same words are now erased from each chat the
+        # erased rows were saved from, by the same steps and under that chat's own barrier and forget list. Without
+        # this the chat that saved the fact went on answering it (TASK step 8).
+        elsewhere = {"chats": 0, "incomplete": False}
+        from core.memory.carriers import carries as carries_words
+
+        done: set[tuple[str, str]] = set()
+        for _reply, _status, target_erasures in list(results):
+            words = str(target_erasures.get(_FORGOTTEN_WORDS) or "")
+            for chat, saved_there in (target_erasures.get(memory_entries.ERASED_ROW_CHATS) or {}).items():
+                if not words or chat == resolved_session:
+                    continue
+                # The words of the order, then the words of any erased row that chat saved and the order's words
+                # do not cover: an earlier value ("... is under the stairs") holds none of its replacement's words.
+                for erase_by in [words, *(text for text in saved_there if not carries_words(text, words))]:
+                    if (chat, erase_by) in done:
+                        continue
+                    done.add((chat, erase_by))
+                    try:
+                        other_policy = memory_entries.resolve_memory_access_policy(chat_id=chat)
+                        # That chat's own context: this turn's context names the asking chat and carries its policy,
+                        # and the stores refuse an erasure whose context and chat disagree.
+                        _, other_status, _ = forget_target(
+                            erase_by, revocation.begin_group(chat, erase_by, homes), resolved_session=chat,
+                            resolved_policy=other_policy, exact_words=erase_by,
+                            source_context={"chat_id": chat, "_context_access_policy": other_policy,
+                                            "runtime_home": (source_context or {}).get("runtime_home")})
+                    except Exception as exc:
+                        LOGGER.warning("forget in the chat that saved the fact failed: %s", type(exc).__name__)
+                        other_status = "failed"
+                    if other_status in {"failed", "partial", "not_started", "needs_target"}:
+                        elsewhere["incomplete"] = True
+        elsewhere["chats"] = len({chat for chat, _ in done})
         if len(results) == 1:
             reply, status, erasures = results[0]
         else:
-            for argument, (reply, status, erasures) in zip(forget_arguments, results, strict=True):
+            typed_targets = forget_typed if len(forget_typed) == len(results) else forget_arguments
+            for argument, (reply, status, erasures) in zip(typed_targets, results, strict=True):
                 # Each named target is its own result: the turn's admission waits for every one of them.
                 _forget_outcomes.record(
                     reply, request=user_text, session=resolved_session, source_context=source_context,
                     argument=argument, status=status, stores=erasures.get("stores", {}),
                 )
             reply, status, erasures = _combined_forget_result(results)
+        if elsewhere["chats"]:
+            erasures.setdefault("stores", {})["other_chats"] = {
+                "status": "incomplete" if elsewhere["incomplete"] else "verified", "removed": elsewhere["chats"]}
+            if elsewhere["incomplete"] and status in {"applied", "already_erased"}:
+                # Never a clean "Forget applied" while the chat that saved the fact may still hold its words.
+                gone = sum(int(found) for found in re.findall(r"Removed (\d+)", reply))
+                reply = ("Forget could not be verified as fully applied: the copies in the chat that saved it could "
+                         "not be erased and verified on this turn"
+                         + (f", after {gone} entr{'y was' if gone == 1 else 'ies were'} removed." if gone else "."))
+                status = "partial"
         if whole_erase:
             return True, _record_whole_erase(
                 _whole_erase_reply(reply, status, profile_report), user_text=user_text, session=resolved_session,
@@ -3848,6 +3970,121 @@ def maybe_handle_memory_command(
         )
 
     return False, ""
+
+
+#: Key of one forget target's erasure record: the words it erased by, as resolved in the chat the order was given
+#: in (no store, no count). The same words are erased from the chats the erased rows were saved from.
+_FORGOTTEN_WORDS = "forgotten_words"
+#: A forget order that describes what to forget ("who my osteopath is", "where the caravan is kept"): the lead word
+#: is how people ask for a fact, and the saved fact holds none of it.
+_FORGET_ASKS_RE = re.compile(r"^(?:who|whom|whose|what|which|where|when|how)\b", re.IGNORECASE)
+#: A target worded as a description of one of the owner's things: a question word, or a possessive or article and
+#: a noun phrase ("my bowls locker number"). A bare value or name ("Forget Café Central", "forget HARBOR29") is
+#: never resolved: it erases by exactly the words typed, as before (an existing test holds that a value in another
+#: spelling is another entry).
+_FORGET_DESCRIBES_RE = re.compile(
+    r"^(?:(?:who|whom|whose|what|which|where|when|how)\b|(?:my|our|the|his|her|their)\s+\S)", re.IGNORECASE)
+_FORGET_AND_RE = re.compile(r"\s*,\s*(?:and\s+)?|\s+and\s+", re.IGNORECASE)
+
+
+def _saved_facts_a_forget_names(
+    target: str, *, policy: Any, session_id: str, source_context: dict[str, Any] | None,
+) -> list[str] | None:
+    """The saved facts a described forget target names, as their own stored words; None when it names none, or
+    more than one unrelated fact.
+
+    A forget erases by words: "Forget my clarinet teacher." finds "my clarinet teacher is Marguerite." because the
+    fact holds those words. "Forget who my solicitor is." names the same kind of fact and holds none of its words in
+    that order, so nothing matched and the fact stayed (TASK step 8; measured at function level on 2a3f9786). What
+    such a target names is decided the way a question about it is: a saved fact that holds the target's subject
+    words covers it, and one in other words is put to the same-thing judgement
+    (core.agent_runtime.cross_chat_recall.facts_shown_for_question). A forget cannot be undone, so it fails closed:
+    facts that are not one fact and its earlier values are no target, and the order is answered as naming nothing.
+    """
+    from core.agent_runtime import cross_chat_recall
+    from core.memory.carriers import ROW_IDENTITIES, carries, row_payload
+
+    clean = " ".join(str(target or "").split()).strip(" .,!?")
+    if not clean or memory_entries.contains_secret(clean) or not _FORGET_DESCRIBES_RE.match(clean):
+        return None
+    from core.memory.carriers import _QUOTE_MARKS
+
+    typed = clean.translate(_QUOTE_MARKS)
+    if (_FORGET_DESCRIBED_VALUE_RE.fullmatch(typed) or _FORGET_TARGET_RE.fullmatch(typed)
+            or _REFERENTIAL_FORGET_RE.fullmatch(typed)):
+        return None  # a description that carries its value, or points at "the code I gave you": those readers decide
+    # Only facts of the owner's profile, which every chat reads. A fact kept for one chat alone keeps its own
+    # contract: a described forget there withdraws the subject from that chat's readers and erases nothing
+    # (core.memory.entries.forget_structured_memory says so, and tests/test_forget_subject_readers_r9.py holds it).
+    rows = [row for row in memory_entries._load_erasure_rows(memory_entries_path())
+            if str(row.get("text") or "").strip() and memory_entries._memory_erasure_row_owned(row, policy)
+            and str(row.get("scope") or "").strip().lower() == "user_profile"
+            and str(row.get("status") or "active").strip().lower() not in {"erased", "superseded"}]
+    if not rows or any(carries(row_payload(row, structural_fields=ROW_IDENTITIES), clean.lower()) for row in rows):
+        return None  # the words as typed already select a row: the keyword path decides, as before
+    question = (clean if _FORGET_ASKS_RE.match(clean) else f"what is {clean}") + "?"
+    # Read as a forget reads its targets, not through the serving search: the runtime opens the turn's forget
+    # admission before the lanes run, and while it is open the serving gate withholds every row (the first cut of
+    # this change searched, and on the real app the forget then named nothing).
+    facts = list(dict.fromkeys(" ".join(str(row.get("text") or "").split()) for row in rows))
+    # The words decide first and cost no call; only when no fact holds the target's subject is the judgement asked.
+    verdicts = cross_chat_recall.facts_shown_for_question(
+        question, facts, may_judge=False, session_id=session_id, source_context=source_context) or {}
+    named = [fact for fact in facts if verdicts.get(fact) == "covers"]
+    if not named:
+        # In other words than the fact's: the few facts that share a word with the target or are nearest to it in
+        # meaning are put to the same-thing judgement. Nobody to judge, or no yes: nothing is named.
+        words = memory_entries._search_tokens(clean)
+        try:
+            near = memory_entries._meaning_scores(question, rows)
+        except Exception as exc:
+            LOGGER.warning("forget target nearness unavailable: %s", type(exc).__name__)
+            near = {}
+        scored = []
+        for index, row in enumerate(rows):
+            text = " ".join(str(row.get("text") or "").split())
+            shares = bool(words & memory_entries._search_tokens(text, row.get("keywords")))
+            closeness = float(near.get(index) or 0.0)
+            if shares or closeness >= memory_entries._MEANING_FLOOR:
+                scored.append((closeness, shares, text))
+        candidates = list(dict.fromkeys(text for _, _, text in sorted(scored, key=lambda item: (-item[0], not item[1]))))
+        candidates = candidates[: cross_chat_recall._JUDGED_NEAR_FACTS]
+        if not candidates:
+            return None
+        verdicts = cross_chat_recall.facts_shown_for_question(
+            question, candidates, may_judge=True, session_id=session_id, source_context=source_context) or {}
+        named = [fact for fact in candidates if verdicts.get(fact) == "means"]
+    if len(named) != 1:
+        return None
+    return named
+
+
+def _forget_arguments_by_what_they_name(
+    arguments: list[str], *, policy: Any, session_id: str, source_context: dict[str, Any] | None,
+) -> list[tuple[str, str]]:
+    """Each forget target as (the words to erase by, the target as typed): itself twice, or the saved fact it
+    describes and the description.
+
+    "Forget my bowls locker number and where the choir robes go." is one target to the command parser (no second
+    "forget"). It is read as two only when the whole names nothing and EVERY part names a saved fact; each part is
+    then its own typed target, which is how the turn's own reader of the request counts them
+    (core.memory.command_result.forget_demand_targets reads "my bowls locker number" there: measured on 2a3f9786,
+    where the whole was recorded as one target and the turn answered "Forget could not be verified on this turn")."""
+    out: dict[str, str] = {}
+    for argument in arguments:
+        target = _normalize_forget_target(argument)
+        named = _saved_facts_a_forget_names(target, policy=policy, session_id=session_id, source_context=source_context)
+        pairs = [(named[0], argument)] if named else [(argument, argument)]
+        if named is None:
+            parts = [part.strip() for part in _FORGET_AND_RE.split(target) if part.strip()]
+            if len(parts) > 1:
+                each = [_saved_facts_a_forget_names(part, policy=policy, session_id=session_id, source_context=source_context)
+                        for part in parts]
+                if all(each):
+                    pairs = [(facts[0], part) for facts, part in zip(each, parts, strict=True)]
+        for erase_by, typed in pairs:
+            out.setdefault(erase_by, typed)
+    return list(out.items())
 
 
 def _whole_erase_saved_texts(policy: Any) -> list[str]:

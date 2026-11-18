@@ -2370,6 +2370,11 @@ def _forget_subject_fact_key(token: str) -> str:
     return f"fact:{subject}"
 
 
+#: Key of a forget's erasure record: the chats its erased rows were saved from, each with the words of the rows it
+#: saved (no store, no count; held in memory for the turn only, as the erased texts are, and never written).
+ERASED_ROW_CHATS = "erased_row_chats"
+
+
 def forget_structured_memory(
     token: str,
     *,
@@ -2444,6 +2449,19 @@ def forget_structured_memory(
         # is on Tuesdays" under "... on Fridays now") and need not carry the words of the forget.
         target_ids = _with_replaced_rows(target_ids, [row for row in rows if _memory_erasure_row_owned(row, policy)])
         erased_texts = _erase_rows_locked(target_ids)
+        if erasures is not None and erased_texts:
+            # The chats the erased rows were saved from. A row of the owner's profile is read in every chat, and the
+            # chat that saved it holds the same words in its own log, summary and capsule: the caller erases them
+            # there as well (core.persistent_memory, the forget lane), or that chat still answers the fact.
+            wanted = set(target_ids)
+            erased_now = {" ".join(str(text or "").split()) for text in erased_texts}
+            saved_from: dict[str, list[str]] = erasures.setdefault(ERASED_ROW_CHATS, {})
+            for row in rows:
+                chat = str(row.get("origin_chat_id") or row.get("session_id") or "").strip()
+                text = " ".join(str(row.get("text") or "").split())
+                if (chat and text in erased_now and str(row.get("record_id") or "").strip() in wanted
+                        and text not in saved_from.setdefault(chat, [])):
+                    saved_from[chat].append(text)
         if erased_texts:
             retained = _load_erasure_rows(memory_entries_path())
             if any(str(row.get("record_id") or "") in target_ids
