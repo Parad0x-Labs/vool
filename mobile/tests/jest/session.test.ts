@@ -58,6 +58,11 @@ it('refuses a late system result and a successful result while still backgrounde
   const hidden=state.unlock(async()=>{state.background('background');return true;},true);
   expect(await hidden).toBe(false);expect(state.locked).toBe(true);
 });
+it('takes a passcode answer that arrives just before VOOL is back in front',async()=>{
+  const state=new SessionLock(()=>{});
+  const result=state.unlock(async()=>{state.background('inactive');setTimeout(()=>state.background('active'),20);return true;},true);
+  expect(await result).toBe(true);expect(state.locked).toBe(false);
+});
 
 import {credentialIdentity} from '../../src/protocol/connection.ts';
 it('keeps one queue owner while its route changes, and rotates it for a new grant',()=>{
