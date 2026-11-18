@@ -280,7 +280,9 @@ def test_a_row_that_shares_only_a_filler_word_with_the_question_is_still_put_to_
     monkeypatch.setattr(intent_arbiter, "arbitrate_meaning", lambda question, fact, **_: asked.append(fact) or "yes")
     question = "who should mend the cracked teapot?"  # shares "the" with the row, and no word of its subject
     rows = search_relevant_memory(question, access_policy=_policy("ask"), limit=6, by_meaning=True)
-    assert _texts(rows) == ["Mrs Pellow at the china stall fixes our crockery"] and "found_by" not in rows[0], rows
+    # Since step 7b "the" is no shared word of the search, so the row is found by its meaning and not by that word
+    # (this line read `"found_by" not in rows[0]` before; changed on the owner's word, 2026-11-18).
+    assert _texts(rows) == ["Mrs Pellow at the china stall fixes our crockery"] and rows[0].get("found_by") == "meaning", rows
     assert recall._rows_that_mean_it(question, "ask", dict(OWNER)) == (["Mrs Pellow at the china stall fixes our crockery"], True)
     assert recall.saved_memory_answers(question, session_id="ask", source_context=dict(OWNER)) is True
     assert asked == ["Mrs Pellow at the china stall fixes our crockery"]

@@ -1490,9 +1490,17 @@ _SHORT_CAPITALS_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2}(?![A-Za-z0-9])")
 
 
 def _search_tokens(text: str, keywords: Any = None) -> set[str]:
-    """The words a memory search compares for one text: its keyword stems and its two-letter capitals."""
-    plain = {_match_stem(token) for token in (keywords or keyword_tokens_filtered(str(text or "")))}
-    return plain | {found.casefold() for found in _SHORT_CAPITALS_RE.findall(str(text or ""))}
+    """The words a memory search compares for one text: its keyword stems and its two-letter capitals.
+
+    A small word every sentence holds ("the", "you", "what") is no word of the search: two texts that share only such
+    a word share nothing. A text made of small words alone is compared by them, as before.
+    """
+    from core.chat_housekeeping import STOPWORDS
+
+    words = [str(token or "").casefold() for token in (keywords or keyword_tokens_filtered(str(text or "")))]
+    content = {_match_stem(word) for word in words if word not in STOPWORDS}
+    content |= {found.casefold() for found in _SHORT_CAPITALS_RE.findall(str(text or ""))}
+    return content or {_match_stem(word) for word in words}
 
 
 #: How close in meaning (cosine, embed model space) a saved row must be to a question that shares no word with it

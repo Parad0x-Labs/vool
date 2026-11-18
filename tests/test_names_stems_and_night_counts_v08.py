@@ -84,6 +84,27 @@ def test_a_two_letter_word_in_capitals_is_a_word(isolated_home):
     assert [str(row.get("text")) for row in found] == ["my OT is Ms Bellamy."]
 
 
+def test_a_word_every_sentence_holds_is_no_shared_word(isolated_home):
+    # "the" and "what" were words of the search: any question met any saved fact by them, and since the subject gate
+    # each such fact cost a judgement call.
+    assert _say("Remember that the kettle descaler is under the sink", "seed")[1].startswith("Locked in")
+    assert search_relevant_memory("what is the longest river in the world?", access_policy=_policy("ask"), limit=6) == []
+    assert not entries._search_tokens("what is the longest river in the world?") & entries._search_tokens("the kettle descaler is under the sink")
+    found = search_relevant_memory("where is the kettle descaler?", access_policy=_policy("ask"), limit=6)
+    assert [row["text"] for row in found] == ["the kettle descaler is under the sink"], found
+
+
+def test_a_small_word_is_dropped_as_a_whole_word_and_not_as_a_stem():
+    # "others" is a word of its own; only the whole word "other" is small.
+    assert "other" in entries._search_tokens("the others left early")
+    assert "other" not in entries._search_tokens("the other one left early")
+
+
+def test_a_text_of_small_words_alone_is_searched_as_it_was():
+    # With nothing else to go by, the small words are the words of the search: an empty set would compare nothing.
+    assert entries._search_tokens("what about them?") == {"what"}
+
+
 def test_the_seat_preference_still_meets_the_window_seats():
     assert entries._search_tokens("any seat preference?") & entries._search_tokens("i always prefer window seats when i fly")
 
