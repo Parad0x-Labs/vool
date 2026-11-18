@@ -297,3 +297,92 @@ def test_a_weak_verb_in_both_is_not_a_shared_word_and_a_shared_noun_is(isolated_
     pitch = "what's the pitch of my singing voice?"  # "pitch": a word to both, so the covering law keeps the row
     assert recall._rows_that_mean_it(pitch, "ask", dict(OWNER)) == ([], True)
     assert [question for question, _ in asked] == [jacket]
+
+
+# --- a fact the search found by a shared word is shown as a fact only when it is the thing asked for ---------------
+
+SANDER = "my belt sander is on grit 80."
+ASKED_OTHER = "what grit is my orbital polisher on?"
+
+
+def _shown(question: str, chat: str = "near-fact-chat", **context) -> list[tuple[str, str]]:
+    items = tiered_context_loader._persistent_memory_items(
+        question, [], session_id=chat, policy=_policy(chat), by_meaning=context.pop("may_judge", True), source_context=context
+    )
+    return [(item.title, item.content) for item in items]
+
+
+def test_a_similar_fact_about_another_thing_is_not_shown_for_the_question(isolated_home, monkeypatch):
+    # Measured on the real app (2026-11-18), the start commit included: "what crust setting is my toaster on?" with
+    # the bread maker's row saved was answered "Your toaster is on crust setting 3."
+    recall._MEANING_VERDICTS.clear()
+    _say("Remember that " + SANDER)
+    asked: list[tuple[str, str]] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda question, fact, **_: asked.append((question, fact)) or "no")
+    assert _shown(ASKED_OTHER) == []
+    assert asked == [(ASKED_OTHER, SANDER)]
+    recall._MEANING_VERDICTS.clear()
+
+
+def test_the_fact_asked_for_is_shown_with_no_judgement_when_it_holds_the_subject(isolated_home, monkeypatch):
+    recall._MEANING_VERDICTS.clear()
+    _say("Remember that " + SANDER)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda *a, **k: pytest.fail("judged a fact that holds the subject"))
+    assert _shown("what grit is my belt sander on?") == [("Persistent memory fact", SANDER)]
+
+
+def test_the_fact_asked_for_in_other_words_is_shown_on_the_judgements_yes(isolated_home, monkeypatch):
+    recall._MEANING_VERDICTS.clear()
+    _say("Remember that " + SANDER)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda *a, **k: "yes")
+    assert _shown("what grit is the sanding machine on?") == [("Persistent memory fact", SANDER)]
+    recall._MEANING_VERDICTS.clear()
+
+
+def test_with_nobody_to_judge_the_fact_is_shown_marked_and_no_answer_is_lost(isolated_home, monkeypatch):
+    recall._MEANING_VERDICTS.clear()
+    _say("Remember that " + SANDER)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda *a, **k: None)
+    [(title, content)] = _shown(ASKED_OTHER)
+    assert content == SANDER and title.startswith("Persistent memory fact (may be about a different thing")
+
+
+def test_a_turn_that_may_not_ask_the_judgement_is_shown_the_fact_marked(isolated_home, monkeypatch):
+    # A private chat and a turn that is not the owner's ask no judgement. The first cut of this change hid a fact
+    # that lacks the subject from such a turn, and "how many nights at the cabin?" lost the saved dates it is
+    # answered from (tests/test_a_saved_stay_shows_its_nights_v08.py, from before this change, said so).
+    _say("Remember that " + SANDER)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda *a, **k: pytest.fail("judged for a turn that may not"))
+    [(title, content)] = _shown(ASKED_OTHER, may_judge=False)
+    assert content == SANDER and title.startswith("Persistent memory fact (may be about a different thing")
+    assert _shown("what grit is my belt sander on?", may_judge=False) == [("Persistent memory fact", SANDER)]
+
+
+def test_a_remark_and_a_follow_up_are_shown_what_they_were_shown_before(isolated_home, monkeypatch):
+    _say("Remember that " + SANDER)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda *a, **k: pytest.fail("judged for a turn that is no question of its own"))
+    assert _shown("the orbital polisher ate another disc, grit everywhere.") == [("Persistent memory fact", SANDER)]
+
+
+def test_only_the_first_few_facts_that_lack_the_subject_are_judged(isolated_home, monkeypatch):
+    recall._MEANING_VERDICTS.clear()
+    for tool in ("belt sander", "bench grinder", "mitre saw", "pillar drill", "router table"):
+        _say(f"Remember that my {tool} is on grit 80.")
+    asked: list[str] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_same_thing", lambda question, fact, **_: asked.append(fact) or "yes")
+    shown = _shown(ASKED_OTHER)
+    assert len(asked) == recall._JUDGED_NEAR_FACTS and len(shown) == recall._JUDGED_NEAR_FACTS
+    recall._MEANING_VERDICTS.clear()
+
+
+
+
+def test_the_same_thing_question_is_a_judgement_on_the_chat_models_runner(monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "qwen3:8b")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_followup", lambda *a, **k: calls.append(k) or "no")
+    assert intent_arbiter.arbitrate_same_thing(ASKED_OTHER, SANDER) == "no"
+    assert calls[0]["operation"] == "same_thing_arbitration" and calls[0]["call_role"] == intent_arbiter._judgement_role()
+    assert calls[0]["prompt"] != intent_arbiter._meaning_prompt(ASKED_OTHER, SANDER) and SANDER in calls[0]["prompt"]
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
+    assert intent_arbiter.arbitrate_same_thing(ASKED_OTHER, SANDER) is None

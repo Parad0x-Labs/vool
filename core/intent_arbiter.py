@@ -751,6 +751,69 @@ def arbitrate_meaning(
     )
 
 
+def _same_thing_prompt(question: str, fact: str) -> str:
+    """A balanced yes/no: is a saved fact about the SAME thing or person a question asks about?
+
+    Asked of a saved fact the word search found for a question and that does not hold the question's subject, before
+    it is shown to the answering model as a saved fact. The recall lane's question (`_meaning_prompt`: does the fact
+    give what was asked for?) does not hold this line. Measured on the local model (the fix mission's probe,
+    2026-11-18): it read yes for "what crust setting is my toaster on?" against "my bread maker is on crust setting
+    3.", for a treadmill against an exercise bike and for a cross trainer against a rowing machine, 3 of 3: the
+    same kind of setting on another machine. Asked about the THING, those three read no, the same things under
+    other names read yes 4 of 4, and on 24 pairs sealed before the code was read a similar fact about another thing
+    read no 11 of 12 (9 of 12 with the other question) with the fact asked for read yes 12 of 12."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "A person asked their assistant a question. The assistant holds one saved fact the person told it earlier.",
+        "Question: is the saved fact about the SAME thing or person the question asks about?",
+        'Answer {"answer": "yes"} when it is the same thing or person, even under another name or in other words, '
+        "or when the fact holds what is needed to work the answer out.",
+        'Answer {"answer": "no"} when the fact is about a DIFFERENT thing or person of a similar kind: another '
+        "machine, another room, another relative, another place. A shared setting, measure or word does not make it "
+        "the same thing.",
+        "",
+        'Asked: "what speed is my blender on?" Saved fact: "my coffee grinder is on speed 2." -> {"answer": "no"}',
+        'Asked: "what speed is the liquidiser on?" Saved fact: "my blender is on speed 5." -> {"answer": "yes"}',
+        'Asked: "when is my sister\'s birthday?" Saved fact: "my brother\'s birthday is 2 June." -> {"answer": "no"}',
+        'Asked: "who looks after my teeth?" Saved fact: "Dr Ferro is my dentist." -> {"answer": "yes"}',
+        'Asked: "what\'s the door code for the garage?" Saved fact: "the door code for the shed is 4471." '
+        '-> {"answer": "no"}',
+        'Asked: "how many days is the Lisbon trip?" Saved fact: "we fly to Lisbon on the 3rd and back on the 9th." '
+        '-> {"answer": "yes"}',
+        'Asked: "what tog is the duvet in the spare room?" Saved fact: "the duvet in our room is 13.5 tog." '
+        '-> {"answer": "no"}',
+        'Asked: "where do we go on holiday?" Saved fact: "we rent the same cottage on Skye every August." '
+        '-> {"answer": "yes"}',
+        "",
+        f'Asked: "{flat(question, 240)}" Saved fact: "{flat(fact, 400)}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_same_thing(
+    question: str,
+    fact: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a saved fact is about the same thing or person a question asks about: ``"yes"`` / ``"no"``, or None
+    when nothing judged it. Same call path as the other judgements (one sealed site, the loaded local model, the
+    judgement role on the turn's ledger). None decides nothing: the caller shows the fact marked."""
+    if not str(question or "").strip() or not str(fact or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_same_thing_prompt(question, fact), operation="same_thing_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _lasting_fact_prompt(sentence: str) -> str:
     """A balanced yes/no: is a sentence said in passing a lasting fact about the person's private life?
 

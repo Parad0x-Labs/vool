@@ -851,6 +851,27 @@ def _may_read_by_meaning(source_context: dict[str, Any] | None, session_id: str)
         return False
 
 
+#: Said beside a saved fact that does not hold the question's subject when nobody could judge whether it is the
+#: thing asked for in other words.
+_UNJUDGED_FACT_MARK = " (may be about a different thing than the one asked; use it only if it is the same thing)"
+
+
+def _facts_for_the_question(
+    query_text: str, found: list[dict[str, Any]], may_judge: bool, session_id: str, source_context: dict[str, Any] | None
+) -> dict[str, str] | None:
+    try:
+        from core.agent_runtime.cross_chat_recall import facts_shown_for_question
+
+        facts = [str(entry.get("text") or "") for entry in found if str(entry.get("category") or "fact") == "fact"]
+        if not facts:
+            return None
+        return facts_shown_for_question(
+            query_text, facts, may_judge=may_judge, session_id=session_id, source_context=source_context
+        )
+    except Exception:
+        return None
+
+
 def _persistent_memory_items(
     query_text: str,
     topic_hints: list[str],
@@ -859,6 +880,7 @@ def _persistent_memory_items(
     policy: ContextScopePolicy,
     allow_instruction_memory: bool = True,
     by_meaning: bool = False,
+    source_context: dict[str, Any] | None = None,
 ) -> list[ContextItem]:
     items: list[ContextItem] = []
     # A stored row whose text this chat's own history already carries verbatim is the same fact
@@ -871,20 +893,31 @@ def _persistent_memory_items(
         for turn in recent_dialogue_turns(session_id, limit=10)
     ]
     history_blob = " \x01 ".join(earlier).lower()
-    for entry in search_relevant_memory(
+    leans_on = _follow_up_subject(query_text, earlier)
+    found = search_relevant_memory(
         query_text,
         access_policy=policy,
-        topic_hints=[*topic_hints, *_follow_up_subject(query_text, earlier)],
+        topic_hints=[*topic_hints, *leans_on],
         limit=12,
         # A question in other words than the saved fact ("who do I ring when the drains back up?") shares no word
         # with it; the model that answers may still read the few rows closest in meaning, and decides what they say.
         by_meaning=by_meaning,
-    ):
+    )
+    # A fact the search found by one shared word is not the fact a question asks for ("my bread maker is on crust
+    # setting 3." for "what crust setting is my toaster on?"): the recall lane says which of the facts found hold
+    # the question's subject or mean it, and only those are shown as saved facts for the question.
+    # A short follow-up ("and how many nights are we staying?") takes its subject from the ask before it: its own
+    # words name none, so nothing is decided from them.
+    bearing = None if leans_on else _facts_for_the_question(query_text, found, by_meaning, session_id, source_context)
+    for entry in found:
         category = str(entry.get("category") or "fact")
         if category == "instruction" and not allow_instruction_memory:
             continue
         content = str(entry.get("text") or "")[:320]
         if content and history_blob and content.lower() in history_blob:
+            continue
+        how = (bearing or {}).get(" ".join(str(entry.get("text") or "").split())) if category == "fact" else None
+        if how == "other":
             continue
         content = _with_night_counts(content)
         items.append(
@@ -892,7 +925,7 @@ def _persistent_memory_items(
                 item_id=f"runtime-memory-{category}-{abs(hash(str(entry.get('text') or '')))}",
                 layer="relevant",
                 source_type="runtime_memory",
-                title=f"Persistent memory {category}",
+                title=f"Persistent memory {category}" + (_UNJUDGED_FACT_MARK if how == "unjudged" else ""),
                 content=content,
                 priority=float(entry.get("score") or 0.0),
                 confidence=float(entry.get("confidence") or 0.0),
@@ -1857,6 +1890,7 @@ class TieredContextLoader:
                     policy=scope_policy,
                     allow_instruction_memory=exact_recall_current_session_only,
                     by_meaning=_may_read_by_meaning(scoped_source_context, session_id),
+                    source_context=scoped_source_context,
                 )
                 if source_authority.admits(ContextSource.PERSISTENT_RETRIEVAL)
                 else []

@@ -598,6 +598,84 @@ def _rows_that_mean_it(
         return [], True
 
 
+#: How many saved facts that do not hold a question's subject are put to the judgement for one question, best first.
+_JUDGED_NEAR_FACTS = 3
+
+
+def facts_shown_for_question(
+    question: str, facts: list[str], *, may_judge: bool, session_id: str, source_context: dict[str, Any] | None
+) -> dict[str, str] | None:
+    """For a question, how each saved fact the word search found bears on it: ``"covers"`` (it holds every subject
+    word of the question), ``"means"`` (the judgement reads it as the thing asked for, in other words), ``"other"``
+    (another thing or person: not to be shown as a fact for this question) or ``"unjudged"`` (nobody could say).
+    None when the text is not a question this lane reads: nothing is decided and every fact is shown as before.
+
+    The search finds a fact by ANY word it shares with the question, and every fact found was put in front of the
+    answering model as a saved fact. Measured on the real app (2026-11-18), on the start commit and on every commit
+    of the fix branch: with "my bread maker is on crust setting 3." saved, "what crust setting is my toaster on?"
+    was answered "Your toaster is on crust setting 3."; the exercise bike's level was given as the treadmill's and
+    the campervan's key as the way into the boathouse. A shared word ranks a fact; it does not make it the fact
+    asked for. So a subject match is a gate for what is shown as a saved fact, not a boost to its score.
+
+    A fact that holds the subject is shown with no call. One that does not is the thing asked for only in other
+    words ("the loaf machine" for the bread maker), which is a judgement: the loaded local model is asked whether
+    the fact is about the same thing or person (`core.intent_arbiter.arbitrate_same_thing`; the recall lane's own
+    question read the toaster and the bread maker as a yes), for at most `_JUDGED_NEAR_FACTS` facts, on the owner's
+    own turn outside a private chat. A no keeps the fact out of this question's context; past that
+    count a fact that does not hold the subject is "other". When nobody can judge (no local model, a failed call),
+    and on a turn that may not ask the judgement (a private chat, a turn that is not the owner's), the fact is
+    "unjudged": the caller shows it marked as possibly about another thing, so no answer is lost to a missing
+    judge. The first cut of this change hid such a fact from a turn that may not ask, and "how many nights at the
+    cabin?" lost the saved dates it is answered from (an existing test of the context loader said so)."""
+    try:
+        text = as_question(" ".join(str(question or "").split()))
+        if not text.endswith("?") or len(text) > 300:
+            return None
+        terms = _asked_terms(text)
+        if not terms:
+            return None
+        from core.chat_housekeeping import _doc_stems, _term_in
+
+        subject = _subject_terms(text, terms)
+        shown: dict[str, str] = {}
+        asked = 0
+        nobody = False
+        for fact in facts:
+            clean = " ".join(str(fact or "").split())
+            if not clean or clean in shown:
+                continue
+            if all(_term_in(term, _doc_stems(clean)) for term in subject):
+                shown[clean] = "covers"
+                continue
+            if not may_judge or nobody:
+                shown[clean] = "unjudged"
+                continue
+            if asked >= _JUDGED_NEAR_FACTS:
+                shown[clean] = "other"
+                continue
+            key = hashlib.sha256(f"same thing\x00{text}\x00{clean}".encode()).hexdigest()
+            verdict = _MEANING_VERDICTS.get(key)
+            if verdict is None:
+                from core.intent_arbiter import arbitrate_same_thing
+
+                asked += 1
+                verdict = arbitrate_same_thing(text, clean, chat_id=str(session_id or ""), source_context=source_context)
+                if verdict in {"yes", "no"}:
+                    if len(_MEANING_VERDICTS) >= _MEANING_VERDICTS_KEPT:
+                        _MEANING_VERDICTS.clear()
+                    _MEANING_VERDICTS[key] = verdict
+            if verdict == "yes":
+                shown[clean] = "means"
+            elif verdict == "no":
+                shown[clean] = "other"
+            else:
+                nobody = True
+                shown[clean] = "unjudged"
+        return shown
+    except Exception:
+        return None
+
+
 #: A question about the value NOW ("what's my balance today?") is not one a saved fact answers: a stored reading is
 #: never a current one. "live" counts only as in a live score or feed: "where does Tobiah live?" with "my brother
 #: Tobiah lives in Quillon" saved was asked back "the biblical Tobiah or a modern person?" (held-out set, real model).
