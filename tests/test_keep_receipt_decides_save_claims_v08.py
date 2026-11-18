@@ -279,6 +279,24 @@ def test_a_reply_with_no_save_claim_is_untouched_by_an_empty_receipt() -> None:
     assert published == reply
 
 
+def test_a_sentence_that_says_vool_looked_is_not_a_save_claim() -> None:
+    # Measured on the served cb32d1b6 (the before/after rerun, r6 t29 turn 2): the model repeated the recall lane's
+    # own sentence from the turn before; it was cut as a save claim and the nothing-was-saved line put under a reply
+    # that claimed no save. A read of memory is judged by the ordinary evidence, as on a turn with no receipt.
+    reply = (
+        "I don't have that saved, and I looked through your other chats and projects (1 chat) without finding it. "
+        "If you tell me, I'll remember it for every chat."
+    )
+    published, record = _gate(reply, NOTHING_KEPT)
+    assert "Nothing from this message was saved to memory" not in published, record
+    assert record.get("memory_receipt") != "claims_without_receipt_corrected", record
+    assert published == _gate(reply, None)[0]
+    # A done-form claim beside it is still held to the receipt.
+    published, record = _gate(reply + " I've saved your question for later.", NOTHING_KEPT)
+    assert record["memory_receipt"] == "claims_without_receipt_corrected", record
+    assert "I've saved your question" not in published and "Nothing from this message was saved to memory" in published
+
+
 def test_a_turn_the_keep_step_never_saw_is_judged_as_before() -> None:
     reply = "I'm keeping track of that for you."
     published, _record = _gate(reply, None)

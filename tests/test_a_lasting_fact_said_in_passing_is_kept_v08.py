@@ -48,6 +48,7 @@ def judge(monkeypatch):
 
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lasting)
     monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: verdict.get("standing", "yes"))
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda sentence, **_: verdict.get("told", "yes"))
     asked_and_verdict = (asked, verdict)
     return asked_and_verdict
 
@@ -201,3 +202,43 @@ def test_the_standing_state_question_is_a_judgement_on_the_chat_models_runner(mo
     assert calls[0]["prompt"] != intent_arbiter._lasting_fact_prompt(CASE) and CASE in calls[0]["prompt"]
     monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
     assert intent_arbiter.arbitrate_standing_state(CASE) is None
+
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["retitle the sailing club film so it carries Marguerite's name", "I'm mulling over a lean-to for the firewood."],
+)
+def test_a_request_or_a_passing_thought_is_not_kept_on_two_yeses(isolated_home, judge, said):
+    # Measured on the served cb32d1b6: "rename the soccer video so we know its nadia's" and "I'm thinking of painting
+    # the box room sage green." read yes to both questions and each wrote a row. The third question is what kind of
+    # sentence it is; its no, or nobody answering it, keeps nothing.
+    asked, verdict = judge
+    verdict["told"] = "no"
+    assert _keep(said) == 0 and asked == [said] and _rows() == []
+    verdict["told"] = None
+    assert _keep(said) == 0 and _rows() == []
+    verdict["told"] = "yes"
+    assert _keep(CASE) == 1
+
+
+def test_the_third_question_is_asked_only_after_a_yes_to_the_first_two(isolated_home, monkeypatch):
+    third: list[str] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda sentence, **_: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda sentence, **_: third.append(sentence) or "yes")
+    assert _keep(CASE) == 0 and third == []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: "yes")
+    assert _keep(CASE) == 1 and third == [CASE]
+
+
+def test_the_told_as_fact_question_is_a_judgement_on_the_chat_models_runner(monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "qwen3:8b")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_followup", lambda *a, **k: calls.append(k) or "no")
+    assert intent_arbiter.arbitrate_told_as_fact(CASE) == "no"
+    assert calls[0]["operation"] == "told_as_fact_arbitration" and calls[0]["call_role"] == intent_arbiter._judgement_role()
+    assert calls[0]["prompt"] not in {intent_arbiter._lasting_fact_prompt(CASE), intent_arbiter._standing_state_prompt(CASE)}
+    assert CASE in calls[0]["prompt"]
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
+    assert intent_arbiter.arbitrate_told_as_fact(CASE) is None

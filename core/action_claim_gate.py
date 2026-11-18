@@ -841,6 +841,11 @@ def _quoted_facts(facts: list[str]) -> str:
     return "; ".join('"' + str(fact).rstrip(".!? ") + '"' for fact in facts[:3])
 
 
+def _save_claim(claim: tuple[int, int, int, str, str, str]) -> bool:
+    """Whether a claim sentence says something was SAVED to memory (the form the keep receipt judges)."""
+    return claim[5] == "memory" and claim[4] == "action"
+
+
 def _judge_by_receipt(
     text: str,
     spans: list[tuple[int, int, int, str, str, str]],
@@ -859,6 +864,7 @@ def _judge_by_receipt(
     table = _LINES["en"] if language not in _LINES or "memory_none" not in _LINES[language] else _LINES[language]
     saved = [str(f) for f in receipt.get("saved") or [] if str(f).strip()]
     refused = [str(r) for r in receipt.get("refused") or [] if f"memory_refused_{r}" in table]
+    # With a write on the receipt every memory sentence stands, as it did.
     memory = [c for c in spans if c[5] == "memory"]
     rest = [c for c in spans if c[5] != "memory"]
     if not saved and receipt.get("withheld"):
@@ -870,6 +876,13 @@ def _judge_by_receipt(
             return text, rest, {"memory_receipt": "claims_match_receipt", "kept": len(saved)}
         line = table["memory_kept"].format(facts=_quoted_facts(saved))
         return f"{text.rstrip()}\n\n{line}", rest, {"memory_receipt": "kept_line_added", "kept": len(saved)}
+    # A save claim is a memory sentence in the done form. One that says VOOL LOOKED ("I don't have that saved, and I
+    # looked through your other chats ...") claims a read, not a save: the receipt has nothing to say about it and
+    # the ordinary evidence judges it, as before the receipt existed. Measured on the served cb32d1b6 (the before/after
+    # rerun, r6 t29 turn 2): the model repeated that sentence of the recall lane's from the turn before, it was cut
+    # as a save claim, and "Nothing from this message was saved to memory" was put under a reply that claimed none.
+    memory = [c for c in spans if _save_claim(c)]
+    rest = [c for c in spans if not _save_claim(c)]
     wide = _retention_spans(
         text, {(c[0], c[1], c[2]) for c in spans},
         asked_about_a_save=bool(request and dict(_SOURCES)["memory"].search(request)),

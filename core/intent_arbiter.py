@@ -832,6 +832,54 @@ def _standing_state_prompt(sentence: str) -> str:
     ])
 
 
+def _told_as_fact_prompt(sentence: str) -> str:
+    """A balanced yes/no: is a sentence TELLING how something in the person's life is, or is it a request to the
+    assistant or something the person is only thinking of?
+
+    The third question of the keep step's judgement, asked only of a sentence the first two read as a lasting
+    private fact that says how things are. Measured on the served cb32d1b6 (the before/after rerun of 2026-11-18 and
+    a fresh set after it): "rename the soccer video so we know its nadia's", "I'm thinking of painting the box room
+    sage green." and "maybe we'll swap the hallway carpet for oak boards one day." each read yes to both and wrote a
+    memory row with 'Saved to memory: "..."'. Neither question asks what KIND of sentence it is: both take for
+    granted that it states something. Putting that into the second question's wording was tried and measured
+    (the fix mission's probe): the two rerun sentences still read yes. Asked by itself it reads them no.
+
+    The first two questions read 11 of 12 fresh maybe / one-day / we-will-probably sentences as yes to both, and
+    this question's first wording still read 5 of those 12 as yes ("we'll probably move the piano upstairs at some
+    point."; on the real app that cut kept "maybe we'll swap the hallway carpet for oak boards one day."). This
+    wording names what has not happened and is not settled. Measured on a set held out from its shaping: 12 of 12
+    standing facts that sound like plans read yes, 12 of 12 requests and unsettled things read no; over the
+    probe's sets, 72 of 72 lasting sentences read yes."""
+    flat = " ".join(str(sentence or "").split())[:400]
+    return "\n".join([
+        "A person said one sentence to their assistant.",
+        "Question: is the person TELLING the assistant how something in their life is?",
+        'Answer {"answer": "yes"} when the sentence states a fact that already holds: how something is, where '
+        "something is kept, who someone is, what suits them, or what they or others regularly do.",
+        'Answer {"answer": "no"} when the sentence asks or tells the assistant to DO something (a task: change, move, '
+        'name, sort, find, make or send something), with or without "please".',
+        'Answer {"answer": "no"} when the sentence is about something that has not happened and is not settled: '
+        "something the person will probably, may, might or could do some time, is thinking of, would like, or has "
+        "not decided.",
+        "",
+        'Said: "the spare duvet lives in the top of the hall cupboard." -> {"answer": "yes"}',
+        'Said: "turn the scanned receipt the right way up for me." -> {"answer": "no"}',
+        'Said: "our neighbour Petra feeds the cat when we are away." -> {"answer": "yes"}',
+        'Said: "I\'m tempted to take up pottery in the autumn." -> {"answer": "no"}',
+        'Said: "we go to my mother\'s for Christmas every year." -> {"answer": "yes"}',
+        'Said: "copy the wedding pictures onto the stick so gran can have them." -> {"answer": "no"}',
+        'Said: "peppermint tea settles me after a long shift." -> {"answer": "yes"}',
+        'Said: "we\'ll probably get the drive resurfaced at some stage." -> {"answer": "no"}',
+        'Said: "the gate at the allotment sticks unless you lift it." -> {"answer": "yes"}',
+        'Said: "one day I\'ll learn to sail." -> {"answer": "no"}',
+        'Said: "my brother takes the dog on Thursdays." -> {"answer": "yes"}',
+        'Said: "we could put bunk beds in the back room eventually." -> {"answer": "no"}',
+        "",
+        f'Said: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
 def arbitrate_lasting_fact(
     sentence: str,
     *,
@@ -879,6 +927,29 @@ def arbitrate_standing_state(
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_standing_state_prompt(sentence), operation="standing_state_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
+def arbitrate_told_as_fact(
+    sentence: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a sentence tells how something is, rather than asking the assistant for something or voicing a
+    thought not settled: ``"yes"`` / ``"no"``, or None when nothing judged it. The keep step's third question
+    (`_told_as_fact_prompt` says why it is its own question). None keeps nothing."""
+    if not str(sentence or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        return None
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_told_as_fact_prompt(sentence), operation="told_as_fact_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(),
     )
 
