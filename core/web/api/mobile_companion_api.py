@@ -2056,6 +2056,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   button { font: inherit; background: #c3b8a8; color: #171513; border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 600; cursor: pointer; }
   button:disabled { opacity: .5; cursor: default; }
   .say { color: #aaa5a0; font-size: 13px; margin-top: 8px; }
+  .say code { display: block; overflow-wrap: anywhere; word-break: break-all; font-size: 12px; line-height: 1.5; }
 </style>
 </head>
 <body>
