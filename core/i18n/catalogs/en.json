@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Off",
     "phone.setup.payments_on": "On, with limits",
     "phone.setup.payments_help": "Payments start in the phone’s Wallet tab and are approved on this computer. Your wallet PIN confirms the limits.",
-    "phone.setup.basics": "Chat, chat history, attachments and alerts are switched on with Done. Change any single permission under Advanced.",
+    "phone.setup.basics": "Chat, chat history, attachments and alerts are on from pairing. Change any single permission under Advanced.",
     "phone.setup.checking": "Checking the folders. If your computer asks whether VOOL may use a folder, press Allow, so your phone never has to wait for it.",
     "phone.setup.check_failed": "VOOL could not check the folders. Press Done again to retry.",
     "phone.setup.not_ready": "These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Done again:",

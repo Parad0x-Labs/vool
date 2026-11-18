@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Aus",
     "phone.setup.payments_on": "An, mit Grenzen",
     "phone.setup.payments_help": "Zahlungen starten im Tab Wallet auf dem Telefon und werden auf diesem Computer bestätigt. Deine Wallet-PIN bestätigt die Grenzen.",
-    "phone.setup.basics": "Mit Fertig werden Chat, Chatverlauf, Anhänge und Hinweise eingeschaltet. Jede einzelne Berechtigung änderst du unter Erweitert.",
+    "phone.setup.basics": "Chat, Chatverlauf, Anhänge und Hinweise sind seit dem Koppeln eingeschaltet. Jede einzelne Berechtigung änderst du unter Erweitert.",
     "phone.setup.checking": "Die Ordner werden geprüft. Fragt dein Computer, ob VOOL einen Ordner verwenden darf, klicke auf Erlauben, damit dein Telefon nicht warten muss.",
     "phone.setup.check_failed": "VOOL konnte die Ordner nicht prüfen. Tippe noch einmal auf Fertig, um es erneut zu versuchen.",
     "phone.setup.not_ready": "Diese Ordner sind für VOOL noch nicht freigegeben. Erlaube VOOL auf dem Mac in den Systemeinstellungen unter Datenschutz & Sicherheit, Dateien und Ordner, und tippe dann noch einmal auf Fertig:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "Unsicher oder unhöflich",
     "report.reason.other": "Sonstiges"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "关闭",
     "phone.setup.payments_on": "开启，有上限",
     "phone.setup.payments_help": "付款从手机的钱包标签页发起，并在这台电脑上批准。你的钱包 PIN 用来确认上限。",
-    "phone.setup.basics": "点按“完成”后，将开启聊天、聊天记录、附件和提醒。可在“高级”中单独更改每项权限。",
+    "phone.setup.basics": "配对后即已开启聊天、聊天记录、附件和提醒。可在“高级”中单独更改每项权限。",
     "phone.setup.checking": "正在检查文件夹。如果你的电脑询问 VOOL 是否可以使用某个文件夹，请点按“允许”，这样手机就不用等待。",
     "phone.setup.check_failed": "VOOL 无法检查这些文件夹。请再次点按“完成”重试。",
     "phone.setup.not_ready": "这些文件夹尚未向 VOOL 开放。在 Mac 上，请在“系统设置”的“隐私与安全性”中的“文件和文件夹”里允许 VOOL，然后再次点按“完成”：",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "不安全或不礼貌",
     "report.reason.other": "其他"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

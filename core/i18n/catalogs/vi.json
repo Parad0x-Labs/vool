@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Tắt",
     "phone.setup.payments_on": "Bật, có giới hạn",
     "phone.setup.payments_help": "Thanh toán bắt đầu ở thẻ Ví trên điện thoại và được phê duyệt trên máy tính này. PIN ví của bạn xác nhận các giới hạn.",
-    "phone.setup.basics": "Trò chuyện, lịch sử trò chuyện, tệp đính kèm và thông báo sẽ được bật khi bạn nhấn Xong. Bạn có thể đổi từng quyền trong Nâng cao.",
+    "phone.setup.basics": "Trò chuyện, lịch sử trò chuyện, tệp đính kèm và thông báo được bật ngay khi ghép nối. Bạn có thể đổi từng quyền trong Nâng cao.",
     "phone.setup.checking": "Đang kiểm tra các thư mục. Nếu máy tính hỏi VOOL có được dùng một thư mục không, hãy nhấn Cho phép để điện thoại không phải chờ.",
     "phone.setup.check_failed": "VOOL không kiểm tra được các thư mục. Hãy nhấn Xong lần nữa để thử lại.",
     "phone.setup.not_ready": "Các thư mục này chưa mở cho VOOL. Trên Mac, hãy cho phép VOOL trong Cài đặt hệ thống, mục Quyền riêng tư & Bảo mật, Tệp và Thư mục, rồi nhấn Xong lần nữa:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "Không an toàn hoặc thô lỗ",
     "report.reason.other": "Khác"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

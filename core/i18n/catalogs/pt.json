@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Desativados",
     "phone.setup.payments_on": "Ativados, com limites",
     "phone.setup.payments_help": "Os pagamentos começam no separador Carteira do telemóvel e são aprovados neste computador. O PIN da sua carteira confirma os limites.",
-    "phone.setup.basics": "Conversa, histórico, anexos e alertas são ativados com Concluir. Altere cada permissão em separado em Avançado.",
+    "phone.setup.basics": "Conversa, histórico, anexos e alertas ficam ativos desde o emparelhamento. Altere cada permissão em separado em Avançado.",
     "phone.setup.checking": "A verificar as pastas. Se o seu computador perguntar se o VOOL pode usar uma pasta, prima Permitir, para o telemóvel não ter de esperar.",
     "phone.setup.check_failed": "O VOOL não conseguiu verificar as pastas. Prima Concluir outra vez para tentar de novo.",
     "phone.setup.not_ready": "Estas pastas ainda não estão abertas ao VOOL. Num Mac, permita o VOOL em Definições do Sistema, em Privacidade e Segurança, Ficheiros e Pastas, e prima Concluir outra vez:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "Insegura ou rude",
     "report.reason.other": "Outro"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -99,6 +99,16 @@ def defaults():
     return {name: False for name in RIGHTS}
 
 
+#: What a phone or tablet may do once its owner scans the pairing code at this computer: the same four
+#: that quick setup's Done switches on. Strong rights, files, payments and online lookups stay off until
+#: chosen on the computer. Chat bots are linked another way and still start with everything off.
+PAIRED_BASICS = ("chat", "history", "attachments", "alerts")
+
+
+def paired_defaults():
+    return {**defaults(), **{name: True for name in PAIRED_BASICS}}
+
+
 def enabled(device, right, now=None):
     rules = device.get("rules") or {}
     expiry = (device.get("right_expiry") or {}).get(right, 0)

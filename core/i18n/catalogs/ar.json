@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "متوقفة",
     "phone.setup.payments_on": "مفعّلة، مع حدود",
     "phone.setup.payments_help": "تبدأ المدفوعات من تبويب المحفظة على الهاتف وتتم الموافقة عليها على هذا الكمبيوتر. يؤكد رمز PIN الخاص بمحفظتك الحدود.",
-    "phone.setup.basics": "تُفعَّل المحادثة وسجل المحادثات والمرفقات والتنبيهات عند الضغط على تم. غيّر أي إذن بمفرده ضمن متقدم.",
+    "phone.setup.basics": "المحادثة وسجل المحادثات والمرفقات والتنبيهات مفعّلة منذ الاقتران. غيّر أي إذن بمفرده ضمن متقدم.",
     "phone.setup.checking": "جارٍ فحص المجلدات. إذا سألك الكمبيوتر إن كان بإمكان VOOL استخدام مجلد، فاضغط سماح حتى لا ينتظر هاتفك.",
     "phone.setup.check_failed": "تعذّر على VOOL فحص المجلدات. اضغط تم مرة أخرى لإعادة المحاولة.",
     "phone.setup.not_ready": "هذه المجلدات غير متاحة لـ VOOL بعد. على Mac، اسمح لـ VOOL في إعدادات النظام، تحت الخصوصية والأمان، الملفات والمجلدات، ثم اضغط تم مرة أخرى:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "غير آمنة أو فظّة",
     "report.reason.other": "أخرى"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

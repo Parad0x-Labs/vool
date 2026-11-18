@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "끔",
     "phone.setup.payments_on": "켬(한도 있음)",
     "phone.setup.payments_help": "결제는 휴대폰의 지갑 탭에서 시작되고 이 컴퓨터에서 승인합니다. 지갑 PIN으로 한도를 확인합니다.",
-    "phone.setup.basics": "채팅, 채팅 기록, 첨부 파일, 알림은 완료를 누르면 켜집니다. 권한은 고급에서 하나씩 바꿀 수 있습니다.",
+    "phone.setup.basics": "채팅, 채팅 기록, 첨부 파일, 알림은 페어링할 때부터 켜져 있습니다. 권한은 고급에서 하나씩 바꿀 수 있습니다.",
     "phone.setup.checking": "폴더를 확인하는 중입니다. 컴퓨터에서 VOOL이 폴더를 사용해도 되는지 물으면 허용을 눌러 주세요. 그러면 휴대폰이 기다리지 않아도 됩니다.",
     "phone.setup.check_failed": "VOOL이 폴더를 확인하지 못했습니다. 완료를 다시 눌러 재시도하세요.",
     "phone.setup.not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 완료를 다시 누르세요:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "위험하거나 무례함",
     "report.reason.other": "기타"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

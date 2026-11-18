@@ -240,12 +240,20 @@ def test_transport_identity_and_action_bounds_do_not_bloat_receipts(desktop):
     assert 'x'*4096 not in json.dumps(mobile_companion_service().store.receipts()[0])
 
 
-def test_every_new_phone_right_starts_off_until_pc_grants_it(desktop):
+def test_a_new_phone_gets_only_the_chat_basics_and_every_other_right_waits_for_the_pc(desktop):
+    # Scanning the code at this computer is the owner's own act: chat, chat history, attachments and
+    # alerts are on at once (sls, Nov 18). Files, tools, payments, online lookups, the Vault, camera,
+    # location and the microphone stay off until the computer grants them.
+    from core.mobile_companion.policy import PAIRED_BASICS, RIGHTS, STRONG
     from tests.mobile.test_phone_notifications import call
+    assert set(PAIRED_BASICS) == {"chat", "history", "attachments", "alerts"} and not set(PAIRED_BASICS) & STRONG
     phone = pair(desktop, activate_chat=False)
     status, record = call(*phone, "devices.me")
-    assert status == 200 and record["result"]["rules"]
-    assert not any(record["result"]["rules"].values())
-    assert call(*phone,"chats.send",{"message":"No implicit chat grant", "idempotency_key":secrets.token_hex(16)})[0] == 403
-    assert http(desktop[0],"/api/mobile/settings",{"operation":"device_rules","device_id":phone[3]["device_id"],"rules":{"chat":True}})[0] == 200
-    assert call(*phone,"devices.me")[1]["result"]["rules"]["chat"] is True
+    rules = record["result"]["rules"]
+    assert status == 200 and set(rules) == set(RIGHTS)
+    assert {name for name, on in rules.items() if on} == set(PAIRED_BASICS)
+    assert call(*phone, "chats.list")[0] == 200
+    for action in ("wallet.status", "media.list", "abilities.location", "approvals.resolve"):
+        assert call(*phone, action, {})[0] == 403, action
+    assert http(desktop[0],"/api/mobile/settings",{"operation":"device_rules","device_id":phone[3]["device_id"],"rules":{"chat":False}})[0] == 200
+    assert call(*phone,"chats.send",{"message":"Chat switched off", "idempotency_key":secrets.token_hex(16)})[0] == 403

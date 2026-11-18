@@ -189,7 +189,9 @@ def test_phone_approval_off_on_every_path(lan, desktop):
         status, out = http(base, "/api/mobile/settings", {"operation": "device_rules", "device_id": claim["device_id"], "rules": {right: True}})
         print("OWNER-ENABLE", right, status, out.get("code"))
         assert status == 400
-    # rights default OFF (no chat granted)
+    # A new phone gets only the chat basics; with chat switched off on the PC, every path below is closed.
+    status, out = http(base, "/api/mobile/settings", {"operation": "device_rules", "device_id": claim["device_id"], "rules": {"chat": False}})
+    assert status == 200, out
     outs = {}
     for name, params in (("chats.send", {"message": "hi"}), ("chats.list", {}), ("wallet.status", {}),
                          ("wallet.approve", {"proposal_id": "x", "credential": "1234"}),

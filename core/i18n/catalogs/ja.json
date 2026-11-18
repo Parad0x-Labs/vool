@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "オフ",
     "phone.setup.payments_on": "オン（上限あり）",
     "phone.setup.payments_help": "支払いはスマホのウォレットタブから始まり、このコンピューターで承認します。ウォレットのPINで上限を確認します。",
-    "phone.setup.basics": "チャット、チャット履歴、添付ファイル、通知は「完了」でオンになります。個別の権限は「詳細設定」で変更できます。",
+    "phone.setup.basics": "チャット、チャット履歴、添付ファイル、通知はペアリング時からオンです。個別の権限は「詳細設定」で変更できます。",
     "phone.setup.checking": "フォルダを確認しています。コンピュータからVOOLにフォルダの使用を許可するか尋ねられたら、「許可」を押してください。スマホが待たされずに済みます。",
     "phone.setup.check_failed": "VOOLがフォルダを確認できませんでした。もう一度「完了」を押してください。",
     "phone.setup.not_ready": "これらのフォルダはまだVOOLに開かれていません。Macでは、「システム設定」の「プライバシーとセキュリティ」の「ファイルとフォルダ」でVOOLを許可してから、もう一度「完了」を押してください：",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "安全でない・失礼",
     "report.reason.other": "その他"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

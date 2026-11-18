@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "כבויים",
     "phone.setup.payments_on": "פועלים, עם מגבלות",
     "phone.setup.payments_help": "תשלומים מתחילים בלשונית הארנק בטלפון ומאושרים במחשב הזה. קוד ה-PIN של הארנק מאשר את המגבלות.",
-    "phone.setup.basics": "צ׳אט, היסטוריית צ׳אט, קבצים מצורפים והתראות מופעלים עם סיום. אפשר לשנות כל הרשאה בנפרד תחת מתקדם.",
+    "phone.setup.basics": "צ׳אט, היסטוריית צ׳אט, קבצים מצורפים והתראות פועלים מרגע הצימוד. אפשר לשנות כל הרשאה בנפרד תחת מתקדם.",
     "phone.setup.checking": "בודק את התיקיות. אם המחשב ישאל אם VOOL רשאי להשתמש בתיקייה, לחצו על אפשר, כדי שהטלפון לא יצטרך לחכות.",
     "phone.setup.check_failed": "VOOL לא הצליח לבדוק את התיקיות. לחצו שוב על סיום כדי לנסות שוב.",
     "phone.setup.not_ready": "התיקיות האלה עדיין לא פתוחות ל-VOOL. ב-Mac, אפשרו ל-VOOL ב״הגדרות המערכת״, תחת ״פרטיות ואבטחה״, ״קבצים ותיקיות״, ולחצו שוב על סיום:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "לא בטוח או גס",
     "report.reason.other": "אחר"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

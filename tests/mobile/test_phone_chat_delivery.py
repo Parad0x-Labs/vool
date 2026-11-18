@@ -189,7 +189,8 @@ console.log(JSON.stringify({key:turn.key,chat:turn.chatId}));
 
 @pytest.mark.parametrize("desktop", ["full"], indirect=True)
 def test_chat_only_phones_get_replies_without_grafting_onto_desktop_or_each_other(desktop):
-    phone, key, shared, claim = pair(desktop)
+    # Chat only: pairing turns chat history on as well, so the PC switches it off here.
+    phone, key, shared, claim = pair(desktop, {"history": False})
     raw = "mob-" + secrets.token_hex(10)
     status, first = send(phone, key, shared, claim, {"chat_id": raw, "message": "A new private mobile conversation",
         "idempotency_key": secrets.token_hex(16)})
@@ -202,7 +203,7 @@ def test_chat_only_phones_get_replies_without_grafting_onto_desktop_or_each_othe
     for verb, params in [("chats.list", {}), ("chats.history", {"chat_id": canonical})]:
         wire = action(key, shared, claim, verb, params)
         assert http(phone, "/api/mobile/companion", wire)[0] == 403
-    other_phone, other_key, other_shared, other = pair(desktop)
+    other_phone, other_key, other_shared, other = pair(desktop, {"history": False})
     status, second = send(other_phone, other_key, other_shared, other, {"chat_id": raw, "message": "Same handle, different phone",
         "idempotency_key": secrets.token_hex(16)})
     assert status == 200, second

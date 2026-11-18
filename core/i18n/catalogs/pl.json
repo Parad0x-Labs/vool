@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Wyłączone",
     "phone.setup.payments_on": "Włączone, z limitami",
     "phone.setup.payments_help": "Płatności zaczynają się w karcie Portfel w telefonie, a zatwierdza się je na tym komputerze. PIN portfela potwierdza limity.",
-    "phone.setup.basics": "Czat, historia czatu, załączniki i alerty włączają się przyciskiem Gotowe. Każde uprawnienie zmienisz osobno w sekcji Zaawansowane.",
+    "phone.setup.basics": "Czat, historia czatu, załączniki i alerty są włączone od sparowania. Każde uprawnienie zmienisz osobno w sekcji Zaawansowane.",
     "phone.setup.checking": "Sprawdzam foldery. Jeśli komputer zapyta, czy VOOL może użyć folderu, naciśnij Zezwól, żeby telefon nie musiał czekać.",
     "phone.setup.check_failed": "VOOL nie mógł sprawdzić folderów. Naciśnij Gotowe jeszcze raz, aby spróbować ponownie.",
     "phone.setup.not_ready": "Te foldery nie są jeszcze otwarte dla VOOL. Na komputerze Mac pozwól VOOL w Ustawieniach systemowych, w sekcji Prywatność i ochrona, Pliki i foldery, a potem naciśnij Gotowe jeszcze raz:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "Niebezpieczne lub niegrzeczne",
     "report.reason.other": "Inne"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

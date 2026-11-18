@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Kapalı",
     "phone.setup.payments_on": "Açık, sınırlarla",
     "phone.setup.payments_help": "Ödemeler telefondaki Cüzdan sekmesinde başlar ve bu bilgisayarda onaylanır. Cüzdan PIN’iniz sınırları onaylar.",
-    "phone.setup.basics": "Sohbet, sohbet geçmişi, ekler ve uyarılar Bitti ile açılır. Her izni ayrı ayrı Gelişmiş bölümünden değiştirebilirsiniz.",
+    "phone.setup.basics": "Sohbet, sohbet geçmişi, ekler ve uyarılar eşleştirmeden itibaren açıktır. Her izni ayrı ayrı Gelişmiş bölümünden değiştirebilirsiniz.",
     "phone.setup.checking": "Klasörler kontrol ediliyor. Bilgisayarınız VOOL’un bir klasörü kullanıp kullanamayacağını sorarsa İzin Ver’e basın; böylece telefonunuz beklemek zorunda kalmaz.",
     "phone.setup.check_failed": "VOOL klasörleri kontrol edemedi. Yeniden denemek için Bitti’ye tekrar basın.",
     "phone.setup.not_ready": "Bu klasörler VOOL’a henüz açık değil. Mac’te Sistem Ayarları, Gizlilik ve Güvenlik altındaki Dosyalar ve Klasörler bölümünde VOOL’a izin verin, sonra Bitti’ye tekrar basın:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "Güvensiz ya da kaba",
     "report.reason.other": "Diğer"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

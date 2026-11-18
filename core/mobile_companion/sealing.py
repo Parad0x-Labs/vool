@@ -146,7 +146,7 @@ def dispatch(path, envelope, headers, *, runtime, model_name, client_host, activ
         return _reply(api._err(403, "phone_access_off"), shared, envelope)
     if pairing:
         from core.mobile_companion.approval_key import record
-        from core.mobile_companion.policy import defaults
+        from core.mobile_companion.policy import paired_defaults
 
         # Cheap admission precedes certificate parsing. The canonical claim below
         # rechecks the session under the lock before consuming a code or a grant.
@@ -183,7 +183,7 @@ def dispatch(path, envelope, headers, *, runtime, model_name, client_host, activ
                 return _reply(api._err(403, "phone_access_off"), shared, envelope)
             # Validate and construct all sealed fields before consuming the code
             # or issuing a grant. There is no active partially sealed device.
-            fields = dict(encryption_public_key=public_key, sealed_protocol=VERSION, rules=defaults(),
+            fields = dict(encryption_public_key=public_key, sealed_protocol=VERSION, rules=paired_defaults(),
                           right_expiry={}, approval_key=evidence)
             response = api.claim_pairing(body, headers, service, client_host, sealed_fields=fields)
             if response.status == 200:

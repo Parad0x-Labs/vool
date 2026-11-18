@@ -4059,7 +4059,7 @@
     "phone.setup.payments_off": "Desactivados",
     "phone.setup.payments_on": "Activados, con límites",
     "phone.setup.payments_help": "Los pagos empiezan en la pestaña Monedero del teléfono y se aprueban en este ordenador. El PIN de tu monedero confirma los límites.",
-    "phone.setup.basics": "Chat, historial del chat, adjuntos y avisos se activan con Hecho. Cambia cada permiso por separado en Avanzado.",
+    "phone.setup.basics": "Chat, historial del chat, adjuntos y avisos están activos desde el emparejamiento. Cambia cada permiso por separado en Avanzado.",
     "phone.setup.checking": "Comprobando las carpetas. Si tu ordenador pregunta si VOOL puede usar una carpeta, pulsa Permitir para que tu teléfono no tenga que esperar.",
     "phone.setup.check_failed": "VOOL no pudo comprobar las carpetas. Pulsa Hecho otra vez para reintentarlo.",
     "phone.setup.not_ready": "Estas carpetas aún no están abiertas para VOOL. En un Mac, permite a VOOL en Ajustes del Sistema, en Privacidad y seguridad, Archivos y carpetas, y pulsa Hecho otra vez:",
@@ -5304,7 +5304,7 @@
     "report.reason.unsafe": "Insegura o grosera",
     "report.reason.other": "Otro"
   },
-  "source_catalog_sha256": "e64fdec3c31c51e09455bea39e209db4d99a10332654254aa2e15b07aaace6dd",
+  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

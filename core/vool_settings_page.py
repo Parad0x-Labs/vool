@@ -5181,7 +5181,7 @@ function widgetPhoneAccess(host) {
     payBox.appendChild(el('p','help',T('phone.setup.payments_help','Payments start in the phone’s Wallet tab and are approved on this computer. Your wallet PIN confirms the limits.')));
     function sync(){folderLine.hidden=quickAdd.hidden=files.value()!=='folders';payBox.hidden=pays.value()!=='on';}
     [models,files,pays].forEach(g=>Object.values(g.radios).forEach(r=>r.addEventListener('change',sync)));sync();
-    box.appendChild(el('p','help',T('phone.setup.basics','Chat, chat history, attachments and alerts are switched on with Done. Change any single permission under Advanced.')));
+    box.appendChild(el('p','help',T('phone.setup.basics','Chat, chat history, attachments and alerts are on from pairing. Change any single permission under Advanced.')));
     const prepared=phonePrepared[device.device_id];
     if(prepared){
       const report=el('div','phone-quick-ready');report.setAttribute('role','status');box.appendChild(report);
