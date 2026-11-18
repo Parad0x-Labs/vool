@@ -152,6 +152,13 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setScanning(true);
   };
 
+  // Every hook runs on every render: the scanner below returns early.
+  const connecting = scanned && (busy || pairAfterScan);
+  useEffect(() => {
+    if (!connecting) {setSlow(false); return;}
+    const timer = setTimeout(() => setSlow(true), 5000);
+    return () => clearTimeout(timer);
+  }, [connecting]);
   if (scanning) {
     return (
       <View style={styles.scanRoot}>
@@ -168,12 +175,6 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     );
   }
 
-  const connecting = scanned && (busy || pairAfterScan);
-  useEffect(() => {
-    if (!connecting) {setSlow(false); return;}
-    const timer = setTimeout(() => setSlow(true), 5000);
-    return () => clearTimeout(timer);
-  }, [connecting]);
   if (connecting) return <Frame style={styles.connecting}>
     <ActivityIndicator color={C.ink} size="large" />
     <Text style={styles.connectingText}>{tr("Connecting to your computer…")}</Text>
