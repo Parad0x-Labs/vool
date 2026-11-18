@@ -172,7 +172,7 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
     "capture.begin", "capture.chunk", "capture.finish", "capture.removed",
-    "media.list", "media.thumb", "media.read", "media.exported", "media.set_thumb", "media.favorite", "trace.phone",
+    "media.list", "media.thumb", "media.read", "media.exported", "media.set_thumb", "media.favorite",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -946,20 +946,13 @@ def dispatch_companion(
     policy_error = refusal(store.device(device_id) or {}, action)
     if policy_error:
         store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": policy_error})
-        from core.mobile_companion import trace as _refused_trace
-
-        _refused_trace.record(action, status=403, code=policy_error, device_id=device_id, params=params)
         return _err(403, policy_error, "This permission is off, expired, or needs approval on your computer.")
     store.mark_device(device_id, last_seen_at=service.utcnow().isoformat())
     handler = _ACTION_HANDLERS.get(action)
     if handler is None:
         return _err(403, "action_not_offered", f"the mobile companion does not offer {action!r}")
-    from core.mobile_companion import trace as _trace
-
-    started = time.monotonic()
     try:
-        status, result = _traced(handler, action, params, device_id, started, _trace,
-                                 runtime=runtime, model_name=model_name, client_host=client_host,
+        status, result = handler(params, runtime=runtime, model_name=model_name, client_host=client_host,
                                  workspace_root_provider=workspace_root_provider, service=service, device=device)
     except PhoneHistoryRequired as exc:
         store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": "history_required"})
@@ -967,8 +960,6 @@ def dispatch_companion(
     except Exception as exc:
         from core.error_surface import safe_error_text
 
-        _trace.record(action, status=500, code="companion_handler_error", ms=(time.monotonic() - started) * 1000,
-                      device_id=device_id, params=params)
         return _err(500, "companion_handler_error", safe_error_text(exc))
     if action not in {"devices.unpair", "devices.lost_computer"}:
         fresh = store.device(device_id) or {}
@@ -997,14 +988,6 @@ def dispatch_companion(
         code = str(result.get("code") or result.get("error") or "")
         payload["code"] = code if code and code.replace("_", "").isalnum() else "companion_action_refused"
     return _json(status, payload)
-
-
-def _traced(handler, action, params, device_id, started, trace, **kw):
-    """Runs one phone action and keeps a trace line of it (the action, its code and time; never its content)."""
-    status, result = handler(params, **kw)
-    code = str(result.get("code") or "") if isinstance(result, dict) and status >= 400 else ""
-    trace.record(action, status=status, code=code, ms=(time.monotonic() - started) * 1000, device_id=device_id, params=params)
-    return status, result
 
 
 # Phone reads whose results only reach the phone's screen. proof.get stays whole: its hashes are
@@ -1982,24 +1965,9 @@ def _media_favorite(params, *, service, device, **_kw):
     return 200, {"changed": changed, "missing": missing, "on": on}
 
 
-def _trace_phone(params, *, service, device, **_kw):
-    """The phone's own trace lines (what was tapped, what opened, how long it took), kept beside this computer's
-    so one file tells the whole story. Short plain lines only; at most 200 per call."""
-    from core.mobile_companion import trace
-
-    lines = params.get("lines")
-    if not isinstance(lines, list) or len(lines) > 200:
-        return 400, {"code": "bad_trace", "error": "Up to 200 lines."}
-    phone = str(device.get("device_id") or "")[:8]
-    for line in lines:
-        if isinstance(line, str) and line:
-            trace.write({"from": "phone", "phone": phone, "line": "".join(c for c in line[:240] if c.isprintable())})
-    return 200, {"kept": len(lines)}
-
-
 _ACTION_HANDLERS.update({"media.list": _media_list, "media.thumb": _media_thumb, "media.read": _media_read,
                          "media.exported": _media_exported, "media.set_thumb": _media_set_thumb,
-                         "media.favorite": _media_favorite, "trace.phone": _trace_phone})
+                         "media.favorite": _media_favorite})
 
 _ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
                          "capture.finish": _capture_action("finish"), "capture.removed": _capture_removed})

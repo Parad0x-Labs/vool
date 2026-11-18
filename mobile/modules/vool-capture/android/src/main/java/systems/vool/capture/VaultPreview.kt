@@ -7,7 +7,6 @@ import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Base64
-import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
@@ -22,13 +21,12 @@ object VaultPreview {
   fun make(id: String, maxEdge: Int, kind: String): String {
     val stream = VaultStreams.get(id) ?: throw IllegalStateException("closed")
     val edge = maxEdge.coerceIn(64, 4096)
-    val started = System.currentTimeMillis()
     val bitmap = when (kind) {
       "photo" -> photo(stream, edge)
       "video" -> retrieve(stream) { it.frame(edge) }
       "audio" -> retrieve(stream) { r -> r.embeddedPicture?.let { decode(it, edge) } }
       else -> null
-    } ?: return "".also { Log.i("VoolCapture", "vault: no preview for a $kind (${System.currentTimeMillis() - started} ms)") }
+    } ?: return ""
     try {
       val out = ByteArrayOutputStream()
       var quality = if (edge <= 512) 78 else 88
@@ -37,7 +35,6 @@ object VaultPreview {
       while (edge <= 512 && out.size() > 150 * 1024 && quality > 40) {
         out.reset(); quality -= 15; bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
       }
-      Log.i("VoolCapture", "vault: $kind preview ${bitmap.width}x${bitmap.height} ${out.size() / 1024} KB in ${System.currentTimeMillis() - started} ms")
       return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     } finally {
       bitmap.recycle()
@@ -70,8 +67,7 @@ object VaultPreview {
           decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
           decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
         }
-      } catch (error: Exception) {
-        Log.i("VoolCapture", "vault: picture could not be read (${error.javaClass.simpleName})")
+      } catch (_: Exception) {
         null
       }
     }
@@ -106,8 +102,7 @@ object VaultPreview {
         override fun close() {}
       })
       use(retriever)
-    } catch (error: Exception) {
-      Log.i("VoolCapture", "vault: media could not be read (${error.javaClass.simpleName})")
+    } catch (_: Exception) {
       null
     } finally {
       try { retriever.release() } catch (_: Exception) {}

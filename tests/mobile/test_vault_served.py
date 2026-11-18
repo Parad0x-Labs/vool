@@ -115,22 +115,16 @@ def test_the_phone_gives_a_preview_the_computer_could_not_make_and_it_is_kept_on
         assert call(*phone, "media.set_thumb", {"id": item["id"], "content_b64": base64.b64encode(bad).decode()})[0] == 400
 
 
-def test_the_trace_keeps_what_happened_never_what_was_in_it(desktop):
-    from core.mobile_companion import trace
+def test_no_phone_trace_is_kept(desktop):
+    from core.runtime_paths import data_path
 
     phone = _phone(desktop, media=True)
     photo = _jpeg()
     assert _send(phone, photo, sha=hashlib.sha256(photo).hexdigest())[0] == 200
     item = call(*phone, "media.list", {"section": "mobile", "kind": "photo"})[1]["result"]["items"][0]
     assert call(*phone, "media.read", {"id": item["id"], "offset": 0, "length": 5000})[0] == 200
-    assert call(*phone, "trace.phone", {"lines": ["vault.open from=icon", "shutter press ms=12"]})[0] == 200
-    text = trace._path().read_text()
-    lines = [__import__("json").loads(line) for line in text.splitlines()]
-    read = [line for line in lines if line.get("action") == "media.read"][-1]
-    assert read["status"] == 200 and read["item"] == item["id"][:8] and read["offset"] == 0 and read["length"] == 5000
-    assert {"from": "phone", "line": "shutter press ms=12"}.items() <= [l for l in lines if l.get("from") == "phone"][-1].items()
-    assert item["name"] not in text and "content_b64" not in text and item["id"] not in text
-    assert call(*phone, "trace.phone", {"lines": ["x"] * 201})[0] == 400
+    assert call(*phone, "trace.phone", {"lines": ["vault.open from=icon"]})[0] == 403
+    assert not (data_path("logs") / "phone-trace.log").exists()
 
 
 def test_starred_items_are_kept_sealed_and_found_quickly(desktop):

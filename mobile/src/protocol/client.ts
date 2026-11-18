@@ -373,10 +373,6 @@ export class MobileCompanionClient {
   mediaSetThumb(id: string, base64: string): Promise<{kept: boolean}> {
     return this.request("media.set_thumb", {id, content_b64: base64});
   }
-  /** The phone's trace lines (what was tapped, what opened, timings; never content) for the computer's trace file. */
-  tracePhone(lines: string[]): Promise<{kept: number}> {
-    return this.request("trace.phone", {lines});
-  }
 
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
     return this.request("abilities.check", {ability});

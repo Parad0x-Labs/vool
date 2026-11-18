@@ -6,7 +6,6 @@ import type {MobileCompanionClient} from "../protocol/client.ts";
 import type {MediaItem} from "../protocol/models.ts";
 import {language, rightToLeft, tr} from "../i18n/index.ts";
 import {VaultStream, type StreamState} from "../vault/stream.ts";
-import {trace} from "../diagnostics/trace.ts";
 import {VaultPlayer, vaultNative} from "../vault/native.ts";
 import Icon, {type IconName} from "../ui/Icon.tsx";
 import {useEdges} from "../ui/Frame.tsx";
@@ -65,15 +64,12 @@ const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function makePreview(client: MobileCompanionClient, item: MediaItem, edge: number): Promise<string> {
   if (!vaultNative || (item.kind === "photo" && item.size > PHOTO_PREVIEW_LIMIT)) return "";
-  const started = Date.now();
   // A photo is read whole; a video or a recording only where the phone's reader looks (its index, one frame).
   const stream = new VaultStream(client, item, () => {}, item.kind !== "photo");
   try {
     const made = await vaultNative.preview(stream.id, edge, item.kind);
-    trace("vault preview made", {kind: item.kind, ok: !!made, edge, ms: Date.now() - started});
     return made;
   } catch {
-    trace("vault preview failed", {kind: item.kind, ms: Date.now() - started});
     return "";
   } finally {
     stream.close();
@@ -183,16 +179,13 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
   const load = useCallback(async (from: number) => {
     const asked = from === 0 ? ++query.current : query.current;
     if (from === 0) setState(previous => (previous === "ready" ? previous : "loading"));
-    const started = Date.now();
     try {
       const page = await client.mediaList({section, kind, ...SORT_QUERY[sort], offset: from, limit: PAGE, ...(starred ? {favorites: true} : {})});
-      trace("vault list", {section, kind, sort, starred, from, got: page.items.length, total: page.total, ms: Date.now() - started});
       if (asked !== query.current) return;
       setItems(previous => (from === 0 ? page.items : [...previous, ...page.items.filter(item => !previous.some(p => p.id === item.id))]));
       setTotal(page.total);
       setState("ready");
     } catch (error) {
-      trace("vault list failed", {code: String((error as {code?: string})?.code || "unreachable"), ms: Date.now() - started});
       if (asked !== query.current) return;
       setState(String((error as {code?: string})?.code || "") === "phone_right_off_or_expired" ? "right_off" : "away");
     } finally {
@@ -214,11 +207,9 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
   const star = async (ids: string[], on: boolean) => {
     try {
       await client.mediaFavorite(ids, on);
-      trace("vault star", {count: ids.length, on});
       markStarred(ids, on);
       return true;
     } catch (error) {
-      trace("vault star failed", {code: String((error as {code?: string})?.code || "unreachable")});
       setNote(tr("Your computer is out of reach. Try again when it answers."));
       return false;
     }
@@ -239,7 +230,6 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
     const list = chosenItems.slice(0, how === "share" ? 30 : 200);
     setAsk(null); setNote(""); stopWork.current = false;
     setWork({done: 0, count: list.length});
-    const started = Date.now();
     const held: VaultStream[] = [];
     let done = 0, folder = "";
     try {
@@ -255,12 +245,10 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
         setWork({done, count: list.length});
       }
       if (how === "share" && held.length && !stopWork.current) await vaultNative.shareMany(held.map(stream => stream.id), distinctNames(held.map(stream => stream.item.name)), tr("Share"));
-      trace("vault export many", {how, done, of: list.length, ms: Date.now() - started});
       if (done < list.length) setNote(tr("Made {done} of {count} copies. Try again for the rest.", {done, count: list.length}));
       else if (how === "save") setNote(tr("Saved {count} to {folder}.", {count: done, folder}));
       if (done === list.length) setChosen(null);
     } catch {
-      trace("vault export many failed", {how, done, of: list.length});
       setNote(tr("Could not make the copy. Try again."));
     } finally {
       held.forEach(stream => stream.close());
@@ -336,10 +324,10 @@ export default function VaultScreen({client, onClose}: {client: MobileCompanionC
     }}
     extraData={chosen}
     renderItem={({item}) => <Card client={client} item={item} width={cardWidth} size={size} chosen={chosen ? chosen.has(item.id) : null}
-      onLongPress={() => {if (!work && !item.damaged) {trace("vault choose start"); toggle(item);}}}
+      onLongPress={() => {if (!work && !item.damaged) {toggle(item);}}}
       onOpen={() => {
         if (chosen) {if (!work && !item.damaged) toggle(item); return;}
-        trace("vault item open", {kind: item.kind, kb: Math.round(item.size / 1024)}); setOpen(item);
+        setOpen(item);
       }} />} />;
 
   const bar = chosen ? <View style={[styles.viewerBottom, styles.bar, {paddingBottom: edges.bottom + 14}]}>
@@ -451,10 +439,8 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
   useEffect(() => {
     if (item.kind !== "photo" || !progress.done || !streamId || !vaultNative) return;
     let alive = true;
-    const started = Date.now();
     const edge = Math.min(4096, Math.round(Math.max(screenWidth, screenHeight) * 2));
     void vaultNative.preview(streamId, edge, "photo").then(made => {
-      trace("vault photo shown", {ok: !!made, edge, ms: Date.now() - started});
       if (!alive) return;
       if (made) setPhoto(made); else setPhotoFailed(true);
     }).catch(() => {if (alive) setPhotoFailed(true);});
@@ -468,12 +454,9 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
     // The computer keeps a receipt of every copy that leaves the Vault; the copy is made even when it is out of reach.
     void client.mediaExported(item.id, how).catch(() => {});
     try {
-      const started = Date.now();
       if (how === "save") setNote(tr("Saved to {folder}.", {folder: await vaultNative.save(current.id, item.name)}));
       else await vaultNative.share(current.id, item.name, tr("Share"));
-      trace("vault export", {how, ms: Date.now() - started});
     } catch {
-      trace("vault export failed", {how});
       setNote(tr("Could not make the copy. Try again."));
     } finally {
       setBusy(false);
@@ -508,9 +491,7 @@ function Viewer({client, item, onClose, onStar}: {client: MobileCompanionClient;
             style={[StyleSheet.absoluteFill, !photo && styles.dim]} resizeMode="contain" blurRadius={photo ? 0 : 6} /> : null)
         : streamId && VaultPlayer && !playFailed
           ? (replay.wanted ? null : <VaultPlayer key={replay.round} stream={streamId}
-              style={item.kind === "audio" ? styles.audioPlayer : StyleSheet.absoluteFill} onPlayerError={event => {
-                trace("vault player error", {code: event.nativeEvent?.message || "", held: progress.held, of: progress.pieces}); playerFailed();
-              }} onPlayerReady={() => trace("vault player ready", {held: progress.held, of: progress.pieces})} />)
+              style={item.kind === "audio" ? styles.audioPlayer : StyleSheet.absoluteFill} onPlayerError={() => playerFailed()} />)
           : null}
       {item.kind === "audio" ? <View pointerEvents="none" style={styles.audioMark}><Icon name="music-note-outline" size={56} color={C.mute} /></View> : null}
       {item.kind === "photo" && !photo && !photoFailed && !progress.failed && !startFailed ? <ActivityIndicator style={styles.spinner} color={C.acc} /> : null}

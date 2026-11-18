@@ -38,7 +38,6 @@ class VoolVaultModule : Module() {
     Events("onWant")
 
     OnCreate {
-      MainWatch.start()
       appContext.reactContext?.let { VaultStreams.sweep(it) }
       VaultStreams.onWant = { stream, index -> sendEvent("onWant", mapOf("stream" to stream, "index" to index)) }
     }
