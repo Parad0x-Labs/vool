@@ -61,6 +61,16 @@ def _seed_history(home):
     (data / "conversation_log.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
 
 
+
+def _owner_home(tmp_path: Path) -> str:
+    """The owner's home is an empty one of its own. On CI the runner's home holds the repository, whose
+    files name "harbor" and "lantern", so the clean loop took "Write one friendly sentence about a harbor
+    lantern." as a files ask and the turn never finished in the page (CI #714)."""
+    home = tmp_path / "owner-home"
+    home.mkdir(parents=True, exist_ok=True)
+    return str(home)
+
+
 def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkeypatch):
     opener_prefixes = _production_greeting_prefixes("hi", monkeypatch)
     artifact = os.environ.get("VOOL_STARTUP_APP_ROOT")
@@ -70,7 +80,7 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
         monkeypatch.setattr(rig.sys, "executable", str(app.parent / "python/bin/python3"))
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback",
                                              # The answer-details line is opt-in; it proves the fast path ran.
                                              "VOOL_SHOW_USAGE_FOOTER": "1"})
         try:
@@ -213,7 +223,7 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
         monkeypatch.setattr(rig.sys, "executable", str(app.parent / "python/bin/python3"))
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback"})
         try:
             daemon.start(timeout=60)
             certification = daemon.certify(timeout=30)
@@ -329,7 +339,7 @@ def test_an_allow_answered_inside_the_post_turn_claim_window_still_runs_the_acti
     target = workspace / name
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback",
                                              "VOOL_WORKSPACE_ROOT": str(workspace)})
         try:
             daemon.start(timeout=60)
@@ -537,7 +547,7 @@ def test_a_pet_parked_on_send_or_approve_never_takes_their_click(tmp_path):
     still dragged by its own body. Phone and desktop widths, with and without reduced motion."""
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback"})
         try:
             daemon.start(timeout=60)
             certification = daemon.certify(timeout=30)
@@ -671,7 +681,7 @@ def test_controls_the_pet_covers_in_part_keep_every_visible_part(tmp_path):
     under the resting pet. Phone and desktop widths, with and without reduced motion."""
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback"})
         try:
             daemon.start(timeout=60)
             manager, browser = served_browser.launch_chromium()
@@ -780,7 +790,7 @@ def test_controls_past_the_probe_budget_keep_their_clicks_under_the_pet(tmp_path
     dragged by its own body. Desktop width, and phone width with reduced motion."""
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback"})
         try:
             daemon.start(timeout=60)
             manager, browser = served_browser.launch_chromium()
