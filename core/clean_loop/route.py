@@ -843,6 +843,9 @@ def decide(
         return RouteDecision(False, "memory_command")
     owned = _vool_lane_owns(text)
     if owned:
+        # The database tools are a plugin too: a question about the person's own databases keeps its own reason.
+        if owned == "plugin_turn" and _database_work_owns(text, dict(source_context or {})):
+            return RouteDecision(False, "database_work")
         return RouteDecision(False, owned)
     if is_red(text):
         return RouteDecision(False, "red_turn")
