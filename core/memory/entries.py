@@ -2450,6 +2450,8 @@ def _forget_subject_fact_key(token: str) -> str:
 #: Key of a forget's erasure record: the chats its erased rows were saved from, each with the words of the rows it
 #: saved (no store, no count; held in memory for the turn only, as the erased texts are, and never written).
 ERASED_ROW_CHATS = "erased_row_chats"
+#: How many of the erased rows were a forgotten fact's earlier values (its replaced rows), so a reply counts facts.
+ERASED_HISTORY_ROWS = "erased_history_rows"
 
 
 def forget_structured_memory(
@@ -2525,7 +2527,18 @@ def forget_structured_memory(
         # A forgotten fact goes with its history: the rows it replaced hold its earlier values ("bin collection
         # is on Tuesdays" under "... on Fridays now") and need not carry the words of the forget.
         target_ids = _with_replaced_rows(target_ids, [row for row in rows if _memory_erasure_row_owned(row, policy)])
+        # The replaced rows are the fact's earlier values, not facts of their own: the forget reply counts facts
+        # ("Removed 1 memory entry" for a corrected identifier and its old value), the store evidence counts rows.
+        history_rows = sum(
+            1 for row in rows
+            if str(row.get("record_id") or "").strip() in set(target_ids)
+            and str(row.get("status") or "").strip().lower() == "superseded"
+        )
         erased_texts = _erase_rows_locked(target_ids)
+        if erasures is not None and erased_texts:
+            erasures[ERASED_HISTORY_ROWS] = int(erasures.get(ERASED_HISTORY_ROWS) or 0) + min(
+                history_rows, len(erased_texts) - 1
+            )
         if erasures is not None and erased_texts:
             # The chats the erased rows were saved from. A row of the owner's profile is read in every chat, and the
             # chat that saved it holds the same words in its own log, summary and capsule: the caller erases them

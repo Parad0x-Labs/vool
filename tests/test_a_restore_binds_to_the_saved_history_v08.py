@@ -317,8 +317,8 @@ def test_a_forget_takes_the_whole_history_of_the_fact_whichever_row_its_words_ma
     _turn("the recount was thrown out, my old average is the real one again - what's my average?", CHAT)
     assert len(_current()) == 1 and "61" in _current()[0]
     # The words of the forget are in the undone row only ("my darts average"); the restored row says "a new darts
-    # average". All three rows are one fact's history and go together.
+    # average". All three rows are one fact's history and go together; the reply counts the one fact, not its rows.
     handled, reply = maybe_handle_memory_command("forget my darts average.", session_id="elsewhere",
                                                  access_policy=_policy("elsewhere"))
-    assert handled and "Removed 3 memory entries" in reply, reply
+    assert handled and "Removed 1 memory entry." in reply, reply
     assert _current() == [] and _history() == []

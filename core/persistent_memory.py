@@ -3907,8 +3907,13 @@ def maybe_handle_memory_command(
                         except Exception as barrier_exc:
                             LOGGER.warning("close failure barrier restore failed: %s", type(barrier_exc).__name__)
                             _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
-            total_removed = max(int(removed), int(semantic_removed),
-                                *(int(erasures.get(key) or 0) for key in ("structured_entries", "semantic_nodes", "source_occurrences")))
+            # A forgotten fact's earlier values (the rows its updates replaced) go with it, and are not counted as facts.
+            from core.memory.entries import ERASED_HISTORY_ROWS
+
+            history_rows = int(erasures.get(ERASED_HISTORY_ROWS) or 0)
+            total_removed = max(int(removed) - history_rows, int(semantic_removed),
+                                int(erasures.get("structured_entries") or 0) - history_rows,
+                                *(int(erasures.get(key) or 0) for key in ("semantic_nodes", "source_occurrences")))
             if total_removed <= 0:
                 total_removed = sum(int(erasures.get(key) or 0) for key in _FORGET_MEMORY_DERIVATIVE_STORES)
                 total_removed += sum(int(result.get("removed") or 0)
