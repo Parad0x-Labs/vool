@@ -689,6 +689,15 @@ def _evidence_digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _one_spaced(value: Any) -> str:
+    """A question with every run of white space read as one space.
+
+    The seal is written from the message as it was typed. It is read back with the turn's working text, in which a
+    line break has become a space. The same words in the same order are the same question; anything else is not.
+    """
+    return " ".join(str(value or "").split())
+
+
 def _request_evidence_context_ids(context: dict) -> dict[str, str]:
     # Canonical dialogue identity, client cancellation and API request identity
     # are separate namespaces. Capture existing producer values; never invent one.
@@ -721,6 +730,7 @@ def seal_request_evidence(
         "text": text, "chat_id": clean_session, "source": "canonical_runtime_transcript",
         "turn_id": str(turn_id or "").strip(),
         "query_sha256": _evidence_digest(str(question or "").strip()),
+        "query_spaced_sha256": _evidence_digest(_one_spaced(question)),
         "request_sha256": _evidence_digest(messages),
         "text_sha256": _evidence_digest(text),
         "evidence_texts": texts, "evidence_sha256": _evidence_digest(texts),
@@ -753,7 +763,11 @@ def _request_evidence_binding_valid(
     record: dict, context: dict, question: str | None, *, validate_context_identity: bool = True,
 ) -> bool:
     if question is not None and record.get("query_sha256") != _evidence_digest(str(question).strip()):
-        return False
+        # Measured on the real app: a two-line message asking for a past time never matched its own seal, the
+        # past-time check was handed no evidence, and a right, recorded date was replaced by its refusal.
+        spaced = record.get("query_spaced_sha256")
+        if not spaced or spaced != _evidence_digest(_one_spaced(question)):
+            return False
     bindings = record.get("identity_bindings")
     if bindings is not None:
         if (not isinstance(bindings, dict)
