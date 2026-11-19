@@ -654,6 +654,60 @@ def arbitrate_keep_ask(
     )
 
 
+def _forget_ask_prompt(lead: str, order: str) -> str:
+    """A balanced yes/no: do the words in front make this an order to the assistant to forget something it holds?"""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "A person wrote one sentence to their assistant. It is shown in two parts: the words in front, then the rest.",
+        "Question: is the person asking the ASSISTANT to forget or erase something the assistant knows, was told or "
+        "saved about them (to remove it from the assistant's memory)?",
+        'Answer {"answer": "yes"} or {"answer": "no"}. A sentence about forgetting in general, about the person\'s '
+        "own forgetting, about dropping a plan or an idea, about a device or a file, or one that asks how to forget "
+        "something, is no.",
+        "",
+        'Front: "you can" Rest: "forget my gym locker number" -> {"answer": "yes"}',
+        'Front: "you can" Rest: "forget about going to the beach, it is raining" -> {"answer": "no"}',
+        'Front: "you may as well" Rest: "forget the wifi code I gave you" -> {"answer": "yes"}',
+        'Front: "tell me how to" Rest: "forget a bad day at work" -> {"answer": "no"}',
+        'Front: "from now on just" Rest: "forget my old address" -> {"answer": "yes"}',
+        'Front: "how do I make my phone" Rest: "forget a bluetooth speaker" -> {"answer": "no"}',
+        'Front: "it would be great if you could" Rest: "forget what I said about my boss" -> {"answer": "yes"}',
+        'Front: "people say you should forgive and" Rest: "forget old grudges" -> {"answer": "no"}',
+        'Front: "go ahead and" Rest: "erase my sister\'s phone number from what you know" -> {"answer": "yes"}',
+        'Front: "what would it take to" Rest: "erase a hard drive safely" -> {"answer": "no"}',
+        "",
+        f'Front: "{flat(lead, 120)}" Rest: "{flat(order, 300)}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_forget_ask(
+    lead: str,
+    order: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether "<lead> <order>" orders the assistant to forget what the order names: ``"yes"`` / ``"no"``, or None
+    when nothing judged it.
+
+    A forget is said with any words in front of it ("you can forget my work parking bay.", "you may as well forget
+    the wifi code"), and the same shape says many other things ("you can forget about the beach, it is raining").
+    Its meaning is not in a list of lead-ins, so one balanced question is asked the way `arbitrate_keep_ask` asks
+    its own. None is never a forget: the caller erases nothing on it."""
+    if not str(lead or "").strip() or not str(order or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(_forget_ask_prompt(lead, order), source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_forget_ask_prompt(lead, order), operation="forget_ask_arbitration", model=model, runner_role="general",
+        call_role=_judgement_role(),
+    )
+
+
 def _restore_prompt(message: str, current: str, earlier: str) -> str:
     """A balanced yes/no: does the message say the person is back to the earlier value of a saved fact?"""
     flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
