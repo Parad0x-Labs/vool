@@ -466,6 +466,25 @@ _INTENT_TO_RE = re.compile(
 _INTENT_TO_STEMS = frozenset({"going", "gonna", "mean", "meant", "plan", "intend"})
 
 
+#: The word right after "what" or "which", before the verb, names the KIND of answer wanted ("what colour is my
+#: shed?", "which day is the bin collection?", "what size are my boots?"). A saved fact about the thing gives the value
+#: ("my shed is the green one by the apple tree") and seldom the word. Counted as a word the fact must hold, "what
+#: colour is my shed?" held one of two and was answered "I don't have that saved" on the local route and on the cloud
+#: route alike (the head-to-head's scenario S-101, real app). Read by its place in the question, not from a list of
+#: such words; a fact that does hold the word ("which vet is my dog registered with?" / "my dogs vet is Dr Rennie")
+#: still counts it.
+_ASKED_KIND_RE = re.compile(
+    r"\b(?:what|which)\s+([a-z]+)\s+(?:is|are|was|were|does|do|did|has|have|had|will|would|should|can|could)\b",
+    re.IGNORECASE,
+)
+
+
+def _asked_kind(text: str) -> frozenset[str]:
+    from core.chat_housekeeping import query_terms
+
+    return frozenset(term for word in _ASKED_KIND_RE.findall(str(text or "")) for term in query_terms(word))
+
+
 def _asked_terms(text: str) -> tuple[str, ...]:
     from core.chat_housekeeping import query_terms
 
@@ -495,15 +514,19 @@ def _memory_rows(
         policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
         covering: list[str] = []
         closest: list[tuple[int, str]] = []
+        kind = _asked_kind(question)
         for row in search_relevant_memory(question, access_policy=policy, limit=6):
             text = " ".join(str(row.get("text") or "").split())
             if not text:
                 continue
             stems = _doc_stems(text)
-            held = sum(1 for term in terms if _term_in(term, stems))
-            if held * 2 > len(terms):
+            # The word for the kind of answer counts for a row that holds it and is not held against one that
+            # gives the value without it (see `_ASKED_KIND_RE`).
+            wanted = tuple(term for term in terms if term not in kind or _term_in(term, stems)) or terms
+            held = sum(1 for term in wanted if _term_in(term, stems))
+            if held * 2 > len(wanted):
                 covering.append(text)
-            elif held >= min(2, len(terms)) and held * 2 >= len(terms) - (len(terms) % 2):
+            elif held >= min(2, len(wanted)) and held * 2 >= len(wanted) - (len(wanted) % 2):
                 closest.append((held, text))
         best = max((held for held, _ in closest), default=0)
         return covering, [text for held, text in closest if held == best]
@@ -518,6 +541,46 @@ _MEANT_FLOOR = 0.5
 #: Judgements already made, by a hash of the question and the row: no text is kept here.
 _MEANING_VERDICTS: dict[str, str] = {}
 _MEANING_VERDICTS_KEPT = 512
+
+
+#: What the naming judgement said, by a hash of the question and the facts it was shown: no text is kept here.
+_NAMED_FACTS: dict[str, tuple[int, ...]] = {}
+
+
+def name_the_saved_fact(
+    question: str, facts: list[str], *, session_id: str, source_context: dict[str, Any] | None
+) -> list[int] | None:
+    """For the saved-row search on a machine with no embed model: which of ``facts`` (rows that share no word with
+    the question) may be the thing asked for, as places in the list. [] when the judgement names none, None when
+    nobody judged (no local model loaded and no judge bound for the turn, a failed call): the search then finds
+    what the words find, as before.
+
+    One call for the whole list (`core.intent_arbiter.arbitrate_named_fact`), on the owner's own turn outside a
+    private chat, kept for the life of the process so the guards ahead of memory, the recall lane and the context
+    loader ask once for a turn. It names a candidate only: every reader still puts the named fact to its own
+    yes/no judgement before it is the answer or is shown as a saved fact."""
+    try:
+        from core.intent_arbiter import arbitrate_named_fact
+        from core.request_trust import turn_speaks_for_owner
+
+        if not facts or _private(session_id, source_context) or not turn_speaks_for_owner(
+            dict(source_context or {}), str(session_id or "")
+        ):
+            return None
+        key = hashlib.sha256("\x00".join([question, *facts]).encode()).hexdigest()
+        kept = _NAMED_FACTS.get(key)
+        if kept is not None:
+            return list(kept)
+        named = arbitrate_named_fact(question, facts, chat_id=str(session_id or ""), source_context=source_context)
+        if named is None:
+            return None
+        places = (named - 1,) if named > 0 else ()
+        if len(_NAMED_FACTS) >= _MEANING_VERDICTS_KEPT:
+            _NAMED_FACTS.clear()
+        _NAMED_FACTS[key] = places
+        return list(places)
+    except Exception:
+        return None
 
 
 def _rows_that_mean_it(
@@ -567,9 +630,18 @@ def _rows_that_mean_it(
         near = sorted(
             (
                 (float(row.get("meaning") or 0.0), text)
-                for row in search_relevant_memory(question, access_policy=policy, limit=24, by_meaning=True)
+                for row in search_relevant_memory(
+                    question, access_policy=policy, limit=24, by_meaning=True,
+                    # With no embed model nothing ranks the rows by meaning: the naming judgement names a candidate.
+                    name_the_fact=lambda asked, facts: name_the_saved_fact(
+                        asked, facts, session_id=session_id, source_context=source_context
+                    ),
+                )
                 for text in [" ".join(str(row.get("text") or "").split())]
-                if row.get("meaning") is not None and float(row.get("meaning") or 0.0) >= _MEANT_FLOOR
+                if (
+                    row.get("found_by") == "named"
+                    or (row.get("meaning") is not None and float(row.get("meaning") or 0.0) >= _MEANT_FLOOR)
+                )
                 and text and terms and not shares_a_term(text)
             ),
             reverse=True,
@@ -725,6 +797,7 @@ def _subject_terms(text: str, terms: tuple[str, ...]) -> tuple[str, ...]:
     # as a subject word it was required of the row, no row held it, and the question was asked back ("Did you mean
     # saddle rack, saddle rack?", measured on the real app).
     measure |= {term for word in ("mine", "ours", "yours") for term in query_terms(word)}
+    measure |= _asked_kind(text)
     return tuple(
         term for term in terms if term not in _SLOT_STEMS and term not in measure and term not in {"now", "current"}
     ) or terms

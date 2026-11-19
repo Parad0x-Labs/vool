@@ -875,6 +875,17 @@ def _may_read_by_meaning(source_context: dict[str, Any] | None, session_id: str)
 _UNJUDGED_FACT_MARK = " (may be about a different thing than the one asked; use it only if it is the same thing)"
 
 
+def _name_the_saved_fact(
+    question: str, facts: list[str], session_id: str, source_context: dict[str, Any] | None
+) -> list[int] | None:
+    try:
+        from core.agent_runtime.cross_chat_recall import name_the_saved_fact
+
+        return name_the_saved_fact(question, facts, session_id=session_id, source_context=source_context)
+    except Exception:
+        return None
+
+
 def _facts_for_the_question(
     query_text: str, found: list[dict[str, Any]], may_judge: bool, session_id: str, source_context: dict[str, Any] | None
 ) -> dict[str, str] | None:
@@ -913,6 +924,17 @@ def _persistent_memory_items(
     ]
     history_blob = " \x01 ".join(earlier).lower()
     leans_on = _follow_up_subject(query_text, earlier)
+    # On a machine with no embed model the recall lane's naming judgement names the candidate in other words. It is
+    # asked only when no fact the words find already holds the question's subject: on the first cut it was asked on
+    # every turn that may read by meaning, one call too many when "who is my gp?" had found "my gp is Dr Venn"
+    # (real app, the answering model's own judgement lane).
+    name_the_fact = None
+    if by_meaning and not leans_on:
+        by_words = search_relevant_memory(query_text, access_policy=policy, topic_hints=list(topic_hints), limit=12)
+        held = _facts_for_the_question(query_text, by_words, False, session_id, source_context) or {}
+        if "covers" not in held.values():
+            def name_the_fact(asked: str, facts: list[str]) -> list[int] | None:
+                return _name_the_saved_fact(asked, facts, session_id, source_context)
     found = search_relevant_memory(
         query_text,
         access_policy=policy,
@@ -921,6 +943,7 @@ def _persistent_memory_items(
         # A question in other words than the saved fact ("who do I ring when the drains back up?") shares no word
         # with it; the model that answers may still read the few rows closest in meaning, and decides what they say.
         by_meaning=by_meaning,
+        name_the_fact=name_the_fact,
     )
     # A fact the search found by one shared word is not the fact a question asks for ("my bread maker is on crust
     # setting 3." for "what crust setting is my toaster on?"): the recall lane says which of the facts found hold

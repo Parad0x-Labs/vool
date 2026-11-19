@@ -466,8 +466,12 @@ def arbitrate_followup(
     model: str = "",
     runner_role: str = "",
     call_role: str = "",
+    parse: Callable[[str], str | None] | None = None,
 ) -> str | None:
     """``"yes"`` / ``"no"``, or None (disabled, no model, breaker open, error, unparseable).
+
+    `parse` reads the model's answer when the judgement is not a yes/no (`arbitrate_named_fact`); None is the
+    strict yes/no reader.
 
     `prompt` and `operation` let another balanced yes/no judgement (`arbitrate_keep_ask`) go out through this one
     sealed site instead of opening a second one; without them this asks the follow-up question. `model` names the
@@ -528,7 +532,7 @@ def arbitrate_followup(
             _trip_breaker()
         return None
     reset_breaker()
-    decision = parse_followup_decision(content)
+    decision = (parse or parse_followup_decision)(content)
     if call_id:
         from core.normalized_provider_result import ProviderErrorClass
         from core.turn_model_call_ledger import record_provider_call_outcome
@@ -577,7 +581,9 @@ def bind_turn_judge(source_context: object, judge: Callable[[str], str] | None) 
         _TURN_JUDGES.popitem(last=False)
 
 
-def _judged_for_the_turn(prompt: str, source_context: object) -> str | None:
+def _judged_for_the_turn(
+    prompt: str, source_context: object, parse: Callable[[str], str | None] | None = None
+) -> str | None:
     """``"yes"`` / ``"no"`` from the judge bound for this turn, or None: no judge bound, a failed call, an
     unreadable answer. None is what "no local model" always was: the caller decides nothing on it."""
     judge = _TURN_JUDGES.get(_turn_key(source_context)) or getattr(_THIS_THREAD, "judge", None)
@@ -589,7 +595,7 @@ def _judged_for_the_turn(prompt: str, source_context: object) -> str | None:
     except Exception as exc:
         _LAST_FAILURE["reason"] = f"turn_judge:{type(exc).__name__}"
         return None
-    decision = parse_followup_decision(content)
+    decision = (parse or parse_followup_decision)(content)
     if decision is None:
         _LAST_FAILURE["reason"] = "turn_judge:unreadable"
     return decision
@@ -865,6 +871,89 @@ def arbitrate_same_thing(
         prompt=_same_thing_prompt(question, fact), operation="same_thing_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(),
     )
+
+
+#: Saved facts put to one naming judgement at most, each cut to this many characters.
+NAMED_FACTS_ASKED = 40
+_NAMED_FACT_CHARS = 160
+
+
+def _named_fact_prompt(question: str, facts: list[str]) -> str:
+    """One question over a numbered list: which saved fact, if any, is about the thing or person asked about?
+
+    Asked only where no embed model can say which saved rows are near a question (a machine whose owner uses a
+    cloud model and has no local one): there the rows that share no word with the question had no way to be found.
+    It names a candidate and decides nothing: the fact it names is then put to the same yes/no judgements as a row
+    an embed model finds near (`arbitrate_meaning`, `arbitrate_same_thing`)."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    lines = [
+        "A person asked their assistant a question. The assistant holds the saved facts below, which the person told "
+        "it earlier.",
+        "Question: which ONE saved fact is about the thing or person the question asks about, in whatever words?",
+        'Answer {"answer": N} with the number of that fact.',
+        'Answer {"answer": 0} when none of them is: a fact about a DIFFERENT thing or person of a similar kind '
+        "(another machine, another relative, another place) is not it, and most questions are about nothing saved.",
+        "",
+        'Asked: "who looks after my teeth?" Saved facts: 1. "my bike lock code is 4471." 2. "Dr Ferro is my dentist." '
+        '3. "we rent the same cottage on Skye every August." -> {"answer": 2}',
+        'Asked: "when is my sister\'s birthday?" Saved facts: 1. "my brother\'s birthday is 2 June." '
+        '2. "coffee after 3 pm keeps me awake all night." -> {"answer": 0}',
+        'Asked: "what speed is the liquidiser on?" Saved facts: 1. "my coffee grinder is on speed 2." '
+        '2. "my blender is on speed 5." -> {"answer": 2}',
+        'Asked: "how tall is Mount Etna?" Saved facts: 1. "my running shoes are size 44." -> {"answer": 0}',
+        "",
+        f'Asked: "{flat(question, 240)}" Saved facts:',
+    ]
+    lines += [f'{number}. "{flat(fact, _NAMED_FACT_CHARS)}"' for number, fact in enumerate(facts, 1)]
+    lines.append('Reply with ONLY the JSON object: {"answer": N}')
+    return "\n".join(lines)
+
+
+def _named_fact_reader(count: int) -> Callable[[str], str | None]:
+    def read(content: str) -> str | None:
+        """Strict: one JSON object whose ``answer`` is a whole number from 0 to the count; anything else is None."""
+        match = re.search(r"\{[^{}]*\}", str(content or ""), re.DOTALL)
+        try:
+            raw = json.loads(match.group(0)) if match else None
+        except json.JSONDecodeError:
+            return None
+        value = raw.get("answer") if isinstance(raw, dict) else None
+        if isinstance(value, str) and value.strip().isdigit():
+            value = int(value.strip())
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= count:
+            return None
+        return str(value)
+
+    return read
+
+
+def arbitrate_named_fact(
+    question: str,
+    facts: list[str],
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> int | None:
+    """Which of ``facts`` is about the thing a question asks about: its place in the list from 1, 0 for none of
+    them, or None when nothing judged it. Same call path as the other judgements (one sealed site, the loaded local
+    model or the judge bound for the turn, the judgement role on the turn's ledger). At most `NAMED_FACTS_ASKED`
+    facts are read; None and 0 change nothing for the caller."""
+    asked = [str(fact or "") for fact in facts][:NAMED_FACTS_ASKED]
+    if not str(question or "").strip() or not any(fact.strip() for fact in asked):
+        return None
+    prompt = _named_fact_prompt(question, asked)
+    reader = _named_fact_reader(len(asked))
+    model = _keep_judge_model()
+    if not model:
+        named = _judged_for_the_turn(prompt, source_context, reader)
+    else:
+        named = arbitrate_followup(
+            "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+            prompt=prompt, operation="named_fact_arbitration", model=model,
+            runner_role="general", call_role=_judgement_role(), parse=reader,
+        )
+    return int(named) if named is not None else None
 
 
 def _lasting_fact_prompt(sentence: str) -> str:

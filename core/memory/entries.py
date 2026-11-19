@@ -9,6 +9,7 @@ import secrets
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import wraps
 from inspect import signature
@@ -1474,9 +1475,19 @@ def _match_stem(token: str) -> str:
     word = str(token or "").casefold()
     if not word.isalpha():
         return word
+    # A plain plural is the same word with three letters left as well: "who is my dogs vet?" shared no word with
+    # "we settled on Dr Croft for the dog", and the row never reached the model (real app, cloud route, where no
+    # meaning search stands behind the words). "-es" after a hiss ("glasses", "boxes"), else "-s", never after
+    # "s", "u" or "i" ("glass", "bus", "axis" are no plurals). The other endings keep four letters, as measured.
+    if word.endswith(_HISSING_PLURALS) and len(word) - 2 >= _PLURAL_STEM_FLOOR:
+        return word[:-2]
+    if word.endswith("s") and not word.endswith(("ss", "us", "is")) and len(word) - 1 == _PLURAL_STEM_FLOOR:
+        return word[:-1]
     for suffix in _MATCH_SUFFIXES:
         # Four letters must remain: with three, "rating" met "rats", "evening" met "even" and "morning" met "morn"
         # (the diagnosis probes of 2026-11-16), and one shared stem is all it takes to be found.
+        if suffix == "s" and word.endswith(("ss", "us", "is")):
+            continue  # "glass" is the word "glasses" comes down to, not "glas"
         if word.endswith(suffix) and len(word) - len(suffix) >= _MATCH_STEM_FLOOR:
             word = word[: -len(suffix)]
             break
@@ -1484,6 +1495,14 @@ def _match_stem(token: str) -> str:
 
 
 _MATCH_STEM_FLOOR = 4
+_PLURAL_STEM_FLOOR = 3
+_HISSING_PLURALS = ("sses", "xes", "zes", "ches", "shes")
+#: A two-letter word that names a thing ("my gp", "the tv", "our pc") is a word of the search in lower case too:
+#: "my gp is Dr Pritchard" gave the one search word "pritchard", so "and who is my gp?" found nothing by words. It is
+#: read by its place, right after a word that introduces a thing, so "I go there at 5 pm" adds no word.
+_SHORT_NAMED_THING_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:my|our|your|his|her|their|the|a|an|this|that)\s+([A-Za-z]{2})(?![A-Za-z0-9'’])", re.IGNORECASE
+)
 #: A two-letter word in capitals is a word of its own ("my PT is Callum", "the TV in the den"): the keyword reader
 #: drops everything under three letters, so "who is my PT?" shared no word with the fact that answers it.
 _SHORT_CAPITALS_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2}(?![A-Za-z0-9])")
@@ -1500,6 +1519,7 @@ def _search_tokens(text: str, keywords: Any = None) -> set[str]:
     words = [str(token or "").casefold() for token in (keywords or keyword_tokens_filtered(str(text or "")))]
     content = {_match_stem(word) for word in words if word not in STOPWORDS}
     content |= {found.casefold() for found in _SHORT_CAPITALS_RE.findall(str(text or ""))}
+    content |= {found.casefold() for found in _SHORT_NAMED_THING_RE.findall(str(text or "")) if found.casefold() not in STOPWORDS}
     return content or {_match_stem(word) for word in words}
 
 
@@ -1520,8 +1540,13 @@ def _meaning_key(space: str, role: str, text: str) -> str:
 
 
 def _meaning_scores(query_text: str, rows: list[dict[str, Any]]) -> dict[int, float]:
-    """How close each allowed row is to the question in meaning: {index in rows: cosine}. {} when no embed model
-    answers, and then the search is the word search it was.
+    """`_meaning_scores_if_known` for a reader that does not ask why there is no score: {} either way."""
+    return _meaning_scores_if_known(query_text, rows) or {}
+
+
+def _meaning_scores_if_known(query_text: str, rows: list[dict[str, Any]]) -> dict[int, float] | None:
+    """How close each allowed row is to the question in meaning: {index in rows: cosine}. None when no embed model
+    answers: then nothing here can say which rows are near, which is not the same as no row being near.
 
     Vectors are kept for the life of the process, keyed by a hash of the embedding space and the text: no row text
     is stored here, nothing is written to disk, and a row that is forgotten, replaced or out of scope is never
@@ -1535,14 +1560,16 @@ def _meaning_scores(query_text: str, rows: list[dict[str, Any]]) -> dict[int, fl
 
         asked = embed_texts_neural([query], query=True)
         if not asked:
-            return {}
+            return None
         (query_vector,), space = asked
         keys = {i: _meaning_key(space, "row", text) for i, text in enumerate(texts) if text}
         with _meaning_lock:
             missing = [i for i, key in keys.items() if key not in _meaning_vectors]
         if missing:
             fresh = embed_texts_neural([texts[i] for i in missing])
-            if not fresh or fresh[1] != space:
+            if not fresh:
+                return None
+            if fresh[1] != space:
                 return {}
             with _meaning_lock:
                 if len(_meaning_vectors) + len(missing) > _MEANING_CACHE_ROWS:
@@ -1556,6 +1583,37 @@ def _meaning_scores(query_text: str, rows: list[dict[str, Any]]) -> dict[int, fl
         return {}
 
 
+#: Fact rows put to the reader's namer at most: the newest that share no word with the question.
+_NAMED_FROM_ROWS = 40
+
+
+def _rows_the_reader_names(
+    query_text: str,
+    rows: list[dict[str, Any]],
+    overlaps: list[int],
+    name_the_fact: Callable[[str, list[str]], list[int] | None],
+) -> set[int]:
+    """Places in ``rows`` of the fact rows the reader's namer takes for the thing asked: only rows that share no
+    word with the question (a row that shares one stays under the word law), facts the owner saved (a row with a
+    scope; the profile's own template lines have none), the newest first. A namer that fails or names a place it was
+    not given names nothing."""
+    asked = sorted(
+        (
+            index for index, row in enumerate(rows)
+            if overlaps[index] <= 0 and str(row.get("category") or "fact") == "fact" and row.get("scope")
+            and str(row.get("text") or "").strip()
+        ),
+        key=lambda index: str(rows[index].get("created_at") or ""), reverse=True,
+    )[:_NAMED_FROM_ROWS]
+    if not asked:
+        return set()
+    try:
+        places = name_the_fact(query_text, [" ".join(str(rows[index].get("text") or "").split()) for index in asked])
+    except Exception:
+        return set()
+    return {asked[place] for place in places or [] if isinstance(place, int) and 0 <= place < len(asked)}
+
+
 @_memory_reader
 def search_relevant_memory(
     query_text: str,
@@ -1564,14 +1622,23 @@ def search_relevant_memory(
     topic_hints: list[str] | None = None,
     limit: int = 4,
     by_meaning: bool = False,
+    name_the_fact: Callable[[str, list[str]], list[int] | None] | None = None,
 ) -> list[dict[str, Any]]:
     """Saved rows this reader may see that bear on the question, best first.
 
     A row is found by the words it shares with the question. With ``by_meaning`` a row that shares none is also a
     candidate when an embed model puts it close to the question ("is there any food I can't eat?" and "kiwi fruit
     makes my throat swell up" share no word). Such a row carries ``"found_by": "meaning"`` and every row carries its
-    ``"meaning"`` score when there is one; rows found by words keep the score and order they had. With no embed
-    model the result is the word search, unchanged, and nothing says so to the person."""
+    ``"meaning"`` score when there is one; rows found by words keep the score and order they had.
+
+    With no embed model nothing here can say which rows are near. Measured on the real app on a machine with none
+    (the owner's cloud model answers, no local model is installed): "the stepladder is kept in the boiler cupboard."
+    was saved, "where do we store the small ladder?" found nothing and was answered "I don't have that saved". The
+    reader may pass ``name_the_fact``: given the question and the texts of the newest fact rows that share no word
+    with it, it returns the places of those that may be the thing asked for (a judgement of the reader's; this
+    search asks no model). A row so named carries ``"found_by": "named"`` and no score, and is a candidate exactly
+    like a row found by meaning: its readers still decide whether it answers. Without a namer, or when it names
+    nothing, the result is the word search, unchanged."""
     from core.memory.revocation import authorize_payload
 
     try:
@@ -1587,17 +1654,27 @@ def search_relevant_memory(
         if _memory_row_allowed(row, access_policy=policy)
         and authorize_payload(row, chat_id=policy.chat_id)
     ]
-    meaning = _meaning_scores(query_text, rows) if by_meaning and query_tokens else {}
+    meaning = _meaning_scores_if_known(query_text, rows) if by_meaning and query_tokens else {}
+    overlaps = [
+        len(query_tokens & _search_tokens(str(row.get("text") or ""), row.get("keywords"))) if query_tokens else 0
+        for row in rows
+    ]
+    named: set[int] = set()
+    if meaning is None:
+        meaning = {}
+        if name_the_fact is not None:
+            named = _rows_the_reader_names(query_text, rows, overlaps, name_the_fact)
     ranked: list[tuple[float, dict[str, Any]]] = []
     meant: list[tuple[float, dict[str, Any]]] = []
     for index, row in enumerate(rows):
-        item_tokens = _search_tokens(str(row.get("text") or ""), row.get("keywords"))
-        overlap = len(query_tokens & item_tokens) if query_tokens else 0
+        overlap = overlaps[index]
         near = meaning.get(index)
         marks = {} if near is None else {"meaning": round(near, 4)}
         if query_tokens and overlap <= 0:
             if near is not None and near >= _MEANING_FLOOR:
                 meant.append((near, {**row, **marks, "found_by": "meaning", "score": round(0.55 * near * 0.5, 4)}))
+            elif index in named:
+                meant.append((_MEANING_FLOOR, {**row, "found_by": "named", "score": round(0.55 * _MEANING_FLOOR * 0.5, 4)}))
             continue
         semantic = overlap / max(1, len(query_tokens)) if query_tokens else 0.0
         recency = recency_score(str(row.get("created_at") or ""))
