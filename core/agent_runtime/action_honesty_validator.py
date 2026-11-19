@@ -4,7 +4,7 @@ import json
 import os
 import posixpath
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import Any
 
@@ -724,7 +724,10 @@ def _claims_its_own_action(sentence: str, owner_texts: Sequence[str] = ()) -> bo
     return not sentence.rstrip().endswith("?")
 
 
-def completion_claim_kind(text: str, *, request_text: str | None = None, owner_texts: Sequence[str] = ()) -> str:
+def completion_claim_kind(
+    text: str, *, request_text: str | None = None, owner_texts: Sequence[str] = (),
+    is_saved: Callable[[str, str], bool] | None = None,
+) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
     One predicate for both consumers. The blocker uses it to decide whether a claim needs a
@@ -744,6 +747,10 @@ def completion_claim_kind(text: str, *, request_text: str | None = None, owner_t
 
     ``owner_texts`` are the owner's own messages of this chat. A first-person done sentence inside quotation
     marks whose words are the owner's is the owner quoted back, not a report by this runtime.
+
+    ``is_saved(sentence, sentence_before)`` says whether a saved fact holds what a sentence is about
+    (`core.saved_fact_statement`). A sentence that says such a fact is saved states what is true and reports no
+    write of this turn.
     """
 
     body = str(text or "")
@@ -789,7 +796,9 @@ def completion_claim_kind(text: str, *, request_text: str | None = None, owner_t
         if _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence):
             continue  # an offer, a plan, or something the USER did -- not a report of work done
         return "build"
+    said_before = ""
     for sentence in _split_sentences(body):
+        before, said_before = said_before, sentence
         # A claimed WRITE TO MEMORY. Measured live: asked to remember a formatting rule, the reply
         # was "Writing formatting rule to workspace memory... Done." on a turn whose work log
         # recorded ZERO actions. Nothing was stored, the user relied on it for eight further turns,
@@ -802,6 +811,8 @@ def completion_claim_kind(text: str, *, request_text: str | None = None, owner_t
             continue
         if _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence):
             continue  # "I'll store that" is an intention, not a report of a finished write
+        if is_saved is not None and is_saved(sentence, before):
+            continue  # "Your doctor is Dr Whitcombe — that's saved in your memory": it is
         return "persistence"
     # Last, so a claim one of the kinds above names keeps its own kind and its own reply.
     if any(_claims_its_own_action(sentence, owner_texts) for sentence in _split_sentences(body)):
@@ -2183,7 +2194,17 @@ def _final_claim_kind(
     return completion_claim_kind(
         response, request_text=f"{user_input or ''}\n{effective_input or ''}",
         owner_texts=_owner_texts(source_context, user_input, effective_input, session_id),
+        is_saved=lambda sentence, before: _a_saved_fact_holds_it(sentence, before, session_id, source_context),
     )
+
+
+def _a_saved_fact_holds_it(sentence: str, before: str, session_id: str | None, source_context: dict[str, object] | None) -> bool:
+    try:
+        from core.saved_fact_statement import a_saved_fact_holds_it
+
+        return a_saved_fact_holds_it(sentence, before, session_id=str(session_id or ""), source_context=source_context)
+    except Exception:
+        return False
 
 
 def _owner_texts(

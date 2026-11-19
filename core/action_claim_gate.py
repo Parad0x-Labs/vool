@@ -865,6 +865,7 @@ def _judge_by_receipt(
     source_context: Any,
     language: str,
     request: str = "",
+    holds: Callable[[tuple[int, int, int, str, str, str]], bool] | None = None,
 ) -> tuple[str, list[tuple[int, int, int, str, str, str]], dict[str, Any]] | None:
     """Hold the reply's save claims to the turn's receipt.
 
@@ -898,7 +899,9 @@ def _judge_by_receipt(
         text, {(c[0], c[1], c[2]) for c in spans},
         asked_about_a_save=bool(request and dict(_SOURCES)["memory"].search(request)),
     )
-    claimed = memory + wide
+    # A sentence that says a fact is saved, about a fact saved memory holds, is true and claims no write of this
+    # turn (core.saved_fact_statement); the receipt has nothing to hold it to.
+    claimed = [c for c in memory + wide if holds is None or not holds(c)]
     if not claimed:
         # No save is claimed. A write refused on a turn that never asked for one (a fact said in passing in a
         # private chat) needs no line; an explicit ask is answered by the memory lane itself, in its own words.
@@ -1172,9 +1175,25 @@ def gate_action_claims(
     owner = _owner_sentences(source_context, str(request_text or "") or recorded_request)
     reported: list[str] = []
 
+    def saved_fact_holds(claim: tuple[int, int, int, str, str, str], reply: str) -> bool:
+        """Whether saved memory holds the fact a save sentence is about: the sentence then says what is true."""
+        try:
+            from core.saved_fact_statement import a_saved_fact_holds_it
+
+            lines = str(reply or "").split("\n")
+            before = lines[claim[0]][: claim[1]].strip() if claim[0] < len(lines) else ""
+            if not before and claim[0] > 0:
+                before = next((line.strip() for line in reversed(lines[: claim[0]]) if line.strip()), "")
+            before = _SENTENCE_SPLIT.split(before)[-1] if before else ""
+            context = source_context if isinstance(source_context, dict) else {}
+            chat = str(context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "")
+            return a_saved_fact_holds_it(claim[3], before, session_id=chat, source_context=context)
+        except Exception:
+            return False
+
     def assistant_claims(reply: str) -> list[tuple[int, int, int, str, str, str]]:
         """The reply's claims, without the done sentences that say back what the owner stated in this chat."""
-        claims = _claim_spans(reply)
+        claims = [c for c in _claim_spans(reply) if not (_save_claim(c) and saved_fact_holds(c, reply))]
         said_back = [c for c in claims if c[4] == "action" and c[5] != "memory" and _owner_reported(c[3], owner)]
         if not said_back or any(c[5] != "memory" and c not in said_back for c in claims):
             # Beside a claim of VOOL's own ("Done!", "I'll remind you at 5") the done sentences are part of what
@@ -1190,6 +1209,7 @@ def gate_action_claims(
         judged = _judge_by_receipt(
             text, spans, receipt, source_context=source_context, language=reply_language(text),
             request=str(request_text or "") or recorded_request,
+            holds=lambda claim: saved_fact_holds(claim, text),
         )
         if judged is not None:
             text, spans, receipt_record = judged
