@@ -79,6 +79,68 @@ def question_names_someone_in_the_records(question: Any, evidence_text: Any) -> 
     return any(re.search(rf"(?<![\w'-]){re.escape(name)}(?![\w-])", text) for name in asked)
 
 
+def _letters(text: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(text or "").lower())
+
+
+def own_record_rows(source_context: Any, session_id: Any = "", *, question: Any = "") -> list[dict[str, str]]:
+    """What the person told this chat earlier, and the saved facts the chat may read, as support rows.
+
+    A capsule holds the records retrieval brought back. The person's earlier messages of the chat in hand travel as
+    history messages and a saved fact as context, so neither is a capsule row. Measured on the real app (web lookups
+    off, both cloud models, 2026-11-19): "My friend Ines told me she is leaving for Ireland next month." then "When
+    will Ines leave for Ireland?" was answered "Next month" by the model and replaced by "Web lookups are off ...", and
+    a question over a saved fact was refused before any model call.
+
+    Only the person's own messages are read, never the assistant's (`own_chat_statement_lines`); the message that
+    asks is not a record of its own answer; a line or fact the forget ledger revokes is dropped, and with an
+    unreadable ledger nothing is offered. Saved facts are the ones the fact search finds for the question under the
+    chat's own access policy.
+    """
+
+    context = source_context if isinstance(source_context, dict) else {}
+    chat = str(session_id or context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "").strip()
+    asked = _letters(question)
+    lines: list[str] = []
+    try:
+        from core.unsourced_current_claim import own_chat_statement_lines
+
+        said = own_chat_statement_lines(context, "")
+        if not asked and said:
+            said = said[:-1]  # the message being answered is the last one the request carried
+        lines.extend(line for line in said if _letters(line.split(":", 1)[-1]) != asked)
+    except Exception:
+        lines = []
+    if chat and str(question or "").strip():
+        try:
+            from core.context_scope import ContextAccessPolicy
+            from core.memory.entries import search_relevant_memory
+
+            policy = ContextAccessPolicy.for_request(session_id=chat, source_context=context or None)
+            for row in search_relevant_memory(str(question), access_policy=policy, limit=12):
+                text = " ".join(str(row.get("text") or "").split())
+                if text and str(row.get("category") or "fact") == "fact":
+                    lines.append(f"- user said: {text}")
+        except Exception:
+            pass
+    if not lines:
+        return []
+    try:
+        from core.evidence_kernel.revocation import without_revoked
+
+        kept, _no_facts = without_revoked("\n".join(lines), [], chat)
+    except Exception:
+        return []
+    rows: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for line in kept.splitlines():
+        line = line.strip()
+        if line and line not in seen:
+            seen.add(line)
+            rows.append({"summary": line, "source": "memory_record"})
+    return rows
+
+
 def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> int:
     """Record this turn's admitted memory evidence on its grounding lifecycle. Returns rows added.
 
@@ -93,6 +155,23 @@ def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> in
         from core.grounding_lifecycle import record_memory_records
 
         rows = memory_record_rows(admitted_capsule_evidence_text(source_context))
+        # The person's own earlier messages of this chat and the saved facts it may read are records too.
+        try:
+            from core.execution_requirements import current_requirement_record
+
+            _record = current_requirement_record(source_context)
+            _asked = str(getattr(_record, "request_text", "") or "")
+        except Exception:
+            _asked = ""
+        if not _asked:
+            try:
+                from core.grounding_lifecycle import lifecycle_for_context
+
+                _asked = str(getattr(lifecycle_for_context(source_context), "request_text", "") or "")
+            except Exception:
+                _asked = ""
+        _known = {row["summary"] for row in rows}
+        rows.extend(row for row in own_record_rows(source_context, question=_asked) if row["summary"] not in _known)
         # Withheld markers: the chat holds records about these speakers that the absence gate refused for this
         # facet. The marker carries the NAME only (summary is the name), so the records refusal can still say
         # "not mentioned in the records"; it is never a support row (grounding_publication skips withheld rows).
@@ -106,4 +185,4 @@ def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> in
         return 0
 
 
-__all__ = ["memory_record_rows", "publish_memory_records_for_turn", "question_names_someone_in_the_records"]
+__all__ = ["memory_record_rows", "own_record_rows", "publish_memory_records_for_turn", "question_names_someone_in_the_records"]

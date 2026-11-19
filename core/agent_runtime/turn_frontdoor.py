@@ -2486,11 +2486,24 @@ def handle_turn_frontdoor(
                 # in test_memory_records_ground_served_turn was refused as a lookup.
                 try:
                     from core.bootstrap_context import admitted_capsule_evidence_text
-                    from core.memory_grounding import question_names_someone_in_the_records
+                    from core.memory_grounding import (
+                        memory_record_rows,
+                        own_record_rows,
+                        question_names_someone_in_the_records,
+                    )
 
+                    _record_rows = memory_record_rows(
+                        admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
+                    )
+                    if not _ask_is_live_data:
+                        # What the person said earlier in this chat and the saved facts it may read are their records
+                        # as much as a retrieved capsule row (served on dd82e216, web lookups off: a question over a
+                        # saved fact was refused here with no model call). A live reading keeps the capsule-only test.
+                        _record_rows = _record_rows + own_record_rows(
+                            source_context, str(session_id or ""), question=effective_input
+                        )
                     if _ASKS_FROM_OWN_RECORDS_RE.search(effective_input) or question_names_someone_in_the_records(
-                        effective_input,
-                        admitted_capsule_evidence_text(source_context or {}, str(session_id or "")),
+                        effective_input, _record_rows
                     ):
                         _ask_needs_web = _ask_is_live_data = False
                 except Exception:

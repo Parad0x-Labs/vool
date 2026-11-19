@@ -2302,13 +2302,33 @@ def _asks_about_something_that_changes(
             return False
     except Exception:
         pass
+    _live_mode = ""
     try:
         from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
 
-        if live_info_mode(None, str(text or ""), interpretation=None):
-            return True
+        _live_mode = str(live_info_mode(None, str(text or ""), interpretation=None) or "")
+    except Exception:
+        _live_mode = ""
+    try:
+        # What the person said earlier in this chat and the saved facts it may read answer a question about someone
+        # they name, as a retrieved record does (served 2026-11-19, web lookups off: "According to your brother
+        # Tomas, his favourite character ... is Aragorn." from a saved fact went out labelled "from what I already
+        # know and may be out of date"). A live reading (weather, a price now) keeps the label, read the way the
+        # front door reads one.
+        _live_data = _live_mode == "weather" or str(getattr(requirements, "answer_mode", "") or "") == "LIVE_DATA"
+        if not _live_data:
+            from core.memory_grounding import own_record_rows, question_names_someone_in_the_records
+
+            ctx = source_context if isinstance(source_context, dict) else {}
+            if question_names_someone_in_the_records(
+                str(text or ""),
+                own_record_rows(ctx, session_id or str(ctx.get("session_id") or ""), question=str(text or "")),
+            ):
+                return False
     except Exception:
         pass
+    if _live_mode:
+        return True
     if requirements is not None and (
         bool(getattr(requirements, "current_information_required", False))
         or bool(getattr(requirements, "external_evidence_required", False))

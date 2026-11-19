@@ -618,8 +618,12 @@ def _entity_candidates(
     ):
         tokens = match.group(0).split()
         # A possessive names the same entity: "James's cooking class" is about James, and a
-        # source that says "James:" or "James signed up" carries it.
-        folded_tokens = [re.sub(r"['\u2019]s$", "", _fold(token).strip("'&.-")).strip("'&.-") for token in tokens]
+        # source that says "James:" or "James signed up" carries it. So does a contraction: "I've got that saved"
+        # names nobody (served 2026-11-19: "Aragorn — that's what I've got saved for Tomas." was refused because
+        # no record names an "I've"), and "James'll bring it" is about James.
+        folded_tokens = [
+            re.sub(r"['\u2019](?:s|d|m|ll|re|ve)$", "", _fold(token).strip("'&.-")).strip("'&.-") for token in tokens
+        ]
         kept = [
             (raw, folded)
             for raw, folded in zip(tokens, folded_tokens, strict=True)
@@ -732,6 +736,13 @@ def _build_sources(notes: Sequence[Any] | None) -> list[_Source]:
     return sources
 
 
+#: Where a name ends in a source. A possessive still names it: a record that says "Tomas's favourite character"
+#: is about Tomas (served 2026-11-19: an answer about Tomas was refused as naming someone the record never
+#: mentions, the record being "my brother Tomas's favourite character ... is Aragorn"). Any other apostrophe, a
+#: letter or a hyphen means another word ("don't" is not "Don", "Tomasz" is not "Tomas").
+_NAME_END = r"(?:(?='s(?![\w'-]))|(?![\w'-]))"
+
+
 def _entity_in_source(entity: str, source: _Source) -> bool:
     if entity in _MONTH_ALIASES:
         return any(
@@ -740,7 +751,7 @@ def _entity_in_source(entity: str, source: _Source) -> bool:
         )
     if " " in entity:
         return entity in source.folded
-    return re.search(rf"(?<![\w'-]){re.escape(entity)}(?![\w'-])", source.folded) is not None
+    return re.search(rf"(?<![\w'-]){re.escape(entity)}{_NAME_END}", source.folded) is not None
 
 
 def _year_like(value: str) -> bool:
@@ -754,7 +765,7 @@ def _subject_in_source(subject: str, source: _Source) -> bool:
     if not tokens:
         return False
     return any(
-        re.search(rf"(?<![\w'-]){re.escape(token)}(?![\w'-])", source.folded) is not None for token in tokens
+        re.search(rf"(?<![\w'-]){re.escape(token)}{_NAME_END}", source.folded) is not None for token in tokens
     )
 
 
