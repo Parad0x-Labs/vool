@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOLがフォルダを確認できませんでした。もう一度「完了」を押してください。",
     "phone.setup.not_ready": "これらのフォルダはまだVOOLに開かれていません。Macでは、「システム設定」の「プライバシーとセキュリティ」の「ファイルとフォルダ」でVOOLを許可してから、もう一度「完了」を押してください：",
     "phone.setup.ready": "保存しました。スマホの準備ができました。",
+    "phone.setup.is_ready": "使用できます。",
+    "phone.setup.change": "変更",
     "phone.setup.done": "完了",
     "phone.setup.bad_limit": "月間上限をドルで入力してください（例：20）。",
     "phone.setup.need_folder": "フォルダを1つ以上追加してください。",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "安全でない・失礼",
     "report.reason.other": "その他"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

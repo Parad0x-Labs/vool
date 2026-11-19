@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL n’a pas pu vérifier les dossiers. Appuyez de nouveau sur Terminé pour réessayer.",
     "phone.setup.not_ready": "Ces dossiers ne sont pas encore ouverts à VOOL. Sur un Mac, autorisez VOOL dans Réglages Système, sous Confidentialité et sécurité, Fichiers et dossiers, puis appuyez de nouveau sur Terminé :",
     "phone.setup.ready": "Enregistré. Votre téléphone est prêt.",
+    "phone.setup.is_ready": "Prêt à l’emploi.",
+    "phone.setup.change": "Modifier",
     "phone.setup.done": "Terminé",
     "phone.setup.bad_limit": "Saisissez une limite mensuelle en dollars, par exemple 20.",
     "phone.setup.need_folder": "Ajoutez au moins un dossier.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Dangereux ou impoli",
     "report.reason.other": "Autre"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

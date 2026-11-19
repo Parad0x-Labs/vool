@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL이 폴더를 확인하지 못했습니다. 완료를 다시 눌러 재시도하세요.",
     "phone.setup.not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 완료를 다시 누르세요:",
     "phone.setup.ready": "저장했습니다. 휴대폰이 준비되었습니다.",
+    "phone.setup.is_ready": "사용할 준비가 되었습니다.",
+    "phone.setup.change": "변경",
     "phone.setup.done": "완료",
     "phone.setup.bad_limit": "월 한도를 달러로 입력하세요. 예: 20",
     "phone.setup.need_folder": "폴더를 하나 이상 추가하세요.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "위험하거나 무례함",
     "report.reason.other": "기타"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

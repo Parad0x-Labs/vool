@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL nie mógł sprawdzić folderów. Naciśnij Gotowe jeszcze raz, aby spróbować ponownie.",
     "phone.setup.not_ready": "Te foldery nie są jeszcze otwarte dla VOOL. Na komputerze Mac pozwól VOOL w Ustawieniach systemowych, w sekcji Prywatność i ochrona, Pliki i foldery, a potem naciśnij Gotowe jeszcze raz:",
     "phone.setup.ready": "Zapisano. Twój telefon jest gotowy.",
+    "phone.setup.is_ready": "Gotowe do użycia.",
+    "phone.setup.change": "Zmień",
     "phone.setup.done": "Gotowe",
     "phone.setup.bad_limit": "Wpisz miesięczny limit w dolarach, na przykład 20.",
     "phone.setup.need_folder": "Dodaj co najmniej jeden folder.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Niebezpieczne lub niegrzeczne",
     "report.reason.other": "Inne"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

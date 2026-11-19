@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "تعذّر على VOOL فحص المجلدات. اضغط تم مرة أخرى لإعادة المحاولة.",
     "phone.setup.not_ready": "هذه المجلدات غير متاحة لـ VOOL بعد. على Mac، اسمح لـ VOOL في إعدادات النظام، تحت الخصوصية والأمان، الملفات والمجلدات، ثم اضغط تم مرة أخرى:",
     "phone.setup.ready": "تم الحفظ. هاتفك جاهز.",
+    "phone.setup.is_ready": "جاهز للاستخدام.",
+    "phone.setup.change": "تغيير",
     "phone.setup.done": "تم",
     "phone.setup.bad_limit": "أدخل حداً شهرياً بالدولار، مثل 20.",
     "phone.setup.need_folder": "أضف مجلداً واحداً على الأقل.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "غير آمنة أو فظّة",
     "report.reason.other": "أخرى"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

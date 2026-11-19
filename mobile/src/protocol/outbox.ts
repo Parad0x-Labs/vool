@@ -182,8 +182,9 @@ export class Outbox {
   private async drain() {
     for (;;) {
       if (this.stopped) return;
-      const turn = (await this.store.load())[0];
-      if (!turn || turn.state === "blocked") return;
+      // A refused message waits for its own Retry or Discard; it never holds up the messages after it.
+      const turn = (await this.store.load()).find(item => item.state !== "blocked");
+      if (!turn) return;
       this.activeKey = turn.key;
       let result: SendResult;
       try {

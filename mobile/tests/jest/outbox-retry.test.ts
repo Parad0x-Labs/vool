@@ -13,6 +13,18 @@ test('an explicit retry after permission restoration preserves the exact message
  expect(keys).toEqual([turn.key,turn.key]);expect(texts).toEqual(['same message','same message']);expect(await store.load()).toEqual([]);
 });
 
+test('a refused message never holds up the messages saved after it',async()=>{
+ const sent:string[]=[];let allowed=false;
+ const client={sendMessage:async(chat:string,text:string,files:string[],key:string)=>{
+  if(!allowed)throw new CompanionError(403,'phone_right_off_or_expired','off');
+  sent.push(text);return {chat_id:chat,reply:'done',turn_id:'turn',commit:{request_id:'request'}};
+ }} as unknown as MobileCompanionClient;
+ const store=new MemoryOutboxStore(),box=new Outbox(store,client);
+ const refused=await box.enqueue('mob-'+'1'.repeat(20),'Hey',[]);await box.flush();
+ allowed=true;await box.enqueue('mob-'+'2'.repeat(20),'hi',[]);await box.flush();
+ expect(sent).toEqual(['hi']);
+ const left=await store.load();expect(left.map(turn=>[turn.key,turn.state])).toEqual([[refused.key,'blocked']]);
+});
 
 test('saved multilingual messages survive each chunk’s native UTF-8 conversion exactly',()=>{
   const original=JSON.stringify({text:'a'.repeat(390)+'😀'.repeat(1000)+'עברית العربية 日本語'});

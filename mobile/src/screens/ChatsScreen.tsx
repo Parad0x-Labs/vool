@@ -274,7 +274,13 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
               value={search} onChangeText={setSearch} />
           </View> : null}
           {notice ? <Text style={styles.note}>{notice}</Text> : null}
-          {queued.length ? <Text style={styles.note}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
+          {queued.length ? <Pressable onPress={() => {const first = queued.find(turn => turn.state === "blocked") || queued[0];
+              // Its chat may not exist on the computer yet: show the saved message itself, not a load error.
+              setActiveChat(first.chatId); activeRef.current = first.chatId; setMessages([]); setProof(""); setNotice("");}}
+            accessibilityRole="button" hitSlop={6}>
+            <Text style={styles.note}>{queued.some(turn => turn.state === "blocked")
+              ? tr("A message was not sent. Tap to see it.") : tr("Saved messages: {count}", {count: queued.length})}</Text>
+          </Pressable> : null}
           <FromComputer client={client} refreshKey={filesKey} />
           {chats === null && !notice ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
           {showArchived && !shown.length && chats !== null ? <Text style={styles.note}>{tr("No archived chats.")}</Text> : null}

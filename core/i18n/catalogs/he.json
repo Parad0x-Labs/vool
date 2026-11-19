@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL לא הצליח לבדוק את התיקיות. לחצו שוב על סיום כדי לנסות שוב.",
     "phone.setup.not_ready": "התיקיות האלה עדיין לא פתוחות ל-VOOL. ב-Mac, אפשרו ל-VOOL ב״הגדרות המערכת״, תחת ״פרטיות ואבטחה״, ״קבצים ותיקיות״, ולחצו שוב על סיום:",
     "phone.setup.ready": "נשמר. הטלפון שלך מוכן.",
+    "phone.setup.is_ready": "מוכן לשימוש.",
+    "phone.setup.change": "שינוי",
     "phone.setup.done": "סיום",
     "phone.setup.bad_limit": "הזינו מגבלה חודשית בדולרים, למשל 20.",
     "phone.setup.need_folder": "הוסיפו לפחות תיקייה אחת.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "לא בטוח או גס",
     "report.reason.other": "אחר"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

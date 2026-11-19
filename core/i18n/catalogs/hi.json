@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL फ़ोल्डर नहीं जाँच सका। दोबारा कोशिश करने के लिए फिर से हो गया दबाएँ।",
     "phone.setup.not_ready": "ये फ़ोल्डर अभी VOOL के लिए खुले नहीं हैं। Mac पर, सिस्टम सेटिंग्ज़, गोपनीयता और सुरक्षा, फ़ाइलें और फ़ोल्डर में VOOL को अनुमति दें, फिर हो गया दबाएँ:",
     "phone.setup.ready": "सहेज लिया गया। आपका फ़ोन तैयार है।",
+    "phone.setup.is_ready": "इस्तेमाल के लिए तैयार।",
+    "phone.setup.change": "बदलें",
     "phone.setup.done": "हो गया",
     "phone.setup.bad_limit": "डॉलर में मासिक सीमा लिखें, जैसे 20।",
     "phone.setup.need_folder": "कम से कम एक फ़ोल्डर जोड़ें।",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "असुरक्षित या असभ्य",
     "report.reason.other": "अन्य"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

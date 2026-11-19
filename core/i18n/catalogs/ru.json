@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL не смог проверить папки. Нажмите «Готово» ещё раз, чтобы повторить.",
     "phone.setup.not_ready": "Эти папки пока не открыты для VOOL. На Mac разрешите VOOL в разделе «Системные настройки», «Конфиденциальность и безопасность», «Файлы и папки», затем снова нажмите «Готово»:",
     "phone.setup.ready": "Сохранено. Ваш телефон готов.",
+    "phone.setup.is_ready": "Готово к работе.",
+    "phone.setup.change": "Изменить",
     "phone.setup.done": "Готово",
     "phone.setup.bad_limit": "Введите ежемесячный лимит в долларах, например 20.",
     "phone.setup.need_folder": "Добавьте хотя бы одну папку.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Небезопасно или грубо",
     "report.reason.other": "Другое"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

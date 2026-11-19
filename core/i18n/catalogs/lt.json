@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL nepavyko patikrinti aplankų. Dar kartą paspauskite Atlikta, kad bandytumėte iš naujo.",
     "phone.setup.not_ready": "Šie aplankai VOOL dar neatverti. Mac kompiuteryje leiskite VOOL per Sistemos nustatymai, skiltyje Privatumas ir sauga, Failai ir aplankai, tada dar kartą paspauskite Atlikta:",
     "phone.setup.ready": "Išsaugota. Jūsų telefonas paruoštas.",
+    "phone.setup.is_ready": "Paruošta naudoti.",
+    "phone.setup.change": "Keisti",
     "phone.setup.done": "Atlikta",
     "phone.setup.bad_limit": "Įveskite mėnesio ribą doleriais, pavyzdžiui, 20.",
     "phone.setup.need_folder": "Pridėkite bent vieną aplanką.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Nesaugu ar nemandagu",
     "report.reason.other": "Kita"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

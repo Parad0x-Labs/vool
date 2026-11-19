@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL could not check the folders. Press Done again to retry.",
     "phone.setup.not_ready": "These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Done again:",
     "phone.setup.ready": "Saved. Your phone is ready.",
+    "phone.setup.is_ready": "Ready to use.",
+    "phone.setup.change": "Change",
     "phone.setup.done": "Done",
     "phone.setup.bad_limit": "Enter a monthly limit in dollars, like 20.",
     "phone.setup.need_folder": "Add at least one folder.",

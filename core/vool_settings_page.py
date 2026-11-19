@@ -4994,6 +4994,8 @@ const phoneBotPairing = {};
 /* Set when the pairing page hands over a phone that was just paired: its setup opens first. */
 let setupFor = (()=>{try{return new URLSearchParams(location.search).get('phone_setup') || '';}catch(_){return '';}})();
 const phonePrepared = {};
+/* Phones whose quick setup the owner opened again with Change. */
+const phoneEditing = {};
 function redrawPhoneSettings() {
   const host = phoneSettingsNode && phoneSettingsNode.parentElement;
   if (host) {phoneSettingsNode=null; host.replaceChildren(); widgetPhoneAccess(host);}
@@ -5150,6 +5152,21 @@ function widgetPhoneAccess(host) {
   function phoneQuickSetup(device) {
     const rules=device.rules || {}, until=device.right_expiry || {};
     const on=name=>!!rules[name] && !(until[name] && until[name]*1000<=Date.now());
+    /* A phone that is set up shows one plain line and Change; the choices and Done open only for a new phone or on Change. */
+    const scopeNow=device.file_scope || {}, preparedNow=phonePrepared[device.device_id];
+    const settled=!preparedNow || (!preparedNow.checking && !preparedNow.failed && !(preparedNow.folders || []).some(f=>f.state!=='ready'));
+    if(on('chat') && setupFor!==device.device_id && !phoneEditing[device.device_id] && settled) {
+      const done=el('div','phone-quick phone-quick-set');
+      const files=!on('computer_tools')?T('phone.setup.files_none','None'):(scopeNow.mode==='folders'?T('phone.setup.files_folders','Only the folders I choose'):T('phone.setup.files_all','Everything on this computer'));
+      done.appendChild(el('p','phone-quick-lead',T('phone.setup.is_ready','Ready to use.')));
+      done.appendChild(el('p','help',[T('phone.setup.models','Online lookups')+': '+(on('paid_services')?T('phone.setup.models_cloud','Look things up online'):T('phone.setup.models_local','Off')),
+        T('phone.setup.files','Files')+': '+files,
+        T('phone.setup.payments','Payments')+': '+(on('payment_propose')?T('phone.setup.payments_on','On, with limits'):T('phone.setup.payments_off','Off'))].join(' · ')));
+      const change=el('button','btn',T('phone.setup.change','Change'));change.type='button';
+      change.onclick=()=>{phoneEditing[device.device_id]=true;delete phonePrepared[device.device_id];redrawPhoneSettings();};
+      const changeRow=el('div','phone-actions');changeRow.appendChild(change);done.appendChild(changeRow);
+      return done;
+    }
     const box=el('div','phone-quick');
     if(setupFor===device.device_id) box.appendChild(el('p','phone-quick-lead',T('phone.setup.connected','Your phone is connected. Choose what it may do, then press Done.')));
     let groupCount=0;
@@ -5208,7 +5225,7 @@ function widgetPhoneAccess(host) {
       }
       pin.value='';done.disabled=true;
       save(body).then(async()=>{
-        setupFor='';
+        setupFor='';delete phoneEditing[device.device_id];
         if(fileChoice==='none')return;
         phonePrepared[device.device_id]={checking:true};redrawPhoneSettings();
         try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'prepare_folders',device_id:device.device_id})});const j=await r.json();

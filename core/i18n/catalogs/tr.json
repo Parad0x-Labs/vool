@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL klasörleri kontrol edemedi. Yeniden denemek için Bitti’ye tekrar basın.",
     "phone.setup.not_ready": "Bu klasörler VOOL’a henüz açık değil. Mac’te Sistem Ayarları, Gizlilik ve Güvenlik altındaki Dosyalar ve Klasörler bölümünde VOOL’a izin verin, sonra Bitti’ye tekrar basın:",
     "phone.setup.ready": "Kaydedildi. Telefonunuz hazır.",
+    "phone.setup.is_ready": "Kullanıma hazır.",
+    "phone.setup.change": "Değiştir",
     "phone.setup.done": "Bitti",
     "phone.setup.bad_limit": "Dolar cinsinden aylık bir sınır girin, örneğin 20.",
     "phone.setup.need_folder": "En az bir klasör ekleyin.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Güvensiz ya da kaba",
     "report.reason.other": "Diğer"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "O VOOL não conseguiu verificar as pastas. Prima Concluir outra vez para tentar de novo.",
     "phone.setup.not_ready": "Estas pastas ainda não estão abertas ao VOOL. Num Mac, permita o VOOL em Definições do Sistema, em Privacidade e Segurança, Ficheiros e Pastas, e prima Concluir outra vez:",
     "phone.setup.ready": "Guardado. O seu telemóvel está pronto.",
+    "phone.setup.is_ready": "Pronto a usar.",
+    "phone.setup.change": "Alterar",
     "phone.setup.done": "Concluir",
     "phone.setup.bad_limit": "Introduza um limite mensal em dólares, por exemplo 20.",
     "phone.setup.need_folder": "Adicione pelo menos uma pasta.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Insegura ou rude",
     "report.reason.other": "Outro"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

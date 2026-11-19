@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL không kiểm tra được các thư mục. Hãy nhấn Xong lần nữa để thử lại.",
     "phone.setup.not_ready": "Các thư mục này chưa mở cho VOOL. Trên Mac, hãy cho phép VOOL trong Cài đặt hệ thống, mục Quyền riêng tư & Bảo mật, Tệp và Thư mục, rồi nhấn Xong lần nữa:",
     "phone.setup.ready": "Đã lưu. Điện thoại của bạn đã sẵn sàng.",
+    "phone.setup.is_ready": "Sẵn sàng sử dụng.",
+    "phone.setup.change": "Thay đổi",
     "phone.setup.done": "Xong",
     "phone.setup.bad_limit": "Hãy nhập giới hạn hằng tháng bằng đô la, ví dụ 20.",
     "phone.setup.need_folder": "Hãy thêm ít nhất một thư mục.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Không an toàn hoặc thô lỗ",
     "report.reason.other": "Khác"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

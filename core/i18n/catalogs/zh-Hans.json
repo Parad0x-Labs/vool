@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL 无法检查这些文件夹。请再次点按“完成”重试。",
     "phone.setup.not_ready": "这些文件夹尚未向 VOOL 开放。在 Mac 上，请在“系统设置”的“隐私与安全性”中的“文件和文件夹”里允许 VOOL，然后再次点按“完成”：",
     "phone.setup.ready": "已保存。你的手机已就绪。",
+    "phone.setup.is_ready": "可以使用了。",
+    "phone.setup.change": "更改",
     "phone.setup.done": "完成",
     "phone.setup.bad_limit": "请输入以美元计的每月上限，例如 20。",
     "phone.setup.need_folder": "请至少添加一个文件夹。",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "不安全或不礼貌",
     "report.reason.other": "其他"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

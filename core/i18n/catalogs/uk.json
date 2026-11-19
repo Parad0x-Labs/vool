@@ -4064,6 +4064,8 @@
     "phone.setup.check_failed": "VOOL не зміг перевірити теки. Натисніть «Готово» ще раз, щоб повторити.",
     "phone.setup.not_ready": "Ці теки ще не відкриті для VOOL. На Mac дозвольте VOOL у розділі «Системні параметри», «Конфіденційність і безпека», «Файли та папки», а потім знову натисніть «Готово»:",
     "phone.setup.ready": "Збережено. Ваш телефон готовий.",
+    "phone.setup.is_ready": "Готово до роботи.",
+    "phone.setup.change": "Змінити",
     "phone.setup.done": "Готово",
     "phone.setup.bad_limit": "Введіть щомісячний ліміт у доларах, наприклад 20.",
     "phone.setup.need_folder": "Додайте принаймні одну теку.",
@@ -5304,7 +5306,7 @@
     "report.reason.unsafe": "Небезпечно або грубо",
     "report.reason.other": "Інше"
   },
-  "source_catalog_sha256": "c308f4172dbca6df44ece9755b3a59946b6edc73a8e011e43d4ccf48fd19332a",
+  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
