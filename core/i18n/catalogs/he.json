@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "הוסיפו את הבוט לשרת דיסקורד שאתם מנהלים. אחר כך VOOL יפתח איתו את הצ׳אט הפרטי שלכם.",
     "phone.bot_add_discord": "הוספה לדיסקורד",
     "phone.bot_discord_server": "אין לכם עדיין שרת? בדיסקורד לחצו על + וצרו אחד, ואז חזרו.",
-    "phone.bot_connected": "מחובר. דברו שם עם ה־VOOL שלכם."
+    "phone.bot_connected": "מחובר. דברו שם עם ה־VOOL שלכם.",
+    "phone.bot_candidate": "{name} לחץ/ה על «התחל» בטלגרם. זה אתם?",
+    "phone.bot_someone": "מישהו",
+    "phone.bot_allow": "כן, זה אני",
+    "phone.bot_not_me": "לא אני",
+    "phone.bot_connected_to": "מחובר אל {name}. רק אדם זה יכול להשתמש בבוט.",
+    "phone.bot_step1": "שלב 1 מתוך 3: יצירת הבוט",
+    "phone.bot_step2": "שלב 2 מתוך 3: הבאת המפתח לכאן",
+    "phone.bot_step2_help": "העתיקו את המפתח וחזרו לכאן. VOOL ייקח אותו מהלוח אם הדפדפן מאפשר, או הדביקו אותו למטה.",
+    "phone.bot_paste_button": "הדבקה מהלוח",
+    "phone.bot_clip_empty": "בלוח עדיין אין מפתח בוט. העתיקו את המפתח המלא ונסו שוב.",
+    "phone.bot_clip_blocked": "הדפדפן לא אפשר לקרוא את הלוח. הדביקו את המפתח בתיבה.",
+    "phone.bot_step3": "שלב 3 מתוך 3: אמרו שלום"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

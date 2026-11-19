@@ -62,10 +62,10 @@ class FakeChatHost:
         self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':0.05},daemon=True);self.thread.start()
     @property
     def url(self):return 'http://127.0.0.1:'+str(self.server.server_port)
-    def add(self,platform,text,*,user='111',channel='444',private=True,file=None):
+    def add(self,platform,text,*,user='111',channel='444',private=True,file=None,name=''):
         with self.lock:
             number=len(self.incoming)+1
-            if platform=='telegram':row={'update_id':number,'message':{'text':text,'chat':{'id':channel,'type':'private' if private else 'group'},'from':{'id':user,'is_bot':False}}}
+            if platform=='telegram':row={'update_id':number,'message':{'text':text,'chat':{'id':channel,'type':'private' if private else 'group'},'from':{'id':user,'is_bot':False,**({'first_name':name} if name else {})}}}
             else:row={'id':str(number),'content':text,'channel_id':channel,'author':{'id':user,'bot':False}}
             if file:
                 if platform=='telegram':row['message']['document']={'file_id':file,'file_name':file,'mime_type':'text/plain','file_size':len(self.files[file])}

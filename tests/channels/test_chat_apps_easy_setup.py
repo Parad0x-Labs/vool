@@ -142,3 +142,27 @@ def test_discord_post_names_the_channel_in_its_server(bots):
     assert sent == 'Posted to #news in Home.', sent
     with host.lock:
         assert host.posts == [('321', {'content': 'We are live tonight.', 'allowed_mentions': {'parse': []}, 'flags': 4})]
+
+
+def test_start_without_the_code_asks_the_owner_on_the_computer(bots):
+    """The plain bot link (what BotFather shows) sends a bare /start: the computer asks "is this you?"."""
+    desktop, hosts = bots; base = desktop[0]; host = hosts['telegram']
+    status, connection = connect(base, 'telegram', telegram_key()); assert status == 200, connection
+    host.add('telegram', '/start', user='333', channel='333', name='Mallory\u202e')
+    wait_for(lambda: record(base, 'telegram')['pairing_candidate'] == 'Mallory')
+    wait_for(lambda: any('Confirm this connection on your computer' in m.get('text', '') for m in list(host.outgoing)))
+    # "Not me": nothing is bound and the stranger is forgotten.
+    assert http(base, '/api/mobile/settings', {'operation': 'bot_not_me', 'platform': 'telegram'})[0] == 200
+    assert record(base, 'telegram')['pairing_candidate'] is None and record(base, 'telegram')['binding_state'] == 'waiting'
+    # Nothing to confirm now: the answer says so instead of binding anyone.
+    status, answer = http(base, '/api/mobile/settings', {'operation': 'bot_allow', 'platform': 'telegram'})
+    assert status == 400 and 'nothing waiting' in answer['error'], answer
+    host.add('telegram', '/start', user='111', channel='444', name='Sam')
+    wait_for(lambda: record(base, 'telegram')['pairing_candidate'] == 'Sam')
+    assert http(base, '/api/mobile/settings', {'operation': 'bot_allow', 'platform': 'telegram'})[0] == 200
+    row = record(base, 'telegram')
+    assert row['binding_state'] == 'bound' and row['owner_label'] == 'Sam' and row['pairing_candidate'] is None
+    assert {k for k, v in row['rules'].items() if v} == {'chat'}
+    wait_for(lambda: any(m.get('text', '').startswith('Paired.') and str(m.get('chat_id')) == '444' for m in list(host.outgoing)))
+    host.add('telegram', 'hi again', user='333', channel='333')
+    wait_for(lambda: any(r['kind'] == 'bot.request_refused' and r['detail']['reason'] == 'stranger' for r in receipts(base)))

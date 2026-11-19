@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "Botu yönettiğiniz bir Discord sunucusuna ekleyin. VOOL ardından onunla özel sohbetinizi açar.",
     "phone.bot_add_discord": "Discord’a ekle",
     "phone.bot_discord_server": "Henüz sunucunuz yok mu? Discord’da + simgesine basıp bir tane oluşturun, sonra geri gelin.",
-    "phone.bot_connected": "Bağlandı. VOOL’unuzla orada sohbet edin."
+    "phone.bot_connected": "Bağlandı. VOOL’unuzla orada sohbet edin.",
+    "phone.bot_candidate": "{name}, Telegram’da Başlat’a bastı. Bu siz misiniz?",
+    "phone.bot_someone": "Biri",
+    "phone.bot_allow": "Evet, benim",
+    "phone.bot_not_me": "Ben değilim",
+    "phone.bot_connected_to": "{name} ile bağlandı. Bu botu yalnızca o kişi kullanabilir.",
+    "phone.bot_step1": "Adım 1/3: botunuzu oluşturun",
+    "phone.bot_step2": "Adım 2/3: anahtarı buraya getirin",
+    "phone.bot_step2_help": "Anahtarı kopyalayıp buraya gelin. Tarayıcınız izin verirse VOOL onu panodan alır; yoksa aşağıya yapıştırın.",
+    "phone.bot_paste_button": "Panodan yapıştır",
+    "phone.bot_clip_empty": "Panoda henüz bot anahtarı yok. Anahtarın tamamını kopyalayıp yeniden deneyin.",
+    "phone.bot_clip_blocked": "Tarayıcı panoyu okumaya izin vermedi. Anahtarı kutuya yapıştırın.",
+    "phone.bot_step3": "Adım 3/3: merhaba deyin"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

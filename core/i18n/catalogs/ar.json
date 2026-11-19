@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "أضف البوت إلى خادم ديسكورد تديره. بعد ذلك يفتح VOOL محادثتك الخاصة معه.",
     "phone.bot_add_discord": "أضف إلى ديسكورد",
     "phone.bot_discord_server": "لا تملك خادمًا بعد؟ في ديسكورد اضغط + وأنشئ واحدًا، ثم عُد.",
-    "phone.bot_connected": "تم الربط. تحدّث مع VOOL هناك."
+    "phone.bot_connected": "تم الربط. تحدّث مع VOOL هناك.",
+    "phone.bot_candidate": "ضغط {name} على «ابدأ» في تيليجرام. هل هذا أنت؟",
+    "phone.bot_someone": "شخص ما",
+    "phone.bot_allow": "نعم، هذا أنا",
+    "phone.bot_not_me": "ليس أنا",
+    "phone.bot_connected_to": "تم الربط مع {name}. هذا الشخص وحده يمكنه استخدام البوت.",
+    "phone.bot_step1": "الخطوة 1 من 3: أنشئ البوت",
+    "phone.bot_step2": "الخطوة 2 من 3: أحضر المفتاح إلى هنا",
+    "phone.bot_step2_help": "انسخ المفتاح ثم عُد إلى هنا. يأخذه VOOL من الحافظة إذا سمح المتصفح، أو الصقه أدناه.",
+    "phone.bot_paste_button": "لصق من الحافظة",
+    "phone.bot_clip_empty": "لا تحتوي الحافظة على مفتاح بوت بعد. انسخ المفتاح كاملًا ثم حاول مرة أخرى.",
+    "phone.bot_clip_blocked": "لم يسمح المتصفح بقراءة الحافظة. الصق المفتاح في الحقل بدلًا من ذلك.",
+    "phone.bot_step3": "الخطوة 3 من 3: قل مرحبًا"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

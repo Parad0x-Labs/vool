@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "Dodaj bota do serwera Discord, którym zarządzasz. Potem VOOL otworzy twój prywatny czat z nim.",
     "phone.bot_add_discord": "Dodaj do Discorda",
     "phone.bot_discord_server": "Nie masz jeszcze serwera? W Discordzie naciśnij + i utwórz go, potem wróć.",
-    "phone.bot_connected": "Połączono. Rozmawiaj tam ze swoim VOOL."
+    "phone.bot_connected": "Połączono. Rozmawiaj tam ze swoim VOOL.",
+    "phone.bot_candidate": "{name} nacisnął Start w Telegramie. Czy to ty?",
+    "phone.bot_someone": "Ktoś",
+    "phone.bot_allow": "Tak, to ja",
+    "phone.bot_not_me": "To nie ja",
+    "phone.bot_connected_to": "Połączono z {name}. Tylko ta osoba może używać tego bota.",
+    "phone.bot_step1": "Krok 1 z 3: utwórz bota",
+    "phone.bot_step2": "Krok 2 z 3: przynieś tu klucz",
+    "phone.bot_step2_help": "Skopiuj klucz i wróć tutaj. VOOL weźmie go ze schowka, jeśli przeglądarka pozwoli, albo wklej go poniżej.",
+    "phone.bot_paste_button": "Wklej ze schowka",
+    "phone.bot_clip_empty": "W schowku nie ma jeszcze klucza bota. Skopiuj cały klucz i spróbuj ponownie.",
+    "phone.bot_clip_blocked": "Przeglądarka nie pozwoliła odczytać schowka. Wklej klucz do pola.",
+    "phone.bot_step3": "Krok 3 z 3: przywitaj się"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

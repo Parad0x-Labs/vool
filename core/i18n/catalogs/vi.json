@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "Thêm bot vào một máy chủ Discord bạn quản lý. Sau đó VOOL sẽ mở cuộc trò chuyện riêng của bạn với nó.",
     "phone.bot_add_discord": "Thêm vào Discord",
     "phone.bot_discord_server": "Chưa có máy chủ? Trong Discord, nhấn + để tạo một cái rồi quay lại.",
-    "phone.bot_connected": "Đã kết nối. Hãy trò chuyện với VOOL ở đó."
+    "phone.bot_connected": "Đã kết nối. Hãy trò chuyện với VOOL ở đó.",
+    "phone.bot_candidate": "{name} đã nhấn Bắt đầu trong Telegram. Có phải bạn không?",
+    "phone.bot_someone": "Ai đó",
+    "phone.bot_allow": "Đúng, là tôi",
+    "phone.bot_not_me": "Không phải tôi",
+    "phone.bot_connected_to": "Đã kết nối với {name}. Chỉ người này dùng được bot.",
+    "phone.bot_step1": "Bước 1/3: tạo bot",
+    "phone.bot_step2": "Bước 2/3: mang khóa về đây",
+    "phone.bot_step2_help": "Sao chép khóa rồi quay lại đây. VOOL lấy từ bộ nhớ tạm nếu trình duyệt cho phép, hoặc dán vào bên dưới.",
+    "phone.bot_paste_button": "Dán từ bộ nhớ tạm",
+    "phone.bot_clip_empty": "Bộ nhớ tạm chưa có khóa bot. Hãy sao chép toàn bộ khóa rồi thử lại.",
+    "phone.bot_clip_blocked": "Trình duyệt không cho đọc bộ nhớ tạm. Hãy dán khóa vào ô.",
+    "phone.bot_step3": "Bước 3/3: chào bot"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

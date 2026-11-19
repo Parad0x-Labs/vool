@@ -36,6 +36,7 @@ PAIRING_SECONDS = {"telegram": 300, "discord": 900}
 #: Rights a chat app has once its owner is paired. Chat only: history, files, alerts, wallet views and
 #: payments stay off until the owner turns them on, and payments and actions still need this computer.
 PAIRED_RULES = frozenset({"chat"})
+NOTHING_TO_CONFIRM = "There is nothing waiting to be confirmed. Connect the chat app again."
 NOT_DISCORD_OWNER = (
     "Discord did not say who owns this bot. Paste the link to your private conversation with it instead."
 )
@@ -48,6 +49,15 @@ NOT_A_PRIVATE_CONVERSATION = (
     "Discord could not open that link as a private conversation with this bot. "
     "Send the bot a direct message, then copy that conversation\u2019s link."
 )
+
+
+CONFIRM_ON_COMPUTER = "Almost done. Confirm this connection on your computer, in VOOL Settings."
+
+
+def person_label(value):
+    """A name the chat app sent, made safe to show: printable, one line, at most 80 characters."""
+    clean = "".join(ch for ch in str(value or "") if ch.isprintable() and ch not in "\u200b\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+    return " ".join(clean.split())[:80]
 
 
 PAIRED_WORDS = "Paired. Chat with your VOOL here. Payments and actions still need your computer."
@@ -108,7 +118,7 @@ def connect(runtime, platform, token, *, channel_link=""):
         raise ConnectRefused(KEY_SHAPE)
     app = platform.capitalize()
     channel_id = private_discord_channel(channel_link) if platform == "discord" and channel_link.strip() else ""
-    bot_name, app_id, owner_id = "", "", ""
+    bot_name, app_id, owner_id, owner_label = "", "", "", ""
     register_exact_secret(token)
     target = manager_for(runtime)
     # Validate only with the selected provider before replacing a working connection.
@@ -146,6 +156,8 @@ def connect(runtime, platform, token, *, channel_link=""):
                 team = application.get("team") or {}
                 owner = team.get("owner_user_id") if team else (application.get("owner") or {}).get("id")
                 owner_id = str(owner or "")
+                person = {} if team else (application.get("owner") or {})
+                owner_label = person_label(str(person.get("global_name") or person.get("username") or ""))
                 if not re.fullmatch(r"[0-9]{1,22}", app_id) or not re.fullmatch(r"[0-9]{1,22}", owner_id):
                     raise ValueError("no Discord owner")
     except urllib.error.HTTPError as answered:
@@ -188,6 +200,7 @@ def connect(runtime, platform, token, *, channel_link=""):
                 "channel_id": channel_id,
                 "user_id": "",
                 "owner_id": owner_id,
+                "owner_label": owner_label,
             },
             "bot_name": bot_name,
             "last_update": 0,
@@ -218,6 +231,41 @@ def disconnect(runtime, platform):
     manager_for(runtime).stop(platform)
     delete_credential("mobile.bot." + platform)
     return {"disconnected": True}
+
+
+def answer_candidate(runtime, platform, allow):
+    """The owner's answer on this computer to "<name> pressed Start. Is this you?"."""
+    if platform not in PLATFORMS:
+        raise ValueError("Unknown chat app.")
+    with service().dispatch_lock:
+        device = service().store.device("bot:" + platform) or {}
+        binding = device.get("binding") or {}
+        candidate = binding.get("candidate") or {}
+        if device.get("status") != "active" or binding.get("state") != "waiting" or not candidate:
+            raise ConnectRefused(NOTHING_TO_CONFIRM)
+        if not allow:
+            service().store.mark_device(device["device_id"], binding={k: v for k, v in binding.items() if k != "candidate"})
+            service().store.append_receipt("bot.pairing_candidate_refused", device_id=device["device_id"],
+                                           detail={"platform": platform})
+            return {"allowed": False}
+        if binding.get("expires_at", 0) <= time.time():
+            raise ConnectRefused(NOTHING_TO_CONFIRM)
+        service().store.mark_device(
+            device["device_id"],
+            binding={"state": "bound", "channel_id": candidate["channel_id"], "user_id": candidate["user_id"]},
+            owner_label=str(candidate.get("name") or ""),
+            rules=paired_rules(device),
+            permission_revision=int(device.get("permission_revision") or 0) + 1,
+        )
+    service().store.append_receipt("bot.owner_bound", device_id=device["device_id"], detail={"platform": platform})
+    worker = manager_for(runtime).workers.get(platform)
+    if worker is not None:
+        try:
+            with background_scope(platform):
+                worker.send(candidate["channel_id"], PAIRED_WORDS, right=None)
+        except Exception:
+            service().store.append_receipt("bot.connection_unavailable", device_id=device["device_id"])
+    return {"allowed": True}
 
 
 class ManagedBot:
@@ -310,7 +358,7 @@ class ManagedBot:
         if channel and service().store.allow_rate("bot-refusal:" + self.platform + ":" + channel, cap=3, window=60):
             self.send(channel, "This request is not allowed. Manage this chat app on your computer.", right=None)
 
-    def consume(self, channel, user, text, event_id, *, private=True, files=None):
+    def consume(self, channel, user, text, event_id, *, private=True, files=None, who=""):
         if not self.active():
             return
         if not private or not re.fullmatch(r"-?[0-9]{1,22}", channel) or not re.fullmatch(r"[0-9]{1,22}", user):
@@ -325,6 +373,9 @@ class ManagedBot:
                 if start:
                     # Telegram's Start button sends the code from the link VOOL showed.
                     text = "/pair " + start[1]
+                if text.strip() == "/start":
+                    # Telegram's Start button on the plain bot link (no code in it).
+                    return self._ask_owner(device, binding, channel, user, who)
                 if not text.startswith("/pair "):
                     return self.refused("not_paired")
                 if binding.get("expires_at", 0) <= time.time() or binding.get("attempts", 0) >= 5:
@@ -341,6 +392,7 @@ class ManagedBot:
                     service().store.mark_device(
                         self.device_id,
                         binding=binding,
+                        owner_label=person_label(who),
                         rules=paired_rules(device),
                         permission_revision=int(device.get("permission_revision") or 0) + 1,
                     )
@@ -567,6 +619,23 @@ class ManagedBot:
             else "Could not complete that turn. Check your computer.",
         )
 
+    def _ask_owner(self, device, binding, channel, user, who):
+        """Someone pressed Start without the code (the plain link BotFather shows, say): ask the owner.
+
+        While this chat app waits for its owner, the newest private chat becomes the one the computer
+        shows: "<name> pressed Start. Is this you?" Nothing is bound until the owner says yes there,
+        so a stranger who finds the bot gets no further than a name on the owner's screen.
+        Caller holds the dispatch lock.
+        """
+        if self.platform != "telegram" or binding.get("expires_at", 0) <= time.time() or binding.get("channel_id"):
+            return self.refused("not_paired")
+        if not service().store.allow_rate("bot-candidate:" + self.platform, cap=6, window=60):
+            return self.refused("not_paired")
+        candidate = {"channel_id": channel, "user_id": user, "name": person_label(who), "at": time.time()}
+        service().store.mark_device(self.device_id, binding={**binding, "candidate": candidate})
+        service().store.append_receipt("bot.pairing_candidate", device_id=self.device_id, detail={"platform": self.platform})
+        self.send(channel, CONFIRM_ON_COMPUTER, right=None)
+
     def poll_once(self):
         if not self.active():
             return 0
@@ -603,6 +672,10 @@ class ManagedBot:
                         number,
                         private=chat.get("type") == "private",
                         files=files,
+                        who=" ".join(
+                            str(author.get(k) or "") for k in ("first_name", "last_name")
+                        ).strip()
+                        + (" (@" + str(author["username"]) + ")" if author.get("username") else ""),
                     )
                 after = number
                 count += 1
@@ -634,7 +707,14 @@ class ManagedBot:
 
                 files = descriptors(self.platform, message)
                 if (text or files) and not author.get("bot"):
-                    self.consume(channel, str(author.get("id") or ""), text, number, files=files)
+                    self.consume(
+                        channel,
+                        str(author.get("id") or ""),
+                        text,
+                        number,
+                        files=files,
+                        who=str(author.get("global_name") or author.get("username") or ""),
+                    )
                 after = number
                 count += 1
                 with service().dispatch_lock:
@@ -694,6 +774,7 @@ class ManagedBot:
             service().store.mark_device(
                 self.device_id,
                 binding={"state": "bound", "channel_id": channel, "user_id": owner},
+                owner_label=str(binding.get("owner_label") or ""),
                 rules=paired_rules(current),
                 permission_revision=int(current.get("permission_revision") or 0) + 1,
             )

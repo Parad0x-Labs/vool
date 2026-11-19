@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "Adicione o bot a um servidor do Discord que você administra. Depois o VOOL abre sua conversa privada com ele.",
     "phone.bot_add_discord": "Adicionar ao Discord",
     "phone.bot_discord_server": "Ainda não tem servidor? No Discord, toque em + e crie um; depois volte.",
-    "phone.bot_connected": "Conectado. Converse com seu VOOL por lá."
+    "phone.bot_connected": "Conectado. Converse com seu VOOL por lá.",
+    "phone.bot_candidate": "{name} tocou em Iniciar no Telegram. É você?",
+    "phone.bot_someone": "Alguém",
+    "phone.bot_allow": "Sim, sou eu",
+    "phone.bot_not_me": "Não sou eu",
+    "phone.bot_connected_to": "Conectado a {name}. Só essa pessoa pode usar este bot.",
+    "phone.bot_step1": "Passo 1 de 3: crie seu bot",
+    "phone.bot_step2": "Passo 2 de 3: traga a chave para cá",
+    "phone.bot_step2_help": "Copie a chave e volte aqui. O VOOL pega da área de transferência se o navegador permitir, ou cole abaixo.",
+    "phone.bot_paste_button": "Colar da área de transferência",
+    "phone.bot_clip_empty": "A área de transferência ainda não tem uma chave de bot. Copie a chave inteira e tente de novo.",
+    "phone.bot_clip_blocked": "O navegador não permitiu ler a área de transferência. Cole a chave no campo.",
+    "phone.bot_step3": "Passo 3 de 3: diga olá"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "Füge den Bot zu einem Discord-Server hinzu, den du verwaltest. VOOL öffnet dann deinen privaten Chat mit ihm.",
     "phone.bot_add_discord": "Zu Discord hinzufügen",
     "phone.bot_discord_server": "Noch kein Server? Tippe in Discord auf + und erstelle einen, dann komm zurück.",
-    "phone.bot_connected": "Verbunden. Chatte dort mit deinem VOOL."
+    "phone.bot_connected": "Verbunden. Chatte dort mit deinem VOOL.",
+    "phone.bot_candidate": "{name} hat in Telegram auf Start getippt. Bist du das?",
+    "phone.bot_someone": "Jemand",
+    "phone.bot_allow": "Ja, das bin ich",
+    "phone.bot_not_me": "Nicht ich",
+    "phone.bot_connected_to": "Verbunden mit {name}. Nur diese Person kann den Bot nutzen.",
+    "phone.bot_step1": "Schritt 1 von 3: Bot erstellen",
+    "phone.bot_step2": "Schritt 2 von 3: Schlüssel hierher holen",
+    "phone.bot_step2_help": "Kopiere den Schlüssel und komm hierher zurück. VOOL übernimmt ihn aus der Zwischenablage, wenn dein Browser es erlaubt, oder füge ihn unten ein.",
+    "phone.bot_paste_button": "Aus Zwischenablage einfügen",
+    "phone.bot_clip_empty": "In der Zwischenablage ist noch kein Bot-Schlüssel. Kopiere den ganzen Schlüssel und versuche es erneut.",
+    "phone.bot_clip_blocked": "Der Browser hat das Lesen der Zwischenablage nicht erlaubt. Füge den Schlüssel stattdessen ins Feld ein.",
+    "phone.bot_step3": "Schritt 3 von 3: Hallo sagen"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

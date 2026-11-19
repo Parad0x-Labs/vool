@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "관리하는 디스코드 서버에 봇을 추가하세요. 그러면 VOOL이 봇과의 개인 채팅을 엽니다.",
     "phone.bot_add_discord": "디스코드에 추가",
     "phone.bot_discord_server": "아직 서버가 없나요? 디스코드에서 +를 눌러 하나 만든 뒤 돌아오세요.",
-    "phone.bot_connected": "연결되었습니다. 그곳에서 VOOL과 대화하세요."
+    "phone.bot_connected": "연결되었습니다. 그곳에서 VOOL과 대화하세요.",
+    "phone.bot_candidate": "{name}님이 텔레그램에서 시작을 눌렀습니다. 본인인가요?",
+    "phone.bot_someone": "누군가",
+    "phone.bot_allow": "네, 저예요",
+    "phone.bot_not_me": "제가 아니에요",
+    "phone.bot_connected_to": "{name}님과 연결되었습니다. 이 봇은 그 사람만 쓸 수 있습니다.",
+    "phone.bot_step1": "1/3단계: 봇 만들기",
+    "phone.bot_step2": "2/3단계: 키를 여기로 가져오기",
+    "phone.bot_step2_help": "키를 복사한 뒤 여기로 돌아오세요. 브라우저가 허용하면 VOOL이 클립보드에서 가져오고, 아니면 아래에 붙여넣으세요.",
+    "phone.bot_paste_button": "클립보드에서 붙여넣기",
+    "phone.bot_clip_empty": "클립보드에 아직 봇 키가 없습니다. 키 전체를 복사한 뒤 다시 시도하세요.",
+    "phone.bot_clip_blocked": "브라우저가 클립보드 읽기를 허용하지 않았습니다. 키를 칸에 붙여넣으세요.",
+    "phone.bot_step3": "3/3단계: 인사하기"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

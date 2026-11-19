@@ -36,6 +36,9 @@ def test_bot_each_type_presets_quiet_outer_gate_and_disconnect(desktop, monkeypa
             other = 'task_failed' if kind != 'task_failed' else 'task_completed'
             notify(other)
             wait_for(lambda before=before: len(host.outgoing) > before)
+            # Let the worker poll again before judging (and before the next iteration changes the
+            # choices): the other alert must stay undelivered under THESE choices, not just until now.
+            time.sleep(2.5)
             additions = host.outgoing[before:]
             def text(row):
                 return row.get('text') or row.get('content')

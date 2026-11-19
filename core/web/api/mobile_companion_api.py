@@ -538,6 +538,10 @@ def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
         "platform": rec.get("platform"),
         "kind": rec.get("kind", "phone"),
         "binding_state": (rec.get("binding") or {}).get("state", ""),
+        # Chat apps: who pressed Start and waits for the owner's yes (a name only), and who it is paired with.
+        "pairing_candidate": str(((rec.get("binding") or {}).get("candidate") or {}).get("name") or "")
+        if (rec.get("binding") or {}).get("state") == "waiting" and ((rec.get("binding") or {}).get("candidate")) else None,
+        "owner_label": rec.get("owner_label") if rec.get("kind") == "bot" else None,
         "notification_preferences": ((rec.get("notification_state") or {}).get("preferences") or notification_defaults()) if rec.get("kind") == "bot" else None,
         "public_key": rec.get("public_key"),
         "status": rec.get("status"),
@@ -2337,8 +2341,8 @@ def handle_mobile_companion_post(
             code = "wallet_caller_refused" if headers is None else "owner_caller_required"
             service.ingress.refused("security.settings_caller_refused", reason=code)
             return _err(403, code)
-        if body.get("operation") in {"bot_connect", "bot_disconnect", "bot_notifications"}:
-            from core.mobile_companion.bot_runtime import ConnectRefused, connect, disconnect
+        if body.get("operation") in {"bot_connect", "bot_disconnect", "bot_notifications", "bot_allow", "bot_not_me"}:
+            from core.mobile_companion.bot_runtime import ConnectRefused, answer_candidate, connect, disconnect
             from core.wallet import caller_binding
             if caller_binding.refusal_reason(headers):
                 return _err(403, "owner_caller_required")
@@ -2348,6 +2352,8 @@ def handle_mobile_companion_post(
                                      channel_link=str(body.get("channel_link") or ""))
                 elif body["operation"] == "bot_disconnect":
                     result = disconnect(runtime, str(body.get("platform") or ""))
+                elif body["operation"] in {"bot_allow", "bot_not_me"}:
+                    result = answer_candidate(runtime, str(body.get("platform") or ""), body["operation"] == "bot_allow")
                 else:
                     from core.mobile_companion.notifications import preferences_set
                     device = service.store.device(str(body.get("device_id") or "")) or {}

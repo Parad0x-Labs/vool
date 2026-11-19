@@ -5324,7 +5324,19 @@
     "phone.bot_pair_discord": "Додайте бота на сервер Discord, яким ви керуєте. Потім VOOL відкриє ваш приватний чат із ним.",
     "phone.bot_add_discord": "Додати в Discord",
     "phone.bot_discord_server": "Ще немає сервера? У Discord натисніть + і створіть його, потім поверніться.",
-    "phone.bot_connected": "Підключено. Спілкуйтеся там зі своїм VOOL."
+    "phone.bot_connected": "Підключено. Спілкуйтеся там зі своїм VOOL.",
+    "phone.bot_candidate": "{name} натиснув «Почати» в Telegram. Це ви?",
+    "phone.bot_someone": "Хтось",
+    "phone.bot_allow": "Так, це я",
+    "phone.bot_not_me": "Не я",
+    "phone.bot_connected_to": "Підключено до {name}. Лише ця людина може користуватися ботом.",
+    "phone.bot_step1": "Крок 1 з 3: створіть бота",
+    "phone.bot_step2": "Крок 2 з 3: принесіть ключ сюди",
+    "phone.bot_step2_help": "Скопіюйте ключ і поверніться сюди. VOOL візьме його з буфера обміну, якщо браузер дозволить, або вставте його нижче.",
+    "phone.bot_paste_button": "Вставити з буфера обміну",
+    "phone.bot_clip_empty": "У буфері обміну ще немає ключа бота. Скопіюйте ключ повністю й спробуйте ще раз.",
+    "phone.bot_clip_blocked": "Браузер не дозволив читати буфер обміну. Вставте ключ у поле.",
+    "phone.bot_step3": "Крок 3 з 3: привітайтеся"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
