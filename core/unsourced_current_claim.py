@@ -626,6 +626,52 @@ def recorded_state_retention(
 #: An attribution: a URL, a markdown link, or a bare host-shaped token. A source NAME in the answer
 #: is a claim about where the value came from, and on a turn that contacted nothing it is a claim
 #: the runtime cannot support.
+# --- What the owner said in this chat ------------------------------------------------------------
+#
+# Measured 2026-11-19 on the real app, cloud route, three cloud models, with no embedding model on
+# the machine: "for the rota: ... and the float is 60 pounds." then, in the same chat, "what did I
+# say the float was?" -- the model answered "You said the float is 60 pounds." from the chat's own
+# messages, which the request carried as its visible history, and the answer was withdrawn as "not
+# mentioned in the records". The binder below read only the retrieved-evidence block, and that block
+# was empty on that route; on the local route the same chat turn sat in the block as a "user said"
+# line and the same answer was kept. One law for both: the owner's own messages of this chat, as the
+# request carried them, are records of what the owner said. They are read by the SAME binder (subject,
+# correction, negation and supersession laws unchanged), only when the retrieved evidence alone did
+# not support the reply, and never against a value the retrieved records contradict.
+#
+# The same law covers notes pasted in the message itself and asked about "from these notes only": the
+# message is the owner's record, read by the binder like any other line, so "the raffle made 212
+# pounds" supports "the raffle made £212". Such an ask may hold no first-person word; that it names
+# the owner's own notes as its source is the requirements authority's reading (`records_scoped_ask`),
+# and the binder takes it as the reason the question is about the owner's records. Its live-world and
+# current-reading refusals are untouched: "what is my bitcoin worth right now, I bought at $40,000?"
+# is still not sourced by the figure in the question.
+
+
+def own_chat_statement_lines(source_context: Mapping[str, Any] | None, user_turn_text: Any = "") -> list[str]:
+    """The owner's own messages of this chat, as this request carried them, one evidence line each.
+
+    The chat's visible history and the current message, oldest first, rendered in the form the binder
+    reads as a user-owned line. A message's line breaks become clause breaks, so a pasted list keeps
+    one value per clause and no line of it can pose as another speaker's line.
+    """
+
+    context = source_context if isinstance(source_context, Mapping) else {}
+    texts: list[str] = []
+    for item in list(context.get("conversation_history") or []) + list(context.get("client_conversation_history") or []):
+        if isinstance(item, Mapping) and str(item.get("role") or "") == "user":
+            texts.append(str(item.get("content") or ""))
+    texts.append(str(user_turn_text or ""))
+    lines: list[str] = []
+    seen: set[str] = set()
+    for text in texts:
+        flat = "; ".join(part.strip() for part in text.splitlines() if part.strip())
+        if flat and flat not in seen:
+            seen.add(flat)
+            lines.append(f"- user said: {flat}")
+    return lines
+
+
 _URL_RE = re.compile(r"https?://\S+|\[[^\]]+\]\([^)]+\)", re.IGNORECASE)
 _HOST_RE = re.compile(
     r"\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+\.(?:in|com|org|net|io|ai|co|gov|edu|info)\b"
@@ -886,6 +932,26 @@ def inspect_unsourced_current_claim(
             # "Not found in your records" qualification).
             if _binding.all_supported:
                 has_evidence = True
+            elif not _binding.contradicted:
+                # What the owner said in this chat (see the section above). A forgotten value stays
+                # forgotten: the same revocation filter reads these lines.
+                _chat_text, _no_facts = _without_revoked(
+                    "\n".join(own_chat_statement_lines(source_context, user_turn_text)), [], str(session_id or "")
+                )
+                try:
+                    from core.execution.constants import records_scoped_ask as _records_scoped_ask
+
+                    _names_own_records = bool(_records_scoped_ask(str(user_turn_text or "")))
+                except Exception:
+                    _names_own_records = False
+                _chat_binding = _bind_claims(
+                    question=user_turn_text, reply=answer, evidence_text=_chat_text, packet_facts=[],
+                    own_records_ask=_names_own_records,
+                )
+                if _chat_binding.all_supported:
+                    has_evidence = True
+                    claim_binding = {**_chat_binding.as_dict(), "evidence_source": "chat_messages", "retrieved_evidence": claim_binding}
+                    _packet_facts = []
             claim_binding["kernel_receipt"] = _kernel_claim_envelope(session_id, user_turn_text, answer, claim_binding, _packet_facts)
         except Exception:
             claim_binding = {"attempted": False, "reason": "binder_error"}
@@ -952,6 +1018,7 @@ __all__ = [
     "answer_asserts_a_measured_value",
     "answer_attributes_a_source",
     "inspect_unsourced_current_claim",
+    "own_chat_statement_lines",
     "prose_safe_measured_value_matches",
     "question_asks_for_measured_amount",
     "recorded_state_retention",

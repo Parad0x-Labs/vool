@@ -478,11 +478,16 @@ def _date_derivation(value: float, text: str, days: Sequence[tuple[str, str]]) -
     return None
 
 
-def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: Sequence[Mapping[str, Any]] | None = None) -> BindingResult:
-    """Bind every value claim of *reply* to user-owned memory evidence. See the module docstring for the scope."""
+def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: Sequence[Mapping[str, Any]] | None = None,
+                own_records_ask: bool = False) -> BindingResult:
+    """Bind every value claim of *reply* to user-owned memory evidence. See the module docstring for the scope.
+
+    *own_records_ask*: the caller's authority read the question as naming the user's own notes or words as its source
+    ("from these notes only: how much did the raffle make?"). Such a question is about the user's own records with or
+    without a first-person word. Only that one gate reads it; the live-world and current-reading refusals do not."""
     q = str(question or "")
     asks_assistant = bool(_ASSISTANT_ASK_RE.search(q))
-    if not asks_assistant and not _FIRST_PERSON_OR_ADVICE_RE.search(q):
+    if not asks_assistant and not own_records_ask and not _FIRST_PERSON_OR_ADVICE_RE.search(q):
         return BindingResult(False, "question is not about the user's own records")
     if _LIVE_WORLD_RE.search(q) and not asks_assistant:
         # "what did you say the oven temperature was" asks for the assistant's own earlier words, a record, not the world
