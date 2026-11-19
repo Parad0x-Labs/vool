@@ -1223,6 +1223,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .phone-device {border-top:1px solid var(--line); margin-top:22px; padding-top:18px;}
 .phone-bot-connect .inline {gap:8px; flex-wrap:wrap;}
 .phone-bot-steps .btn, .phone-bot-pairing .btn {display:inline-block; margin:6px 0; text-decoration:none;}
+.phone-bot-step {margin:14px 0 4px; font-size:14px;}
 .phone-bot-qr {display:block; margin:10px 0; border-radius:6px; max-width:200px;}
 .phone-rights {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; margin:16px 0;}
 .phone-right {display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere;}
@@ -4707,8 +4708,8 @@ function phoneBotWatch() {
     if (!waiting.length) {clearInterval(phoneBotTimer); phoneBotTimer = 0; return;}
     try {
       const back = await getJSON(url);
-      const before = JSON.stringify((state.sources[url] && state.sources[url].devices || []).map(d => [d.device_id, d.binding_state, d.status]));
-      const after = JSON.stringify((back.devices || []).map(d => [d.device_id, d.binding_state, d.status]));
+      const before = JSON.stringify((state.sources[url] && state.sources[url].devices || []).map(d => [d.device_id, d.binding_state, d.status, d.pairing_candidate]));
+      const after = JSON.stringify((back.devices || []).map(d => [d.device_id, d.binding_state, d.status, d.pairing_candidate]));
       if (before !== after) {state.sources[url] = back; redrawPhoneSettings();}
     } catch (_) {}
   }, 2000);
@@ -4827,10 +4828,26 @@ function widgetPhoneAccess(host) {
   function botForm(platform){
     botSteps.replaceChildren(); botSay.textContent='';
     const guide=botGuide[platform];
+    /* One computer, one step at a time: VOOL says what to do next and picks up the rest itself. */
+    botSteps.appendChild(el('h4','phone-bot-step',T('phone.bot_step1','Step 1 of 3: make your bot')));
     const one=el('p','help',T(guide.stepKey,guide.stepText)); botSteps.appendChild(one);
     const open=el('a','btn',T(guide.openKey,guide.openText)); open.href=guide.open; open.target='_blank'; open.rel='noopener noreferrer'; botSteps.appendChild(open);
+    botSteps.appendChild(el('h4','phone-bot-step',T('phone.bot_step2','Step 2 of 3: bring the key here')));
+    botSteps.appendChild(el('p','help',T('phone.bot_step2_help','Copy the key, then come back here. VOOL picks it up from the clipboard when your browser allows it, or paste it below.')));
     const keyLabel=el('label','phone-cap',T('phone.bot_token','Bot key (from Telegram or Discord)'));const key=el('input','inp');key.type='password';key.autocomplete='off';
     key.placeholder=T('phone.bot_paste','Paste the key here');keyLabel.appendChild(key);botSteps.appendChild(keyLabel);
+    const fromClip=el('button','btn',T('phone.bot_paste_button','Paste from clipboard'));fromClip.type='button';botSteps.appendChild(fromClip);
+    /* The clipboard is read only when it holds a whole key of this app's shape; anything else is left alone and never shown. */
+    async function takeClipboard(asked){
+      if(busy||!navigator.clipboard||!navigator.clipboard.readText)return;
+      try{const value=(await navigator.clipboard.readText()||'').trim();
+        if(guide.shape.test(value)){key.value=value;connect();}
+        else if(asked)botSay.textContent=T('phone.bot_clip_empty','The clipboard does not hold a bot key yet. Copy the whole key, then try again.');
+      }catch(_){if(asked)botSay.textContent=T('phone.bot_clip_blocked','The browser did not allow reading the clipboard. Paste the key into the box instead.');}
+    }
+    fromClip.onclick=()=>takeClipboard(true);
+    const onBack=()=>{if(document.visibilityState!=='hidden'&&key.isConnected&&!key.value)takeClipboard(false);};
+    window.addEventListener('focus',onBack);
     let link=null;
     if(platform==='discord'){
       const other=el('details','phone-bot-other');other.appendChild(el('summary','',T('phone.bot_other_way','Another way')));
@@ -4844,7 +4861,7 @@ function widgetPhoneAccess(host) {
       try{
         const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform,token,channel_link:link?link.value:''})});
         const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
-        key.value='';
+        key.value='';window.removeEventListener('focus',onBack);
         phoneBotPairing[j.platform]={code:j.code,start:j.start_link||'',invite:j.invite_url||'',expires:Date.now()+j.expires_in*1000};
         phoneBotOpen=''; state.sources[url]=await getJSON(url); redrawPhoneSettings(); phoneBotWatch();
       }catch(e){botSay.textContent=phoneFailWords(e);busy=false;go.disabled=false;key.disabled=false;key.focus();}
@@ -5000,7 +5017,19 @@ function widgetPhoneAccess(host) {
     if (isBot && device.binding_state==='waiting') {
       const pairing=phoneBotPairing[device.platform];
       const box=el('div','phone-bot-pairing'); row.insertBefore(box, rightsGrid);
-      if (!pairing || pairing.expires<=Date.now()) {
+      box.appendChild(el('h4','phone-bot-step',T('phone.bot_step3','Step 3 of 3: say hello')));
+      if (device.pairing_candidate!==null && device.pairing_candidate!==undefined) {
+        /* Someone pressed Start without the code (the plain bot link): the owner says whether it was them. */
+        box.appendChild(el('p','help',T('phone.bot_candidate','{name} pressed Start in Telegram. Is this you?').replace('{name}',device.pairing_candidate||T('phone.bot_someone','Someone'))));
+        const answer=(operation)=>async()=>{yes.disabled=true;no.disabled=true;try{
+          const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,platform:device.platform})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
+          state.sources[url]=await getJSON(url);redrawPhoneSettings();
+        }catch(e){note.textContent=phoneFailWords(e);yes.disabled=false;no.disabled=false;}};
+        const yes=el('button','btn',T('phone.bot_allow','Yes, that’s me'));yes.type='button';yes.onclick=answer('bot_allow');
+        const no=el('button','btn',T('phone.bot_not_me','Not me'));no.type='button';no.onclick=answer('bot_not_me');
+        const line=el('div','inline');line.append(yes,no);box.appendChild(line);
+        phoneBotWatch();
+      } else if (!pairing || pairing.expires<=Date.now()) {
         box.appendChild(el('p','help',T('phone.bot_pair_expired','This connection timed out. Paste the key again to get a new link.')));
       } else if (device.platform==='telegram' && pairing.start) {
         box.appendChild(el('p','help',T('phone.bot_pair_telegram','Open your bot in Telegram and press Start. Use the button on this computer, or scan the code with your phone.')));
@@ -5018,7 +5047,7 @@ function widgetPhoneAccess(host) {
         phoneBotWatch();
       }
     }
-    if (isBot && device.binding_state==='bound') row.insertBefore(el('p','help phone-bot-connected',T('phone.bot_connected','Connected. Chat with your VOOL there.')), rightsGrid);
+    if (isBot && device.binding_state==='bound') row.insertBefore(el('p','help phone-bot-connected',device.owner_label?T('phone.bot_connected_to','Connected to {name}. Only they can use this bot.').replace('{name}',device.owner_label):T('phone.bot_connected','Connected. Chat with your VOOL there.')), rightsGrid);
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
       if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
