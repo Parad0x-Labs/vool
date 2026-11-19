@@ -44,7 +44,8 @@
           "UIInterfaceOrientationLandscapeRight"
         ],
         "NSPhotoLibraryAddUsageDescription": "Save a copy from VOOL Vault to Photos, only when you tap Save.",
-        "NSLocalNetworkUsageDescription": "Reach VOOL on your computer over your home Wi-Fi."
+        "NSLocalNetworkUsageDescription": "Reach VOOL on your computer over your home Wi-Fi.",
+        "NSHumanReadableCopyright": "© 2026 Parad0x Labs LLC"
       }
     },
     "android": {
