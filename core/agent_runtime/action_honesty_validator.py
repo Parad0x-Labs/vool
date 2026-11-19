@@ -8,6 +8,7 @@ from contextlib import suppress
 from typing import Any
 
 from core.reply_control_sanitizer import is_bare_reply_control_token, reveal_reply_control_prefix
+from core.saved_fact_citation import without_citations
 
 # A leaked OpenClaw NO_REPLY token reached direct chat and OpenClaw did not suppress it. We can't
 # regenerate the intended answer here, but the user must never see the raw control token.
@@ -766,7 +767,9 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         # and every gate above passed it -- memory and preferences appear in neither the file/tool
         # vocabulary nor the build vocabulary. Same evidence gate as the other two kinds: a real
         # executed receipt or mode=tool_executed, or the claim does not ship.
-        if not _PERSISTENCE_CLAIM_RE.search(sentence):
+        # Words that cite what is already saved ("... according to what you've saved in my memory") name where an
+        # answer came from; they are no report of a write (core.saved_fact_citation).
+        if not _PERSISTENCE_CLAIM_RE.search(without_citations(sentence)):
             continue
         if _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence):
             continue  # "I'll store that" is an intention, not a report of a finished write

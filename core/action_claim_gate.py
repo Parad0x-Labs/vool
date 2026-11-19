@@ -32,6 +32,8 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from core.saved_fact_citation import without_citations
+
 _A = "['’]"  # apostrophe, straight or curly
 
 # ---- live sources ------------------------------------------------------------------------------
@@ -358,7 +360,8 @@ _ONLY_MARK = re.compile(r"^[\s.!\ufe0f]*[✅✔][\s.!✅✔\ufe0f]*$")
 
 
 def _claim_form(sentence: str) -> str:
-    sentence = _ABBREVIATION.sub(r"\1", sentence)
+    # A citation of what is already saved is no claim of a save (core.saved_fact_citation).
+    sentence = without_citations(_ABBREVIATION.sub(r"\1", sentence))
     body = _LEAD_FILLER.sub("", sentence).strip(" *_")
     if not sentence.strip() or sentence.rstrip().endswith("?") or _NOT_A_CLAIM.search(sentence):
         return ""
@@ -793,6 +796,8 @@ def _retention_spans(
             sentence = masked[a:b].strip()
             if (index, a, b) in known or not sentence or sentence.rstrip().endswith("?"):
                 continue
+            # A citation of what is already saved says nothing is kept NOW (core.saved_fact_citation).
+            sentence = without_citations(sentence)
             body = _LEAD_FILLER.sub("", _ABBREVIATION.sub(r"\1", sentence)).strip(" *_")
             if _KEPT_IN_A_PLACE.search(body):
                 continue  # where the thing is, not what the assistant did with it
