@@ -655,6 +655,31 @@ def _database_work_owns(text: str, source_context: Mapping[str, Any]) -> bool:
         return False
 
 
+def _vool_lane_owns(text: str) -> str:
+    """A reason when one of VOOL's own commands or tool lanes answers the turn, "" otherwise.
+
+    "use the model's own tools" is VOOL's switch, and a plugin tool ask belongs to the plugin lane, which says
+    when the plugin is off. Both are answered without a model. Admitted here because a word of the ask named
+    one of the owner's files (CI #697/#699: the runner's home holds the repository, so "tools" did), the loop's
+    model was called first, twice, then fell through; the switch's "Done." was then cut as a model's claim, and
+    a turned-off plugin's ask reached the provider."""
+    try:
+        from core.model_own_tools import parse_tools_command
+
+        if parse_tools_command(text):
+            return "vool_command"
+    except Exception:
+        pass
+    try:
+        from core.tool_demand_signals import resolve_demand_signals
+
+        if "plugin" in set(resolve_demand_signals(str(text or "")).required_families):
+            return "plugin_turn"
+    except Exception:
+        pass
+    return ""
+
+
 def _memory_lane_owns(text: str, session_id: str = "", source_context: Mapping[str, Any] | None = None) -> bool:
     """A forget, a "remember that", the memory list: the memory lane's commands. Taken here as a follow-up of
     a files turn, a forget was answered by the loop's model and nothing was forgotten (served, 2026-11-12).
@@ -898,6 +923,12 @@ def decide(
         return RouteDecision(False, fenced)
     if _memory_lane_owns(text, session_id, source_context):
         return RouteDecision(False, "memory_command")
+    owned = _vool_lane_owns(text)
+    if owned:
+        # The database tools are a plugin too: a question about the person's own databases keeps its own reason.
+        if owned == "plugin_turn" and _database_work_owns(text, dict(source_context or {})):
+            return RouteDecision(False, "database_work")
+        return RouteDecision(False, owned)
     if _stated_fact_was_kept(text, source_context):
         return RouteDecision(False, "stated_fact_kept")
     if is_write(text) and not changes_enabled(env):

@@ -175,7 +175,11 @@ def _pairing_html() -> str:
     return (response.body or b"").decode("utf-8")
 
 
-_PAIR_SCRIPT = script_blocks(_pairing_html())[0]
+def _pair_script() -> str:
+    """The page as served now: its code expires 600 s from this call. Built per test, not at import,
+    so a long test session cannot hand a test a page whose code has already expired (CI #697/#699
+    shard 2 ran these about an hour after collection and found the card gone)."""
+    return script_blocks(_pairing_html())[0]
 
 _PAIR_PREAMBLE = """
 const __json = (status, payload) => ({ ok: status >= 200 && status < 300, status: status,
@@ -188,7 +192,7 @@ const __countdown = () => String(document.getElementById('exp').textContent || '
 
 
 def _pair(body: str) -> dict:
-    return run_node(DOM + _PAIR_SCRIPT + _PAIR_PREAMBLE + body)
+    return run_node(DOM + _pair_script() + _PAIR_PREAMBLE + body)
 
 
 def test_pairing_new_code_fetch_failure_is_said_in_words_and_the_button_comes_back() -> None:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,7 +47,18 @@ def _connection(db_path: str | Path | None):
 
 
 def _ensure_table(conn: Any) -> None:
-    conn.executescript(_TABLE_SQL)
+    """Create the table if it is missing. Right after the app starts, its other stores are still
+    creating their own tables on other connections; SQLite then reports "database schema has
+    changed" for this script, which made the first certification of a fresh home answer 500
+    (CI #715, wallet home journey). The script only creates what is missing, so it is retried."""
+    for attempt in range(5):
+        try:
+            conn.executescript(_TABLE_SQL)
+            return
+        except sqlite3.OperationalError as exc:
+            if "schema has changed" not in str(exc) or attempt == 4:
+                raise
+            time.sleep(0.05 * (attempt + 1))
 
 
 def _utcnow() -> str:

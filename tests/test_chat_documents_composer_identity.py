@@ -87,7 +87,10 @@ def test_a_refused_paste_leaves_the_composer_byte_identical_and_the_reason_besid
     _stage_document(page, SECRET_PASTE, before=before)
     _wait_chips(page, "chips.length === 1 && chips[0].dataset.state === 'failed'", timeout=10000)
     chip = _chips(page)[0]
-    assert "credential" in chip["error"] and "nothing was saved" in chip["error"], "the door's reason must be on the chip"
+    # The door's typed reason (secret_detected) is on the chip in the keyed plain words
+    # (attach.refused.secret_detected); the server's own text, with its rule name, never is.
+    assert "password or key" in chip["error"] and "nothing was saved" in chip["error"], "the door's reason must be on the chip"
+    assert "aws_access_key" not in chip["error"] and "credential" not in chip["error"], chip["error"]
     assert not chip["hasRetry"] and chip["hasRemove"], "a refusal is final: no retry, a remove"
     assert page.input_value("#input") == before, "the composer must return to its pre-paste bytes"
     assert server.uploads == [{"refused": True, "size": len(SECRET_PASTE.encode("utf-8"))}]

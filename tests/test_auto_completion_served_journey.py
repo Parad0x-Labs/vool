@@ -301,8 +301,13 @@ def served(tmp_path: Path):
             "OLLAMA_HOST": provider.base_url,
             "VOOL_OLLAMA_URL": provider.base_url,
             "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat",
+            # The owner's home is the test's own, empty one: inheriting the runner's home (which holds the
+            # repository on CI) let the clean loop take "How many legs does a spider have?" on the words of
+            # a repository file, and its look-first reminder was one more dispatch (CI #697/#699).
+            "HOME": str(tmp_path / "owner-home"),
         },
     )
+    (tmp_path / "owner-home").mkdir()
     evidence = _evidence_dir(tmp_path)
     provider.__enter__()
     paid.__enter__()

@@ -4,6 +4,7 @@ No runtime imports, tool dispatch, provider clients or input-selected commands.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import json
@@ -41,25 +42,42 @@ def watchdog(seconds):
     threading.Thread(target=watch, daemon=True).start()
 
 
-# A fresh interpreter reports its own mapped size, measured exactly as the worker measures itself.
-FRESH_SIZE = (
-    "import ctypes,os\n"
-    "info=(ctypes.c_uint64*12)()\n"
-    "proc=ctypes.CDLL('/usr/lib/libproc.dylib')\n"
-    "n=proc.proc_pidinfo(os.getpid(),4,ctypes.c_uint64(0),info,ctypes.sizeof(info))\n"
-    "print(info[0] if n==ctypes.sizeof(info) else 0)\n"
-)
+# A bare interpreter -- no site, no ctypes -- waits on its stdin while the worker measures it. It used to
+# measure itself, which meant importing ctypes and loading libproc first: the baseline then included that
+# probe's own mappings, a bare decoder started below it, and the macOS CI job measured a decoder growing
+# past the headroom (CI #716, tests/lend/test_jobs.py).
+BARE = "import sys\nsys.stdout.write('r')\nsys.stdout.flush()\nsys.stdin.read(1)\n"
 
 
-def mapped_size():
+def mapped_size(pid=None):
     import ctypes
 
     info = (ctypes.c_uint64 * 12)()
     proc = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
     # PROC_PIDTASKINFO: struct proc_taskinfo is 96 bytes; pti_virtual_size is its first field.
-    if proc.proc_pidinfo(os.getpid(), 4, ctypes.c_uint64(0), info, ctypes.sizeof(info)) != ctypes.sizeof(info):
+    target = os.getpid() if pid is None else pid
+    if proc.proc_pidinfo(target, 4, ctypes.c_uint64(0), info, ctypes.sizeof(info)) != ctypes.sizeof(info):
         raise OSError('worker memory size unavailable')
     return info[0]
+
+
+def bare_size():
+    """The mapped size of a bare interpreter, measured from outside while it waits."""
+    child = subprocess.Popen([sys.executable, '-I', '-S', '-c', BARE], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        ready = child.stdout.read(1)
+        if ready != b'r':
+            raise OSError('decoder memory size unavailable')
+        return mapped_size(child.pid)
+    finally:
+        with contextlib.suppress(Exception):
+            child.stdin.close()
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait()
 
 
 def limit_memory(headroom=MEMORY_HEADROOM):
@@ -69,16 +87,15 @@ def limit_memory(headroom=MEMORY_HEADROOM):
     shared regions), so the ceiling is relative. It is absolute once set, though, and a decoder
     starts as a fresh process that maps less than this worker does: a ceiling taken from the
     worker alone left a decoder the worker's start-up size as extra room. The ceiling is therefore
-    taken from the smaller of this worker and a fresh interpreter, so neither grows past the
+    taken from the smaller of this worker and a bare interpreter (measured from outside, see
+    ``bare_size``), so neither grows past the
     headroom. It bounds growth, not resident memory. Not measurable means not started: the job
     fails closed.
     """
     import resource
 
     try:
-        fresh = subprocess.run([sys.executable, '-I', '-c', FRESH_SIZE], stdin=subprocess.DEVNULL,
-                               capture_output=True, check=True, timeout=5)
-        fresh = int(fresh.stdout)
+        fresh = bare_size()
     except (subprocess.SubprocessError, ValueError) as exc:
         raise OSError('decoder memory size unavailable') from exc
     if fresh <= 0:

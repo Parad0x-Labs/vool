@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import logging
 import os
 import socket
 import subprocess
@@ -15,6 +16,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from core.runtime_paths import active_data_dir
+
+logger = logging.getLogger(__name__)
 
 _LOCK = threading.RLock()
 _GET = frozenset({"/api/mobile/info", "/api/mobile/pairing/challenge"})
@@ -172,6 +175,9 @@ class _Server(ThreadingHTTPServer):
                     self.slots.release()
                     admitted = False
         if not admitted:
+            # No address in the log: only that a connection was turned away, and why.
+            logger.warning("phone listener turned a connection away (%s)",
+                           "this source has %d open" % self.PER_SOURCE if not within_source else "every slot busy")
             self.shutdown_request(request)
             return
         try:
@@ -225,6 +231,7 @@ def _handler(manager, client_host=None):
             self._deadline.start()
 
         def _cut(self):
+            logger.warning("phone listener cut a request at its deadline")
             with suppress(OSError):
                 self.connection.shutdown(socket.SHUT_RDWR)
 
@@ -319,7 +326,25 @@ def _handler(manager, client_host=None):
         def do_GET(self):
             # A disconnected peer cannot amplify server error logs.
             with suppress(BrokenPipeError, ConnectionResetError, TimeoutError):
-                self._reply(self._route())
+                try:
+                    response = self._route()
+                except (BrokenPipeError, ConnectionResetError, TimeoutError):
+                    raise
+                except Exception as exc:
+                    # A failure inside a request used to end in the server's error handler, which
+                    # closed the socket with no answer: the phone saw only a dropped connection
+                    # (CI #716, pairing claim). It now gets a plain 500, and the log names the
+                    # cause by its type and where it was raised, never its message, which can
+                    # carry a pairing id or request content.
+                    import traceback
+
+                    from core.web.api import mobile_companion_api as api
+
+                    where = " < ".join(f"{Path(frame.filename).name}:{frame.lineno} {frame.name}"
+                                       for frame in reversed(traceback.extract_tb(exc.__traceback__)[-6:]))
+                    logger.error("phone listener request failed: %s at %s", type(exc).__name__, where)
+                    response = api._err(500, "internal_error")
+                self._reply(response)
 
         def do_POST(self):
             self.do_GET()

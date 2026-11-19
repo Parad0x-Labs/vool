@@ -893,6 +893,11 @@ def _database_reply_contradicts_its_rows(reply: str, question: str, steps: list[
     if not rows or _database_last_result_empty(steps):
         return ""
     text = str(reply or "")
+    if rows_plain != rows and re.search(r"\bhow\s+many\b", str(question or ""), re.IGNORECASE) and re.match(r"(?:There (?:is|are) \d|The answer is \d)", rows_plain):
+        # Run 16i (library 13): the model wrote more around the count than the rows hold ("5 titles ... in the books
+        # table") and the whole answer was withheld as "the pages I found don't state it". The count is said from the
+        # row, in a sentence the rows support.
+        return rows_plain
     if (
         _DATABASE_NO_ANSWER_RE.search(text)
         or _DATABASE_DENIES_ROWS_RE.search(text)

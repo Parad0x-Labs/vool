@@ -145,6 +145,9 @@ def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool,
         # An inherited sandbox instance only; never the unsandboxed host or
         # another worker. Used by an offline worker's parent-death watchdog.
         lines.append("(allow signal (target same-sandbox))")
+        # The same worker measures the mapped size of a bare interpreter it started, to set the
+        # memory ceiling its decoders inherit (core/lend/task_worker.bare_size). Its own sandbox only.
+        lines.append("(allow process-info* (target same-sandbox))")
     if allow_gpu:
         # Vision's recognizer runs on the GPU/Neural Engine and cannot open those devices without
         # this. Measured: without it VNRecognizeTextRequest fails with a generic ObjC error and

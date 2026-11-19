@@ -34,8 +34,12 @@ def _listed(base: str) -> list[dict]:
 
 def test_a_browse_skill_is_listed_switches_off_and_is_removed_by_asking(tmp_path) -> None:
     with rig.CapturingProvider(default="The lantern glowed.") as provider:
+        # Its own add-ons folder: the session-wide one the suite pins (tests/conftest.py) is shared, and the
+        # skill this daemon adds left a plugins/ folder there, so a later test in the same CI shard found an
+        # installed plugin repo with nothing in it (CI #718, test_plugin_tools).
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                                             "VOOL_PLUGINS_DIR": str(tmp_path / "addons-root")})
         try:
             daemon.start(timeout=180)
             assert daemon.certify(timeout=120).get("state") == "verified"

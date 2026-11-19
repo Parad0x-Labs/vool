@@ -292,10 +292,17 @@ def test_explicit_x_article_request_selects_and_serves_exact_copy(x_rig) -> None
         "data/receipts_v2/vool.memory.packet.v1/",
         "logs/",
     )
+    # The daemon's maintenance loop mirrors every runtime session into workspace/control/runs/sessions/ on
+    # its 30 s tick (core/maintenance.py -> core/control_plane_workspace.py). On a slow runner the turn
+    # crossed a tick and its session snapshot appeared (CI #714). Only that directory's session JSON is
+    # allowed; any other file under control/, and any draft, is still a stray.
+    tick_session_dir = "workspace/control/runs/sessions/"
     stray = [
         f
         for f in (after - before)
-        if not f.startswith(per_turn_prefixes) and not f.endswith(("-wal", "-shm"))
+        if not f.startswith(per_turn_prefixes)
+        and not f.endswith(("-wal", "-shm"))
+        and not (f.startswith(tick_session_dir) and f.endswith(".json") and "/" not in f[len(tick_session_dir):])
     ]
     assert not stray, f"drafting must not create files: {stray}"
     assert x_rig.daemon.executed_tools(str(reply.get("vool_session_id") or "")) == []
