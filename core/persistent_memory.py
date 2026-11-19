@@ -2516,7 +2516,7 @@ def _command_erasure_fence(fn):
         if not _FORGET_RE.match(str(user_text or "").strip()):
             # An order given with other words in front is carried out as the order it is, under the same fence.
             try:
-                asked = forget_order_in_other_words(
+                asked = _forget_order_in_other_words(
                     user_text, session_id=kwargs.get("session_id"), source_context=kwargs.get("source_context"))
             except Exception:
                 asked = None
@@ -2906,7 +2906,7 @@ _FORGET_ASK_NOT_AN_ORDER_RE = re.compile(
 _JUDGED_FORGET_ASKS: dict[tuple[str, str], str] = {}
 
 
-def forget_order_in_other_words(
+def _forget_order_in_other_words(
     text: Any, *, session_id: str | None, source_context: Mapping[str, Any] | None = None,
 ) -> str | None:
     """The forget order a message gives with words in front that no reader lists ("you can forget my work parking
@@ -2984,7 +2984,7 @@ def everyday_memory_turn(text: str, *, session_id: str | None, source_context: M
     # A forget order with other words in front is the memory lane's too: left to another lane it was answered by a
     # model, and left to the keep step it was saved as a fact.
     try:
-        return forget_order_in_other_words(text, session_id=session_id, source_context=source_context) is not None
+        return _forget_order_in_other_words(text, session_id=session_id, source_context=source_context) is not None
     except Exception:
         return False
 

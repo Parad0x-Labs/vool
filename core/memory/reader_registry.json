@@ -287,6 +287,7 @@
   },
   "core/memory_grounding.py": {
     "memory_record_rows": "transform",
+    "own_record_rows": "reader",
     "question_names_someone_in_the_records": "transform",
     "publish_memory_records_for_turn": "reader"
   },

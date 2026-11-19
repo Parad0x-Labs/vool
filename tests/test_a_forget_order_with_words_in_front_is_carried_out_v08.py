@@ -19,7 +19,7 @@ import pytest
 
 import core.intent_arbiter as intent_arbiter
 import core.persistent_memory as pm
-from core.persistent_memory import everyday_memory_turn, forget_order_in_other_words, maybe_handle_memory_command
+from core.persistent_memory import everyday_memory_turn, _forget_order_in_other_words, maybe_handle_memory_command
 from tests.test_everyday_remember_v08 import _say
 from tests.test_keep_receipt_decides_save_claims_v08 import CHAT, _fresh  # _fresh is a fixture
 from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # isolated_home is a fixture
@@ -57,7 +57,7 @@ def judge(monkeypatch):
 
 
 def _order(text, context=None):
-    return forget_order_in_other_words(text, session_id=CHAT, source_context=dict(OWNER) if context is None else context)
+    return _forget_order_in_other_words(text, session_id=CHAT, source_context=dict(OWNER) if context is None else context)
 
 
 def _entries():
