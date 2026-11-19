@@ -918,6 +918,141 @@ def _judge_by_receipt(
     }
 
 
+# ---- what the owner reported in this chat -------------------------------------------------------
+#
+# Measured on the real app, two cloud models, on the start commit and on this branch: the owner wrote
+# "the taxi to the station is booked for 5:40 and costs 22 pounds.", asked "what time is the taxi and
+# what does it cost?", the model answered "The taxi is booked for 5:40 and costs £22." and the reply
+# delivered was "No calendar is configured or chosen in Settings yet ...". The sentence is in the
+# passive done form and names a calendar word, so it read as VOOL saying it had booked something.
+#
+# It is the owner's own report, said back. A done sentence is VOOL's claim unless the owner stated
+# the same done thing in this chat: one sentence of the owner's, not a question, in which every done
+# word of the reply's sentence is asserted (after a finite form of be or have, after "I" or "we", or
+# opening the sentence; never under a modal, "be" or a negation), which holds the thing the reply's
+# sentence is about (its content words before the done word) and every value it states (a number or
+# a time, a day, a name). A plain word the model adds after the done word ("booked for 6:15 pickup",
+# measured on the real app on the cut that asked for every word) changes nothing about who did it.
+# A reply that adds a day, a time or a name the owner's sentence does not hold is judged as before,
+# and so is every sentence in which VOOL speaks of itself ("I've booked"). A sentence that names
+# nothing before its done word ("Booked for 6:15.") must be the owner's in every content word.
+_DONE_WORD = re.compile(r"\b(?:" + _DONE_PARTICIPLES + r")\b", re.I)
+_OWNER_WORD = re.compile(r"[a-z0-9]+(?:[:.][0-9]+)*(?:'[a-z]+)?", re.I)
+_OWNER_ASSERTS = frozenset({
+    "am", "is", "are", "was", "were", "has", "have", "had", "got", "been",
+    "i", "we", "he", "she", "they", "it",
+})
+_OWNER_SKIPPED = frozenset({"now", "already", "just", "all", "also", "since", "both"})
+_OWNER_UNSAID = frozenset({
+    "should", "would", "could", "must", "might", "will", "shall", "can", "may", "be", "being",
+    "not", "never", "no", "if", "unless", "whether", "want", "need",
+})
+
+
+#: The calendar's own words for a day: stated in a reply, each is a value the owner must have given.
+_DAY_WORDS = frozenset({
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "today", "tomorrow", "tonight",
+    "yesterday", "weekend", "morning", "afternoon", "evening", "noon", "midnight",
+})
+
+
+def _cased_words(text: str) -> list[str]:
+    try:
+        from core.evidence_kernel.claim_binder import _MONEY_RE
+
+        text = _MONEY_RE.sub(lambda m: m.group("v") or m.group("v2") or "", str(text or ""))
+    except Exception:
+        text = str(text or "")
+    return _OWNER_WORD.findall(text.replace("’", "'").replace("‘", "'"))
+
+
+def _owner_words(text: str) -> list[str]:
+    return [w.lower() for w in _cased_words(text)]
+
+
+def _asserted_at(words: list[str], at: int) -> bool:
+    """Whether the done word at ``at`` is stated as done in the owner's sentence."""
+    window = words[max(0, at - 4):at]
+    if any(w in _OWNER_UNSAID or w.endswith("n't") for w in window):
+        return False
+    back = at - 1
+    while back >= 0 and words[back] in _OWNER_SKIPPED:
+        back -= 1
+    if back < 0:
+        return True  # "booked the taxi for 5:40": the owner's own done form, no subject written
+    before = words[back]
+    if before in _OWNER_ASSERTS or before.endswith(("'s", "'ve", "'re", "'d", "'m")):
+        return True
+    if before in ("and", "then"):
+        # "I cancelled the hedge man and moved the saddler": the second done word shares the first one's subject.
+        return any(_DONE_WORD.fullmatch(words[i]) and _asserted_at(words, i) for i in range(back))
+    return False
+
+
+def _owner_sentences(source_context: Any, request: str) -> list[list[str]]:
+    """The owner's own statements of this chat, as word lists: the chat's messages the request carried and the
+    request itself, questions left out, forgotten words left out by the same filter the evidence readers use."""
+    context = source_context if isinstance(source_context, dict) else {}
+    texts = [
+        str(item.get("content") or "")
+        for item in list(context.get("conversation_history") or []) + list(context.get("client_conversation_history") or [])
+        if isinstance(item, dict) and str(item.get("role") or "") == "user"
+    ]
+    texts.append(str(request or ""))
+    sentences = [
+        piece.strip() for text in texts for piece in _SENTENCE_SPLIT.split(_ABBREVIATION.sub(r"\1", text)) if piece and piece.strip()
+    ]
+    sentences = [piece for piece in dict.fromkeys(sentences) if not piece.endswith("?")]
+    if not sentences:
+        return []
+    try:
+        from core.evidence_kernel.revocation import without_revoked
+
+        chat = str(context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "")
+        kept, _facts = without_revoked("\n".join(sentences), [], chat)
+    except Exception:
+        return []
+    return [_owner_words(line) for line in kept.splitlines() if line.strip()]
+
+
+def _owner_reported(sentence: str, owner: list[list[str]]) -> bool:
+    """Whether a done sentence of the reply says back what the owner stated in this chat."""
+    body = _LEAD_FILLER.sub("", _ABBREVIATION.sub(r"\1", sentence)).strip(" *_")
+    if not owner or _FIRST_PERSON_ACTION.search(body) or _FIRST_PERSON_READ.search(body) or _DONE_MARK.search(sentence):
+        return False
+    cased = _cased_words(body)
+    words = [w.lower() for w in cased]
+    done_at = [i for i, w in enumerate(words) if _DONE_WORD.fullmatch(w)]
+    if not done_at:
+        return False
+    done = {words[i] for i in done_at}
+    try:
+        from core.chat_housekeeping import STOPWORDS
+        from core.memory.entries import _match_stem
+    except Exception:
+        return False
+
+    def bare(word: str) -> str:
+        return word.split("'")[0]
+
+    def content(items: list[str]) -> set[str]:
+        return {_match_stem(bare(w)) for w in items if w not in done and bare(w) not in STOPWORDS}
+
+    about = content(words[: done_at[0]])
+    values = {
+        _match_stem(bare(w)) for i, w in enumerate(words)
+        if w not in done and bare(w) not in STOPWORDS
+        and (any(c.isdigit() for c in w) or bare(w) in _DAY_WORDS or (i > 0 and cased[i][:1].isupper()))
+    }
+    wanted = (about | values) if about else content(words)
+    for said in owner:
+        if not all(any(w == d and _asserted_at(said, i) for i, w in enumerate(said)) for d in done):
+            continue
+        if wanted <= content(said) | {_match_stem(w) for w in said if _DONE_WORD.fullmatch(w)}:
+            return True
+    return False
+
+
 # ---- evidence ----------------------------------------------------------------------------------
 
 
@@ -1034,7 +1169,21 @@ def gate_action_claims(
         # A lane composed these exact bytes from what it did (the memory lane's "Locked in" after it saved); a
         # planner call earlier in the turn is not a model writing them.
         return _with_kept_line(text, turn_id, source_context, "stood_down:recorded_runtime_render")
-    spans = _claim_spans(text)
+    owner = _owner_sentences(source_context, str(request_text or "") or recorded_request)
+    reported: list[str] = []
+
+    def assistant_claims(reply: str) -> list[tuple[int, int, int, str, str, str]]:
+        """The reply's claims, without the done sentences that say back what the owner stated in this chat."""
+        claims = _claim_spans(reply)
+        said_back = [c for c in claims if c[4] == "action" and c[5] != "memory" and _owner_reported(c[3], owner)]
+        if not said_back or any(c[5] != "memory" and c not in said_back for c in claims):
+            # Beside a claim of VOOL's own ("Done!", "I'll remind you at 5") the done sentences are part of what
+            # the reply says VOOL did: nothing is set aside.
+            return claims
+        reported.extend(c[3] for c in said_back)
+        return [c for c in claims if c not in said_back]
+
+    spans = assistant_claims(text)
     receipt = _keep_receipt(turn_id, source_context)
     receipt_record: dict[str, Any] = {}
     if receipt is not None:
@@ -1052,10 +1201,12 @@ def gate_action_claims(
                     "publication": "action_claims_corrected" if corrected else "stood_down:memory_receipt",
                 }
             # The reply changed: the other sources' sentences are read again where they now stand.
-            spans = [c for c in _claim_spans(text) if c[5] != "memory"]
+            spans = [c for c in assistant_claims(text) if c[5] != "memory"]
             if not spans:
                 return text, {**receipt_record, "publication": "stood_down:memory_receipt"}
     if not spans:
+        if reported:
+            return text, {"publication": "stood_down:owner_reported", "owner_reported_sentences": list(dict.fromkeys(reported))[:6]}
         return text, {"publication": "stood_down:no_action_claims"}
     claims = [(c[3], c[4], c[5]) for c in spans]
     sources = list(dict.fromkeys(c[2] for c in claims))

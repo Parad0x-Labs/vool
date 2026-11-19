@@ -4,6 +4,7 @@ import json
 import os
 import posixpath
 import re
+from collections.abc import Sequence
 from contextlib import suppress
 from typing import Any
 
@@ -688,17 +689,42 @@ _SELF_ACTION_NOT_A_CLAIM_RE = re.compile(
 )
 
 
-def _claims_its_own_action(sentence: str) -> bool:
+#: The owner's own words, quoted back. Measured on the real app (cloud route): the owner wrote "I cancelled the hedge
+#: man and moved the saddler to the 23rd.", asked "what did I say I did about the hedge man and the saddler?", the model
+#: answered `You said: "I cancelled the hedge man and moved the saddler to the 23rd."` and the reply delivered was "I
+#: cannot verify the claimed action from this turn's execution record." The sentence split ends at the colon, so the
+#: quotation stood alone and its "I" read as the assistant.
+_QUOTED_WORDS_RE = re.compile(r'"([^"\n]{3,})"|“([^”\n]{3,})”')
+
+
+def _quotes_the_owner(sentence: str, at: int, owner_texts: Sequence[str]) -> bool:
+    """Whether the claim found at ``at`` sits inside quotation marks whose words, as they stand, are part of
+    something the owner wrote in this chat. Words in quotation marks the owner never wrote are judged as before."""
+    if not owner_texts:
+        return False
+    for quoted in _QUOTED_WORDS_RE.finditer(sentence):
+        if quoted.start() <= at < quoted.end():
+            words = " ".join((quoted.group(1) or quoted.group(2) or "").casefold().split()).strip(" .!")
+            return bool(words) and any(words in " ".join(str(text or "").casefold().split()) for text in owner_texts)
+    return False
+
+
+def _claims_its_own_action(sentence: str, owner_texts: Sequence[str] = ()) -> bool:
     match = _SELF_ACTION_CLAIM_RE.search(sentence)
     if match is None:
         return False
     before = sentence[: match.start()]
     if _NOT_A_SELF_CLAIM_RE.search(before) or _SELF_ACTION_NOT_A_CLAIM_RE.search(before + sentence[match.start():match.end()]):
         return False
+    # Where the claim BEGINS (its "I", or its verb): `I deleted "notes.txt"` begins outside the quotation marks and
+    # stays a claim, whoever first wrote the name inside them.
+    start = match.start() + (len(match.group(0)) - len(match.group(0).lstrip()))
+    if _quotes_the_owner(sentence, start, owner_texts):
+        return False
     return not sentence.rstrip().endswith("?")
 
 
-def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
+def completion_claim_kind(text: str, *, request_text: str | None = None, owner_texts: Sequence[str] = ()) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
     One predicate for both consumers. The blocker uses it to decide whether a claim needs a
@@ -715,6 +741,9 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     that phrase. Without ``request_text`` (or on any turn that requests an action) the law is
     unchanged, and a finite claim ("the files were deleted") is a claim on every turn -- the
     follow-up turn included.
+
+    ``owner_texts`` are the owner's own messages of this chat. A first-person done sentence inside quotation
+    marks whose words are the owner's is the owner quoted back, not a report by this runtime.
     """
 
     body = str(text or "")
@@ -775,7 +804,7 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
             continue  # "I'll store that" is an intention, not a report of a finished write
         return "persistence"
     # Last, so a claim one of the kinds above names keeps its own kind and its own reply.
-    if any(_claims_its_own_action(sentence) for sentence in _split_sentences(body)):
+    if any(_claims_its_own_action(sentence, owner_texts) for sentence in _split_sentences(body)):
         return "mutation"
     return ""
 
@@ -2151,7 +2180,28 @@ def _final_claim_kind(
         return "progress"
     if _HONEST_DENIAL_RE.search(response):
         return ""
-    return completion_claim_kind(response, request_text=f"{user_input or ''}\n{effective_input or ''}")
+    return completion_claim_kind(
+        response, request_text=f"{user_input or ''}\n{effective_input or ''}",
+        owner_texts=_owner_texts(source_context, user_input, effective_input, session_id),
+    )
+
+
+def _owner_texts(
+    source_context: dict[str, object] | None, user_input: str, effective_input: str | None, session_id: str | None
+) -> list[str]:
+    """The owner's own messages of this chat as the request carried them, the forgotten ones left out by the same
+    filter the evidence readers use. [] when they cannot be read: nothing is then taken for the owner's words."""
+    try:
+        from core.evidence_kernel.revocation import without_revoked
+        from core.unsourced_current_claim import own_chat_statement_lines
+
+        context = source_context if isinstance(source_context, dict) else {}
+        lines = own_chat_statement_lines(context, user_input) + own_chat_statement_lines({}, effective_input or "")
+        chat = str(session_id or context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "")
+        kept, _facts = without_revoked("\n".join(dict.fromkeys(lines)), [], chat)
+        return [line for line in kept.splitlines() if line.strip()]
+    except Exception:
+        return []
 
 
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
