@@ -1117,6 +1117,21 @@ def _seal_semantic_result(
             admitted["_turn_demand_ledger"] = [dict(row) for row in _ledger if isinstance(row, dict)]
     except Exception:
         pass
+    # MEMORY RECORDS AS SUPPORT cross the same boundary, on the turn's own grounding lifecycle. The transport door
+    # finalizes with its pre-run context, which carries neither this turn's request seal nor its lifecycle stamp, so
+    # the publication `core.finalization` makes of the admitted records adds nothing there, the gate holds no memory
+    # rows and reads a record question as a lookup nothing answered. Measured on the served door (2026-11-19, web
+    # lookups off): "When will Ines leave for Ireland?" right after the person said it, and three questions about a
+    # stored conversation, were answered by the model from those records and replaced by "Web lookups are off, so
+    # I can't look this up online"; the in-process path, where caller and runtime share one dict, published them.
+    # Done here, where the turn's context is still held. The rows are matched claim by claim at the gate as before,
+    # and the publication is idempotent, so the finalization-side call stays as it is.
+    try:
+        from core.memory_grounding import publish_memory_records_for_turn
+
+        publish_memory_records_for_turn(source_context if isinstance(source_context, dict) else None)
+    except Exception:
+        pass
     # Residue-3 (H-2): the fence tuple rides the payload so DELIVERY writers
     # (which run after run_once's scope exits) can present it.
     try:

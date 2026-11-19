@@ -87,6 +87,7 @@ def main() -> int:
     parser.add_argument("--chat-id", default="allotment-log")
     parser.add_argument("--no-event-capture", action="store_true")
     parser.add_argument("--commit", action="store_true", help="Also run the served door's response commit (finalization and publication gate) and record it")
+    parser.add_argument("--door-context", action="store_true", help="With --commit: commit with the caller's own pre-run context, as the HTTP door does (core.web.api.runtime.ollama_chat_response), not with the context the runtime returns")
     args = parser.parse_args()
 
     install_fixture_reference_clock(args.reference_date)
@@ -451,6 +452,8 @@ def main() -> int:
             observed_events.append(compact(event))
         if not args.no_event_capture:
             register_runtime_event_sink(stream_id, capture_event)
+        # The HTTP door keeps the context it built before the run; the runtime works on a copy of it.
+        door_context = dict(source_context)
         result = run_agent(
             runtime,
             turn["question"],
@@ -466,7 +469,10 @@ def main() -> int:
         if args.commit:
             from core.web.api.runtime import _response_commit
 
-            commit = _response_commit(result, source_context=result.get("source_context") or source_context)
+            commit = _response_commit(
+                result,
+                source_context=door_context if args.door_context else (result.get("source_context") or source_context),
+            )
             lifecycle = commit.get("grounding_lifecycle") if isinstance(commit.get("grounding_lifecycle"), dict) else {}
             commit_record = {
                 "canonical_content": commit.get("canonical_content"),
