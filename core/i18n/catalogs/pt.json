@@ -5329,7 +5329,7 @@
     "phone.bot_someone": "Alguém",
     "phone.bot_allow": "Sim, sou eu",
     "phone.bot_not_me": "Não sou eu",
-    "phone.bot_connected_to": "Conectado a {name}. Só essa pessoa pode usar este bot.",
+    "phone.bot_connected_to": "Conectado a {name}. Só esta conta pode usar este bot.",
     "phone.bot_step1": "Passo 1 de 3: crie seu bot",
     "phone.bot_step2": "Passo 2 de 3: traga a chave para cá",
     "phone.bot_step2_help": "Copie a chave e volte aqui. O VOOL pega da área de transferência se o navegador permitir, ou cole abaixo.",
@@ -5344,7 +5344,10 @@
     "phone.bot_open_discord_app": "Abrir o Discord",
     "phone.bot_perms_first": "Conecte este app primeiro e depois escolha aqui o que ele pode fazer.",
     "phone.bot_discord_dm_only": "Fale com o VOOL nas suas mensagens privadas com o bot. Não precisa de @. O VOOL não lê os canais do servidor, então ninguém mais lá pode usá-lo.",
-    "phone.bot_discord_write_first": "Adicionou o bot e nada acontece? O Discord pode não deixar um bot escrever para você primeiro. No seu servidor, clique em VOOL na lista de membros e envie uma mensagem."
+    "phone.bot_telegram_dm_only": "Fale com o VOOL na sua conversa privada com o bot. Não precisa de @. O VOOL não lê grupos, então ninguém mais pode usá-lo.",
+    "phone.bot_discord_in_server": "O VOOL está no seu servidor. O Discord quer que você diga oi primeiro.",
+    "phone.bot_discord_say_hi": "Dizer oi ao VOOL",
+    "phone.bot_discord_say_hi_help": "O Discord abre o VOOL. Toque em Mensagem, envie oi e volte. Esta página muda sozinha para Conectado."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

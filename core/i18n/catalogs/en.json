@@ -3827,7 +3827,7 @@
     "phone.bot_someone": "Someone",
     "phone.bot_allow": "Yes, that’s me",
     "phone.bot_not_me": "Not me",
-    "phone.bot_connected_to": "Connected to {name}. Only they can use this bot.",
+    "phone.bot_connected_to": "Connected to {name}. Only this account can use this bot.",
     "phone.bot_step1": "Step 1 of 3: make your bot",
     "phone.bot_step2": "Step 2 of 3: bring the key here",
     "phone.bot_step2_help": "Copy the key, then come back here. VOOL picks it up from the clipboard when your browser allows it, or paste it below.",
@@ -5344,7 +5344,10 @@
     "phone.bot_open_discord_app": "Open Discord",
     "phone.bot_perms_first": "Connect this app first, then choose here what it may do.",
     "phone.bot_discord_dm_only": "Talk to VOOL in your private messages with the bot. No @ needed. VOOL does not read server channels, so nobody else there can use it.",
-    "phone.bot_discord_write_first": "Added the bot and nothing happens? Discord may not let a bot write to you first. In your server, click VOOL in the member list and send it a message."
+    "phone.bot_telegram_dm_only": "Talk to VOOL in your private chat with the bot. No @ needed. VOOL does not read group chats, so nobody else can use it.",
+    "phone.bot_discord_in_server": "VOOL is in your server. Discord wants you to say hi first.",
+    "phone.bot_discord_say_hi": "Say hi to VOOL",
+    "phone.bot_discord_say_hi_help": "Discord opens VOOL. Press Message, send hi, then come back. This page changes to Connected by itself."
   },
   "html_keys": [
     "bypass.modal_limits",

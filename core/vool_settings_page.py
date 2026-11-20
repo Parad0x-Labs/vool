@@ -1256,7 +1256,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .phone-bot-steps .btn, .phone-bot-pairing .btn {display:inline-block; margin:6px 0; text-decoration:none;}
 .phone-bot-step {margin:14px 0 4px; font-size:14px;}
 .phone-bot-qr {display:block; margin:10px 0; border-radius:6px; max-width:200px;}
-.chat-app-cards {display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); align-items:start; gap:14px; margin:12px 0 4px;}
+.chat-app-cards {display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); align-items:stretch; gap:14px; margin:12px 0 4px;}
 .chat-app-card {border:1px solid var(--border); border-radius:14px; padding:16px; background:var(--panel,transparent); display:flex; flex-direction:column; gap:10px; min-width:0;}
 .chat-app-card[data-stage="on"] {border-color:var(--ok);}
 .chat-app-card[data-stage="waiting"] {border-color:var(--warn);}
@@ -1269,7 +1269,8 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .chat-app-pill[data-stage="on"] {color:var(--ok); border-color:var(--ok);}
 .chat-app-pill[data-stage="waiting"] {color:var(--warn); border-color:var(--warn);}
 .chat-app-body p {margin:4px 0;}
-.chat-app-actions {display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+.chat-app-actions {display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:auto;}
+.chat-app-body {overflow-wrap:anywhere;}
 .chat-app-actions .btn {display:inline-flex; align-items:center; margin:0; text-decoration:none;}
 .phone-bot-note.failed {color:var(--bad); font-weight:600;}
 .chat-app-perms {margin:22px 0 4px;}
@@ -1291,6 +1292,11 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .chat-app-watermark {position:absolute !important; right:18px; top:14px; width:170px; height:170px; opacity:.09; pointer-events:none; display:block;}
 .chat-app-watermark svg {width:100%; height:100%; display:block;}
 .chat-app-perms-empty {margin:6px 0;}
+.chat-app-save {position:sticky; bottom:0; z-index:2; display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:18px -16px -16px; padding:12px 16px; border-top:1px solid var(--border); background:var(--panel,var(--bg)); border-radius:0 0 14px 14px;}
+.chat-app-saved {font-weight:600; color:var(--muted);}
+.chat-app-saved.ok {color:var(--ok);}
+.chat-app-saved.ok::before {content:'\2713  ';}
+.chat-app-saved.failed {color:var(--bad);}
 .phone-rights {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; margin:16px 0;}
 .phone-right {display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere;}
 .phone-cap {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,180px); align-items:center; gap:12px; margin:10px 0;}
@@ -5030,7 +5036,13 @@ function widgetAutomaticChecks(stack) {
 
 let phoneSettingsNode = null, phoneSettingsReady = false, phoneSettingsLanguage = '';
 const phoneBotPairing = {};
+/* Names come from the chat app and can be any length: a card shows 17 characters and an ellipsis,
+   and the whole name sits in the tooltip. */
+function chatAppShort(value){const chars=Array.from(String(value||''));return chars.length>17?chars.slice(0,17).join('')+'…':chars.join('');}
+function chatAppLabel(value){const m=/^(.*?) \((@[^()]*)\)?$/.exec(String(value||''));return m?chatAppShort(m[1])+' (@'+chatAppShort(m[2].slice(1))+')':chatAppShort(value);}
+function chatAppNamed(node,full){if(full && chatAppLabel(full)!==String(full)) node.title=String(full);return node;}
 let phoneBotTab = 'telegram';
+const phoneBotSaved = {};
 let phoneBotOpen = '', phoneBotTimer = 0;
 /* While a chat app waits for its owner, Settings looks again every two seconds, so the row turns to
    Connected by itself once Start is pressed in Telegram or the bot is added in Discord. */
@@ -5044,8 +5056,8 @@ function phoneBotWatch() {
     if (!waiting) {clearInterval(phoneBotTimer); phoneBotTimer = 0; if (!phoneBotOpen) redrawPhoneSettings(); return;}
     try {
       const back = await getJSON(url);
-      const before = JSON.stringify((state.sources[url] && state.sources[url].devices || []).map(d => [d.device_id, d.binding_state, d.status, d.pairing_candidate]));
-      const after = JSON.stringify((back.devices || []).map(d => [d.device_id, d.binding_state, d.status, d.pairing_candidate]));
+      const before = JSON.stringify((state.sources[url] && state.sources[url].devices || []).map(d => [d.device_id, d.binding_state, d.status, d.pairing_candidate, d.discord_in_server]));
+      const after = JSON.stringify((back.devices || []).map(d => [d.device_id, d.binding_state, d.status, d.pairing_candidate, d.discord_in_server]));
       if (before !== after) {state.sources[url] = back; redrawPhoneSettings();}
     } catch (_) {}
   }, 2000);
@@ -5208,9 +5220,9 @@ function widgetPhoneAccess(host) {
       start.onclick=()=>{phoneBotOpen=platform;redrawPhoneSettings();};
       if(phoneBotOpen===platform){start.hidden=true;botForm(platform,steps,say,actions);}
     } else if(stage==='on'){
-      body.appendChild(el('p','help phone-bot-connected',device.owner_label?T('phone.bot_connected_to','Connected to {name}. Only they can use this bot.').replace('{name}',device.owner_label):T('phone.bot_connected','Connected. Chat with your VOOL there.')));
-      if(device.bot_name) body.appendChild(el('p','help chat-app-bot',(platform==='telegram'?'@':'')+device.bot_name));
-      if(platform==='discord') body.appendChild(el('p','help',T('phone.bot_discord_dm_only','Talk to VOOL in your private messages with the bot. No @ needed. VOOL does not read server channels, so nobody else there can use it.')));
+      body.appendChild(chatAppNamed(el('p','help phone-bot-connected',device.owner_label?T('phone.bot_connected_to','Connected to {name}. Only this account can use this bot.').replace('{name}',chatAppLabel(device.owner_label)):T('phone.bot_connected','Connected. Chat with your VOOL there.')),device.owner_label));
+      if(device.bot_name) body.appendChild(chatAppNamed(el('p','help chat-app-bot',(platform==='telegram'?'@':'')+chatAppShort(device.bot_name)),device.bot_name));
+      body.appendChild(el('p','help',platform==='discord'?T('phone.bot_discord_dm_only','Talk to VOOL in your private messages with the bot. No @ needed. VOOL does not read server channels, so nobody else there can use it.'):T('phone.bot_telegram_dm_only','Talk to VOOL in your private chat with the bot. No @ needed. VOOL does not read group chats, so nobody else can use it.')));
       const open=el('a','btn primary',platform==='telegram'?T('phone.bot_open_telegram','Open in Telegram'):T('phone.bot_open_discord_app','Open Discord'));
       open.href=platform==='telegram'&&device.bot_name?'https://t.me/'+device.bot_name:(platform==='telegram'?'https://t.me/':'https://discord.com/channels/@me');
       open.target='_blank'; open.rel='noopener noreferrer'; actions.appendChild(open);
@@ -5343,14 +5355,11 @@ function widgetPhoneAccess(host) {
     const start=quietTime('start','Quiet hours start'),end=quietTime('end','Quiet hours end');
     const approvals=quietSwitch('approvals_through',['approvals_through','Allow approvals through']);
     const payments=quietSwitch('payments_through',['payments_through','Allow payments through']);
-    const button=el('button','btn',T('notif.save','Save'));button.type='button';section.appendChild(button);
-    button.onclick=async()=>{
+    /* Saved together with the permissions by the one Save at the foot of the app's tab. */
+    return ()=>{
       const preferences={quiet:{enabled:quiet.checked,start:start.value,end:end.value,offset_minutes:-new Date().getTimezoneOffset(),approvals_through:approvals.checked,payments_through:payments.checked}};
       if(preset.value==='custom')preferences.types=Object.fromEntries(Object.entries(boxes).map(([kind,box])=>[kind,{enabled:box.checked}]));else preferences.preset=preset.value;
-      section.disabled=true;try {
-        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_notifications',device_id:device.device_id,preferences})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
-        device.notification_preferences=j.preferences;section.remove();botNotices(row,device);
-      }catch(e){note.textContent=phoneFailWords(e);section.disabled=false;}
+      return preferences;
     };
   }
   /* Quick setup: models, files, payments, then Done. Saved through the same device_rules door as Advanced. */
@@ -5465,7 +5474,7 @@ function widgetPhoneAccess(host) {
       box.appendChild(el('h4','phone-bot-step',T('phone.bot_step3','Step 3 of 3: say hello')));
       if (device.pairing_candidate!==null && device.pairing_candidate!==undefined) {
         /* Someone pressed Start without the code (the plain bot link): the owner says whether it was them. */
-        box.appendChild(el('p','help',T('phone.bot_candidate','{name} pressed Start in Telegram. Is this you?').replace('{name}',device.pairing_candidate||T('phone.bot_someone','Someone'))));
+        box.appendChild(chatAppNamed(el('p','help',T('phone.bot_candidate','{name} pressed Start in Telegram. Is this you?').replace('{name}',device.pairing_candidate?chatAppLabel(device.pairing_candidate):T('phone.bot_someone','Someone'))),device.pairing_candidate));
         const answer=(operation)=>async()=>{yes.disabled=true;no.disabled=true;try{
           const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,platform:device.platform})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
           state.sources[url]=await getJSON(url);redrawPhoneSettings();
@@ -5483,10 +5492,17 @@ function widgetPhoneAccess(host) {
         if (pairing.code) box.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',pairing.code)));
         phoneBotWatch();
       } else if (device.platform==='discord' && pairing.invite) {
-        box.appendChild(el('p','help',T('phone.bot_pair_discord','Add the bot to a Discord server you manage. VOOL then opens your private chat with it.')));
-        const open=el('a','btn primary',T('phone.bot_add_discord','Add to Discord')); open.href=pairing.invite; open.target='_blank'; open.rel='noopener noreferrer'; box.appendChild(open);
-        box.appendChild(el('p','help',T('phone.bot_discord_server','No server yet? In Discord, press + and create one, then come back.')));
-        box.appendChild(el('p','help',T('phone.bot_discord_write_first','Added the bot and nothing happens? Discord may not let a bot write to you first. In your server, click VOOL in the member list and send it a message.')));
+        if (device.discord_in_server && device.bot_user_id) {
+          /* The bot is in a server but Discord will not let it write first: one button opens the bot in
+             Discord, where Message is one press. The owner's hello finishes the pairing. */
+          box.appendChild(el('p','help',T('phone.bot_discord_in_server','VOOL is in your server. Discord wants you to say hi first.')));
+          const hi=el('a','btn primary',T('phone.bot_discord_say_hi','Say hi to VOOL')); hi.href='https://discord.com/users/'+device.bot_user_id; hi.target='_blank'; hi.rel='noopener noreferrer'; box.appendChild(hi);
+          box.appendChild(el('p','help',T('phone.bot_discord_say_hi_help','Discord opens VOOL. Press Message, send hi, then come back. This page changes to Connected by itself.')));
+        } else {
+          box.appendChild(el('p','help',T('phone.bot_pair_discord','Add the bot to a Discord server you manage. VOOL then opens your private chat with it.')));
+          const open=el('a','btn primary',T('phone.bot_add_discord','Add to Discord')); open.href=pairing.invite; open.target='_blank'; open.rel='noopener noreferrer'; box.appendChild(open);
+          box.appendChild(el('p','help',T('phone.bot_discord_server','No server yet? In Discord, press + and create one, then come back.')));
+        }
         phoneBotWatch();
       } else {
         box.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',pairing.code)));
@@ -5508,16 +5524,23 @@ function widgetPhoneAccess(host) {
     });
     if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Online lookups: free web sources only — your paid models and paid search never run from the phone. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
     holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));
-    if(isBot)botNotices(row,device);
-    const account=accountSelect((device.payment_cap || {}).wallet_id); holder.appendChild(account);
-    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); holder.appendChild(line); return input;}
+    const noticeChoices=isBot?botNotices(row,device):null;
+    /* A chat app's payment limits only matter once it may propose payments, so they show with that box. */
+    const payHolder=isBot?el('div','chat-app-pay'):holder; if(isBot)holder.appendChild(payHolder);
+    const account=accountSelect((device.payment_cap || {}).wallet_id); payHolder.appendChild(account);
+    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); payHolder.appendChild(line); return input;}
     const cap=device.payment_cap_display || {};
     const per=amount(T('phone.per_payment','Per-payment maximum'),cap.per_payment);
     const daily=amount(T('phone.per_day','Daily maximum'),cap.daily);
-    holder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s own currency. Both limits must be lower than your wallet’s limits.')));
-    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); holder.appendChild(credential);
-    const saveActions=el('div','phone-actions'); holder.appendChild(saveActions);
-    const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; saveActions.appendChild(saveButton);
+    payHolder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s own currency. Both limits must be lower than your wallet’s limits.')));
+    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); payHolder.appendChild(credential);
+    if(isBot && boxes.payment_propose){const syncPay=()=>{payHolder.hidden=!boxes.payment_propose.checked;};boxes.payment_propose.addEventListener('change',syncPay);syncPay();}
+    const saveActions=el('div',isBot?'chat-app-save':'phone-actions'); holder.appendChild(saveActions);
+    const saveButton=el('button',isBot?'btn primary':'btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; saveActions.appendChild(saveButton);
+    /* Said beside the button, and kept across the redraw that follows a save, so the owner sees it landed. */
+    const saved=el('span','chat-app-saved'); saved.setAttribute('role','status'); if(isBot)saveActions.appendChild(saved);
+    if(isBot && phoneBotSaved[device.platform]){saved.textContent=T('settings.switch.saved','Saved');saved.classList.add('ok');}
+    if(isBot)row.addEventListener('change',()=>{delete phoneBotSaved[device.platform];saved.textContent='';saved.className='chat-app-saved';});
     const actions=el('div','phone-actions'); if(!isBot)row.appendChild(actions);
     saveButton.onclick=()=> {
       const rules=Object.fromEntries(Object.entries(boxes).map(([k,v])=>[k,v.checked]));
@@ -5525,11 +5548,18 @@ function widgetPhoneAccess(host) {
       const changedExpiry={};Object.entries(expiryInputs).forEach(([name,input])=>{if(input.value!==input.dataset.initial)changedExpiry[name]=input.value?new Date(input.value).getTime()/1000:0;});
       if(Object.keys(changedExpiry).length)body.right_expiry=changedExpiry;
       if (rules.payment_propose) {
-        const selected=accounts.find(a=>a.wallet_id===account.value); if (!selected) {note.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        const selected=accounts.find(a=>a.wallet_id===account.value); if (!selected) {const said=T('phone.setup_wallet','Set up a wallet on your computer first.');if(isBot){saved.className='chat-app-saved failed';saved.textContent=said;}else note.textContent=said;return;}
         body.credential=credential.value; body.payment_cap_human={wallet_id:account.value,network:selected.network,per_payment:per.value,daily:daily.value};
       }
       credential.value=''; saveButton.disabled=true;
-      save(body).catch(e=>{note.textContent=phoneFailWords(e);saveButton.disabled=false;});
+      if(!isBot){save(body).catch(e=>{note.textContent=phoneFailWords(e);saveButton.disabled=false;});return;}
+      saved.className='chat-app-saved';saved.textContent=T('settings.switch.saving','Saving…');
+      (async()=>{
+        const post=async(payload)=>{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);return j;};
+        await post(body);
+        await post({operation:'bot_notifications',device_id:device.device_id,preferences:noticeChoices()});
+        phoneBotSaved[device.platform]=true;state.sources[url]=await getJSON(url);redrawPhoneSettings();
+      })().catch(e=>{saved.className='chat-app-saved failed';saved.textContent=phoneFailWords(e);saveButton.disabled=false;});
     };
     if (isBot) {permsPanel.appendChild(row); return;}
     const revoke=el('button','btn',T('phone.revoke','Unpair this phone')); revoke.type='button'; actions.appendChild(revoke);

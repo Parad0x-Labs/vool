@@ -549,6 +549,10 @@ def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
         if rec.get("kind") == "bot" and (rec.get("binding") or {}).get("state") == "waiting" else None,
         "invite_url": (rec.get("invite_url") or None)
         if rec.get("kind") == "bot" and (rec.get("binding") or {}).get("state") == "waiting" else None,
+        "bot_user_id": (rec.get("bot_user_id") or None)
+        if rec.get("kind") == "bot" and (rec.get("binding") or {}).get("state") == "waiting" else None,
+        "discord_in_server": bool(rec.get("discord_in_server"))
+        if rec.get("kind") == "bot" and (rec.get("binding") or {}).get("state") == "waiting" else None,
         "notification_preferences": ((rec.get("notification_state") or {}).get("preferences") or notification_defaults()) if rec.get("kind") == "bot" else None,
         "public_key": rec.get("public_key"),
         "status": rec.get("status"),
@@ -2069,7 +2073,15 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   .card { background: #1b1b1e; border: 1px solid #39393f; border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; box-sizing: border-box; }
   h1 { font-size: 20px; margin: 0 0 6px; }
   .lead { color: #aaa5a0; font-size: 14px; margin: 0 0 18px; }
-  #qr { background: #fff; padding: 16px; border-radius: 10px; width: fit-content; margin: 0 auto 14px; }
+  #qr { background: #fff; padding: 16px; border-radius: 10px; width: fit-content; margin: 0 auto 14px; position: relative; }
+  /* The VOOL mark sits in the middle. The code is made with the highest error correction (H, up to
+     30% may be covered) and the mark covers about 5% of it, so phones still read it. */
+  #qr .mark { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%);
+              background: #fff; padding: 3px; border-radius: 10px; box-sizing: border-box; }
+  #qr .mark img { display: block; width: 100%; height: 100%; border-radius: 8px; }
+  .hello { font-size: 14px; margin: 0 0 4px; }
+  details.say summary { cursor: pointer; }
+  details.say code { display: block; margin-top: 6px; overflow-wrap: anywhere; word-break: break-all; }
   #qr table { border-collapse: collapse; }
   #qr td { width: 4px; height: 4px; }
   .code { font-size: 30px; letter-spacing: 8px; font-family: ui-monospace, Menlo, monospace; text-align: center; margin: 10px 0 4px; }
@@ -2077,7 +2089,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   .gone #qr, .gone .code { opacity: .25; filter: grayscale(1); }
   .expired { display: none; text-align: center; margin-top: 16px; }
   .gone .expired { display: block; }
-  .missing #qr, .missing .code, .missing .lead, .missing > .say { display: none; }
+  .missing #qr, .missing .code, .missing .lead, .missing .hello, .missing > .say { display: none; }
   button { font: inherit; background: #c3b8a8; color: #171513; border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 600; cursor: pointer; }
   button:disabled { opacity: .5; cursor: default; }
   .say { color: #aaa5a0; font-size: 13px; margin-top: 8px; }
@@ -2087,12 +2099,13 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
 <body>
 <div class="card" id="card">
   <h1>Pair your phone</h1>
+  <p class="hello">Welcome! In a moment your VOOL comes with you, wherever you go.</p>
   <p class="lead">Scan this with VOOL on your phone, or type the code into it. It works once.</p>
   <div id="qr" aria-label="Pairing code as a QR image" role="img"></div>
   <div class="code" aria-label="Pairing code">__CODE__</div>
   <div class="meta" id="exp" role="status" aria-live="polite"></div>
   <p class="say">This computer's check code is <b>__SHORT_FP__</b>. If your phone shows a check code while pairing, it should be the same.</p>
-  <p class="say"><code>__FULL_FP__</code></p>
+  <details class="say"><summary>Show the full check code</summary><code>__FULL_FP__</code></details>
   <div class="expired">
     <p id="goneText">This code expired.</p>
     <button type="button" id="again">Make a new code</button>
@@ -2160,10 +2173,17 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
     + "&code=" + payload.code + "&exp=" + payload.exp
     + (/^[a-z2-7]{56}[.]onion$/.test(payload.away || "") ? "&away=" + payload.away : "")
     + (payload.compat || "");
-  var qr = qrcode(0, "M");
+  var qr = qrcode(0, "H");
   qr.addData(uri);
   qr.make();
-  document.getElementById("qr").innerHTML = qr.createTableTag(4, 8);
+  var box = document.getElementById("qr");
+  box.innerHTML = qr.createTableTag(4, 8);
+  var logo = "__VOOL_LOGO_URI__";
+  if (logo) {
+    var mark = document.createElement("span"); mark.className = "mark";
+    var img = document.createElement("img"); img.src = logo; img.alt = "";
+    mark.appendChild(img); box.appendChild(mark);
+  }
 })();
 </script>
 </body>
@@ -2178,6 +2198,9 @@ def _html_pairing_page(payload: dict[str, Any], *, status: int = 200):
     html = html.replace("__CODE__", str(payload.get("code") or ""))
     html = html.replace("__FULL_FP__", str(payload.get("fp") or ""))
     html = html.replace("__PAYLOAD__", json.dumps(payload))
+    logo = Path(__file__).resolve().parents[2] / "assets" / "vool-logo-dark.png"
+    logo_uri = ("data:image/png;base64," + base64.b64encode(logo.read_bytes()).decode("ascii")) if logo.is_file() else ""
+    html = html.replace("__VOOL_LOGO_URI__", logo_uri)
     vendor = (Path(__file__).resolve().parent / "mobile_vendor/qrcode.js").read_text(encoding="utf-8")
     # Inline the vendored renderer before the page logic (one file, no CDN).
     marker = "<script>"

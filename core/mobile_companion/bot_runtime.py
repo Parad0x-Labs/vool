@@ -128,7 +128,7 @@ def connect(runtime, platform, token, *, channel_link=""):
         raise ConnectRefused(KEY_SHAPE)
     app = platform.capitalize()
     channel_id = private_discord_channel(channel_link) if platform == "discord" and channel_link.strip() else ""
-    bot_name, app_id, owner_id, owner_label = "", "", "", ""
+    bot_name, app_id, owner_id, owner_label, bot_user_id = "", "", "", "", ""
     register_exact_secret(token)
     target = manager_for(runtime)
     # Validate only with the selected provider before replacing a working connection.
@@ -151,6 +151,9 @@ def connect(runtime, platform, token, *, channel_link=""):
                 bot_name = str((identity.get("result") or {}).get("username") or "")
             else:
                 bot_name = str(identity.get("username") or "")
+                bot_user_id = str(identity.get("id") or "")
+                if not re.fullmatch(r"[0-9]{1,22}", bot_user_id):
+                    bot_user_id = ""
             if not re.fullmatch(r"[A-Za-z0-9_.]{2,32}", bot_name):
                 bot_name = ""
             if platform == "discord" and channel_id:
@@ -219,6 +222,9 @@ def connect(runtime, platform, token, *, channel_link=""):
                 "owner_label": owner_label,
             },
             "bot_name": bot_name,
+            # Discord: the bot's own user id, so Settings can open the bot in Discord for the owner's hello.
+            "bot_user_id": bot_user_id,
+            "discord_in_server": False,
             "invite_url": (
                 "https://discord.com/oauth2/authorize?client_id=" + app_id + "&scope=bot&permissions=0"
                 if platform == "discord" and owner_id
@@ -804,6 +810,14 @@ class ManagedBot:
                 raise
             if not channel:
                 return 0
+            if not device.get("discord_in_server"):
+                # Settings moves from "add the bot" to "say hi" once the bot is in a server.
+                with contextlib.suppress(urllib.error.HTTPError, OSError, ValueError):
+                    servers = self.call("/users/@me/guilds")
+                    if isinstance(servers, list) and servers:
+                        with service().dispatch_lock:
+                            if self.active():
+                                service().store.mark_device(self.device_id, discord_in_server=True)
             # Discord will not let the bot write first: no shared server yet, or the owner's
             # "direct messages from server members" is off for that server. A message the owner
             # writes to the bot opens the same private conversation both ways, so it pairs too.

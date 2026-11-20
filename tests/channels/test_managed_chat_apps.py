@@ -50,7 +50,7 @@ class FakeChatHost:
                         if data.get('chat_id')=='@vool_news':result={'ok':True,'result':{'id':-100,'type':'channel'}}
                         else:
                             raw=b'{"ok":false}';self.send_response(400);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
-                    elif path=='/users/@me/guilds':result=[{'id':'9','name':'Home'}]
+                    elif path=='/users/@me/guilds':result=[{'id':'9','name':'Home'}] if (parent.invited or not parent.owner_mode) else []
                     elif path=='/guilds/9/channels':result=[{'id':'321','type':0,'name':'news'},{'id':'322','type':2,'name':'voice'}]
                     elif path=='/channels/321/messages' and self.command=='POST':parent.posts.append(('321',data));result={'id':'5000'}
                     elif path.endswith('/getFile'):result={'ok':True,'result':{'file_path':'files/'+data['file_id']}}
@@ -204,12 +204,21 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
             row.get_by_role('button',name='Save permissions',exact=True).click();wait_for(lambda:record(base,'telegram')['rules']['chat'])
             from playwright.sync_api import expect
             expect(row.get_by_role('button',name='Save permissions',exact=True)).to_be_enabled()
+            # Alerts save with the same one Save at the foot of the tab, and the tab says it saved.
             notice=row.locator('.phone-bot-notifications');notice.locator('select').select_option('everything')
-            notice.get_by_role('button',name='Save',exact=True).click()
+            row.get_by_role('button',name='Save permissions',exact=True).click()
             wait_for(lambda:record(base,'telegram')['notification_preferences']['preset']=='everything')
+            expect(page.locator('[data-device="bot:telegram"] .chat-app-saved')).to_have_text('Saved')
+            row=page.locator('[data-device="bot:telegram"]')
             notice=row.locator('.phone-bot-notifications');notice.locator('[data-notification-type="task_completed"]').uncheck()
-            notice.get_by_role('button',name='Save',exact=True).click()
+            assert row.locator('.chat-app-saved').inner_text()==''  # a new change is not yet saved
+            row.get_by_role('button',name='Save permissions',exact=True).click()
             wait_for(lambda:not record(base,'telegram')['notification_preferences']['types']['task_completed']['enabled'])
+            # Proposing payments with no wallet is refused beside the button, and nothing changes.
+            row=page.locator('[data-device="bot:telegram"]');row.locator('[data-right="payment_propose"]').check()
+            row.get_by_role('button',name='Save permissions',exact=True).click()
+            expect(row.locator('.chat-app-saved.failed')).to_contain_text('wallet')
+            assert not record(base,'telegram')['rules'].get('payment_propose')
             page.get_by_role('button',name='Refresh permissions',exact=True).click()
             shots=Path(os.environ.get('VOOL_PHONE_SHOTS_DIR') or tmp_path);shots.mkdir(exist_ok=True)
             page.screenshot(path=str(shots/'phone-chat-app-rules.png'),full_page=True)
