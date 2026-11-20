@@ -338,6 +338,11 @@ export class MobileCompanionClient {
     return r.files ?? [];
   }
 
+  /** One piece of a file the computer sent (768 KiB, the Vault's piece size), from `offset`. */
+  fetchSentPiece(fileId: string, offset: number): Promise<{ file: SentFile; content_b64: string; next_offset: number; done: boolean }> {
+    return this.request("files.fetch", {file_id: fileId, offset});
+  }
+
   /** The whole file the computer sent, as base64: pieces are a multiple of 3 bytes, so they join as text. */
   async fetchSentFile(fileId: string): Promise<{ file: SentFile; base64: string }> {
     let offset = 0;

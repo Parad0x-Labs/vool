@@ -18,7 +18,7 @@ function safeName(name: string): string {
 // Android hands out one folder the owner picks (usually Download) and keeps it for this run of the app.
 let androidFolder: string | null = null;
 
-async function keepOnPhone(file: SentFile, base64: string): Promise<string> {
+export async function keepOnPhone(file: SentFile, base64: string): Promise<string> {
   const folder = (FileSystem.documentDirectory || '') + 'From computer/';
   await FileSystem.makeDirectoryAsync(folder, {intermediates: true}).catch(() => undefined);
   const local = folder + safeName(file.name);
@@ -39,7 +39,7 @@ async function keepOnPhone(file: SentFile, base64: string): Promise<string> {
 }
 
 /** Files the computer sent to this phone ("send day4.jpg to my phone"), each one tap to save. */
-export default function FromComputer({client, refreshKey}: {client: MobileCompanionClient; refreshKey: number}) {
+export default function FromComputer({client, refreshKey, hide}: {client: MobileCompanionClient; refreshKey: number; hide?: ReadonlySet<string>}) {
   const [files, setFiles] = useState<SentFile[]>([]);
   const [state, setState] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -69,11 +69,12 @@ export default function FromComputer({client, refreshKey}: {client: MobileCompan
     }
   }, [client]);
 
-  if (!files.length) return null;
+  const shown = hide ? files.filter(file => !hide.has(file.id)) : files;
+  if (!shown.length) return null;
   return (
     <View style={styles.box}>
       <Text style={styles.title}>{tr("From your computer")}</Text>
-      {files.map(file => (
+      {shown.map(file => (
         <View key={file.id} style={styles.row}>
           <View style={styles.mark}><Icon name={file.media_type.startsWith('image/') ? "image-outline" : "file-outline"} size={22} color={C.acc} /></View>
           <View style={styles.meta}>

@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Alert, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import PhoneAbilities from "./PhoneAbilities.tsx";
 import FromComputer from "./FromComputer.tsx";
+import SentFileCard from "../ui/SentFileCard.tsx";
+import {filesByAnswer} from "../chat/sentFiles.ts";
 import Header from "../ui/Header.tsx";
 import {useLink} from "../ui/LinkBadge.tsx";
 import {linkState} from "../protocol/linkState.ts";
@@ -16,7 +18,7 @@ import SwipeRow from "../ui/SwipeRow.tsx";
 import Sheet from "../ui/Sheet.tsx";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
-import type { ChatMessage, ChatSummary } from "../protocol/models.ts";
+import type { ChatMessage, ChatSummary, SentFile } from "../protocol/models.ts";
 import { outboxFor, type QueuedTurn } from "../protocol/outbox.ts";
 import { randomBytes, toHex } from "../protocol/sha256.ts";
 
@@ -64,6 +66,8 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   const [timeShown, setTimeShown] = useState<number | null>(null);
   const [proof, setProof] = useState("");
   const [filesKey, setFilesKey] = useState(0);
+  // Files the computer sent; each shows in the answer that sent it.
+  const [sentFiles, setSentFiles] = useState<SentFile[]>([]);
   // Managing chats: the archived list, the hold menu, renaming, and the short Undo after an archive.
   const [showArchived, setShowArchived] = useState(false);
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
@@ -114,6 +118,14 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
         : linkState() === "connecting" ? "" : tr("Can't reach your computer. Your saved messages will wait here."));
     }
   }, [client, guard, search]);
+
+  useEffect(() => {
+    let stop = false;
+    void client.listSentFiles().then(files => {if (!stop) setSentFiles(files);}).catch(() => {});
+    return () => {stop = true;};
+  }, [client, filesKey, activeChat]);
+  const placedFiles = useMemo(() => filesByAnswer(messages, sentFiles), [messages, sentFiles]);
+  const shownInline = useMemo(() => new Set([...placedFiles.values()].flat().map(file => file.id)), [placedFiles]);
 
   const outbox = useMemo(() => outboxFor(client), [client]);
   const refreshRef = useRef(refreshChats);
@@ -367,7 +379,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
       {notice ? <Text style={[styles.note, styles.inset]}>{notice}</Text> : null}
       <ScrollView ref={scroll} style={styles.fill} contentContainerStyle={[styles.threadContent, column]}
         onContentSizeChange={() => scroll.current?.scrollToEnd({animated: true})} keyboardShouldPersistTaps="handled">
-        <FromComputer client={client} refreshKey={filesKey} />
+        <FromComputer client={client} refreshKey={filesKey} hide={shownInline} />
         {messages.map((m, i) => (
           <Pressable key={i} style={m.role === "user" ? styles.userBubble : styles.agentBlock}
             onPress={() => setTimeShown(shown => shown === i ? null : i)}
@@ -379,6 +391,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
                 <Text style={[styles.attachmentText, m.role === "user" && styles.onSend]}>{a.name}</Text>
               </View>
             ))}
+            {placedFiles.get(i)?.map(file => <SentFileCard key={file.id} client={client} file={file} />)}
             {m.role === "user" ? <View style={styles.tick}><Icon name="check-all" size={15} color={C.sendSoft} /></View> : null}
             {timeShown === i && messageTimeText(m.ts) ? <Text style={[styles.messageTime, m.role === "user" && styles.onSend]}>{messageTimeText(m.ts)}</Text> : null}
           </Pressable>

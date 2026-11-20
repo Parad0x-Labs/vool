@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {savedPlace} from "../vault/saved.ts";
 import {ActivityIndicator, BackHandler, FlatList, Image, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View} from "react-native";
 import {useScreenGuard} from "../security/screenRecording.ts";
 
@@ -28,15 +29,6 @@ const CARD: Record<Size, number> = {small: 96, medium: 128, large: 190};
 const SIZE_ICON: Record<Size, IconName> = {small: "view-comfy-outline", medium: "view-grid-outline", large: "view-agenda-outline"};
 const kindLabel = (kind: Kind) => ({photo: tr("Photos"), video: tr("Videos"), audio: tr("Sound")})[kind];
 /** Where a saved copy went, in words, and the link that opens it there. The phone answers "place" or "place|link". */
-function savedPlace(answer: string, count = 0): {text: string; link: string} {
-  const [place, link = ""] = answer.split("|");
-  const gallery = !!link && /^(Pictures|Movies)\//.test(place);
-  const folder = gallery ? tr("your gallery (VOOL album)") : place;
-  const text = count ? tr("Saved {count} to {folder}.", {count, folder}) : tr("Saved to {folder}.", {folder});
-  // iPhone and iPad: photos and videos go into the Photos app itself.
-  return {text, link: gallery ? link : place === "Photos" ? "photos-redirect://" : ""};
-}
-
 function SavedLine({note, link}: {note: string; link: string}) {
   return <View style={styles.savedRow}>
     <Text style={[styles.line, styles.fill]}>{note}</Text>
