@@ -131,7 +131,7 @@ class VoolCaptureModule : Module() {
     }
 
     View(VoolCameraView::class) {
-      Events("onModes", "onCaptured", "onCameraError", "onZoom", "onFocus")
+      Events("onModes", "onCaptured", "onCameraError", "onZoom", "onFocus", "onTurn")
       Prop("facing") { view: VoolCameraView, value: String -> view.setFacing(value) }
       Prop("mode") { view: VoolCameraView, value: String -> view.setMode(value) }
       Prop("video") { view: VoolCameraView, value: Boolean -> view.setVideo(value) }

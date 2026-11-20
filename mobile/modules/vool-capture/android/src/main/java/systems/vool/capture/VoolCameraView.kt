@@ -9,6 +9,8 @@ import android.graphics.RenderEffect
 import android.os.Build
 import android.util.Size
 import android.view.MotionEvent
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.view.ScaleGestureDetector
 import android.view.ViewGroup
 import androidx.camera.core.Camera
@@ -55,6 +57,29 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
   private val onCameraError by EventDispatcher()
   private val onZoom by EventDispatcher()
   private val onFocus by EventDispatcher()
+  private val onTurn by EventDispatcher()
+
+  /**
+   * How the phone is held right now. The app's screen stays upright, so the screen's own rotation
+   * never changes; this follows the phone itself, so a photo or video taken sideways is saved sideways.
+   */
+  private var turn = Surface.ROTATION_0
+  private val turnWatch = object : OrientationEventListener(context) {
+    override fun onOrientationChanged(degrees: Int) {
+      if (degrees == ORIENTATION_UNKNOWN) return
+      val next = when (degrees) {
+        in 45 until 135 -> Surface.ROTATION_270
+        in 135 until 225 -> Surface.ROTATION_180
+        in 225 until 315 -> Surface.ROTATION_90
+        else -> Surface.ROTATION_0
+      }
+      if (next == turn) return
+      turn = next
+      imageCapture?.targetRotation = next
+      if (recording == null) videoCapture?.targetRotation = next
+      onTurn(mapOf("degrees" to when (next) { Surface.ROTATION_90 -> 90; Surface.ROTATION_180 -> 180; Surface.ROTATION_270 -> 270; else -> 0 }))
+    }
+  }
 
   // FIT, not FILL: what the viewfinder shows is exactly what the photo holds.
   private val preview = PreviewView(context).apply {
@@ -183,6 +208,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
+    if (turnWatch.canDetectOrientation()) turnWatch.enable()
     val main = ContextCompat.getMainExecutor(context)
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener({
@@ -201,6 +227,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
   }
 
   override fun onDetachedFromWindow() {
+    turnWatch.disable()
     recording?.stop()
     provider?.unbindAll()
     super.onDetachedFromWindow()
@@ -242,6 +269,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
       val capture = VideoCapture.Builder(recorder)
         .apply { if (stable) setVideoStabilizationEnabled(true) }
         .setMirrorMode(if (mirror) MirrorMode.MIRROR_MODE_ON_FRONT_ONLY else MirrorMode.MIRROR_MODE_OFF)
+        .setTargetRotation(turn)
         .build()
       videoCapture = capture
       imageCapture = null
@@ -257,7 +285,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
       .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
       .setResolutionSelector(photoSelector())
       .setFlashMode(flashMode())
-      .setTargetRotation(display?.rotation ?: 0)
+      .setTargetRotation(turn)
       .build()
     imageCapture = capture
     videoCapture = null
@@ -268,7 +296,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     val capture = imageCapture ?: return promise.reject("camera_not_ready", "The camera is not ready yet.", null)
     val target = CaptureStore.scratch(context, "jpg")
     val takenAt = System.currentTimeMillis()
-    capture.targetRotation = display?.rotation ?: capture.targetRotation
+    capture.targetRotation = turn
     val metadata = ImageCapture.Metadata().apply { isReversedHorizontal = facing == "front" && mirror }
     val chosenFilter = filter
     capture.takePicture(ImageCapture.OutputFileOptions.Builder(target).setMetadata(metadata).build(), worker, object : ImageCapture.OnImageSavedCallback {
@@ -295,6 +323,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     if (recording != null) return promise.resolve(true)
     val target = CaptureStore.scratch(context, "mp4")
     val takenAt = System.currentTimeMillis()
+    capture.targetRotation = turn
     var pending = capture.output.prepareRecording(context, FileOutputOptions.Builder(target).build())
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
       pending = pending.withAudioEnabled()

@@ -67,6 +67,8 @@ export interface CameraViewProps extends ViewProps {
   filter?: PhotoFilter;
   onZoom?: (event: {nativeEvent: {ratio: number; min: number; max: number}}) => void;
   onFocus?: (event: {nativeEvent: {x: number; y: number}}) => void;
+  /** How the phone is held: 0, 90, 180 or 270. Photos and videos are saved the same way round. */
+  onTurn?: (event: {nativeEvent: {degrees: number}}) => void;
   onModes?: (event: {nativeEvent: {modes: CameraMode[]}}) => void;
   onCaptured?: (event: {nativeEvent: CaptureNote}) => void;
   onCameraError?: (event: {nativeEvent: {message: string}}) => void;
