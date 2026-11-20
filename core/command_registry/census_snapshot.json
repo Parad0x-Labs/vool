@@ -1219,6 +1219,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/media/item": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/media/item",
+      "note": "protected media library item feed, owner-local, opened for the page only and never cached",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/memory/entries": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/memory/entries",
@@ -1783,6 +1790,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /healthz",
       "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/media": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /media",
+      "note": "protected media library page (VOOL Vault), owner-local",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2553,6 +2567,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/market/watches/resume",
       "note": "market watch lane: the owner's Settings switch for one watch, same-origin only",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/media": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/media",
+      "note": "protected media library owner-local actions (list, add, remove, backup, check, restore), each behind the owner check",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3623,7 +3644,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 334,
+    "EXTERNAL_TRANSPORT_ONLY": 337,
     "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
