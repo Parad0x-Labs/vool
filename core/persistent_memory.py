@@ -2848,7 +2848,8 @@ def _everyday_decision(
     opened = (everyday.open_list(earlier_turns, judged=judged)
               if lead is None and everyday.list_item(text, earlier_turns) else None)
     listed = opened is not None
-    update = lead is None and not listed and everyday.update_shaped(text) and not everyday.retracts_or_corrects(text)
+    update = (lead is None and not listed and everyday.update_shaped(text)
+              and not everyday.retracts_or_corrects(everyday.update_body(text)))
     # A statement that puts a saved fact back to an earlier value is read before the update: "I went back to the
     # previous desk" carries a change word and no value, and as an update it was saved as the desk's value. A
     # question riding behind it leaves the turn to the model; the keep step then puts the value back first.

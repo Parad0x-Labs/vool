@@ -60,7 +60,7 @@ _UPDATE_RE = re.compile(
     re.IGNORECASE,
 )
 _UPDATE_LEAD_RE = re.compile(
-    r"^(?:(?:oh|also|and|btw|ok|okay|so)\b[\s,]*)*(?:(?:a\s+)?(?:small|quick|little|tiny)\s+)?(?:update|change)"
+    r"^(?:(?:oh|also|and|btw|ok|okay|so)\b[\s,]*)*(?:(?:a\s+)?(?:small|quick|little|tiny)\s+)?(?:update|change|correction)"
     r"(?:\s+(?:on|to)\s+that)?\s*[:,.-]\s*",
     re.IGNORECASE,
 )
