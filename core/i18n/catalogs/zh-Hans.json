@@ -3936,6 +3936,10 @@
     "phone.vault.saved_many": "已将 {count} 项保存到 {folder}。",
     "phone.vault.export_some": "已完成 {done}/{count} 个副本。请重试剩下的。",
     "phone.vault.star_away": "无法连接到你的电脑。等它响应后再试。",
+    "phone.screen_rec.title": "屏幕录制",
+    "phone.screen_rec.allow": "允许屏幕录制",
+    "phone.screen_rec.on_note": "现在可以录制 Vault、钱包和审批，并会显示在应用切换器中。{minutes} 分钟后或关闭 VOOL 时会自动关闭。",
+    "phone.screen_rec.off_note": "Vault、钱包和审批不会出现在屏幕录制、截图和应用切换器中。演示时请打开。",
     "phone.right.tool_approval": "批准操作",
     "phone.right.wallet_view": "钱包余额和收据",
     "phone.right_expiry": "到期时间",
@@ -5101,7 +5105,7 @@
     "settings.row.media_library.help": "来自手机私密相机的照片、视频和声音，以及你自己添加的文件。它们加锁保存在这台电脑上，绝不会出现在其他应用或搜索中。",
     "settings.media_open": "打开受保护的媒体"
   },
-  "source_catalog_sha256": "2499f61ff0a4b7eda993b2343a7811b3c93c22d55a0048b9bb92a45bc3d93f3a",
+  "source_catalog_sha256": "874a7f867fb5cfb23d95bdac7c053ccb2560b60b95b531d330b75c99d1bb35cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

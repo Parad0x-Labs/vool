@@ -3936,6 +3936,10 @@
     "phone.vault.saved_many": "{count}개를 {folder}에 저장했습니다.",
     "phone.vault.export_some": "{count}개 중 {done}개를 복사했습니다. 나머지는 다시 시도하세요.",
     "phone.vault.star_away": "컴퓨터에 연결할 수 없습니다. 응답하면 다시 시도하세요.",
+    "phone.screen_rec.title": "화면 녹화",
+    "phone.screen_rec.allow": "화면 녹화 허용",
+    "phone.screen_rec.on_note": "이제 Vault, 지갑, 승인 화면을 녹화할 수 있고 앱 전환기에도 보입니다. {minutes}분 후 또는 VOOL을 닫으면 자동으로 꺼집니다.",
+    "phone.screen_rec.off_note": "Vault, 지갑, 승인 화면은 화면 녹화, 스크린샷, 앱 전환기에 나타나지 않습니다. 시연할 때 켜세요.",
     "phone.right.tool_approval": "작업 승인",
     "phone.right.wallet_view": "지갑 잔액 및 영수증",
     "phone.right_expiry": "만료",
@@ -5101,7 +5105,7 @@
     "settings.row.media_library.help": "휴대폰 비공개 카메라의 사진, 동영상, 소리와 직접 추가한 파일입니다. 이 컴퓨터에 잠긴 채로 있으며 다른 앱이나 검색에는 절대 나타나지 않습니다.",
     "settings.media_open": "보호된 미디어 열기"
   },
-  "source_catalog_sha256": "2499f61ff0a4b7eda993b2343a7811b3c93c22d55a0048b9bb92a45bc3d93f3a",
+  "source_catalog_sha256": "874a7f867fb5cfb23d95bdac7c053ccb2560b60b95b531d330b75c99d1bb35cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3936,6 +3936,10 @@
     "phone.vault.saved_many": "{count} को {folder} में सहेजा गया।",
     "phone.vault.export_some": "{count} में से {done} कॉपियाँ बनीं। बाकी के लिए फिर से कोशिश करें।",
     "phone.vault.star_away": "आपका कंप्यूटर पहुँच से बाहर है। जवाब देने पर फिर से कोशिश करें।",
+    "phone.screen_rec.title": "स्क्रीन रिकॉर्डिंग",
+    "phone.screen_rec.allow": "स्क्रीन रिकॉर्डिंग की अनुमति दें",
+    "phone.screen_rec.on_note": "अब Vault, वॉलेट और मंज़ूरियाँ रिकॉर्ड हो सकती हैं और ऐप स्विचर में दिखती हैं। यह {minutes} मिनट बाद या VOOL बंद होने पर अपने आप बंद हो जाएगा।",
+    "phone.screen_rec.off_note": "Vault, वॉलेट और मंज़ूरियाँ स्क्रीन रिकॉर्डिंग, स्क्रीनशॉट और ऐप स्विचर से बाहर रहती हैं। डेमो के लिए इसे चालू करें।",
     "phone.right.tool_approval": "कार्रवाइयों को मंज़ूरी दें",
     "phone.right.wallet_view": "वॉलेट शेष और रसीदें",
     "phone.right_expiry": "समाप्ति",
@@ -5101,7 +5105,7 @@
     "settings.row.media_library.help": "आपके फ़ोन के निजी कैमरे से फ़ोटो, वीडियो और आवाज़, और वे फ़ाइलें जो आप ख़ुद जोड़ते हैं। ये इस कंप्यूटर पर ताले में रहती हैं और दूसरे ऐप या खोज में कभी नहीं दिखतीं।",
     "settings.media_open": "सुरक्षित मीडिया खोलें"
   },
-  "source_catalog_sha256": "2499f61ff0a4b7eda993b2343a7811b3c93c22d55a0048b9bb92a45bc3d93f3a",
+  "source_catalog_sha256": "874a7f867fb5cfb23d95bdac7c053ccb2560b60b95b531d330b75c99d1bb35cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
