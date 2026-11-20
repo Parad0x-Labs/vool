@@ -1,7 +1,7 @@
 import type React from "react";
 import {Platform, type ViewProps} from "react-native";
 import {requireNativeView, requireOptionalNativeModule} from "expo";
-import type {CaptureItem, CaptureVault} from "./sender.ts";
+import type {CaptureItem, CaptureVault, GoneNote} from "./sender.ts";
 
 /** What the camera or recorder answers: the capture is being locked away in the background. */
 export interface CaptureNote {saving: true; kind: "photo" | "video" | "sound"}
@@ -14,6 +14,8 @@ interface VoolCaptureNative {
   list(): Promise<CaptureItem[]>;
   readFrom(id: string, offset: number): Promise<string>;
   remove(id: string): Promise<void>;
+  gone(): Promise<GoneNote[]>;
+  goneRecorded(sha256: string): Promise<void>;
   startSound(): Promise<void>;
   stopSound(): Promise<CaptureNote>;
   savingCount(): number;
@@ -41,7 +43,8 @@ interface VoolCaptureNative {
 export const capture: VoolCaptureNative | null = Platform.OS === "android" ? requireOptionalNativeModule<VoolCaptureNative>("VoolCapture") : null;
 
 export const vault: CaptureVault | null = capture
-  ? {list: () => capture.list(), readFrom: (id, offset) => capture.readFrom(id, offset), remove: id => capture.remove(id)}
+  ? {list: () => capture.list(), readFrom: (id, offset) => capture.readFrom(id, offset), remove: id => capture.remove(id),
+      gone: () => capture.gone(), goneRecorded: sha256 => capture.goneRecorded(sha256)}
   : null;
 
 export type CameraMode = "standard" | "night" | "hdr" | "portrait" | "retouch";

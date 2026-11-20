@@ -327,6 +327,10 @@ export class MobileCompanionClient {
   captureFinish(uploadId: string): Promise<CaptureSaved> {
     return this.request("capture.finish", {upload_id: uploadId});
   }
+  /** The phone removed its copy (and destroyed its key) after the computer confirmed it. */
+  captureRemoved(note: {sha256: string; keyDestroyed: boolean; removedAt: number}): Promise<{recorded: boolean}> {
+    return this.request("capture.removed", {sha256: note.sha256, key_destroyed: note.keyDestroyed, removed_at: note.removedAt / 1000});
+  }
 
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
     return this.request("abilities.check", {ability});

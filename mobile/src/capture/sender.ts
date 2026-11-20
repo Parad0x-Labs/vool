@@ -9,12 +9,19 @@ export interface CaptureVault {
   /** The original bytes from `offset` to the end of the piece that holds it, as base64. */
   readFrom(id: string, offset: number): Promise<string>;
   remove(id: string): Promise<void>;
+  /** Deletions the computer has not recorded yet (hash only), and marking one recorded. */
+  gone?(): Promise<GoneNote[]>;
+  goneRecorded?(sha256: string): Promise<void>;
 }
+
+/** The phone removed a capture after the computer confirmed it: the record the computer keeps. */
+export interface GoneNote { sha256: string; keyDestroyed: boolean; removedAt: number }
 
 export interface CaptureLink {
   captureBegin(item: {sha256: string; sizeBytes: number; mediaType: string; takenAt: number}): Promise<CaptureBegin>;
   captureChunk(uploadId: string, offset: number, contentB64: string): Promise<{next_offset: number}>;
   captureFinish(uploadId: string): Promise<CaptureSaved>;
+  captureRemoved?(note: GoneNote): Promise<{recorded: boolean}>;
 }
 
 export type SendProblem = "" | "offline" | "not_allowed" | "damaged" | "failed";
@@ -64,6 +71,25 @@ export async function sendOne(item: CaptureItem, vault: CaptureVault, link: Capt
   return false;
 }
 
+/**
+ * Tells the computer about each removal (hash, whether the capture's key was destroyed, when), so it
+ * keeps an auditable record of the whole life of a capture. A note stays on the phone until the
+ * computer has recorded it; trouble here never stops sending.
+ */
+export async function reportGone(vault: CaptureVault, link: CaptureLink): Promise<number> {
+  if (!vault.gone || !vault.goneRecorded || !link.captureRemoved) return 0;
+  let recorded = 0;
+  for (const note of await vault.gone().catch(() => [] as GoneNote[])) {
+    try {
+      const answer = await link.captureRemoved(note);
+      if (answer.recorded) {await vault.goneRecorded(note.sha256); recorded++;}
+    } catch (error) {
+      if (!(error instanceof CompanionError) || error.status === 403) break;
+    }
+  }
+  return recorded;
+}
+
 let running: Promise<SendReport> | null = null;
 let progressAt = 0;
 /** A run with no progress for this long is left behind (a request that never answered while the phone slept). */
@@ -91,6 +117,7 @@ export function sendWaiting(vault: CaptureVault, link: CaptureLink, now: () => n
         problem = error.code === "capture_hash_mismatch" ? "damaged" : "failed";
       }
     }
+    if (problem !== "offline" && problem !== "not_allowed") await reportGone(vault, link);
     return {sent, waiting: items.length - sent, problem};
   })().finally(() => {if (running === run) running = null;});
   running = run;

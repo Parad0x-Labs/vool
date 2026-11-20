@@ -81,6 +81,10 @@ class VoolCaptureModule : Module() {
 
     AsyncFunction("remove") { id: String -> CaptureStore.remove(context, id) }
 
+    /** Deletions (hash, key destroyed, when) the computer has not recorded yet; and marking one recorded. */
+    AsyncFunction("gone") { CaptureStore.gone(context) }
+    AsyncFunction("goneRecorded") { sha256: String -> CaptureStore.goneRecorded(context, sha256) }
+
     AsyncFunction("startSound") { SoundRecorder.start(context) }
 
     AsyncFunction("stopSound") {
