@@ -1315,6 +1315,20 @@ def _bound_material_turn(source_context: Any) -> bool:
         return False
 
 
+def _observation_words(value: Any) -> str:
+    """The words an observation carries (its keys and values), for the final-answer overlap check.
+
+    Not JSON: json.dumps writes a line break as a backslash and "n", which glued the "n" onto the
+    next word ("the web,\\nwithout the" became the token "nwithout"), so a correct answer quoting a
+    heading that wraps across lines shared no token with the page and was rejected as ungrounded.
+    """
+    if isinstance(value, dict):
+        return " ".join(f"{key} {_observation_words(item)}" for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return " ".join(_observation_words(item) for item in value)
+    return str(value)
+
+
 def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
     """Everything the model was shown from this turn's tools, for judging whether its answer used it.
 
@@ -1332,7 +1346,7 @@ def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> li
                 observations.append(text)
         step_observation = step.get("observation")
         if isinstance(step_observation, dict) and step_observation:
-            observations.append(json.dumps(step_observation, default=str))
+            observations.append(_observation_words(step_observation))
     return observations
 
 
