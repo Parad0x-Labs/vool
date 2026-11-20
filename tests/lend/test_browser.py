@@ -302,6 +302,20 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
                 record(events, action='closed', kind='chromium', pid=pid)
 
 
+def scroll_job_into_view(page, job_id):
+    """Scroll a job row into view for an evidence screenshot. The job list is redrawn on every poll, so the row
+    found can be replaced while Playwright waits for it to settle (macOS CI on 36033c05: "Element is not attached
+    to the DOM"); the fresh row is looked up again. Evidence only: no assertion rides on it."""
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            page.locator(f'[data-job="{job_id}"]').scroll_into_view_if_needed(timeout=3000)
+            return
+        except Exception as exc:
+            if "not attached" not in str(exc) or time.monotonic() > deadline:
+                raise
+
+
 def served_failures(a, b, bases, homes, relay, evidence, events, processes):
     """All calls below hit the normal running servers; Chromium renders failures."""
     import base64
@@ -471,7 +485,7 @@ def served_failures(a, b, bases, homes, relay, evidence, events, processes):
     settle(timed,'timeout')
     b.locator('.vl-root').first.get_by_role('button',name='Check for jobs',exact=True).click()
     expect(b.locator(f'[data-job="{timed}"] .vl-job-state')).to_have_text('The job ran out of time. No result was delivered.')
-    b.locator(f'[data-job="{timed}"]').scroll_into_view_if_needed()
+    scroll_job_into_view(b, timed)
     b.screenshot(path=str(evidence/'red-served-timeout.png'),full_page=True)
     expect(b.locator(f'[data-job="{cancelled[0]}"] .vl-job-state')).to_have_text('The invitation was revoked.')
     assert not list((homes[0]/'lend').glob('worker-*'))
@@ -497,7 +511,7 @@ def served_failures(a, b, bases, homes, relay, evidence, events, processes):
     expect(a.locator(f'[data-job="{live}"] .vl-job-state')).to_have_text('The invitation was revoked.',timeout=15000)
     api(b,bases[1],'poll')
     assert job(b,bases[1],live)['state']=='revoked'
-    a.locator(f'[data-job="{live}"]').scroll_into_view_if_needed()
+    scroll_job_into_view(a, live)
     a.screenshot(path=str(evidence/'blue-revoke-running-job.png'),full_page=True)
 
     # Interrupt a real encrypted result between chunks. The guest server is
@@ -546,7 +560,7 @@ def served_failures(a, b, bases, homes, relay, evidence, events, processes):
     b.locator('.vl-root').first.get_by_role('button',name='Check for jobs',exact=True).click()
     expect(b.locator(f'[data-job="{partial}"] .vl-job-state')).to_have_text('Receiving result.')
     assert b.locator(f'[data-job="{partial}"]').get_by_role('button',name='Save result',exact=True).count()==0
-    b.locator(f'[data-job="{partial}"]').scroll_into_view_if_needed()
+    scroll_job_into_view(b, partial)
     b.screenshot(path=str(evidence/'red-partial-result.png'),full_page=True)
     old=pause_guest()
     api(a,bases[0],'revoke',invite=key)
@@ -569,7 +583,7 @@ def served_failures(a, b, bases, homes, relay, evidence, events, processes):
     expect(b.locator(f'[data-job="{offline}"] .vl-job-state')).to_have_text(
         'The lending computer is asleep or unavailable. Check again later.',timeout=45000)
     expect(b.locator('.vl-root').first.get_by_role('button',name='Check for jobs',exact=True)).to_be_enabled()
-    b.locator(f'[data-job="{offline}"]').scroll_into_view_if_needed()
+    scroll_job_into_view(b, offline)
     b.screenshot(path=str(evidence/'red-served-host-offline.png'),full_page=True)
     assert not re.search(r'lend\.[a-z_]+',b.locator('.vl-root').first.inner_text())
 
