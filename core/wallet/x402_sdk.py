@@ -42,7 +42,7 @@ from core.wallet.security import wallet_fault
 AUTHORITY = "core.wallet.x402_sdk"
 SDK_DISTRIBUTION = "x402"
 #: The SDK release this lane was built and tested against (pyproject ``x402`` extra pins it).
-SDK_TESTED_VERSION = "2.25.0"
+SDK_TESTED_VERSION = "2.28.0"
 MIN_PYTHON = (3, 10)
 
 PAYMENT_REQUIRED_HEADER = "payment-required"
