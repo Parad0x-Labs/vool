@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 #: before saying the service could not be reached. A single stall is not "no internet".
 CONNECT_TIMEOUT_SECONDS = 10
 CONNECT_ATTEMPTS = 2
+DISCORD_USER_AGENT = "DiscordBot (https://github.com/Parad0x-Labs/vool, 0.8)"
 
 PLATFORMS = frozenset({"telegram", "discord"})
 BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose"})
@@ -169,6 +170,7 @@ def connect(runtime, platform, token, *, channel_link=""):
                 if not re.fullmatch(r"[0-9]{1,22}", app_id) or not re.fullmatch(r"[0-9]{1,22}", owner_id):
                     raise ValueError("no Discord owner")
     except urllib.error.HTTPError as answered:
+        logger.warning("%s connect: the service answered %s", app, answered.code)
         # The service answered and said no. Only its own "no such key" / "not yours to open"
         # answers count; a busy service or a network gate in between is not the key's fault.
         if answered.code == 401:
@@ -334,6 +336,9 @@ class ManagedBot:
         else:
             url = self.remote_base + path
             headers["Authorization"] = "Bot " + self.token
+            # Discord's front door answers a request without a bot User-Agent with 403 before it
+            # reads the key (Python's default "Python-urllib" is turned away). Its documented form:
+            headers["User-Agent"] = DISCORD_USER_AGENT
         with remote_fetch_policy.open_remote_url(
             url,
             data=None if value is None else json.dumps(value).encode(),

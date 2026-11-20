@@ -30,6 +30,9 @@ class FakeChatHost:
                 if path.startswith('/file/bot') or path.startswith('/files/'):
                     name=path.rsplit('/',1)[-1];raw=parent.files.get(name,b'')
                     self.send_response(200);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                if not path.startswith('/bot') and not (self.headers.get('User-Agent') or '').startswith('DiscordBot ('):
+                    # Discord's front door turns away requests without a bot User-Agent, before the key.
+                    raw=b'error code: 1010';self.send_response(403);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
                 if (path.endswith('/getMe') or path=='/users/@me') and parent.stall_identity:
                     parent.stall_identity-=1;time.sleep(11);return
                 with parent.lock:
