@@ -12,7 +12,6 @@ import Icon from "../ui/Icon.tsx";
 import {RevealScrollView} from "../ui/Reveal.tsx";
 import {useEdges} from "../ui/Frame.tsx";
 import {C} from "../ui/theme.ts";
-import {trace} from "../diagnostics/trace.ts";
 
 type Kind = "photo" | "video" | "sound";
 const KINDS: Kind[] = ["photo", "video", "sound"];
@@ -94,7 +93,6 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   const [area, setArea] = useState({width: 0, height: 0});
   const [sizes, setSizes] = useState<{sizes: string[]; sensorMax: string}>({sizes: [], sensorMax: ""});
   const change = (patch: Partial<CameraPrefs>) => {
-    trace("camera setting", {keys: Object.keys(patch).join("+")});
     setPrefs(current => {const next = {...current, ...patch}; saveCameraPrefs(next); return next;});
   };
   useEffect(() => {
@@ -149,23 +147,22 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   /** A photo for every press: presses in a burst are not held back, the camera takes them in order. */
   function snap() {
     const now = Date.now();
-    if (now - lastTap.current < 80) {trace("screen: a second press in the same moment was ignored"); return;}
+    if (now - lastTap.current < 80) {return;}
     lastTap.current = now;
-    if (inFlight.current >= MAX_IN_FLIGHT) {trace(`screen: press not taken, ${MAX_IN_FLIGHT} photos still being taken`); return;}
+    if (inFlight.current >= MAX_IN_FLIGHT) {return;}
     inFlight.current++;
     setNote("");
     flash.setValue(1);
     Animated.timing(flash, {toValue: 0, duration: 160, useNativeDriver: true}).start();
     camera.current?.takePhoto()
-      .then(() => {trace(`screen: photo taken ${Date.now() - now} ms after its press, ${inFlight.current - 1} more on the way`); stored();})
+      .then(() => {stored();})
       .catch(() => failed())
       .finally(() => {inFlight.current--;});
   }
 
   async function shutter() {
-    trace("shutter press", {kind, recording, busy, pressing: pressing.current, inFlight: inFlight.current, timer: prefs.timer || 0});
     if (kind === "photo" && !prefs.timer) {snap(); return;}
-    if (pressing.current) {trace("screen: a second press in the same moment was ignored"); return;}
+    if (pressing.current) {return;}
     if (busy || !capture) return;
     pressing.current = true;
     try {await shutterOnce();} finally {pressing.current = false;}
@@ -298,7 +295,6 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
             <View style={spin}><Icon name="palette-outline" size={22} color={prefs.filter !== "none" ? C.acc : C.ink} /></View>
           </Pressable> : <View style={styles.round} />}
           <Pressable onPress={() => void shutter()} disabled={busy && !recording || !!denied || (kind !== "sound" && !ready)}
-            onTouchStart={() => trace("shutter touch", {kind, recording, busy, ready, denied: denied || ""})}
             style={({pressed}) => [styles.shutter, recording && styles.shutterRec, pressed && styles.shutterDown]} accessibilityRole="button"
             accessibilityLabel={kind === "photo" ? tr("Take photo") : recording ? tr("Stop recording") : tr("Start recording")}>
             {kind === "photo" ? <View style={styles.shutterCore} /> : recording ? <View style={styles.stopCore} /> : <View style={styles.recCore} />}

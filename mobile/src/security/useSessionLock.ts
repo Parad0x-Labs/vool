@@ -1,5 +1,4 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {trace} from "../diagnostics/trace.ts";
 import {AppState} from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import {SessionLock} from "./session.ts";
@@ -44,8 +43,6 @@ export function useSessionLock(deviceId: string | null, hold: () => boolean = ()
   }, [state, idleLoaded]);
   const unlock = async () => {
     prompting.current = true;
-    const asked = Date.now();
-    trace("unlock prompt");
     setFailed(false);
     setNoScreenLock(false);
     try {
@@ -59,9 +56,8 @@ export function useSessionLock(deviceId: string | null, hold: () => boolean = ()
           requireConfirmation: false, // a face that matches unlocks at once, no extra Confirm tap
         })).success;
       }, true); // Android's trusted passcode UI may temporarily background the activity.
-      trace("unlock result", {ok, ms: Date.now() - asked});
       setFailed(!ok);
-    } catch {trace("unlock error", {ms: Date.now() - asked}); setFailed(true);} finally {prompting.current = false;}
+    } catch {setFailed(true);} finally {prompting.current = false;}
   };
   unlockRef.current = unlock;
   return {idleMinutes, setIdleMinutes:async (value:number)=>{if(deviceId){await saveIdleMinutes(deviceId,value);setIdleMinutes(value);}}, locked: !!deviceId && state.locked, failed, noScreenLock, activity: AppState.currentState,

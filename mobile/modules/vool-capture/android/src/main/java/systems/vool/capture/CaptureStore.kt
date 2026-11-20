@@ -164,7 +164,6 @@ object CaptureStore {
 
   /** Seals a plain capture into hold-<id>.enc under its own Keystore key, then wipes the plain file. */
   private fun hold(context: Context, plain: File, mediaType: String, kind: String, takenAt: Long, filter: String): String {
-    val started = SystemClock.elapsedRealtime()
     if (!plain.isFile || plain.length() == 0L) throw IllegalStateException("Nothing was captured.")
     val folder = dir(context)
     val id = UUID.randomUUID().toString().replace("-", "")
@@ -180,7 +179,6 @@ object CaptureStore {
     }
     wipe(plain)
     jobFor(plain).delete()
-    Log.i(LOG, "held: $kind sealed in ${SystemClock.elapsedRealtime() - started} ms, plain left 0")
     return id
   }
 
@@ -199,7 +197,6 @@ object CaptureStore {
       if (filter != "none") PhotoFilters.apply(work, filter)
       val item = ingest(context, work, o.getString("mediaType"), o.getString("kind"), o.getDouble("takenAt").toLong(), fixedId = id)
       dropHold(folder, id)
-      Log.i(LOG, "stored: ${item.kind}, held left ${heldCount(folder)}")
       return item
     } finally {
       if (work.exists()) wipe(work)
@@ -219,11 +216,6 @@ object CaptureStore {
     File(folder, "hold-$id.enc").delete()
     File(folder, "hold-$id.job").delete()
   }
-
-  private fun heldCount(folder: File) = folder.listFiles { f -> f.name.startsWith("hold-") && f.name.endsWith(".enc") }.orEmpty().size
-
-  private fun isPlainLeftover(name: String) =
-    name.startsWith("raw-") && !name.endsWith(".job") || name.startsWith("work-") || name.endsWith(".tmp")
 
   /** Overwrites a plain file before deleting it (best effort: flash memory may keep old blocks). */
   private fun wipe(file: File) {
@@ -249,9 +241,6 @@ object CaptureStore {
     val folder = dir(context)
     val now = System.currentTimeMillis()
     val files = folder.listFiles().orEmpty()
-    val plainBefore = files.count { isPlainLeftover(it.name) }
-    val heldBefore = files.count { it.name.startsWith("hold-") && it.name.endsWith(".enc") }
-    var rescued = 0
     // 1. Half-done work: wiped. A held copy is only ever complete or a .part, never plain.
     files.forEach { f ->
       when {
@@ -284,9 +273,9 @@ object CaptureStore {
           raw.length() == 0L -> { raw.delete(); job.delete() }
           job.isFile -> {
             val o = JSONObject(job.readText())
-            keep(context, raw, o.getString("mediaType"), o.getString("kind"), o.getDouble("takenAt").toLong(), o.optString("filter", "none")); rescued++
+            keep(context, raw, o.getString("mediaType"), o.getString("kind"), o.getDouble("takenAt").toLong(), o.optString("filter", "none"))
           }
-          raw.extension == "jpg" && wholeJpeg(raw) -> { keep(context, raw, "image/jpeg", "photo", raw.lastModified()); rescued++ }
+          raw.extension == "jpg" && wholeJpeg(raw) -> keep(context, raw, "image/jpeg", "photo", raw.lastModified())
           raw.extension == "jpg" -> wipe(raw)
           // a recording cut off mid-way cannot be played; a live recording is never this old
           now - raw.lastModified() > 10 * 60_000L -> wipe(raw)
@@ -296,11 +285,6 @@ object CaptureStore {
       }
     }
     files.filter { it.name.startsWith("raw-") && it.name.endsWith(".job") && !File(folder, it.name.removeSuffix(".job")).isFile }.forEach { it.delete() }
-    // Logged after every rescued capture has been sealed (the sealer works in order).
-    sealer.execute {
-      val left = folder.listFiles().orEmpty().count { isPlainLeftover(it.name) }
-      Log.i(LOG, "start: plain found $plainBefore, held found $heldBefore, plain sealed now $rescued, plain left $left")
-    }
   }
 
   private fun wholeJpeg(file: File): Boolean = try {

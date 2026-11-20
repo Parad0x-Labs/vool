@@ -62,7 +62,6 @@ class VoolCaptureModule : Module() {
     // own screens (not the camera or the Vault that the other icons opened last time).
     OnNewIntent { intent ->
       if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER) && intent.data == null) {
-        android.util.Log.i("VoolCapture", "icon: VOOL tapped")
         sendEvent("onAppIcon", mapOf("at" to System.currentTimeMillis()))
       }
     }
@@ -83,7 +82,6 @@ class VoolCaptureModule : Module() {
 
     Function("savingCount") { CaptureStore.savingCount }
     // One line to the phone's system log (tag VoolCapture) for tracing a test run: steps and timings only.
-    Function("trace") { line: String -> android.util.Log.i("VoolCapture", line.take(300)) }
 
     /** The VOOL Camera icon or tile just opened VOOL: show the camera without asking for the unlock. */
     Function("cameraLaunchRecent") { CameraLaunch.recent() }

@@ -1,7 +1,6 @@
 import type {MobileCompanionClient} from "../protocol/client.ts";
 import type {MediaItem} from "../protocol/models.ts";
 import {vaultNative} from "./native.ts";
-import {trace} from "../diagnostics/trace.ts";
 
 const live = new Map<string, VaultStream>();
 let wants: {remove(): void} | null = null;
@@ -28,7 +27,6 @@ export class VaultStream {
   private cursor = 0;
   private closed = false;
   private wanted = new Set<number>();
-  private opened = Date.now();
   failed = "";
 
   constructor(private client: MobileCompanionClient, readonly item: MediaItem, private changed: (state: StreamState) => void,
@@ -38,7 +36,6 @@ export class VaultStream {
     this.id = vaultNative.open(item.size, item.media_type);
     this.pieces = Math.max(1, Math.ceil(item.size / vaultNative.pieceBytes));
     live.set(this.id, this);
-    trace("vault stream open", {kind: item.kind, kb: Math.round(item.size / 1024), pieces: this.pieces, lazy});
     void this.run();
   }
 
@@ -70,7 +67,6 @@ export class VaultStream {
       const index = this.next();
       if (index === -2) {await sleep(60); continue;}
       if (index < 0) break;
-      const asked = Date.now();
       try {
         const answer = await this.client.mediaRead(this.item.id, index * piece, piece);
         if (this.closed) return;
@@ -78,7 +74,6 @@ export class VaultStream {
         this.held.add(index);
         this.wanted.delete(index);
         if (this.held.size === 1 || this.held.size === this.pieces) {
-          trace("vault piece", {index, ms: Date.now() - asked, held: this.held.size, of: this.pieces, sinceOpen: Date.now() - this.opened});
         }
         if (this.cursor === index) this.cursor = index + 1;
         this.failed = "";
@@ -87,7 +82,6 @@ export class VaultStream {
       } catch (error) {
         if (this.closed) return;
         const code = String((error as {code?: string})?.code || "");
-        trace("vault piece failed", {index, code: code || "unreachable", ms: Date.now() - asked});
         if (code === "phone_right_off_or_expired" || code.startsWith("media_")) {this.failed = code || "failed"; this.report(); return;}
         // The computer is out of reach for now (a call, a tunnel, sleep): wait, then carry on from the same piece.
         this.failed = "away";
@@ -101,7 +95,6 @@ export class VaultStream {
   close() {
     if (this.closed) return;
     this.closed = true;
-    trace("vault stream close", {held: this.held.size, of: this.pieces});
     live.delete(this.id);
     vaultNative?.close(this.id);
   }

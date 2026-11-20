@@ -2,7 +2,6 @@ import React from "react";
 import {Pressable, StyleSheet, Text, View} from "react-native";
 
 import {tr} from "../i18n/index.ts";
-import {trace} from "../diagnostics/trace.ts";
 import {RECORDING_MINUTES, setRecordingAllowed, useRecordingAllowed} from "../security/screenRecording.ts";
 import SettingsCard from "../ui/SettingsCard.tsx";
 import {C} from "../ui/theme.ts";
@@ -10,7 +9,7 @@ import {C} from "../ui/theme.ts";
 /** For a demo: lets the Vault, Wallet and Approvals be recorded. Off by default; ends by itself. */
 export default function ScreenRecordingSettings() {
   const on = useRecordingAllowed();
-  const toggle = () => {trace("screen recording", {on: !on}); setRecordingAllowed(!on);};
+  const toggle = () => {setRecordingAllowed(!on);};
   return <SettingsCard icon="record-rec" title={tr("Screen recording")}>
     <Pressable style={[styles.row, styles.rule]} onPress={toggle} accessibilityRole="switch" accessibilityState={{checked: on}}
       android_ripple={{color: C.ripple}}>

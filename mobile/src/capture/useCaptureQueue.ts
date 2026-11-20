@@ -2,12 +2,10 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {AppState} from "react-native";
 import type {MobileCompanionClient} from "../protocol/client.ts";
 import {capture, vault} from "./native.ts";
-import {sendWaiting, setCaptureTrace, type SendProblem} from "./sender.ts";
+import {sendWaiting, type SendProblem} from "./sender.ts";
 import {tr} from "../i18n/index.ts";
 
 const RETRY_MS = 30_000;
-
-if (capture?.trace) setCaptureTrace(line => capture?.trace?.(line));
 
 export type CaptureQueue = ReturnType<typeof useCaptureQueue>;
 

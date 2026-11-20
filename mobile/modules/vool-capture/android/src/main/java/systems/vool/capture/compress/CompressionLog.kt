@@ -1,7 +1,6 @@
 package systems.vool.capture.compress
 
 import android.content.Context
-import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -15,7 +14,6 @@ object CompressionLog {
     private const val PREFS = "vool_capture_compression"
     private const val KEY = "receipts_v1"
     private const val MAX = 200
-    private const val TAG = "VoolCompress"
 
     @Volatile private var ctx: Context? = null
     @Volatile var scratchDir: File? = null; private set
@@ -33,14 +31,12 @@ object CompressionLog {
     internal fun begin() { notes.set(mutableListOf()) }
 
     internal fun note(msg: String) {
-        Log.i(TAG, msg)
         notes.get()?.add(msg)
     }
 
     internal fun record(r: JSONObject) {
         notes.get()?.let { if (it.isNotEmpty()) r.put("notes", JSONArray(it)) }
         notes.remove()
-        Log.i(TAG, r.toString())
         val c = ctx ?: return
         synchronized(this) {
             val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

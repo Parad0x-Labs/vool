@@ -21,7 +21,6 @@ import ScreenRecordingSettings from "./src/screens/ScreenRecordingSettings.tsx";
 import {useScreenGuard} from "./src/security/screenRecording.ts";
 import {nativeFastCrypto, vaultNative} from "./src/vault/native.ts";
 import {setFastCrypto} from "./src/protocol/fast.ts";
-import {keepTrace, takeTrace, trace} from "./src/diagnostics/trace.ts";
 import {useCaptureQueue, type CaptureQueue} from "./src/capture/useCaptureQueue.ts";
 import {capture} from "./src/capture/native.ts";
 import SettingsCard from "./src/ui/SettingsCard.tsx";
@@ -110,14 +109,13 @@ function Root() {
   // browser): the SAME typed payload the in-app camera parser reads.
   useEffect(() => {
     const take = (url: string) => {
-      if (isCaptureLink(url)) {trace("link camera"); setVaultAsked(false); setCameraAsked(true); cameraWanted.current = true;}
+      if (isCaptureLink(url)) {setVaultAsked(false); setCameraAsked(true); cameraWanted.current = true;}
       else if (isVaultLink(url)) {
         // The Vault icon while the camera is open (locked or not): the camera closes, so the unlock (or the Vault) shows.
-        trace("link vault", {cameraWasAsked: cameraWanted.current});
         capture?.clearCameraLaunch(); setCameraAsked(false); setCameraOnly(false); cameraWanted.current = false;
         setVaultAsked(true);
       }
-      else {trace("link other"); setIncomingLink(url);}
+      else {setIncomingLink(url);}
     };
     const sub = Linking.addEventListener("url", (event: { url: string }) => take(event.url));
     // When Android restarts VOOL it can hand back the link VOOL was first opened with (the camera or the Vault),
@@ -125,12 +123,11 @@ function Root() {
     Linking.getInitialURL().then((url) => {
       if (!url) return;
       const which = isCaptureLink(url) ? "camera" : isVaultLink(url) ? "vault" : null;
-      if (which && capture?.iconUsed && !capture.iconUsed(which)) {trace("link stale", {which}); return;}
+      if (which && capture?.iconUsed && !capture.iconUsed(which)) {return;}
       take(url);
     });
     // The plain VOOL icon opens VOOL itself: a camera or Vault left open by the other icons closes.
     const icon = capture?.addListener("onAppIcon", () => {
-      trace("icon vool", {cameraWasAsked: cameraWanted.current});
       capture?.clearCameraLaunch(); setCameraAsked(false); setCameraOnly(false); cameraWanted.current = false;
       setVaultAsked(false); setHomeAsked(seq => seq + 1);
     });
@@ -150,17 +147,6 @@ function Root() {
   const identity = creds ? credentialIdentity(creds) : '';
   const client = useMemo(() => (creds && isSealedCredentials(creds) ? new SealedMobileCompanionClient(creds) : null), [identity]);
   const lock = useSessionLock(client?.deviceId || null, () => cameraWanted.current || (capture?.cameraLaunchRecent() ?? false));
-  useEffect(() => {trace("lock", {locked: lock.locked, cameraAsked, cameraOnly, vaultAsked});}, [lock.locked, cameraAsked, cameraOnly, vaultAsked]);
-  // The trace goes to the computer's trace file every 15 seconds while the computer answers.
-  useEffect(() => {
-    if (!client) return;
-    const send = () => {
-      const lines = takeTrace();
-      if (lines.length) void client.tracePhone(lines).catch(() => keepTrace(lines));
-    };
-    const timer = setInterval(send, 15_000);
-    return () => clearInterval(timer);
-  }, [client]);
   // Sending private captures carries on while VOOL is locked; only the screens need the unlock.
   const captureQueue = useCaptureQueue(client);
   useEffect(() => {void setNativePrivateSession(!!client).catch(() => {});}, [client, lock.locked, lock.activity]);
@@ -214,7 +200,7 @@ function Root() {
   if (lock.locked && (cameraAsked || cameraOnly) && captureQueue.available) return <Frame style={styles.root}>
     <CaptureScreen waiting={captureQueue.waiting} sending={captureQueue.sending} problem={captureQueue.problem} saving={captureQueue.saving}
       saveFailed={captureQueue.saveFailed} onCaptured={captureQueue.captured}
-      onClose={() => {trace("camera close locked"); capture?.clearCameraLaunch(); setCameraAsked(false); setCameraOnly(false);}} extraSettings={<SmallerFiles />} />
+      onClose={() => {capture?.clearCameraLaunch(); setCameraAsked(false); setCameraOnly(false);}} extraSettings={<SmallerFiles />} />
   </Frame>;
 
   if (lock.locked) return <Frame style={styles.centered}>
@@ -274,23 +260,20 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
   const [vaultOpen, setVaultOpen] = useState(false);
   useEffect(() => {
     if (!vaultAsked) return;
-    trace("shell vault asked", {available: !!vaultNative});
     if (vaultNative) {setCameraOpen(false); setVaultOpen(true);}
     onVaultShown?.();
   }, [vaultAsked, onVaultShown]);
-  const openVault = vaultNative ? () => {trace("vault open from=button"); setCameraOpen(false); setVaultOpen(true);} : undefined;
+  const openVault = vaultNative ? () => {setCameraOpen(false); setVaultOpen(true);} : undefined;
   useEffect(() => {
     if (!cameraAsked) return;
-    trace("shell camera asked", {available: queue.available});
     if (queue.available) {setVaultOpen(false); setCameraOpen(true);}
     onCameraShown?.();
   }, [cameraAsked, queue.available, onCameraShown]);
   useEffect(() => {
     if (!homeAsked) return;
-    trace("shell home asked");
     setCameraOpen(false); setVaultOpen(false);
   }, [homeAsked]);
-  const openCamera = queue.available ? () => {trace("camera open from=button"); setVaultOpen(false); setCameraOpen(true);} : undefined;
+  const openCamera = queue.available ? () => {setVaultOpen(false); setCameraOpen(true);} : undefined;
   const [pick, setPick] = useState<{id: string | null; seq: number} | null>(null);
   const [recent, setRecent] = useState<ChatSummary[]>([]);
   // Inside one chat the message box takes the place of the tabs.
@@ -312,7 +295,6 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
   const clearAttention = notifications.clearAttention;
   const selectTab = useCallback(
     (next: Tab) => {
-      trace("tab", {to: next});
       setTab(next);
       // Opening a tab is the acknowledgement of what it shows.
       if (next === "notifications") clearUnseen();
@@ -392,9 +374,9 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
       {recent.length > 0 && <KeyboardTip />}
       {cameraOpen ? <View style={StyleSheet.absoluteFill}>
         <CaptureScreen waiting={queue.waiting} sending={queue.sending} problem={queue.problem} saving={queue.saving} saveFailed={queue.saveFailed}
-          onCaptured={queue.captured} onClose={() => {trace("camera close"); setCameraOpen(false);}} extraSettings={<SmallerFiles />} />
+          onCaptured={queue.captured} onClose={() => {setCameraOpen(false);}} extraSettings={<SmallerFiles />} />
       </View> : null}
-      {vaultOpen ? <VaultScreen client={client} onClose={() => {trace("vault close"); setVaultOpen(false);}} /> : null}
+      {vaultOpen ? <VaultScreen client={client} onClose={() => {setVaultOpen(false);}} /> : null}
     </Frame>
   );
 }
