@@ -104,7 +104,12 @@ def stage(worker, identity, chat_id, files):
                 raise ValueError("Attachment location refused.")
             if parsed.username or parsed.password or parsed.fragment:
                 raise ValueError("Attachment location refused.")
-        with remote_fetch_policy.open_remote_url(url, timeout=4, no_proxy=True, redirect_policy="refuse") as response:
+        from core.mobile_companion.bot_runtime import DISCORD_USER_AGENT
+
+        agent = {"User-Agent": DISCORD_USER_AGENT} if worker.platform == "discord" else None
+        with remote_fetch_policy.open_remote_url(
+            url, headers=agent, timeout=4, no_proxy=True, redirect_policy="refuse"
+        ) as response:
             data = response.read(MAX_BYTES + 1)
         if not data or len(data) > MAX_BYTES:
             raise ValueError("Attachment is empty or too large.")
