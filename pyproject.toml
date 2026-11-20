@@ -76,7 +76,7 @@ pay = [
 # OPTIONAL: without it that lane reports wallet_x402_sdk_unavailable and nothing else changes. Its `evm` extra is
 # needed because the SDK's EVM package imports web3 at import time. Pinned to the release the lane was tested against.
 x402 = [
-    "x402[evm]==2.25.0",
+    "x402[evm]==2.28.0",
 ]
 models = [
     # PyTorch publishes no Intel-macOS wheel since 2.3: torch and the packages that require it
