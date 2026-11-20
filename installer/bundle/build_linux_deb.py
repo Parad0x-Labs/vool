@@ -125,6 +125,19 @@ def png_size(path: Path) -> tuple[int, int]:
     return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
 
 
+def extract_filter(version: tuple[int, ...] | None = None) -> dict[str, str]:
+    """The extraction filter for this Python. The data filter's first releases (3.10.12, 3.11.4, the 3.12 betas)
+    resolved a relative symlink from the destination instead of from the link's own folder (CPython gh-107845), so
+    the bundled Python's terminfo link t/ts-1p -> ../f/falco-p was refused as outside the package: release-linux
+    on the runner's system Python 3.10.12, 2026-11-20. Those take the tar filter, which still refuses absolute and
+    escaping names; `extract` itself checks every symlink."""
+    if not hasattr(tarfile, "data_filter"):
+        return {}
+    version = tuple(version or sys.version_info[:3])
+    fixed = version >= (3, 12, 0) or (3, 11, 5) <= version < (3, 12) or (3, 10, 13) <= version < (3, 11)
+    return {"filter": "data" if fixed else "tar"}
+
+
 def extract(tarball: Path, into: Path) -> Path:
     with tarfile.open(tarball) as archive:
         for member in archive.getmembers():
@@ -135,8 +148,8 @@ def extract(tarball: Path, into: Path) -> Path:
                 target = Path(os.path.normpath(name.parent / member.linkname))
                 if Path(member.linkname).is_absolute() or ".." in target.parts:
                     raise ValueError(f"Refusing package symlink: {member.name} -> {member.linkname}")
-        # every member is checked above; the data filter (where this Python has it) checks again
-        archive.extractall(into, **({"filter": "data"} if hasattr(tarfile, "data_filter") else {}))
+        # every member is checked above; the tar filter (where this Python has it) checks again
+        archive.extractall(into, **extract_filter())
     tops = list(into.iterdir())
     if len(tops) != 1 or not tops[0].is_dir() or tops[0].is_symlink():
         raise ValueError("Expected one package folder in the tarball")

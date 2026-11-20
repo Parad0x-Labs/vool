@@ -252,6 +252,38 @@ def test_the_deb_is_refused_for_a_package_that_fails_its_own_checksums(tarball, 
     assert not list(tampered.parent.glob("*.deb*"))
 
 
+def test_a_data_filter_that_misreads_relative_links_is_not_used():
+    """release-linux on 2026-11-20 (the runner's system Python 3.10.12): the bundled Python's terminfo symlink
+    t/ts-1p -> ../f/falco-p was refused as linking outside the package by that release's data filter."""
+    if not hasattr(tarfile, "data_filter"):
+        assert deb.extract_filter() == {}
+        return
+    assert deb.extract_filter((3, 10, 12)) == {"filter": "tar"}
+    assert deb.extract_filter((3, 11, 4)) == {"filter": "tar"}
+    for fixed in ((3, 10, 13), (3, 11, 5), (3, 12, 0), (3, 13, 1)):
+        assert deb.extract_filter(fixed) == {"filter": "data"}, fixed
+
+
+def test_a_package_with_a_link_to_a_sibling_folder_extracts(tmp_path):
+    folder = tmp_path / "src/vool-0.8.0-beta-linux-x86_64/python/share/terminfo"
+    (folder / "f").mkdir(parents=True)
+    (folder / "t").mkdir()
+    (folder / "f/falco-p").write_bytes(b"terminfo")
+    os.symlink("../f/falco-p", folder / "t/ts-1p")
+    tarball = tmp_path / "pkg.tar.gz"
+    with tarfile.open(tarball, "w:gz") as archive:
+        archive.add(tmp_path / "src/vool-0.8.0-beta-linux-x86_64", arcname="vool-0.8.0-beta-linux-x86_64")
+    top = deb.extract(tarball, tmp_path / "out")
+    assert (top / "python/share/terminfo/t/ts-1p").read_bytes() == b"terminfo"
+    escaping = tmp_path / "bad.tar.gz"
+    with tarfile.open(escaping, "w:gz") as archive:
+        link = tarfile.TarInfo("vool/t/ts-1p")
+        link.type, link.linkname = tarfile.SYMTYPE, "../../../outside"
+        archive.addfile(link)
+    with pytest.raises(ValueError, match="Refusing package symlink"):
+        deb.extract(escaping, tmp_path / "out2")
+
+
 def test_release_workflow_builds_smokes_and_attaches_the_deb():
     workflow = yaml.load((ROOT / ".github/workflows/release-linux.yml").read_text(), Loader=yaml.BaseLoader)
     jobs = workflow["jobs"]
