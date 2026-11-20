@@ -101,7 +101,7 @@ class Vault:
         return info
 
     @classmethod
-    def create(cls, folder: Path, password: str) -> "Vault":
+    def create(cls, folder: Path, password: str) -> Vault:
         if len(password or "") < MIN_PASSWORD:
             raise BackupStop("password_short")
         if cls.describe(folder):
@@ -123,7 +123,7 @@ class Vault:
         return vault
 
     @classmethod
-    def open(cls, folder: Path, *, password: str = "", key: bytes | None = None) -> "Vault":
+    def open(cls, folder: Path, *, password: str = "", key: bytes | None = None) -> Vault:
         info = cls.describe(folder)
         if info is None:
             raise BackupStop("no_backup")

@@ -186,7 +186,7 @@ class _SegmentReader:
     def read_at(self, offset: int, length: int) -> bytes:
         out = bytearray()
         position, remaining, start = offset, length, 0
-        for path, size in zip(self.paths, self.sizes):
+        for path, size in zip(self.paths, self.sizes, strict=False):
             end = start + size
             if remaining <= 0:
                 break

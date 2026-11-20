@@ -151,7 +151,7 @@ def handle(body: Any, *, headers: Any, client_host: str) -> tuple[int, dict[str,
         if action == "list":
             section = str(body.get("section") or "")
             kind = str(body.get("kind") or "")
-            if section and section not in SECTIONS or kind and kind not in KINDS:
+            if (section and section not in SECTIONS) or (kind and kind not in KINDS):
                 return 400, {"ok": False, "error": "invalid_input"}
             sort = "size" if body.get("sort") == "size" else "date"
             try:
@@ -195,11 +195,14 @@ def handle(body: Any, *, headers: Any, client_host: str) -> tuple[int, dict[str,
             confirm = body.get("confirm_removals")
             confirm = int(confirm) if isinstance(confirm, int) else None
             if action == "backup":
-                work = lambda stop, progress: mb.backup(lib, vault, mirror_removals=mirror, confirm_removals=confirm, progress=progress, stop=stop)
+                def work(stop, progress):
+                    return mb.backup(lib, vault, mirror_removals=mirror, confirm_removals=confirm, progress=progress, stop=stop)
             elif action == "check":
-                work = lambda stop, progress: mb.check(vault, progress=progress)
+                def work(stop, progress):
+                    return mb.check(vault, progress=progress)
             else:
-                work = lambda stop, progress: mb.restore(lib, vault, progress=progress, stop=stop)
+                def work(stop, progress):
+                    return mb.restore(lib, vault, progress=progress, stop=stop)
             if not JOB.start(action, work):
                 return 409, {"ok": False, "error": "busy"}
             return 200, {"ok": True, "job": JOB.view()}
