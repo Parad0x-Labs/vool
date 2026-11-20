@@ -37,6 +37,10 @@ ACTIONS = {
     "chats.send": "chat",
     "chats.progress": "chat",
     "chats.cancel": "chat",
+    # Managing the owner's chats (the computer's own sidebar rules): only a phone that may see them.
+    "chats.rename": "history",
+    "chats.archive": "history",
+    "chats.delete": "history",
     "proof.get": "history",
     "attachments.limits": "attachments",
     "attachments.upload": "attachments",

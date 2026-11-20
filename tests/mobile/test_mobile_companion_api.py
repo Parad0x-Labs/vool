@@ -679,6 +679,44 @@ class TestJourneyActions:
         messages = _body(history)["result"]["messages"]
         assert any(m.get("role") == "user" and "hello from the phone" in str(m.get("content")) for m in messages)
 
+    def test_phone_renames_archives_restores_and_deletes_a_chat(self, runtime):
+        claim = _body(_pair(runtime)[0])
+        chat_id = _body(_companion(claim, "chats.prepare", runtime=runtime))["result"]["chat_id"]
+        sent = _companion(claim, "chats.send", {"chat_id": chat_id, "message": "plan the garden"}, runtime=runtime)
+        assert sent.status == 200, _body(sent)
+        canonical = _body(sent)["result"]["canonical_chat_id"]
+
+        def listed():
+            rows = _body(_companion(claim, "chats.list", runtime=runtime))["result"]["chats"]
+            return {row["chat_id"]: row for row in rows}
+
+        assert canonical in listed()
+        # The phone's own handle and the listed id both reach the same chat.
+        r = _companion(claim, "chats.rename", {"chat_id": chat_id, "title": "  Garden   plan "}, runtime=runtime)
+        assert r.status == 200, _body(r)
+        assert listed()[canonical]["title"] == "Garden plan"
+        assert _companion(claim, "chats.rename", {"chat_id": canonical, "title": "   "}, runtime=runtime).status == 400
+
+        assert _companion(claim, "chats.archive", {"chat_id": canonical, "on": True}, runtime=runtime).status == 200
+        assert listed()[canonical]["archived"] is True
+        assert _companion(claim, "chats.archive", {"chat_id": canonical, "on": "yes"}, runtime=runtime).status == 400
+        assert _companion(claim, "chats.archive", {"chat_id": canonical, "on": False}, runtime=runtime).status == 200
+        assert listed()[canonical]["archived"] is False
+
+        r = _companion(claim, "chats.delete", {"chat_id": canonical}, runtime=runtime)
+        assert r.status == 200, _body(r)
+        assert _body(r)["result"]["deleted"] is True
+        assert canonical not in listed()
+        history = _body(_companion(claim, "chats.history", {"chat_id": canonical}, runtime=runtime))["result"]
+        assert not any("plan the garden" in str(m.get("content")) for m in history.get("messages") or [])
+        # A chat that is not there cannot be renamed.
+        assert _companion(claim, "chats.rename", {"chat_id": canonical, "title": "x"}, runtime=runtime).status == 404
+
+    def test_chat_management_needs_the_history_right(self):
+        from core.mobile_companion.policy import ACTIONS
+
+        assert {ACTIONS[a] for a in ("chats.rename", "chats.archive", "chats.delete")} == {"history"}
+
     def test_approvals_pending_and_resolve(self, runtime, tmp_path):
         # Mint a REAL pending approval through the product's own permission gate.
         session = "chat-mobile-unit"

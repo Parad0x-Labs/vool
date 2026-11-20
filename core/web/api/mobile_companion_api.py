@@ -150,6 +150,9 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "chats.send",
     "chats.progress",
     "chats.cancel",
+    "chats.rename",
+    "chats.archive",
+    "chats.delete",
     "attachments.limits",
     "attachments.upload",
     "files.list",
@@ -1346,6 +1349,63 @@ def _action_chats_cancel(params, *, service, device, **_kw):
     return 200, {"state": state}
 
 
+def _chat_lifecycle(params: dict[str, Any], change: dict[str, Any], *, runtime, model_name: str, service, device, receipt: str, workspace_root_provider, **_kw):
+    """Rename, archive, restore or delete one chat through the computer's own sidebar door.
+
+    /api/chat/session is owner-local. This forward runs only after the phone's grant HMAC and its
+    registered device signature have both verified and its policy allows the action (the same
+    vouching chats.history uses), so every rule of that door applies unchanged: delete tombstones
+    the chat's namespace, erases its transcript, memory, attachments and pins, and revokes its
+    standing grants exactly as a delete on the computer does."""
+    from core.request_trust import IN_PROCESS_OWNER_PEER
+    from core.web.api.service import dispatch_post
+
+    chat_id = str(params.get("chat_id") or "").strip()
+    if not chat_id:
+        return 400, {"error": "chat_id is required"}
+    session_id = _read_session_id(scoped_chat_handle(device, chat_id))
+    response = dispatch_post(
+        path="/api/chat/session",
+        body={"session_id": session_id, **change},
+        headers={"content-type": "application/json"},
+        runtime=runtime,
+        model_name=model_name,
+        client_host=IN_PROCESS_OWNER_PEER,
+        workspace_root_provider=workspace_root_provider,
+    )
+    try:
+        payload = json.loads(response.body or b"{}")
+    except (json.JSONDecodeError, TypeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    status = int(response.status)
+    if status < 400:
+        service.store.append_receipt(receipt, device_id=str(device["device_id"]), detail={"chat": hashlib.sha256(session_id.encode()).hexdigest()[:16]})
+    return status, ({"ok": True, **{k: payload[k] for k in ("title", "archived", "deleted", "warning") if k in payload}}
+                    if status < 400 else {"error": str(payload.get("error") or "chat_change_failed")})
+
+
+def _action_chats_rename(params: dict[str, Any], **kw):
+    title = " ".join(str(params.get("title") or "").split())
+    if not title:
+        return 400, {"error": "title is required"}
+    if len(title) > 200:
+        return 400, {"error": "title too long"}
+    return _chat_lifecycle(params, {"title": title}, receipt="chat.renamed", **kw)
+
+
+def _action_chats_archive(params: dict[str, Any], **kw):
+    on = params.get("on")
+    if not isinstance(on, bool):
+        return 400, {"error": "on must be true or false"}
+    return _chat_lifecycle(params, {"archived": on}, receipt="chat.archived" if on else "chat.restored", **kw)
+
+
+def _action_chats_delete(params: dict[str, Any], **kw):
+    return _chat_lifecycle(params, {"delete": True}, receipt="chat.deleted", **kw)
+
+
 def _action_attachments_limits(params: dict[str, Any], **_kw):
     from core import chat_attachments
 
@@ -1614,6 +1674,9 @@ _ACTION_HANDLERS: dict[str, Callable[..., tuple[int, dict[str, Any]]]] = {
     "chats.send": _action_chats_send,
     "chats.progress": _action_chats_progress,
     "chats.cancel": _action_chats_cancel,
+    "chats.rename": _action_chats_rename,
+    "chats.archive": _action_chats_archive,
+    "chats.delete": _action_chats_delete,
     "attachments.limits": _action_attachments_limits,
     "attachments.upload": _action_attachments_upload,
     "files.list": _action_files_list,
