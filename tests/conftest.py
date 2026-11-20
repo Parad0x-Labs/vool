@@ -182,6 +182,11 @@ RUNTIME_TABLES = (
     "native_notification_requests",
     # One test's Operator Profile (its timezone, name, rules) must not answer the next test.
     "operator_profile_items", "operator_profile_history", "operator_profile_state",
+    # One test's saved contacts must not be counted by the next test: the stores below live in
+    # the shared test database, children first.
+    "contact_authorizations", "contact_suggestions", "contact_operations", "contact_import_runs",
+    "contact_sources", "contact_endpoints", "contact_aliases", "contact_events",
+    "contact_identity_tombstones", "contacts",
     "runtime_checkpoints",
     "runtime_session_events",
     "runtime_sessions",
