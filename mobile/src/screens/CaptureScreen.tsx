@@ -69,6 +69,8 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   const [denied, setDenied] = useState<"" | "camera" | "microphone">("");
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Set at once, unlike state: a second press arriving in the same moment never takes a second photo.
+  const pressing = useRef(false);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [note, setNote] = useState("");
@@ -129,7 +131,14 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   }
 
   async function shutter() {
+    if (pressing.current) {capture?.trace?.("screen: a second press in the same moment was ignored"); return;}
     if (busy || !capture) return;
+    pressing.current = true;
+    try {await shutterOnce();} finally {pressing.current = false;}
+  }
+
+  async function shutterOnce() {
+    if (!capture) return;
     if (prefs.timer && !recording && kind !== "sound") {
       setBusy(true);
       await wait(prefs.timer);
