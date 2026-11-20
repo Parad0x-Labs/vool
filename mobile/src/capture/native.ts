@@ -23,6 +23,10 @@ interface VoolCaptureNative {
   setHomeIcon(on: boolean): Promise<void>;
   canAddTile(): boolean;
   addTile(): Promise<"added" | "already" | "not_added" | "unsupported">;
+  /** Optional compression (JSON strings; "" when the build has no compression package). */
+  getCompressionSettings(): string;
+  setCompressionSettings(json: string): string;
+  getCompressionCapabilities(): string;
 }
 
 /** The private capture's native side. Android only; elsewhere the feature is simply absent. */

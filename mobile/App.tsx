@@ -14,6 +14,7 @@ import PairScreen from "./src/screens/PairScreen.tsx";
 import ChatsScreen from "./src/screens/ChatsScreen.tsx";
 import CaptureScreen from "./src/screens/CaptureScreen.tsx";
 import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
+import CompressionSettings from "./src/screens/CompressionSettings.tsx";
 import {useCaptureQueue} from "./src/capture/useCaptureQueue.ts";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen.tsx";
 import StatusScreen from "./src/screens/StatusScreen.tsx";
@@ -283,7 +284,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
             {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection}
-              captureSettings={openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera} /> : null} />}
+              captureSettings={openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}><CompressionSettings /></PrivateCaptureSettings> : null} />}
             {tab === "wallet" && <WalletScreen client={client} onRevoked={onRevoked} />}
             {tab === "notifications" && <NotificationsScreen client={client} onOpen={openAlert} osEnabled={notifications.osEnabled}
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
