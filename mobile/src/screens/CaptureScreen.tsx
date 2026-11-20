@@ -3,7 +3,7 @@ import {ActivityIndicator, Animated, Linking, PermissionsAndroid, Pressable, Scr
 import {StatusBar} from "expo-status-bar";
 
 import {errorText, tr} from "../i18n/index.ts";
-import {capture, PHOTO_FILTERS, PrivateCameraView, type CameraHandle, type CameraMode, type PhotoFilter} from "../capture/native.ts";
+import {capture, PHOTO_FILTERS, PrivateCameraView, type CameraHandle, type CameraMode, type PhotoEdit, type PhotoFilter} from "../capture/native.ts";
 import {loadCameraPrefs, megapixels, saveCameraPrefs, type CameraPrefs} from "../capture/cameraPrefs.ts";
 import SettingsCard, {cardRow} from "../ui/SettingsCard.tsx";
 import type {SendProblem} from "../capture/sender.ts";
@@ -13,15 +13,31 @@ import {RevealScrollView} from "../ui/Reveal.tsx";
 import {useEdges} from "../ui/Frame.tsx";
 import {C} from "../ui/theme.ts";
 
-type Kind = "photo" | "video" | "sound";
-const KINDS: Kind[] = ["photo", "video", "sound"];
-const kindLabel = (kind: Kind) => kind === "photo" ? tr("Photo") : kind === "video" ? tr("Video") : tr("Sound");
+type Kind = "photo" | "document" | "video" | "sound";
+const KINDS: Kind[] = ["photo", "document", "video", "sound"];
+const kindLabel = (kind: Kind) => kind === "photo" ? tr("Photo") : kind === "document" ? tr("Document") : kind === "video" ? tr("Video") : tr("Sound");
+const DOC_STYLES: [CameraPrefs["docStyle"], () => string][] = [["color", () => tr("Colour")], ["gray", () => tr("Grey")], ["bw", () => tr("Black and white")]];
+const BEAUTY_LEVELS: [CameraPrefs["beautyLevel"], () => string][] = [[1, () => tr("Light")], [2, () => tr("Natural")], [3, () => tr("Strong")]];
 const modeLabel = (mode: CameraMode) => mode === "night" ? tr("Night") : mode === "hdr" ? "HDR" : mode === "portrait" ? tr("Portrait")
   : mode === "retouch" ? tr("Retouch") : tr("Auto");
 const filterLabel = (filter: PhotoFilter) => filter === "warm" ? tr("Warm") : filter === "cool" ? tr("Cool") : filter === "vivid" ? tr("Vivid")
-  : filter === "fade" ? tr("Fade") : filter === "mono" ? tr("Mono") : filter === "noir" ? tr("Noir") : tr("None");
+  : filter === "fade" ? tr("Fade") : filter === "mono" ? tr("Mono") : filter === "noir" ? tr("Noir")
+  : filter === "natural" ? tr("Natural") : filter === "film" ? tr("Film") : tr("None");
 // A colour hint for each filter chip (the viewfinder shows the real thing).
-const FILTER_SWATCH: Record<PhotoFilter, string> = {none: "#3a3f4a", warm: "#d9a066", cool: "#6f9fd8", vivid: "#e0654f", fade: "#b9ab9c", mono: "#9a9a9a", noir: "#2b2b2b"};
+const FILTER_SWATCH: Record<PhotoFilter, string> = {none: "#3a3f4a", natural: "#c9a98c", warm: "#d9a066", cool: "#6f9fd8", vivid: "#e0654f",
+  film: "#a8a172", fade: "#b9ab9c", mono: "#9a9a9a", noir: "#2b2b2b"};
+
+/** What the saver makes of a photo after the shot (the camera's own modes are separate). */
+function photoEdit(kind: Kind, prefs: CameraPrefs): PhotoEdit {
+  if (kind === "document") return `doc-${prefs.docStyle}`;
+  if (kind !== "photo") return "";
+  return prefs.photoEdit === "beauty" ? `beauty${prefs.beautyLevel}` : prefs.photoEdit === "enhance" ? "enhance" : "";
+}
+
+/** A page needs no more than about 12 MP: a smaller shot is quicker and the page is found the same. */
+function documentSize(sizes: string[]): string {
+  return sizes.find(size => Math.max(...size.split("x").map(Number)) <= 4800) ?? "max";
+}
 
 interface Props {
   waiting: number;
@@ -84,6 +100,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   const [prefs, setPrefs] = useState<CameraPrefs>(loadCameraPrefs);
   const [sheet, setSheet] = useState(false);
   const [filters, setFilters] = useState(false);
+  const [pageSeen, setPageSeen] = useState(false);
   const [zoom, setZoom] = useState<{ratio: number; min: number; max: number} | null>(null);
   const [focus, setFocus] = useState<{x: number; y: number} | null>(null);
   // The screen stays upright; the round buttons' symbols turn with the phone, like the phone's own camera.
@@ -92,14 +109,16 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   const [countdown, setCountdown] = useState(0);
   const [area, setArea] = useState({width: 0, height: 0});
   const [sizes, setSizes] = useState<{sizes: string[]; sensorMax: string}>({sizes: [], sensorMax: ""});
+  // Documents are scanned with the back camera.
+  const lens = kind === "document" ? "back" : facing;
   const change = (patch: Partial<CameraPrefs>) => {
     setPrefs(current => {const next = {...current, ...patch}; saveCameraPrefs(next); return next;});
   };
   useEffect(() => {
     let current = true;
-    void capture?.photoSizes(facing).then(found => {if (current) setSizes(found);}).catch(() => {});
+    void capture?.photoSizes(lens).then(found => {if (current) setSizes(found);}).catch(() => {});
     return () => {current = false;};
-  }, [facing]);
+  }, [lens]);
   useEffect(() => {
     if (!focus) return;
     const timer = setTimeout(() => setFocus(null), 900);
@@ -161,7 +180,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   }
 
   async function shutter() {
-    if (kind === "photo" && !prefs.timer) {snap(); return;}
+    if ((kind === "photo" || kind === "document") && !prefs.timer) {snap(); return;}
     if (pressing.current) {return;}
     if (busy || !capture) return;
     pressing.current = true;
@@ -178,7 +197,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
     setBusy(true);
     setNote("");
     try {
-      if (kind === "photo") {
+      if (kind === "photo" || kind === "document") {
         flash.setValue(1);
         Animated.timing(flash, {toValue: 0, duration: 160, useNativeDriver: true}).start();
         await camera.current?.takePhoto();
@@ -225,9 +244,11 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   return (
     <View style={styles.screen} onLayout={event => setArea(event.nativeEvent.layout)}>
       <StatusBar style="light" />
-      {showCamera ? <PrivateCameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} mode={mode} video={kind === "video"}
-        flash={prefs.flash} aspect={prefs.aspect} photoSize={facing === "back" ? prefs.photoSize : "max"} videoQuality={prefs.videoQuality}
-        steady={prefs.steady} mirror={prefs.mirror} filter={kind === "photo" ? prefs.filter : "none"}
+      {showCamera ? <PrivateCameraView ref={camera} style={StyleSheet.absoluteFill} facing={lens}
+        mode={kind === "photo" && prefs.photoEdit === "none" ? mode : "standard"} video={kind === "video"}
+        flash={prefs.flash} aspect={prefs.aspect} photoSize={kind === "document" ? documentSize(sizes.sizes) : lens === "back" ? prefs.photoSize : "max"}
+        videoQuality={prefs.videoQuality} steady={prefs.steady} mirror={prefs.mirror} filter={kind === "photo" ? prefs.filter : "none"}
+        edit={photoEdit(kind, prefs)} onPage={event => setPageSeen(event.nativeEvent.found)}
         onZoom={event => setZoom(event.nativeEvent)} onFocus={event => setFocus(event.nativeEvent)}
         onTurn={event => setTurn(event.nativeEvent.degrees)}
         onModes={event => {const list = event.nativeEvent.modes; setModes(list); if (mode !== "standard" && !list.includes(mode)) setMode("standard");}}
@@ -260,7 +281,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
         {kind !== "sound" ? <Pressable style={styles.round} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${tr("Flash")}: ${flashWord}`}
           onPress={() => change({flash: kind === "video" ? (prefs.flash === "on" ? "off" : "on") : prefs.flash === "off" ? "auto" : prefs.flash === "auto" ? "on" : "off"})}>
           <View style={spin}><Icon name={kind === "video" ? (prefs.flash === "on" ? "flashlight" : "flashlight-off") : prefs.flash === "on" ? "flash" : prefs.flash === "auto" ? "flash-auto" : "flash-off"}
-            size={22} color={prefs.flash === "on" || (kind === "photo" && prefs.flash === "auto") ? C.acc : C.ink} /></View>
+            size={22} color={prefs.flash === "on" || (kind !== "video" && prefs.flash === "auto") ? C.acc : C.ink} /></View>
         </Pressable> : null}
         <Pressable style={styles.round} onPress={() => setSheet(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={tr("Camera settings")} disabled={recording}>
           <View style={spin}><Icon name="tune-variant" size={22} color={recording ? C.faint : C.ink} /></View>
@@ -269,10 +290,30 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
 
       <View style={[styles.bottom, {paddingBottom: edges.bottom + 18}]}>
         {note ? <Text style={styles.note}>{note}</Text> : null}
-        {kind === "photo" && modes.length ? <View style={styles.modes}>
-          {(["standard", ...modes] as CameraMode[]).map(value => <Pressable key={value} onPress={() => setMode(value)}
-            style={[styles.mode, mode === value && styles.modeOn]} accessibilityRole="button" accessibilityState={{selected: mode === value}}>
-            <Text style={[styles.modeText, mode === value && styles.modeTextOn]}>{modeLabel(value)}</Text></Pressable>)}
+        {kind === "photo" && prefs.photoEdit === "beauty" ? <View style={styles.modes}>
+          {BEAUTY_LEVELS.map(([value, label]) => <Pressable key={value} onPress={() => change({beautyLevel: value})}
+            style={[styles.level, prefs.beautyLevel === value && styles.levelOn]} accessibilityRole="radio" accessibilityState={{selected: prefs.beautyLevel === value}}>
+            <Text style={[styles.filterText, prefs.beautyLevel === value && styles.modeTextOnDark]}>{label()}</Text></Pressable>)}
+        </View> : null}
+        {kind === "photo" ? <View style={styles.modes}>
+          {(["standard", ...modes] as CameraMode[]).map(value => {
+            const on = mode === value && prefs.photoEdit === "none";
+            return <Pressable key={value} onPress={() => {setMode(value); if (prefs.photoEdit !== "none") change({photoEdit: "none"});}}
+              style={[styles.mode, on && styles.modeOn]} accessibilityRole="button" accessibilityState={{selected: on}}>
+              <Text style={[styles.modeText, on && styles.modeTextOn]}>{modeLabel(value)}</Text></Pressable>;
+          })}
+          {(["beauty", "enhance"] as const).map(value => {
+            const on = prefs.photoEdit === value;
+            return <Pressable key={value} onPress={() => {setMode("standard"); change({photoEdit: on ? "none" : value});}}
+              style={[styles.mode, on && styles.modeOn]} accessibilityRole="button" accessibilityState={{selected: on}}>
+              <Text style={[styles.modeText, on && styles.modeTextOn]}>{value === "beauty" ? tr("Beauty") : tr("Enhance")}</Text></Pressable>;
+          })}
+        </View> : null}
+        {kind === "document" && showCamera ? <Text style={styles.note}>{pageSeen ? tr("Page found") : tr("Point at a page")}</Text> : null}
+        {kind === "document" ? <View style={styles.modes}>
+          {DOC_STYLES.map(([value, label]) => <Pressable key={value} onPress={() => change({docStyle: value})}
+            style={[styles.mode, prefs.docStyle === value && styles.modeOn]} accessibilityRole="radio" accessibilityState={{selected: prefs.docStyle === value}}>
+            <Text style={[styles.modeText, prefs.docStyle === value && styles.modeTextOn]}>{label()}</Text></Pressable>)}
         </View> : null}
         {kind === "photo" && filters ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           {PHOTO_FILTERS.map(value => <Pressable key={value} onPress={() => change({filter: value})} style={styles.filter}
@@ -296,10 +337,10 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
           </Pressable> : <View style={styles.round} />}
           <Pressable onPress={() => void shutter()} disabled={busy && !recording || !!denied || (kind !== "sound" && !ready)}
             style={({pressed}) => [styles.shutter, recording && styles.shutterRec, pressed && styles.shutterDown]} accessibilityRole="button"
-            accessibilityLabel={kind === "photo" ? tr("Take photo") : recording ? tr("Stop recording") : tr("Start recording")}>
-            {kind === "photo" ? <View style={styles.shutterCore} /> : recording ? <View style={styles.stopCore} /> : <View style={styles.recCore} />}
+            accessibilityLabel={kind === "photo" || kind === "document" ? tr("Take photo") : recording ? tr("Stop recording") : tr("Start recording")}>
+            {kind === "photo" || kind === "document" ? <View style={styles.shutterCore} /> : recording ? <View style={styles.stopCore} /> : <View style={styles.recCore} />}
           </Pressable>
-          {kind !== "sound" ? <Pressable style={styles.round} onPress={() => setFacing(f => f === "back" ? "front" : "back")} hitSlop={8}
+          {kind === "photo" || kind === "video" ? <Pressable style={styles.round} onPress={() => setFacing(f => f === "back" ? "front" : "back")} hitSlop={8}
             accessibilityRole="button" accessibilityLabel={tr("Switch camera")} disabled={recording}>
             <View style={spin}><Icon name="camera-flip-outline" size={24} color={recording ? C.faint : C.ink} /></View>
           </Pressable> : <View style={styles.round} />}
@@ -414,6 +455,8 @@ const styles = StyleSheet.create({
   swatch: {width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: "rgba(241,238,232,0.25)"},
   swatchOn: {borderColor: C.acc, borderWidth: 3},
   filterText: {color: C.soft, fontSize: 12, fontWeight: "600"},
+  level: {paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "rgba(11,13,17,0.6)"},
+  levelOn: {borderWidth: 1, borderColor: C.acc},
   modeTextOnDark: {color: C.acc},
   zooms: {flexDirection: "row", gap: 8, backgroundColor: "rgba(11,13,17,0.55)", borderRadius: 20, padding: 4},
   zoom: {minWidth: 40, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 8},

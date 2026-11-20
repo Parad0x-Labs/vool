@@ -11,10 +11,15 @@ export interface CameraPrefs {
   steady: boolean;
   mirror: boolean;
   filter: PhotoFilter;
+  /** Photo mode on top of the camera's own: none, Beauty or Enhance. */
+  photoEdit: "none" | "beauty" | "enhance";
+  beautyLevel: 1 | 2 | 3;
+  docStyle: "color" | "gray" | "bw";
 }
 
 export const DEFAULT_CAMERA_PREFS: CameraPrefs = {
   flash: "off", timer: 0, grid: 0, aspect: "4:3", photoSize: "max", videoQuality: "highest", steady: true, mirror: false, filter: "none",
+  photoEdit: "none", beautyLevel: 2, docStyle: "color",
 };
 
 const pick = <T,>(value: unknown, allowed: readonly T[], fallback: T): T => allowed.includes(value as T) ? value as T : fallback;
@@ -35,6 +40,9 @@ export function parseCameraPrefs(raw: string): CameraPrefs {
     steady: typeof data.steady === "boolean" ? data.steady : d.steady,
     mirror: typeof data.mirror === "boolean" ? data.mirror : d.mirror,
     filter: pick(data.filter, PHOTO_FILTERS, d.filter),
+    photoEdit: pick(data.photoEdit, ["none", "beauty", "enhance"] as const, d.photoEdit),
+    beautyLevel: pick(data.beautyLevel, [1, 2, 3] as const, d.beautyLevel),
+    docStyle: pick(data.docStyle, ["color", "gray", "bw"] as const, d.docStyle),
   };
 }
 

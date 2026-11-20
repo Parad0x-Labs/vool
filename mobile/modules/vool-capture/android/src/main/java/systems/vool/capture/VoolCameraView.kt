@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.RenderEffect
+import android.graphics.RuntimeShader
 import android.os.Build
 import android.util.Size
 import android.view.MotionEvent
@@ -16,6 +18,7 @@ import android.view.ViewGroup
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.MirrorMode
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -58,6 +61,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
   private val onZoom by EventDispatcher()
   private val onFocus by EventDispatcher()
   private val onTurn by EventDispatcher()
+  private val onPage by EventDispatcher()
 
   /**
    * How the phone is held right now. The app's screen stays upright, so the screen's own rotation
@@ -87,6 +91,8 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     scaleType = PreviewView.ScaleType.FIT_CENTER
   }
   private val worker = Executors.newSingleThreadExecutor()
+  private val looker = Executors.newSingleThreadExecutor()
+  private val outline = PageOutline(context).apply { onFound = { found -> onPage(mapOf("found" to found)) } }
   private var provider: ProcessCameraProvider? = null
   private var extensions: ExtensionsManager? = null
   private var imageCapture: ImageCapture? = null
@@ -106,9 +112,13 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
   private var steady = true
   private var mirror = false
   private var filter = "none"
+  /** VOOL's own photo mode, made after the shot: "" | enhance | beauty1-3 | doc-color | doc-gray | doc-bw. */
+  private var edit = ""
+  private val document get() = edit.startsWith("doc-")
 
   init {
     addView(preview, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    addView(outline, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     gestures()
   }
 
@@ -127,6 +137,13 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
   fun setSteady(value: Boolean) { if (value != steady) { steady = value; bind() } }
   fun setMirror(value: Boolean) { if (value != mirror) { mirror = value; bind() } }
   fun setFilter(value: String) { if (value != filter) { filter = value; showFilter() } }
+  fun setEdit(value: String) {
+    val next = if (value in ImageEdits.edits) value else ""
+    if (next == edit) return
+    val rebind = next.startsWith("doc-") != document
+    edit = next
+    if (rebind) bind() else showFilter()
+  }
 
   fun setZoom(ratio: Double) {
     camera?.cameraControl?.setZoomRatio(ratio.toFloat())
@@ -138,11 +155,34 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     else -> ImageCapture.FLASH_MODE_OFF
   }
 
-  /** The chosen filter, live on the viewfinder (Android 12 and later). */
+  /**
+   * The chosen look and mode, live on the viewfinder (Android 12 and later; Beauty's smoothing from
+   * Android 13). The live view is a close preview: the saved photo is made at full size after the shot.
+   */
   private fun showFilter() {
     if (Build.VERSION.SDK_INT < 31) return
-    val m = if (video) null else PhotoFilters.matrix(filter)
-    preview.setRenderEffect(m?.let { RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(it)) })
+    if (video || document) { preview.setRenderEffect(null); return }
+    val look = PhotoFilters.matrix(filter)
+    val boost = if (edit == "enhance") ColorMatrix().apply { setSaturation(1.08f); postConcat(ColorMatrix(floatArrayOf(
+      1.06f, 0f, 0f, 0f, -7.7f, 0f, 1.06f, 0f, 0f, -7.7f, 0f, 0f, 1.06f, 0f, -7.7f, 0f, 0f, 0f, 1f, 0f))) } else null
+    val color = when {
+      look != null && boost != null -> ColorMatrix(boost).apply { postConcat(look) }
+      else -> look ?: boost
+    }
+    var effect = color?.let { RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(it)) }
+    beautyEffect()?.let { skin -> effect = effect?.let { RenderEffect.createChainEffect(it, skin) } ?: skin }
+    preview.setRenderEffect(effect)
+  }
+
+  private fun beautyEffect(): RenderEffect? {
+    if (Build.VERSION.SDK_INT < 33 || !edit.startsWith("beauty")) return null
+    val level = edit.removePrefix("beauty").toIntOrNull()?.coerceIn(1, 3) ?: 2
+    return try {
+      val shader = RuntimeShader(BEAUTY_SHADER)
+      shader.setFloatUniform("amount", floatArrayOf(0.45f, 0.65f, 0.85f)[level - 1])
+      shader.setFloatUniform("radius", 3f * resources.displayMetrics.density)
+      RenderEffect.createRuntimeShaderEffect(shader, "content")
+    } catch (_: Throwable) { null }
   }
 
   /** Pinch to zoom, tap to focus. */
@@ -228,6 +268,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
 
   override fun onDetachedFromWindow() {
     turnWatch.disable()
+    outline.clear()
     recording?.stop()
     provider?.unbindAll()
     super.onDetachedFromWindow()
@@ -253,6 +294,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
         if (steady) { ready.unbindAll(); bindWith(ready, owner, base, false) } else throw error
       }
       camera?.let { watchZoom(it); if (video && flash == "on") it.cameraControl.enableTorch(true) }
+      if (!document) outline.clear()
       showFilter()
     } catch (error: Exception) {
       onCameraError(mapOf("message" to (error.message ?: "camera")))
@@ -279,6 +321,26 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     val manager = extensions
     val available = modeMap.filter { manager?.isExtensionAvailable(base, it.value) == true }.keys.toList()
     onModes(mapOf("modes" to available))
+    if (document) {
+      // Document: plain camera plus a small brightness-only frame for the live page outline.
+      val capture = ImageCapture.Builder()
+        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+        .setResolutionSelector(photoSelector())
+        .setFlashMode(flashMode())
+        .setTargetRotation(turn)
+        .build()
+      val analysis = ImageAnalysis.Builder()
+        .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(ratio())
+          .setResolutionStrategy(ResolutionStrategy(Size(640, 480), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)).build())
+        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        .build().also { it.setAnalyzer(looker, outline.analyzer) }
+      imageCapture = capture
+      videoCapture = null
+      return try { ready.bindToLifecycle(owner, base, viewfinder, capture, analysis) } catch (error: Exception) {
+        // A phone that cannot run three streams at once still scans, without the live outline.
+        ready.unbindAll(); ready.bindToLifecycle(owner, base, viewfinder, capture)
+      }
+    }
     val chosen = modeMap[mode]
     val selector = if (manager != null && chosen != null && mode in available) manager.getExtensionEnabledCameraSelector(base, chosen) else base
     val capture = ImageCapture.Builder()
@@ -298,7 +360,8 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     val takenAt = System.currentTimeMillis()
     capture.targetRotation = turn
     val metadata = ImageCapture.Metadata().apply { isReversedHorizontal = facing == "front" && mirror }
-    val chosenFilter = filter
+    // The look and the mode travel with the shot ("look|mode"); they are made after it, in the saver.
+    val chosenFilter = if (edit.isEmpty()) filter else "${if (document) "none" else filter}|$edit"
     // The shutter is free again as soon as the picture is taken: writing, the filter, compression and
     // locking it away all happen behind, in order, so shots in a row never wait for each other.
     val answered = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -373,3 +436,38 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     current.stop()
   }
 }
+
+/**
+ * Live Beauty on the viewfinder: skin (by colour) is softened with an edge-keeping blur and lifted a
+ * little. A close preview of what the saver makes at full size with OpenCV after the shot.
+ */
+private const val BEAUTY_SHADER = """
+uniform shader content;
+uniform float amount;
+uniform float radius;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float y = dot(float3(c.rgb), float3(0.299, 0.587, 0.114));
+  float cr = (float(c.r) - y) * 0.713 + 0.5;
+  float cb = (float(c.b) - y) * 0.564 + 0.5;
+  float outside = max(max(0.52 - cr, cr - 0.68), max(0.30 - cb, cb - 0.50));
+  float skin = 1.0 - smoothstep(0.0, 0.03, outside);
+  if (skin <= 0.0) { return c; }
+  float3 sum = float3(c.rgb);
+  float total = 1.0;
+  for (int i = 0; i < 12; i++) {
+    float a = float(i) * 0.5236;
+    float2 d = float2(cos(a), sin(a));
+    for (int r = 1; r <= 2; r++) {
+      float3 s = float3(content.eval(p + d * radius * float(r)).rgb);
+      float3 diff = s - float3(c.rgb);
+      float w = exp(-dot(diff, diff) * 60.0);
+      sum += s * w;
+      total += w;
+    }
+  }
+  float m = skin * amount;
+  float3 outc = mix(float3(c.rgb), sum / total, m) + m * 0.05;
+  return half4(half3(clamp(outc, 0.0, 1.0)), c.a);
+}
+"""

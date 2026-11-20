@@ -163,7 +163,7 @@ class VoolCaptureModule : Module() {
     }
 
     View(VoolCameraView::class) {
-      Events("onModes", "onCaptured", "onCameraError", "onZoom", "onFocus", "onTurn")
+      Events("onModes", "onCaptured", "onCameraError", "onZoom", "onFocus", "onTurn", "onPage")
       Prop("facing") { view: VoolCameraView, value: String -> view.setFacing(value) }
       Prop("mode") { view: VoolCameraView, value: String -> view.setMode(value) }
       Prop("video") { view: VoolCameraView, value: Boolean -> view.setVideo(value) }
@@ -174,6 +174,7 @@ class VoolCaptureModule : Module() {
       Prop("steady") { view: VoolCameraView, value: Boolean -> view.setSteady(value) }
       Prop("mirror") { view: VoolCameraView, value: Boolean -> view.setMirror(value) }
       Prop("filter") { view: VoolCameraView, value: String -> view.setFilter(value) }
+      Prop("edit") { view: VoolCameraView, value: String -> view.setEdit(value) }
       AsyncFunction("setZoom") { view: VoolCameraView, ratio: Double -> view.setZoom(ratio) }
       AsyncFunction("takePhoto") { view: VoolCameraView, promise: Promise -> view.takePhoto(promise) }
       AsyncFunction("startVideo") { view: VoolCameraView, promise: Promise -> view.startVideo(promise) }
