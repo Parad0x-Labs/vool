@@ -57,7 +57,7 @@ def test_away_switch_in_chromium_puts_the_address_in_the_pairing_code(desktop, t
             address = runtime.phone_listener.away.host
             assert away.HIDDEN_HOST.fullmatch(address) and tor.running
             status, pairing = http(base, "/api/mobile/pairing/start", {})
-            assert status == 200 and pairing["qr_uri"].endswith("&away=" + address)
+            assert status == 200 and ("&away=" + address + "&") in pairing["qr_uri"] + "&"
             # The pairing page draws its own code: that one must carry the away address too.
             import urllib.request
             with urllib.request.urlopen(base + pairing["pairing_page"], timeout=10) as reply:

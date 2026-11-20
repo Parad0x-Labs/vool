@@ -22,7 +22,8 @@ def test_ability_defaults_off_pc_enable_and_pause_take_effect(desktop, ability):
 
 
 def test_photo_requires_attachment_right_and_cannot_widen_it(desktop):
-    phone = pair(desktop, rights={'camera': True})
+    # Attachments are on at pairing (sls Nov 19); the owner turns them off here to prove photo still needs them.
+    phone = pair(desktop, rights={'camera': True, 'attachments': False})
     assert call(*phone, 'abilities.check', {'ability': 'camera', 'attachments': True})[0] == 403
     assert call(*phone, 'abilities.check', {'ability': 'contacts'})[0] == 400
 

@@ -90,7 +90,8 @@ def test_malformed_key_refuses_cleanly_and_same_code_can_pair_without_approval(d
     assert len(service.store.devices()) == 1
     device = service.store.device(accepted["device_id"])
     assert device["approval_key"]["state"] == "missing_use_computer"
-    assert not any(device["rules"].values())
+    from core.mobile_companion.policy import PAIRED_BASICS
+    assert {name for name, on in device["rules"].items() if on} == set(PAIRED_BASICS)
     assert call(phone, key, shared, accepted, "devices.me")[0] == 200
 
 

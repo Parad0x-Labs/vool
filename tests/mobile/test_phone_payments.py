@@ -66,8 +66,11 @@ def grant(money, **extra):
 
 def test_phone_defaults_and_owner_rights_are_not_phone_writable(money):
     _, phone, _, cap, _ = money
-    assert not any(call(*phone, "devices.me")[1]["result"]["rules"].values())
-    for action in ("wallet.status", "wallet.pending", "wallet.propose", "wallet.approve", "chats.list", "attachments.upload"):
+    from core.mobile_companion.policy import PAIRED_BASICS
+    rules = call(*phone, "devices.me")[1]["result"]["rules"]
+    assert {name for name, on in rules.items() if on} <= set(PAIRED_BASICS)
+    assert not any(rules[name] for name in ("wallet_view", "payment_propose"))
+    for action in ("wallet.status", "wallet.pending", "wallet.propose", "wallet.approve"):
         status, result = call(*phone, action, {"rules": {"payment_propose": True}, "payment_cap": cap})
         assert status == 403 and result["code"] == "phone_right_off_or_expired"
     assert grant(money)[0] == 200
