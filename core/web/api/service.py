@@ -1102,6 +1102,17 @@ def _dispatch_get(
         except BrowserFault as exc:
             return json_response(409, {"ok": False, "error": str(exc)})
 
+    if normalized_path == "/media":
+        from core.media_library_fragment import render_media_page
+
+        return apply_runtime_headers(html_response(200, render_media_page(resolve_page_locale(query, headers)), headers={"Cache-Control": "no-store"}), runtime)
+    if normalized_path == "/api/media/item":
+        from core.media_library.api import item as media_item
+
+        _mi_status, _mi_type, _mi_body, _mi_headers = media_item(query, headers=headers or {}, client_host=client_host)
+        if isinstance(_mi_body, (bytes, bytearray)):
+            return apply_runtime_headers(ApiResponse(status=_mi_status, content_type=_mi_type, body=bytes(_mi_body), headers=_mi_headers), runtime)
+        return apply_runtime_headers(ApiResponse(status=_mi_status, content_type=_mi_type, stream=_mi_body, headers=_mi_headers), runtime)
     if normalized_path == "/my-things":
         from core.my_things_fragment import render_my_things_page
 
@@ -3556,6 +3567,12 @@ def dispatch_post(
         status, payload = handle(body, headers=headers, client_host=client_host)
         return apply_runtime_headers(json_response(status, payload), runtime)
 
+    if normalized_path == "/api/media":
+        from core.media_library.api import handle as media_handle
+
+        status, payload = media_handle(body, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(status, payload), runtime)
+
     if normalized_path == "/api/drop":
         from core.web.api.drop_api import handle
 
@@ -4102,9 +4119,12 @@ BUNDLE_UPLOAD_CEILING = 256 * 1024 * 1024
 #: An export zip of chats from another AI app (core.web.api.chat_import_api).
 CHAT_IMPORT_UPLOAD_PATH = "/api/chat/import/upload"
 
+#: One slice of a file going into the protected media library (core.media_library.api).
+MEDIA_UPLOAD_PATH = "/api/media/upload"
+
 
 def is_raw_upload_path(path: str) -> bool:
-    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH, "/api/drop/send", "/api/lend/send")
+    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH, "/api/drop/send", "/api/lend/send", MEDIA_UPLOAD_PATH)
 
 
 def raw_upload_body_ceiling(path: str = "") -> int:
@@ -4115,6 +4135,10 @@ def raw_upload_body_ceiling(path: str = "") -> int:
         from core.drop.service import MAX_FILE
 
         return MAX_FILE
+    if (str(path or "").rstrip("/") or "/") == MEDIA_UPLOAD_PATH:
+        from core.media_library.api import SLICE_BYTES
+
+        return SLICE_BYTES + 64 * 1024
     if (str(path or "").rstrip("/") or "/") == BUNDLE_UPLOAD_PATH:
         return BUNDLE_UPLOAD_CEILING
     if (str(path or "").rstrip("/") or "/") == CHAT_IMPORT_UPLOAD_PATH:
@@ -4181,6 +4205,12 @@ def dispatch_upload(
         from core.lend.api import upload
 
         status, payload = upload(raw_body, headers=headers, client_host=client_host)
+        return _out(json_response(status, payload))
+
+    if path == MEDIA_UPLOAD_PATH:
+        from core.media_library.api import upload as media_upload
+
+        status, payload = media_upload(raw_body, headers=headers, client_host=client_host)
         return _out(json_response(status, payload))
 
     if path == "/api/drop/send":
