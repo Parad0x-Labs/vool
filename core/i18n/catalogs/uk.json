@@ -3906,6 +3906,7 @@
     "phone.right.payment_approve": "Підтверджувати платежі",
     "phone.right.payment_propose": "Пропонувати платежі",
     "phone.right.photos": "Фото",
+    "phone.right.media": "Перегляд захищених медіа (VOOL Vault)",
     "phone.right.tool_approval": "Підтверджувати дії",
     "phone.right.wallet_view": "Баланси та квитанції гаманця",
     "phone.right_expiry": "Діє до",
@@ -5071,7 +5072,7 @@
     "settings.row.media_library.help": "Фото, відео та звук із приватної камери вашого телефона й файли, які ви додаєте самі. Вони залишаються під замком на цьому комп’ютері й ніколи не з’являються в інших застосунках чи в пошуку.",
     "settings.media_open": "Відкрити захищені медіа"
   },
-  "source_catalog_sha256": "148048200cc697886466614d633df36743022cbf83e063433830e78b274e13de",
+  "source_catalog_sha256": "adaa6acb8e4bad0ea826c60fc79212e37bc7450222b7db3cd5d0dea3f18847cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

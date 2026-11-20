@@ -19,6 +19,8 @@ RIGHTS = (
     "photos",
     "location",
     "microphone",
+    # VOOL Vault on the phone: browse and open this computer's protected photos, videos and sound.
+    "media",
     # The owner's own VOOL from the phone (core.request_trust.remote_turn_tool_refusal): files, apps,
     # commands and accounts on this computer; and the owner's paid models and paid search. Money
     # tools stay out of chat either way; payments go through payment_propose and the wallet.
@@ -62,6 +64,11 @@ ACTIONS = {
     "capture.finish": "attachments",
     # the phone reports it removed a capture this computer confirmed (for the receipt trail)
     "capture.removed": "attachments",
+    # VOOL Vault: the phone browses and opens this computer's protected media library
+    "media.list": "media",
+    "media.thumb": "media",
+    "media.read": "media",
+    "media.exported": "media",
 }
 
 

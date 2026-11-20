@@ -3906,6 +3906,7 @@
     "phone.right.payment_approve": "भुगतान मंज़ूर करें",
     "phone.right.payment_propose": "भुगतान प्रस्तावित करें",
     "phone.right.photos": "फ़ोटो",
+    "phone.right.media": "सुरक्षित मीडिया देखना (VOOL Vault)",
     "phone.right.tool_approval": "कार्रवाइयों को मंज़ूरी दें",
     "phone.right.wallet_view": "वॉलेट शेष और रसीदें",
     "phone.right_expiry": "समाप्ति",
@@ -5071,7 +5072,7 @@
     "settings.row.media_library.help": "आपके फ़ोन के निजी कैमरे से फ़ोटो, वीडियो और आवाज़, और वे फ़ाइलें जो आप ख़ुद जोड़ते हैं। ये इस कंप्यूटर पर ताले में रहती हैं और दूसरे ऐप या खोज में कभी नहीं दिखतीं।",
     "settings.media_open": "सुरक्षित मीडिया खोलें"
   },
-  "source_catalog_sha256": "148048200cc697886466614d633df36743022cbf83e063433830e78b274e13de",
+  "source_catalog_sha256": "adaa6acb8e4bad0ea826c60fc79212e37bc7450222b7db3cd5d0dea3f18847cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
