@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "Chất lượng cao nhất, ở định dạng tốt nhất điện thoại này tạo được.",
     "phone.capture.compress.balanced_hint": "Tệp nhỏ hơn, rất gần bản gốc.",
     "phone.capture.compress.small_hint": "Nhỏ hơn nhiều. Ảnh tối đa 2560 px, video tối đa 1080p.",
-    "phone.capture.compress.custom_hint": "Tự chọn từng cài đặt."
+    "phone.capture.compress.custom_hint": "Tự chọn từng cài đặt.",
+    "phone.settings.permissions": "Quyền",
+    "phone.settings.screen_lock": "Khóa màn hình",
+    "phone.settings.smaller_files": "Tệp nhỏ hơn",
+    "phone.settings.trouble": "Khi có sự cố"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

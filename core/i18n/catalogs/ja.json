@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "最高画質で、このスマホが作れる最良の形式にします。",
     "phone.capture.compress.balanced_hint": "より小さく、元にとても近い仕上がり。",
     "phone.capture.compress.small_hint": "かなり小さく。写真は最大 2560 px、動画は最大 1080p。",
-    "phone.capture.compress.custom_hint": "すべての設定を自分で選びます。"
+    "phone.capture.compress.custom_hint": "すべての設定を自分で選びます。",
+    "phone.settings.permissions": "権限",
+    "phone.settings.screen_lock": "画面ロック",
+    "phone.settings.smaller_files": "ファイルを小さく",
+    "phone.settings.trouble": "困ったときは"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

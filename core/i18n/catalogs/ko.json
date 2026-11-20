@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "최고 화질, 이 휴대폰이 만들 수 있는 가장 좋은 형식으로.",
     "phone.capture.compress.balanced_hint": "더 작은 파일, 원본과 매우 비슷함.",
     "phone.capture.compress.small_hint": "훨씬 작게. 사진 최대 2560px, 동영상 최대 1080p.",
-    "phone.capture.compress.custom_hint": "모든 설정을 직접 선택합니다."
+    "phone.capture.compress.custom_hint": "모든 설정을 직접 선택합니다.",
+    "phone.settings.permissions": "권한",
+    "phone.settings.screen_lock": "화면 잠금",
+    "phone.settings.smaller_files": "더 작은 파일",
+    "phone.settings.trouble": "문제가 생겼을 때"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

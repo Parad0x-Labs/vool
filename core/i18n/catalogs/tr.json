@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "En yüksek kalite, bu telefonun yapabildiği en iyi biçimde.",
     "phone.capture.compress.balanced_hint": "Daha küçük dosyalar, özgüne çok yakın.",
     "phone.capture.compress.small_hint": "Çok daha küçük. Fotoğraflar en fazla 2560 px, video en fazla 1080p.",
-    "phone.capture.compress.custom_hint": "Her ayarı kendiniz seçin."
+    "phone.capture.compress.custom_hint": "Her ayarı kendiniz seçin.",
+    "phone.settings.permissions": "İzinler",
+    "phone.settings.screen_lock": "Ekran kilidi",
+    "phone.settings.smaller_files": "Daha küçük dosyalar",
+    "phone.settings.trouble": "Bir sorun olursa"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

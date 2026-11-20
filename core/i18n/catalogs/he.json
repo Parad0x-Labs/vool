@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "האיכות הגבוהה ביותר, בפורמט הטוב ביותר שהטלפון הזה יכול ליצור.",
     "phone.capture.compress.balanced_hint": "קבצים קטנים יותר, קרובים מאוד למקור.",
     "phone.capture.compress.small_hint": "קטן בהרבה. תמונות עד 2560 פיקסלים, וידאו עד 1080p.",
-    "phone.capture.compress.custom_hint": "בחרו כל הגדרה בעצמכם."
+    "phone.capture.compress.custom_hint": "בחרו כל הגדרה בעצמכם.",
+    "phone.settings.permissions": "הרשאות",
+    "phone.settings.screen_lock": "נעילת מסך",
+    "phone.settings.smaller_files": "קבצים קטנים יותר",
+    "phone.settings.trouble": "אם משהו משתבש"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

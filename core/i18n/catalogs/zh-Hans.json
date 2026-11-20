@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "最高质量，使用此手机能生成的最佳格式。",
     "phone.capture.compress.balanced_hint": "文件更小，非常接近原件。",
     "phone.capture.compress.small_hint": "小得多。照片最大 2560 像素，视频最高 1080p。",
-    "phone.capture.compress.custom_hint": "自行选择每项设置。"
+    "phone.capture.compress.custom_hint": "自行选择每项设置。",
+    "phone.settings.permissions": "权限",
+    "phone.settings.screen_lock": "屏幕锁定",
+    "phone.settings.smaller_files": "更小的文件",
+    "phone.settings.trouble": "出现问题时"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

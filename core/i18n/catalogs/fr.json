@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "Qualité maximale, dans le meilleur format que ce téléphone sait produire.",
     "phone.capture.compress.balanced_hint": "Fichiers plus petits, très proches de l’original.",
     "phone.capture.compress.small_hint": "Beaucoup plus petits. Photos jusqu’à 2560 px, vidéo jusqu’à 1080p.",
-    "phone.capture.compress.custom_hint": "Choisissez chaque réglage vous-même."
+    "phone.capture.compress.custom_hint": "Choisissez chaque réglage vous-même.",
+    "phone.settings.permissions": "Autorisations",
+    "phone.settings.screen_lock": "Verrouillage",
+    "phone.settings.smaller_files": "Fichiers plus légers",
+    "phone.settings.trouble": "En cas de problème"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

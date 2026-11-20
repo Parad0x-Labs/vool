@@ -4983,9 +4983,13 @@
     "phone.capture.compress.best_hint": "सबसे ऊँची गुणवत्ता, उस सबसे अच्छे फ़ॉर्मेट में जो यह फ़ोन बना सकता है।",
     "phone.capture.compress.balanced_hint": "छोटी फ़ाइलें, मूल के बहुत क़रीब।",
     "phone.capture.compress.small_hint": "बहुत छोटा। फ़ोटो 2560 px तक, वीडियो 1080p तक।",
-    "phone.capture.compress.custom_hint": "हर सेटिंग ख़ुद चुनें।"
+    "phone.capture.compress.custom_hint": "हर सेटिंग ख़ुद चुनें।",
+    "phone.settings.permissions": "अनुमतियाँ",
+    "phone.settings.screen_lock": "स्क्रीन लॉक",
+    "phone.settings.smaller_files": "छोटी फ़ाइलें",
+    "phone.settings.trouble": "अगर कुछ गड़बड़ हो"
   },
-  "source_catalog_sha256": "52e9720c54ac8e1b48fd3a6d28d2302c73828934e41d4cb4d4230d83735c5919",
+  "source_catalog_sha256": "94b9e6161f8398911d00971a0a102df67542e2fda9f95ec5a0ae88f0f341a77d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
