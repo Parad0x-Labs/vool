@@ -69,6 +69,7 @@ ACTIONS = {
     "media.thumb": "media",
     "media.read": "media",
     "media.exported": "media",
+    "media.set_thumb": "media",
 }
 
 

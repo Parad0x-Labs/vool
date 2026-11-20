@@ -70,6 +70,7 @@ import contextlib
 import copy
 import hashlib
 import hmac
+import io
 import json
 import logging
 import os
@@ -168,7 +169,7 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
     "capture.begin", "capture.chunk", "capture.finish", "capture.removed",
-    "media.list", "media.thumb", "media.read", "media.exported",
+    "media.list", "media.thumb", "media.read", "media.exported", "media.set_thumb", "trace.phone",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -942,27 +943,29 @@ def dispatch_companion(
     policy_error = refusal(store.device(device_id) or {}, action)
     if policy_error:
         store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": policy_error})
+        from core.mobile_companion import trace as _refused_trace
+
+        _refused_trace.record(action, status=403, code=policy_error, device_id=device_id, params=params)
         return _err(403, policy_error, "This permission is off, expired, or needs approval on your computer.")
     store.mark_device(device_id, last_seen_at=service.utcnow().isoformat())
     handler = _ACTION_HANDLERS.get(action)
     if handler is None:
         return _err(403, "action_not_offered", f"the mobile companion does not offer {action!r}")
+    from core.mobile_companion import trace as _trace
+
+    started = time.monotonic()
     try:
-        status, result = handler(
-            params,
-            runtime=runtime,
-            model_name=model_name,
-            client_host=client_host,
-            workspace_root_provider=workspace_root_provider,
-            service=service,
-            device=device,
-        )
+        status, result = _traced(handler, action, params, device_id, started, _trace,
+                                 runtime=runtime, model_name=model_name, client_host=client_host,
+                                 workspace_root_provider=workspace_root_provider, service=service, device=device)
     except PhoneHistoryRequired as exc:
         store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": "history_required"})
         return _err(403, "phone_history_required", str(exc))
     except Exception as exc:
         from core.error_surface import safe_error_text
 
+        _trace.record(action, status=500, code="companion_handler_error", ms=(time.monotonic() - started) * 1000,
+                      device_id=device_id, params=params)
         return _err(500, "companion_handler_error", safe_error_text(exc))
     if action not in {"devices.unpair", "devices.lost_computer"}:
         fresh = store.device(device_id) or {}
@@ -991,6 +994,14 @@ def dispatch_companion(
         code = str(result.get("code") or result.get("error") or "")
         payload["code"] = code if code and code.replace("_", "").isalnum() else "companion_action_refused"
     return _json(status, payload)
+
+
+def _traced(handler, action, params, device_id, started, trace, **kw):
+    """Runs one phone action and keeps a trace line of it (the action, its code and time; never its content)."""
+    status, result = handler(params, **kw)
+    code = str(result.get("code") or "") if isinstance(result, dict) and status >= 400 else ""
+    trace.record(action, status=status, code=code, ms=(time.monotonic() - started) * 1000, device_id=device_id, params=params)
+    return status, result
 
 
 # Phone reads whose results only reach the phone's screen. proof.get stays whole: its hashes are
@@ -1856,8 +1867,56 @@ def _media_exported(params, *, service, device, **_kw):
     return 200, {"recorded": True}
 
 
+_PREVIEW_LIMIT = 160 * 1024
+
+
+def _media_set_thumb(params, *, service, device, **_kw):
+    """A preview the phone made for an item this computer has none for (HEIC photos, videos): a small JPEG,
+    checked before it is kept sealed beside the item."""
+    from core.media_library.store import LibraryError, library
+
+    try:
+        data = base64.b64decode(str(params.get("content_b64") or ""), validate=True)
+    except ValueError:
+        data = b""
+    if not data.startswith(b"\xff\xd8\xff") or len(data) > _PREVIEW_LIMIT:
+        return 400, {"code": "bad_preview", "error": "Not a small JPEG preview."}
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as image:
+            if image.format != "JPEG" or max(image.size) > 1024:
+                return 400, {"code": "bad_preview", "error": "Not a small JPEG preview."}
+            image.verify()
+    except ImportError:
+        pass
+    except Exception:
+        return 400, {"code": "bad_preview", "error": "Not a small JPEG preview."}
+    try:
+        kept = library().set_thumb(str(params.get("id") or ""), data)
+    except (LibraryError, OSError) as error:
+        return _media_refused(error if isinstance(error, LibraryError) else LibraryError("failed"))
+    return 200, {"kept": kept}
+
+
+def _trace_phone(params, *, service, device, **_kw):
+    """The phone's own trace lines (what was tapped, what opened, how long it took), kept beside this computer's
+    so one file tells the whole story. Short plain lines only; at most 200 per call."""
+    from core.mobile_companion import trace
+
+    lines = params.get("lines")
+    if not isinstance(lines, list) or len(lines) > 200:
+        return 400, {"code": "bad_trace", "error": "Up to 200 lines."}
+    phone = str(device.get("device_id") or "")[:8]
+    for line in lines:
+        if isinstance(line, str) and line:
+            trace.write({"from": "phone", "phone": phone, "line": "".join(c for c in line[:240] if c.isprintable())})
+    return 200, {"kept": len(lines)}
+
+
 _ACTION_HANDLERS.update({"media.list": _media_list, "media.thumb": _media_thumb, "media.read": _media_read,
-                         "media.exported": _media_exported})
+                         "media.exported": _media_exported, "media.set_thumb": _media_set_thumb,
+                         "trace.phone": _trace_phone})
 
 _ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
                          "capture.finish": _capture_action("finish"), "capture.removed": _capture_removed})

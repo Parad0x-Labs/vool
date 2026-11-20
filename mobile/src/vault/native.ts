@@ -13,7 +13,9 @@ export interface VaultNative {
   share(stream: string, name: string, title: string): Promise<void>;
   save(stream: string, name: string): Promise<string>;
   homeIconOn(): boolean;
-  setHomeIcon(on: boolean): Promise<"asked" | "listed" | "off">;
+  setHomeIcon(on: boolean): Promise<"listed" | "off">;
+  /** A JPEG (base64) made here from the stream: a photo at about maxEdge, a video frame, a recording's cover; "" when none. */
+  preview(stream: string, maxEdge: number, kind: string): Promise<string>;
   addListener(event: "onWant", listener: (event: {stream: string; index: number}) => void): {remove(): void};
 }
 

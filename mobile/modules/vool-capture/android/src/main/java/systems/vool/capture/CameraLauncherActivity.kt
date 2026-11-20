@@ -9,6 +9,7 @@ import android.os.Bundle
 class CameraLauncherActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    android.util.Log.i("VoolCapture", "icon: VOOL Camera tapped")
     CameraLaunch.mark()
     startActivity(captureIntent(this))
     finish()
