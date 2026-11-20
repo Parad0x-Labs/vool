@@ -956,6 +956,12 @@ def _finalize_request_evidence_payload(request: Any, payload: dict[str, Any]) ->
     from core.bootstrap_context import _evidence_digest, finalize_request_evidence
 
     prior = metadata.get("admitted_capsule_evidence")
+    # A cache breakpoint changes how a message's content is written, not what it says. The adapter
+    # sealed the request before marking it, so the seal is read against the unmarked view: without
+    # that, a marked request never matched its own seal and every evidence unit was dropped.
+    from core.prompt_cache import unmarked_messages
+
+    clean_messages = unmarked_messages(clean_messages)
     if (not stamped and metadata.get("request_evidence_finalized")
             and isinstance(prior, dict) and prior.get("request_sha256") == _evidence_digest(clean_messages)):
         # An earlier adapter bind is reusable only for exactly the same wire

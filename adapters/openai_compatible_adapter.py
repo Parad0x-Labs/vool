@@ -1255,6 +1255,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
             messages = project_messages_for_destination(
                 messages, destination_class="cloud_provider"
             )
+        # Cache-friendly order (core.prompt_layout), whole messages only and BEFORE the evidence
+        # seal below: the seal digests the final messages and binds evidence to its carriers by
+        # their stamps, so the order has to be settled first. A no-op with its flags off.
+        if self._runtime_family() != "ollama":
+            from core.prompt_layout import apply_prompt_layout
+
+            messages = apply_prompt_layout(messages)
         messages = _finalize_provider_evidence_messages(request, messages)
         # Explicit prompt-cache breakpoints (core.prompt_cache): only Anthropic models on the
         # OpenRouter lane, only with the prompt_cache_breakpoints flag on. The reservation for
@@ -1360,6 +1367,14 @@ class OpenAICompatibleAdapter(ModelAdapter):
             ):
                 raise RuntimeError("provider tools refused: this lane cannot carry the model's own tools")
             payload["tools"] = [dict(tool) for tool in provider_tools]
+        # OpenRouter only: an opaque per-chat session value keeps one chat on one provider
+        # (core.router_session_key). Absent unless its flag is on and the request names a chat.
+        if self._runtime_family() != "ollama":
+            from core.router_session_key import session_key_for_request
+
+            _session_key = session_key_for_request(request, openrouter_lane=self._is_openrouter_lane())
+            if _session_key:
+                payload["session_id"] = _session_key
         # Opt-in wire capture (VOOL_DEBUG_PROMPT=1). Off by default; one env read when off.
         dump_outbound_prompt(
             payload,
@@ -1472,6 +1487,14 @@ class OpenAICompatibleAdapter(ModelAdapter):
             payload["format"] = schema
         elif force_json and bool(self.manifest.runtime_config.get("supports_json_mode", False)):
             payload["format"] = "json"
+        # OpenRouter only: an opaque per-chat session value keeps one chat on one provider
+        # (core.router_session_key). Absent unless its flag is on and the request names a chat.
+        if self._runtime_family() != "ollama":
+            from core.router_session_key import session_key_for_request
+
+            _session_key = session_key_for_request(request, openrouter_lane=self._is_openrouter_lane())
+            if _session_key:
+                payload["session_id"] = _session_key
         # Opt-in wire capture (VOOL_DEBUG_PROMPT=1). Off by default; one env read when off.
         dump_outbound_prompt(
             payload,

@@ -120,14 +120,76 @@ def _marked_parts(content: Any) -> list[dict[str, Any]] | None:
     return None
 
 
+#: The cheapest prefix a Claude model caches (Haiku 5.5). A breakpoint under it is ignored by the provider.
+MIN_CACHEABLE_TOKENS = 512
+#: Characters per token used to decide whether a prefix reaches the minimum. Measured on the logged
+#: Haiku requests (prompt tokens against characters): 3.0 to 3.4, so 3.0 never over-counts.
+_CHARS_PER_TOKEN_FLOOR = 3.0
+
+
+def _message_text(message: Any) -> str:
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
+    return ""
+
+
+def stable_lead_run_end(messages: list[dict[str, Any]]) -> int | None:
+    """Index of the last message of the stable leading run, or None when the run is too short to cache.
+
+    The run is the unbroken stretch of system messages at the front that say the same thing every turn:
+    everything up to the first message that opens with the per-turn context header, a retrieved-records
+    capsule, or any non-system message. A run under the provider's minimum (512 tokens, counted at
+    3 characters per token so it is never over-counted) is not marked: the provider would ignore the
+    marker, and marking a prefix too short to be cached buys nothing.
+    """
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+
+    end = -1
+    chars = 0
+    for index, message in enumerate(messages):
+        if not isinstance(message, dict) or str(message.get("role") or "").lower() != "system":
+            break
+        text = _message_text(message)
+        if text.startswith(TURN_DIRECTIVES_HEADER):
+            break
+        if text.startswith("<retrieved_context>") and not text.startswith(
+            "<retrieved_context>\nGrounding observations for this turn."
+        ):
+            break
+        end = index
+        chars += len(text)
+    if end < 0 or chars / _CHARS_PER_TOKEN_FLOOR < MIN_CACHEABLE_TOKENS:
+        return None
+    return end
+
+
 def apply_cache_breakpoints(messages: list[dict[str, Any]], plan: CachePlan) -> tuple[list[dict[str, Any]], int]:
     """Return (messages with breakpoints, breakpoints placed). The input list is never mutated.
 
     Only ``cache_control`` is added and string content becomes one text part: the text the model
     reads is byte-identical. A plan that is not enabled returns the messages untouched.
+
+    Default placement is the end of the leading system message. With ``prompt_cache_lead_run_marker``
+    on, it is the end of the stable leading run (:func:`stable_lead_run_end`) instead, and nothing is
+    marked when that run is under the provider's minimum.
     """
     if not plan.enabled or not messages:
         return messages, 0
+    from core.experiment_switches import switch_enabled
+
+    if switch_enabled("prompt_cache_lead_run_marker"):
+        target = stable_lead_run_end(messages)
+        if target is None:
+            return messages, 0
+        marked = copy.deepcopy(messages)
+        parts = _marked_parts(marked[target].get("content"))
+        if parts is None:
+            return messages, 0
+        marked[target]["content"] = parts
+        return marked, 1
     marked = copy.deepcopy(messages)
     placed = 0
     first = marked[0]
@@ -137,6 +199,34 @@ def apply_cache_breakpoints(messages: list[dict[str, Any]], plan: CachePlan) -> 
             first["content"] = parts
             placed += 1
     return (marked, placed) if placed else (messages, 0)
+
+
+def unmarked_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The messages as they were before :func:`apply_cache_breakpoints` marked them.
+
+    A message whose content is one text part carrying ``cache_control`` goes back to a plain string.
+    Every other message is returned as it is, so a request without markers comes back unchanged (the
+    same list object). The evidence seal digests the request as the model reads it, and a marker
+    changes how the content is written, not what it says.
+    """
+    changed = False
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        content = message.get("content") if isinstance(message, dict) else None
+        if (
+            isinstance(content, list)
+            and len(content) == 1
+            and isinstance(content[0], dict)
+            and content[0].get("type") == "text"
+            and set(content[0]) == {"type", "text", "cache_control"}
+        ):
+            restored = dict(message)
+            restored["content"] = content[0]["text"]
+            out.append(restored)
+            changed = True
+        else:
+            out.append(message)
+    return out if changed else messages
 
 
 def _nonnegative_int(value: Any) -> int | None:
@@ -197,10 +287,13 @@ def cache_write_surcharge_tokens(usage: Any, *, model_id: str, prompt_tokens: in
 __all__ = [
     "ANTHROPIC_CACHE_WRITE_MULTIPLIER",
     "CachePlan",
+    "MIN_CACHEABLE_TOKENS",
     "apply_cache_breakpoints",
     "bills_cache_writes_at_premium",
     "cache_breakpoint_plan",
     "cache_write_prompt_tokens",
     "cache_write_surcharge_tokens",
     "reservation_cache_plan",
+    "stable_lead_run_end",
+    "unmarked_messages",
 ]
