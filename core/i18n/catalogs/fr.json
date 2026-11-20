@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "Quelqu’un",
     "phone.bot_allow": "Oui, c’est moi",
     "phone.bot_not_me": "Ce n’est pas moi",
-    "phone.bot_connected_to": "Connecté à {name}. Seule cette personne peut utiliser ce bot.",
+    "phone.bot_connected_to": "Connecté à {name}. Seul ce compte peut utiliser ce bot.",
     "phone.bot_step1": "Étape 1 sur 3 : créez votre bot",
     "phone.bot_step2": "Étape 2 sur 3 : apportez la clé ici",
     "phone.bot_step2_help": "Copiez la clé, puis revenez ici. VOOL la récupère dans le presse-papiers si votre navigateur le permet, sinon collez-la ci-dessous.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "Ouvrir Discord",
     "phone.bot_perms_first": "Connectez d’abord cette app, puis choisissez ici ce qu’elle peut faire.",
     "phone.bot_discord_dm_only": "Parlez à VOOL dans vos messages privés avec le bot. Pas besoin de @. VOOL ne lit pas les salons du serveur, donc personne d’autre ne peut l’utiliser.",
-    "phone.bot_discord_write_first": "Bot ajouté mais rien ne se passe ? Discord peut empêcher un bot de vous écrire en premier. Sur votre serveur, cliquez sur VOOL dans la liste des membres et envoyez-lui un message."
+    "phone.bot_telegram_dm_only": "Parlez à VOOL dans votre discussion privée avec le bot. Pas besoin de @. VOOL ne lit pas les groupes, donc personne d’autre ne peut l’utiliser.",
+    "phone.bot_discord_in_server": "VOOL est sur votre serveur. Discord veut que vous disiez bonjour en premier.",
+    "phone.bot_discord_say_hi": "Dire bonjour à VOOL",
+    "phone.bot_discord_say_hi_help": "Discord ouvre VOOL. Appuyez sur Message, envoyez bonjour, puis revenez. Cette page passe d’elle-même à Connecté."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

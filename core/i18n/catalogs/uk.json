@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "Хтось",
     "phone.bot_allow": "Так, це я",
     "phone.bot_not_me": "Не я",
-    "phone.bot_connected_to": "Підключено до {name}. Лише ця людина може користуватися ботом.",
+    "phone.bot_connected_to": "Підключено до {name}. Лише цей обліковий запис може користуватися ботом.",
     "phone.bot_step1": "Крок 1 з 3: створіть бота",
     "phone.bot_step2": "Крок 2 з 3: принесіть ключ сюди",
     "phone.bot_step2_help": "Скопіюйте ключ і поверніться сюди. VOOL візьме його з буфера обміну, якщо браузер дозволить, або вставте його нижче.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "Відкрити Discord",
     "phone.bot_perms_first": "Спочатку підключіть цей застосунок, потім виберіть тут, що йому дозволено.",
     "phone.bot_discord_dm_only": "Пишіть VOOL в особистих повідомленнях із ботом. @ не потрібен. VOOL не читає канали сервера, тож ніхто інший там не зможе ним користуватися.",
-    "phone.bot_discord_write_first": "Додали бота, але нічого не відбувається? Discord може не дозволяти боту писати вам першим. На своєму сервері натисніть VOOL у списку учасників і надішліть йому повідомлення."
+    "phone.bot_telegram_dm_only": "Пишіть VOOL в особистому чаті з ботом. @ не потрібен. VOOL не читає групи, тож ніхто інший не зможе ним користуватися.",
+    "phone.bot_discord_in_server": "VOOL уже на вашому сервері. Discord хоче, щоб ви першим привіталися.",
+    "phone.bot_discord_say_hi": "Привітатися з VOOL",
+    "phone.bot_discord_say_hi_help": "Discord відкриє VOOL. Натисніть «Повідомлення», надішліть «привіт» і поверніться. Ця сторінка сама зміниться на «Підключено»."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

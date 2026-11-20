@@ -77,6 +77,7 @@ def test_discord_owner_is_reached_after_the_invite_without_a_link(bots):
     time.sleep(3)
     # Before the invite Discord refuses the bot's message: still waiting, nothing bound.
     assert record(base, 'discord')['binding_state'] == 'waiting'
+    assert record(base, 'discord')['discord_in_server'] is False
     with host.lock:
         assert not host.outgoing
     host.invited = True
@@ -180,6 +181,8 @@ def test_discord_owner_who_blocks_bot_messages_pairs_by_writing_first(bots):
     time.sleep(6)
     row = record(base, 'discord')
     assert row['binding_state'] == 'waiting' and row['invite_url'] == connection['invite_url'] and row['pairing_expires_at'], row
+    # The bot is in the server: Settings can now open the bot in Discord for the owner's hello.
+    assert row['discord_in_server'] is True and row['bot_user_id'] == '88', row
     with host.lock:
         assert not host.outgoing
     # Someone else in the server writing to the bot does not pair it.

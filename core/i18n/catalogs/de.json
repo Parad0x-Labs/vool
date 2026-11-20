@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "Jemand",
     "phone.bot_allow": "Ja, das bin ich",
     "phone.bot_not_me": "Nicht ich",
-    "phone.bot_connected_to": "Verbunden mit {name}. Nur diese Person kann den Bot nutzen.",
+    "phone.bot_connected_to": "Verbunden mit {name}. Nur dieses Konto kann den Bot nutzen.",
     "phone.bot_step1": "Schritt 1 von 3: Bot erstellen",
     "phone.bot_step2": "Schritt 2 von 3: Schlüssel hierher holen",
     "phone.bot_step2_help": "Kopiere den Schlüssel und komm hierher zurück. VOOL übernimmt ihn aus der Zwischenablage, wenn dein Browser es erlaubt, oder füge ihn unten ein.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "Discord öffnen",
     "phone.bot_perms_first": "Verbinde zuerst diese App und wähle dann hier, was sie darf.",
     "phone.bot_discord_dm_only": "Schreib VOOL in deinen privaten Nachrichten mit dem Bot. Kein @ nötig. VOOL liest keine Serverkanäle, daher kann dort niemand sonst ihn nutzen.",
-    "phone.bot_discord_write_first": "Bot hinzugefügt und nichts passiert? Discord lässt einen Bot dir eventuell nicht zuerst schreiben. Klicke auf deinem Server in der Mitgliederliste auf VOOL und schick ihm eine Nachricht."
+    "phone.bot_telegram_dm_only": "Schreib VOOL im privaten Chat mit dem Bot. Kein @ nötig. VOOL liest keine Gruppenchats, daher kann niemand sonst ihn nutzen.",
+    "phone.bot_discord_in_server": "VOOL ist auf deinem Server. Discord möchte, dass du zuerst Hallo sagst.",
+    "phone.bot_discord_say_hi": "VOOL Hallo sagen",
+    "phone.bot_discord_say_hi_help": "Discord öffnet VOOL. Klicke auf Nachricht, schick Hallo und komm zurück. Diese Seite wechselt von selbst zu Verbunden."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

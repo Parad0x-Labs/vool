@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "Kažkas",
     "phone.bot_allow": "Taip, tai aš",
     "phone.bot_not_me": "Ne aš",
-    "phone.bot_connected_to": "Prijungta prie {name}. Tik šis žmogus gali naudotis šiuo botu.",
+    "phone.bot_connected_to": "Prijungta prie {name}. Tik ši paskyra gali naudotis šiuo botu.",
     "phone.bot_step1": "1 žingsnis iš 3: sukurkite botą",
     "phone.bot_step2": "2 žingsnis iš 3: atneškite raktą čia",
     "phone.bot_step2_help": "Nukopijuokite raktą ir grįžkite čia. VOOL paims jį iš iškarpinės, jei naršyklė leis, arba įklijuokite žemiau.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "Atidaryti Discord",
     "phone.bot_perms_first": "Pirmiausia prijunkite šią programėlę, tada čia pasirinkite, ką ji gali daryti.",
     "phone.bot_discord_dm_only": "Kalbėkitės su VOOL privačiose žinutėse su botu. @ nereikia. VOOL neskaito serverio kanalų, todėl niekas kitas ten jo naudoti negali.",
-    "phone.bot_discord_write_first": "Pridėjote botą, bet nieko nevyksta? Discord gali neleisti botui parašyti jums pirmam. Savo serveryje narių sąraše spustelėkite VOOL ir parašykite jam žinutę."
+    "phone.bot_telegram_dm_only": "Kalbėkite su VOOL privačiame pokalbyje su botu. @ nereikia. VOOL neskaito grupių pokalbių, todėl niekas kitas juo naudotis negali.",
+    "phone.bot_discord_in_server": "VOOL jau jūsų serveryje. Discord nori, kad pirmiausia pasisveikintumėte jūs.",
+    "phone.bot_discord_say_hi": "Pasisveikinti su VOOL",
+    "phone.bot_discord_say_hi_help": "Discord atidarys VOOL. Spauskite Žinutė, parašykite labas ir grįžkite. Šis puslapis pats pasikeis į Prijungta."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

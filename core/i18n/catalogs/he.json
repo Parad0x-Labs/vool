@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "מישהו",
     "phone.bot_allow": "כן, זה אני",
     "phone.bot_not_me": "לא אני",
-    "phone.bot_connected_to": "מחובר אל {name}. רק אדם זה יכול להשתמש בבוט.",
+    "phone.bot_connected_to": "מחובר אל {name}. רק החשבון הזה יכול להשתמש בבוט.",
     "phone.bot_step1": "שלב 1 מתוך 3: יצירת הבוט",
     "phone.bot_step2": "שלב 2 מתוך 3: הבאת המפתח לכאן",
     "phone.bot_step2_help": "העתיקו את המפתח וחזרו לכאן. VOOL ייקח אותו מהלוח אם הדפדפן מאפשר, או הדביקו אותו למטה.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "פתיחת דיסקורד",
     "phone.bot_perms_first": "חברו קודם את האפליקציה, ואז בחרו כאן מה היא רשאית לעשות.",
     "phone.bot_discord_dm_only": "דברו עם VOOL בהודעות הפרטיות שלכם עם הבוט. אין צורך ב־@. VOOL לא קורא ערוצי שרת, כך שאף אחד אחר שם לא יכול להשתמש בו.",
-    "phone.bot_discord_write_first": "הוספתם את הבוט ושום דבר לא קורה? ייתכן שדיסקורד לא מאפשר לבוט לכתוב לכם ראשון. בשרת שלכם, לחצו על VOOL ברשימת החברים ושלחו לו הודעה."
+    "phone.bot_telegram_dm_only": "דברו עם VOOL בצ׳אט הפרטי שלכם עם הבוט. אין צורך ב־@. VOOL לא קורא קבוצות, כך שאף אחד אחר לא יכול להשתמש בו.",
+    "phone.bot_discord_in_server": "VOOL נמצא בשרת שלכם. דיסקורד רוצה שתגידו שלום קודם.",
+    "phone.bot_discord_say_hi": "להגיד שלום ל־VOOL",
+    "phone.bot_discord_say_hi_help": "דיסקורד יפתח את VOOL. לחצו על הודעה, שלחו שלום וחזרו. הדף הזה יעבור למחובר בעצמו."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

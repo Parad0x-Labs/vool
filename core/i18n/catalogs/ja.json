@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "だれか",
     "phone.bot_allow": "はい、自分です",
     "phone.bot_not_me": "自分ではない",
-    "phone.bot_connected_to": "{name} と接続しました。このボットを使えるのはこの人だけです。",
+    "phone.bot_connected_to": "{name} と接続しました。このボットを使えるのはこのアカウントだけです。",
     "phone.bot_step1": "ステップ 1/3：ボットを作る",
     "phone.bot_step2": "ステップ 2/3：キーをここに持ってくる",
     "phone.bot_step2_help": "キーをコピーしてここに戻ってください。ブラウザーが許可すれば VOOL がクリップボードから読み取ります。だめなら下に貼り付けてください。",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "Discord を開く",
     "phone.bot_perms_first": "先にこのアプリを接続してから、ここでできることを選んでください。",
     "phone.bot_discord_dm_only": "ボットとの個人メッセージで VOOL と話してください。@ は不要です。VOOL はサーバーのチャンネルを読まないので、そこにいる他の人は使えません。",
-    "phone.bot_discord_write_first": "ボットを追加しても何も起きませんか？Discord はボットから先にメッセージを送ることを許可しない場合があります。サーバーのメンバー一覧で VOOL をクリックし、メッセージを送ってください。"
+    "phone.bot_telegram_dm_only": "ボットとの個人チャットで VOOL と話してください。@ は不要です。VOOL はグループチャットを読まないので、他の人は使えません。",
+    "phone.bot_discord_in_server": "VOOL はサーバーに参加しました。Discord では先にあなたから挨拶する必要があります。",
+    "phone.bot_discord_say_hi": "VOOL に挨拶する",
+    "phone.bot_discord_say_hi_help": "Discord で VOOL が開きます。メッセージを押して挨拶を送り、ここに戻ってください。このページは自動で接続済みに変わります。"
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

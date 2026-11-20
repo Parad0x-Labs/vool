@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "有人",
     "phone.bot_allow": "是我",
     "phone.bot_not_me": "不是我",
-    "phone.bot_connected_to": "已连接到 {name}。只有此人可以使用这个机器人。",
+    "phone.bot_connected_to": "已连接到 {name}。只有此账号可以使用这个机器人。",
     "phone.bot_step1": "第 1 步（共 3 步）：创建机器人",
     "phone.bot_step2": "第 2 步（共 3 步）：把密钥带回这里",
     "phone.bot_step2_help": "复制密钥后回到这里。浏览器允许时 VOOL 会从剪贴板读取，否则请粘贴到下方。",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "打开 Discord",
     "phone.bot_perms_first": "请先连接此应用，然后在这里选择它可以做什么。",
     "phone.bot_discord_dm_only": "在与机器人的私信中和 VOOL 交谈，无需 @。VOOL 不读取服务器频道，因此那里的其他人无法使用它。",
-    "phone.bot_discord_write_first": "添加了机器人却没有反应？Discord 可能不允许机器人先给你发消息。在你的服务器成员列表中点击 VOOL，给它发一条消息。"
+    "phone.bot_telegram_dm_only": "在与机器人的私聊中和 VOOL 对话。无需 @。VOOL 不读取群聊，所以其他人无法使用它。",
+    "phone.bot_discord_in_server": "VOOL 已在你的服务器中。Discord 需要你先打个招呼。",
+    "phone.bot_discord_say_hi": "向 VOOL 打招呼",
+    "phone.bot_discord_say_hi_help": "Discord 会打开 VOOL。点击“发消息”，发一句你好，然后回到这里。此页面会自动变为已连接。"
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

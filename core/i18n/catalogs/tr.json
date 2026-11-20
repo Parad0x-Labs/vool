@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "Biri",
     "phone.bot_allow": "Evet, benim",
     "phone.bot_not_me": "Ben değilim",
-    "phone.bot_connected_to": "{name} ile bağlandı. Bu botu yalnızca o kişi kullanabilir.",
+    "phone.bot_connected_to": "{name} ile bağlandı. Bu botu yalnızca bu hesap kullanabilir.",
     "phone.bot_step1": "Adım 1/3: botunuzu oluşturun",
     "phone.bot_step2": "Adım 2/3: anahtarı buraya getirin",
     "phone.bot_step2_help": "Anahtarı kopyalayıp buraya gelin. Tarayıcınız izin verirse VOOL onu panodan alır; yoksa aşağıya yapıştırın.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "Discord’u aç",
     "phone.bot_perms_first": "Önce bu uygulamayı bağlayın, sonra burada neler yapabileceğini seçin.",
     "phone.bot_discord_dm_only": "VOOL ile botla özel mesajlarınızda konuşun. @ gerekmez. VOOL sunucu kanallarını okumaz, bu yüzden oradaki başkaları onu kullanamaz.",
-    "phone.bot_discord_write_first": "Botu eklediniz ama bir şey olmuyor mu? Discord bir botun size önce yazmasına izin vermeyebilir. Sunucunuzda üye listesinde VOOL’a tıklayıp ona bir mesaj gönderin."
+    "phone.bot_telegram_dm_only": "Botla özel sohbetinizde VOOL ile konuşun. @ gerekmez. VOOL grup sohbetlerini okumaz, bu yüzden başka kimse kullanamaz.",
+    "phone.bot_discord_in_server": "VOOL sunucunuzda. Discord önce sizin merhaba demenizi istiyor.",
+    "phone.bot_discord_say_hi": "VOOL’a merhaba de",
+    "phone.bot_discord_say_hi_help": "Discord VOOL’u açar. Mesaj’a basın, merhaba gönderin ve geri gelin. Bu sayfa kendiliğinden Bağlandı olur."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3828,7 +3828,7 @@
     "phone.bot_someone": "شخص ما",
     "phone.bot_allow": "نعم، هذا أنا",
     "phone.bot_not_me": "ليس أنا",
-    "phone.bot_connected_to": "تم الربط مع {name}. هذا الشخص وحده يمكنه استخدام البوت.",
+    "phone.bot_connected_to": "تم الربط مع {name}. هذا الحساب وحده يمكنه استخدام البوت.",
     "phone.bot_step1": "الخطوة 1 من 3: أنشئ البوت",
     "phone.bot_step2": "الخطوة 2 من 3: أحضر المفتاح إلى هنا",
     "phone.bot_step2_help": "انسخ المفتاح ثم عُد إلى هنا. يأخذه VOOL من الحافظة إذا سمح المتصفح، أو الصقه أدناه.",
@@ -4964,9 +4964,12 @@
     "phone.bot_open_discord_app": "افتح ديسكورد",
     "phone.bot_perms_first": "اربط هذا التطبيق أولًا، ثم اختر هنا ما يمكنه فعله.",
     "phone.bot_discord_dm_only": "تحدّث مع VOOL في رسائلك الخاصة مع البوت. لا حاجة إلى @. لا يقرأ VOOL قنوات الخادم، لذا لا يمكن لأحد آخر هناك استخدامه.",
-    "phone.bot_discord_write_first": "أضفت البوت ولا يحدث شيء؟ قد لا يسمح ديسكورد للبوت بأن يراسلك أولًا. في خادمك، انقر على VOOL في قائمة الأعضاء وأرسل له رسالة."
+    "phone.bot_telegram_dm_only": "تحدّث مع VOOL في محادثتك الخاصة مع البوت. لا حاجة إلى @. لا يقرأ VOOL المجموعات، لذا لا يمكن لأحد غيرك استخدامه.",
+    "phone.bot_discord_in_server": "VOOL موجود في خادمك. يريد ديسكورد أن تبدأ أنت بالتحية.",
+    "phone.bot_discord_say_hi": "حيِّ VOOL",
+    "phone.bot_discord_say_hi_help": "يفتح ديسكورد VOOL. اضغط «رسالة» وأرسل تحية ثم عُد. ستتحول هذه الصفحة إلى «تم الربط» تلقائيًا."
   },
-  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
+  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
