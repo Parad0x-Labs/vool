@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
-import {ActivityIndicator, Linking, PermissionsAndroid, Pressable, ScrollView, StyleSheet, Text, View} from "react-native";
+import {ActivityIndicator, Animated, Linking, PermissionsAndroid, Pressable, ScrollView, StyleSheet, Text, View} from "react-native";
 import {StatusBar} from "expo-status-bar";
 
 import {errorText, tr} from "../i18n/index.ts";
@@ -59,6 +59,9 @@ function clock(seconds: number): string {
  *
  * The camera's settings follow the GrapheneOS Camera app (MIT, GrapheneOS); see docs/THIRD_PARTY_LICENSES.md.
  */
+/** Photos being taken at once in a burst (each holds a large image until it is written). */
+const MAX_IN_FLIGHT = 3;
+
 export default function CaptureScreen({waiting, sending, problem, saving, saveFailed, onCaptured, onClose, extraSettings}: Props) {
   const edges = useEdges();
   const camera = useRef<CameraHandle>(null);
@@ -74,7 +77,10 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [note, setNote] = useState("");
-  const [flash, setFlash] = useState(false);
+  // The white flash runs on the native side, so it shows for every press even while the app is busy.
+  const flash = useRef(new Animated.Value(0)).current;
+  const lastTap = useRef(0);
+  const inFlight = useRef(0);
   const [prefs, setPrefs] = useState<CameraPrefs>(loadCameraPrefs);
   const [sheet, setSheet] = useState(false);
   const [filters, setFilters] = useState(false);
@@ -130,7 +136,24 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
     setCountdown(0);
   }
 
+  /** A photo for every press: presses in a burst are not held back, the camera takes them in order. */
+  function snap() {
+    const now = Date.now();
+    if (now - lastTap.current < 80) {capture?.trace?.("screen: a second press in the same moment was ignored"); return;}
+    lastTap.current = now;
+    if (inFlight.current >= MAX_IN_FLIGHT) {capture?.trace?.(`screen: press not taken, ${MAX_IN_FLIGHT} photos still being taken`); return;}
+    inFlight.current++;
+    setNote("");
+    flash.setValue(1);
+    Animated.timing(flash, {toValue: 0, duration: 160, useNativeDriver: true}).start();
+    camera.current?.takePhoto()
+      .then(() => {capture?.trace?.(`screen: photo taken ${Date.now() - now} ms after its press, ${inFlight.current - 1} more on the way`); stored();})
+      .catch(() => failed())
+      .finally(() => {inFlight.current--;});
+  }
+
   async function shutter() {
+    if (kind === "photo" && !prefs.timer) {snap(); return;}
     if (pressing.current) {capture?.trace?.("screen: a second press in the same moment was ignored"); return;}
     if (busy || !capture) return;
     pressing.current = true;
@@ -148,11 +171,9 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
     setNote("");
     try {
       if (kind === "photo") {
-        const pressed = Date.now();
-        setFlash(true);
-        setTimeout(() => {setFlash(false); capture?.trace?.(`screen: white flash off after ${Date.now() - pressed} ms`);}, 120);
+        flash.setValue(1);
+        Animated.timing(flash, {toValue: 0, duration: 160, useNativeDriver: true}).start();
         await camera.current?.takePhoto();
-        capture?.trace?.(`screen: shutter free after ${Date.now() - pressed} ms`);
         stored();
       } else if (kind === "video") {
         if (!recording) {await camera.current?.startVideo(); setRecording(true);}
@@ -207,7 +228,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
       {showCamera && prefs.grid ? <Grid lines={prefs.grid} rect={frame} /> : null}
       {focus ? <View pointerEvents="none" style={[styles.focusRing, {left: focus.x - 34, top: focus.y - 34}]} /> : null}
       {countdown ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.center]}><Text style={styles.countdown}>{countdown}</Text></View> : null}
-      {flash ? <View style={[StyleSheet.absoluteFill, styles.flash]} /> : null}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.flash, {opacity: flash}]} />
       {kind === "sound" && !denied ? <View style={[StyleSheet.absoluteFill, styles.center]}>
         <Face size={150} />
         <Text style={styles.timer}>{recording ? clock(seconds) : tr("Sound")}</Text>
@@ -266,7 +287,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
             <View style={spin}><Icon name="palette-outline" size={22} color={prefs.filter !== "none" ? C.acc : C.ink} /></View>
           </Pressable> : <View style={styles.round} />}
           <Pressable onPress={() => void shutter()} disabled={busy && !recording || !!denied || (kind !== "sound" && !ready)}
-            style={[styles.shutter, recording && styles.shutterRec]} accessibilityRole="button"
+            style={({pressed}) => [styles.shutter, recording && styles.shutterRec, pressed && styles.shutterDown]} accessibilityRole="button"
             accessibilityLabel={kind === "photo" ? tr("Take photo") : recording ? tr("Stop recording") : tr("Start recording")}>
             {kind === "photo" ? <View style={styles.shutterCore} /> : recording ? <View style={styles.stopCore} /> : <View style={styles.recCore} />}
           </Pressable>
@@ -367,6 +388,7 @@ const styles = StyleSheet.create({
   modeOn: {backgroundColor: C.acc},
   modeText: {color: C.ink, fontSize: 13, fontWeight: "600"},
   modeTextOn: {color: C.sendInk},
+  shutterDown: {transform: [{scale: 0.9}]},
   shutter: {width: 78, height: 78, borderRadius: 39, borderWidth: 4, borderColor: C.ink, alignItems: "center", justifyContent: "center"},
   shutterRec: {borderColor: C.bad},
   shutterCore: {width: 62, height: 62, borderRadius: 31, backgroundColor: C.ink},
