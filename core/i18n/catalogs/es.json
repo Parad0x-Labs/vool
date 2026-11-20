@@ -1290,6 +1290,8 @@
     "msg.report_title": "Reportar una respuesta incorrecta o un problema con esta respuesta",
     "msg.report": "Reportar",
     "msg.review_flagged": "revisión marcada — comprueba de nuevo esta respuesta",
+    "msg.time_started": "Empezó {time}",
+    "msg.time_updated": "Última actualización {time}",
     "notif.action_failed": "Eso no funcionó (",
     "notif.at_start": "al empezar",
     "notif.basis.all_zero": "base observada: todo precio publicado es un $0 explícito",
@@ -4927,7 +4929,7 @@
     "settings.scam.read_more": "Leer más ({count} más)",
     "settings.scam.show_less": "Mostrar menos"
   },
-  "source_catalog_sha256": "0565c73c815dd436a9642c041e0e7ef0d4d353bf1310eb6c795d2a16228f11b3",
+  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

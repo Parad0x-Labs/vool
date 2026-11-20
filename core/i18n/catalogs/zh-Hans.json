@@ -1290,6 +1290,8 @@
     "msg.report_title": "报告错误回答或此回答的问题",
     "msg.report": "报告",
     "msg.review_flagged": "已标记待审查 — 请再次核对这条回答",
+    "msg.time_started": "开始于 {time}",
+    "msg.time_updated": "最后更新 {time}",
     "notif.action_failed": "操作未成功（",
     "notif.at_start": "开始时",
     "notif.basis.all_zero": "观测依据：所有公布的价格均为明确的 $0",
@@ -4927,7 +4929,7 @@
     "settings.scam.read_more": "展开阅读（还有 {count} 条）",
     "settings.scam.show_less": "收起"
   },
-  "source_catalog_sha256": "0565c73c815dd436a9642c041e0e7ef0d4d353bf1310eb6c795d2a16228f11b3",
+  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

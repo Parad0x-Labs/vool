@@ -1290,6 +1290,8 @@
     "msg.report_title": "דיווח על תשובה שגויה או בעיה בתשובה זו",
     "msg.report": "דיווח",
     "msg.review_flagged": "סימון ביקורת — בדוק שוב את התשובה הזו",
+    "msg.time_started": "התחיל {time}",
+    "msg.time_updated": "עדכון אחרון {time}",
     "notif.action_failed": "זה לא עבד (",
     "notif.at_start": "עם ההתחלה",
     "notif.basis.all_zero": "בסיס נצפה: כל המחירים המפורסמים הם $0 במפורש",
@@ -4927,7 +4929,7 @@
     "settings.scam.read_more": "קרא עוד ({count} נוספים)",
     "settings.scam.show_less": "הצג פחות"
   },
-  "source_catalog_sha256": "0565c73c815dd436a9642c041e0e7ef0d4d353bf1310eb6c795d2a16228f11b3",
+  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

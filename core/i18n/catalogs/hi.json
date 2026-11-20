@@ -1290,6 +1290,8 @@
     "msg.report_title": "गलत उत्तर या इस उत्तर में किसी समस्या की रिपोर्ट करें",
     "msg.report": "रिपोर्ट करें",
     "msg.review_flagged": "समीक्षा चिह्नित — इस उत्तर की दोबारा जाँच करें",
+    "msg.time_started": "शुरू हुआ {time}",
+    "msg.time_updated": "पिछला अपडेट {time}",
     "notif.action_failed": "वह काम नहीं हुआ (",
     "notif.at_start": "शुरू होने पर",
     "notif.basis.all_zero": "देखा गया आधार: हर प्रकाशित कीमत स्पष्ट रूप से $0 है",
@@ -4927,7 +4929,7 @@
     "settings.scam.read_more": "और पढ़ें ({count} और)",
     "settings.scam.show_less": "कम दिखाएँ"
   },
-  "source_catalog_sha256": "0565c73c815dd436a9642c041e0e7ef0d4d353bf1310eb6c795d2a16228f11b3",
+  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

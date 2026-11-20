@@ -1290,6 +1290,8 @@
     "msg.report_title": "Сообщить о неверном ответе или проблеме с этим ответом",
     "msg.report": "Пожаловаться",
     "msg.review_flagged": "отмечено на проверку — перепроверьте этот ответ",
+    "msg.time_started": "Начато {time}",
+    "msg.time_updated": "Последнее обновление {time}",
     "notif.action_failed": "Не сработало (",
     "notif.at_start": "в момент начала",
     "notif.basis.all_zero": "основа наблюдения: каждая опубликованная цена — явный $0",
@@ -4927,7 +4929,7 @@
     "settings.scam.read_more": "Читать дальше (ещё {count})",
     "settings.scam.show_less": "Показать меньше"
   },
-  "source_catalog_sha256": "0565c73c815dd436a9642c041e0e7ef0d4d353bf1310eb6c795d2a16228f11b3",
+  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

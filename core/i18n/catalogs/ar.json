@@ -1290,6 +1290,8 @@
     "msg.report_title": "الإبلاغ عن إجابة خاطئة أو مشكلة في هذه الإجابة",
     "msg.report": "إبلاغ",
     "msg.review_flagged": "عُلِّمت للمراجعة — تحقّق من هذه الإجابة مرة أخرى",
+    "msg.time_started": "بدأ {time}",
+    "msg.time_updated": "آخر تحديث {time}",
     "notif.action_failed": "لم ينجح ذلك (",
     "notif.at_start": "عند البدء",
     "notif.basis.all_zero": "الأساس المُلاحَظ: كل سعر منشور هو $0 صريح",
@@ -4927,7 +4929,7 @@
     "settings.scam.read_more": "اقرأ المزيد ({count} أخرى)",
     "settings.scam.show_less": "عرض أقل"
   },
-  "source_catalog_sha256": "0565c73c815dd436a9642c041e0e7ef0d4d353bf1310eb6c795d2a16228f11b3",
+  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

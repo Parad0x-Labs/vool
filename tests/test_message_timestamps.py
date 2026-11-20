@@ -57,6 +57,7 @@ class FakeElement {
     this.children = [];
     this._text = '';
     this.title = '';
+    this.dataset = {};
   }
   appendChild(child) { this.children.push(child); return child; }
   querySelector(sel) {
@@ -76,7 +77,7 @@ globalThis.appLocale = function () {
 """
 
 
-def _run_node(harness: str) -> dict:
+def _run_node(harness: str, tz: str = "UTC") -> dict:
     node = shutil.which("node")
     if not node:
         pytest.skip("node not available to execute the chat-page timestamp script")
@@ -87,7 +88,9 @@ def _run_node(harness: str) -> dict:
     # which machine runs the suite -- formatMsgTime is REQUIRED to read local time (per spec, the
     # viewer's own timezone), this only fixes what "local" means for this test process.
     env = dict(os.environ)
-    env["TZ"] = "UTC"
+    env["TZ"] = tz
+    # ...and the machine's locale, which sets the time tip's 12/24-hour habit.
+    env["LC_ALL"] = env["LANG"] = "en_US.UTF-8"
     try:
         result = subprocess.run([node, path], capture_output=True, text=True, timeout=60, env=env)
     finally:
@@ -183,6 +186,49 @@ console.log(JSON.stringify({ before, after }));
     result = _run_node(harness)
     assert result["before"] == "14:03"
     assert result["after"] == "14:03"
+
+
+# --------------------------------------------------------------------------- #
+# The time tip: the full local time behind a message or a working-card line
+# --------------------------------------------------------------------------- #
+TIP_STUBS = """
+globalThis.pageTF = (key, fallback, params) => String(fallback).replace(/\\{(\\w+)\\}/g, (_, k) => params[k]);
+const tip = (dataset) => timeTipText({ dataset });
+"""
+
+
+def _tip(dataset: dict, tz: str = "UTC") -> str:
+    return _run_node(TIP_STUBS + f"console.log(JSON.stringify({{ v: tip({json.dumps(dataset)}) }}));", tz=tz)["v"]
+
+
+def test_the_time_tip_shows_the_same_instant_in_the_viewers_own_time_zone() -> None:
+    # Read when the tip opens, in whatever zone the machine is in at that moment.
+    ts = {"ts": "2026-10-28T22:50:05Z"}
+    vilnius, tokyo = _tip(ts, tz="Europe/Vilnius"), _tip(ts, tz="Asia/Tokyo")
+    assert "12:50:05" in vilnius and "Oct 29" in vilnius, vilnius
+    assert "7:50:05" in tokyo and "Oct 29" in tokyo, tokyo
+
+
+def test_the_time_tip_says_nothing_for_a_message_without_a_recorded_time() -> None:
+    assert _tip({}) == ""
+    assert _tip({"ts": "not-a-date"}) == ""
+    assert _tip({"at": "banana"}) == ""
+
+
+def test_a_reply_still_being_written_says_when_it_last_changed_and_when_it_started() -> None:
+    text = _tip({"startedAt": "2026-10-28T21:00:00Z", "updatedAt": "2026-10-28T21:40:30Z"})
+    assert text.splitlines()[0].startswith("Last update Oct 28, 2026") and "9:40:30" in text, text
+    # Same day: the start gives its time only, not the date a second time.
+    assert text.splitlines()[1] == "Started 9:00:00 PM", text
+
+
+def test_a_finished_reply_says_when_it_finished_then_when_it_started() -> None:
+    text = _tip({"ts": "2026-10-28T21:50:00Z", "startedAt": "2026-10-28T21:00:00Z", "updatedAt": "2026-10-28T21:49:00Z"})
+    assert text.splitlines() == ["Oct 28, 2026, 9:50:00 PM", "Started 9:00:00 PM"], text
+
+
+def test_a_working_card_line_says_when_it_was_written() -> None:
+    assert _tip({"at": "2026-10-28T21:12:13Z"}) == "Oct 28, 2026, 9:12:13 PM"
 
 
 # --------------------------------------------------------------------------- #

@@ -528,6 +528,10 @@ header a:hover { text-decoration:underline; }
 /* Narrowest phones: the ghost and its button say it; the word goes so the row never scrolls. */
 @container composer (max-width:400px) { .private-banner .pb-short { display:none; } }
 .msg-time { display:block; margin-top:4px; font-size:10px; line-height:1; color:var(--muted); opacity:.75; text-align:right; user-select:none; }
+/* The time tip: when a message, or a line on the working card, was written. Shown after a short
+   rest of the mouse (or a tap on a touch screen), small and quiet, never in the way of a click. */
+.time-tip { position:fixed; z-index:80; max-width:280px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; background:var(--panel-solid); color:var(--ink); font-size:11px; line-height:1.45; white-space:pre-line; pointer-events:none; box-shadow:0 4px 14px #0005; }
+.time-tip[hidden] { display:none; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
 .empty-sub { color:var(--ink); font-size:16px; margin-bottom:18px; }
@@ -2836,7 +2840,39 @@ function setMsgTime(el, tsIso) {
   let t = el.querySelector('.msg-time');
   if (!t) { t = document.createElement('span'); t.className = 'msg-time'; el.appendChild(t); }
   t.textContent = text;
-  t.title = new Date(tsIso).toLocaleString(appLocale());
+  // The recorded time rides on the message itself; the time tip reads it when it opens.
+  el.dataset.ts = tsIso;
+}
+// The full date and time for the time tip: the viewer's own time zone and the machine's own
+// 12/24-hour habit, worked out when the tip opens rather than when the message was drawn, so a
+// time zone change since then still shows the right local time. '' for anything that doesn't
+// parse: no time is shown rather than a wrong one. `timeOnly` leaves the date out.
+function fullLocalTime(at, timeOnly) {
+  if (!at) return '';
+  const d = new Date(at);
+  if (isNaN(d.getTime())) return '';
+  const opts = timeOnly ? { timeStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'medium' };
+  try { const hc = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle; if (hc) opts.hourCycle = hc; } catch (e) {}
+  try { return new Intl.DateTimeFormat(appLocale(), opts).format(d); } catch (e) {}
+  try { return timeOnly ? d.toLocaleTimeString() : d.toLocaleString(); } catch (e) { return ''; }
+}
+// What the time tip says. A working-card line (data-at) says when it last changed. A message says
+// when it was sent or finished; a reply still being written says when it last changed and when it
+// started. A message with no recorded time (an older chat) says nothing.
+function timeTipText(el) {
+  const d = (el && el.dataset) || {};
+  if (d.at) return fullLocalTime(d.at);
+  const lines = [];
+  const done = fullLocalTime(d.ts);
+  const updated = done ? '' : fullLocalTime(d.updatedAt);
+  if (done) lines.push(done);
+  else if (updated) lines.push(pageTF('msg.time_updated', 'Last update {time}', { time: updated }));
+  // The start of a reply is usually the same day as its end: then only its time, not the date again.
+  const ref = d.ts || (updated ? d.updatedAt : '');
+  const sameDay = !!ref && new Date(ref).toDateString() === new Date(d.startedAt).toDateString();
+  const started = fullLocalTime(d.startedAt, sameDay);
+  if (started && started !== fullLocalTime(d.ts, true)) lines.push(pageTF('msg.time_started', 'Started {time}', { time: started }));
+  return lines.join('\n');
 }
 function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const empty = logEl.querySelector('.empty');
@@ -5933,6 +5969,78 @@ if (logEl) {
   });
 }
 
+// ---- Time tip: when each message and each working-card line was written ----
+// A mouse resting on a message (or a card line) shows its time; a tap shows it on a touch screen,
+// where there is no hover. One quiet element, reused; it never takes a click.
+const TIME_TIP_HOSTS = '[data-at], .msg';
+const TIME_TIP_REST_MS = 600;
+const TIME_TIP_TOUCH_MS = 4000;
+const TIME_TIP_SKIP = 'a, button, input, textarea, select, summary, label, [contenteditable], .chat-code-wrap, img';
+let timeTipEl = null, timeTipHost = null, timeTipTimer = null, timeTipPending = null, timeTipQuiet = null, lastPointerType = 'mouse';
+function hideTimeTip() {
+  if (timeTipTimer) { clearTimeout(timeTipTimer); timeTipTimer = null; }
+  timeTipPending = null; timeTipHost = null;
+  if (timeTipEl) timeTipEl.hidden = true;
+}
+function showTimeTip(host, x, y) {
+  const text = timeTipText(host);
+  if (!text) { hideTimeTip(); return; }
+  if (!timeTipEl) {
+    timeTipEl = document.createElement('div');
+    timeTipEl.className = 'time-tip';
+    timeTipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(timeTipEl);
+  }
+  timeTipEl.textContent = text;
+  timeTipEl.hidden = false;
+  timeTipHost = host;
+  const w = timeTipEl.offsetWidth, h = timeTipEl.offsetHeight;
+  timeTipEl.style.left = Math.max(8, Math.min(x - w / 2, innerWidth - w - 8)) + 'px';
+  timeTipEl.style.top = (y - h - 14 >= 8 ? y - h - 14 : Math.min(y + 20, innerHeight - h - 8)) + 'px';
+}
+function timeTipHostAt(target) { return (target && target.closest) ? target.closest(TIME_TIP_HOSTS) : null; }
+if (logEl) {
+  logEl.addEventListener('pointerdown', (e) => {
+    lastPointerType = e.pointerType || 'mouse';
+    // Pressing (to select text, or to click) puts the tip away and keeps it away for this message.
+    if (lastPointerType === 'mouse' || lastPointerType === 'pen') { timeTipQuiet = timeTipHostAt(e.target); hideTimeTip(); }
+  });
+  logEl.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+    const host = timeTipHostAt(e.target);
+    if (host !== timeTipQuiet) timeTipQuiet = null;
+    if (host === timeTipHost || host === timeTipPending) return;
+    hideTimeTip();
+    if (!host || host === timeTipQuiet) return;
+    timeTipPending = host;
+    const x = e.clientX, y = e.clientY;
+    timeTipTimer = setTimeout(() => { timeTipTimer = null; if (timeTipPending === host && host.isConnected) showTimeTip(host, x, y); }, TIME_TIP_REST_MS);
+  });
+  logEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' || e.pointerType === 'pen') { timeTipQuiet = null; hideTimeTip(); } });
+  logEl.addEventListener('click', (e) => {
+    if (lastPointerType !== 'touch') return;
+    if (e.target.closest && e.target.closest(TIME_TIP_SKIP)) return;
+    try { if (String(window.getSelection() || '').trim()) return; } catch (err) {}
+    const host = timeTipHostAt(e.target), again = host === timeTipHost;
+    hideTimeTip();
+    if (!host || again) return;   // a second tap puts it away
+    showTimeTip(host, e.clientX, e.clientY);
+    if (timeTipHost === host) timeTipTimer = setTimeout(hideTimeTip, TIME_TIP_TOUCH_MS);
+  });
+  logEl.addEventListener('scroll', hideTimeTip, { passive: true });
+}
+document.addEventListener('keydown', hideTimeTip);
+// A time zone change while the page is open (travel, a changed clock setting): the visible stamps
+// are redrawn from each message's own recorded time when the window comes back into view.
+function refreshMsgTimes() {
+  document.querySelectorAll('.msg[data-ts] > .msg-time').forEach((t) => {
+    const text = formatMsgTime(t.parentElement.dataset.ts);
+    if (text && t.textContent !== text) t.textContent = text;
+  });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMsgTimes(); });
+window.addEventListener('focus', refreshMsgTimes);
+
 // A run for one chat. `chatId` is supplied by the caller (never read off the display) and stamped
 // by adoptRun(); the mode is the OWNING chat's, so a run carries the permission posture of the
 // chat that started it even if the composer is showing something else by the time it finishes.
@@ -6092,8 +6200,30 @@ function detachRunDom(run) {
 // Rebuild this run's bubble + card on `host` and repaint everything it already knows. This is the
 // reattach path: opening a chat whose turn is still in flight lands here, and the turn itself is
 // never re-sent, re-created or reset -- only re-drawn.
+// A recorded time as ISO, or '' when there is none or it does not parse.
+function validIso(at) {
+  if (!at) return '';
+  const ms = Date.parse(at);
+  return isNaN(ms) ? '' : new Date(ms).toISOString();
+}
+// A card line's own time: set when known, removed when not (so the line never shows a stale one).
+function setLineAt(el, at) {
+  if (!el || !el.dataset) return;
+  if (at) el.dataset.at = at; else delete el.dataset.at;
+}
+// The last moment this turn showed something new (a piece of the answer, a step on its card), kept
+// on the run and on its reply so the time tip can say when the latest progress arrived.
+function noteRunUpdate(run, at) {
+  run.updatedAt = validIso(at) || new Date().toISOString();
+  if (run.assistantMsgEl && run.assistantMsgEl.dataset) run.assistantMsgEl.dataset.updatedAt = run.updatedAt;
+  return run.updatedAt;
+}
 function attachRunDom(run, host) {
   run.assistantMsgEl = host;
+  if (host && host.dataset) {
+    host.dataset.startedAt = new Date(run.start).toISOString();
+    if (run.updatedAt) host.dataset.updatedAt = run.updatedAt;
+  }
   run.textEl = msgTextEl(host);
   buildCard(run, host);
   paintRunState(run);
@@ -6500,6 +6630,8 @@ function renderCard(run) {
   const stageText = run.action || run.stage || '';
   r.stage.textContent = stageText;
   r.stage.title = stageText;
+  // 'Request sent' is the turn's own first line, written the moment it started.
+  setLineAt(r.stage, stageText ? (run.actionAt || new Date(run.start).toISOString()) : '');
   if (!run.ended) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
   r.stage.style.whiteSpace = run.pricePaused ? 'normal' : '';
   r.stage.style.overflow = run.pricePaused ? 'visible' : '';
@@ -6517,10 +6649,11 @@ function renderCard(run) {
     r.model.title = _identity.join(' | ') || pageT('run.model_identity_title', 'Recorded model identity');
   }
   const usd = fmtUsd(run.cost); r.cost.textContent = usd ? pageTF('run.cost_used', '{cost} used', { cost: usd }) : '';
-  const recent = run.steps.slice(-3).map((s) => (s.status === 'completed' ? '✓ ' : (s.status === 'failed' ? '× ' : '• ')) + (s.summary || s.tool || 'Action'));
-  r.recent.innerHTML = recent.map((s) => '<span>' + esc(s) + '</span>').join('');
+  const recent = run.steps.slice(-3).map((s) => ({ text: (s.status === 'completed' ? '✓ ' : (s.status === 'failed' ? '× ' : '• ')) + (s.summary || s.tool || 'Action'), at: s.at || '' }));
+  r.recent.innerHTML = recent.map((s) => '<span' + (s.at ? ' data-at="' + esc(s.at) + '"' : '') + '>' + esc(s.text) + '</span>').join('');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';   // one line + ellipsis, exact text on the tooltip
+  setLineAt(r.last, run.last ? run.lastAt : '');
   if (run.status === 'running') r.title.textContent = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
   run.card.classList.toggle('perm', !!run.permission && run.status === 'running');
   r.sr.textContent = (run.permission ? pageT('run.sr_waiting', 'Waiting for approval. ') : '') + (run.action || run.stage || '');
@@ -6641,6 +6774,7 @@ function applyResultSummary(run) {
   r.summary.textContent = parts.join(' · ');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';
+  setLineAt(r.last, run.last ? run.lastAt : '');
   // A failed or stopped turn is never announced as "Done".
   r.sr.textContent = parts.join(' · ') || (run.status === 'failed' ? (run.endSummary || pageT('run.sr_didnt_finish', "Didn't finish")) : run.status === 'cancelled' ? pageT('run.status_stopped', 'Stopped') : pageT('run.sr_done', 'Done'));
   // Routing, approval, failure, review and ledger events are meaningful even when no tool completed.
@@ -6742,6 +6876,7 @@ function paintFinishedCard(run) {
   const title = kind === 'completed' ? pageT('run.status_completed', 'Completed') : (kind === 'cancelled' ? pageT('run.status_stopped', 'Stopped') : (kind === 'awaiting_approval' ? pageT('run.status_waiting', 'Waiting for your approval') : pageT('run.failed_safely_label', 'Failed safely')));
   r.title.textContent = title;
   r.stage.textContent = run.endSummary || title;
+  setLineAt(r.stage, run.endedAt);
   r.elapsed.innerHTML = '<b>' + fmtElapsed((run.endedAtMs || (run.endedAtMs = Date.now())) - run.start) + '</b> ' + pageT('run.total_word', 'total');
   // The Proof Chip for a turn that just finished (or re-opened after finishing off screen),
   // addressed by the commit's canonical request id — the same identity the server stamped on
@@ -6798,10 +6933,12 @@ function applyTaskEvent(run, ev) {
     window.VoolGoalCard.consume(ev.goal || null, ev.summary);
   }
   run.events.push(ev);
+  // When this event happened: the server's own time when it carried one, else the moment it arrived.
+  const at = noteRunUpdate(run, ev.ts || ev.created_at);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
   // What the card says for this event (runCardWords), else the event's own summary.
   const said = (typeof runCardWords === 'function' ? runCardWords(ev) : '') || ev.summary;
-  if (said) { run.action = said; run.evented = true; }
+  if (said) { run.action = said; run.actionAt = at; run.evented = true; }
   if (ev.model) { run.model = ev.model; rememberStickyModel(run.chatId, ev.model); }
   if (ev.cost) run.cost = Object.assign({}, run.cost, ev.cost);
   switch (ev.type) {
@@ -6816,28 +6953,28 @@ function applyTaskEvent(run, ev) {
     case 'tool.started':
       run.permission = false;
       run.steps.push({ tool: ev.tool, summary: said, status: 'running', stage: ev.stage,
-        startedAt: Date.now(), finishedAt: 0, model: run.model, cost: run.cost });
+        startedAt: Date.now(), finishedAt: 0, at: at, model: run.model, cost: run.cost });
       if (run.card) run.card.classList.remove('tc-hold');  // resume after a permission pause
       break;
     case 'tool.completed': {
       let s = null; for (let i = run.steps.length - 1; i >= 0; i--) { if (run.steps[i].tool === ev.tool && run.steps[i].status === 'running') { s = run.steps[i]; break; } }
       if (!s) s = run.steps[run.steps.length - 1];
-      if (s) { s.status = 'completed'; if (said) s.summary = said; s.finishedAt = Date.now(); }
-      else run.steps.push({ tool: ev.tool, summary: said, status: 'completed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
-      run.last = said || run.last;
+      if (s) { s.status = 'completed'; if (said) s.summary = said; s.finishedAt = Date.now(); s.at = at; }
+      else run.steps.push({ tool: ev.tool, summary: said, status: 'completed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now(), at: at });
+      if (said) { run.last = said; run.lastAt = at; }
       if (ev.path) run.files[ev.path] = (run.files[ev.path] || 0) + 1;
       if ((ev.stage || '') === 'Testing' && ev.measurable) { if (ev.measurable.current != null) run.tests.done = ev.measurable.current; if (ev.measurable.total != null) run.tests.total = ev.measurable.total; }
       break;
     }
     case 'tool.failed': {
       let s = null; for (let i = run.steps.length - 1; i >= 0; i--) { if (run.steps[i].status === 'running') { s = run.steps[i]; break; } }
-      if (s) { s.status = 'failed'; if (said) s.summary = said; s.finishedAt = Date.now(); }
-      else run.steps.push({ tool: ev.tool, summary: said, status: 'failed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
-      run.last = said || run.last;
+      if (s) { s.status = 'failed'; if (said) s.summary = said; s.finishedAt = Date.now(); s.at = at; }
+      else run.steps.push({ tool: ev.tool, summary: said, status: 'failed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now(), at: at });
+      if (said) { run.last = said; run.lastAt = at; }
       break;
     }
     case 'permission.required':
-      run.permission = true; run.action = ev.summary || pageT('run.status_waiting', 'Waiting for your approval');
+      run.permission = true; run.action = ev.summary || pageT('run.status_waiting', 'Waiting for your approval'); run.actionAt = at;
       if (run.card) run.card.classList.add('tc-hold');   // the mark holds: nothing is running
       // The prompt is recorded against the chat that raised it, and only PAINTED into the single
       // permission bar when that chat is on screen -- otherwise one chat's approval request would
@@ -6855,7 +6992,7 @@ function applyTaskEvent(run, ev) {
     case 'verification.completed': {
       const reviewState = setRunReviewState(run, reviewStateFromEvent(ev));
       const review = reviewStatePresentation(reviewState);
-      run.last = review.label || pageT('run.review.outcome_unavailable', 'Model review outcome unavailable');
+      run.last = review.label || pageT('run.review.outcome_unavailable', 'Model review outcome unavailable'); run.lastAt = at;
       // The reviewer's OWN cause, when the event carried one: "Verifier was required, but no
       // verifier lane was available." is the fact the operator can act on, and the typed state
       // alone ("blocked") does not say which of the blocked shapes it was. A verdict state
@@ -10053,6 +10190,7 @@ async function runTurn(text, queueItemId, opts) {
           // looking at this chat. Painting is the gated second step.
           assistant += chunk;
           run.text = assistant;
+          noteRunUpdate(run);
           // Live token estimate (~4 chars/token) as the answer streams -- the answer's own footer
           // carries the exact count when it finishes.
           run.tokens = Math.round(assistant.length / 4);

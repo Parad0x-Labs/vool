@@ -1276,6 +1276,8 @@
     "msg.copy_text": "Copy text",
     "msg.copy_text_title": "Copy as plain text (Markdown formatting removed)",
     "msg.copy_title": "Copy message",
+    "msg.time_started": "Started {time}",
+    "msg.time_updated": "Last update {time}",
     "msg.img_copy_path": "Copy path",
     "msg.img_copy": "Copy image",
     "msg.img_show_in_finder": "Show in Finder",
