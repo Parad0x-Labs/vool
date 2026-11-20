@@ -30,7 +30,11 @@ CONNECT_ATTEMPTS = 2
 DISCORD_USER_AGENT = "DiscordBot (https://github.com/Parad0x-Labs/vool, 0.8)"
 
 PLATFORMS = frozenset({"telegram", "discord"})
-BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose"})
+# ``computer_tools`` for a chat app always comes with folders the owner chose (core.mobile_companion.policy):
+# it may find, read and send files from them, and nothing else on the computer.
+BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose", "computer_tools"})
+#: The largest file each app takes from a bot (Telegram's Bot API: 50 MB; Discord without boosts: 10 MB).
+FILE_LIMITS = {"telegram": 50 * 1024 * 1024, "discord": 10 * 1024 * 1024}
 
 
 class ConnectRefused(ValueError):
@@ -394,6 +398,75 @@ class ManagedBot:
                     {"content": chunk, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
                 )
 
+    def post_file(self, channel, name, media_type, data):
+        """Post one file into the owner's private chat, as a file (no recompression)."""
+        import uuid
+
+        boundary = "vool" + uuid.uuid4().hex
+        safe = re.sub(r'[\r\n"\\]', "_", str(name))[:200] or "file"
+        parts = []
+        if self.platform == "telegram":
+            parts.append(("chat_id", None, None, str(channel).encode()))
+            parts.append(("document", safe, media_type, data))
+            url = self.remote_base + "/bot" + self.token + "/sendDocument"
+            headers = {}
+        else:
+            payload = {"content": "", "allowed_mentions": {"parse": []}, "attachments": [{"id": 0, "filename": safe}]}
+            parts.append(("payload_json", None, "application/json", json.dumps(payload).encode()))
+            parts.append(("files[0]", safe, media_type, data))
+            url = self.remote_base + "/channels/" + channel + "/messages"
+            headers = {"Authorization": "Bot " + self.token, "User-Agent": DISCORD_USER_AGENT}
+        body = b""
+        for field, filename, kind, value in parts:
+            disposition = f'form-data; name="{field}"' + (f'; filename="{filename}"' if filename else "")
+            body += f"--{boundary}\r\nContent-Disposition: {disposition}\r\n".encode()
+            if kind:
+                body += f"Content-Type: {kind}\r\n".encode()
+            body += b"\r\n" + value + b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
+        headers["Content-Type"] = "multipart/form-data; boundary=" + boundary
+        with remote_fetch_policy.open_remote_url(
+            url,
+            data=body,
+            headers=headers,
+            method="POST",
+            timeout=60,
+            no_proxy=True,
+            redirect_policy="refuse",
+            credential_headers=("Authorization",) if self.platform == "discord" else None,
+        ) as response:
+            raw = response.read(1024 * 1024 + 1)
+        if self.platform == "telegram":
+            result = json.loads(raw)
+            if not isinstance(result, dict) or result.get("ok") is not True:
+                raise ValueError("Chat service refused the file.")
+
+    def deliver_files(self, channel):
+        """Post the files a turn of this chat app picked (machine.send_to_phone), then drop the copies.
+
+        Only while the owner still allows files for this app; a file too big for the app is said, not sent.
+        """
+        from core.mobile_companion import outgoing_files
+
+        for record, path in outgoing_files.pending(self.device_id):
+            if not self.active() or not enabled(self.device(), "chat") or not enabled(self.device(), "computer_tools"):
+                return
+            try:
+                if int(record["size_bytes"]) > FILE_LIMITS[self.platform]:
+                    limit = FILE_LIMITS[self.platform] // (1024 * 1024)
+                    app = "Discord" if self.platform == "discord" else "Telegram"
+                    self.send(channel, f"{record['name']} is too big for {app} (up to {limit} MB). It is still on your computer.")
+                else:
+                    self.post_file(channel, record["name"], record["media_type"], path.read_bytes())
+                    service().store.append_receipt(
+                        "bot.file_sent", device_id=self.device_id,
+                        detail={"size_bytes": int(record["size_bytes"]), "sha256": record["sha256"]},
+                    )
+            except (OSError, ValueError, remote_fetch_policy.RemoteFetchRefusedError) as error:
+                logger.info("%s file: not delivered (%s)", self.platform, type(error).__name__)
+                self.send(channel, f"I couldn't send {record['name']} here. It is still on your computer.")
+            outgoing_files.done(self.device_id, str(record["id"]))
+
     def refused(self, reason, channel=""):
         service().store.append_receipt("bot.request_refused", device_id=self.device_id, detail={"reason": reason})
         if channel and service().store.allow_rate("bot-refusal:" + self.platform + ":" + channel, cap=3, window=60):
@@ -659,6 +732,7 @@ class ManagedBot:
             if status in {200, 202}
             else "Could not complete that turn. Check your computer.",
         )
+        self.deliver_files(channel)
 
     def _ask_owner(self, device, binding, channel, user, who):
         """Someone pressed Start without the code (the plain link BotFather shows, say): ask the owner.
@@ -779,6 +853,8 @@ class ManagedBot:
                 for event in feed["events"]:
                     if event.get("os_notification_allowed") is not False:
                         self.send(current["binding"]["channel_id"], event["message"], right="alerts")
+            # A file a longer turn picked after its reply went out.
+            self.deliver_files(current["binding"]["channel_id"])
         return count
 
     def _reach_discord_owner(self, device):

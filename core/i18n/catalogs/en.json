@@ -5347,7 +5347,10 @@
     "phone.bot_telegram_dm_only": "Talk to VOOL in your private chat with the bot. No @ needed. VOOL does not read group chats, so nobody else can use it.",
     "phone.bot_discord_in_server": "VOOL is in your server. Discord wants you to say hi first.",
     "phone.bot_discord_say_hi": "Say hi to VOOL",
-    "phone.bot_discord_say_hi_help": "Discord opens VOOL. Press Message, send hi, then come back. This page changes to Connected by itself."
+    "phone.bot_discord_say_hi_help": "Discord opens VOOL. Press Message, send hi, then come back. This page changes to Connected by itself.",
+    "phone.bot_files": "Files in chosen folders",
+    "phone.bot_files_help": "VOOL can find files in these folders and send them to you in this chat. A file sent here is kept by {app}. Nothing else on this computer is reachable. On for 30 days at a time.",
+    "phone.bot_files_not_ready": "These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:"
   },
   "html_keys": [
     "bypass.modal_limits",

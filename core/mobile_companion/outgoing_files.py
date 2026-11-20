@@ -166,6 +166,21 @@ def chunk(device_id: str, file_id: str, offset: int) -> tuple[dict[str, Any], by
     return _public(record), data
 
 
+def pending(device_id: str) -> list[tuple[dict[str, Any], Path]]:
+    """Every file waiting for ``device_id``, oldest first, with where its copy is (for a chat app's worker)."""
+
+    rows = sorted(_expire(device_id, time.time()), key=lambda row: float(row.get("sent_at") or 0))
+    folder = _device_dir(device_id)
+    return [(_public(row), folder / (str(row["id"]) + ".bin")) for row in rows if _ID_RE.fullmatch(str(row.get("id") or ""))]
+
+
+def done(device_id: str, file_id: str) -> None:
+    """The chat app has the file (or it could not take it): the copy goes."""
+
+    if _ID_RE.fullmatch(str(file_id or "")):
+        _drop(device_id, file_id)
+
+
 def forget_device(device_id: str) -> None:
     """Remove every file sent to ``device_id`` (on unpair)."""
 

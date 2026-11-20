@@ -394,6 +394,17 @@ PHONE_NO_FOLDERS_TEXT = (
     "This phone has no folders to use yet. Choose folders for it in VOOL Settings on your computer."
 )
 
+#: A chat app (Telegram or Discord) reaches files only in folders the owner chose for it, and nothing
+#: else on the computer: no apps, commands, accounts, paid lookups or money (core.mobile_companion.bot_runtime).
+CHAT_APP_COMPUTER_TEXT = (
+    "This chat app can't use files on your computer yet. In VOOL Settings on your computer, open "
+    "Phone and chat apps, pick this app's tab, turn on \"Files in chosen folders\" and add the folders."
+)
+CHAT_APP_FOLDERS_ONLY_TEXT = (
+    "This chat app can only find and send files from the folders you chose: {folders}. Change this "
+    "in VOOL Settings on your computer."
+)
+
 _TRUSTED_REMOTE_DEVICE: contextvars.ContextVar[str] = contextvars.ContextVar("vool_trusted_remote_device", default="")
 
 
@@ -444,14 +455,57 @@ def remote_turn_device(source_context: Any) -> dict[str, Any] | None:
         return None
 
 
+def remote_turn_chat_app(source_context: Any) -> dict[str, Any] | None:
+    """The live record of the paired chat app (Telegram or Discord bot) this turn came from, or ``None``.
+
+    The bot worker stamps its own device only after the chat app named the owner's account as the
+    sender (its binding). A chat app is never a phone: it holds no right but chat-level ones and, at
+    most, files in folders the owner chose (``computer_tools`` with a folder scope).
+    """
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    device_id = sc.get(REMOTE_DEVICE_KEY)
+    if not isinstance(device_id, str) or not device_id.startswith("bot:"):
+        return None
+    try:
+        from core.web.api.mobile_companion_api import mobile_companion_service
+
+        device = mobile_companion_service().store.device(device_id) or {}
+        if (
+            device.get("status") != "active"
+            or device.get("kind") != "bot"
+            or (device.get("binding") or {}).get("state") != "bound"
+        ):
+            return None
+        return device
+    except Exception:
+        return None
+
+
+def _chat_app_folders(device: dict[str, Any]) -> tuple[str, ...]:
+    scope = device.get("file_scope")
+    if not isinstance(scope, dict) or scope.get("mode") != "folders":
+        return ()
+    folders = scope.get("folders")
+    if not isinstance(folders, list) or not all(isinstance(item, str) and item for item in folders):
+        return ()
+    return tuple(folders)
+
+
 def remote_turn_has_grant(source_context: Any, grant: str) -> bool:
-    """Whether the paired phone this turn came from currently holds ``grant``, failing closed."""
+    """Whether the paired phone this turn came from currently holds ``grant``, failing closed.
+
+    A chat app can hold only ``computer_tools``, and only with at least one chosen folder.
+    """
 
     if grant not in REMOTE_GRANT_REFUSAL_TEXT:
         return False
     device = remote_turn_device(source_context)
     if device is None:
-        return False
+        bot = remote_turn_chat_app(source_context) if grant == REMOTE_GRANT_COMPUTER else None
+        if bot is None or not _chat_app_folders(bot):
+            return False
+        device = bot
     try:
         from core.mobile_companion.policy import enabled
 
@@ -469,7 +523,8 @@ def remote_turn_folders(source_context: Any) -> tuple[str, ...] | None:
 
     device = remote_turn_device(source_context)
     if device is None:
-        return ()
+        bot = remote_turn_chat_app(source_context)
+        return _chat_app_folders(bot) if bot is not None else ()
     scope = device.get("file_scope")
     if scope is None:
         return None
@@ -552,9 +607,13 @@ def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
 
     sc = source_context if isinstance(source_context, dict) else {}
     if not sc.get(REMOTE_DEVICE_KEY):
-        # A chat app, or another device that is not a paired phone: no right can open this.
+        # Another device that is not a paired phone or chat app: no right can open this.
         return REMOTE_TURN_REFUSAL_TEXT
     grant = _remote_intent_grant(intent)
+    if remote_turn_chat_app(sc) is not None:
+        if grant != REMOTE_GRANT_COMPUTER:
+            return REMOTE_TURN_REFUSAL_TEXT
+        return remote_grant_refusal_text(sc, grant, intent=intent)
     if grant == _MONEY:
         return REMOTE_MONEY_REFUSAL_TEXT
     if grant == _OWNER:
@@ -567,9 +626,21 @@ def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
     return REMOTE_GRANT_REFUSAL_TEXT[grant]
 
 
-def phone_folders_text(folders: tuple[str, ...]) -> str:
-    """What the phone reads when a tool would reach past the folders the owner chose."""
+def remote_grant_refusal_text(source_context: Any, grant: str, *, intent: str = "") -> str:
+    """The words for a turn that lacks ``grant``: a chat app's own, or the phone's."""
 
+    if remote_turn_chat_app(source_context) is not None:
+        if remote_turn_has_grant(source_context, grant) and intent and _outside_folder_tools(intent, source_context):
+            return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(remote_turn_folders(source_context) or ()))
+        return CHAT_APP_COMPUTER_TEXT if grant == REMOTE_GRANT_COMPUTER else REMOTE_TURN_REFUSAL_TEXT
+    return REMOTE_GRANT_REFUSAL_TEXT[grant]
+
+
+def phone_folders_text(folders: tuple[str, ...], source_context: Any = None) -> str:
+    """What the phone (or chat app) reads when a tool would reach past the folders the owner chose."""
+
+    if source_context is not None and remote_turn_chat_app(source_context) is not None:
+        return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(folders)) if folders else CHAT_APP_COMPUTER_TEXT
     if not folders:
         return PHONE_NO_FOLDERS_TEXT
     return PHONE_FOLDERS_ONLY_TEXT.format(folders=", ".join(folders))

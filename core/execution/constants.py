@@ -2135,7 +2135,7 @@ class SendToPhone(NamedTuple):
 
 _SEND_LEAD_RE = re.compile(
     r"^\s*(?:(?:please|pls|hey|ok|okay|can\s+you|could\s+you|would\s+you|vool)[\s,]+)*"
-    r"(?P<verb>send|get|move|copy|put|transfer|share|forward|bring|text|airdrop)\s+(?P<me>me\s+)?",
+    r"(?P<verb>send|get|fetch|grab|take|download|pull|give|move|copy|put|transfer|share|forward|bring|text|airdrop)\s+(?P<me>me\s+)?",
     re.I,
 )
 _TO_PHONE_RE = re.compile(
@@ -2144,6 +2144,14 @@ _TO_PHONE_RE = re.compile(
 )
 _SEND_TAIL_RE = re.compile(r"[\s,.!?]*(?:please|pls|thanks|thank\s+you|now|asap)?[\s,.!?]*$", re.I)
 _SEND_PATH_RE = re.compile(r"^(?:~|/)[^\s]*$")
+_CHECK_PLACE_THEN_SEND_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|can\s+you|could\s+you|would\s+you|vool)[\s,]+)*"
+    r"(?:check|look\s+(?:in|at|into)|open|go\s+(?:to|into))\s+(?:the\s+|my\s+)?"
+    r"(?P<place>downloads|desktop|documents|pictures|photos|movies|music)(?:\s+folder)?\s*,?\s+and\s+(?:then\s+)?"
+    r"(?P<ask>(?:send|get|fetch|grab|download|pull|give|bring|forward)\s+me\s+(?:the\s+|my\s+)?\S+(?:\s+\S+)??\s+\S+?)"
+    r"\s+(?:from|in|out\s+of)\s+(?:it|there|that(?:\s+folder)?)(?P<tail>[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*)$",
+    re.I,
+)
 
 
 _OPEN_NEWEST_RE = re.compile(
@@ -2249,6 +2257,12 @@ def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> Send
     "send me day4.jpg" too. Anything more ("... and tell bob") is not this.
     """
     raw = " ".join(str(text or "").split())
+    # "check the downloads folder and fetch me the latest picture from it" (asked from a phone
+    # 2026-11-20): the folder is named first, then the ask; read it as "fetch me ... from downloads".
+    raw = re.sub(r"\b(\w+)(?:\s+\1\b)+", r"\1", raw, flags=re.I)  # "picture picture"
+    first = _CHECK_PLACE_THEN_SEND_RE.match(raw)
+    if first:
+        raw = f"{first.group('ask')} from {first.group('place')}{first.group('tail') or ''}"
     lead = _SEND_LEAD_RE.match(raw)
     if not lead:
         return None
@@ -2256,7 +2270,7 @@ def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> Send
     to_phone = _TO_PHONE_RE.search(rest)
     if to_phone:
         rest = rest[: to_phone.start()] + " " + rest[to_phone.end():]
-    elif not (phone_turn and lead.group("me") and lead.group("verb").lower() in {"send", "get", "bring", "forward"}):
+    elif not (phone_turn and lead.group("me") and lead.group("verb").lower() in {"send", "get", "fetch", "grab", "download", "pull", "give", "bring", "forward"}):
         return None
     rest = _SEND_TAIL_RE.sub("", rest).strip(" ,")
     if not rest or re.search(r"\b(?:and|then|also)\b", rest, re.I):

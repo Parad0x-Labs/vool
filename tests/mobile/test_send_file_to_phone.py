@@ -25,6 +25,11 @@ _REMOTE = {rt.HTTP_INGRESS_KEY: True, rt.OWNER_LOCAL_KEY: False}
     ("get the picture named day4 in downloads onto my phone", False, "search"),
     ("send me the newest screenshot from my downloads to my phone", False, "listing"),
     ("send ~/Downloads/day4.jpg to my phone", False, "path"),
+    # Asked from the phone and from Telegram, 2026-11-20: listed folders or searched the web instead.
+    ("can you fetch me the latest picture from Downloads folder pls?", True, "listing"),
+    ("Check the Downloads folder and fetch me the latest picture picture from it", True, "listing"),
+    ("give me the newest pic from downloads", True, "listing"),
+    ("pull me the newest screenshot from downloads", True, "listing"),
 ])
 def test_a_send_to_phone_ask(text, phone_turn, kind):
     request = machine_send_to_phone_intent(text, phone_turn=phone_turn)
@@ -35,7 +40,7 @@ def test_a_send_to_phone_ask(text, phone_turn, kind):
 @pytest.mark.parametrize(("text", "phone_turn"), [
     ("send me day4.jpg", False), ("send day4.jpg to bob", False), ("send day4.jpg to my phone and tell bob", False),
     ("send me a joke", True), ("send me the pictures in downloads", True), ("send a message to my phone", False),
-    ("get my phone number", False),
+    ("get my phone number", False), ("check the downloads folder and tell bob", True), ("fetch the weather", True), ("give me a joke", True),
 ])
 def test_not_a_send_to_phone_ask(text, phone_turn):
     assert machine_send_to_phone_intent(text, phone_turn=phone_turn) is None
@@ -147,7 +152,8 @@ def test_a_phone_turn_sends_to_that_phone_and_keeps_its_folder_fence(home, phone
     turn = {**_REMOTE, rt.REMOTE_DEVICE_KEY: "phone:abc"}
     sent = execute_runtime_tool("machine.send_to_phone", {"path": "~/Downloads/day4.jpg"}, source_context=turn)
     assert sent.ok, sent.response_text
-    assert sent.response_text.startswith("Sent day4.jpg (")
+    # The phone shows the file in its answer, with Save and Share: no directions to another screen.
+    assert sent.response_text.startswith("Here it is: day4.jpg (") and "Open Files" not in sent.response_text
     assert [row["name"] for row in outgoing_files.listing("phone:abc")] == ["day4.jpg"]
     phones.records["phone:abc"]["file_scope"] = {"mode": "folders", "folders": [str(home / "Documents")]}
     fenced = execute_runtime_tool("machine.send_to_phone", {"path": "~/Downloads/day4.jpg"}, source_context=turn)

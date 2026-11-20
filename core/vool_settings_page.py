@@ -1292,6 +1292,8 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .chat-app-watermark {position:absolute !important; right:18px; top:14px; width:170px; height:170px; opacity:.09; pointer-events:none; display:block;}
 .chat-app-watermark svg {width:100%; height:100%; display:block;}
 .chat-app-perms-empty {margin:6px 0;}
+.chat-app-files {margin-top:14px; padding-top:12px; border-top:1px solid var(--border);}
+.chat-app-files .phone-actions {margin-top:6px;}
 .chat-app-save {position:sticky; bottom:0; z-index:2; display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:18px -16px -16px; padding:12px 16px; border-top:1px solid var(--border); background:var(--panel,var(--bg)); border-radius:0 0 14px 14px;}
 .chat-app-saved {font-weight:600; color:var(--muted);}
 .chat-app-saved.ok {color:var(--ok);}
@@ -5522,6 +5524,26 @@ function widgetPhoneAccess(host) {
       expiry.dataset.initial=expiry.value;
       expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
     });
+    /* Files for a chat app: off until the owner turns it on and names the folders; never the whole computer. */
+    let botFolders=null;
+    if(isBot){
+      const filesBox=el('div','chat-app-files'); holder.appendChild(filesBox);
+      const line=el('label','phone-right'); const box=el('input'); box.type='checkbox'; box.dataset.right='computer_tools';
+      const until=(device.right_expiry || {}).computer_tools; box.checked=!!(device.rules || {}).computer_tools && !(until && until*1000<=Date.now());
+      boxes.computer_tools=box; line.append(box,document.createTextNode(' '+T('phone.bot_files','Files in chosen folders'))); filesBox.appendChild(line);
+      const appName=device.platform==='discord'?'Discord':'Telegram';
+      filesBox.appendChild(el('p','help',T('phone.bot_files_help','VOOL can find files in these folders and send them to you in this chat. A file sent here is kept by {app}. Nothing else on this computer is reachable. On for 30 days at a time.').replace('{app}',appName)));
+      const more=el('div','chat-app-folders'); filesBox.appendChild(more);
+      botFolders=el('textarea','inp'); botFolders.rows=3; botFolders.placeholder='~/Downloads';
+      const scope=device.file_scope || {}; botFolders.value=(scope.mode==='folders'?(scope.folders || []):[]).join('\n');
+      botFolders.setAttribute('aria-label',T('phone.setup.folders','Folders, one per line'));
+      const folderLine=el('label','phone-expiry',T('phone.setup.folders','Folders, one per line')); folderLine.appendChild(botFolders); more.appendChild(folderLine);
+      const quick=el('div','phone-actions'); ['~/Downloads','~/Pictures','~/Documents','~/Desktop'].forEach(path=>{const add=el('button','btn',path);add.type='button';add.onclick=()=>{const list=botFolders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.includes(path))list.push(path);botFolders.value=list.join('\n');row.dispatchEvent(new Event('change'));};quick.appendChild(add);});
+      more.appendChild(quick);
+      const waiting=(phonePrepared[device.device_id] || {}).folders;
+      if(waiting){const blocked=waiting.filter(f=>f.state!=='ready');if(blocked.length){more.appendChild(el('p','help',T('phone.bot_files_not_ready','These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:')));blocked.forEach(f=>more.appendChild(el('p','help',f.folder)));}}
+      const syncFiles=()=>{more.hidden=!box.checked;}; box.addEventListener('change',syncFiles); syncFiles();
+    }
     if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Online lookups: free web sources only — your paid models and paid search never run from the phone. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
     holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));
     const noticeChoices=isBot?botNotices(row,device):null;
@@ -5547,6 +5569,11 @@ function widgetPhoneAccess(host) {
       const body={operation:'device_rules',device_id:device.device_id,rules,expected_permission_revision:device.permission_revision || 0};
       const changedExpiry={};Object.entries(expiryInputs).forEach(([name,input])=>{if(input.value!==input.dataset.initial)changedExpiry[name]=input.value?new Date(input.value).getTime()/1000:0;});
       if(Object.keys(changedExpiry).length)body.right_expiry=changedExpiry;
+      if (isBot && rules.computer_tools) {
+        const list=botFolders.value.split('\n').map(v=>v.trim()).filter(Boolean);
+        if(!list.length){saved.className='chat-app-saved failed';saved.textContent=T('phone.setup.need_folder','Add at least one folder.');return;}
+        body.file_scope={mode:'folders',folders:list};
+      }
       if (rules.payment_propose) {
         const selected=accounts.find(a=>a.wallet_id===account.value); if (!selected) {const said=T('phone.setup_wallet','Set up a wallet on your computer first.');if(isBot){saved.className='chat-app-saved failed';saved.textContent=said;}else note.textContent=said;return;}
         body.credential=credential.value; body.payment_cap_human={wallet_id:account.value,network:selected.network,per_payment:per.value,daily:daily.value};
@@ -5558,6 +5585,9 @@ function widgetPhoneAccess(host) {
         const post=async(payload)=>{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);return j;};
         await post(body);
         await post({operation:'bot_notifications',device_id:device.device_id,preferences:noticeChoices()});
+        /* The first look into each folder happens now, while the owner is here to answer the Mac's question. */
+        if(rules.computer_tools){try{const j=await post({operation:'prepare_folders',device_id:device.device_id});phonePrepared[device.device_id]={folders:j.folders};}catch(_){delete phonePrepared[device.device_id];}}
+        else delete phonePrepared[device.device_id];
         phoneBotSaved[device.platform]=true;state.sources[url]=await getJSON(url);redrawPhoneSettings();
       })().catch(e=>{saved.className='chat-app-saved failed';saved.textContent=phoneFailWords(e);saveButton.disabled=false;});
     };
