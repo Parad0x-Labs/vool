@@ -3910,9 +3910,15 @@ def maybe_handle_memory_command(
             from core.memory.entries import ERASED_HISTORY_ROWS
 
             history_rows = int(erasures.get(ERASED_HISTORY_ROWS) or 0)
-            total_removed = max(int(removed) - history_rows, int(semantic_removed),
-                                int(erasures.get("structured_entries") or 0) - history_rows,
-                                *(int(erasures.get(key) or 0) for key in ("semantic_nodes", "source_occurrences")))
+            # When saved facts were erased, they are the count: the semantic layer's nodes and the chat turns that
+            # mentioned the fact ("who is my dentist?") are copies of it, and counting them answered "Removed 3 memory
+            # entries" for one fact (release walk 2026-11-20 at 36033c05). Without a saved fact, the other layers count.
+            facts_removed = max(int(removed), int(erasures.get("structured_entries") or 0)) - history_rows
+            if facts_removed > 0:
+                total_removed = facts_removed
+            else:
+                total_removed = max(int(semantic_removed),
+                                    *(int(erasures.get(key) or 0) for key in ("semantic_nodes", "source_occurrences")))
             if total_removed <= 0:
                 total_removed = sum(int(erasures.get(key) or 0) for key in _FORGET_MEMORY_DERIVATIVE_STORES)
                 total_removed += sum(int(result.get("removed") or 0)
