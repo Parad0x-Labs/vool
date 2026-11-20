@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "דברו עם VOOL בצ׳אט הפרטי שלכם עם הבוט. אין צורך ב־@. VOOL לא קורא קבוצות, כך שאף אחד אחר לא יכול להשתמש בו.",
     "phone.bot_discord_in_server": "VOOL נמצא בשרת שלכם. דיסקורד רוצה שתגידו שלום קודם.",
     "phone.bot_discord_say_hi": "להגיד שלום ל־VOOL",
-    "phone.bot_discord_say_hi_help": "דיסקורד יפתח את VOOL. לחצו על הודעה, שלחו שלום וחזרו. הדף הזה יעבור למחובר בעצמו."
+    "phone.bot_discord_say_hi_help": "דיסקורד יפתח את VOOL. לחצו על הודעה, שלחו שלום וחזרו. הדף הזה יעבור למחובר בעצמו.",
+    "phone.bot_files": "קבצים בתיקיות שנבחרו",
+    "phone.bot_files_help": "VOOL יכול למצוא קבצים בתיקיות האלה ולשלוח לכם אותם בצ׳אט הזה. {app} שומר כל קובץ שנשלח לכאן. שום דבר אחר במחשב הזה אינו נגיש. פעיל 30 יום בכל פעם.",
+    "phone.bot_files_not_ready": "התיקיות האלה עדיין לא פתוחות ל־VOOL. ב־Mac, אשרו את VOOL בהגדרות המערכת, תחת פרטיות ואבטחה, קבצים ותיקיות, ואז לחצו שוב על שמירת ההרשאות:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

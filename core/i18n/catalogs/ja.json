@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "ボットとの個人チャットで VOOL と話してください。@ は不要です。VOOL はグループチャットを読まないので、他の人は使えません。",
     "phone.bot_discord_in_server": "VOOL はサーバーに参加しました。Discord では先にあなたから挨拶する必要があります。",
     "phone.bot_discord_say_hi": "VOOL に挨拶する",
-    "phone.bot_discord_say_hi_help": "Discord で VOOL が開きます。メッセージを押して挨拶を送り、ここに戻ってください。このページは自動で接続済みに変わります。"
+    "phone.bot_discord_say_hi_help": "Discord で VOOL が開きます。メッセージを押して挨拶を送り、ここに戻ってください。このページは自動で接続済みに変わります。",
+    "phone.bot_files": "選んだフォルダーのファイル",
+    "phone.bot_files_help": "VOOL はこれらのフォルダーでファイルを探し、このチャットに送れます。ここに送られたファイルは {app} に保存されます。このコンピューターのそれ以外には届きません。一度に 30 日間オンになります。",
+    "phone.bot_files_not_ready": "これらのフォルダーはまだ VOOL に開かれていません。Mac では、システム設定のプライバシーとセキュリティ、ファイルとフォルダーで VOOL を許可してから、もう一度「権限を保存」を押してください:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

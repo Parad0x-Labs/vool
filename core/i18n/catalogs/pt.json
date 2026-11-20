@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "Fale com o VOOL na sua conversa privada com o bot. Não precisa de @. O VOOL não lê grupos, então ninguém mais pode usá-lo.",
     "phone.bot_discord_in_server": "O VOOL está no seu servidor. O Discord quer que você diga oi primeiro.",
     "phone.bot_discord_say_hi": "Dizer oi ao VOOL",
-    "phone.bot_discord_say_hi_help": "O Discord abre o VOOL. Toque em Mensagem, envie oi e volte. Esta página muda sozinha para Conectado."
+    "phone.bot_discord_say_hi_help": "O Discord abre o VOOL. Toque em Mensagem, envie oi e volte. Esta página muda sozinha para Conectado.",
+    "phone.bot_files": "Arquivos nas pastas escolhidas",
+    "phone.bot_files_help": "O VOOL pode encontrar arquivos nessas pastas e enviá-los a você nesta conversa. Um arquivo enviado aqui fica guardado no {app}. Nada mais neste computador fica acessível. Ligado por 30 dias de cada vez.",
+    "phone.bot_files_not_ready": "Essas pastas ainda não estão abertas ao VOOL. No Mac, permita o VOOL em Ajustes do Sistema, em Privacidade e Segurança, Arquivos e Pastas, e depois toque de novo em Guardar permissões:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

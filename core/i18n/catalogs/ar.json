@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "تحدّث مع VOOL في محادثتك الخاصة مع البوت. لا حاجة إلى @. لا يقرأ VOOL المجموعات، لذا لا يمكن لأحد غيرك استخدامه.",
     "phone.bot_discord_in_server": "VOOL موجود في خادمك. يريد ديسكورد أن تبدأ أنت بالتحية.",
     "phone.bot_discord_say_hi": "حيِّ VOOL",
-    "phone.bot_discord_say_hi_help": "يفتح ديسكورد VOOL. اضغط «رسالة» وأرسل تحية ثم عُد. ستتحول هذه الصفحة إلى «تم الربط» تلقائيًا."
+    "phone.bot_discord_say_hi_help": "يفتح ديسكورد VOOL. اضغط «رسالة» وأرسل تحية ثم عُد. ستتحول هذه الصفحة إلى «تم الربط» تلقائيًا.",
+    "phone.bot_files": "الملفات في المجلدات المختارة",
+    "phone.bot_files_help": "يمكن لـ VOOL العثور على الملفات في هذه المجلدات وإرسالها إليك في هذه المحادثة. يحتفظ {app} بأي ملف يُرسل هنا. لا يمكن الوصول إلى أي شيء آخر على هذا الحاسوب. يبقى مفعّلًا 30 يومًا في كل مرة.",
+    "phone.bot_files_not_ready": "هذه المجلدات غير متاحة لـ VOOL بعد. على Mac، اسمح لـ VOOL في إعدادات النظام، ضمن الخصوصية والأمان، الملفات والمجلدات، ثم اضغط حفظ الأذونات مرة أخرى:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

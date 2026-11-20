@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "Botla özel sohbetinizde VOOL ile konuşun. @ gerekmez. VOOL grup sohbetlerini okumaz, bu yüzden başka kimse kullanamaz.",
     "phone.bot_discord_in_server": "VOOL sunucunuzda. Discord önce sizin merhaba demenizi istiyor.",
     "phone.bot_discord_say_hi": "VOOL’a merhaba de",
-    "phone.bot_discord_say_hi_help": "Discord VOOL’u açar. Mesaj’a basın, merhaba gönderin ve geri gelin. Bu sayfa kendiliğinden Bağlandı olur."
+    "phone.bot_discord_say_hi_help": "Discord VOOL’u açar. Mesaj’a basın, merhaba gönderin ve geri gelin. Bu sayfa kendiliğinden Bağlandı olur.",
+    "phone.bot_files": "Seçilen klasörlerdeki dosyalar",
+    "phone.bot_files_help": "VOOL bu klasörlerdeki dosyaları bulup size bu sohbette gönderebilir. Buraya gönderilen dosya {app} tarafından saklanır. Bu bilgisayardaki başka hiçbir şeye erişilemez. Her seferinde 30 gün açık kalır.",
+    "phone.bot_files_not_ready": "Bu klasörler henüz VOOL'a açık değil. Mac'te Sistem Ayarları'nda Gizlilik ve Güvenlik, Dosyalar ve Klasörler altında VOOL'a izin verin, sonra İzinleri kaydet'e yeniden basın:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

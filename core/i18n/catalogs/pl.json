@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "Pisz do VOOL na prywatnym czacie z botem. Bez @. VOOL nie czyta czatów grupowych, więc nikt inny nie może go używać.",
     "phone.bot_discord_in_server": "VOOL jest na twoim serwerze. Discord chce, żebyś najpierw się przywitał.",
     "phone.bot_discord_say_hi": "Przywitaj się z VOOL",
-    "phone.bot_discord_say_hi_help": "Discord otworzy VOOL. Naciśnij Wiadomość, wyślij cześć i wróć. Ta strona sama zmieni się na Połączono."
+    "phone.bot_discord_say_hi_help": "Discord otworzy VOOL. Naciśnij Wiadomość, wyślij cześć i wróć. Ta strona sama zmieni się na Połączono.",
+    "phone.bot_files": "Pliki w wybranych folderach",
+    "phone.bot_files_help": "VOOL może znaleźć pliki w tych folderach i wysłać je do Ciebie na tym czacie. Plik wysłany tutaj przechowuje {app}. Nic innego na tym komputerze nie jest dostępne. Włączone na 30 dni naraz.",
+    "phone.bot_files_not_ready": "Te foldery nie są jeszcze otwarte dla VOOL. Na Macu zezwól VOOL w Ustawieniach systemowych, w sekcji Prywatność i ochrona, Pliki i foldery, a potem ponownie naciśnij Zapisz uprawnienia:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

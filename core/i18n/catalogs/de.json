@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "Schreib VOOL im privaten Chat mit dem Bot. Kein @ nötig. VOOL liest keine Gruppenchats, daher kann niemand sonst ihn nutzen.",
     "phone.bot_discord_in_server": "VOOL ist auf deinem Server. Discord möchte, dass du zuerst Hallo sagst.",
     "phone.bot_discord_say_hi": "VOOL Hallo sagen",
-    "phone.bot_discord_say_hi_help": "Discord öffnet VOOL. Klicke auf Nachricht, schick Hallo und komm zurück. Diese Seite wechselt von selbst zu Verbunden."
+    "phone.bot_discord_say_hi_help": "Discord öffnet VOOL. Klicke auf Nachricht, schick Hallo und komm zurück. Diese Seite wechselt von selbst zu Verbunden.",
+    "phone.bot_files": "Dateien in ausgewählten Ordnern",
+    "phone.bot_files_help": "VOOL kann Dateien in diesen Ordnern finden und dir in diesem Chat schicken. Eine hier gesendete Datei wird von {app} gespeichert. Sonst ist nichts auf diesem Computer erreichbar. Jeweils 30 Tage lang an.",
+    "phone.bot_files_not_ready": "Diese Ordner sind für VOOL noch nicht freigegeben. Erlaube VOOL auf einem Mac in den Systemeinstellungen unter Datenschutz & Sicherheit, Dateien und Ordner, und drücke dann erneut auf Berechtigungen speichern:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

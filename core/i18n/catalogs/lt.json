@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "Kalbėkite su VOOL privačiame pokalbyje su botu. @ nereikia. VOOL neskaito grupių pokalbių, todėl niekas kitas juo naudotis negali.",
     "phone.bot_discord_in_server": "VOOL jau jūsų serveryje. Discord nori, kad pirmiausia pasisveikintumėte jūs.",
     "phone.bot_discord_say_hi": "Pasisveikinti su VOOL",
-    "phone.bot_discord_say_hi_help": "Discord atidarys VOOL. Spauskite Žinutė, parašykite labas ir grįžkite. Šis puslapis pats pasikeis į Prijungta."
+    "phone.bot_discord_say_hi_help": "Discord atidarys VOOL. Spauskite Žinutė, parašykite labas ir grįžkite. Šis puslapis pats pasikeis į Prijungta.",
+    "phone.bot_files": "Failai pasirinktuose aplankuose",
+    "phone.bot_files_help": "VOOL gali rasti failus šiuose aplankuose ir atsiųsti juos jums į šį pokalbį. Čia atsiųstus failus saugo {app}. Niekas kitas šiame kompiuteryje nepasiekiama. Įjungta 30 dienų vienu kartu.",
+    "phone.bot_files_not_ready": "Šie aplankai VOOL dar neatverti. „Mac“ kompiuteryje leiskite VOOL sistemos nustatymuose, skiltyje Privatumas ir sauga, Failai ir aplankai, tada dar kartą paspauskite Išsaugoti leidimus:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

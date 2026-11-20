@@ -18,15 +18,23 @@ class FakeChatHost:
         # Connect-time identity reads that hang past VOOL's wait once each (a slow moment on the service).
         self.stall_identity=0
         # Discord: the bot can write to its owner only once they share a server (the invite).
-        self.invited=False;self.dm_closed=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False
+        self.invited=False;self.dm_closed=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False;self.uploads=[]
         parent=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*_):pass
             def do_GET(self):self.dispatch()
             def do_POST(self):self.dispatch()
             def dispatch(self):
-                data=json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
+                body=self.rfile.read(int(self.headers.get('Content-Length') or 0))
                 path=urlsplit(self.path).path
+                if (self.headers.get('Content-Type') or '').startswith('multipart/form-data'):
+                    # A file the bot posts (Telegram sendDocument, Discord message with files[0]).
+                    if not path.startswith('/bot') and not (self.headers.get('User-Agent') or '').startswith('DiscordBot ('):
+                        raw=b'error code: 1010';self.send_response(403);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                    with parent.lock:parent.uploads.append((path,self.headers.get('Content-Type'),body))
+                    raw=json.dumps({'ok':True,'result':{'message_id':1}} if path.startswith('/bot') else {'id':'7000'}).encode()
+                    self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                data=json.loads(body or b'{}')
                 if path.startswith('/file/bot') or path.startswith('/files/'):
                     name=path.rsplit('/',1)[-1];raw=parent.files.get(name,b'')
                     self.send_response(200);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return

@@ -4285,7 +4285,7 @@ def phone_folder_refusal(intent: str, arguments: dict[str, Any], *, source_conte
         return ""
     args = arguments if isinstance(arguments, dict) else {}
     folders = remote_turn_folders(source_context)
-    refused = PHONE_SYSTEM_AREA_TEXT if folders is None else phone_folders_text(folders)
+    refused = PHONE_SYSTEM_AREA_TEXT if folders is None else phone_folders_text(folders, source_context)
     pattern = str(args.get("glob") or "")
     if ".." in Path(pattern).parts or pattern.startswith(("/", "~")):
         return refused
@@ -6326,7 +6326,7 @@ def _machine_send_to_phone(arguments: dict[str, Any], *, source_context: dict[st
     phone fetches it (core.mobile_companion.outgoing_files).
     """
     from core.mobile_companion import outgoing_files
-    from core.request_trust import remote_turn_device, turn_is_remote
+    from core.request_trust import remote_turn_chat_app, remote_turn_device, turn_is_remote
 
     def refused(status: str, text: str) -> RuntimeExecutionResult:
         return RuntimeExecutionResult(
@@ -6337,9 +6337,11 @@ def _machine_send_to_phone(arguments: dict[str, Any], *, source_context: dict[st
     if not policy_engine.get("filesystem.allow_read_workspace", True):
         return refused("disabled", "Safe local file reads are disabled by policy.")
     if turn_is_remote(source_context):
-        device = remote_turn_device(source_context)
+        # The phone that asked, or the chat app that asked: its bot worker posts the copy into that
+        # private chat (core.mobile_companion.bot_runtime), the only place the owner bound it to.
+        device = remote_turn_device(source_context) or remote_turn_chat_app(source_context)
         if device is None:
-            return refused("no_phone", "Files can only be sent to a paired VOOL phone app.")
+            return refused("no_phone", "Files can only be sent to a paired VOOL phone app or chat app.")
     else:
         device = outgoing_files.paired_phone()
         if device is None:
@@ -6360,12 +6362,20 @@ def _machine_send_to_phone(arguments: dict[str, Any], *, source_context: dict[st
         return refused(refusal.code, refusal.message)
     size = int(sent["size_bytes"])
     shown = f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{max(1, size // 1024)} KB"
-    phone = str(device.get("label") or device.get("name") or "your phone")
+    if device.get("kind") == "bot":
+        app = "Discord" if device.get("platform") == "discord" else "Telegram"
+        said = f"Sending {sent['name']} ({shown}) here in {app}."
+    elif turn_is_remote(source_context):
+        # The phone that asked shows the file in its answer, with Save and Share.
+        said = f"Here it is: {sent['name']} ({shown})."
+    else:
+        phone = str(device.get("label") or device.get("name") or "your phone")
+        said = f"Sent {sent['name']} ({shown}) to {phone}. Open Files from your computer in the VOOL app to save it."
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
         status="executed",
-        response_text=f"Sent {sent['name']} ({shown}) to {phone}. Open Files from your computer in the VOOL app to save it.",
+        response_text=said,
         details={
             "sent": sent,
             "observation": _tool_observation(

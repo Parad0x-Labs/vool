@@ -336,8 +336,14 @@ def poll(params, *, service, device, **_kw):
         outer = _outer(current)
         mandatory = _mandatory(current)
         _archive_new(state, current)
+        # One receipt when alerts go off for this device, not one per poll: chat apps poll every few
+        # seconds, so a receipt each time would grow the receipts file without end.
         if not outer and not mandatory:
-            service.store.append_receipt("notifications.desktop_gate_refused", device_id=str(current["device_id"]))
+            if not state.get("gate_refused_noted"):
+                state["gate_refused_noted"] = True
+                service.store.append_receipt("notifications.desktop_gate_refused", device_id=str(current["device_id"]))
+        elif state.get("gate_refused_noted"):
+            state["gate_refused_noted"] = False
         if not outer:
             state["events"] = [
                 event for event in state["events"] if (event["event_type"] in mandatory or _forced(event, current))

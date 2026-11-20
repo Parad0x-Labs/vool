@@ -669,12 +669,15 @@ def maybe_answer_a_phone_without_computer_rights(
     """
     from core.request_trust import (
         REMOTE_GRANT_COMPUTER,
-        REMOTE_GRANT_REFUSAL_TEXT,
+        remote_grant_refusal_text,
+        remote_turn_chat_app,
         remote_turn_device,
         remote_turn_has_grant,
     )
 
-    if remote_turn_device(source_context) is None or remote_turn_has_grant(source_context, REMOTE_GRANT_COMPUTER):
+    if (remote_turn_device(source_context) is None and remote_turn_chat_app(source_context) is None) or remote_turn_has_grant(
+        source_context, REMOTE_GRANT_COMPUTER
+    ):
         return None
     from core.tool_demand_signals import owner_file_demand
 
@@ -685,7 +688,7 @@ def maybe_answer_a_phone_without_computer_rights(
     return seal_remote_grant_refusal(agent._fast_path_result(
         session_id=session_id,
         user_input=user_input,
-        response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
+        response=remote_grant_refusal_text(source_context, REMOTE_GRANT_COMPUTER),
         confidence=0.95,
         source_context=source_context,
         reason="phone_without_computer_rights",
@@ -2788,7 +2791,8 @@ def read_the_named_todo_list(
         return None
     from core.request_trust import (
         REMOTE_GRANT_COMPUTER,
-        REMOTE_GRANT_REFUSAL_TEXT,
+        remote_grant_refusal_text,
+        remote_turn_chat_app,
         remote_turn_device,
         remote_turn_folders,
         remote_turn_lacks,
@@ -2802,7 +2806,7 @@ def read_the_named_todo_list(
         roots = ["~/Desktop", "~/Documents", "~/Downloads"]
         miss_text = "I couldn't find a to-do list file in Desktop or Documents. Tell me where it is."
     if turn_is_remote(source_context):
-        if remote_turn_device(source_context) is None:
+        if remote_turn_device(source_context) is None and remote_turn_chat_app(source_context) is None:
             # A remote stamp this runtime cannot read back as a paired phone did not come through
             # the sealed phone door; the turn keeps the lanes it has always had.
             return None
@@ -2815,7 +2819,7 @@ def read_the_named_todo_list(
             return seal_remote_grant_refusal(agent._fast_path_result(
                 session_id=session_id,
                 user_input=user_input,
-                response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
+                response=remote_grant_refusal_text(source_context, REMOTE_GRANT_COMPUTER),
                 confidence=0.95,
                 source_context=source_context,
                 reason="phone_without_computer_rights",

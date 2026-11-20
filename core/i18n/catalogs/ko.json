@@ -4967,9 +4967,12 @@
     "phone.bot_telegram_dm_only": "봇과의 개인 채팅에서 VOOL과 이야기하세요. @는 필요 없습니다. VOOL은 그룹 채팅을 읽지 않으므로 다른 사람은 쓸 수 없습니다.",
     "phone.bot_discord_in_server": "VOOL이 서버에 들어왔습니다. 디스코드에서는 먼저 인사를 보내야 합니다.",
     "phone.bot_discord_say_hi": "VOOL에게 인사하기",
-    "phone.bot_discord_say_hi_help": "디스코드에서 VOOL이 열립니다. 메시지를 눌러 인사를 보낸 뒤 돌아오세요. 이 페이지는 저절로 연결됨으로 바뀝니다."
+    "phone.bot_discord_say_hi_help": "디스코드에서 VOOL이 열립니다. 메시지를 눌러 인사를 보낸 뒤 돌아오세요. 이 페이지는 저절로 연결됨으로 바뀝니다.",
+    "phone.bot_files": "선택한 폴더의 파일",
+    "phone.bot_files_help": "VOOL은 이 폴더에서 파일을 찾아 이 채팅으로 보내 드릴 수 있습니다. 여기로 보낸 파일은 {app}에 보관됩니다. 이 컴퓨터의 다른 것에는 닿을 수 없습니다. 한 번에 30일 동안 켜집니다.",
+    "phone.bot_files_not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 권한 저장을 다시 누르세요:"
   },
-  "source_catalog_sha256": "dad5b0a5e2859ea38d7f718163edb90435722a3ef3a9c6d716e6f3dda0f2ba17",
+  "source_catalog_sha256": "680da742f67870da4998487cf8e67e1644808f1965e603592d5d9126ef0a8a40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

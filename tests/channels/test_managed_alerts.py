@@ -59,6 +59,13 @@ def test_bot_each_type_presets_quiet_outer_gate_and_disconnect(desktop, monkeypa
         assert http(base, '/api/mobile/settings', {'operation': 'device_rules', 'device_id': 'bot:' + platform, 'rules': {'alerts': False}})[0] == 200
         before = len(host.outgoing); notify('task_failed'); time.sleep(2.5)
         assert len(host.outgoing) == before
+        # The worker keeps polling every few seconds with alerts off: that is noted once, not per poll.
+        from core.web.api.mobile_companion_api import mobile_companion_service
+        def gate_receipts():
+            rows, _, _ = mobile_companion_service().store.receipts(limit=100000)
+            return [row for row in rows if row.get('kind') == 'notifications.desktop_gate_refused' and row.get('device_id') == 'bot:' + platform]
+        noted = len(gate_receipts()); time.sleep(2.5)
+        assert noted >= 1 and len(gate_receipts()) == noted
         assert http(base, '/api/mobile/settings', {'operation': 'bot_disconnect', 'platform': platform})[0] == 200
         before = len(host.requests); notify('task_failed'); time.sleep(2.5)
         assert len(host.requests) == before

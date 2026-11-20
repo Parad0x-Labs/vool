@@ -576,6 +576,8 @@ def prepare_phone_folders(device: dict[str, Any]) -> list[dict[str, str]]:
     scope = device.get("file_scope") or {}
     if not (device.get("rules") or {}).get("computer_tools"):
         return []
+    if device.get("kind") == "bot" and scope.get("mode") != "folders":
+        return []  # a chat app never has the whole computer
     paths = list(scope.get("folders") or []) if scope.get("mode") == "folders" else [str(p) for p in _safe_machine_roots()]
     report = []
     deadline = time.monotonic() + 60.0
@@ -1280,9 +1282,13 @@ def _action_chats_send(
 
     # The sealed, signed request verified above: the chat door names this phone on the turn, and its
     # rights on the computer (not this request) decide which of the owner's tools the turn may use.
+    # A chat app's turn comes from its bot worker in this process, after the chat app named the
+    # owner's bound account as the sender; it is named too, so only the folders the owner chose for
+    # it can open (core.request_trust.remote_turn_chat_app).
+    is_bound_bot = device.get("kind") == "bot" and (device.get("binding") or {}).get("state") == "bound"
     phone_scope = (
         trusted_remote_device(str(device["device_id"]))
-        if device.get("sealed_protocol") and device.get("kind") != "bot"
+        if (device.get("sealed_protocol") and device.get("kind") != "bot") or is_bound_bot
         else nullcontext()
     )
     with phone_scope:
@@ -2175,7 +2181,7 @@ def handle_mobile_companion_post(
             # Run while the owner is at the computer, right after setup: the first look into each
             # folder is when macOS asks whether VOOL may use it, so the phone never waits on that.
             device = service.store.device(str(body.get("device_id") or "")) or {}
-            if device.get("status") != "active" or device.get("kind") == "bot":
+            if device.get("status") != "active":
                 return _err(400, "phone_rules_refused", "This phone is no longer paired.")
             return _json(200, {"ok": True, "folders": prepare_phone_folders(device)})
         if body.get("operation") == "device_rules":
