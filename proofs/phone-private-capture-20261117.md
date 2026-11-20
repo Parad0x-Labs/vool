@@ -22,9 +22,11 @@ Computer builds: a101f4c7 (first four) and 4e702e59 (fifth). Times are UTC.
 | 3 | Sound | VOOL_20261117_092111_41ad78bb.m4a | 303,605 | 41ad78bb350a456a788c9a1d5a7319a47e1cd9092b58272a71d54d23bd50179b | 41ad78bb350a456a788c9a1d5a7319a47e1cd9092b58272a71d54d23bd50179b | capture.saved, seq 48, 07:49:36 | Not recorded |
 | 4 | Photo, 3264×2448 | VOOL_20261117_101808_c74b2249.jpg | 1,314,859 | c74b2249c28505e8d276653af77a1dd5e4064ad948ca9f67478c8c41a3eecb28 | c74b2249c28505e8d276653af77a1dd5e4064ad948ca9f67478c8c41a3eecb28 | capture.saved, seq 49, 08:18:20 | Not recorded |
 | 5 | Photo, 9000×12000 (108 MP pixel count, full-sensor mode), made smaller on the phone (HEIC) | VOOL_20261117_111104_29872aed.heic | 2,383,332 | 29872aed801c96571c22b3475b5e1f0e2dcde7be898e975047bc9c06fad5f268 | 29872aed801c96571c22b3475b5e1f0e2dcde7be898e975047bc9c06fad5f268 | capture.saved, seq 50, 09:11:28.874, after flush and read-back | capture.removed_on_phone, seq 51, 09:11:29.075, key destroyed: yes |
+| 6 | Photo, 9000×12000, compression on (HEIC) | VOOL_20261117_111632_3947bce0.heic | 1,085,605 | 3947bce0e817d12d62a02510a111af5d0a5c18478e4b71f92a3b3ae80beb5555 | 3947bce0e817d12d62a02510a111af5d0a5c18478e4b71f92a3b3ae80beb5555 | capture.saved, seq 52, 09:16:42.961 | capture.removed_on_phone, seq 53, key destroyed: yes |
+| 7 | Photo, 9000×12000, compression off (JPEG), same scene as 6 | VOOL_20261117_111653_3f6f9527.jpg | 10,772,733 | 3f6f95278eb41e33065575fe9c42ecf20620dba9ba0abab2fd9ca438ed348146 | 3f6f95278eb41e33065575fe9c42ecf20620dba9ba0abab2fd9ca438ed348146 | capture.saved, seq 54, 09:17:53.702 | capture.removed_on_phone, seq 55, key destroyed: yes |
 
-No partly received files were left on the computer after the five transfers. The receipt log held 51 rows
-after transfer 5, and every row carries the hash of the row before it, without a break.
+No partly received files were left on the computer after the seven transfers. The receipt log held 55 rows
+after transfer 7, and every row carries the hash of the row before it, without a break.
 
 For transfer 5, the phone's removal time (09:11:28.562 by the phone's clock) is a little earlier than the
 computer's save time (09:11:28.874 by the Mac's clock). The two clocks are not synchronised to the
@@ -61,4 +63,11 @@ Transfers 1 to 4 left two gaps. Transfer 5 (phone and computer both on 4e702e59)
   0.66 for 48 MP and 27 MP, so it holds detail a 12 MP image cannot. Above about 27 MP the difference
   falls to the compression noise, so the real detail is roughly 20 to 27 MP worth. At 100% the photo looks
   soft, which is normal for this kind of high-pixel-count phone sensor.
+- **Compression, rows 6 and 7.** The same scene was shot twice, 20 seconds apart, with compression on and
+  off. The compressed photo is 10.1% of the original's size (1,085,605 against 10,772,733 bytes), at the
+  same 9000×12000. Matched crops of the same keys at 100% show the same lettering and edges with no
+  blocking. Sharpness (variance of the Laplacian at 3000 px wide) is 49.8 compressed against 46.5
+  original. The shots are not pixel-identical, so this is a visual and statistical comparison, not a
+  pixel-difference score. Before keeping a compressed photo, the phone compares it with its own original
+  (brightness PSNR at a reduced size) and keeps the original if it scores below 30 dB.
 - One photo is one run. Video and sound on 4e702e59 follow the same path but were not re-run here.
