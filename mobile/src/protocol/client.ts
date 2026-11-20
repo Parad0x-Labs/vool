@@ -7,9 +7,10 @@
 //      device is present — a stolen grant secret alone cannot talk).
 // The fetch transport is injectable so the headless Node journey and the React
 // Native app share literally this code.
-import { canonicalBytes } from "./canonical.ts";
+import { canonicalJson } from "./canonical.ts";
+import { fast } from "./fast.ts";
 import {connectionAddress} from './connection.ts';
-import { hmacSha256, randomBytes, toHex } from "./sha256.ts";
+import { randomBytes, toHex } from "./sha256.ts";
 import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
 import { reportLink, resetLink } from "./linkState.ts";
 import type {
@@ -198,10 +199,7 @@ export class MobileCompanionClient {
       nonce,
       timestamp,
     };
-    const signature = toHex(hmacSha256(
-      new TextEncoder().encode(this.creds.grantSecret),
-      canonicalBytes(payload),
-    ));
+    const signature = fast.hmacSha256Hex(this.creds.grantSecret, canonicalJson(payload));
     const deviceSignature = signRequestProof(this.keypair.secretKeyHex, {
       deviceId: this.creds.deviceId,
       action,

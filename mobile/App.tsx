@@ -17,7 +17,8 @@ import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
 import CompressionSettings from "./src/screens/CompressionSettings.tsx";
 import VaultScreen from "./src/screens/VaultScreen.tsx";
 import VaultSettings from "./src/screens/VaultSettings.tsx";
-import {vaultNative} from "./src/vault/native.ts";
+import {nativeFastCrypto, vaultNative} from "./src/vault/native.ts";
+import {setFastCrypto} from "./src/protocol/fast.ts";
 import {keepTrace, takeTrace, trace} from "./src/diagnostics/trace.ts";
 import {useCaptureQueue, type CaptureQueue} from "./src/capture/useCaptureQueue.ts";
 import {capture} from "./src/capture/native.ts";
@@ -44,6 +45,9 @@ import TabBar, {type TabItem} from "./src/ui/TabBar.tsx";
 import Face from "./src/ui/Face.tsx";
 import Icon from "./src/ui/Icon.tsx";
 import {C, R} from "./src/ui/theme.ts";
+
+// Seal and sign on the phone's native side: in JavaScript each file piece held up every tap.
+setFastCrypto(nativeFastCrypto());
 
 // Connects the built-in private route for away-from-home addresses. Starts nothing by itself.
 installPrivateRoute();

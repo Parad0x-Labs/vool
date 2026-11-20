@@ -18,7 +18,8 @@
 // .cjs identically.
 import nacl from "../vendor/nacl-fast.cjs";
 import { fromHex, sha256, toHex } from "./sha256.ts";
-import { canonicalBytes } from "./canonical.ts";
+import { canonicalBytes, canonicalJson } from "./canonical.ts";
+import { fast } from "./fast.ts";
 
 // The vendored file ships without a PRNG (see its vendor note); install the
 // platform CSPRNG — getRandomValues exists on iOS (Hermes + expo-crypto
@@ -115,7 +116,7 @@ export function requestProofPayload(args: {
     kind: "vool.mobile.request.v1",
     device_id: args.deviceId,
     action: args.action,
-    params_sha256: toHex(sha256(canonicalBytes(args.params))),
+    params_sha256: fast.sha256Hex(canonicalJson(args.params)),
     nonce: args.nonce,
     timestamp: args.timestamp,
     grant_id: args.grantId,
