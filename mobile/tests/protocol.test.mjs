@@ -56,6 +56,16 @@ test("canonical JSON matches the desktop's Python bytes (golden vectors)", () =>
   }
 });
 
+test("plain printable text and large file pieces keep the exact desktop bytes", () => {
+  // Python's json.dumps leaves printable ASCII as is except '"' and '\\', exactly like JSON.stringify.
+  for (let code = 0x20; code <= 0x7e; code++) {
+    const value = "ab" + String.fromCharCode(code) + "cd";
+    assert.equal(canonicalJson({ v: value }), JSON.stringify({ v: value }), "char " + code);
+  }
+  const piece = Buffer.from(Array.from({ length: 768 * 1024 }, (_, i) => (i * 131) & 255)).toString("base64");
+  assert.equal(canonicalJson({ content_b64: piece }), JSON.stringify({ content_b64: piece }));
+});
+
 test("canonical bytes match a Python-computed request payload byte-for-byte", () => {
   // Python: json.dumps({"grant_id":"g1","nonce":"n","params":{"action":"devices.me"},
   //                     "timestamp":"2026-09-02T00:00:00+00:00","verb":"vool.action"},
