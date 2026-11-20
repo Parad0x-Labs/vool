@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "VOOL 需要批准",
     "phone.freeze": "冻结付款",
     "phone.last_seen": "上次连接",
+    "phone.newer_app": "这台手机有更新版本的 VOOL 应用。",
     "phone.mobile.amount": "金额",
     "phone.mobile.approvals": "批准",
     "phone.mobile.balance_unavailable": "余额暂不可用。请稍后重试。",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "不安全或不礼貌",
     "report.reason.other": "其他"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

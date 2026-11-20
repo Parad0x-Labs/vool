@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "يحتاج VOOL إلى موافقة",
     "phone.freeze": "تجميد المدفوعات",
     "phone.last_seen": "آخر اتصال",
+    "phone.newer_app": "يتوفر إصدار أحدث من تطبيق VOOL لهذا الهاتف.",
     "phone.mobile.amount": "المبلغ",
     "phone.mobile.approvals": "الموافقات",
     "phone.mobile.balance_unavailable": "الرصيد غير متاح. حاول مرة أخرى لاحقاً.",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "غير آمنة أو فظّة",
     "report.reason.other": "أخرى"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

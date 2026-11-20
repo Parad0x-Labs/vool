@@ -1,3 +1,4 @@
+import type {Compat} from "./compat.ts";
 // Typed API models — the one shared contract between the phone app and the
 // desktop (core/web/api/mobile_companion_api.py). Field names are the wire
 // names; nothing here re-derives or renames.
@@ -48,6 +49,7 @@ export interface PairingClaimResponse {
   desktop_short_fingerprint: string;
   desktop_public_key: string;
   desktop_proof: DesktopProof;
+  compat?: Compat;
 }
 
 export interface CompanionOk<T> {
@@ -66,6 +68,7 @@ export interface CompanionError {
 export type CompanionResponse<T> = CompanionOk<T> | CompanionError;
 
 export interface DeviceInfo {
+  compat?: Compat;
   rules?: Record<string, boolean>;
   right_expiry?: Record<string, number>;
   payment_cap?: {wallet_id: string; network: string; asset: string};
@@ -175,6 +178,7 @@ export interface ApprovalRecord {
 }
 
 export interface StatusSnapshot {
+  compat?: Compat;
   desktop: {
     display_name: string;
     runtime_started_at: string | null;

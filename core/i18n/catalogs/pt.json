@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "O VOOL precisa de aprovação",
     "phone.freeze": "Bloquear pagamentos",
     "phone.last_seen": "Última ligação",
+    "phone.newer_app": "Há uma app VOOL mais recente para este telefone.",
     "phone.mobile.amount": "Montante",
     "phone.mobile.approvals": "Aprovações",
     "phone.mobile.balance_unavailable": "Saldo indisponível. Tente novamente mais tarde.",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "Insegura ou rude",
     "report.reason.other": "Outro"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

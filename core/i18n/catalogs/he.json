@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "VOOL זקוק לאישור",
     "phone.freeze": "הקפאת תשלומים",
     "phone.last_seen": "חיבור אחרון",
+    "phone.newer_app": "יש גרסה חדשה יותר של אפליקציית VOOL לטלפון הזה.",
     "phone.mobile.amount": "סכום",
     "phone.mobile.approvals": "אישורים",
     "phone.mobile.balance_unavailable": "היתרה אינה זמינה. נסו שוב מאוחר יותר.",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "לא בטוח או גס",
     "report.reason.other": "אחר"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "VOOL को मंज़ूरी चाहिए",
     "phone.freeze": "भुगतान रोकें",
     "phone.last_seen": "पिछला कनेक्शन",
+    "phone.newer_app": "इस फ़ोन के लिए VOOL ऐप का नया संस्करण उपलब्ध है।",
     "phone.mobile.amount": "राशि",
     "phone.mobile.approvals": "मंज़ूरियाँ",
     "phone.mobile.balance_unavailable": "शेष राशि उपलब्ध नहीं है। बाद में फिर प्रयास करें।",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "असुरक्षित या असभ्य",
     "report.reason.other": "अन्य"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "VOOL reikia patvirtinimo",
     "phone.freeze": "Įšaldyti mokėjimus",
     "phone.last_seen": "Paskutinį kartą matyta",
+    "phone.newer_app": "Šiam telefonui yra naujesnė VOOL programėlė.",
     "phone.mobile.amount": "Suma",
     "phone.mobile.approvals": "Patvirtinimai",
     "phone.mobile.balance_unavailable": "Likutis nepasiekiamas. Bandykite vėliau.",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "Nesaugu ar nemandagu",
     "report.reason.other": "Kita"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

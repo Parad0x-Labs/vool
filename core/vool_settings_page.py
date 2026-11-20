@@ -5240,6 +5240,7 @@ function widgetPhoneAccess(host) {
     const isBot=device.kind==='bot';
     row.appendChild(el('h3','',device.name || T('phone.device','Phone')));
     row.appendChild(el('p','help', T('phone.paired','Paired') + ': ' + (device.paired_at ? new Date(device.paired_at).toLocaleString() : '') + ' · ' + T('phone.last_seen','Last seen') + ': ' + (device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '')));
+    if(device.app_update_available) row.appendChild(el('p','help', T('phone.newer_app','A newer VOOL app is available for this phone.')));
     if (device.status !== 'active') {row.appendChild(el('p','help',T('phone.unpaired','Unpaired'))); stack.appendChild(row); return;}
     /* A phone opens on the three plain choices; every single right stays under Advanced. */
     const holder=isBot?row:el('details','phone-advanced');

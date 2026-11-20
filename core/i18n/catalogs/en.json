@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "VOOL needs an approval",
     "phone.freeze": "Freeze payments",
     "phone.last_seen": "Last seen",
+    "phone.newer_app": "A newer VOOL app is available for this phone.",
     "phone.mobile.amount": "Amount",
     "phone.mobile.approvals": "Approvals",
     "phone.mobile.balance_unavailable": "Balance unavailable. Try again later.",

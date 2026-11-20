@@ -1,4 +1,4 @@
-import {errorText, rightToLeft, tr} from "../i18n/index.ts";
+import {errorText, fitText, rightToLeft, tr} from "../i18n/index.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -10,7 +10,7 @@ import {
   reachForPairing,
   type DeviceCredentials,
 } from "../protocol/client.ts";
-import { parsePairingUri, pairingUriIsFresh } from "../protocol/pairing.ts";
+import { isVoolPairingCode, parsePairingUri, pairingUriIsFresh } from "../protocol/pairing.ts";
 import { generateDeviceKeypair, keypairFromSeed } from "../protocol/ed25519.ts";
 import { claimSealedPairing } from "../protocol/sealed.ts";
 import { credentialStoreForEnvironment } from "../store/credentials.ts";
@@ -58,7 +58,9 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     if (!incomingLink || handledLinkRef.current === incomingLink) return;
     handledLinkRef.current = incomingLink;
     const parsed = parsePairingUri(incomingLink);
-    if (parsed) {
+    if (parsed && parsed.fit !== "ok") {
+      setError(fitText(parsed.fit));
+    } else if (parsed) {
       setDesktopUrl(`http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`);
       setPairingId(parsed.pairingId);
       setCode(parsed.code);
@@ -68,15 +70,20 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
         setError(tr("This pairing QR has expired — start a new pairing on the computer."));
       }
     } else {
-      setError(tr("This pairing code no longer works. Start a new pairing on the computer."));
+      setError(isVoolPairingCode(incomingLink) ? fitText("update_app") : tr("This pairing code no longer works. Start a new pairing on the computer."));
     }
     onLinkConsumed?.();
   }, [incomingLink, onLinkConsumed]);
 
   const onQrScanned = useCallback(({ data }: { data: string }) => {
     const parsed = parsePairingUri(data);
-    if (!parsed) return; // keep scanning non-pairing codes
+    if (!parsed) {
+      // A VOOL code this app cannot read comes from a newer computer: say so instead of scanning on silently.
+      if (isVoolPairingCode(data)) {setScanning(false); setError(fitText("update_app"));}
+      return; // keep scanning other codes
+    }
     setScanning(false);
+    if (parsed.fit !== "ok") {setError(fitText(parsed.fit)); return;}
     setDesktopUrl(`http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`);
     setPairingId(parsed.pairingId);
     setCode(parsed.code);

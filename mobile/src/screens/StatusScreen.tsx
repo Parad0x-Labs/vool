@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform } from "react-native";
 
-import {errorText, permissionText, tr} from "../i18n/index.ts";
+import {errorText, fitText, permissionText, tr} from "../i18n/index.ts";
+import {fit, newerAppKnown} from "../protocol/compat.ts";
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../protocol/models.ts";
 import {connectionAddress} from "../protocol/connection.ts";
@@ -11,7 +12,7 @@ import {RevealScrollView} from "../ui/Reveal.tsx";
 import SettingsCard, {cardRow} from "../ui/SettingsCard.tsx";
 import {C} from "../ui/theme.ts";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { parsePairingUri } from "../protocol/pairing.ts";
+import { isVoolPairingCode, parsePairingUri } from "../protocol/pairing.ts";
 
 interface Props {
   client: MobileCompanionClient;
@@ -109,6 +110,8 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       <Text style={[styles.stateText, {color: stateColor}]}>{stateLine}</Text>
     </View>
     {snapshot ? <Text style={styles.detail}>{snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")} · {snapshot.model.cloud_state === "ok" ? tr("Cloud connected") : tr("Local")}</Text> : null}
+    {snapshot && fit(snapshot.compat) !== "ok" ? <Text style={[styles.detail, {color: C.bad}]}>{fitText(fit(snapshot.compat))}</Text>
+      : snapshot && newerAppKnown(snapshot.compat) ? <Text style={styles.detail}>{tr("A newer VOOL app is available for this phone.")}</Text> : null}
     {saved ? <Text style={[styles.detail, {color: C.ok}]}>{tr("Saved. Your phone is ready.")}</Text> : null}
     {/* The computer moved to a new address: its pairing QR carries the new one. Only a QR from the
         SAME computer (its pinned fingerprint) may change where this phone connects. */}
@@ -122,8 +125,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
     {scanning && <View style={styles.scanBox}>
       <CameraView style={StyleSheet.absoluteFill} barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({data}) => {
         const parsed = parsePairingUri(data);
-        if (!parsed) return;
+        if (!parsed) {if (isVoolPairingCode(data)) {setScanning(false); setError(fitText("update_app"));} return;}
         setScanning(false);
+        if (parsed.fit !== "ok") {setError(fitText(parsed.fit)); return;}
         if (parsed.desktopFingerprint !== client.desktopFingerprint.toLowerCase()) {
           setError(tr("The computer’s identity could not be verified. Check it before pairing again."));
           return;

@@ -3833,6 +3833,7 @@
     "phone.event.task_pending_approval": "VOOL cần phê duyệt",
     "phone.freeze": "Đóng băng thanh toán",
     "phone.last_seen": "Kết nối gần nhất",
+    "phone.newer_app": "Đã có ứng dụng VOOL mới hơn cho điện thoại này.",
     "phone.mobile.amount": "Số tiền",
     "phone.mobile.approvals": "Phê duyệt",
     "phone.mobile.balance_unavailable": "Không thể tải số dư. Hãy thử lại sau.",
@@ -5306,7 +5307,7 @@
     "report.reason.unsafe": "Không an toàn hoặc thô lỗ",
     "report.reason.other": "Khác"
   },
-  "source_catalog_sha256": "402009331dfa58f09d63b07e6b0a37576cc21c9fdd27dcfd8fb6ea3290ff8ba4",
+  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

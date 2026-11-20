@@ -87,6 +87,7 @@ from typing import Any, Optional
 from core.device_link import identity as device_identity
 from core.device_link import protocol as device_protocol
 from core.mobile_companion.policy import PhoneHistoryRequired, scoped_chat_handle
+from core.mobile_companion import compat as _compat
 from core.request_trust import is_loopback_host
 
 logger = logging.getLogger(__name__)
@@ -553,6 +554,9 @@ def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
         "file_scope": copy.deepcopy(rec.get("file_scope")) if isinstance(rec.get("file_scope"), dict) else None,
         "cloud_monthly_usd": rec.get("cloud_monthly_usd"),
         "cloud_spent_month_usd": _phone_cloud_spent(rec),
+        # Which app language the phone last spoke (1 = from before the check); Settings suggests an update.
+        "app_api": _compat.app_api(rec.get("app_api")),
+        "app_update_available": _compat.app_api(rec.get("app_api")) < _compat.NEWEST_APP_API,
     }
 
 
@@ -669,6 +673,7 @@ def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
         + "&exp=" + str(int(expires_at_epoch))
         # The computer's hidden address for away from home: a route only, the phone still checks fp.
         + ("&away=" + away_host if re.fullmatch(r"[a-z2-7]{56}\.onion", away_host or "") else "")
+        + _compat.qr_params()
     ) if advertise_host else ""
     return _json(200, {
         "ok": True,
@@ -703,6 +708,9 @@ def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
     platform = str(body.get("platform") or "").strip()[:32]
     public_key = str(body.get("device_public_key") or "").strip().lower()
     proof_signature = str(((body.get("device_proof") or {}) if isinstance(body.get("device_proof"), dict) else {}).get("signature") or "").strip().lower()
+    # An app too old for this computer is told so before any code is used up.
+    if _compat.app_too_old(_compat.app_api(body.get("app_api"))):
+        return _err(426, "app_update_required", "Update the VOOL app on this phone, then scan again.")
 
     if not pairing_id or not code or not device_name or not public_key or len(public_key) != 64 or not proof_signature:
         return _err(400, "invalid_request",
@@ -819,6 +827,7 @@ def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
         "desktop_short_fingerprint": service.desktop_short_fingerprint(),
         "desktop_public_key": device_identity.public_hex(service.authority_key()),
         "desktop_proof": {"payload": proof_payload, "signature": signature},
+        "compat": _compat.describe(),
     })
 
 
@@ -947,7 +956,10 @@ def dispatch_companion(
     if policy_error:
         store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": policy_error})
         return _err(403, policy_error, "This permission is off, expired, or needs approval on your computer.")
-    store.mark_device(device_id, last_seen_at=service.utcnow().isoformat())
+    level = _compat.app_api(body.get("app_api"))
+    if _compat.app_too_old(level):
+        return _err(426, "app_update_required", "Update the VOOL app on this phone.")
+    store.mark_device(device_id, last_seen_at=service.utcnow().isoformat(), app_api=level)
     handler = _ACTION_HANDLERS.get(action)
     if handler is None:
         return _err(403, "action_not_offered", f"the mobile companion does not offer {action!r}")
@@ -1021,6 +1033,7 @@ def _action_devices_me(params: dict[str, Any], *, service: MobileCompanionServic
         "payment_cap": dict(rec.get("payment_cap") or {}),
         "payment_cap_display": cap_display(rec.get("payment_cap") or {}),
         "approval_key_status": "unproven_use_computer",
+        "compat": _compat.describe(),
     }
 
 
@@ -1083,6 +1096,7 @@ def _action_status_snapshot(params: dict[str, Any], *, runtime, model_name: str,
         },
         "relay": {"enabled": relay_enabled(), "mode": "remote-relay" if relay_enabled() else "local-network"},
         "proof_chip_note": "per-turn proof via the proof.get action with the turn's chat_id and request_id",
+        "compat": _compat.describe(),
     }
 
 
@@ -2133,7 +2147,8 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   var uri = "vool-pair://" + (payload.companion_host || window.location.host)
     + "?fp=" + payload.fp + "&pid=" + payload.pid
     + "&code=" + payload.code + "&exp=" + payload.exp
-    + (/^[a-z2-7]{56}[.]onion$/.test(payload.away || "") ? "&away=" + payload.away : "");
+    + (/^[a-z2-7]{56}[.]onion$/.test(payload.away || "") ? "&away=" + payload.away : "")
+    + (payload.compat || "");
   var qr = qrcode(0, "M");
   qr.addData(uri);
   qr.make();
@@ -2255,6 +2270,7 @@ def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runti
             "status": str(session.get("status") or "waiting"),
             "companion_host": str(session.get("companion_host") or ""),
             "away": "",
+            "compat": _compat.qr_params(),
         }
         # The code drawn on this page carries the away address too, as the one from pairing/start does.
         from core.mobile_companion.listener import listener_for

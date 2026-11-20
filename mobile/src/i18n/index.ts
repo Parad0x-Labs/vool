@@ -34,6 +34,12 @@ export function tr(source: string, values: Record<string, string | number> = {})
   return text.replace(/\{(\w+)\}/g, (whole, name) => !Object.prototype.hasOwnProperty.call(values, name) ? whole : String(values[name]));
 }
 
+/** Plain advice when this app and VOOL on the computer are too far apart (see protocol/compat.ts). */
+export function fitText(fit: "ok" | "update_app" | "update_computer"): string {
+  return fit === "update_app" ? tr("Update the VOOL app on this phone, then try again.")
+    : fit === "update_computer" ? tr("VOOL on your computer is older than this app. Update VOOL on your computer, then try again.") : "";
+}
+
 export function errorText(value: unknown): string {
   const error = value as {code?: string; message?: string} | null;
   const message = String(error?.message || "");
@@ -43,6 +49,8 @@ export function errorText(value: unknown): string {
   if (error?.code === "phone_right_off_or_expired" || error?.code === "phone_history_required") return tr("On your computer, open Settings, then Phone and chat apps, choose what this phone may do and press Done.");
   if (error?.code === "pairing_expired" || error?.code === "pairing_code_expired") return tr("This pairing QR has expired — start a new pairing on the computer.");
   if (error?.code === "pairing_used" || error?.code === "pairing_unknown" || error?.code === "pairing_locked" || error?.code === "pairing_unavailable") return tr("This pairing code no longer works. Start a new pairing on the computer.");
+  if (error?.code === "app_update_required") return tr("Update the VOOL app on this phone, then try again.");
+  if (error?.code === "action_not_offered") return tr("VOOL on your computer is older and can’t do this yet. Update VOOL on your computer.");
   if (error?.code === "phone_access_off") return tr("Phone access is off on your computer. Switch it on in Settings there.");
   // No answer at all (computer off, asleep, or on another network): there is no refusal code.
   const name = String((value as {name?: string} | null)?.name || "");

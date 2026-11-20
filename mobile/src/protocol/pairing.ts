@@ -1,3 +1,4 @@
+import {fitFromCode, type Fit} from "./compat.ts";
 // Pairing — QR payload parsing and the phone side of the pairing handshake.
 //
 // The QR encodes:  vool-pair://<host>[:port]?fp=<desktop fingerprint hex>&pid=<pairing_id>&code=<code>
@@ -19,6 +20,8 @@ export interface ParsedPairingUri {
   /** The computer's hidden address for when the phone is away from home ("" when it has none).
    *  Only a route: the computer still has to prove the pinned key over it. */
   awayAddress: string;
+  /** Whether this app and the computer that made the code work together (see compat.ts). */
+  fit: Fit;
 }
 
 /** A Tor hidden-service name: 56 base32 characters, then ".onion". */
@@ -44,6 +47,11 @@ export function queryParams(query: string): Map<string, string> {
     }
   }
   return params;
+}
+
+/** Any VOOL pairing code, even one this app cannot read (a newer computer may change its shape). */
+export function isVoolPairingCode(text: string): boolean {
+  return /^vool-pair:\/\//i.test(String(text || "").trim());
 }
 
 export function parsePairingUri(uri: string): ParsedPairingUri | null {
@@ -72,6 +80,7 @@ export function parsePairingUri(uri: string): ParsedPairingUri | null {
     code,
     expiresAtEpoch: Math.floor(exp),
     awayAddress: away ? "http://" + away : "",
+    fit: fitFromCode(params),
   };
 }
 

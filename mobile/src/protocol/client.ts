@@ -7,6 +7,7 @@
 //      device is present — a stolen grant secret alone cannot talk).
 // The fetch transport is injectable so the headless Node journey and the React
 // Native app share literally this code.
+import {APP_API} from "./compat.ts";
 import { canonicalJson } from "./canonical.ts";
 import { fast } from "./fast.ts";
 import {connectionAddress} from './connection.ts';
@@ -240,6 +241,8 @@ export class MobileCompanionClient {
       timestamp,
       signature,
       device_signature: deviceSignature,
+      // Which app language this is, so the computer can say when an update is needed. Never trusted for rights.
+      app_api: APP_API,
     };
     // The sealed transport only resolves for a reply it authenticated.
     const response = await this.doFetch(address + "/api/mobile/companion", {
@@ -532,6 +535,7 @@ export async function claimPairing(baseUrl: string, opts: ClaimPairingArgs): Pro
       device_public_key: opts.devicePublicKeyHex,
       device_proof: { algorithm: "ed25519", signature: proof },
       approval_key: opts.approvalKey || null,
+      app_api: APP_API,
     }),
   });
   const parsed = (await response.json()) as PairingClaimResponse | { ok: false; error?: string; code?: string };
