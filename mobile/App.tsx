@@ -47,6 +47,7 @@ import TabBar, {type TabItem} from "./src/ui/TabBar.tsx";
 import Face from "./src/ui/Face.tsx";
 import Icon from "./src/ui/Icon.tsx";
 import {C, R} from "./src/ui/theme.ts";
+import {READ_WIDTH} from "./src/ui/wide.ts";
 
 // Seal and sign on the phone's native side: in JavaScript each file piece held up every tap.
 setFastCrypto(nativeFastCrypto());
@@ -83,6 +84,8 @@ function isVaultLink(url: string): boolean {
 
 function Root() {
   useEffect(() => {void requestPrivateTyping();}, []);
+  // A tablet turns with the device; a phone stays upright.
+  useEffect(() => {try {capture?.fitScreen?.(false);} catch {/* older build */}}, []);
   const [, setLocaleTick] = useState(0);
   useEffect(() => subscribeLanguage(() => setLocaleTick(tick => tick + 1)), []);
   const [creds, setCreds] = useState<DeviceCredentials | null>(null);
@@ -363,13 +366,15 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
         ? <ChatsScreen client={client} onRevoked={onRevoked} pick={pick}
             onLink={() => selectTab("status")} onChats={setRecent} onThread={setInChat} onCamera={openCamera} onVault={openVault} />
         : <>
-          <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} onCamera={openCamera} onVault={openVault} />
-          {showTicker && lastEvent ? (
-            <Pressable style={styles.ticker} onPress={() => openAlert(lastEvent)}>
-              <Icon name="bell-outline" size={16} color={C.acc} />
-              <Text style={styles.tickerText}>{tickerText(lastEvent)}</Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.column}>
+            <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} onCamera={openCamera} onVault={openVault} />
+            {showTicker && lastEvent ? (
+              <Pressable style={styles.ticker} onPress={() => openAlert(lastEvent)}>
+                <Icon name="bell-outline" size={16} color={C.acc} />
+                <Text style={styles.tickerText}>{tickerText(lastEvent)}</Text>
+              </Pressable>
+            ) : null}
+          </View>
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
             {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection}
@@ -407,5 +412,7 @@ const styles = StyleSheet.create({
   ticker: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 11 },
   tickerText: { flex: 1, color: C.soft, fontSize: 13 },
   body: { flex: 1 },
-  bodyContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 },
+  // On a tablet, settings and lists keep to a readable column in the middle.
+  column: { width: "100%", maxWidth: READ_WIDTH, alignSelf: "center" },
+  bodyContent: { width: "100%", maxWidth: READ_WIDTH, alignSelf: "center", paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 },
 });

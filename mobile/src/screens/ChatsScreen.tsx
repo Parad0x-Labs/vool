@@ -11,6 +11,7 @@ import Icon, {type IconName} from "../ui/Icon.tsx";
 import Gears from "../ui/Gears.tsx";
 import Face from "../ui/Face.tsx";
 import {C, R} from "../ui/theme.ts";
+import {LIST_PANE, THREAD_WIDTH, useWide} from "../ui/wide.ts";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, ChatSummary } from "../protocol/models.ts";
@@ -70,7 +71,9 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   const threadRef = useRef(onThread);
   threadRef.current = onThread;
   const inThread = activeChat !== null;
-  useEffect(() => {threadRef.current?.(inThread);}, [inThread]);
+  // On a wide screen the list stays beside the chat, and the tabs stay too.
+  const {width, twoPane} = useWide();
+  useEffect(() => {threadRef.current?.(inThread && !twoPane);}, [inThread, twoPane]);
 
   const guard = useCallback(
     (exc: unknown) => {
@@ -204,8 +207,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
     }
   }, [activeChat, attachmentIds, draft, guard, outbox]);
 
-  if (!activeChat) {
-    return (
+  const listView = (
       <View style={styles.screen}>
         <Header title={tr("Chats")} onLink={onLink} onCamera={onCamera} onVault={onVault} />
         <ScrollView style={styles.fill} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
@@ -234,7 +236,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
             <Pressable key={chat.chat_id} style={styles.chatRow} android_ripple={{color: C.ripple}} onPress={() => void openChat(chat.chat_id)} accessibilityRole="button">
               <View style={styles.chatMark}><Text style={styles.chatLetter}>{Array.from((chat.title || tr("New chat")).trim())[0]?.toLocaleUpperCase() || "•"}</Text></View>
               <View style={styles.fill}>
-                <Text style={styles.chatTitle} numberOfLines={1}>
+                <Text style={[styles.chatTitle, twoPane && chat.chat_id === activeChat && styles.chatTitleOn]} numberOfLines={1}>
                   {chat.title || tr("New chat")}
                 </Text>
                 <Text style={styles.chatMeta}>
@@ -249,19 +251,21 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
           <Text style={styles.newChatText}>{tr("New chat")}</Text>
         </Pressable>
       </View>
-    );
-  }
+  );
 
   const title = (chats || []).find(chat => chat.chat_id === activeChat)?.title || tr("New chat");
   const waiting = queued.filter(turn => turn.chatId === activeChat);
   const sending = busy ? outbox.activeKey : null;
   const canSend = !busy && (draft.trim().length > 0 || attachmentIds.length > 0);
+  // Messages and the message box keep to a readable width on a wide screen.
+  const paneWidth = twoPane ? width - LIST_PANE : width;
+  const column = paneWidth > THREAD_WIDTH ? {width: THREAD_WIDTH, alignSelf: "center" as const} : null;
 
-  return (
+  const threadView = (
     <View style={styles.screen}>
       <Header title={title} onBack={() => setActiveChat(null)} onLink={onLink} />
       {notice ? <Text style={[styles.note, styles.inset]}>{notice}</Text> : null}
-      <ScrollView ref={scroll} style={styles.fill} contentContainerStyle={styles.threadContent}
+      <ScrollView ref={scroll} style={styles.fill} contentContainerStyle={[styles.threadContent, column]}
         onContentSizeChange={() => scroll.current?.scrollToEnd({animated: true})} keyboardShouldPersistTaps="handled">
         <FromComputer client={client} refreshKey={filesKey} />
         {messages.map((m, i) => (
@@ -332,7 +336,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
           <Text style={styles.proofText}>{tr("Attachments ready: {count}", {count: attachmentIds.length})}</Text>
         </View>
       ) : null}
-      <View style={styles.composer}>
+      <View style={[styles.composer, column && {width: THREAD_WIDTH - 24, alignSelf: "center"}]}>
         <Pressable style={styles.plus} onPress={() => setSheet(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={tr("Add to this message")}>
           <Icon name="plus" size={24} color={C.acc} />
         </Pressable>
@@ -354,6 +358,23 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
       </View>
     </View>
   );
+
+  if (twoPane) return (
+    <View style={[styles.screen, styles.panes]}>
+      <View style={styles.listPane}>{listView}</View>
+      <View style={styles.fill}>
+        {activeChat ? threadView : <View style={styles.pickChat}>
+          <Face size={104} />
+          <Text style={styles.emptyTitle}>{tr("What can I help with?")}</Text>
+          <Pressable style={styles.pickNew} android_ripple={{color: C.rippleDark}} onPress={newChat} accessibilityRole="button">
+            <Icon name="plus" size={20} color={C.sendInk} />
+            <Text style={styles.newChatText}>{tr("New chat")}</Text>
+          </Pressable>
+        </View>}
+      </View>
+    </View>
+  );
+  return activeChat ? threadView : listView;
 }
 
 const styles = StyleSheet.create({
@@ -375,6 +396,11 @@ const styles = StyleSheet.create({
   starter: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 58, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.raised, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: "hidden" },
   starterText: { flex: 1, color: C.ink, fontSize: 15, lineHeight: 20 },
   chatTitle: { color: C.ink, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 },
+  chatTitleOn: { color: C.acc },
+  panes: { flexDirection: "row" },
+  listPane: { width: LIST_PANE, borderEndWidth: 1, borderEndColor: C.line },
+  pickChat: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  pickNew: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 54, overflow: "hidden" },
   chatMeta: { color: C.mute, fontSize: 13, marginTop: 3 },
   newChat: { position: "absolute", right: 20, bottom: 18, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 54, elevation: 8,
     shadowColor: C.acc, shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: {width: 0, height: 8}, overflow: "hidden" },
