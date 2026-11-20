@@ -29,6 +29,7 @@ interface Props {
   onThread?: (open: boolean) => void;
   /** Opens the private camera. */
   onCamera?: () => void;
+  onVault?: () => void;
 }
 
 /** The chat list, and one chat: read it, write to the computer, attach a photo or file. */
@@ -40,7 +41,7 @@ const STARTERS: [IconName, () => string][] = [
   ["lightbulb-on-outline", () => tr("Plan my week")],
 ];
 
-export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, onThread, onCamera }: Props) {
+export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, onThread, onCamera, onVault }: Props) {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -206,7 +207,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   if (!activeChat) {
     return (
       <View style={styles.screen}>
-        <Header title={tr("Chats")} onLink={onLink} onCamera={onCamera} />
+        <Header title={tr("Chats")} onLink={onLink} onCamera={onCamera} onVault={onVault} />
         <ScrollView style={styles.fill} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
           {(chats?.length || search) ? <View style={styles.search}>
             <Icon name="magnify" size={20} color={C.mute} />

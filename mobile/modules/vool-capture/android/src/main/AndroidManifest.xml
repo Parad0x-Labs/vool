@@ -27,6 +27,23 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+    <!-- The optional VOOL Vault icon. Off until the person turns it on; opens behind VOOL's unlock. -->
+    <activity
+      android:name="systems.vool.capture.VaultLauncherActivity"
+      android:label="VOOL Vault"
+      android:icon="@mipmap/ic_vool_vault"
+      android:roundIcon="@mipmap/ic_vool_vault"
+      android:enabled="false"
+      android:exported="true"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:taskAffinity=""
+      android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
     <!-- Quick settings tile: one tap opens the private camera (behind VOOL's lock). -->
     <service
       android:name="systems.vool.capture.CaptureTileService"

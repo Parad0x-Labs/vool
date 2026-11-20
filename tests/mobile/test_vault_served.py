@@ -71,3 +71,19 @@ def test_unknown_and_bad_requests_are_refused_plainly(desktop):
     assert call(*phone, "media.read", {"id": "0" * 32})[0] == 404
     assert call(*phone, "media.list", {"kind": "documents"})[0] == 400
     assert call(*phone, "media.exported", {"id": "x", "how": "print"})[0] == 400
+
+
+def test_a_whole_phone_piece_crosses_the_sealed_link(desktop):
+    """The phone asks for 768 KiB at a time; one such piece must fit through the sealed link whole."""
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.frombytes("RGB", (1400, 1000), os.urandom(1400 * 1000 * 3)).save(out, format="JPEG", quality=95)
+    photo = out.getvalue()
+    assert len(photo) > 2 * 768 * 1024
+    phone = _phone(desktop, media=True)
+    assert _send(phone, photo, sha=hashlib.sha256(photo).hexdigest())[0] == 200
+    item = call(*phone, "media.list", {"section": "mobile", "kind": "photo"})[1]["result"]["items"][0]
+    status, piece = call(*phone, "media.read", {"id": item["id"], "offset": 768 * 1024, "length": 768 * 1024})
+    assert status == 200, piece
+    assert base64.b64decode(piece["result"]["content_b64"]) == photo[768 * 1024:2 * 768 * 1024]

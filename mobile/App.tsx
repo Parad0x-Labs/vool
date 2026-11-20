@@ -15,6 +15,9 @@ import ChatsScreen from "./src/screens/ChatsScreen.tsx";
 import CaptureScreen from "./src/screens/CaptureScreen.tsx";
 import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
 import CompressionSettings from "./src/screens/CompressionSettings.tsx";
+import VaultScreen from "./src/screens/VaultScreen.tsx";
+import VaultSettings from "./src/screens/VaultSettings.tsx";
+import {vaultNative} from "./src/vault/native.ts";
 import {useCaptureQueue, type CaptureQueue} from "./src/capture/useCaptureQueue.ts";
 import {capture} from "./src/capture/native.ts";
 import SettingsCard from "./src/ui/SettingsCard.tsx";
@@ -66,6 +69,11 @@ function isCaptureLink(url: string): boolean {
   return /^vool-pair:\/\/capture\/?(\?.*)?$/i.test(url.trim());
 }
 
+/** The VOOL Vault home icon opens this link: the Vault, only after VOOL's own unlock. */
+function isVaultLink(url: string): boolean {
+  return /^vool-pair:\/\/vault\/?(\?.*)?$/i.test(url.trim());
+}
+
 function Root() {
   useEffect(() => {void requestPrivateTyping();}, []);
   const [, setLocaleTick] = useState(0);
@@ -80,6 +88,8 @@ function Root() {
   // it opens alone (no fingerprint): only the camera, never the chats, wallet or settings.
   const [cameraAsked, setCameraAsked] = useState(() => capture?.cameraLaunchRecent() ?? false);
   const [cameraOnly, setCameraOnly] = useState(false);
+  // The VOOL Vault home icon: never opens anything while locked; after the unlock VOOL opens at the Vault.
+  const [vaultAsked, setVaultAsked] = useState(false);
   const cameraWanted = useRef(false);
   cameraWanted.current = cameraAsked || cameraOnly;
   const store = useMemo(() => credentialStoreForEnvironment(false), []);
@@ -89,6 +99,7 @@ function Root() {
   useEffect(() => {
     const take = (url: string) => {
       if (isCaptureLink(url)) {setCameraAsked(true); cameraWanted.current = true;}
+      else if (isVaultLink(url)) setVaultAsked(true);
       else setIncomingLink(url);
     };
     const sub = Linking.addEventListener("url", (event: { url: string }) => take(event.url));
@@ -178,7 +189,8 @@ function Root() {
   </Frame>;
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
-    onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => {capture?.clearCameraLaunch(); setCameraAsked(false);}} onConnection={async address => {
+    onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => {capture?.clearCameraLaunch(); setCameraAsked(false);}}
+    vaultAsked={vaultAsked} onVaultShown={() => setVaultAsked(false)} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
     }} onAwayConnection={async address => {
       if (creds) {
@@ -207,12 +219,22 @@ interface ShellProps {
   /** The camera was asked for from outside (home icon, quick settings). */
   cameraAsked?: boolean;
   onCameraShown?: () => void;
+  /** The Vault was asked for from its home icon (only reaches here unlocked). */
+  vaultAsked?: boolean;
+  onVaultShown?: () => void;
 }
 
 /** Everything a paired, unlocked phone shows: the five screens and the row of tabs under them. */
-export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown}: ShellProps) {
+export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown, vaultAsked = false, onVaultShown}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  useEffect(() => {
+    if (!vaultAsked) return;
+    if (vaultNative) {setCameraOpen(false); setVaultOpen(true);}
+    onVaultShown?.();
+  }, [vaultAsked, onVaultShown]);
+  const openVault = vaultNative ? () => setVaultOpen(true) : undefined;
   useEffect(() => {
     if (!cameraAsked) return;
     if (queue.available) setCameraOpen(true);
@@ -294,9 +316,9 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
       <StatusBar style="light" />
       {tab === "chats"
         ? <ChatsScreen client={client} onRevoked={onRevoked} pick={pick}
-            onLink={() => selectTab("status")} onChats={setRecent} onThread={setInChat} onCamera={openCamera} />
+            onLink={() => selectTab("status")} onChats={setRecent} onThread={setInChat} onCamera={openCamera} onVault={openVault} />
         : <>
-          <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} onCamera={openCamera} />
+          <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} onCamera={openCamera} onVault={openVault} />
           {showTicker && lastEvent ? (
             <Pressable style={styles.ticker} onPress={() => openAlert(lastEvent)}>
               <Icon name="bell-outline" size={16} color={C.acc} />
@@ -306,7 +328,10 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
             {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection}
-              captureSettings={openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}><CompressionSettings /></PrivateCaptureSettings> : null} />}
+              captureSettings={<>
+                {openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}><CompressionSettings /></PrivateCaptureSettings> : null}
+                {openVault ? <VaultSettings onOpen={openVault} /> : null}
+              </>} />}
             {tab === "wallet" && <WalletScreen client={client} onRevoked={onRevoked} />}
             {tab === "notifications" && <NotificationsScreen client={client} onOpen={openAlert} osEnabled={notifications.osEnabled}
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
@@ -318,6 +343,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
         <CaptureScreen waiting={queue.waiting} sending={queue.sending} problem={queue.problem} saving={queue.saving} saveFailed={queue.saveFailed}
           onCaptured={queue.captured} onClose={() => setCameraOpen(false)} extraSettings={<SmallerFiles />} />
       </View> : null}
+      {vaultOpen ? <VaultScreen client={client} onClose={() => setVaultOpen(false)} /> : null}
     </Frame>
   );
 }

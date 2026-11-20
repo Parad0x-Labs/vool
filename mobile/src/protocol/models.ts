@@ -107,6 +107,19 @@ export interface SendResult {
   model: string | null;
 }
 
+/** One item of the computer's protected media library, as VOOL Vault lists it. */
+export interface MediaItem {
+  id: string;
+  section: "mobile" | "local";
+  kind: "photo" | "video" | "audio";
+  name: string;
+  media_type: string;
+  size: number;
+  taken_at: number;
+  added_at: number;
+  damaged?: boolean;
+}
+
 /** A file the computer sent to this phone ("send day4.jpg to my phone"); kept 24 hours. */
 export interface SentFile {
   id: string;

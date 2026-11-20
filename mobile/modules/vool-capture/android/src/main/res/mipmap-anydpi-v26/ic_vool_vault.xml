@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- VOOL Vault: the padlock dial. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@color/vool_vault_icon_background" />
+  <foreground android:drawable="@mipmap/ic_vool_vault_foreground" />
+</adaptive-icon>

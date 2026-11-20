@@ -1,6 +1,11 @@
 {
-  "platforms": ["android"],
+  "platforms": [
+    "android"
+  ],
   "android": {
-    "modules": ["systems.vool.capture.VoolCaptureModule"]
+    "modules": [
+      "systems.vool.capture.VoolCaptureModule",
+      "systems.vool.capture.VoolVaultModule"
+    ]
   }
 }
