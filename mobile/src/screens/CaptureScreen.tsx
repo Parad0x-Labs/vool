@@ -9,6 +9,7 @@ import SettingsCard, {cardRow} from "../ui/SettingsCard.tsx";
 import type {SendProblem} from "../capture/sender.ts";
 import Face from "../ui/Face.tsx";
 import Icon from "../ui/Icon.tsx";
+import {RevealScrollView} from "../ui/Reveal.tsx";
 import {useEdges} from "../ui/Frame.tsx";
 import {C} from "../ui/theme.ts";
 
@@ -190,7 +191,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
         onZoom={event => setZoom(event.nativeEvent)} onFocus={event => setFocus(event.nativeEvent)}
         onTurn={event => setTurn(event.nativeEvent.degrees)}
         onModes={event => {const list = event.nativeEvent.modes; setModes(list); if (mode !== "standard" && !list.includes(mode)) setMode("standard");}}
-        onCaptured={() => stored()}
+        onCaptured={event => (event.nativeEvent as {ok?: boolean}).ok === false ? failed() : stored()}
         onCameraError={() => setNote(tr("The camera could not start. Close it and try again."))} /> : null}
       {showCamera && prefs.grid ? <Grid lines={prefs.grid} rect={frame} /> : null}
       {focus ? <View pointerEvents="none" style={[styles.focusRing, {left: focus.x - 34, top: focus.y - 34}]} /> : null}
@@ -278,7 +279,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
             <Pressable style={styles.round} onPress={() => setSheet(false)} accessibilityRole="button" accessibilityLabel={tr("Close")}>
               <Icon name="close" size={22} color={C.ink} /></Pressable>
           </View>
-          <ScrollView contentContainerStyle={styles.sheetBody}>
+          <RevealScrollView contentContainerStyle={styles.sheetBody}>
             <SettingsCard icon="camera-outline" title={tr("Photo")}>
               <Choice label={tr("Flash")} value={prefs.flash} onPick={flash => change({flash})} items={[["off", tr("Off")], ["auto", tr("Auto")], ["on", tr("On")]]} />
               <Choice label={tr("Timer")} value={prefs.timer} onPick={timer => change({timer})} items={[[0, tr("Off")], [3, "3 s"], [10, "10 s"]]} />
@@ -295,7 +296,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
               <Choice label={tr("Steady video")} value={prefs.steady} onPick={steady => change({steady})} items={[[true, tr("On")], [false, tr("Off")]]} />
             </SettingsCard>
             {extraSettings}
-          </ScrollView>
+          </RevealScrollView>
         </View>
       </View> : null}
     </View>

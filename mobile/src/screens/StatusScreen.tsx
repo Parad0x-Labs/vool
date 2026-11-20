@@ -7,6 +7,7 @@ import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../prot
 import {connectionAddress} from "../protocol/connection.ts";
 import {useLink} from "../ui/LinkBadge.tsx";
 import Icon from "../ui/Icon.tsx";
+import {RevealScrollView} from "../ui/Reveal.tsx";
 import SettingsCard, {cardRow} from "../ui/SettingsCard.tsx";
 import {C} from "../ui/theme.ts";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -241,7 +242,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   </ScrollView>;
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+    <RevealScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
       {computerCard}
 
       <SettingsCard icon="shield-check-outline" title={tr("Permissions")}>
@@ -271,7 +272,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       {captureSettings}
       {advanced}
       {danger}
-    </ScrollView>
+    </RevealScrollView>
   );
 }
 
