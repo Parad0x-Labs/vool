@@ -38,12 +38,14 @@ interface State {
   summary: Summary;
 }
 
-const PRESETS: {key: Preset; label: string; hint: string}[] = [
-  {key: "best", label: "Best", hint: "Highest quality, in the best format this phone can make."},
-  {key: "balanced", label: "Balanced", hint: "Smaller files, very close to the original."},
-  {key: "small", label: "Smallest", hint: "Much smaller. Photos up to 2560 px, video up to 1080p."},
-  {key: "custom", label: "Custom", hint: "Choose every setting yourself."},
-];
+function presets(): {key: Preset; label: string; hint: string}[] {
+  return [
+    {key: "best", label: tr("Best"), hint: tr("Highest quality, in the best format this phone can make.")},
+    {key: "balanced", label: tr("Balanced"), hint: tr("Smaller files, very close to the original.")},
+    {key: "small", label: tr("Smallest"), hint: tr("Much smaller. Photos up to 2560 px, video up to 1080p.")},
+    {key: "custom", label: tr("Custom"), hint: tr("Choose every setting yourself.")},
+  ];
+}
 
 function read(): State | null {
   try {
@@ -82,7 +84,8 @@ export default function CompressionSettings() {
   }, [state]);
 
   if (!capture || !state) return null;
-  const preset = PRESETS.find(p => p.key === state.preset) ?? PRESETS[0];
+  const all = presets();
+  const preset = all.find(p => p.key === state.preset) ?? all[0];
   const caps = state.capabilities;
   const t = state.custom;
   const setT = (patch: Partial<Tuning>) => save({custom: {...t, ...patch}});
@@ -94,7 +97,7 @@ export default function CompressionSettings() {
         <Text style={styles.text}>{tr("Make files smaller before sending")}</Text>
         {state.summary.items > 0 ? <Text style={styles.note}>{tr("Saved {size} so far", {size: size(state.summary.savedBytes)})}</Text> : null}
       </View>
-      <Text style={[styles.value, state.enabled && {color: C.ok}]}>{state.enabled ? tr(preset.label) : tr("Off")}</Text>
+      <Text style={[styles.value, state.enabled && {color: C.ok}]}>{state.enabled ? preset.label : tr("Off")}</Text>
       <Icon name={open ? "chevron-up" : "chevron-down"} size={22} color={C.faint} />
     </Pressable>
 
@@ -104,10 +107,10 @@ export default function CompressionSettings() {
 
       {state.enabled ? <>
         <Text style={styles.label}>{tr("Quality")}</Text>
-        {PRESETS.map(p => <Pressable key={p.key} style={[styles.choice, state.preset === p.key && styles.chosen]}
+        {all.map(p => <Pressable key={p.key} style={[styles.choice, state.preset === p.key && styles.chosen]}
           onPress={() => save({preset: p.key})} accessibilityRole="radio" accessibilityState={{selected: state.preset === p.key}}>
-          <Text style={styles.text}>{tr(p.label)}</Text>
-          <Text style={styles.note}>{tr(p.hint)}</Text>
+          <Text style={styles.text}>{p.label}</Text>
+          <Text style={styles.note}>{p.hint}</Text>
         </Pressable>)}
 
         <Text style={styles.label}>{tr("Privacy")}</Text>
