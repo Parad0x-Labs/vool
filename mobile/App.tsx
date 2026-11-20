@@ -30,7 +30,8 @@ import Frame from "./src/ui/Frame.tsx";
 import KeyboardTip from "./src/ui/KeyboardTip.tsx";
 import {installPrivateRoute} from "./src/security/privateRoute.ts";
 import {SafeAreaProvider} from "react-native-safe-area-context";
-import Drawer, {type DrawerItem} from "./src/ui/Drawer.tsx";
+import TabBar, {type TabItem} from "./src/ui/TabBar.tsx";
+import Face from "./src/ui/Face.tsx";
 import Icon from "./src/ui/Icon.tsx";
 import {C, R} from "./src/ui/theme.ts";
 
@@ -40,6 +41,7 @@ installPrivateRoute();
 type Tab = "chats" | "approvals" | "notifications" | "wallet" | "status";
 const TAB_LABELS = {chats: "Chats", approvals: "Approvals", notifications: "Alerts", wallet: "Wallet", status: "Settings"};
 const TAB_ICONS = {chats: "message-outline", approvals: "shield-check-outline", notifications: "bell-outline", wallet: "wallet-outline", status: "cog-outline"} as const;
+const TAB_ICONS_ON = {chats: "message", approvals: "shield-check", notifications: "bell", wallet: "wallet", status: "cog"} as const;
 const TABS: Tab[] = ["chats", "approvals", "notifications", "wallet", "status"];
 // The status bar is drawn over the app on Android; keep the first row below it.
 
@@ -116,7 +118,7 @@ function Root() {
     return (
       <Frame style={[styles.centered, {direction: rightToLeft() ? "rtl" : "ltr"}]}>
         <StatusBar style="light" />
-        <Text style={styles.brand}>VOOL</Text>
+        <Face size={132} />
         {bootError && <><Text style={styles.lockText}>{tr("Could not open saved access. Unlock your phone and try again.")}</Text>
           <Pressable style={styles.button} onPress={() => {setBootError(false); setBootAttempt(n => n + 1);}}><Text style={styles.buttonText}>{tr("Try again")}</Text></Pressable></>}
       </Frame>
@@ -135,12 +137,12 @@ function Root() {
 
   if (lock.locked) return <Frame style={styles.centered}>
     <StatusBar style="light" />
-    <Icon name="lock-outline" size={40} color={C.soft} />
-    <Text style={styles.brand}>VOOL</Text>
-    <Text style={styles.lockText}>{tr("Unlock VOOL")}</Text>
+    <Face size={132} />
+    <Text style={styles.brand}>{tr("Unlock VOOL")}</Text>
     {lock.noScreenLock && <Text style={styles.lockText}>{tr("Set a screen lock on your phone before unlocking VOOL.")}</Text>}
     {lock.failed && <Text style={styles.lockText}>{tr("Unlock failed. Try your fingerprint, face or phone passcode again.")}</Text>}
-    <Pressable style={styles.button} onPress={() => void lock.unlock()}><Text style={styles.buttonText}>{tr("Unlock")}</Text></Pressable>
+    <Pressable style={styles.button} android_ripple={{color: C.rippleDark}} accessibilityRole="button" onPress={() => void lock.unlock()}>
+      <Icon name="fingerprint" size={22} color={C.sendInk} /><Text style={styles.buttonText}>{tr("Unlock")}</Text></Pressable>
   </Frame>;
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
@@ -166,12 +168,13 @@ interface ShellProps {
   startTab?: Tab;
 }
 
-/** Everything a paired, unlocked phone shows: the side menu and the five screens. */
+/** Everything a paired, unlocked phone shows: the five screens and the row of tabs under them. */
 export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats"}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
   const [pick, setPick] = useState<{id: string | null; seq: number} | null>(null);
-  const [menu, setMenu] = useState(false);
   const [recent, setRecent] = useState<ChatSummary[]>([]);
+  // Inside one chat the message box takes the place of the tabs.
+  const [inChat, setInChat] = useState(false);
   // Screenshots work in chats and settings. Only the money screens stay out of screenshots and the app switcher.
   const moneyScreen = tab === "wallet" || tab === "approvals";
   useEffect(() => {
@@ -233,27 +236,22 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
     tab !== "chats" &&
     (lastEvent?.mobile_kind === "failure" || lastEvent?.mobile_kind === "completion");
 
-  const items: DrawerItem[] = TABS.map(name => ({
-    key: name, label: tr(TAB_LABELS[name]), icon: TAB_ICONS[name],
+  const items: TabItem[] = TABS.map(name => ({
+    key: name, label: tr(TAB_LABELS[name]), icon: TAB_ICONS[name], iconOn: TAB_ICONS_ON[name],
     badge: name === "notifications" ? notifications.unseen : name === "approvals" ? (notifications.attention ? 1 : 0) : 0,
   }));
-  const menuDot = notifications.unseen > 0 || notifications.attention;
-  const openChat = (id: string | null) => {
-    setPick(previous => ({id, seq: (previous?.seq ?? 0) + 1}));
-    selectTab("chats"); setMenu(false);
-  };
 
   return (
     <Frame onTouchStart={onTouch} style={{direction: rightToLeft() ? "rtl" : "ltr"}}>
       <StatusBar style="light" />
       {tab === "chats"
-        ? <ChatsScreen client={client} onRevoked={onRevoked} pick={pick} onMenu={() => setMenu(true)}
-            onLink={() => selectTab("status")} menuDot={menuDot} onChats={setRecent} />
+        ? <ChatsScreen client={client} onRevoked={onRevoked} pick={pick}
+            onLink={() => selectTab("status")} onChats={setRecent} onThread={setInChat} />
         : <>
-          <Header title={tr(TAB_LABELS[tab])} lead="menu" onLead={() => setMenu(true)} onLink={() => selectTab("status")} dot={menuDot} />
+          <Header title={tr(TAB_LABELS[tab])} onLink={() => selectTab("status")} />
           {showTicker && lastEvent ? (
             <Pressable style={styles.ticker} onPress={() => openAlert(lastEvent)}>
-              <Icon name="bell-outline" size={16} color={C.soft} />
+              <Icon name="bell-outline" size={16} color={C.acc} />
               <Text style={styles.tickerText}>{tickerText(lastEvent)}</Text>
             </Pressable>
           ) : null}
@@ -265,11 +263,8 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
           </ScrollView>
         </>}
+      {tab === "chats" && inChat ? null : <TabBar items={items} active={tab} onSelect={key => selectTab(key as Tab)} />}
       {recent.length > 0 && <KeyboardTip />}
-      <Drawer open={menu} onClose={() => setMenu(false)} items={items} active={tab}
-        onSelect={key => {selectTab(key as Tab); setMenu(false);}}
-        chats={recent.slice(0, 12).map(chat => ({id: chat.chat_id, title: chat.title || tr("New chat")}))}
-        onChat={openChat} onNewChat={() => openChat(null)} />
     </Frame>
   );
 }
@@ -278,12 +273,12 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   centered: { alignItems: "center", justifyContent: "center", gap: 14, padding: 32 },
-  brand: { color: C.ink, fontSize: 28, fontWeight: "700", letterSpacing: 3 },
+  brand: { color: C.ink, fontSize: 26, fontWeight: "700", letterSpacing: -0.4, textAlign: "center", marginTop: 6 },
   lockText: { color: C.soft, fontSize: 15, textAlign: "center", lineHeight: 22 },
-  button: { backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 28, height: 50, alignItems: "center", justifyContent: "center", marginTop: 8 },
+  button: { flexDirection: "row", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 34, height: 52, alignItems: "center", justifyContent: "center", marginTop: 14, overflow: "hidden" },
   buttonText: { color: C.sendInk, fontSize: 16, fontWeight: "600" },
-  ticker: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.raised, borderRadius: R.card, marginHorizontal: 16, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 10 },
+  ticker: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 11 },
   tickerText: { flex: 1, color: C.soft, fontSize: 13 },
   body: { flex: 1 },
-  bodyContent: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 40 },
+  bodyContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 },
 });

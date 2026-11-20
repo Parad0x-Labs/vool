@@ -9,6 +9,7 @@ import {useLink} from "../ui/LinkBadge.tsx";
 import {linkState} from "../protocol/linkState.ts";
 import Icon, {type IconName} from "../ui/Icon.tsx";
 import Gears from "../ui/Gears.tsx";
+import Face from "../ui/Face.tsx";
 import {C, R} from "../ui/theme.ts";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
@@ -19,13 +20,13 @@ import { randomBytes, toHex } from "../protocol/sha256.ts";
 interface Props {
   client: MobileCompanionClient;
   onRevoked: () => void | Promise<void>;
-  /** A chat picked outside this screen (side menu, an alert). `seq` changes on every pick. */
+  /** A chat picked outside this screen (an alert). `seq` changes on every pick. */
   pick?: {id: string | null; seq: number} | null;
-  onMenu: () => void;
   onLink: () => void;
-  menuDot: boolean;
-  /** The recent chats, for the side menu. */
+  /** The recent chats, once the computer has listed them. */
   onChats: (chats: ChatSummary[]) => void;
+  /** Tells the app when one chat is open, so the tabs make room for the message box. */
+  onThread?: (open: boolean) => void;
 }
 
 /** The chat list, and one chat: read it, write to the computer, attach a photo or file. */
@@ -37,7 +38,7 @@ const STARTERS: [IconName, () => string][] = [
   ["lightbulb-on-outline", () => tr("Plan my week")],
 ];
 
-export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, menuDot, onChats }: Props) {
+export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, onThread }: Props) {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -63,6 +64,10 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
   const scroll = useRef<ScrollView>(null);
   const chatsRef = useRef(onChats);
   chatsRef.current = onChats;
+  const threadRef = useRef(onThread);
+  threadRef.current = onThread;
+  const inThread = activeChat !== null;
+  useEffect(() => {threadRef.current?.(inThread);}, [inThread]);
 
   const guard = useCallback(
     (exc: unknown) => {
@@ -199,7 +204,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
   if (!activeChat) {
     return (
       <View style={styles.screen}>
-        <Header title="VOOL" big lead="menu" onLead={onMenu} onLink={onLink} dot={menuDot} />
+        <Header title={tr("Chats")} onLink={onLink} />
         <ScrollView style={styles.fill} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
           {(chats?.length || search) ? <View style={styles.search}>
             <Icon name="magnify" size={20} color={C.mute} />
@@ -211,12 +216,12 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
           <FromComputer client={client} refreshKey={filesKey} />
           {chats === null && !notice ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
           {chats?.length === 0 && !search && !notice ? <View style={styles.empty}>
-            <View style={styles.emptyMark}><Icon name="message-text-outline" size={30} color={C.soft} /></View>
+            <Face size={104} />
             <Text style={styles.emptyTitle}>{tr("What can I help with?")}</Text>
             <View style={styles.starters}>
               {STARTERS.map(([icon, text]) => <Pressable key={icon} style={styles.starter} android_ripple={{color: C.ripple}} accessibilityRole="button"
                 onPress={() => {newChat(); setDraft(text());}}>
-                <Icon name={icon} size={22} color={C.soft} />
+                <Icon name={icon} size={22} color={C.acc} />
                 <Text style={styles.starterText} numberOfLines={2}>{text()}</Text>
                 <Icon name={rightToLeft() ? "chevron-left" : "chevron-right"} size={20} color={C.mute} />
               </Pressable>)}
@@ -224,7 +229,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
           </View> : null}
           {(chats || []).map((chat) => (
             <Pressable key={chat.chat_id} style={styles.chatRow} android_ripple={{color: C.ripple}} onPress={() => void openChat(chat.chat_id)} accessibilityRole="button">
-              <View style={styles.chatMark}><Icon name="message-outline" size={20} color={C.soft} /></View>
+              <View style={styles.chatMark}><Text style={styles.chatLetter}>{Array.from((chat.title || tr("New chat")).trim())[0]?.toLocaleUpperCase() || "•"}</Text></View>
               <View style={styles.fill}>
                 <Text style={styles.chatTitle} numberOfLines={1}>
                   {chat.title || tr("New chat")}
@@ -236,7 +241,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
             </Pressable>
           ))}
         </ScrollView>
-        <Pressable style={styles.newChat} android_ripple={{color: "rgba(17,19,20,0.12)"}} onPress={newChat} accessibilityRole="button">
+        <Pressable style={styles.newChat} android_ripple={{color: C.rippleDark}} onPress={newChat} accessibilityRole="button">
           <Icon name="plus" size={20} color={C.sendInk} />
           <Text style={styles.newChatText}>{tr("New chat")}</Text>
         </Pressable>
@@ -251,7 +256,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
 
   return (
     <View style={styles.screen}>
-      <Header title={title} lead="back" onLead={() => setActiveChat(null)} onLink={onLink} />
+      <Header title={title} onBack={() => setActiveChat(null)} onLink={onLink} />
       {notice ? <Text style={[styles.note, styles.inset]}>{notice}</Text> : null}
       <ScrollView ref={scroll} style={styles.fill} contentContainerStyle={styles.threadContent}
         onContentSizeChange={() => scroll.current?.scrollToEnd({animated: true})} keyboardShouldPersistTaps="handled">
@@ -263,12 +268,12 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
             <Text style={m.role === "user" ? styles.userText : styles.agentText}>{m.content}</Text>
             {m.attachments?.map((a) => (
               <View key={a.id} style={styles.attachmentTag}>
-                <Icon name="paperclip" size={14} color={C.mute} />
-                <Text style={styles.attachmentText}>{a.name}</Text>
+                <Icon name="paperclip" size={14} color={m.role === "user" ? C.sendSoft : C.mute} />
+                <Text style={[styles.attachmentText, m.role === "user" && styles.onSend]}>{a.name}</Text>
               </View>
             ))}
-            {m.role === "user" ? <View style={styles.tick}><Icon name="check-all" size={15} color={C.mute} /></View> : null}
-            {timeShown === i && messageTimeText(m.ts) ? <Text style={styles.messageTime}>{messageTimeText(m.ts)}</Text> : null}
+            {m.role === "user" ? <View style={styles.tick}><Icon name="check-all" size={15} color={C.sendSoft} /></View> : null}
+            {timeShown === i && messageTimeText(m.ts) ? <Text style={[styles.messageTime, m.role === "user" && styles.onSend]}>{messageTimeText(m.ts)}</Text> : null}
           </Pressable>
         ))}
         {waiting.map(turn => {
@@ -278,10 +283,10 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
           return (
             <View key={turn.key}>
               <View style={[styles.userBubble, blocked && styles.blockedBubble]}>
-                <Text style={styles.userText}>{turn.text}</Text>
+                <Text style={[styles.userText, blocked && styles.blockedUserText]}>{turn.text}</Text>
                 <View style={styles.tick}>
                   <Icon name={blocked ? "alert-circle-outline" : got ? "check-all" : isSending ? "check" : "clock-outline"}
-                    size={15} color={blocked ? C.bad : got ? C.ok : C.mute} />
+                    size={15} color={blocked ? C.bad : got ? C.sendInk : C.sendSoft} />
                 </View>
               </View>
               {blocked ? <View style={styles.blocked}>
@@ -326,7 +331,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, m
       ) : null}
       <View style={styles.composer}>
         <Pressable style={styles.plus} onPress={() => setSheet(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={tr("Add to this message")}>
-          <Icon name="plus" size={26} color={C.soft} />
+          <Icon name="plus" size={24} color={C.acc} />
         </Pressable>
         <TextInput
           style={styles.draftInput}
@@ -352,46 +357,49 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   fill: { flex: 1 },
   center: { marginTop: 40 },
-  inset: { paddingHorizontal: 18 },
+  inset: { paddingHorizontal: 20 },
   row: { flexDirection: "row", gap: 8 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 110 },
-  search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderRadius: R.pill, paddingHorizontal: 16, height: 48, marginTop: 4, marginBottom: 10 },
+  listContent: { paddingHorizontal: 20, paddingBottom: 96 },
+  search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingHorizontal: 16, height: 48, marginBottom: 10 },
   searchInput: { flex: 1, color: C.ink, fontSize: 16, padding: 0 },
   note: { color: C.soft, fontSize: 13, lineHeight: 19, paddingVertical: 8 },
-  chatRow: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 68, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 16, overflow: "hidden" },
-  chatMark: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.raised, alignItems: "center", justifyContent: "center" },
-  empty: { alignItems: "center", paddingTop: 56, paddingBottom: 24 },
-  emptyMark: { width: 64, height: 64, borderRadius: 32, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center", marginBottom: 20 },
-  emptyTitle: { color: C.ink, fontSize: 24, lineHeight: 30, fontWeight: "600", textAlign: "center", marginBottom: 24 },
+  chatRow: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 70, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line, overflow: "hidden" },
+  chatMark: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  chatLetter: { color: C.acc, fontSize: 17, fontWeight: "700" },
+  empty: { alignItems: "center", paddingTop: 28, paddingBottom: 24 },
+  emptyTitle: { color: C.ink, fontSize: 25, lineHeight: 31, fontWeight: "700", letterSpacing: -0.4, textAlign: "center", marginTop: 10, marginBottom: 24 },
   starters: { alignSelf: "stretch", gap: 10 },
-  starter: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.panel, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: "hidden" },
+  starter: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 58, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.raised, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: "hidden" },
   starterText: { flex: 1, color: C.ink, fontSize: 15, lineHeight: 20 },
-  chatTitle: { color: C.ink, fontSize: 16, fontWeight: "500" },
+  chatTitle: { color: C.ink, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 },
   chatMeta: { color: C.mute, fontSize: 13, marginTop: 3 },
-  newChat: { position: "absolute", right: 18, bottom: 22, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 56, elevation: 6, overflow: "hidden" },
+  newChat: { position: "absolute", right: 20, bottom: 18, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 54, elevation: 8,
+    shadowColor: C.acc, shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: {width: 0, height: 8}, overflow: "hidden" },
   newChatText: { color: C.sendInk, fontSize: 16, fontWeight: "600" },
-  threadContent: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18 },
-  userBubble: { alignSelf: "flex-end", maxWidth: "82%", backgroundColor: C.pill, borderRadius: R.bubble, borderBottomEndRadius: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, marginTop: 16 },
-  blockedBubble: { borderWidth: 1, borderColor: C.bad },
-  agentBlock: { alignSelf: "stretch", marginTop: 16 },
-  userText: { color: C.ink, fontSize: 16, lineHeight: 23 },
-  agentText: { color: C.ink, fontSize: 17, lineHeight: 27 },
+  threadContent: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 18 },
+  userBubble: { alignSelf: "flex-end", maxWidth: "82%", backgroundColor: C.send, borderRadius: R.bubble, borderBottomEndRadius: 6, paddingHorizontal: 15, paddingTop: 10, paddingBottom: 8, marginTop: 14 },
+  blockedBubble: { backgroundColor: C.badBg, borderWidth: 1, borderColor: C.bad },
+  agentBlock: { alignSelf: "flex-start", maxWidth: "88%", backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: R.bubble, borderBottomStartRadius: 6, paddingHorizontal: 15, paddingVertical: 11, marginTop: 14 },
+  userText: { color: C.sendInk, fontSize: 16, lineHeight: 23 },
+  blockedUserText: { color: C.ink },
+  agentText: { color: C.ink, fontSize: 16, lineHeight: 24 },
+  onSend: { color: C.sendSoft },
   tick: { alignSelf: "flex-end", marginTop: -1, marginRight: -4 },
   attachmentTag: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   attachmentText: { color: C.soft, fontSize: 13 },
-  messageTime: { color: C.soft, fontSize: 12, marginTop: 6 },
+  messageTime: { color: C.mute, fontSize: 12, marginTop: 6 },
   waitText: { color: C.mute, fontSize: 12, textAlign: "right", marginTop: 4 },
   blocked: { alignItems: "flex-end", gap: 8, marginTop: 6 },
   blockedText: { color: C.bad, fontSize: 13, textAlign: "right" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.pill, borderRadius: R.pill, paddingHorizontal: 16, height: 44 },
-  chipText: { color: C.ink, fontSize: 14 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.pill, borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingHorizontal: 16, height: 44 },
+  chipText: { color: C.ink, fontSize: 14, fontWeight: "500" },
   working: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 18 },
   workingText: { flex: 1, color: C.soft, fontSize: 14 },
   proof: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   proofText: { color: C.mute, fontSize: 12 },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 6, backgroundColor: C.raised, borderRadius: 26, borderWidth: 1, borderColor: C.line, marginHorizontal: 12, marginBottom: 10, marginTop: 6, padding: 6, minHeight: 60 },
-  plus: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-  draftInput: { flex: 1, color: C.ink, fontSize: 16, lineHeight: 22, maxHeight: 132, minHeight: 48, paddingHorizontal: 4, paddingTop: 13, paddingBottom: 13, textAlignVertical: "center" },
-  sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.send, alignItems: "center", justifyContent: "center" },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 6, backgroundColor: C.raised, borderRadius: 29, borderWidth: 1, borderColor: C.line, marginHorizontal: 12, marginBottom: 10, marginTop: 6, padding: 6, minHeight: 58 },
+  plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  draftInput: { flex: 1, color: C.ink, fontSize: 16, lineHeight: 22, maxHeight: 132, minHeight: 44, paddingHorizontal: 6, paddingTop: 11, paddingBottom: 11, textAlignVertical: "center" },
+  sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.send, alignItems: "center", justifyContent: "center" },
   sendOff: { backgroundColor: C.pill },
 });

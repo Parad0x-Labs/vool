@@ -5,13 +5,16 @@ import {CompanionError, type MobileCompanionClient} from "../protocol/client.ts"
 import type {DeviceInfo} from "../protocol/models.ts";
 import {PaymentDraft} from "../protocol/paymentDraft.ts";
 import {SecureProposalStore} from "../store/paymentDraft.ts";
+import {C} from "../ui/theme.ts";
 
 type WalletView = Awaited<ReturnType<MobileCompanionClient["walletStatus"]>>;
-const button = {backgroundColor: "#1f2224", paddingVertical: 13, paddingHorizontal: 16, borderRadius: 16, marginVertical: 5};
-const text = {color: "#edece7", marginVertical: 6, fontSize: 15, lineHeight: 21};
-const soft = {...text, color: "#bfc2c4", fontSize: 13, lineHeight: 19};
-const heading = {color: "#868b90", fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase" as const, marginTop: 20, marginBottom: 6};
-const input = {...button, color: "#edece7", borderWidth: 1, borderColor: "#2a2d31", fontSize: 15};
+const button = {backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 18, marginVertical: 5};
+const balanceText = {color: C.ink, fontSize: 34, fontWeight: "700" as const, letterSpacing: -0.8, marginTop: 10, writingDirection: "ltr" as const};
+const pendingCard = {backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, padding: 14, marginVertical: 5};
+const text = {color: C.ink, marginVertical: 6, fontSize: 15, lineHeight: 21};
+const soft = {...text, color: C.soft, fontSize: 13, lineHeight: 19};
+const heading = {color: C.mute, fontSize: 12, fontWeight: "600" as const, letterSpacing: 1, textTransform: "uppercase" as const, marginTop: 22, marginBottom: 6};
+const input = {...button, color: C.ink, borderWidth: 1, borderColor: C.line, fontSize: 15};
 
 function receiptStatus(state: string): string {
   if (state === "confirmed") return tr("Completed");
@@ -78,7 +81,7 @@ export default function WalletScreen({client, onRevoked}: {client: MobileCompani
     <Pressable style={button} disabled={busy} onPress={freeze}><Text style={text}>{tr("Freeze payments")}</Text></Pressable>
     {view && !view.status.enabled && <Text style={text}>{tr("Crypto is off on your computer.")}</Text>}
     {view?.frozen && <Text style={text}>{tr("Payments are frozen. Unfreeze on your computer with the wallet PIN.")}</Text>}
-    {error ? <Text style={{...text, color: "#d86a56"}} accessibilityRole="alert">{error}</Text> : null}
+    {error ? <Text style={{...text, color: C.bad}} accessibilityRole="alert">{error}</Text> : null}
     {notice ? <Text style={text}>{notice}</Text> : null}
     <Pressable style={button} disabled={busy} onPress={() => void refresh()}><Text style={text}>{tr("Refresh")}</Text></Pressable>
     {!device?.rules?.wallet_view ? <Text style={text}>{tr("Wallet viewing is off. Change permissions on your computer.")}</Text> : <>
@@ -90,7 +93,7 @@ export default function WalletScreen({client, onRevoked}: {client: MobileCompani
           setBalance(answer.state === "read" ? `${answer.balance_human} ${answer.asset}` : tr("Balance unavailable. Try again later."));
         });
       }}><Text style={text}>{hidden ? tr("Show balances") : tr("Hide balances")}</Text></Pressable>
-      {!hidden && <><Text style={text}>{balance || tr("Choose an account to show its balance.")}</Text>
+      {!hidden && <><Text style={balance ? balanceText : text}>{balance || tr("Choose an account to show its balance.")}</Text>
         <Text style={soft}>{tr("This balance shows only the network's native coin; tokens are not included.")}</Text></>}
       {!hidden && (view?.status.accounts || []).map(account => <Pressable key={account.wallet_id} style={button} disabled={busy}
         onPress={() => void act(async () => {
@@ -98,7 +101,7 @@ export default function WalletScreen({client, onRevoked}: {client: MobileCompani
           setBalance(answer.state === "read" ? `${answer.balance_human} ${answer.asset}` : tr("Balance unavailable. Try again later."));
         })}><Text style={text}>{account.label || tr("Wallet account")} · {account.network}</Text></Pressable>)}
       <Text style={heading}>{tr("Pending payments")}</Text>
-      {(view?.status.pending || []).map(row => <View key={row.proposal_id} style={{paddingVertical: 8}}>
+      {(view?.status.pending || []).map(row => <View key={row.proposal_id} style={pendingCard}>
         <Text style={[text, {writingDirection: "ltr"}]}>{row.amount_human} {row.display_symbol} · {row.network}</Text>
         <Text style={[text, {writingDirection: "ltr", textAlign: "left"}]}>{row.destination}</Text>
         <Text style={text}>{tr("Review fees and approve this payment on your computer.")}</Text>
@@ -118,9 +121,9 @@ export default function WalletScreen({client, onRevoked}: {client: MobileCompani
     {device?.rules?.payment_propose ? <>
       <Text style={heading}>{tr("Propose payments")}</Text>
       <Text style={text}>{tr("Per-payment maximum")}: {device.payment_cap_display?.per_payment} {device.payment_cap_display?.asset} · {tr("Daily maximum")}: {device.payment_cap_display?.daily}</Text>
-      <TextInput style={input} accessibilityLabel={tr("Contact or address")} placeholder={tr("Contact or address")} placeholderTextColor="#868b90" value={destination} onChangeText={setDestination} editable={!busy && !saved}/>
+      <TextInput style={input} accessibilityLabel={tr("Contact or address")} placeholder={tr("Contact or address")} placeholderTextColor={C.mute} value={destination} onChangeText={setDestination} editable={!busy && !saved}/>
       {matches.map((contact,index)=><Pressable key={index} style={button} disabled={busy || saved} onPress={()=>{setDestination(contact.display_name);setMatches([]);}}><Text style={text}>{contact.display_name}</Text></Pressable>)}
-      <TextInput style={{...input,writingDirection:"ltr",textAlign:"left"}} accessibilityLabel={tr("Amount")} placeholder={tr("Amount")} placeholderTextColor="#868b90" value={amount} onChangeText={value => setAmount(value.replace(",", "."))} keyboardType="decimal-pad" editable={!busy && !saved}/>
+      <TextInput style={{...input,writingDirection:"ltr",textAlign:"left"}} accessibilityLabel={tr("Amount")} placeholder={tr("Amount")} placeholderTextColor={C.mute} value={amount} onChangeText={value => setAmount(value.replace(",", "."))} keyboardType="decimal-pad" editable={!busy && !saved}/>
       {saved && <Text style={text}>{tr("Your request may already be on your computer. Check before retrying.")}</Text>}
       <Pressable style={button} disabled={busy || view?.frozen || view?.status.enabled === false} onPress={() => void act(async () => {
         await draft.send(destination, amount); setNotice(tr("Review fees and approve this payment on your computer.")); setAmount("");

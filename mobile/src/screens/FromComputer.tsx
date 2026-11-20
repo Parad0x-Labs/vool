@@ -4,6 +4,8 @@ import * as FileSystem from 'expo-file-system';
 import type {MobileCompanionClient} from '../protocol/client.ts';
 import type {SentFile} from '../protocol/models.ts';
 import {tr} from '../i18n/index.ts';
+import Icon from '../ui/Icon.tsx';
+import {C} from "../ui/theme.ts";
 
 function sizeText(bytes: number): string {
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -73,11 +75,12 @@ export default function FromComputer({client, refreshKey}: {client: MobileCompan
       <Text style={styles.title}>{tr("From your computer")}</Text>
       {files.map(file => (
         <View key={file.id} style={styles.row}>
+          <View style={styles.mark}><Icon name={file.media_type.startsWith('image/') ? "image-outline" : "file-outline"} size={22} color={C.acc} /></View>
           <View style={styles.meta}>
             <Text style={styles.name} numberOfLines={1}>{file.name}</Text>
             <Text style={styles.detail}>{state[file.id] || sizeText(file.size_bytes)}</Text>
           </View>
-          <Pressable style={styles.save} onPress={() => void save(file)}>
+          <Pressable style={styles.save} android_ripple={{color: C.rippleDark}} accessibilityRole="button" onPress={() => void save(file)}>
             <Text style={styles.saveText}>{tr("Save")}</Text>
           </Pressable>
           {previews[file.id] ? <Image source={{uri: previews[file.id]}} style={styles.preview} resizeMode="cover" /> : null}
@@ -88,13 +91,14 @@ export default function FromComputer({client, refreshKey}: {client: MobileCompan
 }
 
 const styles = StyleSheet.create({
-  box: {backgroundColor: '#1f2224', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8, marginBottom: 4},
-  title: {color: '#bfc2c4', fontSize: 12, marginBottom: 6},
-  row: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingVertical: 6, gap: 8},
+  box: {backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4, marginBottom: 6},
+  title: {color: C.mute, fontSize: 12, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginTop: 2, marginBottom: 4},
+  row: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingVertical: 6, gap: 12},
+  mark: {width: 42, height: 42, borderRadius: 14, backgroundColor: C.tint, alignItems: 'center', justifyContent: 'center'},
   meta: {flex: 1},
-  name: {color: '#edece7', fontSize: 14},
-  detail: {color: '#868b90', fontSize: 12, marginTop: 2},
-  save: {backgroundColor: '#edece7', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 16},
-  saveText: {color: '#111314', fontWeight: '700'},
+  name: {color: C.ink, fontSize: 15, fontWeight: '600'},
+  detail: {color: C.mute, fontSize: 13, marginTop: 2},
+  save: {backgroundColor: C.send, borderRadius: 20, height: 40, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
+  saveText: {color: C.sendInk, fontSize: 14, fontWeight: '600'},
   preview: {width: '100%', height: 180, borderRadius: 16, marginTop: 6},
 });

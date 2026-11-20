@@ -248,11 +248,19 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       {computerCard}
 
       <Text style={styles.section}>{tr("This device")}</Text>
-      <Text style={styles.detail}>{tr("Change this phone’s permissions on your computer.")}</Text>
-      {Object.entries(device?.rules || {}).map(([right,value])=><Text key={right} style={styles.detail}>
-        {permissionText(right)}: {value && (!(device?.right_expiry?.[right]) || (device.right_expiry[right] > Date.now()/1000)) ? tr("On") : tr("Off")}
-        {device?.right_expiry?.[right] ? " · "+tr("Expires")+" "+new Date(device.right_expiry[right]*1000).toLocaleString() : ""}
-      </Text>)}
+      {Object.keys(device?.rules || {}).length ? <View style={styles.list}>
+        {Object.entries(device?.rules || {}).map(([right,value], index)=>{
+          const on = !!value && (!(device?.right_expiry?.[right]) || (device!.right_expiry![right] > Date.now()/1000));
+          return <View key={right} style={[styles.listRow, index > 0 && styles.listRule]}>
+            <View style={styles.fill}>
+              <Text style={styles.listText}>{permissionText(right)}</Text>
+              {device?.right_expiry?.[right] ? <Text style={styles.listNote}>{tr("Expires")} {new Date(device.right_expiry[right]*1000).toLocaleString()}</Text> : null}
+            </View>
+            <Text style={[styles.listValue, on && {color: C.ok}]}>{on ? tr("On") : tr("Off")}</Text>
+          </View>;
+        })}
+      </View> : null}
+      <Text style={styles.footnote}>{tr("Change this phone’s permissions on your computer.")}</Text>
       <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
       <View style={styles.segment}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
         style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
@@ -267,33 +275,40 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
 
 const styles = StyleSheet.create({
   center: { marginTop: 40 },
-  section: { color: "#868b90", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.1, marginTop: 22, marginBottom: 8 },
-  card: { backgroundColor: "#1f2224", borderRadius: 16, padding: 16, marginBottom: 6 },
-  label: { color: "#edece7", fontSize: 15, fontWeight: "600", marginBottom: 8 },
+  section: { color: C.mute, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginTop: 22, marginBottom: 8 },
+  card: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, padding: 16, marginBottom: 6 },
+  fill: { flex: 1 },
+  list: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, overflow: "hidden" },
+  listRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, minHeight: 52, paddingVertical: 12 },
+  listRule: { borderTopWidth: 1, borderTopColor: C.line },
+  listText: { color: C.ink, fontSize: 15 },
+  listNote: { color: C.mute, fontSize: 12, marginTop: 2 },
+  listValue: { color: C.mute, fontSize: 14, fontWeight: "600" },
+  label: { color: C.ink, fontSize: 15, fontWeight: "600", marginBottom: 8 },
   row: { flexDirection: "row", gap: 8, marginBottom: 6 },
   pill: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
-  pillGreen: { backgroundColor: "#22382b" },
-  pillBlue: { backgroundColor: "#26292c" },
-  pillAmber: { backgroundColor: "#3d3120" },
-  pillGrey: { backgroundColor: "#26292c" },
-  pillText: { color: "#edece7", fontSize: 12, fontWeight: "600" },
-  fingerprint: { color: "#868b90", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  detail: { color: "#bfc2c4", fontSize: 13, lineHeight: 19, marginTop: 4 },
-  footnote: { color: "#868b90", fontSize: 12, marginTop: 10, lineHeight: 16 },
-  proofButton: { backgroundColor: "#26292c", borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12, overflow: "hidden" },
-  segment: { flexDirection: "row", backgroundColor: "#1f2224", borderRadius: 24, padding: 4, gap: 4 },
+  pillGreen: { backgroundColor: C.okBg },
+  pillBlue: { backgroundColor: C.pill },
+  pillAmber: { backgroundColor: C.tint },
+  pillGrey: { backgroundColor: C.pill },
+  pillText: { color: C.ink, fontSize: 12, fontWeight: "600" },
+  fingerprint: { color: C.mute, fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  detail: { color: C.soft, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  footnote: { color: C.mute, fontSize: 12, marginTop: 10, lineHeight: 16 },
+  proofButton: { backgroundColor: C.pill, borderWidth: 1, borderColor: C.line, borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12, overflow: "hidden" },
+  segment: { flexDirection: "row", backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 24, padding: 4, gap: 4 },
   segmentItem: { flex: 1, borderRadius: 20, minHeight: 48, justifyContent: "center", alignItems: "center" },
-  segmentOn: { backgroundColor: "#edece7" },
-  segmentOnText: { color: "#111314" },
-  proofButtonText: { color: "#edece7", fontWeight: "600" },
+  segmentOn: { backgroundColor: C.send },
+  segmentOnText: { color: C.sendInk },
+  proofButtonText: { color: C.ink, fontWeight: "600" },
   scanBox: { height: 320, marginTop: 12, borderRadius: 16, overflow: "hidden", backgroundColor: "#000" },
   scanCancel: { position: "absolute", bottom: 12, alignSelf: "center", padding: 10 },
-  unpairButton: { backgroundColor: "#2a1b18", borderRadius: 24, minHeight: 48, padding: 13, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  unpairButtonText: { color: "#d86a56", fontWeight: "600" },
-  error: { color: "#d86a56", fontSize: 13, marginTop: 8 },
+  unpairButton: { backgroundColor: C.badBg, borderWidth: 1, borderColor: "rgba(226,112,92,0.25)", borderRadius: 24, minHeight: 48, padding: 13, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  unpairButtonText: { color: C.bad, fontWeight: "600" },
+  error: { color: C.bad, fontSize: 13, marginTop: 8 },
   stateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
   stateText: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 21 },
-  advancedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, marginTop: 18, paddingHorizontal: 4 },
-  fieldLabel: { color: "#bfc2c4", fontSize: 13, marginBottom: 6 },
-  address: { color: "#edece7", fontSize: 14, backgroundColor: "#111314", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  advancedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 52, marginTop: 18, paddingHorizontal: 16, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20 },
+  fieldLabel: { color: C.soft, fontSize: 13, marginBottom: 6 },
+  address: { color: C.ink, fontSize: 14, backgroundColor: C.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
 });
