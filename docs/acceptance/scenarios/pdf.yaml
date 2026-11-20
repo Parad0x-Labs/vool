@@ -1,0 +1,53 @@
+lane: pdf
+scenarios:
+  - id: PDF-FOLLOW-01
+    title: "\"Give me that in pdf\" after an answer makes a PDF of that answer"
+    from_bug: "sls 2026-11-10: diet answer then 'give me that in pdf' failed (emoji, then random failures)"
+    profile: any
+    vars: { goal: "pick:lose 3 kg|eat more protein|cut sugar|eat more vegetables" }
+    steps:
+      - chat: A
+        say: "make me a simple 3 day meal plan to ${goal}, with a few emoji to make it friendly"
+        expect:
+          any: ['(?i)day 1|monday|breakfast']
+      - chat: A
+        say:
+          - "give me that in pdf"
+          - "pdf pls"
+          - "can u make that a pdf file"
+          - "export that as PDF"
+        approve: once
+        plain_allow: [path]
+        expect:
+          any: ['(?i)pdf']
+          none: ["(?i)couldn'?t (make|create)|failed|can'?t (make|create)|unsupported character|encode"]
+          ui:
+            - selector: "#log .msg.assistant a[href*='/api/chat/deliverable']"
+              count_min: 1
+          review: "open the PDF: it holds the meal plan from the previous answer, emoji either shown or left out cleanly"
+
+  - id: PDF-EDIT-01
+    title: Change the content and export again
+    profile: any
+    steps:
+      - chat: A
+        say: "write a short packing list for a weekend camping trip"
+        expect:
+          any: ['(?i)tent|sleeping bag|water']
+      - chat: A
+        say: "make it a pdf"
+        approve: once
+        grade: false
+      - chat: A
+        say:
+          - "add sunscreen and a torch and make the pdf again"
+          - "pls add sunscreen + torch, new pdf"
+          - "update it with sunscreen and a flashlight and give me the pdf again"
+        approve: once
+        plain_allow: [path]
+        expect:
+          any: ['(?i)pdf']
+          ui:
+            - selector: "#log .msg.assistant a[href*='/api/chat/deliverable']"
+              count_min: 2
+          review: "the new PDF has sunscreen and the torch/flashlight and the earlier items"
