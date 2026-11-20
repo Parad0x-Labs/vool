@@ -26,9 +26,9 @@ from core.kas.egress_census import modules_with_direct_egress
 #: never checked.
 KNOWN_DIRECT_EGRESS: dict[str, tuple[int, str]] = {
     # --- verified third-party egress outside the door. These are the real bypasses. ---
-    "adapters/openai_compatible_adapter.py": (11, "verified: requests-named calls now delegate to core.provider_http; raw transport is owned by its worker"),
     "core/email_providers/base.py": (2, "verified: the email lane's own provider transport -- OAuth token refresh and provider REST calls to fixed endpoints, default TLS context, bounded timeouts, typed refusal mapping; read for this entry when the census flagged it after the email lane merge"),
     "core/provider_http.py": (4, "verified: three requests imports for the provider worker and one urllib fallback for selected Ollama inventory/pulls; loopback uses an empty proxy handler and refuses redirects, non-loopback admission stays with its caller"),
+    "core/plugin_services.py": (2, "verified: requests Response/exception compatibility and one HTTPSConnection using an already connected, public-DNS-pinned TLS socket; enabled package consent, exact declared hosts, own credential slots, no redirects/proxies, bounded transfer and disable cancellation are enforced here and in core.plugin_network"),
     "core/wallet/lifecycle.py": (1, "verified: Solana JSON-RPC client; constructor checks network and RPC URL allowlists before transport"),
     "tools/probe_openrouter_reasoning_budget.py": (1, "verified: explicit development CLI sends a credentialed completion to the fixed OpenRouter endpoint"),
     "core/cloud_transport.py": (1, "verified: re-implements the door's veto->report->open sequence with its own requests call"),

@@ -137,17 +137,14 @@ def usepod(tmp_path_factory):
     ).start()
     daemon = UsePodServedDaemon(tmp_path_factory.mktemp("intent-usepod") / "home")
     try:
+        daemon.seed_legacy_profile(origin=service.origin, token=token)
         daemon.start()
-        status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-        assert status == 200, saved
-        status, probe = daemon.call("POST", "/api/cloud/test", {"provider": "usepod"})
-        assert status == 200 and probe["state"] == "ok", probe
+        status, probe = daemon.call("POST", "/api/cloud/usepod/balance", {"max_age_seconds": 0})
+        assert status == 200 and probe["state"] == "reported", probe
         status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
         assert status == 200, refreshed
         status, policy = daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
         assert status == 200, policy
-        status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-        assert status == 200 and pinned.get("ok") is True, pinned
         status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
         assert status == 200, approved
         status, lane = daemon.call("POST", "/api/cloud/usepod/lane", {"protocol": "openai", "transport_mode": "prepaid_token"})

@@ -11,6 +11,7 @@ import time
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from core.secret_env import SecretHandoffError, close_handoff, handoff_spawn_kwargs, receive_handoff
 from core.updater.macos import _pid_has_exited, _process_command
 from core.updater.state import UpdaterPaths, _atomic_write_json, _read_json
 
@@ -125,14 +126,20 @@ def start_worker(subsystem, offer, txid: str, *, recovery: bool = False, rollbac
     })
     if not recovery and not rollback and not rollback_recovery:
         (root / "manifest.json").write_bytes(offer.raw)
-    env = dict(os.environ, PYTHONPATH=str(code), PYTHONDONTWRITEBYTECODE="1",
-               VOOL_HOME=str(subsystem.data_dir.resolve().parent))
+    # The worker restarts VOOL, which may need the keys it was started with (a file key store's
+    # passphrase on Linux). They travel over a pipe, never in the worker's starting environment.
+    env, handoff = handoff_spawn_kwargs(dict(os.environ, PYTHONPATH=str(code), PYTHONDONTWRITEBYTECODE="1",
+                                             VOOL_HOME=str(subsystem.data_dir.resolve().parent)))
     log = root / "worker.log"
     prefix = _systemd_scope_prefix(txid)
-    with log.open("ab") as output:
-        process = subprocess.Popen([*prefix, str(executable), "-m", "core.updater.worker", str(plan)],
-                                   cwd=code, env=env, stdin=subprocess.DEVNULL,
-                                   stdout=output, stderr=output, start_new_session=True, close_fds=True)
+    try:
+        with log.open("ab") as output:
+            process = subprocess.Popen([*prefix, str(executable), "-m", "core.updater.worker", str(plan)],
+                                       cwd=code, env=env, stdin=subprocess.DEVNULL,
+                                       stdout=output, stderr=output, start_new_session=True, close_fds=True,
+                                       **handoff)
+    finally:
+        close_handoff(handoff)
     lease = {
         "pid": process.pid, "plan": str(plan), "txid": txid, "started_at": time.time(),
         "scope": next((arg.split("=", 1)[1] + ".scope" for arg in prefix if arg.startswith("--unit=")), ""),
@@ -150,6 +157,11 @@ def main() -> int:
     from core.updater.status import UpdateFault, UpdatePhase
     from core.updater.trust import TrustedPublishers
 
+    try:
+        receive_handoff()
+    except SecretHandoffError as exc:
+        # The update still runs; a restart that needed a key reports itself unhealthy and rolls back.
+        sys.stderr.write(f"update worker: keys were not received ({exc})\n")
     if sys.argv[1] == "--recover-startup":
         subsystem = UpdateSubsystem()
         if not subsystem.feed.has_target:

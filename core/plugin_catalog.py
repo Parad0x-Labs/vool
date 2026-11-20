@@ -100,29 +100,69 @@ def _enabled_store_path() -> Path:
     return active_vool_home() / "config" / "plugins_enabled.json"
 
 
+class _EveryPluginOff(frozenset):
+    """The owner's choices could not be read: every plugin counts as off until they are saved again."""
+
+    def __contains__(self, item: object) -> bool:
+        return True
+
+
 def _disabled_ids() -> set[str]:
-    """Plugins the owner turned off. Absent file / parse error -> nothing disabled (all on)."""
+    """Plugins the owner turned off. Absent file -> nothing disabled; unreadable file -> all off."""
     try:
         data = json.loads(_enabled_store_path().read_text(encoding="utf-8"))
-        return {str(x).strip() for x in (data.get("disabled") or []) if str(x).strip()}
-    except Exception:
+    except FileNotFoundError:
         return set()
+    except Exception:
+        return _EveryPluginOff()
+    rows = data.get("disabled") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return _EveryPluginOff()
+    return {str(x).strip() for x in rows if str(x).strip()}
 
 
 def set_plugin_enabled(plugin_id: str, enabled: bool) -> bool:
-    """Persist a plugin's enabled state (owner action). Returns True on a successful write."""
+    """Persist a plugin's enabled state (owner action). Returns True on a successful write.
+
+    Turning a plugin off takes effect now: its consent is withdrawn, its processes stop, and
+    its tools, models and scanner leave every list until it is turned on again.
+    """
     pid = str(plugin_id or "").strip()
     if not pid:
         return False
     disabled = _disabled_ids()
+    if isinstance(disabled, _EveryPluginOff):
+        # Rewrite the unreadable file with every known plugin still off except this choice.
+        from core.plugin_lifecycle import records
+
+        disabled = {known for known, _path in discovered_plugin_sources()} | {r.plugin_id for r in records()}
+    disabled = set(disabled)
     disabled.discard(pid) if enabled else disabled.add(pid)
     path = _enabled_store_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"disabled": sorted(disabled)}), encoding="utf-8")
-        return True
     except Exception:
         return False
+    _apply_owner_choice(pid, enabled)
+    return True
+
+
+def _apply_owner_choice(plugin_id: str, enabled: bool) -> None:
+    from core import plugin_lifecycle
+
+    with contextlib.suppress(Exception):
+        record = plugin_lifecycle.record_for(plugin_id)
+        if not enabled and record is not None and record.enabled:
+            plugin_lifecycle.disable(plugin_id)
+        plugin_lifecycle._invalidate_registration(plugin_id)
+        from core.plugin_tools import load_manifest, register_plugin
+
+        roots = dict(discovered_plugin_sources())
+        root = (Path(record.root) if record is not None and record.stage != plugin_lifecycle.STAGE_UNINSTALLED
+                else roots.get(plugin_id))
+        if root is not None:
+            register_plugin(load_manifest(Path(root) / ".codex-plugin" / "plugin.json"))
 
 
 def _read_json(path: Path) -> dict[str, Any]:

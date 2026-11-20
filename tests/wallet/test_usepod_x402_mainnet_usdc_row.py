@@ -17,6 +17,9 @@ PIN = "482913"
 
 @pytest.fixture
 def mainnet_home(monkeypatch, tmp_path):
+    from tests.usepod._legacy_profile import isolate_reference
+
+    isolate_reference(monkeypatch, tmp_path)
     monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
     for name in ("VOOL_WALLET_NETWORK_ENVIRONMENT", "VOOL_WALLET_RPC_URLS", "VOOL_WALLET_TESTNET_RPC_URL"):
         monkeypatch.delenv(name, raising=False)

@@ -58,6 +58,11 @@ def lane(monkeypatch, tmp_path):
     home.mkdir()
     monkeypatch.setenv("VOOL_HOME", str(home))
     runtime_paths.configure_runtime_home(home)
+    # The retained monetary door now requires the user's separate provider-plugin consent.
+    # This installs/enables only that provider; wallet authority still comes from the lane below.
+    from tests.usepod._legacy_profile import isolate_reference
+
+    isolate_reference(monkeypatch, tmp_path)
     monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
     for name in ("VOOL_WALLET_NETWORK_ENVIRONMENT", "VOOL_WALLET_TESTNET_RPC_URL", "VOOL_WALLET_GLOBAL_DAILY_MINOR", "VOOL_DNA_FEE_COLLECT_MIN_ATOMIC"):

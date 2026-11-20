@@ -17,13 +17,13 @@ to start a process at all.
 
 **Confinement is unconditional.** A minimal environment stops a child *inheriting* a secret; it
 does nothing about a child *reading* one from disk, or writing wherever it likes. Every plugin
-and MCP child therefore runs under the host's kernel confinement — the same Seatbelt (macOS) and
-bwrap (Linux) wrappers `sandbox.job_runner` already uses for sandbox commands:
-writes confined to the plugin's own root and its scratch directory, reads of the credential
-directories and VOOL's key home denied, network denied unless the manifest or server config
-says otherwise. A host that cannot enforce that REFUSES to run the child (status
-``confinement_unavailable``) rather than silently running it bare; the only way past is the
-explicit, informed ``confinement: "heuristic_only"`` opt-in, recorded on the result.
+and MCP child therefore requires an isolated runtime. Immutable packages use the Linux
+namespace wrapper when available. On macOS they may use a separately provisioned local Linux
+container runtime with a pinned, already installed image. Package mounts are read-only, scratch
+is private, process metadata is isolated, and executable network access stays off. No runtime
+or image is installed automatically. If this boundary is unavailable the child is refused
+(status ``confinement_unavailable``). The legacy ``heuristic_only`` option is explicit and
+recorded; immutable plugin execution never uses it.
 
 **Arguments are validated before dispatch, not after.** This is the pre-execution shape guard: a
 value bound to a parameter declared `x-vool-kind: "name"` that parses as a filesystem path is
@@ -32,13 +32,12 @@ answer exists to inspect, a whole-disk scan has already happened. Type-valid is 
 """
 from __future__ import annotations
 
-import contextlib
 import json
 import math
 import os
 import shutil
-import signal
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -46,6 +45,7 @@ from pathlib import Path
 from typing import Any
 
 from core import json_schema_lite
+from core.secret_env import is_secret_env_name
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
 _MAX_OUTPUT_BYTES = 4 * 1024 * 1024
@@ -63,6 +63,37 @@ CONFINEMENT_MODES = frozenset({"auto", "heuristic_only"})
 
 class ConfinementUnavailableError(RuntimeError):
     """This host cannot confine a child process and the caller did not opt into running bare."""
+
+
+def process_isolation_refusal(*, private_environment: bool = False) -> str:
+    """Why this device cannot run a plugin's own code, or "" when it can.
+
+    On macOS any program of the same user can read another process's starting
+    environment (KERN_PROCARGS2), and the macOS sandbox cannot stop it. A plugin
+    whose service key would travel in its environment (``private_environment``)
+    therefore runs only in the optional isolated runtime. Plugin handlers get their
+    keys over their private input instead, so they need only the macOS sandbox.
+    """
+    if sys.platform == "darwin":
+        if private_environment:
+            from core.plugin_container import available
+
+            if not available():
+                return ("This plugin gets its key in a way this Mac cannot keep private from other programs, "
+                        "so it stays off here. Plugins that need no key still work.")
+        elif not kernel_confinement_available():
+            return ("Plugins that run their own programs are off on this computer, because it can't keep them "
+                    "walled off from your saved keys. Plugins that only connect a service still work.")
+    return ""
+
+
+def plugin_isolation_refusal(plugin) -> str:
+    """The refusal for one loaded plugin's own code on this device, or ""."""
+    servers = (plugin.vool or {}).get("mcpServers", {}) or {}
+    if not plugin.contracts and not servers:
+        return ""
+    keyed = any(isinstance(spec, dict) and spec.get("env") for spec in servers.values())
+    return process_isolation_refusal(private_environment=keyed)
 
 
 @dataclass(frozen=True)
@@ -141,6 +172,10 @@ def build_child_env(
             child[key] = value
     child.setdefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
     for key in env_allowlist:
+        if sys.platform == "darwin" and is_secret_env_name(str(key)):
+            # A key copied from VOOL's environment would sit in the child's starting environment,
+            # readable by any same-user program on a Mac. Keys reach handlers over their input.
+            continue
         value = os.environ.get(str(key))
         if value:
             child[str(key)] = value
@@ -205,16 +240,27 @@ def _kernel_confinement_prefix(
     allow_network: bool = False,
     working_directory: Path | None = None,
     readable_roots: tuple[Path, ...] = (),
+    proxy_port: int = 0,
+    isolate_process_tree: bool = False,
+    private_environment: bool = False,
+    argument_reads: bool = True,
 ) -> list[str] | None:
     """Wrap *argv* in the host's kernel confinement, or None when no backend can enforce it.
 
-    Reuses `sandbox.job_runner`'s backends so plugins, MCP servers and sandbox commands share ONE
-    confinement implementation (Seatbelt on macOS; bwrap on Linux). Every
-    backend is probed for whether it actually runs, not merely whether it is on PATH. Writes are
-    confined to `writable_roots`; the credential directories and VOOL's key home are read-denied;
-    network is denied unless `allow_network`.
+    macOS uses the sandbox (Seatbelt), or the optional isolated Linux container when the
+    child's environment carries a service key; Linux uses the sandbox runner's backend.
+    Every backend must actually run. Reads and writes follow the captured package and
+    scratch grants.
     """
 
+    if sys.platform == "darwin" and private_environment:
+        from core.plugin_container import command
+
+        wrapped, _label = command(argv, working_directory=working_directory or Path.cwd(),
+                                  writable_roots=writable_roots, readable_roots=readable_roots,
+                                  allow_network=allow_network, proxy_port=proxy_port,
+                                  isolate_process_tree=isolate_process_tree)
+        return wrapped
     from sandbox.job_runner import JobRunner
     from sandbox.resource_limits import ExecutionPolicy, default_read_roots
 
@@ -234,7 +280,8 @@ def _kernel_confinement_prefix(
             writable_roots=roots,
             allow_network_egress=False,
             network_isolation_mode="auto",
-            read_roots=(*default_read_roots(), *_program_read_roots(list(argv)), anchor, *readable_roots),
+            read_roots=(*default_read_roots(), *_program_read_roots(list(argv) if argument_reads else list(argv)[:1]),
+                        anchor, *readable_roots),
         )
     )
     if allow_network:
@@ -256,23 +303,60 @@ def confined_argv(
     mode: str = "auto",
     working_directory: Path | None = None,
     readable_roots: tuple[Path, ...] = (),
+    proxy_port: int = 0,
+    isolate_process_tree: bool = False,
+    private_environment: bool = False,
+    argument_reads: bool = True,
 ) -> tuple[list[str], str]:
     """The argv to launch and a label naming how it is confined.
 
     ``mode="auto"`` (default) raises `ConfinementUnavailableError` when the host cannot enforce
     confinement; ``mode="heuristic_only"`` is the explicit opt-in that runs the bare argv in that
     case and labels the result so nothing downstream can mistake it for a confined run.
+
+    ``argument_reads=False`` is for arguments a package chose itself: only the program becomes
+    readable, so a path in a manifest's ``args`` never reopens a folder the sandbox hides.
     """
 
     clean_mode = str(mode or "auto").strip().lower()
     if clean_mode not in CONFINEMENT_MODES:
         clean_mode = "auto"
     bare = [str(a) for a in argv]
+    if private_environment and (refusal := process_isolation_refusal(private_environment=True)):
+        # Seatbelt does not mediate KERN_PROCARGS2: any same-user process can read a
+        # child's starting environment. A key placed there is not private, so such a
+        # child starts only inside the isolated runtime.
+        raise ConfinementUnavailableError(refusal)
     wrapped = _kernel_confinement_prefix(
-        bare, writable_roots=writable_roots, allow_network=allow_network,
+        bare, writable_roots=writable_roots, allow_network=allow_network and not proxy_port,
         working_directory=working_directory, readable_roots=readable_roots,
+        proxy_port=proxy_port, isolate_process_tree=isolate_process_tree,
+        private_environment=private_environment, argument_reads=argument_reads,
     )
+    from core.plugin_container import ContainerCommand
+
+    if isinstance(wrapped, ContainerCommand):
+        return wrapped, "kernel:container"
     if wrapped is not None:
+        wrapped = list(wrapped)
+        backend = os.path.basename(wrapped[0])
+        if backend == "bwrap":
+            # A PID namespace without its own /proc still exposes host environ
+            # files through the read-only root mount. Install /proc last.
+            wrapped[1:1] = ["--unshare-pid", "--die-with-parent", "--new-session"]
+            boundary = wrapped.index("--")
+            wrapped[boundary:boundary] = ["--proc", "/proc"]
+        if isolate_process_tree:
+            if backend == "sandbox-exec" and wrapped[1] == "-p":
+                wrapped[2] += "(deny process-fork)"
+            elif backend != "bwrap":
+                raise ConfinementUnavailableError("This computer can't keep this plugin's programs walled off from your saved keys, so VOOL won't start it.")
+        if proxy_port:
+            if (not 1 <= proxy_port <= 65535 or len(wrapped) < 4
+                    or os.path.basename(wrapped[0]) != "sandbox-exec" or wrapped[1] != "-p"):
+                raise ConfinementUnavailableError("This device cannot restrict plugin network access to its private proxy.")
+            wrapped = list(wrapped)
+            wrapped[2] += f'(allow network-outbound (remote tcp "localhost:{proxy_port}"))'
         return list(wrapped), _backend_label(list(wrapped), bare) or "kernel:unknown"
     if clean_mode == "heuristic_only":
         return bare, "heuristic_only"
@@ -315,8 +399,14 @@ def run_plugin_tool(
     immutable_package: bool = False,
     package_dependencies: dict[str, Path] | None = None,
     before_start: Callable[[], None] | None = None,
+    call=None,
+    proxy_port: int = 0,
+    isolate_process_tree: bool = False,
+    extra_env: dict[str, str] | None = None,
 ) -> PluginToolResult:
     """Validate, then run one plugin tool. Never raises; every failure is a structured result."""
+
+    from core.plugin_processes import InvocationStopped, OutputTooLarge
 
     filled = json_schema_lite.apply_defaults(arguments, schema)
     errors = json_schema_lite.validate(filled, schema)
@@ -368,6 +458,9 @@ def run_plugin_tool(
             working_directory=root,
             readable_roots=(*(Path(p).resolve() for p in (package_dependencies or {}).values()),
                             *((Path(scratch_dir).resolve(),) if scratch_dir else ())),
+            proxy_port=proxy_port,
+            isolate_process_tree=isolate_process_tree,
+            argument_reads=False,
         )
     except ConfinementUnavailableError as exc:
         return PluginToolResult(
@@ -377,20 +470,26 @@ def run_plugin_tool(
             observation={"intent": intent},
         )
 
+    # Keys always travel over the handler's private input. They are also placed in its
+    # environment except on macOS, where any same-user program can read a starting
+    # environment; there the private input is the only route.
     payload = {
         "intent": intent,
         "arguments": filled,
-        "context": {"scratch_dir": scratch_dir, "secrets": sorted((secrets or {}).keys())},
+        "context": {"scratch_dir": scratch_dir, "secrets": sorted((secrets or {}).keys()),
+                    "credentials": dict(secrets or {})},
     }
-    child_env = build_child_env(env_allowlist=env_allowlist, secrets=secrets, scratch_dir=scratch_dir)
+    child_env = build_child_env(env_allowlist=env_allowlist,
+                                secrets={**({} if sys.platform == "darwin" else (secrets or {})), **(extra_env or {})},
+                                scratch_dir=scratch_dir)
     if immutable_package:
         child_env["PYTHONDONTWRITEBYTECODE"] = "1"
         child_env["VOOL_PLUGIN_DEPENDENCIES"] = json.dumps(
             {pid: str(path) for pid, path in (package_dependencies or {}).items()}, sort_keys=True
         )
-    if before_start is not None:
-        before_start()
     try:
+        if before_start is not None:
+            before_start()
         launch = dict(
             cwd=str(root), env=child_env, shell=False,
         )
@@ -401,16 +500,16 @@ def run_plugin_tool(
             duration = min(300.0, max(1.0, duration))
             # The copy's lifetime owns the child's process group. Do not delete
             # its executable tree while descendants continue using that tree.
+            from core.plugin_processes import communicate, terminate_owned
+
             with subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, text=True,
+                                  stderr=subprocess.PIPE,
                                   start_new_session=True, **launch) as child:
                 try:
-                    stdout, stderr = child.communicate(json.dumps(payload), timeout=duration)
+                    stdout, stderr = communicate(child, json.dumps(payload).encode(), timeout=duration, call=call)
                     completed = subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
                 finally:
-                    # Only this invocation's recorded PID/group is addressed.
-                    with contextlib.suppress(ProcessLookupError):
-                        os.killpg(child.pid, signal.SIGKILL)
+                    terminate_owned(child)
                     child.wait()
         else:
             completed = subprocess.run(
@@ -421,6 +520,9 @@ def run_plugin_tool(
             timeout=max(1.0, duration),
             **launch,
             )
+    except (InvocationStopped, OutputTooLarge) as exc:
+        return PluginToolResult(ok=False, status="plugin_stopped" if isinstance(exc, InvocationStopped) else "response_too_large",
+                                error=str(exc), confinement=confinement_label)
     except subprocess.TimeoutExpired:
         return PluginToolResult(
             ok=False,
@@ -430,6 +532,9 @@ def run_plugin_tool(
         )
     except OSError as exc:
         return PluginToolResult(ok=False, status="handler_failed", error=str(exc), confinement=confinement_label)
+    finally:
+        if close := getattr(argv, "close", None):
+            close()
 
     stdout = (completed.stdout or "")[:_MAX_OUTPUT_BYTES].strip()
     if completed.returncode != 0 and not stdout:

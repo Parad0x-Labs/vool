@@ -884,6 +884,14 @@ PROVIDER_ENV_FILE="\${VOOL_HOME}/config/provider-env.sh"
 if [[ -f "\${PROVIDER_ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   . "\${PROVIDER_ENV_FILE}"
+  # Keys from this file are not exported: any same-user program on a Mac can read the
+  # starting environment of every process started below (ollama, llama.cpp, helpers). The
+  # API server reads them from this file itself (core/secret_env.load_provider_env_secrets).
+  while IFS= read -r provider_env_name; do
+    case "\${provider_env_name}" in
+      *API_KEY*|*APIKEY*|*_TOKEN|*SECRET*|*PASSWORD*|*PASSPHRASE*) export -n "\${provider_env_name}" ;;
+    esac
+  done < <(sed -n 's/^export \([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "\${PROVIDER_ENV_FILE}")
 fi
 $(web_runtime_exports)
 wait_for_http_ready() {

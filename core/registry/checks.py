@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from pathlib import Path
 
 from core.registry.artifact import REVIEW_METADATA, metadata_text, review_files
 from core.registry.codec import RegistryError, canonical, digest
@@ -186,6 +187,21 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
 
 def _code(artifact: dict) -> list[dict]:
     from core.skill_package import _RUNNABLE_MANIFEST_KEYS, _looks_runnable
+
+    manifest = artifact["manifest"]
+    if artifact["metadata"]["kind"] == "plugin" and isinstance(manifest.get("vool"), dict) and "id" in manifest["vool"]:
+        from core.plugin_tools import PluginManifestError, parse_manifest
+
+        try:
+            plugin = parse_manifest(manifest, path=Path(".codex-plugin/plugin.json"))
+            if not plugin.vool:
+                raise ValueError("A store plugin needs the current access declarations.")
+        except (PluginManifestError, ValueError, TypeError, KeyError) as exc:
+            return [_finding("code", ".codex-plugin/plugin.json", str(exc))]
+        # Executable source belongs to a plugin's complete reviewed distribution.
+        # _texts still refuses binary/hidden content; all source proceeds through
+        # the same secret, instruction, native-boundary and independent reviews.
+        return []
 
     findings = []
     pictures = _picture_paths(artifact)

@@ -86,6 +86,12 @@ from tools.registry import call_tool, load_builtin_tools
 # Intents that EXECUTE something rather than read or write a file. These are what "do not run
 # tests" / "do not run anything" withdraws; a write in the same turn is untouched, which is the
 # whole point of separating the two.
+# Fields of a plugin observation that only VOOL may set (see the plugin dispatch below).
+_PLUGIN_RESERVED_OBSERVATION_KEYS = frozenset({
+    "schema", "intent", "tool_surface", "ok", "status", "verified", "approval", "approved",
+    "permission_actions", "trust", "executed", "receipt", "confinement",
+})
+
 _COMMAND_INTENTS = frozenset(
     {
         "sandbox.command",
@@ -392,7 +398,7 @@ def _intent_is_dispatchable(intent: str) -> bool:
             # operator turned off. Not offered AND not dispatchable, or a model naming the
             # tool would run what the operator closed.
             is_plugin = str(getattr(contract, "source", "") or "").startswith("plugin:")
-            return not (is_plugin and not _plugin_lane_open())
+            return not (is_plugin and not _plugin_lane_open(name))
     except Exception:
         # A registry that cannot be read must not turn every tool into "unsupported". Fall through
         # to dispatchable: the permission gate below still decides, and the chain still ends at the
@@ -411,11 +417,11 @@ def _is_plugin_contract(intent: str) -> bool:
     return contract is not None and str(getattr(contract, "source", "") or "").startswith("plugin:")
 
 
-def _plugin_lane_open() -> bool:
+def _plugin_lane_open(intent: str = "") -> bool:
     try:
-        from core.runtime_flags import flag_enabled
+        from core.plugin_tools import plugin_id_for_intent, runtime_lane_open
 
-        return bool(flag_enabled("plugin_runtime_tools"))
+        return runtime_lane_open(plugin_id_for_intent(intent))
     except Exception:
         return False
 
@@ -469,7 +475,7 @@ def _undispatchable_execution(intent: str, arguments: dict[str, Any]) -> ToolInt
     if (
         contract is not None
         and str(getattr(contract, "source", "") or "").startswith("plugin:")
-        and not _plugin_lane_open()
+        and not _plugin_lane_open(intent)
     ):
         return _explained(
             "disabled",
@@ -740,7 +746,7 @@ def _settle_registered_budget_effect(intent: str, budget_effect, execution: Tool
     return execution
 
 
-def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentExecution | None:
+def _execute_plugin_tool(intent: str, arguments: dict[str, Any], *, source_context=None) -> ToolIntentExecution | None:
     """Dispatch a REGISTERED plugin contract through the confined plugin executor.
 
     Returns None when `intent` is not a plugin contract, so the chain continues to the next lane.
@@ -773,7 +779,7 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentEx
             },
         )
     try:
-        result = plugin_tools.execute_plugin_contract(contract, dict(arguments or {}))
+        result = plugin_tools.execute_plugin_contract(contract, dict(arguments or {}), source_context=source_context)
     except Exception as exc:
         error = f"plugin executor failed: {type(exc).__name__}: {exc}"[:500]
         return ToolIntentExecution(
@@ -792,13 +798,18 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentEx
             },
         )
     details = result.as_details()
-    payload = {k: v for k, v in dict(result.observation or {}).items() if k != "intent"}
+    # Plugin output is untrusted: it may not set the fields VOOL itself vouches for, and a
+    # colliding name must not crash dispatch after the tool already ran.
+    payload = {str(k): v for k, v in dict(result.observation or {}).items()
+               if str(k) not in _PLUGIN_RESERVED_OBSERVATION_KEYS}
     details["observation"] = _tool_observation(
         intent=intent,
         tool_surface="plugin",
         ok=bool(result.ok),
         status=str(result.status or ""),
         **payload,
+        # VOOL's own label, never the plugin's: whatever it claimed, its output is external.
+        trust="untrusted_external",
     )
     details["executed"] = bool(result.confinement) and result.status not in {
         "invalid_arguments",
@@ -807,11 +818,15 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentEx
         "handler_escaped",
         "confinement_unavailable",
     }
+    details["trust"] = "untrusted_external"
     text = str(result.text or "").strip()
     if not result.ok:
         text = text or str(result.error or "").strip() or f"`{intent}` reported {result.status}."
         if result.status == "confinement_unavailable":
             text = f"`{intent}` was not run: this host cannot confine the plugin process. {result.error}"
+    from core.execution.mcp_bridge import _frame_output
+
+    text = _frame_output(str(contract.source)[len("plugin:"):], intent, text)
     return ToolIntentExecution(
         handled=True,
         ok=bool(result.ok),
@@ -1658,7 +1673,7 @@ def _execute_tool_intent_impl(
     plugin_execution = (
         _dispatch_with_claim(
             lambda: _with_blackbox_coverage(
-                intent, arguments, source_context=source_context, dispatch=lambda: _execute_plugin_tool(intent, arguments)
+                intent, arguments, source_context=source_context, dispatch=lambda: _execute_plugin_tool(intent, arguments, source_context=source_context)
             )
         )
         if _is_plugin_contract(intent)

@@ -23,6 +23,8 @@ import threading
 import uuid
 from pathlib import Path
 
+from core.secret_env import child_env
+
 
 class MediaWorkerError(RuntimeError):
     def __init__(self, code: str, message: str):
@@ -119,7 +121,7 @@ class NebulaWorkerClient:
 
     # ---------------------------------------------------------------- internals
     def _spawn(self) -> subprocess.Popen:
-        env = dict(os.environ)
+        env = child_env()
         env.setdefault("PYTHONUNBUFFERED", "1")
         if self._nebula_home:
             existing = env.get("PYTHONPATH", "")

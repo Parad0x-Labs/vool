@@ -22,6 +22,10 @@ PIN = "482913"
 def lane(monkeypatch, tmp_path):
     import json
 
+    from tests.usepod._legacy_profile import isolate_reference
+
+    isolate_reference(monkeypatch, tmp_path)
+
     monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
     for name in ("VOOL_WALLET_NETWORK_ENVIRONMENT", "VOOL_WALLET_TESTNET_RPC_URL", "VOOL_WALLET_GLOBAL_DAILY_MINOR"):

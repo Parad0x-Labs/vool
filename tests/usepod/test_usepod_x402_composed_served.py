@@ -29,6 +29,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from tests.usepod._served_daemon import CENTRAL, PlainServedDaemon
 from tests.usepod.strict_usepod_service import Listing, PaidRetryPause, StrictUsePodService
 from tests.usepod.test_usepod_served_flow import (
     MARKET,
@@ -39,7 +40,6 @@ from tests.usepod.test_usepod_served_flow import (
     _keep,
     _session,
 )
-from tests.usepod.test_usepod_settings_ui import CENTRAL, PlainServedDaemon
 from tests.wallet._simulated_solana import MAINNET_GENESIS, USDC_MAINNET_MINT, SimulatedSolanaNode
 
 SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
@@ -215,10 +215,12 @@ def _finish(turn: dict, *, timeout: float = 300.0) -> tuple[int, object]:
 
 
 def _pin_for(daemon: WalletServedDaemon, session_id: str) -> None:
-    """The chat selector's pick for this conversation. It registers the UsePod lane from the chosen origin alone: an
-    accountless lane needs no token (a global pin activates a provider lane only when a key resolves)."""
-    status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True, "session_id": session_id})
-    assert status == 200 and pinned.get("ok") is True and pinned.get("provider") == "usepod", pinned
+    """Restore the persisted retained lane; the chat request names it explicitly.
+
+    The built-in UsePod selector is removed. Its financial dispatch contract still
+    runs with the enabled reference prerequisite and all original money guards.
+    """
+    daemon.seed_legacy_profile(models=(MODEL,))
 
 
 def _allow_pending_consent(daemon: WalletServedDaemon) -> dict:
@@ -715,12 +717,12 @@ def test_an_accountless_lane_counts_as_a_usable_cloud_connection_and_lists_its_m
     and list its models -- otherwise the chat page offers no UsePod model to an accountless owner."""
     daemon = composed.daemon
     status, connections = daemon.call("GET", "/api/connections")
-    status_models, models = daemon.call("GET", "/api/cloud/models?order=name")
+    status_models, models = daemon.call("GET", "/api/cloud/usepod/discovery")
     _keep("x402_accountless_connections.json", {"connections": connections, "models_provider": (models or {}).get("provider"), "model_ids": [row.get("id") for row in (models or {}).get("models") or []]})
     assert status == 200 and status_models == 200, (connections, models)
     cloud = [item for item in connections["connections"] if item.get("id") == "cloud"]
     assert cloud == [{"id": "cloud", "label": "UsePod (wallet x402)", "provider": "usepod", "state": "ok", "mode": "accountless_x402"}], connections
-    assert models["provider"] == "usepod" and MODEL in [row["id"] for row in models["models"]], models
+    assert models["provider"] == "usepod" and MODEL in [row["model_id"] for row in models["models"]], models
 
 
 # --- Settings: the two ways to pay, in a real browser ----------------------------------------------------------------
@@ -746,45 +748,16 @@ def fresh_simulated_block(composed):
 
 
 def test_settings_shows_the_funded_token_and_the_wallet_as_two_ways_to_pay(composed, browser_session) -> None:
-    daemon, service = composed.daemon, composed.service
-    page = browser_session.new_page()
-    try:
-        page.goto(f"{daemon.base_url}/settings#models", wait_until="networkidle")
-        page.wait_for_selector(".usepod-model-search", timeout=20000)
-        # the pane paints twice; drive the second draw only
-        page.wait_for_timeout(600)
-        page.wait_for_selector(".usepod-pay-mode[data-mode='x402']", timeout=20000)
-        wallet = page.inner_text(".usepod-pay-mode[data-mode='x402']")
-        token = page.inner_text(".usepod-pay-mode[data-mode='prepaid_token']")
-        _keep("x402_settings_pay_modes.json", {"wallet": wallet, "token": token})
-        assert "Wallet x402 (pay per call) — in use" in wallet and AUTHORITY_LABEL in wallet and SOLANA_MAINNET in wallet and service.origin in wallet, wallet
-        assert "Funded token (prepaid)" in token and "in use" not in token and "No token is stored yet" in token, token
-        assert page.is_visible("button.usepod-use-prepaid") and page.is_visible("input.usepod-accountless-origin")
-        # a fresh consent in SOL through the form: the asset choice and the fact sheet in SOL and lamports
-        page.select_option("select.usepod-spend-asset", "SOL")
-        assert page.inner_text("span.usepod-spend-unit") == "Amounts in SOL"
-        page.locator("details.usepod-budget-advanced > summary").click()
-        page.fill("input.usepod-spend-percall", "0.005")
-        page.fill("input.usepod-spend-total", "0.005")
-        page.click("button.usepod-spend-propose")
-        page.wait_for_selector("button.usepod-spend-deny", timeout=20000)
-        sheet = page.inner_text(".usepod-spend-approval")
-        _keep("x402_settings_sol_consent.json", {"sheet": sheet})
-        assert "ONE request, up to 0.005 SOL" in sheet and "up to 0.000005 SOL per call" in sheet, sheet
-        status, discovery = daemon.call("GET", "/api/cloud/usepod/discovery")
-        assert status == 200, discovery
-        facts = discovery["spend_approval"]["facts"]
-        assert facts["asset"] == "SOL" and facts["per_call_atomic"] == 5_000_000, facts
-        assert facts["x402"]["fee_max_atomic"] == 5_000, facts
-        page.click("button.usepod-spend-deny")
-        page.wait_for_function(
-            "() => /You DENIED this consent/.test((document.querySelector('.usepod-spend-approval') || {innerText: ''}).innerText)",
-            timeout=20000,
-        )
-        # the paid call whose provider had served it before the daemon died stays listed with its real state
-        page.wait_for_selector(".usepod-x402-operation", timeout=20000)
-        listed = page.inner_text(".usepod-x402-unresolved")
-        _keep("x402_settings_unresolved.json", {"listed": listed})
-        assert "paid retry failed" in listed and "liability unknown" in listed, listed
-    finally:
-        page.close()
+    """Retain SOL denomination and refusal facts after removing the vendor panel."""
+    daemon = composed.daemon
+    status, proposed = daemon.call("POST", "/api/cloud/usepod/spend-approval/propose", {"per_call_atomic": 5_000_000, "max_total_atomic": 5_000_000, "asset": "SOL"})
+    assert status == 200, proposed
+    facts = proposed["facts"]
+    assert facts["asset"] == "SOL" and facts["per_call_atomic"] == 5_000_000, facts
+    assert facts["x402"]["fee_max_atomic"] == 5_000, facts
+    status, denied = daemon.call("POST", "/api/mode", {"op": "resolve_approval", "approval_id": proposed["approval_id"], "decision": "deny", "session_id": OPERATOR_SESSION})
+    assert status == 200, denied
+    status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
+    assert status == 200 and view["spend_approval"]["state"] == "denied", view
+    status, refused = daemon.call("POST", "/api/cloud/usepod/spend-approval/confirm", {"approval_id": proposed["approval_id"]})
+    assert status == 403 and "denied" in str(refused.get("error", "")), refused

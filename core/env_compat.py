@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import os
 
+from core.secret_env import is_secret_env_name, set_in_process_only
+
 _LEGACY_PREFIX = "NULLA_"
 _CANONICAL_PREFIX = "VOOL_"
 
@@ -33,6 +35,11 @@ def apply_legacy_nulla_env(environ: dict[str, str] | None = None) -> int:
             continue
         canonical = _CANONICAL_PREFIX + key[len(_LEGACY_PREFIX):]
         if not str(env.get(canonical) or "").strip():
-            env[canonical] = env[key]
+            if is_secret_env_name(canonical):
+                # Keep a key inside this process: a putenv copy would reach every child that
+                # inherits the environment (see core/secret_env.py).
+                set_in_process_only(env, canonical, env[key])
+            else:
+                env[canonical] = env[key]
             mirrored += 1
     return mirrored

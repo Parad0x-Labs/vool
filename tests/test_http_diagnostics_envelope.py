@@ -164,7 +164,7 @@ def test_gateway_condition_maps_typed_dispatch_facts() -> None:
 # --- the resume endpoint: statuses from typed facts, legacy payload keys preserved ----
 
 def _resume_call(monkeypatch, exc) -> tuple[int, dict]:
-    import adapters.usepod_adapter as adapter
+    import core.usepod.legacy_adapter as adapter
     from core.web.api.service import _usepod_owner_action
 
     def raise_it(operation_id):

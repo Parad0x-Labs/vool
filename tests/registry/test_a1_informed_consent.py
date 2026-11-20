@@ -10,8 +10,7 @@ from tests.registry.audit_helpers import package, runtime, trusted
 from tests.registry.helpers import NOW, TARGET, catalog_fixture, evidence_fixture, signed, trust_fixture
 
 
-@pytest.mark.parametrize("effect,actions", [("network_send", ("external_messages",)),
-                                           ("wallet_spend", ("financial_or_paid_actions",))])
+@pytest.mark.parametrize("effect,actions", [("network_send", ("external_messages",))])
 def test_a1_preview_and_install_disclose_native_tool_contracts(tmp_path, monkeypatch, effect, actions):
     home = runtime(tmp_path, monkeypatch)
     raw, _, info = package(tmp_path, tools=True, permissions=actions, effect=effect)

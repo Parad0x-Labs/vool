@@ -36,11 +36,15 @@ def _door(daemon, method: str, path: str, body: dict | None = None) -> tuple[int
 
 @pytest.fixture(scope="module")
 def served(tmp_path_factory):
-    from tests._blackbox_served_rig import ServedDaemon
+    from tests._blackbox_served_rig import ServedDaemon, run_in_home
 
     home = tmp_path_factory.mktemp("usepod") / "home"
     with ScriptedEvmNativeChain(chain_id=84532, fee_model="op_stack", l1_fee=40_000_000_000_000, operator_fee=1_000) as node:
+        plugin_paths = {"VOOL_PLUGIN_LIFECYCLE_PATH": str(home / "data/plugin-lifecycle.json"),
+                        "VOOL_PLUGINS_DIR": str(home / "addons/plugins")}
+        run_in_home(home, "from tests.usepod._legacy_profile import enable_reference; enable_reference()", env_extra=plugin_paths)
         daemon = ServedDaemon(home, env_extra={
+            **plugin_paths,
             "VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_RPC_URLS": json.dumps({BASE_SEPOLIA: node.url}), "VOOL_WALLET_X402_ALLOW_LOOPBACK": "1",
         })
         try:

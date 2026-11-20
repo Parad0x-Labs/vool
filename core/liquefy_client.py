@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from core.liquefy_models import LiquefySelfTestV1, ProofBundleV1, RestoreResultV1, SearchResultV1
+from core.secret_env import child_env
 
 _PACK_SCHEMA = "liquefy.tracevault.cli.v1"
 _RESTORE_SCHEMA = "liquefy.tracevault.restore.cli.v1"
@@ -32,7 +33,7 @@ class LiquefyClientV1:
         default_timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
         max_output_bytes: int = _DEFAULT_MAX_OUTPUT_BYTES,
     ):
-        self._env = dict(os.environ)
+        self._env = child_env()
         if env is not None:
             self._env.update(env)
         self._default_timeout_seconds = max(0.05, float(default_timeout_seconds))

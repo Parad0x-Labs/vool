@@ -146,6 +146,8 @@ class PluginRecord:
     declared_dependencies: list[str] = field(default_factory=list)
     unresolved_dependencies: list[str] = field(default_factory=list)
     credential_bindings: list[str] = field(default_factory=list)
+    consented_approval: str = ""
+    network_consent: bool = False
     invocations: int = 0
     last_invoked_at: str = ""
     evidence: list[dict[str, Any]] = field(default_factory=list)
@@ -175,13 +177,27 @@ def _read_store() -> dict[str, Any]:
     rows = payload.get("plugins")
     if not isinstance(rows, dict):
         return {"schema": SCHEMA, "plugins": {}, "unreadable": True}
-    return {"schema": SCHEMA, "plugins": rows}
+    lost = str(payload.get("records_lost_at") or "")
+    return {"schema": SCHEMA, "plugins": rows, **({"records_lost_at": lost} if lost else {})}
 
 
-def _write_store(rows: dict[str, Any]) -> None:
+def store_trusted() -> bool:
+    """Whether every record this device ever wrote is still here.
+
+    After a damaged store, a pack with no record may be one the owner disabled or revoked, so
+    it is not treated as a never-installed pack again.
+    """
+
+    store = _read_store()
+    return not store.get("unreadable") and not store.get("records_lost_at")
+
+
+def _write_store(rows: dict[str, Any], *, records_lost_at: str = "") -> None:
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"schema": SCHEMA, "updated": _utcnow(), "plugins": rows}
+    if records_lost_at:
+        payload["records_lost_at"] = records_lost_at
     handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".plugin_lifecycle-", suffix=".json")
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as fh:
@@ -208,9 +224,16 @@ def _load(plugin_id: str) -> PluginRecord | None:
 def _save(record: PluginRecord) -> PluginRecord:
     with _lock:
         store = _read_store()
+        lost = str(store.get("records_lost_at") or "")
+        if store.get("unreadable"):
+            # Keep the damaged file for recovery, and remember that records were lost.
+            lost = _utcnow()
+            with contextlib.suppress(OSError):
+                path = store_path()
+                os.replace(path, path.with_name(f"{path.stem}.damaged-{lost.replace(':', '')}{path.suffix}"))
         rows = dict(store["plugins"])
         rows[record.plugin_id] = record.to_dict()
-        _write_store(rows)
+        _write_store(rows, records_lost_at=lost)
     return record
 
 
@@ -292,9 +315,8 @@ def inspect(plugin_id: str, *, root: Path) -> PluginRecord:
     except Exception as exc:
         raise LifecycleError(f"{plugin_id}: the manifest could not be read ({type(exc).__name__})") from None
     record = _load(plugin_id) or PluginRecord(plugin_id=str(plugin_id))
-    requested = [str(p).strip() for p in list(payload.get("permissions") or []) if str(p).strip()]
+    requested, bindings = _declared_access(payload, pack)
     dependencies = _declared_dependencies(payload)
-    bindings = [str(b).strip() for b in list(payload.get("credential_bindings") or []) if str(b).strip()]
     record.root = str(pack)
     record.version = str(payload.get("version") or "")
     record.declared_permissions = requested
@@ -313,6 +335,18 @@ def inspect(plugin_id: str, *, root: Path) -> PluginRecord:
         note="requested, not granted",
     )
     return _save(record)
+
+
+def _declared_access(payload: dict, pack: Path) -> tuple[list[str], list[str]]:
+    block = payload.get("vool")
+    if isinstance(block, dict) and "id" in block:
+        from core.plugin_tools import parse_manifest
+
+        plugin = parse_manifest(payload, path=pack / ".codex-plugin/plugin.json")
+        return (sorted({action for contract in plugin.contracts for action in contract.permission_actions}),
+                [f"plugin.{plugin.plugin_id}.{slot}" for slot in plugin.vool["credentials"]])
+    return ([str(p).strip() for p in list(payload.get("permissions") or []) if str(p).strip()],
+            [str(b).strip() for b in list(payload.get("credential_bindings") or []) if str(b).strip()])
 
 
 def _declared_dependencies(payload: dict) -> list[str]:
@@ -334,6 +368,11 @@ def _unresolved(dependencies: list[str]) -> list[str]:
 
 
 def install(plugin_id: str, *, root: Path, source: str = "local") -> PluginRecord:
+    previous = _load(plugin_id)
+    if (previous is not None and previous.source.startswith("registry:") and previous.stage != STAGE_UNINSTALLED
+            and str(source) != previous.source):
+        # Installing over it from elsewhere would drop the registry's revocation check.
+        raise LifecycleError(f"{plugin_id}: installed from the plugin registry; uninstall it before installing it from elsewhere")
     record = inspect(plugin_id, root=root)
     if record.unresolved_dependencies:
         raise LifecycleError(
@@ -344,6 +383,8 @@ def install(plugin_id: str, *, root: Path, source: str = "local") -> PluginRecor
     record.stage = STAGE_INSTALLED
     record.installed_at = _utcnow()
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.verified_digest = ""
     record.approval_digest = ""
     record.digest_schema = ""
@@ -399,8 +440,7 @@ def verify(plugin_id: str, *, root: Path | None = None, expected_digest: str = "
             raise LifecycleError(f"{plugin_id}: dependency approval disappeared")
         pins[dependency] = child.approval_digest
     record.declared_dependencies = dependencies
-    record.declared_permissions = [str(p) for p in identity.manifest.get("permissions", [])]
-    record.credential_bindings = [str(p) for p in identity.manifest.get("credential_bindings", [])]
+    record.declared_permissions, record.credential_bindings = _declared_access(identity.manifest, pack)
     record.version = str(identity.manifest.get("version") or "")
     record.unresolved_dependencies = []
     record.verified_dependencies = pins
@@ -426,6 +466,11 @@ def enable(plugin_id: str) -> PluginRecord:
         raise LifecycleError(f"{plugin_id}: complete package verification is required before enabling")
     if record.approval_digest != approval_digest(record.verified_digest, record.verified_dependencies):
         raise LifecycleError(f"{plugin_id}: complete dependency approval is required before enabling")
+    from core.plugin_tools import load_manifest
+
+    plugin = load_manifest(Path(record.root) / ".codex-plugin" / "plugin.json")
+    if plugin.vool and record.consented_approval != record.approval_digest:
+        raise LifecycleError("Review the plugin's access and accept its consent sheet before enabling it.")
     if record.source.startswith("registry:"):
         from core.registry.native import runtime_allowed
 
@@ -449,11 +494,27 @@ def disable(plugin_id: str) -> PluginRecord:
     if record is None:
         raise LifecycleError(f"{plugin_id}: nothing installed to disable")
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.stage = STAGE_VERIFIED if record.verified_digest else STAGE_INSTALLED
     record.note("disabled")
     _save(record)
     _invalidate_registration(plugin_id)
     return record
+
+
+def accept_consent(plugin_id: str, *, expected_approval: str, network: bool) -> PluginRecord:
+    """Bind an owner-local consent gesture to the exact approved package and closure."""
+    with _lock:
+        record = _load(plugin_id)
+        if record is None or not record.approval_digest or record.approval_digest != expected_approval:
+            raise LifecycleError("The plugin changed while its access was being reviewed. Review it again.")
+        if manifest_digest(Path(record.root)) != record.verified_digest or record.enabled:
+            raise LifecycleError("Review the installed plugin again before enabling it.")
+        record.consented_approval = expected_approval
+        record.network_consent = network is True
+        record.note("consent_accepted", approval_digest=expected_approval, network=record.network_consent)
+        return _save(record)
 
 
 def note_invocation(
@@ -502,6 +563,8 @@ def update(plugin_id: str, *, root: Path | None = None, version: str = "") -> Pl
     record.verified_dependencies = {}
     record.verified_at = ""
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.stage = STAGE_INSTALLED
     record.updated_at = _utcnow()
     record.unresolved_dependencies = _unresolved(record.declared_dependencies)
@@ -518,6 +581,8 @@ def revoke(plugin_id: str, *, reason: str = "") -> PluginRecord:
     if record is None:
         raise LifecycleError(f"{plugin_id}: nothing installed to revoke")
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.revoked_at = _utcnow()
     record.revoked_reason = str(reason or "revoked by the operator")
     record.stage = STAGE_REVOKED
@@ -532,6 +597,8 @@ def uninstall(plugin_id: str) -> PluginRecord:
     if record is None:
         raise LifecycleError(f"{plugin_id}: nothing installed to uninstall")
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.stage = STAGE_UNINSTALLED
     record.uninstalled_at = _utcnow()
     record.verified_digest = ""
@@ -547,6 +614,9 @@ def uninstall(plugin_id: str) -> PluginRecord:
 def _invalidate_registration(plugin_id: str) -> None:
     """Drop this plugin's contracts from the live registry so the change takes effect NOW."""
 
+    from core.plugin_processes import stop
+
+    stop(plugin_id)
     try:
         from core import plugin_tools
         from core.tool_registry import contracts_from_source, unregister
@@ -610,6 +680,28 @@ def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str]
             return False
     digest = manifest_digest(pack)
     checked[plugin_id] = bool(digest) and digest == record.verified_digest
+    if not checked[plugin_id] and record.consented_approval:
+        # A v1 access gesture belongs to these exact bytes. Observing a change
+        # withdraws it durably; restoring files later cannot restore consent.
+        # Re-read under the writer lock so an old hash check cannot disable a
+        # replacement that has since been reviewed and enabled.
+        with _lock:
+            current = _load(plugin_id)
+            if (current and current.approval_digest == record.approval_digest
+                    and current.consented_approval == record.consented_approval):
+                disable(plugin_id)
+    if checked[plugin_id]:
+        from core.plugin_tools import load_manifest
+
+        plugin = load_manifest(pack / ".codex-plugin" / "plugin.json")
+        if plugin.contracts or plugin.vool.get("mcpServers"):
+            from core.plugin_executor import plugin_isolation_refusal
+
+            if plugin_isolation_refusal(plugin):
+                return False
+        if plugin.vool:
+            checked[plugin_id] = record.consented_approval == record.approval_digest and (
+                not plugin.vool["network"] or record.network_consent)
     return checked[plugin_id]
 
 

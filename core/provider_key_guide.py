@@ -17,7 +17,6 @@ _MODEL_HELP = {
     "google": ("Use Gemini models through Google AI Studio.", "https://aistudio.google.com/apikey"),
     "deepseek": ("Use DeepSeek models through your API account.", "https://platform.deepseek.com/api_keys"),
     "moonshot": ("Use Kimi models through your API account.", "https://platform.kimi.ai/console/api-keys"),
-    "usepod": ("Use the inference marketplace with your UsePod token.", "https://usepod.ai/"),
     "custom": ("Connect your own compatible model endpoint and its key.", ""),
 }
 
@@ -25,7 +24,6 @@ _MODEL_HELP = {
 def provider_key_guide(locale: str = "en") -> list[dict]:
     from core.cloud_providers import PROVIDERS
     from core.coingecko_auth import PLANS as COINGECKO_PLANS
-    from core.eyebrow_client import KEY_NAME
     from core.i18n.catalog import catalog_for
     from core.search_providers import SEARCH_PROVIDERS
 
@@ -62,13 +60,6 @@ def provider_key_guide(locale: str = "en") -> list[dict]:
              description=text("keyguide.search.description",
                               "Add a search provider for live lookups. Built-in keyless search remains available."),
              providers=search),
-        dict(id="security", title=text("keyguide.security.title", "Security scans"),
-             description=text("keyguide.security.description",
-                              "Optional checks for external skills and plugins. Scanning does not grant tool permissions."),
-             providers=[dict(provider="eyebrow", label="Eyebrow", slot=KEY_NAME,
-                             description=text("keyguide.provider.eyebrow.description",
-                                              "Check external add-on contents before installing them."),
-                             url="https://eyebrow.cc/dashboard")]),
         dict(id="chain", title=text("keyguide.chain.title", "Blockchain data"),
              description=text("keyguide.chain.description",
                               "Add a chain-data provider for read-only wallet, token and transaction lookups in any chat. "

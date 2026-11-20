@@ -10,7 +10,7 @@ CHECKS = frozenset({"source", "archive", "secrets", "code", "dependencies", "lic
 def publication(value: dict, artifact_sha256: str, kind: str) -> None:
     if isinstance(value, dict) and set(value) == {"service", "artifact_sha256"}:
         # Skill Codex uploads: the service serves the exact bytes by checksum; no GitHub copy is involved.
-        require(value["service"] == "skill-codex" and value["artifact_sha256"] == artifact_sha256 and kind == "skill",
+        require(value["service"] == "skill-codex" and value["artifact_sha256"] == artifact_sha256 and kind in {"skill", "plugin"},
                 "publication must bind the exact Skill Codex artifact")
         return
     repository = "Parad0x-Labs/vool-skills" if kind == "skill" else "Parad0x-Labs/vool-plugins"

@@ -52,9 +52,10 @@ def split_provider_prefix(arg: str) -> tuple[str | None, str]:
     Only splits when the prefix is a KNOWN provider id, so a ':tag' (e.g. '.../model:free') and a
     slash slug are never mistaken for a provider prefix."""
     from core.cloud_providers import PROVIDERS
+    from core.plugin_providers import is_provider_id
 
     head, sep, rest = str(arg or "").partition(":")
-    if sep and rest and head.strip().lower() in PROVIDERS:
+    if sep and rest and (head.strip().lower() in PROVIDERS or is_provider_id(head.strip().lower())):
         return head.strip().lower(), rest
     return None, arg
 
@@ -220,7 +221,9 @@ def _resolve_switch_provider(provider_arg: str | None, prefix_provider: str | No
     from core.cloud_providers import PROVIDERS, active_provider
 
     prov = str(provider_arg or "").strip().lower() or str(prefix_provider or "").strip().lower()
-    if prov and prov not in PROVIDERS:
+    from core.plugin_providers import usable_provider
+
+    if prov and prov not in PROVIDERS and not usable_provider(prov):
         return "", f"`{prov}` is not a known cloud provider."
     if not prov:
         try:
@@ -310,6 +313,10 @@ def set_cloud_model(
     prov, resolution_error = _resolve_switch_provider(provider, prefix_provider)
     if resolution_error:
         return False, resolution_error, ""
+    from core.plugin_providers import is_provider_id, usable_provider
+
+    if is_provider_id(prov) and arg.lower() not in {"default", "reset", "auto"} and not usable_provider(prov, arg):
+        return False, "This plugin model is unavailable. Enable it and refresh its model list in Add-ons.", ""
     from core.model_pricing import unpriced_builtin_tools
 
     if unpriced_builtin_tools(prov, arg):
@@ -325,7 +332,7 @@ def set_cloud_model(
     def _save(model_value: str) -> bool:
         cep.save_policy(replace(cep.load_policy(), model=model_value, provider=prov))
         p = cep.load_policy()
-        return p.model == model_value and p.provider == (prov if prov in PROVIDERS else "")
+        return p.model == model_value and p.provider == prov
 
     if arg.lower() == "auto":
         # `auto` means "follow the live FREE catalog". Only OpenRouter publishes one, so for a
@@ -470,7 +477,9 @@ def set_cloud_model(
     try:
         from core.runtime_provider_defaults import activate_provider_byok, retire_nonactive_provider_lanes
 
-        if _cloud_key_usable(prov) and activate_provider_byok(prov):
+        if is_provider_id(prov) and usable_provider(prov, chosen):
+            lane_note = f" The {label} plugin model is selected."
+        elif _cloud_key_usable(prov) and activate_provider_byok(prov):
             lane_note = f" The {label} lane now points at it."
         else:
             lane_note = f" It will take effect once you add a working {label} key in Settings."

@@ -1,0 +1,138 @@
+{
+  "name": "vool-plugin-eyebrow",
+  "version": "1.0.0",
+  "description": "Add an optional remote scan of the public add-on content you choose.",
+  "vool": {
+    "id": "vool-plugin-eyebrow",
+    "name": "Eyebrow example",
+    "description": "Add an optional remote scan of the public add-on content you choose.",
+    "homepage": "https://eyebrow.cc/",
+    "kind": [
+      "scanner"
+    ],
+    "network": [
+      "api.eyebrow.cc"
+    ],
+    "credentials": {
+      "access": {
+        "label": "Your Eyebrow service key",
+        "help_url": "https://eyebrow.cc/dashboard",
+        "env": "PLUGIN_EYEBROW_ACCESS"
+      }
+    },
+    "scanner": {
+      "base_url": "https://api.eyebrow.cc",
+      "credential_slot": "access",
+      "test_path": "/v1/version",
+      "scan_path": "/v1/scan",
+      "input_template": {
+        "source": {
+          "kind": "inline",
+          "format": "skill",
+          "name": "{name}",
+          "content": "{content}"
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": [
+          "kind",
+          "engine",
+          "service",
+          "verdict",
+          "lockfile",
+          "artifacts",
+          "findings",
+          "policy"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "scan"
+            ]
+          },
+          "engine": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "lockfile": {
+            "type": "object"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "digest"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "digest": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ruleId",
+                "severity"
+              ],
+              "properties": {
+                "ruleId": {
+                  "type": "string"
+                },
+                "severity": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "critical"
+                  ]
+                }
+              }
+            }
+          },
+          "policy": {
+            "type": "object",
+            "required": [
+              "violations"
+            ],
+            "properties": {
+              "violations": {
+                "type": "array"
+              }
+            }
+          }
+        }
+      },
+      "response_map": {
+        "kind": "kind",
+        "engine": "engine",
+        "service": "service",
+        "verdict": "verdict",
+        "lockfile": "lockfile",
+        "artifacts": "artifacts",
+        "findings": "findings",
+        "policy": "policy"
+      }
+    },
+    "version": "1.0.0",
+    "publisher": "VOOL",
+    "license": "MIT"
+  }
+}

@@ -222,7 +222,7 @@ def chat_surface_honest_degraded_response(
 #: Named by the UsePod transport on a failure after the wallet's proof was bound (X402PaidResultUnknownError).
 _PAID_RESULT_UNKNOWN_MARKER = "usepod_x402_paid_result_unknown"
 
-#: The UsePod adapter's own prefix for a dispatch it refused BEFORE sending (adapters.usepod_adapter.
+#: The UsePod adapter's own prefix for a dispatch it refused BEFORE sending (core.usepod.legacy_adapter.
 #: UsePodDispatchRefusedError). The router carries the exception text as the block reason.
 _USEPOD_REFUSAL_PREFIX = "usepod_dispatch_refused:"
 _MONEY_AUTHORITY_CAUSES = {

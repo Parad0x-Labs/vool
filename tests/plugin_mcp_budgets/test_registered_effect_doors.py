@@ -39,7 +39,8 @@ def _run(intent: str, arguments: dict, *, session_id: str, workspace: Path):
             "session_id": session_id,
             "workspace_root": str(workspace),
             "workspace": str(workspace),
-            "surface": "api",
+            "surface": "desktop",
+            "_owner_local": True,
         },
         hive_activity_tracker=tracker(),
     )

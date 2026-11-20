@@ -4,7 +4,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from core.eyebrow_client import AddonError
+from core.addon_security import AddonError
 
 
 @lru_cache(maxsize=1)
@@ -23,5 +23,5 @@ def source(digest: str) -> bytes:
     text = _files().get(digest)
     if not isinstance(text, str) or hashlib.sha256(text.encode('utf-8')).hexdigest() != digest:
         raise AddonError('addon_source_changed', 'The built-in add-on file failed its integrity check. '
-                         'Repair or update VOOL. Nothing was sent to Eyebrow or installed.')
+                         'Repair or update VOOL. Nothing was sent to a scanner or installed.')
     return text.encode('utf-8')

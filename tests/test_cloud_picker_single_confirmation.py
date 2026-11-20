@@ -218,16 +218,17 @@ def test_chat_provider_badge_ignores_global_provider_and_stale_response():
 setDisplayedChat('openclaw:abababababababababab');
 const pending=[], urls=[];
 fetch=async url=>{urls.push(url);return new Promise(resolve=>pending.push(resolve));};
-setModelValue('usepod:demo');
+cloudProviderRows=[{id:'plugin-sample-provider',label:'Example service',plugin_id:'sample-provider'}];
+setModelValue('plugin-sample-provider:demo');
 renderConnections([{id:'cloud',provider:'openrouter',label:'OpenRouter',state:'ok'}]);
 const label=()=>cloudPillEl.children.map(n=>n.children.map(c=>c.textContent).join('')).join('');
 const initial=label();
 setModelValue('openai:demo');
-pending[0]({json:async()=>({connections:[{id:'cloud',provider:'usepod',label:'UsePod',state:'ok'}]})});
+pending[0]({json:async()=>({connections:[{id:'cloud',provider:'plugin-sample-provider',label:'Example service',state:'ok'}]})});
 await new Promise(r=>setImmediate(r));
 const afterStale=label();
 out({initial,afterStale,urls});
 ''')
-    assert result['initial']=='UsePod' and result['afterStale']=='openai'
-    assert any('provider=usepod' in u for u in result['urls'])
+    assert result['initial']=='Example service' and result['afterStale']=='OpenAI'
+    assert any('provider=plugin-sample-provider' in u for u in result['urls'])
     assert any('provider=openai' in u for u in result['urls'])

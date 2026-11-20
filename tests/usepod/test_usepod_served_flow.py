@@ -75,6 +75,8 @@ class UsePodServedDaemon:
             {
                 "VOOL_HOME": str(self.home),
                 "PYTHONPATH": str(REPO_ROOT),
+                "VOOL_PLUGIN_LIFECYCLE_PATH": str(self.home / "data/plugin-lifecycle.json"),
+                "VOOL_PLUGINS_DIR": str(self.home / "plugins"),
                 "VOOL_DISABLE_MESH_DAEMON": "1",
                 "VOOL_DISABLE_COMPUTE_MODE": "1",
                 "VOOL_DISABLE_STUN": "1",
@@ -94,7 +96,35 @@ class UsePodServedDaemon:
         )
         return env
 
+    def seed_legacy_profile(self, *, origin: str = "", token: str = "", models=(MODEL,)) -> dict:
+        """Construct a real persisted v0.7 profile and explicit plugin consent in isolation.
+
+        The retired central Settings/pin setup is not a public v0.8 workflow. This
+        seeds only the fixture's vault and typed manifests; all financial calls
+        still traverse the normal daemon and unchanged monetary authorities.
+        """
+        self.home.mkdir(parents=True, exist_ok=True)
+        script = """
+import json, sys
+from core import plugin_manager
+from core.usepod.legacy_registration import register_model
+from tests.usepod._legacy_profile import enable_reference, save_pair
+config = json.load(sys.stdin)
+enable_reference()
+saved = save_pair(config['token'], config['origin']) if config['token'] else {}
+for model in config['models']:
+    register_model(model)
+print(json.dumps(saved))
+"""
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", script], input=json.dumps({"origin": origin, "token": token, "models": list(models)}),
+            cwd=str(REPO_ROOT), env=self.env(), text=True, capture_output=True, timeout=120,
+        )
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout.strip().splitlines()[-1])
+
     def start(self, timeout: float = 240.0) -> UsePodServedDaemon:
+        self.seed_legacy_profile()
         self.home.mkdir(parents=True, exist_ok=True)
         handle = self.log_path.open("wb")
         self.process = subprocess.Popen(
@@ -175,8 +205,9 @@ def served(tmp_path_factory):
     ).start()
     daemon = UsePodServedDaemon(tmp_path_factory.mktemp("usepod-served") / "home")
     try:
+        saved = daemon.seed_legacy_profile(origin=service.origin, token=token)
         daemon.start()
-        yield SimpleNamespace(service=service, daemon=daemon, token=token)
+        yield SimpleNamespace(service=service, daemon=daemon, token=token, saved=saved)
     finally:
         daemon.stop()
         service.stop()
@@ -247,6 +278,7 @@ def _git(*args: str) -> str:
 
 def test_the_served_usepod_flow_from_settings_to_receipts(served) -> None:
     daemon, service, token = served.daemon, served.service, served.token
+    saved = served.saved
     evidence: dict[str, object] = {}
 
     # The daemon under test is this checkout: /healthz names the commit, and a clean tree reports no local edits.
@@ -260,11 +292,10 @@ def test_the_served_usepod_flow_from_settings_to_receipts(served) -> None:
             assert ".dirty" not in json.dumps(health), health
     evidence["healthz"] = health
 
-    # Settings: the token is split from the paste, bound to the explicitly chosen origin, and tested.
-    status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-    assert status == 200, saved
-    status, probe = daemon.call("POST", "/api/cloud/test", {"provider": "usepod"})
-    assert status == 200 and probe["state"] == "ok", probe
+    # The historical vault pair is seeded before startup; the retired central
+    # Settings/test controls are covered by the new plugin Add-ons journey.
+    status, probe = daemon.call("POST", "/api/cloud/usepod/balance", {"max_age_seconds": 0})
+    assert status == 200 and probe["state"] == "reported", probe
 
     # Discovery: the public feed and what this credential sees.
     status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
@@ -272,15 +303,10 @@ def test_the_served_usepod_flow_from_settings_to_receipts(served) -> None:
     status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
     [row] = [item for item in view["models"] if item["model_id"] == MODEL]
     assert row["listed_for_this_credential"] is True and row["marketplace"]["input_microunits_per_million"] == MARKET[0]
-    status, catalog = daemon.call("GET", "/api/cloud/models?provider=usepod")
-    assert [item["id"] for item in catalog["models"]] == [MODEL]
 
     # Select: the routing policy and the paid pin (confirmed); no route is approved yet.
     status, policy = daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
     assert status == 200, policy
-    status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-    assert status == 200 and pinned.get("ok") is True, pinned
-    evidence["pin"] = pinned
 
     # Negative control: without an approved route the pinned lane must not send anything.
     refused_session = _session(f"refused-{uuid.uuid4()}")

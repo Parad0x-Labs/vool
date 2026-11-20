@@ -12,9 +12,11 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _usepod_starts_unconfigured(monkeypatch):
+def _usepod_starts_unconfigured(monkeypatch, tmp_path):
     """Every test starts and ends with no monetary or payment authority and no ambient UsePod token."""
     monkeypatch.delenv("VOOL_USEPOD_TOKEN", raising=False)
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin-lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "installed-plugins"))
 
     def _reset() -> None:
         try:
@@ -26,6 +28,11 @@ def _usepod_starts_unconfigured(monkeypatch):
         reset_payment_authority()
 
     _reset()
+    # These retained monetary tests require the now-external provider prerequisite.
+    # Consent grants no wallet, budget, signing or payment authority.
+    from tests.usepod._legacy_profile import enable_reference
+
+    enable_reference()
     yield
     _reset()
 

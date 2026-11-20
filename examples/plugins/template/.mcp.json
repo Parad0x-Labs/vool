@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "text-digest": {
+      "command": "bin/server",
+      "args": [],
+      "env": {}
+    }
+  }
+}
