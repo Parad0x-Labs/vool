@@ -12,7 +12,7 @@ import { fast } from "./fast.ts";
 import {connectionAddress} from './connection.ts';
 import { randomBytes, toHex } from "./sha256.ts";
 import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
-import { reportLink, resetLink } from "./linkState.ts";
+import { linkState, reportLink, resetLink } from "./linkState.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
@@ -47,6 +47,8 @@ export const ROUTE_PROBE_TIMEOUT_MS = 5000;
 export const AWAY_PROBE_TIMEOUT_MS = 90000;
 /** Requests over the private route take longer end to end than on the home network. */
 export const AWAY_REQUEST_TIMEOUT_MS = 60000;
+/** An ordinary request with no answer after this long: the connection light stops showing "connected". */
+export const SLOW_ANSWER_MS = 6000;
 
 /** The private route (Tor inside the app). The app registers it at start; tests register a fake. */
 export interface PrivateRoute {
@@ -147,7 +149,8 @@ export class MobileCompanionClient {
       try {
         for (const away of [false, true]) {
           try {
-            if (away) this.awayProblem = "";
+            // Home did not answer: the light stops saying "connected" while the away way is tried.
+            if (away) {this.awayProblem = ""; resetLink();}
             if (away && HIDDEN_URL.test(this.address(true))) {
               if (!privateRoute) {this.awayProblem = "private route unavailable"; continue;}
               await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
@@ -171,6 +174,9 @@ export class MobileCompanionClient {
   protected async request<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
     // While the app is finding out which way is open, wait for the answer instead of guessing.
     if (this.finding) await this.finding.catch(() => null);
+    // No answer within a few seconds (the phone left the home network, the computer sleeps): the light stops
+    // saying "connected" while the request still waits. A chat reply may rightly take minutes, so not for that one.
+    const slow = action === "chats.send" ? null : setTimeout(() => {if (linkState() === "connected") resetLink();}, SLOW_ANSWER_MS);
     try {
       const result = await this.send<T>(this.address(), action, params);
       reportLink(true);
@@ -186,6 +192,8 @@ export class MobileCompanionClient {
         } else reportLink(false);
       } else reportLink(true);
       throw error;
+    } finally {
+      if (slow) clearTimeout(slow);
     }
   }
 
