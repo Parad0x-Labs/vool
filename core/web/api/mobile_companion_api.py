@@ -169,7 +169,7 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
     "capture.begin", "capture.chunk", "capture.finish", "capture.removed",
-    "media.list", "media.thumb", "media.read", "media.exported", "media.set_thumb", "trace.phone",
+    "media.list", "media.thumb", "media.read", "media.exported", "media.set_thumb", "media.favorite", "trace.phone",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -1807,13 +1807,13 @@ def _media_list(params, *, service, device, **_kw):
     limit = _clamp_int(params.get("limit"), default=60, lo=1, hi=120)
     try:
         items = library().items(section=section, kind=kind, sort="size" if params.get("sort") == "size" else "date",
-                                descending=params.get("order") != "asc")
+                                descending=params.get("order") != "asc", favorites=params.get("favorites") is True)
     except LibraryError as error:
         if error.code != "empty":
             return _media_refused(error)
         items = []
-    public = [{k: meta.get(k) for k in ("id", "section", "kind", "name", "media_type", "size", "taken_at", "added_at", "damaged")}
-              for meta in items[offset:offset + limit]]
+    public = [{**{k: meta.get(k) for k in ("id", "section", "kind", "name", "media_type", "size", "taken_at", "added_at", "damaged")},
+               "favorite": bool(meta.get("favorite"))} for meta in items[offset:offset + limit]]
     return 200, {"items": public, "total": len(items), "offset": offset}
 
 
@@ -1899,6 +1899,26 @@ def _media_set_thumb(params, *, service, device, **_kw):
     return 200, {"kept": kept}
 
 
+def _media_favorite(params, *, service, device, **_kw):
+    """Stars items (or takes the stars away) so the person finds them quickly. Up to 200 at once."""
+    from core.media_library.store import LibraryError, library
+
+    ids = params.get("ids")
+    if not isinstance(ids, list) or not ids or len(ids) > 200 or not all(isinstance(i, str) for i in ids):
+        return 400, {"code": "bad_favorite", "error": "Choose up to 200 items."}
+    on = params.get("on") is True
+    lib = library()
+    changed, missing = 0, 0
+    for item_id in dict.fromkeys(ids):
+        try:
+            changed += 1 if lib.set_favorite(item_id, on) else 0
+        except LibraryError:
+            missing += 1
+        except OSError:
+            return _media_refused(LibraryError("failed"))
+    return 200, {"changed": changed, "missing": missing, "on": on}
+
+
 def _trace_phone(params, *, service, device, **_kw):
     """The phone's own trace lines (what was tapped, what opened, how long it took), kept beside this computer's
     so one file tells the whole story. Short plain lines only; at most 200 per call."""
@@ -1916,7 +1936,7 @@ def _trace_phone(params, *, service, device, **_kw):
 
 _ACTION_HANDLERS.update({"media.list": _media_list, "media.thumb": _media_thumb, "media.read": _media_read,
                          "media.exported": _media_exported, "media.set_thumb": _media_set_thumb,
-                         "trace.phone": _trace_phone})
+                         "media.favorite": _media_favorite, "trace.phone": _trace_phone})
 
 _ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
                          "capture.finish": _capture_action("finish"), "capture.removed": _capture_removed})

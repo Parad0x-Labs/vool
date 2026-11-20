@@ -118,6 +118,8 @@ export interface MediaItem {
   taken_at: number;
   added_at: number;
   damaged?: boolean;
+  /** Starred by the person, to find it quickly. */
+  favorite?: boolean;
 }
 
 /** A file the computer sent to this phone ("send day4.jpg to my phone"); kept 24 hours. */

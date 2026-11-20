@@ -3,6 +3,7 @@ package systems.vool.capture
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -39,7 +40,16 @@ class VoolCaptureModule : Module() {
 
     Constants("pieceBytes" to CaptureStore.PIECE)
 
-    Events("onStored")
+    Events("onStored", "onAppIcon")
+
+    // The plain VOOL icon while VOOL is running: Android hands the running app this intent, and VOOL opens at its
+    // own screens (not the camera or the Vault that the other icons opened last time).
+    OnNewIntent { intent ->
+      if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER) && intent.data == null) {
+        android.util.Log.i("VoolCapture", "icon: VOOL tapped")
+        sendEvent("onAppIcon", mapOf("at" to System.currentTimeMillis()))
+      }
+    }
 
     OnCreate {
       val ctx = appContext.reactContext ?: return@OnCreate
@@ -58,6 +68,8 @@ class VoolCaptureModule : Module() {
     /** The VOOL Camera icon or tile just opened VOOL: show the camera without asking for the unlock. */
     Function("cameraLaunchRecent") { CameraLaunch.recent() }
     Function("clearCameraLaunch") { CameraLaunch.clear() }
+    /** Whether the camera or Vault icon ran since VOOL started: Android can hand back an old link when it restarts VOOL. */
+    Function("iconUsed") { which: String -> if (which == "vault") VaultLaunch.used else CameraLaunch.used }
 
     /** The camera's own settings, as JSON text the app shapes. */
     Function("getCameraPrefs") { CameraPrefs.get(context) }

@@ -70,6 +70,7 @@ ACTIONS = {
     "media.read": "media",
     "media.exported": "media",
     "media.set_thumb": "media",
+    "media.favorite": "media",
 }
 
 

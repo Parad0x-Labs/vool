@@ -192,6 +192,23 @@ object VaultStreams {
     context.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
   }
 
+  /** One share sheet for several whole streams (each a plain copy, swept from the phone's cache within minutes). */
+  fun shareMany(context: Context, ids: List<String>, names: List<String>, title: String) {
+    require(ids.isNotEmpty() && ids.size == names.size) { "nothing" }
+    val uris = ArrayList<Uri>()
+    val types = mutableSetOf<String>()
+    ids.forEachIndexed { at, id ->
+      val stream = streams[id] ?: throw IllegalStateException("closed")
+      types.add(stream.mediaType)
+      uris.add(FileProvider.getUriForFile(context, context.packageName + ".FileSystemFileProvider", plainCopy(context, id, names[at])))
+    }
+    val heads = types.map { it.substringBefore('/') }.toSet()
+    val type = when { types.size == 1 -> types.first(); heads.size == 1 -> heads.first() + "/*"; else -> "*/*" }
+    val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType(type).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+      .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
+  }
+
   /** Saves a copy into the phone's own Pictures, Movies or Music (folder "VOOL"), where the gallery sees it. */
   fun save(context: Context, id: String, name: String): String {
     val stream = streams[id] ?: throw IllegalStateException("closed")

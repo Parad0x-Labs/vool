@@ -131,3 +131,36 @@ def test_the_trace_keeps_what_happened_never_what_was_in_it(desktop):
     assert {"from": "phone", "line": "shutter press ms=12"}.items() <= [l for l in lines if l.get("from") == "phone"][-1].items()
     assert item["name"] not in text and "content_b64" not in text and item["id"] not in text
     assert call(*phone, "trace.phone", {"lines": ["x"] * 201})[0] == 400
+
+
+def test_starred_items_are_kept_sealed_and_found_quickly(desktop):
+    from core.media_library.store import library
+
+    phone = _phone(desktop, media=True)
+    photos = [_jpeg(), _jpeg()]
+    for photo in photos:
+        assert _send(phone, photo, sha=hashlib.sha256(photo).hexdigest())[0] == 200
+    items = call(*phone, "media.list", {"section": "mobile", "kind": "photo"})[1]["result"]["items"]
+    assert [item["favorite"] for item in items] == [False, False]
+    first = items[0]["id"]
+
+    status, value = call(*phone, "media.favorite", {"ids": [first, first, "0" * 32], "on": True})
+    assert status == 200 and value["result"] == {"changed": 1, "missing": 1, "on": True}, value
+    starred = call(*phone, "media.list", {"section": "mobile", "kind": "photo", "favorites": True})[1]["result"]
+    assert starred["total"] == 1 and starred["items"][0]["id"] == first and starred["items"][0]["favorite"] is True
+    # the star lives in the item's sealed details: a fresh read of the library still has it, and no plain text holds it
+    lib = library()
+    lib._index = None
+    assert lib.get(first)["favorite"] is True
+    assert b"favorite" not in lib._meta_path(first).read_bytes()
+
+    assert call(*phone, "media.favorite", {"ids": [first], "on": False})[1]["result"]["changed"] == 1
+    assert call(*phone, "media.list", {"section": "mobile", "kind": "photo", "favorites": True})[1]["result"]["total"] == 0
+    for bad in ({"ids": [], "on": True}, {"ids": "x", "on": True}, {"ids": ["a"] * 201, "on": True}, {"ids": [1], "on": True}):
+        assert call(*phone, "media.favorite", bad)[0] == 400
+
+
+def test_stars_need_the_vault_right(desktop):
+    phone = _phone(desktop)
+    status, value = call(*phone, "media.favorite", {"ids": ["0" * 32], "on": True})
+    assert status == 403 and value["code"] == "phone_right_off_or_expired", value

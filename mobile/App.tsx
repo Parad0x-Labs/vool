@@ -95,6 +95,8 @@ function Root() {
   const [cameraOnly, setCameraOnly] = useState(false);
   // The VOOL Vault home icon: never opens anything while locked; after the unlock VOOL opens at the Vault.
   const [vaultAsked, setVaultAsked] = useState(false);
+  // Counts taps on the plain VOOL icon: the Shell closes its camera and Vault screens on each.
+  const [homeAsked, setHomeAsked] = useState(0);
   const cameraWanted = useRef(false);
   cameraWanted.current = cameraAsked || cameraOnly;
   const store = useMemo(() => credentialStoreForEnvironment(false), []);
@@ -113,8 +115,21 @@ function Root() {
       else {trace("link other"); setIncomingLink(url);}
     };
     const sub = Linking.addEventListener("url", (event: { url: string }) => take(event.url));
-    Linking.getInitialURL().then((url) => { if (url) take(url); });
-    return () => sub.remove();
+    // When Android restarts VOOL it can hand back the link VOOL was first opened with (the camera or the Vault),
+    // so that one counts only when its icon really ran this time.
+    Linking.getInitialURL().then((url) => {
+      if (!url) return;
+      const which = isCaptureLink(url) ? "camera" : isVaultLink(url) ? "vault" : null;
+      if (which && capture?.iconUsed && !capture.iconUsed(which)) {trace("link stale", {which}); return;}
+      take(url);
+    });
+    // The plain VOOL icon opens VOOL itself: a camera or Vault left open by the other icons closes.
+    const icon = capture?.addListener("onAppIcon", () => {
+      trace("icon vool", {cameraWasAsked: cameraWanted.current});
+      capture?.clearCameraLaunch(); setCameraAsked(false); setCameraOnly(false); cameraWanted.current = false;
+      setVaultAsked(false); setHomeAsked(seq => seq + 1);
+    });
+    return () => {sub.remove(); icon?.remove();};
   }, []);
 
   useEffect(() => {
@@ -211,7 +226,7 @@ function Root() {
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
     onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => {capture?.clearCameraLaunch(); setCameraAsked(false);}}
-    vaultAsked={vaultAsked} onVaultShown={() => setVaultAsked(false)} onConnection={async address => {
+    vaultAsked={vaultAsked} onVaultShown={() => setVaultAsked(false)} homeAsked={homeAsked} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
     }} onAwayConnection={async address => {
       if (creds) {
@@ -242,11 +257,13 @@ interface ShellProps {
   onCameraShown?: () => void;
   /** The Vault was asked for from its home icon (only reaches here unlocked). */
   vaultAsked?: boolean;
+  /** Goes up each time the plain VOOL icon is tapped while VOOL runs. */
+  homeAsked?: number;
   onVaultShown?: () => void;
 }
 
 /** Everything a paired, unlocked phone shows: the five screens and the row of tabs under them. */
-export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown, vaultAsked = false, onVaultShown}: ShellProps) {
+export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown, vaultAsked = false, onVaultShown, homeAsked = 0}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
@@ -263,6 +280,11 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
     if (queue.available) {setVaultOpen(false); setCameraOpen(true);}
     onCameraShown?.();
   }, [cameraAsked, queue.available, onCameraShown]);
+  useEffect(() => {
+    if (!homeAsked) return;
+    trace("shell home asked");
+    setCameraOpen(false); setVaultOpen(false);
+  }, [homeAsked]);
   const openCamera = queue.available ? () => {trace("camera open from=button"); setVaultOpen(false); setCameraOpen(true);} : undefined;
   const [pick, setPick] = useState<{id: string | null; seq: number} | null>(null);
   const [recent, setRecent] = useState<ChatSummary[]>([]);
