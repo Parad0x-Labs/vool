@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Linking, Platform, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, Pressable, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
@@ -16,6 +16,8 @@ import CaptureScreen from "./src/screens/CaptureScreen.tsx";
 import PrivateCaptureSettings from "./src/screens/PrivateCaptureSettings.tsx";
 import CompressionSettings from "./src/screens/CompressionSettings.tsx";
 import {useCaptureQueue, type CaptureQueue} from "./src/capture/useCaptureQueue.ts";
+import {capture} from "./src/capture/native.ts";
+import SettingsCard from "./src/ui/SettingsCard.tsx";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen.tsx";
 import StatusScreen from "./src/screens/StatusScreen.tsx";
 import {notificationText, rightToLeft, subscribeLanguage, tr} from "./src/i18n/index.ts";
@@ -74,15 +76,19 @@ function Root() {
   const [bootAttempt, setBootAttempt] = useState(0);
   const [startTab, setStartTab] = useState<Tab>("chats");
   const [incomingLink, setIncomingLink] = useState<string | null>(null);
-  // The VOOL Camera home icon and quick settings tile open the private camera, after the unlock.
-  const [cameraAsked, setCameraAsked] = useState(false);
+  // The VOOL Camera home icon and quick settings tile open the private camera. While VOOL is locked
+  // it opens alone (no fingerprint): only the camera, never the chats, wallet or settings.
+  const [cameraAsked, setCameraAsked] = useState(() => capture?.cameraLaunchRecent() ?? false);
+  const [cameraOnly, setCameraOnly] = useState(false);
+  const cameraWanted = useRef(false);
+  cameraWanted.current = cameraAsked || cameraOnly;
   const store = useMemo(() => credentialStoreForEnvironment(false), []);
 
   // vool-pair:// deep links (QR scanned outside the app, link tapped in a
   // browser): the SAME typed payload the in-app camera parser reads.
   useEffect(() => {
     const take = (url: string) => {
-      if (isCaptureLink(url)) setCameraAsked(true);
+      if (isCaptureLink(url)) {setCameraAsked(true); cameraWanted.current = true;}
       else setIncomingLink(url);
     };
     const sub = Linking.addEventListener("url", (event: { url: string }) => take(event.url));
@@ -102,7 +108,7 @@ function Root() {
 
   const identity = creds ? credentialIdentity(creds) : '';
   const client = useMemo(() => (creds && isSealedCredentials(creds) ? new SealedMobileCompanionClient(creds) : null), [identity]);
-  const lock = useSessionLock(client?.deviceId || null);
+  const lock = useSessionLock(client?.deviceId || null, () => cameraWanted.current || (capture?.cameraLaunchRecent() ?? false));
   // Sending private captures carries on while VOOL is locked; only the screens need the unlock.
   const captureQueue = useCaptureQueue(client);
   useEffect(() => {void setNativePrivateSession(!!client).catch(() => {});}, [client, lock.locked, lock.activity]);
@@ -152,6 +158,13 @@ function Root() {
     );
   }
 
+  // Camera only, without the unlock: closing it shows the Unlock screen.
+  if (lock.locked && (cameraAsked || cameraOnly) && captureQueue.available) return <Frame style={styles.root}>
+    <CaptureScreen waiting={captureQueue.waiting} sending={captureQueue.sending} problem={captureQueue.problem} saving={captureQueue.saving}
+      saveFailed={captureQueue.saveFailed} onCaptured={captureQueue.captured}
+      onClose={() => {capture?.clearCameraLaunch(); setCameraAsked(false); setCameraOnly(false);}} extraSettings={<SmallerFiles />} />
+  </Frame>;
+
   if (lock.locked) return <Frame style={styles.centered}>
     <StatusBar style="light" />
     <Face size={132} />
@@ -160,10 +173,12 @@ function Root() {
     {lock.failed && <Text style={styles.lockText}>{tr("Unlock failed. Try your fingerprint, face or phone passcode again.")}</Text>}
     <Pressable style={styles.button} android_ripple={{color: C.rippleDark}} accessibilityRole="button" onPress={() => void lock.unlock()}>
       <Icon name="fingerprint" size={22} color={C.sendInk} /><Text style={styles.buttonText}>{tr("Unlock")}</Text></Pressable>
+    {captureQueue.available ? <Pressable style={styles.cameraButton} android_ripple={{color: C.ripple}} accessibilityRole="button" onPress={() => setCameraOnly(true)}>
+      <Icon name="camera-iris" size={20} color={C.acc} /><Text style={styles.cameraButtonText}>{tr("Open private camera")}</Text></Pressable> : null}
   </Frame>;
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
-    onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => setCameraAsked(false)} onConnection={async address => {
+    onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => {capture?.clearCameraLaunch(); setCameraAsked(false);}} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
     }} onAwayConnection={async address => {
       if (creds) {
@@ -173,6 +188,11 @@ function Root() {
     }} />;
 }
 
+
+/** The optional smaller files, as a card in the camera's own settings. */
+function SmallerFiles() {
+  return capture ? <SettingsCard icon="archive-arrow-down-outline" title={tr("Smaller files")}><CompressionSettings /></SettingsCard> : null;
+}
 
 interface ShellProps {
   client: SealedMobileCompanionClient;
@@ -296,7 +316,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
       {recent.length > 0 && <KeyboardTip />}
       {cameraOpen ? <View style={StyleSheet.absoluteFill}>
         <CaptureScreen waiting={queue.waiting} sending={queue.sending} problem={queue.problem} saving={queue.saving} saveFailed={queue.saveFailed}
-          onCaptured={queue.captured} onClose={() => setCameraOpen(false)} />
+          onCaptured={queue.captured} onClose={() => setCameraOpen(false)} extraSettings={<SmallerFiles />} />
       </View> : null}
     </Frame>
   );
@@ -308,6 +328,8 @@ const styles = StyleSheet.create({
   centered: { alignItems: "center", justifyContent: "center", gap: 14, padding: 32 },
   brand: { color: C.ink, fontSize: 26, fontWeight: "700", letterSpacing: -0.4, textAlign: "center", marginTop: 6 },
   lockText: { color: C.soft, fontSize: 15, textAlign: "center", lineHeight: 22 },
+  cameraButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, minHeight: 48, borderRadius: 24, borderWidth: 1, borderColor: C.line, backgroundColor: C.raised, overflow: "hidden" },
+  cameraButtonText: { color: C.ink, fontSize: 15, fontWeight: "600" },
   button: { flexDirection: "row", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 34, height: 52, alignItems: "center", justifyContent: "center", marginTop: 14, overflow: "hidden" },
   buttonText: { color: C.sendInk, fontSize: 16, fontWeight: "600" },
   ticker: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 11 },

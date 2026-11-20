@@ -5,7 +5,8 @@ import {SessionLock} from "./session.ts";
 import {readIdleMinutes,saveIdleMinutes} from "./idlePreference.ts";
 import {tr} from "../i18n/index.ts";
 
-export function useSessionLock(deviceId: string | null) {
+/** hold: answers true while VOOL should not ask for the fingerprint by itself (the camera-only opening). */
+export function useSessionLock(deviceId: string | null, hold: () => boolean = () => false) {
   const [, redraw] = useState(0);
   const [failed, setFailed] = useState(false);
   const [noScreenLock, setNoScreenLock] = useState(false);
@@ -20,8 +21,11 @@ export function useSessionLock(deviceId: string | null) {
   const prompting = useRef(false);
   const askOnOpen = useRef(true);
   const unlockRef = useRef<() => Promise<void>>(async () => {});
+  const holdRef = useRef(hold);
+  holdRef.current = hold;
   const maybeAsk = () => {
     if (!deviceId || !idleLoaded || !state.locked || !askOnOpen.current || prompting.current) return;
+    if (holdRef.current()) return;
     if ((AppState.currentState || "active") !== "active") return;
     askOnOpen.current = false;
     void unlockRef.current();

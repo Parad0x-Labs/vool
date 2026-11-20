@@ -256,6 +256,10 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "wallet.signature",
         # the private camera's "Video" tab: the locale's own word in de/tr/vi
         "phone.capture.video",
+        # camera words that are the locale's own: "Flash" (es/fr/pt), "Filter" and "Warm" (de)
+        "phone.camera.flash",
+        "phone.camera.filter",
+        "phone.camera.filter_warm",
     }
 )
 

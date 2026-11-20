@@ -29,6 +29,12 @@ interface VoolCaptureNative {
   getCompressionSettings(): string;
   setCompressionSettings(json: string): string;
   getCompressionCapabilities(): string;
+  /** The VOOL Camera icon or tile opened VOOL a moment ago: the camera opens without VOOL's unlock. */
+  cameraLaunchRecent(): boolean;
+  clearCameraLaunch(): void;
+  getCameraPrefs(): string;
+  setCameraPrefs(json: string): void;
+  photoSizes(facing: "back" | "front"): Promise<{sizes: string[]; sensorMax: string}>;
 }
 
 /** The private capture's native side. Android only; elsewhere the feature is simply absent. */
@@ -40,10 +46,24 @@ export const vault: CaptureVault | null = capture
 
 export type CameraMode = "standard" | "night" | "hdr" | "portrait" | "retouch";
 
+export type FlashMode = "off" | "auto" | "on";
+export type PhotoFilter = "none" | "warm" | "cool" | "vivid" | "fade" | "mono" | "noir";
+export const PHOTO_FILTERS: PhotoFilter[] = ["none", "warm", "cool", "vivid", "fade", "mono", "noir"];
+
 export interface CameraViewProps extends ViewProps {
   facing: "back" | "front";
   mode: CameraMode;
   video: boolean;
+  flash?: FlashMode;
+  aspect?: "4:3" | "16:9";
+  /** "max" or "WIDTHxHEIGHT" from photoSizes(). */
+  photoSize?: string;
+  videoQuality?: "highest" | "2160" | "1080" | "720";
+  steady?: boolean;
+  mirror?: boolean;
+  filter?: PhotoFilter;
+  onZoom?: (event: {nativeEvent: {ratio: number; min: number; max: number}}) => void;
+  onFocus?: (event: {nativeEvent: {x: number; y: number}}) => void;
   onModes?: (event: {nativeEvent: {modes: CameraMode[]}}) => void;
   onCaptured?: (event: {nativeEvent: CaptureNote}) => void;
   onCameraError?: (event: {nativeEvent: {message: string}}) => void;
@@ -53,6 +73,7 @@ export interface CameraHandle {
   takePhoto(): Promise<CaptureNote>;
   startVideo(): Promise<boolean>;
   stopVideo(): Promise<CaptureNote>;
+  setZoom(ratio: number): Promise<void>;
 }
 
 export const PrivateCameraView: React.ComponentType<CameraViewProps & {ref?: React.Ref<CameraHandle>}> | null =
