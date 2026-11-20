@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {CompanionError} from "../../src/protocol/client";
-import {sendOne, sendWaiting, type CaptureItem, type CaptureVault, type CaptureLink} from "../../src/capture/sender";
+import {sendOne, sendWaiting, STALL_MS, type CaptureItem, type CaptureVault, type CaptureLink} from "../../src/capture/sender";
 
 const PIECE = 768 * 1024;
 
@@ -39,7 +39,10 @@ class Computer implements CaptureLink {
     if (!this.parts.has(id)) this.parts.set(id, Buffer.alloc(0));
     return {done: false as const, upload_id: id, next_offset: this.parts.get(id)!.length, chunk_bytes: PIECE};
   }
+  hangOnce = false;
   async captureChunk(id: string, offset: number, b64: string) {
+    // a request that never answers (the phone slept with it in flight)
+    if (this.hangOnce) { this.hangOnce = false; return new Promise<never>(() => {}); }
     if (this.dropAfterChunks === 0) { this.offline = true; throw new TypeError("Network request failed"); }
     this.dropAfterChunks--;
     const have = this.parts.get(id)!;
@@ -135,4 +138,20 @@ test("already on the computer (the answer was lost last time): removed without s
   pc.saved.set(item.sha256, big);
   expect((await sendWaiting(vault, pc)).sent).toBe(1);
   expect(vault.reads).toEqual([]);
+});
+
+test("a run stuck on a request that never answered is taken over, and the video still arrives whole", async () => {
+  const item = capture(big);
+  const vault = new Vault(new Map([[item.id, big]]), [item]);
+  const pc = new Computer();
+  pc.hangOnce = true;
+  let clock = 1_000_000;
+  const stuck = sendWaiting(vault, pc, () => clock);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  clock += STALL_MS - 1;
+  expect(sendWaiting(vault, pc, () => clock)).toBe(stuck); // still young: joins the running one
+  clock += 2;
+  expect(await sendWaiting(vault, pc, () => clock)).toEqual({sent: 1, waiting: 0, problem: ""});
+  expect(pc.saved.get(item.sha256)!.equals(big)).toBe(true);
+  expect(vault.items.size).toBe(0);
 });
