@@ -11,13 +11,20 @@ interface Props {
   onBack?: () => void;
   /** Tapping the connection line opens Settings. */
   onLink?: () => void;
+  /** Opens the private camera (shown on the large title only). */
+  onCamera?: () => void;
 }
 
 /** The top of every screen: its name, and how the computer stands right now. */
-export default function Header({title, onBack, onLink}: Props) {
+export default function Header({title, onBack, onLink, onCamera}: Props) {
   if (!onBack) return (
     <View style={styles.tab}>
-      <Text style={styles.big} numberOfLines={1} accessibilityRole="header">{title}</Text>
+      <View style={styles.titleRow}>
+        <Text style={[styles.big, styles.fill]} numberOfLines={1} accessibilityRole="header">{title}</Text>
+        {onCamera ? <Pressable onPress={onCamera} hitSlop={8} style={styles.camera} accessibilityRole="button" accessibilityLabel={tr("Private camera")}>
+          <Icon name="camera-outline" size={24} color={C.ink} />
+        </Pressable> : null}
+      </View>
       <Pressable onPress={onLink} hitSlop={8} accessibilityRole="button"><LinkLine /></Pressable>
     </View>
   );
@@ -37,6 +44,8 @@ export default function Header({title, onBack, onLink}: Props) {
 const styles = StyleSheet.create({
   fill: {flex: 1},
   tab: {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, gap: 5},
+  titleRow: {flexDirection: "row", alignItems: "center", gap: 10},
+  camera: {width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.pill},
   big: {color: C.ink, fontSize: 32, fontWeight: "700", letterSpacing: -0.6},
   bar: {flexDirection: "row", alignItems: "center", paddingHorizontal: 6, minHeight: 58, gap: 2, borderBottomWidth: 1, borderBottomColor: C.line},
   lead: {width: 46, height: 46, alignItems: "center", justifyContent: "center"},

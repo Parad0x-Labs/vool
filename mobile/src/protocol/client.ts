@@ -316,6 +316,18 @@ export class MobileCompanionClient {
     }
   }
 
+  // -- private capture: photos, videos and recordings go to the computer, never the phone's gallery --
+
+  captureBegin(item: {sha256: string; sizeBytes: number; mediaType: string; takenAt: number}): Promise<CaptureBegin> {
+    return this.request("capture.begin", {sha256: item.sha256, size_bytes: item.sizeBytes, media_type: item.mediaType, taken_at: item.takenAt});
+  }
+  captureChunk(uploadId: string, offset: number, contentB64: string): Promise<{next_offset: number}> {
+    return this.request("capture.chunk", {upload_id: uploadId, offset, content_b64: contentB64});
+  }
+  captureFinish(uploadId: string): Promise<CaptureSaved> {
+    return this.request("capture.finish", {upload_id: uploadId});
+  }
+
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
     return this.request("abilities.check", {ability});
   }
@@ -384,6 +396,9 @@ export class MobileCompanionClient {
   pauseRights(rights: string[]): Promise<{rules: Record<string, boolean>}> {return this.request("devices.switch_off", {rights});}
   lostComputer(): Promise<{clear_credentials: boolean}> {return this.request("devices.lost_computer");}
 }
+
+export interface CaptureSaved { done: true; sha256: string; saved_as: string; size_bytes: number }
+export type CaptureBegin = CaptureSaved | { done: false; upload_id: string; next_offset: number; chunk_bytes: number };
 
 export async function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) {
   if (HIDDEN_URL.test(url)) {
