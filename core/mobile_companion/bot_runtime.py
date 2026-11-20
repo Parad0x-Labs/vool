@@ -7,6 +7,7 @@ can approve, grant a right, change a contact or unfreeze the wallet.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -218,6 +219,11 @@ def connect(runtime, platform, token, *, channel_link=""):
                 "owner_label": owner_label,
             },
             "bot_name": bot_name,
+            "invite_url": (
+                "https://discord.com/oauth2/authorize?client_id=" + app_id + "&scope=bot&permissions=0"
+                if platform == "discord" and owner_id
+                else ""
+            ),
             "last_update": 0,
         }
     )
@@ -783,6 +789,7 @@ class ManagedBot:
         if binding.get("expires_at", 0) <= time.time() or time.monotonic() < getattr(self, "_next_owner_try", 0):
             return 0
         self._next_owner_try = time.monotonic() + 5
+        greeted, channel = True, ""
         try:
             conversation = self.call("/users/@me/channels", {"recipient_id": owner})
             channel = str(conversation.get("id") or "")
@@ -793,9 +800,22 @@ class ManagedBot:
                 {"content": PAIRED_WORDS, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
             )
         except urllib.error.HTTPError as answer:
-            if answer.code in {400, 403}:
-                return 0  # Not in a shared server yet: Discord refuses the message until the invite is done.
-            raise
+            if answer.code not in {400, 403}:
+                raise
+            if not channel:
+                return 0
+            # Discord will not let the bot write first: no shared server yet, or the owner's
+            # "direct messages from server members" is off for that server. A message the owner
+            # writes to the bot opens the same private conversation both ways, so it pairs too.
+            try:
+                recent = self.call("/channels/" + channel + "/messages?limit=10")
+            except urllib.error.HTTPError:
+                return 0
+            if not isinstance(recent, list) or not any(
+                str((m.get("author") or {}).get("id") or "") == owner for m in recent if isinstance(m, dict)
+            ):
+                return 0
+            greeted = False
         with service().dispatch_lock:
             current = self.device()
             if not self.active() or (current.get("binding") or {}).get("state") != "waiting":
@@ -808,6 +828,13 @@ class ManagedBot:
                 permission_revision=int(current.get("permission_revision") or 0) + 1,
             )
         service().store.append_receipt("bot.owner_bound", device_id=self.device_id, detail={"platform": self.platform})
+        if not greeted:
+            # The owner wrote first, so Discord now lets the bot answer; their message is answered next.
+            with contextlib.suppress(urllib.error.HTTPError, OSError, ValueError):
+                self.call(
+                    "/channels/" + channel + "/messages",
+                    {"content": PAIRED_WORDS, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
+                )
         return 0
 
     def run_forever(self):

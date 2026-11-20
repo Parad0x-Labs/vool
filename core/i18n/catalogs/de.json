@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "Aus Zwischenablage einfügen",
     "phone.bot_clip_empty": "In der Zwischenablage ist noch kein Bot-Schlüssel. Kopiere den ganzen Schlüssel und versuche es erneut.",
     "phone.bot_clip_blocked": "Der Browser hat das Lesen der Zwischenablage nicht erlaubt. Füge den Schlüssel stattdessen ins Feld ein.",
-    "phone.bot_step3": "Schritt 3 von 3: Hallo sagen"
+    "phone.bot_step3": "Schritt 3 von 3: Hallo sagen",
+    "phone.bot_status_off": "Nicht verbunden",
+    "phone.bot_about_telegram": "Chatte mit deinem VOOL über Telegram.",
+    "phone.bot_about_discord": "Chatte mit deinem VOOL in einem privaten Discord-Chat.",
+    "phone.bot_permissions": "Was dieser Bot darf",
+    "phone.bot_open_discord_app": "Discord öffnen",
+    "phone.bot_perms_first": "Verbinde zuerst diese App und wähle dann hier, was sie darf.",
+    "phone.bot_discord_dm_only": "Schreib VOOL in deinen privaten Nachrichten mit dem Bot. Kein @ nötig. VOOL liest keine Serverkanäle, daher kann dort niemand sonst ihn nutzen.",
+    "phone.bot_discord_write_first": "Bot hinzugefügt und nichts passiert? Discord lässt einen Bot dir eventuell nicht zuerst schreiben. Klicke auf deinem Server in der Mitgliederliste auf VOOL und schick ihm eine Nachricht."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

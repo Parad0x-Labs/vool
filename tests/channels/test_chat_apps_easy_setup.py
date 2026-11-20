@@ -4,7 +4,7 @@ import secrets
 import time
 import uuid
 
-from tests.channels.test_managed_chat_apps import bots, receipts, record, wait_for  # noqa: F401 (fixture)
+from tests.channels.test_managed_chat_apps import bots, receipts, record, wait_for  # bots is a fixture
 from tests.mobile.test_phone_listener_served import http
 
 
@@ -169,3 +169,24 @@ def test_start_without_the_code_asks_the_owner_on_the_computer(bots):
     wait_for(lambda: any(m.get('text', '').startswith('Paired.') and str(m.get('chat_id')) == '444' for m in list(host.outgoing)))
     host.add('telegram', 'hi again', user='333', channel='333')
     wait_for(lambda: any(r['kind'] == 'bot.request_refused' and r['detail']['reason'] == 'stranger' for r in receipts(base)))
+
+
+def test_discord_owner_who_blocks_bot_messages_pairs_by_writing_first(bots):
+    """Bot added, but the owner's privacy setting stops it writing first: the owner's own hello pairs it."""
+    desktop, hosts = bots; base = desktop[0]; host = hosts['discord']
+    host.owner_mode = True; host.invited = True; host.dm_closed = True
+    status, connection = connect(base, 'discord', secrets.token_urlsafe(24) + '.' + secrets.token_urlsafe(5) + '.' + secrets.token_urlsafe(27))
+    assert status == 200, connection
+    time.sleep(6)
+    row = record(base, 'discord')
+    assert row['binding_state'] == 'waiting' and row['invite_url'] == connection['invite_url'] and row['pairing_expires_at'], row
+    with host.lock:
+        assert not host.outgoing
+    # Someone else in the server writing to the bot does not pair it.
+    host.add('discord', 'hi from a stranger', user='333'); time.sleep(6)
+    assert record(base, 'discord')['binding_state'] == 'waiting'
+    host.add('discord', 'hi', user='111')
+    wait_for(lambda: record(base, 'discord')['binding_state'] == 'bound')
+    assert {k for k, v in record(base, 'discord')['rules'].items() if v} == {'chat'}
+    wait_for(lambda: any(m.get('content', '').startswith('Paired.') for m in list(host.outgoing)))
+    wait_for(lambda: any(r['kind'] == 'bot.turn_finished' for r in receipts(base)))

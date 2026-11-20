@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "클립보드에서 붙여넣기",
     "phone.bot_clip_empty": "클립보드에 아직 봇 키가 없습니다. 키 전체를 복사한 뒤 다시 시도하세요.",
     "phone.bot_clip_blocked": "브라우저가 클립보드 읽기를 허용하지 않았습니다. 키를 칸에 붙여넣으세요.",
-    "phone.bot_step3": "3/3단계: 인사하기"
+    "phone.bot_step3": "3/3단계: 인사하기",
+    "phone.bot_status_off": "연결 안 됨",
+    "phone.bot_about_telegram": "텔레그램에서 VOOL과 대화하세요.",
+    "phone.bot_about_discord": "디스코드 개인 채팅에서 VOOL과 대화하세요.",
+    "phone.bot_permissions": "이 봇이 할 수 있는 일",
+    "phone.bot_open_discord_app": "디스코드 열기",
+    "phone.bot_perms_first": "먼저 이 앱을 연결한 뒤, 여기서 할 수 있는 일을 고르세요.",
+    "phone.bot_discord_dm_only": "봇과의 개인 메시지에서 VOOL과 대화하세요. @는 필요 없습니다. VOOL은 서버 채널을 읽지 않으므로 그곳의 다른 사람은 쓸 수 없습니다.",
+    "phone.bot_discord_write_first": "봇을 추가했는데 아무 일도 없나요? 디스코드가 봇이 먼저 메시지를 보내지 못하게 할 수 있습니다. 서버의 멤버 목록에서 VOOL을 눌러 메시지를 보내세요."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

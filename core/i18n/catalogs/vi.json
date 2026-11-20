@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "Dán từ bộ nhớ tạm",
     "phone.bot_clip_empty": "Bộ nhớ tạm chưa có khóa bot. Hãy sao chép toàn bộ khóa rồi thử lại.",
     "phone.bot_clip_blocked": "Trình duyệt không cho đọc bộ nhớ tạm. Hãy dán khóa vào ô.",
-    "phone.bot_step3": "Bước 3/3: chào bot"
+    "phone.bot_step3": "Bước 3/3: chào bot",
+    "phone.bot_status_off": "Chưa kết nối",
+    "phone.bot_about_telegram": "Trò chuyện với VOOL của bạn từ Telegram.",
+    "phone.bot_about_discord": "Trò chuyện với VOOL của bạn trong một cuộc trò chuyện riêng trên Discord.",
+    "phone.bot_permissions": "Bot này được làm gì",
+    "phone.bot_open_discord_app": "Mở Discord",
+    "phone.bot_perms_first": "Hãy kết nối ứng dụng này trước, rồi chọn ở đây những gì nó được làm.",
+    "phone.bot_discord_dm_only": "Trò chuyện với VOOL trong tin nhắn riêng với bot. Không cần @. VOOL không đọc các kênh máy chủ, nên không ai khác ở đó dùng được.",
+    "phone.bot_discord_write_first": "Đã thêm bot mà không có gì xảy ra? Discord có thể không cho bot nhắn cho bạn trước. Trong máy chủ, nhấn VOOL trong danh sách thành viên và gửi cho nó một tin nhắn."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

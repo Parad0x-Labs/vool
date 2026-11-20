@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "クリップボードから貼り付け",
     "phone.bot_clip_empty": "クリップボードにまだボットのキーがありません。キー全体をコピーしてもう一度試してください。",
     "phone.bot_clip_blocked": "ブラウザーがクリップボードの読み取りを許可しませんでした。キーを欄に貼り付けてください。",
-    "phone.bot_step3": "ステップ 3/3：あいさつする"
+    "phone.bot_step3": "ステップ 3/3：あいさつする",
+    "phone.bot_status_off": "未接続",
+    "phone.bot_about_telegram": "Telegram から VOOL とチャットできます。",
+    "phone.bot_about_discord": "Discord の個人チャットで VOOL とチャットできます。",
+    "phone.bot_permissions": "このボットにできること",
+    "phone.bot_open_discord_app": "Discord を開く",
+    "phone.bot_perms_first": "先にこのアプリを接続してから、ここでできることを選んでください。",
+    "phone.bot_discord_dm_only": "ボットとの個人メッセージで VOOL と話してください。@ は不要です。VOOL はサーバーのチャンネルを読まないので、そこにいる他の人は使えません。",
+    "phone.bot_discord_write_first": "ボットを追加しても何も起きませんか？Discord はボットから先にメッセージを送ることを許可しない場合があります。サーバーのメンバー一覧で VOOL をクリックし、メッセージを送ってください。"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

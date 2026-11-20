@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "Panodan yapıştır",
     "phone.bot_clip_empty": "Panoda henüz bot anahtarı yok. Anahtarın tamamını kopyalayıp yeniden deneyin.",
     "phone.bot_clip_blocked": "Tarayıcı panoyu okumaya izin vermedi. Anahtarı kutuya yapıştırın.",
-    "phone.bot_step3": "Adım 3/3: merhaba deyin"
+    "phone.bot_step3": "Adım 3/3: merhaba deyin",
+    "phone.bot_status_off": "Bağlı değil",
+    "phone.bot_about_telegram": "VOOL’unuzla Telegram’dan sohbet edin.",
+    "phone.bot_about_discord": "VOOL’unuzla özel bir Discord sohbetinde konuşun.",
+    "phone.bot_permissions": "Bu bot neler yapabilir",
+    "phone.bot_open_discord_app": "Discord’u aç",
+    "phone.bot_perms_first": "Önce bu uygulamayı bağlayın, sonra burada neler yapabileceğini seçin.",
+    "phone.bot_discord_dm_only": "VOOL ile botla özel mesajlarınızda konuşun. @ gerekmez. VOOL sunucu kanallarını okumaz, bu yüzden oradaki başkaları onu kullanamaz.",
+    "phone.bot_discord_write_first": "Botu eklediniz ama bir şey olmuyor mu? Discord bir botun size önce yazmasına izin vermeyebilir. Sunucunuzda üye listesinde VOOL’a tıklayıp ona bir mesaj gönderin."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

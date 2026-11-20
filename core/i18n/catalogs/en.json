@@ -5336,7 +5336,15 @@
     "report.reason.wrong_action": "An action went wrong",
     "report.reason.poor_quality": "Poor answer",
     "report.reason.unsafe": "Unsafe or rude",
-    "report.reason.other": "Other"
+    "report.reason.other": "Other",
+    "phone.bot_status_off": "Not connected",
+    "phone.bot_about_telegram": "Chat with your VOOL from Telegram.",
+    "phone.bot_about_discord": "Chat with your VOOL in a private Discord chat.",
+    "phone.bot_permissions": "What this bot may do",
+    "phone.bot_open_discord_app": "Open Discord",
+    "phone.bot_perms_first": "Connect this app first, then choose here what it may do.",
+    "phone.bot_discord_dm_only": "Talk to VOOL in your private messages with the bot. No @ needed. VOOL does not read server channels, so nobody else there can use it.",
+    "phone.bot_discord_write_first": "Added the bot and nothing happens? Discord may not let a bot write to you first. In your server, click VOOL in the member list and send it a message."
   },
   "html_keys": [
     "bypass.modal_limits",

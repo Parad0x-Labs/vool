@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "Вставить из буфера обмена",
     "phone.bot_clip_empty": "В буфере обмена пока нет ключа бота. Скопируйте ключ целиком и попробуйте снова.",
     "phone.bot_clip_blocked": "Браузер не разрешил читать буфер обмена. Вставьте ключ в поле.",
-    "phone.bot_step3": "Шаг 3 из 3: поздоровайтесь"
+    "phone.bot_step3": "Шаг 3 из 3: поздоровайтесь",
+    "phone.bot_status_off": "Не подключено",
+    "phone.bot_about_telegram": "Общайтесь со своим VOOL через Telegram.",
+    "phone.bot_about_discord": "Общайтесь со своим VOOL в личном чате Discord.",
+    "phone.bot_permissions": "Что может этот бот",
+    "phone.bot_open_discord_app": "Открыть Discord",
+    "phone.bot_perms_first": "Сначала подключите это приложение, затем выберите здесь, что ему можно.",
+    "phone.bot_discord_dm_only": "Пишите VOOL в личных сообщениях с ботом. @ не нужен. VOOL не читает каналы сервера, поэтому никто другой там не сможет им пользоваться.",
+    "phone.bot_discord_write_first": "Добавили бота, но ничего не происходит? Discord может не разрешать боту писать вам первым. На своём сервере нажмите VOOL в списке участников и отправьте ему сообщение."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

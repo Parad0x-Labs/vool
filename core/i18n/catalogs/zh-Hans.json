@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "从剪贴板粘贴",
     "phone.bot_clip_empty": "剪贴板里还没有机器人密钥。请复制完整密钥后重试。",
     "phone.bot_clip_blocked": "浏览器不允许读取剪贴板。请把密钥粘贴到输入框。",
-    "phone.bot_step3": "第 3 步（共 3 步）：打个招呼"
+    "phone.bot_step3": "第 3 步（共 3 步）：打个招呼",
+    "phone.bot_status_off": "未连接",
+    "phone.bot_about_telegram": "在 Telegram 中与你的 VOOL 聊天。",
+    "phone.bot_about_discord": "在 Discord 私聊中与你的 VOOL 聊天。",
+    "phone.bot_permissions": "这个机器人可以做什么",
+    "phone.bot_open_discord_app": "打开 Discord",
+    "phone.bot_perms_first": "请先连接此应用，然后在这里选择它可以做什么。",
+    "phone.bot_discord_dm_only": "在与机器人的私信中和 VOOL 交谈，无需 @。VOOL 不读取服务器频道，因此那里的其他人无法使用它。",
+    "phone.bot_discord_write_first": "添加了机器人却没有反应？Discord 可能不允许机器人先给你发消息。在你的服务器成员列表中点击 VOOL，给它发一条消息。"
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

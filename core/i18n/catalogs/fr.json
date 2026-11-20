@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "Coller depuis le presse-papiers",
     "phone.bot_clip_empty": "Le presse-papiers ne contient pas encore de clé de bot. Copiez la clé entière, puis réessayez.",
     "phone.bot_clip_blocked": "Le navigateur n’a pas autorisé la lecture du presse-papiers. Collez la clé dans le champ.",
-    "phone.bot_step3": "Étape 3 sur 3 : dites bonjour"
+    "phone.bot_step3": "Étape 3 sur 3 : dites bonjour",
+    "phone.bot_status_off": "Non connecté",
+    "phone.bot_about_telegram": "Discutez avec votre VOOL depuis Telegram.",
+    "phone.bot_about_discord": "Discutez avec votre VOOL dans une conversation privée Discord.",
+    "phone.bot_permissions": "Ce que ce bot peut faire",
+    "phone.bot_open_discord_app": "Ouvrir Discord",
+    "phone.bot_perms_first": "Connectez d’abord cette app, puis choisissez ici ce qu’elle peut faire.",
+    "phone.bot_discord_dm_only": "Parlez à VOOL dans vos messages privés avec le bot. Pas besoin de @. VOOL ne lit pas les salons du serveur, donc personne d’autre ne peut l’utiliser.",
+    "phone.bot_discord_write_first": "Bot ajouté mais rien ne se passe ? Discord peut empêcher un bot de vous écrire en premier. Sur votre serveur, cliquez sur VOOL dans la liste des membres et envoyez-lui un message."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

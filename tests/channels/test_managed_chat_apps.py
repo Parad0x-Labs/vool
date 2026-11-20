@@ -18,7 +18,7 @@ class FakeChatHost:
         # Connect-time identity reads that hang past VOOL's wait once each (a slow moment on the service).
         self.stall_identity=0
         # Discord: the bot can write to its owner only once they share a server (the invite).
-        self.invited=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False
+        self.invited=False;self.dm_closed=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False
         parent=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*_):pass
@@ -41,6 +41,9 @@ class FakeChatHost:
                     elif path=='/users/@me':result={'id':'88','bot':parent.identity_valid,'username':'My VOOL'}
                     elif path=='/oauth2/applications/@me':result={'id':'77'} if parent.no_owner else {'id':'77','owner':{'id':parent.owner_id},'team':None}
                     elif path=='/users/@me/channels' and self.command=='POST':result={'id':'444','type':1} if data.get('recipient_id')==parent.owner_id else {'id':'999','type':1}
+                    elif path=='/channels/444/messages' and self.command=='POST' and parent.dm_closed and not any(str((x.get('author') or {}).get('id'))==parent.owner_id for x in parent.incoming):
+                        # The owner's "direct messages from server members" is off: the bot may not write first.
+                        raw=b'{"code":50007}';self.send_response(403);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
                     elif path=='/channels/444/messages' and self.command=='POST' and not parent.invited and not any(r.get('content','').startswith('Paired') for r in parent.outgoing) and parent.owner_mode:
                         raw=b'{"code":50007}';self.send_response(403);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
                     elif path.endswith('/getChat'):
@@ -174,17 +177,23 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
             page=browser.new_page(viewport={'width':1280,'height':1050});page.goto(base+'/settings#phone');page.locator('[data-group="phone"]').click()
             page.locator('.phone-bot-connect').get_by_role('button',name='Connect Telegram',exact=True).click();page.get_by_label('Bot key (from Telegram or Discord)',exact=True).fill(token)
             page.locator('.phone-bot-connect').get_by_role('button',name='Connect chat app',exact=True).click()
-            row=page.locator('[data-device="bot:telegram"]');row.wait_for()
+            card=page.locator('.chat-app-card[data-app="telegram"]');card.locator('.phone-bot-pairing').wait_for()
             import re
 
-            text=row.inner_text()
+            text=card.inner_text()
             match=re.search(r'/pair ([A-Z0-9]{12})',text);assert match,text
             assert token not in page.locator('.phone-settings-panel').inner_text()
-            assert row.locator('[data-right="payment_approve"]').count()==0
-            assert row.locator('[data-right="tool_approval"]').count()==0
             hosts['telegram'].add('telegram','/pair '+match[1]);wait_for(lambda:record(base,'telegram')['binding_state']=='bound')
             page.get_by_role('button',name='Refresh permissions',exact=True).click()
             row=page.locator('[data-device="bot:telegram"]')
+            # The connected card names its state; its permissions sit under the open Telegram tab.
+            card=page.locator('.chat-app-card[data-app="telegram"]')
+            assert card.get_attribute('data-stage')=='on' and card.locator('.chat-app-pill').inner_text()=='Connected'
+            assert page.locator('.phone-bot-connect').get_by_role('button',name='Connect Telegram',exact=True).count()==0
+            assert page.locator('.chat-app-tab[aria-selected="true"]').get_attribute('data-app')=='telegram'
+            assert row.locator('[data-right="chat"]').count()==1
+            assert row.locator('[data-right="payment_approve"]').count()==0
+            assert row.locator('[data-right="tool_approval"]').count()==0
             # Pairing turns chat on; the computer can still turn it off and on.
             assert row.locator('[data-right="chat"]').is_checked()
             row.locator('[data-right="chat"]').uncheck()
@@ -204,7 +213,7 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
             page.get_by_role('button',name='Refresh permissions',exact=True).click()
             shots=Path(os.environ.get('VOOL_PHONE_SHOTS_DIR') or tmp_path);shots.mkdir(exist_ok=True)
             page.screenshot(path=str(shots/'phone-chat-app-rules.png'),full_page=True)
-            row=page.locator('[data-device="bot:telegram"]');row.get_by_role('button',name='Disconnect chat app',exact=True).click()
+            page.locator('.chat-app-card[data-app="telegram"]').get_by_role('button',name='Disconnect chat app',exact=True).click()
             wait_for(lambda:record(base,'telegram')['status']=='revoked')
         finally:browser.close()
 

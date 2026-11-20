@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "Įklijuoti iš iškarpinės",
     "phone.bot_clip_empty": "Iškarpinėje dar nėra boto rakto. Nukopijuokite visą raktą ir bandykite dar kartą.",
     "phone.bot_clip_blocked": "Naršyklė neleido skaityti iškarpinės. Įklijuokite raktą į laukelį.",
-    "phone.bot_step3": "3 žingsnis iš 3: pasisveikinkite"
+    "phone.bot_step3": "3 žingsnis iš 3: pasisveikinkite",
+    "phone.bot_status_off": "Neprijungta",
+    "phone.bot_about_telegram": "Kalbėkitės su savo VOOL per Telegram.",
+    "phone.bot_about_discord": "Kalbėkitės su savo VOOL privačiame Discord pokalbyje.",
+    "phone.bot_permissions": "Ką šis botas gali daryti",
+    "phone.bot_open_discord_app": "Atidaryti Discord",
+    "phone.bot_perms_first": "Pirmiausia prijunkite šią programėlę, tada čia pasirinkite, ką ji gali daryti.",
+    "phone.bot_discord_dm_only": "Kalbėkitės su VOOL privačiose žinutėse su botu. @ nereikia. VOOL neskaito serverio kanalų, todėl niekas kitas ten jo naudoti negali.",
+    "phone.bot_discord_write_first": "Pridėjote botą, bet nieko nevyksta? Discord gali neleisti botui parašyti jums pirmam. Savo serveryje narių sąraše spustelėkite VOOL ir parašykite jam žinutę."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

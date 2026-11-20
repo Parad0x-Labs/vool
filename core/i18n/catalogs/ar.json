@@ -5336,7 +5336,15 @@
     "phone.bot_paste_button": "لصق من الحافظة",
     "phone.bot_clip_empty": "لا تحتوي الحافظة على مفتاح بوت بعد. انسخ المفتاح كاملًا ثم حاول مرة أخرى.",
     "phone.bot_clip_blocked": "لم يسمح المتصفح بقراءة الحافظة. الصق المفتاح في الحقل بدلًا من ذلك.",
-    "phone.bot_step3": "الخطوة 3 من 3: قل مرحبًا"
+    "phone.bot_step3": "الخطوة 3 من 3: قل مرحبًا",
+    "phone.bot_status_off": "غير مرتبط",
+    "phone.bot_about_telegram": "تحدّث مع VOOL من تيليجرام.",
+    "phone.bot_about_discord": "تحدّث مع VOOL في محادثة خاصة على ديسكورد.",
+    "phone.bot_permissions": "ما الذي يمكن لهذا البوت فعله",
+    "phone.bot_open_discord_app": "افتح ديسكورد",
+    "phone.bot_perms_first": "اربط هذا التطبيق أولًا، ثم اختر هنا ما يمكنه فعله.",
+    "phone.bot_discord_dm_only": "تحدّث مع VOOL في رسائلك الخاصة مع البوت. لا حاجة إلى @. لا يقرأ VOOL قنوات الخادم، لذا لا يمكن لأحد آخر هناك استخدامه.",
+    "phone.bot_discord_write_first": "أضفت البوت ولا يحدث شيء؟ قد لا يسمح ديسكورد للبوت بأن يراسلك أولًا. في خادمك، انقر على VOOL في قائمة الأعضاء وأرسل له رسالة."
   },
   "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
   "generator": {

@@ -542,6 +542,13 @@ def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
         "pairing_candidate": str(((rec.get("binding") or {}).get("candidate") or {}).get("name") or "")
         if (rec.get("binding") or {}).get("state") == "waiting" and ((rec.get("binding") or {}).get("candidate")) else None,
         "owner_label": rec.get("owner_label") if rec.get("kind") == "bot" else None,
+        # The bot's own public username (from Telegram or Discord at connect), so Settings can name and open it.
+        "bot_name": rec.get("bot_name") if rec.get("kind") == "bot" else None,
+        # While a chat app waits for its owner: when that wait ends, and Discord's invite page (no secret).
+        "pairing_expires_at": (rec.get("binding") or {}).get("expires_at")
+        if rec.get("kind") == "bot" and (rec.get("binding") or {}).get("state") == "waiting" else None,
+        "invite_url": (rec.get("invite_url") or None)
+        if rec.get("kind") == "bot" and (rec.get("binding") or {}).get("state") == "waiting" else None,
         "notification_preferences": ((rec.get("notification_state") or {}).get("preferences") or notification_defaults()) if rec.get("kind") == "bot" else None,
         "public_key": rec.get("public_key"),
         "status": rec.get("status"),
