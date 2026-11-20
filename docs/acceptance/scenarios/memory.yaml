@@ -1,0 +1,139 @@
+lane: memory
+scenarios:
+  - id: MEM-CROSS-01
+    title: A code saved with "remember" is found from a new chat
+    from_bug: "PA thread 2026-11-10: new chat answered the saved code word as 'velvet' / 'VOOL' (invented)"
+    profile: any
+    vars: { code: "@@@-####" }
+    steps:
+      - chat: A
+        say: "remember my test hotel booking code is ${code}"
+        grade: false
+      - chat: B
+        say:
+          - "what is my test hotel booking code?"
+          - "whats my hotel bookin code"
+          - "hotel booking code pls"
+          - "can you remind me the code for the hotel booking"
+        expect:
+          all: ['${code}']
+          none: ['(?i)\bvelvet\b']
+          max_seconds: 120
+
+  - id: MEM-CROSS-02
+    title: A code only mentioned (never "remember") in another chat is found and VOOL says where
+    from_bug: "sls 2026-11-11: 'Your test hotel booking code is not listed in the provided context' - should search other chats and projects"
+    profile: any
+    vars: { code: "@@-#####" }
+    steps:
+      - chat: A
+        say: "I'm sorting out the trip. The hotel booking code is ${code}, check-in is at 3pm."
+        grade: false
+      - chat: B
+        say:
+          - "Your test hotel booking code?"
+          - "what was my hotel booking code"
+          - "do u know the booking code for the hotel i mentioned"
+          - "find the hotel code i gave you in another chat"
+        expect:
+          all: ['${code}']
+          helpful_any: ['(?i)(another|other|earlier|previous|different|your) (chat|conversation)|you (mentioned|said|told me|shared)|from (the|your) chat|found [^.]{0,30}chats?']
+          max_seconds: 120
+
+  - id: MEM-PROJ-01
+    title: Something said inside a project is found from a chat outside it
+    from_bug: "sls 2026-11-11: recall must work across chats and projects"
+    vars: { code: "@@-####", place: "pick:Lisbon|Krakow|Tallinn|Valencia" }
+    steps:
+      - chat: A
+        project: "Trip ${place}"
+        say: "For this trip the parking permit number is ${code}."
+        grade: false
+      - chat: B
+        say:
+          - "what's the parking permit number for my ${place} trip?"
+          - "parking permit nr for ${place}?"
+          - "i saved a parking permit number somewhere for the ${place} trip, what was it"
+        expect:
+          all: ['${code}']
+          helpful_any: ['(?i)project|${place}|(other|another|earlier) chat|you (mentioned|said|told me)']
+
+  - id: MEM-NOTFOUND-01
+    title: Something never said gets a plain "couldn't find it" and an offer, never "provided context"
+    from_bug: "sls 2026-11-11: 'not listed in the provided context'"
+    profile: any
+    vars: { thing: "pick:gym locker code|car rental reference|museum ticket number|dentist booking number" }
+    steps:
+      - chat: A
+        say:
+          - "what is my ${thing}?"
+          - "whats my ${thing}"
+          - "can u find my ${thing} from earlier"
+          - "${thing}?"
+        expect:
+          any: ["(?i)(couldn'?t|can'?t|could not|cannot|didn'?t) find|don'?t (have|see)|no (record|note|mention)|haven'?t (told|given|shared|saved)|not (saved|found)|nothing (saved|about)"]
+          none: ['\b[A-Z]{2,}-?\d{3,}\b', '\b\d{5,}\b']
+          helpful_any: ["(?i)(other|your|previous|earlier) (chats|conversations|projects)|searched|looked|if you (tell|share|give)|want me to (remember|save|look|search)|tell me .* (and|so) I"]
+          clarify_ok: true
+
+  - id: MEM-FORGET-01
+    title: After "forget", the code is gone in every chat and the answer says so plainly
+    from_bug: "PA thread 2026-11-10: forgetting from another chat removed nothing"
+    profile: any
+    vars: { code: "@@@-####" }
+    steps:
+      - chat: A
+        say: "remember that my bike lock code word is ${code}"
+        grade: false
+      - chat: B
+        say: "forget my bike lock code word"
+        expect:
+          any: ["(?i)forg(o|e)t|removed|deleted|won'?t remember|no longer"]
+          none: ['${code}', '(?i)nothing was removed|found no memory|no memory (in this chat )?(that )?match']
+      - chat: C
+        say:
+          - "what's my bike lock code word?"
+          - "bike lock code?"
+          - "remind me my bike lok code word"
+        expect:
+          any: ["(?i)forg(o|e)t|(couldn'?t|can'?t|could not|cannot|didn'?t) find|don'?t (have|know)|no (record|longer)|not (saved|stored)|asked me to"]
+          none: ['${code}', '(?i)provided context']
+          clarify_ok: true
+
+  - id: MEM-UPDATE-01
+    title: A changed fact replaces the old one
+    profile: any
+    vars: { old: "pick:Mondays|Tuesdays", new: "pick:Thursdays|Fridays" }
+    steps:
+      - chat: A
+        say: "remember: my piano lesson is on ${old}"
+        grade: false
+      - chat: B
+        say: "my piano lesson moved, it's on ${new} now"
+        grade: false
+      - chat: C
+        say:
+          - "when is my piano lesson?"
+          - "what day is piano"
+          - "piano lesson day pls"
+        expect:
+          all: ['${new}']
+          none: ['(?i)only on ${old}|is on ${old}']
+
+  - id: MEM-FAV-01
+    title: A clear question about a saved preference is answered, not asked back
+    from_bug: "PA thread 2026-11-10: 'which bakery is my favourite?' got 'Bakery A/B/C?'"
+    profile: any
+    vars: { bakery: "pick:Sunrise Bakery|Little Crumb|Old Mill Bakery|Rye and Co" }
+    steps:
+      - chat: A
+        say: "remember my favourite bakery is ${bakery}"
+        grade: false
+      - chat: B
+        say:
+          - "which bakery is my favourite?"
+          - "whats my fav bakery"
+          - "remind me which bakery i like most"
+        expect:
+          all: ['(?i)${bakery}']
+          none: ['(?i)bakery [abc]\b']

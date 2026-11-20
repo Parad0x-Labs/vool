@@ -1,0 +1,55 @@
+lane: browser_skills
+scenarios:
+  - id: WEB-READ-01
+    title: Read a public page and answer from it
+    needs: [online, browser]
+    steps:
+      - chat: A
+        say:
+          - "open https://example.org and tell me what the page says"
+          - "whats on example.org"
+          - "go to example.org and summarize it in one line"
+        approve: once
+        expect:
+          any: ['(?i)example domain|illustrative|documents|examples']
+          none: ["(?i)can'?t (browse|open|access)"]
+
+  - id: WEB-OFFLINE-01
+    title: A web ask with going online switched off says so plainly
+    profile: throwaway
+    steps:
+      - chat: A
+        say:
+          - "what's the weather in Paris right now?"
+          - "weather paris now"
+          - "is it raining in paris today"
+        approve: deny
+        expect:
+          any: ['(?i)weather|°|online|internet|look (it )?up|search|forecast']
+          none: ['(?i)provided context']
+          review: "with going online off or denied: it says it needs to go online and how to allow it, and does not invent a forecast. With it on: a current forecast"
+
+  - id: SKILL-LIST-01
+    title: Asking what VOOL can do lists real skills in plain words
+    profile: any
+    steps:
+      - chat: A
+        say:
+          - "what skills do you have?"
+          - "what can u do"
+          - "list your skills"
+        expect:
+          any: ['(?i)email|remind|calendar|pdf|memory|remember|search|files?']
+          review: "every item named is something this build really does (check against Settings > Skills)"
+
+  - id: SKILL-USE-01
+    title: An installed skill is used when the ask fits it
+    needs: [skills_installed]
+    steps:
+      - chat: A
+        say:
+          - "use a skill to turn this into a checklist: buy milk, call mum, fix the bike"
+          - "make a checklist from: buy milk, call mum, fix bike"
+          - "checklist pls: milk, call mum, bike repair"
+        expect:
+          all: ['(?i)milk', '(?i)mum|mom', '(?i)bike']

@@ -1,0 +1,73 @@
+lane: reminders_calendar
+scenarios:
+  - id: REM-ADD-01
+    title: A reminder is set for the right time and listed afterwards
+    profile: throwaway
+    vars: { task: "pick:call the plumber|water the plants|renew the parking permit|book the vet" }
+    steps:
+      - chat: A
+        say:
+          - "remind me to ${task} tomorrow at 10am"
+          - "remind me tmrw 10am to ${task}"
+          - "set a reminder: ${task}, tomorrow 10 in the morning"
+        approve: once
+        expect:
+          any: ["(?i)remind|reminder|I'?ll|set"]
+          all: ['(?i)10']
+          none: ["(?i)can'?t set|unable to"]
+      - chat: B
+        say: "what reminders do i have?"
+        approve: once
+        expect:
+          all: ['(?i)${task}']
+
+  - id: REM-NOTFOUND-01
+    title: Asking about a reminder that does not exist
+    profile: any
+    vars: { task: "pick:feed the iguana|return the kayak|polish the trumpet" }
+    steps:
+      - chat: A
+        say:
+          - "when is my reminder to ${task}?"
+          - "did i set a reminder to ${task}"
+          - "reminder for ${task}?"
+        expect:
+          any: ["(?i)(no|don'?t (see|have)|couldn'?t find|can'?t find|not find) [^.]{0,30}reminder|no reminder|nothing"]
+          helpful_any: ["(?i)(want|would you like|shall|should) (me to )?(set|add|create)|I can (set|add)"]
+
+  - id: CAL-NOCAL-01
+    title: With no calendar chosen, VOOL says plainly where to choose one
+    from_bug: "PA thread 2026-11-10: calendar asks answered 'no calendars are chosen in Settings'"
+    profile: throwaway
+    steps:
+      - chat: A
+        say:
+          - "what's on my calendar tomorrow?"
+          - "any meetings tmrw"
+          - "show my calendar for tomorrow"
+        approve: once
+        expect:
+          any: ['(?i)settings|choose|pick|connect|calendar']
+          none: ['(?i)provided context']
+          review: "on a profile with no calendar chosen: one plain sentence on how to choose one. With one chosen: it lists tomorrow's events"
+
+  - id: CAL-EVENT-01
+    title: "\"Show me the event called X\" opens the calendar event, not a folder search"
+    from_bug: "GLM review 2026-10-31: calendar 'show me the event called X' routed to folder search"
+    needs: [calendar_selected]
+    vars: { name: "pick:Lantern meeting|Orchard review|Pebble catch-up" }
+    steps:
+      - chat: A
+        say: "add an event called ${name} on Friday at 2pm"
+        approve: once
+        grade: false
+      - chat: B
+        say:
+          - "show me the event called ${name}"
+          - "when is ${name}?"
+          - "find the ${name} event in my calendar"
+        approve: once
+        expect:
+          all: ['(?i)${name}']
+          any: ['(?i)friday|\b2\s?(pm|:00)|14:00']
+          none: ['(?i)\bfolder\b|\bfiles?\b']
