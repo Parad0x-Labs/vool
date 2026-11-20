@@ -299,6 +299,9 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     capture.targetRotation = turn
     val metadata = ImageCapture.Metadata().apply { isReversedHorizontal = facing == "front" && mirror }
     val chosenFilter = filter
+    val pressed = android.os.SystemClock.elapsedRealtime()
+    fun since() = android.os.SystemClock.elapsedRealtime() - pressed
+    android.util.Log.i("VoolCapture", "photo: pressed, size $photoSize, saving queue ${CaptureStore.savingCount}")
     // The shutter is free again as soon as the picture is taken: writing, the filter, compression and
     // locking it away all happen behind, in order, so shots in a row never wait for each other.
     val answered = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -311,11 +314,13 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
     CaptureStore.shot()
     capture.takePicture(ImageCapture.OutputFileOptions.Builder(target).setMetadata(metadata).build(), worker, object : ImageCapture.OnImageSavedCallback {
       override fun onCaptureStarted() {
+        android.util.Log.i("VoolCapture", "photo: taken after ${since()} ms")
         CaptureStore.shot()
         answer()
       }
 
       override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+        android.util.Log.i("VoolCapture", "photo: written after ${since()} ms, ${target.length() / 1024} KB")
         try {
           CaptureStore.keep(context, target, "image/jpeg", "photo", takenAt, chosenFilter)
           answer()
@@ -325,6 +330,7 @@ class VoolCameraView(context: Context, appContext: AppContext) : ExpoView(contex
       }
 
       override fun onError(error: ImageCaptureException) {
+        android.util.Log.w("VoolCapture", "photo: failed after ${since()} ms, code ${error.imageCaptureError}")
         lost("photo_failed", error.message ?: "The photo could not be taken.", error)
       }
     })

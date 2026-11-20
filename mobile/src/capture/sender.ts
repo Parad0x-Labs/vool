@@ -37,8 +37,14 @@ function byteLength(base64: string): number {
  * phone computed when it locked the capture away; any other ending keeps it for the next try.
  * Pieces are read from the encrypted store one at a time, so a long video is never held in memory.
  */
+let trace: (line: string) => void = () => {};
+/** Where sending writes its steps for a test trace (the phone's system log). */
+export function setCaptureTrace(write: (line: string) => void): void {trace = write;}
+
 export async function sendOne(item: CaptureItem, vault: CaptureVault, link: CaptureLink): Promise<boolean> {
   let begun = await link.captureBegin({sha256: item.sha256, sizeBytes: item.size, mediaType: item.mediaType, takenAt: item.takenAt / 1000});
+  const started = Date.now();
+  trace(`send: ${item.kind} ${Math.round(item.size / 1024)} KB, ${begun.done ? "already on the computer" : begun.next_offset > 0 ? `carrying on from ${Math.round(begun.next_offset / 1024)} KB` : "from the start"}`);
   if (!begun.done) {
     const uploadId = begun.upload_id;
     let offset = begun.next_offset;
@@ -66,8 +72,10 @@ export async function sendOne(item: CaptureItem, vault: CaptureVault, link: Capt
   }
   if (begun.done && begun.sha256 === item.sha256) {
     await vault.remove(item.id);
+    trace(`send: ${item.kind} confirmed by the computer after ${Date.now() - started} ms, removed from the phone`);
     return true;
   }
+  trace(`send: ${item.kind} answer did not match, kept on the phone`);
   return false;
 }
 
@@ -112,6 +120,7 @@ export function sendWaiting(vault: CaptureVault, link: CaptureLink, now: () => n
         if (await sendOne(item, vault, link)) sent++;
         else problem = "damaged";
       } catch (error) {
+        trace(`send: stopped (${error instanceof CompanionError ? `${error.status} ${error.code}` : "no connection"}), it carries on later`);
         if (!(error instanceof CompanionError)) { problem = "offline"; break; }
         if (error.status === 403) { problem = "not_allowed"; break; }
         problem = error.code === "capture_hash_mismatch" ? "damaged" : "failed";
