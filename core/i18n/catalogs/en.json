@@ -4956,7 +4956,15 @@
     "wallet.review.over_cap_day": "This payment plus its network fee would go over a spending limit of this wallet (for today, or for this recipient today). Nothing was sent.",
     "wallet.review.over_cap_frozen": "Spending is frozen in this wallet, so this payment cannot be approved now. Nothing was sent.",
     "settings.scam.read_more": "Read more ({count} more)",
-    "settings.scam.show_less": "Show less"
+    "settings.scam.show_less": "Show less",
+    "phone.bot_status_off": "Not connected",
+    "phone.bot_about_telegram": "Chat with your VOOL from Telegram.",
+    "phone.bot_about_discord": "Chat with your VOOL in a private Discord chat.",
+    "phone.bot_permissions": "What this bot may do",
+    "phone.bot_open_discord_app": "Open Discord",
+    "phone.bot_perms_first": "Connect this app first, then choose here what it may do.",
+    "phone.bot_discord_dm_only": "Talk to VOOL in your private messages with the bot. No @ needed. VOOL does not read server channels, so nobody else there can use it.",
+    "phone.bot_discord_write_first": "Added the bot and nothing happens? Discord may not let a bot write to you first. In your server, click VOOL in the member list and send it a message."
   },
   "html_keys": [
     "bypass.modal_limits",

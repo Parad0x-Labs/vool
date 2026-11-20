@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "नेटवर्क शुल्क सहित यह भुगतान इस वॉलेट की खर्च सीमा पार कर जाएगा (आज के लिए, या आज इस प्राप्तकर्ता के लिए)। कुछ भी नहीं भेजा गया।",
     "wallet.review.over_cap_frozen": "इस वॉलेट में खर्च रोका गया है, इसलिए यह भुगतान अभी मंज़ूर नहीं हो सकता। कुछ भी नहीं भेजा गया।",
     "settings.scam.read_more": "और पढ़ें ({count} और)",
-    "settings.scam.show_less": "कम दिखाएँ"
+    "settings.scam.show_less": "कम दिखाएँ",
+    "phone.bot_status_off": "जुड़ा नहीं",
+    "phone.bot_about_telegram": "टेलीग्राम से अपने VOOL से बात करें।",
+    "phone.bot_about_discord": "डिस्कॉर्ड की निजी चैट में अपने VOOL से बात करें।",
+    "phone.bot_permissions": "यह बॉट क्या कर सकता है",
+    "phone.bot_open_discord_app": "डिस्कॉर्ड खोलें",
+    "phone.bot_perms_first": "पहले यह ऐप जोड़ें, फिर यहाँ चुनें कि यह क्या कर सकता है।",
+    "phone.bot_discord_dm_only": "बॉट के साथ अपने निजी संदेशों में VOOL से बात करें। @ की ज़रूरत नहीं। VOOL सर्वर चैनल नहीं पढ़ता, इसलिए वहाँ कोई और इसका उपयोग नहीं कर सकता।",
+    "phone.bot_discord_write_first": "बॉट जोड़ा पर कुछ नहीं हुआ? हो सकता है डिस्कॉर्ड बॉट को पहले आपको लिखने न दे। अपने सर्वर में सदस्य सूची में VOOL पर क्लिक करें और उसे एक संदेश भेजें।"
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

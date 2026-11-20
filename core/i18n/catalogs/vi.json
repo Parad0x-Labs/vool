@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "Khoản thanh toán này cộng phí mạng sẽ vượt một giới hạn chi tiêu của ví này (cho hôm nay, hoặc cho người nhận này hôm nay). Chưa có gì được gửi.",
     "wallet.review.over_cap_frozen": "Chi tiêu trong ví này đang bị đóng băng, nên chưa thể duyệt khoản thanh toán này. Chưa có gì được gửi.",
     "settings.scam.read_more": "Đọc thêm (thêm {count})",
-    "settings.scam.show_less": "Thu gọn"
+    "settings.scam.show_less": "Thu gọn",
+    "phone.bot_status_off": "Chưa kết nối",
+    "phone.bot_about_telegram": "Trò chuyện với VOOL của bạn từ Telegram.",
+    "phone.bot_about_discord": "Trò chuyện với VOOL của bạn trong một cuộc trò chuyện riêng trên Discord.",
+    "phone.bot_permissions": "Bot này được làm gì",
+    "phone.bot_open_discord_app": "Mở Discord",
+    "phone.bot_perms_first": "Hãy kết nối ứng dụng này trước, rồi chọn ở đây những gì nó được làm.",
+    "phone.bot_discord_dm_only": "Trò chuyện với VOOL trong tin nhắn riêng với bot. Không cần @. VOOL không đọc các kênh máy chủ, nên không ai khác ở đó dùng được.",
+    "phone.bot_discord_write_first": "Đã thêm bot mà không có gì xảy ra? Discord có thể không cho bot nhắn cho bạn trước. Trong máy chủ, nhấn VOOL trong danh sách thành viên và gửi cho nó một tin nhắn."
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "ستتجاوز هذه الدفعة مع رسوم الشبكة حدًّا للإنفاق في هذه المحفظة (لليوم، أو لهذا المستلم اليوم). لم يُرسل شيء.",
     "wallet.review.over_cap_frozen": "الإنفاق مجمَّد في هذه المحفظة، لذا لا يمكن الموافقة على هذه الدفعة الآن. لم يُرسل شيء.",
     "settings.scam.read_more": "اقرأ المزيد ({count} أخرى)",
-    "settings.scam.show_less": "عرض أقل"
+    "settings.scam.show_less": "عرض أقل",
+    "phone.bot_status_off": "غير مرتبط",
+    "phone.bot_about_telegram": "تحدّث مع VOOL من تيليجرام.",
+    "phone.bot_about_discord": "تحدّث مع VOOL في محادثة خاصة على ديسكورد.",
+    "phone.bot_permissions": "ما الذي يمكن لهذا البوت فعله",
+    "phone.bot_open_discord_app": "افتح ديسكورد",
+    "phone.bot_perms_first": "اربط هذا التطبيق أولًا، ثم اختر هنا ما يمكنه فعله.",
+    "phone.bot_discord_dm_only": "تحدّث مع VOOL في رسائلك الخاصة مع البوت. لا حاجة إلى @. لا يقرأ VOOL قنوات الخادم، لذا لا يمكن لأحد آخر هناك استخدامه.",
+    "phone.bot_discord_write_first": "أضفت البوت ولا يحدث شيء؟ قد لا يسمح ديسكورد للبوت بأن يراسلك أولًا. في خادمك، انقر على VOOL في قائمة الأعضاء وأرسل له رسالة."
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

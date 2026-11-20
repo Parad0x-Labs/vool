@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "Diese Zahlung würde mit Netzwerkgebühr ein Ausgabelimit dieser Wallet überschreiten (für heute oder für diesen Empfänger heute). Es wurde nichts gesendet.",
     "wallet.review.over_cap_frozen": "Ausgaben sind in dieser Wallet eingefroren, daher kann diese Zahlung jetzt nicht genehmigt werden. Es wurde nichts gesendet.",
     "settings.scam.read_more": "Mehr lesen ({count} weitere)",
-    "settings.scam.show_less": "Weniger anzeigen"
+    "settings.scam.show_less": "Weniger anzeigen",
+    "phone.bot_status_off": "Nicht verbunden",
+    "phone.bot_about_telegram": "Chatte mit deinem VOOL über Telegram.",
+    "phone.bot_about_discord": "Chatte mit deinem VOOL in einem privaten Discord-Chat.",
+    "phone.bot_permissions": "Was dieser Bot darf",
+    "phone.bot_open_discord_app": "Discord öffnen",
+    "phone.bot_perms_first": "Verbinde zuerst diese App und wähle dann hier, was sie darf.",
+    "phone.bot_discord_dm_only": "Schreib VOOL in deinen privaten Nachrichten mit dem Bot. Kein @ nötig. VOOL liest keine Serverkanäle, daher kann dort niemand sonst ihn nutzen.",
+    "phone.bot_discord_write_first": "Bot hinzugefügt und nichts passiert? Discord lässt einen Bot dir eventuell nicht zuerst schreiben. Klicke auf deinem Server in der Mitgliederliste auf VOOL und schick ihm eine Nachricht."
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "这笔付款加上网络费会超过此钱包的一项支出限额（今天的限额，或今天对该收款人的限额）。没有发送任何内容。",
     "wallet.review.over_cap_frozen": "此钱包的支出已冻结，因此现在无法批准这笔付款。没有发送任何内容。",
     "settings.scam.read_more": "展开阅读（还有 {count} 条）",
-    "settings.scam.show_less": "收起"
+    "settings.scam.show_less": "收起",
+    "phone.bot_status_off": "未连接",
+    "phone.bot_about_telegram": "在 Telegram 中与你的 VOOL 聊天。",
+    "phone.bot_about_discord": "在 Discord 私聊中与你的 VOOL 聊天。",
+    "phone.bot_permissions": "这个机器人可以做什么",
+    "phone.bot_open_discord_app": "打开 Discord",
+    "phone.bot_perms_first": "请先连接此应用，然后在这里选择它可以做什么。",
+    "phone.bot_discord_dm_only": "在与机器人的私信中和 VOOL 交谈，无需 @。VOOL 不读取服务器频道，因此那里的其他人无法使用它。",
+    "phone.bot_discord_write_first": "添加了机器人却没有反应？Discord 可能不允许机器人先给你发消息。在你的服务器成员列表中点击 VOOL，给它发一条消息。"
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

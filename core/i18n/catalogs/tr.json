@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "Bu ödeme ağ ücretiyle birlikte bu cüzdanın bir harcama limitini aşar (bugün için ya da bugün bu alıcı için). Hiçbir şey gönderilmedi.",
     "wallet.review.over_cap_frozen": "Bu cüzdanda harcamalar dondurulmuş, bu yüzden bu ödeme şu anda onaylanamaz. Hiçbir şey gönderilmedi.",
     "settings.scam.read_more": "Devamını oku ({count} tane daha)",
-    "settings.scam.show_less": "Daha az göster"
+    "settings.scam.show_less": "Daha az göster",
+    "phone.bot_status_off": "Bağlı değil",
+    "phone.bot_about_telegram": "VOOL’unuzla Telegram’dan sohbet edin.",
+    "phone.bot_about_discord": "VOOL’unuzla özel bir Discord sohbetinde konuşun.",
+    "phone.bot_permissions": "Bu bot neler yapabilir",
+    "phone.bot_open_discord_app": "Discord’u aç",
+    "phone.bot_perms_first": "Önce bu uygulamayı bağlayın, sonra burada neler yapabileceğini seçin.",
+    "phone.bot_discord_dm_only": "VOOL ile botla özel mesajlarınızda konuşun. @ gerekmez. VOOL sunucu kanallarını okumaz, bu yüzden oradaki başkaları onu kullanamaz.",
+    "phone.bot_discord_write_first": "Botu eklediniz ama bir şey olmuyor mu? Discord bir botun size önce yazmasına izin vermeyebilir. Sunucunuzda üye listesinde VOOL’a tıklayıp ona bir mesaj gönderin."
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

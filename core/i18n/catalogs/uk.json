@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "Цей платіж разом із мережевою комісією перевищив би ліміт витрат цього гаманця (на сьогодні або для цього отримувача на сьогодні). Нічого не надіслано.",
     "wallet.review.over_cap_frozen": "Витрати в цьому гаманці заморожено, тому цей платіж зараз не можна схвалити. Нічого не надіслано.",
     "settings.scam.read_more": "Читати далі (ще {count})",
-    "settings.scam.show_less": "Показати менше"
+    "settings.scam.show_less": "Показати менше",
+    "phone.bot_status_off": "Не підключено",
+    "phone.bot_about_telegram": "Спілкуйтеся зі своїм VOOL через Telegram.",
+    "phone.bot_about_discord": "Спілкуйтеся зі своїм VOOL в особистому чаті Discord.",
+    "phone.bot_permissions": "Що може цей бот",
+    "phone.bot_open_discord_app": "Відкрити Discord",
+    "phone.bot_perms_first": "Спочатку підключіть цей застосунок, потім виберіть тут, що йому дозволено.",
+    "phone.bot_discord_dm_only": "Пишіть VOOL в особистих повідомленнях із ботом. @ не потрібен. VOOL не читає канали сервера, тож ніхто інший там не зможе ним користуватися.",
+    "phone.bot_discord_write_first": "Додали бота, але нічого не відбувається? Discord може не дозволяти боту писати вам першим. На своєму сервері натисніть VOOL у списку учасників і надішліть йому повідомлення."
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

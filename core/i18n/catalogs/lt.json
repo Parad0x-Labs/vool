@@ -4956,9 +4956,17 @@
     "wallet.review.over_cap_day": "Šis mokėjimas su tinklo mokesčiu viršytų šios piniginės išlaidų ribą (šiandienai arba šiam gavėjui šiandien). Niekas neišsiųsta.",
     "wallet.review.over_cap_frozen": "Šioje piniginėje išlaidos užšaldytos, todėl šio mokėjimo dabar patvirtinti negalima. Niekas neišsiųsta.",
     "settings.scam.read_more": "Skaityti daugiau (dar {count})",
-    "settings.scam.show_less": "Rodyti mažiau"
+    "settings.scam.show_less": "Rodyti mažiau",
+    "phone.bot_status_off": "Neprijungta",
+    "phone.bot_about_telegram": "Kalbėkitės su savo VOOL per Telegram.",
+    "phone.bot_about_discord": "Kalbėkitės su savo VOOL privačiame Discord pokalbyje.",
+    "phone.bot_permissions": "Ką šis botas gali daryti",
+    "phone.bot_open_discord_app": "Atidaryti Discord",
+    "phone.bot_perms_first": "Pirmiausia prijunkite šią programėlę, tada čia pasirinkite, ką ji gali daryti.",
+    "phone.bot_discord_dm_only": "Kalbėkitės su VOOL privačiose žinutėse su botu. @ nereikia. VOOL neskaito serverio kanalų, todėl niekas kitas ten jo naudoti negali.",
+    "phone.bot_discord_write_first": "Pridėjote botą, bet nieko nevyksta? Discord gali neleisti botui parašyti jums pirmam. Savo serveryje narių sąraše spustelėkite VOOL ir parašykite jam žinutę."
   },
-  "source_catalog_sha256": "c66758baef7fb5f79437e8dbbfab19a4c18b109f6de125d350cfca51c73699f7",
+  "source_catalog_sha256": "9a86bd838b4b32d6cae710a9867b29035ac7aec3441fef0836afe75f86469fb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
