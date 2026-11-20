@@ -21,7 +21,7 @@ Computer builds: a101f4c7 (first four) and 4e702e59 (fifth). Times are UTC.
 | 2 | Video, 25.7 MB, sent while the phone was locked | VOOL_20261117_092011_e5463975.mp4 | 25,708,750 | e5463975847a7a99d728f2a7d4b903645be400cf5b57b2c3d8490f4ad87e140f | e5463975847a7a99d728f2a7d4b903645be400cf5b57b2c3d8490f4ad87e140f | capture.saved, seq 47, 07:49:34 | Not recorded |
 | 3 | Sound | VOOL_20261117_092111_41ad78bb.m4a | 303,605 | 41ad78bb350a456a788c9a1d5a7319a47e1cd9092b58272a71d54d23bd50179b | 41ad78bb350a456a788c9a1d5a7319a47e1cd9092b58272a71d54d23bd50179b | capture.saved, seq 48, 07:49:36 | Not recorded |
 | 4 | Photo, 3264×2448 | VOOL_20261117_101808_c74b2249.jpg | 1,314,859 | c74b2249c28505e8d276653af77a1dd5e4064ad948ca9f67478c8c41a3eecb28 | c74b2249c28505e8d276653af77a1dd5e4064ad948ca9f67478c8c41a3eecb28 | capture.saved, seq 49, 08:18:20 | Not recorded |
-| 5 | Photo, 9000×12000 (108 MP), made smaller on the phone (HEIC) | VOOL_20261117_111104_29872aed.heic | 2,383,332 | 29872aed801c96571c22b3475b5e1f0e2dcde7be898e975047bc9c06fad5f268 | 29872aed801c96571c22b3475b5e1f0e2dcde7be898e975047bc9c06fad5f268 | capture.saved, seq 50, 09:11:28.874, after flush and read-back | capture.removed_on_phone, seq 51, 09:11:29.075, key destroyed: yes |
+| 5 | Photo, 9000×12000 (108 MP pixel count, full-sensor mode), made smaller on the phone (HEIC) | VOOL_20261117_111104_29872aed.heic | 2,383,332 | 29872aed801c96571c22b3475b5e1f0e2dcde7be898e975047bc9c06fad5f268 | 29872aed801c96571c22b3475b5e1f0e2dcde7be898e975047bc9c06fad5f268 | capture.saved, seq 50, 09:11:28.874, after flush and read-back | capture.removed_on_phone, seq 51, 09:11:29.075, key destroyed: yes |
 
 No partly received files were left on the computer after the five transfers. The receipt log held 51 rows
 after transfer 5, and every row carries the hash of the row before it, without a break.
@@ -56,4 +56,9 @@ Transfers 1 to 4 left two gaps. Transfer 5 (phone and computer both on 4e702e59)
 
 - The deletion receipt is the phone's own statement. The computer cannot inspect the phone's storage; it
   records what the phone reports, in a log it cannot rewrite without breaking the chain.
+- **108 MP is the pixel count, not the detail.** 9000×12000 is the full readout of the main sensor, not a
+  software upscale: shrinking the photo to 12 MP and back loses 1.12 grey levels (RMS), against 0.56 to
+  0.66 for 48 MP and 27 MP, so it holds detail a 12 MP image cannot. Above about 27 MP the difference
+  falls to the compression noise, so the real detail is roughly 20 to 27 MP worth. At 100% the photo looks
+  soft, which is normal for this kind of high-pixel-count phone sensor.
 - One photo is one run. Video and sound on 4e702e59 follow the same path but were not re-run here.
