@@ -175,12 +175,14 @@ def test_the_owner_session_is_unchanged():
 
 # --- the rights on the computer ---------------------------------------------------------------------
 
-def test_new_rights_are_off_by_default_strong_and_never_for_chat_apps():
+def test_new_rights_are_off_by_default_strong_and_paid_never_for_chat_apps():
     assert policy.defaults()["computer_tools"] is False and policy.defaults()["paid_services"] is False
     assert {"computer_tools", "paid_services"} <= policy.STRONG
     from core.mobile_companion.bot_runtime import BOT_RIGHTS
 
-    assert not {"computer_tools", "paid_services"} & BOT_RIGHTS
+    # sls 2026-11-20: a chat app may fetch files, from folders the owner chose only
+    # (tests/channels/test_chat_app_files.py); it never spends the owner's keys.
+    assert "paid_services" not in BOT_RIGHTS and "computer_tools" in BOT_RIGHTS
 
 
 def test_saving_settings_keeps_a_chosen_expiry_and_renews_only_on_switch_on(monkeypatch):
