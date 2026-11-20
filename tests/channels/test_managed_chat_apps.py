@@ -15,6 +15,8 @@ from tests.mobile.test_phone_listener_served import http, process_desktop
 class FakeChatHost:
     def __init__(self):
         self.incoming=[];self.outgoing=[];self.requests=[];self.lock=threading.Lock();self.identity_valid=True;self.files={};self.poll_unavailable=False
+        # Connect-time identity reads that hang past VOOL's wait once each (a slow moment on the service).
+        self.stall_identity=0
         # Discord: the bot can write to its owner only once they share a server (the invite).
         self.invited=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False
         parent=self
@@ -28,6 +30,8 @@ class FakeChatHost:
                 if path.startswith('/file/bot') or path.startswith('/files/'):
                     name=path.rsplit('/',1)[-1];raw=parent.files.get(name,b'')
                     self.send_response(200);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                if (path.endswith('/getMe') or path=='/users/@me') and parent.stall_identity:
+                    parent.stall_identity-=1;time.sleep(11);return
                 with parent.lock:
                     parent.requests.append((self.command,path))
                     if path.endswith('/getMe'):result={'ok':parent.identity_valid,'result':{'id':88,'is_bot':parent.identity_valid,'username':'my_vool_bot'}}

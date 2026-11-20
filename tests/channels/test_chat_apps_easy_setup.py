@@ -32,8 +32,11 @@ def chat(base, text, session, history=()):
 def test_telegram_start_button_pairs_with_phone_access_off(bots):
     desktop, hosts = bots; base = desktop[0]; host = hosts['telegram']
     phone_off(base)
+    # Telegram stalls once on the key check: VOOL waits, asks again, and connects.
+    host.stall_identity = 1
     status, connection = connect(base, 'telegram', telegram_key())
     assert status == 200, connection
+    assert host.stall_identity == 0
     # Telegram's own deep link: the code rides the Start button, nobody types it.
     assert connection['start_link'] == 'https://t.me/my_vool_bot?start=' + connection['code']
     host.add('telegram', '/start WRONGCODE234')

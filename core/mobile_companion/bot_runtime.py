@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import secrets
 import threading
@@ -18,6 +19,13 @@ from urllib.parse import urlsplit
 
 from core import remote_fetch_policy
 from core.mobile_companion.policy import defaults, enabled
+
+logger = logging.getLogger(__name__)
+
+#: Connecting is one question the person waits on: give a slow answer time, and try twice
+#: before saying the service could not be reached. A single stall is not "no internet".
+CONNECT_TIMEOUT_SECONDS = 10
+CONNECT_ATTEMPTS = 2
 
 PLATFORMS = frozenset({"telegram", "discord"})
 BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose"})
@@ -129,7 +137,7 @@ def connect(runtime, platform, token, *, channel_link=""):
     asking, said_no = key_refused, {401, 404}
     try:
         with background_scope(platform):
-            identity = probe.call("getMe" if platform == "telegram" else "/users/@me")
+            identity = probe.ask("getMe" if platform == "telegram" else "/users/@me")
             valid = (
                 identity.get("ok") and (identity.get("result") or {}).get("is_bot")
                 if platform == "telegram"
@@ -145,13 +153,13 @@ def connect(runtime, platform, token, *, channel_link=""):
                 bot_name = ""
             if platform == "discord" and channel_id:
                 asking, said_no = NOT_A_PRIVATE_CONVERSATION, {400, 403, 404}
-                if probe.call("/channels/" + channel_id).get("type") != 1:
+                if probe.ask("/channels/" + channel_id).get("type") != 1:
                     raise ValueError("private conversation required")
             elif platform == "discord":
                 # The person who made this bot in Discord's developer page is the owner VOOL talks to.
                 # Discord names them; nobody types an id or copies a conversation link.
                 asking, said_no = NOT_DISCORD_OWNER, {403, 404}
-                application = probe.call("/oauth2/applications/@me")
+                application = probe.ask("/oauth2/applications/@me")
                 app_id = str(application.get("id") or "")
                 team = application.get("team") or {}
                 owner = team.get("owner_user_id") if team else (application.get("owner") or {}).get("id")
@@ -168,7 +176,12 @@ def connect(runtime, platform, token, *, channel_link=""):
         if answered.code in said_no:
             raise ConnectRefused(asking) from None
         raise ConnectRefused(NOT_REACHED.format(app=app)) from None
-    except (OSError, remote_fetch_policy.RemoteFetchRefusedError):
+    except (OSError, remote_fetch_policy.RemoteFetchRefusedError) as failed:
+        # The class names only: the request URL carries the Telegram key.
+        logger.warning(
+            "%s connect could not reach the service: %s (%s)",
+            app, type(failed).__name__, type(getattr(failed, "reason", None)).__name__,
+        )
         raise ConnectRefused(NOT_REACHED.format(app=app)) from None
     except (ValueError, KeyError, TypeError, AttributeError):
         raise ConnectRefused(asking) from None
@@ -303,7 +316,18 @@ class ManagedBot:
             and self.device().get("connection_id") == self.connection_id
         )
 
-    def call(self, path, value=None):
+    def ask(self, path):
+        """A connect-time read: a longer wait, and one more try when nothing answered at all."""
+        for attempt in range(CONNECT_ATTEMPTS):
+            try:
+                return self.call(path, timeout=CONNECT_TIMEOUT_SECONDS)
+            except urllib.error.HTTPError:
+                raise
+            except OSError:
+                if attempt + 1 >= CONNECT_ATTEMPTS:
+                    raise
+
+    def call(self, path, value=None, *, timeout=4):
         headers = {"Content-Type": "application/json"}
         if self.platform == "telegram":
             url = self.remote_base + "/bot" + self.token + "/" + path
@@ -315,7 +339,7 @@ class ManagedBot:
             data=None if value is None else json.dumps(value).encode(),
             headers=headers,
             method="GET" if value is None else "POST",
-            timeout=4,
+            timeout=timeout,
             no_proxy=True,
             redirect_policy="refuse",
             credential_headers=("Authorization",) if self.platform == "discord" else None,
