@@ -374,6 +374,9 @@ class Daemon:
         env.update({
             "HOME": str(self.home),
             "VOOL_HOME": str(self.home / "vool"),
+            "VOOL_WORKSPACE_ROOT": str(self.home / "workspace"),
+            "TMPDIR": str(self.home / "tmp"),
+            "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONPATH": str(self.source),
             "VOOL_KEY_STORAGE_MODE": "file",
             "VOOL_KEY_PASSPHRASE": hashlib.sha256(str(self.home).encode()).hexdigest()[:24],
@@ -383,7 +386,8 @@ class Daemon:
         return env
 
     def start(self) -> None:
-        self.home.mkdir(parents=True, exist_ok=True)
+        for sub in ("", "workspace", "tmp"):
+            (self.home / sub).mkdir(parents=True, exist_ok=True)
         log = self.log_path.open("ab")
         self.process = subprocess.Popen(
             [self.python, "-m", "apps.vool_api_server", "--bind", "127.0.0.1", "--port", str(self.port)],
@@ -405,8 +409,12 @@ class Daemon:
         if not self.certify:
             return {}
         provider, _, model = self.certify.partition(":")
-        return _http_json(self.base_url + "/api/model-tool-certification/run",
-                          {"provider_name": provider, "model_name": model, "timeout_seconds": 600}, timeout=700)
+        registered: dict[str, Any] = {}
+        if provider == "ollama-local":
+            # A fresh profile has no local model on record; this is the call Settings makes.
+            registered = _http_json(self.base_url + "/api/models/local/register", {"model_name": model}, timeout=120)
+        return {"registered": registered, "certification": _http_json(self.base_url + "/api/model-tool-certification/run",
+                          {"provider_name": provider, "model_name": model, "timeout_seconds": 600}, timeout=700)}
 
     def stop(self) -> None:
         if self.process and self.process.poll() is None:
@@ -776,7 +784,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--launch", action="store_true", help="start a throwaway VOOL from --source")
     ap.add_argument("--source", default=str(REPO_ROOT), help="app code to launch (with --launch)")
     ap.add_argument("--python", default=sys.executable, help="python that runs the app (with --launch)")
-    ap.add_argument("--certify", default="", help="PROVIDER:MODEL to certify in the throwaway profile")
+    ap.add_argument("--certify", default="", help="PROVIDER:MODEL to set up in the throwaway profile, e.g. ollama-local:qwen3:8b")
     ap.add_argument("--real-profile", action="store_true", help="the app runs on the person's own profile")
     ap.add_argument("--have", default="", help=f"comma list the profile has: {sorted(CAPABILITIES)}")
     ap.add_argument("--lane", action="append", default=[], help="only these lanes (repeatable)")
