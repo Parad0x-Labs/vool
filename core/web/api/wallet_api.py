@@ -270,7 +270,11 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
         from core.wallet import balances
 
         wallet_id = str((query.get("wallet_id") or [""])[0] or "").strip()
-        return _ok({"balance": balances.read_balance(wallet_id)})
+        try:
+            return _ok({"balance": balances.read_balance(wallet_id)})
+        except WalletFault as exc:
+            # switched off or an unknown wallet: the same typed refusal the POST routes give, never a bare 500
+            return _fault(exc)
     if path == "/api/wallet/transfers":
         # the Crypto Pilot activity read model: one row per transfer, its state label, evidence and explorer link
         from core.wallet import transfers

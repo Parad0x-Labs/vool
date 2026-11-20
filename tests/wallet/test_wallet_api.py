@@ -56,6 +56,19 @@ def test_disabled_wallet_reports_disabled_and_refuses_state_changes(monkeypatch)
     assert status == 403 and body["error"] == "wallet_disabled"
 
 
+def test_the_balance_read_with_the_wallet_off_is_a_typed_refusal_not_a_server_error(monkeypatch):
+    # Real app walk of v0.8 (2026-11-20): GET /api/wallet/balance on a fresh home answered 500 Internal Server Error;
+    # the log held the uncaught "wallet is switched off" fault. The read routes answer like the POST routes.
+    monkeypatch.delenv("VOOL_WALLET_ENABLED", raising=False)
+    from apps.vool_api_server import create_app
+    from core.web.api.runtime import RuntimeServices
+
+    app = create_app(RuntimeServices(display_name="VOOL"))
+    status, body = _get(app, "/api/wallet/balance")
+    assert status == 403 and body["ok"] is False and body["error"] == "wallet_disabled", (status, body)
+    assert "switched off" in body["message"]
+
+
 def test_pocket_creation_over_the_wire_shows_the_phrase_once_and_only_to_loopback(app):
     from core.wallet import custody
 
