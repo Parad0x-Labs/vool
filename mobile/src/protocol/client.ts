@@ -7,15 +7,16 @@
 //      device is present — a stolen grant secret alone cannot talk).
 // The fetch transport is injectable so the headless Node journey and the React
 // Native app share literally this code.
-import { canonicalBytes } from "./canonical.ts";
+import { canonicalJson } from "./canonical.ts";
+import { fast } from "./fast.ts";
 import {connectionAddress} from './connection.ts';
-import { hmacSha256, randomBytes, toHex } from "./sha256.ts";
+import { randomBytes, toHex } from "./sha256.ts";
 import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
-import { reportLink, resetLink } from "./linkState.ts";
+import { linkState, reportLink, resetLink } from "./linkState.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
-  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences, SentFile,
+  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences, SentFile, MediaItem,
 } from "./models.ts";
 
 export interface DeviceCredentials {
@@ -46,6 +47,8 @@ export const ROUTE_PROBE_TIMEOUT_MS = 5000;
 export const AWAY_PROBE_TIMEOUT_MS = 90000;
 /** Requests over the private route take longer end to end than on the home network. */
 export const AWAY_REQUEST_TIMEOUT_MS = 60000;
+/** An ordinary request with no answer after this long: the connection light stops showing "connected". */
+export const SLOW_ANSWER_MS = 6000;
 
 /** The private route (Tor inside the app). The app registers it at start; tests register a fake. */
 export interface PrivateRoute {
@@ -146,7 +149,8 @@ export class MobileCompanionClient {
       try {
         for (const away of [false, true]) {
           try {
-            if (away) this.awayProblem = "";
+            // Home did not answer: the light stops saying "connected" while the away way is tried.
+            if (away) {this.awayProblem = ""; resetLink();}
             if (away && HIDDEN_URL.test(this.address(true))) {
               if (!privateRoute) {this.awayProblem = "private route unavailable"; continue;}
               await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
@@ -170,6 +174,9 @@ export class MobileCompanionClient {
   protected async request<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
     // While the app is finding out which way is open, wait for the answer instead of guessing.
     if (this.finding) await this.finding.catch(() => null);
+    // No answer within a few seconds (the phone left the home network, the computer sleeps): the light stops
+    // saying "connected" while the request still waits. A chat reply may rightly take minutes, so not for that one.
+    const slow = action === "chats.send" ? null : setTimeout(() => {if (linkState() === "connected") resetLink();}, SLOW_ANSWER_MS);
     try {
       const result = await this.send<T>(this.address(), action, params);
       reportLink(true);
@@ -185,6 +192,8 @@ export class MobileCompanionClient {
         } else reportLink(false);
       } else reportLink(true);
       throw error;
+    } finally {
+      if (slow) clearTimeout(slow);
     }
   }
 
@@ -198,10 +207,7 @@ export class MobileCompanionClient {
       nonce,
       timestamp,
     };
-    const signature = toHex(hmacSha256(
-      new TextEncoder().encode(this.creds.grantSecret),
-      canonicalBytes(payload),
-    ));
+    const signature = fast.hmacSha256Hex(this.creds.grantSecret, canonicalJson(payload));
     const deviceSignature = signRequestProof(this.keypair.secretKeyHex, {
       deviceId: this.creds.deviceId,
       action,
@@ -279,6 +285,17 @@ export class MobileCompanionClient {
     return this.request("chats.cancel", {idempotency_key: key});
   }
 
+  /** Renames, archives or restores, or deletes one chat, under the computer's own rules for its chats. */
+  renameChat(chatId: string, title: string): Promise<{ok: boolean}> {
+    return this.request("chats.rename", {chat_id: chatId, title});
+  }
+  archiveChat(chatId: string, on: boolean): Promise<{ok: boolean}> {
+    return this.request("chats.archive", {chat_id: chatId, on});
+  }
+  deleteChat(chatId: string): Promise<{ok: boolean; deleted?: boolean}> {
+    return this.request("chats.delete", {chat_id: chatId});
+  }
+
   attachmentLimits(): Promise<Record<string, unknown>> {
     return this.request<Record<string, unknown>>("attachments.limits");
   }
@@ -314,6 +331,47 @@ export class MobileCompanionClient {
       if (r.done || r.next_offset <= offset) return { file: r.file, base64: parts.join("") };
       offset = r.next_offset;
     }
+  }
+
+  // -- private capture: photos, videos and recordings go to the computer, never the phone's gallery --
+
+  captureBegin(item: {sha256: string; sizeBytes: number; mediaType: string; takenAt: number}): Promise<CaptureBegin> {
+    return this.request("capture.begin", {sha256: item.sha256, size_bytes: item.sizeBytes, media_type: item.mediaType, taken_at: item.takenAt});
+  }
+  captureChunk(uploadId: string, offset: number, contentB64: string): Promise<{next_offset: number}> {
+    return this.request("capture.chunk", {upload_id: uploadId, offset, content_b64: contentB64});
+  }
+  captureFinish(uploadId: string): Promise<CaptureSaved> {
+    return this.request("capture.finish", {upload_id: uploadId});
+  }
+  /** The phone removed its copy (and destroyed its key) after the computer confirmed it. */
+  captureRemoved(note: {sha256: string; keyDestroyed: boolean; removedAt: number}): Promise<{recorded: boolean}> {
+    return this.request("capture.removed", {sha256: note.sha256, key_destroyed: note.keyDestroyed, removed_at: note.removedAt / 1000});
+  }
+
+  // -- VOOL Vault: browse and open the computer's protected media library --
+
+  mediaList(query: {section: "mobile" | "local"; kind: "photo" | "video" | "audio"; sort: "date" | "size"; order: "asc" | "desc"; offset?: number; limit?: number; favorites?: boolean}): Promise<{items: MediaItem[]; total: number}> {
+    return this.request("media.list", {...query});
+  }
+  /** Stars items (or takes the stars away), up to 200 at once. */
+  mediaFavorite(ids: string[], on: boolean): Promise<{changed: number; missing: number; on: boolean}> {
+    return this.request("media.favorite", {ids, on});
+  }
+  /** The small JPEG preview of a photo, as base64. */
+  async mediaThumb(id: string): Promise<string> {
+    return (await this.request<{content_b64: string}>("media.thumb", {id})).content_b64;
+  }
+  mediaRead(id: string, offset: number, length: number): Promise<{content_b64: string; next_offset: number; size: number; done: boolean}> {
+    return this.request("media.read", {id, offset, length});
+  }
+  /** The person saved or shared a copy outside the Vault: the computer keeps a receipt. */
+  mediaExported(id: string, how: "save" | "share"): Promise<{recorded: boolean}> {
+    return this.request("media.exported", {id, how});
+  }
+  /** A preview this phone made (HEIC photos, videos) for an item the computer has none for. */
+  mediaSetThumb(id: string, base64: string): Promise<{kept: boolean}> {
+    return this.request("media.set_thumb", {id, content_b64: base64});
   }
 
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {
@@ -384,6 +442,9 @@ export class MobileCompanionClient {
   pauseRights(rights: string[]): Promise<{rules: Record<string, boolean>}> {return this.request("devices.switch_off", {rights});}
   lostComputer(): Promise<{clear_credentials: boolean}> {return this.request("devices.lost_computer");}
 }
+
+export interface CaptureSaved { done: true; sha256: string; saved_as: string; size_bytes: number }
+export type CaptureBegin = CaptureSaved | { done: false; upload_id: string; next_offset: number; chunk_bytes: number };
 
 export async function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) {
   if (HIDDEN_URL.test(url)) {

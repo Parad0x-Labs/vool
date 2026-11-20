@@ -74,9 +74,11 @@ receipt chain verified (11 rows).
 - `expo export --platform android` (`expo-export-android.log`): Hermes bundle,
   **571 modules**, sha256
   `d3e61fb8a489211de0cd817629d8c5e6b23f13ba40f792ffe529ab47e57d7216`.
-- Assets (`asset-hashes.txt`): the official VOOL mark (composed from the
-  product's own rasterizer, `installer/assets/generate_icon.py`) as
-  icon/adaptive-icon/splash; regeneration is byte-deterministic (verified).
+- Assets (`asset-hashes.txt`): the approved hand-drawn VOOL face from
+  `installer/assets/approved/vool.icns`, its strokes made into soft plush
+  shapes on a charcoal cushion by `mobile/scripts/generate_assets.py`, as
+  icon/adaptive-icon/splash and the in-app face; regeneration is
+  byte-deterministic (verified 2026-11-17).
 - Xcode/Android SDK are absent on this machine — **no .ipa/.apk was signed or
   installed, and no installed-device behavior is claimed.**
 

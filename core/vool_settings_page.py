@@ -717,7 +717,7 @@ def _settings_groups() -> list[dict]:
                 "Save one chat to a file, or bring one back from a file. This moves chats one at a "
                 "time; it does not include your settings, memory or keys."
             ),
-            "cards": [{"id": "chats", "title": "Chats", "icon": "backup"}, {"id": "share", "title": "Share with friends", "icon": "contacts"}],
+            "cards": [{"id": "chats", "title": "Chats", "icon": "backup"}, {"id": "media", "title": "Photos, videos and sound", "icon": "lock"}, {"id": "share", "title": "Share with friends", "icon": "contacts"}],
             "rows": [
                 _row(
                     id="session_export",
@@ -763,6 +763,19 @@ def _settings_groups() -> list[dict]:
                         "the ones to bring in. You can choose whether their history is used when you continue them."
                     ),
                     keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
+                ),
+                _row(
+                    id="media_library",
+                    card="media",
+                    hint="Kept locked on this computer. Back them up to a USB drive.",
+                    label="Protected photos and videos",
+                    kind="custom",
+                    widget="media_library",
+                    help=(
+                        "Photos, videos and sound from your phone's private camera, and files you add yourself. "
+                        "They stay locked on this computer and never show up in other apps or in search."
+                    ),
+                    keywords="media photos videos sound audio camera phone pictures library usb drive backup restore protected locked",
                 ),
                 _row(
                     id="drop",
@@ -2219,6 +2232,7 @@ function renderWidget(row, host) {
   if (w === 'bundle_export') return widgetBundleExport(stack);
   if (w === 'bundle_import') return widgetBundleImport(stack);
   if (w === 'chat_import') return widgetSurface(stack, 'VoolChatImport', T('settings.pane.chat_import_missing', 'The panel for bringing in chats did not load.'));
+  if (w === 'media_library') { const open = el('a', 'vs-btn', T('settings.media_open', 'Open protected media')); open.href = '/media'; stack.appendChild(open); return; }
   if (w === 'drop') return widgetSurface(stack, 'VoolDrop', T('drop.failed', 'This step could not finish. Check the settings and refresh the Drop before trying again.'));
   if (w === 'lend') return widgetSurface(stack, 'VoolLend', T('lend.error', 'This step could not finish. Refresh and check the invitation.'));
   stack.appendChild(el('div', 'empty', T('settings.pane.empty', 'This section has nothing to show.')));
@@ -4811,7 +4825,7 @@ function widgetPhoneAccess(host) {
     button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=phoneFailWords(e);button.disabled=false;});};
   };
   const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
-    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
+    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice', media:'See protected media (VOOL Vault)',
     computer_tools:'Use tools on my computer', paid_services:'Look things up online'};
   const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
     task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
@@ -4927,7 +4941,7 @@ function widgetPhoneAccess(host) {
     const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
     if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
-      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
+      if (isBot && ['camera','photos','location','microphone','media','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
       /* An expired right shows as off, so saving anything else never sends it back on. */
       const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());

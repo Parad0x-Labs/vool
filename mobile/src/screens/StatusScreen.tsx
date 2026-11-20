@@ -7,6 +7,8 @@ import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../prot
 import {connectionAddress} from "../protocol/connection.ts";
 import {useLink} from "../ui/LinkBadge.tsx";
 import Icon from "../ui/Icon.tsx";
+import {RevealScrollView} from "../ui/Reveal.tsx";
+import SettingsCard, {cardRow} from "../ui/SettingsCard.tsx";
 import {C} from "../ui/theme.ts";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { parsePairingUri } from "../protocol/pairing.ts";
@@ -18,10 +20,12 @@ interface Props {
   onIdleMinutes:(value:number)=>Promise<void>;
   onConnection?: (address: string) => Promise<void>;
   onAwayConnection?: (address: string) => Promise<void>;
+  /** The private camera's settings, shown under the lock time. */
+  captureSettings?: React.ReactNode;
 }
 
 /** Current model, local/cloud status, Proof Chip, and the device's own standing. */
-export default function StatusScreen({ client, onRevoked, onConnection, onAwayConnection, idleMinutes, onIdleMinutes }: Props) {
+export default function StatusScreen({ client, onRevoked, onConnection, onAwayConnection, idleMinutes, onIdleMinutes, captureSettings }: Props) {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null);
   const [device,setDevice]=useState<DeviceInfo|null>(null);
   const [proof, setProof] = useState<TurnProof | null>(null);
@@ -99,9 +103,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   const stateColor = link === "connected" ? C.ok : link === "offline" && looking !== "looking" ? C.bad : C.wait;
 
   // One block for the connection: how it stands, and one button. A scanned code saves itself.
-  const computerCard = <View style={styles.card}>
+  const computerCard = <SettingsCard icon="monitor" title={tr("Your computer")}><View style={cardRow}>
     <View style={styles.stateRow}>
-      <Icon name={link === "offline" && looking !== "looking" ? "monitor-off" : "monitor"} size={22} color={stateColor} />
+      <View style={[styles.dot, {backgroundColor: stateColor}]} />
       <Text style={[styles.stateText, {color: stateColor}]}>{stateLine}</Text>
     </View>
     {snapshot ? <Text style={styles.detail}>{snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")} · {snapshot.model.cloud_state === "ok" ? tr("Cloud connected") : tr("Local")}</Text> : null}
@@ -135,15 +139,11 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       <Pressable style={styles.scanCancel} onPress={() => setScanning(false)}><Text style={styles.proofButtonText}>{tr("Cancel")}</Text></Pressable>
     </View>}
     {error ? <Text style={styles.error}>{error}</Text> : null}
-  </View>;
+  </View></SettingsCard>;
 
   // The addresses are filled in by the scan. They stay out of the way for the rare manual change.
-  const advanced = <View>
-    <Pressable style={styles.advancedRow} accessibilityRole="button" accessibilityState={{expanded: showAdvanced}} onPress={() => setShowAdvanced(value => !value)}>
-      <Text style={styles.label}>{tr("Advanced")}</Text>
-      <Icon name={showAdvanced ? "chevron-up" : "chevron-down"} size={22} color={C.mute} />
-    </Pressable>
-    {showAdvanced ? <View style={styles.card}>
+  const advanced = <SettingsCard icon="tune-variant" title={tr("Advanced")} open={showAdvanced} onToggle={() => setShowAdvanced(value => !value)}>
+    {showAdvanced ? <View style={cardRow}>
       <Text style={styles.fieldLabel}>{tr("Computer’s address on your home network")}</Text>
       <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Computer’s address on your home network")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
       <Text style={[styles.fieldLabel, {marginTop: 14}]}>{tr("Address away from home")}</Text>
@@ -182,9 +182,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         )}
       </View> : null}
     </View> : null}
-  </View>;
+  </SettingsCard>;
 
-  const danger = <View style={{marginTop: 18}}>
+  const danger = <SettingsCard icon="lifebuoy" title={tr("If something goes wrong")}><View style={[cardRow, {paddingTop: 0}]}>
         <Pressable
           style={styles.unpairButton}
           onPress={() => {
@@ -232,10 +232,9 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
           })();}}])}>
           <Text style={styles.unpairButtonText}>{tr("My computer is lost")}</Text>
         </Pressable>
-  </View>;
+  </View></SettingsCard>;
 
-  if (!snapshot) return <ScrollView keyboardShouldPersistTaps="handled">
-    <Text style={styles.section}>{tr("Your computer")}</Text>
+  if (!snapshot) return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
     {computerCard}
     {!error && link !== "offline" ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
     {advanced}
@@ -243,57 +242,76 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   </ScrollView>;
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled">
-      <Text style={styles.section}>{tr("Your computer")}</Text>
+    <RevealScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
       {computerCard}
 
-      <Text style={styles.section}>{tr("This device")}</Text>
-      <Text style={styles.detail}>{tr("Change this phone’s permissions on your computer.")}</Text>
-      {Object.entries(device?.rules || {}).map(([right,value])=><Text key={right} style={styles.detail}>
-        {permissionText(right)}: {value && (!(device?.right_expiry?.[right]) || (device.right_expiry[right] > Date.now()/1000)) ? tr("On") : tr("Off")}
-        {device?.right_expiry?.[right] ? " · "+tr("Expires")+" "+new Date(device.right_expiry[right]*1000).toLocaleString() : ""}
-      </Text>)}
-      <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
-      <View style={styles.segment}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
-        style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
-        <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
-      </Pressable>)}</View>
+      <SettingsCard icon="shield-check-outline" title={tr("Permissions")}>
+        {Object.entries(device?.rules || {}).map(([right,value])=>{
+          const on = !!value && (!(device?.right_expiry?.[right]) || (device!.right_expiry![right] > Date.now()/1000));
+          return <View key={right} style={[styles.listRow, styles.listRule]}>
+            <View style={styles.fill}>
+              <Text style={styles.listText}>{permissionText(right)}</Text>
+              {device?.right_expiry?.[right] ? <Text style={styles.listNote}>{tr("Expires")} {new Date(device.right_expiry[right]*1000).toLocaleString()}</Text> : null}
+            </View>
+            <Text style={[styles.listValue, on && {color: C.ok}]}>{on ? tr("On") : tr("Off")}</Text>
+          </View>;
+        })}
+        <View style={cardRow}><Text style={styles.cardNote}>{tr("Change this phone’s permissions on your computer.")}</Text></View>
+      </SettingsCard>
 
+      <SettingsCard icon="lock-clock" title={tr("Screen lock")}>
+        <View style={cardRow}>
+          <Text style={styles.cardNote}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
+          <View style={[styles.segment, {marginTop: 10}]}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
+            style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
+            <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
+          </Pressable>)}</View>
+        </View>
+      </SettingsCard>
+
+      {captureSettings}
       {advanced}
       {danger}
-    </ScrollView>
+    </RevealScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  page: { paddingBottom: 28 },
+  cardNote: { color: C.mute, fontSize: 13, lineHeight: 18 },
+  dot: { width: 9, height: 9, borderRadius: 5 },
   center: { marginTop: 40 },
-  section: { color: "#868b90", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.1, marginTop: 22, marginBottom: 8 },
-  card: { backgroundColor: "#1f2224", borderRadius: 16, padding: 16, marginBottom: 6 },
-  label: { color: "#edece7", fontSize: 15, fontWeight: "600", marginBottom: 8 },
+  fill: { flex: 1 },
+  list: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 20, overflow: "hidden" },
+  listRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, minHeight: 52, paddingVertical: 12 },
+  listRule: { borderTopWidth: 1, borderTopColor: C.line },
+  listText: { color: C.ink, fontSize: 15 },
+  listNote: { color: C.mute, fontSize: 12, marginTop: 2 },
+  listValue: { color: C.mute, fontSize: 14, fontWeight: "600" },
+  label: { color: C.ink, fontSize: 15, fontWeight: "600", marginBottom: 8 },
   row: { flexDirection: "row", gap: 8, marginBottom: 6 },
   pill: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
-  pillGreen: { backgroundColor: "#22382b" },
-  pillBlue: { backgroundColor: "#26292c" },
-  pillAmber: { backgroundColor: "#3d3120" },
-  pillGrey: { backgroundColor: "#26292c" },
-  pillText: { color: "#edece7", fontSize: 12, fontWeight: "600" },
-  fingerprint: { color: "#868b90", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  detail: { color: "#bfc2c4", fontSize: 13, lineHeight: 19, marginTop: 4 },
-  footnote: { color: "#868b90", fontSize: 12, marginTop: 10, lineHeight: 16 },
-  proofButton: { backgroundColor: "#26292c", borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12, overflow: "hidden" },
-  segment: { flexDirection: "row", backgroundColor: "#1f2224", borderRadius: 24, padding: 4, gap: 4 },
+  pillGreen: { backgroundColor: C.okBg },
+  pillBlue: { backgroundColor: C.pill },
+  pillAmber: { backgroundColor: C.tint },
+  pillGrey: { backgroundColor: C.pill },
+  pillText: { color: C.ink, fontSize: 12, fontWeight: "600" },
+  fingerprint: { color: C.mute, fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  detail: { color: C.soft, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  footnote: { color: C.mute, fontSize: 12, marginTop: 10, lineHeight: 16 },
+  proofButton: { backgroundColor: C.pill, borderWidth: 1, borderColor: C.line, borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12, overflow: "hidden" },
+  segment: { flexDirection: "row", backgroundColor: C.raised, borderWidth: 1, borderColor: C.line, borderRadius: 24, padding: 4, gap: 4 },
   segmentItem: { flex: 1, borderRadius: 20, minHeight: 48, justifyContent: "center", alignItems: "center" },
-  segmentOn: { backgroundColor: "#edece7" },
-  segmentOnText: { color: "#111314" },
-  proofButtonText: { color: "#edece7", fontWeight: "600" },
+  segmentOn: { backgroundColor: C.send },
+  segmentOnText: { color: C.sendInk },
+  proofButtonText: { color: C.ink, fontWeight: "600" },
   scanBox: { height: 320, marginTop: 12, borderRadius: 16, overflow: "hidden", backgroundColor: "#000" },
   scanCancel: { position: "absolute", bottom: 12, alignSelf: "center", padding: 10 },
-  unpairButton: { backgroundColor: "#2a1b18", borderRadius: 24, minHeight: 48, padding: 13, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  unpairButtonText: { color: "#d86a56", fontWeight: "600" },
-  error: { color: "#d86a56", fontSize: 13, marginTop: 8 },
+  unpairButton: { backgroundColor: C.badBg, borderWidth: 1, borderColor: "rgba(226,112,92,0.25)", borderRadius: 24, minHeight: 48, padding: 13, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  unpairButtonText: { color: C.bad, fontWeight: "600" },
+  error: { color: C.bad, fontSize: 13, marginTop: 8 },
   stateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
   stateText: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 21 },
-  advancedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, marginTop: 18, paddingHorizontal: 4 },
-  fieldLabel: { color: "#bfc2c4", fontSize: 13, marginBottom: 6 },
-  address: { color: "#edece7", fontSize: 14, backgroundColor: "#111314", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  fieldLabel: { color: C.soft, fontSize: 13, marginBottom: 6 },
+  address: { color: C.ink, fontSize: 14, backgroundColor: C.bg, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
 });

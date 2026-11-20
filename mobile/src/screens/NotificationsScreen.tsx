@@ -5,6 +5,7 @@ import type {MobileCompanionClient} from "../protocol/client.ts";
 import Icon from "../ui/Icon.tsx";
 import {useLink} from "../ui/LinkBadge.tsx";
 import type {NotificationEvent, NotificationPreferences} from "../protocol/models.ts";
+import {C} from "../ui/theme.ts";
 
 const LABELS: Record<string, string> = {
   task_completed: "Task finished", task_failed: "Task failed", task_pending_approval: "VOOL needs an approval",
@@ -45,11 +46,11 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
   };
   if (!preferences) return <View>{notice ? <><Text style={styles.note}>{notice}</Text>
     <Pressable style={[styles.button, {alignSelf: "flex-start", marginTop: 12}]} onPress={() => {setNotice(""); void refresh().catch(() => setNotice(tr("Could not complete this. Check your computer.")));}}>
-      <Text style={styles.text}>{tr("Try again")}</Text></Pressable></> : <ActivityIndicator color="#868b90" />}</View>;
+      <Text style={styles.text}>{tr("Try again")}</Text></Pressable></> : <ActivityIndicator color={C.mute} />}</View>;
   const row = (label: string, value: boolean, changed: (value: boolean) => void, fixed = false) => (
     <View style={styles.row}><Text style={styles.text}>{tr(label)}</Text><Switch accessibilityLabel={tr(label)}
       value={value} disabled={busy || fixed} onValueChange={changed}
-      trackColor={{false: "#2a2d31", true: "#3f6b52"}} thumbColor={value ? "#6fbf8f" : "#868b90"} /></View>
+      trackColor={{false: C.line, true: C.tint}} thumbColor={value ? C.ok : C.mute} /></View>
   );
   return <ScrollView contentContainerStyle={styles.root}>
     <Text style={styles.title}>{tr("Recent alerts")}</Text>
@@ -81,7 +82,7 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
       </Pressable>)}</View>
     <Pressable style={styles.advanced} accessibilityRole="button" accessibilityState={{expanded: more}} onPress={() => setMore(value => !value)}>
       <Text style={styles.title}>{tr("Advanced")}</Text>
-      <Icon name={more ? "chevron-up" : "chevron-down"} size={22} color="#868b90" />
+      <Icon name={more ? "chevron-up" : "chevron-down"} size={22} color={C.mute} />
     </Pressable>
     {more ? <View>
     {Object.entries(preferences.types).map(([kind, value]) => <View key={kind} style={styles.group}>
@@ -105,10 +106,10 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
 
 const styles = StyleSheet.create({
   advanced: {flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, marginTop: 8},
-  root: {paddingBottom: 32}, title: {color: "#868b90", fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase", marginTop: 24, marginBottom: 6},
+  root: {paddingBottom: 32}, title: {color: C.mute, fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase", marginTop: 24, marginBottom: 6},
   row: {flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingVertical: 6},
-  text: {color: "#edece7", fontSize: 15, flexShrink: 1}, note: {color: "#bfc2c4", fontSize: 12, lineHeight: 18, marginVertical: 6},
-  group: {paddingVertical: 10, borderBottomColor: "#2a2d31", borderBottomWidth: StyleSheet.hairlineWidth}, presets: {flexDirection: "row", gap: 8, marginVertical: 8},
-  button: {paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22, backgroundColor: "#1f2224"}, input: {color: "#edece7", backgroundColor: "#1f2224", padding: 10, minWidth: 70, borderRadius: 12, textAlign: "center", fontSize: 15},
-  chosen: {backgroundColor: "#edece7"}, chosenText: {color: "#111314", fontWeight: "600"},
+  text: {color: C.ink, fontSize: 15, flexShrink: 1}, note: {color: C.soft, fontSize: 12, lineHeight: 18, marginVertical: 6},
+  group: {paddingVertical: 10, borderBottomColor: C.line, borderBottomWidth: StyleSheet.hairlineWidth}, presets: {flexDirection: "row", gap: 8, marginVertical: 8},
+  button: {paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22, backgroundColor: C.raised}, input: {color: C.ink, backgroundColor: C.raised, padding: 10, minWidth: 70, borderRadius: 12, textAlign: "center", fontSize: 15},
+  chosen: {backgroundColor: C.send}, chosenText: {color: C.sendInk, fontWeight: "600"},
 });

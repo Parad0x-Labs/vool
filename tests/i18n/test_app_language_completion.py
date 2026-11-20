@@ -254,6 +254,16 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "vx.toolbelt.plugins",
         "wallet.pin_short",
         "wallet.signature",
+        # the private camera's "Video" tab: the locale's own word in de/tr/vi
+        "phone.capture.video",
+        # the media page's "Photos" (fr) and "Videos" (de): the locale's own words
+        "medialib.kind_photo",
+        "phone.vault.title",
+        "medialib.kind_video",
+        # camera words that are the locale's own: "Flash" (es/fr/pt), "Filter" and "Warm" (de)
+        "phone.camera.flash",
+        "phone.camera.filter",
+        "phone.camera.filter_warm",
     }
 )
 

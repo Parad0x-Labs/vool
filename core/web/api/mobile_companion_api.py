@@ -70,6 +70,7 @@ import contextlib
 import copy
 import hashlib
 import hmac
+import io
 import json
 import logging
 import os
@@ -149,6 +150,9 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "chats.send",
     "chats.progress",
     "chats.cancel",
+    "chats.rename",
+    "chats.archive",
+    "chats.delete",
     "attachments.limits",
     "attachments.upload",
     "files.list",
@@ -167,6 +171,8 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "devices.switch_off", "devices.lost_computer",
     "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
     "abilities.check", "abilities.dictate", "abilities.location",
+    "capture.begin", "capture.chunk", "capture.finish", "capture.removed",
+    "media.list", "media.thumb", "media.read", "media.exported", "media.set_thumb", "media.favorite",
     "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
@@ -946,15 +952,8 @@ def dispatch_companion(
     if handler is None:
         return _err(403, "action_not_offered", f"the mobile companion does not offer {action!r}")
     try:
-        status, result = handler(
-            params,
-            runtime=runtime,
-            model_name=model_name,
-            client_host=client_host,
-            workspace_root_provider=workspace_root_provider,
-            service=service,
-            device=device,
-        )
+        status, result = handler(params, runtime=runtime, model_name=model_name, client_host=client_host,
+                                 workspace_root_provider=workspace_root_provider, service=service, device=device)
     except PhoneHistoryRequired as exc:
         store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": "history_required"})
         return _err(403, "phone_history_required", str(exc))
@@ -1333,6 +1332,63 @@ def _action_chats_cancel(params, *, service, device, **_kw):
     return 200, {"state": state}
 
 
+def _chat_lifecycle(params: dict[str, Any], change: dict[str, Any], *, runtime, model_name: str, service, device, receipt: str, workspace_root_provider, **_kw):
+    """Rename, archive, restore or delete one chat through the computer's own sidebar door.
+
+    /api/chat/session is owner-local. This forward runs only after the phone's grant HMAC and its
+    registered device signature have both verified and its policy allows the action (the same
+    vouching chats.history uses), so every rule of that door applies unchanged: delete tombstones
+    the chat's namespace, erases its transcript, memory, attachments and pins, and revokes its
+    standing grants exactly as a delete on the computer does."""
+    from core.request_trust import IN_PROCESS_OWNER_PEER
+    from core.web.api.service import dispatch_post
+
+    chat_id = str(params.get("chat_id") or "").strip()
+    if not chat_id:
+        return 400, {"error": "chat_id is required"}
+    session_id = _read_session_id(scoped_chat_handle(device, chat_id))
+    response = dispatch_post(
+        path="/api/chat/session",
+        body={"session_id": session_id, **change},
+        headers={"content-type": "application/json"},
+        runtime=runtime,
+        model_name=model_name,
+        client_host=IN_PROCESS_OWNER_PEER,
+        workspace_root_provider=workspace_root_provider,
+    )
+    try:
+        payload = json.loads(response.body or b"{}")
+    except (json.JSONDecodeError, TypeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    status = int(response.status)
+    if status < 400:
+        service.store.append_receipt(receipt, device_id=str(device["device_id"]), detail={"chat": hashlib.sha256(session_id.encode()).hexdigest()[:16]})
+    return status, ({"ok": True, **{k: payload[k] for k in ("title", "archived", "deleted", "warning") if k in payload}}
+                    if status < 400 else {"error": str(payload.get("error") or "chat_change_failed")})
+
+
+def _action_chats_rename(params: dict[str, Any], **kw):
+    title = " ".join(str(params.get("title") or "").split())
+    if not title:
+        return 400, {"error": "title is required"}
+    if len(title) > 200:
+        return 400, {"error": "title too long"}
+    return _chat_lifecycle(params, {"title": title}, receipt="chat.renamed", **kw)
+
+
+def _action_chats_archive(params: dict[str, Any], **kw):
+    on = params.get("on")
+    if not isinstance(on, bool):
+        return 400, {"error": "on must be true or false"}
+    return _chat_lifecycle(params, {"archived": on}, receipt="chat.archived" if on else "chat.restored", **kw)
+
+
+def _action_chats_delete(params: dict[str, Any], **kw):
+    return _chat_lifecycle(params, {"delete": True}, receipt="chat.deleted", **kw)
+
+
 def _action_attachments_limits(params: dict[str, Any], **_kw):
     from core import chat_attachments
 
@@ -1601,6 +1657,9 @@ _ACTION_HANDLERS: dict[str, Callable[..., tuple[int, dict[str, Any]]]] = {
     "chats.send": _action_chats_send,
     "chats.progress": _action_chats_progress,
     "chats.cancel": _action_chats_cancel,
+    "chats.rename": _action_chats_rename,
+    "chats.archive": _action_chats_archive,
+    "chats.delete": _action_chats_delete,
     "attachments.limits": _action_attachments_limits,
     "attachments.upload": _action_attachments_upload,
     "files.list": _action_files_list,
@@ -1710,6 +1769,208 @@ from core.mobile_companion.abilities import dictate as _ability_dictate
 from core.mobile_companion.abilities import location as _ability_location
 
 _ACTION_HANDLERS.update({"abilities.check": _ability_check, "abilities.dictate": _ability_dictate, "abilities.location": _ability_location})
+
+
+def _capture_action(step):
+    """The phone's private capture hands a photo, video or recording to this computer (core.mobile_companion.incoming_media)."""
+
+    def handler(params, *, service, device, **_kw):
+        import binascii
+
+        from core.mobile_companion import incoming_media
+        from core.mobile_companion.abilities import check
+
+        device_id = str(device.get("device_id") or "")
+        upload_id = str(params.get("upload_id") or "")
+        media_type = str(params.get("media_type") or "") if step == "begin" else incoming_media.upload_media_type(device_id, upload_id)
+        code, value = check({"ability": incoming_media.ability_for(media_type)}, service=service, device=device)
+        if code != 200:
+            return code, value
+        try:
+            if step == "begin":
+                result = incoming_media.begin(device_id, params)
+            elif step == "chunk":
+                encoded = params.get("content_b64")
+                if not isinstance(encoded, str) or len(encoded) > incoming_media.CHUNK_BYTES * 4 // 3 + 4:
+                    return 413, {"code": "bad_chunk", "error": "This piece of the file is too big."}
+                try:
+                    data = base64.b64decode(encoded, validate=True)
+                except (binascii.Error, ValueError):
+                    return 400, {"code": "bad_chunk", "error": "This piece of the file could not be read."}
+                offset = params.get("offset")
+                if type(offset) is not int or offset < 0:
+                    return 400, {"code": "bad_chunk", "error": "This piece of the file could not be placed."}
+                result = incoming_media.chunk(device_id, upload_id, offset, data)
+            else:
+                result = incoming_media.finish(device_id, upload_id)
+                service.store.append_receipt("capture.saved", device_id=device_id,
+                                             detail={"sha256": result["sha256"], "size_bytes": result["size_bytes"]})
+        except incoming_media.MediaRefused as refused:
+            if refused.code == "capture_hash_mismatch":
+                service.store.append_receipt("capture.hash_mismatch", device_id=device_id, detail={})
+            return refused.status, {"code": refused.code, "error": refused.message}
+        return 200, result
+
+    return handler
+
+
+def _capture_removed(params, *, service, device, **_kw):
+    """The phone deleted its copy after this computer confirmed it: kept as a receipt, so every capture
+    has an auditable life (saved here with its hash, then removed on the phone, key destroyed or not)."""
+    from core.mobile_companion import incoming_media
+
+    device_id = str(device.get("device_id") or "")
+    try:
+        result = incoming_media.record_removed(device_id, str(params.get("sha256") or ""))
+    except incoming_media.MediaRefused as refused:
+        return refused.status, {"code": refused.code, "error": refused.message}
+    removed_at = params.get("removed_at")
+    service.store.append_receipt("capture.removed_on_phone", device_id=device_id, detail={
+        "sha256": result["sha256"], "key_destroyed": params.get("key_destroyed") is True,
+        "removed_at": removed_at if type(removed_at) in (int, float) else None})
+    return 200, result
+
+
+# --- VOOL Vault: the phone browses this computer's protected media library ----------------------------------------
+
+_MEDIA_PIECE = 768 * 1024  # a multiple of 3: the phone joins base64 pieces as text when it wants to
+
+
+def _media_refused(error):
+    code = getattr(error, "code", "failed")
+    return (404 if code == "not_found" else 409), {"code": "media_" + code, "error": "This item cannot be opened right now."}
+
+
+def _media_list(params, *, service, device, **_kw):
+    """One page of the library, newest (or largest) first: names, kinds, sizes and dates, never the files."""
+    from core.media_library.store import KINDS, SECTIONS, LibraryError, library
+
+    section = str(params.get("section") or "")
+    kind = str(params.get("kind") or "")
+    if (section and section not in SECTIONS) or (kind and kind not in KINDS):
+        return 400, {"code": "bad_media_filter", "error": "Choose photos, videos or sound."}
+    offset = _clamp_int(params.get("offset"), default=0, lo=0, hi=1_000_000)
+    limit = _clamp_int(params.get("limit"), default=60, lo=1, hi=120)
+    try:
+        items = library().items(section=section, kind=kind, sort="size" if params.get("sort") == "size" else "date",
+                                descending=params.get("order") != "asc", favorites=params.get("favorites") is True)
+    except LibraryError as error:
+        if error.code != "empty":
+            return _media_refused(error)
+        items = []
+    public = [{**{k: meta.get(k) for k in ("id", "section", "kind", "name", "media_type", "size", "taken_at", "added_at", "damaged")},
+               "favorite": bool(meta.get("favorite"))} for meta in items[offset:offset + limit]]
+    return 200, {"items": public, "total": len(items), "offset": offset}
+
+
+def _media_thumb(params, *, service, device, **_kw):
+    """The small preview of one photo (a JPEG of a few dozen kilobytes), or none."""
+    from core.media_library.store import LibraryError, library
+
+    try:
+        thumb = library().thumb(str(params.get("id") or ""))
+    except (LibraryError, OSError) as error:
+        return _media_refused(error)
+    if thumb is None:
+        return 404, {"code": "media_no_preview", "error": "No preview."}
+    return 200, {"content_b64": base64.b64encode(thumb).decode("ascii")}
+
+
+def _media_read(params, *, service, device, **_kw):
+    """One piece of one item, opened from its sealed copy and checked as it is read. The phone streams a video
+    piece by piece from wherever the player is, and carries on from the last whole piece after a break."""
+    from core.media_library import sealed
+    from core.media_library.store import LibraryError, library
+
+    item_id = str(params.get("id") or "")
+    lib = library()
+    try:
+        meta = lib.get(item_id)
+        opened = lib.open(item_id)
+    except (LibraryError, sealed.SealedError, OSError) as error:
+        return _media_refused(error if isinstance(error, LibraryError) else LibraryError("damaged"))
+    size = opened.plain_size
+    offset = _clamp_int(params.get("offset"), default=0, lo=0, hi=max(0, size))
+    length = _clamp_int(params.get("length"), default=_MEDIA_PIECE, lo=1, hi=_MEDIA_PIECE)
+    try:
+        data = b"".join(opened.range(offset, min(size, offset + length))) if offset < size else b""
+    except (sealed.SealedError, OSError):
+        return 409, {"code": "media_damaged", "error": "This item is damaged on the computer."}
+    if offset == 0:
+        service.store.append_receipt("media.opened_on_phone", device_id=str(device.get("device_id") or ""),
+                                     detail={"item": item_id, "kind": meta.get("kind"), "size_bytes": size})
+    return 200, {"offset": offset, "next_offset": offset + len(data), "size": size, "media_type": meta.get("media_type"),
+                 "content_b64": base64.b64encode(data).decode("ascii"), "done": offset + len(data) >= size}
+
+
+def _media_exported(params, *, service, device, **_kw):
+    """The phone saved or shared a copy outside the Vault, at the person's own request: kept as a receipt."""
+    how = str(params.get("how") or "")
+    if how not in ("save", "share"):
+        return 400, {"code": "bad_export", "error": "Save or share."}
+    service.store.append_receipt("media.exported_on_phone", device_id=str(device.get("device_id") or ""),
+                                 detail={"item": str(params.get("id") or "")[:64], "how": how})
+    return 200, {"recorded": True}
+
+
+_PREVIEW_LIMIT = 160 * 1024
+
+
+def _media_set_thumb(params, *, service, device, **_kw):
+    """A preview the phone made for an item this computer has none for (HEIC photos, videos): a small JPEG,
+    checked before it is kept sealed beside the item."""
+    from core.media_library.store import LibraryError, library
+
+    try:
+        data = base64.b64decode(str(params.get("content_b64") or ""), validate=True)
+    except ValueError:
+        data = b""
+    if not data.startswith(b"\xff\xd8\xff") or len(data) > _PREVIEW_LIMIT:
+        return 400, {"code": "bad_preview", "error": "Not a small JPEG preview."}
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as image:
+            if image.format != "JPEG" or max(image.size) > 1024:
+                return 400, {"code": "bad_preview", "error": "Not a small JPEG preview."}
+            image.verify()
+    except ImportError:
+        pass
+    except Exception:
+        return 400, {"code": "bad_preview", "error": "Not a small JPEG preview."}
+    try:
+        kept = library().set_thumb(str(params.get("id") or ""), data)
+    except (LibraryError, OSError) as error:
+        return _media_refused(error if isinstance(error, LibraryError) else LibraryError("failed"))
+    return 200, {"kept": kept}
+
+
+def _media_favorite(params, *, service, device, **_kw):
+    """Stars items (or takes the stars away) so the person finds them quickly. Up to 200 at once."""
+    from core.media_library.store import LibraryError, library
+
+    ids = params.get("ids")
+    if not isinstance(ids, list) or not ids or len(ids) > 200 or not all(isinstance(i, str) for i in ids):
+        return 400, {"code": "bad_favorite", "error": "Choose up to 200 items."}
+    on = params.get("on") is True
+    lib = library()
+    changed, missing = 0, 0
+    for item_id in dict.fromkeys(ids):
+        try:
+            changed += 1 if lib.set_favorite(item_id, on) else 0
+        except LibraryError:
+            missing += 1
+        except OSError:
+            return _media_refused(LibraryError("failed"))
+    return 200, {"changed": changed, "missing": missing, "on": on}
+
+
+_ACTION_HANDLERS.update({"media.list": _media_list, "media.thumb": _media_thumb, "media.read": _media_read,
+                         "media.exported": _media_exported, "media.set_thumb": _media_set_thumb,
+                         "media.favorite": _media_favorite})
+
+_ACTION_HANDLERS.update({"capture.begin": _capture_action("begin"), "capture.chunk": _capture_action("chunk"),
+                         "capture.finish": _capture_action("finish"), "capture.removed": _capture_removed})
 
 
 def _devices_payload(service: MobileCompanionService) -> dict[str, Any]:

@@ -19,6 +19,8 @@ RIGHTS = (
     "photos",
     "location",
     "microphone",
+    # VOOL Vault on the phone: browse and open this computer's protected photos, videos and sound.
+    "media",
     # The owner's own VOOL from the phone (core.request_trust.remote_turn_tool_refusal): files, apps,
     # commands and accounts on this computer; and the owner's paid models and paid search. Money
     # tools stay out of chat either way; payments go through payment_propose and the wallet.
@@ -35,6 +37,10 @@ ACTIONS = {
     "chats.send": "chat",
     "chats.progress": "chat",
     "chats.cancel": "chat",
+    # Managing the owner's chats (the computer's own sidebar rules): only a phone that may see them.
+    "chats.rename": "history",
+    "chats.archive": "history",
+    "chats.delete": "history",
     "proof.get": "history",
     "attachments.limits": "attachments",
     "attachments.upload": "attachments",
@@ -55,6 +61,20 @@ ACTIONS = {
     "wallet.approve": "payment_approve",
     "abilities.dictate": "microphone",
     "abilities.location": "location",
+    # The phone's private capture: photos, videos and recordings come to this computer instead of the
+    # phone's gallery. Sound needs the microphone right instead; the handler checks that per file.
+    "capture.begin": "attachments",
+    "capture.chunk": "attachments",
+    "capture.finish": "attachments",
+    # the phone reports it removed a capture this computer confirmed (for the receipt trail)
+    "capture.removed": "attachments",
+    # VOOL Vault: the phone browses and opens this computer's protected media library
+    "media.list": "media",
+    "media.thumb": "media",
+    "media.read": "media",
+    "media.exported": "media",
+    "media.set_thumb": "media",
+    "media.favorite": "media",
 }
 
 

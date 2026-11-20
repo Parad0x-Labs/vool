@@ -56,6 +56,16 @@ test("canonical JSON matches the desktop's Python bytes (golden vectors)", () =>
   }
 });
 
+test("plain printable text and large file pieces keep the exact desktop bytes", () => {
+  // Python's json.dumps leaves printable ASCII as is except '"' and '\\', exactly like JSON.stringify.
+  for (let code = 0x20; code <= 0x7e; code++) {
+    const value = "ab" + String.fromCharCode(code) + "cd";
+    assert.equal(canonicalJson({ v: value }), JSON.stringify({ v: value }), "char " + code);
+  }
+  const piece = Buffer.from(Array.from({ length: 768 * 1024 }, (_, i) => (i * 131) & 255)).toString("base64");
+  assert.equal(canonicalJson({ content_b64: piece }), JSON.stringify({ content_b64: piece }));
+});
+
 test("canonical bytes match a Python-computed request payload byte-for-byte", () => {
   // Python: json.dumps({"grant_id":"g1","nonce":"n","params":{"action":"devices.me"},
   //                     "timestamp":"2026-09-02T00:00:00+00:00","verb":"vool.action"},
@@ -251,4 +261,52 @@ test("a file the computer sent arrives whole from its pieces", async () => {
   const got = await client.fetchSentFile("out_" + "a".repeat(32));
   assert.deepEqual(asked, [0, 768, 1536]);
   assert.deepEqual(new Uint8Array(Buffer.from(got.base64, "base64")), bytes);
+});
+
+// The phone hands this work to native code (FastCrypto.java); these answers were checked against it too.
+import { fast, scriptCrypto, setFastCrypto } from "../src/protocol/fast.ts";
+import { sealBody, openBody } from "../src/protocol/sealed.ts";
+
+const FAST_VECTOR = {
+  text: "c\n\u{1F600}\n\né{\u{1F600}b\"\u{1F600}b\n\nb\n\u{1F600}c{{",
+  key: "686be7a68a8543e901f84c606255801f5046b992e20b35fa59e535282d4ff23d",
+  nonce: "734338ee326a46c0496cea5d59054553e0b7d92060002446",
+  sealed: "rItwyJmFRjLjrSDc8VFrF5cfiCqYAa137/Vx264Gi8qtUmHUInMJbH1F4Gnr1l8BTA==",
+};
+
+test("link sealing and hashing over text give the same bytes as before", () => {
+  const v = FAST_VECTOR;
+  assert.equal(scriptCrypto.seal(v.text, v.nonce, v.key), v.sealed);
+  assert.equal(scriptCrypto.open(v.sealed, v.nonce, v.key), v.text);
+  const tampered = Buffer.from(v.sealed, "base64"); tampered[20] ^= 1;
+  assert.equal(scriptCrypto.open(tampered.toString("base64"), v.nonce, v.key), null);
+  assert.equal(scriptCrypto.sha256Hex(v.text), createHash("sha256").update(v.text, "utf8").digest("hex"));
+  assert.equal(scriptCrypto.hmacSha256Hex("", v.text), createHmac("sha256", Buffer.alloc(0)).update(v.text, "utf8").digest("hex"));
+  assert.equal(scriptCrypto.hmacSha256Hex("k".repeat(90), v.text), createHmac("sha256", "k".repeat(90)).update(v.text, "utf8").digest("hex"));
+  // the request proof digests the params the same way as the byte path did
+  const params = {action: "capture.chunk", data: "QUJD".repeat(1000), note: "café"};
+  const args = {deviceId: "phone:1", action: "capture.chunk", params, nonce: "n", timestamp: "t", grantId: "g"};
+  const expected = canonicalJson({kind: "vool.mobile.request.v1", device_id: "phone:1", action: "capture.chunk",
+    params_sha256: toHex(sha256(canonicalBytes(params))), nonce: "n", timestamp: "t", grant_id: "g"});
+  assert.equal(new TextDecoder().decode(requestProofPayload(args)), expected);
+});
+
+test("sealed bodies go through the native side when it is there", () => {
+  const shared = new Uint8Array(32).fill(7);
+  const calls = [];
+  setFastCrypto({
+    sha256Hex: t => (calls.push("sha"), scriptCrypto.sha256Hex(t)),
+    hmacSha256Hex: (k, t) => (calls.push("hmac"), scriptCrypto.hmacSha256Hex(k, t)),
+    seal: (t, n, k) => (calls.push("seal"), scriptCrypto.seal(t, n, k)),
+    open: (d, n, k) => (calls.push("open"), scriptCrypto.open(d, n, k)),
+  });
+  try {
+    const envelope = sealBody({kind: "x", body: {a: "é"}}, shared, "response", new Uint8Array(24).fill(1));
+    assert.deepEqual(openBody(envelope, shared, "response"), {kind: "x", body: {a: "é"}});
+    assert.deepEqual(calls, ["seal", "open"]);
+    assert.throws(() => openBody({...envelope, ciphertext: envelope.ciphertext.replace(/^./, c => c === "A" ? "B" : "A")}, shared, "response"),
+      /authentication failed/);
+    assert.throws(() => openBody({...envelope, nonce: "00"}, shared, "response"), /nonce/);
+  } finally { setFastCrypto(null); }
+  assert.equal(fast.seal(FAST_VECTOR.text, FAST_VECTOR.nonce, FAST_VECTOR.key), FAST_VECTOR.sealed);
 });

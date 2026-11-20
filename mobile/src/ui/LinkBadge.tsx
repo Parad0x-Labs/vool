@@ -1,6 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
-import {Animated, Pressable, StyleSheet, Text, View} from "react-native";
-import Icon from "./Icon.tsx";
+import {Animated, StyleSheet, Text, View} from "react-native";
 import {C} from "./theme.ts";
 import {linkState, subscribeLink, type LinkState} from "../protocol/linkState.ts";
 import {tr} from "../i18n/index.ts";
@@ -17,14 +16,14 @@ export function linkLabel(state: LinkState): string {
     : tr("Connecting to your computer…");
 }
 
-/** A computer screen: green when the computer answers, amber while trying, crossed out and red when it does not. */
-export default function LinkBadge({onPress}: {onPress?: () => void}) {
+/** How the computer stands, in words: a green dot when it answers, amber and pulsing while trying, red when it does not. */
+export function LinkLine({small}: {small?: boolean}) {
   const state = useLink();
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (state !== "connecting") {pulse.setValue(1); return;}
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, {toValue: 0.35, duration: 700, useNativeDriver: true}),
+      Animated.timing(pulse, {toValue: 0.3, duration: 700, useNativeDriver: true}),
       Animated.timing(pulse, {toValue: 1, duration: 700, useNativeDriver: true}),
     ]));
     loop.start();
@@ -32,28 +31,16 @@ export default function LinkBadge({onPress}: {onPress?: () => void}) {
   }, [state, pulse]);
   const color = state === "connected" ? C.ok : state === "offline" ? C.bad : C.wait;
   return (
-    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={linkLabel(state)} style={styles.wrap}>
-      <Animated.View style={{opacity: pulse}}>
-        <Icon name={state === "offline" ? "monitor-off" : "monitor"} size={26} color={color} />
-      </Animated.View>
-    </Pressable>
-  );
-}
-
-/** The same state in words, for the menu and the Status screen. */
-export function LinkLine() {
-  const state = useLink();
-  const color = state === "connected" ? C.ok : state === "offline" ? C.bad : C.wait;
-  return (
-    <View style={styles.line}>
-      <Icon name={state === "offline" ? "monitor-off" : "monitor"} size={18} color={color} />
-      <Text style={[styles.lineText, {color}]}>{linkLabel(state)}</Text>
+    <View style={styles.line} accessibilityLabel={linkLabel(state)}>
+      <Animated.View style={[styles.dot, {backgroundColor: color, opacity: pulse}]} />
+      <Text style={[styles.text, small && styles.small, state !== "connected" && {color}]} numberOfLines={1}>{linkLabel(state)}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {width: 48, height: 48, alignItems: "center", justifyContent: "center"},
-  line: {flexDirection: "row", alignItems: "center", gap: 8},
-  lineText: {fontSize: 13},
+  line: {flexDirection: "row", alignItems: "center", gap: 7},
+  dot: {width: 8, height: 8, borderRadius: 4},
+  text: {color: C.mute, fontSize: 13.5, flexShrink: 1},
+  small: {fontSize: 12},
 });
