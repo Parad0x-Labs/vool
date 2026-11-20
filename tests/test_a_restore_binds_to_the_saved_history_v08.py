@@ -23,7 +23,7 @@ from core.memory import everyday_remember as everyday
 from core.memory.entries import list_memory_entries, list_replaced_entries
 from tests.test_everyday_remember_v08 import _say
 from tests.test_keep_receipt_decides_save_claims_v08 import _turn
-from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # noqa: F401  (isolated_home is a fixture)
+from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home
 
 CHAT = "restore-chat"
 

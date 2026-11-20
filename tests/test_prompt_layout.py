@@ -266,10 +266,9 @@ def test_unmarking_restores_the_original_messages_exactly() -> None:
 
 def test_a_marked_request_still_binds_its_evidence_at_the_gateway() -> None:
     """The seal is made on the unmarked messages; the gateway must read it against the unmarked view."""
+    import adapters.openai_compatible_adapter as adapter_module
     from core.bootstrap_context import seal_request_evidence
     from core.provider_invocation_gateway import _finalize_request_evidence_payload
-
-    import adapters.openai_compatible_adapter as adapter_module
 
     msgs = [
         {"role": "system", "content": "You are VOOL. persona"},

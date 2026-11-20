@@ -266,7 +266,7 @@ def test_the_follow_up_question_still_goes_to_the_helper(monkeypatch):
 
 # --- an answer that says where a thing is kept is not a save claim ---------------------------------------------------
 
-from tests.test_keep_receipt_decides_save_claims_v08 import NOTHING_KEPT, _fresh, _gate  # noqa: E402,F401  (_fresh is a fixture)
+from tests.test_keep_receipt_decides_save_claims_v08 import NOTHING_KEPT, _fresh, _gate
 
 
 @pytest.mark.parametrize(

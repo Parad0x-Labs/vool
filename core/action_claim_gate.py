@@ -816,13 +816,12 @@ def _retention_spans(
 def _tools_ran(source_context: Any) -> bool:
     """Whether a tool or an effect ran this turn. A retrieval or a read alone is not a save and vouches for none."""
     try:
-        from core.turn_model_call_ledger import turn_call_accounting
-
         # The file loop's own tools only read (find, list, read a file, the machine's specs): they keep nothing.
         # Measured on the real app: "Thanks, so that's saved now, right?" was run through the file search, which
         # found nothing and handed the turn on; its reads were on the turn's ledger, this gate stood down for them,
         # and the model's "Whatever you meant by that is saved" was published with no write on the receipt.
         from core.clean_loop.route import LOOP_RUNTIME_TOOLS
+        from core.turn_model_call_ledger import turn_call_accounting
 
         if [tool for tool in turn_call_accounting(source_context).get("tools") or [] if str(tool) not in LOOP_RUNTIME_TOOLS]:
             return True

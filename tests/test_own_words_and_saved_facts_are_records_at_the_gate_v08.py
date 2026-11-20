@@ -21,7 +21,11 @@ import pytest
 import core.context_retrieval as cr
 from core.grounding_lifecycle import GroundingLifecycle, TurnIdentity, _record_for, register_required
 from core.grounding_publication import _support_rows, publication_verdict
-from core.memory_grounding import own_record_rows, publish_memory_records_for_turn, question_names_someone_in_the_records
+from core.memory_grounding import (
+    own_record_rows,
+    publish_memory_records_for_turn,
+    question_names_someone_in_the_records,
+)
 from tests.test_everyday_remember_v08 import _say
 from tests.test_keep_receipt_decides_save_claims_v08 import CHAT, _fresh  # _fresh is a fixture
 from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # isolated_home is a fixture

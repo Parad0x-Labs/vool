@@ -24,9 +24,9 @@ session reaches here; private chats never search or quote other chats.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import logging
 import math
-import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any

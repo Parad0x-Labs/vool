@@ -18,7 +18,7 @@ from core.memory.entries import list_memory_entries
 from core.memory.files import conversation_log_path, load_jsonl
 from core.persistent_memory import maybe_handle_memory_command
 from tests.test_everyday_remember_v08 import _say
-from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # noqa: F401  (isolated_home is a fixture)
+from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home
 
 SAVED_IN = "the-chat-that-saved-it"
 ASKED_IN = "the-chat-that-forgets-it"

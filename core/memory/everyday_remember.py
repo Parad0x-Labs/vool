@@ -128,12 +128,17 @@ _THAT_FACT_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _NOT_AN_ASK = frozenset(
-    """i it he she they we you this that there someone everyone people is was are were do does did has have had
-    seems now so given seeing considering provided except not sorry glad sure afraid happy sad funny shame pity true
-    false good great bad nice weird odd strange lucky think thinks thought believe guess bet hope wish doubt mean
-    know knew see saw notice deny agree admit understand realise realize confirm verify ensure check prove mention
-    mentioned say said says tell told heard read pretend imagine suppose assume if when because since while
-    although though but and or the a an my our""".split()
+    [
+        "i", "it", "he", "she", "they", "we", "you", "this", "that", "there", "someone", "everyone", "people",
+        "is", "was", "are", "were", "do", "does", "did", "has", "have", "had", "seems", "now", "so", "given",
+        "seeing", "considering", "provided", "except", "not", "sorry", "glad", "sure", "afraid", "happy", "sad",
+        "funny", "shame", "pity", "true", "false", "good", "great", "bad", "nice", "weird", "odd", "strange",
+        "lucky", "think", "thinks", "thought", "believe", "guess", "bet", "hope", "wish", "doubt", "mean",
+        "know", "knew", "see", "saw", "notice", "deny", "agree", "admit", "understand", "realise", "realize",
+        "confirm", "verify", "ensure", "check", "prove", "mention", "mentioned", "say", "said", "says", "tell",
+        "told", "heard", "read", "pretend", "imagine", "suppose", "assume", "if", "when", "because", "since",
+        "while", "although", "though", "but", "and", "or", "the", "a", "an", "my", "our"
+    ]
 )
 
 
@@ -428,11 +433,15 @@ _SELF_FACT_RE = re.compile(
 )
 #: What "my ... is ..." is about when the person is talking about the conversation or the task at hand, not their life.
 _TASK_TALK = frozenset(
-    """question questions problem issue point guess bad mistake fault goal aim plan idea thought thoughts opinion
-    understanding concern worry code script program function query error output screen prompt message request answer
-    reply turn computer laptop browser app tab terminal internet wifi connection battery head day week morning
-    evening night mood meeting call headache cold minute second favour favor feeling doubt bug ticket deadline
-    lot""".split()
+    [
+        "question", "questions", "problem", "issue", "point", "guess", "bad", "mistake", "fault", "goal", "aim",
+        "plan", "idea", "thought", "thoughts", "opinion", "understanding", "concern", "worry", "code", "script",
+        "program", "function", "query", "error", "output", "screen", "prompt", "message", "request", "answer",
+        "reply", "turn", "computer", "laptop", "browser", "app", "tab", "terminal", "internet", "wifi",
+        "connection", "battery", "head", "day", "week", "morning", "evening", "night", "mood", "meeting",
+        "call", "headache", "cold", "minute", "second", "favour", "favor", "feeling", "doubt", "bug", "ticket",
+        "deadline", "lot"
+    ]
 )
 #: Said about this moment, not about the person's life: "I have a call in ten minutes", "my train is late today".
 _MOMENT_RE = re.compile(
@@ -552,8 +561,11 @@ _ONE_OCCASION_RE = re.compile(
 #: Words a sentence about something can start with: the closed class of pronouns and determiners, with their
 #: contractions ("I'm", "it's"). Used only to tell a subject from a lead in `_opens_with_a_lead`.
 _SUBJECT_STARTERS = frozenset(
-    """i we you he she they it this that these those there the a an my our your his her their its one some all every
-    each no most many both""".split()
+    [
+        "i", "we", "you", "he", "she", "they", "it", "this", "that", "these", "those", "there", "the", "a",
+        "an", "my", "our", "your", "his", "her", "their", "its", "one", "some", "all", "every", "each", "no",
+        "most", "many", "both"
+    ]
 )
 _THAT_LEAD_RE = re.compile(r"^(?P<lead>[^,.;:?!]+?)\s+that\s+\S", re.IGNORECASE)
 
@@ -910,13 +922,13 @@ def clauses_kept(saved: str, update: str) -> list[str]:
         [bool(_head_and_rest(part)[0] and _head_and_rest(part)[0] in named) for part in parts],
     ):
         if any(spoken):
-            return [part for part, hit in zip(parts, spoken) if not hit]
+            return [part for part, hit in zip(parts, spoken, strict=False) if not hit]
     wanted = _forms(update_body(update))
     scores = [len(wanted & _forms(part)) for part in parts]
     top = max(scores)
     if top <= 0:
         return []
-    return [part for part, score in zip(parts, scores) if score < top]
+    return [part for part, score in zip(parts, scores, strict=False) if score < top]
 
 
 #: The kinds of value a plain statement gives, most specific first. A value's kind is a closed class (the seven

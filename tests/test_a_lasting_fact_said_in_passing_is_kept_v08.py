@@ -19,7 +19,7 @@ from core.memory import everyday_remember as everyday
 from core.memory import keep_receipt
 from core.memory.entries import list_memory_entries
 from core.persistent_memory import keep_stated_facts
-from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # noqa: F401  (isolated_home is a fixture)
+from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home
 
 OWNER = {"_owner_local": True}
 RYE = "rye bread from the Tuesday market is the only one that agrees with my stomach."

@@ -149,11 +149,11 @@ def receipt_for(source_context: Any, turn_id: str = "") -> dict[str, Any] | None
 
 __all__ = [
     "CONTEXT_KEY",
-    "KeepReceipt",
     "REFUSED_AGENT_TURN",
     "REFUSED_FORGOTTEN_HERE",
     "REFUSED_PRIVATE_CHAT",
     "REFUSED_SECRET",
+    "KeepReceipt",
     "collecting",
     "note_refused",
     "note_saved",

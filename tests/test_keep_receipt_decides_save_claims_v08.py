@@ -19,17 +19,17 @@ from types import SimpleNamespace
 import pytest
 
 from core.action_claim_gate import gate_action_claims
+from core.agent_runtime.memory_runtime import keep_what_the_turn_states
 from core.agent_runtime.secret_intake import consume_secret_intake
 from core.grounding_lifecycle import record_model_authorship, register_required
 from core.grounding_lifecycle import reset_for_tests as reset_lifecycles
 from core.memory import everyday_remember as everyday
 from core.memory import keep_receipt
 from core.memory.entries import list_memory_entries
-from core.agent_runtime.memory_runtime import keep_what_the_turn_states
 from core.persistent_memory import append_conversation_event, maybe_handle_memory_command
 from core.semantic.semantic_admissions import bound_request_context
 from core.turn_model_call_ledger import begin_turn, record_tool_execution
-from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # noqa: F401  (isolated_home is a fixture)
+from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home
 
 CHAT = "keep-receipt-chat"
 _ids = itertools.count()

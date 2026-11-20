@@ -36,8 +36,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.internal_message_schema import is_turn_directives_message
 from core.experiment_switches import switch_enabled
+from core.internal_message_schema import is_turn_directives_message
 
 EVIDENCE_OPENER = "Relevant context and evidence:"
 #: Grounding messages whose text does not change from turn to turn when nothing was looked up.

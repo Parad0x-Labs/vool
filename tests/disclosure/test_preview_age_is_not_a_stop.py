@@ -81,5 +81,5 @@ def test_an_expired_deadline_ends_the_call_as_a_timeout_not_a_stop():
 
 def test_a_person_stop_stays_a_stop_after_the_deadline_too():
     request = _request(person_stopped=True)
-    with pytest.raises(RuntimeError, match="^model_call_cancelled$"):
+    with pytest.raises(RuntimeError, match=r"^model_call_cancelled$"):
         request.raise_if_cancelled()

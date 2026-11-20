@@ -27,7 +27,7 @@ from core.persistent_memory import (
     keep_stated_facts,
     maybe_handle_memory_command,
 )
-from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # noqa: F401  (isolated_home is a fixture)
+from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home
 
 CHAT = "update-history-chat"
 LATER_CHAT = "update-history-later"

@@ -137,11 +137,11 @@ __all__ = [
     "describe_session_memory_policy",
     "ensure_memory_files",
     "everyday_memory_turn",
-    "keep_stated_facts",
     "flush_staged_conversation_events",
     "forget_memory",
     "has_relevant_memory_candidate",
     "has_staged_conversation_event",
+    "keep_stated_facts",
     "list_memory_entries",
     "load_memory_excerpt",
     "load_operator_dense_profile",
@@ -3273,7 +3273,7 @@ def maybe_handle_memory_command(
 
         # The verb's own "that" / "this" ("store THIS somewhere safe") is the object when nothing else follows it.
         _capture_verb = str(capture_match.group("verb") or "").split()
-        _capture_object = " ".join(_capture_verb[1:] + [str(capture_match.group("fact") or "")])
+        _capture_object = " ".join([*_capture_verb[1:], str(capture_match.group("fact") or "")])
         if points_back_only(_capture_object):
             # "keep it for me": the object only points back at something said before, so there is no fact here to
             # keep (measured: beside a refused passcode it was saved as the row "it for me." with "Locked in"). The
@@ -3304,9 +3304,8 @@ def maybe_handle_memory_command(
     if capture_match or _CORRECTION_RE.match(text):
         # Private chat (core.private_chat): nothing from a private chat is saved, an explicit
         # "remember" included. Said plainly instead of claiming a save that never happens.
-        from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
-
         from core.memory import keep_receipt
+        from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
 
         if turn_is_private(source_context, session_id):
             keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
