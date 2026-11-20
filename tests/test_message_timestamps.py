@@ -215,19 +215,16 @@ def test_the_time_tip_says_nothing_for_a_message_without_a_recorded_time() -> No
     assert _tip({"at": "banana"}) == ""
 
 
-def test_a_reply_still_being_written_says_when_it_last_changed_and_when_it_started() -> None:
-    text = _tip({"startedAt": "2026-10-28T21:00:00Z", "updatedAt": "2026-10-28T21:40:30Z"})
-    assert text.splitlines()[0].startswith("Last update Oct 28, 2026") and "9:40:30" in text, text
-    # Same day: the start gives its time only, not the date a second time.
-    assert text.splitlines()[1] == "Started 9:00:00 PM", text
+def test_a_reply_still_being_written_says_when_it_last_changed() -> None:
+    # When it started is the send time under the person's own message: not repeated here.
+    assert _tip({"updatedAt": "2026-10-28T21:40:30Z"}) == "Last update Oct 28, 2026, 9:40:30 PM"
 
 
-def test_a_finished_reply_says_when_it_finished_then_when_it_started() -> None:
-    text = _tip({"ts": "2026-10-28T21:50:00Z", "startedAt": "2026-10-28T21:00:00Z", "updatedAt": "2026-10-28T21:49:00Z"})
-    assert text.splitlines() == ["Oct 28, 2026, 9:50:00 PM", "Started 9:00:00 PM"], text
+def test_a_finished_reply_says_when_it_finished() -> None:
+    assert _tip({"ts": "2026-10-28T21:50:00Z", "updatedAt": "2026-10-28T21:49:00Z"}) == "Oct 28, 2026, 9:50:00 PM"
 
 
-def test_a_working_card_line_says_when_it_was_written() -> None:
+def test_a_working_card_line_or_reply_piece_says_when_it_appeared() -> None:
     assert _tip({"at": "2026-10-28T21:12:13Z"}) == "Oct 28, 2026, 9:12:13 PM"
 
 
@@ -500,3 +497,55 @@ def test_the_chat_route_still_serves_the_page() -> None:
     res = dispatch_get(path="/chat", query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
     assert res.status == 200
     assert b"function formatMsgTime" in res.body
+
+
+# --------------------------------------------------------------------------- #
+# Reply pieces: each paragraph written while VOOL works keeps its own time
+# --------------------------------------------------------------------------- #
+PIECES_STUB = """
+class Piece { constructor() { this.dataset = {}; } }
+const el = { children: [] };
+const run = {};
+"""
+
+
+def _pieces_js() -> str:
+    return _slice(_script(), "function stampReplyPieces(run, el, live) {", "function attachRunDom(run, host) {")
+
+
+def _run_pieces(harness: str) -> dict:
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not available")
+    with tempfile.NamedTemporaryFile("w", suffix=".mjs", encoding="utf-8", delete=False) as handle:
+        handle.write(PIECES_STUB + _pieces_js() + "\n" + harness)
+        path = handle.name
+    try:
+        result = subprocess.run([node, path], capture_output=True, text=True, timeout=60)
+    finally:
+        Path(path).unlink(missing_ok=True)
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_each_reply_piece_keeps_the_time_it_first_appeared_across_repaints() -> None:
+    data = _run_pieces(
+        """
+run.updatedAt = '2026-10-28T21:00:00.000Z';
+el.children = [new Piece()];                       // "Starting the scan."
+stampReplyPieces(run, el, true);
+run.updatedAt = '2026-10-28T21:01:00.000Z';
+el.children = [new Piece()];                       // same paragraph repainted, still growing
+stampReplyPieces(run, el, true);
+run.updatedAt = '2026-10-28T21:12:00.000Z';
+el.children = [new Piece(), new Piece()];          // "ETA 50 minutes." arrives as a new paragraph
+stampReplyPieces(run, el, true);
+const live = el.children.map((c) => c.dataset.at);
+el.children = [new Piece(), new Piece(), new Piece()];   // final render: a footer only seen at the end
+stampReplyPieces(run, el, false);
+console.log(JSON.stringify({ live, final: el.children.map((c) => c.dataset.at || '') }));
+"""
+    )
+    assert data["live"] == ["2026-10-28T21:00:00.000Z", "2026-10-28T21:12:00.000Z"]
+    # The final render keeps the times; a piece first seen then gets none (the reply's own time shows).
+    assert data["final"] == ["2026-10-28T21:00:00.000Z", "2026-10-28T21:12:00.000Z", ""]

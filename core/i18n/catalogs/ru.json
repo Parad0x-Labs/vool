@@ -1290,7 +1290,6 @@
     "msg.report_title": "Сообщить о неверном ответе или проблеме с этим ответом",
     "msg.report": "Пожаловаться",
     "msg.review_flagged": "отмечено на проверку — перепроверьте этот ответ",
-    "msg.time_started": "Начато {time}",
     "msg.time_updated": "Последнее обновление {time}",
     "notif.action_failed": "Не сработало (",
     "notif.at_start": "в момент начала",
@@ -4929,7 +4928,7 @@
     "settings.scam.read_more": "Читать дальше (ещё {count})",
     "settings.scam.show_less": "Показать меньше"
   },
-  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
+  "source_catalog_sha256": "ce79050c62add5a28f6a98a49b25cc56455803552456d9a6a2b472254a382ee0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

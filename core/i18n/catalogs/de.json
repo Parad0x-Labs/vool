@@ -1290,7 +1290,6 @@
     "msg.report_title": "Falsche Antwort oder Problem mit dieser Antwort melden",
     "msg.report": "Melden",
     "msg.review_flagged": "Überprüfung markiert — Antwort nochmals prüfen",
-    "msg.time_started": "Gestartet {time}",
     "msg.time_updated": "Zuletzt aktualisiert {time}",
     "notif.action_failed": "Das hat nicht geklappt (",
     "notif.at_start": "bei Beginn",
@@ -4929,7 +4928,7 @@
     "settings.scam.read_more": "Mehr lesen ({count} weitere)",
     "settings.scam.show_less": "Weniger anzeigen"
   },
-  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
+  "source_catalog_sha256": "ce79050c62add5a28f6a98a49b25cc56455803552456d9a6a2b472254a382ee0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

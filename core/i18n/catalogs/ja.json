@@ -1290,7 +1290,6 @@
     "msg.report_title": "誤った回答やこの回答の問題を報告する",
     "msg.report": "報告",
     "msg.review_flagged": "レビューのフラグ — この回答をもう一度確認してください",
-    "msg.time_started": "開始 {time}",
     "msg.time_updated": "最終更新 {time}",
     "notif.action_failed": "うまくいきませんでした（",
     "notif.at_start": "開始時",
@@ -4929,7 +4928,7 @@
     "settings.scam.read_more": "続きを読む（あと {count} 件）",
     "settings.scam.show_less": "折りたたむ"
   },
-  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
+  "source_catalog_sha256": "ce79050c62add5a28f6a98a49b25cc56455803552456d9a6a2b472254a382ee0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

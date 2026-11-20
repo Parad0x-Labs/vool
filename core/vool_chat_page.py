@@ -2846,33 +2846,27 @@ function setMsgTime(el, tsIso) {
 // The full date and time for the time tip: the viewer's own time zone and the machine's own
 // 12/24-hour habit, worked out when the tip opens rather than when the message was drawn, so a
 // time zone change since then still shows the right local time. '' for anything that doesn't
-// parse: no time is shown rather than a wrong one. `timeOnly` leaves the date out.
-function fullLocalTime(at, timeOnly) {
+// parse: no time is shown rather than a wrong one.
+function fullLocalTime(at) {
   if (!at) return '';
   const d = new Date(at);
   if (isNaN(d.getTime())) return '';
-  const opts = timeOnly ? { timeStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'medium' };
+  const opts = { dateStyle: 'medium', timeStyle: 'medium' };
   try { const hc = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle; if (hc) opts.hourCycle = hc; } catch (e) {}
   try { return new Intl.DateTimeFormat(appLocale(), opts).format(d); } catch (e) {}
-  try { return timeOnly ? d.toLocaleTimeString() : d.toLocaleString(); } catch (e) { return ''; }
+  try { return d.toLocaleString(); } catch (e) { return ''; }
 }
-// What the time tip says. A working-card line (data-at) says when it last changed. A message says
-// when it was sent or finished; a reply still being written says when it last changed and when it
-// started. A message with no recorded time (an older chat) says nothing.
+// What the time tip says. A working-card line or a piece of a reply written while VOOL worked
+// (data-at) says when it appeared. A message says when it was sent or finished; a reply still being
+// written says when it last changed. (When it started is the send time under your own message.)
+// A message with no recorded time (an older chat) says nothing.
 function timeTipText(el) {
   const d = (el && el.dataset) || {};
   if (d.at) return fullLocalTime(d.at);
-  const lines = [];
   const done = fullLocalTime(d.ts);
-  const updated = done ? '' : fullLocalTime(d.updatedAt);
-  if (done) lines.push(done);
-  else if (updated) lines.push(pageTF('msg.time_updated', 'Last update {time}', { time: updated }));
-  // The start of a reply is usually the same day as its end: then only its time, not the date again.
-  const ref = d.ts || (updated ? d.updatedAt : '');
-  const sameDay = !!ref && new Date(ref).toDateString() === new Date(d.startedAt).toDateString();
-  const started = fullLocalTime(d.startedAt, sameDay);
-  if (started && started !== fullLocalTime(d.ts, true)) lines.push(pageTF('msg.time_started', 'Started {time}', { time: started }));
-  return lines.join('\n');
+  if (done) return done;
+  const updated = fullLocalTime(d.updatedAt);
+  return updated ? pageTF('msg.time_updated', 'Last update {time}', { time: updated }) : '';
 }
 function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const empty = logEl.querySelector('.empty');
@@ -5970,11 +5964,11 @@ if (logEl) {
 }
 
 // ---- Time tip: when each message and each working-card line was written ----
-// A mouse resting on a message (or a card line) shows its time; a tap shows it on a touch screen,
-// where there is no hover. One quiet element, reused; it never takes a click.
+// A mouse resting on a message (or a card line, or a piece of a reply) shows its time and moving
+// off it hides it; on a touch screen, where there is no hover, a tap shows it and a touch anywhere
+// else hides it. One quiet element, reused; it never takes a click.
 const TIME_TIP_HOSTS = '[data-at], .msg';
 const TIME_TIP_REST_MS = 600;
-const TIME_TIP_TOUCH_MS = 4000;
 const TIME_TIP_SKIP = 'a, button, input, textarea, select, summary, label, [contenteditable], .chat-code-wrap, img';
 let timeTipEl = null, timeTipHost = null, timeTipTimer = null, timeTipPending = null, timeTipQuiet = null, lastPointerType = 'mouse';
 function hideTimeTip() {
@@ -6019,17 +6013,18 @@ if (logEl) {
   logEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' || e.pointerType === 'pen') { timeTipQuiet = null; hideTimeTip(); } });
   logEl.addEventListener('click', (e) => {
     if (lastPointerType !== 'touch') return;
-    if (e.target.closest && e.target.closest(TIME_TIP_SKIP)) return;
-    try { if (String(window.getSelection() || '').trim()) return; } catch (err) {}
+    if (e.target.closest && e.target.closest(TIME_TIP_SKIP)) { hideTimeTip(); return; }
+    try { if (String(window.getSelection() || '').trim()) { hideTimeTip(); return; } } catch (err) {}
     const host = timeTipHostAt(e.target), again = host === timeTipHost;
     hideTimeTip();
     if (!host || again) return;   // a second tap puts it away
     showTimeTip(host, e.clientX, e.clientY);
-    if (timeTipHost === host) timeTipTimer = setTimeout(hideTimeTip, TIME_TIP_TOUCH_MS);
   });
   logEl.addEventListener('scroll', hideTimeTip, { passive: true });
 }
 document.addEventListener('keydown', hideTimeTip);
+// A touch (or click) anywhere outside the chat log puts the tip away too.
+document.addEventListener('pointerdown', (e) => { if (timeTipHost && !(logEl && logEl.contains(e.target))) hideTimeTip(); }, true);
 // A time zone change while the page is open (travel, a changed clock setting): the visible stamps
 // are redrawn from each message's own recorded time when the window comes back into view.
 function refreshMsgTimes() {
@@ -6218,12 +6213,23 @@ function noteRunUpdate(run, at) {
   if (run.assistantMsgEl && run.assistantMsgEl.dataset) run.assistantMsgEl.dataset.updatedAt = run.updatedAt;
   return run.updatedAt;
 }
+// Each piece of a reply (a paragraph, a list, a heading) keeps the moment it first appeared while
+// VOOL was working -- a progress note's own time ("ETA 50 minutes" said at 01:12). Kept on the run by
+// position and written onto the rendered pieces after every paint, so a re-render keeps them. Only
+// `live` paints add new times; the final render adds none (a piece seen only then gets no time and
+// the reply's own finish time is shown for it).
+function stampReplyPieces(run, el, live) {
+  if (!el || !el.children) return;
+  const times = run.pieceTimes || (run.pieceTimes = []);
+  const kids = el.children;
+  for (let i = 0; i < kids.length; i++) {
+    if (live && !times[i]) times[i] = run.updatedAt || new Date().toISOString();
+    if (times[i] && kids[i].dataset) kids[i].dataset.at = times[i];
+  }
+}
 function attachRunDom(run, host) {
   run.assistantMsgEl = host;
-  if (host && host.dataset) {
-    host.dataset.startedAt = new Date(run.start).toISOString();
-    if (run.updatedAt) host.dataset.updatedAt = run.updatedAt;
-  }
+  if (host && host.dataset && run.updatedAt) host.dataset.updatedAt = run.updatedAt;
   run.textEl = msgTextEl(host);
   buildCard(run, host);
   paintRunState(run);
@@ -6327,6 +6333,7 @@ function paintStreamingText(run) {
   if (shown.length < STREAM_FREEZE_MIN) {
     run.streamKept = null;
     renderRichText(el, shown);
+    stampReplyPieces(run, el, true);
     return;
   }
   if (!kept || kept.el !== el || !shown.startsWith(kept.text) || el.childNodes.length < kept.nodes) {
@@ -6342,6 +6349,7 @@ function paintStreamingText(run) {
   }
   appendRendered(el, shown.slice(kept.text.length), { olResumeAt: kept.olResumeAt });
   el.dataset.raw = shown;
+  stampReplyPieces(run, el, true);
 }
 function scheduleStreamPaint(run) {
   if (run.streamPaintTimer) return;
@@ -6373,7 +6381,7 @@ function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) { renderAssistantContent(run.textEl, run.text, run.displayMetadata); if (run.skillsUsed) paintSkillsUsed(run.textEl, run.skillsUsed); }
+      if (run.ended) { renderAssistantContent(run.textEl, run.text, run.displayMetadata); if (run.skillsUsed) paintSkillsUsed(run.textEl, run.skillsUsed); stampReplyPieces(run, run.textEl, false); }
       else {
         // The fresh node now shows everything so far: a batched paint still waiting is moot, and
         // the next piece paints straight into this node.
@@ -10179,6 +10187,7 @@ async function runTurn(text, queueItemId, opts) {
             if (!run.textEl) return;
             run.assistantMsgEl.classList.remove('pending');
             renderAssistantContent(run.textEl, assistant, run.displayMetadata);
+            stampReplyPieces(run, run.textEl, false);
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
             followLog();
           });
@@ -10267,6 +10276,7 @@ async function runTurn(text, queueItemId, opts) {
       if (!run.textEl) return;
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
       renderAssistantContent(run.textEl, assistant, run.displayMetadata);
+      stampReplyPieces(run, run.textEl, false);
     });
     noteSkillsUsed(run);
   }

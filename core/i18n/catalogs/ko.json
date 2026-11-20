@@ -1290,7 +1290,6 @@
     "msg.report_title": "잘못된 답변이나 이 답변의 문제 신고",
     "msg.report": "신고",
     "msg.review_flagged": "검토 표시됨 — 이 답변을 다시 확인하세요",
-    "msg.time_started": "시작 {time}",
     "msg.time_updated": "마지막 업데이트 {time}",
     "notif.action_failed": "작동하지 않았습니다 (",
     "notif.at_start": "시작할 때",
@@ -4929,7 +4928,7 @@
     "settings.scam.read_more": "더 보기 ({count}개 더)",
     "settings.scam.show_less": "간략히 보기"
   },
-  "source_catalog_sha256": "e30d65c7d82d5c33d0e5d6df4ba62f6db90f77ea0c73c964b2609a10fb564b37",
+  "source_catalog_sha256": "ce79050c62add5a28f6a98a49b25cc56455803552456d9a6a2b472254a382ee0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
