@@ -177,7 +177,7 @@ def reader_facing_reason(reason: str) -> str:
     if operation_match is not None:
         text = operation_match.group("detail").strip()
     if _INTERNAL_CAPABILITY_REASON_RE.match(text):
-        return "this kind of request cannot be answered with what is available here"
+        return "I couldn't do this part. Ask for it on its own and I'll try again"
     lowered = text.lower()
     for marker, phrase in _INTERNAL_REASON_PHRASES:
         if marker in lowered:

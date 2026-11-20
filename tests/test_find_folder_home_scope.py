@@ -104,3 +104,25 @@ def test_the_quick_path_passes_the_drive_ask_on(monkeypatch):
         source_surface="api", source_context={},
     )
     assert ("machine.find_folder", {"name": "photos", "drives": True}) in calls
+
+
+def test_the_standard_downloads_folder_is_the_one_in_home_not_old_test_copies(machine):
+    """The phone asked to check the Downloads folder (2026-11-20) and got seven, five inside leftover test runs."""
+    from core.runtime_execution_tools import _machine_find_folder
+
+    home, _drive = machine
+    (home / "Downloads").mkdir()
+    (home / "old-save" / "tmp" / "test_a_path_that_does_not_exis0" / "Downloads").mkdir(parents=True)
+    for asked in ("Downloads", "downloads", "the Downloads folder"):
+        found = _machine_find_folder({"name": asked})
+        assert found.details["matches"] == [str(home / "Downloads")], asked
+        assert "test_a_path" not in found.response_text
+
+
+def test_a_standard_name_without_that_home_folder_still_searches(machine):
+    from core.runtime_execution_tools import _machine_find_folder
+
+    home, _drive = machine
+    (home / "Projects" / "Music").mkdir(parents=True)
+    found = _machine_find_folder({"name": "Music"})
+    assert found.details["matches"] == [str(home / "Projects" / "Music")]

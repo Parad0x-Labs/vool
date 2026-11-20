@@ -1413,6 +1413,12 @@ def _machine_find_file(
         details={"matches": [], "observation": observation},
     )
 
+_STANDARD_HOME_FOLDERS = {
+    "downloads": "Downloads", "desktop": "Desktop", "documents": "Documents", "pictures": "Pictures",
+    "movies": "Movies", "music": "Music",
+}
+
+
 def _resolved_existing_directory(value: str) -> str | None:
     """The absolute path ``value`` names, if it is path-shaped and that directory exists.
 
@@ -1701,6 +1707,13 @@ def _machine_find_folder(
         # Nothing in the hinted place: fall through to the full search with the REDUCED name,
         # never the sentence, so the walk at least has something findable to look for.
         name = phrase_name
+
+    # The person's own standard folder ("check the Downloads folder") is that folder in their home,
+    # not every directory of the same name that a test run or an old backup left deeper down: the
+    # phone got seven "Downloads" back, five of them inside leftover test folders (2026-11-20).
+    standard = _STANDARD_HOME_FOLDERS.get(name.strip().lower())
+    if standard and not include_drives and os.path.isdir(os.path.join(os.path.expanduser("~"), standard)):
+        name = "~/" + standard
 
     resolved = _resolved_existing_directory(name)
     if resolved is not None:
