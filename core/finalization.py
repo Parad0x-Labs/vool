@@ -243,6 +243,26 @@ def _is_a_demand(text: str) -> bool:
     return not _NOT_A_DEMAND_RE.match(str(text or ""))
 
 
+#: What the person reads for the ledger's evidence reasons. The ledger keeps its own wording (it
+#: names the record the claim was read from, e.g. "dispatched, failed (receipt demand:u2)"); the
+#: answer must not. Measured on the first-day sweep (Nov 21): "* and tell me a joke please —
+#: dispatched, failed (receipt demand:u2)" reached the chat.
+_READER_REASONS: tuple[tuple[str, str], ...] = (
+    ("dispatched, failed", "I tried this part and it failed"),
+    ("dispatched, unverifiable", "nothing confirmed an answer to this part"),
+    ("not dispatched", "I did not get to this part"),
+    ("no answering lane claimed this part of the request", "nothing I can use here answers this part"),
+)
+
+
+def _reader_reason(reason: Any) -> str:
+    text = str(reason or "").strip()
+    for prefix, words in _READER_REASONS:
+        if text == prefix or text.startswith(prefix + " ("):
+            return words
+    return text
+
+
 def _render_closure_rows(pending: list[dict[str, Any]], content: str) -> str:
     """The closure section: unanswered slots under one header, partially answered under another."""
     pending = [row for row in pending if _is_a_demand(str(row.get("text") or ""))]
@@ -251,11 +271,11 @@ def _render_closure_rows(pending: list[dict[str, Any]], content: str) -> str:
     blocks: list[str] = []
     if unanswered:
         lines = [] if RSS_UNAVAILABLE_HEADER in content else [RSS_UNAVAILABLE_HEADER]
-        lines += [f"* {str(row.get('text') or '').strip()} — {row.get('reason')}" for row in unanswered]
+        lines += [f"* {str(row.get('text') or '').strip()} — {_reader_reason(row.get('reason'))}" for row in unanswered]
         blocks.append("\n".join(lines))
     if partial:
         lines = [] if RSS_PARTIAL_HEADER in content else [RSS_PARTIAL_HEADER]
-        lines += [f"* {str(row.get('text') or '').strip()} — {row.get('reason')}" for row in partial]
+        lines += [f"* {str(row.get('text') or '').strip()} — {_reader_reason(row.get('reason'))}" for row in partial]
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
 
