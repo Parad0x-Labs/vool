@@ -305,6 +305,7 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .session { display:flex; align-items:center; gap:4px; background:transparent; color:var(--ink); border:1px solid transparent; border-radius:8px; padding:6px 8px; font-size:13px; }
 #sessions .session:hover { background:var(--user); }
 #sessions .session.active { background:var(--active); border-color:var(--border); }
+#sessions .session.deleting { opacity:.45; pointer-events:none; }
 #sessions .s-emoji { flex:0 0 auto; font-size:13px; line-height:1; }
 #sessions .s-emoji:empty { display:none; }
 #sessions .s-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
@@ -3603,6 +3604,7 @@ function makeSessionItem(s, archived, nested) {
   // The whole row opens the chat, by mouse, touch or keyboard (the title is a focusable button;
   // the action buttons stop their own clicks).
   item.dataset.id = s.session_id;
+  if (_deletingChats && _deletingChats.has(s.session_id)) { item.classList.add('deleting'); item.setAttribute('aria-busy', 'true'); }
   title.setAttribute('role', 'button');
   title.tabIndex = 0;
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSession(s.session_id); } });
@@ -3703,13 +3705,33 @@ async function cancelChatRun(chatId) {
   } catch (e) {}
   try { if (run.aborter) run.aborter.abort(); } catch (e) {}
 }
+// Chats whose delete was confirmed and has not been answered yet. Measured on the owner's Mac
+// (installed 0.8, 2026-11-21, memory in swap): a delete took 10-47 s to answer while the row sat
+// unchanged, so it looked like nothing happened and was confirmed four more times. The row now
+// shows at once that it is being deleted, and a second delete of the same chat is not sent.
+var _deletingChats = new Set();  // var: the sidebar may render before this line runs
+function markDeleting(sid, on) {
+  if (on) _deletingChats.add(sid); else _deletingChats.delete(sid);
+  document.querySelectorAll('#sessions .session').forEach((el) => {
+    if (el.dataset.id !== sid) return;
+    el.classList.toggle('deleting', !!on);
+    if (on) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');
+  });
+}
 async function deleteSession(sid, title) {
-  if (!sid) return;
+  if (!sid || _deletingChats.has(sid)) return;
   const name = String(title || '').trim() || pageT('dialog.this_chat', 'this chat');
   if (!await requestConfirm(
     pageTF('dialog.delete_chat_title', 'Delete “{name}”?', { name: confirmName(name) }),
     pageT('dialog.delete_chat_detail', 'This permanently removes the chat and everything VOOL learned in it.'),
     pageT('dialog.delete', 'Delete'))) return;
+  if (_deletingChats.has(sid)) return;
+  markDeleting(sid, true);
+  try {
+    await deleteSessionConfirmed(sid);
+  } finally { markDeleting(sid, false); }
+}
+async function deleteSessionConfirmed(sid) {
   const wasRunning = isChatBusy(sid);
   const wasPending = _pendingSessions.has(sid);
   if (wasRunning) await cancelChatRun(sid);
