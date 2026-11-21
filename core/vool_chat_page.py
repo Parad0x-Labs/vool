@@ -9837,7 +9837,18 @@ async function runTurn(text, queueItemId, opts) {
     // already supplies it for the selected conversation, so the first send never asks twice.
     let sendRequiresPaidAck = false;
     try {
-      const selJ = await fetchJsonWithin('/api/cloud/model?session_id=' + encodeURIComponent(chatId), run.aborter.signal, 5000);
+      // A loaded machine can take longer than 5 s to answer this small read (measured on the
+      // owner's Mac 2026-11-21: memory nearly all in swap while a local model answered, and every
+      // read took 3-17 s). One slow answer is not a refusal: ask once more with a longer limit,
+      // and only then give up -- in words that say so, with the message back in the box.
+      let selJ;
+      try {
+        selJ = await fetchJsonWithin('/api/cloud/model?session_id=' + encodeURIComponent(chatId), run.aborter.signal, 5000);
+      } catch (first) {
+        if (run.aborter.signal.aborted) throw first;
+        try { selJ = await fetchJsonWithin('/api/cloud/model?session_id=' + encodeURIComponent(chatId), run.aborter.signal, 20000); }
+        catch (second) { if (!run.aborter.signal.aborted) second.voolBusy = true; throw second; }
+      }
       if (!selJ || !selJ.ok) throw new Error('Model selection is unavailable. Please retry.');
       if (selJ && selJ.ok) {
         const serverPin = String(selJ.model || '').trim();
@@ -10090,12 +10101,15 @@ async function runTurn(text, queueItemId, opts) {
       if (!assistant) { run.text = pageT('run.stopped_showing', '(stopped showing this answer)'); withRunDom(run, () => { if (run.textEl) run.textEl.textContent = run.text; }); }
       finishRun(run, 'cancelled', pageT('run.cancelled', 'Stopped \u2014 cancelled the turn on your machine.'));
     }
-    else if (isNetworkFailure(e)) {
+    else if (isNetworkFailure(e) || (e && e.voolBusy)) {
       // The service itself could not be reached: say that in words, never the browser's
       // "Failed to fetch". Whether anything reached VOOL depends on whether a reply had begun.
-      VoolConnection.markOffline();
+      // A busy VOOL is still running: only an unreachable one is marked offline.
+      if (!(e && e.voolBusy)) VoolConnection.markOffline();
       const sentNothing = !run.responseReceived;
-      run.error = sentNothing
+      run.error = (e && e.voolBusy)
+        ? "VOOL is too busy to take this message right now (this computer is answering very slowly), so it wasn't sent. It's back in the message box: send it again in a moment."
+        : sentNothing
         ? "VOOL couldn't be reached, so this message wasn't answered. It's back in the message box: send it again when VOOL is running."
         : "The connection to VOOL was lost before this answer finished. Try again when VOOL is running.";
       run.text = assistant ? assistant : run.error;
@@ -11285,9 +11299,19 @@ function modeContext(chatId) {
   const owner = chatState(chatId);
   return { session_id: chatId, project_id: owner.projectId || '', turn_id: owner.run && !owner.run.ended ? owner.run.turnId : '' };
 }
-async function postMode(payload, context) {
+async function postMode(payload, context, timeoutMs) {
   const owner = context || modeContext(displayedChat);
-  const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: owner.session_id, project_id: owner.project_id, turn_id: owner.turn_id }, payload || {})) });
+  // A dialog that waits on this call bounds it: an answer that never comes is said in words, never
+  // left as a control that does nothing (Bypass dialog, installed 0.8, 2026-11-21).
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  let r;
+  try {
+    r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: owner.session_id, project_id: owner.project_id, turn_id: owner.turn_id }, payload || {})), signal: controller ? controller.signal : undefined });
+  } catch (e) {
+    if (controller && controller.signal.aborted) throw new Error(pageT('header.run_prov_unanswered', 'VOOL did not answer this check yet.'));
+    throw e;
+  } finally { if (timer) clearTimeout(timer); }
   let data = {}; try { data = await r.json(); } catch (e) {}
   if (!r.ok) { const err = new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); err.body = data; throw err; }
   return data;
@@ -11348,11 +11372,13 @@ async function restoreChatBypass(chatId) {
 async function refreshBypassReadiness(context) {
   const hint = document.getElementById('bypassReadiness'), confirm = document.getElementById('bypassConfirm');
   const duration = document.getElementById('bypassDuration'), setup = document.getElementById('bypassWorkspaceSetup');
-  context.ready = false; if (confirm) confirm.disabled = true;
+  // Only "Until I turn it off" needs this chat's folder. A timed bypass never waits on the check:
+  // the button works from the moment the dialog opens, and the server checks again on activation.
+  context.ready = false; if (confirm) confirm.disabled = false;
   const option = duration.querySelector('option[value="until_off"]'); option.disabled = true;
   hint.textContent = pageT('bypass.readiness.checking', 'Checking this chat’s folder…'); setup.hidden = true;
   try {
-    const data = await postMode({ op: 'bypass_options' }, context);
+    const data = await postMode({ op: 'bypass_options' }, context, 10000);
     if (bypassDialogContext !== context) return;
     context.ready = true; context.untilOffAvailable = data.until_off_available;
     context.workspace_root = String(data.workspace_root || '');
@@ -11373,7 +11399,7 @@ async function refreshBypassReadiness(context) {
     Object.keys(_serverProjects).forEach((id) => add(id, _serverProjects[id].name || pageT('bypass.setup.project_fallback', 'Project')));
     add('__new', pageT('bypass.setup.new', 'Choose a new folder…'));
   } catch (e) {
-    if (bypassDialogContext === context) { hint.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
+    if (bypassDialogContext === context) { hint.textContent = pageTF('bypass.readiness.error', 'Could not check permissions: {error} Close and reopen to retry.', { error: String((e && e.message) || '') }); }
   }
 }
 function openBypassModal() {
@@ -11416,11 +11442,16 @@ async function linkBypassWorkspace() {
 }
 async function confirmBypass() {
   const context = bypassDialogContext;
-  if (!context || !context.ready || !isDisplayed(context.session_id)) return;
+  if (!context || !isDisplayed(context.session_id)) return;
   const scope = document.getElementById('bypassScope'), duration = document.getElementById('bypassDuration'), btn = document.getElementById('bypassConfirm');
   const customField = document.getElementById('bypassCustomField'), customMinutes = document.getElementById('bypassCustomMinutes');
   const untilOff = !!(duration && duration.value === 'until_off');
-  if (untilOff && !context.untilOffAvailable) return;
+  if (untilOff && !(context.ready && context.untilOffAvailable)) {
+    const error = document.getElementById('bypassError');
+    error.textContent = pageT('bypass.not_activated_prefix', 'Bypass was not activated: ') + (document.getElementById('bypassReadiness').textContent || '');
+    error.hidden = false;
+    return;
+  }
   if (untilOff && scope && scope.value !== 'session') { toast(pageT('bypass.until_off_chat_only', '“Until I turn it off” applies to this chat only — choose the This chat session scope.')); return; }
   if (scope && scope.value === 'task' && (!view.run || view.run.ended)) { toast(pageT('bypass.start_task_first', 'Start a task before choosing task-only bypass, or select this chat session.')); return; }
   let seconds = Number(duration && duration.value || 900);
@@ -11430,6 +11461,7 @@ async function confirmBypass() {
     seconds = minutes * 60;
   }
   if (btn) btn.disabled = true;
+  { const stale = document.getElementById('bypassError'); if (stale) stale.hidden = true; }
   try {
     const chatId = context.session_id, owner = chatState(chatId);
     const requestedScope = scope ? scope.value : 'task';
@@ -11443,7 +11475,7 @@ async function confirmBypass() {
       duration_seconds: untilOff ? 0 : seconds,
       until_off: untilOff,
       workspace_root: untilOff ? context.workspace_root : '',
-    }, context);
+    }, context, 15000);
     const data = await postMode({
       op: 'activate_bypass',
       scope: requestedScope,
@@ -11451,7 +11483,7 @@ async function confirmBypass() {
       until_off: untilOff,
       workspace_root: untilOff ? context.workspace_root : '',
       confirmation_id: minted.confirmation_id
-    }, context);
+    }, context, 15000);
     owner.bypassGrant = data.grant;
     await setModeController('bypass_permissions', owner.bypassGrant.token, context);
     if (bypassDialogContext === context) closeBypassModal();
