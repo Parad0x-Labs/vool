@@ -98,6 +98,8 @@ class Run:
         self.scratch = scratch
         self.steps: list[dict] = []
         self.last_answer: dict = {}
+        # Wall time the last chat request returned: the quiet-window wait before the private check counts from it.
+        self.last_chat_end = 0.0
 
     def record(self, name: str, ok: bool, detail: object, fatal: bool = True) -> None:
         self.steps.append({"step": name, "ok": ok, "detail": detail})
@@ -143,6 +145,7 @@ class Run:
         start = time.monotonic()
         answer = request(origin, "/api/chat", body, timeout=timeout)
         self.last_answer = answer
+        self.last_chat_end = time.time()
         seconds = round(time.monotonic() - start, 1)
         (self.scratch / f"chat-{name}.json").write_text(
             json.dumps({"request": body, "seconds": seconds, "answer": answer}, indent=2) + "\n"
@@ -154,6 +157,12 @@ class Run:
 
 PIN_SESSION, PRIVATE_SESSION = "release-pin-check", "release-private-check"
 SECRET = "Quillmere"
+# The product's memory-extraction quiet window (core/runtime_provider_defaults.py VOOL_EXTRACTION_QUIET_SECONDS):
+# a chat's held turns go to the extraction model this long after its last turn, on a background timer that is no
+# request of the private chat, so its speed row is recorded as usual. The margin covers the dispatch before the
+# model call reaches Ollama (measured on the Intel smoke of c22a8352: 6 s after the timer).
+EXTRACTION_QUIET_SECONDS = float(os.environ.get("VOOL_EXTRACTION_QUIET_SECONDS", "90") or 0)
+EXTRACTION_DISPATCH_MARGIN_SECONDS = 30.0
 
 
 def files_holding(root: Path, needle: str) -> list[str]:
@@ -198,7 +207,8 @@ def pin_check(run: Run, origin: str, home: Path, model: str, timeout: float) -> 
         "files_holding_pin": on_disk[:10], "second_answer": extra_answer}
 
 
-def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeout: float) -> None:
+def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeout: float,
+                           quiet_seconds: float = EXTRACTION_QUIET_SECONDS) -> None:
     """Exercise PIN redaction, private chat and forgetting through the served chat API."""
     def chat(session, name, text, model, timeout):
         return run.chat(origin, name, text, model, timeout, session=session)
@@ -259,7 +269,22 @@ def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeou
             return True
         return ended - took >= started - 1.0
 
+    def wait_for_earlier_chats_to_go_quiet():
+        # Every earlier chat's held extraction starts its model call before the private turn does, so a call that
+        # begins inside the private turn can only be the private turn's own. Measured on the Intel smoke of
+        # c22a8352: the PIN chat's extraction timer fired 90 s after its turn, 0.5 s into the private turn, and its
+        # speed row was counted against the private chat. A row of a call begun before the turn is still told
+        # apart by began_inside below.
+        if quiet_seconds <= 0:
+            return 0.0
+        wait = quiet_seconds + EXTRACTION_DISPATCH_MARGIN_SECONDS - (time.time() - run.last_chat_end)
+        if wait > 0:
+            print(f"  waiting {wait:.0f}s for earlier chats' memory extraction to start", flush=True)
+            time.sleep(wait)
+        return round(max(wait, 0.0), 1)
+
     def private():
+        waited = wait_for_earlier_chats_to_go_quiet()
         before = len(bench_rows())
         started = time.time()
         on = chat(PRIVATE_SESSION, "private-on", "private chat", model, timeout)
@@ -275,7 +300,7 @@ def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeou
         ok = SECRET not in json.dumps(hist) and not on_disk and not inside
         return ok, {"on": on[:200], "off": off[:200], "in_history": SECRET in json.dumps(hist), "files": on_disk[:10],
                     "benchmark_rows_before_private_turn": before, "ended_during_private_turn": len(new),
-                    "began_inside_private_turn": len(inside)}
+                    "began_inside_private_turn": len(inside), "waited_for_quiet_seconds": waited}
 
     def bench_content_free():
         rows = bench_rows()

@@ -44,6 +44,30 @@ def _speed_row(db, call_seconds):
 
 @pytest.mark.parametrize('leak', ['', 'history', 'pin', 'pin on disk', 'speed row'])
 def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak):
+    _drive_release_gates(tmp_path, leak)
+
+
+def test_the_private_check_starts_after_earlier_chats_extraction_has_started(tmp_path, monkeypatch):
+    # The product holds each chat's turns for its quiet window, then a background timer sends them to the extraction
+    # model: a call of no private request, recorded as usual. Measured on the Intel smoke of c22a8352, the PIN chat's
+    # timer fired 0.5 s into the private turn and its row was counted as the private chat's. The check waits out the
+    # window (plus the dispatch margin) from the last chat before it turns private chat on.
+    seen, slept = [], []
+    monkeypatch.setattr(smoke.time, 'sleep', lambda seconds: slept.append((seconds, len(seen))))
+    run = _drive_release_gates(tmp_path, '', quiet_seconds=5, seen=seen)
+    assert len(slept) == 1
+    seconds, chats_before = slept[0]
+    assert 5 < seconds <= 5 + smoke.EXTRACTION_DISPATCH_MARGIN_SECONDS
+    messages = [body['messages'][0]['content'] for body in seen]
+    # every ordinary chat came before the wait; the message that turns private chat on came after it
+    assert chats_before == messages.index('private chat')
+    assert all(body['session_id'] == smoke.PRIVATE_SESSION for body in seen[chats_before:])
+    private = next(row for row in run.steps if row['step'] == 'private chat leaves no transcript, memory or file')
+    assert private['ok'] is True
+    assert private['detail']['waited_for_quiet_seconds'] == round(seconds, 1)
+
+
+def _drive_release_gates(tmp_path, leak, quiet_seconds=0, seen=None):
     home = tmp_path / 'home'
     db = home / 'Library/Application Support/VOOL/runtime/data/vool_web0_v2.db'
     db.parent.mkdir(parents=True)
@@ -51,7 +75,7 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
         connection.execute('create table local_inference_benchmarks(raw_result_json text, created_at text)')
         connection.execute('insert into local_inference_benchmarks values (?, ?)',
                            ('{"tokens": 42}', '2026-11-13T05:00:00+00:00'))
-    seen = []
+    seen = [] if seen is None else seen
     # every chat's listing shows the profile facts all chats share (cross-chat recall), but only once the chat
     # exists: the served listing of a session with no turn yet is empty (the Intel smoke of d5d044b0 counted
     # the teal fact as the PIN turn's because of that)
@@ -104,7 +128,8 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
     thread.start()
     run = smoke.Run(tmp_path)
     try:
-        smoke.release_privacy_checks(run, f'http://127.0.0.1:{server.server_port}', home, 'local-model', 10)
+        smoke.release_privacy_checks(run, f'http://127.0.0.1:{server.server_port}', home, 'local-model', 10,
+                                     quiet_seconds=quiet_seconds)
     finally:
         server.shutdown()
         server.server_close()
@@ -120,6 +145,7 @@ def test_release_gates_drive_served_chat_and_detect_private_leaks(tmp_path, leak
     assert {body['session_id'] for body in seen} == {
         smoke.PIN_SESSION, smoke.PRIVATE_SESSION, 'release-forget-digit-check',
     }
+    return run
 
 
 def test_dmg_with_two_apps_is_refused_and_detached(monkeypatch, tmp_path):
