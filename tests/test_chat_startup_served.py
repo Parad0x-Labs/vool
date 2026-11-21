@@ -186,15 +186,19 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                     )
                     if cancel:
                         page.locator(".tc-stop").last.click(timeout=5000)
+                    # A slow read is asked once more with a longer limit before the page gives up
+                    # (5 s, then 20 s: a swapping Mac answers small reads in 3-17 s), so a hung
+                    # read ends after about 25 s; Stop ends it at once.
                     page.wait_for_function(
                         "previous => view.run && view.run.turnId !== previous && view.run.released",
-                        arg=previous_turn, timeout=7000,
+                        arg=previous_turn, timeout=7000 if cancel else 32000,
                     )
                     assert len(held) > held_before, "model-selection fault was never exercised"
                     state = page.evaluate("({status:view.run.status,error:view.run.error})")
                     assert state["status"] == ("cancelled" if cancel else "failed"), state
                     if not cancel:
-                        assert "did not respond" in state["error"], state
+                        # Said in words, and the message is back in the box to send again.
+                        assert "wasn't sent" in state["error"] and "back in the message box" in state["error"], state
                     assert len(sends) == before, "unreadable model state dispatched a turn"
                     timings["cancel" if cancel else "timeout"] = round(time.monotonic() - started, 3)
                 page.unroute("**/api/cloud/model?*")

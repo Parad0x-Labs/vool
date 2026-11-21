@@ -47,6 +47,8 @@ out({saved, restored: inputEl.value, sent: globalThis.sentText});
 def test_queue_failure_restores_text_without_losing_a_newer_draft(switch_chat: bool) -> None:
     result = drive("""
 isChatBusy = () => true;
+// The follow-up door does not take this message (no live task answers), so it goes to the queue.
+sendFollowup = async () => false;
 let finishQueue;
 queueOp = async () => new Promise(resolve => { finishQueue = resolve; });
 inputEl.value = 'First unsent message';
@@ -55,6 +57,8 @@ const pending = send();
 inputEl.value = 'Second unsent message';
 localStorage.setItem('vool_ui_draft:draft-a', inputEl.value);
 """ + ("setDisplayedChat('draft-b'); inputEl.value = 'Other chat untouched';" if switch_chat else "") + """
+// send() asks the follow-up door first, so the queue call starts a tick later.
+for (let i = 0; i < 100 && typeof finishQueue !== 'function'; i++) await Promise.resolve();
 finishQueue(null); await pending;
 out({stored: localStorage.getItem('vool_ui_draft:draft-a'), visible: inputEl.value});
 """)
@@ -65,6 +69,8 @@ out({stored: localStorage.getItem('vool_ui_draft:draft-a'), visible: inputEl.val
 def test_queue_success_does_not_clear_the_newer_draft() -> None:
     result = drive("""
 isChatBusy = () => true;
+// The follow-up door does not take this message (no live task answers), so it goes to the queue.
+sendFollowup = async () => false;
 let finishQueue;
 queueOp = async () => new Promise(resolve => { finishQueue = resolve; });
 inputEl.value = 'Queued message';
@@ -72,6 +78,8 @@ localStorage.setItem('vool_ui_draft:draft-a', inputEl.value);
 const pending = send();
 inputEl.value = 'Keep this draft';
 localStorage.setItem('vool_ui_draft:draft-a', inputEl.value);
+// send() asks the follow-up door first, so the queue call starts a tick later.
+for (let i = 0; i < 100 && typeof finishQueue !== 'function'; i++) await Promise.resolve();
 finishQueue({item: {queue_item_id: 'queued-1'}}); await pending;
 out({stored: localStorage.getItem('vool_ui_draft:draft-a'), visible: inputEl.value});
 """)

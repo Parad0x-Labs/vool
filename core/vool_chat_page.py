@@ -3293,6 +3293,8 @@ function loadCollapsed() { return _jget('vool_project_collapsed', '{}'); }
 function saveCollapsed(c) { localStorage.setItem('vool_project_collapsed', JSON.stringify(c)); }
 let _serverProjects = {};   // {id: {id, name, root, exists}}
 let _lastSessions = [];
+// Whether the person opened the Archived list; kept for this page so a refresh does not fold it.
+let archivedListOpen = false;
 // The sidebar's FIRST answer is a state of its own: until it lands the list is unknown, not
 // empty -- a VOOL restart made that window read as data loss (fresh-test item 14). One quiet
 // row while the ask is out, a retry row when it failed, and the empty state only after the
@@ -4293,8 +4295,15 @@ function renderSessions(sessions) {
     head.className = 'arch-head';
     head.textContent = pageTF('session.archived_count', 'Archived ({n})', { n: archived.length });
     const box = document.createElement('div');
-    box.style.display = 'none';
-    head.addEventListener('click', () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; });
+    // Open stays open across sidebar refreshes: the list re-renders on every poll, archive and
+    // pin, and a box rebuilt closed folded the archived chats away under the person's pointer.
+    box.style.display = archivedListOpen ? 'block' : 'none';
+    head.setAttribute('role', 'button'); head.setAttribute('aria-expanded', archivedListOpen ? 'true' : 'false');
+    head.addEventListener('click', () => {
+      archivedListOpen = box.style.display === 'none';
+      box.style.display = archivedListOpen ? 'block' : 'none';
+      head.setAttribute('aria-expanded', archivedListOpen ? 'true' : 'false');
+    });
     for (const s of archived) box.appendChild(makeSessionItem(s, true, true));
     sessionsEl.appendChild(head);
     sessionsEl.appendChild(box);
@@ -10130,7 +10139,7 @@ async function runTurn(text, queueItemId, opts) {
       if (!(e && e.voolBusy)) VoolConnection.markOffline();
       const sentNothing = !run.responseReceived;
       run.error = (e && e.voolBusy)
-        ? "VOOL is too busy to take this message right now (this computer is answering very slowly), so it wasn't sent. It's back in the message box: send it again in a moment."
+        ? "This computer is answering too slowly for VOOL to take this message right now, so it wasn't sent. It's back in the message box: send it again in a moment."
         : sentNothing
         ? "VOOL couldn't be reached, so this message wasn't answered. It's back in the message box: send it again when VOOL is running."
         : "The connection to VOOL was lost before this answer finished. Try again when VOOL is running.";
@@ -10345,7 +10354,7 @@ async function runSideAnswer(chatId, text) {
         followup_mode: 'side_answer', on_busy: 'refuse', mode: owner.mode,
       }),
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw new Error('side answer not accepted');  // the catch below says it in plain words
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
