@@ -617,9 +617,11 @@ class Gate:
 
 
 def run_case(case: Case, page: ChatPage, daemon: Daemon | None, work: Path, real_profile: bool,
-             gate: Gate, log: Any) -> list[dict[str, Any]]:
+             gate: Gate, log: Any, sink: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Run one case. Each finished row goes into `sink` (the run's own list) the moment it is written,
+    so a run that stops early still grades every turn it reached."""
     chats: dict[str, str] = {}
-    rows: list[dict[str, Any]] = []
+    rows: list[dict[str, Any]] = sink if sink is not None else []
     created: list[str] = []
     try:
         for n, step in enumerate(case.scenario["steps"], start=1):
@@ -695,21 +697,50 @@ def run_case(case: Case, page: ChatPage, daemon: Daemon | None, work: Path, real
                 cleanup[label] = page.delete_chat(chats[label])
             except Exception:  # the page may be the thing that broke
                 cleanup[label] = False
-        if not all(cleanup.values()) and rows:
-            rows[-1].setdefault("reasons", []).append(f"clean-up failed for chats {[k for k, ok in cleanup.items() if not ok]}")
+        if not all(cleanup.values()):
+            # A chat left behind can change the next case's answers: the case is not clean, so it cannot pass.
+            failed = [k for k, ok in cleanup.items() if not ok]
+            row = {"case": case.case_id, "scenario": case.scenario["id"], "lane": case.scenario["lane"],
+                   "turn": "cleanup", "graded": True, "status": "ERROR", "reasons": [f"clean-up failed for chats {failed}"]}
+            rows.append(row)
+            log.write(json.dumps(row) + "\n")
         log.write(json.dumps({"case": case.case_id, "cleanup": cleanup}) + "\n")
     return rows
 
 
+STATUSES = ("PASS", "FAIL", "REVIEW", "BLOCKED", "ERROR", "NOT RUN")
+
+
 def case_status(rows: list[dict[str, Any]]) -> str:
     statuses = [r["status"] for r in rows if r.get("graded")]
-    for s in ("ERROR", "FAIL", "REVIEW", "BLOCKED"):
+    for s in ("ERROR", "FAIL", "REVIEW", "BLOCKED", "NOT RUN"):
         if s in statuses:
             return s
     return "PASS" if statuses else "ERROR"
 
 
+def with_not_run(rows: list[dict[str, Any]], planned: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every planned case appears in the result: one the run never reached is a NOT RUN row, never a gap."""
+    reached = {r["case"] for r in rows}
+    missing = [{"case": p["case"], "scenario": p.get("scenario", ""), "lane": p.get("lane", ""), "turn": 0,
+                "graded": True, "status": "NOT RUN", "reasons": ["the run never reached this case"]}
+               for p in planned if p["case"] not in reached]
+    return list(rows) + missing
+
+
+def run_accepted(rows: list[dict[str, Any]], planned: list[dict[str, Any]], note: str = "") -> bool:
+    """The release decision: every planned case PASSES and the run was not stopped. Anything else
+    (a wrong answer, an error, a blocked lane, an unresolved review, a case never reached) refuses it."""
+    if note or not planned:
+        return False
+    by_case: dict[str, list[dict[str, Any]]] = {}
+    for r in with_not_run(rows, planned):
+        by_case.setdefault(r["case"], []).append(r)
+    return all(case_status(by_case.get(p["case"], [])) == "PASS" for p in planned)
+
+
 def write_table(out: Path, rows: list[dict[str, Any]], source: dict[str, Any], note: str = "") -> str:
+    rows = with_not_run(rows, source.get("planned") or [])
     by_case: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
         by_case.setdefault(r["case"], []).append(r)
@@ -717,20 +748,24 @@ def write_table(out: Path, rows: list[dict[str, Any]], source: dict[str, Any], n
     for case_rows in by_case.values():
         lane = case_rows[0]["lane"]
         status = case_status(case_rows)
-        counts = lanes.setdefault(lane, {"PASS": 0, "FAIL": 0, "REVIEW": 0, "BLOCKED": 0, "ERROR": 0})
+        counts = lanes.setdefault(lane, dict.fromkeys(STATUSES, 0))
         counts[status] = counts.get(status, 0) + 1
     lines = [f"# Acceptance run {source.get('started', '')}", "",
              f"App: {source.get('base_url', '')}, build {source.get('build', 'unknown')}, profile {source.get('profile', '')}.",
              f"Runner commit {source.get('runner_commit', 'unknown')}, seed {source.get('seed')}.", ""]
     if note:
         lines += [f"**Run stopped early: {note}**", ""]
-    total = {k: sum(c[k] for c in lanes.values()) for k in ("PASS", "FAIL", "REVIEW", "BLOCKED", "ERROR")}
+    total = {k: sum(c[k] for c in lanes.values()) for k in STATUSES}
     cases = sum(total.values())
-    lines += [f"**{total['PASS']}/{cases} cases pass** (FAIL {total['FAIL']}, REVIEW {total['REVIEW']}, "
-              f"BLOCKED {total['BLOCKED']}, ERROR {total['ERROR']}).", "",
-              "| Lane | Pass | Fail | Review | Blocked | Error | Cases |", "| --- | --- | --- | --- | --- | --- | --- |"]
+    accepted = run_accepted(rows, source.get("planned") or [], note)
+    lines += [f"**Decision: {'ACCEPTED' if accepted else 'NOT ACCEPTED'}.** "
+              f"{total['PASS']}/{cases} cases pass (FAIL {total['FAIL']}, REVIEW {total['REVIEW']}, "
+              f"BLOCKED {total['BLOCKED']}, ERROR {total['ERROR']}, NOT RUN {total['NOT RUN']}).", "",
+              "| Lane | Pass | Fail | Review | Blocked | Error | Not run | Cases |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for lane, c in sorted(lanes.items()):
-        lines.append(f"| {lane} | {c['PASS']} | {c['FAIL']} | {c['REVIEW']} | {c['BLOCKED']} | {c['ERROR']} | {sum(c.values())} |")
+        lines.append(f"| {lane} | {c['PASS']} | {c['FAIL']} | {c['REVIEW']} | {c['BLOCKED']} | {c['ERROR']} "
+                     f"| {c['NOT RUN']} | {sum(c.values())} |")
     lines += ["", "| Case | Turn | Status | Right | Helpful | Plain | Time | Said | Answer (start) | Why |",
               "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
 
@@ -751,7 +786,7 @@ def write_table(out: Path, rows: list[dict[str, Any]], source: dict[str, Any], n
     return text
 
 
-def apply_review(out: Path) -> str:
+def apply_review(out: Path) -> tuple[str, bool]:
     rows = [json.loads(line) for line in (out / "raw.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     rows = [r for r in rows if "status" in r]
     review_path = out / "review.json"
@@ -767,7 +802,8 @@ def apply_review(out: Path) -> str:
             r["status"] = "PASS" if verdict == "pass" and r.get("right") == "PASS" and r.get("plain") == "PASS" else "FAIL"
             r.setdefault("reasons", []).append(f"reviewed: {decided['reason']}")
     source = json.loads((out / "source.json").read_text(encoding="utf-8"))
-    return write_table(out, rows, source, source.get("stopped_early", ""))
+    note = source.get("stopped_early", "")
+    return write_table(out, rows, source, note), run_accepted(rows, source.get("planned") or [], note)
 
 
 def _git_commit() -> str:
@@ -797,8 +833,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if args.apply_review:
-        print(apply_review(Path(args.apply_review)))
-        return 0
+        table, accepted = apply_review(Path(args.apply_review))
+        print(table)
+        return 0 if accepted else 1
 
     scenarios, hashes = load_library()
     if args.lane:
@@ -848,6 +885,8 @@ def main(argv: list[str] | None = None) -> int:
         "seed": args.seed,
         "scenario_files": hashes,
         "cases": len(cases),
+        # Frozen before the first turn: what this run owes a result for.
+        "planned": [{"case": c.case_id, "scenario": c.scenario["id"], "lane": c.scenario["lane"]} for c in cases],
     }
     (out / "source.json").write_text(json.dumps(source, indent=1), encoding="utf-8")
 
@@ -866,7 +905,7 @@ def main(argv: list[str] | None = None) -> int:
                     log.write(json.dumps(row) + "\n")
                     continue
                 try:
-                    rows += run_case(case, page, daemon, out, args.real_profile, gate, log)
+                    run_case(case, page, daemon, out, args.real_profile, gate, log, sink=rows)
                 except EarlyStop:
                     raise
                 except Exception as exc:  # one broken case is recorded, the run goes on
@@ -887,7 +926,7 @@ def main(argv: list[str] | None = None) -> int:
         if daemon:
             daemon.stop()
     print(write_table(out, rows, source, note))
-    return 1 if note else 0
+    return 0 if run_accepted(rows, source["planned"], note) else 1
 
 
 if __name__ == "__main__":
