@@ -5121,7 +5121,7 @@
     "settings.row.media_library.help": "スマートフォンのプライベートカメラの写真、動画、音声と、自分で追加したファイルです。このコンピューターに鍵をかけたまま保管され、ほかのアプリや検索に表示されることはありません。",
     "settings.media_open": "保護されたメディアを開く"
   },
-  "source_catalog_sha256": "c9913b9c95f5b1f756d491d75c93a805708ba70d9407721a79e3037cdabf0f89",
+  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
