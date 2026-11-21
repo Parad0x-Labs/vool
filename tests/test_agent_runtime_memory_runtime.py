@@ -6,6 +6,8 @@ from unittest import mock
 from apps.vool_agent import VoolAgent, maybe_handle_memory_command
 from core.agent_runtime import memory_runtime
 
+_EMPTY_KEEP_RECEIPT = {"saved": [], "refused": [], "in_passing": False}
+
 
 def _build_agent() -> VoolAgent:
     return VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
@@ -52,18 +54,19 @@ def test_maybe_handle_memory_fast_path_uses_app_level_memory_command_override() 
         )
 
     assert result == {"response": "remembered", "response_class": "utility_answer"}
+    # The memory door stamps the turn's keep receipt on the context it was handed (core.memory.keep_receipt).
     memory_command_mock.assert_called_once_with(
         "remember this",
         session_id="memory-session",
         access_policy=access_policy,
-        source_context={"surface": "openclaw"},
+        source_context={"surface": "openclaw", "_memory_keep_receipt": _EMPTY_KEEP_RECEIPT},
     )
     fast_path_result.assert_called_once_with(
         session_id="memory-session",
         user_input="remember this",
         response="remembered",
         confidence=0.93,
-        source_context={"surface": "openclaw"},
+        source_context={"surface": "openclaw", "_memory_keep_receipt": _EMPTY_KEEP_RECEIPT},
         reason="memory_command",
     )
 
@@ -86,7 +89,7 @@ def test_maybe_handle_memory_fast_path_uses_app_level_companion_override() -> No
     companion_memory_fast_path.assert_called_once_with(
         "continue that project we talked about",
         session_id="memory-session",
-        source_context={"surface": "openclaw"},
+        source_context={"surface": "openclaw", "_memory_keep_receipt": _EMPTY_KEEP_RECEIPT},
     )
 
 
