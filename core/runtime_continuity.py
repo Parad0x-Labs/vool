@@ -3125,10 +3125,18 @@ def get_queue_item(queue_item_id: str) -> dict[str, Any] | None:
     return _queue_row_to_dict(row) if row else None
 
 
-def enqueue_message(*, session_id: str, payload: dict[str, Any], idempotency_key: str = "") -> dict[str, Any]:
+def enqueue_message(
+    *, session_id: str, payload: dict[str, Any], idempotency_key: str = "", status: str = "pending"
+) -> dict[str, Any]:
     """Append a message to a session's queue. Idempotent per (session_id, idempotency_key): a
     repeat submit (double-click, reconnect replay) returns the EXISTING item, never a duplicate.
-    The queued text is secret-scrubbed before it is persisted."""
+    The queued text is secret-scrubbed before it is persisted.
+
+    ``status="held"`` keeps a mid-task follow-up note on disk without making it runnable: a held
+    row is never claimed. Its task settles it (`complete_queue_item(..., only_held=True)`) or
+    releases it (`release_held_queue_item`), and a restart releases every held row
+    (`recover_stale_queue_items`)."""
+    initial_status = "held" if str(status or "") == "held" else "pending"
     from core.secret_redaction import redact_secrets
 
     clean_session = str(session_id or "").strip()
@@ -3154,8 +3162,8 @@ def enqueue_message(*, session_id: str, payload: dict[str, Any], idempotency_key
                 conn.execute(
                     "INSERT INTO message_queue "
                     "(queue_item_id, session_id, seq, status, payload_json, idempotency_key, turn_id, lease_owner, created_at, updated_at, completed_at) "
-                    "VALUES (?, ?, ?, 'pending', ?, ?, '', '', ?, ?, NULL)",
-                    (queue_item_id, clean_session, seq, _json_dumps(safe_payload), idem, now, now),
+                    "VALUES (?, ?, ?, ?, ?, ?, '', '', ?, ?, NULL)",
+                    (queue_item_id, clean_session, seq, initial_status, _json_dumps(safe_payload), idem, now, now),
                 )
                 conn.commit()
             except Exception:
@@ -3426,10 +3434,14 @@ def claim_next_message(session_id: str, *, lease_owner: str = "", turn_id: str =
             conn.close()
 
 
-def complete_queue_item(queue_item_id: str, *, status: str = "completed", only_in_flight: bool = False) -> dict[str, Any] | None:
+def complete_queue_item(
+    queue_item_id: str, *, status: str = "completed", only_in_flight: bool = False, only_held: bool = False
+) -> dict[str, Any] | None:
     """Mark a queued message finished. ``only_in_flight`` is the server's own end-of-turn call
     for a dispatch that consumed the item's claim: it finishes the row only while it is still
-    in flight, so it never overwrites a terminal status the page already wrote."""
+    in flight, so it never overwrites a terminal status the page already wrote. ``only_held`` is
+    the follow-up door's own settle of a note its task took in (or threw away): a row already
+    released to run is left alone."""
     clean = str(queue_item_id or "").strip()
     valid = status if status in {"completed", "failed", "cancelled"} else "completed"
     with _LOCK:
@@ -3439,7 +3451,8 @@ def complete_queue_item(queue_item_id: str, *, status: str = "completed", only_i
             now = _utcnow()
             conn.execute(
                 "UPDATE message_queue SET status = ?, updated_at = ?, completed_at = ? WHERE queue_item_id = ?"
-                + (" AND status = 'in_flight'" if only_in_flight else ""),
+                + (" AND status = 'in_flight'" if only_in_flight else "")
+                + (" AND status = 'held'" if only_held else ""),
                 (valid, now, now, clean),
             )
             _blank_private_queue_text(conn, clean)
@@ -3498,7 +3511,7 @@ def _blank_private_queue_text(conn: Any, queue_item_id: str) -> None:
 
     if is_private(str(row["session_id"] or "")):
         conn.execute(
-            "UPDATE message_queue SET payload_json = ? WHERE queue_item_id = ? AND status != 'pending' AND status != 'in_flight'",
+            "UPDATE message_queue SET payload_json = ? WHERE queue_item_id = ? AND status NOT IN ('pending', 'in_flight', 'held')",
             ("{}", queue_item_id),
         )
 
@@ -3572,10 +3585,29 @@ def cancel_queue_item(queue_item_id: str, *, session_id: str = "") -> bool:
             conn.close()
 
 
+def release_held_queue_item(queue_item_id: str) -> dict[str, Any] | None:
+    """A held follow-up note whose task ended without taking it in becomes an ordinary queued
+    message: it runs next, once. A row that is no longer held is left as it is."""
+    clean = str(queue_item_id or "").strip()
+    with _LOCK:
+        conn = _conn()
+        try:
+            conn.execute(
+                "UPDATE message_queue SET status = 'pending', updated_at = ? WHERE queue_item_id = ? AND status = 'held'",
+                (_utcnow(), clean),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return get_queue_item(clean)
+
+
 def recover_stale_queue_items() -> int:
     """Startup recovery: an in_flight message is from an interrupted turn (crash/kill). Reset it
     to pending so it is not lost. A clean reconnect leaves pending items untouched, so nothing is
-    re-run twice; only a genuinely interrupted turn is retried. Returns the count reset."""
+    re-run twice; only a genuinely interrupted turn is retried. A held follow-up note belonged to
+    a task that is gone with the old process: it is released to run next, once. Returns the
+    count reset."""
     with _LOCK:
         # Interrupted claims' admissions are gone with their pages; a fresh process starts
         # with an empty registry anyway, and a runtime recovery call must match that state.
@@ -3583,7 +3615,10 @@ def recover_stale_queue_items() -> int:
         _TOKENLESS_CONSUMED_CLAIMS.clear()
         conn = _conn()
         try:
-            cur = conn.execute("UPDATE message_queue SET status = 'pending', lease_owner = '', updated_at = ? WHERE status = 'in_flight'", (_utcnow(),))
+            cur = conn.execute(
+                "UPDATE message_queue SET status = 'pending', lease_owner = '', updated_at = ? WHERE status IN ('in_flight', 'held')",
+                (_utcnow(),),
+            )
             conn.commit()
             return int(cur.rowcount or 0)
         finally:

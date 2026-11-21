@@ -240,7 +240,8 @@ _RUNTIME_NAME_KEYS = frozenset({"model_id", "provider_id"})
 #: A runtime-made id in those call records: a whole UUID (8-4-4-4-12 hex, either case), or plain hex of 16 or more
 #: characters that is not all decimal digits (a long number under an ``_id`` key may be the person's, such as a card).
 _CALL_ID_RE = re.compile(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}|(?![0-9]+\Z)[0-9A-Fa-f]{16,}")
-_PENDING_QUEUE_STATES = frozenset({"pending"})
+# "held": a note typed to a running task, kept on disk until the task takes it in.
+_PENDING_QUEUE_STATES = frozenset({"pending", "held"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
 

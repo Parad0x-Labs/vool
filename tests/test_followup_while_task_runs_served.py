@@ -241,3 +241,75 @@ def test_with_the_door_unreachable_the_message_is_queued_as_before(chat):
     provider.release(TASK)
     _wait_for(lambda: TASK_ANSWER in _texts(page), 30, "the task never finished")
     _wait_for(lambda: OTHER_ANSWER in _texts(page), 45, "the queued message never ran")
+
+
+def _queue_rows(daemon, session_id: str) -> list[dict]:
+    """Every row of the chat's message queue as the daemon's own database holds it, any status
+    (the page's queue read shows only rows that can run; a kept note is not one until its task ends)."""
+    import sqlite3
+
+    rows: list[dict] = []
+    for path in sorted(daemon.home.rglob("*.db")) + sorted(daemon.home.rglob("*.sqlite3")):
+        try:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+        except sqlite3.Error:
+            continue
+        try:
+            conn.row_factory = sqlite3.Row
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='message_queue'").fetchone():
+                continue
+            rows += [dict(r) for r in conn.execute("SELECT * FROM message_queue WHERE session_id = ? ORDER BY seq", (session_id,))]
+        finally:
+            conn.close()
+    return rows
+
+
+def _note_calls(provider) -> int:
+    """How many times the model was asked to answer the change, in either of the forms it runs in
+    (as typed, or as the continuation of the task's request)."""
+    return len([asked for asked in list(provider.asked) if asked.endswith(NOTE.removeprefix("also "))])
+
+
+def test_a_change_typed_mid_task_survives_vool_stopping_and_runs_once(chat):
+    # The person types a change in a second window while the task works, and VOOL is killed before
+    # the task ends (crash, force quit, power). The change was accepted ("Got it."), so it must not
+    # be lost with the process: after the restart it runs, exactly once.
+    provider, daemon, page, session_id, errors = chat
+    _start_task(provider, daemon, page, session_id)
+    second = page.context.new_page()
+    second.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+    second.wait_for_selector("#input", timeout=5000)
+    _wait_for(lambda: second.evaluate("typeof displayedChat === 'string' && !!displayedChat"), 5, "second window has no chat")
+    if second.evaluate("displayedChat") != session_id:
+        second.evaluate("(id) => openSession(id)", session_id)
+        _wait_for(lambda: second.evaluate("displayedChat") == session_id, 10, "second window never opened the chat")
+    _send(second, NOTE)
+    _wait_for(lambda: any(text.startswith("Got it.") for text in _texts(second)), 15, "the change was not taken in")
+    kept = [row for row in _queue_rows(daemon, session_id) if row["status"] == "held"]
+    assert len(kept) == 1, _queue_rows(daemon, session_id)
+    assert _note_calls(provider) == 0
+
+    # VOOL is killed mid-task: no shutdown path runs.
+    second.close()
+    daemon.process.kill()
+    daemon.process.wait(timeout=20)
+    provider.release(TASK)
+
+    daemon.start(timeout=120)
+    daemon.certify(timeout=60)
+    reopened = page.context.new_page()
+    reopened.on("pageerror", lambda error: errors.append(str(error)))
+    reopened.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+    reopened.wait_for_selector("#input", timeout=5000)
+    _wait_for(lambda: reopened.evaluate("typeof displayedChat === 'string' && !!displayedChat"), 10, "no chat after restart")
+    if reopened.evaluate("displayedChat") != session_id:
+        reopened.evaluate("(id) => openSession(id)", session_id)
+    _wait_for(lambda: _note_calls(provider) >= 1, 60, "the change typed before the stop never ran after the restart")
+    _wait_for(lambda: NOTE_ANSWER in _texts(reopened), 45, "the change's answer never showed")
+    _wait_for(lambda: not _queue_state(daemon, session_id).get("turn_active"), 45, "slot never freed")
+    time.sleep(2.0)
+    assert _note_calls(provider) == 1, "the change ran more than once"
+    statuses = [row["status"] for row in _queue_rows(daemon, session_id) if row.get("idempotency_key", "").startswith("followup-")]
+    assert statuses == ["completed"], statuses
+    assert _texts(reopened).count(NOTE_ANSWER) == 1
+    assert not errors, errors

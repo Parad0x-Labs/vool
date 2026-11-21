@@ -447,6 +447,9 @@ class _Note:
     # pending -> delivered | carried_over
     status: str = "pending"
     delivered_at: str = ""
+    # The note's durable copy: a `held` row in the chat's message queue, written before the note
+    # is accepted, so a typed change survives VOOL stopping mid-task (see `_hold_note`).
+    queue_item_id: str = ""
 
     def public(self) -> dict[str, Any]:
         return {
@@ -589,18 +592,35 @@ def end_task(
         if task is None:
             return []
         undelivered = [note for note in task.notes if note.status == "pending"]
+        dropped_rows: list[str] = []
         if task.ended_by in {KIND_STOP, KIND_REPLACE}:
             # The user threw the task away: a change to it has nothing left to change.
             for note in undelivered:
                 note.status = "dropped"
+                if note.queue_item_id:
+                    dropped_rows.append(note.queue_item_id)
             undelivered = []
         for note in undelivered:
             note.status = "carried_over"
         carried = [note.public() for note in undelivered]
+        released_rows = [note.queue_item_id for note in undelivered if note.queue_item_id]
+        unheld = [note.public() for note in undelivered if not note.queue_item_id]
+    _settle_held_rows(dropped_rows, "cancelled")
+    # A note already kept on disk becomes an ordinary queued message in its place: it runs next,
+    # once. Only a note whose durable copy could not be written is queued here.
+    for queue_item_id in released_rows:
+        try:
+            _release_held_row(queue_item_id)
+        except Exception:
+            import logging
+
+            logging.getLogger("vool.followup").exception(
+                "could not release a held follow-up note into the chat queue (session=%s)", task.session_id
+            )
     if not carried:
         return []
     enqueue_fn = enqueue or _default_enqueue
-    for note in carried:
+    for note in unheld:
         try:
             enqueue_fn(
                 session_id=task.session_id,
@@ -623,6 +643,51 @@ def _default_enqueue(**kwargs: Any) -> Any:
     return enqueue_message(**kwargs)
 
 
+def _hold_note(session_id: str, turn_id: str, note_id: str, text: str) -> str:
+    """Write a note's durable copy before the note is accepted: a `held` row in the chat's queue.
+
+    A held row is never claimed while its task runs. The task taking the note in completes it; the
+    task ending without it releases it as an ordinary queued message; and VOOL starting again
+    after a stop mid-task releases every held row (`runtime_continuity.recover_stale_queue_items`),
+    so the person's change runs once instead of being lost with the process. "" when it could
+    not be written (the note then lives in memory only, as before)."""
+    try:
+        from core.runtime_continuity import enqueue_message
+
+        row = enqueue_message(
+            session_id=session_id,
+            payload={"text": text, "followup_carried_from_turn": turn_id},
+            idempotency_key=f"followup-{note_id}",
+            status="held",
+        )
+        return str((row or {}).get("queue_item_id") or "")
+    except Exception:
+        import logging
+
+        logging.getLogger("vool.followup").exception("could not keep a follow-up note on disk (session=%s)", session_id)
+        return ""
+
+
+def _release_held_row(queue_item_id: str) -> None:
+    from core.runtime_continuity import release_held_queue_item
+
+    release_held_queue_item(queue_item_id)
+
+
+def _settle_held_rows(queue_item_ids: list[str], status: str) -> None:
+    if not queue_item_ids:
+        return
+    from core.runtime_continuity import complete_queue_item
+
+    for queue_item_id in queue_item_ids:
+        try:
+            complete_queue_item(queue_item_id, status=status, only_held=True)
+        except Exception:
+            import logging
+
+            logging.getLogger("vool.followup").exception("could not settle a held follow-up note %s", queue_item_id)
+
+
 def drain_notes_into_context(source_context: dict[str, Any] | None) -> list[dict[str, Any]]:
     """Hand the running task the notes it has not seen yet, at a step boundary.
 
@@ -641,12 +706,16 @@ def drain_notes_into_context(source_context: dict[str, Any] | None) -> list[dict
         if task is None:
             return []
         fresh: list[dict[str, Any]] = []
+        taken_rows: list[str] = []
         now = _utcnow()
         for note in task.notes:
             if note.status == "pending":
                 note.status = "delivered"
                 note.delivered_at = now
                 fresh.append(note.public())
+                if note.queue_item_id:
+                    taken_rows.append(note.queue_item_id)
+    _settle_held_rows(taken_rows, "completed")
     if fresh:
         existing = [dict(item) for item in list(source_context.get(FOLLOWUP_NOTES_CONTEXT_KEY) or []) if isinstance(item, dict)]
         source_context[FOLLOWUP_NOTES_CONTEXT_KEY] = existing + fresh
@@ -674,14 +743,18 @@ def begin_action(source_context: dict[str, Any] | None, action_name: str) -> lis
         if task is None:
             return []
         fresh: list[dict[str, Any]] = []
+        taken_rows: list[str] = []
         now = _utcnow()
         for note in task.notes:
             if note.status == "pending":
                 note.status = "delivered"
                 note.delivered_at = now
                 fresh.append(note.public())
+                if note.queue_item_id:
+                    taken_rows.append(note.queue_item_id)
         if not fresh:
             task.action_in_flight = " ".join(str(action_name or "").split())[:80] or "action"
+    _settle_held_rows(taken_rows, "completed")
     if fresh:
         existing = [dict(item) for item in list(source_context.get(FOLLOWUP_NOTES_CONTEXT_KEY) or []) if isinstance(item, dict)]
         source_context[FOLLOWUP_NOTES_CONTEXT_KEY] = existing + fresh
@@ -921,16 +994,29 @@ def _add_note(session_id: str, turn_id: str, text: str, *, base: dict[str, Any])
             return _reply("run_now", "")
         if len(task.notes) >= _MAX_NOTES:
             return {"ok": False, "error": f"this task already holds {_MAX_NOTES} notes"}
-        note = _Note(
-            note_id=f"note-{uuid.uuid4().hex[:16]}",
-            seq=task.next_note_seq,
-            text=text,
-            created_at=_utcnow(),
-        )
-        task.next_note_seq += 1
-        task.notes.append(note)
-        public = note.public()
-        in_flight = task.action_in_flight
+    note_id = f"note-{uuid.uuid4().hex[:16]}"
+    # On disk BEFORE the task can see it, so a note the task takes in is always one whose row the
+    # taking can settle -- never a row left behind to run a second time after a restart.
+    queue_item_id = _hold_note(session_id, turn_id, note_id, text)
+    with _LOCK:
+        task = _TASKS.get(_key(session_id, turn_id))
+        if task is not None:
+            note = _Note(
+                note_id=note_id,
+                seq=task.next_note_seq,
+                text=text,
+                created_at=_utcnow(),
+                queue_item_id=queue_item_id,
+            )
+            task.next_note_seq += 1
+            task.notes.append(note)
+            public = note.public()
+            in_flight = task.action_in_flight
+    if task is None:
+        # The task ended while the note was being kept: the page runs the message as an ordinary
+        # turn (`run_now`), so the kept copy is withdrawn rather than run a second time.
+        _settle_held_rows([queue_item_id] if queue_item_id else [], "cancelled")
+        return _reply("run_now", "")
     message = "Got it. I'll take that in before my next step; if I finish first, it runs right after."
     if in_flight:
         message = (

@@ -65,7 +65,7 @@ _RUN_RECORDS: tuple[tuple[str, str, str], ...] = (
 #: are what that wait runs on, so nothing is erased until it is over.
 _WAITING: tuple[tuple[str, str], ...] = (
     ("runtime_checkpoints", "status IN ('running', 'interrupted', 'pending_approval')"),
-    ("message_queue", "status IN ('pending', 'in_flight')"),
+    ("message_queue", "status IN ('pending', 'in_flight', 'held')"),
     ("operator_action_requests", "status IN ('pending', 'pending_approval')"),
 )
 #: Kept when the chat has a money record: a model spend reservation is traced back to its task.

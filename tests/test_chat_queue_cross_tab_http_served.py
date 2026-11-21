@@ -51,6 +51,26 @@ def _queue_state(daemon, session_id: str) -> dict:
         return json.load(response)
 
 
+def _queue_rows(home, session_id: str) -> list[dict]:
+    """The chat's message-queue rows as the daemon's database holds them, any status."""
+    import sqlite3
+
+    rows: list[dict] = []
+    for path in sorted(Path(home).rglob("*.db")) + sorted(Path(home).rglob("*.sqlite3")):
+        try:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+        except sqlite3.Error:
+            continue
+        try:
+            conn.row_factory = sqlite3.Row
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='message_queue'").fetchone():
+                continue
+            rows += [dict(r) for r in conn.execute("SELECT * FROM message_queue WHERE session_id = ? ORDER BY seq", (session_id,))]
+        finally:
+            conn.close()
+    return rows
+
+
 def _queue_post(daemon, body: dict) -> dict:
     """One queue-door op, exactly as the page sends it (owner-local POST)."""
     request = Request(
@@ -679,17 +699,21 @@ def test_opening_a_chat_pumps_its_pending_queue_robust(tmp_path, monkeypatch):
             tab_c = context.new_page()
             tab_c.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
             _wait_for(lambda: tab_c.evaluate("displayedChat") == session_id, 10, "third page never settled")
+            # A message typed while the task works goes to the task first (V-025): it is kept on disk
+            # as a held row the task may still take in, and becomes the chat's next queued message
+            # when the task ends without it.
             tab_c.locator("#input").fill(M2)
             tab_c.locator("#send").click()
-            _wait_for(
-                lambda: [i for i in _queue_state(daemon, session_id).get("queue") or [] if i.get("status") == "pending"],
-                15,
-                "M2 never queued",
-            )
+            _wait_for(lambda: [r for r in _queue_rows(home, session_id) if r["status"] == "held"], 15, "M2 was never kept")
             tab_c.close()
             tab_a.close()
             provider.release(M1)
             _wait_for(lambda: not _queue_state(daemon, session_id).get("turn_active"), 45, "worker never finished")
+            _wait_for(
+                lambda: [i for i in _queue_state(daemon, session_id).get("queue") or [] if i.get("status") == "pending"],
+                15,
+                "M2 never queued after the task ended",
+            )
 
             tab_b.locator("#newChat").click()
             _wait_for(lambda: tab_b.evaluate("displayedChat") != session_id, 5, "tab B never opened a fresh chat")
