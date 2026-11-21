@@ -234,3 +234,50 @@ def test_a_plugin_that_is_only_present_on_disk_is_never_routed(tmp_path: Path, m
         capability_graph.reset()
         capability_graph.init_graph()
         capability_graph.bootstrap_from_registry()
+
+
+def test_the_example_vectors_build_many_examples_per_embedding_request(monkeypatch) -> None:
+    # The build sent one request per example (~2,600 at every launch of the Mac app, 95 s); it now
+    # sends them in groups, and every example still gets its own vector in the same space.
+    from core import embedding_service
+
+    backend = "ollama:nomic-embed-text#retrieval-mrl384-v1"
+    requests: list[list[str]] = []
+
+    def neural(texts, *, query=False):
+        assert query, "card examples are compared as asks"
+        requests.append(list(texts))
+        return [[float(len(text)), 1.0] for text in texts], backend
+
+    def one_at_a_time(text):
+        raise AssertionError("the build embeds examples in groups, not one request each")
+
+    monkeypatch.setattr(embedding_service, "embed_texts_neural", neural)
+    monkeypatch.setattr(embedding_service, "embed_stamped", one_at_a_time)
+    monkeypatch.setattr(tool_card_router, "_vectors", {"key": None, "backend": "", "by_text": {}, "building": True})
+    index = tool_card_router._index()
+    texts = {a.text for e in index.entries for a in (*e.examples, *e.not_for)}
+    assert len(texts) > 200
+    tool_card_router._build_vectors(index, backend)
+    by_text = tool_card_router._vectors["by_text"]
+    assert set(by_text) == texts
+    assert all(by_text[text] == [float(len(text)), 1.0] for text in texts)
+    assert len(requests) <= -(-len(texts) // tool_card_router._BUILD_BATCH)
+
+
+def test_a_failed_group_leaves_no_half_built_vectors(monkeypatch) -> None:
+    from core import embedding_service
+
+    backend = "ollama:nomic-embed-text#retrieval-mrl384-v1"
+    calls = {"n": 0}
+
+    def neural(texts, *, query=False):
+        calls["n"] += 1
+        return None if calls["n"] == 2 else ([[1.0, 0.0] for _ in texts], backend)
+
+    monkeypatch.setattr(embedding_service, "embed_texts_neural", neural)
+    monkeypatch.setattr(tool_card_router, "_vectors", {"key": None, "backend": "", "by_text": {}, "building": True})
+    index = tool_card_router._index()
+    tool_card_router._build_vectors(index, backend)
+    assert calls["n"] == 2
+    assert tool_card_router._vectors["by_text"] == {} and tool_card_router._vectors["building"] is False

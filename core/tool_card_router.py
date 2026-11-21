@@ -285,15 +285,33 @@ def _embed_ask(text: str) -> tuple[list[float], str]:
         return embed_stamped(text)
 
 
+#: Example texts sent to the embedder per request while the vectors build.
+_BUILD_BATCH = 64
+
+
+def _embed_asks(texts: list[str]) -> tuple[list[list[float]], str] | None:
+    from core.embedding_service import embed_texts_neural
+
+    # Same query role and same vector space as `_embed_ask`, several asks per request.
+    return embed_texts_neural(texts, query=True)
+
+
 def _build_vectors(index: _Index, backend: str) -> None:
+    # Many examples per request, not one: on the Mac (0.8 install, 2026-11-21) the one-at-a-time
+    # build sent ~2,600 embedding requests at every launch, each sealed and receipted as its own
+    # provider call, for 95 s; the first chat after that launch waited the same 95 s.
     texts = sorted({a.text for e in index.entries for a in (*e.examples, *e.not_for)})
     by_text: dict[str, list[float]] = {}
     try:
-        for text in texts:
-            vector, stamp = _embed_ask(text)
-            if not stamp.startswith(backend.split("#", 1)[0]):
+        for start in range(0, len(texts), _BUILD_BATCH):
+            group = texts[start:start + _BUILD_BATCH]
+            embedded = _embed_asks(group)
+            if embedded is None or not embedded[1].startswith(backend.split("#", 1)[0]):
                 return  # the embedder fell over mid-build: never mix spaces, try again later
-            by_text[text] = vector
+            vectors, _stamp = embedded
+            if len(vectors) != len(group):
+                return
+            by_text.update(zip(group, vectors, strict=True))
     finally:
         with _vectors_lock:
             _vectors["building"] = False

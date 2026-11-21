@@ -1811,6 +1811,15 @@ class VoolAgent(
         except Exception:
             pass
         observed_context: dict = {}
+        # A turn still running after 20 s logs the frame it is in (core.turn_stall_watch).
+        _stall_watch = None
+        try:
+            from core.turn_stall_watch import watch_turn
+
+            _stall_watch = watch_turn("chat turn")
+            _stall_watch.__enter__()
+        except Exception:
+            _stall_watch = None
         try:
             # Observation only: records which gate got to decide this turn, and writes one
             # `resolution_receipt_v1` onto the runtime ledger when the turn ends. It cannot change
@@ -1995,6 +2004,9 @@ class VoolAgent(
                         )
                         return result
         finally:
+            if _stall_watch is not None:
+                with contextlib.suppress(Exception):
+                    _stall_watch.__exit__(None, None, None)
             execution_gate.reset_request_autonomy_override(token)
             # ROOT-CAUSE CONTRACT — the turn-scoped diagnosis binding is
             # TURN-scoped: cleared here so a later ordinary turn never
