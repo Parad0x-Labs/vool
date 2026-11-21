@@ -115,3 +115,26 @@ print(json.dumps({"text":json.dumps({"direct":direct_ok,"undeclared":answer.spli
     assert seen["direct"] is False, "the sandbox must refuse every destination but the private proxy"
     assert seen["undeclared"].startswith("HTTP/1.1 403")
 
+
+
+def test_connection_server_with_declared_hosts_starts_and_uses_only_its_proxy_on_macos(package):
+    # Proxy settings once counted as "keys" here, so a networked connection server never started.
+    from tests.test_plugin_network_v1 import MCP
+
+    code = MCP.replace('text=msg["params"]["arguments"].get("text","")', '''text=msg["params"]["arguments"].get("text","")
+  import socket,base64
+  from urllib.parse import urlsplit
+  proxy=urlsplit(os.environ["HTTPS_PROXY"])
+  via=socket.create_connection((proxy.hostname,proxy.port),timeout=3)
+  via.sendall(("CONNECT other.example.org:443 HTTP/1.1\\r\\nProxy-Authorization: Basic "+base64.b64encode((proxy.username+":").encode()).decode()+"\\r\\n\\r\\n").encode())
+  text=via.recv(64).decode(errors="replace").split("\\r\\n")[0]''')
+    tool_package(package, code, mcp=True, network=True)
+    path = package / ".codex-plugin/plugin.json"
+    raw = json.loads(path.read_text())
+    raw["vool"]["tools"][0]["trust"] = {"side_effect_class": "network_send", "permission_actions": ["use_network_access"]}
+    path.write_text(json.dumps(raw))
+    contract = admit(package)
+    result = plugin_tools.execute_plugin_contract(contract, {"text": "probe"})
+    assert result.ok, result.error
+    assert result.confinement == "kernel:sandbox-exec"
+    assert result.text.startswith("HTTP/1.1 403"), result.text

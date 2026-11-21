@@ -93,10 +93,14 @@ class MCPStdioClient:
         call=None,
         read_only: bool = False,
         private_environment: bool = False,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         self.command = command
         self.args = list(args or [])
         self.env = env
+        #: Non-secret settings the child needs (the egress proxy address). Kept apart from
+        #: ``env`` so a Mac never mistakes them for keys and refuses to start the server.
+        self.extra_env = dict(extra_env or {})
         #: Names of THIS process's environment variables the server may inherit. Empty by default:
         #: a server sees only what its own config sets, never the ambient environment.
         self.env_allowlist = tuple(env_allowlist or ())
@@ -265,7 +269,7 @@ class MCPStdioClient:
                            "in the isolated runtime, which is not available here")
         full_env = build_child_env(
             env_allowlist=tuple(self.env_allowlist or ()),
-            secrets={} if private_input else dict(self.env or {}),
+            secrets={} if private_input else {**dict(self.env or {}), **self.extra_env},
             scratch_dir=self.scratch_dir or str(work_dir),
         )
         if self.immutable_package:
@@ -287,7 +291,7 @@ class MCPStdioClient:
             self.call.own(self.close)
         if private_input:
             try:
-                self._proc.stdin.write(ContainerCommand.private_input_line(self.env))
+                self._proc.stdin.write(ContainerCommand.private_input_line({**dict(self.env or {}), **self.extra_env}))
                 self._proc.stdin.flush()
             except (OSError, ValueError) as exc:
                 self.close()
