@@ -49,6 +49,7 @@ def served(tmp_path):
 
         assert "Locked in" in ask(f"Remember that the Pine lamp model is {CODE}", "forgetting-chat")[0]
         assert ask(f"Forget {CODE}", "forgetting-chat")[0].startswith("Forget applied")
+        ask.home = tmp_path / "home"
         yield ask
 
 
@@ -74,10 +75,24 @@ def test_an_unrelated_recall_question_in_another_chat_still_reaches_the_model(se
 
 
 def test_words_the_person_states_again_in_a_new_chat_are_that_chats_own(served):
+    """This chat's own record holds the words now (the forget law is per chat): the turn goes on as usual.
+
+    Since the keep step saves a lasting fact said in passing at the turn's start (the memory and context fixes, CI #728
+    on 36033c05), "as usual" is the saved fact answering, without a model call, where before the model was asked. So
+    this checks the outcome the person gets, and that the fact is held again in this chat's own saved memory: the
+    no-record refusal is not given and the code comes back. Coordinator-approved test-meaning change, 2026-11-21."""
+    from tests._reader_served_rig import canonical_session
+
     served(f"My Pine lamp is the {CODE}, by the way.", "new-chat")
-    answer, called = served(ASKS[0], "new-chat")
-    # This chat's own record holds the words now (the forget law is per chat): the turn goes on as usual.
-    assert called, answer
+    answer, _called = served(ASKS[0], "new-chat")
+    assert CODE in answer, answer
+    assert "forgotten" not in answer.lower() and not answer.startswith("I have no record"), answer
+    chat = canonical_session("new-chat")
+    rows = [json.loads(line) for path in served.home.rglob("memory_entries.jsonl")
+            for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    held = [row for row in rows if CODE in json.dumps(row) and str(row.get("status") or "active") == "active"
+            and chat in (str(row.get("origin_chat_id") or ""), str(row.get("session_id") or ""))]
+    assert held, rows
 
 
 def test_words_saved_again_are_recalled_from_memory(served):
