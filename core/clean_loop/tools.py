@@ -80,19 +80,14 @@ def _name_roots(home: Path) -> list[Path]:
     return media + others + named
 
 
-def file_words(home: Path) -> frozenset[str]:
-    """Distinctive words from the names of the owner's files in every readable folder (Desktop,
-    Documents, Downloads, the media folders and the other visible home folders; three levels, 5000
-    entries, hidden entries and links skipped), kept for a minute. Names only:
-    nothing is opened. The route uses it to tell "which flat had the balcony" (there is a "flat
-    viewing notes.md") from a general question."""
+_NAME_SLICE_S = 0.75
+_NAME_BUILDS: dict[str, threading.Thread] = {}
+_NAME_BUILD_LOCK = threading.Lock()
+
+
+def _walk_file_words(home: Path) -> frozenset[str]:
     from core.clean_loop.route import ask_words
 
-    key = str(home)
-    cached = _NAME_CACHE.get(key)
-    now = time.monotonic()
-    if cached is not None and now - cached[0] < _NAME_TTL_S:
-        return cached[1]
     words: set[str] = set()
     budget = _NAME_ENTRIES
     stack = [(root, 0) for root in _name_roots(home)]
@@ -111,9 +106,58 @@ def file_words(home: Path) -> frozenset[str]:
                         stack.append((Path(entry.path), depth + 1))
         except OSError:
             continue
-    result = frozenset(words)
-    _NAME_CACHE[key] = (now, result)
-    return result
+    return frozenset(words)
+
+
+def _start_name_walk(home: Path) -> threading.Thread:
+    """One walk per home at a time, on its own daemon thread: a folder read can block for as long as
+    the OS wants (macOS holds the first read of Desktop/Documents/Downloads by a newly installed app
+    until its privacy prompt is answered), and no turn may wait on that."""
+    key = str(home)
+    with _NAME_BUILD_LOCK:
+        running = _NAME_BUILDS.get(key)
+        if running is not None and running.is_alive():
+            return running
+
+        def run() -> None:
+            try:
+                _NAME_CACHE[key] = (time.monotonic(), _walk_file_words(home))
+            except Exception:
+                _LOG.exception("clean loop: reading the owner's file names failed")
+            finally:
+                with _NAME_BUILD_LOCK:
+                    if _NAME_BUILDS.get(key) is threading.current_thread():
+                        _NAME_BUILDS.pop(key, None)
+
+        thread = threading.Thread(target=run, name="clean-loop-file-names", daemon=True)
+        _NAME_BUILDS[key] = thread
+        thread.start()
+        return thread
+
+
+def file_words(home: Path, *, wait_s: float = _NAME_SLICE_S) -> frozenset[str]:
+    """Distinctive words from the names of the owner's files in every readable folder (Desktop,
+    Documents, Downloads, the media folders and the other visible home folders; three levels, 5000
+    entries, hidden entries and links skipped), kept for a minute. Names only:
+    nothing is opened. The route uses it to tell "which flat had the balcony" (there is a "flat
+    viewing notes.md") from a general question.
+
+    The walk never runs on the turn. Measured on the installed 0.8 (3078b8cb4, 2026-11-21): the
+    first turn after an install sat 80+ s inside one `os.scandir` of the owner's folders before it
+    was routed at all ("Calculate 23 * 19" answered after 129 s). A turn waits at most `wait_s` for
+    a walk; a walk that takes longer finishes in the background. Until the first one completes the
+    names are unknown and the turn is routed as naming no file; after that an expired list is
+    still used while a fresh one is read."""
+    key = str(home)
+    cached = _NAME_CACHE.get(key)
+    if cached is not None and time.monotonic() - cached[0] < _NAME_TTL_S:
+        return cached[1]
+    walk = _start_name_walk(home)
+    if cached is not None:
+        return cached[1]
+    walk.join(max(0.0, float(wait_s)))
+    cached = _NAME_CACHE.get(key)
+    return cached[1] if cached is not None else frozenset()
 
 
 def scope_path(raw: Any, home: Path) -> Path:
