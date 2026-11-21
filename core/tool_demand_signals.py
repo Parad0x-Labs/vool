@@ -1247,6 +1247,33 @@ def plugin_follow_up_targets(text: str, source_context) -> tuple[str, ...]:
     return tuple(continued)
 
 
+def continues_previous_request(text: str) -> bool:
+    """A short turn shaped as a continuation of the request before it, asking nothing of its own.
+
+    The same narrow shapes the plugin follow-up reads: a repeat ("same for ...", "do that for ...")
+    or a continuation opening ("and ...", "what about ...", "how about ..."), at most a dozen or so
+    words, not a bare acknowledgement, and naming no tool or tool family of its own ("and what's on
+    my calendar?" names the calendar and is its own request).
+    """
+    current = " ".join(str(text or "").split())
+    if not current:
+        return False
+    words = _PLUGIN_WORD.findall(current.lower().replace("_", " "))
+    if not 0 < len(words) <= _FOLLOW_UP_WORDS or _FOLLOW_UP_ACK.match(current):
+        return False
+    if not (_FOLLOW_UP_REPEAT.search(current) or _FOLLOW_UP_OPENING.match(current)):
+        return False
+    signals = resolve_demand_signals(current)
+    if signals.explicit_intents or signals.required_families:
+        return False
+    try:
+        if owner_local_operator_intents(current) or owner_live_source_intents(current):
+            return False
+    except Exception:
+        pass
+    return True
+
+
 def plugin_follow_up(text: str, source_context) -> bool:
     return bool(plugin_follow_up_targets(text, source_context))
 
@@ -2625,6 +2652,7 @@ __all__ = [
     "MAX_REQUIRED_FAMILIES",
     "DemandSignals",
     "asks_for_database_work",
+    "continues_previous_request",
     "mailbox_retrieval_intents",
     "owner_file_demand",
     "owner_file_intents",

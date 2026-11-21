@@ -1203,6 +1203,41 @@ PLUGIN_FOLLOW_UP_NOTE = (
 )
 
 
+def _continued_tool_note(effective_input: str, session_id: str, checkpoint_id: str = "") -> str:
+    """For a short continuation ("and tomorrow?", "what about Kaunas?"), name the tool the chat's
+    previous request ran, so a small model continues it instead of guessing a new one.
+
+    Measured Nov 21 on the installed app (qwen3:8b): after "what is the weather in Vilnius right
+    now?" ran the weather lookup, "and tomorrow?" was sent to the calendar availability tool with
+    the bare text as its argument, which then asked for approval. The note only informs: whether a
+    tool runs is still the model's call and the owner's permissions. "" when it does not apply.
+    """
+    try:
+        from core.tool_demand_signals import continues_previous_request
+
+        if not continues_previous_request(effective_input):
+            return ""
+        if not str(session_id or "").strip():
+            return ""
+        from core.runtime_continuity import previous_turn_tool
+
+        prior = previous_turn_tool(str(session_id), exclude_checkpoint_id=str(checkpoint_id or ""))
+    except Exception:
+        return ""
+    if not prior:
+        return ""
+    args = ", ".join(f"{k}={json.dumps(v, ensure_ascii=False)}" for k, v in list(prior["arguments"].items())[:6])
+    asked = str(prior.get("request_text") or "")
+    return (
+        "This message continues the previous request in this chat"
+        + (f" ({json.dumps(asked, ensure_ascii=False)})" if asked else "")
+        + f", which ran the tool {prior['tool_name']}"
+        + (f" with {args}" if args else "")
+        + ". If this message changes one detail of that request (a day, a place, a number), call the same tool "
+        "again with that detail changed and the rest kept. If it asks for something different, ignore this note."
+    )
+
+
 def _is_plugin_follow_up(effective_input: str, source_context: dict[str, Any] | None) -> bool:
     try:
         from core.tool_demand_signals import plugin_follow_up
@@ -2629,6 +2664,10 @@ class ResearchToolLoopFacadeMixin:
                         )
                     if not executed_steps and _is_plugin_follow_up(effective_input, loop_source_context):
                         loop_source_context["plugin_follow_up_note"] = PLUGIN_FOLLOW_UP_NOTE
+                    elif not executed_steps:
+                        continued = _continued_tool_note(effective_input, session_id, checkpoint_id)
+                        if continued:
+                            loop_source_context["plugin_follow_up_note"] = continued
                     tool_decision = self.memory_router.resolve_tool_intent(
                         task=task,
                         classification=classification,

@@ -841,6 +841,49 @@ def latest_resumable_checkpoint(session_id: str) -> dict[str, Any] | None:
     return get_runtime_checkpoint(str(row["checkpoint_id"]))
 
 
+def previous_turn_tool(session_id: str, *, exclude_checkpoint_id: str = "") -> dict[str, Any] | None:
+    """The tool the chat's most recent finished turn ran, with its arguments, or None.
+
+    Read by a short continuation ("and tomorrow?", "what about Kaunas?") so the model is told what
+    the previous request ran: measured Nov 21 on the installed app, "and tomorrow?" after a weather
+    lookup was sent to the calendar availability tool, which then asked for approval.
+    """
+    clean_session_id = str(session_id or "").strip()
+    if not clean_session_id:
+        return None
+    with _LOCK:
+        conn = _conn()
+        try:
+            row = conn.execute(
+                """
+                SELECT checkpoint_id, last_tool_name, state_json, request_text
+                FROM runtime_checkpoints
+                WHERE session_id = ? AND status = 'completed' AND checkpoint_id != ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (clean_session_id, str(exclude_checkpoint_id or "")),
+            ).fetchone()
+        finally:
+            conn.close()
+    if not row:
+        return None
+    name = str(row["last_tool_name"] or "").strip()
+    if not name or name.startswith("respond."):
+        return None
+    arguments: dict[str, Any] = {}
+    try:
+        state = json.loads(str(row["state_json"] or "{}"))
+        payload = state.get("last_tool_payload") if isinstance(state, dict) else None
+        if isinstance(payload, dict) and isinstance(payload.get("arguments"), dict):
+            arguments = {str(k): v for k, v in payload["arguments"].items() if isinstance(v, (str, int, float, bool))}
+    except Exception:
+        arguments = {}
+    # A finished turn's transient tool state is wiped (finalize_runtime_checkpoint), so the
+    # arguments are usually gone; the tool name and the request's own words stay.
+    return {"tool_name": name, "arguments": arguments, "request_text": " ".join(str(row["request_text"] or "").split())[:200]}
+
+
 def latest_unfulfilled_checkpoint(session_id: str) -> dict[str, Any] | None:
     """Return the immediately preceding terminal task only when it remains retryable/unfulfilled.
 
