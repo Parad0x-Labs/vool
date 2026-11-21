@@ -6683,6 +6683,7 @@ function finishRun(run, kind, summaryText, tsIso) {
   if (run.historyIndex >= 0 && _owner.history[run.historyIndex]) _owner.history[run.historyIndex].ts = run.endedAt;
   clearRunTimers(run);
   if (kind !== 'awaiting_approval') applyResultSummary(run);
+  if (kind !== 'awaiting_approval' && typeof dropTaskBypassAfterItsTurn === 'function') dropTaskBypassAfterItsTurn(run);
   // A turn that ended without a reply the person did not stop says so in plain words. Measured on
   // the 0.7.8 sweep (2026-11-12): a second turn failed on the server, the bubble kept its "…" and
   // the person waited 15 minutes for nothing. The bubble's own Try again stays under it.
@@ -9900,6 +9901,18 @@ async function runTurn(text, queueItemId, opts) {
     if (res.status === 409 && typeof res.clone === 'function') {
       let refusal = null;
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      if (refusal && refusal.reason === 'bypass_grant_not_current' && !opts.bypassRefusedOnce) {
+        // The turn asked for a bypass grant the server no longer holds (its task ended, it expired,
+        // it was revoked elsewhere). Nothing ran: the chat drops back to its own mode and the same
+        // message is sent again once, as the same turn, under that mode.
+        const owner = ownerOf(run);
+        dropBypassGrant(chatId, owner, 'refused');
+        if (run.assistantMsgEl && typeof run.assistantMsgEl.remove === 'function') run.assistantMsgEl.remove();
+        // The refused run hands the chat's slot straight to the resend (no queue pump in between).
+        run.ended = true; run.released = true; run.status = 'cancelled'; clearRunTimers(run);
+        runTurn(text, queueItemId, { ...opts, resend: true, turnId: run.turnId, chatId: chatId, promptEntry: run.promptEntry, attachments: run.attachments || [], bypassRefusedOnce: true });
+        return;
+      }
       if (refusal && refusal.error === 'chat_turn_active') {
         const owner = ownerOf(run);
         // Another holder has the slot: later sends from this page go straight to the queue.
@@ -11123,6 +11136,26 @@ async function syncModeController() {
     if (owner.mode === 'bypass_permissions') { owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode(); }
     toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
   }
+}
+// A bypass grant with task scope belongs to ONE turn: the server honours it only for the turn it
+// was approved in (core.mode_permission_policy.validate_bypass_grant). Once that turn is over the
+// chat goes back to its own mode. Measured on the installed 0.8 (2026-11-21): the chat stayed in
+// Bypass after the approved task finished, every next message asked for a grant the server no
+// longer held, and each was refused with "VOOL did not run this turn." until the 15-minute timer.
+function dropBypassGrant(chatId, owner, why) {
+  if (!owner.bypassGrant) return false;
+  owner.bypassGrant = null;
+  owner.permissionRevision = (owner.permissionRevision || 0) + 1;
+  owner.mode = loadModeForSession(chatId);
+  if (isDisplayed(chatId)) reflectMode();
+  toast(pageTF('mode.changed_event', 'Mode changed to {label}.', { label: (MODE_LABELS[owner.mode] || owner.mode) }));
+  return true;
+}
+function dropTaskBypassAfterItsTurn(run) {
+  const owner = ownerOf(run), grant = owner.bypassGrant;
+  if (!grant || grant.until_off || String(grant.scope || 'task') !== 'task') return;
+  if (String(grant.task_id || '') !== String(run.turnId || '')) return;
+  dropBypassGrant(owner.chatId, owner, 'task_ended');
 }
 async function restoreChatBypass(chatId) {
   const owner = chatState(chatId), originalGrant = owner.bypassGrant, originalMode = owner.mode, revision = owner.permissionRevision || 0;

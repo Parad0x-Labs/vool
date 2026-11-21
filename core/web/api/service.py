@@ -8671,7 +8671,15 @@ def _dispatch_post_inner(
             # An EXPLICIT bypass request that cannot be honoured is refused out loud, exactly as
             # before. Silently serving Manual would leave the operator believing bypass is live.
             return apply_runtime_headers(
-                json_response(409, {"error": "Bypass permissions needs a current, explicitly confirmed grant."}),
+                json_response(
+                    409,
+                    {
+                        "error": "Bypass permissions needs a current, explicitly confirmed grant.",
+                        # Typed, so the page can tell this refusal from the others by its field:
+                        # it drops the stale grant and sends the message again under its own mode.
+                        "reason": "bypass_grant_not_current",
+                    },
+                ),
                 runtime,
             )
         source_context["operating_mode"] = mode_state["mode"]
