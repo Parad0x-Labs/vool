@@ -313,7 +313,14 @@ def prepare_turn_task_bundle(
         _pinned_model = str((source_context or {}).get("requested_model") or "").strip()
         _pin_kind = str((source_context or {}).get("model_selection") or "").strip().lower()
         if operator_intent is not None and _pinned_model and _pin_kind != "sticky":
-            operator_intent = None
+            # A log of the person's own day ("log today's session: 5k run, 28 minutes") is kept on a pinned model
+            # too: its words leave the model nothing to write. Measured (CI item 177, pinned local model): the
+            # model answered "Logged today's session ..." with nothing kept, and the claim check rightly replaced
+            # it with "Nothing from this message was saved". sls (Nov 21): a log ask saves the entry and says so.
+            from core.operator.parser import asks_to_log_an_entry
+
+            if not (operator_intent.kind == "save_note" and asks_to_log_an_entry(effective_input)):
+                operator_intent = None
     if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
         # A conversational/no-action constraint is decided before dispatch.  Let the reasoning
         # layer answer independent explanatory siblings; constructing and then rejecting a tool
@@ -417,6 +424,14 @@ def prepare_turn_task_bundle(
             source_context, event_type="tool_executed" if operator_step_executed(dispatch) else "tool_failed",
             message=_op_summary, tool_name=_op_tool, summary=_op_summary,
         )
+        if operator_step_executed(dispatch):
+            # The run goes on the turn's ledger beside the model calls, so the reply's "Saved your note ..." is
+            # read as what the lane did. Measured (CI item 177 and Mac AQ row 4b): the note for "log today's
+            # session: 5k run, 28 minutes" was saved, a file-loop call earlier in the turn made the reply count as
+            # model-written, and it was corrected to "No note was saved".
+            from core.turn_model_call_ledger import record_tool_execution
+
+            record_tool_execution(source_context, _op_tool)
         workflow_summary = agent._action_workflow_summary(
             operator_kind=operator_intent.kind,
             dispatch_status=dispatch.status,

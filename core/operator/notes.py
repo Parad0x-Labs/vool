@@ -436,7 +436,9 @@ def parse_note_request(text: str) -> dict[str, Any]:
         elif topic_body:
             body = topic_body
     wants_schedule = bool(re.search(r"\b(?:and\s+)?(?:schedule|add\s+it\s+to\s+(?:the\s+)?calendar|put\s+it\s+on\s+(?:the\s+)?calendar|book\s+it)\b", raw, re.IGNORECASE))
-    return {"title": title, "body": body, "wants_schedule": wants_schedule}
+    # A log entry ("log today's session: 5k run") is answered with the entry itself, so the person sees what was kept.
+    logged_entry = bool(logged and not labeled and not bare and not unlabeled and body)
+    return {"title": title, "body": body, "wants_schedule": wants_schedule, "logged_entry": logged_entry}
 
 
 # A save request that points back at the conversation instead of carrying its own words: "yes, save it as a
@@ -666,6 +668,11 @@ def handle_save_note(
         )
         actions = note_action_items(record["note_path"])
         response = f"Saved your note '{title}'."
+        if parsed.get("logged_entry"):
+            # sls (Nov 21, CI item 177): a log ask is kept and the reply names the entry in the person's words.
+            entry = " ".join(body.split()).rstrip(".")
+            entry = entry if len(entry) <= 200 else entry[:199].rstrip() + "…"
+            response = f"Saved your note '{title}': {entry}."
         details: dict[str, Any] = {**record, "actions_found": actions}
         if actions and parsed["wants_schedule"]:
             details["schedule_proposal_hint"] = actions[0]

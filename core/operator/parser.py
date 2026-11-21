@@ -412,6 +412,16 @@ _LOG_ENTRY_RE = re.compile(
 )
 
 
+def asks_to_log_an_entry(text: str) -> bool:
+    """Whether the ask logs an entry of the person's own day ("log today's session: 5k run, 28 minutes").
+
+    The wording leaves nothing for a chosen model to decide: the entry is after the colon and the ask is to keep it.
+    """
+    words = str(text or "")
+    logged = _LOG_ENTRY_RE.search(words)
+    return bool(logged) and _note_ask_is_positioned(words, logged.start())
+
+
 # What may stand between "keep that" and the notes store when the referent is the whole object: a short noun
 # phrase naming the answer ("routine", "plan", "list for me"), then the notes store, then the sentence end.
 _REFERENT_INTO_NOTES_RE = re.compile(

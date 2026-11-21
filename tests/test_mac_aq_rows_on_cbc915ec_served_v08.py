@@ -118,6 +118,8 @@ def test_a_log_of_todays_session_is_kept_as_a_note(served) -> None:
     assert _executed(home)[len(before):] == ["operator.save_note"], (text, _executed(home))
     notes = "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in home.rglob("*.md") if "note" in str(p).lower())
     assert "5k run, 28 minutes" in notes, (text, notes[:400])
+    # The reply says what was kept: the saved note was once corrected to "No note was saved" (CI item 177).
+    assert "No note was saved" not in text and "5k run, 28 minutes" in text, text
 
 
 def test_freezer_items_with_no_freezer_database_says_so(served) -> None:
