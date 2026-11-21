@@ -37,6 +37,24 @@ ENTITLEMENTS="${SCRIPT_DIR}/VOOL.entitlements"
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'RELEASE SIGNING REFUSED: %s\n' "$*" >&2; exit 1; }
+# hdiutil on macOS runners sometimes answers "Resource busy" while the disk-image driver or a file
+# scanner still holds the freshly written bundle. That one error is transient: wait and try again.
+# Any other hdiutil error fails at once, with hdiutil's own words.
+make_dmg() {  # make_dmg <srcfolder> <dmg>
+  local err attempt
+  err="$(mktemp)"
+  for attempt in 1 2 3 4; do
+    if hdiutil create -volname "VOOL" -srcfolder "$1" -ov -format UDZO "$2" >/dev/null 2>"${err}"; then
+      rm -f "${err}"; return 0
+    fi
+    grep -q 'Resource busy' "${err}" || break
+    printf 'hdiutil: resource busy (attempt %s of 4), retrying\n' "${attempt}" >&2
+    sleep $((attempt * 5))
+  done
+  printf '%s\n' "$(tr '\n' ' ' <"${err}")" >&2
+  rm -f "${err}"
+  return 1
+}
 
 MODE=""
 APP=""
@@ -237,8 +255,7 @@ say "  building ${NAME}.dmg from the stapled app"
 mkdir -p "${WORK}/dmg"
 ditto "${APP}" "${WORK}/dmg/VOOL.app" || die "could not stage the app for the DMG"
 ln -s /Applications "${WORK}/dmg/Applications"
-hdiutil create -volname "VOOL" -srcfolder "${WORK}/dmg" -ov -format UDZO "${DMG}" >/dev/null \
-  || die "hdiutil failed to build ${DMG}"
+make_dmg "${WORK}/dmg" "${DMG}" || die "hdiutil failed to build ${DMG}"
 codesign --force --timestamp --sign "${IDENTITY}" ${KEYCHAIN_ARGS[@]+"${KEYCHAIN_ARGS[@]}"} "${DMG}" >/dev/null 2>"${WORK}/codesign.err" \
   || die "could not sign the DMG: $(tr '\n' ' ' <"${WORK}/codesign.err")"
 DMG_SUBMISSION="$(notarize "${DMG}" dmg)"

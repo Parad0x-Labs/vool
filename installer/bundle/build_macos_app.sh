@@ -87,6 +87,24 @@ SHORT_VERSION="${RELEASE_VERSION%%-*}"; [[ -n "${SHORT_VERSION}" ]] || SHORT_VER
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+# hdiutil on macOS runners sometimes answers "Resource busy" while the disk-image driver or a file
+# scanner still holds the freshly written bundle. That one error is transient: wait and try again.
+# Any other hdiutil error fails at once, with hdiutil's own words.
+make_dmg() {  # make_dmg <srcfolder> <dmg>
+  local err attempt
+  err="$(mktemp)"
+  for attempt in 1 2 3 4; do
+    if hdiutil create -volname "VOOL" -srcfolder "$1" -ov -format UDZO "$2" >/dev/null 2>"${err}"; then
+      rm -f "${err}"; return 0
+    fi
+    grep -q 'Resource busy' "${err}" || break
+    printf 'hdiutil: resource busy (attempt %s of 4), retrying\n' "${attempt}" >&2
+    sleep $((attempt * 5))
+  done
+  printf '%s\n' "$(tr '\n' ' ' <"${err}")" >&2
+  rm -f "${err}"
+  return 1
+}
 
 # ── Build provenance gate ─────────────────────────────────────────────────────────────────
 # The bundle's bytes must come from ONE commit. A dirty tree cannot prove that: uncommitted
@@ -1456,8 +1474,7 @@ if [[ "${MAKE_DMG}" -eq 1 ]]; then
   STAGE="$(mktemp -d)"
   cp -R "${APP}" "${STAGE}/"
   ln -s /Applications "${STAGE}/Applications" 2>/dev/null || true
-  hdiutil create -volname "VOOL" -srcfolder "${STAGE}" -ov -format UDZO "${DMG}" >/dev/null \
-    || die "hdiutil failed to build ${DMG}"
+  make_dmg "${STAGE}" "${DMG}" || die "hdiutil failed to build ${DMG}"
   rm -rf "${STAGE}"
   say "OK: ${DMG}  (ad-hoc signed, NOT notarized: Gatekeeper asks users to Open Anyway; --release-sign notarizes)"
   if [[ -n "${RELEASE_DIR}" ]]; then
