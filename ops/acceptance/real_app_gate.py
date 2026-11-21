@@ -35,7 +35,7 @@ import time
 import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from urllib.request import urlopen
 
 from playwright.sync_api import sync_playwright
@@ -602,6 +602,9 @@ def restart_app() -> dict:
         while time.time() - t1 < 300 and not version():
             time.sleep(0.5)
         return {"quit_s": down, "start_s": round(time.time() - t1, 1), "version": version()}
+    if urlparse(BASE).port not in (None, 11435):
+        # Pointed at a second copy (a throwaway profile): never quit the person's installed app.
+        return {"restart": "refused: VOOL_GATE_BASE is not the installed app and VOOL_GATE_START_CMD is unset"}
     subprocess.run(["osascript", "-e", 'quit app "VOOL"'], check=False)
     while time.time() - t0 < 90 and version():
         time.sleep(1)
