@@ -1778,6 +1778,11 @@ def _write_conversation_event(
     # became of each -- never contents, never a path. The transcript reader hands it back so the
     # chips a reload paints are the ones the runtime actually saw.
     payload.update(_attachment_receipt_fields(session_id, source_context))
+    # A side answer given while a task ran names that task's turn (server-owned key, set by the
+    # chat door only for a confirmed side answer): the transcript reader shows it inside that turn.
+    _asked_inside = str((source_context or {}).get("followup_of_request_id") or "").strip()
+    if _asked_inside:
+        payload["followup_of_request_id"] = _asked_inside[:200]
     if extra_fields:
         payload.update(extra_fields)
     # A turn in a session a team bound to one of its agents is the agent's, not the owner's: its

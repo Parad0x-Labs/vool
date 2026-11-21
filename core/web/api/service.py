@@ -1764,9 +1764,14 @@ def _dispatch_get(
             # `include_artifacts=True` is what makes this the TRANSCRIPT reader rather than
             # a recall reader: assistant-authored artifacts (a council verdict card) are
             # part of what the chat log shows and part of nothing the model is fed.
+            # One group of messages per transcript row, so a mid-task exchange can be placed inside
+            # the turn it happened in (interleave_followup_messages below).
+            _row_spans: list[tuple[dict[str, Any], int]] = []
+            _rows_base = len(messages)
             for event in recent_conversation_events(
                 session_id, limit=max(1, min(limit, 500)), include_artifacts=True
             ):
+                _row_spans.append((event, len(messages)))
                 # Background refresh uses the same governed transcript projection,
                 # with only reminder artifacts crossing the wire.
                 # one kind, or several comma-separated (reminders and paid AI answers share the idle refresh)
@@ -1897,6 +1902,13 @@ def _dispatch_get(
                             **(artifact_meta if isinstance(artifact_meta, dict) else {}),
                         }
                     messages.append(assistant_message)
+            if any(str(_ev.get("followup_of_request_id") or "").strip() for _ev, _ in _row_spans):
+                from core.web.api.runtime import interleave_followup_messages
+
+                _bounds = [start for _, start in _row_spans] + [len(messages)]
+                messages[_rows_base:] = interleave_followup_messages(
+                    [(_ev, messages[_bounds[k] : _bounds[k + 1]]) for k, (_ev, _) in enumerate(_row_spans)]
+                )
         # A turn cut off by VOOL stopping (a restart mid-reply) left nothing in the transcript: the
         # exchange is written only when its reply finalizes, so the chat reopened empty and the
         # question was lost (0.7.8 sweep block 3, INTERRUPT-01). The runtime's interrupted-turn
@@ -7223,8 +7235,7 @@ def _dispatch_post_inner(
         # task the route is `run_now`. Owner-local with the same transport guards as cancel.
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
-        from core.followup_continuity import handle_followup
-        from core.web.api.runtime import host_header_allowed
+        from core.web.api.runtime import host_header_allowed, serve_followup
 
         def _ph_followup(name: str) -> str:
             for key, value in (headers or {}).items():
@@ -7241,7 +7252,7 @@ def _dispatch_post_inner(
         unknown = set(body.keys()) - {"session_id", "text", "idempotency_key"}
         if unknown:
             return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
-        outcome = handle_followup(
+        outcome = serve_followup(
             str(body.get("session_id") or ""),
             str(body.get("text") or ""),
             idempotency_key=str(body.get("idempotency_key") or ""),
@@ -8312,6 +8323,15 @@ def _dispatch_post_inner(
                     ),
                     runtime,
                 )
+        # "continue" after a typed "pause": the task the user set aside is what they mean, so its
+        # own request runs again (and resumes from its checkpoint where one was kept). In-process
+        # and owner-local, like the pause that recorded it; with nothing paused this is a no-op.
+        if owner_local and not _side_answer and not _brake:
+            from core import followup_continuity as _fc_parked
+
+            _parked_request = _fc_parked.take_parked_request(session_id, user_text)
+            if _parked_request:
+                user_text = _parked_request
         history = _augment_history_from_session_log(
             client_history,
             session_id=session_id,
@@ -8366,11 +8386,16 @@ def _dispatch_post_inner(
         inbound_source_context.pop(_followups.SIDE_ANSWER_CONTEXT_KEY, None)
         inbound_source_context.pop(_followups.SIDE_ANSWER_SNAPSHOT_KEY, None)
         inbound_source_context.pop(_followups.FOLLOWUP_NOTES_CONTEXT_KEY, None)
+        inbound_source_context.pop(_followups.FOLLOWUP_OF_REQUEST_KEY, None)
         if owner_local and str(body.get("followup_mode") or "").strip() == "side_answer":
             _active_snapshot = _followups.task_snapshot(session_id)
             if _active_snapshot is not None:
                 inbound_source_context[_followups.SIDE_ANSWER_CONTEXT_KEY] = True
                 inbound_source_context[_followups.SIDE_ANSWER_SNAPSHOT_KEY] = _active_snapshot
+                # The side answer's transcript row says which turn it was asked inside.
+                inbound_source_context[_followups.FOLLOWUP_OF_REQUEST_KEY] = str(
+                    _active_snapshot.get("request_id") or ""
+                )
         requested_workspace = str(
             body.get("workspace")
             or body.get("workspace_root")
@@ -9119,7 +9144,11 @@ def _dispatch_post_inner(
         if _buf_cancel_turn:
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
         if _buf_task_turn:
-            _buf_followups.begin_task(session_id, _buf_cancel_turn, user_text)
+            from core.semantic.semantic_admissions import current_request_id as _buf_request_id
+
+            _buf_followups.begin_task(
+                session_id, _buf_cancel_turn, user_text, request_id=str(_buf_request_id() or "")
+            )
         _buf_queue_status = "failed"
         try:
             with _update_turn_guard(source_context, session_id):

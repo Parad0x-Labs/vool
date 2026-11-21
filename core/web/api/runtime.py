@@ -4335,6 +4335,127 @@ def record_stopped_turn(session_id: str, turn_id: str) -> str:
     return recorder()
 
 
+def interleave_followup_messages(spans: list[tuple[dict[str, Any], list[dict[str, Any]]]]) -> list[dict[str, Any]]:
+    """The transcript in the order it happened, from per-row message groups.
+
+    A row is one exchange, written when its answer exists -- so a message the user sent while a
+    task was still working (and VOOL's reply to it) is written BEFORE the task's own row. Shown in
+    write order the exchange would sit above the request it was about. A row that names the turn
+    it was asked inside (``followup_of_request_id``) is shown inside that turn instead: after the
+    turn's request, before its answer. A row naming a turn this read does not hold (still running,
+    or older than the window) stays where it was written.
+    """
+    task_rows = {
+        str(event.get("request_id") or "").strip()
+        for event, _ in spans
+        if str(event.get("request_id") or "").strip() and not str(event.get("followup_of_request_id") or "").strip()
+    }
+    inside: dict[str, list[dict[str, Any]]] = {}
+    for event, group in spans:
+        parent = str(event.get("followup_of_request_id") or "").strip()
+        if parent and parent in task_rows:
+            inside.setdefault(parent, []).extend(group)
+    ordered: list[dict[str, Any]] = []
+    for event, group in spans:
+        parent = str(event.get("followup_of_request_id") or "").strip()
+        if parent and parent in task_rows:
+            continue
+        held = inside.get(str(event.get("request_id") or "").strip()) if not parent else None
+        if not held:
+            ordered.extend(group)
+            continue
+        cut = next((i for i, message in enumerate(group) if message.get("role") != "user"), len(group))
+        ordered.extend(group[:cut])
+        ordered.extend(held)
+        ordered.extend(group[cut:])
+    return ordered
+
+
+def _progress_words(event: dict[str, Any] | None) -> str:
+    """One runtime event as the words a status reply may show: the typed event's stage (the same
+    word the task card shows) and the tool it names, never the runtime's internal message. An
+    event the task card would not show yields "" and is not progress."""
+    from core.task_event_model import build_task_event
+
+    try:
+        typed = build_task_event(dict(event or {}))
+    except Exception:
+        typed = None
+    if not typed:
+        return ""
+    stage = str(typed.get("stage") or "").strip()
+    if not stage or (str(typed.get("status") or "") in {"completed", "failed", "cancelled"} and not typed.get("tool")):
+        return ""
+    tool = " ".join(str(typed.get("tool") or "").replace(".", " ").replace("_", " ").split())
+    return f"{stage} ({tool})" if tool else stage
+
+
+def stop_live_turn(session_id: str, turn_id: str) -> str:
+    """Stop one in-flight turn exactly as the Stop button does: the stopped turn is recorded
+    first, then its cancel Event is set. ``"committed"`` when the turn's answer was sealed before
+    the stop counted (nothing is cancelled), else `request_cancel`'s ``cancelled`` / ``not_found``.
+    The one stop for the cancel door and for a typed "stop" / "pause" sent while the task runs."""
+    from core.web.api.turn_cancel import request_cancel
+
+    if record_stopped_turn(session_id, turn_id) == "already_recorded":
+        return "committed"
+    return request_cancel(session_id, turn_id)
+
+
+def record_followup_exchange(
+    session_id: str, user_text: str, reply_text: str, *, inside_request_id: str = ""
+) -> None:
+    """Keep a mid-task message and VOOL's direct reply to it in the chat's transcript, now.
+
+    ``inside_request_id`` names the running task's own turn when the exchange belongs inside it
+    (an amendment, a status question): the transcript reader shows it between that turn's request
+    and its answer, which is where it happened. A private chat keeps nothing, as for any turn.
+    """
+    from core.persistent_memory import _write_conversation_event
+
+    try:
+        _write_conversation_event(
+            session_id=session_id,
+            user_input=str(user_text or ""),
+            assistant_output=str(reply_text or ""),
+            source_context={"surface": "api", "platform": "api", "response_class": "followup_control"},
+            response_class="followup_control",
+            extra_fields=(
+                {"followup_of_request_id": str(inside_request_id)} if str(inside_request_id or "").strip() else None
+            ),
+        )
+    except Exception:
+        logging.getLogger("vool.api").exception("a mid-task message could not be kept in the transcript")
+
+
+# Routes whose whole reply is the door's own words: kept in the transcript by the door itself.
+_FOLLOWUP_INSIDE_TASK_ROUTES = frozenset({"status", "ack", "note_added"})
+_FOLLOWUP_AFTER_TASK_ROUTES = frozenset({"stopped", "paused"})
+
+
+def serve_followup(session_id: str, text: str, *, idempotency_key: str = "") -> dict[str, Any]:
+    """The follow-up door's one body, for every route that reaches it: decide what a message sent
+    while the chat's task runs does (`core.followup_continuity.handle_followup`), stop the task
+    the way the Stop button does when the message ends it, and keep the exchange in the
+    transcript when the reply is the door's own words."""
+    from core.followup_continuity import handle_followup
+
+    outcome = handle_followup(
+        str(session_id or ""), str(text or ""), idempotency_key=str(idempotency_key or ""), cancel=stop_live_turn
+    )
+    if not outcome.get("ok") or outcome.get("replayed"):
+        return outcome
+    route = str(outcome.get("route") or "")
+    message = str(outcome.get("message") or "")
+    if message and route in _FOLLOWUP_INSIDE_TASK_ROUTES:
+        record_followup_exchange(
+            session_id, text, message, inside_request_id=str(outcome.get("task_request_id") or "")
+        )
+    elif message and route in _FOLLOWUP_AFTER_TASK_ROUTES:
+        record_followup_exchange(session_id, text, message)
+    return outcome
+
+
 def stream_agent_with_events(
     runtime: RuntimeServices,
     user_text: str,
@@ -4483,7 +4604,7 @@ def _stream_agent_with_events_inner(
                 if _STOP_RECORDERS.get(stop_key) is stop_recorder:
                     del _STOP_RECORDERS[stop_key]
     if is_task_turn:
-        followup_continuity.begin_task(session_id, cancel_turn_id, user_text)
+        followup_continuity.begin_task(session_id, cancel_turn_id, user_text, request_id=live_request_id)
 
     def _release_followups() -> None:
         # Notes the task never reached are carried into the chat's queue and run next.
@@ -4503,9 +4624,7 @@ def _stream_agent_with_events_inner(
 
     def sink(event: dict[str, Any]) -> None:
         if is_task_turn and str((event or {}).get("event_type") or "") != "model_output_chunk":
-            followup_continuity.note_progress(
-                session_id, cancel_turn_id, str((event or {}).get("message") or "")
-            )
+            followup_continuity.note_progress(session_id, cancel_turn_id, _progress_words(event))
         event_queue.put(("event", dict(event)))
 
     def worker() -> None:

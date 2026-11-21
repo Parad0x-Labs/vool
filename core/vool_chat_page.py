@@ -10237,6 +10237,177 @@ window.VoolDisclosureLocalRetry = async function(retry) {
     attachments,
     disclosureRetry:retry, queuedModel:retry.model});
 };
+// =========================== A message sent while this chat's task is still working ===========================
+// The server decides what such a message is (core/followup_continuity.py, POST /api/chat/followup):
+// a stop, a pause, "do this first", "do this instead", a question about the task, any other
+// question, or a change to the task. This side only shows the outcome where the person is looking.
+// It never decides: a message the door does not take (no live task, a door that cannot be reached,
+// a message with attachments) goes into the chat's queue exactly as before, so nothing is lost.
+
+// The working answer stays the LAST thing in the log: what was said meanwhile sits above it, in
+// the order it happened -- the same order a reload shows (the transcript reader places a mid-task
+// exchange inside its turn).
+function keepRunBubbleLast(run) {
+  if (!run || run.ended || !run.assistantMsgEl) return;
+  if (run.assistantMsgEl.parentNode === logEl && logEl.lastElementChild !== run.assistantMsgEl) logEl.appendChild(run.assistantMsgEl);
+}
+function paintFollowupExchange(chatId, text, reply, run) {
+  const sentAt = new Date().toISOString();
+  recordUserMessage(chatId, text, sentAt);
+  chatState(chatId).history.push({ role: 'assistant', content: String(reply || ''), ts: sentAt });
+  if (!isDisplayed(chatId)) return;
+  addMsg('user', text, sentAt);
+  addMsg('assistant', String(reply || ''), sentAt);
+  keepRunBubbleLast(run);
+  followLog(true);
+}
+// Ends the running turn's display the way the Stop button does (the server has already stopped
+// the turn; the button's own request finds that and settles the bubble and the card the same way).
+function showRunStopped(run) {
+  if (!run || run.ended) return;
+  if (run.refs && run.refs.stop && !run.stopRequested) { run.refs.stop.click(); return; }
+  if (!run.stopRequested) { run.stopRequested = true; try { if (run.aborter) run.aborter.abort(); } catch (e) {} }
+}
+// A question answered beside the running task. It is its own small turn: it takes no slot, cannot
+// act, and the task's run object is never touched -- the task keeps its stream, timers and bubble.
+async function runSideAnswer(chatId, text) {
+  const owner = chatState(chatId);
+  const taskRun = owner.run;
+  const sentAt = new Date().toISOString();
+  recordUserMessage(chatId, text, sentAt);
+  const entry = { role: 'assistant', content: '', ts: '' };
+  let msgEl = null, textEl = null;
+  if (isDisplayed(chatId)) {
+    addMsg('user', text, sentAt);
+    msgEl = addMsg('assistant', '…');
+    msgEl.classList.add('pending');
+    textEl = msgEl.querySelector('.msg-text');
+    keepRunBubbleLast(taskRun);
+    followLog(true);
+  }
+  const paint = (value, final, metadata) => {
+    if (!msgEl || !msgEl.isConnected || !textEl) return;
+    msgEl.classList.remove('pending');
+    if (final) { renderAssistantContent(textEl, value, metadata); setMsgTime(msgEl, new Date().toISOString()); }
+    else textEl.textContent = value;
+    followLog();
+  };
+  let answer = '', committed = false, metadata = null;
+  try {
+    const chatModel = modelForChat(chatId);
+    const selected = chatModel === LOCAL_ONLY_MODEL ? LOCAL_ONLY_MODEL : effectiveModel(chatId, text);
+    const selection = (chatModel === LOCAL_ONLY_MODEL || chatModel !== 'vool') ? 'pin' : (selected !== 'vool' ? 'sticky' : 'auto');
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(owner.privateChat ? { private_chat: true } : {}),
+        model: selected, model_selection: selection,
+        messages: canonicalMessagesForModel(owner.history),
+        stream: true, session_id: chatId,
+        turn_id: 'side-' + ((self.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2))),
+        followup_mode: 'side_answer', on_busy: 'refuse', mode: owner.mode,
+      }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let obj; try { obj = JSON.parse(line); } catch (e) { continue; }
+        const commit = obj && obj.vool_response_commit;
+        if (commit && typeof commit.canonical_content === 'string') {
+          answer = commit.canonical_content; committed = true;
+          metadata = (commit.display_metadata && typeof commit.display_metadata === 'object') ? commit.display_metadata : null;
+          if (commit.request_id) entry.request_id = String(commit.request_id);
+          continue;
+        }
+        const chunk = obj && obj.message && obj.message.content ? obj.message.content : '';
+        if (chunk && !committed) { answer += chunk; paint(answer, false); }
+      }
+    }
+    if (!answer.trim()) throw new Error('empty');
+  } catch (e) {
+    // The question got no answer. Say so in its own bubble; the task is untouched either way.
+    answer = answer.trim() ? answer : pageT('followup.side_failed', 'I couldn’t answer that just now. The task is still running; ask again in a moment.');
+    metadata = null;
+  }
+  entry.content = answer; entry.ts = new Date().toISOString();
+  if (metadata) entry.display_metadata = metadata;
+  // After the question in the transcript, and before the task's own answer when that is still to
+  // come (the task records its answer when it finishes).
+  const at = owner.history.findIndex((m) => m && m.role === 'user' && m.content === text && m.ts === sentAt);
+  if (at >= 0) owner.history.splice(at + 1, 0, entry); else owner.history.push(entry);
+  if (taskRun && taskRun.historyIndex > at && at >= 0) taskRun.historyIndex += 1;
+  paint(answer, true, metadata);
+}
+function sideAnswerNeedsNoPaidConfirmation(chatId, text) {
+  try {
+    const chatModel = modelForChat(chatId);
+    if (chatModel === LOCAL_ONLY_MODEL) return true;
+    const selected = String(effectiveModel(chatId, text));
+    if (selected === 'vool' || isLocalModel(selected)) return true;
+    const row = CLOUD_CATALOG_BY_ID[selected];
+    if (row && row.free) return true;
+    return paidPinAcked(selected, chatId);
+  } catch (e) { return false; }
+}
+// True when the door took the message; false sends it down the ordinary queue path.
+async function sendFollowup(chatId, text, draftText) {
+  let out = null;
+  try {
+    const res = await fetch('/api/chat/followup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: String(chatId), text: text, idempotency_key: 'fu-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) }),
+    });
+    out = await res.json();
+  } catch (e) { return false; }
+  const owner = chatState(chatId);
+  const run = owner.run && !owner.run.released ? owner.run : null;
+  if (!out || !out.ok) {
+    if (out && out.task_stopped) {
+      // The task was stopped but the new message could not be queued: it goes back to the box.
+      showRunStopped(run);
+      if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, draftText);
+      toast(String(out.error || ''));
+      return true;
+    }
+    return false;
+  }
+  const route = String(out.route || '');
+  if (route === 'answer') {
+    // Money rule: a side answer never spends on a paid model the person has not confirmed for
+    // this chat. Without that it waits in the queue like any message, where the paid gate asks.
+    if (!sideAnswerNeedsNoPaidConfirmation(chatId, text)) return false;
+    runSideAnswer(chatId, text); return true;
+  }
+  if (route === 'switched' || route === 'replaced') {
+    // The message (and, for a switch, the task's own request behind it) is in this chat's queue:
+    // the chips show both, and the queue runs them as soon as the stopped turn has wound down.
+    showRunStopped(run);
+    toast(String(out.message || ''));
+    owner.queueArrivals++;
+    refreshQueue(chatId); pumpQueue(chatId);
+    return true;
+  }
+  if (route === 'stopped' || route === 'paused') {
+    showRunStopped(run);
+    paintFollowupExchange(chatId, text, out.message, null);
+    return true;
+  }
+  if (route === 'status' || route === 'ack' || route === 'note_added') {
+    paintFollowupExchange(chatId, text, out.message, run);
+    return true;
+  }
+  return false;   // run_now, passthrough, or a route this page does not know: the queue path
+}
 
 async function send() {
   // Refused BEFORE the draft is read or cleared: a disabled textarea is the visible half,
@@ -10263,6 +10434,10 @@ async function send() {
   // witness). Either way the message is stored durably and runs once the slot frees.
   const slotBusy = isChatBusy(chatId) || chatSlotBusyKnown(chatId);
   if (slotBusy) {
+    // First ask what this message is to the task that is working: a question is answered now, a
+    // change joins the task, a stop stops it. Only a message the door leaves alone is queued.
+    // A message with attachments is queued as before: its files belong to a turn of its own.
+    if (!attachments.length && await sendFollowup(chatId, text, draftText)) return;
     // Do not drop it -- persist it in THIS chat's queue and show a chip. Another chat being busy
     // is irrelevant here; only this chat's own slot decides run-now vs enqueue. The staged
     // attachments travel with the queued item by id; their names are remembered in this chat's

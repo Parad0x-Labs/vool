@@ -214,6 +214,12 @@ def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
     )
 
 
+def _followup_action_ended(loop_source_context: dict[str, Any]) -> None:
+    from core.followup_continuity import end_action
+
+    end_action(loop_source_context)
+
+
 def _semantic_payload_signature(payload: Any) -> str:
     """The identity of a tool call for the duplicate guard: intent + arguments, transport stripped.
 
@@ -2154,7 +2160,14 @@ class ResearchToolLoopFacadeMixin:
     def _pick_up_followup_notes(self, loop_source_context: dict[str, Any], *, step_count: int) -> None:
         from core.followup_continuity import drain_notes_into_context
 
-        for note in drain_notes_into_context(loop_source_context):
+        self._announce_followup_notes(
+            loop_source_context, drain_notes_into_context(loop_source_context), step_count=step_count
+        )
+
+    def _announce_followup_notes(
+        self, loop_source_context: dict[str, Any], notes: list[dict[str, Any]], *, step_count: int
+    ) -> None:
+        for note in notes:
             text = " ".join(str(note.get("text") or "").split())
             self._emit_runtime_event(
                 loop_source_context,
@@ -2163,6 +2176,33 @@ class ResearchToolLoopFacadeMixin:
                 status="note_applied",
                 step_count=step_count,
             )
+
+    def _followup_changed_the_request(
+        self, loop_source_context: dict[str, Any], intent: str, arguments: Any, *, step_count: int
+    ) -> bool:
+        """The last look before an action that changes something. True when the user amended the
+        request after this action was chosen: the notes are handed to the task and the caller must
+        not run the action -- the model decides again with the notes in hand. False marks the
+        action as under way (cleared by `core.followup_continuity.end_action`), so an amendment
+        that arrives while it runs is told the truth about it. A read-only call never asks:
+        nothing it does needs taking back."""
+        if _batch_member_is_read_only(intent, arguments if isinstance(arguments, dict) else None):
+            return False
+        from core.followup_continuity import begin_action
+
+        fresh = begin_action(loop_source_context, intent)
+        if not fresh:
+            return False
+        self._announce_followup_notes(loop_source_context, fresh, step_count=step_count)
+        self._emit_runtime_event(
+            loop_source_context,
+            event_type="followup_note_applied",
+            message=f"Your change arrived before {intent} ran, so it was not run. Deciding the next step again.",
+            status="action_withheld",
+            tool_name=intent,
+            step_count=step_count,
+        )
+        return True
 
     @_within_turn_navigation
     def _maybe_execute_model_tool_intent(
@@ -3091,6 +3131,14 @@ class ResearchToolLoopFacadeMixin:
                     )
 
             tool_name = str(tool_payload.get("intent") or "").strip() or "unknown"
+            # An amendment the user sent after this action was chosen wins over it: an action that
+            # changes something (send, pay, delete, write) is not run on the old wording. Its
+            # signature is forgotten so the model may choose it again if the note leaves it right.
+            if self._followup_changed_the_request(
+                loop_source_context, tool_name, tool_payload.get("arguments"), step_count=len(executed_steps)
+            ):
+                seen_tool_payloads.discard(_semantic_payload_signature(tool_payload))
+                continue
             # The rest of THIS reply's batch, resolved before the head is gated. Two things need it.
             #
             # The permission controller needs it to offer one bounded approval for the writes this
@@ -3154,6 +3202,7 @@ class ResearchToolLoopFacadeMixin:
                 step_index=len(executed_steps),
                 tool_call_id=str(tool_payload.get("_native_tool_call_id") or "") or None,
             )
+            _followup_action_ended(loop_source_context)
             # Result-type validation: the executed tool must be the requested one. A
             # mismatch means an internal wiring fault -- stop safely instead of showing
             # a result the user never asked for.
@@ -3361,6 +3410,12 @@ class ResearchToolLoopFacadeMixin:
                     source_context=loop_source_context,
                 ):
                     break
+                # A covered write is still an action chosen before any amendment that has arrived
+                # since: it defers with the rest, and the model decides again with the note.
+                if self._followup_changed_the_request(
+                    loop_source_context, member_intent, member_payload["arguments"], step_count=len(executed_steps)
+                ):
+                    break
                 # Same privacy gate as the head call: a batch member reading drive stats on a
                 # non-drive ask is refused before dispatch, identically.
                 member_execution = _drive_stats_privacy_refusal(
@@ -3380,6 +3435,7 @@ class ResearchToolLoopFacadeMixin:
                     step_index=len(executed_steps),
                     tool_call_id=str(member.get("_native_tool_call_id") or "") or None,
                 )
+                _followup_action_ended(loop_source_context)
                 member_mode = str(getattr(member_execution, "mode", "") or "")
                 member_handled = bool(getattr(member_execution, "handled", False))
                 member_ran = member_handled and member_mode == "tool_executed"

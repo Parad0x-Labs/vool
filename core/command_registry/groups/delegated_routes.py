@@ -726,10 +726,10 @@ def _chat_cancel(inp: RouteInput, _ctx: Any) -> Any:
 
 
 def _chat_followup(inp: RouteInput, _ctx: Any) -> Any:
-    from core.followup_continuity import handle_followup
+    from core.web.api.runtime import serve_followup
 
     body = dict(inp.body or {})
-    outcome = handle_followup(
+    outcome = serve_followup(
         str(body.get("session_id") or ""),
         str(body.get("text") or ""),
         idempotency_key=str(body.get("idempotency_key") or ""),
