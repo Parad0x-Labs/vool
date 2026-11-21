@@ -2209,10 +2209,15 @@ class VoolAgent(
         user_input = turn_command_text(user_input, runtime_source_context)
         # This is server-derived metadata, never model-facing prompt text and never caller-trusted.
         # A clear "do not take action" instruction applies to every execution seam in this turn.
-        from core.agent_runtime.intent_claims import NO_COMMANDS_CONTEXT_KEY, turn_action_constraints
+        from core.agent_runtime.intent_claims import (
+            NO_COMMANDS_CONTEXT_KEY,
+            NO_WRITES_CONTEXT_KEY,
+            turn_action_constraints,
+        )
 
         runtime_source_context.pop("action_policy", None)
         runtime_source_context.pop(NO_COMMANDS_CONTEXT_KEY, None)
+        runtime_source_context.pop(NO_WRITES_CONTEXT_KEY, None)
         # Two values, because "do not run tests" is a constraint on ONE operation and reading it as
         # a ban on the turn cancelled the build it was attached to. The narrower ban travels beside
         # the policy so the tool boundary can honour it without the lane being switched off.
@@ -2220,6 +2225,8 @@ class VoolAgent(
         runtime_source_context["action_policy"] = constraints.policy.value
         if constraints.forbid_commands:
             runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+        if constraints.forbid_writes:
+            runtime_source_context[NO_WRITES_CONTEXT_KEY] = True
         _forbid_side_answer_actions(runtime_source_context)
         # Forget admission precedes every memory-bearing effect of the turn,
         # including normalization's dialogue state and profile sibling clauses.
@@ -2743,6 +2750,11 @@ class VoolAgent(
         runtime_source_context.pop(NO_COMMANDS_CONTEXT_KEY, None)
         if semantic_constraints.forbid_commands or not preflight.effect_routes_safe:
             runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+        from core.agent_runtime.intent_claims import NO_WRITES_CONTEXT_KEY
+
+        runtime_source_context.pop(NO_WRITES_CONTEXT_KEY, None)
+        if semantic_constraints.forbid_writes:
+            runtime_source_context[NO_WRITES_CONTEXT_KEY] = True
         if not preflight.effect_routes_safe:
             from core.agent_runtime.intent_claims import ActionPolicy
 

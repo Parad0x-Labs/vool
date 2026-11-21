@@ -336,6 +336,16 @@ _NO_RUN_RE = re.compile(
 # Server-derived, never caller-supplied: the turn's "do not execute anything" constraint as it
 # travels in `source_context` to the tool boundary.
 NO_COMMANDS_CONTEXT_KEY = "no_command_execution"
+# Server-derived too: the turn asked to read something and said not to create or change anything.
+NO_WRITES_CONTEXT_KEY = "no_write_effects"
+
+# The request a "do not create/change anything" rider follows when the turn only asks to look: "show me the schema of
+# my database named demo. Read only, do not create anything."
+_READ_REQUEST_RE = re.compile(
+    r"\b(?:show|list|read|look\s+(?:up|at|into)|find|inspect|check|view|display|print|count|get\s+me)\b",
+    re.IGNORECASE,
+)
+_WHOLE_LANE_OBJECT_RE = re.compile(r"^\s+(?:anything|any\s+\w+|a\s+thing|things|nothing)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -344,6 +354,7 @@ class TurnActionConstraints:
 
     policy: ActionPolicy = ActionPolicy.ALLOWED
     forbid_commands: bool = False
+    forbid_writes: bool = False
 
 
 def _negation_is_scoped(value: str, match: re.Match[str]) -> bool:
@@ -388,6 +399,7 @@ def turn_action_constraints(text: str) -> TurnActionConstraints:
     """
     value = str(text or "")
     forbid_commands = bool(_NO_RUN_RE.search(value))
+    forbid_writes = False
     if _NO_ACTION_RE.search(value) or analyze_retrieval_constraints(value).forbids_all_tools:
         return TurnActionConstraints(policy=ActionPolicy.FORBIDDEN, forbid_commands=True)
     for match in _SPECIFIC_NO_ACTION_RE.finditer(value):
@@ -406,8 +418,27 @@ def turn_action_constraints(text: str) -> TurnActionConstraints:
             continue
         if _negation_is_scoped(value, match):
             continue
+        if _read_only_rider(value, match):
+            forbid_writes = True
+            continue
         return TurnActionConstraints(policy=ActionPolicy.FORBIDDEN, forbid_commands=True)
-    return TurnActionConstraints(policy=ActionPolicy.ALLOWED, forbid_commands=forbid_commands)
+    return TurnActionConstraints(policy=ActionPolicy.ALLOWED, forbid_commands=forbid_commands or forbid_writes,
+                                 forbid_writes=forbid_writes)
+
+
+def _read_only_rider(value: str, match: re.Match[str]) -> bool:
+    """True when "do not create/change/... anything" follows a request that only asks to look.
+
+    Release walk on the real app (2026-11-20): "Using the VOOL Database plugin, show me the schema of my database named
+    demo. Read only, do not create anything." banned the whole action lane, the read-only schema tool was never
+    offered, and the model wrote a made-up refusal in the plugin's shape. The rider withdraws writes, not the look:
+    the turn keeps its read-only tools and every effect that writes is refused at the tool boundary
+    (`NO_WRITES_CONTEXT_KEY`). A turn with no read request before the rider ("Don't change anything, just explain")
+    is not one."""
+    verb = str(match.group(0) or "").rsplit(None, 1)[-1].lower()
+    if verb not in _MUTATING_NEGATED_VERBS or not _WHOLE_LANE_OBJECT_RE.match(value[match.end() :]):
+        return False
+    return bool(_READ_REQUEST_RE.search(value[: match.start()]))
 
 
 def action_policy_from_context(source_context: dict[str, object] | None) -> ActionPolicy:
@@ -429,6 +460,12 @@ def commands_forbidden_in_context(source_context: dict[str, object] | None) -> b
     return bool(context.get(NO_COMMANDS_CONTEXT_KEY))
 
 
+def writes_forbidden_in_context(source_context: dict[str, object] | None) -> bool:
+    """Whether this turn's own words ruled out creating or changing anything (a read-only rider or a no-action turn)."""
+    context = source_context or {}
+    return action_policy_from_context(context) is ActionPolicy.FORBIDDEN or bool(context.get(NO_WRITES_CONTEXT_KEY))
+
+
 __all__ = [
     "FAMILY_DISK_USAGE",
     "FAMILY_FIND_FILE",
@@ -441,6 +478,7 @@ __all__ = [
     "FAMILY_MACHINE_SPECS",
     "FAMILY_READ_FILE",
     "NO_COMMANDS_CONTEXT_KEY",
+    "NO_WRITES_CONTEXT_KEY",
     "ActionPolicy",
     "IntentClaim",
     "TurnActionConstraints",
@@ -451,4 +489,5 @@ __all__ = [
     "near_miss",
     "probe_claims",
     "turn_action_constraints",
+    "writes_forbidden_in_context",
 ]

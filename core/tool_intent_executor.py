@@ -1172,6 +1172,37 @@ def _execute_tool_intent_impl(
             },
         )
 
+    # "Show me the schema ... Read only, do not create anything" keeps the look and withdraws every write: an intent
+    # whose declared side effect is anything but read-only is refused here, whichever lane proposed it. An intent no
+    # registry knows is refused too.
+    from core.agent_runtime.intent_claims import NO_WRITES_CONTEXT_KEY
+
+    if (source_context or {}).get(NO_WRITES_CONTEXT_KEY):
+        from core.tool_argument_aliases import side_effect_class_for_intent
+
+        if side_effect_class_for_intent(intent) != "read_only":
+            response = "You asked me not to create or change anything this turn, so I did not run that."
+            return ToolIntentExecution(
+                handled=True,
+                ok=False,
+                status="blocked_by_read_only_constraint",
+                response_text=response,
+                user_safe_response_text=response,
+                mode="tool_failed",
+                tool_name=intent,
+                details={
+                    "controller_enforced": True,
+                    "executed": False,
+                    "no_write_effects": True,
+                    "observation": _tool_observation(
+                        intent=intent,
+                        tool_surface="action_policy",
+                        ok=False,
+                        status="blocked_by_read_only_constraint",
+                    ),
+                },
+            )
+
     # "Do not run tests" is not "do not act". It withdraws execution and leaves the writes the same
     # sentence asked for standing, so it is enforced HERE -- one gate, after the turn policy and
     # before dispatch -- rather than by each lane deciding for itself what the words meant. The
