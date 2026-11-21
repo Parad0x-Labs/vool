@@ -1,0 +1,83 @@
+{
+  "machine.display_inspect": {
+    "use_when": "The person wants to know the resolution, refresh rate, or physical size of the monitors currently connected to their Windows computer.",
+    "examples": [
+      "what resolution is my screen running at",
+      "whats my monitor refresh rate",
+      "can you check what displays I have plugged in",
+      "how many hz is my screen set to right now",
+      "what size is my monitor, in inches",
+      "is my second monitor running at 144hz or 60",
+      "check my display settings pls",
+      "what res is my screen currently",
+      "tell me the resolution of each monitor i have connected",
+      "is my screen really 4k or did windows set it lower",
+      "¿A qué resolución está funcionando mi pantalla ahora mismo?",
+      "Quelle est la fréquence de rafraîchissement de mon écran ?",
+      "Welche Auflösung hat mein Monitor gerade?",
+      "Kokia dabar mano ekrano skiriamoji geba ir dažnis?"
+    ],
+    "not_for": [
+      "how do I change my screen resolution to something higher",
+      "write a short blog post about why high refresh rate monitors are great",
+      "what is the difference between 1080p and 1440p in general",
+      "which 27 inch monitor should I buy for gaming",
+      "my screen is flickering, how can I fix it",
+      "ugh my monitor is so old lol"
+    ]
+  },
+  "machine.event_log_errors": {
+    "use_when": "The person wants to see recent critical or error entries in the Windows Event Log on their own computer, usually because of crashes, freezes, blue screens, or odd behavior.",
+    "examples": [
+      "show me recent errors in the event log",
+      "why did my pc crash? check the event viewer errors",
+      "list the last 20 critical events on this computer",
+      "any system errors lately?",
+      "can you pull up application errors from windows logs",
+      "my laptop keeps freezing, check for error events pls",
+      "whats in the event log that went wrong today",
+      "show critical errors",
+      "check if windows logged any errors after that blue screen",
+      "give me the last 50 error entries from system and application logs",
+      "Muestra los errores recientes del registro de eventos de Windows",
+      "Peux-tu afficher les erreurs récentes du journal d'événements Windows ?",
+      "Zeig mir bitte die letzten kritischen Fehler im Windows-Ereignisprotokoll",
+      "Parodyk naujausias Windows įvykių žurnalo klaidas"
+    ],
+    "not_for": [
+      "how do I open Event Viewer in Windows 11?",
+      "what does event ID 41 Kernel-Power mean in general?",
+      "write a short blog post about why Windows logs errors",
+      "clear the event log for me",
+      "how can I fix a blue screen of death?",
+      "I got so many errors on my exam today lol"
+    ]
+  },
+  "machine.ensure_directory": {
+    "use_when": "The person wants a new folder created on their own computer, such as on the Desktop, in Downloads, or in Documents, to organize or store files.",
+    "examples": [
+      "make a new folder on my desktop called Taxes 2024",
+      "create a folder in Documents named Recipes",
+      "can you please add a folder called Invoices to my Downloads",
+      "new folder on desktop, name it school stuff",
+      "mkdir Projects/ideas in documents",
+      "i need a folder for my vacation pics in Downloads",
+      "Could you set up a folder named 'Receipts' inside Documents?",
+      "creat a folder calld Backup on the desktop pls",
+      "make me a folder Work/Reports/2025 in Documents",
+      "add an empty folder to downloads named music",
+      "Crea una carpeta nueva en el escritorio llamada Facturas",
+      "Peux-tu créer un dossier nommé Photos dans Documents ?",
+      "Erstelle bitte einen neuen Ordner namens Rechnungen auf dem Desktop",
+      "Sukurk naują aplanką Dokumentuose pavadinimu Nuotraukos"
+    ],
+    "not_for": [
+      "how do I make a new folder in Windows?",
+      "what's the best way to organize my Documents folder?",
+      "write a short poem about my messy desktop",
+      "what is a directory in computer science?",
+      "delete the old folder called Backup on my desktop",
+      "my downloads folder is a disaster lol"
+    ]
+  }
+}

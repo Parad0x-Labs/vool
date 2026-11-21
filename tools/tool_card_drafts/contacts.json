@@ -1,0 +1,29 @@
+{
+  "contacts.resolve": {
+    "use_when": "The person wants the exact saved email, phone number, messaging handle or wallet address for a contact or service they already have stored, possibly for a specific label, chain or channel.",
+    "examples": [
+      "what's Sarah's work email",
+      "get me mom's phone number",
+      "wallet address for Dave on base",
+      "whats jakes personal email",
+      "Can you please look up the Telegram handle I saved for Priya?",
+      "need the solana address for my landlord",
+      "which number do i have for the dentist",
+      "find Alex's Signal contact on my personal account",
+      "ethereum address for Marcus pls",
+      "pull up the saved work phone for Lena",
+      "¿Cuál es el número de teléfono de mi hermana?",
+      "Donne-moi l'adresse e-mail perso de Claire",
+      "Wie lautet Toms Wallet-Adresse auf Solana?",
+      "Koks Jonos darbo el. pašto adresas?"
+    ],
+    "not_for": [
+      "how do I save a new contact to my address book",
+      "what is a wallet address and how does it work",
+      "write an email to my boss asking for Friday off",
+      "send 5 SOL to Dave",
+      "text Mom happy birthday",
+      "explain the difference between Solana and Base"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "capability.expand_family": {
+    "use_when": "The person asks for something that needs a group of abilities VOOL hasn't loaded yet, such as calendar, email, files or reminders, and VOOL has to unlock that group to continue.",
+    "examples": [
+      "check my calendar for tomorrow",
+      "can you look through my downloads folder for the tax pdf",
+      "add a dentist appointment on friday at 3pm",
+      "pls read my latest emails and tell me if anything is urgent",
+      "I need to find a file I saved last week, something about the lease",
+      "set a reminder for me to call mom at 6",
+      "could you please move my 2pm meeting to thursday",
+      "whats on my schedule this week",
+      "send a quick message to my landlord about the leaky sink",
+      "rename all the photos in my vacation folder",
+      "Necesito que mires mis correos y me digas si hay algo urgente",
+      "Peux-tu ouvrir mes fichiers et trouver ma facture d'électricité ?",
+      "Kannst du meinen Kalender öffnen und einen Termin für Montag eintragen?",
+      "Ar gali peržiūrėti mano kalendorių ir pridėti susitikimą rytojui?"
+    ],
+    "not_for": [
+      "How can I organize my calendar better?",
+      "Write a short paragraph about why email is annoying",
+      "What's the best folder structure for storing documents?",
+      "Who invented the calendar we use today?",
+      "Lol my inbox is a disaster, I'm never going to clean it",
+      "Explain how reminders work on most phones"
+    ]
+  }
+}

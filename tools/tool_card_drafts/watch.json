@@ -1,0 +1,137 @@
+{
+  "watch.add": {
+    "use_when": "The person wants to be notified later when a crypto wallet shows new activity or when a token's price crosses a level or moves by a percentage.",
+    "examples": [
+      "ping me if this token goes above 250 dollars on solana",
+      "Alert me when this token drops below $0.002 on base: 0x4f1c...9a2b",
+      "keep an eye on my solana wallet and tell me when anything moves",
+      "notify me if this coin pumps 20% in an hour",
+      "Could you please let me know when wallet 0x91d3...e07 on ethereum has new activity?",
+      "tell me every time the price crosses 1.50, up or down",
+      "alert me if this token dumps more than 15% in 24h",
+      "track this address on arbitrum and call it Whale 1",
+      "message me when my bnb token hits 3 bucks",
+      "notifiy me when this wallet makes a transaction",
+      "Avísame si este token baja de 0,05 dólares en Base",
+      "Préviens-moi quand ce portefeuille Solana bouge",
+      "Benachrichtige mich, wenn dieser Token innerhalb von 6 Stunden um 10 % fällt",
+      "Praneškite man, kai šio token kaina viršys 2 dolerius"
+    ],
+    "not_for": [
+      "How do I set up a smart price alert strategy for crypto trading?",
+      "What is a wallet address and how does it work?",
+      "Write a tweet about my token hitting a new all-time high",
+      "What's the current price of ETH right now?",
+      "Send 0.5 SOL to my friend's wallet",
+      "Explain what a 24h percent move means"
+    ]
+  },
+  "watch.list": {
+    "use_when": "The person wants to see everything they have set up to be watched, including each one's label, chain, rule, current state and when it was last checked.",
+    "examples": [
+      "what am I watching",
+      "show me all my watches",
+      "list my active watches please",
+      "which of my watches are paused?",
+      "whats being monitored rn",
+      "when did my watches last run a check",
+      "any watches stuck on needs setup",
+      "show everything im tracking on chain",
+      "Could you please give me an overview of all the watches I've set up?",
+      "wat watches do i have running",
+      "¿Qué estoy vigilando ahora mismo?",
+      "Montre-moi toutes mes surveillances en cours",
+      "Welche Überwachungen habe ich aktuell eingerichtet?",
+      "Ką šiuo metu stebiu?"
+    ],
+    "not_for": [
+      "how do I set up a watch on a wallet?",
+      "explain what a blockchain is",
+      "write a short tweet about keeping an eye on crypto prices",
+      "pause my ETH watch",
+      "I love watching movies on weekends",
+      "what is the best watch brand to buy?"
+    ]
+  },
+  "watch.remove": {
+    "use_when": "The person wants to stop being notified about a page or address VOOL is monitoring, and asks to delete that monitor by its id or by the address it follows.",
+    "examples": [
+      "stop tracking https://example.com/pricing",
+      "delete watch 7",
+      "pls stop monitoring that shoe page, i bought them already",
+      "remove the monitor for example.org/blog",
+      "i dont want alerts about https://shop.example.com/item/42 anymore",
+      "cancel watch id 12",
+      "Could you please stop watching the apartment listing I gave you earlier?",
+      "kill the tracker on news.example.net",
+      "no more updates for that ticket page, delete it",
+      "drop id 3 from my monitored pages",
+      "Deja de vigilar la página https://ejemplo.com/ofertas, ya no me interesa.",
+      "Supprime la surveillance de https://exemple.fr/promo s'il te plaît.",
+      "Bitte lösche die Überwachung für https://beispiel.de/angebote.",
+      "Nebestebėk puslapio https://pavyzdys.lt/kainos, ištrink tą stebėjimą."
+    ],
+    "not_for": [
+      "how do I stop getting spam emails from a website?",
+      "show me all the pages you are currently monitoring",
+      "start tracking https://example.com/sale and tell me when it changes",
+      "write a short blog post about why price tracking is useful",
+      "what does it mean when a website is monitored for changes?",
+      "I'm so tired of watching my competitors' sites all day, ha"
+    ]
+  },
+  "watch.pause": {
+    "use_when": "The person wants to temporarily stop checks and notifications for one page or address they are being alerted about, without deleting it, and names the item by id or by its address.",
+    "examples": [
+      "pause the alerts for example.com/shop",
+      "pause w_42",
+      "stop checking https://example.com/tickets for now",
+      "can you please pause the monitoring on my flight price page",
+      "mute notifications from example.org/jobs, I'm on holiday",
+      "pasue the check on example.com/news plz",
+      "hold off on tracking example.com/laptop-deal",
+      "stop pinging me about that apartment listing page, pause it",
+      "pause monitor id 7f3a9",
+      "Could you kindly pause the updates for www.example.net/blog until next week?",
+      "Pausa los avisos de example.com/precios, por favor",
+      "Mets en pause la surveillance de example.com/promo",
+      "Pausiere bitte die Überwachung von example.com/angebote",
+      "Sustabdyk example.com/kainos tikrinimą kuriam laikui"
+    ],
+    "not_for": [
+      "How do I get notified when a web page changes?",
+      "Why do price trackers sometimes miss updates?",
+      "Write a short email telling my team that I paused our site monitoring",
+      "I love how these alerts keep me updated, thanks!",
+      "What does it mean to pause a subscription?",
+      "Show me everything I'm currently tracking"
+    ]
+  },
+  "watch.resume": {
+    "use_when": "The person wants a paused watch turned back on, or a watch that stopped because web access was off or a needed key was removed started again.",
+    "examples": [
+      "unpause the watch on the sneaker page",
+      "Can you turn my paused watches back on?",
+      "restart the watch that stopped when I turned off web access",
+      "my price watch stopped after I removed the key, start it again pls",
+      "resume watch 14",
+      "start checking example.com/deals again",
+      "i switched internet access back on so get my stopped watch going again",
+      "Please re-arm the watch for the apartment listing site, thanks!",
+      "pls unpause the one i paused yesterday",
+      "watch on my github releases page died, can u kick it back on",
+      "Reactiva la vigilancia de esa página, quedó en pausa.",
+      "Relance la surveillance de ma page de prix, elle est en pause.",
+      "Setz die Überwachung für die Seite bitte wieder fort.",
+      "Atnaujink stebėjimą mano kainų puslapiui, jis sustojo."
+    ],
+    "not_for": [
+      "How do I pause a watch for a while?",
+      "Why do watches stop when web access is off?",
+      "Write a message telling my team the watch is running again",
+      "Show me all my watches",
+      "Stop watching the concert tickets page",
+      "Explain what a watch does in simple words."
+    ]
+  }
+}

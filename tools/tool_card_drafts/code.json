@@ -1,0 +1,272 @@
+{
+  "code.review_evidence": {
+    "use_when": "The person wants proof of what a coding assistant actually changed in their project, with before/after file hashes checked against the files as they are now.",
+    "examples": [
+      "what did the coding assistant actually change in my project last session?",
+      "show me the evidence for the last coding run",
+      "verify the files the assistant edited still match what it logged",
+      "did anything get modified after the coding assistant finished? check hashes",
+      "can u list every file change from the last turn with before and after hashes",
+      "i want an audit of what the code helper touched, please",
+      "check evidence for turn 14",
+      "were the edits the assistant made tampered with or are they still intact",
+      "show receipts for the coding session",
+      "Could you please summarize the recorded changes from the latest coding session and confirm they match disk?",
+      "Muéstrame qué archivos cambió el asistente de código y verifica que sigan igual en el disco",
+      "Peux-tu vérifier que les fichiers modifiés par l'assistant de code correspondent bien à ce qui a été enregistré ?",
+      "Zeig mir alle Dateiänderungen des Code-Assistenten mit Hashes vorher und nachher",
+      "Parodyk, ką kodo asistentas pakeitė mano projekte, ir patikrink, ar failai vis dar atitinka įrašus"
+    ],
+    "not_for": [
+      "how do I compute a SHA-256 hash of a file on my computer?",
+      "explain what a hash is and why it's used for integrity checks",
+      "write a commit message for my latest changes",
+      "revert the edits the assistant made to my project",
+      "thanks, the coding helper did a great job today",
+      "review my code and tell me if there are any bugs"
+    ]
+  },
+  "code.task.open": {
+    "use_when": "The person wants VOOL to start working on a concrete coding job in their project, such as fixing a bug, adding a feature, or refactoring code.",
+    "examples": [
+      "fix the bug where the app crashes when I upload an empty file",
+      "can you please figure out why my tests keep failing on the checkout page?",
+      "need to add dark mode to my react project",
+      "my python script is throwing a KeyError, sort it out",
+      "refactor the login module so its less messy",
+      "start working on speeding up the database queries in my project",
+      "pls debug why the server returns 500 after deploy",
+      "build a CLI that renames photos by date",
+      "website form wont submit, find the root cause and fix it",
+      "Could you implement pagination for the orders list in my repo?",
+      "Arregla el error que hace que mi aplicación se cierre al iniciar sesión",
+      "Peux-tu corriger le bug qui fait planter mon script quand le fichier est vide ?",
+      "Behebe bitte den Fehler, durch den meine Webseite beim Speichern abstürzt",
+      "Pataisyk klaidą, dėl kurios mano programa lužta paspaudus mygtuką „Siųsti“"
+    ],
+    "not_for": [
+      "how do I write a for loop in python?",
+      "what is the difference between git merge and rebase",
+      "write me a poem about programmers",
+      "explain what a root cause analysis is",
+      "lol my code hates me today",
+      "which programming language should I learn first?"
+    ]
+  },
+  "code.task.step": {
+    "use_when": "The person is working through a code fix with VOOL and wants it to read a project file, run a test or command, check the repo state, or apply the change they already approved.",
+    "examples": [
+      "run the tests again",
+      "open src/app.py and show me what's in it",
+      "ok go ahead and apply the fix you proposed",
+      "can you check git status real quick",
+      "pls run pytest and tell me what fails",
+      "show me lines 40-120 of utils/parser.js",
+      "reproduce the crash by running the script with the same input",
+      "did my change break anything? run the full test suite",
+      "whats the current diff",
+      "make the edit we agreed on in config.yaml",
+      "Ejecuta las pruebas otra vez para ver si el arreglo funcionó",
+      "Lance les tests et dis-moi lesquels échouent",
+      "Zeig mir bitte den Inhalt von src/main.py",
+      "Paleisk testus dar kartą ir parodyk, kas nepavyko"
+    ],
+    "not_for": [
+      "how do I write a good unit test in pytest?",
+      "explain what git diff does",
+      "write me a commit message for a bug fix",
+      "what's the difference between a mutation and a read in programming?",
+      "any tips for making my python code faster?",
+      "I love debugging late at night, it's so relaxing"
+    ]
+  },
+  "code.task.identify": {
+    "use_when": "The person has reproduced a failing test or crash and wants to record the first file, line and reason where the bug originates.",
+    "examples": [
+      "Mark src/utils/date.py line 88 as where the bug first comes from",
+      "ok I reproduced the crash, the root cause is in auth/login.js around line 42, null user not checked",
+      "log the culprit: parser.py, line 130, off by one in the loop",
+      "record that the failing test originates in lib/cache.go",
+      "the earliest broken spot is config/loader.py line 17 because it ignores empty env vars",
+      "save the root cause file for this bug: app/models/order.rb",
+      "note down where the defect begins, billing/tax.ts:212, wrong rounding",
+      "so the bug is owned by checkout.py, line 56. mark it pls",
+      "flag server/db.py as the origin of the failure, connection never closed",
+      "rcord the first bad line as main.c 301 uninitialized pointer",
+      "Anota que el defecto original está en src/pagos.py línea 75, no valida el importe",
+      "Enregistre que le bug vient de utils/format.js ligne 23, mauvais séparateur",
+      "Halte fest, dass der Fehler ursprünglich in web/handler.py Zeile 64 liegt",
+      "Užfiksuok, kad klaida prasideda faile src/kainos.py, 40 eilutėje"
+    ],
+    "not_for": [
+      "How do I find the root cause of a bug in my code?",
+      "Write a bug report describing a null pointer crash",
+      "What is a race condition?",
+      "Run the failing test again and show me the output",
+      "Fix the off by one error in parser.py",
+      "I hate debugging, this bug is driving me nuts"
+    ]
+  },
+  "code.task.propose": {
+    "use_when": "The person has a bug or broken code in a project and wants to see exactly what fix would be made, and review it, before any file is changed.",
+    "examples": [
+      "show me what the fix for the login bug would look like before you change anything",
+      "can you preview the patch for that null pointer crash first",
+      "dont edit yet, just show me the change you'd make to config.py",
+      "what would you change in utils/parse.js to fix the date bug? show the diff first",
+      "Please draft the repair for the failing test so I can review it before you apply it",
+      "lemme see the fix before it gets written",
+      "preview renaming getUser to fetchUser and updating all the callers",
+      "show the planned edit for the broken import in main.py, dont apply it",
+      "line up a fix for the crashing build so i can approve it",
+      "stage the fix for the off by one in pagination, no writing yet",
+      "Muéstrame qué cambiarías para arreglar el error de inicio de sesión antes de aplicarlo",
+      "Montre-moi le correctif prévu pour ce bug avant de modifier le moindre fichier",
+      "Zeig mir erst die geplante Korrektur für den Absturz, bevor du etwas änderst",
+      "Parodyk, kokį pataisymą darytum šiai klaidai, prieš keisdamas failus"
+    ],
+    "not_for": [
+      "how do I fix a null pointer exception in Java?",
+      "explain what a unified diff is",
+      "write a poem about debugging at 3am",
+      "just open config.py and tell me what's in it",
+      "my code is so buggy lol, I hate Mondays",
+      "what's the difference between a rebase and a merge?"
+    ]
+  },
+  "code.task.approve": {
+    "use_when": "The person has looked at a previewed code change and says it is fine, wanting it applied exactly as shown.",
+    "examples": [
+      "Looks good, go ahead and apply those changes",
+      "approve it",
+      "yes, approved - make the change you showed me",
+      "ok i checked the preview, you can run it now",
+      "Please approve the proposed edit for the login fix",
+      "lgtm, ship it",
+      "go for it, that diff is fine",
+      "Yep apply that patch pls",
+      "approve the changes u just previewed",
+      "I've reviewed what you're about to change and I'm happy with it, proceed.",
+      "Me parece bien, aplica los cambios que me mostraste",
+      "C'est bon, j'approuve les modifications, tu peux les appliquer",
+      "Sieht gut aus, genehmige die Änderung und führe sie aus",
+      "Viskas gerai, patvirtinu pakeitimus, galite juos pritaikyti"
+    ],
+    "not_for": [
+      "How does code review approval work in GitHub?",
+      "Write a message asking my teammate to approve my pull request",
+      "Show me a preview of what you would change first",
+      "What's the difference between approving and merging?",
+      "Reject that change, I don't like it",
+      "I approve of your taste in music lol"
+    ]
+  },
+  "code.task.cancel": {
+    "use_when": "The person wants to stop a coding job that VOOL started or is running, so that nothing further gets done for it.",
+    "examples": [
+      "Stop the coding job I just started, it's going the wrong way",
+      "cancel task 4821",
+      "Please cancel that code run, I changed my mind about the approach.",
+      "kill the job abc-123 pls",
+      "abort the refactor you're doing right now",
+      "stop it stop it, don't make any more changes",
+      "cancel the job, reason: wrong branch",
+      "can u cancle the build thats running",
+      "Halt the current coding job before it touches anything else",
+      "I don't need that script job anymore, drop it",
+      "Cancela la tarea de código que empezaste, por favor",
+      "Annule la tâche de code en cours, s'il te plaît",
+      "Brich die Programmieraufgabe sofort ab",
+      "Atšauk šią kodo užduotį, nebereikia"
+    ],
+    "not_for": [
+      "How do I cancel a running command in the terminal?",
+      "Write a polite email canceling our team meeting",
+      "What does it mean to cancel a Promise in JavaScript?",
+      "I'm so tempted to cancel all my plans this weekend lol",
+      "Explain how job queues handle cancellation",
+      "Cancel my gym membership"
+    ]
+  },
+  "code.task.rollback": {
+    "use_when": "The person is unhappy with what a finished or failed coding task did to their files and wants every file it changed put back exactly as it was before the task.",
+    "examples": [
+      "undo everything that last task changed in my files",
+      "the refactor you just did broke my project, put all the files back how they were",
+      "revert task 4821 please",
+      "can u undo all the changes from that job, i hate how it turned out",
+      "restore my files to what they were before you started",
+      "Please reverse the edits from the last coding task, I'd like the original files back",
+      "undo it all",
+      "that run messed up my code base pls revrt every file it touched",
+      "go back to the way things were before task a1b2c3 ran",
+      "Could you cancel the changes the task made and bring back the originals? thanks",
+      "Deshaz todos los cambios que hizo la última tarea en mis archivos",
+      "Annule toutes les modifications de la dernière tâche et remets mes fichiers comme avant",
+      "Mach bitte alle Änderungen der letzten Aufgabe rückgängig und stelle meine Dateien wieder her",
+      "Atšauk visus paskutinės užduoties pakeitimus ir grąžink mano failus kaip buvo"
+    ],
+    "not_for": [
+      "how do I undo a git commit?",
+      "what's the difference between git revert and git reset",
+      "write a commit message for the changes I made today",
+      "show me which files the last task changed",
+      "I wish I could undo my mistakes in life lol",
+      "explain how file backups work"
+    ]
+  },
+  "code.task.report": {
+    "use_when": "The person wants proof of what actually happened in a finished or stopped coding task: what changed, which commands and tests ran, what failed, and what was refused or left undone.",
+    "examples": [
+      "show me the report for task 4521",
+      "what did you actually change in task 87?",
+      "did the tests pass on task 213? want the full report",
+      "give me the evidence for task 16, which files were touched",
+      "pls list the git diff paths and commands from task 342",
+      "whats the verdict on task 9",
+      "did anything fail or get rolled back in task 1204?",
+      "report for task 77 please, I need to see what was left unresolved",
+      "which commands did you run for task 530 and what were the results",
+      "task 61 report, anything refused?",
+      "¿Qué archivos cambiaste en la tarea 31 y pasaron las pruebas?",
+      "Montre-moi le rapport de la tâche 12 : fichiers modifiés et tests.",
+      "Was genau hast du bei Aufgabe 27 geändert? Zeig mir den Bericht.",
+      "Parodyk, ką pakeitei atlikdamas užduotį 58 ir ar testai praėjo."
+    ],
+    "not_for": [
+      "How do I write a good git commit message?",
+      "Explain what a git diff is and how to read one",
+      "Write a short summary paragraph for my team about this week's sprint",
+      "Run the tests again on my project",
+      "Undo all the changes from the last task",
+      "Thanks, great job on the code today!"
+    ]
+  },
+  "code.task.pr_description": {
+    "use_when": "The person has finished fixing a bug in a coding session and wants a reviewable pull-request title and description built from what was actually done and tested.",
+    "examples": [
+      "write up the PR description for the bug fix I just finished",
+      "can you prepare a pull request title and body for what we just fixed?",
+      "draft the PR text from what we did in this session",
+      "need a pr summary for my changes, tests passed",
+      "Please put together a reviewable description of the fix so I can open the PR",
+      "pr description pls",
+      "summarize the diff and test runs into a pull request body",
+      "make the PR write-up for the null pointer fix we just finished",
+      "got the fix done, can u generate a pul request descripton for it",
+      "Could you kindly prepare the title and description for my pull request based on the work log?",
+      "Prepara el título y la descripción del pull request para el arreglo que acabamos de terminar",
+      "Peux-tu rédiger la description de la pull request pour le correctif qu'on vient de finir ?",
+      "Erstelle bitte den Titel und Text für den Pull Request zu der Fehlerbehebung",
+      "Paruošk pull request aprašymą pataisymui, kurį ką tik baigėme"
+    ],
+    "not_for": [
+      "How do I write a good pull request description?",
+      "What is a pull request and why do teams use them?",
+      "Open the pull request on GitHub for me",
+      "Write a blog post about code review best practices",
+      "Run the tests again for the fix",
+      "lol my PR got 40 comments today"
+    ]
+  }
+}

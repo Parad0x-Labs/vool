@@ -1,0 +1,29 @@
+{
+  "orchestration.execute_envelope": {
+    "use_when": "The person wants a clearly scoped job carried out in their current project by a coordinating, coding, or checking agent, rather than just advice or text about it.",
+    "examples": [
+      "Have the coder agent implement the task we just scoped out",
+      "run teh verifier on what i just changed",
+      "Please kick off the coordinator to split up this refactor and start it",
+      "get the coder to do the login fix, only that part, nothing else",
+      "can you run the checker agent over my latest changes and tell me if they pass",
+      "start the planner job for the migration we described",
+      "go ahead and execute that task plan in my project",
+      "verifier pass on the current branch pls",
+      "Could you please send this bounded job to the coding agent and run it?",
+      "run the approved task now, coder role",
+      "Pon al agente programador a implementar la tarea que preparamos.",
+      "Lance l'agent vérificateur sur mes dernières modifications s'il te plaît.",
+      "Lass den Coder-Agenten die vorbereitete Aufgabe im Projekt ausführen.",
+      "Paleisk programuotojo agentą, kad įgyvendintų šią užduotį mano projekte."
+    ],
+    "not_for": [
+      "How do planner, coder and checker agents usually divide up work?",
+      "Explain what a code verifier does in software teams",
+      "Write a short story about a queen bee and her workers",
+      "What's the best way to write a clear task description for a developer?",
+      "Tell me a joke about programmers who never test their code",
+      "Why is it a good idea to verify code before shipping it?"
+    ]
+  }
+}

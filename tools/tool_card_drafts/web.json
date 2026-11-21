@@ -1,0 +1,111 @@
+{
+  "web.fetch": {
+    "use_when": "The person gives a specific web page address or link and wants VOOL to open it and read, summarize, or check what is on that page right now.",
+    "examples": [
+      "open https://example.com/pricing and tell me what the plans cost",
+      "can you read this link for me? https://news.example.org/story/4821",
+      "whats on this page https://example.com/about",
+      "Please fetch the text from https://docs.example.com/setup and summarize it.",
+      "check if https://example.com is up and what it says on the front page",
+      "pull up that article https://blog.example.net/post/12 and give me the main points",
+      "go to example.com/contact and find the support email",
+      "grab the content of https://example.org/changelog, i want to see what's new",
+      "read this url and tell me if the recipe needs eggs https://food.example.com/pancakes",
+      "Could you look at https://example.com/terms and tell me if it mentions refunds?",
+      "Abre https://example.com/precios y dime cuánto cuesta el plan básico",
+      "Peux-tu lire cette page https://example.fr/actualites et me la résumer ?",
+      "Lies bitte https://example.de/impressum und sag mir, wer der Betreiber ist",
+      "Atidaryk https://example.lt/naujienos ir papasakok, kas ten parašyta"
+    ],
+    "not_for": [
+      "how do I make my own website load faster",
+      "what is the difference between HTTP and HTTPS",
+      "write a short product description for my online shop",
+      "explain how web browsers work",
+      "what's a good website for learning guitar",
+      "I was reading a really boring web page earlier lol"
+    ]
+  },
+  "web.search": {
+    "use_when": "The person wants VOOL to look something up online right now, such as current facts, news, prices, reviews, or web pages they don't already have.",
+    "examples": [
+      "search the web for best budget laptops 2025",
+      "look up the opening hours of the nearest IKEA",
+      "whats the latest news on the Mars rocket launch",
+      "google cheap flights from Vilnius to Rome in May",
+      "can you find reviews for the Sony WH-1000XM5 headphones",
+      "find me some pages about sourdough starter troubleshooting",
+      "pls look online for current price of bitcoin",
+      "search for local electricians open on sundays",
+      "find recent articles about the new EU battery rules",
+      "who won the match last night? check online",
+      "busca en internet recetas de paella sin mariscos",
+      "cherche sur le web les horaires du train Paris Lyon",
+      "suche im Internet nach dem besten Pizzateig Rezept",
+      "internete susiieškok naujausias kainas elektromobiliams",
+      "look up top 5 results for how much a used Golf costs"
+    ],
+    "not_for": [
+      "how do I search more effectively on Google?",
+      "explain how search engines rank pages",
+      "write a short essay about the history of the internet",
+      "what is a web browser?",
+      "i spent all night searching and im so tired lol",
+      "give me tips for writing a good search query"
+    ]
+  },
+  "web.research": {
+    "use_when": "The person wants an up-to-date answer to a question that needs checking and comparing several web sources, such as reviews, news, prices, or what current evidence says.",
+    "examples": [
+      "what are people saying about the new Framework laptop 16, is it worth it",
+      "can you look up the best budget noise cancelling headphones from a few sources and compare them",
+      "find out the current status of the EU AI act and summarize from several sites",
+      "dig around online and tell me which electric cars have the longest range under 40k",
+      "look into whether magnesium glycinate actually helps sleep, check a few sources pls",
+      "whats the latest news on the port strike",
+      "need the pros and cons of heat pumps vs gas boilers, check multiple sites",
+      "search the web for reviews of the Kobo Libra Colour and give me the consensus",
+      "any recent studies on intermittent fasting? quick scan of a few sources",
+      "Could you please gather info from different websites on cheap flights to Lisbon in May?",
+      "Busca en internet las mejores opiniones sobre el iPhone 15 y hazme un resumen",
+      "Peux-tu chercher sur le web les avis récents sur les trottinettes électriques pliables ?",
+      "Recherchiere bitte im Internet, welche Waschmaschinen 2024 am zuverlässigsten sind",
+      "Susirask internete informacijos apie geriausius nešiojamus kompiuterius studentams"
+    ],
+    "not_for": [
+      "how do I do a good literature search for my thesis?",
+      "write a short essay about the history of the internet",
+      "what is the capital of Australia",
+      "explain how search engines rank pages",
+      "lol i spent all night googling cat memes",
+      "open my downloads folder and find the pdf about taxes"
+    ]
+  },
+  "web.chain_lookup": {
+    "use_when": "The person wants facts about a specific on-chain wallet address, token or transaction, such as a balance, held tokens, recent activity, token details, top holders or whether a transaction went through.",
+    "examples": [
+      "how much ETH is in 0x3f5a8c21d4e9b7a0c6f1e2d3b4a59687c0d1e2f3",
+      "what tokens does this solana wallet hold? 7xKdPq3Lm9RvTn2WbYc4HsJf8ZaEu5GoNi1XtQm2pA",
+      "show me the last 10 transactions for 0x9b2e41aa77c3d5f0e8a1b2c3d4e5f60718293a4b on base",
+      "did this tx go through? 0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+      "who are the biggest holders of this token on bnb 0x55d37e90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "whats the sol balance of this wallet 4fGhJk2LmNpQrStUvWxYz7AbCdEf9GhJk2LmNpQrStUv",
+      "pls look up the token info for this mint 9wXyLp3QaRtUvBn5CdEf7GhJk2LmNpQrStUvWxYz1Ab",
+      "any recent activity on this arbitrum address? 0x1a2bc3d4e5f60718293a4b5c6d7e8f9012345678",
+      "top 15 holders for that contract on ethereum 0xabc123def4567890abc123def4567890abc123de",
+      "wat tokens r in this wallet 0x7c1eb05f9a8b7c6d5e4f30211223344556677889 on arbitrum",
+      "¿Cuánto ETH tiene esta dirección 0x4d2ae8f1b3c5d7e9f01234567890abcdef123456?",
+      "Montre-moi les dernières transactions de ce portefeuille Solana 8vTnZk4rQm2LpXc7WbYdHsJf3ZaEu5GoNi1XtQm9pB",
+      "Welche Token hält diese Wallet auf Base? 0x6e0ba9d2c4f6a8b0d2e4f60819273645a5b6c7d8",
+      "Parodyk, kiek BNB yra šioje piniginėje 0x2c9f1b7e3a5c7e9b1d3f50627384950a1b2c3d4e"
+    ],
+    "not_for": [
+      "how do I set up a crypto wallet for the first time",
+      "explain what a blockchain is in simple terms",
+      "write a tweet announcing my new token launch",
+      "should I buy Solana or Ethereum right now",
+      "send 0.5 ETH to my friend's address",
+      "gm, ethereum is wild today lol"
+    ]
+  }
+}

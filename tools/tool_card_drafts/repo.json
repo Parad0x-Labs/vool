@@ -1,0 +1,650 @@
+{
+  "repo.session.open": {
+    "use_when": "The person wants to start working on a code repository or review a specific pull request or merge request, and needs a guided, staged plan set up before any changes are made.",
+    "examples": [
+      "I want to start working on my repo to fix the login bug",
+      "open up PR 142 so we can go through it together",
+      "can you get set up on this repository, I need to review the latest pull request",
+      "start a review of the pull request on my gitlab project",
+      "lets work on the repo in ~/code/shop, goal is to upgrade dependencies",
+      "get ready to look at github PR #88 for me pls",
+      "need to clean up the flaky tests in this repo, begin whenever",
+      "begin a code review of my open merge request",
+      "strat working on my repo i need to fix the readme links",
+      "pull request 57 on acme/webapp - lets review it",
+      "Quiero empezar a trabajar en este repositorio para arreglar un error de compilación",
+      "Ouvre la pull request 23 de mon dépôt, je veux la relire avec toi",
+      "Lass uns am Repository arbeiten, ich möchte die Abhängigkeiten aktualisieren",
+      "Noriu peržiūrėti savo repozitorijos pull request'ą, pradėkime"
+    ],
+    "not_for": [
+      "How do I create a pull request on GitHub?",
+      "Explain the difference between merge and rebase",
+      "Write a commit message for adding dark mode",
+      "What is GitLab and how is it different from GitHub?",
+      "I love working on open source repos, it's so fun",
+      "Write a README intro for my project"
+    ]
+  },
+  "repo.inspect": {
+    "use_when": "The person wants to know the current state of their open code repository: its location, remote address, branch, latest commit, uncommitted changes, or the status of a named pull request.",
+    "examples": [
+      "What branch am I on?",
+      "is my working tree dirty",
+      "Can you check which commit HEAD is at right now?",
+      "whats the remote url for this repo",
+      "Show me the current state of my repo please",
+      "do I have uncommited changes in this project",
+      "Where is the root folder of this repository?",
+      "Is PR 482 still open or did it get merged?",
+      "yo check if i'm on main and if anything is unstaged",
+      "Could you tell me the branch, latest commit and whether the tree is clean?",
+      "¿En qué rama estoy y tengo cambios sin guardar en el repositorio?",
+      "Peux-tu me dire sur quelle branche je suis et si le dépôt a des modifications ?",
+      "Auf welchem Branch bin ich gerade und ist der Arbeitsbaum sauber?",
+      "Kurioje šakoje dabar esu ir ar turiu neįkeltų pakeitimų repozitorijoje?"
+    ],
+    "not_for": [
+      "How do I undo my last git commit?",
+      "Explain the difference between merge and rebase",
+      "Write a commit message for my login fix",
+      "What is a pull request?",
+      "Haha my git history is such a mess, anyway how's your day?",
+      "Write a description for my pull request about the caching change"
+    ]
+  },
+  "repo.bind": {
+    "use_when": "A person is about to review, edit or push in a git repository and wants the current commits of the local branch, remote branch and pull request pinned, so the work stops if anything changes underneath.",
+    "examples": [
+      "lock in the current commits before we start reviewing this PR",
+      "freeze the repo state so nothing shifts while we work on it",
+      "pin the exact heads for the branch and the PR, I don't want surprises",
+      "make sure we're working off the same commit as origin before you touch anything",
+      "snapshot where local, remote and the PR currently sit",
+      "bind to the current state of the repo pls, even tho I have uncommitted changes",
+      "lock the shas",
+      "Could you please fix the current remote and local heads so you can tell if somebody pushes in the meantime?",
+      "record the PR base and head commits before you start the review",
+      "freeze everything at the current commit and refuse to go on if the branch moves",
+      "Fija los commits actuales del repositorio y del PR antes de empezar a trabajar",
+      "Fige l'état actuel du dépôt et de la PR avant qu'on commence, au cas où quelqu'un pousse",
+      "Halte bitte die aktuellen Commits von lokal, remote und dem PR fest, bevor wir weitermachen",
+      "Užfiksuok dabartinius repozitorijos ir PR commit'us, kad niekas nepasikeistų darbo metu"
+    ],
+    "not_for": [
+      "how do git commit hashes work?",
+      "explain what the base branch of a pull request is",
+      "write a commit message for my last change",
+      "what's the best way to avoid merge conflicts when teammates push?",
+      "open the repo for me",
+      "show me the recent git log"
+    ]
+  },
+  "repo.diff": {
+    "use_when": "The person wants to see the actual code changes in the pull request they are working on, for example to review it, check what it touches, or understand what it adds and removes.",
+    "examples": [
+      "show me what changed in this pull request",
+      "what code changes are in the PR?",
+      "can you pull up the changes in this PR please",
+      "whats in this pr",
+      "let me see the file changes for the PR i'm reviewing",
+      "which lines does this pull request touch",
+      "get the patch for this pull request",
+      "i need to review the PR, show me the modified code",
+      "show me everything this PR adds and removes",
+      "pls show wat changed in the pr, want to look b4 merging",
+      "Muéstrame los cambios de este pull request",
+      "Montre-moi les modifications de cette pull request",
+      "Zeig mir bitte die Änderungen in diesem Pull Request",
+      "Parodyk, kokie pakeitimai yra šiame pull request'e"
+    ],
+    "not_for": [
+      "How do I read a git diff output?",
+      "Write a description for my pull request",
+      "What is a pull request?",
+      "What are good habits for doing code review?",
+      "Merge this PR now",
+      "Thanks for looking at my PR yesterday, it was really helpful"
+    ]
+  },
+  "repo.issue": {
+    "use_when": "The person wants to read a specific numbered issue from the repository they are working in, such as its title, state, author, labels or description.",
+    "examples": [
+      "what does issue 42 say?",
+      "open issue #118 and tell me what it's about",
+      "can you pull up issue 7 for me",
+      "who opened issue 233 and what labels does it have",
+      "is issue 56 still open or did someone close it",
+      "show me the body of ticket #9",
+      "read issue 310 pls",
+      "isue 12 whats in it",
+      "Could you please check issue number 88 and summarize the problem described there?",
+      "whats the status of issue 15",
+      "Ábreme el issue 25 y dime qué reporta",
+      "Peux-tu me lire le ticket 73 du dépôt ?",
+      "Zeig mir bitte Issue 19, worum geht es da?",
+      "Parodyk man issue numerį 34, ką jame parašyta?"
+    ],
+    "not_for": [
+      "How do I write a good bug report for an issue?",
+      "Write an issue description for a login crash bug",
+      "What's the difference between an issue and a pull request?",
+      "Push my changes to the remote branch",
+      "ugh, issues pile up so fast on my projects lol",
+      "Close issue 42 and label it as fixed"
+    ]
+  },
+  "repo.issue.comments": {
+    "use_when": "The person wants to read the comments or discussion thread on one specific issue in their code repository, identified by its number.",
+    "examples": [
+      "show me the comments on issue 42",
+      "what are people saying on issue #118?",
+      "can you read the discussion under issue 7 for me",
+      "pull up the replies on bug 305 pls",
+      "whats the latest comment on issue 56",
+      "Could you please summarize what the thread on issue #23 says so far?",
+      "did anyone reply to my issue 91",
+      "read me all comments on #1204",
+      "isue 77 comments, need to see them",
+      "Has the maintainer answered on issue 15 yet?",
+      "Muéstrame los comentarios del issue 34",
+      "Peux-tu lire les commentaires de l'issue 12 ?",
+      "Zeig mir bitte die Kommentare zum Issue 88",
+      "Parodyk komentarus po issue numeriu 19"
+    ],
+    "not_for": [
+      "how do I write a good comment on a GitHub issue?",
+      "what is an issue tracker used for?",
+      "write a polite reply I can post to the bug report",
+      "how do I close an issue after merging a fix?",
+      "ugh, so many issues in my project lately, I'm tired",
+      "list all open issues in the project"
+    ]
+  },
+  "repo.ci.jobs": {
+    "use_when": "The person wants to see which CI jobs or checks the code host reports for the exact commit they are working on, and whether those jobs are passing, failing or still running.",
+    "examples": [
+      "what CI jobs are running on my current commit?",
+      "show me the checks for this commit",
+      "did the pipeline pass for what I just pushed",
+      "list the build jobs for the commit i'm on",
+      "Could you please tell me which CI jobs failed on this change?",
+      "ci status?? whats failing",
+      "wich ci jobs failed on my comit",
+      "which jobs ran for my latest push, and what were their results",
+      "pls show the pipeline jobs for the pull request head",
+      "are the tests green on this commit yet",
+      "¿Qué trabajos de CI hay para mi commit actual y cómo van?",
+      "Montre-moi les jobs CI du commit sur lequel je suis, s'il te plaît.",
+      "Welche CI-Jobs laufen gerade für meinen aktuellen Commit?",
+      "Parodyk, kokie CI darbai vykdomi mano dabartiniam commit'ui."
+    ],
+    "not_for": [
+      "How do I set up a CI pipeline for my project?",
+      "Write a GitHub Actions YAML file that runs my unit tests",
+      "What does CI/CD stand for?",
+      "How can I make my builds run faster?",
+      "Show me the CI jobs for the main branch",
+      "Ugh, CI is so slow today, I hate waiting on it"
+    ]
+  },
+  "repo.ci.log": {
+    "use_when": "The person wants to read the log or console output of a specific CI job or build on their code host, usually to find out why it failed.",
+    "examples": [
+      "show me the log for CI job 48213",
+      "why did job 7731 fail? pull up its log",
+      "can you grab the build log from the failed pipeline job 90210",
+      "get log job 5521",
+      "Could you please fetch the output of CI job 3345 so I can see the error?",
+      "the tests job 1184 broke again, need to see the console output",
+      "pull the logs for the failing job on my PR, id 66012",
+      "whats in the ci log for job 20417",
+      "open job 9983's log and tell me where it errored",
+      "i need the full log of that red build job 31337 pls",
+      "Muéstrame el log del trabajo de CI 4521, falló otra vez",
+      "Peux-tu récupérer le journal du job CI 8812 ? Il a échoué.",
+      "Zeig mir bitte das Log vom CI-Job 6403, der Build ist rot.",
+      "Parodyk CI užduoties 2917 žurnalą, nes build'as nepavyko."
+    ],
+    "not_for": [
+      "How do I read a GitHub Actions log?",
+      "What does CI/CD stand for?",
+      "Write a short blog post about why continuous integration matters",
+      "Explain how to speed up my pipeline builds",
+      "Ugh, my CI is so slow today lol"
+    ]
+  },
+  "repo.ci.artifacts": {
+    "use_when": "The person wants to see which build outputs, such as binaries, test reports or logs, the CI system has stored for the commit they are currently working on.",
+    "examples": [
+      "what artifacts did CI produce for my current commit?",
+      "show me the build files from the latest CI run",
+      "list the artifacts for this commit",
+      "did the pipeline upload any build outputs",
+      "can i see the test reports CI saved for this sha",
+      "any downloadable files from the CI run on my branch?",
+      "pls list what the CI stored for this commit",
+      "which build artifacts exist right now",
+      "are there artifacts from the last pipeline run or not",
+      "what did the build spit out for this head commit",
+      "¿Qué artefactos generó la integración continua para mi commit actual?",
+      "Peux-tu me montrer les artefacts de build produits par la CI pour ce commit ?",
+      "Welche Build-Artefakte hat die CI für meinen aktuellen Commit gespeichert?",
+      "Kokius CI artefaktus turi šis mano commit'as?"
+    ],
+    "not_for": [
+      "how do I download an artifact from GitHub Actions in a script?",
+      "explain what CI artifacts are and why teams use them",
+      "write a README section describing our build artifacts",
+      "how long should a CI system keep artifacts before deleting them?",
+      "my CI is so slow today, ugh",
+      "why did the pipeline fail on my last commit?"
+    ]
+  },
+  "repo.ci.rerun": {
+    "use_when": "The person wants a specific CI job that failed or got stuck on their code forge to be run again, for example after a flaky test or a timeout.",
+    "examples": [
+      "rerun the failing CI job on my pull request",
+      "Can you please restart job 48213? It failed on a flaky test",
+      "re-run the build that just broke, i think the runner timed out",
+      "kick off the lint job again",
+      "pls rerun ci job #9917",
+      "the tests failed for no reason, run that job one more time",
+      "Could you trigger another run of the deploy-preview job on the forge?",
+      "rerun failed job",
+      "retry the integration tests job, network blip killed it",
+      "run the windows build job again plz thx",
+      "Vuelve a ejecutar el trabajo de CI que falló en mi rama",
+      "Peux-tu relancer le job CI qui a échoué sur ma merge request ?",
+      "Starte bitte den fehlgeschlagenen CI-Job noch einmal",
+      "Paleisk iš naujo nepavykusį CI darbą, prašau"
+    ],
+    "not_for": [
+      "How do I read CI logs to find out why a job failed?",
+      "Explain the difference between a CI job and a pipeline",
+      "Write a commit message for my fix",
+      "Why are my CI builds so slow lately?",
+      "Ugh, CI is flaky again, I hate it",
+      "Write a short GitHub Actions workflow that runs tests on push"
+    ]
+  },
+  "repo.ci.cancel": {
+    "use_when": "The person wants a CI job that is currently running on their code forge stopped, for example because it is stuck, wasteful, or was started by mistake.",
+    "examples": [
+      "cancel the running CI job 48213",
+      "kill that build that's stuck, it's burning minutes",
+      "Please stop the pipeline job I just kicked off, I pushed the wrong branch",
+      "stop job 9917 on the forge",
+      "can you cancel the failing test run before it eats the whole queue",
+      "cancel ci run for my PR asap",
+      "abort the deploy job thats still running",
+      "Could you please cancel the currently running build on main?",
+      "stop the nightly job, its hung agian",
+      "cancel job #5521",
+      "Cancela el trabajo de CI que sigue corriendo, por favor",
+      "Annule le job CI qui tourne encore sur ma branche",
+      "Brich den laufenden CI-Job ab, ich habe den falschen Branch gepusht",
+      "Sustabdyk tą vykstantį CI darbą, jis užstrigo"
+    ],
+    "not_for": [
+      "how do I cancel a CI job in GitHub Actions?",
+      "explain what a CI pipeline is",
+      "write a message telling my team the build was cancelled",
+      "why does my build keep failing?",
+      "show me the status of my running jobs",
+      "I wish I could cancel my Monday meetings like a CI job lol"
+    ]
+  },
+  "repo.diagnose": {
+    "use_when": "The person has run a CI job or local command that showed why something fails, and wants the culprit file, line and reason recorded as the diagnosis.",
+    "examples": [
+      "the build is failing because of line 42 in src/utils/date.ts, wrong timezone. note that down as the cause",
+      "record the root cause: api/routes.py line 118, missing await, shown in the failed test run",
+      "mark config/settings.yaml as the culprit, bad indentation, based on the lint run we just did",
+      "so the crash is in main.go:57 nil pointer, save that as the cause pls",
+      "log the cause of the CI failure: package.json, jest version is pinned wrong",
+      "write down that the test fails due to an off by one in lib/paginate.js line 23",
+      "ok we found it, its the import in app/models/user.rb, circular dependency. record it",
+      "save the finding: Dockerfile line 9, apt-get missing -y, from the CI job that failed",
+      "pin the blame on tests/test_auth.py line 14 stale fixture, evidence is the pytest run",
+      "record root cause src/index.ts typo in env var name",
+      "Registra que el fallo viene de src/db.py línea 30, falta cerrar la conexión, según la prueba que corrimos",
+      "Note que la cause de l'échec est dans app/main.rs ligne 12, mauvais type, d'après le job CI",
+      "Halte fest: Der Fehler liegt in lib/parser.c Zeile 77, Puffer zu klein, laut dem Testlauf",
+      "Užfiksuok, kad klaida yra faile src/login.js 45 eilutėje, trūksta patikros, kaip rodė testai"
+    ],
+    "not_for": [
+      "how do I find which line is breaking my build?",
+      "explain what a null pointer exception is",
+      "write a short paragraph about why CI pipelines fail",
+      "fix the bug in src/utils/date.ts",
+      "run the tests again and show me the output",
+      "ugh my build failed again, I hate Mondays"
+    ]
+  },
+  "repo.step": {
+    "use_when": "The person wants something actually done inside their open code project, such as reading a file, running a command, running the tests, or applying a fix they have approved.",
+    "examples": [
+      "run the tests",
+      "can you run the test suite for my project and tell me what fails",
+      "pls read src/app/config.py",
+      "run npm install in the repo",
+      "go ahead and apply that fix you proposed",
+      "execute the build command and show me the output",
+      "show me whats in package.json",
+      "ran the linter?? do it again plz",
+      "Run git status in the project folder",
+      "fix the failing test, you have my ok",
+      "Ejecuta las pruebas del proyecto y dime cuáles fallan",
+      "Lance le build du dépôt et montre-moi les erreurs",
+      "Führe bitte die Tests im Projekt aus",
+      "Paleisk projekto testus ir parodyk, kurie nepavyko"
+    ],
+    "not_for": [
+      "How do I write a unit test in pytest?",
+      "What does git rebase actually do?",
+      "Write me a README for my project",
+      "Explain the difference between npm and yarn",
+      "ugh my tests always fail on Mondays lol",
+      "Which programming language should I learn first?"
+    ]
+  },
+  "repo.git": {
+    "use_when": "The person wants to make a change to their local code history, such as committing work, creating a branch or tag, merging, cherry-picking, reverting a commit, or restoring files to an earlier state.",
+    "examples": [
+      "commit my changes with the message \"fix login bug\"",
+      "make a new branch called feature/dark-mode",
+      "tag this as v1.2.0",
+      "revert the last commit",
+      "merge the dev branch into main",
+      "cherry pick abc123 onto my release branch",
+      "undo my edits to config.yaml and restore it to how it was",
+      "pls commit everything w msg updated readme",
+      "Could you please create a branch for the checkout fix and switch me to it?",
+      "merge feature-x into main and tell me which files conflict",
+      "Haz un commit con el mensaje \"arreglo del formulario\"",
+      "Fusionne la branche dev dans main s'il te plaît",
+      "Erstelle bitte einen Tag v2.0.1 für den aktuellen Stand",
+      "Sukurk naują šaką pavadinimu naujas-meniu"
+    ],
+    "not_for": [
+      "How do I resolve a merge conflict?",
+      "What's the difference between merging and rebasing?",
+      "Write me a good commit message template for my team",
+      "Explain what cherry-picking is",
+      "Show me the commit history for the last week",
+      "ugh, merge conflicts are ruining my day lol"
+    ]
+  },
+  "repo.review": {
+    "use_when": "The person has had code repaired and wants to record their final decision on it, approving or rejecting the fix, optionally with a short note.",
+    "examples": [
+      "approve the fix, tests passed",
+      "reject the changes, the tests still fail",
+      "mark my bug fix as approved",
+      "ok the repair looks good, sign off on it",
+      "can you please record a rejection for that patch, it broke the login test",
+      "approve it",
+      "log my review as approve w/ note: clean fix, no regressions",
+      "thumbs down on the repaired code, reject it",
+      "im happy with the fix, go ahead and mark it approved",
+      "reject the patch nd note that the build is still red",
+      "Aprueba la corrección, las pruebas pasaron",
+      "Rejette le correctif, il casse encore un test",
+      "Bitte das Review als genehmigt eintragen, der Fix ist gut",
+      "Patvirtink pataisymą, viskas veikia"
+    ],
+    "not_for": [
+      "how do I do a good code review?",
+      "write a review comment for my coworker's pull request",
+      "what's the difference between approve and request changes on GitHub?",
+      "fix the failing test in my project",
+      "I loved that movie, my review is five stars",
+      "explain what a code review is"
+    ]
+  },
+  "repo.push.request": {
+    "use_when": "The person wants to see exactly what a git push would do, including remote, branch, which commits would move and from where, before approving or sending anything.",
+    "examples": [
+      "what exactly would get pushed to origin main right now?",
+      "show me the push plan for my current branch before I send anything",
+      "preview a force push of feature/login to origin",
+      "Can you please tell me which commit would move the remote branch and from what sha?",
+      "dry run push to upstream, dont actually push",
+      "whats the plan if i push dev to origin",
+      "i want to review the push details and plan hash before approving",
+      "Prepare the push for release/2.1 so I can sign off on it",
+      "show local sha vs remote sha for main before pushing",
+      "push plan pls",
+      "Muéstrame qué se enviaría al remoto si hago push de mi rama main",
+      "Montre-moi le plan de push vers origin avant d'envoyer quoi que ce soit",
+      "Zeig mir, welcher Commit beim Push auf origin main übertragen würde",
+      "Parodyk, ką išsiųstų push į origin main šaką, bet dar nieko nesiųsk"
+    ],
+    "not_for": [
+      "How does git push --force differ from --force-with-lease?",
+      "Write a commit message for my latest changes",
+      "What is a remote in git?",
+      "Pull the latest changes from origin",
+      "Open my project folder as a repository",
+      "ugh I hate pushing code on Fridays lol"
+    ]
+  },
+  "repo.push.authorize": {
+    "use_when": "The person has reviewed the proposed plan for sending their code changes to a remote repository and is now giving their explicit go-ahead to push it.",
+    "examples": [
+      "Yes, push it",
+      "approve the push for the plan you showed me",
+      "Looks good, go ahead and push those commits to the remote",
+      "authorize push",
+      "ok ship it, you have my permission to push",
+      "i approve pushing this plan",
+      "Please go ahead and push the changes now, I've reviewed the plan.",
+      "push it up, plan is fine",
+      "givve you the green light to push to origin",
+      "Approved. Push the branch.",
+      "Sí, apruebo el push, súbelo al repositorio.",
+      "Je valide le plan, tu peux pousser les commits.",
+      "Ich gebe den Push frei, bitte hochladen.",
+      "Patvirtinu, galite siųsti pakeitimus į repozitoriją."
+    ],
+    "not_for": [
+      "How do I push a commit to GitHub?",
+      "What does git push --force do?",
+      "Write a commit message for my changes",
+      "Explain the difference between push and pull",
+      "Should I push to main or make a branch?",
+      "I'm scared to push on a Friday lol"
+    ]
+  },
+  "repo.push": {
+    "use_when": "The person has committed changes in a local code repository and, having approved the plan, wants them sent to the remote so others can see them.",
+    "examples": [
+      "push my commits to github",
+      "ok go ahead and push it",
+      "Yes, I approved the changes, please push them now",
+      "push to origin",
+      "can you upload my latest commits to the remote repo",
+      "do a dry run push first, dont actually send anything",
+      "pls push the branch i just committed",
+      "send my changes up to the remote",
+      "approved, publish the commit",
+      "puhs it to main thx",
+      "Sube mis cambios al repositorio remoto, ya los aprobé",
+      "Peux-tu pousser mes commits sur le dépôt distant ?",
+      "Bitte pushe meine Änderungen jetzt zum Remote-Repository",
+      "Įkelk mano pakeitimus į nuotolinę saugyklą, aš jau patvirtinau"
+    ],
+    "not_for": [
+      "how does git push work?",
+      "what's the difference between push and pull?",
+      "write me a good commit message for these changes",
+      "explain why force pushing is considered dangerous",
+      "I'm so tired of pushing code every Friday lol",
+      "how do I undo a push I made yesterday?"
+    ]
+  },
+  "repo.verify_remote": {
+    "use_when": "The person has just pushed commits or a branch and wants proof that the remote server really has the new commit, not just that the push command ran.",
+    "examples": [
+      "did my push actually go through?",
+      "check that the branch on github matches what I just pushed",
+      "make sure the remote has my latest commit",
+      "can you verify the push landed",
+      "confirm my changes are really up on the server now",
+      "push said ok but i dont trust it, is it really there",
+      "Could you please double-check that the remote branch points at my commit?",
+      "verify push",
+      "is origin/main showing the commit i just sent up??",
+      "just pushed the fix, pls confirm the remote got it",
+      "Comprueba que mi push realmente llegó al repositorio remoto",
+      "Vérifie que mon push est bien arrivé sur le serveur distant",
+      "Prüf bitte, ob mein Push wirklich auf dem Remote angekommen ist",
+      "Patikrink, ar mano push tikrai pasiekė nuotolinę saugyklą"
+    ],
+    "not_for": [
+      "how do I push my commits to github?",
+      "explain the difference between fetch and pull",
+      "write a commit message for my login fix",
+      "push my changes to the remote now",
+      "what is a git remote?",
+      "I love how fast pushing to GitHub is these days"
+    ]
+  },
+  "repo.pr.request": {
+    "use_when": "The person wants a draft pull request prepared, an open pull request's title or description changed, or a comment on an issue or pull request written out exactly, to review before anything is sent.",
+    "examples": [
+      "Draft a pull request for my changes against main",
+      "open a draft PR from my feature branch",
+      "Can you please prepare a PR for the task we just finished?",
+      "update the title and description of PR 42",
+      "change pr #17 body to mention the migration step",
+      "prepare a comment on issue 88 saying I can reproduce it",
+      "draft pr from fix-login into develop pls",
+      "reply on pull request 5 with \"looks good, thanks for the fix\"",
+      "make a pull reqeust for this fix, dont send it yet",
+      "Show me exactly what the PR would say before I submit it",
+      "Prepara un borrador de pull request con los cambios de esta rama",
+      "Prépare un commentaire pour la pull request 23 disant que les tests passent",
+      "Erstelle einen Entwurf für einen Pull Request von meinem Branch nach main",
+      "Paruošk pull request'o juodraštį iš mano šakos į main"
+    ],
+    "not_for": [
+      "How do I write a good pull request description?",
+      "What is a pull request and why do teams use them?",
+      "Write me a funny poem about code reviews",
+      "Explain the difference between git merge and git rebase",
+      "Ugh, my coworker's pull requests are always huge lol",
+      "Merge pull request 12 right now"
+    ]
+  },
+  "repo.pr.create": {
+    "use_when": "The person has previewed and approved a draft pull request for their code branch and now wants it actually opened on the hosting site.",
+    "examples": [
+      "Go ahead and open the draft PR we just previewed",
+      "yes, create the pull request now",
+      "Please open the draft pull request for my branch against main",
+      "looks good, push it up as a draft PR",
+      "open that PR on github for me",
+      "ok I approve it, submit the draft pull request",
+      "create the draft pr from my feature branch into develop",
+      "do it - open the pull request with the title and body you showed me",
+      "opn the draft pr now pls",
+      "Could you please file the pull request as we planned? Thanks!",
+      "Abre el pull request en borrador con los cambios que revisamos",
+      "Crée la pull request en brouillon, j'ai validé l'aperçu",
+      "Eröffne jetzt bitte den Draft-Pull-Request für meinen Branch",
+      "Sukurk juodraštinį pull request'ą iš mano šakos į main"
+    ],
+    "not_for": [
+      "How do I write a good pull request description?",
+      "Explain what a draft pull request is",
+      "Write a title and description for my login fix PR",
+      "Merge the pull request that's already open",
+      "lol my team never reviews my PRs",
+      "What's the difference between a fork and a branch?"
+    ]
+  },
+  "repo.pr.update": {
+    "use_when": "The person wants to change the title or description of a pull request they already have open, for example to fix wording, add details, or reflect new changes.",
+    "examples": [
+      "update the title of my open PR to 'Fix login timeout bug'",
+      "change the description on my pull request, it's missing the testing steps",
+      "Can you please edit my PR body to mention the new migration?",
+      "rename the PR to something clearer",
+      "the pr descripton is outdated, replace it with a summary of the latest commits",
+      "swap out the PR title, it has a typo in it",
+      "Could you update the pull request text so it links the issue I just filed?",
+      "rewrite my open PR's description to say we dropped the caching change",
+      "fix the title on the PR i opened this morning",
+      "please push this new description to the pull request on GitHub",
+      "Actualiza el título de mi pull request para que diga 'Corrige el error de pago'",
+      "Peux-tu modifier la description de ma pull request avec le nouveau texte ?",
+      "Ändere bitte den Titel meiner offenen Pull-Request auf 'Neue Suchfunktion'",
+      "Atnaujink mano pull request aprašymą, kad įtraukti naujausius pakeitimus",
+      "edit pr body w/ the changelog we just drafted"
+    ],
+    "not_for": [
+      "how do I write a good pull request description?",
+      "what is the difference between a pull request and a merge request?",
+      "write me a catchy title for a PR about dark mode",
+      "open a new pull request for my feature branch",
+      "merge my pull request now",
+      "I hate how long my PR reviews take, ugh"
+    ]
+  },
+  "repo.pr.comment": {
+    "use_when": "The person wants a specific, already-approved comment posted on a pull request or issue in a repository they have open.",
+    "examples": [
+      "post this comment on PR 42: looks good to me, merging after CI passes",
+      "Can you leave a comment on that pull request saying I'll fix the typo tonight?",
+      "comment on issue #118 that I can reproduce this on Windows too",
+      "please reply on the PR with exactly: 'Thanks, addressed in the latest commit.'",
+      "add a comment to the open issue telling them the fix is in v2.3",
+      "drop a note on the pr that tests r failing bc of the lockfile",
+      "post my review reply on the pull request now",
+      "leave this on the issue: +1, same crash here after updating",
+      "Would you mind posting the comment we just drafted onto the PR?",
+      "comment 'ready for re-review' on the pull request",
+      "Publica este comentario en el pull request: ya corregí los errores señalados.",
+      "Poste ce commentaire sur l'issue : je confirme que le bug est reproductible.",
+      "Bitte schreib diesen Kommentar unter den Pull Request: Danke, ist eingearbeitet.",
+      "Parašyk šį komentarą po pull request'u: pataisymus jau įkėliau."
+    ],
+    "not_for": [
+      "how do I write a good pull request comment?",
+      "draft a polite reply I could send to a maintainer later",
+      "what's the difference between a pull request and an issue?",
+      "summarize the comments people left on this pull request",
+      "ugh code review comments are the worst lol",
+      "how do I delete a comment on GitHub?"
+    ]
+  },
+  "repo.receipt": {
+    "use_when": "The person wants the final, sealed record of a finished or stopped repository fix session: what was diagnosed, changed, tested, pushed and verified, plus what was refused or left unresolved.",
+    "examples": [
+      "show me the receipt for the repo fix we just did",
+      "what exactly did you change, test and push? give me the full record",
+      "can I get the sealed receipt for this session please",
+      "i need the final report of everything that happened on my repo",
+      "list every fault, refusal and unresolved item from that repo run",
+      "pull up the proof that the push was verified on the remote",
+      "give me the audit trail for the repair session",
+      "receipt pls",
+      "Could you please produce the complete receipt of the steps you executed on my project, including the test results?",
+      "what stayed unresolved after the repo repair, and what did you refuse to do",
+      "Muéstrame el recibo sellado de todo lo que se hizo en mi repositorio",
+      "Donne-moi le reçu final de tout ce qui a été fait sur mon dépôt git",
+      "Zeig mir den Abschlussbericht: was wurde repariert, getestet und gepusht?",
+      "Parodyk galutinį kvitą, ką tiksliai pakeitei mano repozitorijoje"
+    ],
+    "not_for": [
+      "How do I write a good commit message?",
+      "Explain what a content hash is and how SHA-256 works",
+      "Write a changelog entry for my next release",
+      "Thanks for fixing my repo, you're the best!",
+      "What is the difference between git merge and git rebase?",
+      "Run the tests again on my project"
+    ]
+  }
+}

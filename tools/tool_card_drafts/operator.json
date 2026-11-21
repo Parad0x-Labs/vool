@@ -1,0 +1,273 @@
+{
+  "operator.list_tools": {
+    "use_when": "The person wants to know what actions or abilities VOOL has available on their computer right now, or asks for the full list of what it can do.",
+    "examples": [
+      "what can you do on my computer?",
+      "show me everything you're able to do",
+      "list your abilities",
+      "what actions do you have available right now",
+      "hey what kind of stuff can you run for me",
+      "can u show me ur full list of commands pls",
+      "what are you capable of here",
+      "whats available to you on this machine",
+      "Could you please tell me which actions you can perform for me?",
+      "list all the things you can do",
+      "¿Qué acciones puedes hacer en mi ordenador? Muéstrame la lista.",
+      "Quelles actions peux-tu effectuer ici ? Donne-moi la liste complète.",
+      "Welche Aktionen kannst du auf meinem Rechner ausführen? Zeig mir alle.",
+      "Ką tu gali padaryti mano kompiuteryje? Parodyk visų veiksmų sąrašą."
+    ],
+    "not_for": [
+      "how do I teach you a new ability?",
+      "write a paragraph about what AI assistants can do",
+      "what's the best app for organizing my photos?",
+      "explain how plugins work in general",
+      "wow you're really useful, thanks!",
+      "what can I do in Excel with macros?"
+    ]
+  },
+  "operator.inspect_processes": {
+    "use_when": "The person wants to see what programs or processes are currently running on their own computer, for example to find what is slowing it down or hogging CPU or memory.",
+    "examples": [
+      "what's running on my computer right now?",
+      "show me the running processes",
+      "why is my laptop so slow? what's eating all the cpu",
+      "list all active processes pls",
+      "is chrome still running in the background",
+      "whats using all my ram",
+      "Could you please check which programs are currently open and running on this machine?",
+      "show running tasks",
+      "something is making my fan go crazy, what process is it",
+      "list processess on my pc",
+      "¿Qué procesos se están ejecutando en mi ordenador ahora mismo?",
+      "Montre-moi les processus en cours d'exécution sur mon PC.",
+      "Welche Prozesse laufen gerade auf meinem Rechner?",
+      "Parodyk, kokios programos dabar veikia mano kompiuteryje."
+    ],
+    "not_for": [
+      "how do I kill a frozen program on Windows?",
+      "explain what a process is in an operating system",
+      "write a short essay about how CPUs schedule processes",
+      "what is the best task manager app for Linux?",
+      "my boss keeps pushing a process change at work, so annoying",
+      "give me tips to make my computer run faster"
+    ]
+  },
+  "operator.inspect_services": {
+    "use_when": "The person wants to see which background services are running, stopped, or failed on their own computer, for example to check if something is up or to find what is broken.",
+    "examples": [
+      "what services are running on my computer right now",
+      "show me all the services and their status",
+      "is anything failed or stopped in my services?",
+      "list services pls",
+      "which background services are active on this machine",
+      "can you check if any of my services crashed",
+      "show running daemons and whether they're enabled",
+      "whats the state of all my system services",
+      "list every service unit and tell me if it is up or down",
+      "services status??",
+      "¿Qué servicios están funcionando en mi ordenador ahora mismo?",
+      "Peux-tu me montrer la liste des services actifs sur cette machine ?",
+      "Zeig mir bitte alle Dienste auf meinem Rechner und ob sie laufen.",
+      "Parodyk, kokios paslaugos veikia mano kompiuteryje ir kurios sustojusios."
+    ],
+    "not_for": [
+      "how do I write a systemd service file for my script",
+      "explain the difference between a service and a process",
+      "write a short blog post about why background services matter",
+      "how do I restart a service that keeps crashing",
+      "what is the best way to learn about Linux services",
+      "my phone battery drains fast, is it because of background apps?"
+    ]
+  },
+  "operator.inspect_disk_usage": {
+    "use_when": "The person wants to see how full their computer's drives or mounted volumes are, or how much free and used storage space is left.",
+    "examples": [
+      "how much disk space do I have left?",
+      "check my disk usage",
+      "is my hard drive almost full",
+      "show free space on all drives",
+      "whats taking up my storage",
+      "how full is the C drive?",
+      "Could you please tell me how much space is left on my external drive?",
+      "disk usage for /home pls",
+      "am i running out of storage on my laptop",
+      "show me used vs free space for each volume",
+      "¿Cuánto espacio libre me queda en el disco duro?",
+      "Peux-tu me dire combien d'espace il reste sur mon disque dur ?",
+      "Wie viel Speicherplatz ist auf meiner Festplatte noch frei?",
+      "Kiek laisvos vietos liko mano kietajame diske?"
+    ],
+    "not_for": [
+      "how do I free up space on my computer?",
+      "what is the difference between an SSD and an HDD?",
+      "write a short poem about my full hard drive",
+      "my disk is full lol, what a week",
+      "explain how file systems like NTFS and ext4 work",
+      "which is the best external hard drive to buy?"
+    ]
+  },
+  "operator.cleanup_temp_files": {
+    "use_when": "The person wants temporary or junk files permanently deleted from their computer, for example to free up disk space, optionally in a specific folder.",
+    "examples": [
+      "clear out my temp files",
+      "delete temporary files from this computer",
+      "Please wipe the temp folder, my disk is almost full",
+      "can u clean up temp files in C:\\Users\\me\\AppData\\Local\\Temp",
+      "get rid of all the junk temp stuff on my laptop",
+      "delte my temp filez now",
+      "empty out the tmp folder pls",
+      "I want to free up space, go ahead and remove the temporary files",
+      "nuke temp files",
+      "Could you please delete the temporary files in /var/tmp? I confirm.",
+      "Borra los archivos temporales de mi ordenador, por favor",
+      "Supprime les fichiers temporaires de mon PC",
+      "Lösch bitte die temporären Dateien auf meinem Rechner",
+      "Ištrink laikinuosius failus iš mano kompiuterio"
+    ],
+    "not_for": [
+      "how do I find the temp folder on Windows?",
+      "what are temporary files and why does my computer make them?",
+      "write a short blog post about cleaning up temp files",
+      "is it safe to delete the temp folder or will it break stuff?",
+      "show me how big my temp folder is",
+      "ugh my temp folder is such a mess lol"
+    ]
+  },
+  "operator.move_path": {
+    "use_when": "The person wants a file or folder on their own computer moved to another location or renamed.",
+    "examples": [
+      "move report.docx from Downloads to Documents",
+      "rename my file notes.txt to notes_old.txt",
+      "can you please move the folder Photos2023 to D:\\Backup",
+      "put invoice.pdf on my desktop into the Taxes folder",
+      "rename the folder 'new stuff' to 'archive'",
+      "mv ~/Desktop/resume.pdf ~/Documents/jobs/",
+      "pls move all my screenshots folder to the external drive",
+      "move C:\\Users\\me\\Downloads\\setup.exe to C:\\Installers",
+      "rename budget final.xlsx to budget_2024.xlsx",
+      "shift the music folder from Documents over to /mnt/media/music no rush",
+      "Mueve el archivo contrato.pdf de Descargas a la carpeta Trabajo",
+      "Renomme le fichier vacances.jpg en plage_2022.jpg s'il te plaît",
+      "Verschiebe den Ordner Projekte vom Desktop nach Dokumente",
+      "Perkelk failą sutartis.docx iš Atsisiuntimų į aplanką Darbas"
+    ],
+    "not_for": [
+      "how do I move a file in Linux using the terminal?",
+      "what's the difference between moving and copying a file?",
+      "write a short poem about moving to a new folder",
+      "copy report.docx to my USB stick and keep the original",
+      "delete old_notes.txt from my Documents",
+      "what is the best way to organize my folders?"
+    ]
+  },
+  "operator.list_calendars": {
+    "use_when": "The person wants to see which calendars they have, such as work, personal or shared ones, before checking, adding or changing events.",
+    "examples": [
+      "what calendars do I have",
+      "show me all my calendars",
+      "list my calendars pls",
+      "which calendars are connected right now?",
+      "do I have a shared family calendar set up",
+      "can you tell me the names of my calendars",
+      "what calendrs are available",
+      "i need to see every calendar i can use",
+      "Could you please show me which calendars you can access for me?",
+      "calendars list",
+      "¿Qué calendarios tengo disponibles?",
+      "Montre-moi la liste de mes calendriers",
+      "Welche Kalender habe ich eigentlich alles?",
+      "Parodyk, kokius kalendorius turiu"
+    ],
+    "not_for": [
+      "how do I create a new calendar",
+      "what is the history of the Gregorian calendar",
+      "write a short poem about my busy calendar",
+      "what's on my calendar tomorrow",
+      "add a dentist appointment to my work calendar",
+      "my calendar is such a mess lol"
+    ]
+  },
+  "operator.inspect_calendar_event": {
+    "use_when": "The person wants to look at the stored details of one specific calendar event, such as its time, title, unique ID or version, without changing it.",
+    "examples": [
+      "show me the details of my dentist appointment event",
+      "what time is stored for the Team sync event",
+      "can you pull up the uid and version of the Budget review meeting",
+      "inspect the calendar event called Mom's birthday dinner",
+      "whats the exact saved start time for my flight event",
+      "Please check how the 'Project kickoff' event is stored in my calendar",
+      "show event info for standup",
+      "i think my yoga class got moved, what does the saved event say?",
+      "look up that event with uid 4f9a-22c1 and tell me its version",
+      "pls show the title n time of the interview event, no changes",
+      "Muéstrame los datos guardados del evento 'Reunión con Ana'",
+      "Peux-tu afficher les détails de l'événement « Dentiste » dans mon agenda ?",
+      "Zeig mir bitte die gespeicherten Daten zum Termin 'Zahnarzt'",
+      "Parodyk išsaugotą įvykio „Susitikimas su Jonu“ laiką ir pavadinimą"
+    ],
+    "not_for": [
+      "How do I create a recurring event in my calendar app?",
+      "Write a friendly invitation message for my birthday party",
+      "What's on my calendar tomorrow?",
+      "Delete the standup event and move my lunch to 1pm",
+      "Why do calendar events have a unique ID and version number?",
+      "Haha I have way too many meetings this week, send help"
+    ]
+  },
+  "operator.update_calendar_event": {
+    "use_when": "The person wants to change the time or the title of a calendar event that already exists, such as moving, rescheduling or renaming it.",
+    "examples": [
+      "move my dentist appointment to 3pm Thursday",
+      "Can you push tomorrow's team standup back by an hour?",
+      "rename the \"Lunch w/ Sam\" event to \"Lunch with Sam and Priya\"",
+      "change friday's meeting to 10am pls",
+      "reschedule my call with the landlord to next Monday morning",
+      "update the title of my 2pm event to Budget Review",
+      "make the book club thing start at 7:30 instead of 7",
+      "could you please shift my haircut to saturday at noon",
+      "move gym to 6am tmrw",
+      "rename tomorow's sync to \"Roadmap kickoff\" and move it to 11",
+      "Cambia mi cita con el médico del jueves para las 4 de la tarde",
+      "Peux-tu décaler ma réunion de demain à 14h et la renommer « Point projet » ?",
+      "Verschieb bitte meinen Zahnarzttermin auf Donnerstag um 9 Uhr",
+      "Perkelk mano rytojaus susitikimą į 15 val."
+    ],
+    "not_for": [
+      "How do I reschedule a meeting politely?",
+      "Write an email telling my team the meeting moved",
+      "What's on my calendar tomorrow?",
+      "Add a new dentist appointment on Friday at 4",
+      "Delete my 3pm meeting",
+      "Why do calendars have time zones?"
+    ]
+  },
+  "operator.schedule_calendar_event": {
+    "use_when": "The person wants to put a specific meeting, appointment, reminder or event with a date and time onto their own calendar.",
+    "examples": [
+      "Add a dentist appointment to my calendar on Friday at 3pm",
+      "schedule lunch with Sam tomorrow at noon",
+      "put team standup on my calendar every... actually just Monday 9:30am for 15 min",
+      "can you please block off Thursday 2-4pm for the budget review",
+      "calender event: mom's birthday dinner sat 7pm",
+      "book me a 45 minute call with the landlord next Tuesday at 10",
+      "add gym to my calendar tonight 6:30",
+      "Create an event called Project kickoff on June 12 at 1pm, one hour",
+      "set up a meeting w/ Priya wed 11am",
+      "Would you mind adding my flight to Boston on March 3 at 8:15am to the calendar?",
+      "Añade una cita con el médico el jueves a las 10 de la mañana a mi calendario",
+      "Ajoute un rendez-vous chez le coiffeur lundi à 14h dans mon calendrier",
+      "Trag bitte morgen um 16 Uhr ein Meeting mit dem Team in meinen Kalender ein",
+      "Įrašyk į mano kalendorių susitikimą su gydytoju penktadienį 15 val.",
+      "remind me on the calendar about the rent due on the 1st at 9am"
+    ],
+    "not_for": [
+      "How do I share my calendar with a coworker?",
+      "What's the best way to plan a productive week?",
+      "Write an invitation email for my birthday party",
+      "What day of the week is Christmas this year?",
+      "I hate how many meetings I have, calendars are the worst",
+      "Explain how Google Calendar recurring events work"
+    ]
+  }
+}

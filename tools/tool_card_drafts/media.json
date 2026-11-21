@@ -1,0 +1,163 @@
+{
+  "media.open": {
+    "use_when": "The person has a video, audio, or other media file on their computer and wants to open it in the editor to trim, cut, or otherwise edit it without changing the original.",
+    "examples": [
+      "open C:\\Videos\\birthday.mp4 for editing",
+      "i wanna edit this video, it's in my Downloads folder called clip_final.mov",
+      "Could you please load ~/Music/podcast_ep12.wav so I can trim the intro?",
+      "start editing holiday.mp4",
+      "open my recording in the editor pls",
+      "need to cut some parts out of /home/sam/Videos/talk.mkv",
+      "pull up the vacation video on my desktop so I can edit it",
+      "Open interview.mp3 for editing but don't touch the original",
+      "lemme trim this gopro clip D:\\footage\\GOPR0231.MP4",
+      "opne beach_day.mov in the editor, want to crop it",
+      "Abre el video boda.mp4 para editarlo, por favor",
+      "Ouvre mon fichier audio entretien.wav pour que je le coupe",
+      "Öffne die Videodatei urlaub.mp4 zum Bearbeiten",
+      "Atidaryk vaizdo įrašą atostogos.mp4, noriu jį redaguoti"
+    ],
+    "not_for": [
+      "How do I trim a video in general?",
+      "What's the difference between MP3 and WAV?",
+      "Write a fun caption for my vacation video",
+      "Which video editing software is best for beginners?",
+      "I love watching movies on weekends",
+      "Delete the old video files in my Downloads folder"
+    ]
+  },
+  "media.inspect": {
+    "use_when": "The person has a media project open and wants to know its current state, such as duration, dimensions, edit revision, applied operations, or working range, without changing anything.",
+    "examples": [
+      "how long is my video project right now",
+      "what's the current state of the edit I have open?",
+      "show me the dimensions and duration of this project",
+      "which edit revision am I on",
+      "what operations have I applied so far to this clip",
+      "whats the wrking range set to",
+      "can you check my open video project and tell me where it stands",
+      "quick status of the timeline pls",
+      "what resolution is the project at, and how long is it",
+      "list the edits done so far in the open project",
+      "¿Cuánto dura mi proyecto de vídeo abierto y qué resolución tiene?",
+      "Quel est l'état actuel de mon projet de montage ouvert ?",
+      "Welche Operationen habe ich im geöffneten Videoprojekt bisher angewendet?",
+      "Kokia dabartinė mano atidaryto vaizdo projekto trukmė ir skiriamoji geba?"
+    ],
+    "not_for": [
+      "how do I trim a video in an editor?",
+      "explain what an aspect ratio is",
+      "write a catchy caption for my vacation video",
+      "what's the difference between H.264 and H.265 codecs?",
+      "cut the first ten seconds off my clip",
+      "ugh my video editing project is taking forever, lol"
+    ]
+  },
+  "media.edit": {
+    "use_when": "The person wants to change an open video or audio project by trimming, cutting out a section, splitting, cropping, resizing, changing aspect ratio, rotating, or adjusting volume.",
+    "examples": [
+      "trim the first 5 seconds off my video",
+      "Cut out the part from 1:20 to 1:45 please",
+      "split the clip at 00:32",
+      "crop the video to just the left half",
+      "make this 9:16 for tiktok",
+      "rotat the clip 180, its upside down",
+      "the audio is way too quiet, turn it up by 6 dB",
+      "normalize the audio on my podcast episode",
+      "resize it to 1280x720",
+      "Could you delete the section I have selected?",
+      "Recorta los primeros 10 segundos del vídeo",
+      "Peux-tu couper la partie entre 0:30 et 0:50 ?",
+      "Mach die Lautstärke vom Clip etwas leiser",
+      "Apkirpk vaizdo įrašą į kvadratą"
+    ],
+    "not_for": [
+      "How do I trim a video in general?",
+      "What's the best aspect ratio for YouTube?",
+      "Write a catchy caption for my holiday video",
+      "What does audio normalization actually mean?",
+      "I love editing videos on weekends lol"
+    ]
+  },
+  "media.undo": {
+    "use_when": "The person just made an edit to their video, audio or photo project and wants that last change reversed or taken back to how it was before.",
+    "examples": [
+      "undo that last edit",
+      "undo the last cut on my video project",
+      "oops, take that back",
+      "revert the last change I made to the podcast project",
+      "can you please undo what you just did to the timeline",
+      "go back one step on my wedding video",
+      "undo last edit",
+      "that trim was wrong, undo it pls",
+      "ctrl z my project",
+      "i messed up the audio edit, can u reverse the last change",
+      "Deshaz el último cambio en mi proyecto de vídeo",
+      "Annule la dernière modification de mon projet vidéo",
+      "Mach die letzte Bearbeitung an meinem Videoprojekt rückgängig",
+      "Atšauk paskutinį mano vaizdo projekto pakeitimą"
+    ],
+    "not_for": [
+      "how do I undo an edit in Premiere Pro?",
+      "write a short blog post about why undo buttons are useful",
+      "what is the keyboard shortcut for undo on a Mac",
+      "undo my last git commit",
+      "I wish I could undo that awkward conversation yesterday",
+      "explain the difference between undo and redo in video editors"
+    ]
+  },
+  "media.redo": {
+    "use_when": "The person undid a change in their video, audio or photo project and now wants that undone edit brought back.",
+    "examples": [
+      "redo that edit",
+      "Bring back the cut I just undid in my video project",
+      "oops i undid too much, redo it",
+      "Can you please redo the last change on my podcast project?",
+      "redo",
+      "put back the filter I removed with undo in the photo project",
+      "undo was a mistake, restore that edit pls",
+      "redo the trim on my vacation video",
+      "ctrl+z went too far, can u redo the last thing on the audio project",
+      "Please redo the edit I just reverted in my documentary project",
+      "Rehaz el último cambio que deshice en mi proyecto de video",
+      "Peux-tu refaire la modification que je viens d'annuler dans mon projet vidéo ?",
+      "Mach die letzte rückgängig gemachte Bearbeitung in meinem Videoprojekt wieder rein",
+      "Atlik iš naujo veiksmą, kurį ką tik atšaukiau mano vaizdo projekte"
+    ],
+    "not_for": [
+      "How do I redo an edit in Premiere Pro using the keyboard?",
+      "Undo my last edit on the video project",
+      "Write a short poem about redoing things",
+      "What is the difference between undo and redo in editing software?",
+      "Redo my whole essay so it sounds more formal",
+      "I'm going to redo my kitchen next year, any ideas?"
+    ]
+  },
+  "media.export": {
+    "use_when": "The person has finished editing a video or audio project and wants it rendered into a new finished file, such as for social media, email or full quality.",
+    "examples": [
+      "ok the edit looks good, render it out as an mp4 to my Desktop",
+      "save my finished video project as a new file called final_cut.mp4",
+      "can you please render the project for instagram",
+      "make a small version of my video so I can email it",
+      "render in high quality pls, put it in Videos/output",
+      "im done editing, give me the final video file",
+      "turn my edit into a finished clip for tiktok",
+      "render the timeline to a file",
+      "finish up the vid and save it as wedding_highlights.mp4 in high res",
+      "could you kindly produce the final render of my project when you have a moment",
+      "Renderiza mi proyecto de video y guárdalo como un archivo nuevo en el escritorio",
+      "Peux-tu générer la vidéo finale de mon montage en version légère ?",
+      "Rendere mein Videoprojekt bitte als fertige Datei für Social Media",
+      "Sugeneruok galutinį mano video projekto failą aukšta kokybe"
+    ],
+    "not_for": [
+      "How do I pick the best video bitrate for YouTube?",
+      "Write a caption for my vacation reel",
+      "What's the difference between MP4 and MOV?",
+      "I love editing videos, it's so relaxing",
+      "Trim the first five seconds off my clip",
+      "Explain how video rendering works"
+    ]
+  }
+}
