@@ -217,7 +217,7 @@ def seal_python_artifact(raw_generation: str, shape: ExactPythonShape) -> Sealed
         return None
     try:
         tree = ast.parse(code, mode="exec")
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
         return None
     if shape.print_target and shape.print_target not in _printed_literals(tree):
         code = _normalize_indirect_target(code, tree, shape.print_target)

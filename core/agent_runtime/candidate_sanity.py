@@ -55,7 +55,7 @@ def classify_exception_expectation(
     """
     try:
         tree = ast.parse(source or "")
-    except (SyntaxError, ValueError, TypeError):
+    except (SyntaxError, ValueError, TypeError, RecursionError, MemoryError):
         return ExceptionExpectation("unknown", "the source did not parse")
 
     start, end = int(line_start or 0), int(line_end or 0)

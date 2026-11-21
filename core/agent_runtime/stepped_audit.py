@@ -1553,7 +1553,7 @@ def _paired_operation_source(evidence: Any, finding: SteppedFinding) -> str:
         return ""
     try:
         tree = ast.parse(body)
-    except (SyntaxError, ValueError, TypeError):
+    except (SyntaxError, ValueError, TypeError, RecursionError, MemoryError):
         return ""
     line_start = int(finding.line_start)
     line_end = int(finding.line_end)
@@ -1737,7 +1737,7 @@ def _deterministic_source_contradiction(
     body = str(evidence.sources.get(finding.file, "") or "")
     try:
         tree = ast.parse(body)
-    except (SyntaxError, ValueError, TypeError):
+    except (SyntaxError, ValueError, TypeError, RecursionError, MemoryError):
         return None
 
     ranged_names: list[ast.Name] = [

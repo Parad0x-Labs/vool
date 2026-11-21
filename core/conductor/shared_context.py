@@ -625,6 +625,8 @@ def evaluate_grounded_expression(
         tree = ast.parse(text, mode="eval")
     except SyntaxError as exc:
         raise UngroundedExpressionError(f"not an arithmetic expression: {exc.msg}") from exc
+    except (RecursionError, MemoryError) as exc:
+        raise UngroundedExpressionError("not an arithmetic expression: too long or nested to read") from exc
     # A whole expression that is a single LEAF is not a calculation, it is an assertion. The
     # neutral-constant carve-out below exists so percentage arithmetic (`250 * 10 / 100`) can use
     # 0, 1 and 100 as OPERANDS; a whole expression that IS one of them smuggles a knowledge claim

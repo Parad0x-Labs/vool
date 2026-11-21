@@ -1180,7 +1180,9 @@ def _parses_as_python(text: str) -> bool:
 
     try:
         tree = ast.parse(text)
-    except (SyntaxError, ValueError, RecursionError):
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        # CPython reports text too long or nested for its parser as MemoryError ("Parser stack
+        # overflowed"): a 1,500-word paste is prose, not code, and must not end the turn.
         return False
     return any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)) for node in ast.walk(tree))
 

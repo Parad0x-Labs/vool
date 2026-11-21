@@ -269,7 +269,8 @@ def _dotted_call_name(node: ast.expr) -> str:
 def _candidates_from_python(body: str) -> list[_Candidate] | None:
     try:
         tree = ast.parse(body.strip(), mode="eval")
-    except SyntaxError:
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        # MemoryError is CPython's "too complex to parse": long model prose is not a tool call.
         return None
     root = tree.body
     nodes = list(root.elts) if isinstance(root, ast.List) else [root]
