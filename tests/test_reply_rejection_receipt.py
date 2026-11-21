@@ -169,3 +169,18 @@ def test_each_refusal_is_named_and_an_unexplained_one_stays_unknown() -> None:
 def test_a_published_reply_gets_no_receipt() -> None:
     for branch in ("model_final_wording", "reasoning_engine"):
         assert reply_rejection_receipt(_decision(output_text="fine"), rendered_via=branch, response_reason="r") is None
+
+
+def test_a_refused_payload_names_its_shape_as_a_code_never_its_words() -> None:
+    # Nov 21: a local reply to "now divide that by 8" (362 chars) was refused as an internal payload
+    # and nothing said which shape it had, so the cause could not be found. The shape is now a code.
+    cases = {
+        "<think>\nThe person means 69104 / 8 and " + PRIVATE_MARKER: "unclosed_think",
+        '["a.py", "b.py"]import os\n' + PRIVATE_MARKER: "filename_array",
+    }
+    for text, shape in cases.items():
+        receipt = reply_rejection_receipt(_decision(output_text=text), rendered_via="internal_payload_refused", response_reason="r")
+        assert receipt["payload_shape"] == shape, receipt
+        assert PRIVATE_MARKER.lower() not in json.dumps(receipt).lower()
+    other = reply_rejection_receipt(_decision(output_text="x"), rendered_via="multi_part_incomplete_refused", response_reason="r")
+    assert other["payload_shape"] == ""

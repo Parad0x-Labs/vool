@@ -227,6 +227,35 @@ def looks_like_internal_state_record(text: str) -> bool:
     return len(keys & _INTERNAL_RECORD_KEYS) >= _INTERNAL_RECORD_MIN_KEYS
 
 
+def internal_payload_shape(text: str) -> str:
+    """Which scaffolding shape a refused reply had, as a code (never its words), for the receipt.
+
+    Codes: filename_array, unclosed_think, internal_state_record, fabricated_tool_result,
+    reasoning_monologue (the narrated-plan check in core.agent_runtime.response), or "" when none.
+    """
+
+    body = str(text or "").strip()
+    if not body:
+        return ""
+    match = _FILENAME_ARRAY_LEAD_RE.match(body)
+    if match and body[match.end():].strip():
+        return "filename_array"
+    if "<think>" in body.lower() and "</think>" not in body.lower():
+        return "unclosed_think"
+    if looks_like_internal_state_record(body):
+        return "internal_state_record"
+    if looks_like_fabricated_tool_result(body):
+        return "fabricated_tool_result"
+    try:
+        from core.agent_runtime.response import suppress_internal_reasoning_leak
+
+        if suppress_internal_reasoning_leak(body) is not None:
+            return "reasoning_monologue"
+    except Exception:
+        pass
+    return ""
+
+
 def looks_like_internal_payload(text: str) -> bool:
     """True when a reply is machine scaffolding rather than an answer to a person.
 

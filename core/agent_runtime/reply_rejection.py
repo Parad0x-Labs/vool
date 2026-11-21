@@ -142,4 +142,16 @@ def reply_rejection_receipt(model_execution: Any, *, rendered_via: str, response
         "provider_id": str(getattr(model_execution, "provider_id", "") or "")[:120],
         "model_name": str(getattr(model_execution, "model_name", "") or "")[:120],
         "attempted_count": len(list(details.get("attempted") or [])),
+        # Which scaffolding shape the refused text had (a code, never the text): without it a
+        # refused local reply (Nov 21, "now divide that by 8", 362 chars) could not be diagnosed.
+        "payload_shape": _payload_shape(model_execution) if rendered_via == "internal_payload_refused" else "",
     }
+
+
+def _payload_shape(model_execution: Any) -> str:
+    try:
+        from core.tool_call_dialects import internal_payload_shape
+
+        return internal_payload_shape(str(getattr(model_execution, "output_text", "") or ""))
+    except Exception:
+        return "unclassified"
