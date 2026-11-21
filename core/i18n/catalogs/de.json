@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "Geschützte Fotos und Videos",
     "settings.row.media_library.hint": "Verschlossen auf diesem Computer. Sichere sie auf einem USB-Laufwerk.",
     "settings.row.media_library.help": "Fotos, Videos und Ton aus der privaten Kamera deines Telefons und Dateien, die du selbst hinzufügst. Sie bleiben auf diesem Computer verschlossen und tauchen nie in anderen Apps oder in der Suche auf.",
-    "settings.media_open": "Geschützte Medien öffnen"
+    "settings.media_open": "Geschützte Medien öffnen",
+    "followup.side_failed": "Darauf konnte ich gerade nicht antworten. Die Aufgabe läuft noch; frag gleich noch einmal."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

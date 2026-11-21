@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "Fotos e vídeos protegidos",
     "settings.row.media_library.hint": "Guardados com segurança neste computador. Faça backup em um pendrive.",
     "settings.row.media_library.help": "Fotos, vídeos e áudios da câmera privada do seu telefone, e arquivos que você mesmo adiciona. Ficam trancados neste computador e nunca aparecem em outros apps nem na busca.",
-    "settings.media_open": "Abrir mídia protegida"
+    "settings.media_open": "Abrir mídia protegida",
+    "followup.side_failed": "Não consegui responder a isso agora. A tarefa ainda está em andamento; pergunte de novo daqui a pouco."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

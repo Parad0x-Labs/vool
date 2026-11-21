@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "Ảnh và video được bảo vệ",
     "settings.row.media_library.hint": "Được khóa trên máy tính này. Hãy sao lưu chúng vào ổ USB.",
     "settings.row.media_library.help": "Ảnh, video và âm thanh từ camera riêng tư của điện thoại, cùng các tệp bạn tự thêm. Chúng được khóa trên máy tính này và không bao giờ hiện trong ứng dụng khác hay trong tìm kiếm.",
-    "settings.media_open": "Mở phương tiện được bảo vệ"
+    "settings.media_open": "Mở phương tiện được bảo vệ",
+    "followup.side_failed": "Mình chưa trả lời được câu đó lúc này. Tác vụ vẫn đang chạy; hãy hỏi lại sau giây lát."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

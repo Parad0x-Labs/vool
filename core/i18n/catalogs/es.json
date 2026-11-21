@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "Fotos y vídeos protegidos",
     "settings.row.media_library.hint": "Guardados bajo llave en este ordenador. Haz una copia en una unidad USB.",
     "settings.row.media_library.help": "Fotos, vídeos y sonido de la cámara privada de tu teléfono, y archivos que añades tú. Se quedan bajo llave en este ordenador y nunca aparecen en otras apps ni en la búsqueda.",
-    "settings.media_open": "Abrir multimedia protegida"
+    "settings.media_open": "Abrir multimedia protegida",
+    "followup.side_failed": "No pude responder a eso ahora mismo. La tarea sigue en marcha; vuelve a preguntar en un momento."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

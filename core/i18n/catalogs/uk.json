@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "Захищені фото й відео",
     "settings.row.media_library.hint": "Під замком на цьому комп’ютері. Зробіть їх копію на USB-диск.",
     "settings.row.media_library.help": "Фото, відео та звук із приватної камери вашого телефона й файли, які ви додаєте самі. Вони залишаються під замком на цьому комп’ютері й ніколи не з’являються в інших застосунках чи в пошуку.",
-    "settings.media_open": "Відкрити захищені медіа"
+    "settings.media_open": "Відкрити захищені медіа",
+    "followup.side_failed": "Зараз не вдалося відповісти на це. Завдання ще виконується; запитайте знову за мить."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

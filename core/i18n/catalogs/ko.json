@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "보호된 사진과 동영상",
     "settings.row.media_library.hint": "이 컴퓨터에 잠가 둡니다. USB 드라이브에 백업하세요.",
     "settings.row.media_library.help": "휴대폰 비공개 카메라의 사진, 동영상, 소리와 직접 추가한 파일입니다. 이 컴퓨터에 잠긴 채로 있으며 다른 앱이나 검색에는 절대 나타나지 않습니다.",
-    "settings.media_open": "보호된 미디어 열기"
+    "settings.media_open": "보호된 미디어 열기",
+    "followup.side_failed": "지금은 그 질문에 답하지 못했어요. 작업은 아직 진행 중이에요. 잠시 후 다시 물어봐 주세요."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

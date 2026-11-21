@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "受保护的照片和视频",
     "settings.row.media_library.hint": "加锁保存在这台电脑上。可以备份到 U 盘。",
     "settings.row.media_library.help": "来自手机私密相机的照片、视频和声音，以及你自己添加的文件。它们加锁保存在这台电脑上，绝不会出现在其他应用或搜索中。",
-    "settings.media_open": "打开受保护的媒体"
+    "settings.media_open": "打开受保护的媒体",
+    "followup.side_failed": "我刚才没能回答这个问题。任务仍在运行，请稍后再问。"
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "Chronione zdjęcia i filmy",
     "settings.row.media_library.hint": "Zamknięte na tym komputerze. Zrób ich kopię na dysku USB.",
     "settings.row.media_library.help": "Zdjęcia, filmy i dźwięk z prywatnego aparatu w telefonie oraz pliki, które dodajesz sam. Zostają zamknięte na tym komputerze i nigdy nie pojawiają się w innych aplikacjach ani w wyszukiwaniu.",
-    "settings.media_open": "Otwórz chronione multimedia"
+    "settings.media_open": "Otwórz chronione multimedia",
+    "followup.side_failed": "Nie udało mi się teraz na to odpowiedzieć. Zadanie wciąż trwa; zapytaj ponownie za chwilę."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

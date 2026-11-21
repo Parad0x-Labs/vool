@@ -5119,7 +5119,8 @@
     "settings.row.media_library.label": "Protected photos and videos",
     "settings.row.media_library.hint": "Kept locked on this computer. Back them up to a USB drive.",
     "settings.row.media_library.help": "Photos, videos and sound from your phone's private camera, and files you add yourself. They stay locked on this computer and never show up in other apps or in search.",
-    "settings.media_open": "Open protected media"
+    "settings.media_open": "Open protected media",
+    "followup.side_failed": "I couldn’t answer that just now. The task is still running; ask again in a moment."
   },
   "html_keys": [
     "bypass.modal_limits",

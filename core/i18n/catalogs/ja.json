@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "保護された写真と動画",
     "settings.row.media_library.hint": "このコンピューターに鍵をかけて保管。USB ドライブにバックアップできます。",
     "settings.row.media_library.help": "スマートフォンのプライベートカメラの写真、動画、音声と、自分で追加したファイルです。このコンピューターに鍵をかけたまま保管され、ほかのアプリや検索に表示されることはありません。",
-    "settings.media_open": "保護されたメディアを開く"
+    "settings.media_open": "保護されたメディアを開く",
+    "followup.side_failed": "今はその質問に答えられませんでした。タスクはまだ実行中です。少ししてからもう一度聞いてください。"
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

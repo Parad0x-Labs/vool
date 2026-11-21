@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "सुरक्षित फ़ोटो और वीडियो",
     "settings.row.media_library.hint": "इस कंप्यूटर पर ताले में। इन्हें USB ड्राइव पर बैकअप करें।",
     "settings.row.media_library.help": "आपके फ़ोन के निजी कैमरे से फ़ोटो, वीडियो और आवाज़, और वे फ़ाइलें जो आप ख़ुद जोड़ते हैं। ये इस कंप्यूटर पर ताले में रहती हैं और दूसरे ऐप या खोज में कभी नहीं दिखतीं।",
-    "settings.media_open": "सुरक्षित मीडिया खोलें"
+    "settings.media_open": "सुरक्षित मीडिया खोलें",
+    "followup.side_failed": "मैं अभी इसका जवाब नहीं दे सका। काम अभी चल रहा है; थोड़ी देर में फिर से पूछें।"
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

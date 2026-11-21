@@ -5119,9 +5119,10 @@
     "settings.row.media_library.label": "صور وفيديوهات محمية",
     "settings.row.media_library.hint": "مقفلة على هذا الكمبيوتر. انسخها احتياطيًا إلى قرص USB.",
     "settings.row.media_library.help": "صور وفيديوهات وأصوات من الكاميرا الخاصة في هاتفك، وملفات تضيفها بنفسك. تبقى مقفلة على هذا الكمبيوتر ولا تظهر أبدًا في تطبيقات أخرى أو في البحث.",
-    "settings.media_open": "افتح الوسائط المحمية"
+    "settings.media_open": "افتح الوسائط المحمية",
+    "followup.side_failed": "لم أتمكن من الإجابة عن ذلك الآن. المهمة ما زالت قيد التشغيل؛ اسأل مرة أخرى بعد لحظة."
   },
-  "source_catalog_sha256": "971447aca0c22b54ad3876a5858dbb96458dc84272afc01387441210806f11ff",
+  "source_catalog_sha256": "9c1b9e6028f769764fc4ed8a576506e9b12d261e2e88b5415d97e5ef270d9ba6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
