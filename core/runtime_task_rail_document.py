@@ -17,6 +17,8 @@ def render_runtime_task_rail_document(*, client_script: str) -> str:
         subtitle="Trace turns runtime causality, retries, stop reasons, and artifacts into one inspectable execution lane.",
         default_mode="trace",
         surface="trace-rail",
+        # The app serves only this page of the workstation: no links to hive pages it does not serve.
+        served_modes=frozenset({"trace"}),
     )
     shell_html = RUNTIME_TASK_RAIL_SHELL_HTML.replace("__WORKSTATION_HEADER__", workstation_header)
     return (

@@ -488,9 +488,30 @@ def render_workstation_header(
     trace_enabled: bool = True,
     trace_label: str = "Trace",
     fabric_href: str = "/brain-hive?mode=fabric&fabric=1",
+    served_modes: frozenset[str] | None = None,
 ) -> str:
+    """``served_modes``: when given, only links to those modes are drawn, plus a way back to the
+    chat. The app's own activity page (/trace, Settings > Advanced) is served WITHOUT the hive
+    pages, and its Overview / Hive / Fabric links led to "404 Not Found"."""
     trace_class = "wk-mode-link" + ("" if trace_enabled else " is-disabled")
     trace_target = trace_href if trace_enabled else "#"
+    shown = served_modes if served_modes is not None else frozenset({"overview", "hive", "trace", "fabric"})
+    trace_state = "live" if trace_enabled else "not-live"
+    links = []
+    if served_modes is not None:
+        links.append('<a class="wk-mode-link" href="/chat">Back to chat</a>')
+    if "overview" in shown:
+        links.append(f'<a class="wk-mode-link" data-workstation-mode-link="overview" data-mode-link="overview" href="{escape(overview_href)}">Overview</a>')
+    if "hive" in shown:
+        links.append(f'<a class="wk-mode-link" data-workstation-mode-link="hive" data-mode-link="hive" href="{escape(hive_href)}">Hive</a>')
+    if "trace" in shown:
+        links.append(
+            f'<a class="{trace_class}" data-workstation-mode-link="trace" data-mode-link="trace" '
+            f'data-workstation-trace-state="{escape(trace_state)}" href="{escape(trace_target)}">{escape(trace_label)}</a>'
+        )
+    if "fabric" in shown:
+        links.append(f'<a class="wk-mode-link" data-workstation-mode-link="fabric" data-mode-link="fabric" data-workstation-fabric href="{escape(fabric_href)}">Fabric</a>')
+    mode_links = "\n      ".join(links)
     return f"""
   <header class="wk-topbar" data-workstation-version="{escape(VOOL_WORKSTATION_DEPLOYMENT_VERSION)}" data-workstation-surface="{escape(surface)}">
     <div class="wk-brand">
@@ -506,10 +527,7 @@ def render_workstation_header(
       </div>
     </div>
     <nav class="wk-mode-nav" aria-label="VOOL workstation modes">
-      <a class="wk-mode-link" data-workstation-mode-link="overview" data-mode-link="overview" href="{escape(overview_href)}">Overview</a>
-      <a class="wk-mode-link" data-workstation-mode-link="hive" data-mode-link="hive" href="{escape(hive_href)}">Hive</a>
-      <a class="{trace_class}" data-workstation-mode-link="trace" data-mode-link="trace" data-workstation-trace-state="{escape('live' if trace_enabled else 'not-live')}" href="{escape(trace_target)}">{escape(trace_label)}</a>
-      <a class="wk-mode-link" data-workstation-mode-link="fabric" data-mode-link="fabric" data-workstation-fabric href="{escape(fabric_href)}">Fabric</a>
+      {mode_links}
     </nav>
     <div class="wk-view-toggle" aria-label="VOOL workstation rendering mode">
       <button class="wk-view-button" type="button" data-workstation-view="human">Human</button>

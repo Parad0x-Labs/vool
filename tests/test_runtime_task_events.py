@@ -119,8 +119,9 @@ class RuntimeTaskEventsTests(unittest.TestCase):
         self.assertIn("Trace workstation v1", html)
         self.assertIn("workstation v1", html)
         self.assertIn("wk-topbar", html)
-        self.assertIn(">Overview<", html)
-        self.assertIn(">Hive<", html)
+        # The main app serves no /brain-hive pages: the activity page links back to chat instead.
+        self.assertIn('href="/chat">Back to chat<', html)
+        self.assertNotIn("/brain-hive", html)
         self.assertIn(">Trace<", html)
         self.assertIn(">Human<", html)
         self.assertIn(">Agent<", html)
