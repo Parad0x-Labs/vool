@@ -1486,16 +1486,18 @@ _MAIL_READING_OFF_RESPONSE = (
 def _mail_access_gap() -> str:
     """Why no inbox can be read on this runtime right now: "no_account", "reading_off", or "".
 
-    The same two facts the email.read seat is gated on (core.runtime_tool_contracts): the read
-    lane must be enabled AND an account able to read must be stored. Fails open ("") on any error,
-    so a broken lookup never rewrites a reply."""
+    The same two facts the email.read seat is gated on (core.runtime_tool_contracts): an account
+    able to read must be stored AND the read lane must be available, judged by the seat's own
+    rule (`_email_lane_available`): an unset policy key follows the connected account, only an
+    explicit off is off. Fails open ("") on any error, so a broken lookup never rewrites a reply."""
     try:
-        from core import email_accounts, policy_engine
+        from core import email_accounts
+        from core.runtime_tool_contracts import _email_lane_available
 
         records = email_accounts.configured_accounts()
         if not any(record.read for record in records.values()):
             return "no_account"
-        if not bool(policy_engine.get("email.read_enabled", False)):
+        if not _email_lane_available("read"):
             return "reading_off"
     except Exception:
         return ""

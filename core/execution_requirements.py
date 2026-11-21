@@ -409,12 +409,12 @@ def _tool_card_toolsets(text: str, source_context: dict[str, Any] | None = None)
 
 
 def _email_lane_enabled() -> bool:
+    # The email seats' own rule (core.runtime_tool_contracts): an unset policy key follows the
+    # account the person connected; only an explicit off is off.
     try:
-        from core import policy_engine
+        from core.runtime_tool_contracts import _email_lane_available
 
-        return bool(policy_engine.get("email.read_enabled", False)) or bool(
-            policy_engine.get("email.send_enabled", False)
-        )
+        return _email_lane_available("read") or _email_lane_available("send")
     except Exception:
         return False
 

@@ -123,3 +123,38 @@ def test_an_email_tool_result_is_its_own_grounding() -> None:
     reply = "No IMAP credentials for account 'default'. Add your email account in Settings."
     result = _guard(FABRICATED[0][0], reply, intent="email.read")
     assert result["response"] == reply
+
+
+def _unset_email_lane() -> None:
+    """The shipped state: no email key in the policy at all (nothing in the product writes one)."""
+    from core import policy_engine
+
+    policy = dict(policy_engine.load(force_reload=True))
+    policy.pop("email", None)
+    policy_engine._POLICY_CACHE = policy
+
+
+@pytest.mark.parametrize(("prompt", "reply"), FABRICATED)
+def test_a_connected_account_with_the_shipped_policy_is_not_reading_off(prompt: str, reply: str) -> None:
+    # Measured on the installed 0.8 (3078b8cb4, 2026-11-21): an inbox question with a connected
+    # mail account and the shipped policy (no email key) was answered "Reading email is switched
+    # off in VOOL's settings" while the email.read seat itself was open. The guard read the unset
+    # key as off; the seat reads it as "follow the connected account". One rule for both.
+    from core.runtime_tool_contracts import _email_lane_available
+
+    _store_imap()
+    _unset_email_lane()
+    assert _email_lane_available("read") is True
+    result = _guard(prompt, reply)
+    assert "switched off" not in result["response"]
+    assert "action_honesty_validator" not in result
+
+
+def test_a_connected_account_with_the_shipped_policy_is_offered_the_mail_toolset() -> None:
+    from core.execution_requirements import _email_lane_enabled
+
+    _store_imap()
+    _unset_email_lane()
+    assert _email_lane_enabled() is True
+    _email_lane(False)
+    assert _email_lane_enabled() is False
