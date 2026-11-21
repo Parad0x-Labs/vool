@@ -1187,6 +1187,25 @@ def _within_turn_navigation(loop: Any) -> Any:
     return run_in_turn_scope
 
 
+#: Said to the model on the first step of a short follow-up to a plugin turn ("and characters?").
+#: Measured on a local 8B model, 2026-11-12: with the plugin offered and the earlier turn in view
+#: it answered in words with a wrong number, 0 tool calls of 10; with this one line, 10 of 10 with
+#: the right text passed.
+PLUGIN_FOLLOW_UP_NOTE = (
+    "This message continues the previous request. Use one of the offered tools now. "
+    "Pass the text from the earlier message as its argument."
+)
+
+
+def _is_plugin_follow_up(effective_input: str, source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.tool_demand_signals import plugin_follow_up
+
+        return plugin_follow_up(effective_input, source_context)
+    except Exception:
+        return False
+
+
 _PLUGIN_OUTPUT_HEADER = re.compile(r"^\[untrusted output from MCP server '[^']*' tool '[^']*'\]\n?")
 _PLUGIN_RESULT_LIMIT = 1500
 
@@ -2568,6 +2587,8 @@ class ResearchToolLoopFacadeMixin:
                             loop_source_context, executed_steps, query=str(effective_input or ''),
                             task_id=str(getattr(task, 'task_id', '') or ''), stage='tool_loop_round',
                         )
+                    if not executed_steps and _is_plugin_follow_up(effective_input, loop_source_context):
+                        loop_source_context["plugin_follow_up_note"] = PLUGIN_FOLLOW_UP_NOTE
                     tool_decision = self.memory_router.resolve_tool_intent(
                         task=task,
                         classification=classification,
@@ -2577,6 +2598,7 @@ class ResearchToolLoopFacadeMixin:
                         surface=surface,
                         source_context=loop_source_context,
                     )
+                    loop_source_context.pop("plugin_follow_up_note", None)
                     loop_source_context.pop("code_task_completion_feedback", None)
                     loop_source_context.pop(TOOL_USE_RETRY_KEY, None)
                     last_tool_decision = tool_decision

@@ -1280,6 +1280,15 @@ def _build_conversational_request(
     if followup_message is not None:
         messages.append(followup_message)
     messages.append(user)
+    plugin_follow_up_note = str((source_context or {}).get("plugin_follow_up_note") or "").strip()
+    if plugin_follow_up_note:
+        # Set by the tool loop for the first step of a short follow-up to a plugin turn only.
+        # It goes LAST, after the person's words. Measured on a local 8B model 2026-11-12: as a
+        # system line before the turn it changed nothing (0 tool calls); as the last message the
+        # model used the offered tool with the right text 10 times of 10.
+        note_message = InternalMessage(role="context", content=plugin_follow_up_note)
+        _label_payload_messages([note_message], _PAYLOAD_ACTIVITY_RECEIPTS, "plugin_follow_up_note")
+        messages.append(note_message)
 
     # Canonical transcript assembly precedes final budget and memory policy.
     # Only the evidence surviving those decisions may support this answer.

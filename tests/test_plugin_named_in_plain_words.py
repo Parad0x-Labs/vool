@@ -294,3 +294,38 @@ def test_a_labelled_or_short_value_from_the_tool_counts_as_grounded() -> None:
     assert not is_ungrounded("The value it gave back is 10.0.12.7 for that host.", shown)
     assert is_ungrounded("The value it gave back is 10.0.99.7 for that host.", shown)
     assert is_ungrounded("The value it gave back is 9e:10:7d:9d:00:00:00:00 for that text.", shown)
+
+
+def test_the_first_step_of_a_plugin_follow_up_tells_the_model_to_use_the_tool() -> None:
+    from types import SimpleNamespace
+
+    from core.agent_runtime.research_tool_loop_facade import PLUGIN_FOLLOW_UP_NOTE
+    from core.prompt_normalizer import normalize_prompt
+
+    class _NoContext:
+        report = SimpleNamespace(to_dict=lambda: {})
+
+        @staticmethod
+        def assembled_context(*, prompt_profile: str = "default") -> str:
+            return ""
+
+    def built(source_context: dict) -> list[str]:
+        request = normalize_prompt(
+            task=SimpleNamespace(task_id="t-follow-up", task_summary="and characters?"),
+            classification={"task_class": "chat_conversation", "risk_flags": []},
+            interpretation=SimpleNamespace(
+                normalized_text="and characters?", raw_text="and characters?", understanding_confidence=0.9
+            ),
+            context_result=_NoContext(),
+            persona=SimpleNamespace(persona_id="default", display_name="VOOL", tone="direct"),
+            output_mode="plain_text",
+            task_kind="conversation",
+            trace_id="trace-follow-up",
+            surface="api",
+            source_context={"surface": "api", "platform": "api", **source_context},
+        )
+        return [str(message.content) for message in request.messages]
+
+    with_note = built({"plugin_follow_up_note": PLUGIN_FOLLOW_UP_NOTE})
+    assert with_note[-1] == PLUGIN_FOLLOW_UP_NOTE and with_note[-2] == "and characters?"
+    assert PLUGIN_FOLLOW_UP_NOTE not in built({})
