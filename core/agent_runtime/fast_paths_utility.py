@@ -304,7 +304,7 @@ _DAY_OPENERS = (
 _GENERIC_OPENERS = (
     "Hey.", "Hi.", "Hello.", "Yo.", "Sup.", "Hey there.", "Hi there.", "Hello there.", "Heya.",
     "Hiya.", "Hey hey.", "Yo yo.", "What's up.", "Good to see you.", "Hey, you.", "Howdy.",
-    "Hola.", "Well hello.", "Hey — I'm here.", "Hi! Ready to go.", "Hey, welcome back.",
+    "Well hello.", "Hey — I'm here.", "Hi! Ready to go.", "Hey, welcome back.",
     "Hello! What's the move?", "Yo, let's build.", "Sup — ready when you are.",
 )
 
@@ -390,7 +390,10 @@ def build_greeting_reply(phrase: str, *, addr: str = "", want_tail: bool = True)
     # Keep the two universal openers recognizably responsive. The broader pool remains varied for
     # the other greetings, but replying to "hey" with an unrelated time-of-day opener feels like
     # the assistant ignored the user's actual message and makes the fast-path receipt ambiguous.
-    opener = {"hey": "Hey.", "hello": "Hello."}.get(phrase) or random.choice(_openers_for(phrase))
+    # The openers are English, so they answer English greetings only. A greeting in another language
+    # gets its own word back: the English pool once held "Hola.", so a plain "hi" in an English chat
+    # was sometimes answered in Spanish.
+    opener = {"hey": "Hey.", "hello": "Hello.", "hola": "Hola.", "hallo": "Hallo."}.get(phrase) or random.choice(_openers_for(phrase))
     if addr and random.random() < 0.6:
         opener = _weave_address(opener, addr)
     if want_tail and not _opener_is_complete(opener) and random.random() < 0.7:
