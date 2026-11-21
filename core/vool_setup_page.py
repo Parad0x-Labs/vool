@@ -698,7 +698,7 @@ function controlFolder(host, step) {
   choose.addEventListener('click', async () => {
     const picked = await pickFolder();
     if (picked && picked !== "NO_BRIDGE") { path.value = picked; await bind(picked); }
-    else if (picked === "NO_BRIDGE") { path.focus(); setNote('info', T('setup.folder.no_bridge', 'No folder browser in this window — open VOOL in its app window and press Browse again, or type the folder path.')); }
+    else if (picked === "NO_BRIDGE") { path.focus(); setNote('info', T('setup.folder.no_bridge', 'No folder picker in this window: open VOOL in its app window and press Choose a folder… again, or type the folder path.')); }
     else { path.focus(); setNote('info', T('setup.folder.none_chosen', 'No folder was chosen. You can type its path instead.')); }
   });
   use.addEventListener('click', () => bind(path.value));
