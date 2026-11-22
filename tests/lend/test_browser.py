@@ -192,8 +192,13 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
             bb.locator('.vl-pinned').check()
             bb.get_by_role('button', name='Join', exact=True).click()
             expect(bb.locator('.vl-borrow option')).to_have_count(1)
+            # The host's check reads the guest's claim and sends the confirmation; only a guest check after it
+            # can read that. Clicked together, the guest's check could finish first (macOS CI on a7b184037,
+            # 2026-11-22: "Send this file" stayed disabled), so the host's check is let finish first.
             aa.get_by_role('button', name='Check for jobs', exact=True).click()
+            expect(aa).to_have_attribute('aria-busy', 'false', timeout=30000)
             bb.get_by_role('button', name='Check for jobs', exact=True).click()
+            expect(bb).to_have_attribute('aria-busy', 'false', timeout=30000)
             expect(bb.get_by_role('button', name='Send this file', exact=True)).to_be_enabled()
             expect(bb.locator('.vl-borrowed .vl-peer-pin')).to_have_text(host_pin)
             b.screenshot(path=str(evidence/'ux-guest-terms.png'), full_page=True)
