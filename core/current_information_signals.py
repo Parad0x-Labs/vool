@@ -302,7 +302,22 @@ def collect_current_information_signals(text: str) -> tuple[CurrentInformationSi
             signals.append(collector(own_words))
         except Exception:
             continue
+    if _computed_exactly(own_words):
+        # "how much is 3272*13" asks for a number the runtime computes (core.task_router's own arithmetic reader), not
+        # a price: read by the fresh-lookup markers, the computed "3272 * 13 = 42536" was refused for having nothing
+        # retrieved to check it against (real-app check v3 on fe98e849, 2026-11-22).
+        return tuple(_signal(signal.source, signal.reason_code, False, signal.detail) for signal in signals)
     return tuple(signals)
+
+
+def _computed_exactly(text: str) -> bool:
+    """The ask is arithmetic on written numbers alone ("how much is 3272*13"): nothing in it names the world."""
+    try:
+        from core.task_router import looks_like_direct_math_request
+
+        return bool(looks_like_direct_math_request(text))
+    except Exception:
+        return False
 
 
 def firing_signals(text: str) -> tuple[CurrentInformationSignal, ...]:
