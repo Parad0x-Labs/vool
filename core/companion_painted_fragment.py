@@ -282,37 +282,125 @@ function vpFx(g,fx,t,u,bx,by,bw,bh,amt,seed){
    g.globalAlpha=(.35+.45*(.5+.5*Math.sin(VP_TAU*t/900+k)))*Math.min(1,amt);
    g.beginPath();g.arc(x,y,u*.35,0,VP_TAU);g.fill();}}
  g.restore();}
-/* Little signs beside the pet: what kind of work, or what state needs a look. Vector, so they
-   are sharp at any size; the pet itself stays the main picture. */
-const VP_BADGE_TONE={ask:'#fb923c',done:'#34d399',fail:'#f87171',wait:'#94a3b8',retry:'#f97316'};
-function vpBadge(g,kind,u,W,t){
- const r=u*4.6,x=W-r-u*.6,y=W-r-u*.6,tone=VP_BADGE_TONE[kind]||'#5eead4';
- const pulse=kind==='ask'?1+.08*Math.sin(VP_TAU*t/700):1;
- g.save();g.translate(x,y);g.scale(pulse,pulse);
- g.fillStyle='rgba(16,18,24,.92)';g.strokeStyle=tone;g.lineWidth=Math.max(1,u*.45);
- g.beginPath();g.arc(0,0,r,0,VP_TAU);g.fill();g.stroke();
- g.strokeStyle=tone;g.fillStyle=tone;g.lineCap='round';g.lineJoin='round';g.lineWidth=Math.max(1,u*.55);
- const L=r*.5;g.beginPath();
- if(kind==='ask'){g.moveTo(0,-L);g.lineTo(0,L*.25);g.stroke();g.beginPath();g.arc(0,L*.72,u*.45,0,VP_TAU);g.fill();}
- else if(kind==='done'){g.moveTo(-L*.8,0);g.lineTo(-L*.15,L*.6);g.lineTo(L*.85,-L*.6);g.stroke();}
- else if(kind==='fail'){g.moveTo(-L*.6,-L*.6);g.lineTo(L*.6,L*.6);g.moveTo(L*.6,-L*.6);g.lineTo(-L*.6,L*.6);g.stroke();}
- else if(kind==='wait'){g.moveTo(-L*.6,-L*.8);g.lineTo(L*.6,-L*.8);g.lineTo(-L*.6,L*.8);g.lineTo(L*.6,L*.8);g.closePath();g.stroke();}
- else if(kind==='retry'){g.arc(0,0,L*.75,-.3,VP_TAU*.8);g.stroke();g.beginPath();
-  const ex=Math.cos(VP_TAU*.8)*L*.75,ey=Math.sin(VP_TAU*.8)*L*.75;g.moveTo(ex+L*.45,ey-L*.05);g.lineTo(ex,ey);g.lineTo(ex+L*.05,ey+L*.5);g.stroke();}
- else if(kind==='search'){g.arc(-L*.2,-L*.2,L*.55,0,VP_TAU);g.stroke();g.beginPath();g.moveTo(L*.2,L*.2);g.lineTo(L*.85,L*.85);g.stroke();}
- else if(kind==='read'){g.moveTo(0,-L*.5);g.lineTo(-L*.9,-L*.75);g.lineTo(-L*.9,L*.6);g.lineTo(0,L*.8);g.lineTo(L*.9,L*.6);g.lineTo(L*.9,-L*.75);g.closePath();g.moveTo(0,-L*.5);g.lineTo(0,L*.8);g.stroke();}
- else if(kind==='dig'){g.moveTo(-L*.8,-L*.8);g.lineTo(L*.25,L*.25);g.stroke();g.beginPath();g.moveTo(L*.05,L*.05);g.lineTo(L*.85,L*.25);g.lineTo(L*.25,L*.85);g.closePath();g.fill();}
- else if(kind==='code'){g.moveTo(-L*.3,-L*.7);g.lineTo(-L*.9,0);g.lineTo(-L*.3,L*.7);g.moveTo(L*.3,-L*.7);g.lineTo(L*.9,0);g.lineTo(L*.3,L*.7);g.stroke();}
- else if(kind==='test'){g.moveTo(-L*.3,-L*.85);g.lineTo(-L*.3,-L*.1);g.lineTo(-L*.85,L*.8);g.lineTo(L*.85,L*.8);g.lineTo(L*.3,-L*.1);g.lineTo(L*.3,-L*.85);g.stroke();g.beginPath();g.moveTo(-L*.5,-L*.85);g.lineTo(L*.5,-L*.85);g.stroke();}
- else if(kind==='watch'){g.moveTo(-L*.95,0);g.quadraticCurveTo(0,-L*1.05,L*.95,0);g.quadraticCurveTo(0,L*1.05,-L*.95,0);g.stroke();g.beginPath();g.arc(0,0,L*.32,0,VP_TAU);g.fill();}
- else{ /* exec: a turning gear */
-  g.rotate(t/600);for(let k=0;k<8;k++){g.save();g.rotate(VP_TAU*k/8);g.fillRect(-u*.45,-L*.95,u*.9,L*.4);g.restore();}
-  g.beginPath();g.arc(0,0,L*.55,0,VP_TAU);g.stroke();}
- g.restore();}
-function vpDots(g,u,W,t,reduced){
+/* The work sign beside the pet: what kind of work, or what state needs a look. Each pet wears
+   its own emblem (a rune stone, a gear, a crystal, a bubble, a lantern, a riveted plate, a shield,
+   a facet, an eye, a flame) in its own colour, and the glyph inside is alive: pages turn, the lens
+   sweeps, the pick swings, code is typed, the flask bubbles, the eye looks about, the tick draws
+   itself. Vector, so sharp at any size; the pet stays the main picture. `still` (reduced motion)
+   draws the same sign at rest. */
+const VP_SIGN={
+ beetle:['hex','#ffcf6a','#17181d'],raven:['gear','#e8b860','#1b1712'],golem:['shard','#7fe3ff','#12201b'],
+ tide:['bubble','#a5ecff','#0c2836'],spark:['lantern','#ffd27a','#211808'],rascal:['plate','#ffb347','#221d1a'],
+ prime:['shield','#6fe9ff','#1f1808'],prism:['facet','#c9f6ff','#151a3c'],veil:['eye','#dba4ff','#160a26'],
+ ember:['flame','#ff9a3c','#1c1210']};
+const VP_SIGN_TONE={ask:'#ffb057',done:'#5fe0a0',fail:'#ff7b7b'};
+function vpSignFrame(g,shape,r,t){
+ g.beginPath();
+ if(shape==='hex'){for(let k=0;k<6;k++){const a=VP_TAU*k/6+VP_TAU/12;k?g.lineTo(Math.cos(a)*r*1.08,Math.sin(a)*r*1.08):g.moveTo(Math.cos(a)*r*1.08,Math.sin(a)*r*1.08);}g.closePath();}
+ else if(shape==='gear'){const n=10,spin=t/5200;for(let k=0;k<n*4;k++){const a=VP_TAU*k/(n*4)+spin,rr=(k%4<2)?r*1.1:r*.9;k?g.lineTo(Math.cos(a)*rr,Math.sin(a)*rr):g.moveTo(Math.cos(a)*rr,Math.sin(a)*rr);}g.closePath();}
+ else if(shape==='shard'){g.moveTo(0,-r*1.25);g.lineTo(r*.9,-r*.4);g.lineTo(r*.66,r*.95);g.lineTo(-r*.66,r*.95);g.lineTo(-r*.9,-r*.4);g.closePath();}
+ else if(shape==='lantern'){const w=r*.92;g.moveTo(-w+r*.3,-w);g.lineTo(w-r*.3,-w);g.quadraticCurveTo(w,-w,w,-w+r*.3);g.lineTo(w,w-r*.3);g.quadraticCurveTo(w,w,w-r*.3,w);g.lineTo(-w+r*.3,w);g.quadraticCurveTo(-w,w,-w,w-r*.3);g.lineTo(-w,-w+r*.3);g.quadraticCurveTo(-w,-w,-w+r*.3,-w);g.closePath();}
+ else if(shape==='plate'){for(let k=0;k<8;k++){const a=VP_TAU*k/8+VP_TAU/16;k?g.lineTo(Math.cos(a)*r*1.08,Math.sin(a)*r*1.08):g.moveTo(Math.cos(a)*r*1.08,Math.sin(a)*r*1.08);}g.closePath();}
+ else if(shape==='shield'){g.moveTo(-r*.95,-r*.95);g.lineTo(r*.95,-r*.95);g.lineTo(r*.95,r*.05);g.quadraticCurveTo(r*.9,r*.9,0,r*1.2);g.quadraticCurveTo(-r*.9,r*.9,-r*.95,r*.05);g.closePath();}
+ else if(shape==='facet'){g.moveTo(0,-r*1.25);g.lineTo(r*1.05,0);g.lineTo(0,r*1.25);g.lineTo(-r*1.05,0);g.closePath();}
+ else if(shape==='eye'){g.moveTo(-r*1.3,0);g.quadraticCurveTo(0,-r*1.75,r*1.3,0);g.quadraticCurveTo(0,r*1.75,-r*1.3,0);g.closePath();}
+ else if(shape==='flame'){g.moveTo(0,-r*1.4);g.bezierCurveTo(r*.3,-r*.7,r,-r*.3,r,r*.25);g.bezierCurveTo(r,r*.85,r*.5,r*1.05,0,r*1.05);g.bezierCurveTo(-r*.5,r*1.05,-r,r*.85,-r,r*.25);g.bezierCurveTo(-r,-r*.3,-r*.3,-r*.7,0,-r*1.4);g.closePath();}
+ else{g.arc(0,0,r,0,VP_TAU);}}
+/* The frame's own detail, after the fill: rivets, facets, a highlight, a handle. */
+function vpSignTrim(g,shape,r,u,col){
+ g.strokeStyle=col;g.fillStyle=col;g.lineWidth=Math.max(1,u*.22);g.globalAlpha*=.55;g.beginPath();
+ if(shape==='plate'){for(let k=0;k<4;k++){const a=VP_TAU*k/4+VP_TAU/8;g.moveTo(Math.cos(a)*r*.86+u*.28,Math.sin(a)*r*.86);g.arc(Math.cos(a)*r*.86,Math.sin(a)*r*.86,u*.28,0,VP_TAU);}g.fill();}
+ else if(shape==='bubble'){g.arc(0,0,r*.8,-2.5,-1.7);g.stroke();}
+ else if(shape==='facet'){g.moveTo(0,-r*1.25);g.lineTo(-r*.42,0);g.lineTo(0,r*1.25);g.moveTo(-r*1.05,0);g.lineTo(-r*.42,0);g.stroke();}
+ else if(shape==='shard'){g.moveTo(0,-r*1.25);g.lineTo(-r*.3,-r*.3);g.lineTo(-r*.66,r*.95);g.moveTo(-r*.9,-r*.4);g.lineTo(-r*.3,-r*.3);g.stroke();}
+ else if(shape==='lantern'){g.arc(0,-r*.92,r*.42,Math.PI,VP_TAU);g.stroke();}
+ else if(shape==='hex'){for(let k=0;k<6;k++){const a=VP_TAU*k/6+VP_TAU/12;g.moveTo(Math.cos(a)*r*.86,Math.sin(a)*r*.86);g.lineTo(Math.cos(a)*r*1.0,Math.sin(a)*r*1.0);}g.stroke();}
+ else if(shape==='shield'){g.moveTo(-r*.7,-r*.7);g.lineTo(r*.7,-r*.7);g.stroke();}
+ g.globalAlpha/=.55;}
+function vpSignGlyph(g,kind,L,u,t,still,col){
+ const w=(ms,ph)=>still?0:Math.sin(VP_TAU*(t/ms+(ph||0)));
+ g.strokeStyle=col;g.fillStyle=col;g.lineCap='round';g.lineJoin='round';g.lineWidth=Math.max(1,u*.5);
+ g.beginPath();
+ if(kind==='read'){ /* an open book; a page lifts and turns */
+  g.moveTo(0,-L*.5);g.lineTo(-L*.95,-L*.75);g.lineTo(-L*.95,L*.6);g.lineTo(0,L*.8);g.lineTo(L*.95,L*.6);g.lineTo(L*.95,-L*.75);g.closePath();
+  g.moveTo(0,-L*.5);g.lineTo(0,L*.8);g.stroke();
+  const p=still?0:(t%1500)/1500,k=p<.45?Math.cos(Math.PI*p/.45):-1;
+  g.beginPath();g.lineWidth=Math.max(1,u*.32);g.moveTo(0,-L*.5);g.lineTo(L*.9*k,-L*(.72-.3*(1-k*k)));g.stroke();
+  g.globalAlpha*=.6;g.beginPath();g.moveTo(-L*.7,-L*.25);g.lineTo(-L*.25,-L*.12);g.moveTo(-L*.7,L*.12);g.lineTo(-L*.25,L*.25);g.stroke();g.globalAlpha/=.6;}
+ else if(kind==='search'){ /* a lens that sweeps about, with a glint */
+  const ox=L*.22*w(1700),oy=L*.16*w(1700,.25);
+  g.arc(-L*.2+ox,-L*.2+oy,L*.55,0,VP_TAU);g.stroke();g.beginPath();g.lineWidth=Math.max(1,u*.7);
+  g.moveTo(L*.22+ox,L*.22+oy);g.lineTo(L*.85+ox,L*.85+oy);g.stroke();
+  g.beginPath();g.lineWidth=Math.max(1,u*.28);g.arc(-L*.2+ox,-L*.2+oy,L*.3,-2.6+w(1700)*.6,-1.8+w(1700)*.6);g.stroke();}
+ else if(kind==='dig'){ /* a pick that swings and throws chips */
+  const p=still?.3:(t%760)/760,sw=p<.6?-1.0+1.7*Math.pow(p/.6,3):.7-1.7*(p-.6)/.4;
+  g.save();g.translate(-L*.1,L*.1);g.rotate(sw*.55);
+  g.moveTo(-L*.75,L*.75);g.lineTo(L*.45,-L*.45);g.stroke();
+  g.beginPath();g.moveTo(-L*.15,-L*.85);g.quadraticCurveTo(L*.75,-L*.75,L*.85,L*.15);g.stroke();g.restore();
+  if(!still&&p>.6){const k=(p-.6)/.4;g.globalAlpha*=1-k;for(let c=0;c<3;c++){g.beginPath();g.arc(L*(.55+.25*c*k),L*(.75-.9*k+.25*c*k*k*2),u*.26,0,VP_TAU);g.fill();}g.globalAlpha/=Math.max(.001,1-k);}}
+ else if(kind==='code'){ /* brackets; the line between them is typed out, cursor blinking */
+  g.moveTo(-L*.45,-L*.7);g.lineTo(-L*.98,0);g.lineTo(-L*.45,L*.7);g.moveTo(L*.45,-L*.7);g.lineTo(L*.98,0);g.lineTo(L*.45,L*.7);g.stroke();
+  const n=still?3:Math.floor((t%1400)/280);
+  for(let c=0;c<Math.min(3,n);c++){g.beginPath();g.arc(-L*.3+c*L*.3,0,u*.3,0,VP_TAU);g.fill();}
+  if(!still&&n<3&&Math.floor(t/140)%2===0){g.beginPath();g.lineWidth=Math.max(1,u*.3);g.moveTo(-L*.3+n*L*.3,-L*.22);g.lineTo(-L*.3+n*L*.3,L*.22);g.stroke();}}
+ else if(kind==='test'){ /* a flask: the liquid sloshes and bubbles rise */
+  g.moveTo(-L*.3,-L*.85);g.lineTo(-L*.3,-L*.15);g.lineTo(-L*.85,L*.8);g.lineTo(L*.85,L*.8);g.lineTo(L*.3,-L*.15);g.lineTo(L*.3,-L*.85);g.stroke();
+  g.beginPath();g.moveTo(-L*.5,-L*.85);g.lineTo(L*.5,-L*.85);g.stroke();
+  const sl=L*.1*w(900);g.beginPath();g.globalAlpha*=.55;g.moveTo(-L*.6,L*.36+sl);g.lineTo(L*.6,L*.36-sl);g.lineTo(L*.78,L*.72);g.lineTo(-L*.78,L*.72);g.closePath();g.fill();g.globalAlpha/=.55;
+  if(!still)for(let c=0;c<3;c++){const ph=((t/1100)+c/3)%1;g.globalAlpha*=1-ph;g.beginPath();g.arc(L*(-.22+.22*c)+L*.08*Math.sin(ph*9+c),L*.3-L*1.0*ph,u*(.2+.16*c),0,VP_TAU);g.stroke();g.globalAlpha/=Math.max(.001,1-ph);}}
+ else if(kind==='watch'){ /* an eye that looks about and blinks */
+  const bl=still?1:(t%3100<150?Math.max(.12,Math.abs(Math.cos(Math.PI*(t%3100)/150))):1),px=L*.32*w(2600);
+  g.moveTo(-L*.98,0);g.quadraticCurveTo(0,-L*1.1*bl,L*.98,0);g.quadraticCurveTo(0,L*1.1*bl,-L*.98,0);g.stroke();
+  if(bl>.5){g.beginPath();g.arc(px,0,L*.3,0,VP_TAU);g.fill();}}
+ else if(kind==='ask'){ /* waiting on you: the mark hops and a ring goes out */
+  const hop=still?0:Math.max(0,w(900))*L*.22;
+  g.lineWidth=Math.max(1,u*.7);g.moveTo(0,-L*.95-hop);g.lineTo(0,L*.2-hop);g.stroke();g.beginPath();g.arc(0,L*.72,u*.5,0,VP_TAU);g.fill();
+  if(!still){const ph=(t%1400)/1400;g.globalAlpha*=(1-ph)*.7;g.beginPath();g.lineWidth=Math.max(1,u*.25);g.arc(0,0,L*(1.1+1.2*ph),0,VP_TAU);g.stroke();g.globalAlpha/=Math.max(.001,(1-ph)*.7);}}
+ else if(kind==='done'){ /* the tick draws itself, then a sparkle */
+  const k=still?1:Math.min(1,t/420),a=[-L*.85,L*.05],b=[-L*.2,L*.65],c=[L*.9,-L*.65];
+  g.lineWidth=Math.max(1,u*.75);g.moveTo(a[0],a[1]);
+  if(k<.4){const q=k/.4;g.lineTo(a[0]+(b[0]-a[0])*q,a[1]+(b[1]-a[1])*q);}
+  else{const q=(k-.4)/.6;g.lineTo(b[0],b[1]);g.lineTo(b[0]+(c[0]-b[0])*q,b[1]+(c[1]-b[1])*q);}
+  g.stroke();
+  if(!still&&t>380&&t<1100){const q=(t-380)/720,rr=L*.5*Math.sin(Math.PI*q);g.beginPath();g.moveTo(L*.9,-L*.95-rr);g.lineTo(L*.9,-L*.95+rr);g.moveTo(L*.9-rr,-L*.95);g.lineTo(L*.9+rr,-L*.95);g.lineWidth=Math.max(1,u*.3);g.stroke();}}
+ else if(kind==='fail'){ /* a cross that shudders once */
+  const sh=still?0:(t<420?Math.sin(t/28)*(1-t/420)*L*.2:0);
+  g.lineWidth=Math.max(1,u*.7);g.moveTo(-L*.65+sh,-L*.65);g.lineTo(L*.65+sh,L*.65);g.moveTo(L*.65+sh,-L*.65);g.lineTo(-L*.65+sh,L*.65);g.stroke();}
+ else if(kind==='wait'){ /* an hourglass that turns over; sand runs */
+  const p=still?0:(t%2600)/2600,turn=p>.82?Math.PI*(p-.82)/.18:0;
+  g.save();g.rotate(turn);g.moveTo(-L*.6,-L*.85);g.lineTo(L*.6,-L*.85);g.lineTo(-L*.6,L*.85);g.lineTo(L*.6,L*.85);g.closePath();g.stroke();
+  const q=Math.min(1,p/.82);g.globalAlpha*=.6;g.beginPath();g.moveTo(-L*.4*(1-q),-L*.75+L*.6*q);g.lineTo(L*.4*(1-q),-L*.75+L*.6*q);g.lineTo(0,-L*.08);g.closePath();g.fill();
+  g.beginPath();g.moveTo(-L*.5*q,L*.8);g.lineTo(L*.5*q,L*.8);g.lineTo(0,L*.8-L*.6*q);g.closePath();g.fill();g.globalAlpha/=.6;g.restore();}
+ else if(kind==='retry'){ /* an arrow going round again */
+  g.save();g.rotate(still?0:VP_TAU*(t%1500)/1500);g.arc(0,0,L*.75,-.3,VP_TAU*.8);g.stroke();g.beginPath();
+  const ex=Math.cos(VP_TAU*.8)*L*.75,ey=Math.sin(VP_TAU*.8)*L*.75;g.moveTo(ex+L*.45,ey-L*.05);g.lineTo(ex,ey);g.lineTo(ex+L*.05,ey+L*.5);g.stroke();g.restore();}
+ else{ /* run: a gear turning against a smaller one */
+  const sp=still?0:t/620;
+  const cog=(cx,cy,rr,n,rot)=>{g.save();g.translate(cx,cy);g.rotate(rot);for(let k=0;k<n;k++){g.save();g.rotate(VP_TAU*k/n);g.fillRect(-u*.38,-rr*1.32,u*.76,rr*.5);g.restore();}
+   g.beginPath();g.lineWidth=Math.max(1,u*.45);g.arc(0,0,rr*.78,0,VP_TAU);g.stroke();g.restore();};
+  cog(-L*.2,L*.12,L*.62,8,sp);cog(L*.62,-L*.6,L*.3,6,-sp*1.6+.3);}}
+function vpBadge(g,kind,u,W,t,id,still,pop){
+ const sg=VP_SIGN[id]||['ring','#5eead4','#10121a'],shape=sg[0],tone=VP_SIGN_TONE[kind]||sg[1];
+ const r=u*4.5,x=W-r-u*1.1,y=W-r-u*1.1,s=(pop==null?1:pop)*(kind==='ask'&&!still?1+.05*Math.sin(VP_TAU*t/700):1);
+ g.save();g.translate(x,y);g.scale(s,s);
+ /* a soft glow in the pet's colour, then the emblem */
+ const gl=g.createRadialGradient(0,0,r*.6,0,0,r*1.7);gl.addColorStop(0,tone);gl.addColorStop(1,'rgba(0,0,0,0)');
+ g.globalAlpha=still?.22:.2+.1*Math.sin(VP_TAU*t/1800);g.fillStyle=gl;g.beginPath();g.arc(0,0,r*1.7,0,VP_TAU);g.fill();g.globalAlpha=1;
+ vpSignFrame(g,shape,r,still?0:t);
+ const body=g.createLinearGradient(0,-r,0,r);body.addColorStop(0,sg[2]);body.addColorStop(1,'#07080c');
+ g.fillStyle=body;g.globalAlpha=.94;g.fill();g.globalAlpha=1;
+ g.strokeStyle=tone;g.lineWidth=Math.max(1,u*.5);g.lineJoin='round';g.stroke();
+ vpSignTrim(g,shape,r,u,tone);
+ const L=r*(shape==='eye'||shape==='facet'||shape==='shard'?.42:.5);
+ g.save();if(shape==='flame')g.translate(0,r*.12);if(shape==='shield')g.translate(0,-r*.05);
+ vpSignGlyph(g,kind,L,u,t,!!still,tone);g.restore();
+ g.restore();g.globalAlpha=1;}
+function vpDots(g,u,W,t,reduced,id){
+ const tint=(VP_SIGN[id]||[0,'#e7ecf3'])[1];
  for(let k=0;k<3;k++){
   const a=reduced?.8:.35+.65*Math.max(0,Math.sin(VP_TAU*(t/1200-k/6)));
-  g.globalAlpha=a;g.fillStyle='#e7ecf3';g.beginPath();g.arc(W-u*(9-k*3),u*4.2-(reduced?0:u*.6*a),u*.9,0,VP_TAU);g.fill();}
+  g.globalAlpha=a;g.fillStyle=tint;g.shadowColor=tint;g.shadowBlur=u*1.2;g.beginPath();g.arc(W-u*(9-k*3),u*4.2-(reduced?0:u*.6*a),u*.9,0,VP_TAU);g.fill();}
+ g.shadowBlur=0;
  g.globalAlpha=1;}
 /* Motion: one rig per pet, and one tracker per canvas so each drawn pet carries on from the pose it
    last showed (VoolPetRig's continuity rule). The tracker's clock starts at the state's elapsed time,
@@ -338,7 +426,7 @@ function vpDrawRig(g,id,def,rig,state,activity,t,opts,cw,ch,u){
  const key=g.canvas||g,host=(typeof opts.now==='number'&&isFinite(opts.now))?opts.now:vpClock();
  let k=VP_TRACK?VP_TRACK.get(key):null;
  if(!k||k.id!==id){
-  k={id:id,off:host-t};k.tr=VoolPetRig.newTracker(rig,t,state,activity,t);
+  k={id:id,off:host-t,fresh:true};k.tr=VoolPetRig.newTracker(rig,t,state,activity,t);
   if(VP_TRACK)VP_TRACK.set(key,k);}
  const now=host-k.off,tr=k.tr;
  // particles quieten while it sleeps
@@ -356,8 +444,14 @@ function vpDrawRig(g,id,def,rig,state,activity,t,opts,cw,ch,u){
   for(let q=0;q<10;q++){const a=VP_TAU*q/10,rr=(.25+.55*P.burst)*Math.max(bw,bh);
    g.globalAlpha=1-P.burst;g.beginPath();g.arc(bx+bw/2+Math.cos(a)*rr,floor-bh*.5+Math.sin(a)*rr*.8,u*.7,0,VP_TAU);g.fill();}
   g.restore();}
- if(P.dots)vpDots(g,u,cw,t,reduced);
- if(P.badge)vpBadge(g,P.badge,u,cw,reduced?0:t);
+ if(P.dots)vpDots(g,u,cw,t,reduced,id);
+ if(P.badge){
+  // The sign pops in when the work changes, and its own animation starts from there.
+  if(!k.sign||k.sign.kind!==P.badge)k.sign={kind:P.badge,t0:(k.fresh?now-t:now)};
+  const st=Math.max(0,now-k.sign.t0),q=Math.min(1,st/240),c1=2.2;
+  vpBadge(g,P.badge,u,cw,st,id,reduced,reduced?1:1+(c1+1)*Math.pow(q-1,3)+c1*Math.pow(q-1,2));
+ }else k.sign=null;
+ k.fresh=false;
  g.globalAlpha=1;g.globalCompositeOperation='source-over';
  g.setTransform(u,0,0,u,0,0);
  return true;}
@@ -407,8 +501,8 @@ function vcwDrawPainted(g,id,state,activity,elapsed,opts){
   for(let k=0;k<10;k++){const a=VP_TAU*k/10,rr=(.25+.55*P.burst)*Math.max(bw,bh);
    g.globalAlpha=1-P.burst;g.beginPath();g.arc(ax+Math.cos(a)*rr,ay-bh*.5+Math.sin(a)*rr*.8,u*.7,0,VP_TAU);g.fill();}
   g.restore();}
- if(P.dots)vpDots(g,u,cw,t,reduced);
- if(P.badge)vpBadge(g,P.badge,u,cw,reduced?0:t);
+ if(P.dots)vpDots(g,u,cw,t,reduced,id);
+ if(P.badge)vpBadge(g,P.badge,u,cw,t,id,reduced,1);
  g.globalAlpha=1;g.globalCompositeOperation='source-over';
  // Leave the context in 48-unit space so a host's extras (idle zzz) land where they always did.
  g.setTransform(u,0,0,u,0,0);

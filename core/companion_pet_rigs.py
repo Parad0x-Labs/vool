@@ -116,13 +116,42 @@ RIG_ENGINE_JS = r"""
     tr.overlays = tr.overlays.filter((o) => o.out == null || now - o.out < 400);
   }
   function overlayWeight(o, now) {
-    const fadeIn = o.full ? 1 : Math.min(1, (now - o.t0) / 300);
+    // In: quick, with a small overshoot that settles (a move arrives with some snap). Out: eased.
+    const f = o.full ? 1 : Math.min(1, (now - o.t0) / 260), c1 = 1.4, c3 = c1 + 1;
+    const fadeIn = 1 + c3 * Math.pow(f - 1, 3) + c1 * Math.pow(f - 1, 2);
     const fadeOut = o.out == null ? 1 : Math.max(0, 1 - (now - o.out) / 300);
-    return ease(fadeIn) * ease(fadeOut);
+    return fadeIn * ease(fadeOut);
   }
   function lerpParams(a, b, k) {
     const o = {}; for (const key in a) o[key] = typeof a[key] === "number" && typeof b[key] === "number" ? a[key] + (b[key] - a[key]) * k : a[key];
     return o;
+  }
+  // Follow-through: loose parts (heads, arms, wings, tails, flames) lag behind the body and swing
+  // back on a damped spring, so a hop or a dart carries through them instead of moving the pet as
+  // one stiff piece. rig.loose = { part: { x, y } }: how far it turns per 1000 px/s the body moves
+  // sideways (x) or down (y). A long gap between frames resets it rather than kicking.
+  function followThrough(rig, tr, base, now) {
+    const L = rig.loose; if (!L) return;
+    const gap = now - tr.last, dt = Math.min(0.05, Math.max(0, gap) / 1000);
+    const rx = base.root.x, ry = base.root.y + (base.parts.torso ? base.parts.torso.dy : 0);
+    const S = tr.spring || (tr.spring = { x: rx, y: ry, vx: 0, vy: 0, parts: {} });
+    if (gap > 250 || gap <= 0) { S.vx = 0; S.vy = 0; }
+    else {
+      const a = 1 - Math.exp(-dt / 0.06);
+      S.vx += ((rx - S.x) / (gap / 1000) - S.vx) * a; S.vy += ((ry - S.y) / (gap / 1000) - S.vy) * a;
+    }
+    S.x = rx; S.y = ry;
+    for (const n in L) {
+      const q = base.parts[n]; if (!q) continue;
+      const c = L[n], p = S.parts[n] || (S.parts[n] = { a: 0, v: 0 });
+      const target = Math.max(-0.35, Math.min(0.35, (-(c.x || 0) * S.vx + (c.y || 0) * S.vy) / 1000));
+      for (let left = dt; left > 1e-6; left -= 0.008) {
+        const h = Math.min(0.008, left);
+        p.v += (150 * (target - p.a) - 13 * p.v) * h; p.a += p.v * h;
+      }
+      if (gap > 250) { p.v = 0; }
+      q.rot += p.a;
+    }
   }
   function poseAt(rig, tr, now, reduced) {
     let base;
@@ -142,8 +171,24 @@ RIG_ENGINE_JS = r"""
     addOverlay(base, rig.breath(Math.sin(tr.breathPhase), p, now), 1);
     for (const o of tr.overlays) {
       const fn = rig.moves[o.state] || rig.moves.idle;
-      addOverlay(base, fn.call(rig.moves, now - o.t0, o.activity, posture), overlayWeight(o, now));
+      const w = overlayWeight(o, now), age = now - o.t0;
+      addOverlay(base, fn.call(rig.moves, age, o.activity, posture), w);
+      const body = base.parts.torso;
+      // A new move starts with a beat of anticipation: the body dips, then springs up into it.
+      if (!o.full && age < 340 && o.out == null && body && o.state !== "idle" && o.state !== "unknown") {
+        const a = -Math.sin(TAU * age / 340) * (1 - age / 340);
+        body.sy *= 1 + 0.035 * a; body.sx *= 1 - 0.02 * a;
+      }
+      // At rest on its feet it does not stand like a statue: now and then a small hop or a shake.
+      if ((o.state === "idle" || o.state === "unknown") && posture === "stand" && !tr.step && age > 4000) {
+        const n = Math.floor(age / 8000), ph = age % 8000;
+        if (ph < 520) {
+          const h = Math.sin(Math.PI * ph / 520) * w;
+          if (n % 2) base.root.y -= 6 * h; else base.root.rot += 0.05 * Math.sin(TAU * ph / 260) * h;
+        }
+      }
     }
+    followThrough(rig, tr, base, now);
     return base;
   }
 
@@ -275,6 +320,7 @@ VoolPetRig.rigs.beetle = function (meta) {
   const { wave, beat, pulse, ramp, once } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [128, 243],
+    loose: { legsL: { y: 1 }, legsR: { y: -1 }, fangs: { x: -1.6 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 800, "sit>stand": 700, "sit>lie": 1200, "lie>sit": 900 },
     postures: {
@@ -336,6 +382,7 @@ VoolPetRig.rigs.raven = function (meta) {
   };
   return {
     parts: meta.parts, groundPivot: [118, 229],
+    loose: { head: { x: 1.5 }, wingL: { y: 1.2 }, wingR: { y: -1.2 }, tail: { y: -1.2 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 900, "sit>stand": 700, "sit>lie": 1200, "lie>sit": 900 },
     postures: {
@@ -384,6 +431,7 @@ VoolPetRig.rigs.golem = function (meta) {
   const { wave, beat, pulse, ramp } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [140, 262],
+    loose: { head: { x: 1.2 }, armL: { x: -1.4, y: 1.2 }, armR: { x: -1.4, y: -1.2 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 900, "sit>stand": 800, "sit>lie": 1400, "lie>sit": 1100 },
     postures: {
@@ -485,6 +533,7 @@ VoolPetRig.rigs.tide = function (meta) {
   const { wave, beat, pulse, ramp, once } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [128, 240],
+    loose: { head: { x: 1.2 }, tentL: { y: 1 }, tentR: { y: -1 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 1000, "sit>stand": 800, "sit>lie": 1300, "lie>sit": 1000 },
     postures: {
@@ -535,6 +584,7 @@ VoolPetRig.rigs.spark = function (meta) {
   const { wave, beat, pulse, ramp, once } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [128, 248],
+    loose: { head: { x: 1.5 }, legs: { x: -2.5 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 1000, "sit>stand": 700, "sit>lie": 1300, "lie>sit": 1000 },
     postures: {
@@ -600,6 +650,7 @@ VoolPetRig.rigs.rascal = function (meta) {
   const { wave, beat, pulse, ramp, once } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [135, 221],
+    loose: { cannon: { y: 0.8 }, hose: { y: -1.6, x: 1.5 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 800, "sit>stand": 700, "sit>lie": 1200, "lie>sit": 900 },
     postures: {
@@ -649,6 +700,7 @@ VoolPetRig.rigs.prime = function (meta) {
   const { wave, beat, pulse, ramp } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [100, 254],
+    loose: { head: { x: 1.2 }, armL: { x: -1.4, y: 1.2 }, armR: { x: -0.5, y: -0.4 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 800, "sit>stand": 700, "sit>lie": 1200, "lie>sit": 1000 },
     postures: {
@@ -729,6 +781,7 @@ VoolPetRig.rigs.prism = function (meta) {
   const { wave, beat, pulse, ramp, once } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [150, 240],
+    loose: { tail: { y: 1.6 }, finTop: { x: 0.9 }, finBot: { x: -1.2 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 1100, "sit>stand": 800, "sit>lie": 1300, "lie>sit": 1000 },
     postures: {
@@ -781,6 +834,7 @@ VoolPetRig.rigs.veil = function (meta) {
   const wings = (u, l) => ({ wingUL: { rot: u }, wingUR: { rot: -u }, wingLL: { rot: l }, wingLR: { rot: -l } });
   return {
     parts: meta.parts, groundPivot: [128, 232],
+    loose: { wingUL: { y: 1 }, wingUR: { y: -1 }, wingLL: { y: 0.8 }, wingLR: { y: -0.8 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 1100, "sit>stand": 800, "sit>lie": 1300, "lie>sit": 1000 },
     postures: {
@@ -837,6 +891,7 @@ VoolPetRig.rigs.ember = function (meta) {
   const { wave, beat, pulse, ramp, once } = VoolPetRig.H;
   return {
     parts: meta.parts, groundPivot: [123, 254],
+    loose: { flame: { x: 3 }, chimneyFlame: { x: 4 } },
     rest: { sitAfter: 25000, lieAfter: 90000 },
     durations: { "stand>sit": 800, "sit>stand": 700, "sit>lie": 1300, "lie>sit": 1000 },
     postures: {
