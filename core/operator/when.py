@@ -117,7 +117,10 @@ _WORD_DATE_RE = re.compile(
 # A month and year with no day ("May 2026") names no single date: asked about, never dropped.
 _MONTH_YEAR_RE = re.compile(r"\b" + _MONTH_WORD.format(name="month") + r",?\s+20\d{2}\b(?!:)", re.IGNORECASE)
 _DAY_RE = re.compile(
-    r"\b(yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    # "the day after tomorrow" is two days on, never "tomorrow": read as "tomorrow" (gate v3 on
+    # 07803d62d) the reminder fell due a day early. The longer phrase starts further left, so a
+    # search takes it whole before the "tomorrow" inside it.
+    r"\b(day\s+after\s+tomorrow|day\s+before\s+yesterday|yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
     r"|last\s+(?:night|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b",
     re.IGNORECASE,
 )
@@ -222,6 +225,20 @@ _TIME_SHORTHAND = (
 )
 
 
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40,
+    "forty-five": 45, "fifty": 50, "sixty": 60, "ninety": 90, "a couple of": 2, "a few": 3,
+}
+#: A delay said with a number word ("in two days", "in ten minutes") reads like its digits. Read
+#: as nothing, "remind me in two days at 7pm" fell due at 7pm TODAY (gate v3 wording, 2026-11-22).
+_SPELLED_DELAY_RE = re.compile(
+    r"\bin\s+(" + "|".join(sorted((re.escape(word) for word in _NUMBER_WORDS), key=len, reverse=True)) + r")\s+"
+    r"(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)\b",
+    re.IGNORECASE,
+)
+
+
 def normalize_time_words(text: str) -> str:
     """Everyday shorthand for times read as the clock words the parser knows: "tmrw" -> "tomorrow",
     "10 in the morning" -> "10am". 0.7.8 sweep block 3: "remind me tmrw 10am…" was scheduled for
@@ -229,7 +246,7 @@ def normalize_time_words(text: str) -> str:
     clean = str(text or "")
     for pattern, replacement in _TIME_SHORTHAND:
         clean = pattern.sub(replacement, clean)
-    return clean
+    return _SPELLED_DELAY_RE.sub(lambda m: f"in {_NUMBER_WORDS[' '.join(m.group(1).lower().split())]} {m.group(2)}", clean)
 
 
 def parse_when_expression(
@@ -737,7 +754,11 @@ def _resolve_day_of_month(
 
 
 def _date_for_day_word(day_word: str, zone_now: datetime) -> datetime:
-    word = day_word.strip().lower()
+    word = " ".join(day_word.strip().lower().split())
+    if word == "day after tomorrow":
+        return zone_now.date() + timedelta(days=2)
+    if word == "day before yesterday":
+        return zone_now.date() - timedelta(days=2)
     if word in ("today", "tonight"):
         return zone_now.date()
     if word == "tomorrow":

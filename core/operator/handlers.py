@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from pathlib import Path
@@ -1624,6 +1625,14 @@ _REMINDER_LEAD_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: The same frame after a preamble ("right, i need a reminder to ...", "oh and set me a reminder
+#: for ..."). The frame's position decides, not a list of the words people put before it: gate v3
+#: on d2dacb04a (2026-11-22) stored "right, i need a reminder to renew my library books tomorrow
+#: evening" whole as the reminder's title, because the lead was only looked for at the very start.
+_REMINDER_LEAD_ANYWHERE_RE = re.compile(
+    _REMINDER_LEAD_RE.pattern.replace("^", r"(?<![\w'])", 1), re.IGNORECASE
+)
+
 #: Job 6c (Fix 2): the part-of-day clock words the when-reader reads as absolute times
 #: ("at noon" is 12:00, "at midnight" 00:00). A LEAD pair of these words leaves the subject
 #: without its joiner: "could you ping me at noon about lunch with Kai" stores "about lunch
@@ -1657,6 +1666,40 @@ _DAY_CLOCK_TAIL_RE = re.compile(
 )
 
 
+_WHEN_JOINERS_RE = re.compile(
+    r"^(?:[\s,]|\b(?:on|at|in|for|the|this|next|morning|afternoon|evening|night)\b)*$", re.IGNORECASE
+)
+_REMINDER_FRAME_RE = re.compile(r"\b(?:remind\s+me|reminders?|nudge\s+me|ping\s+me)\b", re.IGNORECASE)
+_SUBJECT_AFTER_WHEN_RE = re.compile(r"[\s,]*(?:to|about|that)\s+(?P<subject>\S.*)$", re.IGNORECASE | re.DOTALL)
+
+
+def _subject_after_leading_when(text: str) -> str:
+    """The thing to do when the ask says WHEN first and WHAT after it ("remind me the day after
+    tomorrow at 7pm to renew my library books", "set a reminder tomorrow evening at 8 to
+    stretch"), else "".
+
+    Read by position against the time authority's own spans (core.operator.when), not by a list
+    of when-phrases: the reminder's frame, then nothing but the time and its joiners, then
+    "to/about/that" and the subject. Gate v3 on 07803d62d: both of those asks were stored with the
+    time words as their title ("the day after tomorrow"), so the reminder could not be found
+    again by what it is about."""
+    from core.operator.when import time_expression_spans
+
+    raw = str(text or "")
+    spans = time_expression_spans(raw)
+    if not spans:
+        return ""
+    frames = list(_REMINDER_FRAME_RE.finditer(raw[: spans[0][0]]))
+    frame = frames[-1] if frames else None
+    if frame is None or not _WHEN_JOINERS_RE.match(raw[frame.end(): spans[0][0]]):
+        return ""
+    for (_start, end), (following, _stop) in itertools.pairwise(spans):
+        if not _WHEN_JOINERS_RE.match(raw[end:following]):
+            return ""
+    after = _SUBJECT_AFTER_WHEN_RE.match(raw[spans[-1][1]:])
+    return after.group("subject").strip().rstrip(".,;:!?").strip() if after else ""
+
+
 def _reminder_note_from_text(text: str) -> str:
     """The reminder's SUBJECT: the thing to do, with every lead the seat accepts and the
     when-clause stripped -- whether the when trails the subject ('to call mom at 5pm'),
@@ -1665,7 +1708,10 @@ def _reminder_note_from_text(text: str) -> str:
     stand up' stores 'stand up') -- so the note never reads as the schedule or as the
     ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
     raw = str(text or "").strip()
-    lead = _REMINDER_LEAD_RE.match(raw)
+    leading_when_subject = _subject_after_leading_when(raw)
+    if leading_when_subject:
+        return leading_when_subject
+    lead = _REMINDER_LEAD_RE.match(raw) or _REMINDER_LEAD_ANYWHERE_RE.search(raw)
     if lead:
         note = raw[lead.end():].strip()
     else:
