@@ -130,8 +130,11 @@ def test_drawer_retains_actual_pet_controls() -> None:
 
     fragment = render_companion_drawer_fragment()
     assert "Your tasks and their status stay the same" in fragment
-    for action in ("chooseCharacter", "choosePack", "companion.hideDesktopPet()", "companion.hide(false)", "companion.dock()"):
+    for action in ("chooseCharacter", "companion.hideDesktopPet()", "companion.hide(false)", "companion.dock()"):
         assert action in fragment
+    # Owner 2026-11-22: painted pets keep the colours they were painted in, so the drawer no
+    # longer offers a colour Style that would change nothing.
+    assert "choosePack" not in fragment and "vcdPacks" not in fragment
     for assignment in re.findall(r"window\.([A-Za-z_$][\w$]*)\s*=", fragment):
         assert assignment.startswith("Vool"), f"drawer leaks window.{assignment}"
 

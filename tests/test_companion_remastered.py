@@ -54,18 +54,20 @@ def test_roster_is_ten_separate_ids_and_legacy_is_unchanged():
     assert [p[3:] for p in REMASTER_ROSTER] == LEGACY, "one remaster per legacy pet, same order"
 
 
-def test_payload_accepts_remastered_ids_and_rejects_unknown_ones():
+def test_payload_maps_retired_looks_to_their_creature_and_rejects_unknown_ones():
+    """Owner 2026-11-22: one look per creature. A pet saved as a retired look ("rm_golem") is
+    the same creature, so nobody loses their pet; the old remaster drawings remain only as the
+    fallback picture."""
     for pet in REMASTER_ROSTER:
-        assert normalise_companion_payload({"character": pet})["character"] == pet
+        assert normalise_companion_payload({"character": pet})["character"] == pet[3:]
     for pet in LEGACY:
         assert normalise_companion_payload({"character": pet})["character"] == pet
     assert normalise_companion_payload({"character": "rm_nothing"})["character"] == "spark"
-    assert normalise_companion_payload({"character": "RM_RAVEN"})["character"] == "rm_raven"
+    assert normalise_companion_payload({"character": "RM_RAVEN"})["character"] == "raven"
 
 
-def test_remaster_source_is_self_contained_and_marks_the_group():
+def test_remaster_source_is_self_contained():
     assert "A_PETS[id]=Object.assign({remaster:true}" in REMASTER_JS
-    assert "remastered:!!meta.remaster" in COMPANION_WORLD_JS
     # No outbound fetch, storage or DOM access: it only draws.
     for banned in ("fetch(", "XMLHttpRequest", "localStorage", "document.", "innerHTML"):
         assert banned not in REMASTER_JS

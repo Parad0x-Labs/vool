@@ -35,13 +35,15 @@ class _FakeWebview:
         return self.window
 
 
-def test_desktop_document_is_the_same_48px_bighead_family() -> None:
+def test_desktop_document_draws_the_same_painted_pets_as_the_app() -> None:
+    from core.companion_painted_fragment import PAINTED_ROSTER
+
     html = render_desktop_companion_html()
-    assert "width='48' height='48'" in html
-    assert "SPARK · Tiny Engineer" in html
-    assert "RASCAL · Little Menace" in html
-    assert "PRIME · Premium Voxel" in html
-    assert "image-rendering:pixelated" in html
+    # One shared renderer: the detached pet carries the same ten paintings as the in-app pet.
+    for pet in PAINTED_ROSTER:
+        assert f'"{pet}": "data:image/webp;base64,' in html
+    assert "vcwFitCanvas(document.getElementById('pet')," in html, "backed at screen density"
+    assert "pixelated" not in html
     assert "window.VoolDesktopCompanion" in html
 
 

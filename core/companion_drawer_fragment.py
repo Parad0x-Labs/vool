@@ -27,7 +27,7 @@ _DRAWER_CSS = """
 .vcd-seg button:disabled{opacity:.45;cursor:default}
 .vcd-preview{display:flex;justify-content:center;align-items:center;background:var(--field,#1d2129);
   border:1px solid var(--border,#262b35);border-radius:9px;padding:10px;margin-bottom:14px}
-.vcd-preview canvas{width:96px;height:96px;image-rendering:pixelated}
+.vcd-preview canvas{width:96px;height:96px}
 .vcd-note{font-size:11px;color:var(--muted,#9aa1af);margin-top:12px;line-height:1.5}
 .vcd-card{display:flex;gap:10px;align-items:center;background:var(--field,#1d2129);border:1px solid var(--border,#262b35);
   border-radius:9px;padding:8px 10px;margin-bottom:6px;width:100%;cursor:pointer;color:var(--ink,#e8eaf0);text-align:left;font:inherit;font-size:12.5px}
@@ -60,11 +60,10 @@ function petTab(){
   var world = window.VoolCompanionWorld || null;
   var companion = window.VoolCompanion || null;
   var characters = world && world.characters ? world.characters : {};
-  var packs = world && world.packs ? world.packs : {};
   var pos = {};
   try { pos = JSON.parse(localStorage.getItem('vool_ninja_pos_v1') || '{}') || {}; } catch (e) {}
-  var active = pos.personality || 'spark';
-  var activePack = pos.pack || 'default';
+  // A pet saved under a retired look is the same creature's kept look.
+  var active = (world && world.resolvePet ? world.resolvePet(pos.personality) : pos.personality) || 'spark';
   /* The drawer covers the right side of the window, where the docked pet lives, so the
      choice is previewed HERE, live, instead of on a pet the drawer hides. */
   var html = '<div class="vcd-preview"><canvas id="vcdPreview" width="48" height="48" role="img" aria-label="Preview: ' + esc((characters[active] || {}).name || active) + '"></canvas></div>' +
@@ -72,19 +71,14 @@ function petTab(){
     '<button type="button" data-pet="on"' + (pos.hidden ? '' : ' class="vcd-on"') + '>On</button>' +
     '<button type="button" data-pet="off"' + (pos.hidden ? ' class="vcd-on"' : '') + '>Off</button></div></div>' +
     '<div class="vcd-field"><label>Character</label>';
-  var lastGroup = null;
   Object.keys(characters).forEach(function(id){
     var spec = characters[id] || {};
-    var group = spec.remastered ? 'Sidekicks' : 'Legacy pets';
-    if (group !== lastGroup) { html += '<div class="vcd-group">' + group + '</div>'; lastGroup = group; }
     html += '<button type="button" class="vcd-card' + (id === active ? ' vcd-on' : '') + '" data-char="' + esc(id) + '" aria-pressed="' + (id === active ? 'true' : 'false') + '">' +
       '<b>' + esc(spec.name || id) + '</b></button>';
   });
-  html += '</div><div class="vcd-field"><label>Style</label><div class="vcd-seg" id="vcdPacks">';
-  Object.keys(packs).forEach(function(id){
-    html += '<button type="button" data-pack="' + esc(id) + '"' + (id === activePack ? ' class="vcd-on"' : '') + '>' + esc((packs[id] || {}).label || id) + '</button>';
-  });
-  html += '</div></div>' +
+  // No Style row: every painted pet keeps the colours it was painted in, so a colour style
+  // would be a button that changes nothing.
+  html += '</div>' +
     '<p class="vcd-note">Tip: drag the pet past the edge of the window to put it on your desktop.</p>' +
     '<p class="vcd-note">Appearance changes only the pet. Your tasks and their status stay the same.</p>';
   if (!companion) html += '<p class="vcd-note">Companion layer not loaded in this view.</p>';
@@ -112,20 +106,21 @@ function paintPreview(now){
   var reduced = pos.motion === 'reduced' || (pos.motion !== 'allow' && window.matchMedia
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var elapsed = Math.max(0, (Number(now) || 0) - previewStart);
-  var character = pos.personality || 'spark';
+  var character = (world.resolvePet ? world.resolvePet(pos.personality) : pos.personality) || 'spark';
   var frame = world.frameAt ? world.frameAt(character, 'idle', elapsed, !!reduced) : 0;
+  if (world.fit) world.fit(canvas, 96);   // backed at screen density: the painting stays sharp
   var ctx = canvas.getContext('2d');
   if (!ctx) return;
-  // Redraw only when what is shown changes (idle holds its pose between blinks).
-  var key = [character, pos.pack || 'default', frame].join('|');
+  // Redraw only when what is shown changes; a painting still decoding counts as a change.
+  var ready = !world.ready || world.ready(character);
+  var key = [character, pos.pack || 'default', frame, ready].join('|');
   if (key !== previewKey) {
-    ctx.imageSmoothingEnabled = false;
     world.draw(ctx, 'idle', frame, {character: character, pack: pos.pack || 'default', ground: false,
       reduced: !!reduced, elapsed: elapsed});
     previewKey = key;
   }
   // Reduced motion shows one still pose: no animation loop at all.
-  if (!reduced && typeof requestAnimationFrame === 'function') previewFrame = requestAnimationFrame(paintPreview);
+  if ((!reduced || !ready) && typeof requestAnimationFrame === 'function') previewFrame = requestAnimationFrame(paintPreview);
 }
 function startPreview(){
   stopPreview();
@@ -153,14 +148,6 @@ function wireTab(body){
       if (companion && companion.chooseCharacter) companion.chooseCharacter(card.getAttribute('data-char'));
       renderTab();
     });
-  });
-  var packsEl = body.querySelector('#vcdPacks');
-  if (packsEl) packsEl.addEventListener('click', function(ev){
-    var btn = ev.target.closest('button[data-pack]');
-    var companion = window.VoolCompanion;
-    if (!btn || !companion) return;
-    if (companion.choosePack) companion.choosePack(btn.getAttribute('data-pack'));
-    renderTab();
   });
 
 }

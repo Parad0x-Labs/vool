@@ -6823,7 +6823,10 @@ function applyTaskEvent(run, ev) {
   // Companion layer consumes the SAME typed event (presentation only, never authority).
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
-  if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
+  // What the card says for this event (runCardWords), else the event's own summary. The pet is
+  // given the same words, so its bubble says what the card says instead of a phrase of its own.
+  const said = (typeof runCardWords === 'function' ? runCardWords(ev) : '') || ev.summary;
+  if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev, said || '');
   // The goal card consumes the same durable event (also before the ended-gate: a goal event
   // that arrives after the carrying turn finished is still live goal truth).
   if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
@@ -6831,8 +6834,6 @@ function applyTaskEvent(run, ev) {
   }
   run.events.push(ev);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
-  // What the card says for this event (runCardWords), else the event's own summary.
-  const said = (typeof runCardWords === 'function' ? runCardWords(ev) : '') || ev.summary;
   if (said) { run.action = said; run.evented = true; }
   if (ev.model) { run.model = ev.model; rememberStickyModel(run.chatId, ev.model); }
   if (ev.cost) run.cost = Object.assign({}, run.cost, ev.cost);

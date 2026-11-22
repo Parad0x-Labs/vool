@@ -292,7 +292,8 @@ def test_recovered_trio_registered_as_sheet_renderers_with_tone_law() -> None:
         assert character in COMPANION_ROSTER, f"{character} must still be a registered id"
     assert len(COMPANION_ROSTER) == 10
     # Every roster member is now an authored drawing, and each keeps its own palette.
-    assert "renderer:'pet'" in js
+    # Owner 2026-11-22: every roster member is a painting; the authored drawings stay as fallback.
+    assert "renderer:'painted'" in js and "draw:aBeetle" in js
     assert "VCW_SHEETS" in js, "the 24x24 sheet data is retained for pack migration"
     # The sheet path is dormant -- no roster member uses it any more -- but it is still wired and
     # still correct, so a saved pack that names one keeps rendering. Its tone-rim law and 2x
@@ -356,17 +357,13 @@ def test_frame_counts_under_node_for_sheet_and_procedural() -> None:
     # continuous count instead of a frame count. The unknown-state fallback law still holds.
     assert result["prismIdle"] >= 2, "prism idle must expose a real frame count"
     assert result["prismUnknownState"] is True, "unknown states fall back to the idle pose"
-    assert result["sparkIdle"] == 600 and result["sparkSuccess"] == 6
+    # Painted pets animate continuously at rest and hold their done pose after playing it once.
+    assert result["sparkIdle"] == 100000 and 0 < result["sparkSuccess"] < 100
     # pet-original-style-20260930: the exact six-ID roster is obsolete. The four approved
     # originals are added and all six saved ids are preserved.
-    legacy = [c for c in result["characters"] if not c.startswith("rm_")]
-    assert legacy == [
+    # Owner 2026-11-22: ten painted pets, one look each, are the only pets.
+    assert result["characters"] == [
         "beetle", "ember", "golem", "prime", "prism", "rascal", "raven", "spark", "tide", "veil",
-    ]
-    # The remastered pets ship beside the legacy ten as separate ids.
-    assert [c for c in result["characters"] if c.startswith("rm_")] == [
-        "rm_beetle", "rm_ember", "rm_golem", "rm_prime", "rm_prism",
-        "rm_rascal", "rm_raven", "rm_spark", "rm_tide", "rm_veil",
     ]
     assert result["agentsApi"] == "function"
 

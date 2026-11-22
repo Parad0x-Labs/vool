@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import json
 
-from core.companion_art_fragment import COMPANION_ART_JS, COMPANION_ROSTER
-from core.companion_remaster_fragment import REMASTER_JS, REMASTER_ROSTER
+from core.companion_art_fragment import COMPANION_ART_JS
+from core.companion_painted_fragment import painted_js, resolve_pet_id
+from core.companion_remaster_fragment import REMASTER_JS
 
 # The authored pixel-art family (original quartet + six) is prepended so the dispatcher below
 # can reach it. It is self-contained: it depends on no VCW_* symbol. The remastered set keeps one
 # per-draw state object that every draw overwrites in full, so nothing carries between draws.
-COMPANION_WORLD_JS = COMPANION_ART_JS + REMASTER_JS + r"""/* VOOL 48x48 companion world — shared app/desktop renderer */
+# The painted ten (owner's remaster, 2026-11-22) are the pets. The pixel-art drawings above stay
+# only as the picture of last resort when a webview cannot decode a painting.
+COMPANION_WORLD_JS = COMPANION_ART_JS + REMASTER_JS + painted_js() + r"""/* VOOL companion world — shared app/desktop renderer */
 const VCW_PACKS={
  default:{skin:'#5eead4',dark:'#0f9488',eye:'#04241d',face:'#a7f3e5',shoe:'#134e4a'},
  ninja:{skin:'#94a3b8',dark:'#1e293b',eye:'#b91c1c',face:'#cbd5e1',shoe:'#0f172a'},
@@ -22,9 +25,11 @@ const VCW_CHARACTERS={
   prime:{name:'PRIME · Premium Voxel',headW:18,headH:14,eyeW:3,eyeH:4,brow:1,nose:1,ears:1,fringe:1,bodyW:11,torsoH:8,legH:4,prime:1,collar:1}};
 /* The ten-member roster. Every id names a distinct authored drawing -- no recolours, no aliases.
    The four originals keep stable ids so saved positions and packs survive. */
-aPetIds().forEach(function(id){
- const meta=A_PETS[id];
- VCW_CHARACTERS[id]={name:meta.name,renderer:'pet',original:aIsOriginal(id),remastered:!!meta.remaster,note:meta.note};});
+Object.keys(VP_PETS).forEach(function(id){
+ const meta=VP_PETS[id];
+ VCW_CHARACTERS[id]={name:meta.name,renderer:'painted',note:meta.note,legacy:meta.legacy};});
+/* A saved or sent id as one of the ten: a retired look ("rm_golem") is the same creature. */
+function vcwResolvePet(id){const k=String(id||'').toLowerCase(),a=VP_ALIASES[k]||k;return VP_PETS[a]?a:null;}
 
 function vcwR(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(x|0,y|0,w|0,h|0);}
 function vcwLite(hex,amt){const n=parseInt(String(hex).slice(1),16),f=c=>Math.max(0,Math.min(255,c+amt));return '#'+((f(n>>16)<<16)|(f((n>>8)&255)<<8)|f(n&255)).toString(16).padStart(6,'0');}
@@ -292,6 +297,7 @@ function vcwDrawSheet(g,character,state,frame,opts){
    are superseded here but the 24x24 VCW_SHEETS data is retained below for pack migration. */
 function vcwFrameCount(character,state){
  const meta=VCW_CHARACTERS[character];
+ if(meta&&meta.renderer==='painted')return VP_ONE_SHOT[state]?vpFrameAt(state,VP_ONE_SHOT[state],false)+1:100000;
  if(meta&&meta.renderer==='sheet'){const frames=vcwSheetFrames(character,state);return frames?frames.length:1;}
  if(meta&&meta.renderer==='pet')return (state==='success'||state==='failure'||state==='cancelled')?6:600;
  /* Procedural characters animate continuously; hold one-shot celebration/failure poses after a
@@ -304,6 +310,7 @@ function vcwFrameCount(character,state){
 // redefine the host's cadence law.
 function vcwFrameAt(character,state,elapsed,reduced){
  if(reduced)return 0;
+ if(VCW_CHARACTERS[character]&&VCW_CHARACTERS[character].renderer==='painted')return vpFrameAt(state,elapsed,reduced);
  const ms=Math.max(0,Number(elapsed)||0),count=vcwFrameCount(character,state)||1;
  // Idle holds its pose, with one short blink every six seconds. No body bounce.
  if(state==='idle')return ms%6000>=5850?Math.min(2,count-1):0;
@@ -313,7 +320,20 @@ function vcwFrameAt(character,state,elapsed,reduced){
 }
 const _vcwBaseDraw=vcwDraw;
 vcwDraw=function(g,state,frame,opts){
- opts=opts||{};const meta=VCW_CHARACTERS[opts.character];
+ opts=opts||{};
+ const pet=vcwResolvePet(opts.character);
+ if(pet){
+  const el=(opts.elapsed!=null)?opts.elapsed:frame*(VP_FRAME_MS[state]||33);
+  if(vcwDrawPainted(g,pet,state,opts.activity,el,opts))return;
+  /* Not decoded (yet, or this webview cannot read the painting): the same creature's old
+     pixel drawing, scaled into whatever canvas the host gave, never an empty box. */
+  const u=((g.canvas&&g.canvas.width)||48)/48;
+  if(typeof g.setTransform==='function'){
+   g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,(g.canvas&&g.canvas.width)||48,(g.canvas&&g.canvas.height)||48);
+   g.setTransform(u,0,0,u,0,0);}
+  g.imageSmoothingEnabled=false;
+  if(vcwDrawPet(g,VP_PETS[pet].legacy,state,opts.activity,el,opts))return;}
+ const meta=VCW_CHARACTERS[opts.character];
  if(meta&&meta.renderer==='pet'){
   /* Animation time selects the pose only. ``activity`` is the presentation-only substate the
      owner resolved from a typed category; it never decides state. Authored pets are driven by
@@ -324,7 +344,10 @@ vcwDraw=function(g,state,frame,opts){
  _vcwBaseDraw(g,state,frame,opts);};
 /* --- real multi-worker scenes: drawn ONLY when the runtime reports that many live workers --- */
 function vcwScene(g,scene,frame,opts){
- opts=opts||{};const pk=VCW_PACKS[opts.pack]||VCW_PACKS.default;
+ opts=opts||{};
+ /* The worker scenes are drawn with the old pixel figures; a painted pet stays itself (its work
+    pose and badge already say it is working), so the scene declines and the pet is drawn. */
+ if(vcwResolvePet(opts.character))return false;const pk=VCW_PACKS[opts.pack]||VCW_PACKS.default;
  const v=(VCW_CHARACTERS[opts.character]&&!VCW_CHARACTERS[opts.character].renderer)?VCW_CHARACTERS[opts.character]:VCW_CHARACTERS.spark;
  const mate={skin:'#94a3b8',dark:'#475569',eye:'#0f172a',face:'#cbd5e1',shoe:'#334155'};
  g.clearRect(0,0,48,48);
@@ -352,7 +375,9 @@ function vcwEgg(g,kind,frame){
  else if(kind==='coffee'){vcwR(g,34,30,5,4,'#b45309');vcwR(g,39,31,2,2,'#b45309');if(frame%16<8)vcwR(g,35,26,1,3,'rgba(255,255,255,.5)');if(frame%16>=8)vcwR(g,37,25,1,3,'rgba(255,255,255,.35)');}
 }
 window.VoolCompanionWorld={draw:vcwDraw,scene:vcwScene,egg:vcwEgg,characters:VCW_CHARACTERS,packs:VCW_PACKS,sheets:VCW_SHEETS,frameCount:vcwFrameCount,frameAt:vcwFrameAt,
- pets:A_PETS,petIds:aPetIds,originalIds:A_ORIGINAL,activityFor:aActivityFor,drawPet:vcwDrawPet};
+ /* pets/petIds/drawPet are the old pixel drawings, kept as the fallback picture; painted is the roster. */
+ pets:A_PETS,petIds:aPetIds,originalIds:A_ORIGINAL,activityFor:aActivityFor,drawPet:vcwDrawPet,painted:VP_PETS,
+ drawPainted:vcwDrawPainted,fit:vcwFitCanvas,ready:vpReady,onReady:vpOnReady,resolvePet:vcwResolvePet,aliases:VP_ALIASES};
 
 """
 
@@ -366,11 +391,9 @@ def normalise_companion_payload(payload: object = None) -> dict[str, object]:
         "success", "failure", "cancelled", "unknown",
     }:
         state = "unknown"
-    character = str(raw.get("character") or "spark").lower()
-    # The roster is the renderer's, not a copy of it. An unknown or hostile id falls back to a
-    # real member rather than reaching the renderer.
-    if character not in COMPANION_ROSTER and character not in REMASTER_ROSTER:
-        character = "spark"
+    # The roster is the renderer's, not a copy of it. A retired look maps to its creature; an
+    # unknown or hostile id falls back to a real member rather than reaching the renderer.
+    character = resolve_pet_id(raw.get("character"), "spark")
     pack = str(raw.get("pack") or "default").lower()
     if pack not in {"default", "ninja", "moss", "cyber"}:
         pack = "default"
@@ -434,7 +457,7 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
         "overflow:hidden;background:transparent;color:#e8eaf0;user-select:none}"
         "#shell{width:100%;height:100%;position:relative;display:flex;flex-direction:column;"
         "align-items:center;justify-content:center;cursor:grab}#shell:active{cursor:grabbing}"
-        f"canvas{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM}px;transform:translateX(-50%);width:{CANVAS_SIZE}px;height:{CANVAS_SIZE}px;image-rendering:pixelated}}"
+        f"canvas{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM}px;transform:translateX(-50%);width:{CANVAS_SIZE}px;height:{CANVAS_SIZE}px}}"
         # The status bubble sits ABOVE the character, never below. Two grounded lines: the bound
         # chat title, then the real current activity. Inert (pointer-events:none) so the pet
         # stays the handle, and it is inside the window so it cannot be clipped away.
@@ -462,13 +485,15 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
         "</div><canvas id='pet' width='48' height='48'></canvas>"
         "<div id='bubble'><div id='bubbleTitle'></div><div id='bubbleActivity'></div></div></div>"
         "<script>'use strict';" + COMPANION_WORLD_JS + "\nconst VCW_INITIAL_STATE=" + encoded + ";" + r"""
-const vcwCanvas=document.getElementById('pet'),vcwCtx=vcwCanvas.getContext('2d');vcwCtx.imageSmoothingEnabled=false;
+const vcwCanvas=vcwFitCanvas(document.getElementById('pet'),""" + str(CANVAS_SIZE) + r"""),vcwCtx=vcwCanvas.getContext('2d');
 let vcwState=Object.assign({state:'idle',caption:'IDLE',character:'spark',pack:'default'},VCW_INITIAL_STATE),vcwFrame=0;
 const vcwBubble=document.getElementById('bubble'),
  vcwBubbleTitle=document.getElementById('bubbleTitle'),
  vcwBubbleActivity=document.getElementById('bubbleActivity');
 const vcwReduce=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
 let vcwStarted=null,vcwPaintKey='',vcwNativeInteraction=false;
+/* A painting that finishes decoding repaints at once (the paint key alone would wait for a change). */
+vpOnReady(function(){vcwPaintKey='';});
 const vcwShell=document.getElementById('shell');
 /* The bubble above the pet. Line 1 is the bound chat's title, line 2 the real activity. Both
    are textContent-encoded, single-line, and bounded; neither is the pet's handle. */

@@ -62,7 +62,8 @@ def test_pet_and_wide_bubble_fit_at_every_corner(browser, size):
             for shape in (pet, bubble):
                 assert shape["x"] >= 0 and shape["y"] >= 0, shape
                 assert shape["right"] <= size[0] and shape["bottom"] <= size[1], shape
-            assert page.locator("#companionLayer canvas").evaluate("el=>getComputedStyle(el).imageRendering") == "pixelated"
+            # The painted pets are smoothed paintings, not 48 px blocks (owner 2026-11-22).
+            assert page.locator("#companionLayer canvas").evaluate("el=>getComputedStyle(el).imageRendering") == "auto"
         assert rect(page, "#companionLayer canvas")["width"] == 144
         save_evidence(page, f"inline-edge-{size[0]}.png")
         assert not errors

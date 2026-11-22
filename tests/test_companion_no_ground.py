@@ -114,19 +114,13 @@ def test_all_states_actions_and_worker_scenes_keep_props_but_no_floor(browser):
                 marks = canvas.evaluate(CHECK)
                 if marks:
                     failures[f"{pet}/{state}/{activity}"] = marks
-        # Retain real desks/screens in worker scenes; remove only the decorative floor/shadow.
+        # Owner 2026-11-22: the painted pets are the only pets. The old multi-worker scenes drew
+        # pixel figures instead of the pet; a painted pet declines them and stays itself.
         for scene in ["pair", "huddle"]:
-            assert canvas.evaluate(
-                "(cv,scene)=>VoolCompanionWorld.scene(cv.getContext('2d'),scene,6,{character:'beetle'})", scene
-            )
-            marks = canvas.evaluate(CHECK)
-            if marks:
-                failures[scene] = marks
-            prop = [18, 25, 23, 3, "#343a46"] if scene == "pair" else [18, 16, 12, 9, "#e8eaf0"]
-            assert canvas.evaluate(
-                "(cv,prop)=>cv.getContext('2d').groundMarks.some(mark=>JSON.stringify(mark)===JSON.stringify(prop))",
-                prop,
-            )
+            for pet in COMPANION_ROSTER:
+                assert not canvas.evaluate(
+                    "(cv,a)=>VoolCompanionWorld.scene(cv.getContext('2d'),a[0],6,{character:a[1]})", [scene, pet]
+                ), f"{pet} is replaced by pixel figures in the {scene} scene"
         canvas.evaluate("cv=>VoolCompanionWorld.draw(cv.getContext('2d'),'idle',0,{character:'unrecognised-old-id'})")
         marks = canvas.evaluate(CHECK)
         if marks:

@@ -30,7 +30,7 @@ FRAGMENT = render_companion_fragment()
 
 # The three owned anchor additions. Each must be present exactly once -- a doubled
 # dispatch would double-consume events, a moved one would silently break the lane.
-ANCHOR_CONSUME = "if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);"
+ANCHOR_CONSUME = "if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev, said || '');"
 ANCHOR_BOOT = "if (window.VoolCompanionBoot) window.VoolCompanionBoot();"
 SHEET_STATES = ["idle", "starting", "thinking", "tool", "waiting", "approval",
                 "retry", "success", "failure", "cancelled", "unknown"]
@@ -468,21 +468,19 @@ law("SHEET.manifest", () => {
 });
 
 law("WORLD.authority", () => {
+  // Owner 2026-11-22: ten painted pets, one look each, are the only pets. The retired looks
+  // (rm_*) are not offered; a saved one resolves to the same creature.
   const all = Object.keys(VC.characters).sort();
-  const ids = all.filter((id) => id.indexOf("rm_") !== 0);
-  eq(ids.join(","), "beetle,ember,golem,prime,prism,rascal,raven,spark,tide,veil", "ten authored companions ship");
-  const remastered = all.filter((id) => id.indexOf("rm_") === 0);
-  eq(remastered.join(","), "rm_beetle,rm_ember,rm_golem,rm_prime,rm_prism,rm_rascal,rm_raven,rm_spark,rm_tide,rm_veil", "ten remastered companions ship beside them");
-  for (const id of remastered) { eq(VC.characters[id].renderer, "pet", id + " renders through the shared authored family"); eq(VC.characters[id].remastered, true, id + " is marked remastered"); }
-  for (const id of ids) eq(!!VC.characters[id].remastered, false, id + " stays a legacy pet");
-  for (const id of ids) eq(VC.characters[id].renderer, "pet", id + " renders through the shared authored family");
-  for (const id of ["beetle", "raven", "golem", "tide"]) eq(VC.characters[id].original, true, id + " preserves approved art");
+  eq(all.join(","), "beetle,ember,golem,prime,prism,rascal,raven,spark,tide,veil", "the ten painted pets are the only pets");
+  for (const id of all) eq(VC.characters[id].renderer, "painted", id + " is drawn from its painting");
+  const W = window.VoolCompanionWorld;
+  eq(W.resolvePet("rm_golem"), "golem", "a retired look is the same creature");
+  eq(W.resolvePet("not-real"), null, "an unknown id is no pet");
   const layer = document.body.children.find((c) => c.id === "companionLayer");
   const sprite = layer.children.find((c) => c.attrs && c.attrs.role === "button");
   const canvas = sprite.children.find((c) => c.tagName === "CANVAS");
-  eq(canvas.width, 48, "approved world canvas is 48 pixels wide");
-  eq(canvas.height, 48, "approved world canvas is 48 pixels high");
-  eq(VC.pos().v, 2, "placement schema records the BigHead-family generation");
+  assert(canvas.width >= 144 && canvas.width === canvas.height, "the canvas is backed at least at its 144 px display size");
+  eq(VC.pos().v, 2, "placement schema is unchanged");
 });
 
 law("WORLD.character_lab_selects_one_cosmetic_identity", () => {
@@ -497,23 +495,18 @@ law("WORLD.character_lab_selects_one_cosmetic_identity", () => {
   const layer = document.body.children.find((c) => c.id === "companionLayer");
   const lab = layer.children[layer.children.length - 1];
   eq(lab.style.display, "flex", "Character Lab opens as a real chooser");
-  const modal = lab.children[0], candidateGrid = modal.children[1], packGrid = modal.children[3];
-  const headings = Array.from(candidateGrid.children).filter((c) => c.className === "vn-lab-group").map((c) => c.textContent);
-  eq(headings.join("|"), "Legacy pets|Sidekicks", "the chooser shows the legacy pets first, then the sidekicks");
+  const modal = lab.children[0], candidateGrid = modal.children[1];
+  const headings = Array.from(candidateGrid.children).filter((c) => c.className === "vn-lab-group");
+  eq(headings.length, 0, "one family: no legacy/sidekick groups any more");
   const cards = Array.from(candidateGrid.children).filter((c) => c.className.indexOf("vn-character-card") === 0);
-  // pet-original-style-20260930: the exact six-ID roster is obsolete. The four approved
-  // originals (beetle/raven/golem/tide) are added and the six saved ids (spark/rascal/prime/
-  // prism/veil/ember) are preserved, so the chooser must offer all ten -- and each must be a
-  // DISTINCT authored drawing, never an alias of another id.
-  eq(cards.length, 20, "all ten legacy and ten remastered companions are selectable");
+  eq(cards.length, 10, "the ten painted pets are selectable");
   const labels = cards.map((c) => c.querySelector("b").textContent);
-  eq(new Set(labels).size, 20, "every companion is its own character, not a recolour of another");
+  eq(new Set(labels).size, 10, "every companion is its own character");
   ["MORROW BEETLE","CLOCKWORK RAVEN","STONE GOLEM","TIDE WISP","SPARK","RASCAL","PRIME","PRISM","VEIL","EMBER"]
     .forEach(function (name) {
       eq(labels.some(function (l) { return l.indexOf(name) >= 0 && !/ II$/.test(l); }), true, name + " is offered in the chooser");
-      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && / II$/.test(l); }), true, name + " is offered again as a remastered pet");
     });
-  eq(packGrid.children.length, 4, "the four authoritative cosmetic packs are selectable");
+  eq(Array.from(modal.children).some((c) => c.className === "vn-pack-grid"), false, "no colour styles: painted pets keep their own colours");
   VC.chooseCharacter("spark"); VC.choosePack("default");
 });
 """

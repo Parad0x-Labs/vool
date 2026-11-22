@@ -39,7 +39,7 @@ _VN_CSS = r"""
 body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 .vn-lab-matrix{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
 .vn-lab-cell{display:flex;flex-direction:column;align-items:center;gap:2px}
-.vn-lab-cell canvas{width:64px;height:64px;image-rendering:pixelated;background:#101216;border:1px solid #262b35;border-radius:8px}
+.vn-lab-cell canvas{width:64px;height:64px;background:#101216;border:1px solid #262b35;border-radius:8px}
 .vn-lab-cell small{font-size:9px;color:#9aa1af;font-family:ui-monospace,Menlo,monospace}
 /* vool-ninja companion layer — presentation only, appended by companion_presentation_fragment */
 #companionLayer { position: fixed; inset: 0; pointer-events: none; z-index: 30; --vn-tone: #94a3b8; --vn-size: 168px; }
@@ -72,7 +72,7 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
    artwork is unchanged. Only the DISPLAY basis grew -- 56px -> 144px, an integer 3x multiple
    of the 48 grid, so every art pixel stays a crisp 3x3 block. Negative space inside the canvas
    is preserved, so the painted body grows with the canvas instead of the canvas being padded. */
-#companionLayer .vool-ninja canvas { width: 144px; height: 144px; flex: 0 0 auto; image-rendering: pixelated; }
+#companionLayer .vool-ninja canvas { width: 144px; height: 144px; flex: 0 0 auto; }
 #companionLayer .vool-ninja.chip { --vn-size: 116px; border-radius: 8px; }
 #companionLayer .vool-ninja.chip canvas { width: 96px; height: 96px; }
 /* The status bubble sits ABOVE the character, never below it, and is taken out of flow so a
@@ -164,7 +164,7 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
   cursor: pointer; text-align: left; min-width: 0;
 }
 .vool-character-lab .vn-character-card.selected { border-color: var(--accent,#c3b8a8); box-shadow: inset 0 0 0 1px var(--accent,#c3b8a8); }
-.vool-character-lab .vn-character-card canvas { display: block; width: 96px; height: 96px; max-width: 100%; margin: auto; image-rendering: pixelated; }
+.vool-character-lab .vn-character-card canvas { display: block; width: 96px; height: 96px; max-width: 100%; margin: auto; }
 .vool-character-lab .vn-character-card b { display: block; margin-top: 5px; font-size: 11px; }
 .vool-character-lab .vn-character-card small { display: block; color: var(--muted, #8b94a3); font-size: 9px; }
 .vool-character-lab .vn-pack-title { margin: 15px 0 7px; color: var(--muted, #8b94a3); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
@@ -408,6 +408,9 @@ function vnNewView() {
     model: null, cost: null, measurable: null, activeMode: null, expiresAt: null,
     lastSummary: null, lastTool: null, diagnostics: null,
     phraseId: null, phraseCategory: null, rotation: {},
+    // The run card's own words for this turn's newest step (see vnConsume), the approval's own
+    // words, and when the turn was sent and ended: what the bubble says is what really happens.
+    liveWords: "", askWords: "", sentAt: 0, endedAt: 0, receivedAt: 0,
   };
 }
 function vnView(chatId) {
@@ -439,6 +442,9 @@ function vnApply(view, ev) {
       // tool. Carrying the previous turn's category here would narrate work not yet started.
       view.started = false; view.category = null; view.catFp = null; view.catN = -1;
       view.activeTool = null; view.lastSummary = null; view.lastTool = null;
+      view.liveWords = ""; view.askWords = ""; view.endedAt = 0;
+      // When the request left the composer, as the page stamped it (0 = unknown: no duration).
+      view.sentAt = vnEventTime(ev, view.receivedAt);
       // The user's own words for THIS turn: the bubble follows the conversation ("as we go")
       // instead of the chat title frozen at the first message (measured 2026-11-05: the pet
       // said "yO BRO" for the whole chat). The page's own fact, presentation-only, bounded;
@@ -474,7 +480,13 @@ function vnApply(view, ev) {
     case "task.submitted": break;
     case "tool.started": view.activeTool = ev.tool || "tool"; break;
     case "tool.completed": case "tool.failed": view.activeTool = null; break;
-    case "permission.required": view.approvalSeq = fp; break;
+    case "permission.required":
+      view.approvalSeq = fp;
+      // What the approval is FOR, in the request's own words ("Send the email to Anna?").
+      // The approval's plain action is what the permission bar names; the summary is the fallback.
+      view.askWords = String((ev.approval && (ev.approval.action_plain || ev.approval.action))
+        || ev.summary || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      break;
     case "permission.resolved": view.approvalSeq = null; break;
     case "task.finalizing": view.finishSeq = fp; break;
     case "model.call_failed":
@@ -482,10 +494,13 @@ function vnApply(view, ev) {
       // running/completed evidence recovers it; only task.failed makes it terminal.
       view.failureSeq = fp; view.failureN = view.events; view.retrySeq = -1; break;
     case "task.failed":
+      view.endedAt = vnEventTime(ev, view.receivedAt);
       view.terminal = "FAILED"; view.finishSeq = null; view.approvalSeq = null; break;
     case "task.cancelled":
+      view.endedAt = vnEventTime(ev, view.receivedAt);
       view.terminal = "CANCELLED"; view.finishSeq = null; view.approvalSeq = null; break;
     case "task.completed": {
+      view.endedAt = vnEventTime(ev, view.receivedAt);
       const rs = view.reviewState;
       // Terminal truth by verdict: PASS only on a real passed review; a reviewer that ran
       // without a verdict is VERIFIER_INCOMPLETE; ordinary completion WITHOUT a verifier is
@@ -512,10 +527,29 @@ function vnApply(view, ev) {
   }
   return true;
 }
+/* An event's own time stamp (ms or ISO), 0 when it carries none. Never the clock: the reducer
+   only records times the events state. */
+function vnEventTime(ev, at) {
+  const ts = ev && ev.ts;
+  const t = typeof ts === "number" ? ts : Date.parse(String(ts || ""));
+  return Number.isFinite(t) && t > 0 ? t : (Number(at) > 0 ? Number(at) : 0);
+}
 let vnLastChat = "";
-function vnConsume(chatId, ev) {
+/* `words` is what the chat page's run card says for this same event (runCardWords: "Looking up
+   the weather in Rome", "Reading report.pdf", "Writing the answer with qwen3:8b"), else the
+   event's own summary. The pet repeats those words instead of inventing its own, so the bubble
+   and the card can never tell two different stories. Presentation only: words never change
+   state. An event without words keeps the previous step's words, exactly as the card does. */
+/* `at` is when the page handed the event over (the engine's clock, see VoolCompanion.consume):
+   used only to time a turn whose events carry no time stamp of their own. */
+function vnConsume(chatId, ev, words, at) {
   const view = vnView(chatId);
+  view.receivedAt = Number(at) > 0 ? Number(at) : 0;
   const changed = vnApply(view, ev);
+  if (changed && !view.terminal && typeof words === "string" && words.trim()
+      && ev && ev.type !== "task.submitted" && ev.type !== "permission.required") {
+    view.liveWords = words.replace(/\s+/g, " ").trim().slice(0, 160);
+  }
   vnLastChat = String(chatId || "");
   if (changed) vnSchedulePaint();
   return view;
@@ -542,6 +576,8 @@ function vnResolve(view) {
     r.state = "APPROVAL_REQUIRED"; r.override = "APPROVAL_REQUIRED";
     r.tone = VN_OVERRIDE_TONES.APPROVAL_REQUIRED;
     r.phraseId = VN_FIXED.APPROVAL_REQUIRED[0]; r.phraseText = VN_FIXED.APPROVAL_REQUIRED[1];
+    // The request's own words say WHAT needs the OK; the fixed phrase is only the fallback.
+    if (view.askWords) { r.phraseId = "approval_live"; r.phraseText = view.askWords; }
     r.stage = view.middleSeen ? "MIDDLE" : "START";
     return r;
   }
@@ -567,8 +603,14 @@ function vnResolve(view) {
     r.state = "START"; r.category = "UNDERSTANDING"; r.tone = "start"; r.stage = "START";
   }
   if (r.category) {
-    const phrase = vnToolPhrase(view, r.category) || vnPhraseFor(view, r.category);
-    r.phraseId = phrase[0]; r.phraseText = phrase[1];
+    // The real step first: the run card's own words for the newest event of this turn. The
+    // category phrase is only the fallback for a moment no event has described yet.
+    if (view.liveWords) {
+      r.phraseId = "live:" + vnFnv1a(view.liveWords); r.phraseText = view.liveWords;
+    } else {
+      const phrase = vnToolPhrase(view, r.category) || vnPhraseFor(view, r.category);
+      r.phraseId = phrase[0]; r.phraseText = phrase[1];
+    }
   }
   return r;
 }
@@ -769,67 +811,52 @@ function vnBoundChatTitle(chatId) {
   }
   return "";
 }
-/* The bubble's second line, chosen from the TYPED state only.
-   - Working: a playful line for the typed activity (search, read, ...), a new one each time the
-     reducer moves on (a new phrase, activity or state) -- never on a timer.
-   - Waiting on the user: a line that always says a decision is needed. Stays until answered.
-   - Finished: a "done" line for a few seconds, then the bubble goes quiet.
-   - Failed, cancelled, flagged, unverified: the reducer's own plain phrase, no joke, for a while.
-   Playful lines are English; other languages keep the translated plain phrase. */
-const VN_DONE_LINGER_MS = 12000, VN_QUIP_HOLD_MS = 4000;
+/* The bubble's second line: what VOOL is really doing for this chat right now.
+   - Working: the run card's own words for the newest step ("Looking up the weather in Rome",
+     "Reading report.pdf", "Writing the answer with qwen3:8b"); the category phrase only when no
+     event has described the step yet. It changes when the work changes, never on a timer.
+   - Waiting on the user: what the approval is for, in the request's own words. Stays until
+     answered.
+   - Finished: "Done" with the turn's real duration, for a few seconds, then the bubble goes quiet.
+   - Failed, cancelled, flagged, unverified: the reducer's own plain phrase, for a while.
+   No line is picked from a list of jokes: a person reading the pet learns what is happening
+   (owner, 2026-11-22: the popup must show the actual work, not fixed phrases). */
+const VN_DONE_LINGER_MS = 12000;
 // One record PER CHAT: going back to a finished chat does not replay its "done" line, and a
 // working chat keeps its line across chat switches (navigation is not a reducer change).
 const vnQuipByChat = new Map();
-const vnQuipCursor = {};
-function vnPlayful() {
-  const root = document.documentElement;
-  const lang = String((root && (root.lang || (root.getAttribute && root.getAttribute("lang")))) || "en");
-  return lang.toLowerCase().indexOf("en") === 0;
+function vnSeconds(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
 }
-function vnQuipPool(pres, nextState) {
-  if (pres.state === "APPROVAL_REQUIRED") return "ask";
-  if (pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS") return "done";
-  if (nextState === "retry") return "retry";
-  if (nextState === "waiting") return "queued";
-  if (nextState === "starting" || nextState === "thinking") return "think";
-  if (nextState === "tool") {
-    const act = vnActivity(pres);
-    return act && VN_QUIPS[act] ? act : "think";
-  }
-  return "";  // failure, cancelled, flagged, unverified: the plain phrase, no joke
-}
-function vnNextQuip(pool) {
-  const lines = VN_QUIPS[pool] || [];
-  if (!lines.length) return "";
-  if (!(pool in vnQuipCursor)) vnQuipCursor[pool] = Math.floor(Math.random() * lines.length);
-  const line = lines[vnQuipCursor[pool] % lines.length];
-  vnQuipCursor[pool] = (vnQuipCursor[pool] + 1) % lines.length;
-  return line;
-}
-function vnBubbleLine(chatId, pres, nextState, now) {
+function vnBubbleLine(chatId, pres, nextState, now, view) {
   const id = String(chatId || "");
   if (!pres || nextState === "idle") { vnQuipByChat.delete(id); return ""; }
-  const pool = vnQuipPool(pres, nextState);
-  const key = pres.state + "|" + nextState + "|" + (vnActivity(pres) || "") + "|" + (pres.phraseId || "");
+  const finished = pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS";
+  let line = pres.phraseText ? String(pres.phraseText) : vnStateWord(nextState);
+  if (finished) {
+    // The finish says it is done and how long the turn really took; it never claims the
+    // answer was checked (an ordinary finish is unreviewed: PASS keeps its own phrase).
+    const took = view && view.sentAt && view.endedAt >= view.sentAt ? view.endedAt - view.sentAt : -1;
+    if (pres.state === "COMPLETED_UNREVIEWED") {
+      line = vnLabel("companion.state.success", "Done") + (took >= 0 ? " \u00b7 " + vnSeconds(took) : "");
+    } else if (took >= 0) {
+      line = line.replace(/[.\u2026]+$/, "") + " \u00b7 " + vnSeconds(took);
+    }
+  }
+  const kind = finished ? "done" : (pres.state === "APPROVAL_REQUIRED" ? "ask" : "work");
+  const key = pres.state + "|" + nextState + "|" + line;
   let q = vnQuipByChat.get(id);
   if (!q || key !== q.key) {
-    const plain = pres.phraseText ? String(pres.phraseText) : vnStateWord(nextState);
-    const playful = !!pool && vnPlayful();
-    // A fresh joke at most every few seconds within the same kind of work, so a burst of
-    // events does not flicker the bubble; a change of kind (working -> asking) shows at once.
-    const working = function (k) { return !!k && k !== "ask" && k !== "done"; };
-    const hold = q && playful && working(q.pool) && working(pool) && now - q.lineAt < VN_QUIP_HOLD_MS;
-    const line = hold ? q.line : (playful ? vnNextQuip(pool) : plain);
-    q = { key: key, pool: pool, since: q && q.pool === pool ? q.since : now,
-          line: line, lineAt: hold ? q.lineAt : now };
+    q = { key: key, pool: kind, since: q && q.pool === kind ? q.since : now, line: line, lineAt: now };
     vnQuipByChat.set(id, q);
   }
   // Only a finished or cancelled job goes quiet on its own. Asking, failures and flagged stay up
   // until something changes, because they are what the user needs to see on coming back.
-  if ((pool === "done" || pres.state === "CANCELLED") && now - q.since > VN_DONE_LINGER_MS) return "";
+  if ((kind === "done" || pres.state === "CANCELLED") && now - q.since > VN_DONE_LINGER_MS) return "";
   return q.line;
 }
-/* Two grounded lines. `activity` is a line chosen from the typed state (see vnBubbleLine). */
+/* Two grounded lines. `activity` is the real current step (see vnBubbleLine). */
 function vnSetBubble(title, activity, visible) {
   if (!vnBubble) return;
   vnBubbleTitle.textContent = vnSafeText(title, VN_TITLE_MAX);
@@ -901,7 +928,10 @@ function vnLoadPos() {
     if (Number.isFinite(parsed.y)) vnPos.y = Number(parsed.y);
     if (typeof parsed.edge === "string" || parsed.edge === null) vnPos.edge = parsed.edge;
     vnPos.hidden = parsed.hidden === true;
-    if (window.VoolCompanionWorld && window.VoolCompanionWorld.characters[parsed.personality]) vnPos.personality = parsed.personality;
+    // A pet saved under a retired look ("rm_golem") comes back as the same creature's kept look.
+    const savedPet = window.VoolCompanionWorld && window.VoolCompanionWorld.resolvePet
+      ? window.VoolCompanionWorld.resolvePet(parsed.personality) : parsed.personality;
+    if (savedPet && window.VoolCompanionWorld && window.VoolCompanionWorld.characters[savedPet]) vnPos.personality = savedPet;
     if (window.VoolCompanionWorld && window.VoolCompanionWorld.packs[parsed.pack]) vnPos.pack = parsed.pack;
     if (parsed.motion === "system" || parsed.motion === "reduced" || parsed.motion === "allow") vnPos.motion = parsed.motion;
     // The detached pet's last native screen position, kept in the SAME preference as every other
@@ -1323,7 +1353,12 @@ function vnPaintNow(now) {
     vnPos.personality, nextState, now - vnPaint.stateStart, vnPrefersReducedMotion());
   vnPaint.activity = vnActivity(pres);
   vnPaint.elapsed = Math.max(0, now - (vnPaint.stateStart || now));
-  vnDrawFrame(nextState, vnPaint.frame);
+  // Redraw the picture only when it changes (a new frame, state, pet or activity) or something
+  // asked for a paint: the frame clock is time-based, so the screen's refresh rate never
+  // multiplies the drawing work.
+  const drawKey = [nextState, vnPaint.frame, vnPos.personality, vnPos.pack, vnPaint.activity || "",
+    vnPrefersReducedMotion() ? 1 : 0, vnDevPuppet ? JSON.stringify(vnDevPuppet) : ""].join("|");
+  if (vnPaint.dirty || drawKey !== vnPaint.drawKey) { vnDrawFrame(nextState, vnPaint.frame); vnPaint.drawKey = drawKey; }
   /* The bubble above the pet. Line 1 is the BOUND chat's title; line 2 is the real current
      activity. Both come from the reducer's own resolution for THIS chat -- never another
      chat's activity, never model prose. Idle keeps the title and drops the activity line, so
@@ -1342,7 +1377,7 @@ function vnPaintNow(now) {
       line2 = "";
       vnQuipByChat.delete(String(chatId || ""));
     } else {
-      line2 = vnBubbleLine(chatId, pres, nextState, now);
+      line2 = vnBubbleLine(chatId, pres, nextState, now, view);
     }
     vnPaint.bubbleLine = line2;
     // The bubble speaks only while there is something to say: working, waiting on the user,
@@ -1655,16 +1690,11 @@ function vnOpenCharacterLab() {
   const keys = Object.keys(window.VoolCompanionWorld.characters);
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i], meta = window.VoolCompanionWorld.characters[key];
-    /* Legacy pets come first, then the modern set; each group gets one quiet heading. */
-    if (i === 0 || !!meta.remastered !== !!window.VoolCompanionWorld.characters[keys[i - 1]].remastered) {
-      const groupHead = document.createElement("div"); groupHead.className = "vn-lab-group";
-      groupHead.textContent = meta.remastered ? "Sidekicks" : "Legacy pets"; grid.appendChild(groupHead);
-    }
     const card = document.createElement("button"); card.type = "button";
     card.className = "vn-character-card" + (vnPos.personality === key ? " selected" : "");
     card.setAttribute("aria-label", meta.name + (meta.note ? ", " + meta.note : ""));
     card.setAttribute("aria-pressed", vnPos.personality === key ? "true" : "false");
-    const preview = document.createElement("canvas"); preview.width = 48; preview.height = 48; preview.setAttribute("aria-hidden", "true");
+    const preview = window.VoolCompanionWorld.fit(document.createElement("canvas"), 96); preview.setAttribute("aria-hidden", "true");
     const label = document.createElement("b"); label.textContent = meta.name;
     /* Every pet is an authored drawing with its own baked palette, so the note comes from the
        renderer's own registry rather than a table that would drift as the roster grows. */
@@ -1674,25 +1704,12 @@ function vnOpenCharacterLab() {
     card.addEventListener("click", (function (chosen) { return function () { vnChooseCharacter(chosen); }; })(key));
     grid.appendChild(card);
     const g = preview.getContext && preview.getContext("2d");
-    if (g) { g.imageSmoothingEnabled = false; window.VoolCompanionWorld.draw(g, "idle", 0, {character:key,pack:vnPos.pack}); }
+    if (g) window.VoolCompanionWorld.draw(g, "idle", 0, {character:key,pack:vnPos.pack,elapsed:0});
   }
   modal.appendChild(grid);
   const selectedMeta = window.VoolCompanionWorld.characters[vnPos.personality] || {};
-  const packTitle = document.createElement("div"); packTitle.className = "vn-pack-title";
-  packTitle.textContent = "Colour style. Every companion keeps its own colours, and a style never changes what your pet reports.";
-  modal.appendChild(packTitle);
-  const packGrid = document.createElement("div"); packGrid.className = "vn-pack-grid";
-  const packNames = {default:"Default",ninja:"Ninja",moss:"Moss",cyber:"Cyber"};
+  /* No colour styles here any more: every painted pet keeps the colours it was painted in. */
   const stateLabels = {idle:"Resting",starting:"Starting",thinking:"Thinking",tool:"Working",waiting:"Waiting",approval:"Needs your OK",retry:"Trying again",success:"Done",failure:"Problem",cancelled:"Stopped",unknown:"Unsure"};
-  const packs = Object.keys(window.VoolCompanionWorld.packs);
-  for (let j = 0; j < packs.length; j++) {
-    const pack = packs[j], button = document.createElement("button"); button.type = "button";
-    button.className = "vn-pack-card" + (vnPos.pack === pack ? " selected" : "");
-    button.setAttribute("aria-pressed", vnPos.pack === pack ? "true" : "false"); button.textContent = packNames[pack] || pack;
-    button.addEventListener("click", (function (chosen) { return function () { vnChoosePack(chosen); }; })(pack));
-    packGrid.appendChild(button);
-  }
-  modal.appendChild(packGrid);
   // State matrix for the SELECTED character: every typed sprite state, painted by the real
   // renderer. A preview canvas, never the live sprite — the caption under each cell is the
   // typed state name, so art review reads against the state vocabulary, not vibes.
@@ -1703,11 +1720,12 @@ function vnOpenCharacterLab() {
   const matrix = document.createElement("div"); matrix.className = "vn-lab-matrix";
   for (let si = 0; si < states.length; si++) {
     const cell = document.createElement("div"); cell.className = "vn-lab-cell";
-    const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
+    const cv = window.VoolCompanionWorld.fit(document.createElement("canvas"), 64);
     const cap = document.createElement("small"); cap.textContent = stateLabels[states[si]] || states[si];
     cell.appendChild(cv); cell.appendChild(cap); matrix.appendChild(cell);
     const g2 = cv.getContext && cv.getContext("2d");
-    if (g2) { g2.imageSmoothingEnabled = false; window.VoolCompanionWorld.draw(g2, states[si], 2, {character:vnPos.personality,pack:vnPos.pack}); }
+    // A moment into each state, so a one-shot (done, problem) shows its pose, not its first frame.
+    if (g2) window.VoolCompanionWorld.draw(g2, states[si], 2, {character:vnPos.personality,pack:vnPos.pack,elapsed:states[si] === "success" ? 300 : 1200,activity:states[si] === "tool" ? "search" : null});
   }
   modal.appendChild(matrix);
   // Silhouette readability test (the design authority's black-flood check): draw, then flood
@@ -1717,33 +1735,18 @@ function vnOpenCharacterLab() {
   const silRow = document.createElement("div"); silRow.className = "vn-lab-matrix";
   ["idle","tool","success","failure"].forEach(function (st) {
     const cell = document.createElement("div"); cell.className = "vn-lab-cell";
-    const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
+    const cv = window.VoolCompanionWorld.fit(document.createElement("canvas"), 64);
     const cap = document.createElement("small"); cap.textContent = stateLabels[st] || st;
     cell.appendChild(cv); cell.appendChild(cap); silRow.appendChild(cell);
     const g3 = cv.getContext && cv.getContext("2d");
     if (g3) {
-      g3.imageSmoothingEnabled = false;
-      window.VoolCompanionWorld.draw(g3, st, 0, {character:vnPos.personality,pack:vnPos.pack});
+      window.VoolCompanionWorld.draw(g3, st, 0, {character:vnPos.personality,pack:vnPos.pack,elapsed:0,reduced:true});
+      if (typeof g3.setTransform === "function") g3.setTransform(1, 0, 0, 1, 0, 0);
       g3.globalCompositeOperation = "source-atop"; g3.fillStyle = "#e8eaf0";
-      g3.fillRect(0, 0, 48, 48); g3.globalCompositeOperation = "source-over";
+      g3.fillRect(0, 0, cv.width, cv.height); g3.globalCompositeOperation = "source-over";
     }
   });
   modal.appendChild(silRow);
-  // Multi-worker scene preview — ILLUSTRATIVE ONLY, labelled as such. The live sprite shows a
-  // scene exclusively when the runtime reports that many real workers (vnLiveAgentCount).
-  const sceneTitle = document.createElement("div"); sceneTitle.className = "vn-pack-title";
-  sceneTitle.textContent = "Helpers working together. A preview: your pet shows this only when that many helpers are really running.";
-  modal.appendChild(sceneTitle);
-  const sceneRow = document.createElement("div"); sceneRow.className = "vn-lab-matrix";
-  [["pair", "2 helpers"], ["huddle", "3 or more helpers"]].forEach(function (pairDef) {
-    const cell = document.createElement("div"); cell.className = "vn-lab-cell";
-    const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
-    const cap = document.createElement("small"); cap.textContent = pairDef[1];
-    cell.appendChild(cv); cell.appendChild(cap); sceneRow.appendChild(cell);
-    const g4 = cv.getContext && cv.getContext("2d");
-    if (g4) { g4.imageSmoothingEnabled = false; window.VoolCompanionWorld.scene(g4, pairDef[0], 6, {character:vnPos.personality,pack:vnPos.pack}); }
-  });
-  modal.appendChild(sceneRow);
   vnLab.appendChild(modal); vnLab.style.display = "flex"; close.focus();
 }
 let vnMenuFromKeyboard = false;
@@ -1982,8 +1985,8 @@ function vnBoot() {
   vnSprite.setAttribute("role", "button");
   vnSprite.setAttribute("tabindex", "0");
   vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion"));
-  vnCanvas = document.createElement("canvas");
-  vnCanvas.width = 48; vnCanvas.height = 48;
+  // Backed at the screen's pixel density: the painted pets stay sharp on Retina at 144 px.
+  vnCanvas = window.VoolCompanionWorld.fit(document.createElement("canvas"), 144);
   /* Bubble is the FIRST child and absolutely positioned, so it reads above the character and
      cannot push it when its text changes. */
   vnBubble = document.createElement("div");
@@ -2026,7 +2029,8 @@ function vnBoot() {
   vnLayer.appendChild(vnLab);
   document.body.appendChild(vnLayer);
   vnCtx = vnCanvas.getContext && vnCanvas.getContext("2d");
-  if (vnCtx) vnCtx.imageSmoothingEnabled = false;
+  // A painting that finishes decoding after boot repaints at once, also under reduced motion.
+  if (window.VoolCompanionWorld.onReady) window.VoolCompanionWorld.onReady(function () { vnSchedulePaint(); });
   vnBindDrag(vnSprite);
   vnBindKeyboard(vnSprite);
   vnSprite.addEventListener("contextmenu", function (e) {
@@ -2069,7 +2073,8 @@ function vnBoot() {
 window.VoolCompanionBoot = vnBoot;
 // The single typed-event entry the house consumer calls. Nothing else feeds the layer.
 window.VoolCompanion = {
-  consume: vnConsume,
+  // The hand-over time travels with the event; the reducer itself never reads the clock.
+  consume: function (chatId, ev, words) { return vnConsume(chatId, ev, words, Date.now()); },
   view: vnView,
   resolve: vnResolve,
   classify: vnClassify,
@@ -2117,13 +2122,12 @@ else vnBoot();
 
 def render_companion_fragment() -> str:
     """The companion layer as ``<style> + <script>``, concatenated after the page."""
-    from core.companion_quips import quips_json
     from core.companion_world_fragment import COMPANION_WORLD_JS
 
     return (
         "<style>" + _VN_CSS + "</style>"
         + "<script>(function(){\n'use strict';\n"
         + COMPANION_WORLD_JS + "\n" + _VN_LIBRARY_JS + "\n"
-        + "const VN_QUIPS = " + quips_json() + ";\n" + _VN_ENGINE_JS
+        + _VN_ENGINE_JS
         + "\n})();</script>"
     )

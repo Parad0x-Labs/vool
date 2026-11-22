@@ -184,28 +184,25 @@ def test_the_art_grid_is_still_48_and_the_palette_is_preserved(tmp_path):
 
 # ------------------------------------------------------------ enlargement and cadence
 
-def test_inline_display_is_an_integer_multiple_of_the_art_grid():
-    """Enlargement is nearest-neighbour scaling of a 48px grid, not a redraw or a padding."""
+def test_inline_display_keeps_its_size_and_is_backed_at_screen_density():
+    """Owner 2026-11-22: the pets are paintings now. The pet keeps its 144 px box (no size change
+    for the person); the canvas is backed at the screen's own pixel density so the painting is
+    sharp on Retina instead of a 48 px grid blown up."""
     css = render_companion_fragment()
     rule = css.split("#companionLayer .vool-ninja canvas {", 1)[1].split("}", 1)[0]
     m = re.search(r"width:\s*(\d+)px", rule)
-    assert m, "the inline canvas must have an explicit basis"
-    width = int(m.group(1))
-    assert width % 48 == 0, f"{width}px is not an integer multiple of the 48px art grid"
-    assert width >= 96, "the inline pet must actually be larger than before"
-    assert "image-rendering: pixelated" in rule, "scaling must stay nearest-neighbour"
-    # The canvas element itself is still the 48px logical grid.
-    assert "vnCanvas.width = 48" in css and "vnCanvas.height = 48" in css
+    assert m and int(m.group(1)) == 144, "the inline pet keeps its 144 px box"
+    assert "pixelated" not in rule, "a painting is smoothed, not blown up as blocks"
+    assert 'vnCanvas = window.VoolCompanionWorld.fit(document.createElement("canvas"), 144);' in css
 
 
-def test_desktop_window_and_canvas_are_integer_multiples_of_the_grid():
+def test_desktop_window_keeps_its_size_and_is_backed_at_screen_density():
     from installer.bundle import pet_native
 
-    assert pet_native.PET_CANVAS_POINTS % 48 == 0
-    assert pet_native.PET_CANVAS_POINTS >= 96
+    assert pet_native.PET_CANVAS_POINTS == 144, "the desktop pet keeps its size"
     html = render_desktop_companion_html()
-    assert "image-rendering:pixelated" in html
-    assert "width='48' height='48'" in html
+    assert "pixelated" not in html
+    assert "vcwFitCanvas(document.getElementById('pet'),144)" in html
 
 
 def test_the_host_cadence_law_is_unchanged():

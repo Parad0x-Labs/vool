@@ -48,12 +48,12 @@ _EXTRAS_CSS = """
 #vxEmotePop .vx-cap{display:block;font-size:10.5px;color:var(--muted,#9aa1af);text-align:center;margin-top:2px}
 #vxEmotePop button{background:none;border:none;border-radius:7px;padding:4px;cursor:pointer}
 #vxEmotePop button:hover{background:var(--field,#1d2129)}
-#vxEmotePop canvas{width:44px;height:44px;image-rendering:pixelated;display:block}
+#vxEmotePop canvas{width:44px;height:44px;display:block}
 #vxEmotePop .vx-note{grid-column:1/-1;font-size:11px;color:var(--muted,#9aa1af);padding:4px 2px 0}
 #vxFilterEmpty{padding:8px 10px;font-size:12px;color:var(--muted,#9aa1af)}
 #vxFilterEmpty[hidden]{display:none}
 #vxFilterEmpty button{font:inherit;font-size:12px;background:transparent;color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);border-radius:6px;padding:2px 8px;margin-left:6px;cursor:pointer}
-.vx-emote{width:28px;height:28px;image-rendering:pixelated;vertical-align:middle;display:inline-block}
+.vx-emote{width:28px;height:28px;vertical-align:middle;display:inline-block}
 """
 
 _EXTRAS_JS = """
@@ -71,8 +71,8 @@ var PICKER_EMOTES = [['idle','Hello'],['success','Hooray'],['thinking','Thinking
 // animation FRAME, not a scale: passing 8 asked for a frame most poses do not have.
 function drawEmote(w, ctx, state){
   var c = window.VoolCompanion && typeof window.VoolCompanion.pos === 'function' ? (window.VoolCompanion.pos() || {}) : {};
-  try { ctx.imageSmoothingEnabled = false; } catch (e) {}
-  w.draw(ctx, state, 0, { character: c.personality, pack: c.pack });
+  // A moment into the state, so a one-shot reaction (Hooray) shows its pose, not frame zero.
+  w.draw(ctx, state, 0, { character: c.personality, pack: c.pack, elapsed: state === 'success' ? 300 : 1200 });
 }
 
 function input(){ return document.getElementById('input'); }
@@ -243,10 +243,12 @@ function emoteDataUrl(state){
   var w = world();
   if (!w || typeof w.draw !== 'function') return '';
   var canvas = document.createElement('canvas');
-  canvas.width = 48; canvas.height = 48;
+  if (w.fit) w.fit(canvas, 28); else { canvas.width = 48; canvas.height = 48; }
   try { drawEmote(w, canvas.getContext('2d'), state); } catch (e) { return ''; }
   var url = canvas.toDataURL();
-  emoteCache[state] = url;
+  // Kept only once the pet's painting is decoded, so an early stand-in is never remembered.
+  var pet = window.VoolCompanion && typeof window.VoolCompanion.pos === 'function' ? (window.VoolCompanion.pos() || {}).personality : '';
+  if (!w.ready || w.ready(w.resolvePet ? w.resolvePet(pet) : pet)) emoteCache[state] = url;
   return url;
 }
 function renderEmoteTokens(root){
@@ -315,7 +317,7 @@ function mountEmoteButton(){
       cell.title = pair[1];
       cell.setAttribute('aria-label', pair[1] + ' pet reaction');
       var canvas = document.createElement('canvas');
-      canvas.width = 48; canvas.height = 48;
+      if (w.fit) w.fit(canvas, 44); else { canvas.width = 48; canvas.height = 48; }
       try { drawEmote(w, canvas.getContext('2d'), state); } catch (e) {}
       cell.appendChild(canvas);
       var cap = document.createElement('span'); cap.className = 'vx-cap'; cap.textContent = pair[1];
