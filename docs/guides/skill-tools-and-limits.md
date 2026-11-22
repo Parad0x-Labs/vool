@@ -148,7 +148,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-150 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+154 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -250,13 +250,21 @@ The full contract of a tool, with every field, is in Python:
 | `media.redo` | Redo a previously undone edit operation on a media project. | `project_id` | writes files | none | asks | refused |
 | `media.undo` | Undo the last edit operation on a media project. | `project_id` | writes files | none | asks | refused |
 
+### my_things
+
+| Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
+| --- | --- | --- | --- | --- | --- | --- |
+| `things.match` | Match label text the owner supplied against saved model and serial identifiers, showing exact evidence. | `text` | reads | `read_files` | runs | runs |
+| `things.prepare` | Prepare a draft return or repair request, warranty check or specification comparison for one saved thing named by the owner. | `id`, `kind`, `issue?`, `observed?` | reads | `read_files` | runs | runs |
+| `things.search` | Find only saved household things matching words the owner used in this turn. | `query` | reads | `read_files` | runs | runs |
+
 ### operator
 
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
 | `operator.apple_note_list` | **macOS only.** List the Apple Notes notes of a named folder or account; a report, never a mutation. | `folder?`, `account?` | reads | `read_files` | runs | runs |
 | `operator.apple_note_read` | **macOS only.** Read one Apple Notes note by title, narrowed by the folder or account the request names; reports the note's body without changing anything. | `title`, `folder?`, `account?` | reads | `read_files` | runs | runs |
-| `operator.cancel_reminder` | Cancel one of this runtime's own pending reminders from the request as written. | `text` | saves VOOL data | `delete_files` | asks | asks |
+| `operator.cancel_reminder` | Cancel one of this chat's pending reminders. | `reminder_id?`, `text?` | saves VOOL data | `delete_files` | asks | asks |
 | `operator.check_availability` | List a day's events on the configured calendar provider and compute free slots for a requested duration. *Takes the request as written in `text` ("am I free Tuesday afternoon?"). Needs a calendar account in Settings. With no morning/afternoon/evening word it checks the whole day from 00:00.* | `text` | reads | `use_network_access` | asks | runs |
 | `operator.cleanup_temp_files` | DELETE temporary files from this machine. | `target_path?` | writes files | `delete_files` | asks | asks |
 | `operator.find_notes` | Search the active workspace's notes by text; reports matches without inventing content. *The notes operator.save_note wrote in the chat's project folder, not other apps' notes.* | `query` | reads | `read_files` | runs | runs |
@@ -268,10 +276,11 @@ The full contract of a tool, with every field, is in Python:
 | `operator.list_reminders` | List this runtime's own reminder rows; a report, never a mutation. *Only VOOL's own reminders in this chat, not reminders in other apps.* | none | reads | `read_files` | runs | runs |
 | `operator.list_tools` | List the operator tools this runtime exposes. | none | reads | none | runs | runs |
 | `operator.move_path` | Move or rename a path on this machine. | `source_path`, `destination_path` | writes files | `move_files` | asks | runs |
+| `operator.move_reminder` | Move one of this chat's pending reminders to a new due time; it stays the same reminder with the same id. | `reminder_id?`, `due_iso`, `text?` | saves VOOL data | `modify_files` | asks | runs |
 | `operator.propose_calendar_event` | Propose a real event on the configured calendar provider; executes only after explicit approval with conflict and version re-checks. *Takes the request as written in `text`. Put the title in quotes (propose "Project review" on Tuesday at 15:00 for 30 minutes), or it asks "What should it be called?". Needs a calendar account in Settings.* | `text` | publishes | `access_external_providers` | asks | runs |
 | `operator.save_note` | Save a note as a real file in the active workspace's notes directory, optionally linked to a provider event receipt. *Takes the request as written in `text` (save a note called "Tea" saying buy tea). Writes a Markdown file into the chat's project folder, under notes/. Adding "remind me on 2026-11-08 at 09:00" to the same `text` also sets one reminder (see Reminders from a skill).* | `text` | writes files | `create_files` | asks | runs |
 | `operator.schedule_calendar_event` | Create a calendar event on this machine's calendar. *Writes one .ics file into VOOL's calendar outbox. It does not add the event to any calendar app.* | `title`, `start_iso`, `duration_minutes?` | writes files | `external_messages` | asks | asks |
-| `operator.schedule_reminder` | Schedule one of this runtime's own reminders from the request as written. | `text` | saves VOOL data | `create_files` | asks | runs |
+| `operator.schedule_reminder` | Set a reminder: VOOL itself tells the person in this chat at the due time. | `note`, `due_iso`, `text?` | saves VOOL data | `create_files` | asks | runs |
 | `operator.search_calendar_event` | Search the configured provider's events by text; reports matches without inventing content. *Needs a calendar account in Settings.* | `query` | reads | `use_network_access` | asks | runs |
 | `operator.show_agenda` | Show the calendar agenda over a named window; a report of what is scheduled, never a change to it. *Needs a calendar account in Settings. `window` is the words of the request ("tomorrow", "this week").* | `window?` | reads | `use_network_access` | asks | runs |
 | `operator.show_note` | Display one workspace note by title, with its session and linked event receipt. *The notes operator.save_note wrote in the chat's project folder, not other apps' notes.* | `title` | reads | `read_files` | runs | runs |
@@ -555,6 +564,6 @@ Not for skills:
 * `capability.expand_family`: VOOL's own way of widening the tool offer mid-turn.
 * `orchestration.execute_envelope`: VOOL's own sub-task runner, used by VOOL's planner rather than by a skill.
 * `respond.direct`: the plain answer itself; it is always offered, so naming it changes nothing.
-* `repo.pr.authorize`, `things.match`, `things.prepare`, `things.search`: owner-only; never offered to a model, so naming it in a skill does nothing.
+* `repo.pr.authorize`: owner-only; never offered to a model, so naming it in a skill does nothing.
 
 <!-- END GENERATED TOOL TABLE -->
