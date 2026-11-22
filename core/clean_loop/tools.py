@@ -184,6 +184,36 @@ def _plain(text: str, home: Path, *, limit: int = _RESULT_CHARS) -> str:
     return out[:limit]
 
 
+#: Reads of the owner's folders. Each runs off the turn and is waited on for at most
+#: `_FOLDER_READ_WAIT_S`: gate v3 on the installed 07803d62d, "what was the unread number again"
+#: sat 43 minutes in `machine.list_directory` -> `os.listdir` of a home folder macOS was holding,
+#: and every turn after it timed out.
+_FOLDER_READ_INTENTS = frozenset({"machine.list_directory", "machine.find_file", "machine.read_file", "pdf.extract_text"})
+_FOLDER_READ_WAIT_S = 20.0
+
+
+class _FolderNotReadInTime:
+    ok = False
+    status = "folder_not_read_in_time"
+    response_text = (
+        "that folder could not be read in time; the computer may be waiting on a permission prompt "
+        "for it. Nothing was read from it."
+    )
+    details: dict[str, Any] = {}
+
+
+def _bounded_folder_read(ctx: ToolContext, execute: Any, intent: str, arguments: dict[str, Any]) -> Any:
+    from core.off_turn import run_bounded_shared
+
+    _finished, result = run_bounded_shared(
+        "owner-folder-read:" + str(ctx.home),
+        lambda: execute(intent, arguments, task_id=ctx.task_id, source_context=ctx.source_context),
+        wait_s=_FOLDER_READ_WAIT_S,
+        fallback=_FolderNotReadInTime(),
+    )
+    return result
+
+
 def _call(
     ctx: ToolContext, intent: str, arguments: dict[str, Any], *, record_receipt: bool = True
 ) -> ToolOutcome:
@@ -191,7 +221,10 @@ def _call(
     if execute is None:
         from core.authorized_tool_execution import execute_authorized_runtime_tool as execute
     try:
-        result = execute(intent, arguments, task_id=ctx.task_id, source_context=ctx.source_context)
+        if intent in _FOLDER_READ_INTENTS:
+            result = _bounded_folder_read(ctx, execute, intent, arguments)
+        else:
+            result = execute(intent, arguments, task_id=ctx.task_id, source_context=ctx.source_context)
     except Exception as exc:  # a tool fault is evidence for the model, never a crash of the turn
         _LOG.exception("clean loop: %s failed", intent)
         result = None

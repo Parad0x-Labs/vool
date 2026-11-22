@@ -173,3 +173,34 @@ def test_the_search_inside_documents_does_not_wait_on_a_held_index(home):
         assert in_time(), "the search waited on the index lock"
     finally:
         release.set()
+
+
+# --- the folder tools the chat's model calls --------------------------------------------------------
+
+
+def test_a_folder_listing_the_os_holds_does_not_hold_the_turn(home, monkeypatch):
+    """Gate v3 on 07803d62d: a `machine.list_directory` of a home folder sat 43 minutes in
+    `os.listdir`, and every later turn timed out behind it."""
+    monkeypatch.setattr(tools, "_FOLDER_READ_WAIT_S", 0.3)
+    gate = threading.Event()
+    calls = []
+
+    def execute(intent, arguments, *, task_id, source_context):
+        calls.append(intent)
+        gate.wait(30)
+        raise AssertionError("never reached in this test")
+
+    ctx = ToolContext(home=home, source_context=dict(OWNER), execute=execute)
+    try:
+        in_time = _bounded(3.0)
+        outcome = tools._call(ctx, "machine.list_directory", {"path": str(home / "Desktop")})
+        assert in_time()
+        assert not outcome.ok and outcome.status == "folder_not_read_in_time"
+        assert "permission prompt" in outcome.text
+        # While that read is still held, the next folder read answers at once instead of queueing.
+        in_time = _bounded(0.5)
+        again = tools._call(ctx, "machine.read_file", {"path": str(home / "Documents" / "boat.txt")})
+        assert in_time() and again.status == "folder_not_read_in_time"
+        assert calls == ["machine.list_directory"]
+    finally:
+        gate.set()
