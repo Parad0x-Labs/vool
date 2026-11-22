@@ -307,11 +307,18 @@ def _record_conductor_demand_receipts(plan: Any, outcomes: Any, *, request: str)
 
 
 def _skill_keeps_turn_whole(text: str, source_context: Any) -> bool:
-    """Whether a skill the ask names, or an added skill its words pick, keeps the turn whole.
+    """Whether a skill the ask picks, or an added plugin's tool it asks for, keeps the turn whole.
 
-    The conductor's steps, the demand seam's units and a planned split never read skills, so a
-    turn split there reaches the skill in no part (core.tool_offer_assembly.skill_picks_turn, the
-    clean loop's law too).
+    The conductor's steps, the demand seam's units and a planned split never read skills and never
+    offer an added plugin's tools: their operations are VOOL's own. A turn split there reaches the
+    skill or the plugin in no part (core.tool_offer_assembly.skill_picks_turn, the clean loop's law
+    too). For plugins the reading is the turn's own requirement decision
+    (core.execution_requirements: the plugin toolset, from the installed packages' own names and
+    descriptions), the same one the tool lane offers by. Measured on the 0.8 release candidate
+    (a7b18403, 2026-11-22, real local model): with a parcel lookup plugin enabled, "could you check
+    on shipment PX-3065-D for me, has it arrived anywhere yet" required the plugin toolset, was
+    planned by the conductor into two explanation steps, and was answered "I currently do not have
+    access to real-time tracking information" without the plugin being offered.
     Asked only of a turn that may hold several requests, so a one-request turn pays nothing. Fails
     toward the turn's lanes: any error is no.
     """
@@ -323,7 +330,21 @@ def _skill_keeps_turn_whole(text: str, source_context: Any) -> bool:
         from core.tool_offer_assembly import skill_picks_turn
 
         context = source_context if isinstance(source_context, dict) else None
-        return bool(skill_picks_turn(str(text or ""), source_context=context))
+        if skill_picks_turn(str(text or ""), source_context=context):
+            return True
+    except Exception:
+        return False
+    return _plugin_keeps_turn_whole(text, source_context)
+
+
+def _plugin_keeps_turn_whole(text: str, source_context: Any) -> bool:
+    """Whether the turn's requirement decision sends it to an added plugin's tools."""
+    try:
+        from core.execution_requirements import _compute_requirements
+
+        # Computed, not recorded: this reader must not freeze the turn's decision for a planner's text.
+        context = source_context if isinstance(source_context, dict) else None
+        return tuple(_compute_requirements(str(text or ""), source_context=context).allowed_toolsets) == ("plugin",)
     except Exception:
         return False
 
