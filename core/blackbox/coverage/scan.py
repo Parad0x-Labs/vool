@@ -30,6 +30,10 @@ from core.blackbox.store import BlackboxStore
 
 DEFAULT_MAX_FILES = 4000
 DEFAULT_MAX_TOTAL_CAPTURE_BYTES = 64 * 1024 * 1024
+#: The longest a turn waits for one scan. A folder read the OS holds (macOS holds a new program's
+#: first read of Desktop until its privacy prompt is answered) is left running off the turn and
+#: the scan comes back NOT FINISHED, which every caller treats as "could not observe".
+DEFAULT_MAX_WAIT_S = 30.0
 
 _SKIP_DIRS = frozenset({"__pycache__", ".pytest_cache", "node_modules"})
 
@@ -38,6 +42,7 @@ _SKIP_DIRS = frozenset({"__pycache__", ".pytest_cache", "node_modules"})
 class ScanBounds:
     max_files: int = DEFAULT_MAX_FILES
     max_total_capture_bytes: int = DEFAULT_MAX_TOTAL_CAPTURE_BYTES
+    max_wait_s: float = DEFAULT_MAX_WAIT_S
 
 
 @dataclass
@@ -48,6 +53,9 @@ class ScanResult:
     files_scanned: int
     bytes_captured: int
     capture_skipped: int
+    #: False when the walk did not finish within the wait: nothing was observed (``files`` is
+    #: empty and ``degraded`` is True), so no drift may be computed from it.
+    finished: bool = True
 
     def manifest(self) -> dict[str, str]:
         return {rel: str(item.get("sha256") or "") for rel, item in self.files.items()}
@@ -61,9 +69,29 @@ def _store_dir_roots(store: BlackboxStore) -> list[Path]:
 
 
 def scan_workspace(root: Path, *, store: BlackboxStore, bounds: ScanBounds | None = None) -> ScanResult:
-    """Observe every regular file under ``root`` (bounded), capturing preimage blobs into the CAS."""
+    """Observe every regular file under ``root`` (bounded), capturing preimage blobs into the CAS.
+
+    The walk runs off the turn and is waited on for at most ``bounds.max_wait_s``. Mac gate on
+    991e5be60 (2026-11-22): a read-only tool's before-scan of the chat's default workspace (the
+    owner's Desktop) sat in ``os.scandir`` for good, and the turn never ended. A walk that does not
+    finish in time gives ``finished=False``."""
+    from core.off_turn import run_bounded_shared
+
     bounds = bounds or ScanBounds()
     root = Path(root).resolve()
+    finished, result = run_bounded_shared(
+        "workspace-scan:" + str(root),
+        lambda: _scan_workspace_now(root, store=store, bounds=bounds),
+        wait_s=bounds.max_wait_s,
+        fallback=None,
+    )
+    if not finished or result is None:
+        return ScanResult(files={}, manifest_sha256="", degraded=True, files_scanned=0, bytes_captured=0,
+                          capture_skipped=0, finished=False)
+    return result
+
+
+def _scan_workspace_now(root: Path, *, store: BlackboxStore, bounds: ScanBounds) -> ScanResult:
     store_dirs = {str(item) for item in _store_dir_roots(store)}
     files: dict[str, dict[str, Any]] = {}
     bytes_captured = 0
@@ -156,8 +184,11 @@ class DriftItem:
 def diff_scans(before: ScanResult, after: ScanResult, *, hash_key: str = "sha256") -> list[DriftItem]:
     """Every path whose observation changed between the two scans, in stable path order.
     ``hash_key`` selects which row field carries the content binding -- the raw digest for
-    in-memory scans, the keyed opaque content id for journal-recovered rows."""
+    in-memory scans, the keyed opaque content id for journal-recovered rows. A scan that did not
+    finish observed nothing, so it yields no drift: callers check ``finished`` and say so."""
     drift: list[DriftItem] = []
+    if not (before.finished and after.finished):
+        return drift
     for rel in sorted(set(before.files) | set(after.files)):
         was = before.files.get(rel)
         now = after.files.get(rel)

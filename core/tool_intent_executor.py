@@ -634,8 +634,41 @@ def _with_blackbox_coverage(
             root = workspace_root_from_context(source_context)
             if root is not None:
                 before = scan_workspace(root, store=default_store())
+                if not before.finished:
+                    # The folder could not be read in time (a pending permission prompt, a sleeping
+                    # disk): without a before picture the read-only claim cannot be checked, so the
+                    # tool does not run and the turn ends instead of waiting on the folder.
+                    text = (
+                        f"`{intent}` was not run: the workspace folder could not be read in time to check "
+                        "that it only reads. The computer may be waiting on a permission prompt for that folder."
+                    )
+                    return _settle_registered_budget_effect(intent, budget_effect, ToolIntentExecution(
+                        handled=True,
+                        ok=False,
+                        status="blackbox_workspace_not_read_in_time",
+                        response_text=text,
+                        user_safe_response_text=text,
+                        mode="tool_failed",
+                        tool_name=intent,
+                        details={"executed": False},
+                    ))
                 execution = dispatch()
                 after = scan_workspace(root, store=default_store())
+                if not after.finished:
+                    text = (
+                        f"`{intent}` ran, but the workspace folder could not be read again in time to check "
+                        "that it changed nothing, so its output is not used."
+                    )
+                    return _settle_registered_budget_effect(intent, budget_effect, ToolIntentExecution(
+                        handled=True,
+                        ok=False,
+                        status="blackbox_read_only_unverified",
+                        response_text=text,
+                        user_safe_response_text=text,
+                        mode="tool_failed",
+                        tool_name=intent,
+                        details={"executed": True, "read_only_verified": False},
+                    ))
                 drift = diff_scans(before, after)
                 if drift:
                     text = (

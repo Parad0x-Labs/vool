@@ -13,6 +13,7 @@ second one behind it: they get the fallback at once, so no pile of stuck threads
 """
 from __future__ import annotations
 
+import contextvars
 import logging
 import threading
 from collections.abc import Callable
@@ -23,6 +24,8 @@ T = TypeVar("T")
 
 _LOCK = threading.Lock()
 _RUNNING: dict[str, threading.Thread] = {}
+#: Reads that outlived their wait and are still running, per group (see `run_bounded_shared`).
+_STUCK: dict[str, set[threading.Thread]] = {}
 
 
 def run_bounded(key: str, read: Callable[[], T], *, wait_s: float, fallback: T) -> T:
@@ -37,9 +40,11 @@ def run_bounded(key: str, read: Callable[[], T], *, wait_s: float, fallback: T) 
         if running is not None and running.is_alive():
             return fallback
 
+        context = contextvars.copy_context()  # the turn's context (data folder, session) goes along
+
         def run() -> None:
             try:
-                box["value"] = read()
+                box["value"] = context.run(read)
             except Exception:
                 _LOG.exception("off-turn read %s failed", key)
             finally:
@@ -63,3 +68,39 @@ def still_blocked(key: str) -> bool:
     with _LOCK:
         running = _RUNNING.get(key)
         return running is not None and running.is_alive()
+
+
+def run_bounded_shared(group: str, read: Callable[[], T], *, wait_s: float, fallback: T) -> tuple[bool, T]:
+    """Like `run_bounded`, for reads that may run side by side (two chats scanning one folder).
+
+    Each call starts its own read, unless an earlier read in ``group`` outlived its wait and is
+    still running: then the folder is known to be held, and the fallback comes at once. Returns
+    ``(finished, value)``; ``finished`` is False when the fallback was given. An exception inside
+    ``read`` is raised here, in the caller, as if the read had run on its thread."""
+    box: dict[str, Any] = {}
+    with _LOCK:
+        stuck = {thread for thread in _STUCK.get(group, set()) if thread.is_alive()}
+        if stuck:
+            _STUCK[group] = stuck
+            return False, fallback
+        _STUCK.pop(group, None)
+
+    context = contextvars.copy_context()
+
+    def run() -> None:
+        try:
+            box["value"] = context.run(read)
+        except BaseException as exc:
+            box["error"] = exc
+
+    thread = threading.Thread(target=run, name=f"off-turn:{group[:40]}", daemon=True)
+    thread.start()
+    thread.join(max(0.0, float(wait_s)))
+    if thread.is_alive():
+        with _LOCK:
+            _STUCK.setdefault(group, set()).add(thread)
+        _LOG.warning("off-turn read %s still blocked after %.1f s; the turn carries on", group, wait_s)
+        return False, fallback
+    if "error" in box:
+        raise box["error"]
+    return True, box["value"]

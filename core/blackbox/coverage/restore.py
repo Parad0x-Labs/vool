@@ -172,6 +172,8 @@ def recover_open_coverage(store: BlackboxStore) -> list[dict[str, Any]]:
                             degraded=bool(entry.get("degraded")), files_scanned=len(files_before),
                             bytes_captured=0, capture_skipped=0)
         after_scan = scan_workspace(root, store=store) if str(root) else None
+        if after_scan is not None and not after_scan.finished:
+            continue  # the folder could not be read now: the effect stays open for the next pass
         if after_scan is None:
             after = ScanResult({}, "", True, 0, 0, 0)
             drift = []

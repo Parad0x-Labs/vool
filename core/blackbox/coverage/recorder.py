@@ -86,6 +86,7 @@ STATUS_UNRECORDED = "blackbox_unrecorded"
 STATUS_CAPTURE_INCOMPLETE = "blackbox_reversible_capture_incomplete"
 STATUS_KEY_UNAVAILABLE = "blackbox_key_unavailable"
 STATUS_DOWNGRADE_REQUIRED = "blackbox_irreversible_downgrade_required"
+STATUS_WORKSPACE_UNREAD = "blackbox_workspace_not_read_in_time"
 
 _FORBIDDEN_PAYLOAD_KEYS = frozenset({"content", "bytes", "stdout_raw", "preimage", "postimage", "body"})
 HIGH_RISK_ALLOW_KEY = "_blackbox_high_risk_allowed"
@@ -380,6 +381,15 @@ def recorded_capability_mutation(
     if strategy == STRATEGY_WORKSPACE_SCAN:
         try:
             before_scan = scan_workspace(root, store=store, bounds=bounds)
+            if not before_scan.finished:
+                return _refusal(
+                    intent,
+                    STATUS_WORKSPACE_UNREAD,
+                    f"`{intent}` was not run: the workspace folder ({root.name or root}) could not be read "
+                    "in time to record what it holds first. The computer may be waiting on a permission "
+                    "prompt for that folder.",
+                    executed=False,
+                )
             # ROLLBACK TRUTH (2026-09-02 amendment): a reversible, unknown-scope effect may run
             # ONLY when every path it could mutate holds a captured restorable preimage or a
             # proven missing-state record. Incomplete bounds refuse here -- BEFORE execution --
@@ -655,7 +665,7 @@ def _write_terminal(
     if strategy == STRATEGY_WORKSPACE_SCAN:
         assert root is not None and before_scan is not None
         after_scan = scan_workspace(root, store=store, bounds=bounds)
-        drift = diff_scans(before_scan, after_scan)
+        drift = diff_scans(before_scan, after_scan)  # none when the after scan did not finish
         drift_rows: list[dict[str, Any]] = []
         for item in drift:
             risks = highrisk.classify_path(item.path) or highrisk.classify_path(str(Path(root) / item.path))
@@ -671,7 +681,7 @@ def _write_terminal(
                     }
                 )
             )
-        outcome = outcome_override or _outcome_for(result, len(drift))
+        outcome = outcome_override or (_outcome_for(result, len(drift)) if after_scan.finished else OUTCOME_UNKNOWN)
         # NEVER downgrade after execution: the capability stays what it declared. An execution
         # that ran under an approved pre-execution downgrade says so; one whose AFTER scan
         # degraded reports it and cannot claim rollback -- but nothing flips reversibility here.
@@ -687,6 +697,7 @@ def _write_terminal(
                 "manifest_sha256_after": after_scan.manifest_sha256,
                 "degraded": bool(before_scan.degraded or after_scan.degraded),
                 "degraded_after_scan": bool(after_scan.degraded and not before_scan.degraded),
+                "after_scan_finished": after_scan.finished,
                 "downgraded_to_irreversible": downgraded,
                 "drift": drift_rows,
                 "rollback_capable": bool(not downgraded and all(row["rollback_capable"] for row in drift_rows)) if drift_rows else (not downgraded and not after_scan.degraded),
