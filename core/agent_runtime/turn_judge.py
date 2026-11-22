@@ -56,21 +56,27 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
 
     if not request_is_owner_local(source_context) or not turn_speaks_for_owner(source_context, str(session_id or "")):
         return None
+    from core import intent_arbiter
     from core.clean_loop import brain
 
-    manifest = brain.resolve_local_manifest(router, source_context)
-    if manifest is None:
-        return None
-    metadata = getattr(manifest, "metadata", None) or {}
-    if str(metadata.get("runtime_family") or "").strip().lower() != "ollama":
-        return None
-    model = str(getattr(manifest, "model_name", "") or "").strip()
-    if not model:
-        return None
-    role = str(metadata.get("bundle_role") or "general")
-    from core import intent_arbiter
+    # Read when a judgement is first asked, not when the turn starts: finding the turn's model asks Ollama what it
+    # has, and most turns ask no judgement of this judge (a loaded model answers them, or none is asked at all).
+    found: list[tuple[str, str] | None] = []
+
+    def _model() -> tuple[str, str] | None:
+        if not found:
+            manifest = brain.resolve_local_manifest(router, source_context)
+            metadata = (getattr(manifest, "metadata", None) or {}) if manifest is not None else {}
+            model = str(getattr(manifest, "model_name", "") or "").strip()
+            ollama = str(metadata.get("runtime_family") or "").strip().lower() == "ollama"
+            found.append((model, str(metadata.get("bundle_role") or "general")) if model and ollama else None)
+        return found[0]
 
     def judge(prompt: str) -> str:
+        named = _model()
+        if named is None:
+            raise LookupError("no local Ollama model answers this turn")
+        model, role = named
         return intent_arbiter.ask_local_model(str(prompt), model, runner_role=role, source_context=source_context) or ""
 
     return judge
