@@ -22,8 +22,10 @@ def test_the_cards_are_many_plain_and_illustrated():
     ids = [c["id"] for c in rows]
     assert len(ids) == len(set(ids))
     for c in rows:
-        for key in ("id", "emoji", "title", "what_happens", "they_want", "you_do", "svg"):
+        for key in ("id", "emoji", "short", "title", "what_happens", "they_want", "you_do", "svg"):
             assert c.get(key), (c.get("id"), key)
+        # The chip label is a few words, so the whole list reads at a glance.
+        assert len(c["short"].split()) <= 5, (c["id"], c["short"])
         for key in ("title", "what_happens", "they_want", "you_do"):
             text = c[key]
             assert len(text.split()) <= 28, (c["id"], key, text)
@@ -56,8 +58,11 @@ def test_the_settings_group_carries_the_panel_after_the_switch():
 
     group = next(g for g in settings_groups() if g["id"] == "wallet")
     ids = [r["id"] for r in group["rows"]]
-    assert ids[:2] == ["wallet_enabled", "wallet_safety"], ids
-    row = group["rows"][1]
+    # Owner, 2026-11-22: the tips are helpers, not the main thing. With Crypto on, the networks and Create wallet come
+    # right after the switch; the tips sit last, as small chips.
+    assert ids[:2] == ["wallet_enabled", "crypto_networks"], ids
+    assert ids[-1] == "wallet_safety", ids
+    row = group["rows"][-1]
     assert row["kind"] == "custom" and row["widget"] == "scam_school" and row["read"] == {"url": "/api/wallet/safety"}
     assert "widgetScamSchool" in render_vool_settings_html()
 
@@ -97,7 +102,13 @@ def test_served_settings_show_the_cards_with_the_wallet_off(tmp_path):
             assert count >= 10 and with_svg == count, (count, with_svg)
             text = page.inner_text("#paneBody")
             assert "Nobody real ever needs your secret phrase or private key." in text
-            assert "repair" in text.lower() and "airdrop" in text.lower()
+            # Closed, a card shows only its picture and a few words; a click opens the full lesson, a second closes it.
+            card = page.locator('.scam-card[data-card="fake_support"]')
+            assert "repair" not in card.inner_text().lower()
+            card.locator("summary").click()
+            assert "repair" in card.inner_text().lower()
+            card.get_by_role("button", name="Close").click()
+            assert card.evaluate("c => !c.open")
         finally:
             browser.close()
             manager.stop()

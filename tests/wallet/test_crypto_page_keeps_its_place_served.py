@@ -93,17 +93,16 @@ def test_the_crypto_page_keeps_its_place_and_the_safety_cards_start_short(tmp_pa
             page.wait_for_selector("#vwCx .vw-cx-account", timeout=30_000)
             page.wait_for_selector(".scam-card", timeout=30_000)
 
-            # --- the safety cards: two show, Read more opens the rest in place and Show less folds them again
+            # --- the safety cards: every trick shows as a small closed chip; one click opens that card, a second folds it
             total = page.locator(".scam-card").count()
             assert total > 2, total
-            assert page.locator(".scam-card:visible").count() == 2
-            more = page.locator("#scamMore")
-            assert more.inner_text().strip() == f"Read more ({total - 2} more)" and more.get_attribute("aria-expanded") == "false"
-            more.click()
             assert page.locator(".scam-card:visible").count() == total
-            assert more.inner_text().strip() == "Show less" and more.get_attribute("aria-expanded") == "true"
-            more.click()
-            assert page.locator(".scam-card:visible").count() == 2
+            assert page.locator(".scam-card[open]").count() == 0
+            first = page.locator(".scam-card").first
+            first.locator("summary").click()
+            assert page.locator(".scam-card[open]").count() == 1 and first.locator(".scam-do").is_visible()
+            first.locator("summary").click()
+            assert page.locator(".scam-card[open]").count() == 0
 
             # --- coming back to the window with nothing changed: no repaint, no move, the open fold stays open
             page.evaluate("() => { document.getElementById('vwCxFacts').open = true; }")

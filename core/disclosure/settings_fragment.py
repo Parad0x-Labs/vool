@@ -28,9 +28,8 @@ def render_settings_fragment() -> str:
     const label=node('label'),check=node('input');check.type='checkbox';check.disabled=true;check.id='disclosurePreviewSetting';
     label.append(check,node('span',tr('setting_preview','Show me what leaves before cloud models see my files')));host.append(label);
     host.append(node('p',tr('setting_note','Sensitive content and project rules may still require a preview when this is off.')));
-    const copyLabel=node('label'),copies=node('input');copies.type='checkbox';copies.disabled=true;copies.checked=false;copies.id='disclosureCopySetting';
-    copyLabel.append(copies,node('span',tr('setting_copies','Keep a copy of what was sent')));host.append(copyLabel);
-    const copyNote=node('p',tr('copies_off','Saved copies are off in this version. Live previews last up to five minutes.'));copyNote.id='disclosureCopiesNote';copies.setAttribute('aria-describedby',copyNote.id);host.append(copyNote,status);
+    // Copies of what was sent are never kept, so there is no switch for them: a box that can never be ticked only misleads.
+    const copyNote=node('p',tr('copies_never_kept','VOOL keeps no copy of what was sent. A preview stays open for up to five minutes.'));copyNote.id='disclosureCopiesNote';host.append(copyNote,status);
     const projects=node('div');projects.id='disclosureProjectRules';host.append(node('h3',tr('project_rules','Project cloud rules')),projects);
     try{
       const [settings,data]=await Promise.all([api('settings'),api('projects')]);check.checked=settings.preview_enabled;check.disabled=false;status.textContent='';

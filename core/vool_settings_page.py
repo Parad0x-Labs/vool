@@ -198,7 +198,7 @@ def _settings_groups() -> list[dict]:
                     id="profanity_level",
                     card="voice",
                     hint="How much VOOL may swear. 0% means never.",
-                    label="Profanity ceiling",
+                    label="Swearing",
                     help=(
                         "How much VOOL may swear, if at all, when the tone calls for it. 0% means never."
                     ),
@@ -561,7 +561,7 @@ def _settings_groups() -> list[dict]:
             "id": "models",
             "icon": "◈",
             "title": "Models & Providers",
-            "blurb": "Which brain answers, and which providers are actually eligible.",
+            "blurb": "Which AI model answers you, on this computer or online.",
             "cards": [{"id": "answer", "title": "What answers", "icon": "models"}, {"id": "online", "title": "Online models", "icon": "globe"}],
             "rows": [
                 _row(
@@ -786,7 +786,7 @@ def _settings_groups() -> list[dict]:
                 _row(
                     id="lend",
                     card="share", label="Lend jobs to friends", kind="custom", widget="lend",
-                    help="No cloud processing or paid calls.",
+                    help="Swap small jobs with a friend's computer, like a clean PDF or a summary. Nothing goes to the cloud and nothing is paid.",
                     keywords="lend borrow friends job invitation QR",
                 ),
             ],
@@ -864,14 +864,14 @@ def _settings_groups() -> list[dict]:
             "id": "budgets",
             "icon": "◴",
             "title": "Usage & Budgets",
-            "blurb": "How much VOOL has used, and which limits it really keeps to.",
+            "blurb": "How much VOOL has used, and the limits you set.",
             "cards": [{"id": "use", "title": "Usage", "icon": "budgets"}, {"id": "limits", "title": "Limits", "icon": "settings"}],
             "rows": [
                 _row(
                     id="ram_reserve_pct",
                     card="limits",
                     hint="Memory VOOL always leaves free for you.",
-                    label="RAM kept free for you",
+                    label="Memory kept free for your other apps",
                     help=(
                         "VOOL always leaves this share of your computer's memory free for you, even "
                         "during a heavy task. A bigger share means VOOL uses less. This is a firm "
@@ -903,6 +903,7 @@ def _settings_groups() -> list[dict]:
                     min=0,
                     max=1_000_000_000,
                     step=1000,
+                    unit="word pieces a day (0 = no guide)",
                     read={"url": PREFS, "field": "daily_token_budget"},
                     write={"url": PREFS, "field": "daily_token_budget", "type": "int"},
                     scope=SCOPE_GLOBAL,
@@ -987,15 +988,6 @@ def _settings_groups() -> list[dict]:
                     keywords=["wallet", "crypto", "pilot", "enable", "solana", "base", "ethereum", "bnb", "robinhood", "arbitrum"],
                 ),
                 _row(
-                    id="wallet_safety",
-                    label="Stay safe: how people lose their crypto",
-                    help="Short, plain explanations of the tricks that empty wallets, with a picture each. Two minutes, once.",
-                    kind="custom",
-                    widget="scam_school",
-                    read={"url": "/api/wallet/safety"},
-                    keywords=["scam", "phishing", "airdrop", "migration", "support", "seed", "phrase", "private key", "approval", "drain", "safety", "stay safe"],
-                ),
-                _row(
                     id="crypto_networks",
                     label="Networks and wallets",
                     help=(
@@ -1016,6 +1008,15 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="wallet",
                     keywords=["watch-only", "phantom", "evm", "external", "connect", "legacy", "pocket", "phrase"],
+                ),
+                _row(
+                    id="wallet_safety",
+                    label="Stay safe: how people lose their crypto",
+                    help="The tricks that empty wallets, a few words each. Click one to read what happens and what to do; click it again to close it.",
+                    kind="custom",
+                    widget="scam_school",
+                    read={"url": "/api/wallet/safety"},
+                    keywords=["scam", "phishing", "airdrop", "migration", "support", "seed", "phrase", "private key", "approval", "drain", "safety", "stay safe"],
                 ),
             ],
         },
@@ -1074,7 +1075,7 @@ def _settings_groups() -> list[dict]:
             "id": "advanced",
             "icon": "⌥",
             "title": "Advanced",
-            "blurb": "Extra pages for people who want to look under the hood.",
+            "blurb": "Extra tools most people never need.",
             "cards": [{"id": "screen", "title": "Screen sharing", "icon": "lock"}, {"id": "pages", "title": "Extra pages", "icon": "files"}],
             "rows": [
                 _row(
@@ -1157,7 +1158,7 @@ def _settings_groups() -> list[dict]:
                     id="toolbelt",
                     card="copy",
                     hint="What VOOL can use right now.",
-                    label="Toolbelt",
+                    label="What VOOL can do right now",
                     kind="custom",
                     widget="extras_toolbelt",
                     help=(
@@ -1289,16 +1290,22 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .nav-item[aria-current="true"] .ico { color:var(--accent); }
 .nav-item .hits { margin-left:auto; color:var(--accent); font-size:11px; font-weight:700; }
 .nav-empty { color:var(--muted); font-size:12.5px; padding:10px 9px; }
-.scam-rule { border-left:3px solid #f87171; padding:8px 12px; margin:4px 0 12px; font-weight:600; line-height:1.4; }
-.scam-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
-.scam-card { display:flex; gap:12px; border:1px solid var(--border); border-radius:10px; padding:12px; background:var(--panel, transparent); }
-.scam-ill { flex:0 0 64px; color:var(--ink); }
-.scam-ill svg { width:64px; height:64px; display:block; }
-.scam-body { min-width:0; font-size:12.5px; line-height:1.4; }
+.scam-rule { border-left:3px solid #f87171; padding:6px 10px; margin:4px 0 10px; font-weight:600; line-height:1.4; font-size:12.5px; }
+.scam-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:8px; align-items:start; }
+.scam-card { border:1px solid var(--border); border-radius:10px; background:var(--panel, transparent); }
+.scam-card[open] { grid-column:1 / -1; }
+.scam-chip { display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:pointer; list-style:none; font-size:12.5px; font-weight:600; }
+.scam-chip::-webkit-details-marker { display:none; }
+.scam-chip::after { content:'\203A'; margin-left:auto; color:var(--muted); transition:transform .15s; }
+.scam-card[open] > .scam-chip::after { transform:rotate(90deg); }
+.scam-ill { flex:0 0 28px; color:var(--ink); }
+.scam-ill svg { width:28px; height:28px; display:block; }
+.scam-short { min-width:0; }
+.scam-body { padding:0 12px 12px 46px; font-size:12.5px; line-height:1.4; }
 .scam-title { font-weight:700; margin-bottom:6px; font-size:13px; }
 .scam-line { margin:3px 0; color:var(--muted); }
 .scam-line.scam-do { color:var(--ink); font-weight:600; }
-.scam-more { margin-top:10px; align-self:flex-start; width:auto; }
+.scam-close { margin-top:8px; width:auto; }
 .scam-principle { margin-top:12px; padding:8px 12px; border-left:3px solid #34d399; font-weight:600; }
 
 /* ---- content ---- */
@@ -1965,6 +1972,8 @@ function control(row) {
     i.addEventListener('change', send);
     i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
     wrap.appendChild(i);
+    /* A bare number box does not say what it counts: the unit sits beside it. */
+    if (row.kind === 'number' && row.unit) wrap.appendChild(el('span', 'subtle', T('settings.row.' + row.id + '.unit', row.unit)));
     /* A text box with a limit says so as it fills, instead of cutting a paste off silently. */
     if (row.kind === 'text' && row.maxlength) {
       const count = el('div', 'subtle text-count');
@@ -2588,7 +2597,7 @@ function widgetSetupProgress(stack) {
       : (s.skipped ? T('setup.checklist.skipped', 'Skipped') : T('setup.checklist.todo', 'To do'))));
     line.appendChild(pill);
     line.appendChild(el('span', null, T('setup.step.' + s.id + '.title', s.title)));
-    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'later: {later}', { later: T('setup.step.' + s.id + '.later', s.later) })));
+    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'You can also do this later: {later}', { later: T('setup.step.' + s.id + '.later', s.later) })));
     list.appendChild(line);
   });
   stack.appendChild(list);
@@ -2631,8 +2640,9 @@ function widgetSetupProgress(stack) {
 
 /* --- Stay safe: the scam cards from core/wallet/scam_school.py (one authority; the SVGs are the server's own
    static drawings, never user content). Available with the wallet off: knowledge first, custody later. */
-const SCAM_SHOWN = 2;
-let scamMoreOpen = false;
+/* Each trick is a small chip -- its picture and a few words. Clicking a chip opens that one card in place with the
+   full lesson; clicking it again (or Close) folds it. Tips are helpers, so they stay small and sit below the wallets. */
+const scamOpen = new Set();
 function widgetScamSchool(stack) {
   const src = state.sources['/api/wallet/safety'];
   const err = state.sourceErr['/api/wallet/safety'];
@@ -2641,34 +2651,26 @@ function widgetScamSchool(stack) {
   const rule = el('div', 'scam-rule'); rule.setAttribute('role', 'note'); rule.textContent = src.golden_rule || '';
   stack.appendChild(rule);
   const grid = el('div', 'scam-grid'); grid.id = 'scamGrid';
-  const cards = src.cards || [];
-  cards.forEach((c, i) => {
-    const card = el('div', 'scam-card'); card.dataset.card = c.id;
-    if (i >= SCAM_SHOWN && !scamMoreOpen) card.hidden = true;
-    const ill = el('div', 'scam-ill'); ill.innerHTML = c.svg || ''; card.appendChild(ill);
+  (src.cards || []).forEach(c => {
+    const card = el('details', 'scam-card'); card.dataset.card = c.id; card.open = scamOpen.has(c.id);
+    const head = el('summary', 'scam-chip');
+    const ill = el('span', 'scam-ill'); ill.innerHTML = c.svg || ''; head.appendChild(ill);
+    head.appendChild(el('span', 'scam-short', c.short || c.title));
+    card.appendChild(head);
     const body = el('div', 'scam-body');
-    body.appendChild(el('div', 'scam-title', (c.emoji ? c.emoji + ' ' : '') + c.title));
+    body.appendChild(el('div', 'scam-title', c.title));
     body.appendChild(el('div', 'scam-line', 'What happens: ' + c.what_happens));
     body.appendChild(el('div', 'scam-line', 'What they want: ' + c.they_want));
     body.appendChild(el('div', 'scam-line scam-do', 'What you do: ' + c.you_do));
-    card.appendChild(body); grid.appendChild(card);
+    const close = el('button', 'btn scam-close', T('wallet.home.close', 'Close')); close.type = 'button';
+    close.addEventListener('click', () => { card.open = false; head.focus(); });
+    body.appendChild(close);
+    card.appendChild(body);
+    /* The open cards survive the pane's repaints, and nothing is fetched again. */
+    card.addEventListener('toggle', () => { if (card.open) scamOpen.add(c.id); else scamOpen.delete(c.id); });
+    grid.appendChild(card);
   });
   stack.appendChild(grid);
-  /* Two cards show; the rest open in place with Read more, so the page stays short. The open state survives the
-     pane's repaints, and nothing is fetched again. */
-  if (cards.length > SCAM_SHOWN) {
-    const hiddenCount = cards.length - SCAM_SHOWN;
-    const more = el('button', 'btn scam-more'); more.type = 'button'; more.id = 'scamMore';
-    more.setAttribute('aria-controls', 'scamGrid');
-    const paint = () => {
-      more.setAttribute('aria-expanded', scamMoreOpen ? 'true' : 'false');
-      more.textContent = scamMoreOpen ? T('settings.scam.show_less', 'Show less') : tfmt('settings.scam.read_more', 'Read more ({count} more)', { count: hiddenCount });
-      Array.prototype.forEach.call(grid.children, (card, i) => { card.hidden = i >= SCAM_SHOWN && !scamMoreOpen; });
-    };
-    more.addEventListener('click', () => { scamMoreOpen = !scamMoreOpen; paint(); });
-    paint();
-    stack.appendChild(more);
-  }
   if (src.principle) stack.appendChild(el('div', 'scam-principle', src.principle));
 }
 
@@ -3023,8 +3025,8 @@ function widgetUsage(stack) {
     const usd = est == null ? '' : (est > 0 && est < 0.01 ? ' · ' + T('settings.usage.under_cent', 'less than $0.01') : ' · ' + tfmt('settings.usage.about_usd', 'about ${amount}', { amount: est.toFixed(2) }));
     line(T('settings.usage.paid_online', 'Paid, online'), paid, usd);
     line(T('settings.usage.other', 'Other'), data.remote_unknown);
-    dl.appendChild(el('dt', null, T('settings.usage.total', 'Total')));
-    dl.appendChild(el('dd', null, (data.total_tokens || 0).toLocaleString() + ' tokens'));
+    dl.appendChild(el('dt', null, T('settings.usage.total_word_pieces', 'Total word pieces')));
+    dl.appendChild(el('dd', null, (data.total_tokens || 0).toLocaleString()));
     if (!data.total_tokens) body.appendChild(el('div', 'subtle', T('settings.usage.none_yet', 'Nothing used in this period yet.')));
     body.appendChild(dl);
     (data.notices || []).forEach(n => body.appendChild(el('div', 'subtle', typeof n === 'string' ? n : (n.message || ''))));
@@ -4073,7 +4075,7 @@ function thisComputerName() {
 }
 function mpOpenRow(rowId, part) { location.hash = '#models/' + rowId + (part ? '/' + part : ''); }
 function widgetModelsOverview(stack) {
-  stack.appendChild(el('div', 'subtle', T('keys.plugin_models_help', 'Built-in model companies stay under API Keys.')));
+  stack.appendChild(el('div', 'subtle', T('keys.plugin_models_help', 'To use an online AI company, add its key under API Keys.')));
   const line = el('div', 'inline');
   const local = el('button', 'btn', thisComputerName()); local.type='button'; local.addEventListener('click', () => mpOpenRow('local_models')); line.appendChild(local);
   const addons=el('a', 'btn', T('keys.plugin_manage', 'Manage plugins in Add-ons')); addons.href='/addons'; line.appendChild(addons);
@@ -4153,11 +4155,20 @@ function widgetLocalModels(stack) {
   };
   /* anyReady: a model already answers here, so this block only offers the newer suggested model
      (a person on last year's model is told a better one fits), not "what you can do instead". */
+  /* The suggestion is sized to this computer and stepped down to what fits the free disk, so it can be smaller than a
+     model that already answers here. Offering that as "newer" would trade a working model for a weaker one: a
+     suggestion no bigger than the best ready model is not offered at all. */
+  const recIsStepDown = (models) => {
+    const rec = data && data.recommended;
+    const ready = models.filter(m => m.readiness === 'ready').map(m => Number(m.size_gb) || 0);
+    return !!(rec && rec.model_name && ready.length && (Number(rec.download_gb) || 0) <= Math.max(...ready));
+  };
   const ways = (models, anyReady) => {
     const wrap = el('div', 'stack');
     const rec = data && data.recommended;
     const recHave = !!(rec && rec.model_name && models.some(x => x.model_name === rec.model_name));
-    if (anyReady) { if (rec && rec.model_name && !recHave) wrap.appendChild(el('div', 'subtle', LM('suggest.newer', 'A newer model fits this computer:'))); }
+    const stepDown = anyReady && recIsStepDown(models);
+    if (anyReady) { if (rec && rec.model_name && !recHave && !stepDown) wrap.appendChild(el('div', 'subtle', LM('suggest.newer', 'A newer model fits this computer:'))); }
     else if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
     const line = el('div', 'inline');
     if (pull) {
@@ -4173,7 +4184,7 @@ function widgetLocalModels(stack) {
         b.disabled = !!busy;
         b.addEventListener('click', () => useModel(have));
         line.appendChild(b);
-      } else if (!have && (!pull || pull.failed)) {
+      } else if (!have && !stepDown && (!pull || pull.failed)) {
         const b = el('button', 'btn primary', LM('suggest.download', 'Download {model} ({gb} GB)', { model: rec.model_name, gb: rec.download_gb }));
         b.type = 'button'; b.disabled = !!busy;
         b.addEventListener('click', () => startPull(rec));
@@ -4202,7 +4213,7 @@ function widgetLocalModels(stack) {
       line.appendChild(cloud);
     }
     wrap.appendChild(line);
-    if (rec && rec.model_name && rec.sized_by_gb) {
+    if (rec && rec.model_name && rec.sized_by_gb && !stepDown) {
       wrap.appendChild(el('div', 'subtle', rec.machine_kind === 'nvidia'
         ? LM('suggest.picked_gpu', 'Picked for this computer’s {gb} GB graphics card.', { gb: Math.round(rec.sized_by_gb) })
         : LM('suggest.picked_memory', 'Picked for this computer’s {gb} GB of memory.', { gb: Math.round(rec.sized_by_gb) })));
@@ -4256,7 +4267,7 @@ function widgetLocalModels(stack) {
     }
     const anyReady = models.some(m => m.readiness === 'ready');
     const rec = data.recommended;
-    const recMissing = !!(rec && rec.model_name && !models.some(x => x.model_name === rec.model_name));
+    const recMissing = !!(rec && rec.model_name && !models.some(x => x.model_name === rec.model_name)) && !(anyReady && recIsStepDown(models));
     /* Once the suggested daily model is on this computer, the bigger-jobs and faster models are the next offers. */
     const bigMissing = !recMissing && !!(rec && rec.bigger && rec.bigger.model_name && !models.some(x => x.model_name === rec.bigger.model_name));
     const fastMissing = !recMissing && !!(rec && rec.faster && rec.faster.model_name && !models.some(x => x.model_name === rec.faster.model_name));
@@ -4598,12 +4609,17 @@ function widgetLiveBrowser(stack) {
   const button = el('button', 'sw'); button.type = 'button'; button.setAttribute('role', 'switch');
   button.setAttribute('aria-label', T('settings.row.live_browser.label', 'Browser'));
   const note = el('div', 'subtle'); const status = el('div', 'state idle'); status.setAttribute('role', 'status');
+  const link = el('a', '', T('settings.row.live_browser.open', 'Open the browser')); link.href = '/browser?chat=browser'; link.target = '_blank'; link.rel = 'noopener';
   let current = data, busy = false;
   const paint = back => {
     current = back;
     button.setAttribute('aria-checked', back.enabled === true ? 'true' : 'false');
     button.disabled = busy || (!back.enabled && (back.local_only || !back.web_enabled));
-    note.textContent = back.local_only || !back.web_enabled ? T('vcs.state.egress_refused', 'Network access is off') : '';
+    /* Name the one thing that keeps it off, so the person knows what to change: the browser needs Web lookups. */
+    note.textContent = back.enabled ? ''
+      : back.local_only ? T('settings.row.web_lookups.local_only_note', LOCAL_ONLY_NOTE_EN)
+      : !back.web_enabled ? T('settings.row.live_browser.needs_web', 'Turn on Web lookups above first.') : '';
+    link.hidden = back.enabled !== true;
   };
   const reread = async () => {
     const r = await fetch('/api/browser/settings', {cache:'no-store'}); const back = await r.json();
@@ -4622,7 +4638,7 @@ function widgetLiveBrowser(stack) {
     busy = false; paint(current);
   };
   stack.appendChild(button); stack.appendChild(note); stack.appendChild(status);
-  const link = el('a', '', T('live.browser', 'Browser')); link.href = '/browser?chat=browser'; link.target = '_blank'; link.rel = 'noopener'; stack.appendChild(link);
+  stack.appendChild(link);
   const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => { button.disabled = true; }); }, 1500);
 }
 function widgetPrivateWeb(stack) {
@@ -4725,12 +4741,15 @@ function widgetPhoneAccess(host) {
     stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return;
   }
   const network = el('select', 'inp');
-  network.setAttribute('aria-label', T('phone.network', 'Network address'));
+  network.setAttribute('aria-label', T('phone.network', 'Computer\u2019s address on your home network'));
   const addresses = [...new Set([src.address, ...(src.addresses || [])].filter(Boolean))];
   addresses.forEach(a => { const option = el('option', '', a); option.value = a; network.appendChild(option); });
   if (src.address) network.value = src.address;
   network.disabled = !!src.enabled;
-  stack.appendChild(network);
+  /* A bare address in a box means nothing to most people: say what it is. */
+  const netLabel = el('label', 'phone-cap', T('phone.network', 'Computer\u2019s address on your home network'));
+  netLabel.appendChild(network);
+  stack.appendChild(netLabel);
   const line = el('div', 'inline');
   const toggle = el('button', 'sw'); toggle.type = 'button'; toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-label', T('settings.row.phone_access.label', 'Use VOOL from my phone'));
@@ -4770,10 +4789,12 @@ function widgetPhoneAccess(host) {
       state.sources[url] = back; redrawPhoneSettings();
     } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); toggle.disabled = false; }
   };
-  const refresh = el('button','btn',T('phone.refresh','Refresh permissions')); refresh.type='button'; stack.appendChild(refresh);
+  /* Refresh and Freeze act on paired phones; with phone access off there is nothing for them to do, so they are not shown. */
+  const phoneLive = !!src.enabled;
+  const refresh = el('button','btn',T('phone.refresh','Refresh permissions')); refresh.type='button'; refresh.hidden = !phoneLive; stack.appendChild(refresh);
   refresh.onclick=async()=>{refresh.disabled=true;try{state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(e){console.warn(e);note.textContent=T('fault.unknown.message','Something went wrong on this machine while handling that. You can try again.');refresh.disabled=false;}};
   const frozen = el('button', 'btn', src.frozen ? T('phone.unfreeze', 'Unfreeze payments') : T('phone.freeze', 'Freeze payments'));
-  frozen.type = 'button'; stack.appendChild(frozen);
+  frozen.type = 'button'; frozen.hidden = !phoneLive && !src.frozen; stack.appendChild(frozen);
   const accounts = (src.wallet_accounts || []).filter(a => a.seal_policy === 'pilot-v3' && a.setup_state === 'ready');
   function accountSelect(value) {
     const select = el('select', 'inp'); select.setAttribute('aria-label', T('phone.account', 'Wallet account'));

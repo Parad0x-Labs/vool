@@ -94,8 +94,8 @@ _JOB_KEYS = (
     ("translation", "lend.cap_translation", "Translate a document with a local model"),
     ("recording", "lend.cap_recording", "Trim or convert a recording"),
 )
-_WARNINGS = {"drop": ("drop.warning", "Not reviewed. Do not use for real messages."),
-             "lend": ("lend.warning", "Not reviewed yet. Use test files only.")}
+_WARNINGS = {"drop": ("drop.warning", "Early test version. Do not use it for private messages yet."),
+             "lend": ("lend.warning", "Early test version. Use test files only.")}
 
 #: One of the owner's own computers or phones ("my laptop", "the big machine downstairs", "my other computer").
 #: A bare "desktop" is the Desktop folder ("move the cat photo from Pictures to my Desktop" is a move on this

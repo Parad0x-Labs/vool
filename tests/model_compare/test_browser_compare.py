@@ -36,7 +36,7 @@ def test_browser_owner_reviews_source_then_compares_two_billed_answers(tmp_path)
             check.check()
             page.wait_for_function("() => !document.getElementById('disclosurePreviewSetting').disabled")
             assert _json(daemon.base_url+'/api/disclosure/settings')['preview_enabled'] is True
-            assert page.locator('#disclosureCopySetting').is_disabled()
+            assert page.locator('#disclosureCopySetting').count() == 0
             page.goto(daemon.base_url+'/chat',wait_until='networkidle')
             page.evaluate("() => { localStorage.clear(); newChat(); }")
             # The fixture provider is registered on the existing compatible picker

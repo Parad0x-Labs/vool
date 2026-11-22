@@ -146,7 +146,7 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
                 page.goto(base+'/settings#backup/lend')
                 root = page.locator('.vl-root').first
                 expect(root.locator('.vl-enable')).not_to_be_checked()
-                expect(root.get_by_text('Not reviewed yet. Use test files only.', exact=True)).to_be_visible()
+                expect(root.get_by_text('Early test version. Use test files only.', exact=True)).to_be_visible()
                 root.locator('.vl-enable').check()
                 root.get_by_role('button', name='Save', exact=True).click()
                 expect(root.locator('.vl-status')).to_have_text('Turn on Drop first and choose the same private shared folder on both computers.')

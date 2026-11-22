@@ -33,8 +33,9 @@ def test_settings_readback_and_owner_confirmed_project_rules(tmp_path):
             check.check()
             page.wait_for_function("() => !document.getElementById('disclosurePreviewSetting').disabled")
             assert _json(daemon.base_url+'/api/disclosure/settings')['preview_enabled'] is True
-            copies = page.locator('#disclosureCopySetting')
-            assert copies.is_disabled() and not copies.is_checked()
+            # Copies are never kept, so there is no box that can never be ticked; the line says so instead.
+            assert page.locator('#disclosureCopySetting').count() == 0
+            assert 'keeps no copy' in page.locator('#disclosureCopiesNote').inner_text()
             rules = page.locator('[data-disclosure-project="'+project_id+'"]')
             rules.locator('summary').click()
             rules.locator('input[type=text]').fill('../outside')

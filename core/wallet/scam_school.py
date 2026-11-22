@@ -2,7 +2,8 @@
 
 One source of truth for the Settings panel (`/api/wallet/safety`) and for anything else that wants to teach the
 same lessons. Written for someone who has never used a wallet: short lines, no jargon, the same three questions
-every time -- what happens, what they want, what you do. The illustrations are small inline SVG line drawings so
+every time -- what happens, what they want, what you do -- under a short label of a few words that Settings
+shows first, so the page lists the tricks at a glance and opens one when it is clicked. The illustrations are small inline SVG line drawings so
 the panel works offline and needs no downloads.
 """
 from __future__ import annotations
@@ -30,7 +31,7 @@ def _slash() -> str:
 
 _CARDS: tuple[dict[str, str], ...] = (
     {
-        "id": "secret_phrase", "emoji": "🔑",
+        "id": "secret_phrase", "short": "Asks for your 12 words", "emoji": "🔑",
         "title": "Anyone asking for your secret phrase or private key is a thief",
         "what_happens": "A message, a website or a 'support agent' asks you to type or paste your 12 words or your private key.",
         "they_want": "Your whole wallet. With those words they move everything out in seconds and it cannot be undone.",
@@ -39,7 +40,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     '<text x="26" y="29" font-size="12" text-anchor="middle" fill="currentColor" stroke="none">12?</text>', _slash()),
     },
     {
-        "id": "fake_support", "emoji": "🎧",
+        "id": "fake_support", "short": "Fake support", "emoji": "🎧",
         "title": "Fake support: 'your wallet is locked, we will repair it'",
         "what_happens": "Someone in a chat or a reply says your wallet is locked, hacked or needs repair, and offers to fix it.",
         "they_want": "Your secret phrase, or a 'sync' or 'validate' form where you type it. That is the theft.",
@@ -49,7 +50,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     '<text x="32" y="52" font-size="10" text-anchor="middle" fill="currentColor" stroke="none">?</text>'),
     },
     {
-        "id": "fake_airdrop", "emoji": "🎁",
+        "id": "fake_airdrop", "short": "Free coins to claim", "emoji": "🎁",
         "title": "Fake airdrop: 'you won tokens, sign to claim'",
         "what_happens": "A site says free coins are waiting and asks you to sign one thing to claim them.",
         "they_want": "That signature is often a permission to take your tokens, not a claim. Nothing free is waiting.",
@@ -58,7 +59,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     '<path d="M32 26 c-8 -12 -20 -4 -8 0 M32 26 c8 -12 20 -4 8 0"/>', f'<path d="M44 14 c6 0 6 8 0 8 c-4 0 -4 -4 0 -4" stroke="{_RED}"/>'),
     },
     {
-        "id": "fake_migration", "emoji": "🔁",
+        "id": "fake_migration", "short": "Upgrade your wallet now", "emoji": "🔁",
         "title": "Fake migration: 'upgrade or verify your wallet now'",
         "what_happens": "A message says your wallet must migrate, upgrade, verify or re-sync, with a link and a deadline.",
         "they_want": "You on a copy of a real wallet site, typing your phrase, or signing a permission on your real wallet.",
@@ -67,7 +68,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     f'<path d="M48 8 l8 14 h-16 z" stroke="{_RED}"/>', f'<path d="M48 13 v5 m0 2 v1" stroke="{_RED}"/>'),
     },
     {
-        "id": "unlimited_approval", "emoji": "♾️",
+        "id": "unlimited_approval", "short": "Unlimited approval", "emoji": "♾️",
         "title": "Unlimited approval: one click lets a site take that coin forever",
         "what_happens": "A trading or claim site asks you to 'approve' a token. The amount is set to unlimited.",
         "they_want": "Standing permission. They can take that token from your wallet later, again and again, until you revoke it.",
@@ -76,7 +77,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     f'<circle cx="16" cy="52" r="4" stroke="{_RED}"/>', f'<circle cx="32" cy="54" r="4" stroke="{_RED}"/>', f'<circle cx="48" cy="52" r="4" stroke="{_RED}"/>'),
     },
     {
-        "id": "lookalike_address", "emoji": "🔍",
+        "id": "lookalike_address", "short": "Lookalike address", "emoji": "🔍",
         "title": "Lookalike address: the first and last letters match, the middle does not",
         "what_happens": "A tiny payment or a message shows an address that looks exactly like one you used before.",
         "they_want": "You to copy their address from your history and send real money to it.",
@@ -86,7 +87,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     f'<text x="32" y="60" font-size="9" text-anchor="middle" fill="{_RED}" stroke="none">9xQe…VFin ≠ 9xQe…VFin</text>'),
     },
     {
-        "id": "investment_friend", "emoji": "💔",
+        "id": "investment_friend", "short": "Online friend who invests", "emoji": "💔",
         "title": "A new friend or love interest teaches you to invest",
         "what_happens": "Someone kind online shows you a platform that pays every day. Small withdrawals work at first.",
         "they_want": "Bigger deposits. When you try to take real money out, there is a 'tax', a 'fee', then nothing.",
@@ -95,7 +96,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     f'<path d="M12 60 l10 -10 l8 6 l12 -14 l10 4" stroke="{_GREEN}"/>', f'<path d="M50 44 l4 12 l-10 -4" stroke="{_RED}"/>'),
     },
     {
-        "id": "fake_app", "emoji": "📱",
+        "id": "fake_app", "short": "Fake wallet apps", "emoji": "📱",
         "title": "Fake wallet apps and browser extensions",
         "what_happens": "A search ad or a store listing offers a wallet app that looks like the real one, with a slightly different name.",
         "they_want": "Your phrase when you 'restore' into it, or every transaction you sign in it.",
@@ -104,7 +105,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     f'<rect x="24" y="40" width="16" height="12" rx="3" stroke="{_RED}"/>', f'<path d="M28 44 l8 6 m0 -6 l-8 6" stroke="{_RED}"/>'),
     },
     {
-        "id": "giveaway", "emoji": "🪙",
+        "id": "giveaway", "short": "Send 1, get 2 back", "emoji": "🪙",
         "title": "Giveaway: 'send 1 coin, get 2 back'",
         "what_happens": "A famous name or a copied account promises to double whatever you send during a live event.",
         "they_want": "Your coin. Nothing comes back. The stream is a recording, the account is a copy.",
@@ -112,7 +113,7 @@ _CARDS: tuple[dict[str, str], ...] = (
         "svg": _svg('<circle cx="22" cy="32" r="10"/>', '<circle cx="42" cy="32" r="10"/>', '<path d="M30 20 l4 -8 m-2 0 l6 0"/>', _slash()),
     },
     {
-        "id": "spam_tokens", "emoji": "✉️",
+        "id": "spam_tokens", "short": "Strange tokens appear", "emoji": "✉️",
         "title": "Strange tokens appear in your wallet with a link in the name",
         "what_happens": "Coins you never bought show up, named like a website or a claim page.",
         "they_want": "You to visit the link and sign a 'claim' that is really a permission or a transfer.",
@@ -121,7 +122,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     f'<text x="32" y="44" font-size="8" text-anchor="middle" fill="{_RED}" stroke="none">claim-here.xyz</text>'),
     },
     {
-        "id": "screen_share", "emoji": "🖥️",
+        "id": "screen_share", "short": "Screen sharing", "emoji": "🖥️",
         "title": "Screen sharing or remote help while your wallet is open",
         "what_happens": "A helper asks you to share your screen or install a remote-control app to fix a problem.",
         "they_want": "To see your phrase when you open it, or to click approve for you.",
@@ -130,7 +131,7 @@ _CARDS: tuple[dict[str, str], ...] = (
                     '<path d="M18 28 c8 -10 20 -10 28 0 c-8 10 -20 10 -28 0 z"/>', '<circle cx="32" cy="28" r="3.5"/>'),
     },
     {
-        "id": "signature_is_money", "emoji": "✍️",
+        "id": "signature_is_money", "short": "Sign-in that pays", "emoji": "✍️",
         "title": "A signature can be a payment or a permission, even when it says 'sign in'",
         "what_happens": "A site asks you to 'sign in with wallet' or 'verify ownership' by signing a message.",
         "they_want": "Some of those messages move money or grant permission. The button text means nothing; the content does.",

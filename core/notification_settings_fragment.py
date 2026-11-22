@@ -100,8 +100,12 @@ function mountInto(host){
   var macBox = h('div', 'vns-box');
   var prefBox = h('div', 'vns-box');
   var watchBox = h('div', 'vns-box');
-  var why = h('div', 'vns-note');
-  root.appendChild(status); root.appendChild(macBox); root.appendChild(prefBox); root.appendChild(watchBox); root.appendChild(why);
+  /* The long note on how macOS copies work is a helper, not a setting: folded under one short line. */
+  var whyBox = h('details', 'vns-note');
+  whyBox.appendChild(h('summary', null, NT('vns.why.summary', 'How VOOL and macOS alerts work together')));
+  var why = h('div');
+  whyBox.appendChild(why);
+  root.appendChild(status); root.appendChild(macBox); root.appendChild(prefBox); root.appendChild(watchBox); root.appendChild(whyBox);
   var prefs = null, native = null, watches = null;
   function say(text, bad){ status.textContent = text || ''; status.className = 'vns-status' + (bad ? ' vns-bad' : ''); }
   function load(){
@@ -125,7 +129,7 @@ function mountInto(host){
   }
   /* The macOS paragraph and channel belong to a Mac; elsewhere one plain line says where alerts go, instead
      of an empty bordered box and a promised test button that is not there. */
-  function paint(){ paintMac(); paintPrefs(); paintWatches(); why.textContent = native.supported === false ? '' : (native.explanation || ''); }
+  function paint(){ paintMac(); paintPrefs(); paintWatches(); why.textContent = native.supported === false ? '' : (native.explanation || ''); whyBox.hidden = !why.textContent; }
   function paintMac(){
     macBox.textContent = '';
     if (native.supported === false) {

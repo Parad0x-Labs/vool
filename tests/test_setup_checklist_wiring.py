@@ -59,7 +59,7 @@ def test_settings_checklist_and_nav_resolve_through_catalog() -> None:
         "T('setup.checklist.done', 'Done')",
         "T('setup.checklist.skipped', 'Skipped')",
         "T('setup.checklist.todo', 'To do')",
-        "tfmt('setup.checklist.later_prefix', 'later: {later}'",
+        "tfmt('setup.checklist.later_prefix', 'You can also do this later: {later}'",
         "T('setup.checklist.continue', 'Continue setup')",
         "T('setup.checklist.start', 'Start setup')",
         "T('setup.checklist.dismiss'",

@@ -30,8 +30,8 @@ window.VoolDrop={mountInto:function(host){
     return t('drop.failed','This step could not finish. Check the settings and refresh the Drop before trying again.');
   }
   async function request(action,values){var r=await fetch('/api/drop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({action:action},values||{}))});var j=await r.json();if(!r.ok||!j.ok){var e=new Error();e.code=j.error;throw e;}return j;}
-  line('drop.warning','Not reviewed. Do not use for real messages.').className='vd-warning';
-  line('drop.boundary','One file up to 10 MiB. Tasks only calculate its SHA-256. Received text is data, never instructions.');
+  line('drop.warning','Early test version. Do not use it for private messages yet.').className='vd-warning';
+  line('drop.boundary','One file at a time, up to 10 MB. VOOL only checks that a file arrived unchanged, and never follows instructions written in what it receives.');
   var enabled=input('drop.enable','Enable Drop and make this VOOL folder private','checkbox');enabled.className='vd-enable';
   var relay=input('drop.relay','Shared folder');relay.className='vd-relay';
   var allow=input('drop.allow','Allow approved file checks','checkbox');allow.className='vd-allow';
