@@ -479,10 +479,28 @@ _ASKED_KIND_RE = re.compile(
 )
 
 
+#: "which name did I USE for my ferret?", "what name did I end up GIVING the boat?": when the kind asked for is the
+#: name, the owner's own verb is the act of naming it, and the saved fact ("my ferret is named Quillon") gives the
+#: name without that verb. Counted as a word the fact must hold, the question held one of two and was answered "I
+#: don't have that saved" with the fact saved (served on d2dacb04 once the question reached this lane). The verb is
+#: read by its place, between "did I" and the thing named, not from a list of verbs; like the kind word, it still
+#: counts for a fact that holds it.
+_NAMING_ACT_RE = re.compile(
+    r"\b(?:what|which)\s+(?P<kind>[a-z]+)\s+(?:did|do|have|had)\s+(?:i|we)\s+(?P<act>[a-z' ]+?)"
+    r"(?=\s+(?:for|to|on|my|our|the|a|an|this|that|his|her|their|its)\b|\s*[?.!,;]|\s*$)",
+    re.IGNORECASE,
+)
+
+
 def _asked_kind(text: str) -> frozenset[str]:
     from core.chat_housekeeping import query_terms
 
-    return frozenset(term for word in _ASKED_KIND_RE.findall(str(text or "")) for term in query_terms(word))
+    kind = {term for word in _ASKED_KIND_RE.findall(str(text or "")) for term in query_terms(word)}
+    for match in _NAMING_ACT_RE.finditer(str(text or "")):
+        named = query_terms(match.group("kind"))
+        if named and all(term in _ANSWER_SLOT_STEMS for term in named):
+            kind.update(query_terms(match.group("act")))
+    return frozenset(kind)
 
 
 def _asked_terms(text: str) -> tuple[str, ...]:

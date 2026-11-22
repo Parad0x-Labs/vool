@@ -312,6 +312,26 @@ _NAME_NOUN_MODIFIERS = _SETTINGS_WORDS | frozenset(
     }
 )
 
+#: Possessors that cannot stand alone: each opens a noun phrase (``my turtle``, ``your app``), and a
+#: name after ``of`` belongs to the head of that phrase. ``mine`` and ``yours`` are whole phrases.
+_POSSESSIVE_DETERMINERS = frozenset({"my", "your", "its"})
+
+#: Head nouns that ARE the saved-name record: ``the name of my profile``, ``… of my account``.
+_SAVED_NAME_RECORD_NOUNS = _SETTINGS_WORDS | frozenset({"account", "profile", "user"})
+
+#: Closed-class words that end a noun phrase: prepositions, auxiliaries, pronouns, conjunctions and
+#: sentence adverbs. ``the name of my account in settings`` has the head noun ``account``.
+_NOUN_PHRASE_END_WORDS = frozenset(
+    {
+        "in", "on", "at", "to", "for", "by", "with", "from", "of", "about", "according", "as",
+        "is", "are", "was", "were", "be", "been", "do", "does", "did", "can", "could", "will", "would",
+        "i", "you", "we", "he", "she", "it", "they", "me", "us",
+        "and", "or", "but", "if", "when", "that", "which", "who",
+        "again", "now", "then", "still", "even", "exactly", "actually", "really", "anyway", "anymore",
+        "currently", "right", "though", "please", "here", "there", "already", "eh", "huh",
+    }
+)
+
 _NAME_OBJECT_OPENERS = frozenset(
     {
         "a", "all", "an", "any", "both", "each", "either", "every", "it", "one", "some",
@@ -348,9 +368,79 @@ def _owner_of_name_word(tokens: list[str], index: int) -> str:
             if reference[0] in _PRODUCT_WORDS:
                 return "assistant"
             possessor = _NAME_POSSESSOR.get(reference[0])
+            if possessor and reference[0] in _POSSESSIVE_DETERMINERS:
+                return _owner_of_possessed_phrase(possessor, tokens[tokens.index("of", index + 1) + 1 :])
             if possessor:
                 return possessor
     return ""
+
+
+def _owner_of_possessed_phrase(possessor: str, after_of: list[str]) -> str:
+    """Who owns the name in ``the name of my …`` / ``the name of your …``.
+
+    ``my``, ``your`` and ``its`` are determiners: they open a noun phrase, and the name belongs to
+    that phrase's head noun, not to the possessor. ``the name of my turtle`` is the turtle's name.
+    Reading the determiner alone as the owner answered every such question with the user's own
+    name ("I don't know your name yet"), in the chat it was told in and in every other one.
+
+    The possessor owns the name only when the phrase it opens is empty or is the saved-name record
+    itself (``the name of my profile``, ``the name of my user account``); the assistant also owns
+    ``the name of your app``. Any other head noun owns its own name, which no identity setting
+    holds, so the turn goes on to memory and the model.
+    """
+    start = next(i for i, token in enumerate(after_of) if token in _POSSESSIVE_DETERMINERS) + 1
+    phrase: list[str] = []
+    for token in after_of[start:]:
+        if token in _NOUN_PHRASE_END_WORDS:
+            break
+        phrase.append(token)
+    if not phrase:
+        return possessor
+    head, modifiers = phrase[-1], phrase[:-1]
+    if all(word in _NAME_NOUN_MODIFIERS for word in modifiers):
+        if head in _SAVED_NAME_RECORD_NOUNS:
+            return possessor
+        if possessor == "assistant" and head in _PRODUCT_WORDS:
+            return possessor
+    return ""
+
+
+def _owned_through_its(tokens: list[str], index: int) -> bool:
+    """Whether the name word at ``index`` gets its owner from ``its`` (``its name``, ``its full name``)."""
+    return "its" in tokens[max(0, index - 2) : index]
+
+
+def _asks_which_name_the_user_saved(text: str) -> bool:
+    """``what name did I save?`` -- unless the clause goes on to say whose name it was.
+
+    "what name did I save in settings" asks for the user's own; "which name did I use for my boat"
+    names the boat. After the verb only a place the name is kept, the user themself or filler may
+    follow (the same allow-list the "who am I" frames use), and a thing the name was FOR ("for this
+    file", "for my boat") is that thing's name unless it is the saved-name record or the user.
+    """
+    for clause in _clauses(text):
+        joined = " ".join(clause)
+        match = _USER_SAVED_NAME_QUESTION_RE.search(joined)
+        if not match:
+            continue
+        tail = joined[match.end() :].split()
+        if not all(word in _SELF_REFERENCE_TAIL_WORDS or word in _SELF_WORDS or word == "myself" for word in tail):
+            continue
+        if "for" in tail:
+            named = [
+                word
+                for word in tail[tail.index("for") + 1 :]
+                if word not in {"a", "an", "the", "this", "that"} and word not in _POSSESSIVE_DETERMINERS
+            ]
+            phrase: list[str] = []
+            for word in named:
+                if word in _NOUN_PHRASE_END_WORDS:
+                    break
+                phrase.append(word)
+            if phrase and phrase[-1] not in _SAVED_NAME_RECORD_NOUNS and phrase[-1] != "myself":
+                continue
+        return True
+    return False
 
 
 def _is_name_verb(tokens: list[str], index: int) -> bool:
@@ -609,7 +699,16 @@ def classify_identity_question(
         return IdentityQuestion(reason="hypothetical_frame_supplies_the_names")
 
     token_set = set(tokens)
-    has_recall_intent = bool(token_set & _RECALL_WORDS) or raw.rstrip().endswith("?")
+    # "what's my name" is "what is my name": the contraction keeps its question word.
+    has_recall_intent = (
+        bool(token_set & _RECALL_WORDS)
+        or any(token.endswith("'s") and token[:-2] in _RECALL_WORDS for token in tokens)
+        or raw.rstrip().endswith("?")
+    )
+    # "its" points at something already mentioned. It is the assistant only when the message itself
+    # mentions the product ("this app, what's its name?"); in "my gecko, what's its name?" the name
+    # asked for is the gecko's, and with nothing mentioned the referent is in an earlier turn.
+    its_is_the_product = bool(token_set & _PRODUCT_WORDS) or assistant_display_name().casefold() in token_set
 
     # "who am i", "what am i called", "who am i in settings", "what do you call me" -- identity
     # questions with no name word in them at all. The first two are scoped to a complement-free
@@ -626,7 +725,7 @@ def classify_identity_question(
         return IdentityQuestion(subject="assistant", reason="assistant_reference_question")
     if _PRODUCT_REFERENCE_RE.search(joined):
         return IdentityQuestion(subject="assistant", reason="product_reference_question")
-    if _USER_SAVED_NAME_QUESTION_RE.search(joined):
+    if _asks_which_name_the_user_saved(raw):
         return IdentityQuestion(subject="user", reason="saved_name_object_question")
     if _ASSISTANT_NAME_OBJECT_QUESTION_RE.search(joined):
         return IdentityQuestion(subject="assistant", reason="assistant_name_object_question")
@@ -649,7 +748,7 @@ def classify_identity_question(
         for index, token in enumerate(clause)
         if token in _NAME_WORDS and not _is_name_verb(clause, index)
         for owner in (_owner_of_name_word(clause, index),)
-        if owner
+        if owner and (its_is_the_product or not _owned_through_its(clause, index))
     ]
     if not owners:
         if any(
