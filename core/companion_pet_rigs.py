@@ -188,14 +188,28 @@ RIG_ENGINE_JS = r"""
       const bp = (fx.now % 4300) / 4300;
       const blink = fx.reduced || sleeping || L.blink === false ? 0 : (bp < 0.04 ? Math.sin(Math.PI * bp / 0.04) : 0);
       const lid = Math.max(shut, blink);
-      if (lid > 0.02) for (const s of L.lids) {     // [part, x, y, r, top colour, bottom colour]
+      // [part, x, y, r, colour a, colour b, kind]. "shutter": a stone lid slides down over the eye
+      // (a shutter painted in the eye's own surround). Otherwise the eye closes softly: the glow
+      // under it darkens with a feathered edge and a closed-eye curve shows, so it never reads as a
+      // flat disc painted on.
+      if (lid > 0.02) for (const s of L.lids) {
         g.setTransform(mat(s[0]));
-        const r = s[3], y0 = s[2] - r;
-        g.save(); g.beginPath(); g.arc(s[1], s[2], r, 0, TAU); g.clip();
-        const gr = g.createLinearGradient(0, y0, 0, y0 + 2 * r * lid);
-        gr.addColorStop(0, s[4]); gr.addColorStop(1, s[5]);
-        g.fillStyle = gr; g.fillRect(s[1] - r, y0, 2 * r, 2 * r * lid);
-        g.fillStyle = "rgba(20,20,24,0.8)"; g.fillRect(s[1] - r, y0 + 2 * r * lid - 1.2, 2 * r, 1.6);
+        const r = s[3], x = s[1], y = s[2];
+        g.save();
+        if (s[6] === "shutter") {
+          const y0 = y - r;
+          g.beginPath(); g.arc(x, y, r, 0, TAU); g.clip();
+          const gr = g.createLinearGradient(0, y0, 0, y0 + 2 * r * lid);
+          gr.addColorStop(0, s[4]); gr.addColorStop(1, s[5]);
+          g.fillStyle = gr; g.fillRect(x - r, y0, 2 * r, 2 * r * lid);
+          g.fillStyle = "rgba(20,20,24,0.8)"; g.fillRect(x - r, y0 + 2 * r * lid - 1.2, 2 * r, 1.6);
+        } else {
+          const gr = g.createRadialGradient(x, y, 0, x, y, r * 1.15);
+          gr.addColorStop(0, s[5]); gr.addColorStop(0.7, s[5]); gr.addColorStop(1, "rgba(0,0,0,0)");
+          g.globalAlpha = 0.88 * lid; g.fillStyle = gr; g.fillRect(x - r * 1.2, y - r * 1.2, r * 2.4, r * 2.4);
+          g.globalAlpha = lid; g.strokeStyle = s[4]; g.lineWidth = Math.max(1.2, r * 0.16); g.lineCap = "round";
+          g.beginPath(); g.arc(x, y - r * 0.55, r * 0.8, Math.PI * 0.22, Math.PI * 0.78); g.stroke();
+        }
         g.restore();
       }
     }
@@ -266,8 +280,8 @@ VoolPetRig.rigs.beetle = function (meta) {
     postures: {
       stand: {},
       // The shell settles while the feet stay put: legs shorten by what the shell drops.
-      sit: { parts: { torso: { dy: 12 }, legsL: { rot: -0.06, dy: -4, sy: 0.94 }, legsR: { rot: 0.06, dy: -4, sy: 0.94 }, fangs: { dy: -4, sy: 0.9 } } },
-      lie: { parts: { torso: { dy: 24, sy: 0.96 }, legsL: { rot: -0.12, dy: -4, sx: 0.8, sy: 0.85 }, legsR: { rot: 0.12, dy: -4, sx: 0.8, sy: 0.85 }, fangs: { dy: 0, sy: 0.7 } } },
+      sit: { parts: { torso: { dy: 20, sy: 0.97 }, legsL: { rot: -0.14, dy: -8, sx: 1.06, sy: 0.9 }, legsR: { rot: 0.14, dy: -8, sx: 1.06, sy: 0.9 }, fangs: { dy: -6, sy: 0.82 } } },
+      lie: { parts: { torso: { dy: 32, sy: 0.94 }, legsL: { rot: -0.2, dy: -10, sx: 0.82, sy: 0.8 }, legsR: { rot: 0.2, dy: -10, sx: 0.82, sy: 0.8 }, fangs: { dy: -8, sy: 0.62 } } },
     },
     breathFor(posture) { return posture === "lie" ? { ms: 4400, amp: 1.5 } : { ms: 3000, amp: 1 }; },
     breath(b, p) { return { parts: { torso: { sy: 1 + 0.01 * p.amp * b }, legsL: { rot: 0.01 * b }, legsR: { rot: -0.01 * b } } }; },
@@ -303,7 +317,7 @@ VoolPetRig.rigs.beetle = function (meta) {
     lights: {
       glows: [["torso", 124, 58, 16, "255,210,122", 0.5], ["torso", 81, 105, 16, "255,210,122", 0.5], ["torso", 124, 102, 16, "255,210,122", 0.5],
               ["torso", 169, 105, 16, "255,210,122", 0.5], ["torso", 104, 157, 13, "255,179,71", 0.6], ["torso", 149, 157, 13, "255,179,71", 0.6]],
-      lids: [["torso", 104, 157, 11, "#3a3d44", "#1d1f24"], ["torso", 149, 157, 11, "#3a3d44", "#1d1f24"]],
+      lids: [["torso", 104, 157, 11, "rgba(255,190,110,0.8)", "rgba(24,22,26,0.96)"], ["torso", 149, 157, 11, "rgba(255,190,110,0.8)", "rgba(24,22,26,0.96)"]],
       sleepGlow: 0.15, zs: ["torso", 175, 40],
     },
   };
@@ -327,8 +341,8 @@ VoolPetRig.rigs.raven = function (meta) {
     postures: {
       stand: {},
       // Wings fold down along the body, feathers fluffed.
-      sit: { parts: { torso: { dy: 6, sx: 1.03 }, wingL: { rot: -0.35, sx: 0.45, sy: 0.75, dy: 10 }, wingR: { rot: 0.35, sx: 0.45, sy: 0.75, dy: 10 }, head: { dy: 4 }, feet: { sy: 0.85 }, tail: { rot: 0.1 } } },
-      lie: { parts: { torso: { dy: 14, sx: 1.06, sy: 0.95 }, wingL: { rot: -0.5, sx: 0.36, sy: 0.62, dy: 16 }, wingR: { rot: 0.5, sx: 0.36, sy: 0.62, dy: 16 },
+      sit: { parts: { torso: { dy: 6, sx: 1.03 }, wingL: { rot: -0.2, sx: 0.72, sy: 0.88, dy: 6 }, wingR: { rot: 0.2, sx: 0.72, sy: 0.88, dy: 6 }, head: { dy: 4 }, feet: { sy: 0.85 }, tail: { rot: 0.1 } } },
+      lie: { parts: { torso: { dy: 14, sx: 1.06, sy: 0.95 }, wingL: { rot: -0.3, sx: 0.6, sy: 0.78, dy: 12 }, wingR: { rot: 0.3, sx: 0.6, sy: 0.78, dy: 12 },
         head: { dy: 16, rot: 0.25 }, feet: { sy: 0.55 }, tail: { rot: 0.2 } } },
     },
     breathFor(posture) { return posture === "lie" ? { ms: 4200, amp: 1.5 } : { ms: 2800, amp: 1 }; },
@@ -358,7 +372,7 @@ VoolPetRig.rigs.raven = function (meta) {
     },
     lights: {
       glows: [["head", 105, 77, 12, "255,210,122", 0.6], ["torso", 145, 117, 12, "255,210,122", 0.3]],
-      lids: [["head", 105, 77, 10, "#2b2f3a", "#14161c"]],
+      lids: [["head", 105, 77, 10, "rgba(255,214,140,0.85)", "rgba(28,26,30,0.96)"]],
       zs: ["head", 120, 50],
     },
   };
@@ -376,14 +390,14 @@ VoolPetRig.rigs.golem = function (meta) {
       stand: {},
       sit: { parts: {
         torso: { dy: 24 },
-        legL: { dy: 30, rot: 0.95, sy: 0.85, z: 4 }, legR: { dy: 30, rot: -0.95, sy: 0.85, z: 4 },
+        legL: { dy: 1, rot: 0.95, sy: 0.85, z: 4 }, legR: { dy: 1, rot: -0.95, sy: 0.85, z: 4 },   // feet stay on the ground
         armL: { rot: -0.18 }, armR: { rot: 0.18 }, head: { dy: 1 } } },
       // Lying down to sleep, facing you: the body sinks to the ground, legs out flat, arms
       // resting beside it, chin down.
       lie: { parts: {
-        torso: { dy: 46, sy: 0.9 },
-        legL: { dy: 40, rot: 1.45, sy: 0.75, z: 4 }, legR: { dy: 40, rot: -1.45, sy: 0.75, z: 4 },
-        armL: { rot: 0.72, z: 1.5 }, armR: { rot: -0.72, z: 1.5 }, head: { dy: 12, rot: 0.1 } } },
+        torso: { dy: 27, sy: 0.93 },
+        legL: { dy: 7, rot: 1.0, sy: 0.55, z: 0.5 }, legR: { dy: 7, rot: -1.0, sy: 0.55, z: 0.5 },
+        armL: { rot: 0.22, dy: 3, z: 1.5 }, armR: { rot: -0.22, dy: 3, z: 1.5 }, head: { dy: 12, rot: 0.1 } } },
     },
     breathFor(posture) { return posture === "lie" ? { ms: 4600, amp: 1.6 } : { ms: 3400, amp: 1 }; },
     breath(b, p) {
@@ -445,7 +459,7 @@ VoolPetRig.rigs.golem = function (meta) {
     },
     lights: {
       glows: [["head", 118, 78, 15, "90,200,255", 0.55], ["head", 162, 78, 15, "90,200,255", 0.55], ["torso", 140, 164, 34, "70,170,255", 0.35]],
-      lids: [["head", 118, 78, 14, "#8d918a", "#5f645d"], ["head", 162, 78, 14, "#8d918a", "#5f645d"]],
+      lids: [["head", 118, 78, 14, "rgba(170,225,255,0.75)", "rgba(86,90,84,0.97)"], ["head", 162, 78, 14, "rgba(170,225,255,0.75)", "rgba(86,90,84,0.97)"]],
       zs: ["head", 110, 40],
     },
     // Dust where a slam lands.
@@ -508,7 +522,7 @@ VoolPetRig.rigs.tide = function (meta) {
     },
     lights: {
       glows: [["head", 102, 91, 20, "255,179,71", 0.55], ["head", 151, 92, 20, "255,179,71", 0.55]],
-      lids: [["head", 102, 91, 18, "#8a6a3a", "#4a361c"], ["head", 151, 92, 18, "#8a6a3a", "#4a361c"]], blink: false,
+      lids: [["head", 102, 91, 18, "rgba(255,190,110,0.8)", "rgba(52,38,20,0.96)"], ["head", 151, 92, 18, "rgba(255,190,110,0.8)", "rgba(52,38,20,0.96)"]], blink: false,
       zs: ["head", 175, 30],
     },
   };
@@ -573,7 +587,7 @@ VoolPetRig.rigs.spark = function (meta) {
     lights: {
       glows: [["head", 107, 82, 14, "255,207,106", 0.6], ["head", 141, 82, 14, "255,207,106", 0.6],
               ["torso", 126, 150, 22, "255,154,60", 0.55], ["head", 64, 17, 12, "255,190,90", 0.5], ["head", 186, 17, 12, "255,190,90", 0.5]],
-      lids: [["head", 107, 82, 12, "#9a7a3a", "#5e4520"], ["head", 141, 82, 12, "#9a7a3a", "#5e4520"]],
+      lids: [["head", 107, 82, 12, "rgba(255,214,140,0.85)", "rgba(58,40,18,0.96)"], ["head", 141, 82, 12, "rgba(255,214,140,0.85)", "rgba(58,40,18,0.96)"]],
       zs: ["head", 150, 50],
     },
   };
@@ -590,8 +604,8 @@ VoolPetRig.rigs.rascal = function (meta) {
     durations: { "stand>sit": 800, "sit>stand": 700, "sit>lie": 1200, "lie>sit": 900 },
     postures: {
       stand: {},
-      sit: { parts: { torso: { dy: 5, sy: 0.98 }, cannon: { rot: -0.05 }, hose: { rot: 0.08 } } },
-      lie: { parts: { torso: { dy: 9, sy: 0.96 }, cannon: { rot: -0.2 }, hose: { rot: 0.18 } } },
+      sit: { parts: { torso: { dy: 9, sy: 0.95 }, cannon: { rot: -0.14, dx: 4 }, hose: { rot: 0.22 } } },        // parked: hull down, cannon lowered
+      lie: { parts: { torso: { dy: 14, sy: 0.92 }, cannon: { rot: -0.3, dx: 6 }, hose: { rot: 0.4 } } },        // engine off
     },
     // The engine rumble: quick and small while it runs, slow and still when it is off.
     breathFor(posture) { return posture === "stand" ? { ms: 420, rumble: 0.5, amp: 1 } : posture === "sit" ? { ms: 700, rumble: 0.25, amp: 1 } : { ms: 4600, rumble: 0, amp: 1.4 }; },
@@ -641,13 +655,13 @@ VoolPetRig.rigs.prime = function (meta) {
       stand: {},
       sit: { parts: {
         torso: { dy: 22 },
-        legL: { dy: 24, rot: 0.95, sy: 0.85, z: 4 }, legR: { dy: 24, rot: -0.95, sy: 0.85, z: 4 },
-        armL: { rot: -0.15 }, armR: { rot: 0.1 }, head: { dy: 1 } } },
+        legL: { dy: -5, rot: 0.95, sy: 0.85, z: 4 }, legR: { dy: -5, rot: -0.95, sy: 0.85, z: 4 },   // feet stay on the ground
+        armL: { rot: -0.15 }, armR: { rot: 0.04, dy: -22 }, head: { dy: 1 } } },   // the key stays planted; the hand slides up it
       // Lies down facing you, the key leaned against him.
       lie: { parts: {
-        torso: { dy: 40, sy: 0.92 },
-        legL: { dy: 34, rot: 1.45, sy: 0.75, z: 4 }, legR: { dy: 34, rot: -1.45, sy: 0.75, z: 4 },
-        armL: { rot: 0.6, z: 1.5 }, armR: { rot: 0.32 }, head: { dy: 10, rot: 0.1 } } },
+        torso: { dy: 32, sy: 0.93 },
+        legL: { dy: 3, rot: 1.0, sy: 0.55, z: 0.5 }, legR: { dy: 3, rot: -1.0, sy: 0.55, z: 0.5 },
+        armL: { rot: 0.45, z: 1.5 }, armR: { rot: 0.2, dy: -34 }, head: { dy: 10, rot: 0.1 } } },
     },
     breathFor(posture) { return posture === "lie" ? { ms: 4400, amp: 1.5 } : { ms: 3200, amp: 1 }; },
     breath(b, p) {
@@ -771,9 +785,9 @@ VoolPetRig.rigs.veil = function (meta) {
     durations: { "stand>sit": 1100, "sit>stand": 800, "sit>lie": 1300, "lie>sit": 1000 },
     postures: {
       stand: { root: { y: -12 } },
-      sit: { parts: Object.assign(wings(0.25, -0.1), { wingUL: { rot: 0.25, sx: 0.8 }, wingUR: { rot: -0.25, sx: 0.8 } }) },
-      lie: { root: { y: 4 }, parts: { torso: { sy: 0.95 }, wingUL: { rot: -0.3, sx: 0.7, dy: 10 }, wingUR: { rot: 0.3, sx: 0.7, dy: 10 },
-        wingLL: { rot: -0.2, sx: 0.75 }, wingLR: { rot: 0.2, sx: 0.75 } } },
+      sit: { parts: Object.assign(wings(0.12, 0.08), { wingUL: { rot: 0.12, sx: 0.9 }, wingUR: { rot: -0.12, sx: 0.9 } }) },   // upper and lower wings turn together: no tear between them
+      lie: { root: { y: 4 }, parts: { torso: { sy: 0.95 }, wingUL: { rot: -0.16, sx: 0.84, dy: 6 }, wingUR: { rot: 0.16, sx: 0.84, dy: 6 },
+        wingLL: { rot: -0.1, sx: 0.86 }, wingLR: { rot: 0.1, sx: 0.86 } } },
     },
     breathFor(posture) { return posture === "stand" ? { ms: 1500, flap: 0.12, bob: 4 } : posture === "sit" ? { ms: 2600, flap: 0.05, bob: 0 } : { ms: 4800, flap: 0.015, bob: 0 }; },
     breath(b, p, now) {
@@ -810,7 +824,7 @@ VoolPetRig.rigs.veil = function (meta) {
               ["wingUL", 56, 75, 14, "180,108,255", 0.5], ["wingUR", 194, 75, 14, "180,108,255", 0.5], ["wingUL", 61, 107, 12, "180,108,255", 0.45],
               ["wingUR", 194, 107, 12, "180,108,255", 0.45], ["wingLL", 76, 150, 12, "180,108,255", 0.45], ["wingLR", 179, 150, 12, "180,108,255", 0.45]],
       glowOf: { tool: 1.45 },
-      lids: [["torso", 115, 92, 8, "#3a1d5a", "#1d0d33"], ["torso", 141, 92, 8, "#3a1d5a", "#1d0d33"]],
+      lids: [["torso", 115, 92, 8, "rgba(220,170,255,0.85)", "rgba(28,12,46,0.96)"], ["torso", 141, 92, 8, "rgba(220,170,255,0.85)", "rgba(28,12,46,0.96)"]],
       sleepGlow: 0.12, zs: ["torso", 150, 40],
     },
   };
@@ -862,7 +876,7 @@ VoolPetRig.rigs.ember = function (meta) {
     lights: {
       glows: [["torso", 81, 130, 18, "255,154,60", 0.6], ["torso", 138, 130, 18, "255,154,60", 0.6], ["torso", 115, 205, 40, "255,122,26", 0.4],
               ["flame", 110, 45, 36, "255,138,42", 0.35]],
-      lids: [["torso", 81, 130, 14, "#4a4440", "#2a2522"], ["torso", 138, 130, 14, "#4a4440", "#2a2522"]], blink: false,
+      lids: [["torso", 81, 130, 14, "rgba(255,150,70,0.85)", "rgba(36,30,28,0.96)"], ["torso", 138, 130, 14, "rgba(255,150,70,0.85)", "rgba(36,30,28,0.96)"]], blink: false,
       sleepGlow: 0.3, zs: ["torso", 150, 70],
     },
   };
