@@ -531,6 +531,8 @@ def test_every_enabled_contracted_tool_has_a_legal_path(tmp_path, monkeypatch) -
     owner = {OWNER_LOCAL_KEY: True, "surface": "openclaw", "platform": "openclaw", "session_id": "census-judge"}
     keys = [key for key, _description, _seats in plugin_ask.BUILTIN_CHOICES]
     monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    # A web pick is kept only when its own yes/no agrees (core.plugin_ask._web_confirmed); scripted to agree here.
+    monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda *_a, **_kw: "yes")
     for index, key in enumerate(keys, start=1):
         ask = f"could you help me with this one, number {index}"
         monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", lambda _m, _c, _pick=index, **_kw: (_pick,))

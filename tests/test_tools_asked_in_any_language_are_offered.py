@@ -40,6 +40,14 @@ ASKS = {
                 "Was habe ich in diesem Ordner seit dem letzten Commit geändert?",
                 "list the files I edited but haven't committed yet",
                 "what have I changed in this folder since the last commit"),
+    # Blind audit of 58f60bbf3: a file made, tests run, the web asked for in other words and other languages.
+    "files": ("Sukurk naują failą sąrašas{n}.txt ir įrašyk į jį pieną", "Leg eine Datei notizen{n}.md mit drei Zeilen an",
+              "Crea un archivo tareas{n}.txt con dos líneas", "make a file called groceries{n}.txt that says eggs"),
+    "read": ("Kas parašyta faile planas{n}.txt?", "Zeig mir, was in notizen{n}.md steht", "¿Qué dice el archivo tareas{n}.txt?"),
+    "run": ("Paleisk šio projekto testus ir pasakyk kiek nepraėjo", "Lass die Tests im Projekt laufen, Versuch {n}",
+            "Ejecuta las pruebas del proyecto, por favor"),
+    "web": ("Paieškok internete, kada šiandien atidaryta Vilniaus {n} biblioteka", "Busca en internet el tiempo de mañana en Bilbao",
+            "Schau im Netz nach, wann der Zug {n} nach Hamburg fährt"),
 }
 
 
@@ -60,6 +68,7 @@ def _script(monkeypatch, answer_for, calls):
         return answer_for(message, choices)
 
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda *_a, **_k: "yes")
 
 
 def _offered(text: str) -> set[str]:

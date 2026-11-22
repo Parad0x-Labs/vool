@@ -23,6 +23,13 @@ Spanish or French reached the model without the tool, and so did English wording
 coming up that you're supposed to nudge me about"). The words stay the fast path: when they already seat one of these
 tools, no model is asked about them. One question for both, more than one tool may be picked, and a failed call is
 asked once more before the turn goes on without a judgement.
+
+Writing a file in the open folder, running its tests and looking something up on the web are among those choices
+too. Blind audit of 58f60bbf3 (2026-11-22, confirmed on the app from source with qwen3:8b): "Sukurk naują failą
+pirkiniai.txt ir įrašyk į jį ..." was answered "There is no file at `pirkiniai.txt`", because the read lane takes
+every named file as a read unless an English edit verb stands beside it, and no tool for writing was ever offered; a
+Lithuanian web ask got no web tool. A judged files or run choice now stands that read lane down, as the English edit
+verbs do, and seats the writing or running tools; a judged web choice seats the web tools.
 """
 from __future__ import annotations
 
@@ -61,7 +68,20 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("changes", "Changes in the open folder's version history (git): what was edited since the last commit, which files "
      "are not committed yet, and the exact differences.",
      ("workspace.git_status", "workspace.git_diff")),
+    ("files", "Make or change a file in the open folder: create a new file, write or add words or lines to a file, or "
+     "change its text. Not for reading or showing what a file already says.",
+     ("workspace.write_file", "workspace.replace_in_file")),
+    ("read", "Read a file in the open folder: show or tell what a file already says, or answer a question from it.",
+     ("workspace.read_file",)),
+    ("run", "Run in the open folder: run the project's tests, its linter or its formatter, and say what they printed.",
+     ("workspace.run_tests", "workspace.run_lint", "workspace.run_formatter")),
+    ("web", "Search the internet: only when the message asks to look something up online or on a web page, or asks "
+     "for today's news, weather, prices, opening hours or timetables. Not for general knowledge, definitions or "
+     "explanations.",
+     ("web.search", "web.fetch")),
 )
+#: The choices that ask for something done to or with the open folder's files, not for a file to be shown.
+WORKSPACE_WORK_CHOICES = frozenset({"files", "run"})
 _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
 #: The owner's live sources (core.tool_demand_signals.owner_live_sources) that one of the choices above reads.
 _LIVE_SOURCES_A_CHOICE_READS = frozenset({"notes", "calendar", "mail"})
@@ -258,6 +278,27 @@ def _builtins_to_ask(text: str, source_context: dict[str, Any]) -> bool:
     )
 
 
+def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str) -> tuple[str, ...]:
+    """The picked choices, with the web kept only when a yes/no of its own says the message needs the internet.
+
+    Over the list, the judge picked the web for most plain questions in other languages ("Kas yra fotosintezė?", "Was
+    ist ein schwarzes Loch?", 6 of 10 on the app from source with qwen3:8b, 2026-11-22), and with Web lookups off a
+    web seat refuses the question instead of answering it. The yes/no (core.intent_arbiter.arbitrate_web_ask) read 17
+    of 18 fresh asks right. No answer keeps the web out: the turn is what it was before the web was a choice."""
+    if "web" not in keys:
+        return keys
+    from core import intent_arbiter
+
+    try:
+        verdict = intent_arbiter.arbitrate_web_ask(text, chat_id=str(session_id or ""), source_context=source_context)
+    except Exception:
+        verdict = None
+    if verdict == "yes":
+        return keys
+    _log.info("tool ask: web pick not confirmed (%s)", verdict)
+    return tuple(key for key in keys if key != "web")
+
+
 def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> tuple[str, ...] | None:
     """The plugin judgement for this turn's text, recorded with the built-in one; None when nothing judged the plugins
     (the words then decide alone)."""
@@ -318,7 +359,8 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     numbers = [number for number in picked if 1 <= number <= len(choices)]
     plugins = tuple(dict.fromkeys(shown_plugins[n - 1][0] for n in numbers if n <= len(shown_plugins)))
     if builtins:
-        _record_builtins(text, tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins)))
+        keys = tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins))
+        _record_builtins(text, _web_confirmed(text, keys, source_context, session_id))
     if not rows:
         return None
     _record(text, plugins, signature)

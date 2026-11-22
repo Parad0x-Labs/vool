@@ -384,6 +384,37 @@ def _owner_live_source_toolsets(text: str, source_context: dict[str, Any] | None
     return tuple(toolsets)
 
 
+#: The toolsets a judged built-in tool belongs to, for the tools the judge can seat beyond the operator, contacts and
+#: mail arms above (core.plugin_ask.BUILTIN_CHOICES).
+_JUDGED_TOOLSETS = (("workspace.", ("workspace",)), ("web.", ("web_search", "web_fetch")))
+
+
+def _judged_tool_toolsets(text: str, source_context: dict[str, Any] | None = None) -> tuple[str, ...]:
+    """The toolsets of the open folder's work (write a file, run its tests) and of the web, when the turn's judge read
+    the message as asking for them in any language (core.plugin_ask; read here, never asked).
+
+    Blind audit of 58f60bbf3 (2026-11-22, app from source, qwen3:8b): once the judge picked writing a file for
+    "Sukurk naują failą prekes.txt ...", the writer was offered but the turn read as stable knowledge, stayed in the
+    tools-less chat lane, and the model promised "Sukursiu ..." with nothing written. The judgement joins the turn's
+    requirements as the operator, contacts and mail ones do. Owner-local turns only, as the judgement itself."""
+    if not isinstance(source_context, dict) or not source_context:
+        return ()
+    try:
+        from core.plugin_ask import judged_builtin_seats
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return ()
+        seats = judged_builtin_seats(str(text or ""))
+    except Exception:
+        return ()
+    toolsets: list[str] = []
+    for prefix, sets in _JUDGED_TOOLSETS:
+        if any(seat.startswith(prefix) for seat in seats):
+            toolsets.extend(toolset for toolset in sets if toolset not in toolsets)
+    return tuple(toolsets)
+
+
 def _tool_card_toolsets(text: str, source_context: dict[str, Any] | None = None) -> tuple[str, ...]:
     """The toolsets of the tools whose cards strongly fit the words (core.tool_card_router).
 
@@ -1297,7 +1328,8 @@ def _compute_requirements(
     # calendars releases nothing. The model still decides whether any operator tool is called.
     live_toolsets = () if _operator_arm_silent else _owner_live_source_toolsets(candidate_text, source_context)
     card_toolsets = () if _operator_arm_silent else _tool_card_toolsets(candidate_text, source_context)
-    live_toolsets = tuple(dict.fromkeys((*live_toolsets, *card_toolsets)))
+    judged_toolsets = () if _operator_arm_silent else _judged_tool_toolsets(candidate_text, source_context)
+    live_toolsets = tuple(dict.fromkeys((*live_toolsets, *card_toolsets, *judged_toolsets)))
     if (
         not _operator_arm_silent
         and (_operator_action_demand(candidate_text, source_context) or live_toolsets)
@@ -1337,6 +1369,7 @@ def _compute_requirements(
                 "operator_action_request" if _operator_action_demand(candidate_text, source_context)
                 else "owner_live_source_request",
                 *(("tool_card_request",) if card_toolsets else ()),
+                *(("judged_tool_request",) if judged_toolsets else ()),
             ))),
             multipart=getattr(base, "multipart", None),
             parallel_preferred=getattr(base, "parallel_preferred", None),

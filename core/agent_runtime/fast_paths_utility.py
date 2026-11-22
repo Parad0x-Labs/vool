@@ -1326,6 +1326,18 @@ def names_files_only_in_speech(text: str) -> bool:
     return all(str(token).strip().casefold() in spoken for token in named)
 
 
+def _judged_as_work_on_files(*texts: str) -> bool:
+    """Whether the turn's judge read the message as an ask to write, change or run something in the open folder, in
+    any language (core.plugin_ask; read here, never asked). The English edit verbs above are the words' own reading of
+    the same thing: "Sukurk naują failą pirkiniai.txt ir įrašyk į jį ..." carries none of them and was answered
+    "There is no file at `pirkiniai.txt`" (blind audit of 58f60bbf3, 2026-11-22)."""
+    try:
+        from core.plugin_ask import WORKSPACE_WORK_CHOICES, judged_builtins
+    except Exception:
+        return False
+    return any(set(judged_builtins(text)) & WORKSPACE_WORK_CHOICES for text in texts if str(text or "").strip())
+
+
 def _direct_workspace_read_request(user_input: str) -> dict[str, object] | None:
     text = " ".join(str(user_input or "").split()).strip()
     text = _SPACED_WORKSPACE_EXTENSION_RE.sub(r"\g<stem>.\g<ext>", text)
@@ -1348,7 +1360,7 @@ def _direct_workspace_read_request(user_input: str) -> dict[str, object] | None:
     # symmetric: missing a read verb produces fabrication, while over-matching produces a harmless
     # extra read. So the file reference itself is the signal, and only an explicit MUTATION intent
     # opts out. _WORKSPACE_READ_FILE_RE requires a real extension, so this needs a genuine filename.
-    if _WORKSPACE_MUTATION_INTENT_RE.search(text):
+    if _WORKSPACE_MUTATION_INTENT_RE.search(text) or _judged_as_work_on_files(user_input, text):
         return None
     # ...and neither is a question ABOUT that kind of file. The inversion above has no exit for a
     # sentence whose verb is `explain` or `compare`; without one, Python-packaging questions were

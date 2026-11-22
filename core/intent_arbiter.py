@@ -1341,6 +1341,57 @@ def arbitrate_standing_state(
     )
 
 
+def _web_ask_prompt(message: str) -> str:
+    """A balanced yes/no: does the message need the internet, or can it be answered from what anyone knows?
+
+    Its own question because the tool judgement over a list reads almost any question as one for the web: on the app
+    from source (qwen3:8b, 2026-11-22) "Kas yra fotosintezė?", "Was ist ein schwarzes Loch?" and "¿Quién escribió Don
+    Quijote?" were each picked for the web there, and with Web lookups off such a pick refuses an ordinary question."""
+    flat = " ".join(str(message or "").split())[:400]
+    return "\n".join([
+        "A person wrote one message to their assistant.",
+        "Question: does answering it need the INTERNET: does it ask to search or look something up online or on a web "
+        "page, or ask for something that changes and only the internet knows now (today's news, weather, prices, "
+        "opening hours, timetables, scores)?",
+        'Answer {"answer": "no"} when an encyclopedia, a textbook or general knowledge answers it (what something is, '
+        "who wrote or made something, how something works, a capital, a definition, maths), or when it asks to write, "
+        "translate or explain something.",
+        "",
+        'Message: "search online for the opening hours of the Louvre" -> {"answer": "yes"}',
+        'Message: "who painted the Mona Lisa?" -> {"answer": "no"}',
+        'Message: "kokie šiandien orai Klaipėdoje?" -> {"answer": "yes"}',
+        'Message: "kas yra gravitacija?" -> {"answer": "no"}',
+        'Message: "wie steht das Spiel Bayern gegen Dortmund gerade?" -> {"answer": "yes"}',
+        'Message: "wie funktioniert ein Kühlschrank?" -> {"answer": "no"}',
+        'Message: "busca en internet el precio del billete de tren a Madrid" -> {"answer": "yes"}',
+        'Message: "¿cuál es la capital de Perú?" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_web_ask(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message needs the internet: ``"yes"`` / ``"no"``, or None when nothing judged it. Asked only after the
+    tool judgement picked the web (core.plugin_ask); None and "no" keep the web out of the turn."""
+    if not str(message or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(_web_ask_prompt(message), source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_web_ask_prompt(message), operation="web_ask_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def arbitrate_told_as_fact(
     sentence: str,
     *,

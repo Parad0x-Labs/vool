@@ -2689,8 +2689,15 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 _note(intent, "filesystem")
             elif intent.startswith("things."):
                 _note(intent, "my_things")
-            elif intent.startswith("workspace.git_"):
+            elif intent.startswith("workspace."):
+                # The open folder's history, a file written there, or its tests run (judged in any language).
                 _note(intent, "workspace")
+                if intent.startswith(("workspace.write", "workspace.replace")):
+                    write_demand = True
+            elif intent.startswith("web."):
+                # The person's own ask for the web, read by the judge: as "search the web for ..." in so many
+                # words, not an online reading of the facts asked for.
+                _note(intent, "web")
 
     registry = _registry_now()
     for intent in _plugin_intents(cleaned, registry):
