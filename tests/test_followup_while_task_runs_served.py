@@ -283,6 +283,13 @@ def test_a_change_typed_mid_task_survives_vool_stopping_and_runs_once(chat):
     if second.evaluate("displayedChat") != session_id:
         second.evaluate("(id) => openSession(id)", session_id)
         _wait_for(lambda: second.evaluate("displayedChat") == session_id, 10, "second window never opened the chat")
+    # The person types the change into a window that shows the task working. Until the window's
+    # first read of the chat's slot has come back it knows of no task, and a message from it is a
+    # new message, queued behind whatever runs (test_chat_queue_cross_tab_served covers that).
+    # CI shard 1 on d2dacb04a (2026-11-22): on a loaded runner that read was still on its way when
+    # this test typed, so the change was queued, correctly for what that window knew.
+    _wait_for(lambda: second.evaluate("(id) => chatSlotBusyKnown(id) || isChatBusy(id)", session_id), 15,
+              "the second window never learned the chat's task is working")
     _send(second, NOTE)
     _wait_for(lambda: any(text.startswith("Got it.") for text in _texts(second)), 15, "the change was not taken in")
     kept = [row for row in _queue_rows(daemon, session_id) if row["status"] == "held"]
@@ -313,3 +320,4 @@ def test_a_change_typed_mid_task_survives_vool_stopping_and_runs_once(chat):
     assert statuses == ["completed"], statuses
     assert _texts(reopened).count(NOTE_ANSWER) == 1
     assert not errors, errors
+
