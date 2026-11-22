@@ -132,7 +132,25 @@ _PROTECTED_NAMES = frozenset(
 _PROTECTED_SUFFIXES = (".env", ".photoslibrary", ".pem", ".p12", ".kdbx")
 
 _CREDENTIAL_MASK_RE = re.compile(r"\[redacted[^\]]*\]")
-_HOME = Path.home()
+
+
+def _home_dirs() -> list[Path]:
+    """The home directory as it is NOW, and the account's own home from the user database.
+
+    Read at every check, never once at import: a home captured when the module was first imported (CI on fe98e849,
+    shard 0: first imported while a test had HOME pointed at a scratch folder) left the real home unprotected for
+    the life of the process. The account's own home is kept too, so a HOME pointed elsewhere never unprotects it.
+    """
+    import contextlib
+
+    homes: list[Path] = []
+    with contextlib.suppress(Exception):
+        homes.append(Path.home())
+    with contextlib.suppress(Exception):
+        import pwd
+
+        homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
+    return homes
 
 
 class ArchaeologyInputError(ValueError):
@@ -206,8 +224,7 @@ def is_protected_path(path: str | Path) -> tuple[bool, str]:
     if not parts:
         return False, ""
     try:
-        home_parts = _path_parts(_HOME)
-        if parts == home_parts or parts == ["/"]:
+        if parts == ["/"] or any(parts == _path_parts(home) for home in _home_dirs()):
             return True, "the home directory itself is never a crawl root"
     except Exception:
         pass
