@@ -31,7 +31,15 @@ ASKS = {
     "calendar": ("Ar esu laisvas penktadienį {n} val.?", "Was steht morgen in meinem Kalender?"),
     "mail": ("¿tengo correos sin leer?", "Ar gavau naujų laiškų šiandien?"),
     "notes": ("Užsirašyk: spintos raktas po kilimėliu {n}", "Finde meine Notiz über das Rezept"),
-    "phone": ("Nusiųsk sąskaitą {n} į mano telefoną", "Schick die PDF-Rechnung {n} auf mein Handy"),
+    "phone": ("Nusiųsk sąskaitą {n} į mano telefoną", "Schick die PDF-Rechnung {n} auf mein Handy",
+              "shoot invoice {n} over to my phone"),
+    # Tooling audit items 5 and 7: a saved household thing, and the open folder's changes since the last commit.
+    "things": ("Kada baigiasi mano skalbimo mašinos garantija?", "Welche Seriennummer hat mein Geschirrspüler?",
+               "where did I put the manual for the boiler, it's in my things"),
+    "changes": ("Kokius failus pakeičiau šiame aplanke nuo paskutinio commit?",
+                "Was habe ich in diesem Ordner seit dem letzten Commit geändert?",
+                "list the files I edited but haven't committed yet",
+                "what have I changed in this folder since the last commit"),
 }
 
 
@@ -82,6 +90,22 @@ def test_words_that_already_seat_a_personal_tool_ask_no_judge(monkeypatch):
     text = f"{rng.choice(['remind me', 'please remind me'])} to call the bank tomorrow at {rng.randint(2, 9)}pm"
     plugin_ask.judge_turn(text, source_context=OWNER, session_id="chat-any-language")
     assert calls == []
+
+
+def test_an_ask_about_this_computers_files_still_reaches_the_judge(monkeypatch):
+    # "files" is this computer's own read, which none of the choices is: an ask about the folder's changes since the
+    # last commit seats it by its words, and the judge must still be asked (tooling audit item 7). A source a choice
+    # reads (notes, calendar, mail) settles the ask as before.
+    from core.tool_demand_signals import owner_live_sources
+
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    calls: list = []
+    _script(monkeypatch, lambda _m, _c: (KEYS.index("changes") + 1,), calls)
+    text = "what have I changed in this folder since the last commit"
+    assert "files" in owner_live_sources(text)
+    plugin_ask.judge_turn(text, source_context=OWNER, session_id="chat-any-language")
+    assert len(calls) == 1 and plugin_ask.judged_builtins(text) == ("changes",)
+    assert {"workspace.git_status", "workspace.git_diff"} <= _offered(text)
 
 
 def test_a_remote_turn_is_never_asked_about_this_machines_tools(monkeypatch):

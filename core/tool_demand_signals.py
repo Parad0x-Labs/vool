@@ -2687,6 +2687,10 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 _note(intent, "contacts")
             elif intent == "machine.send_to_phone":
                 _note(intent, "filesystem")
+            elif intent.startswith("things."):
+                _note(intent, "my_things")
+            elif intent.startswith("workspace.git_"):
+                _note(intent, "workspace")
 
     registry = _registry_now()
     for intent in _plugin_intents(cleaned, registry):

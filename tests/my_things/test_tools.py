@@ -35,13 +35,33 @@ def test_real_runtime_tools_only_return_matched_records_for_a_proven_owner_turn(
     assert execute_runtime_tool("things.search", {"query": "Cedar radio"}, source_context={**ctx, "turn_author": "agent"}).ok is False
 
 
-def test_private_records_are_not_offered_to_a_model_before_admission_is_integrated(store):
+def test_private_records_are_offered_only_on_the_owners_own_turn_when_asked(store, monkeypatch):
+    # Tooling audit item 5: an ask about a saved thing fell through to files, the web and the shell. The record tools
+    # are offered when the owner's own local turn asks for them (the turn's judge reads any language), never on a
+    # turn that is not the owner's here, and never from a family hint alone.
+    from core import intent_arbiter, plugin_ask
     from core.capability_graph import _CANONICAL_FAMILIES, model_visible_specs
+    from core.request_trust import OWNER_LOCAL_KEY
     from core.runtime_tool_contracts import runtime_tool_contracts
 
     contracts = [c for c in runtime_tool_contracts() if c.intent.startswith("things.")]
     assert {c.intent for c in contracts} == {"things.search", "things.match", "things.prepare"}
-    assert all(not c.model_visible for c in contracts)
+    assert all(c.side_effect_class == "read_only" and c.approval_requirement == "none" for c in contracts)
     for family in _CANONICAL_FAMILIES:
         offered = model_visible_specs(user_text="Find my saved headphones in My things", family_hint=family)
         assert all(not spec["intent"].startswith("things.") for spec in offered)
+
+    keys = [key for key, _description, _seats in plugin_ask.BUILTIN_CHOICES]
+    pick = len(plugin_ask._installed_with_tools()) + 1 + keys.index("things")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", lambda _message, _choices, **_kw: (pick,))
+    owner = {OWNER_LOCAL_KEY: True, "surface": "openclaw", "platform": "openclaw", "session_id": "things-offer"}
+    for text in ("Kada baigiasi mano skalbimo mašinos garantija?", "what's the serial number on my dishwasher"):
+        plugin_ask.judge_turn(text, source_context=owner, session_id="things-offer")
+        offered = [spec["intent"] for spec in model_visible_specs(user_text=text, source_context=owner)]
+        assert "things.search" in offered, (text, offered)
+    remote = {"surface": "telegram", "platform": "telegram", "session_id": "things-offer-remote"}
+    text = "what is the warranty on my fridge"
+    plugin_ask.judge_turn(text, source_context=remote, session_id="things-offer-remote")
+    offered = [spec["intent"] for spec in model_visible_specs(user_text=text, source_context=remote)]
+    assert not any(intent.startswith("things.") for intent in offered), offered
+

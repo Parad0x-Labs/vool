@@ -163,10 +163,38 @@ def test_only_the_owner_doors_and_the_forget_count_reach_the_records_store() -> 
     assert found == ALLOWED_IMPORTERS
 
 
-def test_record_tools_stay_hidden_from_the_model() -> None:
-    # Visible tools would let a model look a forgotten model number up again from a question that
-    # never asked for My things. Showing them needs the forget law reviewed for them first.
-    from core.my_things.tools import contracts
+def _turn(text: str, session: str) -> dict:
+    from core.agent_runtime.request_authority import REQUEST_PROVENANCE_KEY, request_provenance_for_visible_user_text
+    from core.runtime_continuity import create_runtime_checkpoint
 
-    assert {c.intent for c in contracts()} == {"things.search", "things.match", "things.prepare"}
-    assert not any(c.model_visible for c in contracts())
+    checkpoint = create_runtime_checkpoint(session_id=session, request_text=text, source_context={
+        REQUEST_PROVENANCE_KEY: request_provenance_for_visible_user_text(text, session_id=session)})
+    return {"_owner_local": True, "runtime_checkpoint_id": checkpoint["checkpoint_id"], "runtime_session_id": session,
+            "session_id": session}
+
+
+def test_record_tools_never_read_back_what_this_chat_forgot(home: Path) -> None:
+    # The record tools are offered to the model on the owner's own turns (tooling audit, item 5: an ask about a saved
+    # thing fell through to files and the web). The forget law holds inside them: in the chat that forgot the words,
+    # no record tool reads back a record carrying them; in another chat the record is the person's again.
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    lamp = ThingsStore().save({"name": "Pine lamp", "model": "PL-7731", "notes": f"PL-7731 bulb {RECORD_ONLY} is warm white"})
+    ThingsStore().save({"name": "Pine shelf", "model": "PS-2208"})
+    _ask("Remember that the Pine lamp model is PL-7731")
+    handled, reply = _ask("Forget PL-7731")
+    assert handled and reply.startswith("Forget applied"), reply
+
+    ask = "What is the model of my Pine lamp? Look in My things for the Pine lamp and the Pine shelf"
+    ctx = _turn(ask, CHAT)
+    found = execute_runtime_tool("things.search", {"query": "Pine"}, source_context=ctx)
+    assert found.ok, found
+    text = json.dumps(found.details, ensure_ascii=False) + found.response_text
+    assert "7731" not in text and RECORD_ONLY not in text, text
+    assert [t["model"] for t in found.details["observation"]["result"]["things"]] == ["PS-2208"]
+    drafted = execute_runtime_tool("things.prepare", {"id": lamp["id"], "kind": "repair"}, source_context=ctx)
+    assert drafted.ok is False and "7731" not in drafted.response_text + json.dumps(drafted.details, ensure_ascii=False)
+
+    elsewhere = execute_runtime_tool("things.search", {"query": "Pine lamp"},
+                                     source_context=_turn("Find my Pine lamp in My things", CHAT + "-another"))
+    assert elsewhere.ok and [t["model"] for t in elsewhere.details["observation"]["result"]["things"]] == ["PL-7731"]

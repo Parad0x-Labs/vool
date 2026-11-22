@@ -55,8 +55,16 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("notes", "Notes: save a note for the person, or find and read the notes they saved.",
      ("operator.save_note", "operator.find_notes", "operator.show_note")),
     ("phone", "Send to phone: send a file from this computer to the person's phone.", ("machine.send_to_phone",)),
+    ("things", "My things: the household things the person saved in VOOL (purchases, appliances and devices, with "
+     "maker, model and serial number); find one, match a label to it, or prepare a return, repair or warranty request.",
+     ("things.search", "things.match", "things.prepare")),
+    ("changes", "Changes in the open folder's version history (git): what was edited since the last commit, which files "
+     "are not committed yet, and the exact differences.",
+     ("workspace.git_status", "workspace.git_diff")),
 )
 _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
+#: The owner's live sources (core.tool_demand_signals.owner_live_sources) that one of the choices above reads.
+_LIVE_SOURCES_A_CHOICE_READS = frozenset({"notes", "calendar", "mail"})
 _LOCK = threading.Lock()
 _log = logging.getLogger(__name__)
 
@@ -229,7 +237,10 @@ def _builtins_to_ask(text: str, source_context: dict[str, Any]) -> bool:
             return False
         from core.tool_demand_signals import owner_live_sources, owner_local_operator_intents, resolve_demand_signals
 
-        if owner_local_operator_intents(text) or owner_live_sources(text):
+        # A live source the words seat counts only when a choice below reads it (notes, calendar, mail): "files",
+        # "disk" and "processes" are this computer's own reads, and an ask about them may still be one of these
+        # tools ("what have I changed in this folder since the last commit" seats "files" and asks for git).
+        if owner_local_operator_intents(text) or set(owner_live_sources(text)) & _LIVE_SOURCES_A_CHOICE_READS:
             return False
         signals = resolve_demand_signals(text)
     except Exception:
