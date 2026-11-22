@@ -58,9 +58,10 @@ try {
   Date.now = () => sent;
   applyTaskEvent(r2, { type: "task.submitted", ts: new Date(sent).toISOString(), userText: "hi" });
   applyTaskEvent(r2, { type: "task.started", seq: 1 });
-  Date.now = () => sent + 14000;
+  Date.now = () => sent + 14600;   // 14.6 s: the card floors to "14s", so must the pet
   applyTaskEvent(r2, { type: "task.completed", seq: 2, ts: new Date(sent + 12500).toISOString() });
   Date.now = realNow;
+  res.cardTotal = fmtElapsed(14600);
   res.done = look(sent + 15000);
   res.doneLater = look(sent + 15000 + 13000);
   displayedChat = "c1"; look(sent + 30000);
@@ -91,8 +92,9 @@ def test_the_bubble_says_the_real_step_and_is_quiet_when_idle() -> None:
     assert out["ask"]["line"] == "Send the email to Anna", out["ask"]
     assert out["askAgain"]["line"] == "Send the email to Anna", out["askAgain"]
     assert out["askLater"]["shown"] == "flex", "a waiting decision stays visible until it is answered"
-    # Finished: done, with the turn's real duration on the page's clock (sent -> ended = 14 s).
+    # Finished: done, with the turn's real duration on the page's clock (sent -> ended = 14.6 s, written as the card writes it).
     assert out["done"]["shown"] == "flex" and out["done"]["line"] == "Done · 14s", out["done"]
+    assert out["done"]["line"] == "Done · " + out["cardTotal"], "the pet and the card's total say the same time"
     assert out["doneLater"]["shown"] == "none", "after the moment passes the finished pet goes quiet"
     assert out["doneReopened"]["shown"] == "none", "opening a finished chat again does not replay its done line"
     assert out["failed"]["line"] == out["failedPhrase"] and out["failedPhrase"], "a failure says the plain phrase"

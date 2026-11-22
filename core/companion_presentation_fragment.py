@@ -814,9 +814,15 @@ function vnTaskTitle(text) {
   // question, the question's own clause goes first ("For the report, can you check the numbers?"
   // names the check, not "Report").
   // By shape, not by word lists: a question is the ask; an exclamation ("Thank you so much!") is
-  // the least likely to be one; plain sentences keep their order between them. On the Mac
+  // the least likely to be one; plain sentences keep their order among their own kind. On the Mac
   // "Thank you so much! Which line did that file end up holding?" was titled "You so much".
-  const shape = function (v) { return /\?\s*$/.test(v) ? 0 : (/!\s*$/.test(v) ? 2 : 1); };
+  // A short plain sentence beside a longer one is an aside ("Lovely, all sorted. Now name the first
+  // plant on that list." was titled "Lovely"); it names the task only when nothing else does.
+  const shape = function (v) {
+    if (/\?\s*$/.test(v)) return 0;
+    if (/!\s*$/.test(v)) return 3;
+    return v.split(/\s+/).length <= 3 ? 2 : 1;
+  };
   const sentences = s.replace(/([.!?])\s+/g, "$1\n").split("\n")
     .map(function (v, i) { return { v: v.trim(), i: i }; })
     .filter(function (x) { return x.v; })
@@ -873,9 +879,15 @@ const VN_DONE_LINGER_MS = 12000;
 // One record PER CHAT: going back to a finished chat does not replay its "done" line, and a
 // working chat keeps its line across chat switches (navigation is not a reducer change).
 const vnQuipByChat = new Map();
+/* A duration exactly as the run card writes its total: the card's own formatter when the chat page
+   is there (one owner, so "Done · 10s" can never stand beside "9s total" again, seen on the Mac),
+   the same whole-second floor and "1m 05s" shape where it is not. */
 function vnSeconds(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
+  if (typeof fmtElapsed === "function") return fmtElapsed(ms);
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return s + "s";
+  const r = s % 60;
+  return Math.floor(s / 60) + "m " + (r < 10 ? "0" : "") + r + "s";
 }
 function vnBubbleLine(chatId, pres, nextState, now, view) {
   const id = String(chatId || "");

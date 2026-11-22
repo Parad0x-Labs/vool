@@ -97,6 +97,8 @@ TITLE_CASES = [
     ("Cheers, that helps. And how many words are on that line?", "How many words are on that"),
     ("Brilliant, ty!! Now make it shorter.", "Make it shorter"),
     ("Find me a flight to Rome. I want to leave Friday.", "Find flight to Rome"),
+    ("Lovely, all sorted. Now name the first plant on that list.", "Name first plant on that list"),
+    ("Book it.", "Book"),
 ]
 
 
