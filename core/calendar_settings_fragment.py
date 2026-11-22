@@ -309,15 +309,26 @@ function mountInto(host){
     nameInput.value = draft.label; addressInput.value = draft.base_url;
     addressInput.placeholder = 'https://';
     var why = h('div', 'vcs-detail');
+    /* The sign-ins this source can use: a Google calendar takes a Google sign-in, never a model or search key. Offered
+       every key, the Google list showed OpenRouter and Brave Search (sls on fe98e849, 2026-11-22). */
+    function fitting(key){
+      var allowed = String((providers[key] || {}).binding_providers || '').split(',').filter(Boolean);
+      return (view.bindings || []).filter(function(b){ return !allowed.length || allowed.indexOf(String(b.provider_id || '').toLowerCase()) >= 0; });
+    }
+    function viaMacCalendar(key){ return (key === 'google' || key === 'graph') && isMacPlatform() && !!providers.eventkit; }
     function refreshFields(){
       var key = providerSelect.value; var provider = providers[key] || {};
       capability.textContent = CTF('vcs.add.capability', 'Connects with {connection}. Reads: {events}. Links: {links}.', {connection: (provider.connection || ''), events: (provider.events || ''), links: (provider.links || '')});
+      if (viaMacCalendar(key)) capability.textContent += ' ' + (key === 'google'
+        ? CE('vcs.add.google_via_mac', 'Google calendars you already have in the Mac’s Calendar app show up under “Apple Calendar on this Mac”, so most people don’t need this.')
+        : CE('vcs.add.outlook_via_mac', 'Outlook calendars you already have in the Mac’s Calendar app show up under “Apple Calendar on this Mac”, so most people don’t need this.'));
       addressRow.hidden = key !== 'caldav';
-      bindingRow.hidden = key === 'eventkit';
+      var usable = fitting(key);
+      bindingRow.hidden = key === 'eventkit' || ((key === 'google' || key === 'graph') && !usable.length);
       bindingSelect.textContent = '';
       var none = h('option', null, key === 'caldav' ? CE('vcs.add.binding_none_caldav', 'No sign-in (a server that does not need one)') : CE('vcs.add.binding_none', 'Choose a sign-in'));
       none.value = ''; bindingSelect.appendChild(none);
-      (view.bindings || []).forEach(function(binding){
+      usable.forEach(function(binding){
         var option = h('option', null, (binding.account || binding.provider_label || binding.provider_id) + (binding.account ? ' — ' + (binding.provider_label || binding.provider_id) : '') + (binding.status === 'verified' ? '' : ' · ' + CE('vcs.add.binding_unverified', 'not checked yet, cannot be used')));
         option.value = binding.binding_id; option.disabled = binding.status !== 'verified'; bindingSelect.appendChild(option);
       });
@@ -337,9 +348,11 @@ function mountInto(host){
         return '';
       }
       if ((key === 'google' || key === 'graph') && !bindingSelect.value) {
-        return (view.bindings || []).some(function(b){ return b.status === 'verified'; })
-          ? CE('vcs.add.need_binding', 'Choose the sign-in for this account first.')
-          : CE('vcs.add.need_connect', 'This calendar kind needs a connected account sign-in first, and there is none yet. Pick a different Source (for example \u2018iCloud or another CalDAV server\u2019, which needs only a server address), or connect that account\u2019s sign-in on this computer first, then pick it here.');
+        if (fitting(key).some(function(b){ return b.status === 'verified'; })) return CE('vcs.add.need_binding', 'Choose the sign-in for this account first.');
+        if (viaMacCalendar(key)) return key === 'google'
+          ? CE('vcs.add.no_google_signin_mac', 'There is no Google sign-in on this computer. To use your Google calendars, add them in the Mac’s Calendar app (Calendar, Settings, Accounts), then pick “Apple Calendar on this Mac” here.')
+          : CE('vcs.add.no_outlook_signin_mac', 'There is no Microsoft sign-in on this computer. To use your Outlook calendars, add them in the Mac’s Calendar app (Calendar, Settings, Accounts), then pick “Apple Calendar on this Mac” here.');
+        return CE('vcs.add.need_connect', 'This calendar kind needs a connected account sign-in first, and there is none yet. Pick a different Source (for example \u2018iCloud or another CalDAV server\u2019, which needs only a server address), or connect that account\u2019s sign-in on this computer first, then pick it here.');
       }
       return '';
     }
@@ -365,7 +378,6 @@ function mountInto(host){
     });
     addBox.appendChild(form);
     if (view.bindings_error) addBox.appendChild(h('div', 'vcs-bad', CTF('vcs.bindings_error', 'The credential binding list could not be read ({error}).', {error: view.bindings_error})));
-    else if (!(view.bindings || []).length) addBox.appendChild(h('div', 'vcs-detail', CE('vcs.no_bindings', 'No account sign-ins yet. Google and Microsoft calendars need a connected account sign-in; an iCloud or other CalDAV server can be added with its address.')));
     refreshFields();
   }
   load();

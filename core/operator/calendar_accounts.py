@@ -41,12 +41,16 @@ PROVIDERS: dict[str, dict[str, str]] = {
         "connection": "your Google account sign-in",
         "events": "repeating events are read one date at a time",
         "links": "the event page, and Google Meet links",
+        # The sign-ins this source can use, by credential provider id. Any other key (a model or search key) is never
+        # one: offered for Google, the list showed OpenRouter and Brave Search (sls on fe98e849, 2026-11-22).
+        "binding_providers": "google,google_calendar",
     },
     "graph": {
         "label": "Microsoft Outlook / Microsoft 365",
         "connection": "your Microsoft account sign-in",
         "events": "repeating events are read one date at a time",
         "links": "the event page, and Teams links",
+        "binding_providers": "microsoft,microsoft_graph,graph,outlook",
     },
     "caldav": {
         "label": "iCloud or another CalDAV server",
@@ -181,7 +185,7 @@ def add_account(
     if name == "eventkit" and not base:
         base = "eventkit://local"
     if binding:
-        refusal = _binding_refusal(binding)
+        refusal = _binding_refusal(binding, provider=name)
         if refusal is not None:
             return refusal
     who = str(principal or "").strip()
@@ -209,8 +213,16 @@ def add_account(
     return account
 
 
-def _binding_refusal(binding: str) -> dict[str, Any] | None:
-    """Why an account cannot name this credential binding, or None when it can (it exists and is verified)."""
+def binding_fits(provider: str, binding_provider_id: str) -> bool:
+    """Whether a sign-in for `binding_provider_id` can open a `provider` calendar account. A source that lists its
+    sign-ins takes only those; CalDAV and Apple Calendar list none and are not narrowed here."""
+    allowed = [part for part in str((PROVIDERS.get(provider) or {}).get("binding_providers") or "").split(",") if part]
+    return not allowed or str(binding_provider_id or "").strip().lower() in allowed
+
+
+def _binding_refusal(binding: str, *, provider: str = "") -> dict[str, Any] | None:
+    """Why an account cannot name this credential binding, or None when it can (it exists, is verified, and is a
+    sign-in for this kind of calendar)."""
     from core.credential_intelligence.binding import MalformedBindingIndexError, load_index
 
     try:
@@ -223,6 +235,10 @@ def _binding_refusal(binding: str) -> dict[str, Any] | None:
     if str(row.get("status") or "") != "verified":
         return {"ok": False, "reason": "credential_binding_not_verified",
                 "detail": f"credential binding {binding} is {row.get('status') or 'unverified'}; verify it under Keys first"}
+    if provider and not binding_fits(provider, str(row.get("provider_id") or "")):
+        label = (PROVIDERS.get(provider) or {}).get("label") or provider
+        return {"ok": False, "reason": "credential_binding_wrong_provider",
+                "detail": f"that sign-in is not a {label} sign-in"}
     return None
 
 
