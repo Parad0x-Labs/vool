@@ -36,14 +36,19 @@ def enabled(env: Any = None) -> bool:
 
 
 def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any | None:
-    """With local models on: the local model that answers this turn, asked when none is loaded yet.
+    """With local models on: the Ollama model that answers this turn, asked when none is loaded yet.
 
     The judgements ask the loaded local model first (`core.intent_arbiter._keep_judge_model`). On the first turn,
     or after Ollama unloaded the model when idle, none is loaded, and every judgement said "nobody judged" in a few
     milliseconds: a reminder, note or calendar ask in Lithuanian got no tool and the reply said it was done (blind
     audit of 58f60bbf3, 31 of 50 judgements None). The model this judge asks is the one the turn loads to answer
-    anyway (`core.clean_loop.brain.resolve_local_manifest`), so asking it first loads nothing extra. It stays on
-    this computer, so a private chat may use it; a remote or agent turn may not."""
+    anyway (`core.clean_loop.brain.resolve_local_manifest`), so asking it first loads nothing extra.
+
+    It asks through the arbiter's own direct Ollama call (`core.intent_arbiter.ask_local_model`, on the runner the
+    turn is served on), never through the turn's provider: through the provider the judge's question was a turn of
+    its own, held for a send preview and counted with the person's own calls (CI on 3dfb2f34). A local model that is
+    not Ollama's gets no judge here, as before. It stays on this computer, so a private chat may use it; a remote
+    or agent turn may not."""
     router = getattr(agent, "memory_router", None)
     if router is None:
         return None
@@ -56,9 +61,17 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
     manifest = brain.resolve_local_manifest(router, source_context)
     if manifest is None:
         return None
+    metadata = getattr(manifest, "metadata", None) or {}
+    if str(metadata.get("runtime_family") or "").strip().lower() != "ollama":
+        return None
+    model = str(getattr(manifest, "model_name", "") or "").strip()
+    if not model:
+        return None
+    role = str(metadata.get("bundle_role") or "general")
+    from core import intent_arbiter
 
     def judge(prompt: str) -> str:
-        return brain.make_brain(router, manifest, source_context)([{"role": "user", "content": str(prompt)}])
+        return intent_arbiter.ask_local_model(str(prompt), model, runner_role=role, source_context=source_context) or ""
 
     return judge
 

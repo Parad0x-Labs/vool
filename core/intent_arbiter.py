@@ -478,6 +478,7 @@ def arbitrate_followup(
     call_role: str = "",
     parse: Callable[[str], str | None] | None = None,
     patient: bool = False,
+    timeout_s: float | None = None,
 ) -> str | None:
     """``"yes"`` / ``"no"``, or None (disabled, no model, breaker open, error, unparseable).
 
@@ -531,7 +532,7 @@ def arbitrate_followup(
 
         call_id = record_provider_call(source_context, provider_id="ollama", model_id=str(model or ""), cost_class="free_local",
                                        call_role=call_role)
-        response = requests.post(_ollama_chat_url(), json=permit.consume(), timeout=(1.5, _TIMEOUT_S))
+        response = requests.post(_ollama_chat_url(), json=permit.consume(), timeout=(1.5, timeout_s or _TIMEOUT_S))
         response.raise_for_status()
         content = str(((response.json().get("message") or {}).get("content")) or "")
     except Exception as exc:
@@ -614,6 +615,24 @@ def _judged_for_the_turn(
     if decision is None:
         _LAST_FAILURE["reason"] = "turn_judge:unreadable"
     return decision
+
+
+#: A judgement put to the turn's own model before it is loaded waits for the load (the turn needs the model loaded
+#: anyway); a cold qwen3:8b load on the gate iMac took 10-20 s, more than the arbiter's usual window.
+_LOAD_TIMEOUT_S = float(os.environ.get("VOOL_JUDGE_LOAD_TIMEOUT_S", "60") or 60)
+
+
+def ask_local_model(
+    prompt: str, model: str, *, runner_role: str = "general", source_context: dict[str, object] | None = None,
+) -> str | None:
+    """The raw answer of the named local Ollama model to one judgement prompt, through the arbiter's one sealed
+    direct site, on the runner that model serves the chat on; None when it did not answer. The judge of a turn
+    whose model is not loaded yet (`core.agent_runtime.turn_judge`)."""
+    return arbitrate_followup(
+        "", "", "", source_context=source_context, prompt=str(prompt or ""), operation="turn_judgement",
+        model=str(model or ""), runner_role=runner_role, call_role=_judgement_role(), parse=lambda content: content,
+        patient=True, timeout_s=_LOAD_TIMEOUT_S,
+    )
 
 
 def _keep_ask_prompt(lead: str, body: str) -> str:
