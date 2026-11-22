@@ -108,6 +108,18 @@ def test_an_ask_about_this_computers_files_still_reaches_the_judge(monkeypatch):
     assert {"workspace.git_status", "workspace.git_diff"} <= _offered(text)
 
 
+def test_a_memory_command_asks_no_judge(monkeypatch):
+    # The memory lane answers remember/forget before any tool is offered; a judge call there only cost the turn a
+    # model call, and with the model down a forget turn waited on it (CI on 58f60bbf3, file lock order test).
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    calls: list = []
+    _script(monkeypatch, lambda _m, _c: (1,), calls)
+    rng = random.Random("memory-commands")
+    for text in (f"Forget storage label MINT-{rng.randint(10, 99)}", f"Remember that my locker is number {rng.randint(10, 99)}"):
+        plugin_ask.judge_turn(text, source_context=OWNER, session_id="chat-any-language")
+    assert calls == []
+
+
 def test_a_remote_turn_is_never_asked_about_this_machines_tools(monkeypatch):
     monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
     calls: list = []

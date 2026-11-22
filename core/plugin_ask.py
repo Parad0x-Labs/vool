@@ -235,6 +235,13 @@ def _builtins_to_ask(text: str, source_context: dict[str, Any]) -> bool:
 
         if not request_is_owner_local(source_context):
             return False
+        # A memory command (remember, forget, the memory list) is the memory lane's own turn, answered before any
+        # tool is offered: asking a model about tools for it only costs the turn a call (and a forget turn on a
+        # machine whose model is down then waited on it).
+        from core.persistent_memory import memory_command_owns_turn
+
+        if memory_command_owns_turn(text):
+            return False
         from core.tool_demand_signals import owner_live_sources, owner_local_operator_intents, resolve_demand_signals
 
         # A live source the words seat counts only when a choice below reads it (notes, calendar, mail): "files",
