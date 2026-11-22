@@ -1081,6 +1081,54 @@ def _any_execution(turn_id: str, source_context: Any) -> bool:
     return False
 
 
+#: Which live source a tool that ran is about, read from its intent name ("operator.schedule_reminder",
+#: "operator.schedule_calendar_event", "email.send", "operator.save_note", "machine.list_processes").
+_TOOL_SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("reminders", re.compile(r"remind")),
+    ("calendar", re.compile(r"calendar")),
+    ("mail", re.compile(r"(?:^|[._])e?mail|inbox")),
+    ("notes", re.compile(r"note")),
+    ("system", re.compile(r"^machine\.|process|disk|system_info|specs|host_state")),
+)
+#: A tool whose last word is one of these reads; any other one changes something.
+_READING_TOOL = re.compile(r"(?:^|[._])(?:list|inspect|search|find|show|read|open|get|apple_note_read|apple_note_list)[a-z_]*$")
+#: "Done!", a save sentence and a file are not about one live source (a note, an export and a calendar draft are
+#: all files): any tool that ran stands for them, as before.
+_ANY_RUN_BACKS = frozenset({"generic", "memory", "files"})
+#: The calendar named as such, in the languages the claim reader reads.
+_CALENDAR_NAMED = re.compile(r"\b(?:calendar|agenda|calendrier|calendario|kalender)\b", re.I)
+
+
+def _executed_sources(turn_id: str, source_context: Any) -> dict[str, set[str]] | None:
+    """The claim forms each live source's tools that ran this turn back: {"reminders": {"read", "action"}, ...}.
+    None when something ran that names none of the live sources (a web lookup, a memory tool, a run with no name):
+    the check then stands down as before."""
+    names: list[str] = []
+    try:
+        from core.turn_model_call_ledger import turn_call_accounting
+
+        names.extend(str(name) for name in (turn_call_accounting(source_context).get("tools") or ()))
+    except Exception:
+        return None
+    if isinstance(source_context, dict):
+        for row in source_context.get("runtime_tool_observations") or ():
+            if isinstance(row, dict) and str(row.get("tool_name") or "").strip():
+                names.append(str(row["tool_name"]))
+    names = [name.strip().lower() for name in names if name.strip()]
+    if not names:
+        return None
+    backed: dict[str, set[str]] = {}
+    for name in dict.fromkeys(names):
+        found = [source for source, pattern in _TOOL_SOURCES if pattern.search(name)]
+        if not found:
+            return None
+        for source in found:
+            backed.setdefault(source, set()).add("read")
+            if not _READING_TOOL.search(name):
+                backed[source].add("action")
+    return backed
+
+
 _FLUFF = re.compile(
     r"^(?:let me know|is there anything else|anything else|just let me know|hope (?:this|that) helps"
     r"|want me to do anything else|would you like)",
@@ -1241,7 +1289,34 @@ def gate_action_claims(
     except Exception:
         pass
     if _any_execution(turn_id, source_context):
-        return text, {"action_claims": sources, "publication": "execution_evidence_present"}
+        # A tool that ran backs what it is about, not every claim beside it. Measured on the installed fe98e849
+        # (real-app check v3 and the outside tooling audit, 2026-11-22): "hey make a remidner to book a haircut
+        # tomorrow at 3pm ty" ran the calendar tool, and the reply "Reminder scheduled ... (id 3bbb4fbf)" named an
+        # older reminder's id; no reminder was made. The whole check stood down because a tool ran.
+        backed = _executed_sources(turn_id, source_context)
+        if backed is None:
+            return text, {"action_claims": sources, "publication": "execution_evidence_present"}
+        # A sentence that names a reminder is about the reminder: "scheduled", "booked" and "haircut" also read as
+        # calendar words, so the calendar reading of a reminder sentence counts only when it names the calendar.
+        reminder_sentences = {(c[0], c[1], c[2]) for c in spans if c[5] == "reminders"}
+        about = [
+            c for c in spans
+            if not (c[5] == "calendar" and (c[0], c[1], c[2]) in reminder_sentences and not _CALENDAR_NAMED.search(c[3]))
+        ]
+
+        def _backs(claim: tuple[int, int, int, str, str, str]) -> bool:
+            return claim[5] in _ANY_RUN_BACKS or claim[4] in backed.get(claim[5], set())
+
+        # A sentence one of whose claims the run backs is about that run: "I checked your inbox: the inspection is
+        # scheduled for Friday" relays the mail it read, and "added to your calendar and set a reminder an hour
+        # before" is the event's own alert. A claim of another source in a sentence of its own is not.
+        backed_sentences = {(c[0], c[1], c[2]) for c in about if _backs(c)}
+        unbacked = [c for c in about if not _backs(c) and (c[0], c[1], c[2]) not in backed_sentences]
+        if not unbacked:
+            return text, {"action_claims": sources, "publication": "execution_evidence_present"}
+        spans = unbacked
+        claims = [(c[3], c[4], c[5]) for c in spans]
+        sources = list(dict.fromkeys(c[2] for c in claims))
     if ("generic" in sources or "memory" in sources) and request:
         # "✅ Sent" names nothing, and "Saved!" names only that something was kept; the request
         # says what it was about ("save a note: ...", "add a contact: ...").
