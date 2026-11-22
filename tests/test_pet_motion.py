@@ -115,7 +115,7 @@ def test_switching_work_cross_fades_instead_of_snapping(page):
     for pet in PAINTED_ROSTER:
         script = [["thinking", None, 0, 1000, 0]]
         t = 1000
-        for act in ACTIVITIES + ["read"]:
+        for act in [*ACTIVITIES, "read"]:
             script.append(["tool", act, t, t + 700, 0]); t += 700
         script += [["approval", None, t, t + 900, 0], ["success", None, t + 900, t + 2200, 0], ["idle", None, t + 2200, t + 3000, 0]]
         d = pg.evaluate("a => play(a[0], a[1])", [pet, script])["diffs"]
