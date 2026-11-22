@@ -377,7 +377,7 @@ function vcwEgg(g,kind,frame){
 window.VoolCompanionWorld={draw:vcwDraw,scene:vcwScene,egg:vcwEgg,characters:VCW_CHARACTERS,packs:VCW_PACKS,sheets:VCW_SHEETS,frameCount:vcwFrameCount,frameAt:vcwFrameAt,
  /* pets/petIds/drawPet are the old pixel drawings, kept as the fallback picture; painted is the roster. */
  pets:A_PETS,petIds:aPetIds,originalIds:A_ORIGINAL,activityFor:aActivityFor,drawPet:vcwDrawPet,painted:VP_PETS,
- drawPainted:vcwDrawPainted,fit:vcwFitCanvas,ready:vpReady,onReady:vpOnReady,resolvePet:vcwResolvePet,aliases:VP_ALIASES};
+ drawPainted:vcwDrawPainted,postureOf:vpPostureOf,fit:vcwFitCanvas,ready:vpReady,onReady:vpOnReady,resolvePet:vcwResolvePet,aliases:VP_ALIASES};
 
 """
 

@@ -1380,8 +1380,10 @@ function vnDrawFrame(state, frame) {
    The renderer uses it to pick a legible pose; it never influences the state itself. */
   window.VoolCompanionWorld.draw(vnCtx, state, frame, {character:vnPos.personality,pack:vnPos.pack,tone:vnPaint.tone,activity:vnPaint.activity,reduced:vnPrefersReducedMotion(),elapsed:vnPaint.elapsed});
   // Idle rare-moment: pure decoration, deterministic, long-idle only, motion-allowed only,
-  // never while a puppet or any non-idle truth is on screen.
-  if (state === "idle" && !vnDevPuppet && !vnPrefersReducedMotion() && window.VoolCompanionWorld.egg) {
+  // never while a puppet or any non-idle truth is on screen. A painted pet shows its own rest
+  // (it sits, then lies down and sleeps), so the old pixel zzz and coffee are not drawn over it.
+  if (state === "idle" && !vnDevPuppet && !vnPrefersReducedMotion() && window.VoolCompanionWorld.egg
+      && !(window.VoolCompanionWorld.resolvePet && window.VoolCompanionWorld.resolvePet(vnPos.personality))) {
     var idleMs = Date.now() - (vnPaint.stateStart || Date.now());
     if (idleMs > 360000) {
       var idleMinutes = Math.floor(idleMs / 60000);

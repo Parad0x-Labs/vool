@@ -3,10 +3,16 @@
 The owner painted the Sidekick family again at high detail and chose ONE look per creature
 (2026-11-22, thread "Replace pets with new remastered set"): six keep the original look (beetle,
 raven, tide, rascal, veil, ember) and four take the "II" look (golem, spark, prime, prism). These
-ten are the only pets. Each is a cut-out of the owner's painting (``core/companion_pet_art.py``),
-animated here from that one picture: breathing, a work rhythm, wing beats and tentacle sway by
-bending strips of the picture, glowing eyes and cores, and each creature's own particles (sparks,
-smoke, embers, bubbles, glints, dust). Nothing here is a new drawing of a pet.
+ten are the only pets. Each is a cut-out of the owner's painting (``core/companion_pet_art.py``).
+
+Motion: each painting is also cut into parts on bones (``core/companion_pet_rig_art.py``,
+``core/companion_pet_rigs.py``). The owner asked for continuity: a pet sits down, lies down and
+gets up again, never jumps from one pose to the next, and shows what kind of work it is doing.
+Each drawn canvas keeps a tracker, so every frame starts from the pose the last one showed. Until
+the parts are decoded (or if they cannot be) the whole painting is drawn and moved as one picture:
+breathing, a work rhythm, wing beats and tentacle sway by bending strips of it. Particles (sparks,
+smoke, embers, bubbles, glints, dust), glows and the work sign are drawn on top in both cases.
+Nothing here is a new drawing of a pet.
 
 Ids stay the ten old ids, so a saved choice survives. The ten retired "II" ids (``rm_*``) map to
 the same creature's kept look (:data:`PAINTED_ALIASES`). The old pixel-art drawings are kept only
@@ -22,6 +28,8 @@ from __future__ import annotations
 import json
 
 from core.companion_pet_art import PET_ART
+from core.companion_pet_rig_art import RIG_ART, RIG_META
+from core.companion_pet_rigs import RIG_ENGINE_JS, RIG_PETS_JS
 
 PAINTED_ROSTER = (
     "beetle", "raven", "golem", "tide", "spark",
@@ -107,8 +115,21 @@ _PAINTED_ENGINE_JS = r"""
    backed at device pixels by vcwFitCanvas so the painting stays sharp. Time drives the pose only;
    state and activity come from the typed owner and are never inferred here. No Math.random: all
    particle "noise" is a hash of the particle index, so a frame is the same picture every time. */
-const VP_IMG={},VP_GREY={},VP_FAIL={},VP_READY_HOOKS=[];
+const VP_IMG={},VP_GREY={},VP_FAIL={},VP_READY_HOOKS=[],VP_RIG_IMG={};
+/* The same painting cut into parts, for motion (VoolPetRig). Until every part is decoded the whole
+   painting is drawn; a part that cannot be decoded leaves the pet on its whole painting. */
+function vpRigLoad(id){
+ if(VP_RIG_IMG[id]||!VP_RIG_ART[id]||typeof Image==='undefined')return;
+ const o={imgs:{},left:0,fail:false};VP_RIG_IMG[id]=o;
+ const done=function(){for(let k=0;k<VP_READY_HOOKS.length;k++){try{VP_READY_HOOKS[k](id);}catch(e){}}};
+ Object.keys(VP_RIG_ART[id]).forEach(function(n){
+  const im=new Image();o.imgs[n]=im;o.left++;
+  im.onload=function(){if(--o.left===0)done();};
+  im.onerror=function(){if(!o.fail){o.fail=true;done();}};
+  im.src=VP_RIG_ART[id][n];});}
+function vpRigReady(id){const o=VP_RIG_IMG[id];return !!(o&&!o.fail&&o.left===0);}
 function vpLoad(id){
+ vpRigLoad(id);
  if(VP_IMG[id]||VP_FAIL[id]||!VP_ART[id]||typeof Image==='undefined')return;
  const im=new Image();VP_IMG[id]=im;
  im.onload=function(){
@@ -124,7 +145,11 @@ function vpLoad(id){
  im.onerror=function(){VP_FAIL[id]=true;delete VP_IMG[id];
   for(let k=0;k<VP_READY_HOOKS.length;k++){try{VP_READY_HOOKS[k](id);}catch(e){}}};
  im.src=VP_ART[id];}
-function vpReady(id){const im=VP_IMG[id];return !!(im&&im.complete&&im.naturalWidth>0);}
+/* Ready: the painting is decoded and its parts are settled (decoded, or failed and not used). */
+function vpReady(id){
+ const im=VP_IMG[id];if(!(im&&im.complete&&im.naturalWidth>0))return false;
+ if(!VP_RIG_ART[id])return true;
+ const o=VP_RIG_IMG[id];return !!o&&(o.fail||o.left===0);}
 function vpOnReady(fn){if(typeof fn==='function')VP_READY_HOOKS.push(fn);}
 Object.keys(VP_ART).forEach(vpLoad);
 /* Back a canvas at the screen's pixel density for a given CSS size. */
@@ -289,6 +314,53 @@ function vpDots(g,u,W,t,reduced){
   const a=reduced?.8:.35+.65*Math.max(0,Math.sin(VP_TAU*(t/1200-k/6)));
   g.globalAlpha=a;g.fillStyle='#e7ecf3';g.beginPath();g.arc(W-u*(9-k*3),u*4.2-(reduced?0:u*.6*a),u*.9,0,VP_TAU);g.fill();}
  g.globalAlpha=1;}
+/* Motion: one rig per pet, and one tracker per canvas so each drawn pet carries on from the pose it
+   last showed (VoolPetRig's continuity rule). The tracker's clock starts at the state's elapsed time,
+   so a pet's first frame depends only on what it is doing and for how long; after that it runs on
+   the page clock. */
+const VP_RIGS={},VP_TRACK=(typeof WeakMap!=='undefined')?new WeakMap():null;
+function vpRig(id){
+ if(VP_RIGS[id]===undefined){
+  let r=null;
+  try{if(typeof VoolPetRig!=='undefined'&&VoolPetRig.rigs[id]&&VP_RIG_META[id])r=VoolPetRig.rigs[id](VP_RIG_META[id]);}catch(e){r=null;}
+  VP_RIGS[id]=r;}
+ return VP_RIGS[id];}
+/* Where a drawn pet is in its posture chain (for the host's own checks; drawing never needs it). */
+function vpPostureOf(canvas){
+ const k=VP_TRACK&&canvas?VP_TRACK.get(canvas):null;
+ return k?{pet:k.id,posture:k.tr.posture,to:k.tr.step?k.tr.step.to:null}:null;}
+function vpClock(){return (typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();}
+function vpDrawRig(g,id,def,rig,state,activity,t,opts,cw,ch,u){
+ const reduced=!!opts.reduced,R=def.rig||{},meta=VP_RIG_META[id];
+ const P=vpPose(state,activity,t,reduced,R);
+ const W=meta.size[0],H=meta.size[1],fit=(R.size||40)*u/Math.max(W,H);
+ const bw=W*fit,bh=H*fit,bx=(cw-bw)/2,floor=R.float?(ch-bh)/2+bh+u*1.5:ch-u*1.6,by=floor-bh;
+ const key=g.canvas||g,host=(typeof opts.now==='number'&&isFinite(opts.now))?opts.now:vpClock();
+ let k=VP_TRACK?VP_TRACK.get(key):null;
+ if(!k||k.id!==id){
+  k={id:id,off:host-t};k.tr=VoolPetRig.newTracker(rig,t,state,activity,t);
+  if(VP_TRACK)VP_TRACK.set(key,k);}
+ const now=host-k.off,tr=k.tr;
+ // particles quieten while it sleeps
+ const asleep=tr.posture==='lie'||(tr.step&&tr.step.to==='lie');
+ // Lightning arcs flash in and out at random-looking moments; on a pet that moves smoothly they
+ // read as glitches, so the moving pets leave them out (their runes and gems glow instead).
+ const amt=P.fx*(asleep?.15:1),fxs=(R.fx||[]).filter(function(f){return f[0]!=='arcs';});
+ for(let i=0;i<fxs.length;i++)if(fxs[i][0]==='smoke'&&!reduced)vpFx(g,fxs[i],now,u,bx,by,bw,bh,amt,i+1);
+ if(R.aura){g.save();g.globalCompositeOperation='lighter';
+  vpGlow(g,bx+bw/2,by+bh*.45,Math.max(bw,bh)*.62,R.aura,(.28+.12*P.glow)*(asleep?.5:1));g.restore();}
+ VoolPetRig.frame(g,rig,VP_RIG_IMG[id].imgs,tr,state,activity,t,now,{x:bx,y:by,s:fit},reduced);
+ g.setTransform(1,0,0,1,0,0);
+ for(let i=0;i<fxs.length;i++)if(fxs[i][0]!=='smoke'&&!reduced)vpFx(g,fxs[i],now,u,bx,by,bw,bh,amt,i+1);
+ if(P.burst>=0&&P.burst<1){g.save();g.globalCompositeOperation='lighter';g.fillStyle='#fff3b0';
+  for(let q=0;q<10;q++){const a=VP_TAU*q/10,rr=(.25+.55*P.burst)*Math.max(bw,bh);
+   g.globalAlpha=1-P.burst;g.beginPath();g.arc(bx+bw/2+Math.cos(a)*rr,floor-bh*.5+Math.sin(a)*rr*.8,u*.7,0,VP_TAU);g.fill();}
+  g.restore();}
+ if(P.dots)vpDots(g,u,cw,t,reduced);
+ if(P.badge)vpBadge(g,P.badge,u,cw,reduced?0:t);
+ g.globalAlpha=1;g.globalCompositeOperation='source-over';
+ g.setTransform(u,0,0,u,0,0);
+ return true;}
 /* One frame of a painted pet into g (any canvas size). False when the picture is not decoded
    (yet, or ever): the caller then shows the fallback drawing instead of an empty box. */
 function vcwDrawPainted(g,id,state,activity,elapsed,opts){
@@ -301,6 +373,8 @@ function vcwDrawPainted(g,id,state,activity,elapsed,opts){
  const cw=(g.canvas&&g.canvas.width)||48,ch=(g.canvas&&g.canvas.height)||48,u=cw/48;
  g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,cw,ch);
  g.imageSmoothingEnabled=true;try{g.imageSmoothingQuality='high';}catch(e){}
+ const moving=vpRig(id);
+ if(moving&&vpRigReady(id))return vpDrawRig(g,id,def,moving,state,activity,t,opts,cw,ch,u);
  const P=vpPose(state,activity,t,reduced,rig);
  const iw=img.naturalWidth,ih=img.naturalHeight,fit=(rig.size||40)*u/Math.max(iw,ih);
  const bw=iw*fit,bh=ih*fit,bx=(cw-bw)/2+P.dx*u,floor=rig.float?(ch-bh)/2+bh+u*1.5:ch-u*1.6;
@@ -355,9 +429,19 @@ def painted_js() -> str:
     """The painted renderer with its art and registry, for the shared companion world."""
     registry = painted_registry()
     art = {pet: "data:image/webp;base64," + PET_ART[pet] for pet in PAINTED_ROSTER}
+    rig_art = {pet: {part: "data:image/webp;base64," + b64 for part, b64 in RIG_ART[pet].items()}
+               for pet in PAINTED_ROSTER if pet in RIG_ART}
     return (
         "const VP_ART=" + json.dumps(art) + ";\n"
         + "const VP_PETS=" + json.dumps(registry, ensure_ascii=False) + ";\n"
         + "const VP_ALIASES=" + json.dumps(PAINTED_ALIASES) + ";\n"
+        + "const VP_RIG_ART=" + json.dumps(rig_art) + ";\n"
+        + "const VP_RIG_META=" + json.dumps({pet: RIG_META[pet] for pet in PAINTED_ROSTER if pet in RIG_META}) + ";\n"
+        # The rig kit lives in its own object, not on window: hosts that run this under node or
+        # in a module get the same names, and the page gets no new global but VoolPetRig.
+        + "const VP_RIG_ROOT={rigs:{}};\n"
+        + RIG_ENGINE_JS + "\n"
+        + "const VoolPetRig=VP_RIG_ROOT.VoolPetRig;\n"
+        + "".join(RIG_PETS_JS[pet] + "\n" for pet in PAINTED_ROSTER if pet in RIG_PETS_JS)
         + _PAINTED_ENGINE_JS
     )
