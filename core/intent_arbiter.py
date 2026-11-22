@@ -1141,6 +1141,124 @@ def arbitrate_named_fact(
     return int(named) if named is not None else None
 
 
+def _forget_targets_prompt(message: str, held: list[str]) -> str:
+    """One question over a numbered list: which of the things the person told the assistant does the message ask it
+    to forget? Several when it names several ("everything about my tent"). The examples are in several languages: a
+    forget is asked in the person's own words and language, and the English command readers know none of them."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    lines = [
+        "A person wrote to their assistant. The assistant holds the things below, which the person told it earlier.",
+        "Question: which of them does the message ask the assistant to FORGET (erase, delete from its memory, stop "
+        "remembering), in any language and any words?",
+        'Answer {"answer": [N]} with the number of each one it asks to forget: every one about the thing it names '
+        "when it asks to forget all of it.",
+        'Answer {"answer": []} when it asks to forget none of these, or does not ask to forget anything: a question '
+        "about them, a new fact, a reminder or a contact to delete is not a forget.",
+        "",
+        'Held: 1. "my bike lock code is 4471" 2. "Dr Ferro is my dentist" 3. "my bike is the blue one" '
+        'Message: "forget everything about my bike" -> {"answer": [1, 3]}',
+        'Held: 1. "mano šuo vardu Reksas" 2. "dirbu ligoninėje" Message: "pamiršk ką sakiau apie šunį" '
+        '-> {"answer": [1]}',
+        'Held: 1. "meine Schwester wohnt in Graz" 2. "ich trinke keinen Kaffee" '
+        'Message: "lösch das mit dem Kaffee aus deinem Gedächtnis" -> {"answer": [2]}',
+        'Held: 1. "my locker is number 41" Message: "what is my locker number?" -> {"answer": []}',
+        'Held: 1. "Ana Ruiz, +1 555 0142, my plumber" Message: "delete the contact Ana Ruiz" -> {"answer": []}',
+        'Held: 1. "el gato se llama Miso" Message: "olvida lo del gato, por favor" -> {"answer": [1]}',
+        "",
+        "Held: " + " ".join(f'{number}. "{flat(item, _NAMED_FACT_CHARS)}"' for number, item in enumerate(held, 1)),
+        f'Message: "{flat(message, 400)}" ->',
+        'Reply with ONLY the JSON object: {"answer": [N, ...]}',
+    ]
+    return "\n".join(lines)
+
+
+def arbitrate_forget_targets(
+    message: str,
+    held: list[str],
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> tuple[int, ...] | None:
+    """Which of ``held`` (what the person told the assistant: saved facts, learned lines, their own sentences of this
+    chat) a message asks to forget: their places from 1 (empty for none), or None when nothing judged it. Same call
+    path as the other judgements. It only names; the forget command then erases by those items' own words, with
+    every store, fence and verification it has. None and () erase nothing."""
+    asked = [str(item or "") for item in held][:NAMED_FACTS_ASKED]
+    if not str(message or "").strip() or not any(item.strip() for item in asked):
+        return None
+    prompt = _forget_targets_prompt(message, asked)
+    reader = _numbers_reader(len(asked))
+    model = _keep_judge_model()
+    if not model:
+        named = _judged_for_the_turn(prompt, source_context, reader)
+    else:
+        named = arbitrate_followup(
+            "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+            prompt=prompt, operation="forget_targets_arbitration", model=model,
+            runner_role="general", call_role=_judgement_role(), parse=reader,
+        )
+    if named is None:
+        return None
+    return tuple(int(number) for number in str(named).split(",") if number.strip() and int(number) > 0)
+
+
+def _recall_facts_prompt(question: str, held: list[str]) -> str:
+    """One question over a numbered list: which of the things the person told the assistant answer what the message
+    asks? Several when it asks several things. Examples in several languages, for the same reason as the forget one."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    lines = [
+        "A person wrote to their assistant. The assistant holds the things below, which the person told it earlier.",
+        "Question: which of them answer what the message asks about the person's own life, people or things, in any "
+        "language and any words?",
+        'Answer {"answer": [N]} with the number of each one that answers it (several when it asks several things).',
+        'Answer {"answer": []} when none of them answers it: one about a DIFFERENT thing or person of a similar kind '
+        "does not, and a question about the world, the weather or a file is not about these.",
+        "",
+        'Held: 1. "my bike lock code is 4471" 2. "Dr Ferro is my dentist" Message: "who is my dentist again?" '
+        '-> {"answer": [2]}',
+        'Held: 1. "mano šuo vardu Reksas" 2. "Reksas bijo griaustinio" 3. "dirbu ligoninėje" '
+        'Message: "kaip vadinasi mano šuo ir ko jis bijo?" -> {"answer": [1, 2]}',
+        'Held: 1. "meine Schwester wohnt in Graz" Message: "wo wohnt mein Bruder?" -> {"answer": []}',
+        'Held: 1. "my locker is number 41" Message: "what is the capital of Peru?" -> {"answer": []}',
+        "",
+        "Held: " + " ".join(f'{number}. "{flat(item, _NAMED_FACT_CHARS)}"' for number, item in enumerate(held, 1)),
+        f'Message: "{flat(question, 400)}" ->',
+        'Reply with ONLY the JSON object: {"answer": [N, ...]}',
+    ]
+    return "\n".join(lines)
+
+
+def arbitrate_recall_facts(
+    question: str,
+    held: list[str],
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> tuple[int, ...] | None:
+    """Which of ``held`` (saved facts the turn may read) answer what a message asks: their places from 1 (empty for
+    none), or None when nothing judged it. Same call path as the other judgements. It only names: the memory lane
+    shows the named facts in their own words, and serves nothing the serving gate withholds."""
+    asked = [str(item or "") for item in held][:NAMED_FACTS_ASKED]
+    if not str(question or "").strip() or not any(item.strip() for item in asked):
+        return None
+    prompt = _recall_facts_prompt(question, asked)
+    reader = _numbers_reader(len(asked))
+    model = _keep_judge_model()
+    if not model:
+        named = _judged_for_the_turn(prompt, source_context, reader)
+    else:
+        named = arbitrate_followup(
+            "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+            prompt=prompt, operation="recall_facts_arbitration", model=model,
+            runner_role="general", call_role=_judgement_role(), parse=reader,
+        )
+    if named is None:
+        return None
+    return tuple(int(number) for number in str(named).split(",") if number.strip() and int(number) > 0)
+
+
 #: At most this many tools (the built-in ones asked about, then the added plugins) are put to one tool-ask judgement.
 #: Eight cut the ninth added plugin off from any language but its manifest's (outside review of 261a0389, 2026-11-22).
 PLUGIN_ASK_CHOICES = 32

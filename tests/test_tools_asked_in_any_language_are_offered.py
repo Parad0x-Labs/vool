@@ -84,7 +84,9 @@ def test_a_personal_tool_asked_in_another_language_is_offered(seed, monkeypatch)
     calls: list = []
     _script(monkeypatch, lambda _m, _c: (KEYS.index(key) + 1,), calls)
     plugin_ask.judge_turn(text, source_context=OWNER, session_id="chat-any-language")
-    assert len(calls) == 1 and len(calls[0][1]) == len(KEYS), calls
+    # Every personal tool is in the question, and VOOL's memory after them (blind audit of 58f60bbf3: with no memory
+    # choice a Lithuanian forget was judged a Contacts ask).
+    assert len(calls) == 1 and len(calls[0][1]) == len(KEYS) + len(plugin_ask.MEMORY_CHOICES), calls
     assert plugin_ask.judged_builtins(text) == (key,)
     seats = dict((k, seats) for k, _d, seats in plugin_ask.BUILTIN_CHOICES)[key]
     offered = _offered(text)

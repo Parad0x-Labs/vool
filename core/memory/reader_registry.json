@@ -365,6 +365,7 @@
     "memory_command_owns_turn": "transform",
     "whole_memory_erase_request": "transform",
     "everyday_memory_turn": "transform",
+    "judged_memory_ask": "transform",
     "keep_stated_facts": "writer"
   },
   "core/vool_memory.py": {

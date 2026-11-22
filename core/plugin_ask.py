@@ -83,6 +83,22 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 #: The choices that ask for something done to or with the open folder's files, not for a file to be shown.
 WORKSPACE_WORK_CHOICES = frozenset({"files", "run"})
 _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
+#: VOOL's memory of the person, put to the same question after the tools. It is no tool the model runs: the memory
+#: lane answers these turns itself (core.persistent_memory), and a pick seats nothing. They are choices here because the
+#: memory lane's own readers know only English shapes. Measured on 58f60bbf3 (blind audit, local qwen3:8b): with no
+#: memory choice, "ušmiršk palapinės faktą ..." ("forget the tent fact") was judged a Contacts ask and raised a
+#: contacts.delete approval for "žalia palapinė", and the forget order itself was then saved as a memory; "Įsimink du
+#: dalykus: ..." ("remember two things: ...") saved nothing.
+MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("memory_keep", "Memory, keep: the person asks VOOL to remember or note something about themselves, their life, "
+     "people or things, for later.", ()),
+    ("memory_recall", "Memory, recall: the person asks what they told VOOL before about themselves, their life, people "
+     "or things.", ()),
+    ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase or stop remembering something they told "
+     "it before.", ()),
+)
+#: What the memory lane does with each memory choice, in the order a turn that picked several is read.
+_MEMORY_KINDS = {"memory_forget": "forget", "memory_keep": "keep", "memory_recall": "recall"}
 #: The owner's live sources (core.tool_demand_signals.owner_live_sources) that one of the choices above reads.
 _LIVE_SOURCES_A_CHOICE_READS = frozenset({"notes", "calendar", "mail"})
 _LOCK = threading.Lock()
@@ -190,6 +206,19 @@ def judged_builtins(text: str) -> tuple[str, ...]:
     if entry is None or time.monotonic() - entry[0] > _LIFETIME_S:
         return ()
     return entry[1]
+
+
+def judged_memory_ask(text: str) -> str:
+    """What the turn's judge read this text as asking of VOOL's memory: "forget", "keep" or "recall" (in that order
+    when it picked several), or "" when it picked none or nothing judged it. Read only."""
+    picked = set(judged_builtins(text))
+    return next((kind for key, kind in _MEMORY_KINDS.items() if key in picked), "")
+
+
+def judged_tool_ask(text: str) -> bool:
+    """Whether the turn's judge read this text as asking for one of VOOL's own tools (a reminder, a contact, mail ...):
+    an order to do something, not something said about the person's life. Read only."""
+    return any(key in _BUILTIN_SEATS for key in judged_builtins(text))
 
 
 def judged_builtin_seats(text: str) -> tuple[str, ...]:
@@ -314,7 +343,7 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     if named:
         _record(text, named, signature)
         return named
-    builtins = list(BUILTIN_CHOICES) if _builtins_to_ask(text, source_context) else []
+    builtins = [*BUILTIN_CHOICES, *MEMORY_CHOICES] if _builtins_to_ask(text, source_context) else []
     if not rows and not builtins:
         return None
     from core import intent_arbiter

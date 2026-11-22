@@ -2540,6 +2540,14 @@ def _command_erasure_fence(fn):
             except Exception:
                 asked = None
             if not asked:
+                try:
+                    asked = _judged_forget_order(
+                        user_text, session_id=kwargs.get("session_id"), source_context=kwargs.get("source_context"))
+                except Exception:
+                    asked = None
+                if asked == "":
+                    return True, JUDGED_FORGET_NAMES_NOTHING
+            if not asked:
                 return fn(user_text, **kwargs)
             user_text = asked
         from core.memory.revocation import poison, serialized
@@ -2986,6 +2994,214 @@ def _forget_order_in_other_words(
     return order if known == "yes" else None
 
 
+def judged_memory_ask(text: Any) -> str:
+    """What the turn's judge read a message as asking of VOOL's memory ("forget", "keep", "recall"), or "".
+
+    The memory lane's own readers know English shapes only ("forget ...", "remember that ...", "what is my ...").
+    The turn's judge (core.plugin_ask) reads every owner-local message whose words seat no tool, in any language, and
+    VOOL's memory is one of its choices. Read only; nothing here asks a model."""
+    try:
+        from core import plugin_ask
+
+        return plugin_ask.judged_memory_ask(str(text or ""))
+    except Exception:
+        return ""
+
+
+#: The answer to a forget the judge read, when nothing VOOL holds is what it names.
+JUDGED_FORGET_NAMES_NOTHING = (
+    "I could not find anything you told me that matches what you asked me to forget, so nothing was erased. "
+    "Tell me which fact to forget, in the words you told it."
+)
+#: The answer to a recall the judge read, when nothing saved answers it.
+JUDGED_RECALL_NOTHING_SAVED = "I don't have that saved. Tell me and I'll remember it."
+#: Facts put to one forget or recall judgement, newest first.
+_JUDGED_HELD_LIMIT = 40
+#: A short lead before a colon or a dash ("Įsimink du dalykus: ...", "Ir dar — ..."): the order, not the fact.
+_SHORT_LEAD_RE = re.compile(r"^(?P<lead>[^:\u2014\u2013\n]{1,40}?)\s*(?::|\s[-\u2013\u2014]+)\s+(?P<rest>\S.*)$", re.DOTALL)
+
+
+def _held_for_judgement(
+    *, session_id: str | None, policy: Any, source_context: Mapping[str, Any] | None, served: bool,
+) -> list[str]:
+    """What VOOL holds that the person told it, for a forget or a recall judgement: saved facts this chat may read,
+    the lines learned from chats, and (for a forget) the person's own earlier statements in this chat. A recall reads
+    only what the serving gate lets this turn read; a forget reads its candidates raw, as the forget engine does (the
+    turn's forget admission withholds every row from the serving readers)."""
+    held: list[str] = []
+    try:
+        if served:
+            from core.memory.revocation import authorize_payload
+
+            rows = memory_entries.list_memory_entries(access_policy=policy, limit=200)
+            chat = str(getattr(policy, "chat_id", "") or session_id or "") or None
+            held.extend(text for text in (" ".join(str(row.get("text") or "").split()) for row in rows)
+                        if authorize_payload(text, chat, dict(source_context or {}).get("runtime_home")))
+        else:
+            held.extend(_whole_erase_saved_texts(policy))
+    except Exception as exc:
+        LOGGER.warning("saved memory unreadable for a judged memory ask: %s", type(exc).__name__)
+    context = dict(source_context or {})
+    learned = _whole_erase_learned_lines(context)
+    if served:
+        from core.memory.revocation import authorize_payload
+
+        chat = str(getattr(policy, "chat_id", "") or session_id or "") or None
+        learned = [line for line in learned if authorize_payload(line, chat, context.get("runtime_home"))]
+    held.extend(learned)
+    if not served:
+        for said in _chat_earlier_user_turns(session_id):
+            for sentence in _SENTENCE_SPLIT_RE.split(said):
+                clean = " ".join(sentence.split())
+                if (len(clean.split()) >= 3 and not clean.endswith("?") and not _FORGET_RE.match(clean)
+                        and judged_memory_ask(said) != "forget"):
+                    held.append(clean)
+    out: list[str] = []
+    for item in held:
+        if item and item not in out and not memory_entries.contains_secret(item):
+            out.append(item)
+    return out[-_JUDGED_HELD_LIMIT:]
+
+
+def _judged_forget_items(
+    message: str, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> list[str] | None:
+    """What VOOL holds that a forget names, by the judge (`core.intent_arbiter.arbitrate_forget_targets`), in the held
+    items' own words; [] when it names none, None when nothing judged it.
+
+    A forget cannot be undone, so a named item must also share a word with the message (accents off, one form of a
+    word for another): a judge that names an item the message never touches erases nothing."""
+    clean = " ".join(str(message or "").split())
+    if not clean or not _turn_may_read_memory(source_context, session_id):
+        return None
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
+    except (TypeError, ValueError):
+        return None
+    held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=False)
+    if not held:
+        return []
+    from core.intent_arbiter import arbitrate_forget_targets
+
+    try:
+        picked = arbitrate_forget_targets(
+            clean, held, chat_id=str(session_id or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
+        )
+    except Exception as exc:
+        LOGGER.warning("judged forget targets unavailable: %s", type(exc).__name__)
+        picked = None
+    if picked is None:
+        return None
+    from core.fact_extractor import _folded_words, _same_word
+
+    asked = _folded_words(clean)
+    named = [held[number - 1] for number in picked if 1 <= number <= len(held)]
+    return [item for item in dict.fromkeys(named)
+            if any(_same_word(word, other) for word in _folded_words(item) for other in asked)]
+
+
+def _judged_forget_order(
+    text: Any, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> str | None:
+    """A forget the turn's judge read in words no forget reader knows, as the command the forget path carries out:
+    "Forget <held item>. Forget <held item>." over the things it names, erased by their own words. "" when the judge
+    read a forget but nothing VOOL holds is named; None when this is no judged forget, or nothing judged its names."""
+    clean = " ".join(str(text or "").split())
+    if not clean or judged_memory_ask(clean) != "forget" or memory_command_owns_turn(clean):
+        return None
+    named = _judged_forget_items(clean, session_id=session_id, source_context=source_context)
+    if named is None:
+        return None
+    return " ".join(f"Forget {item.rstrip(' .!;')}." for item in named)
+
+
+def _judged_keep_statements(text: str) -> list[str]:
+    """The facts a keep ask the judge read carries: its sentences that are not questions, each without a short lead
+    before a colon or a dash (the order: "Įsimink du dalykus: ...", "Ir dar - ...")."""
+    facts: list[str] = []
+    for sentence in _SENTENCE_SPLIT_RE.split(str(text or "").strip()):
+        clean = " ".join(sentence.split()).strip()
+        led = _SHORT_LEAD_RE.match(clean)
+        if led and len(led.group("lead").split()) <= 3 and len(led.group("rest").split()) >= 2:
+            clean = led.group("rest").strip()
+        clean = clean.rstrip(" .!")
+        if len(clean.split()) >= 2 and "?" not in clean:
+            facts.append(clean)
+    return facts
+
+
+def _judged_memory_turn(
+    text: str, *, session_id: str | None, access_policy: Any, source_context: dict[str, Any] | None,
+) -> tuple[bool, str] | None:
+    """A keep or a recall the turn's judge read in words the memory lane's readers do not know; None hands the turn
+    on. A keep goes through the same trust gate, admission, scope rule, secret refusal and forget fence as "Remember
+    that ..."; a recall shows the saved facts the judge names in their own words, read through the serving gate."""
+    kind = judged_memory_ask(text)
+    if kind not in {"keep", "recall"}:
+        return None
+    from core.memory import keep_receipt
+    from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
+    from core.request_trust import turn_speaks_for_owner
+
+    if not turn_speaks_for_owner(source_context, str(session_id or "")):
+        if kind == "keep":
+            keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
+            return True, AGENT_TURN_REMEMBER_REFUSED
+        return True, AGENT_TURN_READ_REFUSED
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
+    except (TypeError, ValueError):
+        return None
+    if kind == "keep":
+        if turn_is_private(source_context, policy.chat_id):
+            keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
+            return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+        facts = _judged_keep_statements(text)
+        if not facts:
+            return None
+        added = 0
+        try:
+            for stated in facts:
+                for memory_fact in _split_explicit_memory_facts(stated):
+                    for fact, scope, source in _admitted_remember_facts(memory_fact, policy=policy):
+                        added += int(add_memory_fact(" ".join(fact.split()), session_id=policy.chat_id, scope=scope,
+                                                     authority="confirmed_memory", source=source,
+                                                     access_policy=policy))
+        except RevokedContentWrite:
+            keep_receipt.note_refused(keep_receipt.REFUSED_FORGOTTEN_HERE)
+            return True, ("You asked me to forget that in this chat, so I won't keep it here. "
+                          "In a new chat I can remember it again.")
+        if added:
+            return True, "Locked in. I’ll remember that."
+        from core.secret_redaction import contains_secret
+
+        if any(contains_secret(fact) for fact in facts):
+            return True, EVERYDAY_SECRET_REFUSED
+        return True, "I already had that in memory."
+    if not _turn_may_read_memory(source_context, session_id):
+        return None
+    held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
+    if not held:
+        return None  # nothing saved: this chat's own words and the other lanes may still answer it
+    from core.intent_arbiter import arbitrate_recall_facts
+
+    try:
+        picked = arbitrate_recall_facts(
+            text, held, chat_id=str(session_id or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
+        )
+    except Exception as exc:
+        LOGGER.warning("judged recall unavailable: %s", type(exc).__name__)
+        picked = None
+    named = [held[number - 1] for number in (picked or ()) if 1 <= number <= len(held)]
+    if not named:
+        return None
+    if len(named) == 1:
+        return True, f"You told me: {named[0]}"
+    return True, "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
+
+
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
     """Whether the memory lane will take this turn as an everyday remember ask, a list fact or an update.
 
@@ -3003,6 +3219,10 @@ def everyday_memory_turn(text: str, *, session_id: str | None, source_context: M
             return True
     except Exception:
         return False
+    # A forget or a keep the turn's judge read in any language is the memory lane's too: left to the keep step, the
+    # Lithuanian forget order was saved as a fact (blind audit of 58f60bbf3).
+    if judged_memory_ask(text) in {"forget", "keep"}:
+        return True
     # A forget order with other words in front is the memory lane's too: left to another lane it was answered by a
     # model, and left to the keep step it was saved as a fact.
     try:
@@ -3220,6 +3440,17 @@ def keep_stated_facts(
         if facts:
             keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return 0
+    if unlisted:
+        try:
+            from core import plugin_ask
+
+            if plugin_ask.judged_tool_ask(clean):
+                # The turn's judge read the message as asking for one of VOOL's tools: an order, not something said
+                # about the person's life. On 58f60bbf3 (blind audit) "Išsaugok kontaktą: ..." ("save the contact")
+                # and other orders were written as memory rows.
+                unlisted = []
+        except Exception:
+            unlisted = []
     facts = [*facts, *_judged_lasting_facts(unlisted, session_id=policy.chat_id, source_context=source_context)]
     added = 0
     if may_restore:
@@ -3286,7 +3517,9 @@ def maybe_handle_memory_command(
         or whole_memory_erase_request(text)
         or _is_memory_recall_question(text)
     ):
-        return False, ""
+        judged = _judged_memory_turn(
+            text, session_id=session_id, access_policy=access_policy, source_context=source_context)
+        return judged if judged is not None else (False, "")
     capture_match = _memory_capture_match(text)
     if capture_match and _ANSWER_REQUEST_RE.search(capture_match.group("fact")):
         return False, ""
@@ -4336,9 +4569,33 @@ def _forget_arguments_by_what_they_name(
                 pairs = [(sentence, argument)]
                 if said_in_chat is not None:
                     said_in_chat.add(sentence)
+            elif not _target_selects_something_held(target, policy=policy, source_context=source_context):
+                # The words as typed select nothing VOOL holds, and no reader above could say what they describe:
+                # what they name is judged over everything held, as a forget in another language is. Measured on
+                # 58f60bbf3 (blind audit): "forget everything about my tent, erase that memory completely" was
+                # recorded as one target of all those words, matched nothing, and both tent facts stayed.
+                judged = _judged_forget_items(f"forget {target}", session_id=session_id, source_context=source_context)
+                if judged:
+                    pairs = [(item, argument) for item in judged]
         for erase_by, typed in pairs:
             out.setdefault(erase_by, typed)
     return list(out.items())
+
+
+def _target_selects_something_held(target: str, *, policy: Any, source_context: Any) -> bool:
+    """Whether a forget target's typed words already select a saved fact or a learned line (the keyword path then
+    decides, as it always did). Read raw, as the forget engine reads its candidates; unreadable counts as selecting."""
+    from core.memory.carriers import carries
+
+    token = " ".join(str(target or "").split()).strip(" .,!?").lower()
+    if not token:
+        return True
+    try:
+        held = _whole_erase_saved_texts(policy) + _whole_erase_learned_lines(
+            source_context if isinstance(source_context, dict) else None)
+    except Exception:
+        return True
+    return any(carries(text, token) for text in held)
 
 
 def _whole_erase_saved_texts(policy: Any) -> list[str]:

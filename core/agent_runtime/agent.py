@@ -3219,6 +3219,15 @@ class VoolAgent(
             elif turn_only_states_a_name(raw_turn_text):
                 # "my name isnt Agnes, its Sam": the profile seat answers it; there are no parts to plan.
                 parts_single_request = True
+            else:
+                from core.persistent_memory import judged_memory_ask
+
+                if judged_memory_ask(raw_turn_text):
+                    # A message the turn's judge read as asking VOOL's memory (keep, recall or forget, in any
+                    # language) is the memory lane's whole: split into steps, "kur mano palapinė dabar? Ir kokios jos
+                    # spalvos?" and "what colour is my tent, were does it live?" were each answered with every
+                    # step's internal failure reason (blind audit of 58f60bbf3).
+                    parts_single_request = True
 
         # Closed whole-turn contracts do not need semantic decomposition.  Running the conductor
         # first bought a real local-model planner call for exact haikus and user-supplied FX math,
