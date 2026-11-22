@@ -155,7 +155,8 @@ def render_disclosure_fragment() -> str:
   dialog.addEventListener('cancel',event=>{event.preventDefault();choose('cancel');});
   async function poll(){
     try{
-      const response=await fetch('/api/disclosure/pending',{cache:'no-store'});if(!response.ok)return;
+      const gaveUp=new AbortController();const timer=setTimeout(()=>gaveUp.abort(),15000);
+      let response;try{response=await fetch('/api/disclosure/pending',{cache:'no-store',signal:gaveUp.signal});}finally{clearTimeout(timer);}if(!response.ok)return;
       const data=await response.json();receipts=data.requests;
       document.querySelectorAll('[data-request-id][data-chat-id]').forEach(host=>{mount(host,host.dataset.chatId,host.dataset.requestId);const button=host.querySelector('.cloud-disclosure-answer');if(button)button.hidden=!receipts.some(p=>p.chat_id===host.dataset.chatId&&(normalize(p.turn_id)===normalize(host.dataset.requestId)||(host.dataset.councilRun&&p.council_run_id===host.dataset.councilRun))&&p.state==='sent');const omitted=receipts.some(p=>p.chat_id===host.dataset.chatId&&(normalize(p.turn_id)===normalize(host.dataset.requestId)||(host.dataset.councilRun&&p.council_run_id===host.dataset.councilRun))&&p.omitted_sections>0);let notice=host.querySelector('.cloud-disclosure-omitted');if(omitted&&!notice){notice=el('p',tr('omitted','Privacy rules kept some content on your computer. This request excludes it.'));notice.className='cloud-disclosure-omitted';host.append(notice);}if(notice)notice.hidden=!omitted;});
       await pollComparison();
@@ -207,6 +208,17 @@ def render_disclosure_fragment() -> str:
       if(!dialog.open)dialog.showModal();
     }catch(_error){}
   }
-  setInterval(poll,1000);poll();
+  // One poll at a time. A 1 s timer that does not wait for its last request stacks requests up
+  // while the machine is slow: gate v3 on d2dacb04a (2026-11-22, owner's Mac deep in swap) had
+  // 10-20 of these in flight at once, which took every connection the browser keeps to VOOL, so
+  // the page's own read before a send never left the browser and the message came back as "too
+  // slow to take this message". A poll that has not answered in 15 s is given up.
+  let polling=0;
+  async function tick(){
+    if(polling&&Date.now()-polling<15000)return;
+    const mine=polling=Date.now();
+    try{await poll();}finally{if(polling===mine)polling=0;}
+  }
+  setInterval(tick,1000);tick();
 })();
 </script>'''

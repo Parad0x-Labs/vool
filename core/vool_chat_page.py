@@ -15480,6 +15480,22 @@ function renderUpdateChip(payload) {
   _updateFast = UPDATE_BUSY.has(phase);
 }
 
+// A timer poll runs one request at a time. A timer that does not wait for its last request stacks
+// requests while the machine is slow, and they take the few connections the browser keeps to VOOL:
+// gate v3 on d2dacb04a (2026-11-22, owner's Mac deep in swap) had 10-20 polls in flight at once,
+// so the read before a send never left the browser and the message was not sent. A run that has
+// not finished within `staleMs` no longer holds the next one back.
+function singleFlight(fn, staleMs) {
+  let since = 0;
+  return async function () {
+    if (since && Date.now() - since < staleMs) return;
+    const mine = since = Date.now();
+    try { await fn(); } finally { if (since === mine) since = 0; }
+  };
+}
+const refreshUpdateStatusOnce = singleFlight(() => refreshUpdateStatus(), 15000);
+const refreshSidebarActivityOnce = singleFlight(() => refreshSidebarActivity(), 30000);
+
 async function refreshUpdateStatus() {
   try {
     const r = await fetch('/api/update/status', { credentials: 'same-origin' });
@@ -15546,11 +15562,11 @@ if (updateOnlineBtn) updateOnlineBtn.addEventListener('click', () => {
   updateChip.setAttribute('aria-expanded', 'false');
   openSettings('permissions/automatic_checks');
 });
-setInterval(() => { if (!document.hidden) refreshUpdateStatus(); }, _updateFast ? 700 : 3500);
-refreshUpdateStatus();
+setInterval(() => { if (!document.hidden) refreshUpdateStatusOnce(); }, _updateFast ? 700 : 3500);
+refreshUpdateStatusOnce();
 
 setInterval(maybeRepaintSidebarLifecycle, 1200);  // local-only; repaints only when derived state actually changed
-setInterval(refreshSidebarActivity, 5000);        // the only tick that touches the network
+setInterval(refreshSidebarActivityOnce, 5000);    // the only tick that touches the network
 document.addEventListener('visibilitychange', () => {
   // Regaining focus on the chat already on screen is the same acknowledgment as opening it.
   if (!document.hidden && displayedChat) markChatSeen(displayedChat);
