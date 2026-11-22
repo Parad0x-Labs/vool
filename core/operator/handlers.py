@@ -1368,6 +1368,12 @@ def handle_cancel_reminder(
         owner_rows_fn=owner_rows_fn,
     )
     if target is None:
+        elsewhere = _reminder_set_elsewhere(intent, session_id=session_id, owner_rows_fn=owner_rows_fn)
+        if elsewhere:
+            return OperatorActionResult(
+                ok=False, status="invalid_request", response_text=elsewhere,
+                details={"kind": "cancel_reminder", "reason": "reminder_in_another_chat"},
+            )
         # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
         # never list-and-redirect -- a foreign reminder's existence must not be confirmed either
         # way (reminders-everywhere law).
@@ -1472,6 +1478,12 @@ def handle_move_reminder(
         owner_rows_fn=owner_rows_fn,
     )
     if target is None:
+        elsewhere = _reminder_set_elsewhere(intent, session_id=session_id, owner_rows_fn=owner_rows_fn)
+        if elsewhere:
+            return OperatorActionResult(
+                ok=False, status="invalid_request", response_text=elsewhere,
+                details={"kind": "move_reminder", "reason": "reminder_in_another_chat"},
+            )
         return OperatorActionResult(
             ok=False,
             status="invalid_request",
@@ -1720,10 +1732,11 @@ def _reminder_note_from_text(text: str) -> str:
     invoice friday at 10' stores 'send the invoice') or is said in words ('in an hour to
     stand up' stores 'stand up') -- so the note never reads as the schedule or as the
     ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
+    # "make a remidner to ...": the order's own word, mistyped, is still the order's (core.operator.parser reads it so).
+    from core.operator.parser import _REMINDER_VOCABULARY
     from core.typo_fold import fold_near_miss_tokens
 
-    # "make a remidner to ...": the order's own word, mistyped, is still the order's (core.operator.parser reads it so).
-    raw = fold_near_miss_tokens(_TRAILING_EMOTICON_RE.sub("", str(text or "").strip()).strip(), ("reminder", "reminders"))
+    raw = fold_near_miss_tokens(_TRAILING_EMOTICON_RE.sub("", str(text or "").strip()).strip(), _REMINDER_VOCABULARY)
     # A thanks at the end ("... tomorrow at 3pm ty") is said to VOOL, not part of the thing to do; left on, it kept the
     # when-clause in the note ("book a haircut tomorrow"; real-app check v3 on fe98e849, 2026-11-22).
     raw = _TRAILING_COURTESY_RE.sub("", raw).strip() or raw
@@ -1916,31 +1929,21 @@ def _select_reminder_target(
     list_reminders_fn: Any,
     owner_rows_fn: Any = None,
 ) -> dict[str, Any] | None:
-    """The one reminder a cancel or move means: by id, by the words that name it, or the chat's only pending one.
-
-    The reminders a listing shows are the owner's, from every chat that is not private (handle_list_reminders), so a
-    cancel or move reaches the same ones. Scoped to the asking chat, "Alright scrap the reminder to take out the
-    recycling" found nothing while "which reminders are set" listed it, set in another chat (real-app check v3 on
-    fe98e849, 2026-11-22). A private chat's reminders stay out: owner_rows_fn leaves them out, failing closed."""
-    visible: list[dict[str, Any]] | None = None
-    if owner_rows_fn is not None:
-        try:
-            visible = [row for row in owner_rows_fn(session_id) if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
-        except Exception:
-            visible = None
-    visible_ids = {str(row.get("reminder_id")) for row in visible or []}
+    """The one reminder of THIS chat a cancel or move means: by id, by the words that name it, or the chat's only
+    pending one. Cancel and move stay scoped to the chat that owns the reminder (`owner_rows_fn` is read only by
+    `_reminder_set_elsewhere`, to say where a named one lives)."""
     if intent.action_id:
         row = load_reminder_fn(intent.action_id)
-        if row is not None and (str(row.get("session_id")) == session_id or str(row.get("reminder_id")) in visible_ids):
+        if row is not None and str(row.get("session_id")) == session_id:
             return row
-        # The UI displays short ids. Resolve only a unique prefix among the reminders this chat may see;
+        # The UI displays short ids. Resolve only a unique prefix in this session;
         # a missing/foreign explicit target must never fall back to another reminder.
-        rows = visible if visible is not None else list_reminders_fn(session_id=session_id, include_delivered=False)
+        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
         matches = [row for row in rows if str(row.get("reminder_id", "")).startswith(intent.action_id)]
         return matches[0] if len(matches) == 1 else None
     rows = list_reminders_fn(session_id=session_id, include_delivered=False)
     pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
-    named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), visible if visible is not None else pending)
+    named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), pending)
     if named is not None:
         return named
     if len(pending) == 1:
@@ -1953,6 +1956,31 @@ _REMINDER_ORDER_WORDS = (
     "cancel delete remove scrap drop call off kill nix get rid of move push shift delay postpone reschedule complete "
     "mark done finish reminder reminders remind please pls thanks thank thx ty"
 )
+
+
+def _reminder_set_elsewhere(intent: OperatorActionIntent, *, session_id: str, owner_rows_fn: Any) -> str:
+    """The answer for a cancel or move whose words name a reminder another chat set; "" when they name none.
+
+    The listing shows every chat's reminders that are not private, each with the chat it came from, and cancel and
+    move stay with the chat that owns them. "Alright scrap the reminder to take out the recycling", asked in a new chat
+    while "which reminders are set" listed it from another, was answered "I could not find a pending reminder" (real-app
+    check v3 on fe98e849, 2026-11-22): it is there, and the person is told where. Words only: an id that matched
+    nothing here is refused as before, without saying whether another chat has it."""
+    if owner_rows_fn is None or getattr(intent, "action_id", ""):
+        return ""
+    try:
+        rows = [
+            row for row in owner_rows_fn(session_id)
+            if str(row.get("session_id") or "") != session_id and str(row.get("status")) in {"scheduled", "delivery_uncertain"}
+        ]
+    except Exception:
+        return ""
+    row = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), rows)
+    if row is None:
+        return ""
+    label = str(row.get("_chat_label") or "").strip()
+    where = f'in the chat "{label}"' if label else "in another chat"
+    return f'The reminder "{row.get("note")}" was set {where}, and only that chat can change it. Open that chat and ask there.'
 
 
 def _reminder_named_by(text: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:

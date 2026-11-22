@@ -69,7 +69,9 @@ _REMINDER_HINT_RE = re.compile(
     re.IGNORECASE,
 )
 #: The reminder words a slip is read as (core.typo_fold: a swapped, dropped or doubled letter; "remidner", "reminer").
-_REMINDER_VOCABULARY = ("reminder", "reminders")
+#: "remainder" is a real word one letter from "reminder" ("show the deficit or remainder"): listed so the fold leaves it
+#: as it is, the way core.contacts.requests lists "contract" beside "contact".
+_REMINDER_VOCABULARY = ("reminder", "reminders", "remainder", "remainders")
 _LIST_REMINDERS_RE = re.compile(
     r"\b(?:what|which|show|list)\b[^\n!?.]*\breminders?\b|\bmy\s+reminders?\b", re.IGNORECASE
 )

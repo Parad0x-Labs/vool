@@ -4,7 +4,9 @@ Real-app check v3 on fe98e849 (installed app, local qwen3:8b, fresh home, 2026-1
 - "hey make a remidner to book a haircut tomorrow at 3pm ty" was not read as a reminder. The model booked a calendar
   event and answered "Reminder scheduled" with another reminder's id; no reminder was saved.
 - "Alright scrap the reminder to take out the recycling thakns", said in another chat than the one that set it, found
-  nothing ("could not find a pending reminder"), while "which reminders are set" in that same chat listed it.
+  nothing ("could not find a pending reminder"), while "which reminders are set" in that same chat listed it. Cancel
+  stays with the chat that set the reminder (tests/pa_beta_gate/test_scheduling_review_boundaries.py); the answer now
+  says which chat it lives in, and in that chat the same words cancel it.
 - "hey remind me what we were talking about :)" was scheduled as a reminder and answered "I could not read a date or
   time in that".
 The wording is built from parts at random, so no fixed sentence is what passes.
@@ -92,18 +94,40 @@ def _cancel(said, *, asking, visible):
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_a_cancel_in_another_chat_reaches_the_listed_reminder_it_names(seed):
+def test_a_cancel_names_its_reminder_here_and_says_where_it_lives_elsewhere(seed):
     rng = random.Random(f"reminder-cancel-{seed}")
     target, other = rng.sample([RECYCLING, HAIRCUT], 2)
     task = target["note"].replace(" please", "")
     said = rng.choice(CANCELS).format(lead=rng.choice(LEADS), r=rng.choice(SLIPS[:3]), task=task, tail=rng.choice(TAILS))
     intent = parse_operator_action_intent(said)
     assert intent is not None and intent.kind == "cancel_reminder", (said, intent)
-    result, cancelled = _cancel(said, asking="chat-ask", visible=[RECYCLING, HAIRCUT, SEALED])
+    # In the chat that set it, the words pick that one of its reminders.
+    result, cancelled = _cancel(said, asking="chat-set", visible=[RECYCLING, HAIRCUT, SEALED])
     assert cancelled == [target["reminder_id"]], (said, result.response_text)
+    # In another chat nothing is cancelled, and the answer says where the reminder lives.
+    result, cancelled = _cancel(said, asking="chat-ask", visible=[RECYCLING, HAIRCUT, SEALED])
+    assert cancelled == [], (said, result.response_text)
+    assert target["note"] in result.response_text and "chat" in result.response_text, (said, result.response_text)
+    assert "could not find" not in result.response_text, (said, result.response_text)
 
 
 def test_a_private_chats_reminder_is_never_reached_from_another_chat():
     result, cancelled = _cancel("scrap the reminder to take out the compost", asking="chat-ask",
                                 visible=[RECYCLING, SEALED])
     assert SEALED["reminder_id"] not in cancelled, result.response_text
+    assert "compost" not in result.response_text, result.response_text
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_remainder_is_a_word_of_its_own_not_a_mistyped_reminder(seed):
+    """CI regression on the slip fold: "show the deficit or remainder" (a frozen currency task) was folded to
+    "reminder" and the turn was split into steps; a real word next to "reminder" is left as it is."""
+    rng = random.Random(f"remainder-{seed}")
+    said = rng.choice([
+        "if 1 JPY = {n} IDR, do I have enough? show the deficit or {w}",
+        "divide {n} by 7 and tell me the {w}",
+        "what is the {w} when {n} is split into 3 equal parts",
+        "set aside the {w} of {n} for later",
+    ]).format(n=rng.randint(100, 99999), w=rng.choice(["remainder", "remainders", "Remainder"]))
+    intent = parse_operator_action_intent(said)
+    assert intent is None or "reminder" not in intent.kind, (said, intent)

@@ -1843,8 +1843,10 @@ def _list_owner_reminders(**kwargs):
 
 def _visible_owner_reminders(session_id: str) -> list[dict]:
     """The pending reminders a listing in this chat shows: this chat's, and every other chat's that is not private
-    (an unreadable privacy store hides, never leaks)."""
+    (an unreadable privacy store hides, never leaks), each other chat's row with that chat's name for saying where
+    it lives."""
     visible = []
+    labels = _ChatLabels()
     for row in _list_owner_reminders(include_delivered=False):
         owner_session = str(row.get("session_id") or "")
         if owner_session != session_id:
@@ -1853,6 +1855,11 @@ def _visible_owner_reminders(session_id: str) -> list[dict]:
                     continue
             except Exception:
                 continue
+            row = dict(row)
+            try:
+                row["_chat_label"] = str(labels.get(owner_session) or "")
+            except Exception:
+                row["_chat_label"] = ""
         visible.append(row)
     return visible
 
