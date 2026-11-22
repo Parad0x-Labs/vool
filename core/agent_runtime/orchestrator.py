@@ -523,13 +523,65 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
     return "I ran the available tools, but I do not have a grounded final synthesis yet."
 
 
+#: A record id as VOOL shows one: 8 hex characters (a reminder's or an action's short id) or a whole uuid, holding at
+#: least one digit so an ordinary word ("deadbeef" aside, "facade") never reads as one.
+_SHOWN_ID_RE = re.compile(
+    r"(?<![0-9A-Za-z-])(?=[0-9a-fA-F-]*\d)([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{8})(?![0-9A-Za-z-])"
+)
+
+
+def _changes_something(intent: str) -> bool:
+    """Whether the tool's own contract says it changes something (a read that ran confirms nothing made)."""
+    try:
+        from core.tool_registry import registry_map
+
+        contract = registry_map().get(str(intent or "").strip())
+    except Exception:
+        return False
+    return contract is not None and str(getattr(contract, "side_effect_class", "") or "read_only") != "read_only"
+
+
+def _receipt_text(step: dict[str, Any]) -> str:
+    parts = [str(step.get(key) or "") for key in ("response_text", "summary")]
+    for key in ("details", "arguments", "observation"):
+        try:
+            parts.append(json.dumps(step.get(key) or {}, default=str, ensure_ascii=False))
+        except (TypeError, ValueError):
+            parts.append(str(step.get(key) or ""))
+    return "\n".join(parts).lower()
+
+
+def answer_with_receipt_ids(message: str, executed_steps: list[dict[str, Any]]) -> str:
+    """The answer, or the last changing step's own words when the answer names an id none of this turn's steps holds.
+
+    Measured on the installed fe98e849 (real-app check v3 and the outside tooling audit, 2026-11-22): after the calendar
+    tool made an event, the reply confirmed "Reminder scheduled ... (reminder id 3bbb4fbf)", the id of an older
+    recycling reminder from earlier in the chat. An id is a token in every language: one this turn's receipts do not
+    hold confirms something these steps did not do, so the receipt speaks instead."""
+    text = str(message or "")
+    shown = [match.group(1).lower() for match in _SHOWN_ID_RE.finditer(text)]
+    if not shown or not executed_steps:
+        return text
+    changed = [
+        step for step in executed_steps
+        if _step_succeeded(step) and str(step.get("mode") or "tool_executed") == "tool_executed"
+        and str(step.get("response_text") or "").strip() and _changes_something(str(step.get("tool_name") or ""))
+    ]
+    if not changed:
+        return text
+    known = "\n".join(_receipt_text(step) for step in executed_steps)
+    if all(token in known for token in shown):
+        return text
+    return str(changed[-1].get("response_text") or "").strip() or text
+
+
 def render_tool_loop_response(
     *,
     final_message: str,
     executed_steps: list[dict[str, Any]],
     include_step_summary: bool = True,
 ) -> str:
-    message = str(final_message or "").strip()
+    message = answer_with_receipt_ids(str(final_message or "").strip(), executed_steps)
     if not executed_steps or not include_step_summary:
         return message
     # One result, one user-facing answer: when the final message already restates the
