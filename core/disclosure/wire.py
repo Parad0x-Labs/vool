@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -224,6 +225,9 @@ def _invalidate(item: Preview) -> None:
 
     The turn is cancelled and stays cancelled; any further call on it is refused.
     """
+    logging.getLogger(__name__).info(
+        "disclosure stop: turn %s in chat %s (sent=%s, detached=%s)", item.turn_id, item.chat_id, item.sent,
+        item.detached)
     with _LOCK:
         _CANCELLED.add((item.home, item.chat_id, item.turn_id))
         _expire(item)
@@ -282,7 +286,9 @@ def previews(*, chat_id: str | None = None) -> list[dict[str, Any]]:
 
 
 def _sent_before_an_erasure(item: Preview) -> bool:
-    """A sent request whose chat is still open and readable, and whose only change since is the chat's erasure epoch."""
+    """A sent request whose chat is still open, and whose only change since is the chat's erasure state: its epoch moved
+    on, or an erasure is still running (its state reads as incomplete until it ends). Dropping the copy discloses
+    nothing either way; only a chat that closed or changed project stops the turn."""
     if not item.sent or item.invalidated or item.scope_version is None:
         return False
     if item.replay is not None:
@@ -294,8 +300,12 @@ def _sent_before_an_erasure(item: Preview) -> bool:
 
     try:
         now = current_version(item.chat_id, item.project_id)
-    except (RuntimeError, ValueError, OSError, sqlite3.Error):
-        return False  # the chat closed, changed project or its erasure state is unreadable: a stop
+    except ValueError:
+        return False  # the chat closed or changed project: a stop
+    except (RuntimeError, OSError, sqlite3.Error):
+        # Measured on the Mac (ff6e9085c): the page's poll came in while the turn's own forget was still erasing, read
+        # the state as incomplete, and stopped the turn; the forget then ended and its reply was the cancel notice.
+        return True
     return now is not None and now != item.scope_version
 
 

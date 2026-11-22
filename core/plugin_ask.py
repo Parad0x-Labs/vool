@@ -88,12 +88,15 @@ _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
 #: memory lane's own readers know only English shapes. Measured on 58f60bbf3 (blind audit, local qwen3:8b): with no
 #: memory choice, "ušmiršk palapinės faktą ..." ("forget the tent fact") was judged a Contacts ask and raised a
 #: contacts.delete approval for "žalia palapinė", and the forget order itself was then saved as a memory; "Įsimink du
-#: dalykus: ..." ("remember two things: ...") saved nothing.
+#: dalykus: ..." ("remember two things: ...") saved nothing. The recall choice names what such a question is about, not
+#: only "what I told you": on the Mac (ff6e9085c) "pasakyk kokia mano dviracio spalva" ("tell me my bike's colour") and
+#: "where do i keep my toolbox again?" were judged no memory ask, and a model answered them after the fact was forgotten.
 MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("memory_keep", "Memory, keep: the person asks VOOL to remember or note something about themselves, their life, "
      "people or things, for later.", ()),
-    ("memory_recall", "Memory, recall: the person asks what they told VOOL before about themselves, their life, people "
-     "or things.", ()),
+    ("memory_recall", "Memory, recall: the person asks about a fact of their own life, people or things that only they "
+     "could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it before.",
+     ()),
     ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase or stop remembering something they told "
      "it before.", ()),
 )

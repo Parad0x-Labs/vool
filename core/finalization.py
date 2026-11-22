@@ -1209,6 +1209,9 @@ def finalize_answer(
     _bound = False
     try:
         if _stopped_first:
+            logging.getLogger(__name__).info(
+                "turn %s published as cancelled (cancel marker %s, seal claimed %s)", bound_request_id,
+                _turn_cancel_marker_fired(_cancel_context), _seal_claimed)
             # The operator cancelled this turn and the cancel was acknowledged. Whatever the lanes
             # composed afterwards is not published: the committed bytes are the typed cancel notice --
             # decided AFTER every gate and the closure sweep so nothing rewrites it -- and the typed

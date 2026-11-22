@@ -57,6 +57,19 @@ def test_a_forget_after_the_call_went_out_drops_the_copy_and_leaves_the_turn_run
     assert not turn_event.is_set()
 
 
+def test_a_poll_while_the_forget_is_still_erasing_leaves_the_turn_running(monkeypatch):
+    """Mac run of ff6e9085c: the poll came in while the turn's own forget was still erasing."""
+    item, turn_event = _preview("chat-erasing", "turn-erasing", sent=True, version="epoch-1")
+
+    def erasing(_chat, _project):
+        raise RuntimeError("memory erasure is incomplete")
+
+    monkeypatch.setattr(scope, "current_version", erasing)
+    assert wire.previews(chat_id="chat-erasing") == []
+    assert not turn_event.is_set()
+    assert item.preview_id not in wire._PREVIEWS and item.body == b""
+
+
 def test_a_request_still_waiting_on_the_owner_is_stopped_by_a_forget(monkeypatch):
     _item, turn_event = _preview("chat-waiting", "turn-waiting", sent=False, version="epoch-1")
     _epoch_moves(monkeypatch, random.Random("waiting"))

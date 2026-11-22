@@ -98,6 +98,9 @@ def request_cancel(session_id: str, turn_id: str) -> str:
         turn = _TURNS.get(_key(session_id, turn_id))
     if turn is None:
         return "not_found"
+    import logging
+
+    logging.getLogger(__name__).info("turn %s in chat %s: cancel requested", turn_id, session_id)
     turn.cancel_event.set()
     return "cancelled"
 
