@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "तुरंत लागू।",
     "settings.row.ram_reserve_pct.help": "VOOL हमेशा आपके कंप्यूटर की मेमोरी का इतना हिस्सा आपके लिए खाली छोड़ता है, भारी काम के दौरान भी। बड़ा हिस्सा मतलब VOOL कम इस्तेमाल करता है। यह पक्की सीमा है, सुझाव नहीं।",
     "settings.row.ram_reserve_pct.label": "आपके दूसरे ऐप्स के लिए खाली रखी गई मेमोरी",
-    "settings.row.remembered_identity_note.help": "आपका नाम और ईमेल हस्ताक्षर यहाँ बाकी सब के साथ रखे जाते हैं जो VOOL को याद है। अपना नाम इस अनुभाग के ऊपर वाले फ़ील्ड में डालें, और सूची में किसी को भी संपादित करें या भुलाएँ।",
-    "settings.row.remembered_identity_note.label": "आपका नाम और आपका ईमेल हस्ताक्षर",
     "settings.row.session_export.help": "एक .voolsession फ़ाइल एक बातचीत के टर्न, उसकी रसीदें और साक्ष्य संदर्भ ले जाती है, इस मशीन की कुंजी से हस्ताक्षरित। इस कंप्यूटर से जाने वाले हर बंडल के लिए एन्क्रिप्शन की सलाह है; बिना-एन्क्रिप्ट निर्यात के लिए पहले चेतावनी स्वीकार करना ज़रूरी है। मॉडल का भीतरी विवेक बंडल का हिस्सा नहीं होता, और पूर्वावलोकन कुछ भी लिखे जाने से पहले ठीक वही बताता है जो लिखा जाएगा।",
     "settings.row.session_export.label": "चैट निर्यात करें",
     "settings.row.session_import.help": "एक .voolsession फ़ाइल चुनें, देखें उसमें क्या है और किसने हस्ताक्षर किए, फिर आयात करें। अनजान कुंजी से हस्ताक्षरित बंडल तब तक अस्वीकृत रहता है जब तक आप उसे स्वीकार न करें, और अविश्वसनीय चिह्नित रहता है। आयात कभी किसी मौजूदा चैट को नहीं बदलता: id पहले से यहाँ हो तो प्रतिलिपि नए id के नीचे आती है। पासफ़्रेज़ केवल इन्हीं खानों में रहते हैं, इतिहास, लॉग या रसीदों में कभी नहीं।",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "मेरी चीज़ें और रूटीन",
     "settings.row.profile_items.hint": "VOOL जो कुछ याद रखता है। कोई भी चीज़ बदलें या भुलाएँ।",
     "settings.row.learned_facts.hint": "आपकी चैट से मिली बातें, हर एक के स्रोत के साथ।",
-    "settings.row.remembered_identity_note.hint": "आपका नाम और ईमेल सिग्नेचर भी यहीं रखे जाते हैं।",
     "settings.row.my_things.label": "मेरी चीज़ें",
     "settings.row.my_things.help": "रसीदें, मैनुअल और उपकरणों की जानकारी यहाँ रखें। फ़ाइलें इसी कंप्यूटर पर रहती हैं।",
     "settings.row.routines.label": "मेरे रूटीन",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "VOOL और macOS की सूचनाएँ साथ में कैसे काम करती हैं",
     "settings.row.live_browser.needs_web": "पहले ऊपर «वेब खोज» चालू करें।",
     "settings.row.live_browser.open": "ब्राउज़र खोलें",
-    "disclosure.copies_never_kept": "VOOL भेजी गई चीज़ की कोई प्रति नहीं रखता। पूर्वावलोकन पाँच मिनट तक खुला रहता है।"
+    "disclosure.copies_never_kept": "VOOL भेजी गई चीज़ की कोई प्रति नहीं रखता। पूर्वावलोकन पाँच मिनट तक खुला रहता है।",
+    "settings.profile.signature_label": "ईमेल हस्ताक्षर",
+    "settings.profile.signature_hint": "VOOL आपके लिए जो ईमेल लिखता है, उनके अंत में जोड़ा जाता है।",
+    "settings.models.exact_name": "सटीक नाम"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

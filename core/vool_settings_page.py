@@ -677,19 +677,6 @@ def _settings_groups() -> list[dict]:
                     keywords="memory facts learned remembered forget entries store conversation confirmed",
                 ),
                 _row(
-                    id="remembered_identity_note",
-                    card="remember",
-                    hint="Your name and email signature are kept here too.",
-                    label="Your name, and your email signature",
-                    kind="note",
-                    help=(
-                        "Your name and email signature are kept here with everything else VOOL "
-                        "remembers. Set your name in the field at the top of this section, and edit "
-                        "or forget either one in the list."
-                    ),
-                    keywords="name called address me preferred name email signature identity remembered",
-                ),
-                _row(
                     id="my_things",
                     card="things",
                     label="My things",
@@ -1306,6 +1293,9 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .scam-line { margin:3px 0; color:var(--muted); }
 .scam-line.scam-do { color:var(--ink); font-weight:600; }
 .scam-close { margin-top:8px; width:auto; }
+.model-exact { font-size:12px; margin-top:2px; }
+.model-exact > summary { cursor:pointer; width:max-content; }
+.model-exact code { display:block; margin-top:2px; word-break:break-all; }
 .scam-principle { margin-top:12px; padding:8px 12px; border-left:3px solid #34d399; font-weight:600; }
 
 /* ---- content ---- */
@@ -4084,6 +4074,28 @@ function widgetModelsOverview(stack) {
      "Default model" and "Provider" twice on one page. */
   if (state.onlyRow === 'models_overview') widgetModel(stack);
 }
+/* A local model's own tag ("hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M") is how Ollama knows it, not
+   something a person reads. The row shows the family and size in plain words; the exact tag stays one click away,
+   because it is what Ollama, a log or a support answer will use. Only presentation: every action still uses the tag. */
+function plainLocalModelName(tag) {
+  let t = String(tag || '').trim();
+  if (!t) return '';
+  t = t.slice(t.lastIndexOf('/') + 1);                    // registry and publisher path
+  const [base, variant = ''] = t.split(':');
+  /* Quantisation tags like Q3_K_M hold underscores: drop them whole before splitting into words. */
+  const words = (base + ' ' + variant).replace(/(^|[-_\s])i?q\d(_[a-z0-9]+)*(?=$|[-\s])/gi, '$1').split(/[-_\s:]+/).filter(Boolean);
+  const out = [];
+  for (const w of words) {
+    const lw = w.toLowerCase();
+    if (/^(gguf|latest|q\d.*|iq\d.*|f16|fp16|bf16|\d{4})$/.test(lw)) continue;   // file format, quantisation, release date
+    if (/^a\d+(\.\d+)?b$/.test(lw)) continue;                                    // active-parameter count
+    if (lw === 'nothink') { out.push('(no thinking)'); continue; }
+    if (/^\d+(\.\d+)?[bm]$/.test(lw)) { out.push(lw.toUpperCase()); continue; }  // 8b -> 8B
+    if (lw === 'gpt' || lw === 'oss') { out.push(lw.toUpperCase()); continue; }
+    out.push(w.charAt(0).toUpperCase() + w.slice(1));
+  }
+  return out.join(' ') || t;
+}
 function widgetLocalModels(stack) {
   /* One action per model: "Use this model" adds it here and checks it quietly. The check is the
      same tool certification as before (POST /api/model-tool-certification/run), and the server's
@@ -4120,15 +4132,15 @@ function widgetLocalModels(stack) {
       const j = await post('/api/model-tool-certification/run', { provider_name: 'ollama-local', model_name: m.model_name, timeout_seconds: 150 });
       kind = String(j.readiness || 'check_unfinished');
     } catch (e) { kind = 'check_unfinished'; }
-    busy = ''; outcome = { model: m.model_name, kind };
+    busy = ''; outcome = { model: plainLocalModelName(m.model_name), kind };
     await load(); render();
     announce(outcomeText(outcome));
   };
   const outcomeText = (o) => o.kind === 'ready'
-    ? LM('result.ready', '{model} is ready. VOOL will answer with it on this computer.', { model: o.model })
+    ? LM('result.ready', '{model} is ready. VOOL will answer with it on this computer.', { model: plainLocalModelName(o.model) })
     : o.kind === 'not_suitable'
-      ? LM('result.not_suitable', '{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it.', { model: o.model })
-      : LM('result.unfinished', 'VOOL couldn’t finish checking {model}. Make sure Ollama is open, then try again. A slow computer may need a second try.', { model: o.model });
+      ? LM('result.not_suitable', '{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it.', { model: plainLocalModelName(o.model) })
+      : LM('result.unfinished', 'VOOL couldn’t finish checking {model}. Make sure Ollama is open, then try again. A slow computer may need a second try.', { model: plainLocalModelName(o.model) });
   const announce = (text) => { const live = document.getElementById('live'); if (live) live.textContent = text; };
   const pollPull = async () => {
     if (!pull || !body.isConnected) return;
@@ -4148,7 +4160,7 @@ function widgetLocalModels(stack) {
     setTimeout(pollPull, 1500);
   };
   const startPull = async (rec) => {
-    pull = { model: rec.model_name, percent: 0, failed: false }; outcome = null; render();
+    pull = { model: plainLocalModelName(rec.model_name), percent: 0, failed: false }; outcome = null; render();
     try { await post('/api/models/local/pull', { model_name: rec.model_name }); }
     catch (e) { pull.failed = true; render(); return; }
     setTimeout(pollPull, 800);
@@ -4173,19 +4185,19 @@ function widgetLocalModels(stack) {
     const line = el('div', 'inline');
     if (pull) {
       wrap.appendChild(el('div', pull.failed ? 'state failed' : 'state loading', pull.failed
-        ? LM('download.failed', 'The download of {model} didn’t finish. Check your internet connection and that Ollama is open, then try again.', { model: pull.model })
-        : (pull.percent ? LM('download.progress', 'Downloading {model}… {percent}%', { model: pull.model, percent: pull.percent })
-          : LM('download.starting', 'Starting the download of {model}…', { model: pull.model }))));
+        ? LM('download.failed', 'The download of {model} didn’t finish. Check your internet connection and that Ollama is open, then try again.', { model: plainLocalModelName(pull.model) })
+        : (pull.percent ? LM('download.progress', 'Downloading {model}… {percent}%', { model: plainLocalModelName(pull.model), percent: pull.percent })
+          : LM('download.starting', 'Starting the download of {model}…', { model: plainLocalModelName(pull.model) }))));
     }
     if (rec && rec.model_name) {
       const have = models.find(x => x.model_name === rec.model_name);
       if (have && have.readiness !== 'ready' && have.readiness !== 'not_suitable') {
-        const b = el('button', 'btn primary', LM('suggest.use', 'Use {model}', { model: rec.model_name })); b.type = 'button';
+        const b = el('button', 'btn primary', LM('suggest.use', 'Use {model}', { model: plainLocalModelName(rec.model_name) })); b.type = 'button';
         b.disabled = !!busy;
         b.addEventListener('click', () => useModel(have));
         line.appendChild(b);
       } else if (!have && !stepDown && (!pull || pull.failed)) {
-        const b = el('button', 'btn primary', LM('suggest.download', 'Download {model} ({gb} GB)', { model: rec.model_name, gb: rec.download_gb }));
+        const b = el('button', 'btn primary', LM('suggest.download', 'Download {model} ({gb} GB)', { model: plainLocalModelName(rec.model_name), gb: rec.download_gb }));
         b.type = 'button'; b.disabled = !!busy;
         b.addEventListener('click', () => startPull(rec));
         line.appendChild(b);
@@ -4195,14 +4207,14 @@ function widgetLocalModels(stack) {
        one download at a time, the one that answers first. */
     const big = rec && rec.bigger;
     if (big && big.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === big.model_name) && (!pull || pull.failed)) {
-      const b = el('button', 'btn', LM('suggest.download_bigger', 'Download a bigger model, {model} ({gb} GB): smarter, but slower', { model: big.model_name, gb: big.download_gb }));
+      const b = el('button', 'btn', LM('suggest.download_bigger', 'Download a bigger model, {model} ({gb} GB): smarter, but slower', { model: plainLocalModelName(big.model_name), gb: big.download_gb }));
       b.type = 'button'; b.disabled = !!busy;
       b.addEventListener('click', () => startPull(big));
       line.appendChild(b);
     }
     const fast = rec && rec.faster;
     if (fast && fast.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === fast.model_name) && (!pull || pull.failed)) {
-      const b = el('button', 'btn', LM('suggest.download_faster', 'Download a faster model, {model} ({gb} GB): quicker answers, uses more memory', { model: fast.model_name, gb: fast.download_gb }));
+      const b = el('button', 'btn', LM('suggest.download_faster', 'Download a faster model, {model} ({gb} GB): quicker answers, uses more memory', { model: plainLocalModelName(fast.model_name), gb: fast.download_gb }));
       b.type = 'button'; b.disabled = !!busy;
       b.addEventListener('click', () => startPull(fast));
       line.appendChild(b);
@@ -4219,7 +4231,7 @@ function widgetLocalModels(stack) {
         : LM('suggest.picked_memory', 'Picked for this computer’s {gb} GB of memory.', { gb: Math.round(rec.sized_by_gb) })));
     }
     if (rec && rec.ollama_update_unlocks) {
-      wrap.appendChild(el('div', 'subtle', LM('suggest.update_ollama', 'Update Ollama to get the newer {model}.', { model: rec.ollama_update_unlocks })));
+      wrap.appendChild(el('div', 'subtle', LM('suggest.update_ollama', 'Update Ollama to get the newer {model}.', { model: plainLocalModelName(rec.ollama_update_unlocks) })));
     }
     return wrap;
   };
@@ -4245,7 +4257,7 @@ function widgetLocalModels(stack) {
       const head = el('div', 'inline');
       const working = busy === m.model_name;
       const readiness = working ? 'checking' : String(m.readiness || 'not_checked');
-      head.appendChild(el('span', 'profile-value', m.model_name));
+      head.appendChild(el('span', 'profile-value', plainLocalModelName(m.model_name)));
       if (m.size_gb) head.appendChild(el('span', 'subtle', String(m.size_gb) + ' GB'));
       head.appendChild(el('span', readiness === 'ready' ? 'state saved' : 'subtle', stateText(readiness)));
       /* No button on a model that is not a good fit (a re-run fails the same way; the ways forward
@@ -4259,7 +4271,9 @@ function widgetLocalModels(stack) {
         head.appendChild(b);
       }
       rowEl.appendChild(head);
-      if (working) rowEl.appendChild(el('div', 'state loading', LM('checking_note', 'Checking {model}. This can take a minute or two.', { model: m.model_name })));
+      const exact = el('details', 'model-exact'); exact.appendChild(el('summary', 'subtle', T('settings.models.exact_name', 'Exact name')));
+      exact.appendChild(el('code', 'subtle', m.model_name)); rowEl.appendChild(exact);
+      if (working) rowEl.appendChild(el('div', 'state loading', LM('checking_note', 'Checking {model}. This can take a minute or two.', { model: plainLocalModelName(m.model_name) })));
       if (outcome && outcome.model === m.model_name && !working) {
         rowEl.appendChild(el('div', outcome.kind === 'ready' ? 'state saved' : 'state failed', outcomeText(outcome)));
       }
@@ -5765,6 +5779,7 @@ function widgetProfile(stack) {
     body.appendChild(out);
     const items = (p.items || []).filter(it => it.status !== 'deleted');
     body.appendChild(profileNameField(items, !!p.paused));
+    body.appendChild(profileSignatureField(items, !!p.paused));
     if (!items.length) { body.appendChild(el('div', 'empty', T('settings.profile.empty', 'Nothing remembered yet. As you chat, what VOOL learns about you is listed here, and you can edit or forget any of it.'))); return; }
     /* Scopes an item can be moved to from here. A chat- or project-scoped move needs the chat or
        project it belongs to, which Settings does not have -- those two are done where they apply. */
@@ -5808,6 +5823,45 @@ function widgetProfile(stack) {
     if (widgetCache.profileNote) { st.className = 'state saved'; st.textContent = widgetCache.profileNote; widgetCache.profileNote = ''; }
     line.appendChild(input); line.appendChild(save); line.appendChild(st);
     wrap.appendChild(line);
+    return wrap;
+  }
+
+  /* The email signature the email tools add (core/user_preferences.email_signature reads the Operator Profile).
+     It is set here through the same profile door as any remembered item (POST /api/profile/remember, replace);
+     an empty box forgets it. Before this field existed, Settings only said the signature "is kept here" with
+     no way to set it. */
+  function profileSignatureField(items, paused) {
+    const wrap = el('div', 'stack profile-signature');
+    const sigItem = items.find(it => it.category === 'email_signature' && (it.scope || 'global') === 'global');
+    wrap.appendChild(el('div', 'row-label', T('settings.profile.signature_label', 'Email signature')));
+    wrap.appendChild(el('div', 'subtle', T('settings.profile.signature_hint', 'Added at the end of emails VOOL writes for you.')));
+    const box = document.createElement('textarea'); box.className = 'inp'; box.id = 'profileSignatureInput'; box.rows = 3;
+    box.maxLength = 400; box.setAttribute('aria-label', T('settings.profile.signature_label', 'Email signature'));
+    box.value = sigItem ? String(sigItem.value_text || sigItem.value || '') : '';
+    const line = el('div', 'inline');
+    const save = el('button', 'btn', T('notif.save', 'Save')); save.type = 'button'; save.id = 'profileSignatureSave';
+    const st = el('span', 'state idle'); st.setAttribute('role', 'status');
+    if (paused) { box.disabled = true; save.disabled = true; }
+    save.addEventListener('click', async () => {
+      const value = box.value.trim();
+      save.disabled = true; st.className = 'state saving'; st.textContent = T('settings.switch.saving', 'Saving…');
+      let res;
+      try {
+        const body = value
+          ? { url: '/api/profile/remember', payload: { category: 'email_signature', value, scope: 'global', replace: true } }
+          : (sigItem ? { url: '/api/profile/forget', payload: { item_id: sigItem.item_id, expected_revision: sigItem.revision } } : null);
+        if (body) {
+          const r = await fetch(body.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body.payload) });
+          const j = await r.json().catch(() => null);
+          if (!r.ok || !j || j.ok === false) { console.warn('signature save refused:', r.status, j); throw new Error('refused'); }
+        }
+        widgetCache.profileSigNote = T('settings.profile.saved', 'Saved.');
+        await draw();
+      } catch (e) { save.disabled = false; st.className = 'state failed'; st.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); }
+    });
+    if (widgetCache.profileSigNote) { st.className = 'state saved'; st.textContent = widgetCache.profileSigNote; widgetCache.profileSigNote = ''; }
+    line.appendChild(save); line.appendChild(st);
+    wrap.appendChild(box); wrap.appendChild(line);
     return wrap;
   }
 

@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "즉시 적용됩니다.",
     "settings.row.ram_reserve_pct.help": "VOOL은 무거운 작업 중에도 컴퓨터 메모리의 이 비율을 항상 당신을 위해 비워 둡니다. 비율이 클수록 VOOL이 덜 씁니다. 제안이 아니라 확실한 한도입니다.",
     "settings.row.ram_reserve_pct.label": "다른 앱을 위해 비워 두는 메모리",
-    "settings.row.remembered_identity_note.help": "이름과 이메일 서명은 VOOL이 기억하는 다른 모든 것과 함께 여기에 보관됩니다. 이 섹션 맨 위 칸에서 이름을 정하고, 목록에서 둘 다 편집하거나 잊게 할 수 있습니다.",
-    "settings.row.remembered_identity_note.label": "당신의 이름과 이메일 서명",
     "settings.row.session_export.help": ".voolsession 파일은 대화 하나의 턴, 영수증, 증거 참조를 이 기기의 키로 서명해 담습니다. 이 컴퓨터를 떠나는 꾸러미에는 암호화를 권합니다; 암호화 없는 내보내기는 먼저 경고를 인정해야 합니다. 모델 내부 추론은 꾸러미에 들어가지 않고, 미리보기는 무엇이 쓰일지 그것이 쓰이기 전에 정확히 말합니다.",
     "settings.row.session_export.label": "채팅 내보내기",
     "settings.row.session_import.help": ".voolsession 파일을 고르고, 내용과 서명자를 미리 본 뒤 가져옵니다. 모르는 키로 서명된 꾸러미는 받아들이기 전까지 거부되고, 신뢰할 수 없음으로 표시됩니다. 가져오기는 기존 채팅을 절대 수정하지 않습니다: id가 이미 여기 있으면, 사본은 새 것 아래 놓입니다. 암호 문구는 이 칸에만 존재하고, 기록·로그·영수증에는 절대 없습니다.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "내 물건과 루틴",
     "settings.row.profile_items.hint": "VOOL이 기억하는 모든 것. 어떤 항목이든 수정하거나 잊게 할 수 있습니다.",
     "settings.row.learned_facts.hint": "채팅에서 얻은 사실과 각각의 출처.",
-    "settings.row.remembered_identity_note.hint": "이름과 이메일 서명도 여기에 보관됩니다.",
     "settings.row.my_things.label": "내 물건",
     "settings.row.my_things.help": "영수증, 설명서, 기기 정보를 여기에 보관하세요. 파일은 이 컴퓨터에 남습니다.",
     "settings.row.routines.label": "내 루틴",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "VOOL 알림과 macOS 알림이 함께 작동하는 방식",
     "settings.row.live_browser.needs_web": "먼저 위의 「웹 검색」을 켜세요.",
     "settings.row.live_browser.open": "브라우저 열기",
-    "disclosure.copies_never_kept": "VOOL은 보낸 내용의 사본을 남기지 않습니다. 미리 보기는 최대 5분 동안 열려 있습니다."
+    "disclosure.copies_never_kept": "VOOL은 보낸 내용의 사본을 남기지 않습니다. 미리 보기는 최대 5분 동안 열려 있습니다.",
+    "settings.profile.signature_label": "이메일 서명",
+    "settings.profile.signature_hint": "VOOL이 대신 쓰는 이메일 끝에 붙습니다.",
+    "settings.models.exact_name": "정확한 이름"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

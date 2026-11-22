@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Wirkt sofort.",
     "settings.row.ram_reserve_pct.help": "VOOL lässt diesen Anteil des Arbeitsspeichers deines Computers immer für dich frei, auch bei einer schweren Aufgabe. Ein größerer Anteil heißt, VOOL nutzt weniger. Das ist eine feste Grenze, kein Vorschlag.",
     "settings.row.ram_reserve_pct.label": "Arbeitsspeicher frei für deine anderen Apps",
-    "settings.row.remembered_identity_note.help": "Dein Name und deine E-Mail-Signatur liegen hier zusammen mit allem anderen, was VOOL sich merkt. Setze deinen Namen im Feld oben in diesem Bereich, und bearbeite oder vergiss beides in der Liste.",
-    "settings.row.remembered_identity_note.label": "Dein Name und deine E-Mail-Signatur",
     "settings.row.session_export.help": "Eine .voolsession-Datei trägt die Züge eines Gesprächs, seine Belege und Nachweisverweise, signiert mit dem Schlüssel dieser Maschine. Verschlüsselung wird für jedes Bündel empfohlen, das diesen Rechner verlässt; ein unverschlüsselter Export verlangt zuerst das Bestätigen der Warnung. Modell-internes Reasoning ist kein Teil eines Bündels, und die Vorschau sagt genau, was geschrieben wird, bevor etwas geschrieben wird.",
     "settings.row.session_export.label": "Gespräch exportieren",
     "settings.row.session_import.help": "Wähle eine .voolsession-Datei, sieh in der Vorschau, was sie enthält und wer sie signiert hat, und importiere dann. Ein von einem unbekannten Schlüssel signiertes Bündel wird abgelehnt, bis du es ausdrücklich annimmst, und bleibt als nicht vertrauenswürdig markiert. Ein Import verändert nie einen bestehenden Chat: ist die Kennung schon hier, landet die Kopie unter einer neuen. Passphrasen existieren nur in diesen Feldern, nie in Verlauf, Protokollen oder Belegen.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Meine Dinge und Routinen",
     "settings.row.profile_items.hint": "Alles, was VOOL sich merkt. Bearbeite oder vergiss jeden Eintrag.",
     "settings.row.learned_facts.hint": "Fakten aus deinen Chats, mit ihrer Herkunft.",
-    "settings.row.remembered_identity_note.hint": "Dein Name und deine E-Mail-Signatur liegen auch hier.",
     "settings.row.my_things.label": "Meine Sachen",
     "settings.row.my_things.help": "Bewahre hier Belege, Anleitungen und Gerätedaten auf. Dateien bleiben auf diesem Computer.",
     "settings.row.routines.label": "Meine Routinen",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "Wie VOOL- und macOS-Hinweise zusammenarbeiten",
     "settings.row.live_browser.needs_web": "Schalte zuerst oben „Websuchen“ ein.",
     "settings.row.live_browser.open": "Browser öffnen",
-    "disclosure.copies_never_kept": "VOOL behält keine Kopie des Gesendeten. Eine Vorschau bleibt bis zu fünf Minuten offen."
+    "disclosure.copies_never_kept": "VOOL behält keine Kopie des Gesendeten. Eine Vorschau bleibt bis zu fünf Minuten offen.",
+    "settings.profile.signature_label": "E-Mail-Signatur",
+    "settings.profile.signature_hint": "Wird ans Ende von E-Mails gesetzt, die VOOL für dich schreibt.",
+    "settings.models.exact_name": "Genauer Name"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

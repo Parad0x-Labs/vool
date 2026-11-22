@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Áp dụng ngay.",
     "settings.row.ram_reserve_pct.help": "VOOL luôn chừa phần bộ nhớ này của máy tính cho bạn, kể cả khi làm việc nặng. Phần lớn hơn nghĩa là VOOL dùng ít hơn. Đây là giới hạn cứng, không phải gợi ý.",
     "settings.row.ram_reserve_pct.label": "Bộ nhớ chừa lại cho các ứng dụng khác",
-    "settings.row.remembered_identity_note.help": "Tên và chữ ký email của bạn được lưu ở đây cùng mọi thứ khác VOOL nhớ. Đặt tên của bạn ở ô trên cùng của mục này, và sửa hoặc quên bất kỳ cái nào trong danh sách.",
-    "settings.row.remembered_identity_note.label": "Tên bạn và chữ ký thư của bạn",
     "settings.row.session_export.help": "Tệp .voolsession mang các lượt của một hội thoại, biên lai và tham chiếu bằng chứng, được ký bằng khóa của máy này. Khuyến nghị mã hóa cho mọi gói rời máy tính này; xuất không mã hóa cần xác nhận cảnh báo trước. Suy luận nội bộ của mô hình không thuộc gói, và bản xem trước nêu chính xác những gì sẽ được ghi trước khi bất cứ gì được ghi.",
     "settings.row.session_export.label": "Xuất một cuộc trò chuyện",
     "settings.row.session_import.help": "Chọn tệp .voolsession, xem trước nội dung và người ký, rồi nhập. Gói ký bằng khóa lạ bị từ chối trừ khi bạn chấp nhận, và giữ nhãn không tin cậy. Nhập không bao giờ sửa một cuộc trò chuyện sẵn có: nếu id đã ở đây, bản sao nằm dưới id mới. Cụm mật khẩu chỉ tồn tại trong các trường này, không bao giờ trong lịch sử, nhật ký hay biên lai.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Đồ của tôi và thói quen",
     "settings.row.profile_items.hint": "Mọi thứ VOOL ghi nhớ. Sửa hoặc quên bất kỳ mục nào.",
     "settings.row.learned_facts.hint": "Các thông tin từ cuộc trò chuyện, kèm nguồn của từng mục.",
-    "settings.row.remembered_identity_note.hint": "Tên và chữ ký email của bạn cũng được giữ ở đây.",
     "settings.row.my_things.label": "Đồ của tôi",
     "settings.row.my_things.help": "Lưu hóa đơn, hướng dẫn và thông tin thiết bị ở đây. Tệp luôn ở trên máy tính này.",
     "settings.row.routines.label": "Quy trình của tôi",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "Cách cảnh báo của VOOL và macOS phối hợp",
     "settings.row.live_browser.needs_web": "Hãy bật «Tra cứu web» ở trên trước.",
     "settings.row.live_browser.open": "Mở trình duyệt",
-    "disclosure.copies_never_kept": "VOOL không giữ bản sao những gì đã gửi. Bản xem trước mở tối đa năm phút."
+    "disclosure.copies_never_kept": "VOOL không giữ bản sao những gì đã gửi. Bản xem trước mở tối đa năm phút.",
+    "settings.profile.signature_label": "Chữ ký email",
+    "settings.profile.signature_hint": "Được thêm vào cuối email VOOL viết thay bạn.",
+    "settings.models.exact_name": "Tên chính xác"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "חל מיד.",
     "settings.row.ram_reserve_pct.help": "VOOL תמיד משאיר את החלק הזה מזיכרון המחשב פנוי בשבילך, גם במשימה כבדה. חלק גדול יותר פירושו ש-VOOL משתמש בפחות. זו מגבלה קשיחה, לא הצעה.",
     "settings.row.ram_reserve_pct.label": "זיכרון שנשאר פנוי לאפליקציות האחרות שלכם",
-    "settings.row.remembered_identity_note.help": "השם וחתימת המייל שלך נשמרים כאן יחד עם כל מה ש-VOOL זוכר. קבע את שמך בשדה שבראש החלק הזה, וערוך או שכח כל אחד מהם ברשימה.",
-    "settings.row.remembered_identity_note.label": "השם שלכם וחתימת הדוא״ל שלכם",
     "settings.row.session_export.help": "קובץ .voolsession נושא את התורים של שיחה אחת, הקבלותיה והפניות הראיות שלה, חתומים במפתח של המכונה הזו. מומלץ הצפנה לכל חבילה שעוזבת את המחשב הזה; ייצוא לא מוצפן דורש קודם הכרה באזהרה. ההסקה הפנימית של הדגם אינה חלק מחבילה, והתצוגה המקדימה אומרת בדיוק מה ייכתב לפני שדבר נכתב.",
     "settings.row.session_export.label": "ייצוא צ׳אט",
     "settings.row.session_import.help": "בחרו קובץ .voolsession, ראו בתצוגה מקדימה מה הוא מכיל ומי חתם, וייבאו. חבילה שנחתמה במפתח לא מוכר נדחית אלא אם קיבלתם אותה, ונשארת מסומנת בלתי-מהימנה. ייבוא לעולם לא משנה צ׳אט קיים: אם המזהה כבר כאן, העותק נוחת תחת חדש. מילות צופן קיימות רק בשדות האלה, לעולם לא בהיסטוריה, ביומנים או בקבלות.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "הדברים והשגרות שלי",
     "settings.row.profile_items.hint": "כל מה ש־VOOL זוכר. ערכו או מחקו כל פריט.",
     "settings.row.learned_facts.hint": "עובדות מהצ'אטים שלכם, עם המקור של כל אחת.",
-    "settings.row.remembered_identity_note.hint": "השם וחתימת הדוא״ל שלכם נשמרים כאן גם כן.",
     "settings.row.my_things.label": "הדברים שלי",
     "settings.row.my_things.help": "אפשר לשמור כאן קבלות, מדריכים ופרטי ציוד. הקבצים נשארים במחשב הזה.",
     "settings.row.routines.label": "השגרות שלי",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "איך התראות VOOL ו-macOS עובדות יחד",
     "settings.row.live_browser.needs_web": "הפעילו קודם את „חיפושים באינטרנט” למעלה.",
     "settings.row.live_browser.open": "לפתוח את הדפדפן",
-    "disclosure.copies_never_kept": "‏VOOL לא שומר עותק של מה שנשלח. תצוגה מקדימה נשארת פתוחה עד חמש דקות."
+    "disclosure.copies_never_kept": "‏VOOL לא שומר עותק של מה שנשלח. תצוגה מקדימה נשארת פתוחה עד חמש דקות.",
+    "settings.profile.signature_label": "חתימת דוא״ל",
+    "settings.profile.signature_hint": "נוספת בסוף הודעות הדוא״ל ש-VOOL כותב בשבילכם.",
+    "settings.models.exact_name": "השם המדויק"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

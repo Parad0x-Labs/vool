@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "立即生效。",
     "settings.row.ram_reserve_pct.help": "即使在繁重任务中，VOOL 也始终为你保留这部分电脑内存。比例越大，VOOL 用得越少。这是硬性限制，不是建议。",
     "settings.row.ram_reserve_pct.label": "为你的其他应用留出的内存",
-    "settings.row.remembered_identity_note.help": "你的名字和邮件签名与 VOOL 记住的其他内容一起保存在这里。在本节顶部的输入框中设置你的名字，并在列表中编辑或忘记其中任何一项。",
-    "settings.row.remembered_identity_note.label": "你的名字和邮件签名",
     "settings.row.session_export.help": "一个 .voolsession 文件携带一个对话的回合、收据和证据引用，由这台机器的密钥签名。任何要离开这台电脑的包都建议加密；未加密的导出需要先确认警告。模型内部的推理不属于包的一部分，而预览会在写入任何内容之前准确说明将要写入什么。",
     "settings.row.session_export.label": "导出对话",
     "settings.row.session_import.help": "选择一个 .voolsession 文件，预览其中的内容和签名者，然后导入。由未知密钥签名的包会被拒绝，除非你接受它，并保持标记为不受信任。导入永远不会修改现有对话：如果该 id 已在这里，副本会落在一个新 id 之下。口令只存在于这些字段里，绝不会出现在历史、日志或收据中。",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "我的物品和例行任务",
     "settings.row.profile_items.hint": "VOOL 记住的一切。可编辑或忘记任何一项。",
     "settings.row.learned_facts.hint": "来自对话的事实，并注明来源。",
-    "settings.row.remembered_identity_note.hint": "你的名字和邮件签名也保存在这里。",
     "settings.row.my_things.label": "我的物品",
     "settings.row.my_things.help": "在这里保存收据、说明书和设备信息。文件保留在这台电脑上。",
     "settings.row.routines.label": "我的例行任务",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "VOOL 和 macOS 提醒如何配合",
     "settings.row.live_browser.needs_web": "请先打开上方的“网络查询”。",
     "settings.row.live_browser.open": "打开浏览器",
-    "disclosure.copies_never_kept": "VOOL 不保留已发送内容的副本。预览最多保持打开五分钟。"
+    "disclosure.copies_never_kept": "VOOL 不保留已发送内容的副本。预览最多保持打开五分钟。",
+    "settings.profile.signature_label": "邮件签名",
+    "settings.profile.signature_hint": "添加在 VOOL 替你写的邮件末尾。",
+    "settings.models.exact_name": "完整名称"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

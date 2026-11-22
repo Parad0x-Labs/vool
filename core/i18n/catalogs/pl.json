@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Działa natychmiast.",
     "settings.row.ram_reserve_pct.help": "VOOL zawsze zostawia ci wolną tę część pamięci komputera, nawet przy ciężkim zadaniu. Większa część oznacza, że VOOL używa mniej. To twardy limit, nie sugestia.",
     "settings.row.ram_reserve_pct.label": "Pamięć zostawiona dla innych aplikacji",
-    "settings.row.remembered_identity_note.help": "Twoje imię i podpis e-mail są przechowywane tutaj razem ze wszystkim, co VOOL pamięta. Wpisz imię w polu na górze tej sekcji, a na liście edytuj lub zapomnij dowolne z nich.",
-    "settings.row.remembered_identity_note.label": "Twoje imię i Twój podpis e-mail",
     "settings.row.session_export.help": "Plik .voolsession niesie tury jednej rozmowy, pokwitowania i odniesienia do dowodów, podpisane kluczem tej maszyny. Szyfrowanie jest zalecane dla każdego pakietu opuszczającego ten komputer; niezaszyfrowany eksport wymaga najpierw uznania ostrzeżenia. Rozumowanie wewnętrzne modelu nie jest częścią pakietu, a podgląd mówi dokładnie, co zostanie zapisane, zanim cokolwiek będzie.",
     "settings.row.session_export.label": "Wyeksportuj rozmowę",
     "settings.row.session_import.help": "Wybierz plik .voolsession, obejrzyj, co zawiera i kto go podpisał, wtedy importuj. Pakiet podpisany nieznanym kluczem jest odrzucany, dopóki go nie przyjmiesz, i zostaje oznaczony niezaufanym. Import nigdy nie modyfikuje istniejącego czatu: jeśli identyfikator już tu jest, kopia ląduje pod nowym. Hasła istnieją tylko w tych polach, nigdy w historii, logach ani pokwitowaniach.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Moje rzeczy i rutyny",
     "settings.row.profile_items.hint": "Wszystko, co VOOL pamięta. Edytuj lub zapomnij każdy element.",
     "settings.row.learned_facts.hint": "Fakty z twoich czatów, wraz ze źródłem.",
-    "settings.row.remembered_identity_note.hint": "Twoje imię i podpis e-mail też są tutaj.",
     "settings.row.my_things.label": "Moje rzeczy",
     "settings.row.my_things.help": "Przechowuj tu paragony, instrukcje i dane sprzętu. Pliki pozostają na tym komputerze.",
     "settings.row.routines.label": "Moje rutyny",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "Jak współdziałają powiadomienia VOOL i macOS",
     "settings.row.live_browser.needs_web": "Najpierw włącz powyżej „Wyszukiwanie w sieci”.",
     "settings.row.live_browser.open": "Otwórz przeglądarkę",
-    "disclosure.copies_never_kept": "VOOL nie zachowuje kopii tego, co wysłano. Podgląd pozostaje otwarty do pięciu minut."
+    "disclosure.copies_never_kept": "VOOL nie zachowuje kopii tego, co wysłano. Podgląd pozostaje otwarty do pięciu minut.",
+    "settings.profile.signature_label": "Podpis e-mail",
+    "settings.profile.signature_hint": "Dodawany na końcu e-maili, które VOOL pisze za ciebie.",
+    "settings.models.exact_name": "Dokładna nazwa"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Hemen geçerli.",
     "settings.row.ram_reserve_pct.help": "VOOL, ağır bir görev sırasında bile bilgisayarınızın belleğinin bu payını her zaman size boş bırakır. Daha büyük pay, VOOL'un daha az kullanması demektir. Bu bir öneri değil, kesin bir sınırdır.",
     "settings.row.ram_reserve_pct.label": "Diğer uygulamalarınız için boş bırakılan bellek",
-    "settings.row.remembered_identity_note.help": "Adınız ve e-posta imzanız, VOOL'un hatırladığı diğer her şeyle birlikte burada tutulur. Adınızı bu bölümün üstündeki alana yazın, listede ikisini de düzenleyin veya unutturun.",
-    "settings.row.remembered_identity_note.label": "Adınız ve e-posta imzanız",
     "settings.row.session_export.help": "Bir .voolsession dosyası, bir konuşmanın turlarını, makbuzlarını ve kanıt başvurularını taşır; bu makinenin anahtarıyla imzalıdır. Bu bilgisayardan çıkacak her paket için şifreleme önerilir; şifresiz bir dışa aktarma önce uyarının onaylanmasını gerektirir. Modelin iç akıl yürütmesi paketin parçası değildir ve önizleme, yazılacak şeyi yazılmadan önce tam olarak söyler.",
     "settings.row.session_export.label": "Sohbeti dışa aktar",
     "settings.row.session_import.help": "Bir .voolsession dosyası seçin, içindekileri ve imzalayanı önizleyin, sonra içe aktarın. Bilinmeyen bir anahtarla imzalanmış paket, kabul etmedikçe reddedilir ve güvenilmez olarak işaretli kalır. İçe aktarma var olan bir sohbeti asla değiştirmez: kimlik buradaysa zaten, kopya yeni birinin altına düşer. Parola cümleleri yalnızca bu alanlarda var olur; geçmişte, günlüklerde veya makbuzlarda asla.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Eşyalarım ve rutinlerim",
     "settings.row.profile_items.hint": "VOOL'un hatırladığı her şey. Her öğeyi düzenleyin veya unutun.",
     "settings.row.learned_facts.hint": "Sohbetlerinizden gelen bilgiler, her birinin kaynağıyla.",
-    "settings.row.remembered_identity_note.hint": "Adınız ve e-posta imzanız da burada tutulur.",
     "settings.row.my_things.label": "Eşyalarım",
     "settings.row.my_things.help": "Fişleri, kılavuzları ve cihaz bilgilerini burada saklayın. Dosyalar bu bilgisayarda kalır.",
     "settings.row.routines.label": "Rutinlerim",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "VOOL ve macOS uyarıları birlikte nasıl çalışır",
     "settings.row.live_browser.needs_web": "Önce yukarıdaki «Web aramaları»nı açın.",
     "settings.row.live_browser.open": "Tarayıcıyı aç",
-    "disclosure.copies_never_kept": "VOOL gönderilenin kopyasını tutmaz. Önizleme en fazla beş dakika açık kalır."
+    "disclosure.copies_never_kept": "VOOL gönderilenin kopyasını tutmaz. Önizleme en fazla beş dakika açık kalır.",
+    "settings.profile.signature_label": "E-posta imzası",
+    "settings.profile.signature_hint": "VOOL’un sizin için yazdığı e-postaların sonuna eklenir.",
+    "settings.models.exact_name": "Tam adı"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

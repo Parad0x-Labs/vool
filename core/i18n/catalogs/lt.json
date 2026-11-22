@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Taikoma iškart.",
     "settings.row.ram_reserve_pct.help": "VOOL visada palieka šią jūsų kompiuterio atminties dalį laisvą jums, net per sunkią užduotį. Didesnė dalis reiškia, kad VOOL naudoja mažiau. Tai griežta riba, ne pasiūlymas.",
     "settings.row.ram_reserve_pct.label": "Atmintis, paliekama laisva kitoms programoms",
-    "settings.row.remembered_identity_note.help": "Jūsų vardas ir el. pašto parašas saugomi čia kartu su viskuo, ką VOOL prisimena. Įrašykite vardą laukelyje šios skilties viršuje, o sąraše redaguokite ar pamirškite bet kurį iš jų.",
-    "settings.row.remembered_identity_note.label": "Jūsų vardas ir jūsų el. pašto parašas",
     "settings.row.session_export.help": "Failas .voolsession neša vieno pokalbio ėjimus, kvitus ir įrodymų nuorodas, pasirašytus šio kompiuterio rakto. Šifravimas rekomenduojamas kiekvienam ryšuliui, paliekančiam šį kompiuterį; nešifruotam eksportui pirmiausia reikia patvirtinti įspėjimą. Modelio vidinis samprotavimas ryšulio dalis nėra, o peržiūra tiksliai pasako, kas bus įrašyta, dar iki bet ko.",
     "settings.row.session_export.label": "Eksportuoti pokalbį",
     "settings.row.session_import.help": "Pasirinkite .voolsession failą, peržiūrėkite, kas jame ir kas pasirašė, tada importuokite. Ryšulys, pasirašytas nežinomo rakto, atmetamas, kol jo nepriimate, ir lieka pažymėtas nepatikimu. Importavimas niekada nekeičia esamo pokalbio: jei id jau čia, kopija nusėda po nauju. Slaptafrazės gyvena tik šiuose laukuose, niekada istorijoje, žurnaluose ar kvituose.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Mano daiktai ir rutinos",
     "settings.row.profile_items.hint": "Viskas, ką VOOL prisimena. Redaguokite arba pamirškite bet kurį įrašą.",
     "settings.row.learned_facts.hint": "Faktai iš jūsų pokalbių, su jų kilme.",
-    "settings.row.remembered_identity_note.hint": "Jūsų vardas ir el. pašto parašas taip pat saugomi čia.",
     "settings.row.my_things.label": "Mano daiktai",
     "settings.row.my_things.help": "Čia laikykite kvitus, instrukcijas ir įrangos duomenis. Failai lieka šiame kompiuteryje.",
     "settings.row.routines.label": "Mano rutinos",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "Kaip VOOL ir macOS pranešimai veikia kartu",
     "settings.row.live_browser.needs_web": "Pirmiau įjunkite „Interneto paieška“ aukščiau.",
     "settings.row.live_browser.open": "Atverti naršyklę",
-    "disclosure.copies_never_kept": "VOOL nesaugo to, kas išsiųsta, kopijos. Peržiūra lieka atverta iki penkių minučių."
+    "disclosure.copies_never_kept": "VOOL nesaugo to, kas išsiųsta, kopijos. Peržiūra lieka atverta iki penkių minučių.",
+    "settings.profile.signature_label": "El. laiško parašas",
+    "settings.profile.signature_hint": "Pridedamas VOOL už jus rašomų laiškų pabaigoje.",
+    "settings.models.exact_name": "Tikslus pavadinimas"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

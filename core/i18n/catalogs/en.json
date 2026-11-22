@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Applies immediately.",
     "settings.row.ram_reserve_pct.help": "VOOL always leaves this share of your computer's memory free for you, even during a heavy task. A bigger share means VOOL uses less. This is a firm limit, not a suggestion.",
     "settings.row.ram_reserve_pct.label": "Memory kept free for your other apps",
-    "settings.row.remembered_identity_note.help": "Your name and email signature are kept here with everything else VOOL remembers. Set your name in the field at the top of this section, and edit or forget either one in the list.",
-    "settings.row.remembered_identity_note.label": "Your name, and your email signature",
     "settings.row.session_export.help": "A .voolsession file carries one conversation's turns, receipts and evidence references, signed by this machine's key. Encryption is recommended for any bundle leaving this computer; an unencrypted export needs the warning acknowledged first. Model-internal reasoning is not part of a bundle, and the preview states exactly what will be written before anything is.",
     "settings.row.session_export.label": "Export a chat",
     "settings.row.session_import.help": "Pick a .voolsession file, preview what it contains and who signed it, then import. A bundle signed by an unknown key is refused unless you accept it, and stays marked untrusted. An import never modifies an existing chat: if the id is already here, the copy lands under a new one. Passphrases exist only in these fields, never in history, logs or receipts.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "My things and routines",
     "settings.row.profile_items.hint": "Everything VOOL remembers. Edit or forget any item.",
     "settings.row.learned_facts.hint": "Facts from your chats, with where each came from.",
-    "settings.row.remembered_identity_note.hint": "Your name and email signature are kept here too.",
     "settings.row.my_things.label": "My things",
     "settings.row.my_things.help": "Keep receipts, manuals and equipment details here. Files stay on this computer.",
     "settings.row.routines.label": "My routines",
@@ -5138,7 +5135,10 @@
     "settings.row.live_browser.open": "Open the browser",
     "settings.row.daily_token_budget.unit": "word pieces a day (0 = no guide)",
     "vns.why.summary": "How VOOL and macOS alerts work together",
-    "disclosure.copies_never_kept": "VOOL keeps no copy of what was sent. A preview stays open for up to five minutes."
+    "disclosure.copies_never_kept": "VOOL keeps no copy of what was sent. A preview stays open for up to five minutes.",
+    "settings.profile.signature_label": "Email signature",
+    "settings.profile.signature_hint": "Added at the end of emails VOOL writes for you.",
+    "settings.models.exact_name": "Exact name"
   },
   "html_keys": [
     "bypass.modal_limits",

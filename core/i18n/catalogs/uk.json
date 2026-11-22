@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Діє негайно.",
     "settings.row.ram_reserve_pct.help": "VOOL завжди залишає цю частку пам’яті комп’ютера вільною для вас, навіть під час важкого завдання. Більша частка означає, що VOOL використовує менше. Це жорстке обмеження, а не порада.",
     "settings.row.ram_reserve_pct.label": "Пам’ять, залишена для інших застосунків",
-    "settings.row.remembered_identity_note.help": "Ваше ім’я та підпис у листах зберігаються тут разом з усім, що пам’ятає VOOL. Вкажіть ім’я в полі вгорі цього розділу, а в списку редагуйте або забувайте будь-що з них.",
-    "settings.row.remembered_identity_note.label": "Ваше ім'я і ваш поштовий підпис",
     "settings.row.session_export.help": "Файл .voolsession несе ходи однієї розмови, її квитанції і посилання на докази, підписані ключем цієї машини. Шифрування радиться для будь-якого пакунка, що покидає цей комп'ютер; нешифрований експорт потребує спершу визнати застереження. Внутрішні міркування моделі не входять до пакунка, а попередній перегляд говорить точно, що буде записано, перш ніж що-небудь буде.",
     "settings.row.session_export.label": "Експортувати чат",
     "settings.row.session_import.help": "Виберіть файл .voolsession, подивіться у попередньому перегляді, що в середині і хто підписав, і імпортуйте. Пакунок, підписаний невідомим ключем, відхиляється, доки ви його не приймете, і лишається позначеним недовіреним. Імпорт ніколи не міняє наявний чат: якщо id уже тут, копія ляже під новий. Парольні фрази живуть лише в цих полях, ніколи в історії, журналах чи квитанціях.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Мої речі та рутини",
     "settings.row.profile_items.hint": "Усе, що VOOL пам’ятає. Змініть або забудьте будь-який пункт.",
     "settings.row.learned_facts.hint": "Факти з ваших чатів, із джерелом кожного.",
-    "settings.row.remembered_identity_note.hint": "Ваше ім’я та підпис листів теж зберігаються тут.",
     "settings.row.my_things.label": "Мої речі",
     "settings.row.my_things.help": "Зберігайте тут чеки, інструкції та дані про обладнання. Файли залишаються на цьому комп’ютері.",
     "settings.row.routines.label": "Мої рутини",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "Як разом працюють сповіщення VOOL і macOS",
     "settings.row.live_browser.needs_web": "Спершу ввімкніть «Веб-пошук» вище.",
     "settings.row.live_browser.open": "Відкрити браузер",
-    "disclosure.copies_never_kept": "VOOL не зберігає копії надісланого. Попередній перегляд лишається відкритим до п’яти хвилин."
+    "disclosure.copies_never_kept": "VOOL не зберігає копії надісланого. Попередній перегляд лишається відкритим до п’яти хвилин.",
+    "settings.profile.signature_label": "Підпис у листах",
+    "settings.profile.signature_hint": "Додається в кінці листів, які VOOL пише за вас.",
+    "settings.models.exact_name": "Точна назва"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

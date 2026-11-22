@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "Se aplica de inmediato.",
     "settings.row.ram_reserve_pct.help": "VOOL siempre deja libre para ti esta parte de la memoria de tu ordenador, incluso durante una tarea pesada. Una parte mayor significa que VOOL usa menos. Es un límite firme, no una sugerencia.",
     "settings.row.ram_reserve_pct.label": "Memoria libre para tus otras apps",
-    "settings.row.remembered_identity_note.help": "Tu nombre y tu firma de correo se guardan aquí con todo lo demás que VOOL recuerda. Pon tu nombre en el campo de arriba de esta sección, y edita u olvida cualquiera de los dos en la lista.",
-    "settings.row.remembered_identity_note.label": "Tu nombre y tu firma de correo",
     "settings.row.session_export.help": "Un archivo .voolsession lleva los turnos de una conversación, sus recibos y referencias de evidencia, firmados por la clave de esta máquina. Se recomienda cifrado para cualquier paquete que salga de esta computadora; una exportación sin cifrar requiere reconocer antes el aviso. El razonamiento interno del modelo no forma parte del paquete, y la vista previa dice exactamente qué se escribirá antes de escribir nada.",
     "settings.row.session_export.label": "Exportar un chat",
     "settings.row.session_import.help": "Elige un archivo .voolsession, previsualiza qué contiene y quién lo firmó, e importa. Un paquete firmado por una clave desconocida se rechaza salvo que lo aceptes, y queda marcado como no confiable. Una importación nunca modifica un chat existente: si el id ya está aquí, la copia cae bajo uno nuevo. Las frases de contraseña solo existen en estos campos, nunca en historial, registros ni recibos.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "Mis cosas y rutinas",
     "settings.row.profile_items.hint": "Todo lo que VOOL recuerda. Edita u olvida cualquier elemento.",
     "settings.row.learned_facts.hint": "Datos de tus chats, con su origen.",
-    "settings.row.remembered_identity_note.hint": "Tu nombre y tu firma de correo también se guardan aquí.",
     "settings.row.my_things.label": "Mis cosas",
     "settings.row.my_things.help": "Guarda aquí recibos, manuales y datos de tus equipos. Los archivos se quedan en este ordenador.",
     "settings.row.routines.label": "Mis rutinas",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "Cómo funcionan juntos los avisos de VOOL y de macOS",
     "settings.row.live_browser.needs_web": "Activa primero «Búsquedas web» arriba.",
     "settings.row.live_browser.open": "Abrir el navegador",
-    "disclosure.copies_never_kept": "VOOL no guarda copia de lo enviado. Una vista previa queda abierta hasta cinco minutos."
+    "disclosure.copies_never_kept": "VOOL no guarda copia de lo enviado. Una vista previa queda abierta hasta cinco minutos.",
+    "settings.profile.signature_label": "Firma de correo",
+    "settings.profile.signature_hint": "Se añade al final de los correos que VOOL escribe por ti.",
+    "settings.models.exact_name": "Nombre exacto"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

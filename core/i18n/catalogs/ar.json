@@ -1934,8 +1934,6 @@
     "settings.row.ram_reserve_pct.effect": "يسري فورًا.",
     "settings.row.ram_reserve_pct.help": "يترك VOOL دائمًا هذه الحصة من ذاكرة كمبيوترك متاحة لك، حتى أثناء مهمة ثقيلة. حصة أكبر تعني أن VOOL يستخدم أقل. هذا حد ثابت، وليس اقتراحًا.",
     "settings.row.ram_reserve_pct.label": "ذاكرة تُترك فارغة لتطبيقاتك الأخرى",
-    "settings.row.remembered_identity_note.help": "اسمك وتوقيع بريدك محفوظان هنا مع كل ما يتذكره VOOL. اضبط اسمك في الحقل أعلى هذا القسم، وعدّل أيًّا منهما أو انسه في القائمة.",
-    "settings.row.remembered_identity_note.label": "اسمك، وتوقيع بريدك",
     "settings.row.session_export.help": "يحمل ملف .voolsession أدوار محادثة واحدة وإيصالاتها ومراجع أدلتها، موقعة بمفتاح هذه الآلة. يوصى بالتشفير لأي حزمة تغادر هذا الحاسوب؛ التصدير غير المشفر يتطلب الإقرار بالتحذير أولًا. استدلال النموذج الداخلي ليس جزءًا من الحزمة، والمعاينة تقول بالضبط ما سيُكتب قبل كتابة أي شيء.",
     "settings.row.session_export.label": "تصدير محادثة",
     "settings.row.session_import.help": "اختر ملف .voolsession، وعاين ما يحتويه ومن وقّعه، ثم استورد. الحزمة الموقعة بمفتاح مجهول تُرفض إلا إذا قبلتها، وتبقى موسومة غير موثوقة. الاستيراد لا يعدّل محادثة قائمة أبدًا: إن كان المعرف موجودًا هنا، تهبط النسخة تحت معرف جديد. عبارات المرور توجد في هذه الحقول فقط، لا في التاريخ أو السجلات أو الإيصالات أبدًا.",
@@ -4909,7 +4907,6 @@
     "settings.card.memory.things.title": "أغراضي وروتيناتي",
     "settings.row.profile_items.hint": "كل ما يتذكره VOOL. عدّل أو انسَ أي عنصر.",
     "settings.row.learned_facts.hint": "حقائق من محادثاتك مع مصدر كل منها.",
-    "settings.row.remembered_identity_note.hint": "اسمك وتوقيع بريدك محفوظان هنا أيضًا.",
     "settings.row.my_things.label": "أشيائي",
     "settings.row.my_things.help": "احتفظ بالإيصالات والأدلة وتفاصيل الأجهزة هنا. تبقى الملفات على هذا الكمبيوتر.",
     "settings.row.routines.label": "روتيناتي",
@@ -5138,9 +5135,12 @@
     "vns.why.summary": "كيف تعمل تنبيهات VOOL وmacOS معًا",
     "settings.row.live_browser.needs_web": "شغّل «عمليات البحث في الويب» أعلاه أولًا.",
     "settings.row.live_browser.open": "افتح المتصفح",
-    "disclosure.copies_never_kept": "لا يحتفظ VOOL بنسخة مما تم إرساله. تبقى المعاينة مفتوحة حتى خمس دقائق."
+    "disclosure.copies_never_kept": "لا يحتفظ VOOL بنسخة مما تم إرساله. تبقى المعاينة مفتوحة حتى خمس دقائق.",
+    "settings.profile.signature_label": "توقيع البريد الإلكتروني",
+    "settings.profile.signature_hint": "يُضاف في نهاية الرسائل التي يكتبها VOOL لك.",
+    "settings.models.exact_name": "الاسم الدقيق"
   },
-  "source_catalog_sha256": "7557bb6295c2610f85cc6a0af50887afed2e0fe5f102c0a6353d24beb0fc0904",
+  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
