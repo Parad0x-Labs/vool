@@ -39,17 +39,34 @@ _SKIP_DIRS = {
 }
 
 
-def find_built_site_page(workspace_root: str) -> str | None:
+#: A turn waits at most this long for the page search; a folder read that the OS holds longer
+#: (macOS holds a new program's first read of Desktop until its privacy prompt is answered)
+#: finishes, or not, off the turn, and the turn answers as if no page was built.
+_SEARCH_WAIT_S = 1.5
+
+
+def find_built_site_page(workspace_root: str, *, wait_s: float = _SEARCH_WAIT_S) -> str | None:
     """The most recently modified built ``index.html`` under ``workspace_root``, else ``None``.
 
     Bounded (depth ~3), skips hidden directories and the usual heavy folders, and fails closed on
     anything odd: an unreadable root, an unreadable file or a decode error simply does not
-    surface as a candidate.
+    surface as a candidate. The walk runs off the turn and is waited on for at most ``wait_s``
+    (Mac gate, 315c57e65: a turn sat over seven minutes in this walk of the owner's Desktop).
     """
     root = str(workspace_root or "").strip()
-    if not root or not os.path.isdir(root):
+    if not root:
         return None
     root = os.path.abspath(root)
+    from core.off_turn import run_bounded
+
+    return run_bounded(
+        "built-site-page:" + root, lambda: _walk_for_built_site_page(root), wait_s=wait_s, fallback=None
+    )
+
+
+def _walk_for_built_site_page(root: str) -> str | None:
+    if not os.path.isdir(root):
+        return None
     best_path = ""
     best_key: tuple[float, str] = (-1.0, "")
     try:
@@ -143,6 +160,11 @@ def maybe_handle_site_followup(
     clean = _clean_text(text)
     if not clean:
         return None
+    publish, edit = _is_publish_request(clean), _is_edit_request(clean)
+    see = not (publish or edit) and _looks_like_see_request(clean)
+    if not (publish or edit or see):
+        # The wording claims nothing, so the owner's folders are not read at all on this turn.
+        return None
     context = dict(source_context or {})
     workspace = str(context.get("workspace") or context.get("workspace_root") or "").strip()
     page = find_built_site_page(workspace) if workspace else None
@@ -161,17 +183,17 @@ def maybe_handle_site_followup(
             )
         }
 
-    if _is_publish_request(clean):
+    if publish:
         return result(
             "The page was made on this computer and nothing has been put online. "
             "Putting a page on the internet is not something VOOL does.",
             "built_site_publish_refused",
         )
 
-    if _is_edit_request(clean):
+    if edit:
         return _handle_edit(result, page, clean)
 
-    if _looks_like_see_request(clean):
+    if see:
         folder = os.path.basename(os.path.dirname(os.path.abspath(page))) or "workspace"
         reply = (
             f"Your page is on this computer, in the {folder} folder, in a file called index.html. "

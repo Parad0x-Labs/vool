@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from core.clean_loop.registry import Registry, ToolContext, ToolOutcome
+from core.off_turn import run_bounded
 
 _RESULT_CHARS = 3000
 _FIND_WORDS = 3
@@ -583,6 +584,9 @@ _TEXT_MAX_BYTES = 2 * 1024 * 1024
 #: Index work a route decision may do on the turn itself; the rest is done by `warm_index`, off the turn.
 _TEXT_SCAN_S = 0.25
 _TEXT_FIND_SCAN_S = 4.0
+#: How much longer than its own work slice a turn waits for the index (the lock may be held by a
+#: background slice for up to its own slice).
+_INDEX_WAIT_S = 3.0
 _TEXT_INDEX_BYTES = 48 * 1024 * 1024
 
 
@@ -973,6 +977,7 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float, fresh: boo
 
 
 _WARMING: dict[str, threading.Thread] = {}
+_WARM_LOCK = threading.Lock()
 _WARM_SLICE_S = 0.25
 _WARM_MAX_S = 600.0
 
@@ -985,7 +990,9 @@ def warm_index(ctx: ToolContext) -> None:
     home_key = str(ctx.home.resolve())
     if _content_index_complete(ctx):
         return
-    with _INDEX_LOCK:
+    # Its own small lock, never the index lock: a slice blocked in a folder read holds the index
+    # lock, and the turn that calls this must not wait behind it (Mac gate, 315c57e65).
+    with _WARM_LOCK:
         running = _WARMING.get(home_key)
         if running is not None and running.is_alive():
             return
@@ -1043,10 +1050,18 @@ def document_matches(ask: str, ctx: ToolContext) -> bool:
     words = ask_words(ask)
     if not words or not is_question(ask):
         return False
-    with _INDEX_LOCK:
-        candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S, fresh=False)
-        paths = {str(path) for path in candidates}
-        documents = [item for key, item in _TEXT_CACHE.items() if key[0] in paths]
+
+    def read() -> list[_IndexedDocument]:
+        with _INDEX_LOCK:
+            candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S, fresh=False)
+            paths = {str(path) for path in candidates}
+            return [item for key, item in _TEXT_CACHE.items() if key[0] in paths]
+
+    # Off the turn, waited on briefly: a folder read the OS holds (or an index slice holding the
+    # lock while it waits on one) leaves the question routed as not about the owner's documents.
+    documents = run_bounded(
+        "document-match:" + str(ctx.home.resolve()), read, wait_s=_TEXT_SCAN_S + _INDEX_WAIT_S, fallback=[]
+    )
     if not documents:
         return False
     # Counted in documents: a word some documents write as a name and at least as many never
@@ -1086,9 +1101,16 @@ def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
     its name: Mac audit F08), over the whole in-memory index rather than the newest few files. Best match first,
     with the line it is on. The five best are read again through the read tools at the matching
     line or page, so what the model is shown is this turn's own read evidence."""
-    with _INDEX_LOCK:
-        candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_FIND_SCAN_S)
-        cache = dict(_TEXT_CACHE)
+    def read() -> tuple[list[Path], dict[tuple[str, int, int], _IndexedDocument]]:
+        with _INDEX_LOCK:
+            candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_FIND_SCAN_S)
+            return candidates, dict(_TEXT_CACHE)
+
+    # A blocked folder read never holds the search: past the wait, nothing inside documents is
+    # reported and `find` says the contents were not all searched (the index is not complete).
+    candidates, cache = run_bounded(
+        "document-find:" + str(ctx.home.resolve()), read, wait_s=_TEXT_FIND_SCAN_S + _INDEX_WAIT_S, fallback=([], {})
+    )
     scored: list[tuple[int, Path, _IndexedDocument, str]] = []
     for path in candidates:
         if not _in_scope(path, ctx):
