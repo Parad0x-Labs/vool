@@ -155,6 +155,16 @@ def _pinned_entry_sha256(name: str, fd: int) -> str:
     return digest.hexdigest()
 
 
+def _lock_pinned_directory(fd: int) -> None:
+    """An exclusive advisory lock on a pinned directory descriptor, held until it is closed. Where
+    the platform has no `flock`, nothing is locked and the documented race remains."""
+    try:
+        import fcntl
+    except ImportError:
+        return
+    fcntl.flock(fd, fcntl.LOCK_EX)
+
+
 def pinned_atomic_write_text(
     path: Path,
     content: str,
@@ -176,7 +186,13 @@ def pinned_atomic_write_text(
     Returns the (device, inode) of the file this call left at the destination, which a compensation
     needs in order to remove exactly that file and no other (`pinned_remove_created_file`). Platforms
     without directory descriptors fall back to `atomic_write_text` after the same link and
-    reviewed-bytes checks on the path."""
+    reviewed-bytes checks on the path.
+
+    With ``expected_prior_sha256``, the check and the rename happen under an exclusive lock on the
+    pinned parent directory, so two VOOL writers (two processes, two approvals of one reviewed
+    base) can never both pass the check and both rename: the second sees the first one's bytes and
+    is refused as a changed base (CI 44970482057, shard 8: both wrote, one then failed byte
+    verification after its write had already landed)."""
     target = Path(path)
     parent, name = target.parent, target.name
     # `os.rename` with directory descriptors is `renameat`, which on POSIX atomically replaces an existing
@@ -200,6 +216,8 @@ def pinned_atomic_write_text(
     fd = _open_pinned_directory(parent)
     tmp_name = ""
     try:
+        if expected_prior_sha256 is not None:
+            _lock_pinned_directory(fd)  # released when `fd` is closed below
         existing_stat = None
         with contextlib.suppress(FileNotFoundError):
             existing_stat = os.stat(name, dir_fd=fd, follow_symlinks=False)
