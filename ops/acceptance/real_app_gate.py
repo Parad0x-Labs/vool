@@ -369,9 +369,18 @@ def approve(page, how: str) -> str:
                 note = "bypass_unavailable(" + ready.strip()[:120] + ")_then_"
         except Exception as exc:
             note = "bypass_error(" + str(exc).splitlines()[0][:120] + ")_then_"
-        page.click("#permTask", timeout=5000)
-        return note + "allow_for_task"
+        return note + allow_visible(page, "task")
+    return allow_visible(page, how)
+
+
+def allow_visible(page, how: str) -> str:
+    """Press the allow button a person would: the asked-for scope when the card offers it, else
+    "Allow once". The card offers "for this task" only for some actions (a reminder offers once
+    only), and a hidden button cannot be pressed (gate on 991e5be60 timed out on it after E1)."""
     target = {"once": "#permOnce", "task": "#permTask"}[how]
+    if how == "task" and not page.is_visible("#permTask"):
+        page.click("#permOnce", timeout=5000)
+        return "allow_once(task scope not offered)"
     page.click(target, timeout=5000)
     return "allow_" + how
 
