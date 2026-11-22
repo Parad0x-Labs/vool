@@ -501,6 +501,11 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
     output_text = str(getattr(synthesis, "output_text", "") or "").strip()
     if output_text and not _internal_payload(output_text):
         return output_text
+    # A step of the model's own tool navigation (listing the tools, asking for another family's) only serves its next
+    # round; its text is addressed to the model. Measured on 58f60bbf3 (blind audit, a Lithuanian "remember this"):
+    # the model asked for a family that does not exist and the person got "0 of 1 tool steps succeeded. Last result:
+    # `translation` is not a capability family. Ask `operator.list_tools` for the family table first."
+    executed_steps = [step for step in executed_steps if not _navigation_step(step)]
     if executed_steps:
         last_step = executed_steps[-1]
         observation_message = _git_summary_observation_message(last_step)
@@ -520,7 +525,18 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
             f"{completed} of {len(executed_steps)} tool steps succeeded. "
             f"Last result: {str(last_step.get('summary') or last_step.get('status') or 'outcome unconfirmed').strip()}"
         )
-    return "I ran the available tools, but I do not have a grounded final synthesis yet."
+    return "I could not finish this: no tool did any work for it and no answer was written. Nothing was changed."
+
+
+def _navigation_step(step: dict[str, Any]) -> bool:
+    """Whether a step is the model's own tool navigation: the tools seated on every round of every turn so the model
+    can find the others (`core.capability_graph._ALWAYS_VISIBLE`), apart from a direct answer."""
+    try:
+        from core.capability_graph import _ALWAYS_VISIBLE
+    except Exception:
+        return False
+    intent = str(step.get("tool_name") or step.get("intent") or "").strip()
+    return intent in _ALWAYS_VISIBLE and intent != "respond.direct"
 
 
 #: A record id as VOOL shows one: 8 hex characters (a reminder's or an action's short id) or a whole uuid, holding at

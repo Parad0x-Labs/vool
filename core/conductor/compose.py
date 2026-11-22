@@ -108,6 +108,10 @@ _INTERNAL_REASON_PHRASES = (
     ("no tool seam available", "no tool on this machine can serve it"),
     ("scheduler fault", "the runtime failed while running it"),
     ("no registered operation named", "nothing in this runtime knows how to do it"),
+    # The planner's "<operation> found nothing to act on in this request": the operation is a lane id
+    # ("machine_observation", "calculation"). Measured on 58f60bbf3 (blind audit): "were does it live?" in a recall
+    # question was shown as "machine_observation found nothing to act on in this request".
+    ("found nothing to act on", "nothing in it was something this step could work on"),
 )
 _INTERNAL_OPERATION_REASON_RE = re.compile(
     r"^[a-z][a-z0-9_]*\s+is\s+unavailable\s+for\s+this\s+request:\s*(?P<detail>.+)$",
