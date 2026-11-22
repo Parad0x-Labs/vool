@@ -411,6 +411,9 @@ function vnNewView() {
     // The run card's own words for this turn's newest step (see vnConsume), the approval's own
     // words, and when the turn was sent and ended: what the bubble says is what really happens.
     liveWords: "", askWords: "", sentAt: 0, endedAt: 0, receivedAt: 0,
+    // The page sent this lane's newest turn (task.submitted): the pet is starting, whatever the
+    // server has or has not said yet. Cleared by nothing but a new view; terminal truth wins.
+    sent: false,
   };
 }
 function vnView(chatId) {
@@ -442,7 +445,7 @@ function vnApply(view, ev) {
       // tool. Carrying the previous turn's category here would narrate work not yet started.
       view.started = false; view.category = null; view.catFp = null; view.catN = -1;
       view.activeTool = null; view.lastSummary = null; view.lastTool = null;
-      view.liveWords = ""; view.askWords = ""; view.endedAt = 0;
+      view.liveWords = ""; view.askWords = ""; view.endedAt = 0; view.sent = true;
       // When the request left the composer, as the page stamped it (0 = unknown: no duration).
       view.sentAt = vnEventTime(ev, view.receivedAt);
       // The user's own words for THIS turn: the bubble follows the conversation ("as we go")
@@ -483,9 +486,16 @@ function vnApply(view, ev) {
     case "permission.required":
       view.approvalSeq = fp;
       // What the approval is FOR, in the request's own words ("Send the email to Anna?").
-      // The approval's plain action is what the permission bar names; the summary is the fallback.
-      view.askWords = String((ev.approval && (ev.approval.action_plain || ev.approval.action))
-        || ev.summary || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      // The approval's plain action is what the permission bar names. The summary is only for an
+      // ask that never named its action: a later event of the same ask that carries no approval
+      // ("Awaiting approval for action response: ...", seen on the Mac 1.2 s into an ask) never
+      // replaces the action the bar shows.
+      {
+        const named = String((ev.approval && (ev.approval.action_plain || ev.approval.action)) || "")
+          .replace(/\s+/g, " ").trim().slice(0, 160);
+        if (named) view.askWords = named;
+        else if (!view.askWords) view.askWords = String(ev.summary || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      }
       break;
     case "permission.resolved": view.approvalSeq = null; break;
     case "task.finalizing": view.finishSeq = fp; break;
@@ -547,7 +557,7 @@ function vnConsume(chatId, ev, words, at) {
   view.receivedAt = Number(at) > 0 ? Number(at) : 0;
   const changed = vnApply(view, ev);
   if (changed && !view.terminal && typeof words === "string" && words.trim()
-      && ev && ev.type !== "task.submitted" && ev.type !== "permission.required") {
+      && ev && ev.type !== "permission.required") {
     view.liveWords = words.replace(/\s+/g, " ").trim().slice(0, 160);
   }
   vnLastChat = String(chatId || "");
@@ -601,6 +611,12 @@ function vnResolve(view) {
     r.stage = view.middleSeen ? "MIDDLE" : "START";
   } else if (view.started) {
     r.state = "START"; r.category = "UNDERSTANDING"; r.tone = "start"; r.stage = "START";
+  } else if (view.sent) {
+    // Sent, not yet acknowledged: starting, in the card's own words ("Request sent"). No category:
+    // nothing is claimed about the server's progress (measured on the Mac: 7-20 s of "Idle" beside
+    // a card that said "Working" while a cold model loaded, and again after every Allow).
+    r.state = "START"; r.tone = "start"; r.stage = "START";
+    if (view.liveWords) { r.phraseId = "live:" + vnFnv1a(view.liveWords); r.phraseText = view.liveWords; }
   }
   if (r.category) {
     // The real step first: the run card's own words for the newest event of this turn. The
@@ -732,7 +748,7 @@ function vnClampBubble() {
   vnBubble.style.setProperty("--vn-bubble-dx", dx + "px");
 }
 /* A short task title from the user's own words, for the bubble's first line. Deterministic and
-   local (no model call): the first clause, with greetings, request wrappers ("can you", "please",
+   local (no model call): the first clause that names something, with greetings, request wrappers ("can you", "please",
    "what's") and pronoun filler dropped, at most VN_TASK_TITLE_WORDS words, sentence case, no
    trailing connector or punctuation. "can you check my email from Anna and summarize it" ->
    "Check email from Anna"; "whats the weather in Paris?" -> "Weather in Paris". A turn that is
@@ -767,25 +783,42 @@ function vnTaskTitle(text) {
     }
     return v;
   };
+  const wordsOf = function (clause) {
+    let words = [];
+    clause.split(" ").forEach(function (token) {
+      const w = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+      if (w) { if (!VN_TITLE_DROP[w.toLowerCase()]) words.push(w); return; }
+      // An operator after a kept word stays; a trailing one is popped below with the connectors.
+      if (words.length && VN_TITLE_OPERATOR.test(token)) words.push(token);
+    });
+    // A clause of "X and Y" keeps X: the title names the first thing asked.
+    const cut = words.findIndex(function (w, i) { return i > 1 && /^(?:and|then)$/i.test(w); });
+    if (cut > 0) words = words.slice(0, cut);
+    words = words.slice(0, VN_TASK_TITLE_WORDS);
+    while (words.length && (VN_TITLE_TAIL[words[words.length - 1].toLowerCase()] || VN_TITLE_OPERATOR.test(words[words.length - 1]))) words.pop();
+    return words;
+  };
   let s = String(text || "").replace(/https?:\/\/(?:www\.)?([^\/\s]+)\S*/gi, "$1");
-  // Greetings go before the clause split, so "hi! how do I ..." names the question, not "hi".
-  s = strip(s.split(/\n/)[0].replace(/\s+/g, " ").trim());
-  s = strip(s.split(/[.!?;,](?:\s|$)|:\s/)[0].trim());
-  let words = [];
-  s.split(" ").forEach(function (token) {
-    const w = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
-    if (w) { if (!VN_TITLE_DROP[w.toLowerCase()]) words.push(w); return; }
-    // An operator after a kept word stays; a trailing one is popped below with the connectors.
-    if (words.length && VN_TITLE_OPERATOR.test(token)) words.push(token);
-  });
-  // A clause of "X and Y" keeps X: the title names the first thing asked.
-  const cut = words.findIndex(function (w, i) { return i > 1 && /^(?:and|then)$/i.test(w); });
-  if (cut > 0) words = words.slice(0, cut);
-  words = words.slice(0, VN_TASK_TITLE_WORDS);
-  while (words.length && (VN_TITLE_TAIL[words[words.length - 1].toLowerCase()] || VN_TITLE_OPERATOR.test(words[words.length - 1]))) words.pop();
-  if (!words.length) return "";
-  const title = words.join(" ");
-  return title.charAt(0).toUpperCase() + title.slice(1);
+  // Greetings go before the sentence split, so "hi! how do I ..." names the question, not "hi".
+  s = strip(s.replace(/[ \t\r\f\v]+/g, " ").trim());
+  // The first sentence that names something wins: "Thanks. In one sentence, what did you just put
+  // in that file?" is a thank-you, then the ask (its title was empty for the whole turn on the
+  // Mac). In a question, the question's own clause goes first ("For the report, can you check the
+  // numbers?" names the check, not "Report").
+  const sentences = s.replace(/([.!?])\s+/g, "$1\n").split("\n");
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i].trim();
+    if (!sentence) continue;
+    const clauses = sentence.replace(/[.!?]+$/, "").split(/[;,](?:\s|$)|:\s/);
+    if (/\?\s*$/.test(sentence) && clauses.length > 1) clauses.unshift(clauses.pop());
+    for (let j = 0; j < clauses.length; j++) {
+      const words = wordsOf(strip(clauses[j].trim()));
+      if (!words.length) continue;
+      const title = words.join(" ");
+      return title.charAt(0).toUpperCase() + title.slice(1);
+    }
+  }
+  return "";
 }
 /* Line 1 of the bubble (in-app and detached pet alike): the current task's title; a turn with
    no nameable task (a greeting) shows no title line; a legacy turn with no user words falls back
@@ -2042,10 +2075,26 @@ function vnBoot() {
   // the composer grows. Each re-clips the hit area; the layer's own per-frame repaints do not.
   document.addEventListener("scroll", vnScheduleHitMask, { capture: true, passive: true });
   if (typeof MutationObserver === "function") {
+    const critical = VN_CRITICAL_SELECTORS.join(",");
     new MutationObserver(function (records) {
+      let outside = false;
       for (let i = 0; i < records.length; i++) {
-        if (!vnLayer.contains(records[i].target)) { vnScheduleHitMask(); return; }
+        const rec = records[i];
+        if (vnLayer.contains(rec.target)) continue;
+        outside = true;
+        // A control the docked pet must keep clear of (a new turn's Stop) was just added: move the
+        // pet now, before the browser paints or takes a click, not on the next animation frame
+        // (on the Mac a click in that first frame landed on the pet).
+        if (vnPos.mode === "docked" && rec.addedNodes) {
+          for (let j = 0; j < rec.addedNodes.length; j++) {
+            const n = rec.addedNodes[j];
+            if (n && n.nodeType === 1 && ((n.matches && n.matches(critical)) || (n.querySelector && n.querySelector(critical)))) {
+              vnApplyPos(); vnScheduleHitMask(true); return;
+            }
+          }
+        }
       }
+      if (outside) vnScheduleHitMask();
     }).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
   }
   setInterval(function () { if (!document.hidden) vnScheduleHitMask(true); }, 1200);

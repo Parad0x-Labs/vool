@@ -30,7 +30,7 @@ FRAGMENT = render_companion_fragment()
 
 # The three owned anchor additions. Each must be present exactly once -- a doubled
 # dispatch would double-consume events, a moved one would silently break the lane.
-ANCHOR_CONSUME = "if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev, said || '');"
+ANCHOR_CONSUME = "if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev, plain || '');"
 ANCHOR_BOOT = "if (window.VoolCompanionBoot) window.VoolCompanionBoot();"
 SHEET_STATES = ["idle", "starting", "thinking", "tool", "waiting", "approval",
                 "retry", "success", "failure", "cancelled", "unknown"]

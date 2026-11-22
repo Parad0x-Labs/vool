@@ -6095,7 +6095,7 @@ function startRunTimers(run) {
     // Named fragment call site: a browser request from this turn is answered in the chat itself.
     if (window.VoolBrowserCard) { try { window.VoolBrowserCard.tick(run.chatId, isDisplayed(run.chatId)); } catch (e) {} }
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
-    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
+    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - (run.turnStart || run.start)) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   }, 1000);
   // Poll the runtime ledger so the Activity panel shows the real timeline (scope, classify, model,
   // tools, timeouts, terminal), scoped to this turn. Only while the panel is open AND this run's
@@ -6534,7 +6534,7 @@ function renderCard(run) {
   if (!run.ended) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
   r.stage.style.whiteSpace = run.pricePaused ? 'normal' : '';
   r.stage.style.overflow = run.pricePaused ? 'visible' : '';
-  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
+  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - (run.turnStart || run.start)) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   r.steps.textContent = run.steps.length ? stepsRollupText(run.steps) : '';
   r.mode.textContent = MODE_LABELS[run.activeMode] || MODE_LABELS.manual;
   r.mode.classList.toggle('bypass', run.activeMode === 'bypass_permissions');
@@ -6708,6 +6708,15 @@ function finishRun(run, kind, summaryText, tsIso) {
   // actually happening right now -- never a re-guess for a message that finished earlier.
   run.endedAt = tsIso || new Date().toISOString();
   run.endSummary = runSummaryWords(summaryText);
+  // The pet hears every end of the chat's newest turn, not only the typed terminal events: a turn
+  // the page itself ended (connection lost, Stop, put back in the queue) would otherwise leave the
+  // pet on its last words for good. A typed end it already heard changes nothing (terminal truth is
+  // immutable there); an older run ending never speaks over a newer turn of the same chat; a turn
+  // that paused on an approval is not over.
+  const _companionEnd = { completed: 'task.completed', failed: 'task.failed', cancelled: 'task.cancelled' }[kind];
+  if (_companionEnd && ownerOf(run).run === run && typeof window !== 'undefined' && window.VoolCompanion) {
+    try { window.VoolCompanion.consume(run.chatId, { type: _companionEnd, ts: run.endedAt }, ''); } catch (e) {}
+  }
   // Stamp the transcript entry too, so re-opening this chat later shows the same completion time
   // the bubble showed live rather than losing it to the re-render.
   const _owner = ownerOf(run);
@@ -6774,7 +6783,7 @@ function paintFinishedCard(run) {
   const title = kind === 'completed' ? pageT('run.status_completed', 'Completed') : (kind === 'cancelled' ? pageT('run.status_stopped', 'Stopped') : (kind === 'awaiting_approval' ? pageT('run.status_waiting', 'Waiting for your approval') : pageT('run.failed_safely_label', 'Failed safely')));
   r.title.textContent = title;
   r.stage.textContent = run.endSummary || title;
-  r.elapsed.innerHTML = '<b>' + fmtElapsed((run.endedAtMs || (run.endedAtMs = Date.now())) - run.start) + '</b> ' + pageT('run.total_word', 'total');
+  r.elapsed.innerHTML = '<b>' + fmtElapsed((run.endedAtMs || (run.endedAtMs = Date.now())) - (run.turnStart || run.start)) + '</b> ' + pageT('run.total_word', 'total');
   // The Proof Chip for a turn that just finished (or re-opened after finishing off screen),
   // addressed by the commit's canonical request id — the same identity the server stamped on
   // the served bytes. No commit frame means no id, and no id means no chip.
@@ -6823,10 +6832,13 @@ function applyTaskEvent(run, ev) {
   // Companion layer consumes the SAME typed event (presentation only, never authority).
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
-  // What the card says for this event (runCardWords), else the event's own summary. The pet is
-  // given the same words, so its bubble says what the card says instead of a phrase of its own.
-  const said = (typeof runCardWords === 'function' ? runCardWords(ev) : '') || ev.summary;
-  if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev, said || '');
+  // What the card says for this event in plain words (runCardWords). The pet is given only those
+  // words, never the event's raw summary: a summary is engine text ("ollama-local:qwen3:8b used
+  // 997 tokens.", "Awaiting approval for action response: ...", both seen in the pet's bubble on
+  // the Mac). An event with no plain words leaves the pet on the previous step's words.
+  const plain = typeof runCardWords === 'function' ? runCardWords(ev) : '';
+  const said = plain || ev.summary;
+  if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev, plain || '');
   // The goal card consumes the same durable event (also before the ended-gate: a goal event
   // that arrives after the carrying turn finished is still live goal truth).
   if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
@@ -9825,6 +9837,11 @@ async function runTurn(text, queueItemId, opts) {
   // The transcript entry this turn answers: the one it just recorded, or the one a resume names.
   run.promptEntry = opts.resend ? (opts.promptEntry || null) : (owner.history[userHistoryIndex] || null);
   run.approvalResume = !!opts.approvalResume;
+  // When the task was asked. A resume after "Allow" is the same task going on under the asking
+  // turn's id, so it keeps the asking turn's start: the elapsed line and the pet's "Done · 1m 6s"
+  // count the whole task, not the part after the last Allow (measured on the Mac: a 66 s task
+  // read "9s").
+  run.turnStart = (opts.approvalResume && Number(opts.turnStart) > 0) ? Number(opts.turnStart) : run.start;
   // The companion learns that a NEW turn opened on this lane from the page's own fact -- the
   // request left the composer -- not from the server's later `task.started`. Until that
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
@@ -9833,7 +9850,9 @@ async function runTurn(text, queueItemId, opts) {
     // The user's own words ride the event so the companion's bubble follows the conversation
     // ("as we go") instead of the frozen first-message chat title. Presentation only: the
     // reducer bounds it, the screen-privacy mask covers it before it reaches the native pet.
-    try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start, userText: text }); } catch (e) {}
+    // The card's own first words ("Request sent") ride along: the pet says what the card says
+    // while the server has acknowledged nothing yet, instead of standing idle beside it.
+    try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.turnStart, userText: text }, run.action); } catch (e) {}
   }
   run.attachments = turnAttachments;
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one
@@ -14991,7 +15010,8 @@ function resumeApprovedTurn(chatId) {
     }
   }
   setApprovalToken(owner.chatId, resume.token);
-  runTurn(entry.content, null, { resend: true, turnId: asking.turnId, chatId: owner.chatId, promptEntry: entry, approvalResume: true });
+  runTurn(entry.content, null, { resend: true, turnId: asking.turnId, chatId: owner.chatId, promptEntry: entry, approvalResume: true,
+    turnStart: asking.turnStart || asking.start });
 }
 // The permission bar only ever shows the DISPLAYED chat's request (showPermBar enforces that), so
 // resolving it resolves that chat's grant -- recorded in that chat's bucket, never a global one.

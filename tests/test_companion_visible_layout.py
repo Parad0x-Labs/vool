@@ -251,6 +251,30 @@ def test_docked_pet_slides_clear_of_the_live_stop_not_a_hidden_one(browser, size
         page.close()
 
 
+def test_a_new_stop_under_the_docked_pet_is_clear_before_any_click_can_land(browser):
+    """A new turn's Stop appearing under the docked pet: the pet moves off it before the browser can
+    hand out a click, not on the next animation frame (the Mac sampled the pet on a fresh Stop)."""
+    page = browser.new_page(viewport={"width": 800, "height": 600})
+    try:
+        inline(page)
+        pet = rect(page, "#companionLayer .vool-ninja")
+        hit = page.evaluate("""([pet]) => new Promise(res => {
+            const live = document.createElement('button');
+            live.className = 'tc-stop'; live.id = 'liveStop'; live.textContent = 'Stop';
+            live.style.cssText = 'position:fixed;width:48px;height:28px;left:' + (pet.x + pet.width - 30)
+                + 'px;top:' + (pet.y + pet.height - 40) + 'px';
+            document.body.append(live);
+            // Mutation observers run before the task ends, so before any input event is dispatched.
+            setTimeout(() => {
+                const r = live.getBoundingClientRect();
+                res(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).id);
+            }, 0);
+        })""", [pet])
+        assert hit == "liveStop"
+    finally:
+        page.close()
+
+
 def test_right_click_opens_the_pet_menu_and_a_click_opens_the_status_card(browser):
     page = browser.new_page(viewport={"width": 900, "height": 700})
     errors = []

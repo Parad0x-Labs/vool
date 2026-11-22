@@ -37,9 +37,17 @@ try {
   applyTaskEvent(r1, { type: "tool.started", seq: 4, tool: "read_file", summary: "Reading notes.txt" });
   res.read = look(t0 + 1500); res.readCard = r1.action;
   res.readLater = look(t0 + 60000);
-  applyTaskEvent(r1, { type: "permission.required", seq: 5, summary: "long prose answer that is not the ask",
+  // Engine bookkeeping the card has no plain words for: the pet keeps the step it was on.
+  applyTaskEvent(r1, { type: "cloud.cost_updated", raw_type: "model_usage", seq: 5,
+    summary: "ollama-local:qwen3:8b used 997 tokens." });
+  res.usage = look(t0 + 60500);
+  applyTaskEvent(r1, { type: "permission.required", seq: 6, summary: "long prose answer that is not the ask",
     approval: { approval_id: "a1", action_plain: "Send the email to Anna" } });
   res.ask = look(t0 + 61000);
+  // The same ask again from the runtime, without the approval: the action stays named.
+  applyTaskEvent(r1, { type: "permission.required", seq: 7,
+    summary: "Awaiting approval for action response: I will send the email now." });
+  res.askAgain = look(t0 + 61200);
   res.askLater = look(t0 + 600000);
   displayedChat = "c2";
   const r2 = runFor("c2");
@@ -73,7 +81,9 @@ def test_the_bubble_says_the_real_step_and_is_quiet_when_idle() -> None:
     assert out["read"]["line"] == out["readCard"] and out["read"]["line"] != out["lookup"]["line"], out
     assert out["readLater"]["line"] == out["read"]["line"], "lines change with the work, not on a timer"
     # Waiting on the user: what the approval is for, as the permission bar names it.
+    assert out["usage"]["line"] == out["read"]["line"], "engine text never reaches the bubble"
     assert out["ask"]["line"] == "Send the email to Anna", out["ask"]
+    assert out["askAgain"]["line"] == "Send the email to Anna", out["askAgain"]
     assert out["askLater"]["shown"] == "flex", "a waiting decision stays visible until it is answered"
     # Finished: done, with the turn's real duration (sent -> completed = 14 s).
     assert out["done"]["shown"] == "flex" and out["done"]["line"] == "Done · 14s", out["done"]

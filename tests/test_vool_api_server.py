@@ -3012,11 +3012,11 @@ def test_vool_chat_page_is_self_contained_and_wired() -> None:
     # this fails loudly instead of silently scanning the wrong bytes.
     assert i18n_blob in html
     page_code = html.replace(i18n_blob, "")
-    page_code = re.sub(r"data:image/png;base64,[A-Za-z0-9+/=]+", "", page_code)
+    page_code = re.sub(r"data:image/(?:png|webp);base64,[A-Za-z0-9+/=]+", "", page_code)
     assert "http://" not in page_code
     external = _external_asset_references(page_code)
     assert not external, f"chat page must not reference external assets: {external}"
-    # Embedded PNG bytes are opaque: their base64 alphabet can contain "cdn".
+    # Embedded PNG and WebP bytes are opaque: their base64 alphabet can contain "cdn".
     # Keep checking page code/URLs for external dependencies.
     assert "cdn" not in page_code.lower()
     # Prove the observer still catches a genuine external dependency rather than having been

@@ -94,16 +94,60 @@ out({{ afterFirst, terminalAfterFirst, beforeAck, terminalBeforeAck, afterAck, r
     assert data["afterAck"] != TERMINAL
 
 
-def test_a_send_that_the_server_never_acknowledges_still_does_not_claim_understanding() -> None:
+def test_a_send_that_the_server_never_acknowledges_says_what_the_card_says_and_claims_no_understanding() -> None:
     """The client-side reset is not a fake acknowledgement: before `task.started` the companion has
-    no category and claims nothing about the server's progress."""
+    no category and claims nothing about the server's progress. It is not idle either: the card
+    says "Request sent" under a Working header, and the pet says the same (on the Mac a cold model
+    left the pet on "Idle" for 7-20 s beside that card, and again after every Allow)."""
     data = _drive(FIRST_TURN + f"""
 runTurn('second question', null, {{ chatId: '{A}' }});
 await tick(2);
 const view = VC.view('{A}');
 const pres = VC.resolve(view);
-out({{ started: view.started, state: pres.state, phrase: pres.phraseText }});
+out({{ started: view.started, state: pres.state, category: pres.category, phrase: pres.phraseText }});
 """)
     assert data["started"] is False
-    assert data["state"] == "IDLE"
-    assert data["phrase"] == ""
+    assert data["state"] == "START"
+    assert data["category"] is None, "no Understanding is claimed before the server says so"
+    assert data["phrase"] == "Request sent"
+
+
+def test_a_turn_the_page_ends_itself_is_over_for_the_pet_too() -> None:
+    """A turn the page ends without a typed terminal (the connection drops before any event) must
+    not leave the pet on "Request sent" for good."""
+    data = _drive(FIRST_TURN + f"""
+runTurn('second question', null, {{ chatId: '{A}' }});
+await tick(2);
+__streams['{A}'].close();
+await tick(6);
+const pres = VC.resolve(VC.view('{A}'));
+out({{ state: pres.state }});
+""")
+    assert data["state"] != "START", data
+    assert data["state"] in ("COMPLETED_UNREVIEWED", "FAILED"), data
+
+
+def test_the_turn_resumed_after_allow_counts_from_when_the_task_was_asked() -> None:
+    """After "Allow once" the page re-sends the asking turn. That is the same task going on: the
+    card's elapsed line and the pet's "Done · …" count from when it was asked (on the Mac a 66 s
+    task read "Done · 9s" because both clocks restarted at the Allow)."""
+    data = _drive(FIRST_TURN + f"""
+const owner = chatState('{A}');
+const asked = Date.now() - 60000;
+const entry = owner.history.find(e => e.role === 'user');
+owner.approvalResume = {{ token: 'appr-1', run: {{ promptEntry: entry, turnId: 'turn-1', start: asked, historyIndex: -1 }} }};
+owner.resumeApprovedTurn = true;
+resumeApprovedTurn('{A}');
+await tick(2);
+const resumed = owner.run;
+__streams['{A}'].push(ev({{ type: 'task.started', seq: 20 }}));
+__streams['{A}'].push(ev({{ type: 'task.completed', seq: 21, ts: new Date().toISOString() }}));
+__streams['{A}'].close();
+await tick(6);
+const view = VC.view('{A}');
+out({{ runs: __posts.length, turnStart: resumed.turnStart, asked, sentAt: view.sentAt, took: view.endedAt - view.sentAt }});
+""")
+    assert data["runs"] == 2, "the resume went out as its own request"
+    assert data["turnStart"] == data["asked"], "the resumed turn keeps the asking turn's start"
+    assert data["sentAt"] == data["asked"]
+    assert data["took"] >= 60000, data

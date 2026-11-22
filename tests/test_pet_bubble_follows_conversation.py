@@ -86,6 +86,12 @@ TITLE_CASES = [
     ("translate this to Spanish: good morning", "Translate this to Spanish"),
     ("Summarize https://www.bbc.com/news/article-123 for me", "Summarize bbc.com"),
     ("ok thanks", ""),
+    # A thank-you first, then the ask: the ask names the task (was "" on the Mac).
+    ("Thanks. In one sentence, what did you just put in that file?", "What did you just put"),
+    # In a question, the question's own clause names it.
+    ("Quick sum for my budget sheet: what is 23 * 19?", "23 * 19"),
+    ("For the report, can you check the numbers?", "Check numbers"),
+    ("23 * 19 = ? Just the number please.", "23 * 19"),
 ]
 
 
@@ -124,7 +130,7 @@ def test_legacy_emitter_falls_back_to_the_chat_title() -> None:
 def test_the_page_emits_the_user_text_with_every_submit() -> None:
     page = render_vool_chat_html()
     assert re.search(
-        r"task\.submitted', ts: run\.start, userText: text",
+        r"task\.submitted', ts: run\.turnStart, userText: text",
         page,
     ), "the chat page must carry the user's words on every task.submitted event"
 
