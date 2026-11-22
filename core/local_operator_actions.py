@@ -724,6 +724,54 @@ def _handle_move_reminder(
     )
 
 
+def reminder_call_before_approval(intent: str, arguments: dict[str, Any], *, session_id: str) -> tuple[dict[str, Any], str]:
+    """A model's cancel or move of a reminder, read before any approval is asked: the call pinned to the reminder it
+    means (its whole id), or the plain refusal when there is none to act on ("" when the call is fine as it is).
+
+    The outside review of 261a0389 (2026-11-22): "scrap the reminder ..." was approved first and resolved after, and the
+    reminder was then not found; the card could only say "cancel a reminder", never which one. Found first, the card
+    names it, the approved call runs by that id, and a call that cannot be carried out asks nothing."""
+    args = dict(arguments or {})
+    kind = str(intent or "").partition(".")[2]
+    if not str(intent or "").startswith("operator.") or kind not in {"cancel_reminder", "move_reminder"}:
+        return args, ""
+    from core.execution.operator_tools import build_operator_action_intent
+
+    asked = build_operator_action_intent(kind, args)
+    if kind == "move_reminder":
+        typed = operator_handlers._typed_reminder_when(asked, _parse_when)
+        when = typed[0] if typed is not None else _parse_when(asked.raw_text)
+        if not when.ok:
+            return args, str(when.problem or "")
+        if operator_when.has_passed(when):
+            return args, operator_handlers._passed_due_time_result(when, kind=kind).response_text
+    target, refusal = operator_handlers.reminder_target_or_refusal(
+        asked,
+        kind=kind,
+        session_id=session_id,
+        load_reminder_fn=_load_reminder,
+        list_reminders_fn=_list_reminders,
+        owner_rows_fn=_visible_owner_reminders,
+    )
+    if refusal is not None or target is None:
+        return args, str(getattr(refusal, "response_text", "") or "")
+    return {**args, "reminder_id": str(target.get("reminder_id") or "")}, ""
+
+
+def reminder_shown_as(reminder_id: str) -> str:
+    """A reminder as a person knows it: its note and when it is due; "" when no such reminder is stored."""
+    try:
+        row = _load_reminder(str(reminder_id or "").strip())
+    except Exception:
+        return ""
+    if not row:
+        return ""
+    wall = operator_when.format_due_time(
+        str(row.get("due_at_utc") or ""), str(row.get("tz_name") or ""), str(row.get("due_wall") or "")
+    )
+    return f"“{row.get('note')}”, {wall}"
+
+
 def _handle_complete_reminder(
     intent: OperatorActionIntent,
     *,

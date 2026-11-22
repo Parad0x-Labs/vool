@@ -39,6 +39,11 @@ class OperatorActionIntent:
     # one") carries the resolution rule here. The dispatch resolves it against this chat's own
     # rows; it never stands in for an explicit target (an id, note or title).
     referent: str | None = None
+    # A reminder order a model tool call typed out: the note to be reminded of and the due time as an ISO 8601
+    # date-time (with or without an offset). Read before the words, which are then only the request as written:
+    # the words' reading is English-only, the typed fields are the same in every language.
+    reminder_note: str | None = None
+    due_iso: str | None = None
 
 
 @dataclass

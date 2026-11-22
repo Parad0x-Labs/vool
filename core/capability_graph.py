@@ -726,6 +726,7 @@ _LEGACY_INTENT_TO_CAPABILITY: dict[str, str] = {
     "operator.schedule_calendar_event": "operator.mutate",
     "operator.schedule_reminder": "operator.mutate",
     "operator.cancel_reminder": "operator.mutate",
+    "operator.move_reminder": "operator.mutate",
     "operator.discord_post": "communication.social",
     "operator.telegram_send": "communication.social",
 
@@ -1341,6 +1342,17 @@ _WORDING_SEATED_INTENTS = frozenset({
     "operator.save_note",
 })
 
+def _judge_seated_intents() -> frozenset[str]:
+    """The tools the turn's judge seats when it reads an ask for one of VOOL's personal tools in any language
+    (core.plugin_ask.BUILTIN_CHOICES): like the wording seats, a path besides the family expansion."""
+    try:
+        from core.plugin_ask import BUILTIN_CHOICES
+
+        return frozenset(intent for _key, _description, seats in BUILTIN_CHOICES for intent in seats)
+    except Exception:
+        return frozenset()
+
+
 # Job 6d (Fix 1): the two reminder mutates this repair lane added to the operator family
 # (Job 6). Inside an overflowing expand's path-covered tail they step down FIRST: they are
 # the family's newest members, and they keep two seating surfaces of their own besides the
@@ -1351,6 +1363,12 @@ _LANE_ADDED_FAMILY_MUTATES = frozenset({
     "operator.schedule_reminder",
     "operator.cancel_reminder",
 })
+
+#: The family's newest member, the model-facing reminder move (outside review of 261a0389, 2026-11-22). It steps down
+#: first of all when an expanded operator family overflows: an ask to move a reminder seats it on its own (the turn's
+#: judge in any language, core.plugin_ask; the chat lane's parser for English), and it never takes a seat from the
+#: family's older tools or the command reads.
+_NEWEST_FAMILY_MUTATES = frozenset({"operator.move_reminder"})
 
 # Job 6e (Fix 5): the calendar's entry mutate. The expansion is the only path for the
 # calendar's edit mutates (update_calendar_event, schedule_calendar_event rank in the
@@ -1783,11 +1801,14 @@ def model_visible_specs(
     }
     demand_rule_intents = frozenset(_demand_rule_intents())
 
+    judge_seated = _judge_seated_intents()
+
     def _has_path_besides_expansion(candidate: CapabilityCandidate) -> bool:
         intent = candidate.tool_intent
         return (
             intent in _ALWAYS_VISIBLE_ORDER
             or intent in _WORDING_SEATED_INTENTS
+            or intent in judge_seated
             or intent in demand_rule_intents
             or intent in hint_seatable
         )
@@ -1795,6 +1816,8 @@ def model_visible_specs(
     def _expanded_family_rank(candidate: CapabilityCandidate) -> int:
         if candidate.tool_intent in explicit:
             return 0
+        if candidate.tool_intent in _NEWEST_FAMILY_MUTATES:
+            return 8
         if candidate.tool_intent.startswith(_COMMAND_READ_PREFIX):
             # The command registry's diagnostic reads (status, capabilities) seat in an
             # expanded family only where room is left: when the family overflows the cap they

@@ -3999,7 +3999,13 @@ def _new_approval_request(
     # `action` line still carries (pinned by an existing test). A command card names the exact
     # line that will run, so it has no second name; a tool without a keyed phrase keeps "" and
     # the page falls back to `action`.
-    from core.approval_action_phrases import localized_action_words, localized_target_words
+    from core.approval_action_phrases import (
+        approval_effect_words,
+        approval_target_kind,
+        approval_target_name,
+        localized_action_words,
+        localized_target_words,
+    )
     from core.private_chat_languages import ui_locale_of
 
     ask_locale = ui_locale_of(source_context)
@@ -4039,8 +4045,10 @@ def _new_approval_request(
         **({"skill": skill_card["skill"]} if skill_card else {}),
         **({"command": command_line} if command_line else {}),
         "affected_resources": _x_request_resources(display_intent, display_arguments)
+        or ([target_plain] if (target_plain := approval_target_name(display_intent, display_arguments))
+            and approval_target_kind(display_intent) == "reminder" else [])
         or _affected_resources_display(display_arguments, display_context),
-        "expected_side_effects": _approval_effect_summary(actions),
+        "expected_side_effects": approval_effect_words(display_intent) or _approval_effect_summary(actions),
         "reversible": bool(edit_batch or PermissionAction.GIT_COMMIT in actions),
         "scope_options": scope_options,
         "one_time": True,

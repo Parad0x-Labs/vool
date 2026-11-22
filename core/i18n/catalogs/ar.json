@@ -486,6 +486,7 @@
     "approval.action.operator.propose_calendar_event": "إضافة حدث إلى تقويمك",
     "approval.action.operator.save_note": "حفظ ملاحظة",
     "approval.action.operator.cancel_reminder": "إلغاء تذكير",
+    "approval.action.operator.move_reminder": "نقل تذكير إلى وقت جديد",
     "approval.action.operator.schedule_reminder": "ضبط تذكير",
     "approval.action.operator.schedule_calendar_event": "إضافة حدث إلى تقويمك",
     "approval.action.operator.search_calendar_event": "البحث في تقويمك",
@@ -5138,7 +5139,7 @@
     "settings.media_open": "افتح الوسائط المحمية",
     "followup.side_failed": "لم أتمكن من الإجابة عن ذلك الآن. المهمة ما زالت قيد التشغيل؛ اسأل مرة أخرى بعد لحظة."
   },
-  "source_catalog_sha256": "8eb40669b428a8e695d3dc5b7dd76b29c9a2db72ab130a1e2b612dc2ea5b85dc",
+  "source_catalog_sha256": "9e4760502d757392187c5f9f8cb621e933a7bf3d285d63fe86e5e6e03337afec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

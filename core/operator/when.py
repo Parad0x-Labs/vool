@@ -199,6 +199,28 @@ def format_due_time(due_at_utc: str, tz_name: str = "", due_wall: str = "") -> s
     return instant.strftime("%d %b %Y at %H:%M:%S %Z")
 
 
+def when_text_from_iso(value: str) -> str:
+    """A typed ISO 8601 date-time ("2026-11-23T15:00", "2026-11-23T15:00:00+02:00", "...Z") as the words
+    `parse_when_expression` reads, so a typed due time crosses the same zone, daylight-saving and range checks as a
+    spoken one. An offset is kept as "UTC+HH:MM"; no offset is the owner's own wall clock. "" when the value is not
+    an ISO date-time with a clock (a bare date names no time to be reminded at)."""
+    raw = str(value or "").strip()
+    try:
+        moment = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
+    except ValueError:
+        return ""
+    if not re.search(r"\d[T ]\d{1,2}:\d{2}", raw):
+        return ""
+    wall = moment.strftime("%Y-%m-%d %H:%M")
+    offset = moment.utcoffset()
+    if offset is None:
+        return wall
+    minutes = int(offset.total_seconds() // 60)
+    sign = "-" if minutes < 0 else "+"
+    hours, rest = divmod(abs(minutes), 60)
+    return f"{wall} UTC{sign}{hours:02d}:{rest:02d}"
+
+
 def has_passed(resolution: WhenResolution) -> bool:
     """True when a resolved instant is before the instant it was read at.
 

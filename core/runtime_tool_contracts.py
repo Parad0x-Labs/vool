@@ -3173,16 +3173,20 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         RuntimeToolContract(
             intent="operator.schedule_reminder",
             description=(
-                "Schedule one of this runtime's own reminders from the request as written. The words go "
-                "through the same when-reading and subject parsing as the chat lane, and a due time in "
-                "the past is refused."
+                "Set a reminder: VOOL itself tells the person in this chat at the due time. Not a calendar "
+                "event. Give the note and the due time; the due time goes through the same when-reading "
+                "as the chat lane, and a due time in the past is refused."
             ),
             tool_surface="operator",
             capability_id="operator.mutate",
             capability_claim="schedule this runtime's own reminders from the owner's words",
             supported=True,
             unsupported_reason="",
-            input_schema={"text": "string (the request as written)"},
+            input_schema={
+                "note": "string (what to remind the person of, in their own words and language)",
+                "due_iso": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
+                "text": "string optional (the request as written)",
+            },
             output_schema={"reminder_id": "string", "due_at_utc": "string"},
             # In-app, local state: a reminder row in this runtime's own store (the same class as
             # contacts.save). What may be written is decided by the runtime (request provenance,
@@ -3199,16 +3203,19 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         RuntimeToolContract(
             intent="operator.cancel_reminder",
             description=(
-                "Cancel one of this runtime's own pending reminders from the request as written. The "
-                "reminder it means is resolved exactly as the chat lane resolves it: a reminder id in "
-                "the words, or the one pending reminder; anything else is an unambiguous refusal."
+                "Cancel one of this chat's pending reminders. Give the reminder id the reminder list "
+                "shows; without one, the reminder the words name or the chat's only pending reminder. "
+                "The reminder is found before anything is asked, and anything unclear is refused."
             ),
             tool_surface="operator",
             capability_id="operator.mutate",
             capability_claim="cancel this runtime's own pending reminders",
             supported=True,
             unsupported_reason="",
-            input_schema={"text": "string (the request as written)"},
+            input_schema={
+                "reminder_id": "string optional (the id the reminder list shows)",
+                "text": "string optional (the request as written)",
+            },
             output_schema={"reminder_id": "string", "cancelled": "boolean"},
             # In-app, local state, same class as schedule_reminder: removing a row of this
             # runtime's own store, never an outward send.
@@ -3220,6 +3227,33 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             error_contract="returns_structured_error_result",
             handler="external_lane",
             permission_actions=("delete_files",),
+        ),
+        RuntimeToolContract(
+            intent="operator.move_reminder",
+            description=(
+                "Move one of this chat's pending reminders to a new due time; it stays the same reminder "
+                "with the same id. Give the reminder id the reminder list shows and the new due time."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="move this runtime's own pending reminders to a new time",
+            supported=True,
+            unsupported_reason="",
+            input_schema={
+                "reminder_id": "string optional (the id the reminder list shows)",
+                "due_iso": "string (the new time: ISO 8601 local date and time, for example 2026-11-23T15:00)",
+                "text": "string optional (the request as written)",
+            },
+            output_schema={"reminder_id": "string", "due_at_utc": "string"},
+            # In-app, local state, same class as schedule_reminder and cancel_reminder.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("modify_files",),
         ),
         RuntimeToolContract(
             intent="operator.propose_calendar_event",

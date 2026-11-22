@@ -1176,6 +1176,23 @@ def _reminder_when(text: str, parse_when_fn: Any) -> tuple[Any, str]:
     return parse_when_fn(when_text), ""
 
 
+def _typed_reminder_when(intent: OperatorActionIntent, parse_when_fn: Any) -> tuple[Any, str] | None:
+    """The due time a tool call typed (`due_iso`), read through the same when-reader as words; None when none was
+    typed. A typed time the reader cannot take is that reader's own question, never a fall back to the words."""
+    typed = str(getattr(intent, "due_iso", "") or "").strip()
+    if not typed:
+        return None
+    from core.operator.when import WhenResolution, when_text_from_iso
+
+    words = when_text_from_iso(typed)
+    if not words:
+        return WhenResolution(
+            ok=False,
+            problem=f"The due time {typed!r} is not a date with a clock time. Give it as 2026-11-23T15:00.",
+        ), ""
+    return parse_when_fn(words), ""
+
+
 def handle_schedule_reminder(
     intent: OperatorActionIntent,
     *,
@@ -1191,8 +1208,9 @@ def handle_schedule_reminder(
 
     if _dc.is_dataclass(intent):
         intent = _dc.replace(intent, raw_text=normalize_time_words(intent.raw_text))
-    note = _reminder_note_from_text(intent.raw_text)
-    when, day_problem = _reminder_when(intent.raw_text, parse_when_fn)
+    typed = _typed_reminder_when(intent, parse_when_fn)
+    note = " ".join(str(getattr(intent, "reminder_note", "") or "").split()) or _reminder_note_from_text(intent.raw_text)
+    when, day_problem = typed if typed is not None else _reminder_when(intent.raw_text, parse_when_fn)
     if day_problem:
         return OperatorActionResult(
             ok=False,
@@ -1360,56 +1378,16 @@ def handle_cancel_reminder(
     audit_log_fn: Any,
     owner_rows_fn: Any = None,
 ) -> OperatorActionResult:
-    target = _select_reminder_target(
+    target, refusal = reminder_target_or_refusal(
         intent,
+        kind="cancel_reminder",
         session_id=session_id,
         load_reminder_fn=load_reminder_fn,
         list_reminders_fn=list_reminders_fn,
         owner_rows_fn=owner_rows_fn,
     )
-    if target is None:
-        elsewhere = _reminder_set_elsewhere(intent, session_id=session_id, owner_rows_fn=owner_rows_fn)
-        if elsewhere:
-            return OperatorActionResult(
-                ok=False, status="invalid_request", response_text=elsewhere,
-                details={"kind": "cancel_reminder", "reason": "reminder_in_another_chat"},
-            )
-        # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
-        # never list-and-redirect -- a foreign reminder's existence must not be confirmed either
-        # way (reminders-everywhere law).
-        if getattr(intent, "action_id", ""):
-            return OperatorActionResult(
-                ok=False,
-                status="invalid_request",
-                response_text="I could not find a pending reminder for that unambiguously. Say 'list my reminders', then specify the reminder id.",
-                details={"kind": "cancel_reminder"},
-            )
-        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
-        pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
-        if pending:
-            # More than one candidate and no id: name them instead of sending the user elsewhere.
-            lines = []
-            for row in pending[:3]:
-                wall = format_due_time(
-                    str(row.get("due_at_utc") or ""), str(row.get("tz_name") or ""), str(row.get("due_wall") or "")
-                )
-                lines.append(f"- {row.get('note')} — due {wall} (id {str(row.get('reminder_id'))[:8]})")
-            more = f"\n(and {len(pending) - 3} more)" if len(pending) > 3 else ""
-            return OperatorActionResult(
-                ok=False,
-                status="invalid_request",
-                response_text=(
-                    f"This chat has {len(pending)} pending reminders:\n" + "\n".join(lines) + more
-                    + "\nWhich one should I cancel? Say it with the reminder id."
-                ),
-                details={"kind": "cancel_reminder", "pending_count": len(pending)},
-            )
-        return OperatorActionResult(
-            ok=False,
-            status="invalid_request",
-            response_text="I could not find a pending reminder for that unambiguously. Say 'list my reminders', then specify the reminder id.",
-            details={"kind": "cancel_reminder"},
-        )
+    if refusal is not None:
+        return refusal
     outcome = cancel_reminder_fn(str(target.get("reminder_id")))
     audit_log_fn(
         "operator_action_cancel_reminder",
@@ -1460,7 +1438,8 @@ def handle_move_reminder(
     audit_log_fn: Any,
     owner_rows_fn: Any = None,
 ) -> OperatorActionResult:
-    when = parse_when_fn(intent.raw_text)
+    typed = _typed_reminder_when(intent, parse_when_fn)
+    when = typed[0] if typed is not None else parse_when_fn(intent.raw_text)
     if not when.ok:
         return OperatorActionResult(
             ok=False,
@@ -1470,26 +1449,16 @@ def handle_move_reminder(
         )
     if has_passed(when):
         return _passed_due_time_result(when, kind="move_reminder")
-    target = _select_reminder_target(
+    target, refusal = reminder_target_or_refusal(
         intent,
+        kind="move_reminder",
         session_id=session_id,
         load_reminder_fn=load_reminder_fn,
         list_reminders_fn=list_reminders_fn,
         owner_rows_fn=owner_rows_fn,
     )
-    if target is None:
-        elsewhere = _reminder_set_elsewhere(intent, session_id=session_id, owner_rows_fn=owner_rows_fn)
-        if elsewhere:
-            return OperatorActionResult(
-                ok=False, status="invalid_request", response_text=elsewhere,
-                details={"kind": "move_reminder", "reason": "reminder_in_another_chat"},
-            )
-        return OperatorActionResult(
-            ok=False,
-            status="invalid_request",
-            response_text="I could not find a pending reminder to move unambiguously. Say 'list my reminders', then specify the reminder id.",
-            details={"kind": "move_reminder"},
-        )
+    if refusal is not None:
+        return refusal
     outcome = move_reminder_fn(
         str(target.get("reminder_id")),
         due_at_utc=when.due_at_utc,
@@ -1921,6 +1890,79 @@ def _reminder_repeat_from_text(text: str) -> str:
     return ""
 
 
+_NOT_FOUND_TEXT = {
+    "cancel_reminder": "I could not find a pending reminder for that unambiguously. Say 'list my reminders', then specify the reminder id.",
+    "move_reminder": "I could not find a pending reminder to move unambiguously. Say 'list my reminders', then specify the reminder id.",
+}
+
+
+def reminder_target_or_refusal(
+    intent: OperatorActionIntent,
+    *,
+    kind: str,
+    session_id: str,
+    load_reminder_fn: Any,
+    list_reminders_fn: Any,
+    owner_rows_fn: Any = None,
+) -> tuple[dict[str, Any] | None, OperatorActionResult | None]:
+    """The one reminder of this chat a cancel or move means, or the refusal that says why there is none.
+
+    One reading for the handler and for the approval card before it: the card names the reminder it found and the
+    approved call runs by that id, and a reminder that cannot be found is refused before anything is asked."""
+    verb = "cancel" if kind == "cancel_reminder" else "move"
+    target = _select_reminder_target(
+        intent,
+        session_id=session_id,
+        load_reminder_fn=load_reminder_fn,
+        list_reminders_fn=list_reminders_fn,
+        owner_rows_fn=owner_rows_fn,
+    )
+    if target is None:
+        elsewhere = _reminder_set_elsewhere(intent, session_id=session_id, owner_rows_fn=owner_rows_fn)
+        if elsewhere:
+            return None, OperatorActionResult(
+                ok=False, status="invalid_request", response_text=elsewhere,
+                details={"kind": kind, "reason": "reminder_in_another_chat"},
+            )
+        # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
+        # never list-and-redirect -- a foreign reminder's existence must not be confirmed either
+        # way (reminders-everywhere law).
+        if getattr(intent, "action_id", ""):
+            return None, OperatorActionResult(
+                ok=False,
+                status="invalid_request",
+                response_text=_NOT_FOUND_TEXT[kind],
+                details={"kind": kind},
+            )
+        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+        pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+        if pending:
+            # More than one candidate and no id: name them instead of sending the user elsewhere.
+            lines = []
+            for row in pending[:3]:
+                wall = format_due_time(
+                    str(row.get("due_at_utc") or ""), str(row.get("tz_name") or ""), str(row.get("due_wall") or "")
+                )
+                lines.append(f"- {row.get('note')} — due {wall} (id {str(row.get('reminder_id'))[:8]})")
+            more = f"\n(and {len(pending) - 3} more)" if len(pending) > 3 else ""
+            return None, OperatorActionResult(
+                ok=False,
+                status="invalid_request",
+                response_text=(
+                    f"This chat has {len(pending)} pending reminders:\n" + "\n".join(lines) + more
+                    + f"\nWhich one should I {verb}? Say it with the reminder id."
+                ),
+                details={"kind": kind, "pending_count": len(pending)},
+            )
+        return None, OperatorActionResult(
+            ok=False,
+            status="invalid_request",
+            response_text=_NOT_FOUND_TEXT[kind],
+            details={"kind": kind},
+        )
+    return target, None
+
+
 def _select_reminder_target(
     intent: OperatorActionIntent,
     *,
@@ -1964,9 +2006,11 @@ def _reminder_set_elsewhere(intent: OperatorActionIntent, *, session_id: str, ow
     The listing shows every chat's reminders that are not private, each with the chat it came from, and cancel and
     move stay with the chat that owns them. "Alright scrap the reminder to take out the recycling", asked in a new chat
     while "which reminders are set" listed it from another, was answered "I could not find a pending reminder" (real-app
-    check v3 on fe98e849, 2026-11-22): it is there, and the person is told where. Words only: an id that matched
-    nothing here is refused as before, without saying whether another chat has it."""
-    if owner_rows_fn is None or getattr(intent, "action_id", ""):
+    check v3 on fe98e849, 2026-11-22): it is there, and the person is told where. An id answers the same way when
+    it is one the listing in this chat shows (the outside review of 261a0389: the listing showed 3bbb4fbf and a cancel
+    by that id was told to give the id); a private chat's reminders are not among `owner_rows_fn`'s rows, so an id
+    of one is refused as before, without saying whether another chat has it."""
+    if owner_rows_fn is None:
         return ""
     try:
         rows = [
@@ -1975,7 +2019,12 @@ def _reminder_set_elsewhere(intent: OperatorActionIntent, *, session_id: str, ow
         ]
     except Exception:
         return ""
-    row = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), rows)
+    named_id = str(getattr(intent, "action_id", "") or "").strip().lower()
+    if named_id:
+        by_id = [row for row in rows if str(row.get("reminder_id") or "").lower().startswith(named_id)]
+        row = by_id[0] if len(by_id) == 1 else None
+    else:
+        row = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), rows)
     if row is None:
         return ""
     label = str(row.get("_chat_label") or "").strip()

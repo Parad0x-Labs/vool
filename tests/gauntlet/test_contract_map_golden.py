@@ -106,6 +106,9 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     # class as contacts.save), gated by runtime policy (request provenance, past-time refusal),
     # never an external send.
     'operator.cancel_reminder': ('creative_state', 'runtime_policy'),
+    # operator.move_reminder (outside review of 261a0389, 2026-11-22): the model-facing move that keeps the
+    # reminder's id; the same in-app tier as schedule/cancel, its own row of this runtime's store.
+    'operator.move_reminder': ('creative_state', 'runtime_policy'),
     'operator.check_availability': ('read_only', 'none'),
     'operator.cleanup_temp_files': ('workspace_write', 'explicit_user_opt_in'),
     'operator.find_notes': ('read_only', 'none'),
@@ -419,7 +422,8 @@ def test_contract_map_and_list_agree():
     # 207 -> 211: the full X tools (x.api.catalog, x.api.request, x.api.receipts, x.bookmarks).
     # 211 -> 215: social core (x.feedback.save, x.feedback.list, x.results, x.replies.unanswered).
     # 215 -> 218: the household record tools (things.search, things.match, things.prepare), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 218
+    # 218 -> 219: operator.move_reminder, the model-facing reminder move (outside review R2), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 219
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

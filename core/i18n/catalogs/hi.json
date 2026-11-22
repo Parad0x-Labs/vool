@@ -486,6 +486,7 @@
     "approval.action.operator.propose_calendar_event": "आपके कैलेंडर में एक इवेंट जोड़ना",
     "approval.action.operator.save_note": "एक नोट सहेजना",
     "approval.action.operator.cancel_reminder": "एक रिमाइंडर रद्द करना",
+    "approval.action.operator.move_reminder": "एक रिमाइंडर को नए समय पर ले जाना",
     "approval.action.operator.schedule_reminder": "एक रिमाइंडर सेट करना",
     "approval.action.operator.schedule_calendar_event": "आपके कैलेंडर में एक इवेंट जोड़ना",
     "approval.action.operator.search_calendar_event": "आपके कैलेंडर में खोजना",
@@ -5138,7 +5139,7 @@
     "settings.media_open": "सुरक्षित मीडिया खोलें",
     "followup.side_failed": "मैं अभी इसका जवाब नहीं दे सका। काम अभी चल रहा है; थोड़ी देर में फिर से पूछें।"
   },
-  "source_catalog_sha256": "8eb40669b428a8e695d3dc5b7dd76b29c9a2db72ab130a1e2b612dc2ea5b85dc",
+  "source_catalog_sha256": "9e4760502d757392187c5f9f8cb621e933a7bf3d285d63fe86e5e6e03337afec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

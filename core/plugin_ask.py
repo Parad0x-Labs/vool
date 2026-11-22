@@ -15,6 +15,14 @@ asked one multiple-choice question over the plugins' own descriptions, with the 
 follow-up. Its answer is recorded here for this turn's text, and the plugin family reads it beside the words. It
 only widens what the model is OFFERED: which tool runs, if any, is still the model's call and the owner's
 permissions. No judge, a failed call or an unreadable answer records nothing: the turn is what it was before.
+
+The same question carries VOOL's own personal tools (reminders, calendar, contacts, mail, notes, sending a file to the
+phone) when the English word rules seat none of them on an owner-local turn. Measured on 261a0389 (outside
+review, 2026-11-22): a reminder, a contact, the calendar, unread mail and a phone send asked in Lithuanian, German,
+Spanish or French reached the model without the tool, and so did English wordings the rules did not know ("what's
+coming up that you're supposed to nudge me about"). The words stay the fast path: when they already seat one of these
+tools, no model is asked about them. One question for both, more than one tool may be picked, and a failed call is
+asked once more before the turn goes on without a judgement.
 """
 from __future__ import annotations
 
@@ -29,6 +37,26 @@ from typing import Any
 _KEPT = 256
 _LIFETIME_S = 1800.0
 _JUDGED: OrderedDict[str, tuple[float, tuple[str, ...], tuple[Any, ...]]] = OrderedDict()
+#: The built-in tools the judge picked, by turn text: (stamp, choice keys).
+_BUILTINS: OrderedDict[str, tuple[float, tuple[str, ...]]] = OrderedDict()
+
+#: VOOL's own personal tools as the judge reads them: (key, description, the tools a pick seats). The descriptions say
+#: what each does for the person, so a judge reading any language can tell a reminder from a calendar event.
+BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("reminders", "Reminders: VOOL itself reminds the person of something at a time they give; set, list, move or "
+     "cancel such a reminder.",
+     ("operator.schedule_reminder", "operator.list_reminders", "operator.move_reminder", "operator.cancel_reminder")),
+    ("calendar", "Calendar: what is on the person's calendar and when they are free, or put an event on it.",
+     ("operator.show_agenda", "operator.check_availability", "operator.schedule_calendar_event")),
+    ("contacts", "Contacts: the people the person saved, with their phone numbers, emails and addresses; find, save, "
+     "change or delete one.",
+     ("contacts.search", "contacts.save", "contacts.update", "contacts.delete")),
+    ("mail", "Email: read or search the person's own email inbox.", ("email.read",)),
+    ("notes", "Notes: save a note for the person, or find and read the notes they saved.",
+     ("operator.save_note", "operator.find_notes", "operator.show_note")),
+    ("phone", "Send to phone: send a file from this computer to the person's phone.", ("machine.send_to_phone",)),
+)
+_BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
 _LOCK = threading.Lock()
 _log = logging.getLogger(__name__)
 
@@ -103,11 +131,47 @@ def _record(text: str, plugins: tuple[str, ...], signature: tuple[Any, ...]) -> 
 def _drop(text: str) -> None:
     with _LOCK:
         _JUDGED.pop(_key(text), None)
+        _BUILTINS.pop(_key(text), None)
 
 
 def forget() -> None:
     with _LOCK:
         _JUDGED.clear()
+        _BUILTINS.clear()
+
+
+def _record_builtins(text: str, keys: tuple[str, ...]) -> None:
+    key = _key(text)
+    if not key:
+        return
+    with _LOCK:
+        _BUILTINS[key] = (time.monotonic(), keys)
+        _BUILTINS.move_to_end(key)
+        while len(_BUILTINS) > _KEPT:
+            _BUILTINS.popitem(last=False)
+
+
+def judged_builtins(text: str) -> tuple[str, ...]:
+    """The built-in personal tools (BUILTIN_CHOICES keys) the turn's judge said this text asks for; () when it said
+    none, or nothing judged it. Read only; nothing here asks a model."""
+    key = _key(text)
+    if not key:
+        return ()
+    with _LOCK:
+        entry = _BUILTINS.get(key)
+    if entry is None or time.monotonic() - entry[0] > _LIFETIME_S:
+        return ()
+    return entry[1]
+
+
+def judged_builtin_seats(text: str) -> tuple[str, ...]:
+    """The tools the judged built-in choices seat, in choice order, deduplicated."""
+    seats: list[str] = []
+    for key in judged_builtins(text):
+        for intent in _BUILTIN_SEATS.get(key, ()):
+            if intent not in seats:
+                seats.append(intent)
+    return tuple(seats)
 
 
 def _previous_request(text: str, source_context: dict[str, Any]) -> str:
@@ -130,8 +194,13 @@ def judge_turn(text: str, *, also: str = "", source_context: Any, session_id: st
         if str(also or "").strip():
             _drop(also)
         plugins = _judge_turn(str(text or ""), source_context if isinstance(source_context, dict) else {}, session_id)
-        if plugins is not None and str(also or "").strip() and _key(also) != _key(text):
-            _record(also, plugins, _signature(_installed_with_tools()))
+        if str(also or "").strip() and _key(also) != _key(text):
+            if plugins is not None:
+                _record(also, plugins, _signature(_installed_with_tools()))
+            with _LOCK:
+                builtins = _BUILTINS.get(_key(text))
+            if builtins is not None:
+                _record_builtins(also, builtins[1])
         return plugins or ()
     except Exception as exc:
         _log.info("plugin ask: not judged (%s)", type(exc).__name__)
@@ -147,38 +216,89 @@ def _plugins_named_by_tool_id(text: str, installed: set[str]) -> tuple[str, ...]
     return tuple(dict.fromkeys(plugin_id for plugin_id in named if plugin_id and plugin_id in installed))
 
 
+def _builtins_to_ask(text: str, source_context: dict[str, Any]) -> bool:
+    """Whether the built-in personal tools go into the question: an owner-local turn whose words seat none of them.
+    Read while this text's judgement is dropped, so the readers below see the words alone. A missing context is not
+    owner-local, as for the lane release (core.execution_requirements._operator_action_demand)."""
+    if not isinstance(source_context, dict) or not source_context:
+        return False
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+        from core.tool_demand_signals import owner_live_sources, owner_local_operator_intents, resolve_demand_signals
+
+        if owner_local_operator_intents(text) or owner_live_sources(text):
+            return False
+        signals = resolve_demand_signals(text)
+    except Exception:
+        return False
+    seated = set(signals.explicit_intents)
+    return not any(seated & set(seats) for seats in _BUILTIN_SEATS.values()) and not (
+        {"contacts", "email"} & set(signals.required_families)
+    )
+
+
 def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> tuple[str, ...] | None:
-    """The judgement for this turn's text, recorded; None when nothing judged it (the words then decide alone)."""
+    """The plugin judgement for this turn's text, recorded with the built-in one; None when nothing judged the plugins
+    (the words then decide alone)."""
     if not text.strip():
         return None
     rows = _installed_with_tools()
-    if not rows:
-        return None
     signature = _signature(rows)
     # A plugin tool named by its own id ("use vool-plugin-template.sha256 ...") is not a guess from vocabulary: the
     # words settle which plugin is asked for, and no model is asked. Asking anyway spent a model call on every such
     # turn, and on a plugin that is turned off it was a model call on a turn that must say so before any model is
     # asked (CI on fe98e849, test_plugin_served_journey: an inference after the plugin was disabled).
-    named = _plugins_named_by_tool_id(text, {plugin_id for plugin_id, _description in rows})
+    named = _plugins_named_by_tool_id(text, {plugin_id for plugin_id, _description in rows}) if rows else ()
     if named:
         _record(text, named, signature)
         return named
+    builtins = list(BUILTIN_CHOICES) if _builtins_to_ask(text, source_context) else []
+    if not rows and not builtins:
+        return None
     from core import intent_arbiter
 
     # Asked whatever the words matched. The plugins' own words, and other families' word rules, guess from English
     # vocabulary: "what does a tracking number usually look like?" named a parcel plugin by its word "tracking", and
     # "any sign of it?" was taken by a wallet rule on "sign" (both measured on a7b18403, 2026-11-22). The judge
-    # reads the plugins' descriptions and the whole message; its answer is what the plugin family follows.
-    picked = intent_arbiter.arbitrate_plugin_ask(
-        text,
-        [description for _plugin_id, description in rows[: intent_arbiter.PLUGIN_ASK_CHOICES]],
-        previous=_previous_request(text, source_context),
-        chat_id=str(session_id or ""),
-        source_context=source_context,
+    # reads the tools' descriptions and the whole message; its answer is what the families follow. The plugins come
+    # first, every one of them, then the built-in tools.
+    shown_plugins = rows[: max(0, intent_arbiter.PLUGIN_ASK_CHOICES - len(builtins))]
+    choices = [description for _plugin_id, description in shown_plugins] + [row[1] for row in builtins]
+    started = time.monotonic()
+    picked = None
+    for _attempt in range(2):
+        # A failed call or an unreadable answer is asked once more: without a judgement a plugin or a built-in tool
+        # asked for in another language is not offered at all (outside review of 261a0389, R5).
+        try:
+            picked = intent_arbiter.arbitrate_plugin_ask(
+                text,
+                choices,
+                previous=_previous_request(text, source_context),
+                chat_id=str(session_id or ""),
+                source_context=source_context,
+            )
+        except Exception as exc:
+            _log.info("tool ask: judge call failed (%s)", type(exc).__name__)
+            picked = None
+        if picked is not None:
+            break
+    if isinstance(picked, int) and not isinstance(picked, bool):
+        picked = (picked,) if picked else ()
+    _log.info(
+        "tool ask judged: %s of %d plugin(s) and %d built-in tool(s) in %.0f ms",
+        picked, len(shown_plugins), len(builtins), (time.monotonic() - started) * 1000,
     )
-    _log.info("plugin ask judged: %s of %d plugin(s)", picked, len(rows))
     if picked is None:
+        _log.warning("tool ask: not judged after a retry; the words decide this turn alone")
         return None
-    plugins = (rows[picked - 1][0],) if picked else ()
+    numbers = [number for number in picked if 1 <= number <= len(choices)]
+    plugins = tuple(dict.fromkeys(shown_plugins[n - 1][0] for n in numbers if n <= len(shown_plugins)))
+    if builtins:
+        _record_builtins(text, tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins)))
+    if not rows:
+        return None
     _record(text, plugins, signature)
     return plugins

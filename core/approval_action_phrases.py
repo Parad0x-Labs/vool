@@ -52,6 +52,7 @@ APPROVAL_ACTION_PHRASES: dict[str, str] = {
     "operator.inspect_calendar_event": "show one event from your calendar",
     "operator.list_calendars": "list your calendars",
     "operator.move_path": "move or rename a file",
+    "operator.move_reminder": "move a reminder to a new time",
     "operator.propose_calendar_event": "add an event to your calendar",
     "operator.save_note": "save a note",
     "operator.schedule_calendar_event": "add an event to your calendar",
@@ -165,6 +166,8 @@ APPROVAL_TARGET_KINDS: dict[str, str] = {
     "media.export": "name",
     "media.open": "name",
     "operator.move_path": "name",
+    "operator.cancel_reminder": "reminder",
+    "operator.move_reminder": "reminder",
     "set.save": "name",
     "skill.create": "name",
     "web0.create_project": "name",
@@ -174,7 +177,23 @@ APPROVAL_TARGET_KINDS: dict[str, str] = {
     "workspace.write_file": "name",
 }
 
-_TARGET_CONNECTOR_KEYS = {"name": "approval.target.called", "to": "approval.target.to"}
+_TARGET_CONNECTOR_KEYS = {"name": "approval.target.called", "to": "approval.target.to", "reminder": "approval.target.called"}
+
+#: intent -> what the approved call does, in plain words, where the permission classes it crosses would name
+#: something else: a reminder is a row in VOOL's own store, not a file the person keeps ("delete files" on the
+#: card of a reminder cancel, outside review of 261a0389), and the calendar tool writes one calendar file on this
+#: computer and sends nothing ("external messages" on its card).
+APPROVAL_EFFECT_WORDS: dict[str, str] = {
+    "operator.schedule_reminder": "adds a reminder that VOOL keeps on this computer; nothing is sent",
+    "operator.cancel_reminder": "cancels one reminder that VOOL keeps on this computer; nothing is sent",
+    "operator.move_reminder": "moves one reminder that VOOL keeps on this computer to a new time; nothing is sent",
+    "operator.schedule_calendar_event": "writes one calendar file (.ics) on this computer; nothing is sent",
+}
+
+
+def approval_effect_words(intent: str) -> str:
+    """What the approved call does in plain words, when the permission classes would name something else; ""."""
+    return APPROVAL_EFFECT_WORDS.get(str(intent or "").strip().lower(), "")
 
 _GENERAL_APPROVAL_ASK = "This request needs your approval first."
 
@@ -216,6 +235,15 @@ def approval_target_name(intent: str, arguments: Mapping[str, Any] | None) -> st
         if isinstance(raw, (list, tuple)):
             raw = raw[0] if raw else ""
         return _short_name(str(raw or args.get("recipient") or ""))
+    if kind == "reminder":
+        # The reminder the call was pinned to before the ask (core.local_operator_actions.reminder_call_before_approval):
+        # its note and due time, read from the store by its id, never the id itself.
+        try:
+            from core.local_operator_actions import reminder_shown_as
+
+            return reminder_shown_as(str(args.get("reminder_id") or ""))
+        except Exception:
+            return ""
     if kind == "name":
         for key in ("path", "target", "destination"):
             raw = args.get(key)
@@ -262,7 +290,7 @@ def localized_target_words(
     if not kind or not name:
         return ""
     key = _TARGET_CONNECTOR_KEYS[kind]
-    english = {"name": "called {name}", "to": "to {name}"}[kind]
+    english = {"name": "called {name}", "to": "to {name}", "reminder": "called {name}"}[kind]
     return _catalog_text(locale, key, english, name=name)
 
 

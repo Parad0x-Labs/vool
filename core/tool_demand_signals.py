@@ -23,7 +23,9 @@ which keeps the previous single-family behaviour untouched.
 
 from __future__ import annotations
 
+import functools
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -2159,6 +2161,31 @@ _OWNER_JOT_SAVE_RE = re.compile(
 )
 
 
+def _judged_builtin_seats(text: str) -> tuple[str, ...]:
+    try:
+        from core.plugin_ask import judged_builtin_seats
+
+        return judged_builtin_seats(text)
+    except Exception:
+        return ()
+
+
+def _or_judged_operator_seats(words_reader: Callable[[str], tuple[str, ...]]) -> Callable[[str], tuple[str, ...]]:
+    """The words' own (English) reading of the operator tools a turn asks for, else what the turn's judge picked among
+    VOOL's built-in tools in any language (core.plugin_ask, judged at the start of the turn only when the words seat
+    none of them; read here, never asked)."""
+
+    @functools.wraps(words_reader)
+    def read(text: str) -> tuple[str, ...]:
+        worded = words_reader(text)
+        if worded:
+            return worded
+        return tuple(intent for intent in _judged_builtin_seats(text) if intent.startswith("operator."))
+
+    return read
+
+
+@_or_judged_operator_seats
 def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     """The operator tool intents the user's own words ask for, for seating on owner-local turns.
 
@@ -2633,6 +2660,15 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     for intent in outgoing_message_intents(cleaned):
         _note(intent, "email")
 
+    if not any(family in families for family in ("contacts", "email")):
+        # VOOL's own contacts and the phone send, picked by the turn's judge in any language when the words
+        # seat none of the built-in tools (core.plugin_ask; read, never asked here).
+        for intent in _judged_builtin_seats(cleaned):
+            if intent.startswith("contacts."):
+                _note(intent, "contacts")
+            elif intent == "machine.send_to_phone":
+                _note(intent, "filesystem")
+
     registry = _registry_now()
     for intent in _plugin_intents(cleaned, registry):
         _note(intent, "plugin")
@@ -2851,9 +2887,17 @@ def owner_live_sources(text: str) -> tuple[str, ...]:
     """Which of the owner's live sources ("notes", "calendar", "processes", "disk", "files",
     "mail") the words ask about, or () when answering needs none of them.
 
-    Pure function of the text. Callers own the owner-local check: these sources are this
+    Pure function of the text, plus the mailbox when the turn's judge read an ask for it in any language
+    (core.plugin_ask; read, never asked). Callers own the owner-local check: these sources are this
     machine's, and a remote session's words never seat them.
     """
+    worded = _owner_live_sources_in_words(text)
+    if worded:
+        return worded
+    return ("mail",) if "email.read" in _judged_builtin_seats(text) else ()
+
+
+def _owner_live_sources_in_words(text: str) -> tuple[str, ...]:
     cleaned = " ".join(str(text or "").split())
     if not cleaned:
         return ()

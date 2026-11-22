@@ -113,6 +113,15 @@ def _argument(arguments: dict[str, Any], name: str) -> str:
     return str(arguments.get(name) or "").strip()
 
 
+_TYPED_REMINDER_ID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{8}", re.IGNORECASE)
+
+
+def _typed_reminder_id(arguments: dict[str, Any]) -> str:
+    """The reminder id a tool call typed, as the listing shows it (8 characters) or whole; "" for anything else."""
+    match = _TYPED_REMINDER_ID_RE.fullmatch(_argument(arguments, "reminder_id").strip("()[]#"))
+    return match.group(0).lower() if match else ""
+
+
 def _notes_scope_words(arguments: dict[str, Any]) -> str:
     """' in the "Work" folder of the "iCloud" account': the scope the Apple Notes handlers read back from the request.
 
@@ -133,6 +142,8 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
     destination_path = str(arguments.get("destination_path") or arguments.get("destination_dir") or "").strip() or None
     target_label: str | None = None
     reminder_action_id: str | None = None
+    reminder_note: str | None = None
+    due_iso: str | None = None
     raw_text = ""
     if operator_kind == "move_path":
         source = str(arguments.get("source_path") or target_path or "").strip()
@@ -144,20 +155,28 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         start_iso = str(arguments.get("start_iso") or "").strip()
         duration_minutes = max(15, int(arguments.get("duration_minutes") or 30))
         raw_text = f'schedule a meeting "{title}" on {start_iso} for {duration_minutes}m'.strip()
-    elif operator_kind == "cancel_reminder":
-        # The request as written, plus the reminder id when the words carry one: the cancel
-        # handler resolves exactly what the chat lane resolves — that id, or the one pending
-        # reminder; with several pending and no id it refuses rather than guess.
+    elif operator_kind in {"cancel_reminder", "move_reminder"}:
+        # The typed reminder id first (the id the listing shows), else one in the request as written: the
+        # handler resolves exactly what the chat lane resolves — that id, the reminder the words name, or the
+        # one pending reminder; with several pending and nothing naming one it refuses rather than guess.
         raw_text = str(arguments.get("text") or "").strip()
         id_match = _REMINDER_ID_IN_TEXT_RE.search(raw_text)
-        reminder_action_id = (id_match.group(1).lower() if id_match else "") or _argument(
-            arguments, "reminder_id"
-        ) or None
+        # A typed id that is not one stays the target, so it matches nothing and is refused: it never falls back
+        # to "the one pending reminder", which may be another one entirely.
+        typed_id = _argument(arguments, "reminder_id")
+        reminder_action_id = (
+            _typed_reminder_id(arguments) or typed_id.lower() or (id_match.group(1).lower() if id_match else "") or None
+        )
+        if operator_kind == "move_reminder":
+            due_iso = _argument(arguments, "due_iso") or None
     elif operator_kind in _REQUEST_TEXT_KINDS:
         # These contracts take the request as written (``text``) and their handlers read it the
         # way they read a chat request. Approval is never read from it: approval_requested stays
         # False below, so a proposal or update can only stage, never apply.
         raw_text = str(arguments.get("text") or "").strip()
+        if operator_kind == "schedule_reminder":
+            reminder_note = _argument(arguments, "note") or None
+            due_iso = _argument(arguments, "due_iso") or None
     elif operator_kind in {"find_notes", "show_note"}:
         # A notes search reads its query, and a note read its title, from the label the chat
         # parser sets (core.operator.notes.find_notes_query, handle_show_note).
@@ -183,4 +202,6 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         action_id=reminder_action_id or (str(arguments.get("action_id") or "").strip() or None),
         raw_text=raw_text,
         target_label=target_label,
+        reminder_note=reminder_note,
+        due_iso=due_iso,
     )

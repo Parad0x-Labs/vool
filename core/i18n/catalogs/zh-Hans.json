@@ -486,6 +486,7 @@
     "approval.action.operator.propose_calendar_event": "在你的日历中添加一条日程",
     "approval.action.operator.save_note": "保存一条备忘",
     "approval.action.operator.cancel_reminder": "取消一个提醒",
+    "approval.action.operator.move_reminder": "把一个提醒改到新的时间",
     "approval.action.operator.schedule_reminder": "设置一个提醒",
     "approval.action.operator.schedule_calendar_event": "在你的日历中添加一条日程",
     "approval.action.operator.search_calendar_event": "搜索你的日历",
@@ -5138,7 +5139,7 @@
     "settings.media_open": "打开受保护的媒体",
     "followup.side_failed": "我刚才没能回答这个问题。任务仍在运行，请稍后再问。"
   },
-  "source_catalog_sha256": "8eb40669b428a8e695d3dc5b7dd76b29c9a2db72ab130a1e2b612dc2ea5b85dc",
+  "source_catalog_sha256": "9e4760502d757392187c5f9f8cb621e933a7bf3d285d63fe86e5e6e03337afec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

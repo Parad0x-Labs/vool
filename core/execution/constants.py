@@ -4299,6 +4299,7 @@ _MUTATING_OPERATOR_INTENTS = {
     "operator.save_note",
     "operator.schedule_reminder",
     "operator.cancel_reminder",
+    "operator.move_reminder",
     "operator.propose_calendar_event",
     "operator.update_calendar_event",
 }

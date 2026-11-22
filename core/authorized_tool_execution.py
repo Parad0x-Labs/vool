@@ -270,6 +270,17 @@ def execute_authorized_runtime_tool(
             cancelled=True,
         )
 
+    if permission_decision is None and intent in {"operator.cancel_reminder", "operator.move_reminder"}:
+        # Found before the decision, as on the model route (core.tool_intent_executor): the card names the reminder,
+        # the approved call runs by its id, and one that cannot be found is refused without asking.
+        from core.local_operator_actions import reminder_call_before_approval
+
+        arguments, reminder_refusal = reminder_call_before_approval(
+            intent, arguments, session_id=str(context.get("runtime_session_id") or context.get("session_id") or "")
+        )
+        if reminder_refusal:
+            return _refusal_result(intent, None, status="invalid_request", response_text=reminder_refusal)
+
     if permission_decision is not None:
         decision: PermissionDecision | None = permission_decision
     else:

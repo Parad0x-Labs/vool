@@ -486,6 +486,7 @@
     "approval.action.operator.propose_calendar_event": "ajouter un événement à votre calendrier",
     "approval.action.operator.save_note": "enregistrer une note",
     "approval.action.operator.cancel_reminder": "annuler un rappel",
+    "approval.action.operator.move_reminder": "déplacer un rappel à une nouvelle heure",
     "approval.action.operator.schedule_reminder": "créer un rappel",
     "approval.action.operator.schedule_calendar_event": "ajouter un événement à votre calendrier",
     "approval.action.operator.search_calendar_event": "chercher dans votre calendrier",
@@ -5138,7 +5139,7 @@
     "settings.media_open": "Ouvrir les médias protégés",
     "followup.side_failed": "Je n’ai pas pu répondre à cela pour l’instant. La tâche est toujours en cours ; redemande dans un instant."
   },
-  "source_catalog_sha256": "8eb40669b428a8e695d3dc5b7dd76b29c9a2db72ab130a1e2b612dc2ea5b85dc",
+  "source_catalog_sha256": "9e4760502d757392187c5f9f8cb621e933a7bf3d285d63fe86e5e6e03337afec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

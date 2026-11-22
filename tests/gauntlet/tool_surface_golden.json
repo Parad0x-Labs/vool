@@ -1,5 +1,5 @@
 {
-  "intent_count": 161,
+  "intent_count": 162,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -62,6 +62,7 @@
     "operator.list_reminders",
     "operator.list_tools",
     "operator.move_path",
+    "operator.move_reminder",
     "operator.propose_calendar_event",
     "operator.save_note",
     "operator.schedule_calendar_event",
@@ -163,7 +164,7 @@
     "x.feedback.list",
     "x.feedback.save"
   ],
-  "native_definition_count": 161,
+  "native_definition_count": 162,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -5160,19 +5161,31 @@
     },
     "operator.cancel_reminder": {
       "arguments": [
+        "reminder_id",
         "text"
       ],
-      "description": "Cancel one of this runtime's own pending reminders from the request as written. The reminder it means is resolved exactly as the chat lane resolves it: a reminder id in the words, or the one pending reminder; anything else is an unambiguous refusal.",
+      "description": "Cancel one of this chat's pending reminders. Give the reminder id the reminder list shows; without one, the reminder the words name or the chat's only pending reminder. The reminder is found before anything is asked, and anything unclear is refused.",
       "native_name": "operator__cancel_reminder",
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "reminder_id": {
+            "description": "string optional (the id the reminder list shows)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "text": {
-            "description": "string (the request as written)",
-            "type": "string"
+            "description": "string optional (the request as written)",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
+          "reminder_id",
           "text"
         ],
         "type": "object"
@@ -6124,6 +6137,107 @@
       },
       "read_only": false
     },
+    "operator.move_reminder": {
+      "arguments": [
+        "due_iso",
+        "reminder_id",
+        "text"
+      ],
+      "description": "Move one of this chat's pending reminders to a new due time; it stays the same reminder with the same id. Give the reminder id the reminder list shows and the new due time.",
+      "native_name": "operator__move_reminder",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "due_iso": {
+            "description": "string (the new time: ISO 8601 local date and time, for example 2026-11-23T15:00)",
+            "type": "string"
+          },
+          "reminder_id": {
+            "description": "string optional (the id the reminder list shows)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "description": "string optional (the request as written)",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "reminder_id",
+          "due_iso",
+          "text"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
     "operator.propose_calendar_event": {
       "arguments": [
         "text"
@@ -6390,19 +6504,34 @@
     },
     "operator.schedule_reminder": {
       "arguments": [
+        "due_iso",
+        "note",
         "text"
       ],
-      "description": "Schedule one of this runtime's own reminders from the request as written. The words go through the same when-reading and subject parsing as the chat lane, and a due time in the past is refused.",
+      "description": "Set a reminder: VOOL itself tells the person in this chat at the due time. Not a calendar event. Give the note and the due time; the due time goes through the same when-reading as the chat lane, and a due time in the past is refused.",
       "native_name": "operator__schedule_reminder",
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
-          "text": {
-            "description": "string (the request as written)",
+          "due_iso": {
+            "description": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
             "type": "string"
+          },
+          "note": {
+            "description": "string (what to remind the person of, in their own words and language)",
+            "type": "string"
+          },
+          "text": {
+            "description": "string optional (the request as written)",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
+          "note",
+          "due_iso",
           "text"
         ],
         "type": "object"

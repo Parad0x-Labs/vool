@@ -283,7 +283,7 @@ class OperatorActionTests(unittest.TestCase):
         self.assertEqual(result["mode"], "tool_executed")
         response = result["response"]
         self.assertIn("Tool families on this runtime:", response)
-        self.assertIn("- operator: 22 available", response)  # 7 legacy + calendar/notes vertical + its read kinds declared 2026-09-15 + the two reminder tools (Job 6)
+        self.assertIn("- operator: 23 available", response)  # 7 legacy + calendar/notes vertical + its read kinds declared 2026-09-15 + the two reminder tools (Job 6) + the reminder move (outside review R2, 2026-11-22)
         self.assertIn("- workspace:", response)
         self.assertIn("capability.expand_family", response)
         # Disabled lanes stay visible as unavailable metadata with their reason. The per-tool

@@ -1447,6 +1447,21 @@ def _execute_tool_intent_impl(
                     intent=intent, tool_surface="code_task", ok=False, status="invalid_arguments",
                 )},
             )
+    if intent in {"operator.cancel_reminder", "operator.move_reminder"}:
+        # The reminder a cancel or move means is found BEFORE the permission decision: the card then names it and
+        # the approved call runs by its id, and one that cannot be found is refused without asking anything.
+        from core.local_operator_actions import reminder_call_before_approval
+
+        arguments, reminder_refusal = reminder_call_before_approval(intent, arguments, session_id=session_id)
+        if reminder_refusal:
+            return ToolIntentExecution(
+                handled=True, ok=False, status="invalid_request",
+                response_text=reminder_refusal, user_safe_response_text=reminder_refusal,
+                mode="tool_failed", tool_name=intent,
+                details={"executed": False, "observation": _tool_observation(
+                    intent=intent, tool_surface="operator", ok=False, status="invalid_request",
+                )},
+            )
     permission = decide_tool_call(
         intent=intent,
         arguments=arguments,

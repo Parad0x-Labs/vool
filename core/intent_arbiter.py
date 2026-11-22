@@ -1010,49 +1010,82 @@ def arbitrate_named_fact(
     return int(named) if named is not None else None
 
 
-#: At most this many added plugins are put to one plugin-ask judgement, each described in at most this many characters.
-PLUGIN_ASK_CHOICES = 8
+#: At most this many tools (the built-in ones asked about, then the added plugins) are put to one tool-ask judgement.
+#: Eight cut the ninth added plugin off from any language but its manifest's (outside review of 261a0389, 2026-11-22).
+PLUGIN_ASK_CHOICES = 32
 _PLUGIN_ASK_CHARS = 360
+#: With more tools than this in one question, each is described more briefly so the question stays one short read.
+_PLUGIN_ASK_FULL_CHOICES = 8
+_PLUGIN_ASK_BRIEF_CHARS = 180
 
 
 def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
-    """One question over a numbered list: does the message ask for what one of the person's added plugins does?
+    """One question over a numbered list: which of the listed tools does the message ask the assistant to use?
 
-    The list is the plugins' own names and descriptions, as their makers wrote them. The examples are deliberately
-    about other tools and in several languages: a person asks a plugin in their own words and their own language,
-    and a plugin is often added for exactly that language."""
+    The list is the tools' own names and descriptions (an added plugin's as its maker wrote it). The examples are
+    deliberately about other tools and in several languages: a person asks in their own words and their own language,
+    and a plugin is often added for exactly that language. More than one can be asked for in one message."""
     flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    chars = _PLUGIN_ASK_CHARS if len(plugins) <= _PLUGIN_ASK_FULL_CHOICES else _PLUGIN_ASK_BRIEF_CHARS
     lines = [
-        "A person wrote to their assistant. The person added the tools below to the assistant.",
-        "Question: does the message ask the assistant to USE one of these tools, in any language and any words: to "
+        "A person wrote to their assistant. The assistant has the tools below.",
+        "Question: which of these tools does the message ask the assistant to USE, in any language and any words: to "
         "look something up with it, work something out with it, or do with it what the tool says it does?",
-        'Answer {"answer": N} with the number of that tool.',
-        'Answer {"answer": 0} when the message only talks about the same subject, asks for advice, an explanation, '
+        'Answer {"answer": [N]} with the number of that tool, or several numbers when it asks for several.',
+        'Answer {"answer": []} when the message only talks about the same subject, asks for advice, an explanation, '
         "an opinion or a how-to, asks for something else, or asks nothing a tool does.",
         "A short follow-up (\"and now?\", \"same for the other one\") asks for the tool its previous message asked for.",
         "",
         'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
-        'of a flight by its flight number." Message: "is LX 1440 delayed today?" -> {"answer": 2}',
+        'of a flight by its flight number." Message: "is LX 1440 delayed today?" -> {"answer": [2]}',
         'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
-        'of a flight by its flight number." Message: "wie viele Wörter hat: der Hund schläft im Garten" -> {"answer": 1}',
+        'of a flight by its flight number." Message: "wie viele Wörter hat: der Hund schläft im Garten" -> {"answer": [1]}',
         'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Message: "how do airlines choose flight numbers?" -> {"answer": 0}',
+        'Message: "how do airlines choose flight numbers?" -> {"answer": []}',
         'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Message: "¿mi vuelo IB3456 ya salió?" -> {"answer": 1}',
+        'Message: "¿mi vuelo IB3456 ya salió?" -> {"answer": [1]}',
+        'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
+        'of a flight by its flight number." Message: "skaičiuok žodžius šiame laiške ir pasakyk ar LX 1440 vėluoja" '
+        '-> {"answer": [1, 2]}',
         'Tools: 1. "Word counter: counts the words and characters in a text." '
-        'Message: "écris-moi un petit poème sur la mer" -> {"answer": 0}',
+        'Message: "écris-moi un petit poème sur la mer" -> {"answer": []}',
         'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Previous message: "status of flight LX 1440 please" Message: "and AF 220?" -> {"answer": 1}',
+        'Previous message: "status of flight LX 1440 please" Message: "and AF 220?" -> {"answer": [1]}',
         'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Message: "what should I pack for a long flight?" -> {"answer": 0}',
+        'Message: "what should I pack for a long flight?" -> {"answer": []}',
         "",
-        "Tools: " + " ".join(f'{number}. "{flat(plugin, _PLUGIN_ASK_CHARS)}"' for number, plugin in enumerate(plugins, 1)),
+        "Tools: " + " ".join(f'{number}. "{flat(plugin, chars)}"' for number, plugin in enumerate(plugins, 1)),
     ]
     if str(previous or "").strip():
         lines.append(f'Previous message: "{flat(previous, 240)}"')
     lines.append(f'Message: "{flat(message, 400)}" ->')
-    lines.append('Reply with ONLY the JSON object: {"answer": N}')
+    lines.append('Reply with ONLY the JSON object: {"answer": [N, ...]}')
     return "\n".join(lines)
+
+
+def _numbers_reader(count: int) -> Callable[[str], str | None]:
+    def read(content: str) -> str | None:
+        """Strict: one JSON object whose ``answer`` is a list of whole numbers from 1 to the count (or one such number,
+        0 for none); anything else is None. Returned as the numbers joined by commas ("0" for none)."""
+        match = re.search(r"\{[^{}]*\}", str(content or ""), re.DOTALL)
+        try:
+            raw = json.loads(match.group(0)) if match else None
+        except json.JSONDecodeError:
+            return None
+        value = raw.get("answer") if isinstance(raw, dict) else None
+        values = value if isinstance(value, list) else [value]
+        picked: list[int] = []
+        for item in values:
+            if isinstance(item, str) and item.strip().isdigit():
+                item = int(item.strip())
+            if isinstance(item, bool) or not isinstance(item, int) or not 0 <= item <= count:
+                return None
+            if item and item not in picked:
+                picked.append(item)
+        # "0" for none: an empty string reads as a failed call on the turn's ledger.
+        return ",".join(str(number) for number in picked) or "0"
+
+    return read
 
 
 def arbitrate_plugin_ask(
@@ -1063,16 +1096,16 @@ def arbitrate_plugin_ask(
     request_id: str = "",
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
-) -> int | None:
-    """Which added plugin a message asks to use: its place in ``plugins`` from 1, 0 for none, or None when nothing
-    judged it. ``plugins`` are the descriptions the plugins' makers wrote. Same call path as the other judgements
-    (the loaded local model, or the judge bound for the turn; the judgement role on the turn's ledger). None and 0
-    change nothing for the caller."""
+) -> tuple[int, ...] | None:
+    """Which of the listed tools a message asks to use: their places in ``plugins`` from 1 (empty for none), or None
+    when nothing judged it. ``plugins`` are the tools' descriptions (an added plugin's as its maker wrote it). Same call
+    path as the other judgements (the loaded local model, or the judge bound for the turn; the judgement role on the
+    turn's ledger). None and () change nothing for the caller."""
     asked = [str(plugin or "") for plugin in plugins][:PLUGIN_ASK_CHOICES]
     if not str(message or "").strip() or not any(plugin.strip() for plugin in asked):
         return None
     prompt = _plugin_ask_prompt(message, previous, asked)
-    reader = _named_fact_reader(len(asked))
+    reader = _numbers_reader(len(asked))
     model = _keep_judge_model()
     if not model:
         named = _judged_for_the_turn(prompt, source_context, reader)
@@ -1082,7 +1115,9 @@ def arbitrate_plugin_ask(
             prompt=prompt, operation="plugin_ask_arbitration", model=model,
             runner_role="general", call_role=_judgement_role(), parse=reader,
         )
-    return int(named) if named is not None else None
+    if named is None:
+        return None
+    return tuple(int(number) for number in str(named).split(",") if number.strip() and int(number) > 0)
 
 
 def _lasting_fact_prompt(sentence: str) -> str:
