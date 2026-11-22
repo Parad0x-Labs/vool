@@ -171,13 +171,15 @@ def _product_env(tmp_path: Path) -> None:
     configure_runtime_home(tmp_path)
 
 
-def test_product_capsule_marks_the_current_value_end_to_end(tmp_path):
+def test_product_capsule_marks_the_current_value_end_to_end(tmp_path, monkeypatch):
     pytest_home = tmp_path / "home"
     pytest_home.mkdir(parents=True, exist_ok=True)
     _product_env(pytest_home)
     from core import embedding_service
 
-    embedding_service._best_embed_model = lambda: None  # deterministic hash bow
+    # deterministic hash bow, for this test only: a plain assignment outlived the test and left every later
+    # test in the process without a neural embedding
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from core.context_namespace import ensure_chat_namespace
     from core.context_retrieval import inject_retrieved, store_turn
     from core.memory.entries import resolve_memory_access_policy

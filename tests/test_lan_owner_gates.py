@@ -461,6 +461,11 @@ def test_the_raw_upload_doors_refuse_another_device(runtime):
 # ---- what a turn from another device may fetch -----------------------------------------------------
 
 
+# What the local service answers. Not a bare number: the refusal names the URL, and a random
+# port can end in any digits.
+_LOCAL_SECRET = "owner-only data 7731"
+
+
 @pytest.fixture()
 def local_web_server(monkeypatch):
     """A real HTTP server on this computer, standing for a local service (a model server, a browser
@@ -484,7 +489,7 @@ def local_web_server(monkeypatch):
                 self.send_header("Location", target.replace("\r", "").replace("\n", ""))
                 self.end_headers()
                 return
-            body = b"local service: owner-only data 7731"
+            body = b"local service: " + _LOCAL_SECRET.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", str(len(body)))
@@ -516,7 +521,7 @@ def test_a_remote_turn_cannot_fetch_this_computer_or_its_network(target, local_w
                                   source_context={OWNER_LOCAL_KEY: False, HTTP_INGRESS_KEY: True})
     assert result is not None and result.ok is False, url
     assert result.status == "private_target_refused", (url, result.status, result.response_text)
-    assert "7731" not in result.response_text
+    assert _LOCAL_SECRET not in result.response_text
     assert hits == [], "no request may reach a local service for a remote turn"
 
 
@@ -525,7 +530,7 @@ def test_the_operator_lane_fetch_refuses_the_same_targets_for_a_remote_turn(loca
 
     port, hits = local_web_server
     refused = http_fetch_text(f"http://127.0.0.1:{port}/", timeout_s=2, public_only=True)
-    assert refused["status"] == "private_target_refused" and "7731" not in refused["text"]
+    assert refused["status"] == "private_target_refused" and _LOCAL_SECRET not in refused["text"]
     assert hits == []
 
 
