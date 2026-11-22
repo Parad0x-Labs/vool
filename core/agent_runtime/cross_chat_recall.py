@@ -1458,6 +1458,28 @@ def _recall_in_reminder_words(typed: str) -> bool:
         return False
 
 
+#: A word in the question that asks for a name ("what's its name?", "what is my dentist called?", "what did I end up
+#: calling my kayak?", "what does the cat go by?").
+_ASKS_A_NAME_RE = re.compile(r"\b(?:names?|nam(?:ed|ing)|call(?:ed|ing)?|go(?:es)?\s+by|known\s+as)\b", re.IGNORECASE)
+#: A saved fact that gives a name: "my kayak is called Driftwood Dan", "my ferret goes by Quillon".
+_GIVES_A_NAME_RE = re.compile(r"\b(?:named|called|names?\s+(?:is|are|was|were)|go(?:es)?\s+by|known\s+as)\b", re.IGNORECASE)
+
+
+def _saved_rows_give_the_name(typed: str, answered: list[str]) -> list[str]:
+    """The saved facts that give the name a question asks for, among the rows that answer it outright.
+
+    Handed on with such a fact, the local model denied it: "whats the name of my grandmother's cockatoo" with "my
+    grandmother's cockatoo is named Pistachio" saved was answered "The records do not state the name", and "my kayak,
+    what's its name?" with "my kayak is called Driftwood Dan" saved "I don't have any record of a kayak" (independent
+    real-app run on 61ab41c6, qwen3:8b, 2026-11-22; the fact was in the model's context, measured in the served rig).
+    When the question asks for a name and the saved fact is the one that gives it, the fact is the answer, as it
+    already is for "do you remember the name of ..." and "remind me of the name of ...". A part of a name the fact
+    does not give ("whats Pieter's last name?" with "my manager is Pieter") gives no name here and keeps its lane."""
+    if not answered or not _ASKS_A_NAME_RE.search(typed) or _NAME_PART_RE.search(typed):
+        return []
+    return [row for row in answered if _GIVES_A_NAME_RE.search(row)]
+
+
 def cross_chat_recall(
     question: str,
     *,
@@ -1589,6 +1611,12 @@ def cross_chat_recall(
     ))
     best = _best_owner_statement(result, terms, saved_folded, replaced_folded)
     if best is None and saved:
+        named = _saved_rows_give_the_name(typed, answered_by_saved)
+        if named:
+            return CrossChatRecall(
+                response="Here is what I have saved:\n" + "\n".join(f"- {row}" for row in named[:4]),
+                found=True, chats_searched=result.chats_searched,
+            )
         if answered_by_saved and (claimed_elsewhere or _recall_in_reminder_words(typed)):
             # Handed on, a calendar or web lane ahead of the model would answer it instead of the saved fact. Any
             # other question goes on to the model, which reads the saved facts and answers in words ("whats Pieter's
