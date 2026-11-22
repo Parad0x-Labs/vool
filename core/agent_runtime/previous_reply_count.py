@@ -133,12 +133,90 @@ def _fmt(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else f"{value:.4f}".rstrip("0").rstrip(".")
 
 
+# --- the same follow-up found by its shape ---------------------------------------------------
+# `_OP_RE` is one fixed sentence shape, and gate v3 on 07803d62d (2026-11-22, fresh wording every
+# run) said it differently each time: "now divide that by 8" and "that over 5?" both missed it, and
+# the model divided the wrong number or asked what was meant. The follow-up is found instead by
+# what it is made of: ONE operation over ONE number, a reference to the last result (or the
+# operation leading the message, "times 3?"), and nothing else that asks for anything.
+
+_ANAPHOR = r"(?:that|it|this|the\s+(?:result|answer|total|number|sum))"
+_NUMBER_WORD = "|".join(sorted((*_NUMBER_WORDS, *_SCALES), key=len, reverse=True))
+_SHAPE_NUM = rf"(?P<num>-?\d+(?:\.\d+)?|(?:(?:{_NUMBER_WORD})(?:[\s-]+(?:and[\s-]+)?(?=(?:{_NUMBER_WORD})\b))?)+)"
+_SHAPE_OP_WORDS = {
+    "plus": "plus", "+": "plus", "add": "add",
+    "minus": "minus", "-": "minus", "subtract": "subtract", "take away": "take away",
+    "times": "times", "x": "times", "*": "times", "\u00d7": "times", "multiply": "times",
+    "multiplied by": "times",
+    "divide": "divide", "divided by": "divide", "over": "divide", "/": "divide", "\u00f7": "divide",
+}
+_SHAPE_FOLLOWUP_RES = (
+    # "divide that by 8", "multiply it by 3", "times that by 2"
+    re.compile(
+        rf"(?P<op>divide|multiply|times|mulitply|multipy|devide|divid)\s+(?P<ref>{_ANAPHOR})\s+by\s+{_SHAPE_NUM}\b"
+    ),
+    # "add 5 to that", "subtract 3 from it", "take away 2 from the total"
+    re.compile(rf"(?P<op>add|subtract|substract|take\s+away)\s+{_SHAPE_NUM}\s+(?:to|from)\s+(?P<ref>{_ANAPHOR})\b"),
+    # "that over 5", "it times 3", "the result divided by 4", "that / 2"; or, with no reference,
+    # the operation leading the message: "divided by 8?", "plus 100", "x 3"
+    re.compile(
+        rf"(?:(?P<ref>{_ANAPHOR})\s*)?(?P<op>multiplied\s+by|divided\s+by|take\s+away|plus|minus|times|over|"
+        rf"add|subtract|divide|multiply|[x*/+\u00d7\u00f7-])\s*(?:by\s+)?{_SHAPE_NUM}(?!\w)"
+    ),
+)
+_SHAPE_OP_TYPOS = {"mulitply": "multiply", "multipy": "multiply", "devide": "divide", "divid": "divide",
+                   "substract": "subtract"}
+
+
+def _followup_by_shape(question: str) -> tuple[str, float] | None:
+    from core.task_router import _shape_word_is_ask
+
+    text = " ".join(str(question or "").lower().replace("\u2019", "'").split())
+    if not text or len(text) > 120:
+        return None
+    # "is that over 50?", "was it over 5": a yes/no question compares; it does not divide.
+    if re.match(r"(?:is|was|are|were|isn't|wasn't|does|did|do)\b", text):
+        return None
+    for pattern in _SHAPE_FOLLOWUP_RES:
+        matches = list(pattern.finditer(text))
+        if not matches:
+            continue
+        if len(matches) != 1:
+            return None
+        match = matches[0]
+        rest = f"{text[: match.start()]} {text[match.end():]}"
+        if re.search(r"\d", rest):
+            return None
+        before = re.findall(r"[a-z]+(?:'[a-z]+)?", text[: match.start()])
+        has_ref = bool(match.group("ref")) or bool(re.search(rf"\b{_ANAPHOR}\b", rest))
+        # Without a reference, the operation must lead the message ("and divided by 8?"); an
+        # operation in the middle of a sentence with nothing pointing back is a new question.
+        if not has_ref and any(word not in {"and", "now", "ok", "okay", "then", "so", "um", "hmm"} for word in before):
+            return None
+        rest = re.sub(rf"\b{_ANAPHOR}\b", " ", rest)
+        if re.sub(r"[a-z]+(?:'[a-z]+)?|[\s,.!?:;'\"()]", "", rest):
+            return None
+        if not all(_shape_word_is_ask(word) for word in re.findall(r"[a-z]+(?:'[a-z]+)?", rest)):
+            return None
+        raw_op = " ".join(match.group("op").split())
+        op = _SHAPE_OP_WORDS.get(_SHAPE_OP_TYPOS.get(raw_op, raw_op))
+        operand = _words_to_number(match.group("num"))
+        if op is None or operand is None:
+            return None
+        return op, operand
+    return None
+
+
 def previous_result_arithmetic(question: str, *, session_id: str) -> str | None:
     match = _OP_RE.match(" ".join(str(question or "").split()))
-    if not match:
-        return None
-    op = (match.group("op") or match.group("op2") or "").lower()
-    operand = _words_to_number(match.group("num") or match.group("num2") or "")
+    if match:
+        op = (match.group("op") or match.group("op2") or "").lower()
+        operand = _words_to_number(match.group("num") or match.group("num2") or "")
+    else:
+        shaped = _followup_by_shape(question)
+        if shaped is None:
+            return None
+        op, operand = shaped
     if operand is None:
         return None
     reply = _previous_reply(session_id)

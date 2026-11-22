@@ -663,8 +663,107 @@ def _direct_math_expression(text: str) -> str:
     # the model instead of being computed from a guessed number.
     expression = _GROUPED_NUMBER_RE.sub(lambda m: m.group(0).replace(",", ""), expression)
     if not _DIRECT_MATH_EXPRESSION_RE.fullmatch(expression):
-        return ""
+        # The strips above are a list of known openers and fillers, and every wording outside the
+        # list fell through to the model. Gate v3 on 07803d62d (2026-11-22, fresh wording each run):
+        # "42+33?", "ok whtas 42+33?", "quick q: calculate 8616 * 37 :)" and "mulitply 8835 by 73"
+        # all reached local qwen3:8b, which answered 248,792 for 318,792, 644,205 for 644,955, and
+        # once only an emoji. The sum is found by its SHAPE instead: see `_expression_by_shape`.
+        return _expression_by_shape(normalized)
     if not any(marker in expression for marker in ("+", "-", "*", "/", "%")):
+        return ""
+    if len(re.findall(r"\d+(?:\.\d+)?", expression)) < 2:
+        return ""
+    return expression
+
+
+#: Words that ASK for a result or are politeness, greeting or filler around it. A closed set: a
+#: message is computed by shape only when every word outside the arithmetic is one of these, so any
+#: other word ("binary", "apples", "explain", "round", "in", "why") leaves the turn to the model.
+#: Nothing here changes what is computed; a word that could ("percent", "over", "squared") is
+#: deliberately absent.
+_SHAPE_ASK_WORDS = frozenset(
+    ["what", "whats", "what's", "wat", "is", "are", "was", "equals", "equal", "equal's", "the", "a", "an", "of", "to", "for", "me", "my", "please", "pls", "plz", "thanks", "thank", "thx", "ty", "hi", "hey", "hello", "yo", "ok", "okay", "so", "well", "um", "uh", "hmm", "and", "then", "also", "next", "now", "quick", "quickly", "q", "question", "calc", "calculate", "compute", "work", "out", "figure", "solve", "eval", "evaluate", "just", "tell", "give", "show", "answer", "result", "value", "how", "much", "can", "could", "would", "will", "you", "u", "do", "does", "did", "i", "need", "want", "know", "get", "asap", "fast", "already", "mate", "man", "again", "sum", "total", "lol", "haha", "hehe", "btw", "yeah", "yep", "hm", "right", "alright", "random", "randomly", "but", "oh", "ah", "sorry", "actually", "real", "quickly"]
+)
+#: Typed shorthand for an emotion around the sum (":)", ":-D", ";p", "xD", "<3"). Not words.
+_SHAPE_EMOTICON_RE = re.compile(r"(?:^|\s)(?:[:;=8][-']?[()dDpPoO3\]\[/\\|*]+|[xX][dD]+|<3)(?=\s|$)")
+#: A run of arithmetic: numbers joined by operators, with optional parentheses and leading sign.
+_SHAPE_EXPRESSION_RE = re.compile(
+    r"(?<![\w.])[-+]?\(*\s*\d+(?:\.\d+)?\s*\)*(?:\s*[-+*/%]\s*\(*\s*[-+]?\d+(?:\.\d+)?\s*\)*)+(?![\w.]*\d)"
+)
+#: "multiply 8835 by 73", "divide 90 by 6": the operation said as a verb in front of its operands.
+#: The verb may carry one typo ("mulitply"): the "<verb> N by M" frame around it is what makes the
+#: correction safe, as with `_repair_mistyped_operator_words`.
+_SHAPE_VERB_FORM_RE = re.compile(
+    r"\b(?P<verb>[a-z]{5,9})\s+(?P<a>\d+(?:\.\d+)?)\s+by\s+(?P<b>\d+(?:\.\d+)?)\b"
+)
+_SHAPE_VERB_OPERATORS = {"multiply": "*", "divide": "/"}
+#: "add 3 and 4", "add 3 to 4", "subtract 3 from 10". Exact verbs only: three letters is too short
+#: to correct safely, and "subtract ... from" reverses its operands.
+_SHAPE_ADD_FORM_RE = re.compile(r"\badd\s+(?P<a>\d+(?:\.\d+)?)\s+(?:and|to)\s+(?P<b>\d+(?:\.\d+)?)\b")
+_SHAPE_SUBTRACT_FORM_RE = re.compile(
+    r"\bsubtract\s+(?P<a>\d+(?:\.\d+)?)\s+from\s+(?P<b>\d+(?:\.\d+)?)\b"
+)
+
+
+def _shape_word_is_ask(word: str) -> bool:
+    if word in _SHAPE_ASK_WORDS:
+        return True
+    # One typo in a longer ask word ("whtas", "calcualte", "pleas"). Short words are never
+    # corrected: at three letters nearly every word is one edit from another.
+    if len(word) < 4:
+        return False
+    return any(len(target) >= 4 and _within_one_edit(word, target) for target in _SHAPE_ASK_WORDS)
+
+
+def _expression_by_shape(normalized: str) -> str:
+    """The one arithmetic expression in ``normalized``, when nothing else in it asks for anything.
+
+    The expression is found by what it is made of (numbers and operators, operator words between
+    numbers already turned into symbols), wherever it sits and whatever opener, typo, emoticon or
+    punctuation is around it. The rest of the message must hold no other number and only words
+    from `_SHAPE_ASK_WORDS`; otherwise "" and the turn goes where it went before."""
+    text = _repair_mistyped_operator_words(normalized, original=normalized)
+    for pattern, symbol in (
+        (r"\bmultiplied\s+by\b", "*"),
+        (r"\bdivided\s+by\b", "/"),
+        (r"\btimes\b", "*"),
+        (r"\bplus\b", "+"),
+        (r"\bminus\b", "-"),
+    ):
+        text = re.sub(pattern, symbol, text)
+    text = re.sub(r"(?<=\d)\s*[x\u00d7]\s*(?=\d)", "*", text)
+    text = text.replace("\u00f7", "/")
+
+    def _verb_form(match: re.Match[str]) -> str:
+        verb = match.group("verb")
+        for name, symbol in _SHAPE_VERB_OPERATORS.items():
+            if _within_one_edit(verb, name):
+                return f"{match.group('a')} {symbol} {match.group('b')}"
+        return match.group(0)
+
+    text = _SHAPE_VERB_FORM_RE.sub(_verb_form, text)
+    text = _SHAPE_ADD_FORM_RE.sub(lambda m: f"{m.group('a')} + {m.group('b')}", text)
+    text = _SHAPE_SUBTRACT_FORM_RE.sub(lambda m: f"{m.group('b')} - {m.group('a')}", text)
+    text = _GROUPED_NUMBER_RE.sub(lambda m: m.group(0).replace(",", ""), text)
+    spans = list(_SHAPE_EXPRESSION_RE.finditer(text))
+    if len(spans) != 1:
+        return ""
+    expression = " ".join(spans[0].group(0).split())
+    rest = f"{text[: spans[0].start()]} {text[spans[0].end() :]}"
+    if re.search(r"\d", rest):
+        return ""
+    rest = _SHAPE_EMOTICON_RE.sub(" ", rest)
+    words = re.findall(r"[a-z]+(?:'[a-z]+)?", rest)
+    # Anything that is neither a word, an emoticon nor plain punctuation (an "=" that is not a
+    # trailing ask, a "^", "!" as factorial right after the sum) is not part of an ask.
+    leftover = re.sub(r"[a-z]+(?:'[a-z]+)?|[\s,.!?:;'\"\-()]", "", rest)
+    leftover = re.sub(r"=+\s*$", "", leftover.strip())
+    if leftover and leftover != "=":
+        return ""
+    # One "!" right after the sum may be a factorial ("5!"); a run of them ("4+5!!") is emphasis.
+    if re.match(r"\s*!(?!!)", text[spans[0].end() :]):
+        return ""
+    if not all(_shape_word_is_ask(word) for word in words):
         return ""
     if len(re.findall(r"\d+(?:\.\d+)?", expression)) < 2:
         return ""
