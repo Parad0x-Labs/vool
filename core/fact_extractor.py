@@ -15,6 +15,7 @@ from core.disclosure.direct import received_headers, request_options
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
+from core.typo_fold import near_miss
 from core.vool_memory import VoolMemory, _learned_clauses, _learned_words
 
 FactAction = Literal["ADD", "UPDATE", "DELETE", "NOOP"]
@@ -154,6 +155,24 @@ class ExtractedFact:
 _NAME_FACT_RE = re.compile(r"^\s*name\s*[:=]\s*(.+)$", re.IGNORECASE)
 
 
+#: An angle-bracketed span: the shape of the extraction prompt's format placeholders ("<a fact the user explicitly
+#: stated about themselves>", "<name>"). Measured on 58f60bbf3 (blind audit, local qwen3:8b, a Lithuanian chat): the
+#: model copied them into user_profile and project_context, alone and in front of the assistant's own greeting.
+_BRACKETED_SPAN_RE = re.compile(r"<([^<>\n]{1,160})>")
+
+
+def _fact_value(fact: ExtractedFact) -> str:
+    """The words a fact would write: an ADD's content, an UPDATE's new value."""
+    return str(fact.new if fact.action == "UPDATE" else fact.content or "")
+
+
+def _copies_a_placeholder(fact: ExtractedFact, user_text: str) -> bool:
+    """Whether a fact holds a bracketed span the person never typed: a template placeholder, not something said."""
+    said = " ".join(str(user_text or "").split()).casefold()
+    return any(" ".join(span.split()).casefold() not in said
+               for span in _BRACKETED_SPAN_RE.findall(_fact_value(fact)))
+
+
 def _fact_grounded(fact: ExtractedFact, user_text: str) -> bool:
     """Reject an LLM-invented user name, and any name that contradicts the authoritative user_address.
 
@@ -166,9 +185,14 @@ def _fact_grounded(fact: ExtractedFact, user_text: str) -> bool:
     model-invented "Rick", so a contradiction can never be persisted as memory. Changing the name is
     done by updating user_address, not by letting a stray mention create a competing profile Name.
     """
-    if fact.action != "ADD" or fact.block != "user_profile":
+    if fact.action not in {"ADD", "UPDATE"}:
         return True
-    match = _NAME_FACT_RE.match(fact.content)
+    if _copies_a_placeholder(fact, user_text):
+        return False
+    # A name line is the profile's in EVERY block and for an UPDATE too: on 58f60bbf3 "Name: <name>" and "Name:
+    # Įrašyk" (the Lithuanian verb "write down" from the person's own "Įrašyk ...") reached project_context, where
+    # this check never looked.
+    match = _NAME_FACT_RE.match(_fact_value(fact))
     if not match:
         return True
     name = match.group(1).strip().strip(".\"'` ")
@@ -187,6 +211,54 @@ def _fact_grounded(fact: ExtractedFact, user_text: str) -> bool:
     if authoritative:
         return name.lower() == authoritative.lower()
     return False
+
+
+def _folded_words(text: str) -> set[str]:
+    """Content words with accents taken off ("žalia" and "zalia" are one word as people type them)."""
+    import unicodedata
+
+    plain = "".join(ch for ch in unicodedata.normalize("NFKD", str(text or "")) if not unicodedata.combining(ch))
+    return _learned_words(plain)
+
+
+def _same_word(word: str, other: str) -> bool:
+    """One word as people type it: the same, one typo apart, or two forms of one stem (a shared start that leaves at
+    most two letters of the shorter word: "palapine" / "palapines", "remember" / "remembered")."""
+    if word == other:
+        return True
+    if min(len(word), len(other)) >= 4 and near_miss(word, other):
+        return True
+    shorter = min(len(word), len(other))
+    if shorter < 5 or abs(len(word) - len(other)) > 3:
+        return False
+    stem = 0
+    for left, right in zip(word, other, strict=False):
+        if left != right:
+            break
+        stem += 1
+    return stem >= shorter - 2
+
+
+def _fact_from_the_person(fact: ExtractedFact, user_text: str, assistant_text: str) -> bool:
+    """Whether a fact the model extracted carries what the PERSON said, not what the assistant answered.
+
+    The extractor reads both sides of the conversation (a "yes" means nothing without the question), and the model
+    wrote the assistant's own words as the person's facts. Measured on 58f60bbf3 (blind audit, local qwen3:8b): the
+    assistant's explanation of files and folders went to project_context and its greeting ("Sveikas! Galiu padėti
+    ...") to user_profile, and both were then read back as things the person had said. A fact is refused when more
+    of its content words come only from the assistant's turns than from the person's own; words from neither side (a
+    fact written in another language than the chat) count for nothing either way. DELETE and NOOP write nothing new.
+    """
+    if fact.action not in {"ADD", "UPDATE"}:
+        return True
+    words = _folded_words(_fact_value(fact))
+    if not words:
+        return True
+    said = _folded_words(user_text)
+    answered = _folded_words(assistant_text)
+    theirs = {word for word in words if any(_same_word(word, other) for other in said)}
+    from_reply = {word for word in words - theirs if any(_same_word(word, other) for other in answered)}
+    return not from_reply or len(theirs) > len(from_reply)
 
 
 #: How many background extractions may be in flight at once. Each one owns a socket for its
@@ -308,6 +380,7 @@ class FactExtractor:
         # are also grounded against the user's own text so a copied "Name: ..."
         # example (or any invented name) never reaches the profile.
         user_text = self._user_text(messages)
+        assistant_text = self._user_text(messages, role="assistant")
         # The tiny LLM extractor otherwise turns a per-conversation "do not mention private keys" into
         # a durable global constraint that contaminates unrelated future sessions. The rule-based path
         # already excludes bare content-avoidance; drop it from the LLM path too (explicit "from now
@@ -316,6 +389,7 @@ class FactExtractor:
             fact
             for fact in self._parse_facts(raw)
             if _fact_grounded(fact, user_text)
+            and _fact_from_the_person(fact, user_text, assistant_text)
             and not (fact.block == "constraints" and _is_transient_content_avoidance(fact.content))
         ]
         facts = _merge_facts([*_rule_based_facts(conversation_text), *llm_facts])
@@ -365,11 +439,12 @@ class FactExtractor:
                 parts.append(f"turn {turn} {role}: {content}")
         return "\n".join(parts)
 
-    def _user_text(self, messages: list[dict]) -> str:
-        """Concatenated user-authored text only, for grounding extracted facts against what the user said."""
+    def _user_text(self, messages: list[dict], *, role: str = "user") -> str:
+        """Concatenated text of one side of the conversation the extractor reads (the person's by default), for
+        grounding extracted facts against who said them."""
         parts: list[str] = []
         for msg in list(messages or [])[-20:]:
-            if isinstance(msg, dict) and str(msg.get("role") or "").strip().lower() == "user":
+            if isinstance(msg, dict) and str(msg.get("role") or "").strip().lower() == role:
                 parts.append(_message_content_text(msg.get("content", "")))
         return " ".join(part for part in parts if part).strip()
 
