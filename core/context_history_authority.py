@@ -285,6 +285,46 @@ def asks_about_this_conversation(text: str) -> bool:
     return bool(RESUME_RE.search(raw) or (JOINT_DECISION_RE.search(raw) and _CONVERSATION_QUESTION_HEAD_RE.match(raw)))
 
 
+#: The words an order-of-asking question is made of. A slip of one ("frist", "quesiton", "lsat") still asks it: "ok what
+#: did i ask frist here thx" was answered by the model from the wrong message (real-app check v3 on fe98e849, 2026-11-22).
+#: Folded by the runtime's one typo budget (core.typo_fold).
+_ORDER_ASK_WORDS = ("first", "last", "previous", "question", "questions", "asked", "message", "messages")
+#: A lead-in before the ask ("um what was my last question", "ok what did i ask first here"): up to three words with
+#: no "I"/"my" of their own. "I wonder what my last question to the doctor should be" keeps its lead and stays prose.
+_ASK_LEAD_IN_RE = re.compile(
+    r"^\s*(?P<lead>(?:(?!(?:what|which|whats|show|list|repeat|recall|remind|tell|summari[sz]e)\b)[a-z]+[,!.:;-]*\s+){1,3}?)"
+    r"(?=(?:what|which|whats|what's|show|list|repeat|recall|remind|tell|summari[sz]e)\b)",
+    re.IGNORECASE,
+)
+_ASK_LEAD_IN_OWNER_RE = re.compile(r"\b(?:i|i'm|me|my|we|our|us)\b", re.IGNORECASE)
+#: "what was my last question", "what did I just ask", "remind me my previous message": the person's own latest message
+#: in this chat, read from the transcript (core.agent_runtime.same_chat_recall). Left to the model, "um what was my last
+#: question :)" was answered with the message before it (real-app check v3 on fe98e849, 2026-11-22).
+_LAST_OWN_MESSAGE_RE = re.compile(
+    r"^\s*(?:(?:what|which)(?:'s|s)?\s+(?:was|were|is)?\s*(?:my|our)\s+(?:last|previous|latest|most\s+recent)\s+"
+    r"(?:question|message|ask|request)\b(?!\s+(?:to|for|about|on|of)\b)"
+    r"|(?:what|which)\s+did\s+(?:i|we)\s+(?:just\s+|last\s+)(?:ask|say|type|write|send)\b"
+    r"|(?:remind|tell)\s+me\s+(?:what\s+)?(?:my|our)\s+(?:last|previous)\s+(?:question|message)\s+was\b)",
+    re.IGNORECASE,
+)
+
+
+def plain_order_ask(text: str) -> str:
+    """The ask with a slip of its order words mended and a lead-in of its own words dropped."""
+    from core.typo_fold import fold_near_miss_tokens
+
+    clean = fold_near_miss_tokens(" ".join(str(text or "").split()), _ORDER_ASK_WORDS)
+    lead = _ASK_LEAD_IN_RE.match(clean)
+    if lead is not None and not _ASK_LEAD_IN_OWNER_RE.search(lead.group("lead")):
+        clean = clean[lead.end():]
+    return clean
+
+
+def asks_for_last_own_message(text: str) -> bool:
+    """Whether the ask is for the person's own latest message in this chat ("what was my last question?")."""
+    return bool(_LAST_OWN_MESSAGE_RE.search(plain_order_ask(text)))
+
+
 def is_same_chat_history_recall(text: str) -> bool:
     """Recognize a direct request to inspect earlier turns in the current chat.
 
@@ -297,7 +337,7 @@ def is_same_chat_history_recall(text: str) -> bool:
     # A quoted/code example is content to discuss, not authority to inspect private transcript.
     if not raw or raw.startswith(('"', "'", "`", "“", "‘")):
         return False
-    normalized = " ".join(raw.split())
+    normalized = plain_order_ask(raw)
     if _SAME_CHAT_HISTORY_RECALL_RE.search(normalized):
         return True
     if _BARE_PREVIOUS_REFERENCE_RE.match(normalized):

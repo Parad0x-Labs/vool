@@ -687,6 +687,22 @@ def _vool_lane_owns(text: str) -> str:
     return ""
 
 
+def _asks_about_this_chat(text: str, session_id: str = "") -> bool:
+    """An ask about this chat's own messages ("um what was my last question", "ok what did i ask frist here"): the
+    transcript reader's, never a search of the disk. Admitted here, each ran two loop model calls, then fell through
+    and the model answered with the wrong message (real-app check v3 on fe98e849, 2026-11-22: A6, C7)."""
+    try:
+        from core.agent_runtime.same_chat_recall import _ordering_recall_kind
+        from core.context_history_authority import is_same_chat_history_recall
+
+        if _ordering_recall_kind(text) in {"first_question", "last_question"}:
+            return True
+        # "and the one before it?" right after a files turn points into that turn's own list: the loop's follow-up.
+        return bool(is_same_chat_history_recall(text)) and not _is_follow_up(text, session_id)
+    except Exception:
+        return False
+
+
 def _memory_lane_owns(text: str, session_id: str = "", source_context: Mapping[str, Any] | None = None) -> bool:
     """A forget, a "remember that", the memory list: the memory lane's commands. Taken here as a follow-up of
     a files turn, a forget was answered by the loop's model and nothing was forgotten (served, 2026-11-12).
@@ -930,6 +946,8 @@ def decide(
         return RouteDecision(False, fenced)
     if _memory_lane_owns(text, session_id, source_context):
         return RouteDecision(False, "memory_command")
+    if _asks_about_this_chat(text, session_id):
+        return RouteDecision(False, "same_chat_recall")
     owned = _vool_lane_owns(text)
     if owned:
         # The database tools are a plugin too: a question about the person's own databases keeps its own reason.

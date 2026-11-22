@@ -209,11 +209,17 @@ def _same_ask(first: str, second: str) -> bool:
 
 
 def _ordering_recall_kind(text: str) -> str:
-    """"first_question" / "previous_question" when the ask names the user's own order in THIS chat."""
-    if _FIRST_OWN_ORDER_RE.search(str(text or "")):
+    """"first_question" / "previous_question" / "last_question" when the ask names the user's own order in THIS chat.
+    Read with a slip of the order words mended and a lead-in dropped (context_history_authority.plain_order_ask)."""
+    from core.context_history_authority import asks_for_last_own_message, plain_order_ask
+
+    plain = plain_order_ask(str(text or ""))
+    if _FIRST_OWN_ORDER_RE.search(plain):
         return "first_question"
-    if _PREV_OWN_ORDER_RE.search(str(text or "")):
+    if _PREV_OWN_ORDER_RE.search(plain):
         return "previous_question"
+    if asks_for_last_own_message(plain):
+        return "last_question"
     return ""
 
 
@@ -280,6 +286,10 @@ def _ordering_question_answer(
 ) -> tuple[str, bool]:
     """The message the ask names, from this chat's ordered user messages."""
     messages = [user_text for user_text, _assistant in rows]
+    if ordering_kind == "last_question":
+        if not messages:
+            return "This is the first thing you've asked in this chat.", False
+        return f'Your last question in this chat was: "{messages[-1]}"', True
     if ordering_kind == "first_question":
         if not messages:
             return "This is the first thing you've asked in this chat.", False
@@ -345,6 +355,8 @@ def _question_order_recall(
         ), source_context=context)
     if not _authorize_transcript_payload(rows, context):
         return _withheld_transcript_recall(ordering_kind)
+    if ordering_kind == "last_question" and rows and _same_ask(rows[-1][0], user_input):
+        rows = rows[:-1]  # the ask itself, if the store already holds it, is not the question before it
     response, found = _ordering_question_answer(ordering_kind, rows)
     return gate_transcript_recall(TranscriptRecall(
         response=response,
@@ -521,14 +533,14 @@ def same_chat_transcript_recall_fast_path(
 
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
-    if not is_same_chat_history_recall(user_input):
+    ordering_kind = _ordering_recall_kind(user_input)
+    if not is_same_chat_history_recall(user_input) and ordering_kind != "last_question":
         return None
     # "Earlier" can describe a book, film, or outside person just as easily as this transcript.
     # A named third-party subject keeps that ambiguous question in normal conversation instead of
     # turning a stale local title into a purported answer about the outside subject.
     if _NAMED_EXTERNAL_ACTOR_RE.search(str(user_input or "")):
         return None
-    ordering_kind = _ordering_recall_kind(user_input)
     if ordering_kind:
         return _question_order_recall(
             user_input,
