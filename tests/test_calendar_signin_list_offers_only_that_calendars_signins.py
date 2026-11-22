@@ -8,6 +8,7 @@ either: an account could name any verified key. The real fragment runs under nod
 from __future__ import annotations
 
 import json
+import random
 import shutil
 import subprocess
 import tempfile
@@ -24,7 +25,9 @@ UNRELATED = [
     {"binding_id": "b-or", "provider_id": "openrouter", "provider_label": "OpenRouter", "account": "", "status": "verified"},
     {"binding_id": "b-brave", "provider_id": "brave_search", "provider_label": "Brave Search", "account": "", "status": "verified"},
 ]
-GOOGLE = {"binding_id": "b-g", "provider_id": "google", "provider_label": "Google", "account": "me@example.com", "status": "verified"}
+# A Google sign-in's provider id varies by where it was made; the service it names is what counts.
+GOOGLE = {"binding_id": "b-g", "provider_id": random.choice(["google", "google_calendar", "fixture_google", "work-gmail"]),
+          "provider_label": "Google", "account": "me@example.com", "status": "verified"}
 
 
 def _add_form(source: str, bindings: list[dict], *, platform: str) -> dict:
@@ -97,8 +100,10 @@ def test_off_a_mac_the_calendar_app_path_is_not_offered():
 
 
 @pytest.mark.parametrize(("provider", "binding_provider", "fits"), [
-    ("google", "google", True), ("google", "openrouter", False), ("google", "brave_search", False),
-    ("graph", "microsoft", True), ("graph", "google", False), ("caldav", "anything", True),
+    ("google", "google", True), ("google", "google_calendar", True), ("google", "fixture_google", True),
+    ("google", "openrouter", False), ("google", "brave_search", False), ("google", "googly", False),
+    ("graph", "microsoft", True), ("graph", "microsoft_graph", True), ("graph", "google", False),
+    ("caldav", "anything", True),
 ])
 def test_the_server_takes_only_a_sign_in_for_that_calendar(provider, binding_provider, fits):
     assert calendar_accounts.binding_fits(provider, binding_provider) is fits

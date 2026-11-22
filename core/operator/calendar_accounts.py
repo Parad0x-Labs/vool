@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -43,14 +44,14 @@ PROVIDERS: dict[str, dict[str, str]] = {
         "links": "the event page, and Google Meet links",
         # The sign-ins this source can use, by credential provider id. Any other key (a model or search key) is never
         # one: offered for Google, the list showed OpenRouter and Brave Search (sls on fe98e849, 2026-11-22).
-        "binding_providers": "google,google_calendar",
+        "binding_providers": "google,gmail,gcal",
     },
     "graph": {
         "label": "Microsoft Outlook / Microsoft 365",
         "connection": "your Microsoft account sign-in",
         "events": "repeating events are read one date at a time",
         "links": "the event page, and Teams links",
-        "binding_providers": "microsoft,microsoft_graph,graph,outlook",
+        "binding_providers": "microsoft,msgraph,graph,outlook,office365,o365",
     },
     "caldav": {
         "label": "iCloud or another CalDAV server",
@@ -217,7 +218,10 @@ def binding_fits(provider: str, binding_provider_id: str) -> bool:
     """Whether a sign-in for `binding_provider_id` can open a `provider` calendar account. A source that lists its
     sign-ins takes only those; CalDAV and Apple Calendar list none and are not narrowed here."""
     allowed = [part for part in str((PROVIDERS.get(provider) or {}).get("binding_providers") or "").split(",") if part]
-    return not allowed or str(binding_provider_id or "").strip().lower() in allowed
+    # By the service the sign-in's provider id names, as one of its words ("google", "google_calendar",
+    # "fixture_google", "work-gmail"), never by one exact id: the ids a sign-in carries vary by where it was made.
+    words = re.split(r"[^a-z0-9]+", str(binding_provider_id or "").strip().lower())
+    return not allowed or any(word in allowed for word in words)
 
 
 def _binding_refusal(binding: str, *, provider: str = "") -> dict[str, Any] | None:

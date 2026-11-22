@@ -313,7 +313,10 @@ function mountInto(host){
        every key, the Google list showed OpenRouter and Brave Search (sls on fe98e849, 2026-11-22). */
     function fitting(key){
       var allowed = String((providers[key] || {}).binding_providers || '').split(',').filter(Boolean);
-      return (view.bindings || []).filter(function(b){ return !allowed.length || allowed.indexOf(String(b.provider_id || '').toLowerCase()) >= 0; });
+      // By the service the sign-in's provider id names as one of its words (google, google_calendar, work-gmail).
+      return (view.bindings || []).filter(function(b){
+        return !allowed.length || String(b.provider_id || '').toLowerCase().split(/[^a-z0-9]+/).some(function(w){ return allowed.indexOf(w) >= 0; });
+      });
     }
     function viaMacCalendar(key){ return (key === 'google' || key === 'graph') && isMacPlatform() && !!providers.eventkit; }
     function refreshFields(){
