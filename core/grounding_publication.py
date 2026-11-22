@@ -1096,6 +1096,18 @@ def _aggregate_claim_support(content: str, rows: list[dict[str, Any]], claim_map
 
 
 def publication_verdict(lifecycle: GroundingLifecycle, content: str) -> PublicationVerdict:
+    """What may ship. A runtime failure block at the end (see `register_runtime_failure_block`)
+    is not a claim: the answer above it is judged, and the block follows it word for word."""
+    answer, failure_block = _split_runtime_failure_block(str(content or ""))
+    if not failure_block or not answer.strip():
+        return _publication_verdict_of(lifecycle, str(content or ""))
+    from dataclasses import replace as _dc_replace
+
+    verdict = _publication_verdict_of(lifecycle, answer)
+    return _dc_replace(verdict, content=verdict.content.rstrip() + "\n\n" + failure_block)
+
+
+def _publication_verdict_of(lifecycle: GroundingLifecycle, content: str) -> PublicationVerdict:
     """Decide what a current-information turn may publish, from the lifecycle and the bytes.
 
     The claim map is computed here, over `content`, and never inherited from the reasoning
@@ -1265,6 +1277,39 @@ def publication_verdict(lifecycle: GroundingLifecycle, content: str) -> Publicat
     )
 
 
+# The runtime's own "I could not answer this part of your message:" blocks, by their exact bytes.
+# A multi-part turn whose part failed carries the runtime's reason for that part (measured on the
+# first-day sweep, Nov 21, no model running: "- and tell me a joke please (no local model is
+# running on this computer ...)"). The claim gate read that reason as an unsupported statement,
+# withheld its first sentence and left "- Add a cloud key ...)" under an empty header. Only bytes
+# the runtime registered are exempt, so a model that writes the same header gains nothing.
+_RUNTIME_FAILURE_BLOCKS: list[str] = []
+_RUNTIME_FAILURE_BLOCKS_MAX = 64
+
+
+def register_runtime_failure_block(block: str) -> None:
+    """Record a failure block the runtime composed, so the gate keeps it word for word."""
+    text = str(block or "").strip()
+    if not text:
+        return
+    if text in _RUNTIME_FAILURE_BLOCKS:
+        _RUNTIME_FAILURE_BLOCKS.remove(text)
+    _RUNTIME_FAILURE_BLOCKS.append(text)
+    del _RUNTIME_FAILURE_BLOCKS[:-_RUNTIME_FAILURE_BLOCKS_MAX]
+
+
+def _split_runtime_failure_block(content: str) -> tuple[str, str]:
+    """``(answer, block)`` when the content ends with a registered runtime failure block."""
+    text = str(content or "")
+    stripped = text.rstrip()
+    for block in reversed(_RUNTIME_FAILURE_BLOCKS):
+        if stripped.endswith(block):
+            head = stripped[: len(stripped) - len(block)]
+            if not head or head.endswith("\n"):
+                return head.rstrip(), block
+    return text, ""
+
+
 def gate_publishable_content(content: str, *, turn_id: str = "", runtime_notice: bool = False) -> tuple[str, dict[str, Any]]:
     """THE gate, as `core.finalization` calls it: bytes in, publishable bytes plus the record out.
 
@@ -1418,6 +1463,7 @@ __all__ = [
     "gate_publishable_content",
     "is_typed_refusal_text",
     "publication_verdict",
+    "register_runtime_failure_block",
     "typed_refusal",
     "unsupported_work_notice",
 ]

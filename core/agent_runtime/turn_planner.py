@@ -697,7 +697,11 @@ def merge_outcomes(outcomes: list[TaskOutcome]) -> str:
             if len(failed) == 1
             else "I could not answer these parts of your message:"
         )
-        blocks.append(header + "\n" + "\n".join(lines))
+        failure_block = header + "\n" + "\n".join(lines)
+        from core.grounding_publication import register_runtime_failure_block
+
+        register_runtime_failure_block(failure_block)
+        blocks.append(failure_block)
     return "\n\n".join(block for block in blocks if block).strip()
 
 
