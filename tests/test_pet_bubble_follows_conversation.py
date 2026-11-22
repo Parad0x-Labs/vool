@@ -96,9 +96,15 @@ TITLE_CASES = [
     ("Thank you so much! Which line did that file end up holding?", "Which line did that file end"),
     ("Cheers, that helps. And how many words are on that line?", "How many words are on that"),
     ("Brilliant, ty!! Now make it shorter.", "Make it shorter"),
-    ("Find me a flight to Rome. I want to leave Friday.", "Find flight to Rome"),
     ("Lovely, all sorted. Now name the first plant on that list.", "Name first plant on that list"),
     ("Book it.", "Book"),
+    # Wordings from the Mac runs: a courtesy of any length before the ask, and a short ask.
+    ("Okay great, thanks for all of that. Now tell me how long the line in that file is.", "How long line in that file"),
+    ("Thanks for sorting all of that out. Summarise the file.", "Summarise file"),
+    ("Nice, all done. Now list the words in that file.", "List words in that file"),
+    ("Super! Read me the file again", "Read file again"),
+    # Background first, then the ask.
+    ("I fly to Rome on Friday. Find me a hotel near the station.", "Find hotel near station"),
 ]
 
 

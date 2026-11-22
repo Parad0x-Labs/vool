@@ -813,20 +813,16 @@ function vnTaskTitle(text) {
   // file?" is a thank-you, then the ask (its title was empty for the whole turn on the Mac). In a
   // question, the question's own clause goes first ("For the report, can you check the numbers?"
   // names the check, not "Report").
-  // By shape, not by word lists: a question is the ask; an exclamation ("Thank you so much!") is
-  // the least likely to be one; plain sentences keep their order among their own kind. On the Mac
-  // "Thank you so much! Which line did that file end up holding?" was titled "You so much".
-  // A short plain sentence beside a longer one is an aside ("Lovely, all sorted. Now name the first
-  // plant on that list." was titled "Lovely"); it names the task only when nothing else does.
-  const shape = function (v) {
-    if (/\?\s*$/.test(v)) return 0;
-    if (/!\s*$/.test(v)) return 3;
-    return v.split(/\s+/).length <= 3 ? 2 : 1;
-  };
+  // By shape, not by word lists or lengths: a question is the ask; otherwise the LAST plain
+  // sentence, since what comes before the ask is a thank-you or the background ("Thanks for
+  // sorting all of that out. Summarise the file.", "I fly to Rome on Friday. Find me a hotel.");
+  // an exclamation ("Super!") only when nothing else names the task. On the Mac, first-sentence
+  // and sentence-length rules titled such follow-ups "You so much", "Lovely" and "Great".
+  const shape = function (v) { return /\?\s*$/.test(v) ? 0 : (/!\s*$/.test(v) ? 2 : 1); };
   const sentences = s.replace(/([.!?])\s+/g, "$1\n").split("\n")
     .map(function (v, i) { return { v: v.trim(), i: i }; })
     .filter(function (x) { return x.v; })
-    .sort(function (a, b) { return shape(a.v) - shape(b.v) || a.i - b.i; })
+    .sort(function (a, b) { return shape(a.v) - shape(b.v) || (shape(a.v) === 1 ? b.i - a.i : a.i - b.i); })
     .map(function (x) { return x.v; });
   for (let i = 0; i < sentences.length; i++) {
     const sentence = sentences[i];
