@@ -1058,42 +1058,51 @@ def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
 
     The list is the tools' own names and descriptions (an added plugin's as its maker wrote it). The examples are
     deliberately about other tools and in several languages: a person asks in their own words and their own language,
-    and a plugin is often added for exactly that language. More than one can be asked for in one message."""
+    and a plugin is often added for exactly that language. More than one can be asked for in one message.
+
+    "None of them" is a choice of its own, numbered 0 and listed first. Without it a small model reading a message no
+    tool fits tended to name the first tool: "kiek bus 23 kart 4?" (23 times 4) was judged as the first built-in,
+    Reminders, on qwen3:8b (memory-faults run on b43e6aced, 2026-11-22), and the person got an approval card to set a
+    reminder instead of 92. The tools keep their numbers from 1."""
     flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
     chars = _PLUGIN_ASK_CHARS if len(plugins) <= _PLUGIN_ASK_FULL_CHOICES else _PLUGIN_ASK_BRIEF_CHARS
+    none = '0. "None of them: the message asks for no tool below."'
     lines = [
         "A person wrote to their assistant. The assistant has the tools below.",
         "Question: which of these tools does the message ask the assistant to USE, in any language and any words: to "
         "look something up with it, work something out with it, or do with it what the tool says it does?",
         'Answer {"answer": [N]} with the number of that tool, or several numbers when it asks for several.',
-        'Answer {"answer": []} when the message only talks about the same subject, asks for advice, an explanation, '
-        "an opinion or a how-to, asks for something else, or asks nothing a tool does.",
+        'Answer {"answer": [0]} (none of them) when the message only talks about the same subject, asks for advice, an '
+        "explanation, an opinion, a how-to or a sum the assistant can work out itself, asks for something else, or "
+        "asks nothing a tool does. The order of the tools says nothing about which one is meant.",
         "A short follow-up (\"and now?\", \"same for the other one\") asks for the tool its previous message asked for.",
         "",
-        'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
-        'of a flight by its flight number." Message: "is LX 1440 delayed today?" -> {"answer": [2]}',
-        'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
-        'of a flight by its flight number." Message: "wie viele Wörter hat: der Hund schläft im Garten" -> {"answer": [1]}',
-        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Message: "how do airlines choose flight numbers?" -> {"answer": []}',
-        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Message: "¿mi vuelo IB3456 ya salió?" -> {"answer": [1]}',
-        'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
-        'of a flight by its flight number." Message: "skaičiuok žodžius šiame laiške ir pasakyk ar LX 1440 vėluoja" '
-        '-> {"answer": [1, 2]}',
-        'Tools: 1. "Word counter: counts the words and characters in a text." '
-        'Message: "écris-moi un petit poème sur la mer" -> {"answer": []}',
-        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
+        f'Tools: {none} 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live '
+        'status of a flight by its flight number." Message: "is LX 1440 delayed today?" -> {"answer": [2]}',
+        f'Tools: {none} 1. "Alarm clock: rings at a time the person sets." 2. "Word counter: counts the words and '
+        'characters in a text." Message: "wie viele Wörter hat: der Hund schläft im Garten" -> {"answer": [2]}',
+        f'Tools: {none} 1. "Flight board: shows the live status of a flight by its flight number." '
+        'Message: "how do airlines choose flight numbers?" -> {"answer": [0]}',
+        f'Tools: {none} 1. "Alarm clock: rings at a time the person sets." 2. "Flight board: shows the live status of '
+        'a flight by its flight number." Message: "¿mi vuelo IB3456 ya salió?" -> {"answer": [2]}',
+        f'Tools: {none} 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live '
+        'status of a flight by its flight number." Message: "skaičiuok žodžius šiame laiške ir pasakyk ar LX 1440 '
+        'vėluoja" -> {"answer": [1, 2]}',
+        f'Tools: {none} 1. "Alarm clock: rings at a time the person sets." 2. "Word counter: counts the words and '
+        'characters in a text." Message: "combien font 18 fois 7 ?" -> {"answer": [0]}',
+        f'Tools: {none} 1. "Word counter: counts the words and characters in a text." '
+        'Message: "écris-moi un petit poème sur la mer" -> {"answer": [0]}',
+        f'Tools: {none} 1. "Flight board: shows the live status of a flight by its flight number." '
         'Previous message: "status of flight LX 1440 please" Message: "and AF 220?" -> {"answer": [1]}',
-        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
-        'Message: "what should I pack for a long flight?" -> {"answer": []}',
+        f'Tools: {none} 1. "Alarm clock: rings at a time the person sets." 2. "Flight board: shows the live status of '
+        'a flight by its flight number." Message: "what should I pack for a long flight?" -> {"answer": [0]}',
         "",
-        "Tools: " + " ".join(f'{number}. "{flat(plugin, chars)}"' for number, plugin in enumerate(plugins, 1)),
+        f"Tools: {none} " + " ".join(f'{number}. "{flat(plugin, chars)}"' for number, plugin in enumerate(plugins, 1)),
     ]
     if str(previous or "").strip():
         lines.append(f'Previous message: "{flat(previous, 240)}"')
     lines.append(f'Message: "{flat(message, 400)}" ->')
-    lines.append('Reply with ONLY the JSON object: {"answer": [N, ...]}')
+    lines.append('Reply with ONLY the JSON object: {"answer": [N, ...]}, or {"answer": [0]} for none of them')
     return "\n".join(lines)
 
 
