@@ -1383,6 +1383,14 @@ def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
             ),
             ok=True, status="pending_approval", proposal=proposal,
         )
+    if route.changes_enabled():
+        # With changes on, only a rehearsed plan becomes the card the owner answers. A change named in words alone has
+        # no card and nothing to carry out: kept as a proposal, the loop answered "Your proposal to add Ines Halloran
+        # to your contacts has been shown" with no card and nothing saved (real-app check v3 on fe98e849, 2026-11-22).
+        return ToolOutcome(
+            text='not possible: a change needs its exact steps in "ops", and only files and folders can be changed here',
+            ok=False, status="change_refused",
+        )
     proposal = {"what": what or "(unspecified change)", "status": "pending_approval", "executed": False}
     ctx.proposals.append(proposal)
     ctx.receipts.append(

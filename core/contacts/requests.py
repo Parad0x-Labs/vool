@@ -48,6 +48,36 @@ _CONTACT_DETAIL_CHANGE_RE = re.compile(
 )
 
 
+#: A remove order whose object is a saved contact: "erase the contact for Ines Halloran", "delete contact Ines Kalnin",
+#: "remove Ines from my contacts", "drop Ines's contact". Real-app check v3 on fe98e849 (2026-11-22): "So erase the
+#: contact for Ines Halloran" was taken by the memory lane as a forget ("Forget applied. Removed 1 memory entry") and the
+#: contact stayed; "right, delete the conatct ines kalnin thanks" reached the model with no Contacts tool on offer, and
+#: the contact stayed. "forget my contact at the bank" names a person by role, not a Contacts record: not one.
+_REMOVE_VERB = r"(?:delete|remove|erase|forget|drop|wipe|scrap|get\s+rid\s+of)"
+_CONTACT_REMOVAL_RE = re.compile(
+    r"\b" + _REMOVE_VERB + r"\s+(?:(?:the|my|this|that|a)\s+)?contact(?!\s+(?:form|page|support|us)\b)(?:\s+(?:card|entry|details|info))?\s+"
+    r"(?:(?:for|of|named|called)\s+)?(?!(?:at|in|from|with|who|that|which|is|was|i|we|you)\b)[a-z][\w'-]*"
+    r"|\b" + _REMOVE_VERB + r"\s+[^.?!]{1,60}?\s+(?:from|out\s+of)\s+(?:(?:my|the|our)\s+)?(?:contacts|contact\s+list|address\s+book)\b"
+    r"|\b" + _REMOVE_VERB + r"\s+(?!(?:my|our|your|the)\b)[a-z][\w-]*(?:\s+[a-z][\w-]*)?(?:'s|\u2019s)\s+contact(?:\s+(?:card|entry))?\b",
+    re.IGNORECASE,
+)
+#: The fold's vocabulary: "contact(s)", beside "contract(s)" so that word, one letter away, stays itself.
+_CONTACT_VOCABULARY = ("contact", "contacts", "contract", "contracts")
+
+
+def mend_contact_word(text: str) -> str:
+    """The text with a slip of "contact(s)" ("conatct", "contcats", "contct") read as the word, by the runtime's one
+    typo budget (core.typo_fold)."""
+    from core.typo_fold import fold_near_miss_tokens
+
+    return fold_near_miss_tokens(str(text or ""), _CONTACT_VOCABULARY)
+
+
+def removal_object_is_a_contact(text: str) -> bool:
+    """Whether a remove order's object is a saved contact: a Contacts delete, never a memory forget."""
+    return bool(_CONTACT_REMOVAL_RE.search(" ".join(mend_contact_word(text).split())))
+
+
 def storage_object_is_a_contact(text: str) -> bool:
     """Whether a save/store/keep request puts its object into Contacts, rather than stating something about a contact."""
     words = " ".join(str(text or "").split())
@@ -61,4 +91,4 @@ def contact_detail_changed(text: str) -> bool:
     return bool(_CONTACT_DETAIL_CHANGE_RE.search(" ".join(str(text or "").split())))
 
 
-__all__ = ["contact_detail_changed", "storage_object_is_a_contact"]
+__all__ = ["contact_detail_changed", "mend_contact_word", "removal_object_is_a_contact", "storage_object_is_a_contact"]

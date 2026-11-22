@@ -2514,10 +2514,24 @@ def _finish_forget_turn_admission(result, *, user_text, session_id, source_conte
     return result
 
 
+def _removal_object_is_a_contact(text: Any) -> bool:
+    try:
+        from core.contacts.requests import removal_object_is_a_contact
+
+        return removal_object_is_a_contact(str(text or ""))
+    except Exception:
+        return False
+
+
 def _command_erasure_fence(fn):
     import functools
     @functools.wraps(fn)
     def wrapped(user_text, **kwargs):
+        if _removal_object_is_a_contact(user_text):
+            # A saved contact is the Contacts owner's record and is deleted there, with its own approval. Taken here,
+            # "So erase the contact for Ines Halloran" answered "Forget applied. Removed 1 memory entry" and the contact
+            # stayed (real-app check v3 on fe98e849, 2026-11-22).
+            return False, ""
         if not _FORGET_RE.match(str(user_text or "").strip()):
             # An order given with other words in front is carried out as the order it is, under the same fence.
             try:
@@ -2931,6 +2945,8 @@ def _forget_order_in_other_words(
     typed = str(text or "").strip()
     clean = " ".join(typed.split())
     if not clean or "\n" in typed or _FORGET_RE.match(clean) or whole_memory_erase_request(clean):
+        return None
+    if _removal_object_is_a_contact(clean):
         return None
     listed = _FORGET_ORDER_LEAD_IN_RE.sub("", clean, count=1)
     if listed != clean and _FORGET_RE.match(listed):

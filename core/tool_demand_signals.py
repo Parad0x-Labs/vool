@@ -2608,10 +2608,15 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     # second list that can drift (the contacts.search tightening dropped this form, stranding the
     # save turn in the tools-less lane).
     try:
-        from core.contacts.requests import storage_object_is_a_contact
+        from core.contacts.requests import mend_contact_word, removal_object_is_a_contact, storage_object_is_a_contact
 
-        if storage_object_is_a_contact(cleaned):
+        if storage_object_is_a_contact(mend_contact_word(cleaned)):
             _note("contacts.save", "contacts")
+            write_demand = True
+        # "erase the contact for Ines", "delete the conatct ines kalnin": a Contacts delete. Without it no delete tool
+        # was offered and the model answered in words while the contact stayed (real-app check v3 on fe98e849).
+        if removal_object_is_a_contact(cleaned):
+            _note("contacts.delete", "contacts")
             write_demand = True
         # "nadias got a new number now, its ..." / "his number changed": an update to a saved person, read by the
         # same owner module (audit N6 K08/K09: the model answered "I'll update my records" with no Contacts tool).

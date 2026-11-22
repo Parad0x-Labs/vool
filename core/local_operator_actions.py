@@ -620,6 +620,7 @@ def _handle_cancel_reminder(
         list_reminders_fn=_list_reminders,
         cancel_reminder_fn=_cancel_reminder,
         audit_log_fn=audit_logger.log,
+        owner_rows_fn=_visible_owner_reminders,
     )
 
 
@@ -719,6 +720,7 @@ def _handle_move_reminder(
         list_reminders_fn=_list_reminders,
         move_reminder_fn=_move_reminder,
         audit_log_fn=audit_logger.log,
+        owner_rows_fn=_visible_owner_reminders,
     )
 
 
@@ -1837,6 +1839,22 @@ def _list_reminders(**kwargs):
 
 def _list_owner_reminders(**kwargs):
     return operator_reminders.list_owner_reminders(get_connection_fn=get_connection, **kwargs)
+
+
+def _visible_owner_reminders(session_id: str) -> list[dict]:
+    """The pending reminders a listing in this chat shows: this chat's, and every other chat's that is not private
+    (an unreadable privacy store hides, never leaks)."""
+    visible = []
+    for row in _list_owner_reminders(include_delivered=False):
+        owner_session = str(row.get("session_id") or "")
+        if owner_session != session_id:
+            try:
+                if _is_private_chat(owner_session):
+                    continue
+            except Exception:
+                continue
+        visible.append(row)
+    return visible
 
 
 def _is_private_chat(session_id: str) -> bool:

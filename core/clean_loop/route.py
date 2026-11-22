@@ -673,8 +673,15 @@ def _vool_lane_owns(text: str) -> str:
     try:
         from core.tool_demand_signals import resolve_demand_signals
 
-        if "plugin" in set(resolve_demand_signals(str(text or "")).required_families):
+        families = set(resolve_demand_signals(str(text or "")).required_families)
+        if "plugin" in families:
             return "plugin_turn"
+        # Contacts are records the Contacts tools read and write with their own approval; this loop has only file tools.
+        # Admitted because "add" is a change, "um add Ines Halloran to my contacts, number +1 555 0154 thx" was answered
+        # by this loop's model with a file proposal ("Your proposal ... has been shown") and no card and no contact
+        # (real-app check v3 on fe98e849, 2026-11-22).
+        if "contacts" in families:
+            return "contacts_turn"
     except Exception:
         pass
     return ""

@@ -59,12 +59,22 @@ _SCHEDULE_HINTS = (
     "create meeting",
     "schedule an event",
 )
-_REMINDER_HINT_RE = re.compile(r"\bremind\s+me\b|\b(?:set|create|schedule|add)\s+(?:(?:a|an|the|my)\s+)?reminder\b", re.IGNORECASE)
+#: "make a reminder", "put a reminder in for 5pm", "set me up a reminder": the same order as "set a reminder". With "make",
+#: "hey make a remidner to book a haircut tomorrow at 3pm ty" was left to the model, which booked a calendar event and
+#: answered "Reminder scheduled" with another reminder's id (real-app check v3 on fe98e849, 2026-11-22).
+_REMINDER_HINT_RE = re.compile(
+    r"\bremind\s+me\b|(?<!\bi )(?<!\bwe )(?<!\bhe )(?<!\bshe )(?<!\bthey )"
+    r"\b(?:set|create|schedule|add|make|put|set\s+up|setup)\s+(?:me\s+)?(?:up\s+)?"
+    r"(?:(?:a|an|the|my)\s+)?(?:new\s+|quick\s+)?reminder\b",
+    re.IGNORECASE,
+)
+#: The reminder words a slip is read as (core.typo_fold: a swapped, dropped or doubled letter; "remidner", "reminer").
+_REMINDER_VOCABULARY = ("reminder", "reminders")
 _LIST_REMINDERS_RE = re.compile(
     r"\b(?:what|which|show|list)\b[^\n!?.]*\breminders?\b|\bmy\s+reminders?\b", re.IGNORECASE
 )
 _CANCEL_REMINDER_RE = re.compile(
-    r"\b(?:cancel|delete|remove|call\s+off|scrub)\b[^\n!?.]*\breminders?\b", re.IGNORECASE,
+    r"\b(?:cancel|delete|remove|call\s+off|scrub|scrap|drop|kill|nix|get\s+rid\s+of)\b[^\n!?.]*\breminders?\b", re.IGNORECASE,
 )
 _MOVE_REMINDER_RE = re.compile(
     r"\b(?:move|push|shift|delay|postpone|reschedule|resched)\b[^\n!?.!]*\breminders?\b", re.IGNORECASE,
@@ -723,7 +733,19 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     # Measured 2026-11-11 by the acceptance runner: it was parsed as a reminder to schedule.
     if _REMIND_ME_OWN_FACT_RE.match(words):
         return True
+    # A lead-in before "remind me" ("hey remind me what we were talking about :)") is no part of the ask: read with it,
+    # the recall was scheduled as a reminder and answered "I could not read a date or time in that" (real-app check v3
+    # on fe98e849, 2026-11-22). Only a lead-in of its own words: one with "I"/"my" in it may hold the ask.
+    lead = _LEAD_BEFORE_REMIND_ME_RE.match(words)
+    if lead is not None and not _OWNER_WORD_RE.search(lead.group(0)) and _REMIND_ME_OWN_FACT_RE.match(words[lead.end():]):
+        return True
     return conversation_recall_remainder(words) is not None
+
+
+_LEAD_BEFORE_REMIND_ME_RE = re.compile(
+    r"^\s*(?:[a-z]+[,!.:;-]*\s+){1,3}?(?=(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\b)", re.IGNORECASE,
+)
+_OWNER_WORD_RE = re.compile(r"\b(?:i|me|my|mine|we|us|our)\b", re.IGNORECASE)
 
 
 _ASKS_ABOUT_EXISTING_REMINDER_RE = re.compile(
@@ -773,6 +795,9 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # and its components are never words of the request (see `text_without_paths`). Every extractor
     # below still reads `text`, so a path argument arrives unchanged.
     words = text_without_paths(text)
+    from core.typo_fold import fold_near_miss_tokens
+
+    words = fold_near_miss_tokens(words, _REMINDER_VOCABULARY)
     lowered = words.lower()
     quoted_values = _extract_quoted_values(text)
     target_path = quoted_values[0] if quoted_values else _extract_path(text)

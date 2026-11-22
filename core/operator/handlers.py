@@ -1358,12 +1358,14 @@ def handle_cancel_reminder(
     list_reminders_fn: Any,
     cancel_reminder_fn: Any,
     audit_log_fn: Any,
+    owner_rows_fn: Any = None,
 ) -> OperatorActionResult:
     target = _select_reminder_target(
         intent,
         session_id=session_id,
         load_reminder_fn=load_reminder_fn,
         list_reminders_fn=list_reminders_fn,
+        owner_rows_fn=owner_rows_fn,
     )
     if target is None:
         # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
@@ -1450,6 +1452,7 @@ def handle_move_reminder(
     list_reminders_fn: Any,
     move_reminder_fn: Any,
     audit_log_fn: Any,
+    owner_rows_fn: Any = None,
 ) -> OperatorActionResult:
     when = parse_when_fn(intent.raw_text)
     if not when.ok:
@@ -1466,6 +1469,7 @@ def handle_move_reminder(
         session_id=session_id,
         load_reminder_fn=load_reminder_fn,
         list_reminders_fn=list_reminders_fn,
+        owner_rows_fn=owner_rows_fn,
     )
     if target is None:
         return OperatorActionResult(
@@ -1617,7 +1621,8 @@ _REMINDER_LEAD_RE = re.compile(
     r"^(?:please[,\s]+|pls[,\s]+)?(?:can\s+you\s+|could\s+you\s+|would\s+you\s+|will\s+you\s+)?"
     r"(?:"
     r"(?:(?:i|we)\s+)?(?:need|want)\s+(?:a|an|the)?\s*reminders?\s*(?:to\s+|for\s+|about\s+|that\s+)?"
-    r"|(?:set|add|create|schedule)\s+(?:me\s+)?(?:a|an|the)?\s*reminders?\s*(?:to\s+|for\s+|about\s+|that\s+|[:\-\u2013]\s*)?"
+    r"|(?:set|add|create|schedule|make|put|set\s+up)\s+(?:me\s+)?(?:up\s+)?(?:a|an|the)?\s*(?:new\s+|quick\s+)?reminders?\s*(?:in\s+)?"
+    r"(?:to\s+|for\s+|about\s+|that\s+|[:\-\u2013]\s*)?"
     r"|(?:nudge|ping)\s+me\s*(?:to\s+|about\s+|on\s+|for\s+)?"
     r"|don'?t\s+let\s+me\s+forget\s+(?:to\s+)?"
     r"|make\s+sure\s+i\s+(?:don'?t\s+)?(?:remember|forget)\s+(?:to\s+)?"
@@ -1629,6 +1634,10 @@ _REMINDER_LEAD_RE = re.compile(
 #: for ..."). The frame's position decides, not a list of the words people put before it: gate v3
 #: on d2dacb04a (2026-11-22) stored "right, i need a reminder to renew my library books tomorrow
 #: evening" whole as the reminder's title, because the lead was only looked for at the very start.
+_TRAILING_COURTESY_RE = re.compile(
+    r"[\s,]+(?:pls|plz|thx|ty|tysm)\s*[.!]*\s*$", re.IGNORECASE
+)
+
 _REMINDER_LEAD_ANYWHERE_RE = re.compile(
     _REMINDER_LEAD_RE.pattern.replace("^", r"(?<![\w'])", 1), re.IGNORECASE
 )
@@ -1711,7 +1720,13 @@ def _reminder_note_from_text(text: str) -> str:
     invoice friday at 10' stores 'send the invoice') or is said in words ('in an hour to
     stand up' stores 'stand up') -- so the note never reads as the schedule or as the
     ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
-    raw = _TRAILING_EMOTICON_RE.sub("", str(text or "").strip()).strip()
+    from core.typo_fold import fold_near_miss_tokens
+
+    # "make a remidner to ...": the order's own word, mistyped, is still the order's (core.operator.parser reads it so).
+    raw = fold_near_miss_tokens(_TRAILING_EMOTICON_RE.sub("", str(text or "").strip()).strip(), ("reminder", "reminders"))
+    # A thanks at the end ("... tomorrow at 3pm ty") is said to VOOL, not part of the thing to do; left on, it kept the
+    # when-clause in the note ("book a haircut tomorrow"; real-app check v3 on fe98e849, 2026-11-22).
+    raw = _TRAILING_COURTESY_RE.sub("", raw).strip() or raw
     leading_when_subject = _subject_after_leading_when(raw)
     if leading_when_subject:
         return leading_when_subject
@@ -1899,21 +1914,61 @@ def _select_reminder_target(
     session_id: str,
     load_reminder_fn: Any,
     list_reminders_fn: Any,
+    owner_rows_fn: Any = None,
 ) -> dict[str, Any] | None:
+    """The one reminder a cancel or move means: by id, by the words that name it, or the chat's only pending one.
+
+    The reminders a listing shows are the owner's, from every chat that is not private (handle_list_reminders), so a
+    cancel or move reaches the same ones. Scoped to the asking chat, "Alright scrap the reminder to take out the
+    recycling" found nothing while "which reminders are set" listed it, set in another chat (real-app check v3 on
+    fe98e849, 2026-11-22). A private chat's reminders stay out: owner_rows_fn leaves them out, failing closed."""
+    visible: list[dict[str, Any]] | None = None
+    if owner_rows_fn is not None:
+        try:
+            visible = [row for row in owner_rows_fn(session_id) if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+        except Exception:
+            visible = None
+    visible_ids = {str(row.get("reminder_id")) for row in visible or []}
     if intent.action_id:
         row = load_reminder_fn(intent.action_id)
-        if row is not None and str(row.get("session_id")) == session_id:
+        if row is not None and (str(row.get("session_id")) == session_id or str(row.get("reminder_id")) in visible_ids):
             return row
-        # The UI displays short ids. Resolve only a unique prefix in this session;
+        # The UI displays short ids. Resolve only a unique prefix among the reminders this chat may see;
         # a missing/foreign explicit target must never fall back to another reminder.
-        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+        rows = visible if visible is not None else list_reminders_fn(session_id=session_id, include_delivered=False)
         matches = [row for row in rows if str(row.get("reminder_id", "")).startswith(intent.action_id)]
         return matches[0] if len(matches) == 1 else None
     rows = list_reminders_fn(session_id=session_id, include_delivered=False)
     pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+    named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), visible if visible is not None else pending)
+    if named is not None:
+        return named
     if len(pending) == 1:
         return pending[0]
     return None
+
+
+#: The order's own words, which name no reminder ("scrap the reminder ... thanks").
+_REMINDER_ORDER_WORDS = (
+    "cancel delete remove scrap drop call off kill nix get rid of move push shift delay postpone reschedule complete "
+    "mark done finish reminder reminders remind please pls thanks thank thx ty"
+)
+
+
+def _reminder_named_by(text: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The one reminder whose note shares the most words with the order, or None when no note shares one or two tie."""
+    try:
+        from core.chat_housekeeping import _doc_stems, query_terms
+    except Exception:
+        return None
+    order_words = set(query_terms(_REMINDER_ORDER_WORDS))
+    asked = [term for term in query_terms(text) if term not in order_words and len(term) >= 3]
+    if not asked or not rows:
+        return None
+    scored = [(sum(1 for term in asked if term in _doc_stems(str(row.get("note") or ""))), row) for row in rows]
+    best = max(score for score, _ in scored)
+    winners = [row for score, row in scored if score == best]
+    return winners[0] if best > 0 and len(winners) == 1 else None
 
 
 def handle_complete_reminder(

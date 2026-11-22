@@ -120,7 +120,7 @@ def as_question(text: str) -> str:
 
     People type questions without the mark and with "whats"; a sentence that OPENS like a question
     is read as one, so a missing "?" never turns an own-fact question into a world question."""
-    clean = " ".join(str(text or "").split())
+    clean = _without_lead_in(" ".join(str(text or "").split()))
     # Chat shorthand reads as the words it stands for (0.7.8 sweep block 1c: "whats my fav
     # bakery" and "parking permit nr for Tallinn?" missed facts that the long forms found).
     for pattern, full in _CHAT_SHORTHAND:
@@ -515,12 +515,58 @@ def _asked_kind(text: str) -> frozenset[str]:
     return frozenset(kind)
 
 
-def _asked_terms(text: str) -> tuple[str, ...]:
+#: The words that ask for a name. A slip of one of them ("claled", "nmae", "caled") still asks for the
+#: name; counted as a subject word the saved fact had to hold, "remind me what my turtle is claled :)"
+#: found nothing with "my turtle is called noodle" saved (gate v3 F1 on fe98e849d, real app). The slip
+#: is the runtime's one typo budget (core.typo_fold), which never counts a changed letter ("came").
+_NAME_SLOT_WORDS = ("name", "names", "named", "naming", "call", "calls", "called", "calling")
+#: A lead-in before the question word ("Alright what name did I tell you for my turtle?", "ok so where
+#: did I park?"): up to three words with no "I"/"me"/"my" of their own. Counted as a subject word,
+#: "Alright" was a word the saved fact had to hold and the saved turtle name was not found (gate v3
+#: G1 on fe98e849d). It is dropped only when the question after it still names its subject, so
+#: "Noodle, what is it again?" keeps "Noodle".
+_LEAD_IN_RE = re.compile(
+    r"^\s*(?P<lead>(?:(?!(?:what|wats|which|who|whom|whose|when|where|why|how|do|does|did|can|could|is|are|was|were|remind|tell)\b)"
+    r"[a-z]+[,!.:;-]*\s+){1,3}?)"
+    r"(?=(?:what(?:'?s)?|wats|which|who|whose|when|where|how|remind\s+me|tell\s+me|do\s+you|did\s+i|can\s+you)\b)",
+    re.IGNORECASE,
+)
+_LEAD_IN_OWNER_RE = re.compile(r"\b(?:i|me|my|mine|we|us|our|ours)\b", re.IGNORECASE)
+
+
+def _mend_name_slips(text: str) -> str:
+    """A slip of "called"/"name" read as the word, by the runtime's one typo budget (core.typo_fold)."""
+    from core.typo_fold import fold_near_miss_tokens
+
+    return fold_near_miss_tokens(str(text or ""), _NAME_SLOT_WORDS)
+
+
+def _subject_and_terms(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     from core.chat_housekeeping import query_terms
 
+    text = _mend_name_slips(text)
     terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
     frame = _INTENT_FRAME_STEMS | (_INTENT_TO_STEMS if _INTENT_TO_RE.search(text) else frozenset())
     subject = tuple(t for t in terms if t not in _ANSWER_SLOT_STEMS and t not in frame)
+    return subject, terms
+
+
+def _without_lead_in(text: str) -> str:
+    """The ask with a lead-in dropped and a slip in "called"/"name" mended. The lead-in goes only when
+    the question after it names the owner's own thing ("my turtle", "did I"), so a lead-in that IS the
+    subject ("Tallinn permit, what's the number?", "Noodle, what is it?") stays."""
+    text = _mend_name_slips(text)
+    lead = _LEAD_IN_RE.match(text)
+    if lead is None or _LEAD_IN_OWNER_RE.search(lead.group("lead")):
+        return text
+    rest = text[lead.end() :]
+    if not _LEAD_IN_OWNER_RE.search(rest) or not _subject_and_terms(rest)[0]:
+        return text
+    return rest
+
+
+def _asked_terms(text: str) -> tuple[str, ...]:
+    subject, terms = _subject_and_terms(_without_lead_in(text))
     return subject or terms
 
 
@@ -1489,7 +1535,7 @@ def cross_chat_recall(
     text = " ".join(str(question or "").split())
     if not text or len(text) > 300:
         return None
-    typed = text
+    typed = text = _without_lead_in(text)
     explicit_recall = bool(_EXPLICIT_RECALL_RE.match(text))
     text = as_question(text)
     if not explicit_recall and (_NOT_A_SAVED_FACT_RE.search(typed) or _NOT_A_SAVED_FACT_RE.search(text)):

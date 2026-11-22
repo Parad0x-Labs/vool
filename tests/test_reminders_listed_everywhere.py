@@ -3,8 +3,10 @@
 The listing law (owner-wide): "what reminders do I have?" asked in ANY chat answers from
 all of the owner's pending reminders, soonest due first, naming the chat each foreign row
 came from in plain words. Rows born in a private chat never leave that chat, and the asking
-chat's own rows always show without an origin suffix. Cancelling stays scoped to the asking
-chat, exactly as before. Store-level truth: the owner listing spans sessions, keeps the
+chat's own rows always show without an origin suffix. Cancelling reaches what the listing shows
+and nothing else: a reminder the listing does not show (a private chat's) is refused. Scoped to the
+asking chat alone, a reminder listed from another chat could not be cancelled where it was listed
+(real-app check v3 on fe98e849, 2026-11-22). Store-level truth: the owner listing spans sessions, keeps the
 pending status filter, skips calendar_alert rows, and leaves the per-session listing alone.
 """
 from __future__ import annotations
@@ -393,13 +395,13 @@ def test_session_listing_still_answers_one_chat_only():
     assert empty == []
 
 
-# ------------------------------------------------------------------ cancel stays scoped
+# ------------------------------------------------------------------ cancel reaches only what is listed
 
 @pytest.mark.parametrize("action_id", [
     ROW_ALPHA_LATEST["reminder_id"],
     ROW_ALPHA_LATEST["reminder_id"][:8],
 ])
-def test_cancelling_from_another_chat_refuses_the_foreign_reminder(action_id):
+def test_cancelling_a_reminder_the_listing_does_not_show_is_refused(action_id):
     from core.operator.handlers import handle_cancel_reminder
     from core.operator.models import OperatorActionIntent
 
@@ -426,6 +428,7 @@ def test_cancelling_from_another_chat_refuses_the_foreign_reminder(action_id):
         list_reminders_fn=list_rows,
         cancel_reminder_fn=cancel_reminder,
         audit_log_fn=lambda *args, **kwargs: None,
+        owner_rows_fn=lambda session_id: [own_row],  # the foreign row's chat is private: not listed here
     )
     assert result.ok is False
     assert "could not find a pending reminder" in result.response_text

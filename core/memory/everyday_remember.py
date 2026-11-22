@@ -142,6 +142,47 @@ _NOT_AN_ASK = frozenset(
 )
 
 
+#: A short framing in front of a personal fact, set off by a colon or a dash: "hey for later: my turtle is called
+#: noodle", "one more thing to remember: my nephew's goldfish goes by Flapjack", "note to self - my locker is 214".
+#: The framing is read by its shape (a few plain words, none of them the person, no number and no question), not
+#: from a list of keep phrases. Gate v3 on fe98e849d (2026-11-22): "hey for later: my turtle is called noodle" was
+#: kept by nothing, the local model answered as if it had been kept, and the turtle's name was "not saved" from
+#: another chat and after a restart.
+_FRAMED_FACT_RE = re.compile(
+    r"^(?P<frame>[a-z][a-z' ]{0,60}?)\s*(?::|\s[-\u2013\u2014]|[\u2013\u2014])\s*(?P<fact>\S.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _framed_fact(clean: str) -> str:
+    """The personal fact behind a short framing and a colon or dash, or "" when the sentence is not one."""
+    match = _FRAMED_FACT_RE.match(clean)
+    if match is None:
+        return ""
+    frame, fact = match.group("frame").strip(), match.group("fact").strip()
+    if not 1 <= len(frame.split()) <= 6 or _FIRST_PERSON_RE.search(frame) or is_question(fact):
+        return ""
+    if _REQUEST_HEAD_RE.match(fact) or not _personal_fact_clause(fact):
+        return ""
+    if update_shaped(fact):
+        return ""  # "update: my dentist is now dr Okafor" changes a saved fact; the update reading owns it
+    try:
+        from core.stipulated_frame import has_stipulated_frame
+
+        if has_stipulated_frame(clean):
+            return ""
+    except Exception:
+        return ""
+    try:
+        from core.operator.parser import parse_operator_action_intent
+
+        if parse_operator_action_intent(clean) is not None:
+            return ""  # a reminder, a note or another action said with a colon is that lane's
+    except Exception:
+        return ""
+    return fact
+
+
 def _ask_that_fact(clean: str) -> str:
     """The personal fact of "<imperative> that <fact>", or "" when the sentence is not such an ask."""
     match = _THAT_FACT_RE.match(clean)
@@ -254,7 +295,7 @@ def everyday_lead(text: str) -> EverydayLead | None:
         return EverydayLead(fact=f"{subject}: {items}" if items else "", opens_list=True, subject=subject)
     match = _LEAD_RE.match(clean)
     if match is None:
-        asked = _ask_that_fact(clean)
+        asked = _ask_that_fact(clean) or _framed_fact(clean)
         return EverydayLead(fact=asked, opens_list=False) if asked else None
     fact = match.group("fact").strip()
     if fact.lower().startswith("to "):
