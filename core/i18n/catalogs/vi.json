@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "“Cho đến khi tôi tắt” chỉ áp dụng cho cuộc trò chuyện này — hãy chọn phạm vi Phiên trò chuyện này.",
     "chat.archive_failed": "Không thể lưu trữ cuộc trò chuyện này. Hãy thử lại sau ít lâu.",
     "chat.archive_failed_offline": "Không kết nối được VOOL nên cuộc trò chuyện chưa được lưu trữ.",
+    "chat.action_claim_not_done": "Tôi chưa làm việc đó: không có bước nào được chạy trong lượt này, nên không có gì được thêm hay thay đổi. Hãy yêu cầu lại, tôi sẽ làm bằng công cụ phù hợp.",
+    "chat.memory_claim_not_done": "Tôi chưa lưu điều đó: không có gì được ghi vào bộ nhớ của tôi trong lượt này. Hãy nói lại nếu bạn muốn tôi ghi nhớ.",
     "chat.ctx_aria": "Dự án và cuộc trò chuyện hiện tại",
     "chat.delete_failed": "Chưa thể xóa cuộc trò chuyện này. Hãy thử lại sau ít lâu.",
     "chat.delete_failed_offline": "Không kết nối được VOOL nên chưa có gì bị xóa. Hãy thử lại sau ít lâu.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Được thêm vào cuối email VOOL viết thay bạn.",
     "settings.models.exact_name": "Tên chính xác"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

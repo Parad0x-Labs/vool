@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "«עד שאכבה אותה» חל על הצ׳אט הזה בלבד — בחרו את הטווח «שיחת צ׳אט זו».",
     "chat.archive_failed": "לא ניתן לארכב את הצ׳אט הזה. נסו שוב בעוד רגע.",
     "chat.archive_failed_offline": "לא ניתן היה להגיע ל-VOOL, ולכן הצ׳אט לא הועבר לארכיון.",
+    "chat.action_claim_not_done": "לא עשיתי זאת: שום שלב לא רץ כדי לבצע זאת בתור הזה, ולכן דבר לא נוסף ולא שונה. בקשו שוב ואעשה זאת בכלי המתאים.",
+    "chat.memory_claim_not_done": "לא שמרתי את זה: שום דבר לא נכתב לזיכרון שלי בתור הזה. אמרו לי שוב אם תרצו שאשמור את זה.",
     "chat.ctx_aria": "הפרויקט והצ׳אט הנוכחיים",
     "chat.delete_failed": "עדיין לא ניתן למחוק את הצ׳אט הזה. נסו שוב בעוד רגע.",
     "chat.delete_failed_offline": "לא ניתן היה להגיע ל-VOOL, ולכן שום דבר לא נמחק. נסו שוב בעוד רגע.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "נוספת בסוף הודעות הדוא״ל ש-VOOL כותב בשבילכם.",
     "settings.models.exact_name": "השם המדויק"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

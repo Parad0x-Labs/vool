@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "« Jusqu’à ce que je le désactive » ne vaut que pour ce chat — choisissez le périmètre « Cette session de discussion ».",
     "chat.archive_failed": "Ce chat n’a pas pu être archivé. Réessayez dans un instant.",
     "chat.archive_failed_offline": "VOOL n’a pas pu être joint, donc le chat n’a pas été archivé.",
+    "chat.action_claim_not_done": "Je ne l'ai pas fait : aucune étape n'a été exécutée pour cela à ce tour, donc rien n'a été ajouté ni modifié. Redemandez-le-moi et je le ferai avec le bon outil.",
+    "chat.memory_claim_not_done": "Je ne l'ai pas enregistré : rien n'a été écrit dans ma mémoire à ce tour. Redites-le-moi si vous voulez que je le garde.",
     "chat.ctx_aria": "Projet et chat actuels",
     "chat.delete_failed": "Ce chat n’a pas encore pu être supprimé. Réessayez dans un instant.",
     "chat.delete_failed_offline": "VOOL n’a pas pu être joint, donc rien n’a été supprimé. Réessayez dans un instant.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Ajoutée à la fin des e-mails que VOOL écrit pour vous.",
     "settings.models.exact_name": "Nom exact"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

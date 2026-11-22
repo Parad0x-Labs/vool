@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "“내가 끌 때까지”는 이 채팅에만 적용됩니다 — 범위에서 “이 채팅 세션”을 선택하세요.",
     "chat.archive_failed": "이 채팅을 보관할 수 없습니다. 잠시 후 다시 시도하세요.",
     "chat.archive_failed_offline": "VOOL에 연결할 수 없어 채팅이 보관되지 않았습니다.",
+    "chat.action_claim_not_done": "아직 하지 않았습니다. 이번 차례에는 실행된 단계가 없어서 아무것도 추가되거나 변경되지 않았습니다. 다시 요청해 주시면 알맞은 도구로 처리하겠습니다.",
+    "chat.memory_claim_not_done": "저장하지 않았습니다. 이번 차례에는 제 기억에 아무것도 기록되지 않았습니다. 기억해 두길 원하시면 다시 말씀해 주세요.",
     "chat.ctx_aria": "현재 프로젝트와 채팅",
     "chat.delete_failed": "이 채팅을 아직 삭제하지 못했습니다. 잠시 후 다시 시도하세요.",
     "chat.delete_failed_offline": "VOOL에 연결할 수 없어 아무 것도 삭제되지 않았습니다. 잠시 후 다시 시도하세요.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "VOOL이 대신 쓰는 이메일 끝에 붙습니다.",
     "settings.models.exact_name": "정확한 이름"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

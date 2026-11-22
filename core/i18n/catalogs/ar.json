@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "«حتى أوقفه بنفسي» يسري على هذه المحادثة فقط — اختر نطاق «جلسة المحادثة هذه».",
     "chat.archive_failed": "تعذّر أرشفة هذه المحادثة. حاول مجددًا بعد لحظات.",
     "chat.archive_failed_offline": "تعذّر الوصول إلى VOOL، لذلك لم تُؤرشف المحادثة.",
+    "chat.action_claim_not_done": "لم أفعل ذلك: لم تُنفَّذ أي خطوة لذلك في هذه المرة، لذا لم يُضَف أو يُغيَّر أي شيء. اطلب مني مرة أخرى وسأنفذه بالأداة المناسبة.",
+    "chat.memory_claim_not_done": "لم أحفظ ذلك: لم يُكتب أي شيء في ذاكرتي في هذه المرة. أخبرني مرة أخرى إذا أردت أن أحتفظ به.",
     "chat.ctx_aria": "المشروع والمحادثة الحاليان",
     "chat.delete_failed": "تعذّر حذف هذه المحادثة حتى الآن. حاول مجددًا بعد لحظات.",
     "chat.delete_failed_offline": "تعذّر الوصول إلى VOOL، لذلك لم يُحذف شيء. حاول مجددًا بعد لحظات.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "يُضاف في نهاية الرسائل التي يكتبها VOOL لك.",
     "settings.models.exact_name": "الاسم الدقيق"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

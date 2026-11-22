@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "“直到我关闭它”仅在此对话中生效 — 请选择“此聊天会话”范围。",
     "chat.archive_failed": "无法归档此聊天。请稍后重试。",
     "chat.archive_failed_offline": "无法连接 VOOL，因此聊天未归档。",
+    "chat.action_claim_not_done": "我还没有做这件事：这一轮没有执行任何步骤，所以没有添加或更改任何内容。请再说一次，我会用合适的工具来完成。",
+    "chat.memory_claim_not_done": "我没有保存：这一轮没有向我的记忆写入任何内容。如果你希望我记住，请再说一次。",
     "chat.ctx_aria": "当前项目与对话",
     "chat.delete_failed": "暂时无法删除此聊天。请稍后重试。",
     "chat.delete_failed_offline": "无法连接 VOOL，因此什么都没有删除。请稍后重试。",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "添加在 VOOL 替你写的邮件末尾。",
     "settings.models.exact_name": "完整名称"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

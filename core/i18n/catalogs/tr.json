@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "“Ben kapatana dek” yalnızca bu sohbete uygulanır — Bu sohbet oturumu kapsamını seçin.",
     "chat.archive_failed": "Bu sohbet arşivlenemedi. Birazdan tekrar deneyin.",
     "chat.archive_failed_offline": "VOOL’a ulaşılamadığı için sohbet arşivlenmedi.",
+    "chat.action_claim_not_done": "Bunu yapmadım: bu adımda bunu yapacak hiçbir işlem çalışmadı, bu yüzden hiçbir şey eklenmedi veya değiştirilmedi. Tekrar isteyin, doğru araçla yapayım.",
+    "chat.memory_claim_not_done": "Bunu kaydetmedim: bu adımda belleğime hiçbir şey yazılmadı. Saklamamı istiyorsanız tekrar söyleyin.",
     "chat.ctx_aria": "Geçerli proje ve sohbet",
     "chat.delete_failed": "Bu sohbet henüz silinemedi. Birazdan tekrar deneyin.",
     "chat.delete_failed_offline": "VOOL’a ulaşılamadığı için hiçbir şey silinmedi. Birazdan tekrar deneyin.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "VOOL’un sizin için yazdığı e-postaların sonuna eklenir.",
     "settings.models.exact_name": "Tam adı"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

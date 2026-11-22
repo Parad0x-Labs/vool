@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "「オフにするまで」が適用されるのはこのチャットのみです。範囲で「このチャットセッション」を選んでください。",
     "chat.archive_failed": "このチャットをアーカイブできませんでした。しばらくしてからもう一度お試しください。",
     "chat.archive_failed_offline": "VOOLに接続できなかったため、チャットはアーカイブされませんでした。",
+    "chat.action_claim_not_done": "まだ実行していません。このターンでは実行された手順がないため、何も追加・変更されていません。もう一度依頼していただければ、適切なツールで実行します。",
+    "chat.memory_claim_not_done": "保存していません。このターンでは記憶に何も書き込まれていません。覚えておいてほしい場合は、もう一度お伝えください。",
     "chat.ctx_aria": "現在のプロジェクトとチャット",
     "chat.delete_failed": "このチャットはまだ削除できませんでした。しばらくしてからもう一度お試しください。",
     "chat.delete_failed_offline": "VOOLに接続できなかったため、何も削除されていません。しばらくしてからもう一度お試しください。",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "VOOL が代わりに書くメールの最後に付きます。",
     "settings.models.exact_name": "正確な名前"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "“Until I turn it off” applies to this chat only — choose the This chat session scope.",
     "chat.archive_failed": "Couldn’t archive this chat. Try again in a moment.",
     "chat.archive_failed_offline": "VOOL couldn’t be reached, so the chat wasn’t archived.",
+    "chat.action_claim_not_done": "I have not done that: no step ran on this turn to do it, so nothing was added or changed. Ask me again and I will do it with the right tool.",
+    "chat.memory_claim_not_done": "I have not saved that: nothing was written to my memory on this turn. Tell me again if you want me to keep it.",
     "chat.ctx_aria": "Current project and chat",
     "chat.delete_failed": "Couldn’t delete this chat yet. Try again in a moment.",
     "chat.delete_failed_offline": "VOOL couldn’t be reached, so nothing was deleted. Try again in a moment.",

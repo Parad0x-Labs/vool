@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "„Aż to wyłączę” obowiązuje tylko w tym czacie — wybierz zakres „Ta sesja czatu”.",
     "chat.archive_failed": "Nie udało się zarchiwizować tego czatu. Spróbuj za chwilę.",
     "chat.archive_failed_offline": "Nie udało się połączyć z VOOL, więc czat nie został zarchiwizowany.",
+    "chat.action_claim_not_done": "Nie zrobiłem tego: w tej turze nie wykonano żadnego kroku, więc nic nie zostało dodane ani zmienione. Poproś mnie jeszcze raz, a zrobię to odpowiednim narzędziem.",
+    "chat.memory_claim_not_done": "Nie zapisałem tego: w tej turze nic nie trafiło do mojej pamięci. Powiedz mi to jeszcze raz, jeśli chcesz, żebym to zapamiętał.",
     "chat.ctx_aria": "Bieżący projekt i czat",
     "chat.delete_failed": "Tego czatu nie udało się jeszcze usunąć. Spróbuj za chwilę.",
     "chat.delete_failed_offline": "Nie udało się połączyć z VOOL, więc nic nie zostało usunięte. Spróbuj za chwilę.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Dodawany na końcu e-maili, które VOOL pisze za ciebie.",
     "settings.models.exact_name": "Dokładna nazwa"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "«Поки я не вимкну» діє лише в цьому чаті — оберіть обсяг «Ця сесія чату».",
     "chat.archive_failed": "Не вдалося архівувати цей чат. Спробуйте ще раз за мить.",
     "chat.archive_failed_offline": "Не вдалося зв’язатися з VOOL, тому чат не було архівовано.",
+    "chat.action_claim_not_done": "Я цього не зробив: на цьому кроці нічого не виконувалося, тому нічого не було додано чи змінено. Попросіть ще раз, і я зроблю це потрібним інструментом.",
+    "chat.memory_claim_not_done": "Я цього не зберіг: на цьому кроці до моєї пам'яті нічого не записано. Скажіть ще раз, якщо хочете, щоб я це запам'ятав.",
     "chat.ctx_aria": "Поточний проєкт і чат",
     "chat.delete_failed": "Цей чат поки не вдалося видалити. Спробуйте ще раз за мить.",
     "chat.delete_failed_offline": "Не вдалося зв’язатися з VOOL, тому нічого не видалено. Спробуйте ще раз за мить.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Додається в кінці листів, які VOOL пише за вас.",
     "settings.models.exact_name": "Точна назва"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

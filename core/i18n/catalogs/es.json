@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "«Hasta que yo lo apague» se aplica solo a este chat — elige el ámbito Esta sesión de chat.",
     "chat.archive_failed": "No se pudo archivar este chat. Reintenta en un momento.",
     "chat.archive_failed_offline": "No se pudo contactar con VOOL, así que el chat no se archivó.",
+    "chat.action_claim_not_done": "No lo he hecho: en este turno no se ejecutó ningún paso para hacerlo, así que no se añadió ni se cambió nada. Pídemelo de nuevo y lo haré con la herramienta adecuada.",
+    "chat.memory_claim_not_done": "No lo he guardado: en este turno no se escribió nada en mi memoria. Dímelo otra vez si quieres que lo guarde.",
     "chat.ctx_aria": "Proyecto y chat actuales",
     "chat.delete_failed": "No se pudo borrar este chat todavía. Reintenta en un momento.",
     "chat.delete_failed_offline": "No se pudo contactar con VOOL, así que no se borró nada. Reintenta en un momento.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Se añade al final de los correos que VOOL escribe por ti.",
     "settings.models.exact_name": "Nombre exacto"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

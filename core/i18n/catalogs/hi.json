@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "“जब तक मैं इसे बंद न करूँ” केवल इस चैट पर लागू होता है — “यह चैट सत्र” दायरा चुनें।",
     "chat.archive_failed": "इस चैट को संग्रहित नहीं किया जा सका। थोड़ी देर में दोबारा कोशिश करें।",
     "chat.archive_failed_offline": "VOOL तक नहीं पहुँचा जा सका, इसलिए चैट संग्रहित नहीं हुई।",
+    "chat.action_claim_not_done": "मैंने यह नहीं किया: इस बार इसे करने के लिए कोई चरण नहीं चला, इसलिए कुछ भी जोड़ा या बदला नहीं गया। फिर से कहें, मैं इसे सही टूल से करूँगा।",
+    "chat.memory_claim_not_done": "मैंने इसे सहेजा नहीं: इस बार मेरी मेमोरी में कुछ भी नहीं लिखा गया। अगर आप चाहते हैं कि मैं इसे याद रखूँ तो फिर से बताइए।",
     "chat.ctx_aria": "मौजूदा प्रोजेक्ट और चैट",
     "chat.delete_failed": "इस चैट को अभी तक मिटाया नहीं जा सका। थोड़ी देर में दोबारा कोशिश करें।",
     "chat.delete_failed_offline": "VOOL तक नहीं पहुँचा जा सका, इसलिए कुछ भी नहीं मिटाया गया। थोड़ी देर में दोबारा कोशिश करें।",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "VOOL आपके लिए जो ईमेल लिखता है, उनके अंत में जोड़ा जाता है।",
     "settings.models.exact_name": "सटीक नाम"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

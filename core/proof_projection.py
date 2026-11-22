@@ -209,6 +209,9 @@ _UNFULFILLED_EVENT_TYPES: dict[str, str] = {
     "task_failed": "task_failed",
     "ambiguity_adjudication_unresolved": "unresolved_adjudication",
     "stale_result_rejected": "synthesis_rejected",
+    # The reply claimed an action no step of the turn performed (core.agent_runtime.action_honesty_validator): the
+    # bytes may hash-match, but the work the reply named did not happen, so the record is not VERIFIED.
+    "action_claim_unbacked": "action_claim_unbacked",
 }
 _UNANSWERED_LEDGER_MARKERS = ("could not be answered:", "not answered:", "unavailable:")
 

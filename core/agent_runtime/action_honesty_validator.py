@@ -245,6 +245,18 @@ _HONEST_NO_BUILD_RESPONSE = (
     "this turn. Tell me the exact path you want them at and I'll say up front whether I can write "
     "there."
 )
+
+#: The correction for a done sentence the judgement read (`_judged_claim_kind`), said in the person's language when a
+#: catalog has it. It states only what the turn's record shows: no step ran on this turn, so this turn changed nothing.
+_JUDGED_CLAIM_NOT_DONE_KEY = "chat.action_claim_not_done"
+_JUDGED_CLAIM_NOT_DONE_RESPONSE = (
+    "I have not done that: no step ran on this turn to do it, so nothing was added or changed. "
+    "Ask me again and I will do it with the right tool."
+)
+_JUDGED_KEEP_NOT_DONE_KEY = "chat.memory_claim_not_done"
+_JUDGED_KEEP_NOT_DONE_RESPONSE = (
+    "I have not saved that: nothing was written to my memory on this turn. Tell me again if you want me to keep it."
+)
 # A fabricated "in progress / working on it / one moment / still running" claim when NO task actually
 # ran this turn -- the "audit in progress after it already completed" failure. Runtime state, not the
 # model, decides whether something is running.
@@ -2141,11 +2153,14 @@ def enforce_final_action_honesty(
         # 'Saved to memory: "I lost one stirrup leather last week".'
         return output
 
-    output["response"] = {
-        "deliverable": _HONEST_NO_DELIVERABLE_RESPONSE,
-        "build": _HONEST_NO_BUILD_RESPONSE,
-        "persistence": _HONEST_NO_PERSISTENCE_RESPONSE,
-    }.get(claim_kind, _HONEST_NO_EXECUTION_RESPONSE)
+    if claim_kind in ("judged", "judged_kept"):
+        output["response"] = _judged_claim_correction(user_input, effective_input, kept=claim_kind == "judged_kept")
+    else:
+        output["response"] = {
+            "deliverable": _HONEST_NO_DELIVERABLE_RESPONSE,
+            "build": _HONEST_NO_BUILD_RESPONSE,
+            "persistence": _HONEST_NO_PERSISTENCE_RESPONSE,
+        }.get(claim_kind, _HONEST_NO_EXECUTION_RESPONSE)
     output["confidence"] = min(float(output.get("confidence") or 1.0), 0.91)
     output["action_honesty_validator"] = {
         "applied": True,
@@ -2193,11 +2208,113 @@ def _final_claim_kind(
         return "progress"
     if _HONEST_DENIAL_RE.search(response):
         return ""
-    return completion_claim_kind(
+    kind = completion_claim_kind(
         response, request_text=f"{user_input or ''}\n{effective_input or ''}",
         owner_texts=_owner_texts(source_context, user_input, effective_input, session_id),
         is_saved=lambda sentence, before: _a_saved_fact_holds_it(sentence, before, session_id, source_context),
     )
+    if kind:
+        return kind
+    return _judged_claim_kind(
+        result, user_input=user_input, effective_input=effective_input,
+        session_id=session_id, source_context=source_context,
+    )
+
+
+#: Where the done-claim judgement of a reply is kept for the rest of the turn, keyed by the reply's own hash, so the
+#: guard and the signed receipt read ONE judgement of the same bytes and the model is asked once.
+_JUDGED_CLAIMS_KEY = "_judged_done_claims"
+
+
+def _judged_claim_kind(
+    result: dict[str, Any], *, user_input: str, effective_input: str | None = None,
+    session_id: str | None = None, source_context: dict[str, object] | None = None,
+) -> str:
+    """``"judged"`` when the reply says, in any language, that the assistant has already done something, and NOTHING
+    ran on this turn to do it; ``"judged_kept"`` when it says it noted a fact and nothing was kept; ``""`` otherwise.
+
+    The claim vocabulary above is English. Asked in Lithuanian to put an event on the calendar, the model answered
+    "Pridejau i kalendoriu" with no tool run; no English verb matched, the turn was signed `no_action_claimed`, and
+    the chip read "Record verified" (blind audit of 58f60bbf3, F-06/F-09). Whether a sentence reports finished work
+    is a matter of meaning, so it is asked of the turn's judge (`core.intent_arbiter.arbitrate_done_claim`), and the
+    answer is held against the turn's own execution record, never against wording:
+
+    * asked only when this turn has no executed tool (a claim beside a real execution is the receipt binder's to
+      check, and asking there would spend a judgement on every tool turn);
+    * "kept" (only a fact noted in its own memory) is ``"judged_kept"`` unless this turn's keep step wrote or a
+      saved fact already holds what the reply says, the same law the English persistence check follows;
+    * None (no judge, a failed call) decides nothing, as every judgement does.
+    """
+    response = str(result.get("response") or "").strip()
+    if not response or (result.get("action_honesty_validator") or {}).get("applied"):
+        return ""
+    if str(result.get("mode") or result.get("mode_override") or "").strip().lower() == "tool_executed":
+        return ""
+    stamp = result.get("_deterministic_render")
+    if isinstance(stamp, dict) and str(stamp.get("render") or "") == str(result.get("response") or ""):
+        return ""
+    if _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context):
+        return ""
+    import hashlib
+
+    digest = hashlib.sha256(response.encode("utf-8")).hexdigest()
+    cache = source_context.setdefault(_JUDGED_CLAIMS_KEY, {}) if isinstance(source_context, dict) else {}
+    if not isinstance(cache, dict):
+        cache = {}
+    if digest in cache:
+        return str(cache[digest] or "")
+    try:
+        from core import intent_arbiter
+
+        answer = intent_arbiter.arbitrate_done_claim(
+            response,
+            request_id=str((source_context or {}).get("request_id") or ""),
+            chat_id=str(session_id or ""),
+            source_context=source_context,
+        )
+    except Exception:
+        answer = None
+    kind = ""
+    if answer == "done":
+        kind = "judged"
+    elif answer == "kept" and not _keep_step_wrote(source_context) and not _a_saved_fact_holds_the_reply(
+        response, session_id, source_context
+    ):
+        # "Isidemejau" / "Ich habe es mir notiert" with no keep write on this turn and no saved fact that holds it:
+        # the same law as the English persistence check (`_keep_step_wrote`, `core.saved_fact_statement`).
+        kind = "judged_kept"
+    cache[digest] = kind
+    return kind
+
+
+def _a_saved_fact_holds_the_reply(response: str, session_id: str | None, source_context: dict[str, object] | None) -> bool:
+    said_before = ""
+    for sentence in _split_sentences(response):
+        before, said_before = said_before, sentence
+        if _a_saved_fact_holds_it(sentence, before, session_id, source_context):
+            return True
+    return False
+
+
+def _judged_claim_correction(user_input: str, effective_input: str | None, *, kept: bool = False) -> str:
+    """The judged-claim correction in the language the person wrote in when a catalog has it, else the app language
+    of the turn, else English."""
+    from core.i18n.turn_locale import turn_text
+
+    locale = ""
+    try:
+        from core.i18n.catalog import resolve_catalog_tag
+        from core.response_language_policy import evidenced_input_language
+
+        said = evidenced_input_language(str(user_input or effective_input or ""))
+        tag = resolve_catalog_tag(said) if said else ""
+        # A language with no catalog of its own falls to English there; the app language of the turn is nearer.
+        locale = tag if tag and (tag != "en" or said == "en") else ""
+    except Exception:
+        locale = ""
+    if kept:
+        return turn_text(_JUDGED_KEEP_NOT_DONE_KEY, _JUDGED_KEEP_NOT_DONE_RESPONSE, locale)
+    return turn_text(_JUDGED_CLAIM_NOT_DONE_KEY, _JUDGED_CLAIM_NOT_DONE_RESPONSE, locale)
 
 
 def _a_saved_fact_holds_it(sentence: str, before: str, session_id: str | None, source_context: dict[str, object] | None) -> bool:
@@ -2514,6 +2631,28 @@ def _collect_executed_tools(
     return out
 
 
+#: The turn event that says the reply claimed work this turn did not do. The proof chip reads it from the turn's own
+#: events (`core.proof_projection`), so a turn whose reply claimed an action with no execution behind it is never
+#: stamped "Record verified", whatever language the claim was said in.
+UNBACKED_CLAIM_EVENT = "action_claim_unbacked"
+
+
+def _record_unbacked_claim_event(source_context: dict[str, object] | None, *, verdict: str, detail: str) -> None:
+    if not isinstance(source_context, dict):
+        return
+    try:
+        from core.runtime_task_events import emit_runtime_event
+
+        emit_runtime_event(
+            source_context,
+            event_type=UNBACKED_CLAIM_EVENT,
+            message="The reply claimed an action that no step of this turn performed.",
+            details={"verdict": verdict, "detail": detail},
+        )
+    except Exception:
+        pass
+
+
 def emit_turn_honesty_receipt(
     output: dict[str, Any],
     *,
@@ -2556,7 +2695,9 @@ def emit_turn_honesty_receipt(
         # Same predicate the blocker used. When these two disagree the ledger is worse than
         # useless: the fabricated build of 2026-07-29 was signed `no_action_claimed` because this
         # line asked a narrower question than the claim it was recording.
-        claim_kind = _final_claim_kind(
+        # Not asked once the guard has blocked or the binder has repaired the reply: the verdict is already
+        # decided, and the reply now in hand is the runtime's own correction, not the model's claim.
+        claim_kind = "" if (contradicted or blocked) else _final_claim_kind(
             result, user_input=user_input, effective_input=effective_input,
             session_id=session_id, source_context=source_context,
         )
@@ -2613,6 +2754,8 @@ def emit_turn_honesty_receipt(
             verdict_detail=detail,
             prev_hash=latest_receipt_hash(session),
         )
+        if verdict in (VERDICT_BLOCKED, VERDICT_UNBACKED):
+            _record_unbacked_claim_event(source_context, verdict=verdict, detail=detail)
         prior_pending = bool(result.get("receipt_pending"))
         result.pop("honesty_receipt", None)
         written = record_honesty_receipt(receipt)
@@ -2649,6 +2792,7 @@ def emit_turn_honesty_receipt(
 
 __all__ = [
     "SEALED_TURN_KEY",
+    "UNBACKED_CLAIM_EVENT",
     "completion_claim_kind",
     "emit_turn_honesty_receipt",
     "enforce_final_action_honesty",

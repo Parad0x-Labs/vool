@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "„Bis ich es abschalte“ gilt nur für diesen Chat — wähle den Geltungsbereich „Diese Chat-Sitzung“.",
     "chat.archive_failed": "Dieser Chat ließ sich nicht archivieren. Versuche es gleich noch einmal.",
     "chat.archive_failed_offline": "VOOL war nicht erreichbar, deshalb wurde der Chat nicht archiviert.",
+    "chat.action_claim_not_done": "Das habe ich nicht erledigt: In diesem Schritt wurde nichts ausgeführt, also wurde nichts hinzugefügt oder geändert. Bitte mich noch einmal darum, dann erledige ich es mit dem passenden Werkzeug.",
+    "chat.memory_claim_not_done": "Das habe ich nicht gespeichert: In diesem Schritt wurde nichts in meinem Gedächtnis abgelegt. Sag es mir noch einmal, wenn ich es mir merken soll.",
     "chat.ctx_aria": "Aktuelles Projekt und Chat",
     "chat.delete_failed": "Dieser Chat ließ sich noch nicht löschen. Versuche es gleich noch einmal.",
     "chat.delete_failed_offline": "VOOL war nicht erreichbar, deshalb wurde nichts gelöscht. Versuche es gleich noch einmal.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Wird ans Ende von E-Mails gesetzt, die VOOL für dich schreibt.",
     "settings.models.exact_name": "Genauer Name"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

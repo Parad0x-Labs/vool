@@ -715,6 +715,8 @@
     "bypass.until_off_chat_only": "„Kol pats išjungsiu“ galioja tik šiam pokalbiui — pasirinkite apimtį „Ši pokalbio sesija“.",
     "chat.archive_failed": "Nepavyko archyvuoti šio pokalbio. Pabandykite po akimirkos.",
     "chat.archive_failed_offline": "Nepavyko pasiekti VOOL, todėl pokalbis nebuvo archyvuotas.",
+    "chat.action_claim_not_done": "To nepadariau: šiame žingsnyje nebuvo atliktas joks veiksmas, todėl niekas nebuvo pridėta ar pakeista. Paprašykite dar kartą, ir atliksiu tai tinkamu įrankiu.",
+    "chat.memory_claim_not_done": "To neišsaugojau: šiame žingsnyje į mano atmintį nieko nebuvo įrašyta. Pasakykite dar kartą, jei norite, kad tai išsaugočiau.",
     "chat.ctx_aria": "Dabartinis projektas ir pokalbis",
     "chat.delete_failed": "Šio pokalbio kol kas nepavyko ištrinti. Pabandykite po akimirkos.",
     "chat.delete_failed_offline": "Nepavyko pasiekti VOOL, todėl niekas nebuvo ištrinta. Pabandykite po akimirkos.",
@@ -5140,7 +5142,7 @@
     "settings.profile.signature_hint": "Pridedamas VOOL už jus rašomų laiškų pabaigoje.",
     "settings.models.exact_name": "Tikslus pavadinimas"
   },
-  "source_catalog_sha256": "ea7de48bb3098078ba21c6fa4197a50784be94c7ece9f7edfdfc94640f0ff31a",
+  "source_catalog_sha256": "af5108fd35d78311d850e313a9f879161753dd2d00d5fe72f90aea304b1f3164",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
