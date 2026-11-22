@@ -327,13 +327,17 @@ def _skill_keeps_turn_whole(text: str, source_context: Any) -> bool:
 
         if not turn_may_hold_several_requests(str(text or "")):
             return False
+    except Exception:
+        return False
+    try:
         from core.tool_offer_assembly import skill_picks_turn
 
         context = source_context if isinstance(source_context, dict) else None
         if skill_picks_turn(str(text or ""), source_context=context):
             return True
     except Exception:
-        return False
+        # A skill reading that failed says nothing about plugins: the plugin reading still runs.
+        _log.debug("skill reading for a whole turn failed", exc_info=True)
     return _plugin_keeps_turn_whole(text, source_context)
 
 
