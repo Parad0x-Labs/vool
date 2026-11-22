@@ -87,19 +87,17 @@ def _live_recency_signal(text: str) -> CurrentInformationSignal:
 def _fresh_lookup_markers_signal(text: str) -> CurrentInformationSignal:
     """The fast lane's fresh-lookup markers and its ``latest|newest|recent|just
     released x domain`` tail.  Same tables, same word-boundary matcher, and the same reading of
-    release notes the person writes ("write release notes for this project" is authoring)."""
+    release notes the person writes ("write release notes for this project" is authoring) and of
+    the value of a sum ("how much is 68 plus 53")."""
 
-    from core.agent_runtime.fast_live_info_mode_classifier import _names_a_marker, _only_authored_release_notes
+    from core.agent_runtime.fast_live_info_mode_classifier import _names_a_marker, names_a_fresh_lookup_marker
     from core.agent_runtime.fast_live_info_mode_lookup_markers import (
-        _FRESH_LOOKUP_MARKERS,
         _LATEST_DOMAIN_MARKERS,
         _LIVE_LOOKUP_HINT_MARKERS,
     )
 
     lowered = " ".join(str(text or "").split()).lower()
-    marker_hit = (
-        _names_a_marker(lowered, _FRESH_LOOKUP_MARKERS) and not _only_authored_release_notes(lowered)
-    ) or _names_a_marker(lowered, _LIVE_LOOKUP_HINT_MARKERS)
+    marker_hit = names_a_fresh_lookup_marker(lowered) or _names_a_marker(lowered, _LIVE_LOOKUP_HINT_MARKERS)
     tail_hit = _names_a_marker(lowered, ("latest", "newest", "recent", "just released")) and any(
         marker in lowered for marker in _LATEST_DOMAIN_MARKERS
     )

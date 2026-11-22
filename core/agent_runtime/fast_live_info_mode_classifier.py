@@ -197,6 +197,37 @@ def _only_authored_release_notes(text: str) -> bool:
     return not _names_a_marker(text, other) and release_notes_are_authored(text)
 
 
+#: The markers that ask for the value of whatever follows them ("how much is ...", "how much does ..."): a price when
+#: what follows is a thing, a sum when what follows is numbers. On the installed 3dfb2f34 (real-app gate, 2026-11-22)
+#: "qucik q: how much is 68 plus 53!" was refused as a web lookup with lookups off.
+_VALUE_OPENERS = ("how much is", "how much does")
+
+
+def _value_opener_asks_a_sum(text: str) -> bool:
+    """The only fresh-lookup words are a value opener, and what it asks the value of is a calculation the runtime's
+    own grammar computes (`core.conductor.requirements.arithmetic_core`: numbers and operators, nothing to look up)."""
+    other = tuple(marker for marker in _FRESH_LOOKUP_MARKERS if marker not in _VALUE_OPENERS)
+    if _names_a_marker(text, other) or _names_a_marker(text, _LIVE_LOOKUP_HINT_MARKERS):
+        return False
+    try:
+        from core.conductor.requirements import arithmetic_core
+
+        body = " ".join(str(text or "").split())
+        return arithmetic_core(body) != body.strip()
+    except Exception:
+        return False
+
+
+def names_a_fresh_lookup_marker(text: str) -> bool:
+    """Whether the text names a fresh-lookup marker as a lookup: not release notes the person writes, not the value
+    of a sum."""
+    return (
+        _names_a_marker(text, _FRESH_LOOKUP_MARKERS)
+        and not _only_authored_release_notes(text)
+        and not _value_opener_asks_a_sum(text)
+    )
+
+
 def live_info_mode(agent: Any, text: str, *, interpretation: Any) -> str:
     """Which live-information mode this text asks for, or "" for none.
 
@@ -288,7 +319,7 @@ def live_info_mode(agent: Any, text: str, *, interpretation: Any) -> str:
         return "fresh_lookup"
     if _names_a_marker(asked, _LIVE_LOOKUP_HINT_MARKERS):
         return "fresh_lookup"
-    if _names_a_marker(asked, _FRESH_LOOKUP_MARKERS) and not _only_authored_release_notes(asked):
+    if names_a_fresh_lookup_marker(asked):
         return "fresh_lookup"
     if _names_a_marker(asked, ("latest", "newest", "recent", "just released")) and any(
         marker in asked for marker in _LATEST_DOMAIN_MARKERS
