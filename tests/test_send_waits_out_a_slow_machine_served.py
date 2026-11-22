@@ -93,7 +93,7 @@ def test_a_machine_too_slow_to_answer_says_so_and_keeps_the_message(page):
     _slow_model_reads(p, [6.5, 21.0])
     p.locator("#input").fill("what is a harbor?")
     p.locator("#send").click()
-    _wait_for(lambda: any("too busy" in t for t in _texts(p)), 60, "no reason was given")
+    _wait_for(lambda: any("answering too slowly" in t and "back in the message box" in t for t in _texts(p)), 60, "no reason was given")
     assert "The message could not be sent." not in _texts(p)
     assert p.input_value("#input") == "what is a harbor?", "the message was not put back"
     assert not errors, errors
