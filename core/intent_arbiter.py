@@ -236,6 +236,10 @@ _LAST_FAILURE: dict[str, str] = {}
 # open INSTANTLY to today's dispatch instead of stacking 15s delays.
 _BREAKER: dict[str, float] = {}
 _BREAKER_COOLOFF_S = float(os.environ.get("VOOL_ARBITER_COOLOFF_S", "300") or 300)
+# The breaker is kept per model. One breaker for every model let a timeout of the helper tag, or of a background
+# judgement queued behind a model load, silence the judge of the turn's own chat model for five minutes: on the
+# installed 3dfb2f34 the tool-ask judge answered "None in 2 ms" for most of the gate after one slow call, and a
+# reminder with a slip and a contact save were offered no tool (real-app gate, 2026-11-22).
 
 
 def last_failure() -> str:
@@ -243,22 +247,28 @@ def last_failure() -> str:
     return _LAST_FAILURE.get("reason", "")
 
 
-def _breaker_open() -> bool:
+def _breaker_open(model: str | None = None) -> bool:
+    """Whether this model's breaker is open; with no model, whether any is."""
     import time
 
-    until = _BREAKER.get("open_until", 0.0)
-    return time.monotonic() < until
+    now = time.monotonic()
+    if model is None:
+        return any(now < until for until in _BREAKER.values())
+    return now < _BREAKER.get(str(model), 0.0)
 
 
-def _trip_breaker() -> None:
+def _trip_breaker(model: str = "") -> None:
     import time
 
-    _BREAKER["open_until"] = time.monotonic() + _BREAKER_COOLOFF_S
+    _BREAKER[str(model or "")] = time.monotonic() + _BREAKER_COOLOFF_S
 
 
-def reset_breaker() -> None:
-    """Test hook + successful-call reset."""
-    _BREAKER.pop("open_until", None)
+def reset_breaker(model: str | None = None) -> None:
+    """Test hook + successful-call reset: this model's breaker, or with no model every one."""
+    if model is None:
+        _BREAKER.clear()
+    else:
+        _BREAKER.pop(str(model), None)
 
 
 def arbitrate(
@@ -276,12 +286,12 @@ def arbitrate(
     if not arbiter_enabled():
         _LAST_FAILURE["reason"] = "disabled"
         return None
-    if _breaker_open():
-        _LAST_FAILURE["reason"] = "breaker_open"
-        return None
     model = _resolve_model()
     if not model:
         _LAST_FAILURE["reason"] = "no_model"
+        return None
+    if _breaker_open(model):
+        _LAST_FAILURE["reason"] = "breaker_open"
         return None
     options = _candidate_options(claims)
     call_id = ""
@@ -369,9 +379,9 @@ def arbitrate(
             )
         _LAST_FAILURE["reason"] = f"request:{type(exc).__name__}"
         if "Timeout" in type(exc).__name__:
-            _trip_breaker()  # saturated box: don't stack waits — cool off, fail open instantly
+            _trip_breaker(model)  # saturated box: don't stack waits — cool off, fail open instantly
         return None
-    reset_breaker()  # a served request proves the box is healthy again
+    reset_breaker(model)  # a served request proves the model is answering again
     decision = _parse_decision(content, options=options, claims=claims)
     if decision is None:
         _LAST_FAILURE["reason"] = "parse"
@@ -467,8 +477,13 @@ def arbitrate_followup(
     runner_role: str = "",
     call_role: str = "",
     parse: Callable[[str], str | None] | None = None,
+    patient: bool = False,
 ) -> str | None:
     """``"yes"`` / ``"no"``, or None (disabled, no model, breaker open, error, unparseable).
+
+    `patient` is for a judgement the turn cannot do without (the tool ask: without it a tool asked for in other
+    words or another language is not offered at all). It is asked even while the model's breaker is open; the owner
+    accepted a slower tool step over a missing tool (2026-11-22).
 
     `parse` reads the model's answer when the judgement is not a yes/no (`arbitrate_named_fact`); None is the
     strict yes/no reader.
@@ -481,12 +496,12 @@ def arbitrate_followup(
     if not arbiter_enabled():
         _LAST_FAILURE["reason"] = "disabled"
         return None
-    if _breaker_open():
-        _LAST_FAILURE["reason"] = "breaker_open"
-        return None
     model = str(model or "").strip() or _resolve_model()
     if not model:
         _LAST_FAILURE["reason"] = "no_model"
+        return None
+    if _breaker_open(model) and not patient:
+        _LAST_FAILURE["reason"] = "breaker_open"
         return None
     call_id = ""
     try:
@@ -529,9 +544,9 @@ def arbitrate_followup(
                                          error_class=error_class.value if error_class else "")
         _LAST_FAILURE["reason"] = f"request:{type(exc).__name__}"
         if "Timeout" in type(exc).__name__:
-            _trip_breaker()
+            _trip_breaker(model)
         return None
-    reset_breaker()
+    reset_breaker(model)
     decision = (parse or parse_followup_decision)(content)
     if call_id:
         from core.normalized_provider_result import ProviderErrorClass
@@ -1113,7 +1128,7 @@ def arbitrate_plugin_ask(
         named = arbitrate_followup(
             "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
             prompt=prompt, operation="plugin_ask_arbitration", model=model,
-            runner_role="general", call_role=_judgement_role(), parse=reader,
+            runner_role="general", call_role=_judgement_role(), parse=reader, patient=True,
         )
     if named is None:
         return None

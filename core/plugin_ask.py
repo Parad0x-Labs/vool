@@ -310,7 +310,10 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
         picked, len(shown_plugins), len(builtins), (time.monotonic() - started) * 1000,
     )
     if picked is None:
-        _log.warning("tool ask: not judged after a retry; the words decide this turn alone")
+        _log.warning(
+            "tool ask: not judged after a retry (%s); the words decide this turn alone",
+            intent_arbiter.last_failure() or "no answer",
+        )
         return None
     numbers = [number for number in picked if 1 <= number <= len(choices)]
     plugins = tuple(dict.fromkeys(shown_plugins[n - 1][0] for n in numbers if n <= len(shown_plugins)))
