@@ -2253,14 +2253,21 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     # veto on ask_text alone could never see the recall shape. If the veto itself cannot be
     # read, nothing seats — a false seat is worse than a miss.
     is_recall_ask = True
+    asks_what_is_pending = False
     try:
-        from core.operator.parser import _asks_to_recall_not_to_be_reminded
+        from core.operator.parser import _asks_to_recall_not_to_be_reminded, _asks_what_it_will_remind
 
         is_recall_ask = _asks_to_recall_not_to_be_reminded(cleaned)
+        # "what are you going to remind me of tomorrow": the parser's own reading of a question
+        # about reminders already set. It seats the read, never a new reminder.
+        asks_what_is_pending = _asks_what_it_will_remind(cleaned)
     except Exception:
         pass
+    if asks_what_is_pending and "operator.list_reminders" not in intents:
+        intents.append("operator.list_reminders")
     if (
         not is_recall_ask
+        and not asks_what_is_pending
         and not _OWNER_RECALL_REMIND_RE.search(ask_text)
         and (
             _OWNER_SCHEDULE_REMINDER_SEAT_RE.search(ask_text)
@@ -2322,6 +2329,18 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
             intents.append("operator.save_note")
     except Exception:
         pass
+    # A reminder change never comes without the read of what is pending. The same words can ask to
+    # set one or about the ones already set ("what are you going to remind me of tomorrow" seats
+    # the set by its "remind me"), and a cancel or move needs to see which one first. The read has
+    # no side effect and no card, so seating it costs nothing when it is not needed; without it a
+    # question about pending reminders can only be answered by scheduling a new one.
+    # It takes a seat only when one is left, so it never pushes out a seat the words asked for.
+    if (
+        len(intents) < MAX_EXPLICIT_INTENTS
+        and "operator.list_reminders" not in intents
+        and ("operator.schedule_reminder" in intents or "operator.cancel_reminder" in intents)
+    ):
+        intents.append("operator.list_reminders")
     return tuple(intents[:MAX_EXPLICIT_INTENTS])
 
 

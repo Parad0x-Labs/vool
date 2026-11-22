@@ -750,6 +750,39 @@ _LEAD_BEFORE_REMIND_ME_RE = re.compile(
 _OWNER_WORD_RE = re.compile(r"\b(?:i|me|my|mine|we|us|our)\b", re.IGNORECASE)
 
 
+_REMIND_ME_RE = re.compile(r"\bremind\s+me\b", re.IGNORECASE)
+_QUESTIONED_OBJECT_RE = re.compile(r"\b(?:what|which|anything|something|whatever)\b", re.IGNORECASE)
+_STRANDED_PREPOSITION_RE = re.compile(r"^\s*(?:of|about)\b(?P<rest>.*)$", re.IGNORECASE | re.DOTALL)
+
+
+def _asks_what_it_will_remind(words: str) -> bool:
+    """ "What are you going to remind me of tomorrow?" asks about reminders already set, not for a new one.
+
+    The thing to be reminded of is the question word itself, so the "of"/"about" after "remind me" is left with
+    nothing but a time after it (a stranded preposition). A new reminder always has its subject there ("remind me
+    about the haircut at 4"). The question word has to sit in the same clause before "remind me", so a lead-in
+    ("what a day, remind me about the bins") keeps its reminder. Measured on 58f60bbf3 (2026-11-22): "anything I
+    asked you to remind me about?" and "what will you remind me about on friday" were parsed as reminders to set.
+    """
+    from core.operator.when import time_expression_spans
+
+    for match in _REMIND_ME_RE.finditer(words):
+        clause_start = max(words.rfind(mark, 0, match.start()) for mark in ".!?;,\n") + 1
+        if not _QUESTIONED_OBJECT_RE.search(words[clause_start:match.start()]):
+            continue
+        stranded = _STRANDED_PREPOSITION_RE.match(words[match.end():])
+        if stranded is None:
+            continue
+        rest = stranded.group("rest")
+        clause_end = re.search(r"[.!;\n]", rest)
+        rest = rest[: clause_end.start()] if clause_end else rest
+        for start, end in reversed(time_expression_spans(rest)):
+            rest = rest[:start] + rest[end:]
+        if not re.sub(r"\b(?:on|at|in|for|by|this|next|again|then|later|week|weekend|month|morning|afternoon|evening|night)\b|[\s?,]", "", rest, flags=re.IGNORECASE):
+            return True
+    return False
+
+
 _ASKS_ABOUT_EXISTING_REMINDER_RE = re.compile(
     r"^\s*(?:(?:did|have|had)\s+i\s+(?:already\s+)?(?:set|make|made|create|created|schedule|scheduled|add|added|get|got)"
     r"\s+(?:up\s+)?(?:a|an|any|the|my)?\s*reminders?\b"
@@ -816,7 +849,7 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # A question about a reminder that may already exist is a lookup, not a new reminder:
     # "did i set a reminder to feed the iguana" was parsed as a schedule order and leaked the time
     # parser's error text (0.7.8 sweep block 3).
-    if _ASKS_ABOUT_EXISTING_REMINDER_RE.search(words):
+    if _ASKS_ABOUT_EXISTING_REMINDER_RE.search(words) or _asks_what_it_will_remind(words):
         return OperatorActionIntent(kind="list_reminders", raw_text=text)
     if _REMINDER_HINT_RE.search(words) and not _asks_to_recall_not_to_be_reminded(words):
         return OperatorActionIntent(kind="schedule_reminder", raw_text=text)
