@@ -92,6 +92,11 @@ TITLE_CASES = [
     ("Quick sum for my budget sheet: what is 23 * 19?", "23 * 19"),
     ("For the report, can you check the numbers?", "Check numbers"),
     ("23 * 19 = ? Just the number please.", "23 * 19"),
+    # A courtesy sentence before the ask, in any words: the ask still names the task.
+    ("Thank you so much! Which line did that file end up holding?", "Which line did that file end"),
+    ("Cheers, that helps. And how many words are on that line?", "How many words are on that"),
+    ("Brilliant, ty!! Now make it shorter.", "Make it shorter"),
+    ("Find me a flight to Rome. I want to leave Friday.", "Find flight to Rome"),
 ]
 
 

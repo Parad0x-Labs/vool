@@ -504,13 +504,13 @@ function vnApply(view, ev) {
       // running/completed evidence recovers it; only task.failed makes it terminal.
       view.failureSeq = fp; view.failureN = view.events; view.retrySeq = -1; break;
     case "task.failed":
-      view.endedAt = vnEventTime(ev, view.receivedAt);
+      view.endedAt = vnEndTime(view, ev);
       view.terminal = "FAILED"; view.finishSeq = null; view.approvalSeq = null; break;
     case "task.cancelled":
-      view.endedAt = vnEventTime(ev, view.receivedAt);
+      view.endedAt = vnEndTime(view, ev);
       view.terminal = "CANCELLED"; view.finishSeq = null; view.approvalSeq = null; break;
     case "task.completed": {
-      view.endedAt = vnEventTime(ev, view.receivedAt);
+      view.endedAt = vnEndTime(view, ev);
       const rs = view.reviewState;
       // Terminal truth by verdict: PASS only on a real passed review; a reviewer that ran
       // without a verdict is VERIFIER_INCOMPLETE; ordinary completion WITHOUT a verifier is
@@ -543,6 +543,14 @@ function vnEventTime(ev, at) {
   const ts = ev && ev.ts;
   const t = typeof ts === "number" ? ts : Date.parse(String(ts || ""));
   return Number.isFinite(t) && t > 0 ? t : (Number(at) > 0 ? Number(at) : 0);
+}
+/* When the turn ended, on the same clock as its start. A turn the page sent is timed on the
+   page's clock at both ends (sent -> the end handed over), like the card's "22s total": the
+   server's own end stamp is on another clock and read 1-2 s short on the Mac ("Done · 21s"
+   beside "22s total"). Otherwise the event's own time. */
+function vnEndTime(view, ev) {
+  if (view.sent && view.receivedAt > 0) return view.receivedAt;
+  return vnEventTime(ev, view.receivedAt);
 }
 let vnLastChat = "";
 /* `words` is what the chat page's run card says for this same event (runCardWords: "Looking up
@@ -801,14 +809,21 @@ function vnTaskTitle(text) {
   let s = String(text || "").replace(/https?:\/\/(?:www\.)?([^\/\s]+)\S*/gi, "$1");
   // Greetings go before the sentence split, so "hi! how do I ..." names the question, not "hi".
   s = strip(s.replace(/[ \t\r\f\v]+/g, " ").trim());
-  // The first sentence that names something wins: "Thanks. In one sentence, what did you just put
-  // in that file?" is a thank-you, then the ask (its title was empty for the whole turn on the
-  // Mac). In a question, the question's own clause goes first ("For the report, can you check the
-  // numbers?" names the check, not "Report").
-  const sentences = s.replace(/([.!?])\s+/g, "$1\n").split("\n");
+  // The sentence that names the ask wins: "Thanks. In one sentence, what did you just put in that
+  // file?" is a thank-you, then the ask (its title was empty for the whole turn on the Mac). In a
+  // question, the question's own clause goes first ("For the report, can you check the numbers?"
+  // names the check, not "Report").
+  // By shape, not by word lists: a question is the ask; an exclamation ("Thank you so much!") is
+  // the least likely to be one; plain sentences keep their order between them. On the Mac
+  // "Thank you so much! Which line did that file end up holding?" was titled "You so much".
+  const shape = function (v) { return /\?\s*$/.test(v) ? 0 : (/!\s*$/.test(v) ? 2 : 1); };
+  const sentences = s.replace(/([.!?])\s+/g, "$1\n").split("\n")
+    .map(function (v, i) { return { v: v.trim(), i: i }; })
+    .filter(function (x) { return x.v; })
+    .sort(function (a, b) { return shape(a.v) - shape(b.v) || a.i - b.i; })
+    .map(function (x) { return x.v; });
   for (let i = 0; i < sentences.length; i++) {
-    const sentence = sentences[i].trim();
-    if (!sentence) continue;
+    const sentence = sentences[i];
     const clauses = sentence.replace(/[.!?]+$/, "").split(/[;,](?:\s|$)|:\s/);
     if (/\?\s*$/.test(sentence) && clauses.length > 1) clauses.unshift(clauses.pop());
     for (let j = 0; j < clauses.length; j++) {

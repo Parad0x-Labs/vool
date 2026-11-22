@@ -52,9 +52,15 @@ try {
   displayedChat = "c2";
   const r2 = runFor("c2");
   const sent = t0 + 700000;
+  // The page's clock at both ends, like the card's total; the server's own end stamp is on
+  // another clock (here 1.5 s early, as measured on the Mac) and does not set the duration.
+  const realNow = Date.now;
+  Date.now = () => sent;
   applyTaskEvent(r2, { type: "task.submitted", ts: new Date(sent).toISOString(), userText: "hi" });
   applyTaskEvent(r2, { type: "task.started", seq: 1 });
-  applyTaskEvent(r2, { type: "task.completed", seq: 2, ts: new Date(sent + 14000).toISOString() });
+  Date.now = () => sent + 14000;
+  applyTaskEvent(r2, { type: "task.completed", seq: 2, ts: new Date(sent + 12500).toISOString() });
+  Date.now = realNow;
   res.done = look(sent + 15000);
   res.doneLater = look(sent + 15000 + 13000);
   displayedChat = "c1"; look(sent + 30000);
@@ -85,7 +91,7 @@ def test_the_bubble_says_the_real_step_and_is_quiet_when_idle() -> None:
     assert out["ask"]["line"] == "Send the email to Anna", out["ask"]
     assert out["askAgain"]["line"] == "Send the email to Anna", out["askAgain"]
     assert out["askLater"]["shown"] == "flex", "a waiting decision stays visible until it is answered"
-    # Finished: done, with the turn's real duration (sent -> completed = 14 s).
+    # Finished: done, with the turn's real duration on the page's clock (sent -> ended = 14 s).
     assert out["done"]["shown"] == "flex" and out["done"]["line"] == "Done · 14s", out["done"]
     assert out["doneLater"]["shown"] == "none", "after the moment passes the finished pet goes quiet"
     assert out["doneReopened"]["shown"] == "none", "opening a finished chat again does not replay its done line"
