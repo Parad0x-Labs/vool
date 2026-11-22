@@ -551,6 +551,32 @@ def _subject_and_terms(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return subject, terms
 
 
+#: A wh-word followed straight by its subject ("what I said about ...", "where you put ...") opens a clause that is the
+#: object of the words before it ("Delete what I said about my campervan"), not a question of its own: a question
+#: puts its verb first ("what did I say", "what is my ...", "what name did I give").
+_EMBEDDED_CLAUSE_RE = re.compile(r"^(?:what|which|who|whom|whose|when|where|why|how)\s+(?:i|you|we|he|she|they)\b", re.IGNORECASE)
+
+
+def _an_order_of_its_own(text: str) -> bool:
+    """Whether the words before the question are an order whose object the question is ("Forget what I told you
+    about Ilona's tree", "erase what I said about my locker"): then nothing is a lead-in. Read by the lanes that own
+    such orders, not by a list of verbs. Without it, "Forget what I told you about ..." lost its "Forget" and was
+    answered as a recall question, and the forget never ran (regression run on the gate v3 fixes, 2026-11-22)."""
+    try:
+        from core.persistent_memory import memory_command_owns_turn
+
+        if memory_command_owns_turn(text):
+            return True
+    except Exception:
+        return True  # unreadable: keep the words as typed
+    try:
+        from core.operator.parser import parse_operator_action_intent
+
+        return parse_operator_action_intent(text) is not None
+    except Exception:
+        return True
+
+
 def _without_lead_in(text: str) -> str:
     """The ask with a lead-in dropped and a slip in "called"/"name" mended. The lead-in goes only when
     the question after it names the owner's own thing ("my turtle", "did I"), so a lead-in that IS the
@@ -560,6 +586,8 @@ def _without_lead_in(text: str) -> str:
     if lead is None or _LEAD_IN_OWNER_RE.search(lead.group("lead")):
         return text
     rest = text[lead.end() :]
+    if _EMBEDDED_CLAUSE_RE.match(rest) or _an_order_of_its_own(text):
+        return text
     if not _LEAD_IN_OWNER_RE.search(rest) or not _subject_and_terms(rest)[0]:
         return text
     return rest

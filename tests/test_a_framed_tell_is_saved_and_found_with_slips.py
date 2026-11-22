@@ -76,3 +76,36 @@ def test_a_lead_in_that_is_the_subject_or_a_real_word_is_not_dropped(isolated_ho
 
     terms = _asked_terms(asked)
     assert ("noodl" in terms or "noodle" in terms) if asked.startswith("Noodle") else "gam" in terms, terms
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_a_label_that_says_the_fact_changes_is_an_update_not_a_new_tell(isolated_home, seed):
+    """"Update: my cello is kept at the music school now" replaces the saved fact, and with nothing saved saves
+    nothing: the update reading owns a change, and a label in front of it does not turn it into a new tell."""
+    rng = random.Random(f"framed-update-{seed}")
+    thing = rng.choice(THINGS)
+    old, new = rng.sample(NAMES, 2)
+    label = rng.choice(["update", "Update", "correction", "Correction"])
+    _say(f"{label}{rng.choice(SEPARATORS)}my {thing} is called {new} now", "empty")
+    assert _facts("empty") == [], _facts("empty")
+    assert _say(f"Remember that my {thing} is called {old}", "told")[1].startswith("Locked in")
+    said = f"{label}{rng.choice(SEPARATORS)}my {thing} is called {new} now"
+    assert _say(said, "told")[1].startswith("Updated"), said
+    facts = _facts("told")
+    assert [fact for fact in facts if new in fact] and not [fact for fact in facts if old in fact], (said, facts)
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_an_order_in_front_of_the_question_is_not_a_lead_in(seed):
+    """"Forget what I told you about Ilona's favourite tree" is a forget, not "what did I tell you" with a lead-in in
+    front: the words before the question are an order whose object the question is, and they stay."""
+    from core.agent_runtime.cross_chat_recall import _without_lead_in
+
+    rng = random.Random(f"order-lead-{seed}")
+    thing = rng.choice(THINGS)
+    order = rng.choice(["Forget", "forget", "Erase", "Delete"]) + " " + rng.choice(
+        ["what I told you about", "everything I told you about", "what I said about"]) + f" my {thing}"
+    assert _without_lead_in(order) == order, order
+    asked = rng.choice(["Alright", "hmm", "ok so", "right"]) + " " + rng.choice(
+        [f"what did I tell you about my {thing}?", f"what is my {thing} called?"])
+    assert _without_lead_in(asked) != asked, asked

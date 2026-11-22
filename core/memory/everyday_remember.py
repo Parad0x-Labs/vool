@@ -61,7 +61,7 @@ _UPDATE_RE = re.compile(
 )
 _UPDATE_LEAD_RE = re.compile(
     r"^(?:(?:oh|also|and|btw|ok|okay|so)\b[\s,]*)*(?:(?:a\s+)?(?:small|quick|little|tiny)\s+)?(?:update|change|correction)"
-    r"(?:\s+(?:on|to)\s+that)?\s*[:,.-]\s*",
+    r"(?:\s+(?:on|to)\s+that)?\s*[:,.\-\u2013\u2014]\s*",   # the dash people type as - or as an en/em dash
     re.IGNORECASE,
 )
 #: Words an update shares with almost any saved fact; they never decide which fact it updates.
@@ -164,8 +164,10 @@ def _framed_fact(clean: str) -> str:
         return ""
     if _REQUEST_HEAD_RE.match(fact) or not _personal_fact_clause(fact):
         return ""
-    if update_shaped(fact):
-        return ""  # "update: my dentist is now dr Okafor" changes a saved fact; the update reading owns it
+    if update_shaped(f"{frame}: {fact}") or update_shaped(fact):
+        # "update: my cello is kept at the music school now", "correction: my locker is 215": the frame itself, or the
+        # fact, says a saved fact changes; the update reading owns it (and writes nothing when nothing is saved).
+        return ""
     try:
         from core.stipulated_frame import has_stipulated_frame
 
