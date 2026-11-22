@@ -62,6 +62,9 @@ _ORIGINAL_AUTHORING_TAIL = (
     r"(?:command|one[-\s]?liner|script|query|queries|email|e-mail|mail|message|sms|text\s+message|"
     r"reply|snippet|interface|function|regex|expression|schema|struct|class|type|"
     r"letter|note|memo|tweet|post|caption|paragraph|poem|essay|summary|template|statement)\b"
+    # The noun is never part of a file name ("write X into memo-0302ea.txt"; CI on 58f60bbf3): the same guard as the
+    # product pattern, so the bounded rewrite is still compared with what it is meant to match.
+    r"(?![-.\\]\w)"
 )
 ORIGINAL_AUTHORING_REQUEST = re.compile(
     r"^\s*(?:(?:ok(?:ay)?|so|hey|hi|yo|please|pls|just|and|but|also|instead|now|then)\b[\s,]*)*"
