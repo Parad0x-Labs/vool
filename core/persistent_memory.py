@@ -3013,8 +3013,9 @@ JUDGED_FORGET_NAMES_NOTHING = (
     "I could not find anything you told me that matches what you asked me to forget, so nothing was erased. "
     "Tell me which fact to forget, in the words you told it."
 )
-#: The answer to a recall the judge read, when nothing saved answers it.
-JUDGED_RECALL_NOTHING_SAVED = "I don't have that saved. Tell me and I'll remember it."
+#: The answer to a recall the judge read whose subject a completed forget revoked (NO RECORD = REFUSE). The same words
+#: as the other-chat refusal (core.web.api.runtime.FORGOTTEN_IN_ANOTHER_CHAT_REPLY).
+JUDGED_RECALL_FORGOTTEN = "I have no record of that; it was forgotten."
 #: Facts put to one forget or recall judgement, newest first.
 _JUDGED_HELD_LIMIT = 40
 #: A short lead before a colon or a dash ("Įsimink du dalykus: ...", "Ir dar — ..."): the order, not the fact.
@@ -3179,27 +3180,82 @@ def _judged_memory_turn(
         if any(contains_secret(fact) for fact in facts):
             return True, EVERYDAY_SECRET_REFUSED
         return True, "I already had that in memory."
-    if not _turn_may_read_memory(source_context, session_id):
-        return None
-    held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
-    if not held:
-        return None  # nothing saved: this chat's own words and the other lanes may still answer it
+    reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
+    return None if reply is None else (True, reply)
+
+
+def _judged_items_named(
+    question: str, items: list[str], *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> list[str]:
+    """The items a recall question asks about, by the judge (`core.intent_arbiter.arbitrate_recall_facts`), in their
+    own words. Read only, so no shared word is asked for: an English question about a fact told in Lithuanian shares
+    none (Mac run of b43e6aced: "which colour did i say my boat was ...?" beside a saved "mano valtis mėlyna ...")."""
+    if not items:
+        return []
     from core.intent_arbiter import arbitrate_recall_facts
 
     try:
         picked = arbitrate_recall_facts(
-            text, held, chat_id=str(session_id or ""),
+            question, items, chat_id=str(session_id or ""),
             source_context=source_context if isinstance(source_context, dict) else None,
         )
     except Exception as exc:
         LOGGER.warning("judged recall unavailable: %s", type(exc).__name__)
         picked = None
-    named = [held[number - 1] for number in (picked or ()) if 1 <= number <= len(held)]
-    if not named:
+    return list(dict.fromkeys(items[number - 1] for number in (picked or ()) if 1 <= number <= len(items)))
+
+
+def _judged_forgotten_named(
+    question: str, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> list[str]:
+    """What a completed forget (in any chat) revoked that a recall question asks about, and that nothing holds again:
+    no saved entry carries it and the person did not say it again in this chat. NO RECORD = REFUSE: such a question is
+    answered "no record", never handed to a model that may still say the forgotten value (Mac run of b43e6aced: after
+    a Lithuanian forget of a boat's colour, "kokios spalvos mano valtis?" was answered with that colour)."""
+    try:
+        from core.memory.carriers import carries
+        from core.memory.revocation import revoked_tokens
+
+        home = dict(source_context or {}).get("runtime_home")
+        forgotten = [" ".join(str(token or "").split()) for token in revoked_tokens(None, home)]
+        forgotten = [token for token in dict.fromkeys(forgotten) if token]
+        if not forgotten:
+            return []
+        saved = [str(row.get("text") or "") for row in memory_entries.list_memory_entries(chat_id=session_id,
+                                                                                            limit=100000)]
+        said_here = _chat_earlier_user_turns(session_id)
+        live = [token for token in forgotten
+                if not any(carries(text, token) for text in saved)
+                and not any(carries(said, token) for said in said_here if judged_memory_ask(said) != "forget"
+                            and not _FORGET_RE.match(said))]
+    except Exception as exc:
+        LOGGER.warning("forgotten facts unreadable for a judged recall: %s", type(exc).__name__)
+        return []
+    return _judged_items_named(question, live[-_JUDGED_HELD_LIMIT:], session_id=session_id,
+                               source_context=source_context)
+
+
+def _judged_recall_reply(
+    question: str, *, session_id: str | None, policy: Any, source_context: Mapping[str, Any] | None,
+    forgotten_too: bool = True,
+) -> str | None:
+    """A recall question answered in any language from what VOOL holds: the saved facts the judge names, shown in their
+    own words through the serving gate; "no record" when what it asks about was forgotten (``forgotten_too``); None when
+    neither (this chat's own words and the other lanes may still answer it)."""
+    if not _turn_may_read_memory(source_context, session_id):
         return None
+    held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
+    named = _judged_items_named(question, held, session_id=session_id, source_context=source_context)
+    LOGGER.info("judged recall: %d held, %d named", len(held), len(named))
     if len(named) == 1:
-        return True, f"You told me: {named[0]}"
-    return True, "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
+        return f"You told me: {named[0]}"
+    if named:
+        return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
+    if not forgotten_too:
+        return None
+    forgotten = _judged_forgotten_named(question, session_id=session_id, source_context=source_context)
+    LOGGER.info("judged recall: %d forgotten item(s) named", len(forgotten))
+    return JUDGED_RECALL_FORGOTTEN if forgotten else None
 
 
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
@@ -3726,6 +3782,16 @@ def maybe_handle_memory_command(
             text,
             access_policy=resolved_policy,
         )
+        if response in _EMPTY_RECALL_ANSWERS:
+            # This lookup matches words, so a fact told in another language is never found by it: on the Mac (b43e6aced)
+            # "which colour did i say my boat was, and where is it stored?" beside a saved "mano valtis mėlyna ..." was
+            # handed to the model, which said it knew nothing about a boat. The judge reads any language. A forgotten
+            # subject asked in these English shapes keeps its own word-level no-record readers, with no model call.
+            judged = _judged_recall_reply(
+                text, session_id=session_id, policy=resolved_policy, source_context=source_context,
+                forgotten_too=False)
+            if judged is not None:
+                return True, judged
         if response in _EMPTY_RECALL_ANSWERS and not asked_for_an_inventory:
             # Reporting an ABSENCE is only this lane's business when the user asked it for an
             # inventory. Otherwise an empty lookup means "this store does not hold it" -- never

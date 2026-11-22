@@ -268,9 +268,35 @@ def previews(*, chat_id: str | None = None) -> list[dict[str, Any]]:
     for item in items:
         if _current(item):
             result.append(item.public())
+        elif _sent_before_an_erasure(item):
+            # The chat is still open and its request already left; only the chat's erasure state moved on (a forget,
+            # often the turn's own). The cached copy may hold what was forgotten, so it is dropped, but the turn that
+            # made the call is not stopped. Stopped, a Lithuanian forget that had erased its rows was answered
+            # "Cancelled before publication" (Mac run of b43e6aced: the page's pending poll came in after the forget).
+            with _LOCK:
+                _expire(item)
+                _PREVIEWS.pop(item.preview_id, None)
         else:
             _invalidate(item)
     return result
+
+
+def _sent_before_an_erasure(item: Preview) -> bool:
+    """A sent request whose chat is still open and readable, and whose only change since is the chat's erasure epoch."""
+    if not item.sent or item.invalidated or item.scope_version is None:
+        return False
+    if item.replay is not None:
+        try:
+            item.replay.source()
+        except (KeyError, ValueError, RuntimeError):
+            return False
+    from core.disclosure.scope import current_version
+
+    try:
+        now = current_version(item.chat_id, item.project_id)
+    except (RuntimeError, ValueError, OSError, sqlite3.Error):
+        return False  # the chat closed, changed project or its erasure state is unreadable: a stop
+    return now is not None and now != item.scope_version
 
 
 def get_preview(preview_id: str) -> Preview:
@@ -278,6 +304,11 @@ def get_preview(preview_id: str) -> Preview:
         _prune()
         item = _PREVIEWS.get(preview_id)
     if item is None or item.home != _home():
+        raise KeyError("preview expired")
+    if not _current(item) and _sent_before_an_erasure(item):
+        with _LOCK:
+            _expire(item)
+            _PREVIEWS.pop(item.preview_id, None)
         raise KeyError("preview expired")
     if not _current(item):
         _invalidate(item)

@@ -250,3 +250,65 @@ def test_the_keep_step_keeps_no_order_the_judge_read_as_a_tool_ask(home, monkeyp
     plugin_ask._record_builtins(text, ("contacts",))
     assert keep_stated_facts(text, session_id=CHAT, source_context=dict(OWNER)) == 0
     assert "Pavyzdys" not in _entries() and "hosting" not in _entries()
+
+
+# ------------------------------------------------------------ Mac run of b43e6aced (real app, local qwen3:8b)
+# - "which colour did i say my boat was, and where is it stored?" in a new chat, beside a saved "mano valtis mėlyna ...":
+#   the English recall reader matched, its word lookup found nothing, and the model said it knew nothing about a boat.
+# - after a Lithuanian forget of the boat, "kokios spalvos mano valtis?" in a new chat was answered with the colour.
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_an_english_recall_finds_a_fact_told_in_lithuanian(home, monkeypatch, seed):
+    rng = random.Random(f"en-recall-{seed}")
+    _text, _handled, _reply, colour = _keep(rng)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", _stem_oracle(["palap"]))
+    question = rng.choice(["which colour did i say my tent was, and where is it stored?",
+                           "what colur is my tent, do you remember where i keep it?",
+                           "what do you remember about my tnet and where its stored"])
+    context = {**OWNER, "chat_id": OTHER_CHAT, "session_id": OTHER_CHAT}
+    handled, reply = maybe_handle_memory_command(question, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
+                                                 source_context=context)
+    assert handled, reply
+    assert _plain(colour) in _plain(str(reply))
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_recall_after_a_lithuanian_forget_has_no_record(home, monkeypatch, seed):
+    rng = random.Random(f"after-forget-{seed}")
+    _text, _handled, _reply, colour = _keep(rng)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_forget_targets", _stem_oracle(["palap"]))
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", _stem_oracle(["palap"]))
+    order = _vary(rng, rng.choice(["pamiršk viską ką sakiau apie savo palapinę",
+                                   "ištrink iš atminties viską apie mano palapinę, nebereikia"]))
+    _judged(order, "forget")
+    handled, reply = maybe_handle_memory_command(order, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert handled and str(reply).startswith("Forget applied"), reply
+    question = _vary(rng, rng.choice(["kokios spalvos mano palapinė?", "ar prisimeni, kur laikau savo palapinę?",
+                                      "pasakyk kokia mano palapines spalva"]))
+    _judged(question, "recall")
+    context = {**OWNER, "chat_id": OTHER_CHAT, "session_id": OTHER_CHAT}
+    handled, reply = maybe_handle_memory_command(question, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
+                                                 source_context=context)
+    assert handled and reply == pm.JUDGED_RECALL_FORGOTTEN, reply
+    assert _plain(colour) not in _plain(str(reply))
+
+
+def test_a_fact_told_again_after_a_forget_is_recalled_again(home, monkeypatch):
+    rng = random.Random("told-again")
+    _keep(rng)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_forget_targets", _stem_oracle(["palap"]))
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", _stem_oracle(["palap"]))
+    order = "pamiršk viską apie mano palapinę"
+    _judged(order, "forget")
+    assert maybe_handle_memory_command(order, session_id=CHAT, access_policy=_policy(CHAT),
+                                       source_context=dict(OWNER))[0]
+    _text, handled, reply, colour = _keep(random.Random("told-again-new"), chat=OTHER_CHAT)
+    assert handled and reply.startswith("Locked in"), reply
+    question = "kokios spalvos mano palapinė?"
+    _judged(question, "recall")
+    context = {**OWNER, "chat_id": OTHER_CHAT, "session_id": OTHER_CHAT}
+    handled, reply = maybe_handle_memory_command(question, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
+                                                 source_context=context)
+    assert handled and _plain(colour) in _plain(str(reply)), reply
