@@ -534,10 +534,19 @@ def store_root() -> Path:
 
 
 def default_store() -> BlackboxStore:
+    """The process store for the current data folder.
+
+    A store built while the key source did not answer (a locked or busy keychain, a credential
+    store that failed once) is not kept for the life of the process: the key source is asked
+    again on the next use, so one failed key read no longer refuses every later file change
+    until the app restarts (CI 44970482057, shard 4: a store cached keyless by an earlier test
+    refused a later test's write as ``blackbox_unavailable``). While no source answers, every
+    rebuilt store is keyless too and still fails closed."""
     global _DEFAULT
     with _DEFAULT_LOCK:
         root = store_root()
-        if _DEFAULT is None or _DEFAULT.root != root:
+        keyless = _DEFAULT is not None and _DEFAULT.cas_keyring is None
+        if _DEFAULT is None or _DEFAULT.root != root or keyless:
             _DEFAULT = BlackboxStore(
                 root,
                 max_blob_bytes=_int_env("VOOL_BLACKBOX_MAX_BLOB_BYTES", DEFAULT_MAX_BLOB_BYTES),
