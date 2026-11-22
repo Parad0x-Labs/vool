@@ -138,6 +138,15 @@ def judge_turn(text: str, *, also: str = "", source_context: Any, session_id: st
         return ()
 
 
+def _plugins_named_by_tool_id(text: str, installed: set[str]) -> tuple[str, ...]:
+    """The added plugins whose tools the text names by their exact ids (the demand seam's own reading)."""
+    from core.plugin_tools import plugin_id_for_intent
+    from core.tool_demand_signals import _plugin_intents
+
+    named = (plugin_id_for_intent(intent) for intent in _plugin_intents(text))
+    return tuple(dict.fromkeys(plugin_id for plugin_id in named if plugin_id and plugin_id in installed))
+
+
 def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> tuple[str, ...] | None:
     """The judgement for this turn's text, recorded; None when nothing judged it (the words then decide alone)."""
     if not text.strip():
@@ -146,6 +155,14 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     if not rows:
         return None
     signature = _signature(rows)
+    # A plugin tool named by its own id ("use vool-plugin-template.sha256 ...") is not a guess from vocabulary: the
+    # words settle which plugin is asked for, and no model is asked. Asking anyway spent a model call on every such
+    # turn, and on a plugin that is turned off it was a model call on a turn that must say so before any model is
+    # asked (CI on fe98e849, test_plugin_served_journey: an inference after the plugin was disabled).
+    named = _plugins_named_by_tool_id(text, {plugin_id for plugin_id, _description in rows})
+    if named:
+        _record(text, named, signature)
+        return named
     from core import intent_arbiter
 
     # Asked whatever the words matched. The plugins' own words, and other families' word rules, guess from English

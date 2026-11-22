@@ -97,3 +97,30 @@ def test_a_short_follow_up_is_judged_with_the_previous_request(monkeypatch):
     ]
     plugin_ask.judge_turn("and PX-3065-E?", source_context={"conversation_history": history})
     assert calls[0][2] == "where is PX-3065-D right now"
+
+
+def test_a_plugin_tool_named_by_its_id_is_settled_by_the_words_without_a_model(monkeypatch):
+    """CI on fe98e849: a turn naming a turned-off plugin's tool by its id made a judge call before the lane said the
+    plugin is off. The id settles it; the judge is asked only when the words do not name a tool."""
+    import random
+    import secrets
+
+    from core import plugin_tools, tool_demand_signals
+
+    plugin_id = random.choice(["parcel", "digest", "words"]) + "-" + secrets.token_hex(3)
+    tool = random.choice(["lookup", "sha256", "count"])
+    intent = f"{plugin_id}.{tool}"
+    calls: list = []
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [(plugin_id, "A plugin: does one thing."), *PARCEL])
+    monkeypatch.setattr(tool_demand_signals, "_plugin_intents", lambda text, registry=None: (intent,) if intent in text.lower() else ())
+    monkeypatch.setattr(plugin_tools, "plugin_id_for_intent", lambda name: plugin_id if name == intent else "")
+    _judge(monkeypatch, 2, calls)
+    lead = random.choice(["Use", "please run", "can you call", "Run"])
+    typed = f"{lead} the {intent} tool on this: {secrets.token_hex(6)}"
+    assert plugin_ask.judge_turn(typed, source_context={}) == (plugin_id,)
+    assert calls == []
+    assert plugin_ask.judgement(typed) == (plugin_id,)
+    # Without the id the judge still decides.
+    plain = f"{random.choice(['where is', 'any news on'])} PX-{secrets.randbelow(9000) + 1000}-B"
+    assert plugin_ask.judge_turn(plain, source_context={}) == ("parcel-lookup",)
+    assert len(calls) == 1
