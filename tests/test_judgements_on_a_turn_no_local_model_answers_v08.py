@@ -142,3 +142,41 @@ def test_a_turn_with_no_router_or_a_broken_lookup_is_the_turn_it_always_was(clou
     monkeypatch.setattr("core.clean_loop.brain.resolve_cloud_manifest", lambda router, context: 1 / 0)
     turn_judge.bind_for_turn(AGENT, {}, "chat-1")
     assert intent_arbiter.arbitrate_lasting_fact(SAID, source_context={}) is None
+
+
+@pytest.fixture
+def local_turn(monkeypatch):
+    """A turn a local model answers, with no model loaded yet (first turn, or after Ollama unloaded it when idle)."""
+    state = {"owner_local": True, "speaks": True, "manifest": object(), "sent": []}
+    monkeypatch.setattr(intent_arbiter, "_local_models_disabled", lambda: False)
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
+    monkeypatch.setattr("core.request_trust.request_is_owner_local", lambda context: state["owner_local"])
+    monkeypatch.setattr("core.request_trust.turn_speaks_for_owner", lambda context, session: state["speaks"])
+    monkeypatch.setattr("core.clean_loop.brain.resolve_local_manifest", lambda router, context: state["manifest"])
+    monkeypatch.setattr(
+        "core.clean_loop.brain.make_brain",
+        lambda router, manifest, context: lambda messages: state["sent"].append(messages) or (
+            '{"answer": [1]}' if "Reminders:" in messages[-1]["content"] else '{"answer": "yes"}'),
+    )
+    return state
+
+
+def test_with_no_model_loaded_yet_the_local_model_that_answers_the_turn_judges(local_turn):
+    # Blind audit of 58f60bbf3: with local models on and none loaded, every judgement was None in a few ms, so a
+    # reminder asked in Lithuanian got no tool. The judge is now the local model the turn loads to answer anyway.
+    context: dict = {}
+    turn_judge.bind_for_turn(AGENT, context, "chat-1")
+    assert intent_arbiter.arbitrate_lasting_fact(SAID, source_context=context) == "yes"
+    assert local_turn["sent"] == [[{"role": "user", "content": intent_arbiter._lasting_fact_prompt(SAID)}]]
+    asked = intent_arbiter.arbitrate_plugin_ask("Primink man rytoj 9 val. paskambinti", ["Reminders: ..."],
+                                                source_context=context)
+    assert asked == (1,) and len(local_turn["sent"]) == 2
+
+
+@pytest.mark.parametrize("change", [{"owner_local": False}, {"speaks": False}, {"manifest": None}])
+def test_a_remote_or_agent_turn_or_no_local_answering_model_gets_no_local_judge(local_turn, change):
+    local_turn.update(change)
+    context: dict = {}
+    turn_judge.bind_for_turn(AGENT, context, "chat-1")
+    assert intent_arbiter.arbitrate_lasting_fact(SAID, source_context=context) is None
+    assert local_turn["sent"] == []

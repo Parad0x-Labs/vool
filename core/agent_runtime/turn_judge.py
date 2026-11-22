@@ -10,7 +10,8 @@ Here the turn gets a judge: the same prompt goes to the model that answers the t
 already makes to it (`core.clean_loop.brain.make_brain`: the router's provider seam, the paid-call reservation under
 the owner's caps, the deadline, the call ledger). No new client and no new rule about who may spend:
 
-* only when local models are off (a machine with a local judge keeps it, unchanged);
+* only when local models are off (a machine with a local judge keeps it: the loaded model first, and when none is
+  loaded yet, the local model that answers the turn, see `_local_judge_for`);
 * only the owner's own local turn, outside a private chat (a remote turn or an agent's turn never spends the owner's
   key here, and a private chat sends nothing of itself anywhere new);
 * only the model the owner pinned for the turn or saved for Auto (`resolve_cloud_manifest`), and only while the
@@ -34,12 +35,42 @@ def enabled(env: Any = None) -> bool:
     return not value or value in _TRUTHY
 
 
+def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any | None:
+    """With local models on: the local model that answers this turn, asked when none is loaded yet.
+
+    The judgements ask the loaded local model first (`core.intent_arbiter._keep_judge_model`). On the first turn,
+    or after Ollama unloaded the model when idle, none is loaded, and every judgement said "nobody judged" in a few
+    milliseconds: a reminder, note or calendar ask in Lithuanian got no tool and the reply said it was done (blind
+    audit of 58f60bbf3, 31 of 50 judgements None). The model this judge asks is the one the turn loads to answer
+    anyway (`core.clean_loop.brain.resolve_local_manifest`), so asking it first loads nothing extra. It stays on
+    this computer, so a private chat may use it; a remote or agent turn may not."""
+    router = getattr(agent, "memory_router", None)
+    if router is None:
+        return None
+    from core.request_trust import request_is_owner_local, turn_speaks_for_owner
+
+    if not request_is_owner_local(source_context) or not turn_speaks_for_owner(source_context, str(session_id or "")):
+        return None
+    from core.clean_loop import brain
+
+    manifest = brain.resolve_local_manifest(router, source_context)
+    if manifest is None:
+        return None
+
+    def judge(prompt: str) -> str:
+        return brain.make_brain(router, manifest, source_context)([{"role": "user", "content": str(prompt)}])
+
+    return judge
+
+
 def _judge_for(agent: Any, source_context: Any, session_id: str) -> Any | None:
-    if not enabled() or not isinstance(source_context, dict):
+    if not isinstance(source_context, dict):
         return None
     from core import intent_arbiter
 
     if not intent_arbiter._local_models_disabled():
+        return _local_judge_for(agent, source_context, session_id)
+    if not enabled():
         return None
     router = getattr(agent, "memory_router", None)
     if router is None:

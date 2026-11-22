@@ -84,6 +84,8 @@ _NAMES_THIS_TARGET_RE = re.compile(
 #: lacking an outbound channel nobody asked it to use. The verb set is the closed class of English
 #: authoring verbs; the noun set is text artifacts -- deliberately NOT file/folder (writing a FILE
 #: is a real machine action, see test_writing_prose_is_not_writing_a_file).
+#: CI on 58f60bbf3 (shard 1): "write MARK_A85B8E1841 into memo-0302ea.txt and tell me what it holds" was read as an
+#: ask to compose a memo, because "memo" matched inside the file name; the model was never offered the write tool.
 _AUTHORING_REQUEST_RE = re.compile(
     r"^\s*(?:(?:ok(?:ay)?|so|hey|hi|yo|please|pls|just|and|but|also|instead|now|then)\b[\s,]*)*"
     r"(?:(?:can|could|would)\s+(?:you|u)\s+(?:please\s+)?)?"
@@ -91,7 +93,10 @@ _AUTHORING_REQUEST_RE = re.compile(
     r"(?:[\w.+#/-]+\s+){0,4}?"
     r"(?:command|one[-\s]?liner|script|query|queries|email|e-mail|mail|message|sms|text\s+message|"
     r"reply|snippet|interface|function|regex|expression|schema|struct|class|type|"
-    r"letter|note|memo|tweet|post|caption|paragraph|poem|essay|summary|template|statement)\b",
+    r"letter|note|memo|tweet|post|caption|paragraph|poem|essay|summary|template|statement)\b"
+    # The noun names the thing to write, never a part of a file name or path ("write X into memo-0302ea.txt",
+    # "write it to note.txt" name a file in this folder, which is a write here, not text to hand back).
+    r"(?![-.\\]\w)",
     re.IGNORECASE,
 )
 
@@ -103,7 +108,10 @@ _AUTHORING_PIVOT_RE = re.compile(
     r"(?:[\w.+#/-]+\s+){0,4}?"
     r"(?:command|one[-\s]?liner|script|query|queries|email|e-mail|mail|message|sms|text\s+message|"
     r"reply|snippet|interface|function|regex|expression|schema|struct|class|type|"
-    r"letter|note|memo|tweet|post|caption|paragraph|poem|essay|summary|template|statement)\b",
+    r"letter|note|memo|tweet|post|caption|paragraph|poem|essay|summary|template|statement)\b"
+    # The noun names the thing to write, never a part of a file name or path ("write X into memo-0302ea.txt",
+    # "write it to note.txt" name a file in this folder, which is a write here, not text to hand back).
+    r"(?![-.\\]\w)",
     re.IGNORECASE,
 )
 
