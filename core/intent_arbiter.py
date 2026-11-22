@@ -1010,6 +1010,81 @@ def arbitrate_named_fact(
     return int(named) if named is not None else None
 
 
+#: At most this many added plugins are put to one plugin-ask judgement, each described in at most this many characters.
+PLUGIN_ASK_CHOICES = 8
+_PLUGIN_ASK_CHARS = 360
+
+
+def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
+    """One question over a numbered list: does the message ask for what one of the person's added plugins does?
+
+    The list is the plugins' own names and descriptions, as their makers wrote them. The examples are deliberately
+    about other tools and in several languages: a person asks a plugin in their own words and their own language,
+    and a plugin is often added for exactly that language."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    lines = [
+        "A person wrote to their assistant. The person added the tools below to the assistant.",
+        "Question: does the message ask the assistant to USE one of these tools, in any language and any words: to "
+        "look something up with it, work something out with it, or do with it what the tool says it does?",
+        'Answer {"answer": N} with the number of that tool.',
+        'Answer {"answer": 0} when the message only talks about the same subject, asks for advice, an explanation, '
+        "an opinion or a how-to, asks for something else, or asks nothing a tool does.",
+        "A short follow-up (\"and now?\", \"same for the other one\") asks for the tool its previous message asked for.",
+        "",
+        'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
+        'of a flight by its flight number." Message: "is LX 1440 delayed today?" -> {"answer": 2}',
+        'Tools: 1. "Word counter: counts the words and characters in a text." 2. "Flight board: shows the live status '
+        'of a flight by its flight number." Message: "wie viele Wörter hat: der Hund schläft im Garten" -> {"answer": 1}',
+        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
+        'Message: "how do airlines choose flight numbers?" -> {"answer": 0}',
+        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
+        'Message: "¿mi vuelo IB3456 ya salió?" -> {"answer": 1}',
+        'Tools: 1. "Word counter: counts the words and characters in a text." '
+        'Message: "écris-moi un petit poème sur la mer" -> {"answer": 0}',
+        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
+        'Previous message: "status of flight LX 1440 please" Message: "and AF 220?" -> {"answer": 1}',
+        'Tools: 1. "Flight board: shows the live status of a flight by its flight number." '
+        'Message: "what should I pack for a long flight?" -> {"answer": 0}',
+        "",
+        "Tools: " + " ".join(f'{number}. "{flat(plugin, _PLUGIN_ASK_CHARS)}"' for number, plugin in enumerate(plugins, 1)),
+    ]
+    if str(previous or "").strip():
+        lines.append(f'Previous message: "{flat(previous, 240)}"')
+    lines.append(f'Message: "{flat(message, 400)}" ->')
+    lines.append('Reply with ONLY the JSON object: {"answer": N}')
+    return "\n".join(lines)
+
+
+def arbitrate_plugin_ask(
+    message: str,
+    plugins: list[str],
+    *,
+    previous: str = "",
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> int | None:
+    """Which added plugin a message asks to use: its place in ``plugins`` from 1, 0 for none, or None when nothing
+    judged it. ``plugins`` are the descriptions the plugins' makers wrote. Same call path as the other judgements
+    (the loaded local model, or the judge bound for the turn; the judgement role on the turn's ledger). None and 0
+    change nothing for the caller."""
+    asked = [str(plugin or "") for plugin in plugins][:PLUGIN_ASK_CHOICES]
+    if not str(message or "").strip() or not any(plugin.strip() for plugin in asked):
+        return None
+    prompt = _plugin_ask_prompt(message, previous, asked)
+    reader = _named_fact_reader(len(asked))
+    model = _keep_judge_model()
+    if not model:
+        named = _judged_for_the_turn(prompt, source_context, reader)
+    else:
+        named = arbitrate_followup(
+            "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+            prompt=prompt, operation="plugin_ask_arbitration", model=model,
+            runner_role="general", call_role=_judgement_role(), parse=reader,
+        )
+    return int(named) if named is not None else None
+
+
 def _lasting_fact_prompt(sentence: str) -> str:
     """A balanced yes/no: is a sentence said in passing a lasting fact about the person's private life?
 

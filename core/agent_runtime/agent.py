@@ -2925,6 +2925,11 @@ class VoolAgent(
         from core.agent_runtime import turn_judge as agent_turn_judge
 
         agent_turn_judge.bind_for_turn(self, runtime_source_context, session_id)
+        # Whether the turn asks for an added plugin, in any language: judged once here, before any lane reads the
+        # plugin family (core.plugin_ask). After the judge is bound, so a cloud-only machine is judged too.
+        from core import plugin_ask
+
+        plugin_ask.judge_turn(raw_turn_text, also=effective_input, source_context=runtime_source_context, session_id=session_id)
         agent_memory_runtime.keep_what_the_turn_states(
             raw_turn_text, session_id=session_id, source_context=runtime_source_context, access_policy=access_policy,
         )

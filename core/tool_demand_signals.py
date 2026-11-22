@@ -1075,6 +1075,15 @@ def _plugin_spoken(text: str) -> bool:
     return bool(plugins_named_in_words(text))
 
 
+def _plugin_judged(text: str) -> bool:
+    try:
+        from core.plugin_ask import judged_plugins
+
+        return bool(judged_plugins(text))
+    except Exception:
+        return False
+
+
 def plugins_named_in_words(text: str) -> tuple[str, ...]:
     """The added plugins the words name, or whose own thing the words ask for.
 
@@ -1087,6 +1096,17 @@ def plugins_named_in_words(text: str) -> tuple[str, ...]:
     where it was. A slipped letter in a long
     word ("fingerpint") still counts.
     """
+    # What the turn's judge read in the plugins' own descriptions, in any words and any language, at the start of
+    # this turn (core.plugin_ask), decides when there is one; the plugins' own words decide only without it. Read
+    # only; nothing here asks a model.
+    try:
+        from core.plugin_ask import judgement
+
+        judged = judgement(text)
+    except Exception:
+        judged = None
+    if judged is not None:
+        return judged
     try:
         vocabulary = _plugin_spoken_vocabulary()
     except Exception:
@@ -2616,6 +2636,11 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     # never pull a request away from the built-in tool its words asked for.
     if not intents and not families and _plugin_spoken(cleaned):
         families.append("plugin")
+    elif "plugin" not in families and _plugin_judged(cleaned):
+        # The turn's judge read the whole message against the plugins' own descriptions and found it asks to use one:
+        # another family's word rule ("sign" for the wallet, "look up" for the web) does not take it away. Both are
+        # seated; the model still chooses.
+        families.append("plugin")
 
     for intent in _browser_lane_intents(cleaned, registry):
         _note(intent, "web")
@@ -2631,9 +2656,13 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     from core.online_asks import advice_beside_live_prices, asks_for_online_facts
 
     web_by_online_reading_only = False
+    # An ask for what an added plugin does is the plugin's to answer, fresh: "where is my parcel right now" reads as
+    # fresh information, and the web lookup it seated took the turn from the plugin (measured on a7b18403,
+    # 2026-11-22: the model was handed web.search, the web was off, and the plugin never ran). Words that ask for the
+    # web in so many words still seat it above.
     # Advice beside today's prices ("suggest a travel tripod and tell me what it costs today") needs the web for
     # the prices: Mac answer-quality row 12 on d5d044b0, Web lookups on, ran no lookup and withheld every price.
-    if asks_for_online_facts(cleaned) or advice_beside_live_prices(cleaned):
+    if "plugin" not in families and (asks_for_online_facts(cleaned) or advice_beside_live_prices(cleaned)):
         asked_for_the_web = "web" in families
         _note("web.search", "web")
         web_by_online_reading_only = not asked_for_the_web and "web" in families

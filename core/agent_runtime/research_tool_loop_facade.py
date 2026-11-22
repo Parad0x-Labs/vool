@@ -3107,6 +3107,23 @@ class ResearchToolLoopFacadeMixin:
                             step_count=len(executed_steps),
                         )
                         break
+                    if not selected_intent and executed_steps:
+                        # The model answered this round and named no tool, after real tools already ran: it has
+                        # nothing more to call. Running its empty payload made a "missing intent" step, which ended
+                        # the turn as a failed tool and lost the answer the evidence already held. Measured on the
+                        # 0.8 candidate (a7b18403, 2026-11-22, qwen3:8b): "und jetzt?" and "tu peux revérifier ?"
+                        # ran the parcel plugin, got the fresh record, then failed on this empty second round. The
+                        # synthesis below answers from the steps that ran.
+                        self._emit_runtime_event(
+                            loop_source_context,
+                            event_type="tool_loop_completed",
+                            message=(
+                                f"No further tool after {len(executed_steps)} real tool step"
+                                f"{'' if len(executed_steps) == 1 else 's'}; answering from them."
+                            ),
+                            step_count=len(executed_steps),
+                        )
+                        break
                     payload_signature = _semantic_payload_signature(tool_decision.structured_output)
                     if (
                         payload_signature in seen_tool_payloads
