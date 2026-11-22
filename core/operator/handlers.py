@@ -1670,7 +1670,11 @@ _WHEN_JOINERS_RE = re.compile(
     r"^(?:[\s,]|\b(?:on|at|in|for|the|this|next|morning|afternoon|evening|night)\b)*$", re.IGNORECASE
 )
 _REMINDER_FRAME_RE = re.compile(r"\b(?:remind\s+me|reminders?|nudge\s+me|ping\s+me)\b", re.IGNORECASE)
-_SUBJECT_AFTER_WHEN_RE = re.compile(r"[\s,]*(?:to|about|that)\s+(?P<subject>\S.*)$", re.IGNORECASE | re.DOTALL)
+_SUBJECT_AFTER_WHEN_RE = re.compile(
+    r"[\s,]*(?:(?:to|about|that)\s+|[:\u2013\u2014]\s*|-\s+)(?P<subject>\S.*)$", re.IGNORECASE | re.DOTALL
+)
+#: A typed emoticon at the end of the ask (":)", ":-D", ";p", "xD", "<3") is not part of the subject.
+_TRAILING_EMOTICON_RE = re.compile(r"(?:\s+(?:[:;=8][-']?[()dDpPoO3\]\[/\\|*]+|[xX][dD]+|<3))+\s*$")
 
 
 def _subject_after_leading_when(text: str) -> str:
@@ -1707,7 +1711,7 @@ def _reminder_note_from_text(text: str) -> str:
     invoice friday at 10' stores 'send the invoice') or is said in words ('in an hour to
     stand up' stores 'stand up') -- so the note never reads as the schedule or as the
     ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
-    raw = str(text or "").strip()
+    raw = _TRAILING_EMOTICON_RE.sub("", str(text or "").strip()).strip()
     leading_when_subject = _subject_after_leading_when(raw)
     if leading_when_subject:
         return leading_when_subject

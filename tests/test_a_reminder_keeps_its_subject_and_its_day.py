@@ -43,6 +43,10 @@ def _read(text: str):
     ("right, i need a reminder to renew my library books tomorrow evening", "renew my library books tomorrow evening"),
     ("oh and set me a reminder for the dentist on friday at 4pm", "the dentist"),
     ("tomorrow at 7, set a reminder to call mum", "call mum"),
+    # a colon or dash after the time, and an emoticon at the end (gate v3 on a7b184037)
+    ("Hmm please remind me tomorrow at 6pm: call the dentist :)", "call the dentist"),
+    ("remind me tomorrow at 9 - take the bins out", "take the bins out"),
+    ("remind me to call mum at 5pm :)", "call mum"),
     # the ordinary shapes keep working
     ("remind me tomorrow at 9 to call mom", "call mom"),
     ("remind me to call the bank at 9am", "call the bank"),

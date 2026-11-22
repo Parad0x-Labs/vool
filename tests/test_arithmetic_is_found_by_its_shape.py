@@ -15,7 +15,7 @@ import pytest
 import core.agent_runtime.previous_reply_count as followup_lane
 from core.task_router import evaluate_direct_math_request
 
-OPENERS = ["", "hi ", "hey, ", "ok ", "quick q: ", "um ", "so ", "yo ", "hello! ", "btw "]
+OPENERS = ["", "hi ", "hey, ", "ok ", "quick q: ", "um ", "so ", "yo ", "hello! ", "btw ", "so quick maths: ", "right, "]
 ASKS = ["", "what is ", "whats ", "what's ", "calculate ", "compute ", "can you do ", "can u do ",
         "how much is ", "tell me ", "work out ", "just give me "]
 TYPOED_ASKS = ["whtas ", "waht is ", "calcualte ", "cmopute ", "whta's "]
@@ -114,7 +114,8 @@ FOLLOWUP_SHAPES = [
     ("divided by {n}", lambda v, n: v / n),
     ("times {n}", lambda v, n: v * n),
 ]
-REFS = ["that", "it", "the result", "the answer", "this"]
+# "the reuslt": gate v3 on a7b184037 typed the pointer with a typo
+REFS = ["that", "it", "the result", "the answer", "this", "the reuslt", "the anwser"]
 
 
 @pytest.mark.parametrize("seed", range(6))
@@ -134,7 +135,8 @@ def test_a_follow_up_on_the_last_result_in_any_wording_is_computed(monkeypatch, 
 @pytest.mark.parametrize(
     "question",
     ["is that over 50?", "was it over 5", "I have 3 apples over 5", "divide 10 by 2", "what is 5 over 3",
-     "send 5 to that", "that over 5 and 6", "what is the weather over 5 days", "tell me a joke"],
+     "send 5 to that", "that over 5 and 6", "what is the weather over 5 days", "tell me a joke",
+     "divide the theme by 2"],
 )
 def test_a_new_question_is_not_read_as_a_follow_up(monkeypatch, question):
     monkeypatch.setattr(followup_lane, "_previous_reply", lambda _sid: "8616 * 37 = 318792.")

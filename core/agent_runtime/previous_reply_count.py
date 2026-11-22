@@ -169,11 +169,21 @@ _SHAPE_OP_TYPOS = {"mulitply": "multiply", "multipy": "multiply", "devide": "div
 
 
 def _followup_by_shape(question: str) -> tuple[str, float] | None:
-    from core.task_router import _shape_word_is_ask
+    from core.task_router import _shape_word_is_ask, _within_one_edit
 
     text = " ".join(str(question or "").lower().replace("\u2019", "'").split())
     if not text or len(text) > 120:
         return None
+    # A typo in the word that points back ("divide the reuslt by 2", gate v3 on a7b184037) is still
+    # the pointer: a word one edit from result/answer/total/number, right after "the", is read as it.
+    text = re.sub(
+        r"\bthe\s+([a-z]{5,7})\b",
+        lambda m: "the " + next(
+            (word for word in ("result", "answer", "total", "number") if _within_one_edit(m.group(1), word)),
+            m.group(1),
+        ),
+        text,
+    )
     # "is that over 50?", "was it over 5": a yes/no question compares; it does not divide.
     if re.match(r"(?:is|was|are|were|isn't|wasn't|does|did|do)\b", text):
         return None
