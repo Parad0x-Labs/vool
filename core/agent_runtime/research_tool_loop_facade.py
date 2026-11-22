@@ -2514,6 +2514,8 @@ class ResearchToolLoopFacadeMixin:
         ]
         model_rounds = (max(recorded_rounds) + 1) if recorded_rounds else len(executed_steps)
         loop_stop_reason = ""
+        # The model's own answer from a round that came after real steps and named no tool (below).
+        answer_after_steps: Any = None
         # This turn carries an approval the operator just granted, so it is REPLAYING a call that was
         # already selected (and recorded in seen_tool_payloads) before the pause. The duplicate guard
         # would read that replay as a loop and break to grounded synthesis -- the approved action would
@@ -3114,6 +3116,16 @@ class ResearchToolLoopFacadeMixin:
                         # 0.8 candidate (a7b18403, 2026-11-22, qwen3:8b): "und jetzt?" and "tu peux revérifier ?"
                         # ran the parcel plugin, got the fresh record, then failed on this empty second round. The
                         # synthesis below answers from the steps that ran.
+                        #
+                        # When that round's reply is prose, it IS the model's answer, written with the steps' results in
+                        # its prompt: asking a model a second time for the same answer is a second call that a loaded
+                        # machine can lose, and it went back to the model that had just failed (CI on fe98e849: the
+                        # primary was asked again after its bounded retry pair, the backup's answer was thrown away).
+                        # It is held to the same checks below as any written answer; an empty or tool-shaped reply
+                        # still goes to the synthesis call.
+                        _round_text = str(getattr(tool_decision, "output_text", "") or "").strip()
+                        if _round_text and not _round_text.startswith(("{", "[", "```")):
+                            answer_after_steps = tool_decision
                         self._emit_runtime_event(
                             loop_source_context,
                             event_type="tool_loop_completed",
@@ -4247,6 +4259,16 @@ class ResearchToolLoopFacadeMixin:
                 message="The model failed after the web lookup; answering from the pages it found instead of asking it again.",
                 tool_name=str(executed_steps[-1].get("tool_name") or ""),
                 status="provider_did_not_answer",
+            )
+        elif answer_after_steps is not None:
+            synthesis = answer_after_steps
+            synthesis_text = str(getattr(synthesis, "output_text", "") or "").strip()
+            self._emit_runtime_event(
+                loop_source_context,
+                event_type="tool_synthesis_skipped",
+                message="The model answered from the tool results in its last round; that answer is used, not asked for again.",
+                tool_name=str(executed_steps[-1].get("tool_name") or ""),
+                status="answered_after_steps",
             )
         else:
             synthesis = self.memory_router.resolve(
