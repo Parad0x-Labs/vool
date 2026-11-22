@@ -477,14 +477,16 @@ def needs_confirm(reply: str) -> bool:
 def pick_model(page, kind: str) -> str:
     page.click("#modelBtn", timeout=5000)
     time.sleep(1.5)
-    items = page.evaluate("() => Array.from(document.querySelectorAll('#modelPop .pop-item[data-model]')).map((b) => ({ m: b.dataset.model, t: (b.textContent || '').trim() }))")
+    items = page.evaluate("() => Array.from(document.querySelectorAll('#modelPop .pop-item[data-model]')).map((b) => ({ m: b.dataset.model, t: (b.textContent || '').trim(), cloud: b.classList.contains('cloud-dyn') && !b.classList.contains('local-dyn') }))")
     choice = None
     if kind == "local":
         choice = next((i for i in items if "qwen3:8b" in (i["m"] + i["t"]).lower()), None)
     else:
         # A free cloud model only: a paid or unknown-price pick opens the price confirmation, which
         # is a person's decision, never the gate's.
-        free = [i for i in items if "/" in i["m"] and (":free" in i["m"] or "free" in i["t"].lower())]
+        # Cloud rows are the picker's own cloud list: a local model named "hf.co/..." is not one
+        # (Mac gate on 315c57e65 picked a local Qwen3-30B GGUF as "free cloud").
+        free = [i for i in items if i.get("cloud") and (":free" in i["m"] or "free" in i["t"].lower())]
         choice = next((i for i in free if "glm" in (i["m"] + i["t"]).lower()), None) or (free[0] if free else None)
     if not choice:
         page.keyboard.press("Escape")
