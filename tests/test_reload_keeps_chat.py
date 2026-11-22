@@ -48,8 +48,14 @@ FIRST_MESSAGE = "Please summarise the quarterly report and list every action ite
 SECOND_MESSAGE = "Also add the budget table to the summary."
 
 
-def _program(page_script: str, prelude: str, driver: str, *, exit_after_ms: int = 900) -> str:
-    """DOM stand-in + server doubles + the real page script + the driver, as one node program."""
+def _program(page_script: str, prelude: str, driver: str, *, cap_ms: int = 60000) -> str:
+    """DOM stand-in + server doubles + the real page script + the driver, as one node program.
+
+    The program reports when the driver has finished. It used to report on a 900 ms wall clock
+    whatever the driver had reached, so on a loaded CI runner (Nov 22, shard 1) the report went
+    out before the driver's first fact and the test failed with KeyError: 'displayedOnBoot'.
+    The cap only stops a driver that never ends.
+    """
     return (
         DOM
         + "\n"
@@ -58,8 +64,8 @@ def _program(page_script: str, prelude: str, driver: str, *, exit_after_ms: int 
         + page_script
         + "\n;(async function () {\n"
         + driver
-        + "\n})();\n"
-        + f"_st(() => {{ __report(); process.exit(0); }}, {exit_after_ms});\n"
+        + "\n})().finally(() => { __report(); process.exit(0); });\n"
+        + f"_st(() => {{ errors.push('driver did not finish within {cap_ms} ms'); __report(); process.exit(0); }}, {cap_ms});\n"
     )
 
 
