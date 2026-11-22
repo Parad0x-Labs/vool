@@ -521,6 +521,23 @@ def test_every_enabled_contracted_tool_has_a_legal_path(tmp_path, monkeypatch) -
     # offer, one plain ask each, never assumed from the set.
     for ask in _WORDING_PATH_ASKS:
         union |= set(assemble_tool_offer(user_text=ask, source_context={}).intents)
+    # The JUDGE path: on the owner's own local turn the turn's judge reads an ask for one of VOOL's personal tools in
+    # any language (core.plugin_ask.BUILTIN_CHOICES) and seats that choice's tools. Some are seated by nothing else
+    # (the reminder move, My things), so each choice is proven through the real offer with the judge scripted to
+    # pick it, never assumed from the choice list.
+    from core import intent_arbiter, plugin_ask
+    from core.request_trust import OWNER_LOCAL_KEY
+
+    owner = {OWNER_LOCAL_KEY: True, "surface": "openclaw", "platform": "openclaw", "session_id": "census-judge"}
+    keys = [key for key, _description, _seats in plugin_ask.BUILTIN_CHOICES]
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    for index, key in enumerate(keys, start=1):
+        ask = f"could you help me with this one, number {index}"
+        monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", lambda _m, _c, _pick=index, **_kw: (_pick,))
+        plugin_ask.judge_turn(ask, source_context=owner, session_id="census-judge")
+        assert plugin_ask.judged_builtins(ask) == (key,), (key, ask)
+        union |= set(assemble_tool_offer(user_text=ask, source_context=owner).intents)
+    plugin_ask.forget()
 
     never = sorted(enabled - union)
     assert not never, f"enabled contracted tools with no legal selection path: {never}"
