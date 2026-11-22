@@ -149,7 +149,6 @@ OWNER = {"_owner_local": True}
         "my ferret, what's its name?",
         "my ferret, what was the name",
         "what's my ferret's name?",
-        "remind me of the name of my ferret",
     ],
 )
 def test_the_saved_name_is_found_from_another_chat(isolated_home, asked):
@@ -159,6 +158,23 @@ def test_the_saved_name_is_found_from_another_chat(isolated_home, asked):
     assert rows and "Quillon" in rows[0], (asked, rows)
     found = cross_chat_recall(asked, session_id="ask", source_context=OWNER)
     assert found is None or found.found, (asked, found)  # never "I don't have that saved"
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "remind me of the name of my ferret",
+        "could you remind me what my ferret is called",
+        "remind me of my ferret's name",
+    ],
+)
+def test_a_recall_in_reminder_words_is_answered_with_the_saved_fact(isolated_home, asked):
+    # Handed on, the model reached for a scheduling tool; the saved fact is what was asked for.
+    assert _say("keep in mind that my ferret is named Quillon", "told")[1].startswith("Locked in")
+    _policy("ask")
+    found = cross_chat_recall(asked, session_id="ask", source_context=OWNER)
+    assert found is not None and found.found, (asked, found)
+    assert found.response.startswith("Here is what I have saved:") and "Quillon" in found.response, found.response
 
 
 @pytest.mark.parametrize(

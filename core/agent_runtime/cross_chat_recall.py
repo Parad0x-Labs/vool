@@ -1441,6 +1441,23 @@ def _saved_rows_answer_it(typed: str, session_id: str, source_context: dict[str,
     return rows if len(subject) >= 2 else []
 
 
+def _recall_in_reminder_words(typed: str) -> bool:
+    """ "remind me of the name of my godmother's spaniel": a recall asked in the words of a reminder.
+
+    Handed on with its saved fact, the model reached for a scheduling tool instead of reading the fact (served on
+    d2dacb04 with the fact saved, local model: an approval card for a calendar availability check, twice of two).
+    The ask is to be told what is saved, so the saved rows are the answer. Read by the reminder parser's own rule
+    for what is a recall and not a reminder; a reminder with a time or a "to ..." never comes here."""
+    if not re.match(r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\b", typed, re.IGNORECASE):
+        return False
+    try:
+        from core.operator.parser import _asks_to_recall_not_to_be_reminded
+
+        return bool(_asks_to_recall_not_to_be_reminded(typed))
+    except Exception:
+        return False
+
+
 def cross_chat_recall(
     question: str,
     *,
@@ -1572,7 +1589,7 @@ def cross_chat_recall(
     ))
     best = _best_owner_statement(result, terms, saved_folded, replaced_folded)
     if best is None and saved:
-        if answered_by_saved and claimed_elsewhere:
+        if answered_by_saved and (claimed_elsewhere or _recall_in_reminder_words(typed)):
             # Handed on, a calendar or web lane ahead of the model would answer it instead of the saved fact. Any
             # other question goes on to the model, which reads the saved facts and answers in words ("whats Pieter's
             # last name?" is not answered by quoting "my manager is Pieter ...", run 8 on 9a156361).
