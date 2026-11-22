@@ -20,16 +20,24 @@ class ActiveClock:
         self.depth = 0
         self.started = 0.0
         self.excluded = 0.0
+        self.resumed = 0.0   # when the last pause ended
+        self.floor = float("-inf")
 
     def now(self):
         with self.lock:
-            return (self.started if self.depth else time.monotonic()) - self.excluded
+            # Never below a reading already given: a pause dated back to when the owner was asked must not make
+            # this clock run backwards for whoever read it in between.
+            self.floor = max(self.floor, (self.started if self.depth else time.monotonic()) - self.excluded)
+            return self.floor
 
     @contextmanager
-    def paused(self):
+    def paused(self, since=None):
         with self.lock:
             if not self.depth:
-                self.started = time.monotonic()
+                now = time.monotonic()
+                # The wait began when the owner was asked (`since`), which can be a little before this pause is
+                # entered: never later than now, and never before time this clock already counted as excluded.
+                self.started = max(min(now, since), self.resumed) if isinstance(since, (int, float)) else now
             self.depth += 1
         try:
             yield
@@ -37,7 +45,8 @@ class ActiveClock:
             with self.lock:
                 self.depth -= 1
                 if not self.depth:
-                    self.excluded += time.monotonic() - self.started
+                    self.resumed = time.monotonic()
+                    self.excluded += self.resumed - self.started
 
 
 def monotonic():
@@ -59,9 +68,9 @@ def task_clock(enabled=True):
 
 
 @contextmanager
-def paused():
+def paused(since=None):
     clock = _CLOCK.get()
     if clock is None:
         raise RuntimeError("price pause requires an owned live task clock")
-    with clock.paused():
+    with clock.paused(since):
         yield

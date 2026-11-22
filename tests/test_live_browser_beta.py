@@ -224,6 +224,36 @@ def test_human_approval_wait_does_not_exhaust_the_owned_turn_clock(world):
         assert active_elapsed >= time.monotonic() - approved_at - .2
 
 
+def test_the_owner_is_waited_on_from_when_the_proposal_was_made(world, monkeypatch):
+    """CI on fe98e849 (shard 5): the approval event before the wait took half a second on a loaded runner, and that
+    half second was charged to the turn although the owner was already being asked. Made slow on purpose here."""
+    import random
+
+    from core import runtime_active_clock, runtime_task_events
+
+    slow = random.uniform(.5, .8)
+    real_emit = runtime_task_events.emit_runtime_event
+
+    def slow_emit(*args, **kwargs):
+        if kwargs.get("event_type") == "browser_approval_required":
+            time.sleep(slow)
+        return real_emit(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_task_events, "emit_runtime_event", slow_emit)
+    rig, item, origin, requests = world
+    with runtime_active_clock.task_clock(), ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(contextvars.copy_context().run, _execute, origin + '/')
+        _until(lambda: item.pending is not None)
+        asked_at = time.monotonic()
+        active_asked = runtime_active_clock.monotonic()
+        time.sleep(slow + .5)
+        rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': True})
+        assert future.result(timeout=25).ok
+        waited = time.monotonic() - asked_at
+        active = runtime_active_clock.monotonic() - active_asked
+        assert waited - active >= slow + .4, (waited, active, slow)
+
+
 def test_explicit_browser_demand_reaches_its_tools_and_inert_text_does_not(world):
     from core.agent_runtime.fast_paths_web import url_read_request
     from core.execution.planner import plan_tool_workflow

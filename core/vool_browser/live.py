@@ -50,6 +50,8 @@ ASSET_REQUESTS = 80
 OWNER_REDIRECTS = 5
 ASSET_BYTES = 12_000_000
 TIMEOUT = 8
+#: How long a proposal waits for the owner's decision.
+_APPROVAL_WINDOW_S = 120
 ENGINE_START_TIMEOUT = 60
 _LOCK = threading.RLock()
 _SESSIONS: dict[tuple[str, str], LiveSession] = {}
@@ -509,7 +511,11 @@ class LiveSession:
 
         with contextlib.ExitStack() as human_wait:
             if runtime_active_clock.enabled():
-                human_wait.enter_context(runtime_active_clock.paused())
+                # The owner is waited on from the moment the proposal was put in front of them, not from when this
+                # call got here: the approval event above and the navigation note before it took half a second on
+                # a loaded CI runner (fe98e849, shard 5), and that half second was charged to the turn's own clock.
+                asked_at = float(proposal.get("expires") or 0) - _APPROVAL_WINDOW_S
+                human_wait.enter_context(runtime_active_clock.paused(since=asked_at if asked_at > 0 else None))
             return self._wait_for_decision(proposal, source_context, human_wait, _turn_was_cancelled)
 
     def _wait_for_decision(self, proposal: dict, source_context: dict, human_wait, cancelled) -> dict:
@@ -913,7 +919,7 @@ class LiveSession:
 
                 self._telemetry[token] = capture_remote_fetch_telemetry()
             self.pending = {"id": token, "op": op, "args": safe, "actor": actor,
-                            "revision": self.revision, "expires": time.monotonic() + 120}
+                            "revision": self.revision, "expires": time.monotonic() + _APPROVAL_WINDOW_S}
             if review is not None:
                 self._submission_previews[token] = review
             self.state = "approval_required"
