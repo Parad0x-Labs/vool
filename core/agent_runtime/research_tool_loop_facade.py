@@ -2369,7 +2369,17 @@ class ResearchToolLoopFacadeMixin:
         # decides it from the raw words BEFORE the model is consulted -- see the comment block in
         # `core.execution.planner.should_attempt_tool_intent` naming that as its own known defect.
         # Recorded, not changed: `blocked` and `reached` return nothing and cannot raise.
-        if not self._should_attempt_tool_intent(
+        # A turn that resumes a call the person just approved runs that call: the words are not read again to decide
+        # whether tools are offered. Real-app probe on 3dfb2f34 (2026-11-22): "Primink man poryt 9 val. palaistyti
+        # gėles" reached the reminder tool through the turn's judge, the card was allowed, and the resumed turn was
+        # read again from its Lithuanian words alone, offered no tools, and a plain answer said "Reminder scheduled"
+        # with an earlier reminder's id while nothing was set.
+        resuming_an_approved_call = bool(
+            (source_context or {}).get("runtime_checkpoint_resumed")
+            and str((source_context or {}).get("mode_approval_token") or "").strip()
+            and (checkpoint_state.get("pending_tool_payload") or (checkpoint or {}).get("pending_intent"))
+        )
+        if not resuming_an_approved_call and not self._should_attempt_tool_intent(
             effective_input,
             task_class=str(classification.get("task_class", "unknown")),
             source_context=source_context,
