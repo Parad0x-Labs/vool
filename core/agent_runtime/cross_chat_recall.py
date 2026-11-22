@@ -140,7 +140,7 @@ def as_question(text: str) -> str:
         r"what's \1?", clean, flags=re.IGNORECASE,
     ) if not _LIVE_DOMAIN_RE.search(clean) else clean
     clean = re.sub(
-        r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?((?:which|what|who|where|when|how)\b[^.!?]+?|the\s+[^.!?]+?)\s*[.!?]?$",
+        r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?(?:of\s+)?((?:which|what|who|where|when|how)\b[^.!?]+?|the\s+[^.!?]+?)\s*[.!?]?$",
         lambda m: (m.group(1) if re.match(r"(?:which|what|who|where|when|how)\b", m.group(1), re.IGNORECASE)
                    else "what's " + m.group(1)) + "?",
         clean, flags=re.IGNORECASE,
@@ -492,6 +492,16 @@ _NAMING_ACT_RE = re.compile(
 )
 
 
+#: The same act said with the naming verb itself: "what did I END UP calling my scooter?", "what did we finally
+#: name the boat?". The words between "did I" and the naming verb say how the naming went, and the saved fact ("my
+#: scooter is called Pumpernickel") holds none of them (served on d2dacb04 with the fix's first cut: "I don't have that
+#: saved" with the fact saved).
+_NAMING_VERB_LEAD_RE = re.compile(
+    r"\b(?:what|which)\s+(?:did|do|have|had)\s+(?:i|we)\s+(?P<act>[a-z' ]+?)\s+(?:call(?:ing|ed)?|nam(?:e|ing|ed))\b",
+    re.IGNORECASE,
+)
+
+
 def _asked_kind(text: str) -> frozenset[str]:
     from core.chat_housekeeping import query_terms
 
@@ -500,6 +510,8 @@ def _asked_kind(text: str) -> frozenset[str]:
         named = query_terms(match.group("kind"))
         if named and all(term in _ANSWER_SLOT_STEMS for term in named):
             kind.update(query_terms(match.group("act")))
+    for match in _NAMING_VERB_LEAD_RE.finditer(str(text or "")):
+        kind.update(query_terms(match.group("act")))
     return frozenset(kind)
 
 

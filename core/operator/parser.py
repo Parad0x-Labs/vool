@@ -693,10 +693,14 @@ _PROPOSE_ACTION_RE = _head_words_re("propose", "book", "schedule", "create")
 
 # "remind me, what's my locker number now?" (a comma after "me", "what's") is the same recall: on 0a84ca8f it was
 # parsed as a reminder to schedule and answered "I could not read a date or time in that" (served, 2026-11-14).
+# "remind me of the name of my nephew's goldfish": "remind me of X" asks to be told X again, whatever word opens X.
+# Only "of my ..." was read that way, so with "of the ..." the same recall was parsed as a reminder to schedule and
+# answered "I could not read a date or time in that" (served on d2dacb04, 2026-11-22). A reminder still needs its
+# time or its "to ...", both checked before and inside this pattern; "remind me about the bins" is left as it was.
 _REMIND_ME_OWN_FACT_RE = re.compile(
     r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\s*[,:\u2013\u2014-]?\s*(?:again\s*,?\s+)?"
     r"(?:(?:of\s+|about\s+|what(?:\s+|['\u2019]s\s+))?(?:is\s+)?my\s+"
-    r"|(?:which|what|who|where|when|how)(?:\s+|['\u2019]s\s+)|the\s+)"
+    r"|(?:which|what|who|where|when|how)(?:\s+|['\u2019]s\s+)|the\s+|of\s+)"
     r"(?![^.!?]*\bto\s+\w)[^.!?]+?[.!?]?\s*$",
     re.IGNORECASE,
 )

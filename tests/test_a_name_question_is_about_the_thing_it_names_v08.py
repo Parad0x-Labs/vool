@@ -90,6 +90,48 @@ def test_the_assistants_own_name_is_still_its_own(text):
     assert classify_identity_question(text).asks_assistant_identity, text
 
 
+# --- "remind me of ..." asks to be told again; a reminder needs a time or something to do ---------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "reminder"),
+    [
+        ("remind me of the name of my aunt's parrot", False),
+        ("remind me of what the plumber is called", False),
+        ("could you remind me of the ferret's name", False),
+        ("remind me of my storage unit number", False),
+        ("remind me of the vet tomorrow at 9", True),
+        ("remind me to feed the ferret at 6pm", True),
+        ("remind me about the vet on friday at 10", True),
+    ],
+)
+def test_remind_me_of_a_thing_is_not_a_reminder_to_schedule(text, reminder):
+    from core.operator.parser import parse_operator_action_intent
+
+    intent = parse_operator_action_intent(text)
+    assert (intent is not None and intent.kind == "schedule_reminder") is reminder, (text, intent)
+
+
+# --- "my ferret, what's its name": the thing first, then the question, is one request ----------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "one_request"),
+    [
+        ("my ferret, what's its name", True),
+        ("my aunt's parrot, what was the name?", True),
+        ("our rowing boat, which name did we pick", True),
+        ("my printer is broken, how do I fix it?", False),  # a statement, then a how-to
+        ("my ferret, book the vet for friday", False),  # an order after the comma
+        ("my shopping list: eggs, what else?", False),
+    ],
+)
+def test_a_fronted_topic_and_its_question_need_no_planner(text, one_request):
+    from core.agent_runtime.turn_planner import recall_question_needs_no_planner
+
+    assert recall_question_needs_no_planner(text) is one_request, text
+
+
 # --- recall from another chat, in process -------------------------------------------------------------------------
 
 OWNER = {"_owner_local": True}
@@ -102,8 +144,12 @@ OWNER = {"_owner_local": True}
         "which name did I use for my ferret",
         "what name did I give my ferret?",
         "what name did I end up choosing for my ferret",
+        "what did i end up calling my ferret",
+        "what did I finally name my ferret?",
         "my ferret, what's its name?",
+        "my ferret, what was the name",
         "what's my ferret's name?",
+        "remind me of the name of my ferret",
     ],
 )
 def test_the_saved_name_is_found_from_another_chat(isolated_home, asked):
@@ -156,7 +202,9 @@ def test_served_name_of_an_owned_thing_reaches_recall_from_another_chat(tmp_path
         "what's the name of my ferret?",
         "which name did I use for my ferret",
         "what name did I give my ferret?",
+        "what did i end up calling my ferret",
         "my ferret, what's its name?",
+        "remind me of the name of my ferret",
     ]
     asked: list[tuple[str, str, str]] = []
     with provider:

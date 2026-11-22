@@ -193,6 +193,31 @@ _REMIND_ME_LEAD_PUNCT_RE = re.compile(
 )
 
 
+# "my scooter, what's its name?", "my parrot, what was the name?": the thing asked about is named first and the
+# question follows the comma. The comma joins a topic to its question, not two requests; the planner split it into
+# "my scooter" and "what's its name", and the first half was answered "this kind of request cannot be answered"
+# (served on d2dacb04 with the fact saved, 2026-11-22). The topic is the speaker's own thing and holds no verb of its
+# own; what follows the comma opens like a question.
+_FRONTED_OWN_TOPIC_RE = re.compile(
+    r"^(?P<topic>\s*(?:my|our)\s+(?:(?!(?:is|are|was|were|has|have|had|do|does|did|can|could|will|would|should)\b)"
+    r"[^\s,;:.!?]+\s*){1,7}?)\s*,\s*"
+    r"(?P<question>(?:what|which|who|where|when|how)\b[^,;:.!?]*|"
+    r"(?:do|did|does|can|could)\s+(?:you|u)\s+(?:remember|know|recall)\b[^,;:.!?]*)\??\s*$",
+    re.IGNORECASE,
+)
+
+
+def fronted_topic_question(text: str) -> str:
+    """ "my scooter, what's its name" as the one question it is, question first: "what's its name about my scooter?".
+
+    "" when the text is not a fronted topic. The result is a reading form for the request-shape tests (which look
+    for the question word ahead of "my"), never shown to anyone and never sent to a model."""
+    match = _FRONTED_OWN_TOPIC_RE.match(str(text or ""))
+    if match is None:
+        return ""
+    return f"{' '.join(match.group('question').split())} about {' '.join(match.group('topic').split())}?"
+
+
 def recall_question_needs_no_planner(text: str) -> bool:
     """Whether a planner call on *text* can only learn that it is one request.
 
@@ -212,6 +237,7 @@ def recall_question_needs_no_planner(text: str) -> bool:
         # "remind me, what's my locker number now?" is "remind me what's ...": the comma after the lead is not a
         # second request (on 0a84ca8f the planner split it and "remind me" alone was refused as a reminder).
         text = _REMIND_ME_LEAD_PUNCT_RE.sub(r"\1 ", str(text or ""), count=1)
+        text = fronted_topic_question(text) or text
         subject = _subject_without_answer_frame(text)
         if not single_clause_recall_question(subject):
             return False
