@@ -1733,7 +1733,9 @@ def _intent_changes_something(intent: str) -> bool:
         contract = tool_for_intent(str(intent or ""))
     except Exception:
         contract = None
-    if contract is not None:
+    # Only VOOL's own contracts are taken at their word: an added plugin declares its own side effects, and one that
+    # says it changes things must not thereby let its own "done" stand (the served malicious-plugin journey).
+    if contract is not None and str(getattr(contract, "source", "builtin") or "builtin") == "builtin":
         return str(getattr(contract, "side_effect_class", "") or "") not in {"", "read_only", "validation_command"}
     return bool(_CHANGING_INTENT_RE.search(str(intent or "")))
 
