@@ -19,6 +19,16 @@ def _frame_href(page) -> str:
     return page.evaluate("document.getElementById('settingsFrame').contentWindow.location.href")
 
 
+def _frame_asked_and_loaded(page) -> tuple[str, str]:
+    """The address the chat page put on the frame, and the path the frame loaded. The settings page then names its
+    open section in its own hash (history.replaceState in go(), so a reload comes back to it): the live href is the
+    page's word once it has run, not the opener's (CI shard 0 on 5c1f961a5 read "/settings#setup")."""
+    return tuple(page.evaluate(
+        "(() => { const f = document.getElementById('settingsFrame');"
+        " return [f.getAttribute('src'), f.contentWindow.location.pathname]; })()"
+    ))
+
+
 def _wait_frame_ready(page) -> None:
     page.wait_for_function(
         "(() => { const f = document.getElementById('settingsFrame'); const d = f && f.contentDocument;"
@@ -47,7 +57,7 @@ def test_popup_blocked_browser_fallback_frames_settings_and_keeps_the_draft(tmp_
                 page.wait_for_selector("#settingsFrameOverlay:not([hidden])", timeout=15_000)
                 assert page.is_hidden("#settingsOverlay"), "the legacy panel must never show"
                 _wait_frame_ready(page)
-                assert _frame_href(page).endswith("/settings")
+                assert _frame_asked_and_loaded(page) == ("/settings", "/settings")
                 # Close from INSIDE the framed page, through its own Back control.
                 page.frame_locator("#settingsFrame").locator("#back").click()
                 page.wait_for_selector("#settingsFrameOverlay", state="hidden", timeout=15_000)
