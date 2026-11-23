@@ -79,7 +79,8 @@ def test_a_send_to_my_other_computer_with_drop_off_says_so_and_where_to_turn_it_
             'Send with Drop. It is off, so nothing was sent.') in text, text
     assert 'Settings > Backup & restore > Send with Drop' in text, text
     assert '“Enable Drop and make this VOOL folder private”' in text and 'Shared folder' in text, text
-    assert '1. ' in text and '2. ' in text and '3. ' in text and 'Create invite' in text and 'Join' in text, text
+    # Pairing is by contact card since 2026-11-23 (one name, one key); the invite steps left the chat answer.
+    assert '1. ' in text and '2. ' in text and '3. ' in text and 'Copy card' in text and 'Add person' in text, text
     _plain(text)
 
 
@@ -109,9 +110,10 @@ def test_on_but_unpaired_says_how_to_pair_and_on_and_paired_is_left_alone(drop_o
     monkeypatch.setattr(chat_door, '_lend_paired', lambda: False)
     assert chat_door.state_for('drop') == 'unpaired' and chat_door.state_for('lend') == 'unpaired'
     drop = chat_door.reply_text('drop', 'unpaired', 'en')
-    assert drop.startswith('Send with Drop is on, but this computer is not paired with another one yet, so '
+    assert drop.startswith('Send with Drop is on, but you have not added anyone to send to yet, so '
                            'nothing was sent.'), drop
-    assert 'To pair, open Settings > Backup & restore > Send with Drop on both computers' in drop
+    assert 'To add a person, open Settings > Backup & restore > Send with Drop on both computers' in drop
+    assert 'Save name' in drop and 'Copy card' in drop and '“Their card”' in drop and 'Add person' in drop, drop
     lend = chat_door.reply_text('lend', 'unpaired', 'en')
     assert 'nothing was handed over' in lend and 'Lend a job' in lend and 'Review invitation' in lend, lend
     _plain(drop)

@@ -101,6 +101,7 @@ def served(tmp_path):
                     time.sleep(.1)
             else:
                 pytest.fail('API startup timed out; see preserved server log')
+        (root/'relay').mkdir(mode=0o755, exist_ok=True)
         yield bases, homes, root/'relay', evidence, events, processes
     finally:
         for process in processes:

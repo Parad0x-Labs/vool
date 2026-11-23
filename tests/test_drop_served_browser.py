@@ -39,6 +39,8 @@ def homes(tmp_path, monkeypatch):
     a, b = tmp_path / "a", tmp_path / "b"
     a.mkdir(mode=0o700)
     b.mkdir(mode=0o700)
+    # The shared folder is the owner's own: Drop uses one that exists and never makes one from a path.
+    (tmp_path / "relay").mkdir(mode=0o755)
     runtime_paths.configure_runtime_home(a)
     app = create_app(RuntimeServices(display_name="VOOL"))
     try:
@@ -69,7 +71,8 @@ def connect(homes, *, permitted=True):
     bpin = ok(app, b, "identity")["fingerprint"]
     invite = ok(app, a, "invite", fingerprint=bpin, confirmed=True)["link"]
     sid = ok(app, b, "join", fingerprint=apin, link=invite, confirmed=True)["sid"]
-    assert ok(app, a, "poll")["outcomes"] == ["received"]
+    # The hello of this Drop, plus the "arrived whole" receipt of an earlier one if there was one.
+    assert set(ok(app, a, "poll")["outcomes"]) == {"received"}
     return sid
 
 
@@ -88,7 +91,7 @@ def test_fresh_install_and_owner_origin_guards(homes):
     state = ok(app, a, "status")
     assert state["enabled"] is False and state["allow_digest"] is False
     assert call(app, a, "identity")[1]["error"] == "DROP_DISABLED"
-    assert not (a / "drop").exists() and not relay.exists()
+    assert not (a / "drop").exists() and not any(relay.iterdir())
     for headers in (
         {"Host": "127.0.0.1", "Content-Type": "text/plain"},
         {"Host": "127.0.0.1", "Content-Type": "application/json", "Origin": "http://127.0.0.1:9999"},
@@ -379,6 +382,7 @@ def configure(page, relay):
     root.locator(".vd-allow").check()
     root.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_function("document.querySelector('.vd-fingerprint').value.length === 43")
+    page.locator(".vd-advanced summary").click()  # the one-time invite lives under this fold
 
 
 def browser_pair(pages):

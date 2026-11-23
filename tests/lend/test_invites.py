@@ -19,6 +19,8 @@ def homes(tmp_path, monkeypatch):
     a, b = tmp_path/'host', tmp_path/'guest'
     a.mkdir(mode=0o700)
     b.mkdir(mode=0o700)
+    # The shared folder is the owner's to make (a sync service's folder): Settings never creates one from a typed path.
+    (tmp_path/'relay').mkdir(mode=0o755)
     runtime_paths.configure_runtime_home(a)
     app = create_app(RuntimeServices(display_name='VOOL'))
     try:
@@ -60,7 +62,7 @@ def test_fresh_home_is_off_and_requires_drop(homes):
     value = ok(homes, a, 'status')
     assert value['enabled'] is False and value['drop_enabled'] is False and value['reviewed'] is False
     assert value['defaults']['jobs'] == 1 and value['defaults']['auto'] is False
-    assert not (a/'lend').exists() and not relay.exists()
+    assert not (a/'lend').exists() and not any(relay.iterdir())
     assert call(homes, a, 'settings', enabled=True)[1]['error'] == 'DROP_DISABLED'
     assert call(homes, a, 'list')[1]['error'] == 'DROP_DISABLED'
 

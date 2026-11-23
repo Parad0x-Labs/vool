@@ -267,6 +267,9 @@ def test_the_shared_folder_must_exist_and_never_follows_a_link(tmp_path, monkeyp
 
 def test_what_drop_keeps_on_this_disk_is_sealed(trio, tmp_path):
     a, b, _, _ = trio
+    # Names long enough that their bytes cannot turn up by chance inside sealed text.
+    a.set_name("Anastasia Whitlock-Okafor")
+    b.set_name("Benedikt Sorensen-Achebe")
     friends(a, b)
     secret_note, secret_name, data = "meet at the red door", "ledger-2031.xlsx", os.urandom(4000) + b"MARKER-IN-FILE"
     sid, _ = a.send_to(b.fingerprint, secret_note, secret_name, data)
@@ -275,7 +278,7 @@ def test_what_drop_keeps_on_this_disk_is_sealed(trio, tmp_path):
         home.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
         home.client.checkpoint()
         stored = b"".join(p.read_bytes() for p in home.root.rglob("*") if p.is_file() and p.name != "vault.key")
-        for plain in (secret_note.encode(), secret_name.encode(), b"MARKER-IN-FILE", b"Ana", b"Ben"):
+        for plain in (secret_note.encode(), secret_name.encode(), b"MARKER-IN-FILE", b"Whitlock-Okafor", b"Sorensen-Achebe"):
             assert plain not in stored
     assert b.show(sid)["note"] == secret_note and b.file_bytes(sid) == (secret_name, data)
     # A sealed copy that was changed on disk is damage, never a different file.

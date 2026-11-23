@@ -9,8 +9,16 @@ where to turn it on.
 
 This door answers before the model, in the app language: the feature's name in VOOL, that it is off
 and nothing was sent or handed over, and the real Settings place with the page's own words; when the
-feature is on but no computer is paired, how to pair. When it is on and paired, the turn is left to
-the existing flow. Nothing is ever sent from here.
+feature is on but nobody was added yet, how to add a person. When it is on and someone is there, the
+turn goes on to the model, which has a real tool for it (machine.send_with_drop): the owner approves
+each send, and the tool's answer says whether anything was sent. Nothing is ever sent from here.
+
+Which turns are Drop asks is read two ways. The turn's judge (core.plugin_ask, asked at the start of
+the turn in whatever language the owner writes) picks Drop among VOOL's own tools; that is the reader
+that generalises. The English shapes below are the fast path they always were, for turns the judge was
+not asked about. Independent audit, 2026-11-23: "siųsk sąskaitą į mano nešiojamą kompiuterį", "envoie
+la facture sur mon portable" and "schick die Rechnung an meinen Laptop" were not recognised, because
+only the English shapes read them.
 """
 from __future__ import annotations
 
@@ -24,13 +32,12 @@ DROP_OFF_EN = (
     "{folder} that both computers can open, and press {save}."
 )
 DROP_UNPAIRED_KEY = "drop.chat.unpaired"
-DROP_UNPAIRED_EN = "{drop} is on, but this computer is not paired with another one yet, so nothing was sent."
+DROP_UNPAIRED_EN = "{drop} is on, but you have not added anyone to send to yet, so nothing was sent."
 DROP_PAIR_KEY = "drop.chat.pair"
 DROP_PAIR_EN = (
-    "To pair, open {settings} > {group} > {drop} on both computers: 1. Turn Drop on there with the same "
-    "{folder}. 2. Each computer shows “{fingerprint}”: type the other computer's into “{peer}” and tick the "
-    "check box under it. "
-    "3. Press {invite} on one computer, then paste the {link} on the other and press {join}."
+    "To add a person, open {settings} > {group} > {drop} on both computers: 1. Turn Drop on there with the same "
+    "{folder}. 2. Each of you types a name, presses {save_name}, then {copy_card} and sends the card to the "
+    "other. 3. Each pastes the other's card under “{their_card}” and presses {add_person}."
 )
 LEND_OFF_KEY = "lend.chat.off"
 LEND_OFF_EN = (
@@ -78,6 +85,10 @@ _PLACE_KEYS = (
     ("invite", "drop.invite", "Create invite"),
     ("link", "drop.link", "Invite link"),
     ("join", "notif.join", "Join"),
+    ("save_name", "drop.save_name", "Save name"),
+    ("copy_card", "drop.copy_card", "Copy card"),
+    ("their_card", "drop.their_card", "Their card"),
+    ("add_person", "drop.add_person", "Add person"),
     ("lend_box", "lend.title", "Lend jobs to friends"),
     ("host", "lend.host", "Lend a job"),
     ("borrow", "lend.guest", "Borrow a job"),
@@ -214,6 +225,16 @@ def kind_of_ask(text: str) -> str:
     return ""
 
 
+def _judged_kind(text: str) -> str:
+    """'drop' when the turn's judge read this message as a Drop ask, in any language; else ''."""
+    try:
+        from core.plugin_ask import judged_builtins
+
+        return "drop" if "drop" in judged_builtins(text) else ""
+    except Exception:
+        return ""
+
+
 def _follow_up_kind(text: str, session_id: str) -> str:
     """The kind of the previous ask when this turn only names the computer ("the macbook, yes")."""
     value = str(text or "").strip()
@@ -251,12 +272,13 @@ def _lend_on() -> bool:
 
 
 def _drop_paired() -> bool | None:
-    """Whether a connected Drop exists; None when it cannot be read (the turn is then left alone)."""
+    """Whether there is anyone to send to (a person in the Drop list, or a connected one-time Drop);
+    None when it cannot be read (the turn is then left alone)."""
     try:
         from core.web.api.drop_api import _home
 
         with _home() as home:
-            return any(row.get("status") == "connected" for row in home.list())
+            return bool(home.contacts()) or any(row.get("status") == "connected" for row in home.list())
     except Exception:
         return None
 
@@ -380,7 +402,7 @@ def state_for(kind: str) -> str:
 
 def reply_if_unavailable(agent: Any, text: str, *, session_id: str, source_context: dict[str, Any] | None):
     """A finished chat result for a Drop or lending ask that cannot run as things stand; None otherwise."""
-    kind = kind_of_ask(text) or _follow_up_kind(text, session_id)
+    kind = _judged_kind(text) or kind_of_ask(text) or _follow_up_kind(text, session_id)
     if not kind:
         return None
     locale = str((source_context or {}).get("ui_locale") or "")

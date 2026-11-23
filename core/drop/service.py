@@ -37,7 +37,7 @@ CHUNK = 40 * 1024
 TTL = 7 * 86400 * 1000
 MAX_CHUNKS = MAX_FILE // CHUNK
 # Frames of one Drop that arrived too far ahead of the ones before them. A whole file is
-# at most MAX_CHUNKS + a few frames, so this holds any honest order a synced folder makes.
+# at most MAX_CHUNKS + a few frames, so this holds any order a synced folder really makes.
 AHEAD_LIMIT = MAX_CHUNKS + 64
 # Records one person may keep waiting in the shared encrypted inbox, over all their Drops.
 DEFER_PER_PEER = 64
