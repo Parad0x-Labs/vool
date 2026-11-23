@@ -207,6 +207,12 @@ def launch_flags(*, private: bool) -> list[str]:
     flags = [*UNATTENDED_UI_FLAGS, *QUIET_FLAGS, "--disable-blink-features=AutomationControlled", *_route_flags()]
     if private:
         flags.append("--incognito")
+    else:
+        # Browser plugins the person enabled are loaded by VOOL after the start; a
+        # private window gets none.
+        from .extensions import LOAD_FLAG
+
+        flags.append(LOAD_FLAG)
     return flags
 
 
@@ -231,6 +237,9 @@ class _Window:
         self.route: list[str] = []
         # Tabs VOOL is working in. An address the person opens never lands in one.
         self.reserved: set[Any] = set()
+        # Enabled browser plugins loaded into this engine: plugin id -> the engine's id.
+        self.extensions: dict[str, str] = {}
+        self.extension_folders: dict[str, str] = {}
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -286,6 +295,12 @@ class _Window:
         except Exception:
             await self.stop()
             raise DeskFault("engine_failed") from None
+        if not self.private:
+            # A plugin that will not load does not keep the browser from opening.
+            with contextlib.suppress(Exception):
+                from . import extensions
+
+                await extensions.apply(self)
         if self.private:
             # On macOS the engine keeps running after its last window is closed. A
             # private window with no tab left is over: it is stopped and removed then,
@@ -470,6 +485,16 @@ class Desk:
     def route_changed(self) -> None:
         self._call(self._locked(self._close_off_route()))
 
+    def plugins_changed(self) -> None:
+        """A browser plugin was enabled, switched off or removed: an open window follows."""
+        from . import extensions
+
+        async def follow() -> None:
+            if self._main is not None and self._main.alive():
+                await extensions.apply(self._main)
+
+        self._call(self._locked(follow()))
+
     def stop(self) -> dict[str, Any]:
         self._call(self._locked(self._stop()))
         return self.status()
@@ -489,6 +514,7 @@ class Desk:
             await self._reap()
             return {
                 "open": bool(self._main and self._main.alive()),
+                "plugins": sorted(self._main.extensions) if self._main and self._main.alive() else [],
                 "private_windows": len(self._private),
                 "private_cleanup_failed": bool(self.unclean_private),
             }
@@ -543,6 +569,15 @@ def route_changed() -> None:
         item.route_changed()
 
 
+def plugins_changed() -> None:
+    """The set of enabled browser plugins changed: every open lasting window follows."""
+    with _LOCK:
+        items = list(_DESKS.values())
+    for item in items:
+        with contextlib.suppress(Exception):
+            item.plugins_changed()
+
+
 def stop_all() -> None:
     with _LOCK:
         items = list(_DESKS.values())
@@ -554,5 +589,5 @@ def stop_all() -> None:
 __all__ = [
     "NEVER_PASSED", "QUIET_FLAGS", "Desk", "DeskFault", "desk", "engine_binary",
     "default_preferences", "downloads_dir", "launch_flags", "normalise_address", "profile_dir",
-    "route_changed", "seed_preferences", "stop_all",
+    "plugins_changed", "route_changed", "seed_preferences", "stop_all",
 ]

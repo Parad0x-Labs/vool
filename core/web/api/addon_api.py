@@ -52,6 +52,7 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "plugin_uninstall": {"action", "id", "remove_key"},
         "plugin_notice_dismiss": {"action"},
         "plugin_tools_setting": {"action", "enabled"},
+        "plugin_browser_starter": {"action", "name"},
     }
     if not isinstance(action, str) or action not in fields or set(body) - fields[action]:
         return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}

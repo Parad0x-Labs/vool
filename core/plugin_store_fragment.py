@@ -7,11 +7,20 @@ let pluginReview=null,pluginConsent=null,pluginRemoval=null,pluginNotice='',plug
 async function pluginPost(body){const result=await post(body);[data,_pluginCatalog]=await Promise.all([read(),fetch('/api/plugins').then(r=>r.json())]);pluginReview=null;pluginConsent=null;pluginRemoval=null;pluginNotice='';pluginDraft={};return result;}
 function pluginKeep(input,name){input.value=pluginDraft[name]||'';input.oninput=()=>{pluginDraft[name]=input.value;};}
 function pluginSize(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';}
+function pluginBrowserAccess(names){
+ const groups=[[['tabs'],'plugin_browser_access_tabs','See the addresses and titles of your open tabs'],[['activeTab'],'plugin_browser_access_front','Read the page in front when you press its button'],[['declarativeNetRequest','declarativeNetRequestWithHostAccess','declarativeNetRequestFeedback'],'plugin_browser_access_block','Block or change what pages load'],[['scripting','userScripts'],'plugin_browser_access_scripts','Run its own scripts in pages'],[['cookies'],'plugin_browser_access_cookies','Read and change cookies on the sites it can reach'],[['history','topSites','sessions','webNavigation','webRequest'],'plugin_browser_access_history','See which pages you visit and your browsing history'],[['bookmarks','readingList'],'plugin_browser_access_bookmarks','Read and change your bookmarks'],[['clipboardRead','clipboardWrite'],'plugin_browser_access_clipboard','Read or change what you copied']];
+ const out=[],known=new Set();groups.forEach(([ids,k,fallback])=>{ids.forEach(i=>known.add(i));if(ids.some(i=>names.includes(i)))out.push(tr(k,fallback));});
+ const rest=names.filter(n=>!known.has(n));if(rest.length)out.push(tr('plugin_browser_access_other','Other browser features: {list}').replace('{list}',rest.join(', ')));return out;}
+function pluginBrowserFacts(host,b){
+ host.append(node('h4',tr('plugin_group_browser','Web browser')),node('p',tr('plugin_browser_effect','Runs inside the VOOL browser window while it is enabled. A private window never loads it.')));
+ host.append(node('p',b.every_site?tr('plugin_browser_every_site','Can read and change every page you open, and can send what it sees to websites.'):(b.sites||[]).length?tr('plugin_browser_some_sites','Can read and change pages on these sites, and can send what it sees to websites: {sites}').replace('{sites}',b.sites.join(', ')):tr('plugin_browser_no_sites','Lists no sites whose pages it reads or changes.')));
+ const asks=pluginBrowserAccess(b.access||[]);if(asks.length){const list=node('ul');asks.forEach(t=>list.append(node('li',t)));host.append(list);}}
 function pluginFacts(host,p){
  if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available===false)host.append(node('p',tr(p.executable_runtime_refusal_key,p.executable_runtime_refusal)));
  if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available!==false&&p.mac_process_note)host.append(node('p',tr('plugin_mac_process_note','On a Mac, a plugin’s programs can see some settings of other apps you run, like any app can. Your plugin keys are never put there.')));
  if((p.kind||[]).includes('model_provider'))host.append(node('p',tr('plugin_provider_effect','Sends the chat requests you choose to this service. Usage may be billed to your service account.')));
  if((p.kind||[]).includes('scanner'))host.append(node('p',tr('plugin_scanner_effect','Sends public add-on content to this service when you request a scan. A scan does not grant installation or tool permissions.')));
+ if(p.browser){pluginBrowserFacts(host,p.browser);if((p.kind||[]).every(k=>k==='browser'))return;}
  const effects={read_only:tr('plugin_effect_read','Read information'),workspace_write:tr('plugin_effect_write','Change files in its own working space'),network_send:tr('plugin_effect_send','Send information'),network_publish:tr('plugin_effect_publish','Publish information'),external_unpinned:tr('plugin_effect_unknown','VOOL can’t tell what this does, so it asks you every time')};
  const list=node('ul');(p.tools||[]).forEach(t=>list.append(node('li',t.description+' · '+(effects[t.side_effect_class]||tr('plugin_effect_other','Uses the normal permission checks')))));host.append(list);
  host.append(node('h4',tr('plugin_network','Network access')));
@@ -54,6 +63,9 @@ function renderServicePlugins(host,query){
  const label=node('label',tr('plugin_folder_location','Plugin folder location'));const folder=node('input');folder.type='text';folder.id='pluginLocalFolder';folder.autocomplete='off';pluginKeep(folder,'folder');label.htmlFor=folder.id;install.append(label,folder);
  const replaceLabel=node('label');const replace=node('input');replace.type='checkbox';replaceLabel.append(replace,document.createTextNode(tr('plugin_replace','Review an update to an installed plugin')));install.append(replaceLabel);
  install.append(button(tr('plugin_review_folder','Review folder'),()=>action(async()=>{pluginReview=await post({action:'plugin_prepare',path:folder.value,update:replace.checked});})));host.append(install);
+ {const make=node('section',undefined,'addon-card plugin-browser-make');make.append(node('h3',tr('plugin_browser_make','Make a browser plugin')),node('p',tr('plugin_browser_make_help','VOOL writes a small working plugin into a folder on this computer. Change it yourself or ask VOOL in chat to write it for you, then review and install it like any other plugin.'),'addon-meta'));
+  const makeLabel=node('label',tr('plugin_browser_make_name','Name of your plugin'));const makeName=node('input');makeName.type='text';makeName.id='pluginBrowserName';makeName.maxLength=80;makeName.autocomplete='off';pluginKeep(makeName,'browser_name');makeLabel.htmlFor=makeName.id;make.append(makeLabel,makeName);
+  make.append(button(tr('plugin_browser_make_button','Make the folder'),()=>action(async()=>{const made=await post({action:'plugin_browser_starter',name:makeName.value});pluginDraft.browser_name='';pluginDraft.folder=made.folder;pluginNotice=tr('plugin_browser_made','Your plugin folder is ready: {folder}. Review it below to install it.').replace('{folder}',made.folder);})));host.append(make);}
  const github=node('details',undefined,'addon-card');github.append(node('summary',tr('plugin_add_github','Install from public GitHub source')));
  const fields={};[['repository','plugin_repository','GitHub project (owner/name)'],['revision','plugin_revision','Version to check'],['path','plugin_repository_folder','Folder inside the project']].forEach(([id,key,fallback])=>{const label=node('label',tr(key,fallback));const input=node('input');input.type='text';input.id='pluginGitHub_'+id;input.autocomplete='off';pluginKeep(input,'github_'+id);label.htmlFor=input.id;fields[id]=input;github.append(label,input);});
  if(pluginDraft.github_repository||pluginDraft.github_revision||pluginDraft.github_path)github.open=true;
@@ -62,8 +74,11 @@ function renderServicePlugins(host,query){
  const grid=node('div',undefined,'addon-grid');host.append(grid);
  const rows=(data?.plugins||[]).filter(p=>key([p.name,p.description,p.publisher].join(' ')).includes(key(query)));
  if(!rows.length)grid.append(node('p',tr('plugin_empty','No plugins installed.')));
+ const inBrowser=p=>(p.kind||[]).includes('browser');rows.sort((a,b)=>inBrowser(a)-inBrowser(b));let group='';
  rows.forEach(p=>{
-  const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;card.append(node('h3',p.name),node('p',p.description||''),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
+  const now=inBrowser(p)?'browser':'other';
+  if(now!==group&&rows.some(inBrowser)){group=now;const heading=node('h3',now==='browser'?tr('plugin_group_browser','Web browser'):tr('plugin_group_other','Tools and services'),'plugin-group');heading.style.gridColumn='1 / -1';grid.append(heading);}
+  const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;card.dataset.pluginGroup=now;card.append(node('h3',p.name),node('p',p.description||''),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
   if(!p.reviewed_by_store)card.append(node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store'),'addon-meta'));
   if(p.reason)card.append(node('p',tr(p.reason_key,p.reason),'addon-error'));
   if((p.kind||[]).includes('model_provider'))card.append(node('p',tr('plugin_model_count','{count} models available').replace('{count}',String(p.model_count||0))));
