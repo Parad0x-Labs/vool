@@ -650,11 +650,17 @@ def _with_blackbox_coverage(
         # workspace is observed before and after dispatch, and any local mutation means the
         # claim was false -- the execution cannot publish success. (The confined plugin child
         # already ran with zero writable roots; this catches MCP servers and confinement-less
-        # hosts the kernel cannot speak for.)
+        # hosts the kernel cannot speak for.) VOOL's own builtin tools are its own code, tested
+        # here, and never wait on a folder scan for that claim: a reminder list does not touch the
+        # workspace, and a folder the OS holds (a privacy prompt on the Desktop) must not stop it.
         from core.tool_registry import tool_for_intent as _contract_for
 
         contract = _contract_for(intent)
-        if contract is not None and str(getattr(contract, "side_effect_class", "") or "") == "read_only":
+        if (
+            contract is not None
+            and str(getattr(contract, "side_effect_class", "") or "") == "read_only"
+            and str(getattr(contract, "source", "builtin") or "builtin") != "builtin"
+        ):
             from core.blackbox.coverage.recorder import workspace_root_from_context
             from core.blackbox.coverage.scan import diff_scans, scan_workspace
             from core.blackbox.store import default_store

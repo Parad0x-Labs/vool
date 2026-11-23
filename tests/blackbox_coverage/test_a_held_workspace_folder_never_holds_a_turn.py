@@ -88,3 +88,57 @@ def _short_wait_init(real_init):
         real_init(self, *args, **kwargs)
 
     return init
+
+
+# Mac gate on 91e898675 (2026-11-23, installed app): "zeig mir bitte meine erinnerungen" ran no reminder list and
+# answered "the workspace folder could not be read in time": the read-only check scanned the chat's default
+# workspace before VOOL's own reminder list. Which builtin read is asked is drawn at random.
+BUILTIN_READS = ("operator.list_reminders", "operator.show_agenda", "contacts.search", "operator.list_calendar_events")
+
+
+def _executed(intent: str, text: str):
+    from core.tool_intent_executor import ToolIntentExecution
+
+    return ToolIntentExecution(handled=True, ok=True, status="executed", response_text=text,
+                               user_safe_response_text=text, mode="tool_executed", tool_name=intent,
+                               details={"executed": True})
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_builtin_read_never_waits_on_a_held_folder(seed, workspace, store_dir, held_folder, monkeypatch):
+    import random
+
+    from core.blackbox.coverage import scan
+    from core.tool_intent_executor import _with_blackbox_coverage
+    from core.tool_registry import tool_for_intent
+
+    monkeypatch.setattr(scan.ScanBounds, "__init__", _short_wait_init(scan.ScanBounds.__init__))
+    rng = random.Random(f"builtin-read-{seed}")
+    intent = rng.choice([i for i in BUILTIN_READS if (c := tool_for_intent(i)) is not None and c.read_only])
+    said = f"listed {rng.getrandbits(32):08x}"
+
+    started = time.monotonic()
+    result = _with_blackbox_coverage(intent, {}, source_context=ctx(workspace, turn=f"builtin-{seed}"),
+                                     dispatch=lambda: _executed(intent, said))
+
+    assert time.monotonic() - started < 2.0
+    assert result.ok and result.response_text == said, (result.status, result.response_text)
+
+
+def test_a_plugin_read_still_does_not_run_on_a_folder_it_cannot_read(workspace, store_dir, held_folder, monkeypatch):
+    from core.blackbox.coverage import scan
+    from core.tool_intent_executor import _with_blackbox_coverage
+    from core.tool_registry import register, unregister
+    from tests.blackbox_coverage.test_plugin_mcp_proof import _plugin_contract
+
+    monkeypatch.setattr(scan.ScanBounds, "__init__", _short_wait_init(scan.ScanBounds.__init__))
+    register(_plugin_contract(intent="demo.reader", mutation=None, side_effect_class="read_only"))
+    ran = []
+    try:
+        result = _with_blackbox_coverage("demo.reader", {}, source_context=ctx(workspace, turn="plugin-held"),
+                                         dispatch=lambda: ran.append(True) or _executed("demo.reader", "read"))
+    finally:
+        unregister("demo.reader")
+
+    assert result.ok is False and result.status == "blackbox_workspace_not_read_in_time"
+    assert ran == []
