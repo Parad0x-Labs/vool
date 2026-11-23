@@ -6251,6 +6251,7 @@
     },
     "operator.move_reminder": {
       "arguments": [
+        "day",
         "due_iso",
         "note",
         "reminder_id",
@@ -6261,6 +6262,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "day": {
+            "description": "string optional (when the person names a day of the week, in any language: that day in English, monday to sunday; VOOL works out its date)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "due_iso": {
             "description": "string (the new time: ISO 8601 local date and time, for example 2026-11-23T15:00)",
             "type": "string"
@@ -6291,6 +6299,7 @@
           "reminder_id",
           "note",
           "due_iso",
+          "day",
           "text"
         ],
         "type": "object"
@@ -6444,19 +6453,37 @@
     },
     "operator.save_note": {
       "arguments": [
-        "text"
+        "content",
+        "text",
+        "title"
       ],
       "description": "Save a note as a real file in the active workspace's notes directory, optionally linked to a provider event receipt.",
       "native_name": "operator__save_note",
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
-          "text": {
-            "description": "string (the request as written)",
+          "content": {
+            "description": "string (what the note says, in the person's own words and language, without the words that ask to save it)",
             "type": "string"
+          },
+          "text": {
+            "description": "string optional (the request as written)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "description": "string optional (a short name for the note, when the person gave one)",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
+          "content",
+          "title",
           "text"
         ],
         "type": "object"
@@ -6527,6 +6554,7 @@
     },
     "operator.schedule_calendar_event": {
       "arguments": [
+        "day",
         "duration_minutes",
         "start_iso",
         "title"
@@ -6536,6 +6564,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "day": {
+            "description": "string optional (when the person names a day of the week, in any language: that day in English, monday to sunday; VOOL works out its date)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "duration_minutes": {
             "description": "integer optional",
             "type": [
@@ -6555,6 +6590,7 @@
         "required": [
           "title",
           "start_iso",
+          "day",
           "duration_minutes"
         ],
         "type": "object"
@@ -6625,8 +6661,10 @@
     },
     "operator.schedule_reminder": {
       "arguments": [
+        "day",
         "due_iso",
         "note",
+        "repeat",
         "text"
       ],
       "description": "Set a reminder: VOOL itself tells the person in this chat at the due time. Not a calendar event. Give the note and the due time; the due time goes through the same when-reading as the chat lane, and a due time in the past is refused.",
@@ -6634,6 +6672,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "day": {
+            "description": "string optional (when the person names a day of the week, in any language: that day in English, monday to sunday; VOOL works out its date)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "due_iso": {
             "description": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
             "type": "string"
@@ -6641,6 +6686,13 @@
           "note": {
             "description": "string (what to remind the person of, in their own words and language)",
             "type": "string"
+          },
+          "repeat": {
+            "description": "string optional (daily, weekdays or weekly when the person asks for a reminder that comes back, in any language: every day, every workday Monday to Friday, every week; leave it out for once)",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "text": {
             "description": "string optional (the request as written)",
@@ -6653,6 +6705,8 @@
         "required": [
           "note",
           "due_iso",
+          "day",
+          "repeat",
           "text"
         ],
         "type": "object"
