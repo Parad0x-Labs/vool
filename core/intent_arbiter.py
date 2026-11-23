@@ -1709,6 +1709,8 @@ def _memory_kind_prompt(message: str) -> str:
         "it, or to stop remembering it.",
         'Answer {"answer": "none"} for anything else: a question about the world, a sum, a task, advice, chat.',
         "Remembering and forgetting are opposites: a message that tells a fact to keep is never a forget.",
+        'A message that says something now and asks the assistant NOT to keep it is {"answer": "none"}: a forget is '
+        "about something the person told it BEFORE.",
         "",
         'Message: "merk dir bitte: meine Schwester heißt Ilse und wohnt in Linz" -> {"answer": "keep"}',
         'Message: "wie heißt meine Schwester nochmal?" -> {"answer": "recall"}',
@@ -1723,6 +1725,7 @@ def _memory_kind_prompt(message: str) -> str:
         'Message: "note that my dentist is Dr Ferro" -> {"answer": "keep"}',
         'Message: "who did i say my dentist was" -> {"answer": "recall"}',
         'Message: "dimentica quello che ti ho detto sul mio dentista" -> {"answer": "forget"}',
+        'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "none"}',
         'Message: "quanto é 17 vezes 3?" -> {"answer": "none"}',
         'Message: "what is the capital of Peru?" -> {"answer": "none"}',
         'Message: "écris un poème sur la mer" -> {"answer": "none"}',
@@ -1731,6 +1734,52 @@ def _memory_kind_prompt(message: str) -> str:
         'Reply with ONLY the JSON object: {"answer": "keep"}, {"answer": "recall"}, {"answer": "forget"} or '
         '{"answer": "none"}',
     ])
+
+
+def _keep_wanted_prompt(message: str) -> str:
+    """A balanced yes/no: does the person want what they say kept, or do they ask the assistant NOT to keep it?
+
+    Asked only of a keep both memory readings agreed on (`core.persistent_memory._judged_memory_turn`): on the Mac gate
+    of 561e3e9d0 both read "merk dir das bitte nicht: meine Lampe heißt ..." ("please don't remember this") as a keep,
+    and it was saved. A small model reads the "not" in one plain question better than among four answers."""
+    flat = " ".join(str(message or "").split())[:400]
+    return "\n".join([
+        "A person wrote to their assistant.",
+        "Question: does the person want the assistant to KEEP what they say for later?",
+        'Answer {"answer": "yes"} when they ask it to remember, note, save or keep it, in any language and any words.',
+        'Answer {"answer": "no"} when they ask it NOT to remember, note, save or keep it, in any language.',
+        "",
+        'Message: "recuerda que mi coche es gris" -> {"answer": "yes"}',
+        'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "no"}',
+        'Message: "zapamiętaj: mój kot boi się odkurzacza" -> {"answer": "yes"}',
+        'Message: "nie zapisuj tego: mój PIN to 2580" -> {"answer": "no"}',
+        'Message: "note that my dentist is Dr Ferro" -> {"answer": "yes"}',
+        'Message: "my locker code is 4471, no need to remember it" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_keep_wanted(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """``"yes"`` when the person wants what they say kept, ``"no"`` when they ask not to keep it, None when nothing
+    judged it. Same call path as the other judgements."""
+    if not str(message or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(_keep_wanted_prompt(message), source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_keep_wanted_prompt(message), operation="keep_wanted_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
 
 
 def _forget_order_prompt(message: str) -> str:
@@ -1746,10 +1795,14 @@ def _forget_order_prompt(message: str) -> str:
         "stop remembering it?",
         'Answer {"answer": "yes"} when it does, in any language and any words, also with spelling slips.',
         'Answer {"answer": "no"} when it tells the assistant something, asks it something, or asks for anything else.',
+        'Answer {"answer": "no"} when it says something now and asks the assistant not to keep THAT: a forget is about '
+        "something the person told it before.",
         "",
         'Message: "vergiss bitte, was ich über meinen Bruder gesagt habe" -> {"answer": "yes"}',
         'Message: "merk dir: mein Bruder heißt Jonas" -> {"answer": "no"}',
         'Message: "olvida mi número de taquilla" -> {"answer": "yes"}',
+        'Message: "my locker code is 4471, don\'t save it though" -> {"answer": "no"}',
+        'Message: "mój PIN to 2580, nie zapisuj tego" -> {"answer": "no"}',
         'Message: "¿cuál es mi número de taquilla?" -> {"answer": "no"}',
         'Message: "delete what i said about my brother" -> {"answer": "yes"}',
         'Message: "delete the file notes.txt" -> {"answer": "no"}',

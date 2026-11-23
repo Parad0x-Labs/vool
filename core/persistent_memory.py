@@ -3012,9 +3012,11 @@ def judged_memory_ask(text: Any) -> str:
 
 
 #: The answer to a forget the judge read, when nothing VOOL holds is what it names.
+#: It is also the answer when the message only asked VOOL not to keep what it says ("bitte nicht merken: ...", read as a
+#: forget on the Mac gate of 561e3e9d0): nothing is held, and nothing of it is kept.
 JUDGED_FORGET_NAMES_NOTHING = (
-    "I could not find anything you told me that matches what you asked me to forget, so nothing was erased. "
-    "Tell me which fact to forget, in the words you told it."
+    "I have nothing saved about that, so nothing was erased, and I won't keep it. "
+    "If you meant something you told me before, tell me which fact, in the words you told it."
 )
 #: The answer to a recall the judge read whose subject a completed forget revoked (NO RECORD = REFUSE). The same words
 #: as the other-chat refusal (core.web.api.runtime.FORGOTTEN_IN_ANOTHER_CHAT_REPLY).
@@ -3175,6 +3177,19 @@ def _judged_memory_turn(
     on. A keep goes through the same trust gate, admission, scope rule, secret refusal and forget fence as "Remember
     that ..."; a recall shows the saved facts the judge names in their own words, read through the serving gate."""
     kind = judged_memory_ask(text)
+    if kind == "" and _a_question_about_something_held(text, session_id=session_id, source_context=source_context):
+        # Only what the judge names answers it; anything else goes on as it came (no "not saved", no "forgotten").
+        from core.request_trust import turn_speaks_for_owner
+
+        if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            return None
+        try:
+            policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy, chat_id=session_id)
+        except (TypeError, ValueError):
+            return None
+        reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context,
+                                     forgotten_too=False)
+        return None if reply is None else (True, reply)
     if kind not in {"keep", "recall"}:
         return None
     from core.memory import keep_receipt
@@ -3197,6 +3212,9 @@ def _judged_memory_turn(
         facts = _judged_keep_statements(text)
         if not facts:
             return None
+        if _keep_not_wanted(text, session_id=session_id, source_context=source_context):
+            # Nothing is kept, and the keep step stands down for a judged keep: the fact stays unsaved.
+            return True, KEEP_NOT_WANTED_REPLY
         # Both readings can call a question a keep: "primink, kokios spalvos mano dviratis ir kur ji laikoma" ("remind
         # me what colour my bike is ...", no question mark) was saved as a fact and answered "Locked in" (Mac run10,
         # eb8c907cc). What is kept must be told as a fact, by the keep step's own question; a keep ask that tells
@@ -3229,6 +3247,47 @@ def _judged_memory_turn(
         return True, ALREADY_KEPT_REPLY
     reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
     return None if reply is None else (True, reply)
+
+
+def _a_question_about_something_held(
+    text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> bool:
+    """A question both memory readings called none, and no tool, that shares a word with a fact VOOL holds: put to the
+    recall's own judge, which shows only the facts it names. On the Mac gate of 561e3e9d0 "Koks sportas man labiausiai
+    patinka?" ("which sport do I like most?"), beside a saved "Mano mėgstamiausias sportas yra krepšinis", was read
+    none by both readings and a model answered it with sports it made up. Only a judged turn with a question mark."""
+    from core import plugin_ask
+
+    clean = " ".join(str(text or "").split())
+    if "?" not in clean or not plugin_ask.judged_at_all(clean) or plugin_ask.judged_builtins(clean):
+        return False
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
+        held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
+    except Exception:
+        return False
+    from core.fact_extractor import _folded_words, _same_word
+
+    asked = [word for word in _folded_words(clean) if len(word) >= 4]
+    return any(_same_word(word, other) for item in held for word in _folded_words(item) if len(word) >= 4
+               for other in asked)
+
+
+#: The answer to a keep the person asked VOOL not to make ("bitte nicht merken: ...").
+KEEP_NOT_WANTED_REPLY = "Okay, I won't keep that."
+
+
+def _keep_not_wanted(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> bool:
+    """Whether the person asks VOOL NOT to keep what they say (`core.intent_arbiter.arbitrate_keep_wanted` reads no).
+    No answer is no refusal: the keep goes on as both readings decided."""
+    from core.intent_arbiter import arbitrate_keep_wanted
+
+    try:
+        return arbitrate_keep_wanted(text, chat_id=str(session_id or ""),
+                                     source_context=dict(source_context or {})) == "no"
+    except Exception as exc:
+        LOGGER.warning("judged keep: keep-wanted unavailable: %s", type(exc).__name__)
+        return False
 
 
 def _told_as_fact(sentence: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> bool:
@@ -3372,7 +3431,8 @@ def _judged_recall_before_not_found(text: str, *, session_id: str | None,
     try:
         from core import plugin_ask
 
-        if plugin_ask.judged_memory_ask(text) != "recall":
+        if plugin_ask.judged_memory_ask(text) != "recall" and not _a_question_about_something_held(
+                text, session_id=session_id, source_context=source_context):
             return None
         policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
     except Exception:

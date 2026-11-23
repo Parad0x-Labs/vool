@@ -105,7 +105,7 @@ MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
      "they could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it "
      "before. Asking VOOL to forget or erase it is not a recall.", ()),
     ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase, delete or no longer remember something "
-     "they told it before.", ()),
+     "they told it before. Asking VOOL not to keep what the message itself says is not a forget.", ()),
 )
 #: What the memory lane does with each memory choice, in the order a turn that picked several is read.
 _MEMORY_KINDS = {"memory_forget": "forget", "memory_keep": "keep", "memory_recall": "recall"}
@@ -261,6 +261,16 @@ def judged_builtins(text: str) -> tuple[str, ...]:
     if entry is None or time.monotonic() - entry[0] > _LIFETIME_S:
         return ()
     return entry[1]
+
+
+def judged_at_all(text: str) -> bool:
+    """Whether the turn's judge read this text (its answer may be none). Read only."""
+    key = _key(text)
+    if not key:
+        return False
+    with _LOCK:
+        entry = _BUILTINS.get(key)
+    return entry is not None and time.monotonic() - entry[0] <= _LIFETIME_S
 
 
 def judged_memory_ask(text: str) -> str:

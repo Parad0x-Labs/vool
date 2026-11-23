@@ -596,3 +596,52 @@ def test_the_kept_fact_question_offers_only_the_persons_own_words():
     prompt = intent_arbiter._kept_fact_prompt("prisimink, kad šuo ėda obuolius",
                                               ["prisimink, kad šuo ėda obuolius", "kad šuo ėda obuolius"])
     assert '1. "prisimink, kad šuo ėda obuolius"' in prompt and '2. "kad šuo ėda obuolius"' in prompt
+
+
+def _judged_none(text: str) -> None:
+    """The turn's judge read ``text`` and picked nothing (recorded as judge_turn records it)."""
+    plugin_ask._record_builtins(text, ())
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_question_both_readings_call_none_is_answered_from_a_held_fact_it_names(home, monkeypatch, seed):
+    """Mac gate of 561e3e9d0: "Koks sportas man labiausiai patinka?" beside a saved "Mano mėgstamiausias sportas yra
+    krepšinis" was read none by both readings and a model made up an answer."""
+    rng = random.Random(f"none-but-held-{seed}")
+    sport = rng.choice(["krepšinis", "tenisas", "plaukimas"])
+    said = f"Mano mėgstamiausias sportas yra {sport}"
+    _judged(said, "keep")
+    maybe_handle_memory_command(said, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
+                                source_context={**OWNER, "chat_id": OTHER_CHAT, "session_id": OTHER_CHAT})
+    question = _vary(rng, rng.choice(["Koks sportas man labiausiai patinka?", "kokį sportą mėgstu labiausiai?",
+                                      "ar žinai mano mėgstamiausią sportą?"]))
+    _judged_none(question)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", _stem_oracle(["sport"]))
+    handled, reply = maybe_handle_memory_command(question, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert handled and _plain(sport) in _plain(str(reply)), (handled, reply)
+    # A question that shares no word with anything held is not put to the recall judge.
+    other = "kiek bus 23 kart 4?"
+    _judged_none(other)
+    asked = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda *a, **k: asked.append(a) or ())
+    assert maybe_handle_memory_command(other, session_id=CHAT, access_policy=_policy(CHAT),
+                                       source_context=dict(OWNER)) == (False, "")
+    assert not asked
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_keep_the_person_asks_not_to_make_keeps_nothing(home, monkeypatch, seed):
+    """Mac gate of 561e3e9d0 / run13: "merk dir das bitte nicht: meine Lampe heißt Zaunkönig" was a keep to both
+    readings, answered "Locked in" and saved."""
+    rng = random.Random(f"keep-not-wanted-{seed}")
+    name = rng.choice(["Zaunkönig", "Pfefferkorn", "Blaubeere"])
+    text = _vary(rng, rng.choice([f"merk dir das bitte nicht: meine Lampe heißt {name}",
+                                  f"mano šuo vardu {name}, bet to neįsimink",
+                                  f"my kettle is called {name}, don't save that"]))
+    _judged(text, "keep")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: "no")
+    handled, reply = maybe_handle_memory_command(text, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert handled and reply == pm.KEEP_NOT_WANTED_REPLY, reply
+    assert _plain(name).casefold() not in _plain(_entries()).casefold()
