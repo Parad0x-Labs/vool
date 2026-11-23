@@ -48,7 +48,6 @@ Laws carried from the job's task sheet and its amendments:
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -672,21 +671,19 @@ def _candidate_folders(home_real: Path, container: str | None) -> list[tuple[Pat
     else:
         bases = [home_real / container]
     found: dict[str, tuple[Path, str]] = {}
+    from core.off_turn import list_folder
+
     for base in bases:
-        try:
-            entries = sorted(os.scandir(base), key=lambda entry: entry.name)
-        except OSError:
+        # Read off the request: a held folder (a privacy prompt on the Desktop) is skipped, never waited on.
+        entries = list_folder(base, follow_symlinks=True)
+        if entries is None:
             continue
-        for entry in entries:
-            name = entry.name
+        for name, _path, is_dir, real in sorted(entries):
             if name.startswith(".") or name.lower() in _HOME_DENY_NAMES:
                 continue
-            try:
-                if not entry.is_dir(follow_symlinks=True):
-                    continue
-                resolved = Path(entry.path).resolve()
-            except OSError:
+            if not is_dir or not real:
                 continue
+            resolved = Path(real)
             if resolved == home_real or home_real not in resolved.parents:
                 continue
             real_key = str(resolved)

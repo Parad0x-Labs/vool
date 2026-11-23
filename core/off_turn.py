@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
+import os
 import threading
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -104,3 +105,37 @@ def run_bounded_shared(group: str, read: Callable[[], T], *, wait_s: float, fall
     if "error" in box:
         raise box["error"]
     return True, box["value"]
+
+
+#: How long a request waits for one folder listing before carrying on without it.
+FOLDER_LIST_WAIT_S = 2.0
+
+
+def list_folder(path: str | os.PathLike[str], *, follow_symlinks: bool = True,
+                wait_s: float = FOLDER_LIST_WAIT_S) -> list[tuple[str, str, bool, str]] | None:
+    """(name, path, is_dir, real path) for each entry of one folder, read off the turn; None when the folder cannot
+    be read or was not read in time.
+
+    Mac gate on 91e898675: a new chat's first message ("save a contact ...") sat 7 min 53 s inside the chat request,
+    before its turn existed, while the words-to-folder binding listed the owner's Desktop under a pending privacy
+    prompt. Every stat of an entry happens on the reading thread too, so nothing of a held folder reaches the caller.
+    """
+    folder = os.fspath(path)
+
+    def read() -> list[tuple[str, str, bool, str]]:
+        rows: list[tuple[str, str, bool, str]] = []
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                try:
+                    is_dir = entry.is_dir(follow_symlinks=follow_symlinks)
+                    real = os.path.realpath(entry.path) if is_dir else ""
+                except OSError:
+                    is_dir, real = False, ""
+                rows.append((entry.name, entry.path, is_dir, real))
+        return rows
+
+    try:
+        finished, rows = run_bounded_shared(f"folder-list:{folder}", read, wait_s=wait_s, fallback=None)
+    except OSError:
+        return None
+    return rows if finished else None

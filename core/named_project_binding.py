@@ -109,28 +109,27 @@ def _folder_refused(folder: str, home: str) -> bool:
 
 
 def _folder_candidates(name: str, home: str) -> list[str]:
+    from core.off_turn import list_folder
+
     wanted = _compact(name)
     if wanted in _STANDARD_FOLDERS:
         return []
     found: list[str] = []
     for base in _PROJECT_HOMES:
         folder = os.path.join(home, base) if base else home
-        try:
-            with os.scandir(folder) as entries:
-                for entry in entries:
-                    if entry.name.startswith(".") or not entry.is_dir(follow_symlinks=False):
-                        continue
-                    if _compact(entry.name) == wanted:
-                        real = os.path.realpath(entry.path)
-                        # A folder named for passwords, keys or a wallet (or one of the computer's
-                        # own folders) never becomes a project by being named: the words resolver's
-                        # own guard (core.workspace_from_words) decides it for both binders.
-                        if _folder_refused(real, home):
-                            continue
-                        if real not in found:
-                            found.append(real)
-        except OSError:
-            continue
+        # Read off the request: a held folder (a privacy prompt on the Desktop) is skipped, never waited on.
+        entries = list_folder(folder, follow_symlinks=False)
+        for name, _path, is_dir, real in entries or ():
+            if name.startswith(".") or not is_dir:
+                continue
+            if _compact(name) == wanted and real:
+                # A folder named for passwords, keys or a wallet (or one of the computer's
+                # own folders) never becomes a project by being named: the words resolver's
+                # own guard (core.workspace_from_words) decides it for both binders.
+                if _folder_refused(real, home):
+                    continue
+                if real not in found:
+                    found.append(real)
     return found
 
 
