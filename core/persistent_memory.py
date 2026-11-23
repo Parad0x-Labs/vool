@@ -3057,11 +3057,37 @@ def _held_for_judgement(
                 if (len(clean.split()) >= 3 and not clean.endswith("?") and not _FORGET_RE.match(clean)
                         and judged_memory_ask(said) != "forget"):
                     held.append(clean)
+    # VOOL's own words are never the person's: on the Mac (d585608b6, 2bba40425, 8898ba4b4) a judged forget erased by
+    # "locked in. i'll remember that.", VOOL's reply to a keep, and recorded it as a forgotten token of the chat.
+    said_by_vool = _vool_reply_sentences()
     out: list[str] = []
     for item in held:
-        if item and item not in out and not memory_entries.contains_secret(item):
+        if (item and item not in out and not memory_entries.contains_secret(item)
+                and _plain_sentence(item) not in said_by_vool):
             out.append(item)
     return out[-_JUDGED_HELD_LIMIT:]
+
+
+def _plain_sentence(text: str) -> str:
+    return " ".join(str(text or "").replace("\u2019", "'").casefold().split()).strip(" .!?")
+
+
+def _vool_reply_sentences(limit: int = 2000) -> set[str]:
+    """Every sentence of VOOL's recent replies, and each reply whole, as plain text; empty when unreadable."""
+    try:
+        from core.memory.files import _load_jsonl, conversation_log_path
+
+        rows = _load_jsonl(conversation_log_path())[-limit:]
+    except Exception:
+        return set()
+    said: set[str] = set()
+    for row in rows:
+        reply = str(row.get("assistant") or "")
+        if reply:
+            said.add(_plain_sentence(reply))
+            said.update(_plain_sentence(part) for part in _SENTENCE_SPLIT_RE.split(reply) if part.strip())
+    said.discard("")
+    return said
 
 
 def _judged_forget_items(

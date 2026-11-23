@@ -459,3 +459,19 @@ def test_the_memory_question_reads_only_its_four_answers():
     assert _memory_kind_reader('{"answer": "delete"}') is None and _memory_kind_reader("forget") is None
     prompt = _memory_kind_prompt("labas")
     assert prompt.rstrip().endswith('{"answer": "none"}') and 'Message: "labas" ->' in prompt
+
+
+def test_vools_own_reply_is_never_a_forget_target(home, monkeypatch):
+    """Mac (d585608b6, 2bba40425, 8898ba4b4): a judged forget recorded VOOL's reply "locked in. i'll remember that." as
+    a forgotten token of the chat."""
+    rng = random.Random("own-reply")
+    thing = rng.choice(["kayak", "hammock", "lantern"])
+    text = f"Remember that my {thing} is navy and lives in the shed."
+    _keep_line(text)
+    reply = rng.choice(["Locked in. I’ll remember that.", "Got it, noted.", "Locked in. I'll remember that."])
+    pm._write_conversation_event(session_id=CHAT, user_input=text, assistant_output=reply, source_context=dict(OWNER))
+    monkeypatch.setattr(pm, "_whole_erase_learned_lines", lambda _context: [reply])
+    held = pm._held_for_judgement(session_id=CHAT, policy=_policy(CHAT), source_context=dict(OWNER), served=False)
+    assert held and all(pm._plain_sentence(item) not in {pm._plain_sentence(reply)}
+                        for item in held), held
+    assert any(thing in item for item in held)
