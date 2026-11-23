@@ -1367,6 +1367,20 @@ def _execute_tool_intent_impl(
             )
         arguments = dict(email_verdict.arguments)
 
+    if intent == "contacts.save":
+        # A save that would change nothing (the name is saved, with every entry the call carries) has nothing to
+        # approve: it is answered as the lookup of that contact it amounts to, through this same seam, so the read's
+        # own permission still decides. See core.contacts.tools.save_changes_nothing.
+        from core.contacts.tools import save_changes_nothing
+
+        if save_changes_nothing(arguments) is not None:
+            return _execute_tool_intent_impl(
+                {"intent": "contacts.search", "arguments": {"query": str(arguments.get("name") or "")}},
+                task_id=task_id, session_id=session_id, source_context=source_context,
+                hive_activity_tracker=hive_activity_tracker, public_hive_bridge=public_hive_bridge,
+                checkpoint_id=checkpoint_id, step_index=step_index, trusted_local_only=trusted_local_only,
+            )
+
     # UNCONDITIONAL. This used to run only `if mode_policy_is_active(source_context)`, which made
     # the absence of a mode a total bypass: a caller carrying no `operating_mode` and no session
     # record wrote files and ran side-effecting commands with no decision taken at all. Measured on
@@ -2050,6 +2064,15 @@ def _record_execution(
     Never raises and never touches the execution. Observation must not be able to break a turn.
     """
 
+    if bool(getattr(execution, "ok", False)) and str(getattr(execution, "mode", "") or "") == "tool_executed":
+        # What the call returned, on the turn's ledger, where the action-claim check reads it: a reply that says
+        # back a reminder the list showed is not a reminder it claims to have set (Mac gate on 561e3e9d0).
+        try:
+            from core.turn_model_call_ledger import record_tool_result
+
+            record_tool_result(source_context, intent, str(getattr(execution, "response_text", "") or ""), arguments)
+        except Exception:
+            pass
     try:
         from core.runtime_flags import flag_enabled
 

@@ -150,9 +150,16 @@ class _TurnLedger:
     #: It travels here — keyed by the stamped id — because provider execution
     #: crosses shallow context copies, exactly like `served_usage`.
     presentation_selection: dict[str, Any] | None = None
+    #: What each successful read-only tool of this turn returned, as (intent, text), with what it was asked
+    #: removed (`record_tool_result`). The action-claim check reads it to tell a sentence that says back a read
+    #: from a change only a read ran for; it travels here for the same reason as `tools`.
+    tool_results: list[tuple[str, str]] = field(default_factory=list)
 
 
 _LOCK = threading.Lock()
+#: Per result and per turn, so a long listing cannot grow a turn's ledger without bound.
+_TOOL_RESULT_CHARS = 4000
+_TOOL_RESULTS_PER_TURN = 16
 _COUNTS: OrderedDict[str, _TurnLedger] = OrderedDict()
 
 
@@ -676,6 +683,54 @@ def record_tool_execution(source_context: dict[str, Any] | None, intent: str) ->
         return
 
 
+def record_tool_result(source_context: dict[str, Any] | None, intent: str, text: str, asked: Any = None) -> None:
+    """What a tool that ran this turn returned, kept on the turn's ledger.
+
+    Every string value of ``asked`` (the call's arguments) is cut out of ``text`` first: a search that found nothing
+    says back what it looked for ('No reminders match "dentist Friday"'), and that echo is the person's words, not
+    something the tool observed. Never raises.
+    """
+    try:
+        name = str(intent or "").strip()
+        body = str(text or "")
+        values: list[str] = []
+
+        def gather(value: Any) -> None:
+            if isinstance(value, str) and value.strip():
+                values.append(value.strip())
+            elif isinstance(value, dict):
+                for item in value.values():
+                    gather(item)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    gather(item)
+
+        gather(asked)
+        for value in sorted(set(values), key=len, reverse=True):
+            body = body.replace(value, " ")
+        body = body.strip()[:_TOOL_RESULT_CHARS]
+        if not name or not body:
+            return
+        with _LOCK:
+            ledger = _ledger(source_context)
+            if ledger is None or len(ledger.tool_results) >= _TOOL_RESULTS_PER_TURN:
+                return
+            if (name, body) not in ledger.tool_results:
+                ledger.tool_results.append((name, body))
+    except Exception:
+        return
+
+
+def turn_tool_results(source_context: dict[str, Any] | None) -> list[tuple[str, str]]:
+    """(intent, text) for what this turn's read-only tools returned (`record_tool_result`); [] when none."""
+    try:
+        with _LOCK:
+            ledger = _ledger(source_context)
+            return list(ledger.tool_results) if ledger is not None else []
+    except Exception:
+        return []
+
+
 def turn_model_calls(source_context: dict[str, Any] | None) -> int:
     """Provider calls entered so far on this turn. 0 when nothing was counted for it."""
     try:
@@ -822,9 +877,11 @@ __all__ = [
     "record_provider_call_outcome",
     "record_served_usage",
     "record_tool_execution",
+    "record_tool_result",
     "reset_for_tests",
     "turn_call_accounting",
     "turn_model_calls",
     "turn_presentation_selection",
     "turn_served_usage",
+    "turn_tool_results",
 ]

@@ -1129,6 +1129,82 @@ def _executed_sources(turn_id: str, source_context: Any) -> dict[str, set[str]] 
     return backed
 
 
+def _read_returned(source_context: Any, source: str) -> str:
+    """What this turn's reading tools of ``source`` returned, from the turn's ledger (`record_tool_result`, written
+    by the tool executor for every call that ran, with what the call was asked cut out). "" when none. Never raises."""
+    pattern = dict(_TOOL_SOURCES).get(source)
+    if pattern is None:
+        return ""
+    try:
+        from core.turn_model_call_ledger import turn_tool_results
+
+        return "\n".join(
+            text for name, text in turn_tool_results(source_context if isinstance(source_context, dict) else None)
+            if pattern.search(name.lower()) and _READING_TOOL.search(name.lower())
+        )
+    except Exception:
+        return ""
+
+
+_CLOCK_12H = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s?m\b", re.I)
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_DATE_IN_TEXT = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})|\b(\d{1,2}) ([A-Z][a-z]{2}) (\d{4})\b")
+
+
+def _numbers(text: str) -> set[str]:
+    """The numbers ``text`` states, a 12-hour clock also as its 24-hour hour, without leading zeros."""
+    found = {str(int(run)) for run in re.findall(r"\d+", text)}
+    for hour, _minute, half in _CLOCK_12H.findall(text):
+        found.add(str(int(hour) % 12 + (12 if half.lower() == "p" else 0)))
+    return found
+
+
+def _weekdays_of(text: str) -> set[str]:
+    """The weekdays of the dates ``text`` states, by name, and the weekday names it states."""
+    from datetime import date, datetime
+
+    days = {word for word in re.findall(r"[a-z]+", text.lower()) if word in _WEEKDAYS}
+    for iso_y, iso_m, iso_d, day, month, year in _DATE_IN_TEXT.findall(text):
+        try:
+            when = (date(int(iso_y), int(iso_m), int(iso_d)) if iso_y
+                    else datetime.strptime(f"{day} {month} {year}", "%d %b %Y").date())
+        except ValueError:
+            continue
+        days.add(_WEEKDAYS[when.weekday()])
+    return days
+
+
+def _restates_a_read(sentence: str, returned: str) -> bool:
+    """Whether a done-form sentence says back what a read of its own source returned this turn: "you have a reminder
+    scheduled: "return the library books" is due on 26 Nov 2026 at 17:20" over the list that showed that reminder.
+
+    VOOL speaking of itself ("I've moved it", "Done") is never a restatement. Every number and weekday the sentence
+    states must be in what the read returned, so a time or day the read never showed ("is now set for Friday") is
+    still a change claim; and the sentence must name something the read returned beyond the source and done words."""
+    body = _LEAD_FILLER.sub("", _ABBREVIATION.sub(r"\1", sentence)).strip(" *_")
+    if not returned.strip() or _FIRST_PERSON_ACTION.search(body) or _DONE_MARK.search(sentence):
+        return False
+    if not _numbers(body) <= _numbers(returned):
+        return False
+    if not {w for w in re.findall(r"[a-z]+", body.lower()) if w in _WEEKDAYS} <= _weekdays_of(returned):
+        return False
+    try:
+        from core.chat_housekeeping import STOPWORDS
+        from core.memory.entries import _match_stem
+    except Exception:
+        return False
+
+    def content(text: str) -> set[str]:
+        return {
+            _match_stem(word) for word in re.findall(r"[^\W\d_]{4,}", text.lower())
+            if word not in STOPWORDS and not _DONE_WORD.fullmatch(word) and not any(
+                pattern.search(word) for _source, pattern in _TOOL_SOURCES
+            )
+        }
+
+    return bool(content(body) & content(returned))
+
+
 _FLUFF = re.compile(
     r"^(?:let me know|is there anything else|anything else|just let me know|hope (?:this|that) helps"
     r"|want me to do anything else|would you like)",
@@ -1304,8 +1380,21 @@ def gate_action_claims(
             if not (c[5] == "calendar" and (c[0], c[1], c[2]) in reminder_sentences and not _CALENDAR_NAMED.search(c[3]))
         ]
 
+        returned: dict[str, str] = {}
+
         def _backs(claim: tuple[int, int, int, str, str, str]) -> bool:
-            return claim[5] in _ANY_RUN_BACKS or claim[4] in backed.get(claim[5], set())
+            if claim[5] in _ANY_RUN_BACKS or claim[4] in backed.get(claim[5], set()):
+                return True
+            # A read backs a done-form sentence that only says back what the read returned. Gate on 561e3e9d0
+            # (installed app, qwen3:8b, 2026-11-23): "got any reminders lined up for me?" ran the reminder list and
+            # the model answered 'I see you have a reminder scheduled: "return the library books" is due on 26 Nov
+            # 2026 at 17:20:00 EET'; "reminder scheduled" read as a change only a read had backed, and the person
+            # was told "No reminder or timer was set, changed or cancelled".
+            if claim[4] != "action" or "read" not in backed.get(claim[5], set()):
+                return False
+            if claim[5] not in returned:
+                returned[claim[5]] = _read_returned(source_context, claim[5])
+            return _restates_a_read(claim[3], returned[claim[5]])
 
         # A sentence one of whose claims the run backs is about that run: "I checked your inbox: the inspection is
         # scheduled for Friday" relays the mail it read, and "added to your calendar and set a reminder an hour
@@ -1350,3 +1439,4 @@ def gate_action_claims(
 
 
 __all__ = ["action_claims", "gate_action_claims", "no_action_reply", "reply_language"]
+
