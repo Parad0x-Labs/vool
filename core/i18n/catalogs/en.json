@@ -5512,7 +5512,14 @@
     "live.route_warning": "Turn Private web off? Websites will then see your own internet address. Browser windows that are open will be closed.",
     "live.route_turn_off": "Turn it off",
     "live.route_keep": "Keep it on",
-    "live.route_missing": "Private web has no route it can use on this computer yet. Set one up in Settings."
+    "live.route_missing": "Private web has no route it can use on this computer yet. Set one up in Settings.",
+    "live.guard_name": "VOOL site protection",
+    "live.guard_title": "VOOL stopped this page",
+    "live.guard_text": "This site is on a list of sites known to steal sign-ins or spread harmful software.",
+    "live.guard_back": "Go back",
+    "live.guard_open": "Open it anyway",
+    "live.guard_open_note": "Open it only if you are sure the site is safe. It then stays open to you until you close the browser.",
+    "live.harmful_site": "This site is on a list of harmful sites, so VOOL does not open it. You can open it yourself in the browser window."
   },
   "html_keys": [
     "bypass.modal_limits",

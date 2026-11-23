@@ -5512,9 +5512,16 @@
     "live.route_warning": "Privates Web ausschalten? Websites sehen dann Ihre eigene Internetadresse. Offene Browserfenster werden geschlossen.",
     "live.route_turn_off": "Ausschalten",
     "live.route_keep": "Eingeschaltet lassen",
-    "live.route_missing": "Privates Web hat auf diesem Computer noch keinen Weg, den es nutzen kann. Richten Sie einen in den Einstellungen ein."
+    "live.route_missing": "Privates Web hat auf diesem Computer noch keinen Weg, den es nutzen kann. Richten Sie einen in den Einstellungen ein.",
+    "live.guard_name": "VOOL-Seitenschutz",
+    "live.guard_title": "VOOL hat diese Seite angehalten",
+    "live.guard_text": "Diese Website steht auf einer Liste von Websites, die Anmeldedaten stehlen oder schädliche Software verbreiten.",
+    "live.guard_back": "Zurück",
+    "live.guard_open": "Trotzdem öffnen",
+    "live.guard_open_note": "Öffne sie nur, wenn du sicher bist, dass die Website sicher ist. Sie bleibt dann für dich offen, bis du den Browser schließt.",
+    "live.harmful_site": "Diese Website steht auf einer Liste schädlicher Websites, deshalb öffnet VOOL sie nicht. Du kannst sie selbst im Browserfenster öffnen."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

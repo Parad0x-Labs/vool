@@ -5512,9 +5512,16 @@
     "live.route_warning": "Wyłączyć Prywatną sieć? Witryny będą wtedy widzieć Twój własny adres internetowy. Otwarte okna przeglądarki zostaną zamknięte.",
     "live.route_turn_off": "Wyłącz",
     "live.route_keep": "Zostaw włączoną",
-    "live.route_missing": "Prywatna sieć nie ma jeszcze na tym komputerze trasy, z której może korzystać. Skonfiguruj ją w Ustawieniach."
+    "live.route_missing": "Prywatna sieć nie ma jeszcze na tym komputerze trasy, z której może korzystać. Skonfiguruj ją w Ustawieniach.",
+    "live.guard_name": "Ochrona witryn VOOL",
+    "live.guard_title": "VOOL zatrzymał tę stronę",
+    "live.guard_text": "Ta witryna jest na liście witryn znanych z kradzieży danych logowania lub rozsyłania szkodliwego oprogramowania.",
+    "live.guard_back": "Wróć",
+    "live.guard_open": "Otwórz mimo to",
+    "live.guard_open_note": "Otwórz ją tylko wtedy, gdy masz pewność, że witryna jest bezpieczna. Pozostanie dla ciebie otwarta do zamknięcia przeglądarki.",
+    "live.harmful_site": "Ta witryna jest na liście szkodliwych witryn, więc VOOL jej nie otwiera. Możesz otworzyć ją samodzielnie w oknie przeglądarki."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

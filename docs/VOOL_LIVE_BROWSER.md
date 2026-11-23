@@ -37,3 +37,16 @@ A private chat always uses the separate view. Turning the Browser switch off clo
 Browser plugins run in this window. A browser plugin is a VOOL plugin whose package carries a standard browser extension (version 3 of the format the major browsers share), for example an advert blocker. It is reviewed, installed, enabled and removed in the Plugins section like every other plugin, under its own "Web browser" group, and the review says in plain words what the extension can read and change. VOOL loads the enabled ones each time the window starts, from a fresh copy of the package the person approved; enabling, switching off or removing one takes effect in an open window at once. A private window never gets a plugin. A plugin is refused at review when its extension uses the older format, would fetch its own updates, or asks for saved sign-ins, the browser's connection or safety settings, other plugins, the screen or programs outside the browser, or saving files by itself. "Make a browser plugin" in the Plugins section writes a small working one into a folder for the person to change; see [Writing a plugin](guides/plugin-authoring.md).
 
 Not there yet: a browser engine VOOL fetches and updates itself, saved passwords in the system keychain, a list of browser plugins to pick from, import from other browsers, and registering as the default browser.
+
+## Harmful sites
+
+VOOL's browser windows stop sites that are on the lists of harmful sites: sites known to steal sign-ins or spread harmful software. The lists are public and live in the VOOL Browser repository.
+
+- A page on a listed site is replaced by a warning before any request for it leaves the computer. Anything another page tries to load from a listed site is dropped. This holds in the everyday window and in every private window.
+- The warning has one button to go back and one to open the site anyway. Opening it anyway covers that one site and lasts until the browser is closed.
+- That choice is the person's alone. VOOL's own browser steps, its hidden lookup browser and its page reads never open a listed site, whatever the person chose in their own tab.
+- Once a day, and only after the Browser is switched on, VOOL asks for the current lists. It takes a release only when the signature matches a release key built into this copy of VOOL, the release is not older than the one it holds, and every file has the stated size and SHA-256. Otherwise it keeps the lists it has. A window that is open follows a newer release without a restart.
+- The request is the same for everyone and names no site anyone visits. When Private web is on, the update goes through that route or not at all.
+- A release can only add block entries. It cannot unblock a site, change a setting or run anything, and it can never block the source of the lists or the large shared platforms VOOL keeps reachable.
+
+Until a release key ships inside VOOL, no list is asked for and none is in force. The window's state says whether the protection is on.

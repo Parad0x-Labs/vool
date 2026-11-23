@@ -316,10 +316,20 @@ def _private_by_name(url: str, fixture_origin: str = "") -> bool:
     return not address.is_global or address.is_multicast
 
 
+def _harmful(url: str) -> bool:
+    """On the lists of harmful sites. VOOL's own steps never open such a site; only the
+    person can, from the warning in their own browser window."""
+    from . import site_lists
+
+    return site_lists.listed_url(url)
+
+
 def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
     parts = urlsplit(url)
     if parts.scheme not in {"https", "http"} or not parts.hostname or parts.username or parts.password:
         raise BrowserFault("destination_refused")
+    if _harmful(url):
+        raise BrowserFault("harmful_site")
     if parts.fragment:
         parts = parts._replace(fragment="")
     from core.runtime_served_origins import runtime_origin_refusal
@@ -919,6 +929,9 @@ class LiveSession:
                     # Plainly private or local by its own name: refused before any card, so the
                     # person is never asked to allow something that can never run.
                     raise BrowserFault("destination_refused")
+                if _harmful(url):
+                    # Refused before any card too: allowing it is not something a card can do.
+                    raise BrowserFault("harmful_site")
                 safe["url"] = url
                 if op == "navigate" and actor == "owner" and type(args.get("history")) is int:
                     safe["history"] = args["history"]
@@ -1636,10 +1649,10 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
     try:
         proposed = item.propose(op, arguments)
     except BrowserFault as fault:
-        if str(fault) == "destination_refused" and op == "navigate":
+        if str(fault) in {"destination_refused", "harmful_site"} and op == "navigate":
             from core.vool_browser.live_requests import note_unanswered
 
-            note_unanswered(op, str(arguments.get("url") or ""), "destination_refused")
+            note_unanswered(op, str(arguments.get("url") or ""), str(fault))
         if str(fault) != "element_missing" or op not in {"click", "type", "upload"}:
             raise
         # A handle the observation does not list is the model's argument mistake, not a

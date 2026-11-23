@@ -5512,9 +5512,16 @@
     "live.route_warning": "Išjungti Privatų internetą? Tada svetainės matys jūsų paties interneto adresą. Atidaryti naršyklės langai bus uždaryti.",
     "live.route_turn_off": "Išjungti",
     "live.route_keep": "Palikti įjungtą",
-    "live.route_missing": "Privatus internetas šiame kompiuteryje dar neturi maršruto, kuriuo galėtų naudotis. Nustatykite jį Nustatymuose."
+    "live.route_missing": "Privatus internetas šiame kompiuteryje dar neturi maršruto, kuriuo galėtų naudotis. Nustatykite jį Nustatymuose.",
+    "live.guard_name": "VOOL svetainių apsauga",
+    "live.guard_title": "VOOL sustabdė šį puslapį",
+    "live.guard_text": "Ši svetainė yra sąraše svetainių, kurios vagia prisijungimo duomenis arba platina kenksmingą programinę įrangą.",
+    "live.guard_back": "Grįžti",
+    "live.guard_open": "Vis tiek atidaryti",
+    "live.guard_open_note": "Atidarykite tik tada, jei esate tikri, kad svetainė saugi. Ji liks jums atvira, kol uždarysite naršyklę.",
+    "live.harmful_site": "Ši svetainė yra kenksmingų svetainių sąraše, todėl VOOL jos neatidaro. Galite ją atidaryti patys naršyklės lange."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

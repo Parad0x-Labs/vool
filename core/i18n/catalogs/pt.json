@@ -5512,9 +5512,16 @@
     "live.route_warning": "Desativar a Web privada? Os sites passarão a ver o seu próprio endereço de internet. As janelas do navegador que estiverem abertas serão fechadas.",
     "live.route_turn_off": "Desativar",
     "live.route_keep": "Manter ativada",
-    "live.route_missing": "A Web privada ainda não tem neste computador uma rota que possa usar. Configure uma em Configurações."
+    "live.route_missing": "A Web privada ainda não tem neste computador uma rota que possa usar. Configure uma em Configurações.",
+    "live.guard_name": "Proteção de sites do VOOL",
+    "live.guard_title": "O VOOL parou esta página",
+    "live.guard_text": "Este site está numa lista de sites conhecidos por roubar inícios de sessão ou espalhar software nocivo.",
+    "live.guard_back": "Voltar",
+    "live.guard_open": "Abrir mesmo assim",
+    "live.guard_open_note": "Abra-o apenas se tiver a certeza de que o site é seguro. Ele fica aberto para si até fechar o navegador.",
+    "live.harmful_site": "Este site está numa lista de sites nocivos, por isso o VOOL não o abre. Pode abri-lo você mesmo na janela do navegador."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

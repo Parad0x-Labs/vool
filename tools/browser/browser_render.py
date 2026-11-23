@@ -464,6 +464,11 @@ def chrome_render(
     note_remote_fetch_attempt(url)
     if remote_fetch_forbidden():
         return {"status": "remote_fetch_disabled", "final_url": url}
+    from core.vool_browser import site_lists
+
+    if site_lists.listed_url(url):
+        # On the lists of harmful sites: the hidden browser does not open it.
+        return {"status": "harmful_site", "final_url": url}
     return _chrome_render_unchecked(
         url,
         timeout_ms=timeout_ms,

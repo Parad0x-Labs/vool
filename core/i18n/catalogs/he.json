@@ -5512,9 +5512,16 @@
     "live.route_warning": "לכבות את רשת פרטית? אתרים יראו אז את כתובת האינטרנט שלכם. חלונות דפדפן פתוחים ייסגרו.",
     "live.route_turn_off": "לכבות",
     "live.route_keep": "להשאיר פועל",
-    "live.route_missing": "לרשת פרטית אין עדיין במחשב הזה נתיב שאפשר להשתמש בו. הגדירו נתיב בהגדרות."
+    "live.route_missing": "לרשת פרטית אין עדיין במחשב הזה נתיב שאפשר להשתמש בו. הגדירו נתיב בהגדרות.",
+    "live.guard_name": "הגנת האתרים של VOOL",
+    "live.guard_title": "VOOL עצר את הדף הזה",
+    "live.guard_text": "האתר הזה נמצא ברשימה של אתרים שידועים כגונבים פרטי כניסה או מפיצים תוכנה מזיקה.",
+    "live.guard_back": "חזרה",
+    "live.guard_open": "לפתוח בכל זאת",
+    "live.guard_open_note": "פתחו אותו רק אם אתם בטוחים שהאתר בטוח. אחר כך הוא נשאר פתוח עבורכם עד שתסגרו את הדפדפן.",
+    "live.harmful_site": "האתר הזה נמצא ברשימת האתרים המזיקים, ולכן VOOL לא פותח אותו. אפשר לפתוח אותו בעצמכם בחלון הדפדפן."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

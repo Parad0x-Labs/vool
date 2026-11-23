@@ -11,7 +11,11 @@ def get(path, query, *, locale="en", appearance=None):
         return json_response(404, {"ok": False, "error": "unsupported"})
     chat = (query.get("chat") or [""])[0]
     if path == "/browser":
+        from core.vool_browser import guard
         from core.vool_browser.live_page import render
+
+        # The warning page in the browser window speaks the language the pane was last seen in.
+        guard.remember_language(locale)
 
         return html_response(200, render(chat, locale, appearance), headers={"Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"})
     if path == "/api/browser/settings":

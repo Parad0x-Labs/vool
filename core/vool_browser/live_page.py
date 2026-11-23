@@ -25,7 +25,7 @@ _KEYS = (
     "seconds_left", "empty_title", "empty_body", "closed_body", "off_body", "driving", "elements",
     "no_elements", "send", "save_file", "file_ready", "more", "links", "fields", "buttons", "redirect",
     "destination_refused", "window", "private_window", "engine_missing", "private_web_down", "invalid_address",
-    "note_window", "human_check", "show_tab", "route_warning", "route_turn_off", "route_keep", "route_missing",
+    "note_window", "human_check", "show_tab", "route_warning", "route_turn_off", "route_keep", "route_missing", "harmful_site",
 )
 
 
@@ -251,7 +251,7 @@ $('note').textContent=L.note; $('frame').alt=L.browser; $('humanCheckText').text
 async function post(path,extra={}) {
   try {
     const r=await fetch('/api/browser/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:$('chat').value,...extra})});
-    const j=await r.json(); error=r.ok?'':({web_off:L.web_off,destination_refused:L.destination_refused,engine_missing:L.engine_missing,private_web_down:L.private_web_down,invalid_address:L.invalid_address}[j.error]||L.failed); await poll(); return j;
+    const j=await r.json(); error=r.ok?'':({web_off:L.web_off,destination_refused:L.destination_refused,harmful_site:L.harmful_site,engine_missing:L.engine_missing,private_web_down:L.private_web_down,invalid_address:L.invalid_address}[j.error]||L.failed); await poll(); return j;
   } catch(e) { error=L.failed; paintStatus(); }
 }
 // The pane's own steps run at once; the server still answers a form, upload or download with a review.

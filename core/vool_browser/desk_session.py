@@ -11,6 +11,7 @@ person can work on, signed in where the person is signed in.
 What this tab may not do, whatever a page asks:
 
 - reach an address on this computer or the local network;
+- open a site on the lists of harmful sites, even one the person chose to open anyway;
 - save a file by itself (a download stays its own reviewed step);
 - open further windows;
 - outlive the session: the tab is closed when the session ends, and nothing else
@@ -150,6 +151,14 @@ class DeskSession(LiveSession):
             self.page_request_refusals += 1
             if request.is_navigation_request() and request.frame == self._page.main_frame:
                 self._blocked = "destination_refused"
+            await route.abort("blockedbyclient")
+            return
+        if url.startswith(("http://", "https://", "ws://", "wss://")) and live._harmful(url):
+            # A site on the lists of harmful sites. In this tab it is refused before the
+            # request leaves, so VOOL never reaches the warning the person could open it from.
+            self.page_request_refusals += 1
+            if request.is_navigation_request() and request.frame == self._page.main_frame:
+                self._blocked = "harmful_site"
             await route.abort("blockedbyclient")
             return
         await route.continue_()

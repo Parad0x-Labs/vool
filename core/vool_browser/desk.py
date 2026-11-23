@@ -42,6 +42,8 @@ from core.secret_env import child_env
 from .engine import QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
 
 ENGINE_START_TIMEOUT = 30.0
+#: While a window is open, how often the desk looks whether today's site lists are due.
+LISTS_LOOK_SECONDS = 60 * 60
 STOP_TIMEOUT = 15.0
 
 #: Flags the engine handle adds by default that must never reach this browser. The
@@ -167,12 +169,12 @@ def launch_flags(*, private: bool) -> list[str]:
     flags = [*UNATTENDED_UI_FLAGS, *QUIET_FLAGS, "--disable-blink-features=AutomationControlled", *_route_flags()]
     if private:
         flags.append("--incognito")
-    else:
-        # Browser plugins the person enabled are loaded by VOOL after the start; a
-        # private window gets none.
-        from .extensions import LOAD_FLAG
+    # VOOL loads its own site protection into every window after the start, and, into the
+    # lasting window only, the browser plugins the person enabled. A private window gets
+    # no plugin.
+    from .extensions import LOAD_FLAG
 
-        flags.append(LOAD_FLAG)
+    flags.append(LOAD_FLAG)
     return flags
 
 
@@ -200,6 +202,11 @@ class _Window:
         # Enabled browser plugins loaded into this engine: plugin id -> the engine's id.
         self.extensions: dict[str, str] = {}
         self.extension_folders: dict[str, str] = {}
+        # VOOL's site protection as loaded into this engine: the engine's id for it, the
+        # folder it was loaded from, and how many listed sites it stops.
+        self.guard_id = ""
+        self.guard_folder = ""
+        self.guard_sites = 0
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -247,7 +254,13 @@ class _Window:
             # on the Private web route and the engine's sign-in service away. It also
             # starts that tab on a load of its own, which can cut off the first address
             # opened in it. So the person's tabs are fresh ones, and the start-up tab is
-            # closed as soon as one exists.
+            # closed as soon as one exists. Before the person has a tab, the lists of
+            # harmful sites are put in force. A protection that will not load does not
+            # keep the browser from opening; the window's state says it is not on.
+            with contextlib.suppress(Exception):
+                from . import guard
+
+                await guard.apply(self)
             await self.context.new_page()
             for page in pages:
                 if not page.is_closed():
@@ -334,6 +347,7 @@ class Desk:
         self._private: list[_Window] = []
         self._gate: asyncio.Lock | None = None
         self.unclean_private: list[str] = []
+        self._lists_timer: asyncio.TimerHandle | None = None
 
     def _run(self) -> None:
         asyncio.set_event_loop(self._loop)
@@ -366,6 +380,7 @@ class Desk:
             asyncio.ensure_future(self._watch_private(window))
         else:
             window = await self._ensure_main()
+        self._keep_lists_fresh()
         await window.open(url)
 
     async def _ensure_main(self) -> "_Window":
@@ -392,6 +407,7 @@ class Desk:
             await self._reap()
             await self._close_off_route()
             window = await self._ensure_main()
+            self._keep_lists_fresh()
             page = await window.context.new_page()
             window.reserved.add(page)
             page.on("close", lambda closed: window.reserved.discard(closed))
@@ -455,6 +471,37 @@ class Desk:
 
         self._call(self._locked(follow()))
 
+    def _keep_lists_fresh(self) -> None:
+        """Ask for today's lists of harmful sites, and look again each hour while a window is open.
+
+        Runs on this desk's loop and never waits: a window opens with the lists already held
+        and follows when a newer release has been taken. The source itself is asked at most
+        once a day (``site_lists.refresh``).
+        """
+        with contextlib.suppress(Exception):
+            from . import site_lists
+
+            site_lists.refresh_in_background(lambda result: self.lists_changed() if result == "updated" else None)
+        if self._lists_timer is None:
+            self._lists_timer = self._loop.call_later(LISTS_LOOK_SECONDS, self._look_for_lists)
+
+    def _look_for_lists(self) -> None:
+        self._lists_timer = None
+        if any(window.alive() for window in [*self._private, *([self._main] if self._main else [])]):
+            self._keep_lists_fresh()
+
+    def lists_changed(self) -> None:
+        """A new release of the site lists was taken: every open window follows."""
+        from . import guard
+
+        async def follow() -> None:
+            for window in [*self._private, *([self._main] if self._main else [])]:
+                if window.alive():
+                    with contextlib.suppress(Exception):
+                        await guard.apply(window)
+
+        self._call(self._locked(follow()))
+
     def stop(self) -> dict[str, Any]:
         self._call(self._locked(self._stop()))
         return self.status()
@@ -475,12 +522,16 @@ class Desk:
             return {
                 "open": bool(self._main and self._main.alive()),
                 "plugins": sorted(self._main.extensions) if self._main and self._main.alive() else [],
+                "protected": bool(self._main and self._main.alive() and self._main.guard_id),
                 "private_windows": len(self._private),
                 "private_cleanup_failed": bool(self.unclean_private),
             }
 
         state = self._call(self._locked(read()))
-        return {"ok": True, "available": live.available(), "engine": bool(engine_binary()), **state}
+        from . import site_lists
+
+        return {"ok": True, "available": live.available(), "engine": bool(engine_binary()),
+                "site_lists": site_lists.status(), **state}
 
     def context_for_agent(self) -> Any:
         """The lasting browser's context, for the agent's own steps. None when closed.

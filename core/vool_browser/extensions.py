@@ -12,7 +12,8 @@ Rules kept here:
   enabled gets loaded;
 - the engine writes its own index files into an extension's folder, so it is given a
   working copy under VOOL's browser data, never the approved package itself;
-- a private window never gets a plugin;
+- a private window never gets a plugin (VOOL's own site protection, ``guard``, is not a plugin
+  and is in every window);
 - the engine keeps nothing between starts: every start loads the current set afresh, so a
   plugin that was switched off or removed while the browser was closed is simply not there.
 """

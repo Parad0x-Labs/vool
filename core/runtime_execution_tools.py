@@ -4995,6 +4995,23 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
                 "observation": _tool_observation(intent="web.fetch", tool_surface="web", ok=False, status="runtime_origin_refused", url=url),
             },
         )
+    from core.vool_browser import site_lists
+
+    if site_lists.listed_url(url):
+        # The same lists that stop a page in the person's browser window. VOOL does not read
+        # such a site for them either.
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="harmful_site",
+            response_text=(
+                f"Web fetch did not open `{url}`: it is on a list of sites known to steal sign-ins "
+                "or spread harmful software."
+            ),
+            details={
+                "observation": _tool_observation(intent="web.fetch", tool_surface="web", ok=False, status="harmful_site", url=url),
+            },
+        )
     if not _remote_fetch_allowed(source_context):
         return RuntimeExecutionResult(
             handled=True,

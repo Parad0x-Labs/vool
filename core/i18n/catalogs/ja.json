@@ -5512,9 +5512,16 @@
     "live.route_warning": "プライベート Web をオフにしますか？オフにすると、ウェブサイトにあなた自身のインターネットアドレスが見えるようになります。開いているブラウザーウィンドウは閉じられます。",
     "live.route_turn_off": "オフにする",
     "live.route_keep": "オンのままにする",
-    "live.route_missing": "このコンピューターには、プライベート Web が使える経路がまだありません。設定で用意してください。"
+    "live.route_missing": "このコンピューターには、プライベート Web が使える経路がまだありません。設定で用意してください。",
+    "live.guard_name": "VOOL サイト保護",
+    "live.guard_title": "VOOL がこのページを止めました",
+    "live.guard_text": "このサイトは、ログイン情報を盗んだり有害なソフトウェアを広めたりすることで知られるサイトの一覧に載っています。",
+    "live.guard_back": "戻る",
+    "live.guard_open": "それでも開く",
+    "live.guard_open_note": "サイトが安全だと確信できる場合だけ開いてください。開いたあとは、ブラウザーを閉じるまで開けるままになります。",
+    "live.harmful_site": "このサイトは有害なサイトの一覧に載っているため、VOOL は開きません。ブラウザーのウィンドウでご自身で開くことはできます。"
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

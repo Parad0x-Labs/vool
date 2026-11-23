@@ -5512,9 +5512,16 @@
     "live.route_warning": "要关闭私密网页吗？关闭后，网站将看到您自己的网络地址。已打开的浏览器窗口将被关闭。",
     "live.route_turn_off": "关闭",
     "live.route_keep": "保持开启",
-    "live.route_missing": "这台电脑上还没有私密网页可以使用的线路。请在设置中配置一条。"
+    "live.route_missing": "这台电脑上还没有私密网页可以使用的线路。请在设置中配置一条。",
+    "live.guard_name": "VOOL 网站保护",
+    "live.guard_title": "VOOL 拦下了这个页面",
+    "live.guard_text": "此网站在已知会窃取登录信息或传播有害软件的网站列表中。",
+    "live.guard_back": "返回",
+    "live.guard_open": "仍然打开",
+    "live.guard_open_note": "只有在确定网站安全时才打开。之后在关闭浏览器之前，它会一直对你开放。",
+    "live.harmful_site": "此网站在有害网站列表中，因此 VOOL 不会打开它。你可以自己在浏览器窗口中打开。"
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

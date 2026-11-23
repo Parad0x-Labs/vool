@@ -5512,9 +5512,16 @@
     "live.route_warning": "Özel web kapatılsın mı? Web siteleri o zaman kendi internet adresinizi görür. Açık tarayıcı pencereleri kapatılır.",
     "live.route_turn_off": "Kapat",
     "live.route_keep": "Açık kalsın",
-    "live.route_missing": "Özel web'in bu bilgisayarda henüz kullanabileceği bir yolu yok. Ayarlar'da bir yol kurun."
+    "live.route_missing": "Özel web'in bu bilgisayarda henüz kullanabileceği bir yolu yok. Ayarlar'da bir yol kurun.",
+    "live.guard_name": "VOOL site koruması",
+    "live.guard_title": "VOOL bu sayfayı durdurdu",
+    "live.guard_text": "Bu site, oturum bilgilerini çaldığı veya zararlı yazılım yaydığı bilinen sitelerin listesinde.",
+    "live.guard_back": "Geri dön",
+    "live.guard_open": "Yine de aç",
+    "live.guard_open_note": "Yalnızca sitenin güvenli olduğundan eminseniz açın. Tarayıcıyı kapatana kadar sizin için açık kalır.",
+    "live.harmful_site": "Bu site zararlı siteler listesinde, bu yüzden VOOL onu açmaz. Tarayıcı penceresinde kendiniz açabilirsiniz."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

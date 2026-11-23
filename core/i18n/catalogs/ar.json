@@ -5512,9 +5512,16 @@
     "live.route_warning": "هل تريد إيقاف ويب خاص؟ عندها سترى المواقع عنوان الإنترنت الخاص بك. سيتم إغلاق نوافذ المتصفح المفتوحة.",
     "live.route_turn_off": "إيقاف",
     "live.route_keep": "إبقاؤه مفعّلًا",
-    "live.route_missing": "لا يملك ويب خاص على هذا الحاسوب بعدُ مسارًا يمكنه استخدامه. أعدّ مسارًا في الإعدادات."
+    "live.route_missing": "لا يملك ويب خاص على هذا الحاسوب بعدُ مسارًا يمكنه استخدامه. أعدّ مسارًا في الإعدادات.",
+    "live.guard_name": "حماية المواقع في VOOL",
+    "live.guard_title": "أوقف VOOL هذه الصفحة",
+    "live.guard_text": "هذا الموقع مدرج في قائمة مواقع معروفة بسرقة بيانات تسجيل الدخول أو نشر برامج ضارة.",
+    "live.guard_back": "رجوع",
+    "live.guard_open": "افتحه على أي حال",
+    "live.guard_open_note": "لا تفتحه إلا إذا كنت متأكدًا من أن الموقع آمن. سيبقى بعدها مفتوحًا لك حتى تغلق المتصفح.",
+    "live.harmful_site": "هذا الموقع مدرج في قائمة المواقع الضارة، لذلك لا يفتحه VOOL. يمكنك فتحه بنفسك في نافذة المتصفح."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

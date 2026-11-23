@@ -5512,9 +5512,16 @@
     "live.route_warning": "Désactiver Web privé ? Les sites verront alors votre propre adresse internet. Les fenêtres de navigateur ouvertes seront fermées.",
     "live.route_turn_off": "Désactiver",
     "live.route_keep": "Laisser activé",
-    "live.route_missing": "Web privé n'a encore aucune route utilisable sur cet ordinateur. Configurez-en une dans Réglages."
+    "live.route_missing": "Web privé n'a encore aucune route utilisable sur cet ordinateur. Configurez-en une dans Réglages.",
+    "live.guard_name": "Protection des sites VOOL",
+    "live.guard_title": "VOOL a arrêté cette page",
+    "live.guard_text": "Ce site figure sur une liste de sites connus pour voler des identifiants ou diffuser des logiciels nuisibles.",
+    "live.guard_back": "Retour",
+    "live.guard_open": "Ouvrir quand même",
+    "live.guard_open_note": "Ne l'ouvrez que si vous êtes sûr que le site est sans danger. Il vous reste alors ouvert jusqu'à la fermeture du navigateur.",
+    "live.harmful_site": "Ce site figure sur une liste de sites nuisibles, VOOL ne l'ouvre donc pas. Vous pouvez l'ouvrir vous-même dans la fenêtre du navigateur."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

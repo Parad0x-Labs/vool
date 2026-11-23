@@ -5512,9 +5512,16 @@
     "live.route_warning": "Tắt Web riêng tư? Khi đó các trang web sẽ thấy địa chỉ internet của chính bạn. Các cửa sổ trình duyệt đang mở sẽ bị đóng.",
     "live.route_turn_off": "Tắt",
     "live.route_keep": "Tiếp tục bật",
-    "live.route_missing": "Web riêng tư chưa có tuyến nào dùng được trên máy tính này. Hãy thiết lập một tuyến trong Cài đặt."
+    "live.route_missing": "Web riêng tư chưa có tuyến nào dùng được trên máy tính này. Hãy thiết lập một tuyến trong Cài đặt.",
+    "live.guard_name": "Bảo vệ trang web của VOOL",
+    "live.guard_title": "VOOL đã chặn trang này",
+    "live.guard_text": "Trang web này nằm trong danh sách các trang được biết là đánh cắp thông tin đăng nhập hoặc phát tán phần mềm độc hại.",
+    "live.guard_back": "Quay lại",
+    "live.guard_open": "Vẫn mở",
+    "live.guard_open_note": "Chỉ mở khi bạn chắc chắn trang web này an toàn. Sau đó trang sẽ mở được cho bạn đến khi bạn đóng trình duyệt.",
+    "live.harmful_site": "Trang web này nằm trong danh sách trang độc hại nên VOOL không mở. Bạn có thể tự mở nó trong cửa sổ trình duyệt."
   },
-  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
+  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
