@@ -639,6 +639,12 @@ def handle_save_note(
     parsed = parse_note_request(intent.raw_text)
     title = parsed["title"]
     body = parsed["body"]
+    typed_body = str(getattr(intent, "note_content", "") or "").strip()
+    if typed_body:
+        # A tool call typed the note out: its content and title stand, in any language; the English reading of the
+        # words is only for a request that came with none.
+        body = typed_body
+        title = str(getattr(intent, "note_title", "") or "").strip()
     if not body and intent.note_body:
         # The answer these words point back at (`with_the_answer_it_follows`); a quoted title still wins.
         body = str(intent.note_body).strip()

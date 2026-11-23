@@ -3159,7 +3159,14 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="write notes inside the bound workspace when asked",
             supported=True,
             unsupported_reason="",
-            input_schema={"text": "string (the request as written)"},
+            input_schema={
+                "content": (
+                    "string (what the note says, in the person's own words and language, without the words that "
+                    "ask to save it)"
+                ),
+                "title": "string optional (a short name for the note, when the person gave one)",
+                "text": "string optional (the request as written)",
+            },
             output_schema={"note_path": "string"},
             side_effect_class="workspace_write",
             approval_requirement="explicit_user_opt_in",

@@ -50,6 +50,10 @@ class OperatorActionIntent:
     # The weekday the person named, as a tool call typed it in English ("friday"): the handler works out its date,
     # which a small model counts wrong.
     due_weekday: str | None = None
+    # A note a tool call typed out: its content and title, read before the words (whose reading is English-only and
+    # took "jot in my notes: buy dog food" for a note with no content).
+    note_content: str | None = None
+    note_title: str | None = None
 
 
 @dataclass

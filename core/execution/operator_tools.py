@@ -146,6 +146,8 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
     due_iso: str | None = None
     repeat_every: str | None = None
     due_weekday: str | None = None
+    note_content: str | None = None
+    note_title: str | None = None
     raw_text = ""
     if operator_kind == "move_path":
         source = str(arguments.get("source_path") or target_path or "").strip()
@@ -193,6 +195,9 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
             due_iso = _argument(arguments, "due_iso") or None
             repeat_every = _argument(arguments, "repeat").casefold() or None
             due_weekday = _argument(arguments, "day") or None
+        elif operator_kind == "save_note":
+            note_content = str(arguments.get("content") or "").strip() or None
+            note_title = _argument(arguments, "title") or None
     elif operator_kind in {"find_notes", "show_note"}:
         # A notes search reads its query, and a note read its title, from the label the chat
         # parser sets (core.operator.notes.find_notes_query, handle_show_note).
@@ -222,4 +227,6 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         due_iso=due_iso,
         repeat_every=repeat_every,
         due_weekday=due_weekday,
+        note_content=note_content,
+        note_title=note_title,
     )
