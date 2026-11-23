@@ -368,17 +368,40 @@ class Desk:
             self._private.append(window)
             asyncio.ensure_future(self._watch_private(window))
         else:
-            if self._main is None or not self._main.alive():
-                if self._main is not None:
-                    await self._main.stop()
-                self._main = _Window(profile_dir(), private=False)
-                try:
-                    await self._main.start()
-                except DeskFault:
-                    self._main = None
-                    raise
-            window = self._main
+            window = await self._ensure_main()
         await window.open(url)
+
+    async def _ensure_main(self) -> "_Window":
+        if self._main is None or not self._main.alive():
+            if self._main is not None:
+                await self._main.stop()
+            self._main = _Window(profile_dir(), private=False)
+            try:
+                await self._main.start()
+            except DeskFault:
+                self._main = None
+                raise
+        return self._main
+
+    async def tab_for_agent(self) -> Any:
+        """A new tab in the everyday window for VOOL's own steps. Runs on this desk's loop.
+
+        The window is started when it is not open, on the route in force. Never a
+        private window: what the person does there is not VOOL's to read.
+        """
+        _check_available()
+
+        async def make() -> Any:
+            await self._reap()
+            await self._close_off_route()
+            window = await self._ensure_main()
+            return await window.context.new_page()
+
+        return await self._locked(make())
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        return self._loop
 
     async def _watch_private(self, window: _Window) -> None:
         await window.closed.wait()

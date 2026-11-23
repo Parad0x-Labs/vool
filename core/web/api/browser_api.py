@@ -63,6 +63,8 @@ def perform(path, body):
 
     try:
         if path == "/api/browser/settings":
+            if "agent_in_window" in body and "enabled" not in body:
+                return json_response(200, live.set_agent_in_window(body.get("agent_in_window")))
             return json_response(200, live.set_enabled(body.get("enabled")))
         if path == "/api/browser/window":
             return json_response(200, _window(body), headers={"Cache-Control": "no-store"})

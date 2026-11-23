@@ -94,7 +94,7 @@ def available() -> bool:
 def settings() -> dict[str, Any]:
     from core import policy_engine
 
-    return {"ok": True, "enabled": enabled(), "available": available(),
+    return {"ok": True, "enabled": enabled(), "available": available(), "agent_in_window": works_in_window(),
             "local_only": policy_engine.local_only_mode(), "web_enabled": policy_engine.allow_web_fallback()}
 
 
@@ -109,7 +109,7 @@ def set_enabled(value: bool) -> dict[str, Any]:
         _root().mkdir(parents=True, exist_ok=True, mode=0o700)
         target = _root() / "setting.json"
         temp = target.with_suffix(".tmp")
-        temp.write_text(json.dumps({"enabled": value}))
+        temp.write_text(json.dumps({**_saved(), "enabled": value}))
         temp.replace(target)
         if not value:
             _stop_each(list(_SESSIONS.items()))
@@ -118,6 +118,28 @@ def set_enabled(value: bool) -> dict[str, Any]:
         from . import desk
 
         desk.stop_all()
+    return settings()
+
+
+def _saved() -> dict[str, Any]:
+    try:
+        data = json.loads((_root() / "setting.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    return {key: data[key] for key in ("enabled", "agent_in_window") if type(data.get(key)) is bool} if isinstance(data, dict) else {}
+
+
+def set_agent_in_window(value: bool) -> dict[str, Any]:
+    """Choose where VOOL's own browser steps run. Open sessions end, so the next step uses the choice."""
+    if type(value) is not bool:
+        raise BrowserFault("invalid_setting")
+    with _LOCK:
+        _root().mkdir(parents=True, exist_ok=True, mode=0o700)
+        target = _root() / "setting.json"
+        temp = target.with_suffix(".tmp")
+        temp.write_text(json.dumps({**_saved(), "agent_in_window": value}))
+        temp.replace(target)
+        _stop_each(list(_SESSIONS.items()))
     return settings()
 
 
@@ -157,9 +179,33 @@ def session(chat: str, *, create: bool = False) -> LiveSession | None:
             raise BrowserFault("busy")
         if create and (item is None or item.closed):
             _check()
-            item = LiveSession(chat)
+            item = _new_session(chat)
             _SESSIONS[key] = item
         return item
+
+
+def works_in_window() -> bool:
+    """Whether VOOL's own browser steps run in the person's VOOL browser window.
+
+    On unless the person switched it off. Off, VOOL keeps to the separate view: one page,
+    page scripts off, nothing remembered.
+    """
+    try:
+        return json.loads((_root() / "setting.json").read_text()).get("agent_in_window") is not False
+    except (OSError, ValueError, AttributeError):
+        return True
+
+
+def _new_session(chat: str) -> "LiveSession":
+    from core.private_chat import is_private
+
+    # A private chat never touches the lasting profile: it keeps the separate view,
+    # whose profile is deleted when the chat's browser closes.
+    if works_in_window() and not is_private(chat):
+        from .desk_session import DeskSession
+
+        return DeskSession(chat)
+    return LiveSession(chat)
 
 
 def stop_chat(chat: str) -> None:
@@ -387,6 +433,9 @@ def _driver_process(manager: Any) -> Any:
 
 
 class LiveSession:
+    #: False here: the separate view. True in the session that works in the person's window.
+    in_window = False
+
     def __init__(self, chat: str, *, fixture_origin: str = "", lease_seconds: float = 120) -> None:
         from core.private_chat import is_private
 
@@ -430,9 +479,7 @@ class LiveSession:
         # The current address came from submitting a GET form: its query holds the
         # form's fields (hidden ones and the owner's entries), which a model never reads.
         self._url_from_form = False
-        self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=contextvars.Context().run, args=(self._run,), daemon=True, name="live-browser")
-        self._thread.start()
+        self._loop, self._thread = self._start_loop()
         self._context = None
         self._driver = None
         self._driver_manager = None
@@ -463,6 +510,22 @@ class LiveSession:
         # Requests the page itself made outside an approved load, refused before any network.
         self.page_request_refusals = 0
         self._loop.call_soon_threadsafe(self._check_owner_lease)
+
+    def _start_loop(self):
+        """The event loop this session's engine work runs on, and the thread that owns it."""
+        loop = asyncio.new_event_loop()
+        self._loop = loop
+        thread = threading.Thread(target=contextvars.Context().run, args=(self._run,), daemon=True, name="live-browser")
+        thread.start()
+        return loop, thread
+
+    def _end_loop(self) -> None:
+        if not self._loop_stop_requested:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._loop_stop_requested = True
+        self._thread.join(timeout=2)
+        if self._thread.is_alive():
+            raise BrowserFault("cleanup_failed")
 
     def owner_heartbeat(self) -> None:
         """Only the owner HTTP state door renews presence, never model reads."""
@@ -1284,12 +1347,7 @@ class LiveSession:
                     self._closing_future = future
                 future.result(timeout=12)
                 self._engine_closed = True
-            if not self._loop_stop_requested:
-                self._loop.call_soon_threadsafe(self._loop.stop)
-                self._loop_stop_requested = True
-            self._thread.join(timeout=2)
-            if self._thread.is_alive():
-                raise BrowserFault("cleanup_failed")
+            self._end_loop()
             # Closed transport proxies retain URLs and request metadata. Do not
             # keep them in a completed private session or across a purge retry.
             self._page = self._context = self._driver = None
@@ -1539,7 +1597,7 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
         observed = {"ok": True, "status": "executed", "result": result,
                     "receipt": result.get("receipt"), **page,
                     "nodes": {"content_class": "untrusted_page_evidence", "authority": "none", "items": item.model_nodes()}}
-        if arguments.get("mode") in {"scroll_up", "scroll_down"}:
+        if arguments.get("mode") in {"scroll_up", "scroll_down"} and not getattr(item, "in_window", False):
             # The page text and element list already span the whole page (scripts are
             # off, nothing loads on scroll), so a scroll would show a reader nothing new.
             # Moving the view is the owner's, in the pane; it needs no approval round.
