@@ -163,6 +163,51 @@ def test_an_address_that_is_not_a_web_page_is_refused(typed):
 # -- the real window -------------------------------------------------------------
 
 
+def test_the_persons_tabs_carry_no_engine_start_up_notice_on_either_way_out(browser, site, monkeypatch):
+    """The engine shows a start-up warning bar that names VOOL's own launch options.
+
+    A bar takes room from the page, so it shows as a shorter page area. The person's tab
+    must be exactly as tall as a tab made later, which never carries start-up notices.
+    """
+    from core import private_web
+
+    base, hits = site
+
+    async def page_areas():
+        context = browser.context_for_agent()
+        opened = [p for p in context.pages if not p.is_closed()]
+        later = await context.new_page()
+        heights = [await p.evaluate("window.innerHeight") for p in opened]
+        expected = await later.evaluate("window.innerHeight")
+        await later.close()
+        return heights, expected
+
+    browser.open(base + "/first")
+    heights, expected = browser._call(page_areas())
+    assert heights and all(height == expected for height in heights), (heights, expected)
+    browser.stop()
+
+    # Private web adds the option that keeps name lookups on the route: same result.
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=9))
+    monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
+    assert any(flag.startswith("--host-resolver-rules") for flag in desk_module.launch_flags(private=False))
+    browser.open("")
+    heights, expected = browser._call(page_areas())
+    assert heights and all(height == expected for height in heights), (heights, expected)
+
+
+def test_an_address_the_person_opens_never_lands_in_the_tab_vool_is_working_in(browser, site):
+    base, hits = site
+    browser.open(base + "/mine")
+    vools = browser._call(browser.tab_for_agent())
+    assert vools.url == "about:blank"
+    browser.open(base + "/second")
+    assert _wait(lambda: any(path == "/second" for path, _ in hits))
+    assert vools.url == "about:blank"
+    context = browser.context_for_agent()
+    assert sorted(p.url.rsplit("/", 1)[-1] for p in context.pages if p is not vools) == ["mine", "second"]
+
+
 def test_the_window_runs_page_scripts_and_remembers_the_person_after_a_restart(browser, site):
     base, hits = site
     assert browser.open(base + "/first")["open"] is True

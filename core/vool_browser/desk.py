@@ -229,6 +229,8 @@ class _Window:
         self.closed = asyncio.Event()
         # The way out this engine was started with. It cannot change while it runs.
         self.route: list[str] = []
+        # Tabs VOOL is working in. An address the person opens never lands in one.
+        self.reserved: set[Any] = set()
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -271,6 +273,16 @@ class _Window:
             session = await self.context.new_cdp_session(pages[0])
             await session.send("Browser.setDownloadBehavior", {"behavior": "default"})
             await session.detach()
+            # The engine pins its start-up notices to the tab it starts with. One of them
+            # warns about launch options, and names the very ones that keep name lookups
+            # on the Private web route and the engine's sign-in service away. It also
+            # starts that tab on a load of its own, which can cut off the first address
+            # opened in it. So the person's tabs are fresh ones, and the start-up tab is
+            # closed as soon as one exists.
+            await self.context.new_page()
+            for page in pages:
+                if not page.is_closed():
+                    await page.close()
         except Exception:
             await self.stop()
             raise DeskFault("engine_failed") from None
@@ -294,14 +306,24 @@ class _Window:
         return self.context is not None and not self.closed.is_set()
 
     async def open(self, url: str) -> None:
-        pages = [p for p in self.context.pages if not p.is_closed()]
+        # An empty tab of the person's is reused; a tab VOOL is working in never is.
+        pages = [p for p in self.context.pages if not p.is_closed() and p not in self.reserved]
         blank = next((p for p in pages if p.url == "about:blank"), None)
         page = blank or await self.context.new_page()
-        if url:
-            # The address is the person's own; a page that fails to load shows the
-            # engine's own error page, which is what a browser does.
-            with contextlib.suppress(Exception):
+        for _ in range(3 if url else 0):
+            try:
                 await page.goto(url, wait_until="commit")
+                break
+            except Exception:
+                # The address is the person's own; a page that fails to load shows the
+                # engine's own error page, which is what a browser does. A tab that
+                # never left its empty start was cut off before it began: go again.
+                if page.is_closed():
+                    page = await self.context.new_page()
+                elif page.url != "about:blank":
+                    break
+                else:
+                    await asyncio.sleep(0.3)
         with contextlib.suppress(Exception):
             await page.bring_to_front()
 
@@ -395,7 +417,10 @@ class Desk:
             await self._reap()
             await self._close_off_route()
             window = await self._ensure_main()
-            return await window.context.new_page()
+            page = await window.context.new_page()
+            window.reserved.add(page)
+            page.on("close", lambda closed: window.reserved.discard(closed))
+            return page
 
         return await self._locked(make())
 
