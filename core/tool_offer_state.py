@@ -243,7 +243,23 @@ def followup_inherited_families(
     """
     if not contextually_followup_text(text):
         return ()
+    if _judged_no_tool(text):
+        # The turn's judge read this message, with the previous one beside it, and found no tool asked for: a short
+        # message is not a follow-up for being short. Mac gate on f3771b6b7: "kiek valandų turi para?" ("how many
+        # hours has a day?"), four words after a calendar turn, inherited the calendar tools, and the model raised a
+        # "check when you are free" card for it.
+        return ()
     return last_offered_families(_session_id(source_context))
+
+
+def _judged_no_tool(text: str) -> bool:
+    """Whether the turn's judge read ``text`` and picked none of the tools. Never raises; False when nothing judged."""
+    try:
+        from core.plugin_ask import judged_at_all, judged_builtins, judged_plugins
+
+        return judged_at_all(text) and not judged_builtins(text) and not judged_plugins(text)
+    except Exception:
+        return False
 
 
 def reset_offer_state() -> None:

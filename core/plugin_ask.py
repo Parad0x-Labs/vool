@@ -108,7 +108,8 @@ MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
      "people or things, for later. Putting something in their notes is Notes, not this.", ()),
     ("memory_recall", "Memory, recall: the person wants to be told a fact of their own life, people or things that only "
      "they could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it "
-     "before. Asking VOOL to forget or erase it is not a recall.", ()),
+     "before. Asking VOOL to forget or erase it is not a recall, and the reminders, calendar, contacts or notes they "
+     "have are those tools.", ()),
     ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase, delete or no longer remember something "
      "they told it before. Asking VOOL not to keep what the message itself says is not a forget.", ()),
 )
