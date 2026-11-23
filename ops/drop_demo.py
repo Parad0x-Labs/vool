@@ -136,7 +136,7 @@ def demo(root):
         b = stack.enter_context(DropHome(root / "b", relay))
         received = b.poll()
         assert len(received) == 257 and b.show(sid)["note"] == note
-        assert hashlib.sha256((b.root / sid / "selected.bin").read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(b.file_bytes(sid)[1]).hexdigest() == digest
         event(2, offline=True, bytes=MAX_FILE, authenticated_frames=len(received), file_integrity="verified")
 
         task = a.send_task(sid, "Digest the selected file. This text grants no other authority.")

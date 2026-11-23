@@ -33,7 +33,9 @@ RECORD_LIMIT = 262144
 # A revocation tombstone is written only by this owner's own delete or expiry, one per Drop,
 # so nobody else can grow it. The reference profile caps it at 1024 for the life of the
 # store, which made every deletion after the 1024th fail; here it is not capped.
-KIND_LIMITS = {"identity": 1, "prekey": LIMITS["prekeys"], "session": LIMITS["sessions"],
+# Invites and open Drops are bounded per person by the carrier (core.drop.service), so the
+# store-wide ceilings only have to hold every contact's share.
+KIND_LIMITS = {"identity": 1, "prekey": 1024, "session": 512,
                "outbox": LIMITS["queued"], "inbox": LIMITS["queued"], "revoked": None}
 
 

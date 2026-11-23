@@ -33,6 +33,9 @@ ASKS = {
     "notes": ("Užsirašyk: spintos raktas po kilimėliu {n}", "Finde meine Notiz über das Rezept"),
     "phone": ("Nusiųsk sąskaitą {n} į mano telefoną", "Schick die PDF-Rechnung {n} auf mein Handy",
               "shoot invoice {n} over to my phone"),
+    # Drop audit 2026-11-23: a file for another person's VOOL, or the owner's other computer, in any wording.
+    "drop": ("Nusiųsk sutartį {n} Jonui per Drop", "Schick Anna die Datei bericht{n}.pdf auf ihren Rechner",
+             "Pásale el archivo fotos{n}.zip a Marta por Drop", "get plans{n}.pdf over to Ben's VOOL"),
     # Tooling audit items 5 and 7: a saved household thing, and the open folder's changes since the last commit.
     "things": ("Kada baigiasi mano skalbimo mašinos garantija?", "Welche Seriennummer hat mein Geschirrspüler?",
                "where did I put the manual for the boiler, it's in my things"),

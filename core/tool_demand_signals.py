@@ -2405,6 +2405,9 @@ def owner_file_intents(text: str) -> tuple[str, ...]:
     seats, so "which apps are installed" had no inspect_specs.
     """
     cleaned = " ".join(str(text or "").split())
+    if "machine.send_with_drop" in _judged_builtin_seats(cleaned):
+        # The turn's judge read a Drop ask (any language): the file is found, then sent to the person.
+        return ("machine.find_file", "machine.send_with_drop", "machine.list_directory")
     if re.search(r"\b(?:phone|iphone|android|mobile)\b", cleaned, re.I):
         return ("machine.find_file", "machine.send_to_phone", "machine.list_directory")
     if re.search(r"\b(?:free\s+up|space|big(?:gest)?|large(?:st)?|huge|heavy|taking\s+up)\b", cleaned, re.I):
@@ -2686,6 +2689,10 @@ def resolve_demand_signals(text: str) -> DemandSignals:
             if intent.startswith("contacts."):
                 _note(intent, "contacts")
             elif intent == "machine.send_to_phone":
+                _note(intent, "filesystem")
+            elif intent == "machine.send_with_drop":
+                # A file for another person's VOOL: the file has to be found before it can be sent.
+                _note("machine.find_file", "filesystem")
                 _note(intent, "filesystem")
             elif intent.startswith("things."):
                 _note(intent, "my_things")

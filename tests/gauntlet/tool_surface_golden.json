@@ -1,5 +1,5 @@
 {
-  "intent_count": 162,
+  "intent_count": 163,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -34,6 +34,7 @@
     "machine.move_path",
     "machine.read_file",
     "machine.send_to_phone",
+    "machine.send_with_drop",
     "machine.write_file",
     "market.analyze",
     "market.collect",
@@ -164,7 +165,7 @@
     "x.feedback.list",
     "x.feedback.save"
   ],
-  "native_definition_count": 162,
+  "native_definition_count": 163,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -3675,6 +3676,109 @@
       },
       "read_only": false
     },
+    "machine.send_with_drop": {
+      "arguments": [
+        "note",
+        "path",
+        "to"
+      ],
+      "description": "Send one file from this computer (Desktop, Downloads, Documents and the other safe folders), with an optional short note, to a person in the owner's Drop list: another person's VOOL, or another of the owner's own computers. Use it when the user asks to send, share, hand over or drop a file to a person or to their other computer with Drop. Find the file first with machine.find_file. Never say it was sent unless this tool answered that it was.",
+      "native_name": "machine__send_with_drop",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "description": "string",
+            "type": "string"
+          },
+          "to": {
+            "description": "string, the person's name as the user said it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "to",
+          "note"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
     "machine.write_file": {
       "arguments": [
         "content",
@@ -6148,6 +6252,7 @@
     },
     "operator.move_reminder": {
       "arguments": [
+        "day",
         "due_iso",
         "note",
         "reminder_id",
@@ -6158,6 +6263,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "day": {
+            "description": "string optional (when the person names a day of the week, in any language: that day in English, monday to sunday; VOOL works out its date)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "due_iso": {
             "description": "string (the new time: ISO 8601 local date and time, for example 2026-11-23T15:00)",
             "type": "string"
@@ -6188,6 +6300,7 @@
           "reminder_id",
           "note",
           "due_iso",
+          "day",
           "text"
         ],
         "type": "object"
@@ -6341,19 +6454,37 @@
     },
     "operator.save_note": {
       "arguments": [
-        "text"
+        "content",
+        "text",
+        "title"
       ],
       "description": "Save a note as a real file in the active workspace's notes directory, optionally linked to a provider event receipt.",
       "native_name": "operator__save_note",
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
-          "text": {
-            "description": "string (the request as written)",
+          "content": {
+            "description": "string (what the note says, in the person's own words and language, without the words that ask to save it)",
             "type": "string"
+          },
+          "text": {
+            "description": "string optional (the request as written)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "description": "string optional (a short name for the note, when the person gave one)",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
+          "content",
+          "title",
           "text"
         ],
         "type": "object"
@@ -6424,6 +6555,7 @@
     },
     "operator.schedule_calendar_event": {
       "arguments": [
+        "day",
         "duration_minutes",
         "start_iso",
         "title"
@@ -6433,6 +6565,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "day": {
+            "description": "string optional (when the person names a day of the week, in any language: that day in English, monday to sunday; VOOL works out its date)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "duration_minutes": {
             "description": "integer optional",
             "type": [
@@ -6452,6 +6591,7 @@
         "required": [
           "title",
           "start_iso",
+          "day",
           "duration_minutes"
         ],
         "type": "object"
@@ -6522,8 +6662,10 @@
     },
     "operator.schedule_reminder": {
       "arguments": [
+        "day",
         "due_iso",
         "note",
+        "repeat",
         "text"
       ],
       "description": "Set a reminder: VOOL itself tells the person in this chat at the due time. Not a calendar event. Give the note and the due time; the due time goes through the same when-reading as the chat lane, and a due time in the past is refused.",
@@ -6531,6 +6673,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "day": {
+            "description": "string optional (when the person names a day of the week, in any language: that day in English, monday to sunday; VOOL works out its date)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "due_iso": {
             "description": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
             "type": "string"
@@ -6538,6 +6687,13 @@
           "note": {
             "description": "string (what to remind the person of, in their own words and language)",
             "type": "string"
+          },
+          "repeat": {
+            "description": "string optional (daily, weekdays or weekly when the person asks for a reminder that comes back, in any language: every day, every workday Monday to Friday, every week; leave it out for once)",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "text": {
             "description": "string optional (the request as written)",
@@ -6550,6 +6706,8 @@
         "required": [
           "note",
           "due_iso",
+          "day",
+          "repeat",
           "text"
         ],
         "type": "object"

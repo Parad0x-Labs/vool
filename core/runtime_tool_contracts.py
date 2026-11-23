@@ -555,6 +555,34 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             claim=ToolClaim(target_argument="path", resolved_target_key="path", asserts_action=True),
         ),
         RuntimeToolContract(
+            intent="machine.send_with_drop",
+            description=(
+                "Send one file from this computer (Desktop, Downloads, Documents and the other safe folders), with "
+                "an optional short note, to a person in the owner's Drop list: another person's VOOL, or another of "
+                "the owner's own computers. Use it when the user asks to send, share, hand over or drop a file to a "
+                "person or to their other computer with Drop. Find the file first with machine.find_file. Never say "
+                "it was sent unless this tool answered that it was."
+            ),
+            tool_surface="machine",
+            capability_id="filesystem.read",
+            capability_claim="send a file from a safe local folder to a person in the owner's Drop list",
+            supported=read_enabled,
+            unsupported_reason="Safe local file reads are disabled on this runtime.",
+            input_schema={"path": "string", "to": "string, the person's name as the user said it",
+                          "note": "string optional"},
+            output_schema={"name": "string", "size_bytes": "integer", "sha256": "string", "person": "string"},
+            # The file leaves this computer for another person, sealed, through the owner's shared
+            # folder. That is a message to someone: every mode asks the owner first.
+            side_effect_class="network_send",
+            permission_actions=("read_files", "external_messages"),
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            claim=ToolClaim(target_argument="path", resolved_target_key="path", asserts_action=True),
+        ),
+        RuntimeToolContract(
             intent="machine.ensure_directory",
             description="Create a directory inside a safe local directory such as Desktop, Downloads, or Documents.",
             tool_surface="machine",

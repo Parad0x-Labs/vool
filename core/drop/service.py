@@ -7,7 +7,10 @@ carrier that names the Drop. One packet (note plus one selected file up to
 10 MiB) and one selected-file digest task per Drop.
 
 The relay is any folder both people can reach (a shared or synced folder). It
-only ever holds ciphertext addressed by public fingerprints.
+only ever holds ciphertext addressed by public fingerprints, so it does not have to
+be private: a folder a sync service made (mode 755) is as good as a 700 one. What
+Drop keeps on this computer (note, file name, file, task) is sealed with a key
+derived from the vault key, which lives in the system keychain where there is one.
 """
 
 from __future__ import annotations
@@ -25,13 +28,26 @@ import threading
 import time
 from pathlib import Path
 
-from core.drop import DropError, require_enabled
+from core.drop import DropError, people, require_enabled
 from core.drop.client import DropClient
 from core.drop.session import b64, unb64
 
 MAX_FILE = 10 * 1024 * 1024
 CHUNK = 40 * 1024
 TTL = 7 * 86400 * 1000
+MAX_CHUNKS = MAX_FILE // CHUNK
+# Frames of one Drop that arrived too far ahead of the ones before them. A whole file is
+# at most MAX_CHUNKS + a few frames, so this holds any order a synced folder really makes.
+AHEAD_LIMIT = MAX_CHUNKS + 64
+# Records one person may keep waiting in the shared encrypted inbox, over all their Drops.
+DEFER_PER_PEER = 64
+# Live Drops one person may have open here at once.
+DROPS_PER_PEER = 32
+# One-use invites kept published for each contact, and when one is renewed.
+CONTACT_SLOTS = 3
+SLOT_RENEW = 4 * 86400 * 1000
+_SEALED = "enc1:"
+_SEALED_COLUMNS = ("note", "manifest", "task", "result")
 _HOME_LOCK = threading.RLock()
 _ID = re.compile(r"^[A-Za-z0-9_-]{22}$")
 
@@ -56,6 +72,45 @@ def _private_directory(path: Path, *, create=False):
         raise DropError("MISSING_RELAY") from exc
     if not stat.S_ISDIR(mode.st_mode) or mode.st_mode & 0o077 or mode.st_uid != os.getuid():
         raise DropError("DIRECTORY_PERMISSIONS")
+
+
+def _relay_directory(path: Path, *, create=False):
+    """A folder inside the shared relay. The relay is an untrusted carrier that a sync
+    service may have created, so its mode is not a boundary and is not demanded. What is
+    demanded: a real directory (never a link someone left there) that belongs to this user."""
+    if create:
+        with contextlib.suppress(FileExistsError):
+            path.mkdir(mode=0o700)
+    try:
+        mode = path.lstat()
+    except OSError as exc:
+        raise DropError("MISSING_RELAY") from exc
+    if not stat.S_ISDIR(mode.st_mode):
+        raise DropError("RELAY_NOT_FOLDER")
+    if mode.st_uid != os.getuid():
+        raise DropError("RELAY_NOT_YOURS")
+
+
+def check_relay(path) -> Path:
+    """The shared folder the owner chose, resolved once. It must already exist: a typed
+    path that is not there is a typing mistake, never a folder to create."""
+    try:
+        root = Path(path).expanduser()
+        if not root.is_absolute():
+            raise DropError("RELAY_REQUIRED")
+        root = root.resolve()
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise DropError("MISSING_RELAY") from exc
+    _relay_directory(root)
+    if not os.access(root, os.R_OK | os.W_OK | os.X_OK):
+        raise DropError("RELAY_READ_ONLY")
+    return root
+
+
+def _slot_name(owner, peer, slot) -> str:
+    """Where ``owner`` keeps invite number ``slot`` for ``peer`` in the shared folder. Both
+    sides can work it out from the two fingerprints; knowing it grants nothing."""
+    return hashlib.sha256(f"vool-drop-slot-v1|{owner}|{peer}|{slot}".encode()).hexdigest()[:32]
 
 
 def _write(path, data):
@@ -104,9 +159,13 @@ class LocalRelay:
     def __init__(self, root, *, create=False):
         require_enabled()
         self.root = Path(root).absolute()
-        _private_directory(self.root, create=create)
         if create:
-            _private_directory(self.root / "invites", create=True)
+            # The Settings controller checks the folder exists (check_relay) before it gets
+            # here, so only the command-line laboratory ever makes the folder itself.
+            self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        _relay_directory(self.root)
+        if create:
+            _relay_directory(self.root / "invites", create=True)
 
     def put(self, peer, request, wire):
         # Fingerprints are public routing metadata, never an authorization grant.
@@ -115,20 +174,20 @@ class LocalRelay:
         _id(request)
         if len(wire) > 110000:
             raise DropError("INPUT_LIMIT")
-        _private_directory(self.root)
+        _relay_directory(self.root)
         mailbox = self.root / peer
-        _private_directory(mailbox, create=True)
+        _relay_directory(mailbox, create=True)
         digest = hashlib.sha256(wire).hexdigest()
         path = mailbox / (f"{time.time_ns():020d}-{request}-{digest}.wire")
         _write(path, wire)
         return path
 
     def messages(self, peer):
-        _private_directory(self.root)
+        _relay_directory(self.root)
         mailbox = self.root / peer
-        if not mailbox.exists():
+        if not os.path.lexists(mailbox):
             return []
-        _private_directory(mailbox)
+        _relay_directory(mailbox)
         # Oldest first and bounded: a flooded mailbox delays later frames but
         # never stops this home from reading the ones it can process. Only regular
         # files count: a directory or link someone left can never be consumed, so it
@@ -152,7 +211,7 @@ _REJECTED = frozenset({
     "SESSION_EXHAUSTED", "CHAIN_EXHAUSTED", "INPUT_LIMIT", "INVALID_ID", "UNKNOWN_DROP", "DROP_REVOKED",
     "UNKNOWN_INVITE", "INVALID_MANIFEST", "CHUNK_INDEX", "CHUNK_SIZE", "CHUNK_CONFLICT",
     "INVALID_TASK", "TASK_CONFLICT", "INVALID_RESULT", "UNSUPPORTED_PAYLOAD",
-    "ADMISSION_CONFLICT", "FILE_INTEGRITY", "INVALID_BASE64",
+    "ADMISSION_CONFLICT", "FILE_INTEGRITY", "INVALID_BASE64", "PEER_QUOTA", "INVALID_RECEIPT",
 })
 
 
@@ -199,6 +258,108 @@ def _vault_key(path: Path) -> bytes:
     if info.st_size != 32:
         raise DropError("VAULT_KEY_SIZE")
     return path.read_bytes()
+
+
+_KEY_CACHE: dict[str, bytes] = {}
+
+
+def _keychain_name(home: Path) -> str:
+    # One key per VOOL profile: two profiles on one computer never share or overwrite it.
+    return "vool_drop_vault_key_" + hashlib.sha256(str(home.resolve()).encode()).hexdigest()[:16]
+
+
+def _protected_vault_key(home: Path, path: Path) -> bytes:
+    """The vault key of the running profile, kept in VOOL's credential store (the system
+    keychain where there is one) instead of in a file beside the data it protects.
+
+    A key file left by an earlier version is moved there and removed only after the stored
+    copy was read back. A store that has data but whose key cannot be read is never given a
+    new key: that would only turn "cannot read right now" into "lost for good"."""
+    from core import credential_store
+
+    name = _keychain_name(home)
+    cached = _KEY_CACHE.get(name)
+    if cached is not None and not path.exists():
+        return cached
+    try:
+        with credential_store.strict_reads():
+            stored = credential_store.get_credential(name)
+    except Exception as exc:
+        raise DropError("VAULT_KEY_UNAVAILABLE") from exc
+    if stored:
+        key = unb64(stored, 32)
+        if path.exists():
+            if _vault_key(path) != key:
+                raise DropError("VAULT_KEY_CONFLICT")
+            _scrub(path)
+    else:
+        if path.exists():
+            key = _vault_key(path)
+        elif (path.parent / "sessions" / "drop.sqlite").exists():
+            raise DropError("VAULT_KEY_UNAVAILABLE")
+        else:
+            key = secrets.token_bytes(32)
+        try:
+            credential_store.store_credential(name, b64(key), label="VOOL Drop")
+            with credential_store.strict_reads():
+                back = credential_store.get_credential(name)
+        except Exception as exc:
+            raise DropError("VAULT_KEY_UNAVAILABLE") from exc
+        if back != b64(key):
+            raise DropError("VAULT_KEY_UNAVAILABLE")
+        if path.exists():
+            _scrub(path)
+    _KEY_CACHE[name] = key
+    return key
+
+
+def _scrub(path: Path):
+    with contextlib.suppress(OSError):
+        with open(path, "r+b") as out:
+            out.write(b"\0" * 32)
+            out.flush()
+            os.fsync(out.fileno())
+    path.unlink(missing_ok=True)
+
+
+class _Sealer:
+    """AES-256-GCM for what Drop keeps on this computer. The key is derived from the vault
+    key, so it is never the key that seals the session store itself."""
+
+    def __init__(self, vault_key: bytes):
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        self._aes = AESGCM(HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                                info=b"vool-drop-content-v1").derive(bytes(vault_key)))
+
+    def seal(self, aad: str, data: bytes) -> bytes:
+        nonce = secrets.token_bytes(12)
+        return nonce + self._aes.encrypt(nonce, data, aad.encode())
+
+    def open(self, aad: str, blob: bytes) -> bytes:
+        from cryptography.exceptions import InvalidTag
+
+        try:
+            return self._aes.decrypt(blob[:12], blob[12:], aad.encode())
+        except (InvalidTag, ValueError) as exc:
+            raise DropError("LOCAL_COPY_DAMAGED") from exc
+
+    def text(self, aad: str, value: str) -> str:
+        return _SEALED + b64(self.seal(aad, value.encode())) if value else ""
+
+    def plain(self, aad: str, value: str) -> str:
+        if not value.startswith(_SEALED):
+            return value  # written before sealing existed
+        import base64
+
+        raw = value[len(_SEALED):]
+        try:
+            blob = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
+        except ValueError as exc:
+            raise DropError("LOCAL_COPY_DAMAGED") from exc
+        return self.open(aad, blob).decode()
 
 
 def discard_local_invite_tokens(home, tokens):
@@ -263,8 +424,15 @@ class DropHome:
         self.allowed = frozenset(allowed)
         crypto = self.root / "crypto"
         _private_directory(crypto, create=True)
-        key = _vault_key(crypto / "vault.key")
-        self.client = DropClient(crypto / "sessions", key)
+        # The running profile keeps its key in the credential store. A home named by a test
+        # or the command-line laboratory has no credential store of its own and keeps a file.
+        # One opener at a time: the background check and a Settings request may both be the
+        # first to open a fresh profile, and only one of them may make its key and identity.
+        with _HOME_LOCK:
+            key = (_protected_vault_key(self.home, crypto / "vault.key") if self._own_home
+                   else _vault_key(crypto / "vault.key"))
+            self._sealer = _Sealer(key)
+            self.client = DropClient(crypto / "sessions", key)
         self.fingerprint = self.client.fingerprint
         self.db = sqlite3.connect(self.root / "drops.db", timeout=15)
         self.db.row_factory = sqlite3.Row
@@ -286,7 +454,23 @@ class DropHome:
                 token TEXT PRIMARY KEY, prekey TEXT NOT NULL UNIQUE, peer TEXT NOT NULL,
                 expires INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS memory_erased (sid TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS contacts (
+                peer TEXT PRIMARY KEY, name TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 0,
+                added INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS contact_slots (
+                peer TEXT NOT NULL, slot INTEGER NOT NULL, token TEXT NOT NULL, bundle BLOB NOT NULL,
+                PRIMARY KEY(peer,slot));
+            CREATE TABLE IF NOT EXISTS used_bundles (id TEXT PRIMARY KEY, expires INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS profile (name TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
+        have = {row[1] for row in self.db.execute("PRAGMA table_info(drops)")}
+        for column, kind in (("sent", "INTEGER NOT NULL DEFAULT 0"), ("created", "INTEGER NOT NULL DEFAULT 0"),
+                             ("delivered", "INTEGER NOT NULL DEFAULT 0"),
+                             ("receipt_due", "INTEGER NOT NULL DEFAULT 0"), ("saved", "TEXT NOT NULL DEFAULT ''")):
+            if column not in have:
+                # Another opener of this profile may have added it a moment ago.
+                with contextlib.suppress(sqlite3.OperationalError):
+                    self.db.execute(f"ALTER TABLE drops ADD COLUMN {column} {kind}")
         self.db.commit()
         os.chmod(self.root / "drops.db", 0o600)
         self.lock = (self.root / "actor.lock").open("a+")
@@ -365,7 +549,18 @@ class DropHome:
         row = self.db.execute("SELECT * FROM drops WHERE sid=?", (sid,)).fetchone()
         if row is None:
             raise DropError("UNKNOWN_DROP")
-        return dict(row)
+        row = dict(row)
+        for column in _SEALED_COLUMNS:
+            row[column] = self._sealer.plain(f"{sid}|{column}", row[column])
+        return row
+
+    def _update(self, sid, **values):
+        """Write columns of one Drop; the ones that hold content are sealed first."""
+        for column in values:
+            if column in _SEALED_COLUMNS:
+                values[column] = self._sealer.text(f"{sid}|{column}", values[column])
+        self.db.execute("UPDATE drops SET " + ",".join(f"{c}=?" for c in values) + " WHERE sid=?",
+                        (*values.values(), sid))
 
     def _live(self, sid):
         from core.memory.revocation import authorize_payload
@@ -389,13 +584,255 @@ class DropHome:
         unb64(peer, 32)
         with self.scope():
             self._expire_invites()
-            token = secrets.token_hex(16)
-            raw = self.client.issue_invite(now=self.clock(), ttl=TTL)
-            body = _json(raw)["body"]
-            self.db.execute("INSERT INTO invites VALUES(?,?,?,?)", (token, body["id"], peer, body["expires"]))
-            self.db.commit()
+            token, raw = self._issue_invite(peer)
+            _relay_directory(self.relay.root / "invites", create=True)
             _write(self.relay.root / "invites" / (token + ".invite"), raw)
             return "vool-drop://invite/" + token
+
+    def _issue_invite(self, peer):
+        token = secrets.token_hex(16)
+        raw = self.client.issue_invite(now=self.clock(), ttl=TTL)
+        body = _json(raw)["body"]
+        self.db.execute("INSERT INTO invites VALUES(?,?,?,?)", (token, body["id"], peer, body["expires"]))
+        self.db.commit()
+        return token, raw
+
+    # ---- people -------------------------------------------------------------------
+
+    def _contact_name(self, row) -> str:
+        return self._sealer.plain(f"contact|{row['peer']}", row["name"])
+
+    def _person(self, peer) -> dict:
+        row = self.db.execute("SELECT * FROM contacts WHERE peer=?", (peer,)).fetchone()
+        return {"fingerprint": peer, "name": self._contact_name(row) if row else "", "tag": people.tag(peer),
+                "verified": bool(row and row["verified"]), "known": row is not None}
+
+    def me(self) -> dict:
+        with self.scope():
+            row = self.db.execute("SELECT value FROM profile WHERE name='name'").fetchone()
+            name = self._sealer.plain("profile|name", row["value"]) if row else ""
+            return {"fingerprint": self.fingerprint, "name": name, "tag": people.tag(self.fingerprint),
+                    "safety_number": people.safety_number(self.fingerprint),
+                    "card": people.make_card(self.fingerprint, name)}
+
+    def set_name(self, name) -> dict:
+        """The name this VOOL suggests on its card. The other person may call you anything."""
+        name = people.clean_name(name)
+        with self.scope():
+            self.db.execute("INSERT OR REPLACE INTO profile VALUES('name',?)",
+                            (self._sealer.text("profile|name", name),))
+            self.db.commit()
+        return self.me()
+
+    def card_preview(self, card) -> dict:
+        """What a card says, before anything is saved."""
+        peer, suggested = people.read_card(card)
+        if peer == self.fingerprint:
+            raise DropError("SELF_CARD")
+        with self.scope():
+            known = self._person(peer)
+        return {"fingerprint": peer, "suggested": suggested, "tag": people.tag(peer),
+                "safety_number": people.safety_number(peer), "known_as": known["name"]}
+
+    def _name_free(self, name, peer):
+        """One name, one key. The same or a look-alike name on another key is refused, and so
+        is another key that was made to show the same word tag."""
+        for row in self.db.execute("SELECT * FROM contacts WHERE peer<>?", (peer,)).fetchall():
+            relation = people.name_relation(name, self._contact_name(row))
+            if relation == "same":
+                raise DropError("NAME_TAKEN")
+            if relation == "lookalike":
+                raise DropError("NAME_LOOKALIKE")
+            if people.tag(row["peer"]) == people.tag(peer):
+                raise DropError("TAG_COLLISION")
+
+    def contact_add(self, card, name="", *, verified=False) -> dict:
+        peer, suggested = people.read_card(card)
+        if peer == self.fingerprint:
+            raise DropError("SELF_CARD")
+        name = people.clean_name(name or suggested)
+        if type(verified) is not bool:
+            raise DropError("INVALID_INPUT")
+        with self.scope():
+            if self.db.execute("SELECT 1 FROM contacts WHERE peer=?", (peer,)).fetchone():
+                raise DropError("CONTACT_EXISTS")
+            if self.db.execute("SELECT count(*) FROM contacts").fetchone()[0] >= 256:
+                raise DropError("CONTACT_LIMIT")
+            self._name_free(name, peer)
+            self.db.execute("INSERT INTO contacts VALUES(?,?,?,?)",
+                            (peer, self._sealer.text(f"contact|{peer}", name), int(verified), self.clock()))
+            self.db.commit()
+            self._publish_contact_invites()
+            return self._person(peer)
+
+    def _contact(self, peer):
+        people.check_fingerprint(peer)
+        row = self.db.execute("SELECT * FROM contacts WHERE peer=?", (peer,)).fetchone()
+        if row is None:
+            raise DropError("UNKNOWN_CONTACT")
+        return row
+
+    def contact_rename(self, peer, name) -> dict:
+        name = people.clean_name(name)
+        with self.scope():
+            self._contact(peer)
+            self._name_free(name, peer)
+            self.db.execute("UPDATE contacts SET name=? WHERE peer=?",
+                            (self._sealer.text(f"contact|{peer}", name), peer))
+            self.db.commit()
+            return self._person(peer)
+
+    def contact_verify(self, peer, verified) -> dict:
+        """The owner says they compared the safety number with this person directly."""
+        if type(verified) is not bool:
+            raise DropError("INVALID_INPUT")
+        with self.scope():
+            self._contact(peer)
+            self.db.execute("UPDATE contacts SET verified=? WHERE peer=?", (int(verified), peer))
+            self.db.commit()
+            return self._person(peer)
+
+    def contact_remove(self, peer):
+        """Remove (block) a person: their Drops here are deleted, every invite made for them
+        stops working, and nothing from that key is accepted again until they are re-added."""
+        with self.scope():
+            self._contact(peer)
+            self._discard_invites("peer=?", (peer,))
+            for slot in range(CONTACT_SLOTS):
+                (self.relay.root / "invites" / (_slot_name(self.fingerprint, peer, slot) + ".invite")).unlink(
+                    missing_ok=True)
+            self.db.execute("DELETE FROM contact_slots WHERE peer=?", (peer,))
+            self.db.execute("DELETE FROM admissions WHERE peer=?", (peer,))
+            self.db.execute("DELETE FROM contacts WHERE peer=?", (peer,))
+            self.db.commit()
+            unfinished = False
+            for row in self.db.execute(
+                    "SELECT sid FROM drops WHERE peer=? AND status NOT IN ('deleted','expired')", (peer,)).fetchall():
+                try:
+                    self._forget(row["sid"], "deleted")
+                except DropError as exc:
+                    if exc.code != "DROP_FORGET_INCOMPLETE":
+                        raise
+                    unfinished = True
+            if unfinished:
+                raise DropError("DROP_FORGET_INCOMPLETE")
+
+    def contacts(self) -> list[dict]:
+        with self.scope():
+            out = []
+            for row in self.db.execute("SELECT peer FROM contacts ORDER BY added,peer").fetchall():
+                person = self._person(row["peer"])
+                person["safety_number"] = people.safety_number(row["peer"])
+                person["ready"] = any(
+                    (self.relay.root / "invites" / (_slot_name(row["peer"], self.fingerprint, slot) + ".invite")).exists()
+                    for slot in range(CONTACT_SLOTS))
+                out.append(person)
+            return sorted(out, key=lambda person: person["name"].casefold())
+
+    def _open_drops(self, peer) -> int:
+        return self.db.execute(
+            "SELECT count(*) FROM drops WHERE peer=? AND status NOT IN ('deleted','expired')", (peer,)).fetchone()[0]
+
+    def _publish_contact_invites(self):
+        """Keep a few one-use invites in the shared folder for each contact, so they can
+        start a Drop without asking first. Each is signed by this VOOL and only this
+        contact's key can use it. A used or ageing one is replaced; a file that went
+        missing is put back as it was."""
+        now = self.clock()
+        self._expire_invites()
+        folder = self.relay.root / "invites"
+        _relay_directory(folder, create=True)
+        for contact in self.db.execute("SELECT peer FROM contacts").fetchall():
+            peer = contact["peer"]
+            if self._open_drops(peer) >= DROPS_PER_PEER:
+                continue
+            for slot in range(CONTACT_SLOTS):
+                path = folder / (_slot_name(self.fingerprint, peer, slot) + ".invite")
+                current = self.db.execute(
+                    "SELECT s.bundle, i.expires FROM contact_slots s JOIN invites i ON i.token=s.token "
+                    "WHERE s.peer=? AND s.slot=?", (peer, slot)).fetchone()
+                if current and current["expires"] - now > SLOT_RENEW:
+                    if not path.exists():
+                        _write(path, current["bundle"])
+                    continue
+                try:
+                    token, raw = self._issue_invite(peer)
+                except DropError as exc:
+                    if exc.code != "STORE_LIMIT":
+                        raise
+                    return
+                _write(path, raw)
+                self.db.execute("INSERT OR REPLACE INTO contact_slots VALUES(?,?,?,?)", (peer, slot, token, raw))
+                self.db.commit()
+
+    def send_to(self, peer, note, name, data):
+        """Send a note and one file to a contact: opens a fresh Drop with one of the invites
+        they keep published for this VOOL, then sends on it."""
+        if not isinstance(note, str) or len(note.encode()) > 4096:
+            raise DropError("NOTE_LIMIT")
+        if not isinstance(data, (bytes, bytearray)) or len(data) > MAX_FILE:
+            raise DropError("INPUT_LIMIT")
+        if not isinstance(name, str) or not name or len(name) > 128 or any(c in name for c in "/\\\0"):
+            raise DropError("INVALID_FILENAME")
+        with self.scope():
+            self._contact(peer)
+            now = self.clock()
+            self.db.execute("DELETE FROM used_bundles WHERE expires<=?", (now,))
+            self.db.commit()
+            sid, seen = None, False
+            for slot in range(CONTACT_SLOTS):
+                path = self.relay.root / "invites" / (_slot_name(peer, self.fingerprint, slot) + ".invite")
+                try:
+                    raw = _read(path, 110000)
+                    body = _json(raw)["body"]
+                    bundle, expires = _id(body["id"]), body["expires"]
+                    if type(expires) is not int:
+                        raise DropError("INVALID_FORMAT")
+                except (DropError, KeyError, TypeError):
+                    continue
+                seen = True
+                if self.db.execute("SELECT 1 FROM used_bundles WHERE id=?", (bundle,)).fetchone():
+                    continue
+                try:
+                    reply = self.client.start(invite=raw, peer_fingerprint=peer,
+                                              plaintext=b'{"type":"hello"}', now=now)
+                except DropError as exc:
+                    if exc.code in _REJECTED:
+                        continue  # expired, or not signed by this contact's key
+                    raise
+                sid = reply["session"]
+                self.db.execute("INSERT OR IGNORE INTO used_bundles VALUES(?,?)", (bundle, expires))
+                self.db.execute(
+                    "INSERT INTO drops(sid,peer,expires,status,created) VALUES(?,?,?,'connected',?)",
+                    (sid, peer, expires, now))
+                self.db.commit()
+                self._ensure_scope(sid)
+                self._flush()
+                break
+            if sid is None:
+                # Their invites are all used: they have not opened VOOL since. Or none is
+                # there: they have not added this VOOL yet, or the folder has not synced.
+                raise DropError("CONTACT_BUSY" if seen else "CONTACT_NOT_READY")
+        return sid, self.send_bytes(sid, note, name, data)
+
+    def inbox(self) -> list[dict]:
+        """Every live Drop with what a person needs to recognise it: who, what file, when."""
+        with self.scope():
+            self._expire()
+            out = []
+            for item in self.db.execute(
+                    "SELECT sid,status FROM drops WHERE status NOT IN ('deleted','expired') ORDER BY rowid DESC"
+            ).fetchall():
+                if item["status"] == "incomplete":
+                    out.append({"sid": item["sid"], "status": "incomplete"})
+                    continue
+                row = self._row(item["sid"])
+                manifest = json.loads(row["manifest"]) if row["manifest"] else {}
+                out.append({"sid": row["sid"], "status": row["status"], "person": self._person(row["peer"]),
+                            "created": row["created"], "expires": row["expires"], "sent": bool(row["sent"]),
+                            "name": manifest.get("name", ""), "size": manifest.get("size", 0),
+                            "file": self._progress(row["sid"], row), "task_state": row["task_state"]})
+            return out
 
     def join(self, link, peer):
         """Open a Drop from someone's invite; ``peer`` is their fingerprint."""
@@ -408,8 +845,8 @@ class DropHome:
                                       plaintext=b'{"type":"hello"}', now=self.clock())
             sid = reply["session"]
             expires = _json(raw)["body"]["expires"]
-            self.db.execute("INSERT INTO drops(sid,peer,expires,status) VALUES(?,?,?,'connected')",
-                            (sid, peer, expires))
+            self.db.execute("INSERT INTO drops(sid,peer,expires,status,created) VALUES(?,?,?,'connected',?)",
+                            (sid, peer, expires, self.clock()))
             self.db.commit()
             self._ensure_scope(sid)
             self._flush()
@@ -424,8 +861,9 @@ class DropHome:
                 intro = _json(wire).get("intro")
                 if not intro or intro.get("sid") != row["session"]:
                     raise DropError("OUTBOX_METADATA_MISSING")
-                self.db.execute("INSERT INTO drops(sid,peer,expires,status) VALUES(?,?,?,'connected')",
-                                (row["session"], intro["recipient"], intro["expires"]))
+                self.db.execute(
+                    "INSERT INTO drops(sid,peer,expires,status,created) VALUES(?,?,?,'connected',?)",
+                    (row["session"], intro["recipient"], intro["expires"], self.clock()))
                 self.db.commit()
                 self._ensure_scope(row["session"])
             try:
@@ -446,18 +884,26 @@ class DropHome:
         self._flush()
 
     def send_packet(self, sid, note, file):
+        path = Path(file)
+        return self.send_bytes(sid, note, path.name, _read(path, MAX_FILE))
+
+    def send_bytes(self, sid, note, name, data):
+        """Send a note and one file's bytes on a connected Drop. Nothing is written to disk
+        on this side except the sealed note and file name."""
         with self.scope():
             row = self._live(sid)
-            if row["manifest"] or not isinstance(note, str) or len(note.encode()) > 4096:
+            if row["manifest"]:
                 raise DropError("PACKET_CONFLICT")
-            path = Path(file)
-            data = _read(path, MAX_FILE)
-            name = path.name
-            if not name or len(name) > 128 or any(c in name for c in "/\\\0"):
+            if not isinstance(note, str) or len(note.encode()) > 4096:
+                raise DropError("NOTE_LIMIT")
+            if not isinstance(data, (bytes, bytearray)) or len(data) > MAX_FILE:
+                raise DropError("INPUT_LIMIT")
+            data = bytes(data)
+            if not isinstance(name, str) or not name or len(name) > 128 or any(c in name for c in "/\\\0"):
                 raise DropError("INVALID_FILENAME")
             manifest = {"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                         "chunks": max(1, (len(data) + CHUNK - 1) // CHUNK)}
-            self.db.execute("UPDATE drops SET note=?,manifest=? WHERE sid=?", (note, json.dumps(manifest), sid))
+            self._update(sid, note=note, manifest=json.dumps(manifest), sent=1)
             self.db.commit()
             self._send(sid, {"type": "packet", "note": note, "manifest": manifest})
             for index in range(manifest["chunks"]):
@@ -496,14 +942,83 @@ class DropHome:
                         continue
                     if exc.code not in _REJECTED:
                         raise
+                    if exc.code == "SKIP_LIMIT" and self._park(raw):
+                        # Too far ahead of the frames before it (a synced folder delivers in
+                        # any order). It waits on this computer until those arrive.
+                        results.append("waiting")
+                    else:
+                        results.append("rejected")
                     _discard(path)
-                    results.append("rejected")
                     continue
                 results.append(self._apply(record))
                 path.unlink()
+            results += self._retry_parked()
             if "deferred" in results:
                 results += self._recover()
+            self._send_receipts()
+            self._publish_contact_invites()
             return results
+
+    def _park(self, raw) -> bool:
+        """Keep a frame that is ahead of its Drop's window. It is ciphertext and stays so.
+        Bounded per Drop, so forged frames can cost one Drop its room and nothing else."""
+        packet = _json(raw)
+        sid = packet.get("sid")
+        try:
+            self._live(sid)
+        except DropError:
+            return False
+        folder = self.root / sid
+        _private_directory(folder, create=True)
+        index = packet.get("n") if type(packet.get("n")) is int else 0
+        name = f"{index:05d}-{hashlib.sha256(raw).hexdigest()[:32]}.ahead"
+        if not (folder / name).exists() and len(list(folder.glob("*.ahead"))) >= AHEAD_LIMIT:
+            return False
+        _write(folder / name, raw)
+        return True
+
+    def _retry_parked(self):
+        outcomes = []
+        for row in self.db.execute(
+                "SELECT sid FROM drops WHERE status NOT IN ('deleted','expired','incomplete')").fetchall():
+            folder = self.root / row["sid"]
+            if not folder.is_dir():
+                continue
+            progressed = True
+            while progressed:
+                progressed = False
+                for path in sorted(folder.glob("*.ahead")):
+                    try:
+                        raw = _read(path, 110000)
+                        record = self._open_wire(raw, b64(hashlib.sha256(raw).digest()))
+                    except DropError as exc:
+                        if exc.code == "SKIP_LIMIT" or exc.code in _HELD:
+                            continue
+                        if exc.code not in _REJECTED and exc.code not in {"INPUT_UNAVAILABLE"}:
+                            raise
+                        _discard(path)
+                        outcomes.append("rejected")
+                        continue
+                    outcomes.append(self._apply(record))
+                    _discard(path)
+                    progressed = True
+        return outcomes
+
+    def _send_receipts(self):
+        """Tell the sender their file arrived whole. A peer on an older version ignores it."""
+        for row in self.db.execute("SELECT sid FROM drops WHERE receipt_due=1 AND status='ready'").fetchall():
+            sid = row["sid"]
+            try:
+                manifest = json.loads(self._live(sid)["manifest"])
+                self._send(sid, {"type": "receipt", "sha256": manifest["sha256"]})
+            except DropError as exc:
+                if exc.code not in {"DROP_REVOKED", "EXPIRED", "DROP_WITHHELD", "SESSION_EXHAUSTED",
+                                    "CHAIN_EXHAUSTED", "STORE_LIMIT"}:
+                    raise
+                if exc.code in {"DROP_WITHHELD", "STORE_LIMIT"}:
+                    continue
+            self.db.execute("UPDATE drops SET receipt_due=0 WHERE sid=?", (sid,))
+            self.db.commit()
 
     def _recover(self):
         outcomes = []
@@ -536,6 +1051,8 @@ class DropHome:
         invite = self.db.execute("SELECT peer FROM invites WHERE prekey=?", (prekey,)).fetchone()
         if invite is None:
             raise DropError("UNKNOWN_INVITE")
+        if self._open_drops(invite["peer"]) >= DROPS_PER_PEER:
+            raise DropError("PEER_QUOTA")
         if self.db.execute("SELECT count(*) FROM admissions").fetchone()[0] >= 64:
             raise DropError("ADMISSION_QUOTA")
         # The expected sender comes from our own invite record, never from the
@@ -551,8 +1068,9 @@ class DropHome:
             return
         if draft["sid"] != record["session"]:
             raise DropError("ADMISSION_CONFLICT")
-        self.db.execute("INSERT OR IGNORE INTO drops(sid,peer,expires,status) VALUES(?,?,?,'connected')",
-                        (draft["sid"], draft["peer"], draft["expires"]))
+        self.db.execute(
+            "INSERT OR IGNORE INTO drops(sid,peer,expires,status,created) VALUES(?,?,?,'connected',?)",
+            (draft["sid"], draft["peer"], draft["expires"], self.clock()))
         self.db.commit()
         self._ensure_scope(draft["sid"])
         self._discard_invites("prekey=?", (draft["prekey"],))
@@ -584,8 +1102,10 @@ class DropHome:
             outcome = "received"
         except DropError as exc:
             self.db.rollback()
-            if exc.code in _DEFERRED:
+            if exc.code in _DEFERRED and (exc.code == "DROP_WITHHELD" or self._may_wait(sid)):
                 return "deferred"
+            if exc.code in _DEFERRED:
+                exc = DropError("PEER_QUOTA")
             if exc.code not in _REJECTED:
                 raise
             # Authentic but unacceptable here: consumed without effect.
@@ -594,6 +1114,14 @@ class DropHome:
         self.db.commit()
         self.client.acknowledge_receive(delivery)
         return outcome
+
+    def _may_wait(self, sid) -> bool:
+        """Whether one more record of this Drop may wait in the encrypted inbox. The inbox is
+        shared by every Drop, so each person gets a bounded share of it."""
+        peer = self._row(sid)["peer"]
+        mine = {row["sid"] for row in self.db.execute("SELECT sid FROM drops WHERE peer=?", (peer,))}
+        waiting = sum(1 for record in self.client.pending_receives() if record["session"] in mine)
+        return waiting <= DEFER_PER_PEER
 
     def _apply_payload(self, sid, payload):
         kind = payload.get("type")
@@ -612,54 +1140,179 @@ class DropHome:
                     or not isinstance(manifest["sha256"], str)
                     or not re.fullmatch(r"[0-9a-f]{64}", manifest["sha256"])):
                 raise DropError("INVALID_MANIFEST")
+            if row["sent"]:
+                raise DropError("INVALID_MANIFEST")
             _private_directory(self.root / sid, create=True)
-            self.db.execute("UPDATE drops SET note=?,manifest=?,status='receiving' WHERE sid=?",
-                            (payload["note"], json.dumps(manifest), sid))
-            return
-        if kind == "chunk" and set(payload) == {"type", "index", "data"}:
-            if not row["manifest"]:
-                raise DropError("MISSING_MANIFEST")
-            manifest = json.loads(row["manifest"])
-            index = payload["index"]
-            if type(index) is not int or not 0 <= index < manifest["chunks"]:
-                raise DropError("CHUNK_INDEX")
-            data = unb64(payload["data"], 0, CHUNK)
-            expected = min(CHUNK, max(0, manifest["size"] - index * CHUNK))
-            if len(data) != expected:
-                raise DropError("CHUNK_SIZE")
-            part = self.root / sid / f"{index:04d}.part"
-            if part.exists() and _read(part, CHUNK) != data:
-                raise DropError("CHUNK_CONFLICT")
-            _write(part, data)
+            self._update(sid, note=payload["note"], manifest=json.dumps(manifest), status="receiving")
+            # Pieces that came before this header were kept; any that do not fit it go.
+            for part in (self.root / sid).glob("*.part"):
+                index = int(part.name[:4]) if part.name[:4].isdigit() else -1
+                expected = min(CHUNK, max(0, manifest["size"] - index * CHUNK))
+                if not 0 <= index < manifest["chunks"] or self._part_size(part) != expected:
+                    part.unlink()
             self._assemble(sid, manifest)
             return
+        if kind == "chunk" and set(payload) == {"type", "index", "data"}:
+            index = payload["index"]
+            data = unb64(payload["data"], 0, CHUNK)
+            if row["sent"]:
+                raise DropError("CHUNK_INDEX")
+            if row["manifest"]:
+                manifest = json.loads(row["manifest"])
+                if type(index) is not int or not 0 <= index < manifest["chunks"]:
+                    raise DropError("CHUNK_INDEX")
+                if len(data) != min(CHUNK, max(0, manifest["size"] - index * CHUNK)):
+                    raise DropError("CHUNK_SIZE")
+            else:
+                # A piece ahead of its header (a synced folder delivers in any order) is kept
+                # as a sealed part straight away. It is this person's own Drop folder, bounded
+                # by the largest file a Drop can carry, and it never waits in the shared inbox.
+                manifest = None
+                if type(index) is not int or not 0 <= index < MAX_CHUNKS:
+                    raise DropError("CHUNK_INDEX")
+                _private_directory(self.root / sid, create=True)
+            part = self.root / sid / f"{index:04d}.part"
+            kept = None
+            if part.exists():
+                with contextlib.suppress(DropError):
+                    kept = self._sealer.open(f"{sid}|part|{index}", _read(part, CHUNK + 64))
+            if kept is not None:
+                if kept != data:
+                    raise DropError("CHUNK_CONFLICT")
+            elif not (manifest and (self.root / sid / "selected.bin").exists()):
+                _write(part, self._sealer.seal(f"{sid}|part|{index}", data))
+            if manifest:
+                self._assemble(sid, manifest)
+            return
+        if kind == "receipt" and set(payload) == {"type", "sha256"}:
+            if (not row["sent"] or not row["manifest"]
+                    or payload["sha256"] != json.loads(row["manifest"])["sha256"]):
+                raise DropError("INVALID_RECEIPT")
+            self.db.execute("UPDATE drops SET delivered=1 WHERE sid=?", (sid,))
+            return
         self._apply_task(sid, payload)
+
+    @staticmethod
+    def _part_size(part: Path) -> int:
+        try:
+            return part.lstat().st_size - 28  # nonce and tag
+        except OSError:
+            return -1
 
     def _assemble(self, sid, manifest):
         parts = [self.root / sid / f"{i:04d}.part" for i in range(manifest["chunks"])]
         target = self.root / sid / "selected.bin"
         if target.exists():
-            data = _read(target, MAX_FILE)
-            if len(data) != manifest["size"] or hashlib.sha256(data).hexdigest() != manifest["sha256"]:
-                raise DropError("FILE_INTEGRITY")
+            try:
+                self._file(sid, manifest)
+            except DropError:
+                target.unlink()
+                self.db.execute("UPDATE drops SET status='damaged' WHERE sid=?", (sid,))
+                return
             for part in parts:
                 part.unlink(missing_ok=True)
             self.db.execute("UPDATE drops SET status='ready' WHERE sid=?", (sid,))
             return
         if not all(p.exists() for p in parts):
             return
-        data = b"".join(_read(p, CHUNK) for p in parts)
+        try:
+            data = b"".join(self._sealer.open(f"{sid}|part|{i}", _read(p, CHUNK + 64)) for i, p in enumerate(parts))
+        except DropError:
+            data = b""  # a part on this disk no longer opens: the same end as a wrong file
         if len(data) != manifest["size"] or hashlib.sha256(data).hexdigest() != manifest["sha256"]:
-            raise DropError("FILE_INTEGRITY")
-        _write(target, data)
+            # The pieces are all here and do not make the promised file. Keeping them would
+            # leave the Drop "arriving" for good, so they go and the Drop says it failed.
+            for part in parts:
+                part.unlink()
+            self.db.execute("UPDATE drops SET status='damaged' WHERE sid=?", (sid,))
+            return
+        _write(target, self._sealer.seal(f"{sid}|file", data))
         for part in parts:
             part.unlink()
-        self.db.execute("UPDATE drops SET status='ready' WHERE sid=?", (sid,))
+        self.db.execute("UPDATE drops SET status='ready',receipt_due=1 WHERE sid=?", (sid,))
+
+    def _file(self, sid, manifest) -> bytes:
+        """The received file, opened from its sealed copy and checked against its header."""
+        stored = _read(self.root / sid / "selected.bin", MAX_FILE + 64)
+        try:
+            data = self._sealer.open(f"{sid}|file", stored)
+        except DropError:
+            # A copy an earlier version wrote unsealed is still this file if it matches the
+            # header exactly; it is sealed now. Anything else is damage.
+            if len(stored) != manifest["size"] or hashlib.sha256(stored).hexdigest() != manifest["sha256"]:
+                raise
+            data = stored
+            _write(self.root / sid / "selected.bin", self._sealer.seal(f"{sid}|file", data))
+        if len(data) != manifest["size"] or hashlib.sha256(data).hexdigest() != manifest["sha256"]:
+            raise DropError("FILE_INTEGRITY")
+        return data
+
+    def file_bytes(self, sid) -> tuple[str, bytes]:
+        """(name, bytes) of a file this home received whole. Local controller only."""
+        with self.scope():
+            row = self._live(sid)
+            if row["status"] != "ready" or row["sent"] or not row["manifest"]:
+                raise DropError("FILE_NOT_READY")
+            manifest = json.loads(row["manifest"])
+            return manifest["name"], self._file(sid, manifest)
+
+    def save_file(self, sid, folder) -> Path:
+        """Write the received file into ``folder`` under its own name, never over a file
+        that is already there. The name came from the other person, so only its last part
+        is used and it never starts with a dot."""
+        name, data = self.file_bytes(sid)
+        folder = Path(folder)
+        if not folder.is_dir():
+            raise DropError("SAVE_FOLDER_MISSING")
+        safe = "".join(c for c in name if c.isprintable() and c not in '/\\:*?"<>|').strip().lstrip(".") or "file"
+        stem, dot, suffix = safe.rpartition(".")
+        if not dot or not stem:
+            stem, suffix = safe, ""
+        for attempt in range(1000):
+            candidate = folder / (f"{stem}{'' if not attempt else f' ({attempt})'}{'.' + suffix if suffix else ''}")
+            try:
+                fd = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            except FileExistsError:
+                continue
+            except OSError as exc:
+                raise DropError("SAVE_FAILED") from exc
+            try:
+                with os.fdopen(fd, "wb") as out:
+                    out.write(data)
+                    out.flush()
+                    os.fsync(out.fileno())
+            except OSError as exc:
+                candidate.unlink(missing_ok=True)
+                raise DropError("SAVE_FAILED") from exc
+            with self.scope():
+                self._update(sid, saved=candidate.name)
+                self.db.commit()
+            return candidate
+        raise DropError("SAVE_FAILED")
+
+    def _progress(self, sid, row) -> dict:
+        """What a person needs to know about the file: whose it is and how far it got."""
+        manifest = json.loads(row["manifest"]) if row["manifest"] else None
+        if manifest is None:
+            return {"state": "empty"}
+        if row["sent"]:
+            return {"state": "delivered" if row["delivered"] else "sent"}
+        if row["status"] == "ready":
+            return {"state": "ready", "saved": row["saved"]}
+        if row["status"] == "damaged":
+            return {"state": "damaged"}
+        folder = self.root / sid
+        have = sum(1 for i in range(manifest["chunks"]) if (folder / f"{i:04d}.part").exists())
+        return {"state": "arriving", "have": have, "total": manifest["chunks"]}
 
     def show(self, sid):
         with self.scope():
             row = self._live(sid)
-            return {k: row[k] for k in ("sid", "status", "note", "manifest", "task", "task_state", "result", "executions", "expires")}
+            out = {k: row[k] for k in ("sid", "status", "note", "manifest", "task", "task_state", "result",
+                                       "executions", "expires", "created")}
+            out["file"] = self._progress(sid, row)
+            out["person"] = self._person(row["peer"])
+            return out
 
     def _apply_task(self, sid, payload):
         if payload.get("type") == "lend":
@@ -676,7 +1329,7 @@ class DropHome:
                     or not isinstance(payload["description"], str) or len(payload["description"].encode()) > 4096
                     or not isinstance(payload["permissions"], list)
                     or any(not isinstance(p, str) for p in payload["permissions"])
-                    or not row["manifest"] or row["status"] not in {"receiving", "ready"}
+                    or not row["manifest"] or row["status"] not in {"receiving", "ready", "damaged"}
                     or payload["file_sha256"] != json.loads(row["manifest"])["sha256"]):
                 # Only the side that received the packet can be asked to work on it.
                 raise DropError("INVALID_TASK")
@@ -687,15 +1340,14 @@ class DropHome:
                     raise DropError("TASK_CONFLICT")
                 return  # Same logical task, even when re-encrypted, preserves its state.
             permitted = payload["permissions"] == ["read_files"] and "read_files" in self.allowed
-            self.db.execute("UPDATE drops SET task=?,task_id=?,task_state=? WHERE sid=?",
-                            (encoded, payload["task_id"], "pending" if permitted else "refused", sid))
+            self._update(sid, task=encoded, task_id=payload["task_id"],
+                         task_state="pending" if permitted else "refused")
         elif payload.get("type") == "result":
             if (set(payload) != {"type", "task_id", "digest"} or row["task_state"] != "submitted"
                     or payload["task_id"] != row["task_id"]
                     or not row["manifest"] or payload["digest"] != json.loads(row["manifest"])["sha256"]):
                 raise DropError("INVALID_RESULT")
-            self.db.execute("UPDATE drops SET result=?,task_state='complete' WHERE sid=?",
-                            (payload["digest"], sid))
+            self._update(sid, result=payload["digest"], task_state="complete")
         else:
             raise DropError("UNSUPPORTED_PAYLOAD")
 
@@ -710,8 +1362,7 @@ class DropHome:
                        "permissions": list(permissions), "description": description}
             if len(description.encode()) > 4096:
                 raise DropError("TASK_LIMIT")
-            self.db.execute("UPDATE drops SET task=?,task_id=?,task_state='submitted' WHERE sid=?",
-                            (json.dumps(payload, sort_keys=True), task_id, sid))
+            self._update(sid, task=json.dumps(payload, sort_keys=True), task_id=task_id, task_state="submitted")
             self.db.commit()
             self._send(sid, payload)
             return task_id
@@ -763,11 +1414,8 @@ class DropHome:
             if claimed.rowcount != 1:
                 raise DropError("ALREADY_CLAIMED")
             # This is the entire bounded executor. No prompt, shell or model receives the bytes.
-            data = _read(self.root / sid / "selected.bin", MAX_FILE)
-            digest = hashlib.sha256(data).hexdigest()
-            if digest != json.loads(row["manifest"])["sha256"]:
-                raise DropError("FILE_INTEGRITY")
-            self.db.execute("UPDATE drops SET result=?,task_state='complete' WHERE sid=?", (digest, sid))
+            digest = hashlib.sha256(self._file(sid, json.loads(row["manifest"]))).hexdigest()
+            self._update(sid, result=digest, task_state="complete")
             self.db.commit()
             self._send(sid, {"type": "result", "task_id": row["task_id"], "digest": digest})
             return digest

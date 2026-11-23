@@ -90,6 +90,9 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     # phone to pull over its sealed link -- in-app state (like file.deliver), permission-wise a read,
     # so no wider than machine.read_file, whose answer already reaches that phone.
     'machine.send_to_phone': ('creative_state', 'none'),
+    # machine.send_with_drop (Drop, 2026-11-23): one file from the safe folders leaves this computer,
+    # sealed, for a person in the owner's Drop list. A message to someone: every mode asks first.
+    'machine.send_with_drop': ('network_send', 'runtime_policy'),
     'machine.write_file': ('workspace_write', 'runtime_policy'),
     'marketplace.purchase_knowledge': ('credit_spend', 'explicit_user_opt_in'),
     'marketplace.search_listings': ('read_only', 'none'),
@@ -423,7 +426,8 @@ def test_contract_map_and_list_agree():
     # 211 -> 215: social core (x.feedback.save, x.feedback.list, x.results, x.replies.unanswered).
     # 215 -> 218: the household record tools (things.search, things.match, things.prepare), pinned above.
     # 218 -> 219: operator.move_reminder, the model-facing reminder move (outside review R2), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 219
+    # 219 -> 220: machine.send_with_drop, a file from the safe folders to a person in the Drop list.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 220
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

@@ -64,6 +64,9 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("notes", "Notes: save a note for the person, or find and read the notes they saved.",
      ("operator.save_note", "operator.find_notes", "operator.show_note")),
     ("phone", "Send to phone: send a file from this computer to the person's phone.", ("machine.send_to_phone",)),
+    ("drop", "Drop: send a file from this computer to another person's VOOL or to another of the person's own "
+     "computers. Not to a phone, and not by email or a chat app.",
+     ("machine.send_with_drop",)),
     ("things", "My things: the household things the person saved in VOOL (purchases, appliances and devices, with "
      "maker, model and serial number); find one, match a label to it, or prepare a return, repair or warranty request.",
      ("things.search", "things.match", "things.prepare")),

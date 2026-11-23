@@ -2286,6 +2286,7 @@ def _judged_claim_kind(
         cache = {}
     if digest in cache:
         return str(cache[digest] or "")
+    asked_for_a_tool = _ask_judged_for_a_tool(user_input, effective_input)
     try:
         from core import intent_arbiter
 
@@ -2294,6 +2295,7 @@ def _judged_claim_kind(
             request_id=str((source_context or {}).get("request_id") or ""),
             chat_id=str(session_id or ""),
             source_context=source_context,
+            patient=asked_for_a_tool,
         )
     except Exception:
         answer = None
@@ -2302,7 +2304,7 @@ def _judged_claim_kind(
         try:
             from core import intent_arbiter as _arbiter
 
-            if _arbiter.done_claim_unjudged() and _ask_judged_for_a_tool(user_input, effective_input):
+            if _arbiter.done_claim_unjudged() and asked_for_a_tool:
                 # The judge was asked and did not answer, on a turn whose ask the turn's judge read as an order for
                 # one of VOOL's tools: fail closed. The reply is kept, and says plainly that nothing was changed, so a
                 # done claim nothing backs never stands alone. A plain answer (a plan that ends in "want me to save
