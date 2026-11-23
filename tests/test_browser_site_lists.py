@@ -354,6 +354,64 @@ def test_a_listed_site_is_stopped_with_a_warning_and_the_person_can_open_it_with
     assert not [hit for hit in hits if hit[0] == LISTED]
 
 
+def test_a_tab_reopened_at_the_start_is_held_to_todays_lists(browser, release, sites):
+    """The person continues where they left off. The engine reopens yesterday's tabs the
+    moment it starts, under the lists the browser held yesterday. One of the tabs is on a
+    site that was added overnight: once the start is over, that tab shows the warning."""
+    from tests.test_desk_browser import choose_on_start_up
+
+    port, hits = sites
+    release.publish(1, ["some-other-site.example.com"])
+    assert site_lists.refresh(force=True) == "updated"
+    plain_pages_allowed()
+    browser.open(f"http://{ALSO}:{port}/page-kept")
+    browser.open(f"http://{LISTED}:{port}/page-yesterday")
+    assert _wait(lambda: (LISTED, "/page-yesterday") in hits)
+    choose_on_start_up(browser, 1)
+    browser.stop()
+
+    release.publish(2, [LISTED])
+    assert site_lists.refresh(force=True) == "updated"
+    browser.open("")
+    assert _wait(lambda: tab_at(browser, "/blocked.html") is not None), [page.url for page in tabs(browser)]
+    assert sorted(page.url.split("#")[-1] for page in tabs(browser)) == sorted(
+        [f"http://{ALSO}:{port}/page-kept", f"http://{LISTED}:{port}/page-yesterday"]
+    )
+    assert not [page.url for page in tabs(browser) if page.url.startswith(f"http://{LISTED}")]
+
+
+def test_a_site_the_person_chose_to_open_yesterday_is_stopped_again_in_its_reopened_tab(browser, release, sites):
+    """"Open it anyway" lasts until the browser is closed: the tab the engine reopens at the
+    next start is put back on the warning.
+
+    KNOWN LIMIT, kept visible here: the engine reopens the tab before any list is in force,
+    so for about a second the page is there again (from the engine's own copy when it has
+    one) before the warning replaces it. What this start asked the site for is printed."""
+    from tests.test_desk_browser import choose_on_start_up
+
+    port, hits = sites
+    release.publish(1, [LISTED])
+    assert site_lists.refresh(force=True) == "updated"
+    plain_pages_allowed()
+    browser.open(f"http://{LISTED}:{port}/page-chosen")
+    assert _wait(lambda: tab_at(browser, "/blocked.html") is not None)
+    warning = tab_at(browser, "/blocked.html")
+
+    async def press():
+        await warning.click("#open")
+        await warning.wait_for_url(f"http://{LISTED}:{port}/page-chosen", timeout=10000)
+
+    browser._call(press())
+    choose_on_start_up(browser, 1)
+    browser.stop()
+
+    hits.clear()
+    browser.open("")
+    assert _wait(lambda: tab_at(browser, "/blocked.html") is not None), [page.url for page in tabs(browser)]
+    assert [page.url.split("#")[-1] for page in tabs(browser)] == [f"http://{LISTED}:{port}/page-chosen"]
+    print("asked of the listed site while its tab was reopened:", [hit for hit in hits if hit[0] == LISTED])
+
+
 def test_a_list_as_long_as_the_public_ones_is_enforced_from_the_first_page(browser, release, sites):
     port, hits = sites
     # As many entries as the public lists hold.

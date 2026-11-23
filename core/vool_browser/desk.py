@@ -123,11 +123,10 @@ STARTING_SEARCH: dict[str, Any] = {
 
 #: Where the window starts when no address was asked for: the engine's own new tab page.
 HOME = "chrome://newtab/"
-
-
-def _unused(url: str) -> bool:
-    """A tab the person has not gone anywhere in yet: empty, or still on the new tab page."""
-    return url == "about:blank" or url.startswith(("chrome://newtab", "chrome://new-tab-page"))
+#: The address the engine is started on. Its tab carries the engine's start-up notices and
+#: is closed at once; the marker tells it from an empty tab the engine reopened for the person.
+START_TAB = "about:blank#vool-start"
+_NEW_TAB = ("chrome://newtab", "chrome://new-tab-page")
 
 
 def default_preferences() -> dict[str, Any]:
@@ -248,6 +247,8 @@ class _Window:
         self.guard_id = ""
         self.guard_folder = ""
         self.guard_sites = 0
+        # The empty tab VOOL made at this start, until the person or an address uses it.
+        self.fresh: Any = None
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -274,7 +275,7 @@ class _Window:
                 # It must name the profile itself: with the handle's defaults off, an
                 # engine given no profile would open the person's own browser profile.
                 args=[f"--user-data-dir={self.profile}", *flags, *extra_engine_flags,
-                      "--remote-debugging-pipe", "about:blank"], ignore_default_args=True,
+                      "--remote-debugging-pipe", START_TAB], ignore_default_args=True,
                 chromium_sandbox=True, timeout=ENGINE_START_TIMEOUT * 1000,
                 env=child_env(TMPDIR=str(self.tmp)), no_viewport=True, accept_downloads=True,
             )
@@ -302,9 +303,9 @@ class _Window:
                 from . import guard
 
                 await guard.apply(self)
-            await self.context.new_page()
+            self.fresh = await self.context.new_page()
             for page in pages:
-                if not page.is_closed():
+                if not page.is_closed() and page.url == START_TAB:
                     await page.close()
         except Exception:
             await self.stop()
@@ -315,6 +316,8 @@ class _Window:
                 from . import extensions
 
                 await extensions.apply(self)
+            with contextlib.suppress(Exception):
+                await self._settle_reopened_tabs()
         if self.private:
             # On macOS the engine keeps running after its last window is closed. A
             # private window with no tab left is over: it is stopped and removed then,
@@ -325,6 +328,43 @@ class _Window:
             self.context.on("page", watch)
             for page in self.context.pages:
                 watch(page)
+
+    async def _settle_reopened_tabs(self) -> None:
+        """The tabs the engine reopened by itself, when the person chose to continue where
+        they left off or to start on pages of their own.
+
+        The engine reopens them the moment it starts, under the site lists the browser held
+        when it was last open. Today's lists are in force by now: a reopened tab on a site
+        they name is loaded again, which puts the warning in its place. With their tabs
+        back, the empty tab VOOL made is not needed. A new tab page the engine opened for
+        its own start goes the way of the start-up tab: the person's tabs are fresh ones.
+        """
+        from . import site_lists
+
+        theirs = []
+        for page in [p for p in self.context.pages if not p.is_closed() and p is not self.fresh]:
+            if page.url.startswith(_NEW_TAB) and self.fresh is not None and not self.fresh.is_closed():
+                await page.close()
+            else:
+                theirs.append(page)
+        for page in theirs:
+            if site_lists.listed_url(page.url):
+                with contextlib.suppress(Exception):
+                    await page.reload(wait_until="commit")
+        if theirs and self.fresh is not None and not self.fresh.is_closed() and self.fresh.url == "about:blank":
+            await self.fresh.close()
+            self.fresh = None
+
+    def _unused_tab(self) -> Any:
+        """A tab of the person's that an address may take: still on the new tab page, or
+        the empty one VOOL made at the start. Never an empty-looking tab the engine is
+        still reopening."""
+        for page in self.context.pages:
+            if page.is_closed() or page in self.reserved:
+                continue
+            if (page is self.fresh and page.url == "about:blank") or page.url.startswith(_NEW_TAB):
+                return page
+        return None
 
     def _last_tab_closed(self) -> None:
         context = self.context
@@ -337,11 +377,12 @@ class _Window:
     async def open(self, url: str) -> None:
         # An empty tab of the person's is reused; a tab VOOL is working in never is.
         pages = [p for p in self.context.pages if not p.is_closed() and p not in self.reserved]
-        blank = next((p for p in pages if _unused(p.url)), None)
-        if blank and not url and blank.url != "about:blank":
-            # Already on the start page: nothing to load again.
+        blank = self._unused_tab()
+        showing = [p for p in pages if not (p is self.fresh and p.url == "about:blank")]
+        if not url and showing:
+            # No address asked for and the window already shows something: it comes forward.
             with contextlib.suppress(Exception):
-                await blank.bring_to_front()
+                await showing[-1].bring_to_front()
             return
         page = blank or await self.context.new_page()
         for _ in range(3):
@@ -366,6 +407,11 @@ class _Window:
         """Close the engine and, for a private window, remove every trace. True when clean."""
         context, self.context = self.context, None
         if context is not None:
+            # A tab VOOL was working in is not one of the person's: it is closed first, so
+            # a start that continues where they left off does not bring it back as theirs.
+            for page in list(self.reserved):
+                with contextlib.suppress(Exception):
+                    await asyncio.wait_for(page.close(), STOP_TIMEOUT)
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(context.close(), STOP_TIMEOUT)
         driver, self.driver = self.driver, None

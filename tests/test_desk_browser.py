@@ -289,6 +289,99 @@ def test_the_window_starts_on_a_start_page_with_bookmarks_and_a_home_button_that
     assert settings["bookmark_bar.show_on_all_tabs"] is True and settings["browser.show_home_button"] is True
 
 
+def choose_on_start_up(browser, choice: int, pages: tuple[str, ...] = ()) -> None:
+    """The person's own choice under "On start-up" in the browser's settings: 1 continues
+    where they left off, 4 opens pages of their choosing, 5 opens the new tab page."""
+
+    async def choose():
+        page = await browser.context_for_agent().new_page()
+        try:
+            await page.goto("chrome://settings/onStartup")
+            await page.evaluate(
+                """([choice, pages]) => new Promise((done) => chrome.settingsPrivate.setPref('session.startup_urls', pages, '', () =>
+                    chrome.settingsPrivate.setPref('session.restore_on_startup', choice, '', done)))""",
+                [choice, list(pages)],
+            )
+        finally:
+            await page.close()
+
+    browser._call(choose())
+
+
+def open_tabs(browser) -> list[str]:
+    return sorted(p.url for p in browser.context_for_agent().pages if not p.is_closed())
+
+
+def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(browser, site):
+    base, hits = site
+
+    def asked():
+        return sorted({path for path, _ in hits if path != "/favicon.ico"})
+
+    # Left as the browser comes, a new start shows the start page and asks no site for anything.
+    browser.open(base + "/one")
+    browser.open(base + "/two")
+    assert _wait(lambda: asked() == ["/one", "/two"])
+    browser.stop()
+    hits.clear()
+    browser.open("")
+    assert len(open_tabs(browser)) == 1 and open_tabs(browser)[0].startswith("chrome://new-tab-page")
+    assert asked() == []
+
+    # The person chooses "Continue where you left off", opens two pages, and VOOL works in a tab.
+    choose_on_start_up(browser, 1)
+    browser.open(base + "/three")
+    browser.open(base + "/four")
+    vools = browser._call(browser.tab_for_agent())
+    browser._call(vools.goto(base + "/vools-own-work"))
+    assert _wait(lambda: asked() == ["/four", "/three", "/vools-own-work"])
+    # VOOL closes the browser, as when the app quits or the way out changes.
+    browser.stop()
+
+    # The next start brings back their two tabs and nothing else: not the tab VOOL worked
+    # in, no empty tab beside them, and no start-up notice on any of them.
+    browser.open("")
+    assert _wait(lambda: open_tabs(browser) == [base + "/four", base + "/three"]), open_tabs(browser)
+
+    async def page_areas():
+        context = browser.context_for_agent()
+        theirs = [p for p in context.pages if not p.is_closed()]
+        later = await context.new_page()
+        areas = [await p.evaluate("[window.innerHeight, document.getElementById('h').textContent]") for p in theirs]
+        expected = await later.evaluate("window.innerHeight")
+        await later.close()
+        return areas, expected
+
+    areas, expected = browser._call(page_areas())
+    assert areas == [[expected, "scripts-on"], [expected, "scripts-on"]], (areas, expected)
+    # An address asked for next opens beside them, and all three are there after one more restart.
+    browser.open(base + "/five")
+    assert _wait(lambda: open_tabs(browser) == [base + "/five", base + "/four", base + "/three"]), open_tabs(browser)
+    browser.stop()
+    browser.open("")
+    assert _wait(lambda: open_tabs(browser) == [base + "/five", base + "/four", base + "/three"]), open_tabs(browser)
+
+    # They go back to starting on the new tab page: the next start reopens nothing.
+    choose_on_start_up(browser, 5)
+    browser.stop()
+    hits.clear()
+    browser.open("")
+    assert len(open_tabs(browser)) == 1 and open_tabs(browser)[0].startswith("chrome://new-tab-page")
+    assert asked() == []
+
+
+def test_the_window_starts_on_the_pages_the_person_chose(browser, site):
+    base, hits = site
+    browser.open(base + "/somewhere")
+    choose_on_start_up(browser, 4, (base + "/mail", base + "/news"))
+    browser.stop()
+    hits.clear()
+    browser.open("")
+    assert _wait(lambda: {"/mail", "/news"} <= {path for path, _ in hits})
+    assert open_tabs(browser) == [base + "/mail", base + "/news"]
+    assert not any(path == "/somewhere" for path, _ in hits)
+
+
 def test_the_engine_keeps_saved_sign_ins_out_of_plain_stores_and_opens_no_control_port(browser, site):
     base, _ = site
     browser.open(base + "/")
