@@ -157,9 +157,12 @@ def _linux_mounts() -> list[tuple[Path, str, str]]:
 
 
 def _drives_now() -> list[tuple[Path, str, str]]:
-    """(mount point, display name, kind) of every drive :func:`_mounts` lists; a drive listed without its kind is a
-    USB stick."""
-    return [(Path(item[0]), str(item[1]), str(item[2]) if len(item) > 2 else KIND_STICK) for item in _mounts()]
+    """(mount point, display name, kind) of every drive :func:`_mounts` lists, USB sticks first; a drive listed
+    without its kind is a USB stick."""
+    found = [(Path(item[0]), str(item[1]), str(item[2]) if len(item) > 2 else KIND_STICK) for item in _mounts()]
+    # A stick is what the person plugged in for this; a fixed external drive is offered after it, so the first
+    # (preselected) choice is never a work disk while a stick is in.
+    return sorted(found, key=lambda drive: (drive[2] != KIND_STICK, drive[1].casefold(), str(drive[0])))
 
 
 def _mounts() -> list[tuple]:

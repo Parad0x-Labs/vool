@@ -68,15 +68,29 @@ def available() -> bool:
     return _backend() is not None and not keychain_blocked()
 
 
+def waiting_for_permission() -> bool:
+    """The computer has a secure store, but the system asked the person for permission to open it and got no answer in
+    time (or a no), so this run of VOOL leaves it alone. Different from a computer with no secure store: here the
+    person can fix it, by answering the system's question and starting VOOL again."""
+    from core.bounded_keyring import keychain_blocked
+
+    return _backend() is not None and keychain_blocked()
+
+
+def _unusable_reason() -> str:
+    return "secure_store_waiting_for_permission" if waiting_for_permission() else "secure_store_unavailable"
+
+
 def _call(what: str, fn):
     from core.bounded_keyring import bounded_keyring_call, keychain_blocked
 
     if _backend() is None or keychain_blocked():
-        raise _fault("secure_store_unavailable")
+        raise _fault(_unusable_reason())
     try:
         return bounded_keyring_call(fn, what=what)
     except Exception:
-        raise _fault("secure_store_unavailable") from None
+        # a call that ran out of time, or was refused by the system, has marked the store as waiting by now
+        raise _fault(_unusable_reason()) from None
 
 
 def _account(network: str, address: str) -> str:
@@ -182,7 +196,7 @@ def save(wallet_id: str, *, credential: str = "", password: str, confirmation: s
     row = _owner_pilot_row(wallet_id, source_context=source_context)
     _check_password(str(password or ""), str(confirmation or ""), credential=str(credential or ""), source_context=source_context)
     if not available():
-        raise _fault("secure_store_unavailable", source_context=source_context)
+        raise _fault(_unusable_reason(), source_context=source_context)
     spec = chains.resolve_network(row["network"])
     secret, _generation = pilot_custody._verify(row, str(credential or ""), source_context=source_context)
     try:
@@ -385,8 +399,10 @@ def store_name() -> str:
 
 
 def overview() -> dict[str, Any]:
-    return {"available": available(), "store": store_name(), "min_password": MIN_PASSWORD, "restorable": restorable(), "checked_at": time.time()}
+    shown = restorable()  # first: reading the list is what can meet the system's permission question
+    return {"available": available(), "waiting_for_permission": waiting_for_permission(), "store": store_name(), "min_password": MIN_PASSWORD,
+            "restorable": shown, "checked_at": time.time()}
 
 
 __all__ = ["MIN_PASSWORD", "SERVICE", "available", "forget", "overview", "recover", "restorable", "restore", "restore_from_envelope", "save", "saved_for", "seal",
-           "unseal"]
+           "unseal", "waiting_for_permission"]

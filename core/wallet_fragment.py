@@ -1837,6 +1837,13 @@ function keychainRestoreBlock(cp){
   var box = el('div', 'vw-cx-row vw-cx-keychain-restore'); box.id = 'vwKeychainRestore'; box.hidden = true;
   getJson('/api/wallet/keychain').then(function(j){
     var k = (j && j.keychain) || {}; var rows = k.restorable || [];
+    if (k.waiting_for_permission) {
+      // the store is there but this run may not open it: say so, or a person with a backup in it sees an empty page
+      box.hidden = false; box.setAttribute('data-keychain-waiting', 'true');
+      box.appendChild(el('div', 'vw-cx-title', 'Keychain backups cannot be shown right now'));
+      box.appendChild(el('div', 'vw-cx-env', 'Your computer asked whether VOOL may open the Keychain and got no yes in time. Answer that question with Always Allow, then quit VOOL and open it again. Your backups are untouched.'));
+      return;
+    }
     if (!rows.length) return;
     box.hidden = false;
     box.appendChild(el('div', 'vw-cx-title', 'Wallets you can bring back from the Keychain'));
