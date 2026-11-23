@@ -335,13 +335,11 @@ class _Window:
                     await home.apply(self)
             self.fresh = await self.context.new_page()
             if reopens:
-                # The engine is bringing the person's tabs back: only the tab it was
-                # started on goes, once it shows the address that tells it apart.
-                for _ in range(50):
-                    if any(page.url == START_TAB for page in self.context.pages):
-                        break
-                    await asyncio.sleep(0.1)
-                closing = [page for page in self.context.pages if page.url == START_TAB]
+                # The engine has brought the person's tabs back, each already showing its
+                # address. Only tabs that lead nowhere go: the one the engine was started
+                # on, where it made one, and an empty or new tab page of its own.
+                closing = [page for page in self.context.pages
+                           if page is not self.fresh and (page.url in ("", "about:blank", START_TAB) or self._new_tab(page))]
             else:
                 # Nothing of the person's is open yet: every tab the engine started with goes.
                 closing = [page for page in self.context.pages if page is not self.fresh]

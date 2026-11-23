@@ -335,7 +335,9 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
     assert _wait(lambda: asked() == ["/one", "/two"])
     browser.stop()
     hits.clear()
+    began = time.monotonic()
     browser.open("")
+    plain_start = time.monotonic() - began
     assert open_tabs(browser) == [start_page(browser)]
     assert asked() == []
 
@@ -350,8 +352,11 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
     browser.stop()
 
     # The next start brings back their two tabs and nothing else: not the tab VOOL worked
-    # in, no empty tab beside them, and no start-up notice on any of them.
+    # in, no empty tab beside them, and no start-up notice on any of them. Bringing them
+    # back does not keep the person waiting: the start is about as quick as any other.
+    began = time.monotonic()
     browser.open("")
+    assert time.monotonic() - began < plain_start + 3, (time.monotonic() - began, plain_start)
     assert _wait(lambda: open_tabs(browser) == [base + "/four", base + "/three"]), open_tabs(browser)
 
     async def page_areas():
