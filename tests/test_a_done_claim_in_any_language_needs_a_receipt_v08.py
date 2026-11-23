@@ -123,3 +123,13 @@ def test_the_judge_reads_any_answer_but_done_kept_none_as_nobody_judged():
     for content in ('{"answer": "yes"}', "done", '{"answer": "maybe"}', ""):
         assert intent_arbiter._done_claim_reader(content) is None
     assert intent_arbiter._done_claim_reader('{"answer": "Done"}') == "done"
+
+
+def test_a_reply_no_model_wrote_is_never_judged():
+    """VOOL's own composed reply ("The ... plugin is turned off, so I can't use it.") is not a model's claim, and a
+    turn that promises no model is asked must not ask one to judge it (CI on c50579077, plugin served journey)."""
+    intent_arbiter.bind_turn_judge({}, lambda prompt: pytest.fail("judged a reply no model wrote"))
+    composed = {"response": CLAIM, "model_execution": {"source": "fast_path", "used_model": False}}
+    guarded = enforce_final_action_honesty(composed, user_input=ASK, session_id="s-composed", source_context={})
+    out = emit_turn_honesty_receipt(guarded, user_input=ASK, session_id="s-composed", source_context={})
+    assert out["response"] == CLAIM

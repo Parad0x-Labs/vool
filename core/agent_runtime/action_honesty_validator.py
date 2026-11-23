@@ -2253,6 +2253,12 @@ def _judged_claim_kind(
     stamp = result.get("_deterministic_render")
     if isinstance(stamp, dict) and str(stamp.get("render") or "") == str(result.get("response") or ""):
         return ""
+    execution = result.get("model_execution")
+    if isinstance(execution, dict) and execution.get("used_model") is False:
+        # No model wrote this reply: VOOL composed it from what it did or knows ("The ... plugin is turned off, so I
+        # can't use it."), and its own lane answers for it. Judging it would also ask a model on a turn that promises
+        # none is asked (CI on c50579077, plugin served journey: an inference after the plugin was disabled).
+        return ""
     if _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context):
         return ""
     import hashlib
