@@ -902,6 +902,12 @@ def updated_entry(text: str, entries: list[dict]) -> dict | None:
         if subject:
             break
         said_from = cue.end()
+    if not subject:
+        # No change word names what changed ("update: my sailboat is called noodle now"): the thing it is about is
+        # the first word it says about anything. Scored on shared words alone, it replaced "my turtle is called
+        # Ziggy" on the one word "called" (V-128, function-level probe on fe98e849d and 261a03892).
+        first = next((word for word in re.findall(r"\w+", body.lower()) if word in wanted), "")
+        subject = {first} if first else set()
     best, best_score = None, 0
     for row in entries:
         saved = str(row.get("fact") or row.get("text") or "")

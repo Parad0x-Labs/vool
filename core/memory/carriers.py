@@ -181,7 +181,11 @@ def _needle_found(text: str, needle: str) -> bool:
     pattern, numeric, digit_first, digit_last = _needle_pattern(needle)
     match = pattern.search(text)
     if not numeric:
-        return match is not None
+        while match is not None:
+            if _own_word(text, *match.span()):
+                return True
+            match = pattern.search(text, match.start() + 1)
+        return False
     while match is not None:
         start, end = match.span()
         if _own_number(text, start, end, digit_first, digit_last):
@@ -261,6 +265,24 @@ def forget_needle_in(hay: Any, needle: str) -> bool:
            for _, folded_text, folded_needle in _spelling_passes(text, needle)):
         return True
     return _respaced_needle_found(text, needle)
+
+
+#: A needle's last word this long may go on as a longer form of itself ("tent" in "tents", "dviratis" never needs it).
+_WORD_ENDING_MAY_GROW = 4
+
+
+def _own_word(text: str, start: int, end: int) -> bool:
+    """`forget_needle_in`'s word rule for one match at ``text[start:end]`` (folded text): a needle of words starts where
+    a word starts, and ends where a word ends unless its last word is long enough to take an ending. Tracker row 103:
+    a plain substring let a short forget erase unrelated rows ("forget cat" took "my category is ...", "forget art"
+    took "the party is on Friday")."""
+    if start > 0 and text[start - 1].isalnum() and text[start].isalnum():
+        return False
+    if end < len(text) and text[end].isalnum() and text[end - 1].isalnum():
+        tail = text[:end].rsplit(maxsplit=1)[-1] if text[:end].split() else ""
+        last = "".join(ch for ch in tail if ch.isalnum())
+        return len(last) >= _WORD_ENDING_MAY_GROW
+    return True
 
 
 def _own_number(text: str, start: int, end: int, digit_first: bool, digit_last: bool) -> bool:
