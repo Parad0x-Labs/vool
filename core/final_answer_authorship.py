@@ -1718,6 +1718,26 @@ _CHANGING_INTENT_RE = re.compile(
     r"(?:^|[._-])(?:apply|write|delete|remove|drop|insert|update|create|send|reply|move|rename|execute|run|migrate\.apply)$",
     re.IGNORECASE,
 )
+
+
+def _intent_changes_something(intent: str) -> bool:
+    """Whether a tool that ran this turn changes something: its own contract says so (any side effect but a read or
+    a check), else its name ends in a changing verb (a plugin tool with no contract loaded here).
+
+    Mac gate on f3771b6b7: an approved contacts.save stored the contact, and the reply "Lukas Berger has been saved
+    as a contact" was replaced by "only a preview ran", because "save" (and "schedule_reminder") are no verb of the
+    name list. The contract is the tool's own word on what it does, the same for every tool and language."""
+    try:
+        from core.tool_registry import tool_for_intent
+
+        contract = tool_for_intent(str(intent or ""))
+    except Exception:
+        contract = None
+    if contract is not None:
+        return str(getattr(contract, "side_effect_class", "") or "") not in {"", "read_only", "validation_command"}
+    return bool(_CHANGING_INTENT_RE.search(str(intent or "")))
+
+
 _COMPLETION_CLAIM_RE = re.compile(
     r"\b(?:has|have)\s+(?:now\s+)?(?:been\s+)?(?:successfully\s+)?(?:added|created|deleted|removed|updated|applied|"
     r"inserted|dropped|renamed|moved|sent|saved|changed|migrated)\b|\bi\s+(?:have\s+|'ve\s+)?(?:successfully\s+)?"
@@ -1804,7 +1824,7 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     # A reply that says a change was MADE when only reads or previews ran this turn. Measured on
     # database run 7 (2026-11-12): "The column 'email' has been successfully added" after only
     # vool-database.migrate.preview ran; the table was unchanged.
-    changing_ran_any = any(_CHANGING_INTENT_RE.search(i) for i in executed)
+    changing_ran_any = any(_intent_changes_something(i) for i in executed)
     if executed and not changing_ran_any:
         claimed = [i for i, line in enumerate(lines) if _claims_a_change_was_made(line)]
         if claimed:
@@ -1828,8 +1848,8 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
             removed.add(index)
     if not unrun:
         return None
-    changing_unrun = [i for i in unrun if _CHANGING_INTENT_RE.search(i)]
-    changing_ran = any(_CHANGING_INTENT_RE.search(i) for i in executed)
+    changing_unrun = [i for i in unrun if _intent_changes_something(i)]
+    changing_ran = any(_intent_changes_something(i) for i in executed)
     kept: list[str] = []
     for index, line in enumerate(lines):
         if index in removed:
@@ -1856,7 +1876,7 @@ def _preview_only_stated(text: str, source_context: Any) -> tuple[str, dict[str,
         executed = {str(t).strip().lower() for t in (turn_call_accounting(source_context).get("tools") or [])}
     except Exception:
         return None
-    if "vool-database.migrate.preview" not in executed or any(_CHANGING_INTENT_RE.search(i) for i in executed):
+    if "vool-database.migrate.preview" not in executed or any(_intent_changes_something(i) for i in executed):
         return None
     if re.search(
         r"\b(?:nothing\s+(?:was|has\s+been)\s+(?:applied|changed|made)|not\s+(?:been\s+)?(?:made|applied)|"
