@@ -1267,6 +1267,18 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .phone-bot-steps .btn, .phone-bot-pairing .btn {display:inline-block; margin:6px 0; text-decoration:none;}
 .phone-bot-step {margin:14px 0 4px; font-size:14px;}
 .phone-bot-qr {display:block; margin:10px 0; border-radius:6px; max-width:200px;}
+.phone-hero {border:1px solid var(--accent); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:12px; margin:4px 0 18px; background:var(--panel,transparent); min-width:0;}
+.phone-hero .chat-app-mark {flex:0 0 52px; width:52px; height:52px; border-radius:14px; background:var(--accent);}
+.phone-hero .chat-app-mark svg {width:30px; height:30px;}
+.phone-hero h3 {margin:0; font-size:19px;}
+.phone-hero-lead {margin:0; font-size:15px;}
+.phone-hero-points {margin:0; padding-left:20px; display:grid; gap:6px; overflow-wrap:anywhere;}
+.phone-hero-steps {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.5fr); gap:14px; margin-top:4px;}
+.phone-hero-step {border:1px solid var(--border); border-radius:12px; padding:14px; min-width:0;}
+.phone-hero-step h4 {margin:0 0 8px; font-size:15px;}
+.phone-hero-step .phone-bot-qr {width:150px; height:150px;}
+.phone-hero-step a {overflow-wrap:anywhere;}
+@media(max-width:760px) {.phone-hero-steps{grid-template-columns:1fr}}
 .chat-app-cards {display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); align-items:stretch; gap:14px; margin:12px 0 4px;}
 .chat-app-card {border:1px solid var(--border); border-radius:14px; padding:16px; background:var(--panel,transparent); display:flex; flex-direction:column; gap:10px; min-width:0;}
 .chat-app-card[data-stage="on"] {border-color:var(--ok);}
@@ -5123,6 +5135,17 @@ function phoneQrCanvas(text, label) {
     canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', label); canvas.className = 'phone-bot-qr'; return canvas;
   } catch (_) { return null; }
 }
+/* The phone app's download page. A QR code cannot tell which phone scans it; the page it opens can,
+   so one code serves iPhone and Android alike. Drawn here offline; nothing is fetched by Settings. */
+const PHONE_APP_PAGE = 'https://parad0x-labs.github.io/vool/app/';
+function phoneMark() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const tile = el('span', 'chat-app-mark'); tile.setAttribute('aria-hidden', 'true');
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24');
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', 'M8 1.5h8A2.5 2.5 0 0 1 18.5 4v16a2.5 2.5 0 0 1-2.5 2.5H8A2.5 2.5 0 0 1 5.5 20V4A2.5 2.5 0 0 1 8 1.5zm0 2a.5.5 0 0 0-.5.5v16a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V4a.5.5 0 0 0-.5-.5h-1.2l-.4.8h-3.8l-.4-.8H8zm4 14a1 1 0 1 1 0 2 1 1 0 0 1 0-2z');
+  path.setAttribute('fill', '#fff'); svg.appendChild(path); tile.appendChild(svg); return tile;
+}
 /* Set when the pairing page hands over a phone that was just paired: its setup opens first. */
 let setupFor = (()=>{try{return new URLSearchParams(location.search).get('phone_setup') || '';}catch(_){return '';}})();
 const phonePrepared = {};
@@ -5142,6 +5165,33 @@ function widgetPhoneAccess(host) {
   if (!src || state.sourceErr[url]) {
     stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return;
   }
+  /* The phone comes first and says what it is for, then its two steps: get the app, pair it. */
+  const phonesPaired = (src.devices || []).filter(d => d.kind !== 'bot' && d.status === 'active').length;
+  const hero = el('section', 'phone-hero'); stack.appendChild(hero);
+  const heroHead = el('div', 'chat-app-head'); hero.appendChild(heroHead); heroHead.appendChild(phoneMark());
+  const heroTitle = el('div', 'chat-app-title'); heroHead.appendChild(heroTitle);
+  heroTitle.appendChild(el('h3', '', T('phone.hero.title', 'VOOL on your phone')));
+  const heroPill = el('span', 'chat-app-pill', phonesPaired ? T('phone.hero.ready', 'Ready') : T('phone.hero.not_set_up', 'Not set up yet'));
+  heroPill.dataset.stage = phonesPaired ? 'on' : 'off'; heroTitle.appendChild(heroPill);
+  hero.appendChild(el('p', 'phone-hero-lead', T('phone.hero.lead', 'Your own VOOL in your pocket. It runs on this computer, so your chats and files stay here.')));
+  const heroPoints = el('ul', 'phone-hero-points'); hero.appendChild(heroPoints);
+  [['phone.hero.point_private', 'Private: your phone talks only to this computer, and every message is sealed on the way.'],
+   ['phone.hero.point_files', 'Your files: ask for a file or a photo from this computer and it shows right in the chat.'],
+   ['phone.hero.point_camera', 'Private camera: photos and videos go straight into VOOL and are kept locked on this computer, not in your phone\u2019s gallery.'],
+   ['phone.hero.point_away', 'Away from home: reach this computer over mobile data through a private route, with nothing to set up.'],
+   ['phone.hero.point_choice', 'You decide: each phone may do only what you allow here, and you can change it at any time.']]
+    .forEach(([key, text]) => heroPoints.appendChild(el('li', '', T(key, text))));
+  const heroSteps = el('div', 'phone-hero-steps'); hero.appendChild(heroSteps);
+  const getStep = el('div', 'phone-hero-step'); heroSteps.appendChild(getStep);
+  getStep.appendChild(el('h4', '', T('phone.hero.get_title', '1. Get the app')));
+  const appQr = phoneQrCanvas(PHONE_APP_PAGE, T('phone.hero.get_qr', 'Code that opens the VOOL phone app page'));
+  if (appQr) getStep.appendChild(appQr);
+  getStep.appendChild(el('p', 'help', T('phone.hero.get_help', 'Scan this with your phone\u2019s camera. The page that opens picks iPhone or Android for you.')));
+  const appLink = el('a', '', PHONE_APP_PAGE.replace(/^https:\/\//, '')); appLink.href = PHONE_APP_PAGE; appLink.target = '_blank'; appLink.rel = 'noopener';
+  getStep.appendChild(appLink);
+  const pairStep = el('div', 'phone-hero-step'); heroSteps.appendChild(pairStep);
+  pairStep.appendChild(el('h4', '', T('phone.hero.pair_title', '2. Pair it with this computer')));
+  pairStep.appendChild(el('p', 'help', T('phone.hero.pair_help', 'Switch on phone access, press Pair a phone, then scan the code with the VOOL app.')));
   const network = el('select', 'inp');
   network.setAttribute('aria-label', T('phone.network', 'Computer\u2019s address on your home network'));
   const addresses = [...new Set([src.address, ...(src.addresses || [])].filter(Boolean))];
@@ -5151,22 +5201,22 @@ function widgetPhoneAccess(host) {
   /* A bare address in a box means nothing to most people: say what it is. */
   const netLabel = el('label', 'phone-cap', T('phone.network', 'Computer\u2019s address on your home network'));
   netLabel.appendChild(network);
-  stack.appendChild(netLabel);
+  pairStep.appendChild(netLabel);
   const line = el('div', 'inline');
   const toggle = el('button', 'sw'); toggle.type = 'button'; toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-label', T('settings.row.phone_access.label', 'Use VOOL from my phone'));
   toggle.setAttribute('aria-checked', src.enabled ? 'true' : 'false'); line.appendChild(toggle);
   const pair = el('button', 'btn', T('phone.pair', 'Pair a phone')); pair.type = 'button'; pair.disabled = !src.running;
-  line.appendChild(pair); stack.appendChild(line);
-  const note = el('div', 'state idle'); note.setAttribute('role', 'status'); stack.appendChild(note);
+  line.appendChild(pair); pairStep.appendChild(line);
+  const note = el('div', 'state idle'); note.setAttribute('role', 'status'); pairStep.appendChild(note);
   // Away from home: off until the owner switches it on. It adds a private route; home stays as it is.
   const awayLine = el('div', 'inline');
   const awayToggle = el('button', 'sw'); awayToggle.type = 'button'; awayToggle.setAttribute('role', 'switch');
   awayToggle.setAttribute('aria-label', T('phone.away.label', 'Also use VOOL away from home'));
   awayToggle.setAttribute('aria-checked', src.away ? 'true' : 'false'); awayToggle.disabled = !src.running || src.mode === 'relay';
   awayLine.appendChild(awayToggle); awayLine.appendChild(el('span', '', T('phone.away.label', 'Also use VOOL away from home')));
-  stack.appendChild(awayLine);
-  stack.appendChild(el('p', 'help', src.away && !src.away_address
+  pairStep.appendChild(awayLine);
+  pairStep.appendChild(el('p', 'help', src.away && !src.away_address
     ? T('phone.away.failed', 'The private route could not start. Home Wi-Fi still works. Switch this off and on to try again.')
     : T('phone.away.help', 'Your phone reaches this computer over mobile data through a private route. Nothing to set up: switch it on, then pair or scan the code again. Messages stay sealed. The first connection away from home takes a little longer.')));
   awayToggle.onclick = async () => {
@@ -5217,6 +5267,7 @@ function widgetPhoneAccess(host) {
      connected). Setting up happens inside the card, one step at a time; a pasted key connects on its own and
      pairing is Telegram's Start button or Discord's invite (core/mobile_companion/bot_runtime.py). */
   const chatApps=el('section','phone-bot-connect'); stack.prepend(chatApps);
+  stack.prepend(hero); // the phone app leads; Telegram and Discord follow it
   chatApps.appendChild(el('h3','',T('phone.bot_title','Telegram and Discord')));
   chatApps.appendChild(el('p','help',T('phone.bot_privacy','Telegram and Discord can read messages sent through them. Use a private conversation.')));
   const botCardsBox=el('div','chat-app-cards'); chatApps.appendChild(botCardsBox);
