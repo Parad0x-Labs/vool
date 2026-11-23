@@ -11,6 +11,7 @@ separate process in the same home while the daemon runs, so nothing reaches the 
 """
 from __future__ import annotations
 
+import os as _os
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -41,7 +42,7 @@ def _box(daemon: ServedDaemon, *, lang: str = "en", then=None) -> str:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(executable_path="/opt/pw-browsers/chromium", args=["--no-sandbox"])
+        browser = pw.chromium.launch(args=["--no-sandbox"], **({"executable_path": _os.environ["VOOL_TEST_CHROMIUM_EXECUTABLE"]} if _os.environ.get("VOOL_TEST_CHROMIUM_EXECUTABLE") else {}))
         try:
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/chat?ui_locale={lang}", wait_until="domcontentloaded")

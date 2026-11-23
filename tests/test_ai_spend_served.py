@@ -15,6 +15,7 @@ are this checkout's own code; only the model is substituted.
 from __future__ import annotations
 
 import json
+import os as _os
 import uuid
 from urllib.request import Request, urlopen
 
@@ -139,7 +140,7 @@ def test_spending_is_enforced_counted_told_apart_and_warned_about(rig):
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(executable_path="/opt/pw-browsers/chromium", args=["--no-sandbox"])
+        browser = pw.chromium.launch(args=["--no-sandbox"], **({"executable_path": _os.environ["VOOL_TEST_CHROMIUM_EXECUTABLE"]} if _os.environ.get("VOOL_TEST_CHROMIUM_EXECUTABLE") else {}))
         try:
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#budgets/spend", wait_until="domcontentloaded")
