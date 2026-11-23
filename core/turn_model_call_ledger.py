@@ -721,6 +721,62 @@ def record_tool_result(source_context: dict[str, Any] | None, intent: str, text:
         return
 
 
+#: Per chat: the argument values of the tool calls its turns ran, newest last, so a later turn can tell a value it
+#: was given from one an earlier message asked for (`earlier_turn_call_values`).
+_SESSION_CALLS: OrderedDict[str, list[tuple[str, str, tuple[str, ...]]]] = OrderedDict()
+_SESSION_CALLS_KEPT = 12
+_MAX_TRACKED_SESSIONS = 256
+
+
+def _string_values(value: Any) -> list[str]:
+    found: list[str] = []
+    if isinstance(value, str):
+        if value.strip():
+            found.append(value.strip())
+    elif isinstance(value, dict):
+        for item in value.values():
+            found.extend(_string_values(item))
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found.extend(_string_values(item))
+    return found
+
+
+def record_session_call(source_context: dict[str, Any] | None, intent: str, arguments: Any) -> None:
+    """Keep the string argument values of a call that ran on this turn, under its chat. Never raises."""
+    try:
+        context = source_context or {}
+        session = str(context.get("session_id") or "").strip()
+        turn = _turn_fingerprint(context)
+        values = tuple(dict.fromkeys(_string_values(arguments)))
+        if not session or not turn or not values:
+            return
+        with _LOCK:
+            rows = _SESSION_CALLS.setdefault(session, [])
+            rows.append((turn, str(intent or "").strip(), values))
+            del rows[:-_SESSION_CALLS_KEPT]
+            _SESSION_CALLS.move_to_end(session)
+            while len(_SESSION_CALLS) > _MAX_TRACKED_SESSIONS:
+                _SESSION_CALLS.popitem(last=False)
+    except Exception:
+        return
+
+
+def earlier_turn_call_values(source_context: dict[str, Any] | None) -> list[tuple[str, str]]:
+    """(intent, value) for every string argument of calls that ran on this chat's EARLIER turns; [] when none."""
+    try:
+        context = source_context or {}
+        session = str(context.get("session_id") or "").strip()
+        turn = _turn_fingerprint(context)
+        if not session or not turn:
+            return []
+        with _LOCK:
+            rows = list(_SESSION_CALLS.get(session) or ())
+        return [(intent, value) for row_turn, intent, values in rows if row_turn != turn for value in values]
+    except Exception:
+        return []
+
+
 def turn_tool_results(source_context: dict[str, Any] | None) -> list[tuple[str, str]]:
     """(intent, text) for what this turn's read-only tools returned (`record_tool_result`); [] when none."""
     try:
@@ -826,6 +882,7 @@ def reset_for_tests() -> None:
     """Drop every tracked turn. Test hook only."""
     with _LOCK:
         _COUNTS.clear()
+        _SESSION_CALLS.clear()
 
 
 def record_presentation_selection(
@@ -869,6 +926,7 @@ __all__ = [
     "ProviderCallAlreadyTerminalizedError",
     "begin_turn",
     "carry_turn_ledger",
+    "earlier_turn_call_values",
     "fail_pending_provider_calls",
     "provider_call_id_for_model",
     "provider_call_metrics",
@@ -876,6 +934,7 @@ __all__ = [
     "record_provider_call",
     "record_provider_call_outcome",
     "record_served_usage",
+    "record_session_call",
     "record_tool_execution",
     "record_tool_result",
     "reset_for_tests",

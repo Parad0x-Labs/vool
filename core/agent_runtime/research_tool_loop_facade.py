@@ -594,6 +594,114 @@ def _database_query_contradicts_the_ask(
     return refused
 
 
+_PROSE_TOKEN_RE = re.compile(r"[\w'’-]+")
+_EARLIER_MESSAGE_REASON = "arguments_from_an_earlier_message"
+_EARLIER_MESSAGE_SAID = "is from an earlier message, and this message does not ask about it"
+
+
+def _words_of(text: str) -> list[str]:
+    """The words of a text, in any script: tokens made of letters only, so an id ("bfb7f9ab") or a time is no word."""
+    words = []
+    for token in _PROSE_TOKEN_RE.findall(str(text or "")):
+        bare = token.strip("'’-")
+        if len(bare) >= 2 and bare.replace("'", "").replace("’", "").replace("-", "").isalpha():
+            words.append(bare.casefold())
+    return words
+
+
+def _names_a_word_of(value: str, text_words: list[str]) -> bool:
+    """Whether the text names a word of ``value`` four letters long or more: the same word, or one sharing its first
+    four letters (an inflected form in any language: "šiukšles"/"šiukšlių", "Erinnerung"/"Erinnerungen")."""
+    for word in _words_of(value):
+        if len(word) < 4:
+            continue
+        if any(len(other) >= 4 and other[:4] == word[:4] for other in text_words):
+            return True
+    return False
+
+
+def _change_call_carries_an_earlier_message(
+    intent: str,
+    payload: dict[str, Any],
+    question: str,
+    steps: list[dict[str, Any]] | None,
+    source_context: dict[str, Any] | None,
+    *,
+    resuming_approval: bool = False,
+) -> Any:
+    """Refuse once a call that changes something when its words are an earlier message's and not this one's.
+
+    Mac gate on 91e898675 (qwen3:8b, history in the prompt): the Lithuanian "remind me Thursday 9:30 to take out the
+    rubbish" was sent as operator.schedule_reminder {"note": "call grandma", "text": "remind me on wednesday at 7:15pm
+    to call grandma"}, the previous turn's call word for word, and the next ask, to cancel the rubbish reminder, went
+    out as contacts.update {"target": "call grandma", ...}. A value of two or more words that an earlier turn's call
+    carried, which this message never names and this turn never read, is the earlier message's, whatever the
+    language. Said once per turn: a model that sends the call again after being told is let through, so "the same
+    again" still runs."""
+    if resuming_approval:
+        return None
+    try:
+        from core.tool_registry import tool_for_intent
+        from core.turn_model_call_ledger import earlier_turn_call_values
+
+        contract = tool_for_intent(intent)
+        if contract is None or str(getattr(contract, "side_effect_class", "") or "") == "read_only":
+            return None
+        if any(
+            step.get("correction") and _EARLIER_MESSAGE_SAID in str(step.get("observation") or "")
+            for step in (steps or [])
+        ):
+            return None
+        earlier = {" ".join(_words_of(value)) for _intent, value in earlier_turn_call_values(source_context)}
+        earlier.discard("")
+        if not earlier:
+            return None
+        asked = _words_of(question)
+        read_this_turn = " ".join(
+            str(step.get("observation") or "") for step in (steps or []) if not step.get("correction")
+        ).casefold()
+        copied: list[str] = []
+        for value in dict.fromkeys(_string_values_of(dict(payload.get("arguments") or {}))):
+            words = _words_of(value)
+            if len(words) < 2 or " ".join(words) not in earlier:
+                continue
+            if _names_a_word_of(value, asked) or value.casefold() in read_this_turn:
+                continue
+            copied.append(value)
+        if not copied:
+            return None
+    except Exception:
+        return None
+    from core.execution.models import ToolIntentExecution
+
+    shown = "; ".join(f'"{value[:80]}"' for value in copied[:3])
+    message = (
+        f"{shown} {_EARLIER_MESSAGE_SAID}. This message is: "
+        f'"{str(question or "").strip()[:300]}". Fill the arguments from this message only. If it really asks for '
+        "exactly the same thing again, send the same call again."
+    )
+    return ToolIntentExecution(
+        handled=True,
+        ok=False,
+        status="invalid_arguments",
+        mode="refused",
+        tool_name=intent,
+        response_text=message,
+        user_safe_response_text=message,
+        details={"executed": False, "reason": _EARLIER_MESSAGE_REASON, "copied": copied[:3]},
+    )
+
+
+def _string_values_of(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, dict):
+        return [item for inner in value.values() for item in _string_values_of(inner)]
+    if isinstance(value, (list, tuple)):
+        return [item for inner in value for item in _string_values_of(inner)]
+    return []
+
+
 def _database_query_contradicts_the_ask_checks(
     intent: str, payload: dict[str, Any], question: str, steps: list[dict[str, Any]] | None = None
 ) -> Any:
@@ -3313,6 +3421,9 @@ class ResearchToolLoopFacadeMixin:
                 gating_source_context = {**gating_source_context, ASK_TEXT_KEY: str(effective_input or "")}
             execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
                 tool_name, tool_payload, effective_input, executed_steps, loop_source_context
+            ) or _change_call_carries_an_earlier_message(
+                tool_name, tool_payload, effective_input, executed_steps, loop_source_context,
+                resuming_approval=bool(resuming_approval),
             ) or self._execute_tool_intent(
                 tool_payload,
                 task_id=task.task_id,
@@ -3325,6 +3436,9 @@ class ResearchToolLoopFacadeMixin:
                 tool_call_id=str(tool_payload.get("_native_tool_call_id") or "") or None,
             )
             _followup_action_ended(loop_source_context)
+            if str((getattr(execution, "details", None) or {}).get("reason") or "") == _EARLIER_MESSAGE_REASON:
+                # Said once: the same call sent again after the correction runs (the person may want it again).
+                seen_tool_payloads.discard(_semantic_payload_signature(tool_payload))
             # Result-type validation: the executed tool must be the requested one. A
             # mismatch means an internal wiring fault -- stop safely instead of showing
             # a result the user never asked for.

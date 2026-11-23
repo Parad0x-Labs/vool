@@ -2102,9 +2102,10 @@ def _record_execution(
         # What the call returned, on the turn's ledger, where the action-claim check reads it: a reply that says
         # back a reminder the list showed is not a reminder it claims to have set (Mac gate on 561e3e9d0).
         try:
-            from core.turn_model_call_ledger import record_tool_result
+            from core.turn_model_call_ledger import record_session_call, record_tool_result
 
             record_tool_result(source_context, intent, str(getattr(execution, "response_text", "") or ""), arguments)
+            record_session_call(source_context, intent, arguments)
         except Exception:
             pass
     try:
