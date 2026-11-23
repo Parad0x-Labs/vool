@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "לא ניתן היה להגיע ל-VOOL, ולכן הצ׳אט לא הועבר לארכיון.",
     "chat.action_claim_not_done": "לא עשיתי זאת: שום שלב לא רץ כדי לבצע זאת בתור הזה, ולכן דבר לא נוסף ולא שונה. בקשו שוב ואעשה זאת בכלי המתאים.",
     "chat.action_unchecked_nothing_changed": "שום דבר לא הוגדר, נשמר, נשלח או שונה בשלב הזה.",
+    "memory.kept": "נשמר. אזכור את זה.",
+    "memory.already_kept": "זה כבר היה בזיכרון שלי.",
+    "memory.recall_forgotten": "אין לי תיעוד של זה; זה נשכח.",
+    "memory.recall_nothing": "לא שמרתי את זה. אם תגיד לי, אזכור.",
+    "memory.keep_not_wanted": "בסדר, לא אשמור את זה.",
+    "memory.already_forgotten": "זה כבר נשכח.",
+    "memory.forget_applied": "נשכח. רשומות זיכרון שהוסרו: {count}.",
+    "memory.you_told_me": "אמרת לי:",
     "bot.approval_needed": "זה צריך את האישור שלך במחשב. פתח את השיחה הזו ב-VOOL שם ואשר. אשלח את התוצאה לכאן.",
     "bot.approval_needed_what": "זה צריך את האישור שלך במחשב: {what}. פתח את השיחה הזו ב-VOOL שם ואשר. אשלח את התוצאה לכאן.",
     "bot.approval_denied": "אמרת לא במחשב, ולכן זה לא בוצע.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "השווינו את המספר: סימון כמאומת",
     "approval.action.machine.send_with_drop": "לשלוח קובץ עם Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

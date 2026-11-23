@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "VOOL에 연결할 수 없어 채팅이 보관되지 않았습니다.",
     "chat.action_claim_not_done": "아직 하지 않았습니다. 이번 차례에는 실행된 단계가 없어서 아무것도 추가되거나 변경되지 않았습니다. 다시 요청해 주시면 알맞은 도구로 처리하겠습니다.",
     "chat.action_unchecked_nothing_changed": "이번 단계에서는 아무것도 설정, 저장, 전송 또는 변경되지 않았습니다.",
+    "memory.kept": "저장했어요. 기억할게요.",
+    "memory.already_kept": "이미 기억하고 있었어요.",
+    "memory.recall_forgotten": "그에 대한 기록이 없어요. 잊혔어요.",
+    "memory.recall_nothing": "저장되어 있지 않아요. 알려 주시면 기억할게요.",
+    "memory.keep_not_wanted": "알겠어요, 저장하지 않을게요.",
+    "memory.already_forgotten": "이미 잊힌 내용이에요.",
+    "memory.forget_applied": "잊었어요. 삭제한 기억 항목: {count}개.",
+    "memory.you_told_me": "알려 주신 내용:",
     "bot.approval_needed": "이 작업은 컴퓨터에서 승인이 필요합니다. 그곳의 VOOL에서 이 채팅을 열고 허용해 주세요. 결과는 여기로 보내드릴게요.",
     "bot.approval_needed_what": "이 작업은 컴퓨터에서 승인이 필요합니다: {what}. 그곳의 VOOL에서 이 채팅을 열고 허용해 주세요. 결과는 여기로 보내드릴게요.",
     "bot.approval_denied": "컴퓨터에서 거절하셨기 때문에 실행하지 않았습니다.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "번호를 비교했습니다: 확인됨으로 표시",
     "approval.action.machine.send_with_drop": "Drop으로 파일을 보내려고 합니다"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

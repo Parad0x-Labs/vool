@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "VOOL n’a pas pu être joint, donc le chat n’a pas été archivé.",
     "chat.action_claim_not_done": "Je ne l'ai pas fait : aucune étape n'a été exécutée pour cela à ce tour, donc rien n'a été ajouté ni modifié. Redemandez-le-moi et je le ferai avec le bon outil.",
     "chat.action_unchecked_nothing_changed": "Rien n’a été programmé, enregistré, envoyé ni modifié à cette étape.",
+    "memory.kept": "C’est noté. Je m’en souviendrai.",
+    "memory.already_kept": "Je l’avais déjà en mémoire.",
+    "memory.recall_forgotten": "Je n’en ai aucune trace ; cela a été oublié.",
+    "memory.recall_nothing": "Je ne l’ai pas enregistré. Si tu me le dis, je m’en souviendrai.",
+    "memory.keep_not_wanted": "D’accord, je ne le garde pas.",
+    "memory.already_forgotten": "C’était déjà oublié.",
+    "memory.forget_applied": "Oublié. Entrées de mémoire supprimées : {count}.",
+    "memory.you_told_me": "Tu m’as dit :",
     "bot.approval_needed": "Il faut ton accord sur ton ordinateur. Ouvre cette conversation dans VOOL là-bas et autorise-la. J’enverrai le résultat ici.",
     "bot.approval_needed_what": "Il faut ton accord sur ton ordinateur : {what}. Ouvre cette conversation dans VOOL là-bas et autorise-la. J’enverrai le résultat ici.",
     "bot.approval_denied": "Tu as dit non sur ton ordinateur, donc rien n’a été fait.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "Numéro comparé : marquer comme vérifié",
     "approval.action.machine.send_with_drop": "envoyer un fichier avec Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

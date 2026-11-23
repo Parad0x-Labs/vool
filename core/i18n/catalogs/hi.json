@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "VOOL तक नहीं पहुँचा जा सका, इसलिए चैट संग्रहित नहीं हुई।",
     "chat.action_claim_not_done": "मैंने यह नहीं किया: इस बार इसे करने के लिए कोई चरण नहीं चला, इसलिए कुछ भी जोड़ा या बदला नहीं गया। फिर से कहें, मैं इसे सही टूल से करूँगा।",
     "chat.action_unchecked_nothing_changed": "इस चरण में कुछ भी सेट, सेव, भेजा या बदला नहीं गया।",
+    "memory.kept": "सहेज लिया। मैं यह याद रखूँगा।",
+    "memory.already_kept": "यह पहले से मेरी याद में था।",
+    "memory.recall_forgotten": "मेरे पास इसका कोई रिकॉर्ड नहीं है; इसे भुला दिया गया था।",
+    "memory.recall_nothing": "यह मेरे पास सहेजा नहीं है। अगर आप बताएँ, तो मैं याद रखूँगा।",
+    "memory.keep_not_wanted": "ठीक है, मैं इसे नहीं रखूँगा।",
+    "memory.already_forgotten": "यह पहले ही भुला दिया गया था।",
+    "memory.forget_applied": "भुला दिया। हटाई गई मेमोरी प्रविष्टियाँ: {count}।",
+    "memory.you_told_me": "आपने मुझे बताया:",
     "bot.approval_needed": "इसके लिए आपके कंप्यूटर पर आपकी अनुमति चाहिए। वहाँ VOOL में यह चैट खोलें और अनुमति दें। मैं नतीजा यहाँ भेजूँगा।",
     "bot.approval_needed_what": "इसके लिए आपके कंप्यूटर पर आपकी अनुमति चाहिए: {what}। वहाँ VOOL में यह चैट खोलें और अनुमति दें। मैं नतीजा यहाँ भेजूँगा।",
     "bot.approval_denied": "आपने कंप्यूटर पर मना किया, इसलिए यह नहीं किया गया।",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "हमने नंबर मिलाया: सत्यापित के रूप में चिह्नित करें",
     "approval.action.machine.send_with_drop": "Drop से एक फ़ाइल भेजना"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

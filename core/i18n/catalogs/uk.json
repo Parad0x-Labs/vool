@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "Не вдалося зв’язатися з VOOL, тому чат не було архівовано.",
     "chat.action_claim_not_done": "Я цього не зробив: на цьому кроці нічого не виконувалося, тому нічого не було додано чи змінено. Попросіть ще раз, і я зроблю це потрібним інструментом.",
     "chat.action_unchecked_nothing_changed": "На цьому кроці нічого не було встановлено, збережено, надіслано чи змінено.",
+    "memory.kept": "Запам’ятав. Я це збережу.",
+    "memory.already_kept": "Це вже було в моїй пам’яті.",
+    "memory.recall_forgotten": "У мене немає запису про це; це було забуто.",
+    "memory.recall_nothing": "У мене це не збережено. Якщо скажете, я запам’ятаю.",
+    "memory.keep_not_wanted": "Гаразд, не зберігатиму це.",
+    "memory.already_forgotten": "Це вже було забуто.",
+    "memory.forget_applied": "Забуто. Видалено записів пам’яті: {count}.",
+    "memory.you_told_me": "Ви мені сказали:",
     "bot.approval_needed": "Для цього потрібна ваша згода на комп’ютері. Відкрийте там цей чат у VOOL і дозвольте. Результат я надішлю сюди.",
     "bot.approval_needed_what": "Для цього потрібна ваша згода на комп’ютері: {what}. Відкрийте там цей чат у VOOL і дозвольте. Результат я надішлю сюди.",
     "bot.approval_denied": "Ви відповіли «ні» на комп’ютері, тож це не зроблено.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "Ми порівняли номер: позначити як перевірене",
     "approval.action.machine.send_with_drop": "надіслати файл через Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

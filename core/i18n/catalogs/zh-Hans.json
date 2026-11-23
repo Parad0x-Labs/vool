@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "无法连接 VOOL，因此聊天未归档。",
     "chat.action_claim_not_done": "我还没有做这件事：这一轮没有执行任何步骤，所以没有添加或更改任何内容。请再说一次，我会用合适的工具来完成。",
     "chat.action_unchecked_nothing_changed": "这一步没有设置、保存、发送或更改任何内容。",
+    "memory.kept": "已保存。我会记住的。",
+    "memory.already_kept": "我已经记住这个了。",
+    "memory.recall_forgotten": "我没有这方面的记录；它已被忘记。",
+    "memory.recall_nothing": "我没有保存这个。告诉我，我就会记住。",
+    "memory.keep_not_wanted": "好的，我不会保存这个。",
+    "memory.already_forgotten": "这已经被忘记了。",
+    "memory.forget_applied": "已忘记。已删除的记忆条目：{count}。",
+    "memory.you_told_me": "你告诉过我：",
     "bot.approval_needed": "这需要你在电脑上同意。请在那台电脑的 VOOL 中打开这个对话并允许。结果我会发到这里。",
     "bot.approval_needed_what": "这需要你在电脑上同意：{what}。请在那台电脑的 VOOL 中打开这个对话并允许。结果我会发到这里。",
     "bot.approval_denied": "你在电脑上拒绝了，所以没有执行。",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "我们已比对号码：标记为已核对",
     "approval.action.machine.send_with_drop": "通过 Drop 发送一个文件"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -34,6 +34,7 @@ verbs do, and seats the writing or running tools; a judged web choice seats the 
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -214,6 +215,24 @@ def _record_builtins(text: str, keys: tuple[str, ...]) -> None:
             _BUILTINS.popitem(last=False)
 
 
+#: A phone number as people type one (seven digits or more, with the marks people put between them) or an email.
+_CONTACT_VALUE_RE = re.compile(r"(?:\+?\d[\d ()./-]{5,}\d)|(?:[^\s@]+@[^\s@]+\.[^\s@]{2,})")
+
+
+def _continues_a_contact_save(text: str, source_context: dict[str, Any]) -> bool:
+    """Whether a message both readings call a keep is the contact save just before it, continued: the message
+    right before it in this chat was judged a Contacts order, and this one carries what a contact holds (a phone
+    number or an email). Such a message is the next contact, not a fact about the person's life.
+
+    Measured on 02ff11496 (fresh audit): right after a contact was saved, "save another one too, Odette Marsh, +1 555
+    0177" was kept as a memory line; no contact was made, "which Odette is my physio" was answered from that line, and
+    "take Odette Marsh out of my contacts" offered to delete the other Odette."""
+    previous = _previous_request(text, source_context if isinstance(source_context, dict) else {})
+    if not previous or "contacts" not in judged_builtins(previous):
+        return False
+    return bool(_CONTACT_VALUE_RE.search(" ".join(str(text or "").split())))
+
+
 def _memory_kind_confirmed(
     text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
 ) -> tuple[str, ...]:
@@ -269,6 +288,9 @@ def _memory_kind_confirmed(
                       and (about_told or asked("told as fact", intent_arbiter.arbitrate_told_as_fact) != "yes")):
             decided = "forget"
     if not decided and not tools and kind == "keep" and "keep" in picked:
+        if _continues_a_contact_save(text, source_context):
+            _log.info("memory kind judged: keep read as the contact save before it continued")
+            return ("contacts",)
         decided = "keep"
     if not decided and "recall" in named:
         decided = "recall"

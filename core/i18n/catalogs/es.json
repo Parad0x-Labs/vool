@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "No se pudo contactar con VOOL, así que el chat no se archivó.",
     "chat.action_claim_not_done": "No lo he hecho: en este turno no se ejecutó ningún paso para hacerlo, así que no se añadió ni se cambió nada. Pídemelo de nuevo y lo haré con la herramienta adecuada.",
     "chat.action_unchecked_nothing_changed": "En este paso no se programó, guardó, envió ni cambió nada.",
+    "memory.kept": "Guardado. Lo recordaré.",
+    "memory.already_kept": "Eso ya lo tenía en la memoria.",
+    "memory.recall_forgotten": "No tengo constancia de eso; se olvidó.",
+    "memory.recall_nothing": "No lo tengo guardado. Si me lo dices, lo recordaré.",
+    "memory.keep_not_wanted": "Vale, no lo guardaré.",
+    "memory.already_forgotten": "Eso ya estaba olvidado.",
+    "memory.forget_applied": "Olvidado. Entradas de memoria eliminadas: {count}.",
+    "memory.you_told_me": "Me dijiste:",
     "bot.approval_needed": "Esto necesita tu aprobación en el ordenador. Abre este chat en VOOL allí y permítelo. Te enviaré el resultado aquí.",
     "bot.approval_needed_what": "Esto necesita tu aprobación en el ordenador: {what}. Abre este chat en VOOL allí y permítelo. Te enviaré el resultado aquí.",
     "bot.approval_denied": "Dijiste que no en el ordenador, así que no se hizo.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "Número comparado: marcar como verificado",
     "approval.action.machine.send_with_drop": "enviar un archivo con Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3436,10 +3436,12 @@ class VoolAgent(
                 if held is not None:
                     cross_recall = CrossChatRecall(response=held, found=True)
             if cross_recall is not None:
+                from core.i18n.lane_receipts import in_the_persons_language
+
                 recall_result = self._fast_path_result(
                     session_id=session_id,
                     user_input=effective_input,
-                    response=cross_recall.response,
+                    response=in_the_persons_language(cross_recall.response, effective_input),
                     confidence=0.95 if cross_recall.found else 0.9,
                     source_context=runtime_source_context,
                     reason=_CROSS_CHAT_LANE,

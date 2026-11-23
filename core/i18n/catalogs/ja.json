@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "VOOLに接続できなかったため、チャットはアーカイブされませんでした。",
     "chat.action_claim_not_done": "まだ実行していません。このターンでは実行された手順がないため、何も追加・変更されていません。もう一度依頼していただければ、適切なツールで実行します。",
     "chat.action_unchecked_nothing_changed": "このステップでは、何も設定・保存・送信・変更されていません。",
+    "memory.kept": "保存しました。覚えておきます。",
+    "memory.already_kept": "それはすでに記憶にありました。",
+    "memory.recall_forgotten": "その記録はありません。忘れられました。",
+    "memory.recall_nothing": "それは保存されていません。教えてくれれば覚えます。",
+    "memory.keep_not_wanted": "わかりました、それは保存しません。",
+    "memory.already_forgotten": "それはすでに忘れられています。",
+    "memory.forget_applied": "忘れました。削除した記憶の項目: {count}。",
+    "memory.you_told_me": "あなたが教えてくれたこと:",
     "bot.approval_needed": "これにはパソコンでのあなたの許可が必要です。そちらの VOOL でこのチャットを開いて許可してください。結果はここに送ります。",
     "bot.approval_needed_what": "これにはパソコンでのあなたの許可が必要です：{what}。そちらの VOOL でこのチャットを開いて許可してください。結果はここに送ります。",
     "bot.approval_denied": "パソコンで「いいえ」と答えたので、実行していません。",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "番号を照合しました: 確認済みにする",
     "approval.action.machine.send_with_drop": "Drop でファイルを送信する"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

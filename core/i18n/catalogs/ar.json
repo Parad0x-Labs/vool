@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "تعذّر الوصول إلى VOOL، لذلك لم تُؤرشف المحادثة.",
     "chat.action_claim_not_done": "لم أفعل ذلك: لم تُنفَّذ أي خطوة لذلك في هذه المرة، لذا لم يُضَف أو يُغيَّر أي شيء. اطلب مني مرة أخرى وسأنفذه بالأداة المناسبة.",
     "chat.action_unchecked_nothing_changed": "لم يُضبط أو يُحفظ أو يُرسل أو يُغيَّر أي شيء في هذه الخطوة.",
+    "memory.kept": "تم الحفظ. سأتذكر ذلك.",
+    "memory.already_kept": "كان ذلك في ذاكرتي بالفعل.",
+    "memory.recall_forgotten": "ليس لدي سجل لذلك؛ لقد تم نسيانه.",
+    "memory.recall_nothing": "لم أحفظ ذلك. إذا أخبرتني، سأتذكره.",
+    "memory.keep_not_wanted": "حسنًا، لن أحتفظ بذلك.",
+    "memory.already_forgotten": "تم نسيان ذلك بالفعل.",
+    "memory.forget_applied": "تم النسيان. عدد مدخلات الذاكرة المحذوفة: {count}.",
+    "memory.you_told_me": "أخبرتني:",
     "bot.approval_needed": "يحتاج هذا إلى موافقتك على حاسوبك. افتح هذه المحادثة في VOOL هناك واسمح بها. سأرسل النتيجة هنا.",
     "bot.approval_needed_what": "يحتاج هذا إلى موافقتك على حاسوبك: {what}. افتح هذه المحادثة في VOOL هناك واسمح بها. سأرسل النتيجة هنا.",
     "bot.approval_denied": "رفضت ذلك على حاسوبك، لذلك لم يُنفَّذ.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "قارنّا الرقم: وضع علامة «تم التحقق»",
     "approval.action.machine.send_with_drop": "إرسال ملف عبر Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

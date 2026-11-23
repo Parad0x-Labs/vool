@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "Nepavyko pasiekti VOOL, todėl pokalbis nebuvo archyvuotas.",
     "chat.action_claim_not_done": "To nepadariau: šiame žingsnyje nebuvo atliktas joks veiksmas, todėl niekas nebuvo pridėta ar pakeista. Paprašykite dar kartą, ir atliksiu tai tinkamu įrankiu.",
     "chat.action_unchecked_nothing_changed": "Šiame žingsnyje niekas nebuvo nustatyta, išsaugota, išsiųsta ar pakeista.",
+    "memory.kept": "Įsiminiau. Tai atsiminsiu.",
+    "memory.already_kept": "Tai jau buvo mano atmintyje.",
+    "memory.recall_forgotten": "Apie tai neturiu įrašo; tai buvo pamiršta.",
+    "memory.recall_nothing": "To neturiu išsaugota. Jei pasakysite, įsiminsiu.",
+    "memory.keep_not_wanted": "Gerai, to neįsiminsiu.",
+    "memory.already_forgotten": "Tai jau buvo pamiršta.",
+    "memory.forget_applied": "Pamiršta. Pašalinta atminties įrašų: {count}.",
+    "memory.you_told_me": "Jūs man sakėte:",
     "bot.approval_needed": "Tam reikia jūsų sutikimo kompiuteryje. Atidarykite šį pokalbį ten esančiame VOOL ir leiskite. Rezultatą atsiųsiu čia.",
     "bot.approval_needed_what": "Tam reikia jūsų sutikimo kompiuteryje: {what}. Atidarykite šį pokalbį ten esančiame VOOL ir leiskite. Rezultatą atsiųsiu čia.",
     "bot.approval_denied": "Kompiuteryje atsakėte „ne“, todėl tai nebuvo padaryta.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "Numerį palyginome: pažymėti kaip patikrintą",
     "approval.action.machine.send_with_drop": "išsiųsti failą per Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

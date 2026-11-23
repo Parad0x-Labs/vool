@@ -716,6 +716,14 @@
     "chat.archive_failed_offline": "Không kết nối được VOOL nên cuộc trò chuyện chưa được lưu trữ.",
     "chat.action_claim_not_done": "Tôi chưa làm việc đó: không có bước nào được chạy trong lượt này, nên không có gì được thêm hay thay đổi. Hãy yêu cầu lại, tôi sẽ làm bằng công cụ phù hợp.",
     "chat.action_unchecked_nothing_changed": "Ở bước này, không có gì được đặt, lưu, gửi hay thay đổi.",
+    "memory.kept": "Đã ghi nhớ. Tôi sẽ nhớ điều đó.",
+    "memory.already_kept": "Tôi đã có điều đó trong bộ nhớ.",
+    "memory.recall_forgotten": "Tôi không có ghi nhận nào về điều đó; nó đã bị quên.",
+    "memory.recall_nothing": "Tôi chưa lưu điều đó. Nếu bạn nói, tôi sẽ nhớ.",
+    "memory.keep_not_wanted": "Được, tôi sẽ không lưu điều đó.",
+    "memory.already_forgotten": "Điều đó đã bị quên rồi.",
+    "memory.forget_applied": "Đã quên. Số mục bộ nhớ đã xóa: {count}.",
+    "memory.you_told_me": "Bạn đã nói với tôi:",
     "bot.approval_needed": "Việc này cần bạn đồng ý trên máy tính. Hãy mở cuộc trò chuyện này trong VOOL ở đó và cho phép. Tôi sẽ gửi kết quả về đây.",
     "bot.approval_needed_what": "Việc này cần bạn đồng ý trên máy tính: {what}. Hãy mở cuộc trò chuyện này trong VOOL ở đó và cho phép. Tôi sẽ gửi kết quả về đây.",
     "bot.approval_denied": "Bạn đã từ chối trên máy tính, nên việc đó không được thực hiện.",
@@ -5446,7 +5454,7 @@
     "drop.mark_verified": "Chúng tôi đã so số: đánh dấu là đã xác minh",
     "approval.action.machine.send_with_drop": "gửi một tệp bằng Drop"
   },
-  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
+  "source_catalog_sha256": "0dd413ab793d212cf54c317507e289fcf63c585e81c6aa9b324cab6a49f7dd5e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
