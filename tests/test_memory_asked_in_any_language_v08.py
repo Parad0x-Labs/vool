@@ -475,3 +475,64 @@ def test_vools_own_reply_is_never_a_forget_target(home, monkeypatch):
     assert held and all(pm._plain_sentence(item) not in {pm._plain_sentence(reply)}
                         for item in held), held
     assert any(thing in item for item in held)
+
+
+class _LaneAgent:
+    """The agent seams the memory fast path calls: a fast-path result, and no companion memory."""
+
+    def _fast_path_result(self, *, response, **_kwargs):
+        return {"response": str(response)}
+
+    def _maybe_handle_companion_memory_fast_path(self, *_args, **_kwargs):
+        return None
+
+
+def _recall_lane(text: str):
+    from core.agent_runtime import memory_runtime
+
+    return memory_runtime.maybe_handle_memory_fast_path(
+        _LaneAgent(), text, session_id=CHAT, source_context=dict(OWNER),
+        access_policy=_policy(CHAT), maybe_handle_memory_command_fn=maybe_handle_memory_command)
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_recall_with_nothing_saved_is_not_saved_never_a_guess(home, monkeypatch, seed):
+    """Mac run9 (e6c724ef8): with nothing saved, "kokios spalvos mano valtis?" was handed to the model and answered
+    "raudona", and "where is my boat?" "docked at the marina by the old lighthouse"."""
+    rng = random.Random(f"nothing-saved-{seed}")
+    text = _vary(rng, rng.choice(["kokios spalvos mano valtis?", "kur laikau savo dviratį?",
+                                  "primink, kokia mano skėčio spalva", "ar prisimeni, kur mano lempa?"]))
+    _judged(text, "recall")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda *_a, **_k: ())
+    result = _recall_lane(text)
+    assert result and result["response"] == pm.JUDGED_RECALL_NOTHING, result
+
+
+def test_a_recall_with_a_saved_fact_still_reads_it_and_a_chat_with_earlier_turns_goes_on(home, monkeypatch):
+    rng = random.Random("nothing-saved-held")
+    _text, handled, _reply, colour = _keep(rng)
+    assert handled
+    plugin_ask.forget()
+    question = "kokios spalvos mano palapine?"
+    _judged(question, "recall")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", _stem_oracle(["palapin"]))
+    result = _recall_lane(question)
+    assert result and _plain(colour) in _plain(result["response"]), result
+    # Not judged a memory recall: nothing answers in its place.
+    plugin_ask.forget()
+    assert _recall_lane("kiek bus 23 kart 4?") is None
+
+
+def test_a_forget_never_puts_vools_receipt_on_the_forget_list(home):
+    """Mac run9 (e6c724ef8): the forget of a sentence said in this chat also forgot each line of the reply it got, so
+    "locked in. i'll remember that." was on the forget list. A reply line that says the sentence back still is."""
+    rng = random.Random("receipt-not-forgotten")
+    thing = rng.choice(["kayak", "hammock", "lantern"])
+    said = f"my {thing} is navy and lives in the shed"
+    pm._write_conversation_event(session_id=CHAT, user_input=f"Remember that {said}.", assistant_output=pm.KEPT_REPLY,
+                                 source_context=dict(OWNER))
+    pm._write_conversation_event(session_id=CHAT, user_input=f"So {said}, ok?",
+                                 assistant_output=f"Yes, your {thing} is navy, in the shed.", source_context=dict(OWNER))
+    lines = pm._replies_to_own_chat_sentence(said, session_id=CHAT, source_context=dict(OWNER))
+    assert pm.KEPT_REPLY not in lines, lines
+    assert any(thing in line for line in lines), lines

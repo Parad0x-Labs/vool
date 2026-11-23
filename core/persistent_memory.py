@@ -2635,6 +2635,9 @@ def _replace_saved_fact(body: str, replaced: Mapping[str, Any], policy: ContextA
 #: the memory lane, the lane itself), and a list's later turns ask about its opener again.
 _JUDGED_LEADS: OrderedDict[tuple[str, str], bool] = OrderedDict()
 _JUDGED_LEADS_LIMIT = 256
+#: The memory lane's own receipts for a keep. They carry no fact, so a forget never puts them on the forget list.
+KEPT_REPLY = "Locked in. I’ll remember that."
+ALREADY_KEPT_REPLY = "I already had that in memory."
 #: Said instead of "I already had that" when nothing was written because what was to be kept is a secret.
 EVERYDAY_SECRET_REFUSED = "That looks like a password or another secret, so I did not save it."
 
@@ -3200,12 +3203,12 @@ def _judged_memory_turn(
             return True, ("You asked me to forget that in this chat, so I won't keep it here. "
                           "In a new chat I can remember it again.")
         if added:
-            return True, "Locked in. I’ll remember that."
+            return True, KEPT_REPLY
         from core.secret_redaction import contains_secret
 
         if any(contains_secret(fact) for fact in facts):
             return True, EVERYDAY_SECRET_REFUSED
-        return True, "I already had that in memory."
+        return True, ALREADY_KEPT_REPLY
     reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
     return None if reply is None else (True, reply)
 
@@ -3296,6 +3299,28 @@ def _judged_recall_reply(
     if named:
         return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
     return None
+
+
+#: A judged recall in a new chat that nothing VOOL holds answers.
+JUDGED_RECALL_NOTHING = "I don't have that saved. If you tell me, I'll remember it."
+
+
+def _judged_recall_with_nothing_behind_it(text: str, *, session_id: str | None) -> str | None:
+    """The answer to a recall the turn's judge read, in any language, once every memory lane has handed it on: in a
+    chat with no earlier message nothing can answer it, so it is "not saved", never a model's guess. Handed to the
+    model with an empty memory, "kokios spalvos mano valtis?" was answered "raudona", and "where is my boat?" "docked
+    at the marina by the old lighthouse" (Mac run9, e6c724ef8). None for any other turn, and in a chat with earlier
+    messages (the model reads those)."""
+    try:
+        from core import plugin_ask
+
+        if plugin_ask.judged_memory_ask(text) != "recall" or plugin_ask.judged_tool_ask(text):
+            return None
+    except Exception:
+        return None
+    if _chat_earlier_user_turns(session_id):
+        return None
+    return JUDGED_RECALL_NOTHING
 
 
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
@@ -3400,14 +3425,14 @@ def _everyday_remember_turn(
         return True, ("You asked me to forget that in this chat, so I won't keep it here. "
                       "In a new chat I can remember it again.")
     if added:
-        return True, "Locked in. I’ll remember that."
+        return True, KEPT_REPLY
     if lead is not None:
         from core.secret_redaction import contains_secret
 
         if contains_secret(said):
             # The writer refused it (and said so on the turn's receipt); "I already had that" would be untrue.
             return True, EVERYDAY_SECRET_REFUSED
-        return True, "I already had that in memory."
+        return True, ALREADY_KEPT_REPLY
     return None
 
 
@@ -3961,8 +3986,8 @@ def maybe_handle_memory_command(
                 # The same reply already says a PIN, card number or password was NOT saved; a bare
                 # "I'll remember that" beside it reads as if the secret was. Say what was kept.
                 return True, f"Locked in. I’ll remember \"{'; '.join(facts).rstrip('.!?')}\"."
-            return True, "Locked in. I’ll remember that."
-        return True, "I already had that in memory."
+            return True, KEPT_REPLY
+        return True, ALREADY_KEPT_REPLY
 
     if parsed_forget:
         def forget_target(
@@ -4636,13 +4661,42 @@ def _replies_to_own_chat_sentence(sentence: str, *, session_id: str, source_cont
             if (str(item.get("role") or "") == "user" and carries(str(item.get("content") or ""), token)
                     and str(following.get("role") or "") == "assistant"):
                 replies.append(str(following.get("content") or ""))
+    # A line that says none of the sentence's words back and is a receipt (the lane's own, or one VOOL also gave to
+    # another message of this chat) carries no fact: forgotten, it put "locked in. i'll remember that." on the
+    # forget list, offered it back as a thing to forget, and fenced every later keep's receipt (Mac run9, e6c724ef8).
+    from core.fact_extractor import _folded_words, _same_word
+
+    own_words = [word for word in _folded_words(sentence) if len(word) >= 4]
+    receipts = {_plain_sentence(KEPT_REPLY), _plain_sentence(ALREADY_KEPT_REPLY)}
+    receipts |= {_plain_sentence(part) for part in _replies_to_other_messages(scope, token)}
     out: list[str] = []
     for reply in replies:
         for line in str(reply or "").splitlines():
             clean = " ".join(line.split())
-            if len(clean) >= 8 and clean not in out:
-                out.append(clean)
+            if len(clean) < 8 or clean in out:
+                continue
+            says_back = any(_same_word(word, other) for word in _folded_words(clean) for other in own_words)
+            if not says_back and _plain_sentence(clean) in receipts:
+                continue
+            out.append(clean)
     return out
+
+
+def _replies_to_other_messages(scope: str, token: str) -> list[str]:
+    """The lines VOOL answered to this chat's messages that do not carry ``token``; empty when unreadable."""
+    from core.memory.carriers import carries
+
+    lines: list[str] = []
+    try:
+        from core.memory.files import _load_jsonl, conversation_log_path
+
+        for row in _load_jsonl(conversation_log_path()):
+            if (str(row.get("session_id") or row.get("chat_id") or "") == scope
+                    and not carries(str(row.get("user") or ""), token)):
+                lines.extend(" ".join(line.split()) for line in str(row.get("assistant") or "").splitlines())
+    except Exception:
+        return []
+    return [line for line in lines if line]
 
 
 def _forget_arguments_by_what_they_name(

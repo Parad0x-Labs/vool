@@ -48,6 +48,17 @@ def maybe_handle_memory_fast_path(
     )
     if isinstance(result, dict) and "response" in result:
         return {**result, "response": _gate_memory_response(result["response"], session_id, source_context)}
+    if result is None:
+        # Every memory lane and the cross-chat search (ahead of this one) handed a judged recall on: in a new chat
+        # nothing is left that could answer it, and a model would guess (core.persistent_memory).
+        from core.persistent_memory import _judged_recall_with_nothing_behind_it
+
+        nothing = _judged_recall_with_nothing_behind_it(user_input, session_id=session_id)
+        if nothing is not None:
+            return agent._fast_path_result(
+                session_id=session_id, user_input=user_input, response=nothing, confidence=0.9,
+                source_context=source_context, reason="memory_command",
+            )
     return result
 
 
