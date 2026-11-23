@@ -388,12 +388,13 @@ _READINGS = [
     ("Memory, forget", "forget", None, None, "forget"),
     ("Memory, recall", "recall", None, None, "recall"),
     ("Memory, forget", "keep", "yes", "no", "forget"),       # bef26afe4: a Lithuanian forget read as a keep
-    ("Memory, forget", "keep", "no", "yes", "keep"),         # 2bba40425: a Lithuanian remember read as a forget
+    ("Memory, forget", "keep", "no", "yes", ""),             # 2bba40425: a Lithuanian remember read as a forget
+    ("Memory, recall", "keep", None, "yes", "recall"),       # 32f3c9e38: "pamirsk ka pasakojau ..." kept as a fact
     ("Memory, recall", "forget", "yes", None, "forget"),     # d585608b6: a Lithuanian forget read as a recall
     ("Memory, recall", "forget", "no", None, "recall"),
     ("Memory, recall", "none", None, None, "recall"),        # bef26afe4: a recall the tool judgement had right
     (None, "keep", None, "no", ""),                          # bef26afe4: "parasyk trumpa eilerasti ..." read as a keep
-    (None, "keep", None, "yes", "keep"),
+    (None, "keep", None, "yes", ""),                         # a keep never stands on one reading
     ("Memory, forget", None, None, None, ""),                # a forget never stands on an unreadable second reading
     ("Memory, forget", None, "yes", None, "forget"),
     (None, "forget", None, None, ""),

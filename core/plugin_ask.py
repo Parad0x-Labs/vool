@@ -211,8 +211,9 @@ def _memory_kind_confirmed(
     tool judgement had right as none, a forget as a keep and a poem request as a keep (probe of bef26afe4). So:
     - a recall only reads: either reading names it, and it is added beside any tool picked (the memory lane answers it
       when it names a held fact, and hands the turn on when it names none);
-    - a keep writes: it stands when both readings name it, or when one does and the keep step's own question reads the
-      message as the person telling a fact (`arbitrate_told_as_fact`);
+    - a keep writes: it stands only when both readings name it. With one reading and the keep step's own told-as-fact
+      question to settle it, three Lithuanian forgets typed without accents ("pamirsk ka pasakojau apie savo valti")
+      were kept as facts (probe of 32f3c9e38). A fact told without a judged keep is still the keep step's own to save;
     - a forget cannot be undone: it stands when both readings name it, or when one does and a yes/no forget question
       (`arbitrate_forget_order`) reads yes; it then still names its targets by a judgement of its own and erases only
       what shares the message's words;
@@ -235,10 +236,8 @@ def _memory_kind_confirmed(
         agreed = kind == "forget" and "forget" in picked
         if agreed or asked("forget", intent_arbiter.arbitrate_forget_order) == "yes":
             decided = "forget"
-    if not decided and not tools and "keep" in named:
-        agreed = kind == "keep" and "keep" in picked
-        if agreed or asked("keep", intent_arbiter.arbitrate_told_as_fact) == "yes":
-            decided = "keep"
+    if not decided and not tools and kind == "keep" and "keep" in picked:
+        decided = "keep"
     if not decided and "recall" in named:
         decided = "recall"
     _log.info("memory kind judged: %s (tool judgement picked %s, memory question %s)", decided or "none",
