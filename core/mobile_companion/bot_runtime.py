@@ -97,17 +97,32 @@ RECEIPT_STATE_WORDS = {
 }
 
 
-def _catalog_text(key, fallback):
+def _catalog_text(key, fallback, locale="en"):
     try:
         from core.i18n.catalog import catalog_for
 
-        text = catalog_for("en").text(key)
+        text = catalog_for(locale or "en").text(key)
         return text if text and text != key else fallback
     except Exception:
         return fallback
 
 
-def turn_notes(platform, result):
+def _locale_of(message):
+    """The app catalog for the language the person's own message is written in; English when it shows none.
+
+    Trust-features audit of 900c7bc19: the approval lines a chat app reads were English only, beside receipts and a
+    reply in the person's language, so a Lithuanian user read two languages in one answer."""
+    try:
+        from core.i18n.catalog import resolve_catalog_tag
+        from core.response_language_policy import evidenced_input_language
+
+        said = evidenced_input_language(str(message or ""))
+        return resolve_catalog_tag(said) if said else "en"
+    except Exception:
+        return "en"
+
+
+def turn_notes(platform, result, locale="en"):
     """Plain lines for a chat app under a finished answer: where it ran and each action's receipt.
 
     Read from the turn's own proof (core.proof_projection.build_turn_proof), which the app's answer
@@ -131,7 +146,9 @@ def turn_notes(platform, result):
         if not isinstance(receipt, dict):
             continue
         state = receipt.get("state") if receipt.get("state") in RECEIPT_STATE_WORDS else "done"
-        action = _catalog_text(str(receipt.get("action_key") or ""), "") or _catalog_text("receipt.action_generic", "An action")
+        action = _catalog_text(str(receipt.get("action_key") or ""), "", locale) or _catalog_text(
+            "receipt.action_generic", "An action", locale
+        )
         bits = [action[:1].upper() + action[1:]]
         if receipt.get("note"):
             bits.append(str(receipt["note"]))
@@ -142,7 +159,7 @@ def turn_notes(platform, result):
             bits.append(str(receipt["file"]) + (" in " + str(receipt["folder"]) if receipt.get("folder") else ""))
         if receipt.get("to"):
             bits.append("to " + str(receipt["to"]))
-        line = " \u00b7 ".join(bits) + " \u2014 " + _catalog_text("receipt.state." + state, RECEIPT_STATE_WORDS[state])
+        line = " \u00b7 ".join(bits) + " \u2014 " + _catalog_text("receipt.state." + state, RECEIPT_STATE_WORDS[state], locale)
         if receipt.get("reason") and state in {"failed", "waiting"}:
             line += ": " + str(receipt["reason"])
         lines.append(line)
@@ -153,7 +170,7 @@ def turn_notes(platform, result):
     if summary in ROUTE_WORDS:
         key = "proof.route." + summary
         model = str(((proof.get("expanded") or {}).get("model")) or "") if summary != "none" else ""
-        lines.append(_catalog_text(key, ROUTE_WORDS[summary]) + (" \u00b7 " + model if model else ""))
+        lines.append(_catalog_text(key, ROUTE_WORDS[summary], locale) + (" \u00b7 " + model if model else ""))
     return lines
 
 
@@ -172,13 +189,34 @@ def _receipt_time(due_utc, tz_name):
         return due_utc
 
 
-def approval_words(waiting):
+_APPROVAL_NEEDED = "This needs your OK on your computer. Open this chat in VOOL there and allow it. I'll send the result here."
+_APPROVAL_NEEDED_WHAT = (
+    "This needs your OK on your computer: {what}. Open this chat in VOOL there and allow it. I'll send the result here."
+)
+#: Why a held turn was not run, by the approval's state: said no, ran out of time, or no longer held (a restart).
+_APPROVAL_ENDED = {
+    "denied": ("bot.approval_denied", "You said no on your computer, so that was not done."),
+    "expired": ("bot.approval_expired",
+                "That approval expired before it was answered, so nothing was done. Ask again if you still want it."),
+    "": ("bot.approval_unknown", "VOOL no longer holds that approval, so nothing was done. Ask again if you still want it."),
+}
+
+
+def approval_words(waiting, locale="en"):
     """What a chat app reads when its turn stopped for an approval: approved on the computer only."""
     what = str(waiting.get("action_plain") or "")
     if not what:
-        what = _catalog_text("approval.action." + str(waiting.get("intent") or ""), "")
-    head = "This needs your OK on your computer" + (": " + what if what else "") + "."
-    return head + " Open this chat in VOOL there and allow it. I'll send the result here."
+        what = _catalog_text("approval.action." + str(waiting.get("intent") or ""), "", locale)
+    if not what:
+        return _catalog_text("bot.approval_needed", _APPROVAL_NEEDED, locale)
+    # Filled by hand, not by the catalog's HTML placeholder law: a chat app shows plain text.
+    return _catalog_text("bot.approval_needed_what", _APPROVAL_NEEDED_WHAT, locale).replace("{what}", what)
+
+
+def approval_ended_words(state, locale="en"):
+    """What a chat app reads when a held turn's approval ended without an OK."""
+    key, english = _APPROVAL_ENDED.get(state, _APPROVAL_ENDED["expired"])
+    return _catalog_text(key, english, locale)
 
 
 PAIRED_WORDS = "Paired. Chat with your VOOL here. Payments and actions still need your computer."
@@ -869,10 +907,11 @@ class ManagedBot:
             return
         waiting = self._approval_waiting(result)
         reply = str(result.get("reply") or "")
-        notes = turn_notes(self.platform, result)
+        locale = _locale_of(params.get("message"))
+        notes = turn_notes(self.platform, result, locale)
         if waiting:
             self._hold_for_approval(channel, waiting, result, params)
-            notes.append(approval_words(waiting))
+            notes.append(approval_words(waiting, locale))
         self.send(channel, "\n\n".join(part for part in (reply, "\n".join(notes)) if part) or "Done.")
         self.deliver_files(channel)
 
@@ -940,12 +979,11 @@ class ManagedBot:
                 service().store.mark_device(self.device_id, bot_held_turns=rest)
             channel = str(row.get("channel") or "")
             if state != "approved":
-                self.send(
-                    channel,
-                    "You said no on your computer, so that was not done."
-                    if state == "denied"
-                    else "That approval expired before it was answered, so nothing was done. Ask again if you still want it.",
-                )
+                # A pending approval past its time has expired; one the store no longer holds ("") was cleared,
+                # which is not the same as running out of time.
+                ended = "expired" if state == "pending" else state
+                locale = _locale_of((row.get("params") or {}).get("message"))
+                self.send(channel, approval_ended_words(ended if ended in _APPROVAL_ENDED else "expired", locale))
                 continue
             params = dict(row.get("params") or {})
             # A new request for the same turn: the first one's committed answer was the question.

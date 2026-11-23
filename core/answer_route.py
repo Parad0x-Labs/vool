@@ -58,9 +58,20 @@ def _where_of_url(url: str, cloud_destination: Any) -> str:
     if address is not None:
         if address.is_loopback:
             return WHERE_THIS_COMPUTER
-        if address.is_private or address.is_link_local:
-            return WHERE_OWN_NETWORK
-        return WHERE_ONLINE
+        # The one locality rule VOOL's local-only mode keeps (private, link-local, CGNAT such as a Tailscale
+        # 100.64/10 address): the chip said "online" for a model the person runs on their own network (trust audit
+        # of 900c7bc19) while local-only mode called the same address local.
+        try:
+            from core.auto_local_only_mode import _address_is_internal
+
+            internal = bool(_address_is_internal(address))
+        except Exception:
+            internal = bool(address.is_private or address.is_link_local)
+        return WHERE_OWN_NETWORK if internal else WHERE_ONLINE
+    if host.endswith(".local"):
+        # A multicast-DNS name ("mymac.local") is on the local network by definition (RFC 6762), resolvable here or
+        # not.
+        return WHERE_OWN_NETWORK
     # A name: the existing locality authority resolves it (unresolvable is not local).
     try:
         from core.auto_local_only_mode import endpoint_is_local
