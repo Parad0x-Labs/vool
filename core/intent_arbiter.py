@@ -1639,12 +1639,15 @@ def _web_ask_prompt(message: str) -> str:
         "who wrote or made something, how something works, a capital, a definition, maths), or when it asks to write, "
         "translate or explain something.",
         'Answer {"answer": "no"} as well when the message only TELLS the assistant something (the person\'s own news, '
-        "what happened to them or their people, how they feel) and asks nothing to be found out.",
+        "what happened to them or their people, how they feel) and asks nothing to be found out, and when it asks "
+        "about the person's own life, people or things (what they own, where they keep something, what they told "
+        "the assistant): no web page knows that.",
         "",
         'Message: "search online for the opening hours of the Louvre" -> {"answer": "yes"}',
         'Message: "big news, my brother finally sold his old car!" -> {"answer": "no"}',
         'Message: "what is in the news about the strike today?" -> {"answer": "yes"}',
         'Message: "puikios žinios, egzaminą išlaikiau" -> {"answer": "no"}',
+        'Message: "sag mir nochmal, wie mein Hund heißt" -> {"answer": "no"}',
         'Message: "who painted the Mona Lisa?" -> {"answer": "no"}',
         'Message: "kokie šiandien orai Klaipėdoje?" -> {"answer": "yes"}',
         'Message: "kas yra gravitacija?" -> {"answer": "no"}',

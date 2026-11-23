@@ -217,3 +217,11 @@ def test_tomorrow_outside_the_small_hours_is_the_next_date(local_now, day):
     now = datetime.fromisoformat(local_now).replace(tzinfo=ZoneInfo("Europe/Vilnius"))
     resolution = parse_when_expression("tomorrow at 9", now_fn=lambda: now)
     assert resolution.ok and datetime.fromisoformat(resolution.due_wall).day == day, resolution
+
+
+@pytest.mark.parametrize("memory", ["memory_recall", "memory_keep"])
+def test_a_web_pick_beside_a_memory_pick_is_dropped_without_asking(memory, monkeypatch):
+    asked: list[str] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda message, **_k: asked.append(message) or "yes")
+    kept = plugin_ask._web_confirmed("prmink kokios spalvos mano paspirtukas", ("web", memory), OWNER, "m")
+    assert kept == (memory,) and asked == []

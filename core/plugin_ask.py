@@ -426,6 +426,13 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
     of 18 fresh asks right. No answer keeps the web out: the turn is what it was before the web was a choice."""
     if "web" not in keys:
         return keys
+    if any(key in _MEMORY_KINDS for key in keys):
+        # The same judgement read the message as about the person's own life (a memory choice): what only they could
+        # have told VOOL is on no web page. Memory run17 (Mac, qwen3:8b, 2026-11-23): "prmiink, kokios spalvos mano
+        # dviratis" ("remind me what colour my bike is") was picked web + memory, its web yes/no said yes, and the
+        # reply was "Web lookups are off".
+        _log.info("tool ask: web pick dropped beside a memory pick")
+        return tuple(key for key in keys if key != "web")
     from core.online_asks import web_ask_verdict
 
     verdict = web_ask_verdict(text, source_context=source_context, session_id=str(session_id or ""))
