@@ -40,6 +40,15 @@ def _get(base: str, path: str) -> dict:
         return json.loads(r.read())
 
 
+def _in_home(daemon, code: str) -> None:
+    import subprocess
+    import sys
+
+    done = subprocess.run([sys.executable, "-c", code], env=daemon.env(), cwd=str(rig.REPO_ROOT),
+                          capture_output=True, text=True, timeout=120)
+    assert done.returncode == 0, done.stderr[-2000:]
+
+
 @pytest.fixture(scope="module")
 def served(tmp_path_factory):
     home = tmp_path_factory.mktemp("setup-served") / "home"
@@ -68,7 +77,7 @@ def served(tmp_path_factory):
 def _wait_frame(page) -> None:
     page.wait_for_function(
         "(() => { const f = document.getElementById('settingsFrame'); const d = f && f.contentDocument;"
-        " return !!(d && d.readyState === 'complete' && d.getElementById('nextBtn') && d.querySelectorAll('.dot').length === 4); })()",
+        " return !!(d && d.readyState === 'complete' && d.getElementById('nextBtn') && d.querySelectorAll('.dot').length === 5); })()",
         timeout=30_000,
     )
 
@@ -96,7 +105,7 @@ def test_fresh_home_shows_the_line_not_the_checklist_and_the_window_walks_skips_
     _wait_frame(page)
     assert page.evaluate("document.getElementById('settingsFrame').contentWindow.location.pathname") == "/setup"
     frame = page.frame_locator("#settingsFrame")
-    assert frame.locator(".dot").count() == 4
+    assert frame.locator(".dot").count() == 5
     assert frame.locator(".dot.current").get_attribute("data-step") == "thinking"
     assert frame.locator("#stepTitle").inner_text() == "Where should it think?"
     assert frame.locator(".mock-badge").inner_text().strip().lower() == "example"
@@ -125,7 +134,7 @@ def test_fresh_home_shows_the_line_not_the_checklist_and_the_window_walks_skips_
     page.wait_for_selector("#settingsFrameOverlay", state="hidden", timeout=15_000)
     assert page.input_value("#input") == DRAFT
     assert page.evaluate("location.href") == href_before
-    page.wait_for_function("document.getElementById('setupLineText').textContent.includes('1 of 4')", timeout=15_000)
+    page.wait_for_function("document.getElementById('setupLineText').textContent.includes('1 of 5')", timeout=15_000)
     page.close()
 
 
@@ -162,7 +171,7 @@ def test_settings_entry_ticks_a_step_configured_in_settings_and_vanishes_when_ev
     page.goto(daemon.base_url + "/settings", wait_until="networkidle")
     page.wait_for_selector("#setupCount", timeout=15_000)
     assert page.evaluate("window.__voolSettings.groups()[0]") == "setup"
-    assert page.inner_text("#setupCount") == "1 of 4 done"   # the strict choice made in the window above
+    assert page.inner_text("#setupCount") == "1 of 5 done"   # the strict choice made in the window above
     assert page.locator("#setupSteps [data-step='permissions']").get_attribute("data-done") == "true"
     assert page.locator("#setupSteps [data-step='name']").get_attribute("data-done") == "false"
 
@@ -171,10 +180,26 @@ def test_settings_entry_ticks_a_step_configured_in_settings_and_vanishes_when_ev
     status, body = _post(daemon.base_url, "/api/profile/remember", {"category": "preferred_name", "value": "Sam", "scope": "global", "replace": True})
     assert status == 200, body
     page.evaluate("window.__voolSettings.reconcile()")
-    page.wait_for_function("document.getElementById('setupCount').textContent === '2 of 4 done'", timeout=15_000)
+    page.wait_for_function("document.getElementById('setupCount').textContent === '2 of 5 done'", timeout=15_000)
     assert page.locator("#setupSteps [data-step='name']").get_attribute("data-done") == "true"
 
-    # Finish the remaining two through their real doors; the entry must disappear, not tick to 4.
+    # The first tries: something kept, a reminder set and a file found, through the doors the tools write.
+    status, body = _post(daemon.base_url, "/api/profile/remember", {"category": "response_style", "value": "short answers", "scope": "global", "replace": True})
+    assert status == 200, body
+    _in_home(daemon, """
+from core.execution_truth import record_execution
+from core.operator.reminders import schedule_reminder
+from storage.db import get_connection
+schedule_reminder(session_id="openclaw:setup-served", task_id="try", note="stretch", due_at_utc="2030-01-02T09:00:00+00:00",
+                  tz_name="UTC", get_connection_fn=get_connection)
+assert record_execution(session_id="openclaw:setup-served", turn_key="try-find", kind="tool", name="machine.find_file",
+                        ok=True, status="executed", detail={"summary": "found notes.txt"})
+""")
+    page.evaluate("window.__voolSettings.reconcile()")
+    page.wait_for_function("document.getElementById('setupCount').textContent === '3 of 5 done'", timeout=15_000)
+    assert page.locator("#setupSteps [data-step='tryit']").get_attribute("data-done") == "true"
+
+    # Finish the remaining two through their real doors; the entry must disappear, not tick to 5.
     folder = tmp_path / "Docs"
     folder.mkdir()
     status, body = _post(daemon.base_url, "/api/projects", {"name": "Docs", "root": str(folder)})

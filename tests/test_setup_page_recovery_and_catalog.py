@@ -85,9 +85,9 @@ def test_every_setup_word_resolves_in_english_german_and_arabic() -> None:
     try:
         for locale in ("en", "de", "ar"):
             page, warnings = _open(browser, render_vool_setup_html(ui_locale=locale), lambda route, saved: route.abort())
-            for step in ("thinking", "folder", "permissions", "name"):
+            for step in ("thinking", "folder", "permissions", "name", "tryit"):
                 page.goto(f"{ORIGIN}/setup#step={step}")
-                page.wait_for_function("() => document.querySelectorAll('.dot').length === 4 && document.querySelector('#nextBtn').textContent")
+                page.wait_for_function("() => document.querySelectorAll('.dot').length === 5 && document.querySelector('#nextBtn').textContent")
                 page.wait_for_timeout(200)
             assert warnings == [], (locale, warnings[:5])
             if locale != "en":
