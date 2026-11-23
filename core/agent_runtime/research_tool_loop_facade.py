@@ -654,20 +654,37 @@ def _change_call_carries_an_earlier_message(
             return None
         earlier = {" ".join(_words_of(value)) for _intent, value in earlier_turn_call_values(source_context)}
         earlier.discard("")
-        if not earlier:
-            return None
         asked = _words_of(question)
+        earlier_asks = _earlier_user_messages(source_context, question)
+        if not earlier and not earlier_asks:
+            return None
         read_this_turn = " ".join(
             str(step.get("observation") or "") for step in (steps or []) if not step.get("correction")
         ).casefold()
+        arguments = dict(payload.get("arguments") or {})
         copied: list[str] = []
-        for value in dict.fromkeys(_string_values_of(dict(payload.get("arguments") or {}))):
+        for value in dict.fromkeys(_string_values_of(arguments)):
             words = _words_of(value)
             if len(words) < 2 or " ".join(words) not in earlier:
                 continue
             if _names_a_word_of(value, asked) or value.casefold() in read_this_turn:
                 continue
             copied.append(value)
+        # "text" is the request as written: it can only be this message. One that is an earlier message of this chat
+        # and names nothing of this one was copied from the history in the prompt (Mac gate on f3771b6b7: the German
+        # "remind me Saturday at 10 about the oil change" went out with the previous English ask as its text and
+        # note, and the cat reminder was stored twice). The earlier ask may have been served by any lane, so the
+        # chat's own messages are read, not only the calls that ran.
+        typed_request = str(arguments.get("text") or "").strip()
+        typed_words = " ".join(_words_of(typed_request))
+        if (
+            typed_request
+            and typed_request not in copied
+            and len(typed_words.split()) >= 3
+            and not _names_a_word_of(typed_request, asked)
+            and any(typed_words in said or said in typed_words for said in earlier_asks)
+        ):
+            copied.append(typed_request)
         if not copied:
             return None
     except Exception:
@@ -690,6 +707,19 @@ def _change_call_carries_an_earlier_message(
         user_safe_response_text=message,
         details={"executed": False, "reason": _EARLIER_MESSAGE_REASON, "copied": copied[:3]},
     )
+
+
+def _earlier_user_messages(source_context: dict[str, Any] | None, question: str) -> list[str]:
+    """This chat's earlier messages from the person, as words (the history the model was shown), never this one."""
+    this = " ".join(_words_of(question))
+    said: list[str] = []
+    for item in list((source_context or {}).get("conversation_history") or []):
+        if not isinstance(item, dict) or str(item.get("role") or "") != "user":
+            continue
+        words = " ".join(_words_of(str(item.get("content") or "")))
+        if len(words.split()) >= 3 and words != this:
+            said.append(words)
+    return said
 
 
 def _string_values_of(value: Any) -> list[str]:

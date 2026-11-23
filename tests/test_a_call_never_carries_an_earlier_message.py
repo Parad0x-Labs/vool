@@ -213,3 +213,66 @@ certify_for_authorship(manifest({model!r}))
 
     assert first == [note], first
     assert sorted(second) == sorted([note, note if again else asked_note]), (second, _said_of(answered))
+
+
+def test_an_ask_another_lane_served_is_not_resent_as_this_ones_text(tmp_path) -> None:
+    """Mac gate on f3771b6b7 (Manual mode): the English cat reminder was set by the reminder lane, so no model call of
+    an earlier turn held its words; the German oil-change ask then went out with that English ask as its ``text`` and
+    note, was approved, and the cat reminder was stored twice. The request as written can only be this message."""
+    import uuid
+    from datetime import datetime, timedelta
+
+    from core.agent_runtime.research_tool_loop_facade import _EARLIER_MESSAGE_SAID
+    from tests._blackbox_served_rig import ServedDaemon, run_in_home
+    from tests._served_sufficiency_provider import SEED
+    from tests.test_action_receipts_served import REPO, _allow, _approvals, _ReminderProvider, _stored, _turn
+    from tests.test_private_chat_served_workflow import MODEL, _certify
+
+    rng = random.Random()
+    hour = rng.randint(17, 20)
+    first_note, first_ask = rng.choice((
+        ("feed the neighbour's cat", f"remind me thursday at {hour}:40 to feed the neighbour's cat"),
+        ("water the balcony plants", f"remind me on thursday at {hour}:40 to water the balcony plants"),
+    ))
+    asked_note, ask = rng.choice((
+        ("Ölwechsel", "Erinnere mich am Samstag um 10 Uhr an den Ölwechsel"),
+        ("išnešti šiukšles", "Primink šeštadienį 10 val. išnešti šiukšles"),
+        ("llamar al fontanero", "recuérdame el sábado a las diez llamar al fontanero"),
+    ))
+    due = (datetime.now() + timedelta(days=4)).replace(hour=10, minute=0, second=0, microsecond=0)
+    copied = {"note": first_note, "due_iso": due.strftime("%Y-%m-%dT%H:%M"), "text": first_ask}
+    meant = {"note": asked_note, "due_iso": due.strftime("%Y-%m-%dT%H:%M"), "text": ask}
+
+    class _CopyingModel(_ReminderProvider):
+        """A local model that copies the previous ask from the history until it is told."""
+
+        def reply(self, model, body):
+            told = any(_EARLIER_MESSAGE_SAID in str((m or {}).get("content") or "") for m in body.get("messages") or [])
+            self.arguments = dict(meant if told else copied)
+            last = (body.get("messages") or [{}])[-1]
+            if told and str((last or {}).get("role")) == "tool" and _EARLIER_MESSAGE_SAID in str(last.get("content")):
+                tools = [str(((t or {}).get("function") or {}).get("name") or "") for t in (body.get("tools") or [])]
+                name = next((n for n in tools if "schedule_reminder" in n), "")
+                if name:
+                    return {"content": "", "tool_calls": [{"id": "call-r2", "type": "function",
+                                                           "function": {"name": name, "arguments": self.arguments}}]}
+            return super().reply(model, body)
+
+    home = tmp_path / "home"
+    provider = _CopyingModel()
+    with provider:
+        run_in_home(home, SEED.format(root=REPO, base_url=provider.base_url, models=[(MODEL, {})]))
+        env = {"VOOL_MODEL_LOAD_FLOOR_GB": "0", "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url,
+               "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat"}
+        with ServedDaemon(home, env_extra=env) as daemon:
+            assert _certify(daemon).get("state") == "verified"
+            session = "openclaw:" + uuid.uuid4().hex[:20]
+            for said in (first_ask, ask):
+                turn_id = uuid.uuid4().hex
+                events, _request_id = _turn(daemon, said, session, turn_id)
+                approvals = _approvals(events)
+                if approvals:
+                    _allow(daemon, str(approvals[0]["approval_id"]), session, turn_id)
+                    _turn(daemon, said, session, turn_id, approval_token=str(approvals[0]["approval_id"]))
+            notes = sorted(row["note"] for row in _stored(home, session))
+    assert notes == sorted([first_note, asked_note]), notes
