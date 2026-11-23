@@ -47,7 +47,8 @@ globalThis.Date = class extends RealDate {{ getHours() {{ return {hour}; }} }};
 Math.random = () => {random_value};
 globalThis.emptyT = (_key, fallback) => fallback;
 globalThis.esc = (text) => String(text);
-globalThis.logEl = {{ innerHTML: '' }};
+globalThis.logEl = {{ innerHTML: '', querySelector: () => null }};
+globalThis.loadToday = () => {{}};
 {_show_empty_source()}
 showEmpty();
 const greet = /<div class="empty-greet">([^<]*)<\\/div>/.exec(logEl.innerHTML);

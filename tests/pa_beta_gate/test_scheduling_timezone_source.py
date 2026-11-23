@@ -18,7 +18,9 @@ from ._pc_calendar_rig import Clock
 
 pytestmark = [pytest.mark.pa_beta]
 
-T0 = datetime(2026, 10, 24, 7, 0, tzinfo=timezone.utc)  # Saturday; the next day is after the October change
+# Saturday; the next day is after the October change. Noon UTC: in no zone here is it the small hours, where
+# "tomorrow" is asked about (core.operator.when, owner decision 2026-11-23); 07:00 UTC was 03:00 in New York.
+T0 = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
