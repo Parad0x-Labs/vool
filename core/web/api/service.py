@@ -633,13 +633,15 @@ def runtime_model_status_response(
     from core.auto_local_only_mode import is_auto_selection
 
     selected = str(requested_model or "").strip()
+    # Plain words for the person, in the app and in chat apps alike: no internal names (pins,
+    # lanes, footers) and no code marks, which a chat app shows raw. The line under each answer
+    # (the app's model line, a chat app's where-it-ran line) stays what says which model gave it.
     if selected and not is_auto_selection(selected):
         return {
             "response": (
-                f"- Selected model for this turn: `{selected}`.\n"
-                "- This explicit composer pin overrides VOOL Auto/local model routing for the "
-                "model call. Local tools and safety/control commands can still execute locally.\n"
-                "- The provider/model footer on the completed reply remains the execution receipt."
+                f"You picked {selected} for this chat, so answers go to that model.\n"
+                "Tools on this computer and safety checks still run here.\n"
+                "The line under each answer says which model gave it."
             ),
             "confidence": 1.0,
             "source": "selected_model_status",
@@ -651,20 +653,21 @@ def runtime_model_status_response(
     default_model = model_in_use(str(runtime.runtime_model_tag or "").strip()) or "unknown"
     lanes = _runtime_text_model_lanes(runtime)
     largest = max(lanes, key=parameter_count_for_model) if lanes else default_model
-    lane_text = ", ".join(f"`{item}`" for item in lanes) if lanes else "`none`"
+    others = [item for item in lanes if item != default_model]
+    size = parameter_size_for_model(default_model)
+    lines = [f"Answers on this computer come from the local model {default_model}" + (f" ({size})." if size else ".")]
+    if others:
+        lines.append("Also installed: " + ", ".join(others) + ".")
     if largest and largest != default_model:
-        router_line = f"- Routing can select `{largest}` for heavier local turns; no larger local text model is installed right now."
+        lines.append(
+            f"There is no single fixed model: VOOL picks one per message, the smallest for small talk, "
+            f"{default_model} for most questions and {largest} for heavy ones."
+        )
     else:
-        router_line = "- No separate larger local text model is installed right now."
+        lines.append("No larger local model is installed, so this one answers the heavy questions too.")
+    lines.append("The line under each answer says which model gave it.")
     return {
-        "response": (
-            f"- Boot/default local model: `{default_model}` ({parameter_size_for_model(default_model)}).\n"
-            f"- Visible local text lanes: {lane_text}.\n"
-            f"{router_line}\n"
-            "- There is no single fixed model: routing picks one per turn (small talk uses the smallest, "
-            "normal turns the daily model, heavy turns the largest). The footer under each reply shows "
-            "the model that actually ran — that is the source of truth, not this default."
-        ),
+        "response": "\n".join(lines),
         "confidence": 1.0,
         "source": "runtime_model_status",
         "deterministic": True,

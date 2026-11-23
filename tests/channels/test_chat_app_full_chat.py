@@ -63,6 +63,8 @@ def test_every_turn_in_a_chat_app_chat_is_answered_with_where_it_ran(bots, platf
     assert not any(r['kind'] == 'bot.connection_unavailable' for r in receipts(base)), receipts(base)
     # The memory save is read back from the memory store, as under an answer in the app.
     assert 'Remember something about you' in replies[0] and 'Done, checked' in replies[0], replies[0]
+    # The model question is answered in plain words, as in the app: no internal names or code marks.
+    assert not any(w in replies[2].lower() for w in ('composer pin', 'footer', 'lane', '`')), replies[2]
     assert all(reply.rstrip().splitlines()[-1].startswith(('On this computer', 'No AI model', 'Online', 'This computer + online', 'On your own network')) for reply in replies[:2]), replies
 
 

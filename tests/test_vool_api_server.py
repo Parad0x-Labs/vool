@@ -54,6 +54,15 @@ from core.web.api.runtime import (
     strip_openclaw_turn_scaffolding,
 )
 
+_DEV_WORDS = ("composer pin", "footer", "lane", "boot/default", "routing", "execution receipt", "`")
+
+
+def _assert_plain_words(case, text: str) -> None:
+    """A model-status answer is read by the person, in the app and in chat apps: no internal names."""
+    lowered = text.lower()
+    for word in _DEV_WORDS:
+        case.assertNotIn(word, lowered, text)
+
 
 @contextlib.contextmanager
 def _saved_automatic_outbound_consent():
@@ -841,14 +850,14 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         run_agent_mock.assert_not_called()
-        self.assertIn("Boot/default local model: `gemma3:4b`", text)
-        self.assertIn("`qwen2.5:7b`", text)
-        self.assertIn("Routing can select `qwen2.5:7b`", text)
+        self.assertIn("come from the local model gemma3:4b", text)
+        self.assertIn("qwen2.5:7b for heavy ones", text)
         self.assertNotIn("nomic-embed-text", text)
-        # States there is no single fixed model and points at the per-reply footer as the truth,
-        # so the answer can't contradict the footer the way a model-guessed identity does.
+        # States there is no single fixed model and points at the line under each answer as the
+        # truth, so the answer can't contradict it the way a model-guessed identity does.
         self.assertIn("no single fixed model", text)
-        self.assertIn("footer", text)
+        self.assertIn("The line under each answer says which model gave it", text)
+        _assert_plain_words(self, text)
 
     def test_dispatch_post_reports_explicit_composer_model_instead_of_local_defaults(self) -> None:
         runtime = RuntimeServices(display_name="VOOL", runtime_model_tag="qwen3:8b")
@@ -873,9 +882,9 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         text = payload["message"]["content"]
         self.assertEqual(response.status, 200)
         run_agent_mock.assert_not_called()
-        self.assertIn(f"Selected model for this turn: `{selected}`", text)
-        self.assertIn("explicit composer pin overrides", text)
-        self.assertNotIn("Boot/default local model", text)
+        self.assertIn(f"You picked {selected} for this chat", text)
+        self.assertNotIn("come from the local model", text)
+        _assert_plain_words(self, text)
 
     def test_model_identity_followup_is_answered_deterministically_not_by_the_model(self) -> None:
         # "ok so which one is active?" has no literal "model"/"llm" word; it must still be caught so
