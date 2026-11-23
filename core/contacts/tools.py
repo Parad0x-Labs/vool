@@ -343,6 +343,37 @@ def _record_suggestions(pending: list[NormalizedEndpoint], *, contact_id: str, d
     return recorded
 
 
+def save_changes_nothing(arguments: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The saved contact a contacts.save would leave as it is, or None when the save may change something.
+
+    A save of a name already saved, carrying no entry, alias or note that contact does not already have, is no change:
+    there is nothing to approve. Mac gate on 561e3e9d0 (installed app, qwen3:8b, 2026-11-23): right after Lena was
+    saved, "do you have Lena's phone number?" was called as a save of the same contact, and the person was asked to
+    approve "save a contact" before being told anything. The saved contact is the answer, read, with nothing changed.
+    Never raises; a call this cannot read may change something as far as this is concerned.
+    """
+    try:
+        args = arguments if isinstance(arguments, dict) else {}
+        name = _clean(args.get("name"))
+        if not name or _clean(args.get("contact_id")) or bool(args.get("create_new")):
+            return None
+        existing = _exact_name_matches(name)
+        if len(existing) != 1:
+            return None
+        contact = existing[0]
+        have = {(str(e.get("kind")), str(e.get("value"))) for e in contact.get("endpoints") or []}
+        if any((endpoint.kind, endpoint.value) not in have for _raw, endpoint in _normalize(_requested_endpoints(args))):
+            return None
+        known = {names.name_key(a) for a in [contact["display_name"], *(contact.get("aliases") or [])]}
+        if any(names.name_key(_clean(a)) not in known for a in _as_list(args.get("aliases")) if _clean(a)):
+            return None
+        if _clean(args.get("notes")) and _clean(args.get("notes")) != _clean(contact.get("notes")):
+            return None
+        return _contact_brief(contact)
+    except Exception:
+        return None
+
+
 def _save(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any]:
     proof = proven_user_text(source_context)
     pairs = _normalize(_requested_endpoints(args))
@@ -517,4 +548,4 @@ def run(intent: str, arguments: dict[str, Any] | None, source_context: dict[str,
     return _result(False, "unsupported", f"Unknown contacts intent {intent}.")
 
 
-__all__ = ["INTENTS", "name_in_text", "proven_user_text", "run", "value_in_text"]
+__all__ = ["INTENTS", "name_in_text", "proven_user_text", "run", "save_changes_nothing", "value_in_text"]

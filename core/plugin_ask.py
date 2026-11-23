@@ -83,6 +83,11 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 #: The choices that ask for something done to or with the open folder's files, not for a file to be shown.
 WORKSPACE_WORK_CHOICES = frozenset({"files", "run"})
 _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
+#: Choices a judge reads one for the other: both are something of the person's at a time they name. A pick of either
+#: seats both, so the model is offered the tools of the one meant. Mac gate on 561e3e9d0 (installed app, qwen3:8b,
+#: 2026-11-23): "parodyk mano priminimus" ("show my reminders"), right after a reminder was set, was judged a calendar
+#: ask; with no reminder tool offered, the model wrote a calendar event out of the reminder it had just set.
+_SEATED_TOGETHER: dict[str, tuple[str, ...]] = {"reminders": ("calendar",), "calendar": ("reminders",)}
 #: VOOL's memory of the person, put to the same question after the tools. It is no tool the model runs: the memory
 #: lane answers these turns itself (core.persistent_memory), and a pick seats nothing. They are choices here because the
 #: memory lane's own readers know only English shapes. Measured on 58f60bbf3 (blind audit, local qwen3:8b): with no
@@ -274,7 +279,9 @@ def judged_tool_ask(text: str) -> bool:
 def judged_builtin_seats(text: str) -> tuple[str, ...]:
     """The tools the judged built-in choices seat, in choice order, deduplicated."""
     seats: list[str] = []
-    for key in judged_builtins(text):
+    picked = judged_builtins(text)
+    keys = [*picked, *(other for key in picked for other in _SEATED_TOGETHER.get(key, ()) if other not in picked)]
+    for key in keys:
         for intent in _BUILTIN_SEATS.get(key, ()):
             if intent not in seats:
                 seats.append(intent)
