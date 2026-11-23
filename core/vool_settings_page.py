@@ -5647,9 +5647,13 @@ function widgetPhoneAccess(host) {
     try {
       const r = await fetch('/api/mobile/pairing/start', {method:'POST', headers:{'Content-Type':'application/json'},body:'{}'});
       const j = await r.json(); if (!r.ok || !j.pairing_page) throw new Error();
-      window.open(j.pairing_page, '_blank', 'noopener');
+      /* The code page opens in this same window (or frame), never a new one: VOOL's own desktop window drops
+         windows opened from script without a word, so a new window left the click showing nothing. The page
+         has its own way back here, and once the phone is in it comes back to this phone's setup. */
+      window.location.href = j.pairing_page;
+      return;
     } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
-    finally { pair.disabled = !src.running; }
+    pair.disabled = !src.running;
   };
 }
 

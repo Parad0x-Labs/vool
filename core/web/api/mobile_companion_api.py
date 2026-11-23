@@ -2122,6 +2122,8 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   button:disabled { opacity: .5; cursor: default; }
   .say { color: #aaa5a0; font-size: 13px; margin-top: 8px; }
   .say code { display: block; overflow-wrap: anywhere; word-break: break-all; font-size: 12px; line-height: 1.5; }
+  .back { text-align: center; margin: 18px 0 0; font-size: 13px; }
+  .back a { color: #aaa5a0; }
 </style>
 </head>
 <body>
@@ -2139,6 +2141,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
     <button type="button" id="again">Make a new code</button>
     <div class="say" id="againSay" role="status" aria-live="polite"></div>
   </div>
+  <p class="back"><a href="/settings#phone" id="back">Back to Settings</a></p>
 </div>
 <script>
 (function () {
