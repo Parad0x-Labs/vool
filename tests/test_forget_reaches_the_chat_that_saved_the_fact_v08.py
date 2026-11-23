@@ -218,3 +218,23 @@ def test_a_chat_whose_summary_alone_holds_the_fact_lets_go_of_it(isolated_home):
     assert _forget("Forget my glazier.").startswith("Forget applied. Removed 1 memory entry.")
     summaries = " ".join(str(row) for row in load_jsonl(session_summaries_path()))
     assert "Whitlock" not in summaries, summaries
+
+
+def test_a_forget_takes_the_reply_that_said_the_forgotten_statement_back(isolated_home):
+    """Mac gate on 91e898675: after "and remember my gym bag is the black one" (kept nowhere, answered "I remember your
+    gym bag is the black one."), "forget what i told you about my gym bag" erased the person's turns, the reply stayed
+    in the chat's history, and "what colour is my gym bag?" was answered "Your gym bag is black."."""
+    _policy(ASKED_IN)
+    _shown_in(ASKED_IN, "and remember my gym bag is the black one", "I remember your gym bag is the black one.")
+    from storage.dialogue_memory import recent_dialogue_turns
+
+    assert "black" in " ".join(str(t) for t in recent_dialogue_turns(ASKED_IN, limit=20, speaker_roles=None))
+    _shown_in(ASKED_IN, "what's the weather like", "Sunny.")
+    reply = _forget("forget what i told you about my gym bag")
+    assert reply.startswith("Forget applied"), reply
+    from storage.dialogue_memory import recent_dialogue_turns
+
+    assert "black" not in _log_of(ASKED_IN), _log_of(ASKED_IN)
+    turns = " ".join(str(turn) for turn in recent_dialogue_turns(ASKED_IN, limit=20, speaker_roles=None))
+    assert "black" not in turns, turns
+    assert "Sunny" in _log_of(ASKED_IN)

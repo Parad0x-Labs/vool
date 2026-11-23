@@ -1723,7 +1723,8 @@ def _memory_kind_prompt(message: str) -> str:
         "that they could only have told the assistant (what, where, who, when), or what they told it before.",
         'Answer {"answer": "forget"} when the person wants the assistant to FORGET, erase or delete something they told '
         "it, or to stop remembering it.",
-        'Answer {"answer": "none"} for anything else: a question about the world, a sum, a task, advice, chat.',
+        'Answer {"answer": "none"} for anything else: a question about the world, a sum, a task, advice, chat, or '
+        "putting something in the person's notes, a list, a reminder or the calendar (those are tasks).",
         "Remembering and forgetting are opposites: a message that tells a fact to keep is never a forget.",
         'A message that says something now and asks the assistant NOT to keep it is {"answer": "none"}: a forget is '
         "about something the person told it BEFORE.",
@@ -1743,6 +1744,7 @@ def _memory_kind_prompt(message: str) -> str:
         'Message: "dimentica quello che ti ho detto sul mio dentista" -> {"answer": "forget"}',
         'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "none"}',
         'Message: "quanto é 17 vezes 3?" -> {"answer": "none"}',
+        'Message: "schreib in meine Notizen: Batterien kaufen" -> {"answer": "none"}',
         'Message: "what is the capital of Peru?" -> {"answer": "none"}',
         'Message: "écris un poème sur la mer" -> {"answer": "none"}',
         "",

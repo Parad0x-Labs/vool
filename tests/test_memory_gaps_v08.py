@@ -69,3 +69,44 @@ def test_no_piece_of_a_forgotten_sentence_is_kept_as_its_salvage(seed):
     # A value forgotten out of a longer line still leaves the line's other facts.
     assert _forget_salvage_content(f"The gate code is 4411 and my {thing} is {colour}.", "4411") == (
         f"my {thing} is {colour}.")
+
+
+@pytest.mark.parametrize("said", ["and remember my gym bag is the black one", "also remember that my gym bag is black",
+                                  "oh and remember my gym bag is the black one"])
+def test_a_remember_said_as_the_next_thing_in_a_chat_is_kept(home, said):
+    """Mac gate on 91e898675: "and remember my gym bag is the black one" was judged a reminder, raised a reminder
+    card, and the fact was not kept. The joining word in front is no part of the order."""
+    handled, reply = maybe_handle_memory_command(said, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert handled and reply.startswith("Locked in"), reply
+    assert "gym bag" in _entries() and not _entries().lstrip().lower().startswith(("and ", "also ", "oh "))
+
+
+def test_a_remind_order_said_as_the_next_thing_is_no_capture():
+    from core.persistent_memory import _memory_capture_match
+
+    assert _memory_capture_match("and remind me at 9 to call mum") is None
+    assert _memory_capture_match("and what colour is my gym bag?") is None
+
+
+def test_putting_something_in_the_notes_is_no_memory_keep_in_either_question():
+    from core import plugin_ask
+    from core.intent_arbiter import _memory_kind_prompt
+
+    keep = next(text for key, text, _ in plugin_ask.MEMORY_CHOICES if key == "memory_keep")
+    assert "Notes, not this" in keep and "or note something" not in keep
+    assert "notes, a list, a reminder" in _memory_kind_prompt("jot in my notes: buy oil")
+
+
+
+@pytest.mark.parametrize("said", ["jot in my notes: buy wd40 for the gate", "put this in my notes: call the glazier"])
+def test_a_lead_that_names_the_notes_is_never_kept_as_a_memory(home, monkeypatch, said):
+    """Mac gate on 91e898675: "jot in my notes: buy wd40 for the gate" was parsed by no notes reader, judged a keep and
+    saved as a memory. A lead that names the person's notes sends the rest to their notes."""
+    import core.intent_arbiter as intent_arbiter
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_keep_ask", lambda *_a, **_k: "yes")
+    handled, reply = maybe_handle_memory_command(said, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert not handled, reply
+    assert said.split(": ", 1)[1] not in _entries()

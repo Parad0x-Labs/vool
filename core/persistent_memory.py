@@ -198,6 +198,15 @@ def _memory_capture_match(text: str) -> re.Match[str] | _MaterialCapture | None:
     for the model, so a multi-line message is only a capture when everything after its first line is material.
     """
     match = _MEMORY_CAPTURE_RE.match(text)
+    if match is None and "\n" not in text:
+        # A capture said as the next thing in a conversation ("and remember my gym bag is the black one"): the joining
+        # word in front is no part of the order. Mac gate on 91e898675: the turn's judge read it as a reminder, raised
+        # a reminder card, and the fact was not kept.
+        from core.memory.everyday_remember import strip_continuation
+
+        rest = strip_continuation(text)
+        if rest != text.strip():
+            match = _MEMORY_CAPTURE_RE.match(rest)
     if match is not None or "\n" not in text:
         return match
     first, rest = text.split("\n", 1)
@@ -2686,8 +2695,13 @@ def _judged_everyday_lead(text: str, *, session_id: str | None, source_context: 
 
         if has_stipulated_frame(text):
             return None  # a made-up frame keeps nothing
+        if _NAMES_THE_NOTES_STORE_RE.search(lead_words):
+            # A lead that names the person's notes sends the rest to their notes, whether or not the notes reader
+            # parses the message: "jot in my notes: buy wd40 for the gate" was read by no reader, judged a keep, and
+            # saved as a memory (Mac gate on 91e898675).
+            return None
         action = parse_operator_action_intent(text)
-        if action is not None and (action.kind != "save_note" or _NAMES_THE_NOTES_STORE_RE.search(lead_words)):
+        if action is not None and action.kind != "save_note":
             # A reminder, a calendar row, or a note the person sends to their notes is that lane's own object. A
             # lead the note reader takes for a save without the notes being named ("pop this in your head for
             # later: ...") is judged like any other: measured on the real app, the notes lane saved nothing for
@@ -4531,6 +4545,17 @@ def maybe_handle_memory_command(
 
             return outcome(f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}.", "applied")
 
+        # The replies this chat gave to the messages a target's words are in, read before those messages are erased: a
+        # reply says the statement back in VOOL's words ("I remember your gym bag is the black one" to "and remember my
+        # gym bag is the black one"), which the target's own words ("my gym bag") are not in. Mac gate on 91e898675:
+        # the forget erased the person's turns, the reply stayed in the chat's history, and the next question was
+        # answered "Your gym bag is black."
+        replies_before: list[str] = []
+        for argument in forget_arguments:
+            for line in _replies_to_own_chat_sentence(_normalize_forget_target(argument), session_id=barrier_chat,
+                                                      source_context=source_context):
+                if line not in replies_before:
+                    replies_before.append(line)
         results = [forget_target(forget_arguments[0], independent_groups[0])]
         for argument in forget_arguments[1:]:
             try:
@@ -4561,8 +4586,13 @@ def maybe_handle_memory_command(
         # A sentence the person said in this chat was erased by its own words. The reply it was given at the time
         # usually says it back, so each line of that reply is forgotten the same way; and the forget's own reply
         # names the target as the person typed it, never the sentence it has just forgotten.
+        reply_lines = list(replies_before)
         for said in sorted(forget_said_in_chat):
             for line in _replies_to_own_chat_sentence(said, session_id=barrier_chat, source_context=source_context):
+                if line not in reply_lines:
+                    reply_lines.append(line)
+        if reply_lines:
+            for line in reply_lines:
                 try:
                     forget_target(line, revocation.begin_group(barrier_chat, line, homes), exact_words=line)
                 except Exception as exc:

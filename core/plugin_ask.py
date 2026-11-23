@@ -104,8 +104,8 @@ _SEATED_TOGETHER: dict[str, tuple[str, ...]] = {"reminders": ("calendar",), "cal
 #: Said that broadly, "nebeatsimink nieko apie mano palapinę, ištrink" ("don't remember anything about my tent, erase
 #: it") was then judged a recall (Mac, d585608b6): each memory choice says what it is not.
 MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("memory_keep", "Memory, keep: the person asks VOOL to remember or note something about themselves, their life, "
-     "people or things, for later.", ()),
+    ("memory_keep", "Memory, keep: the person asks VOOL to remember something about themselves, their life, "
+     "people or things, for later. Putting something in their notes is Notes, not this.", ()),
     ("memory_recall", "Memory, recall: the person wants to be told a fact of their own life, people or things that only "
      "they could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it "
      "before. Asking VOOL to forget or erase it is not a recall.", ()),
