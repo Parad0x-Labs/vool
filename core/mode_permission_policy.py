@@ -108,7 +108,8 @@ class PermissionDecision:
     reason: str
     approval_request: dict[str, Any] | None = None
     #: Who allowed the call when it was not the mode itself: "exact_approval" (the operator's
-    #: approval token matched this call), "task_grant", "project_grant" or "internal_scope".
+    #: approval token matched this call), "task_grant", "project_grant", "internal_scope" or
+    #: "device_grant" (the right the owner switched on for the paired phone or chat app that asked).
     #: Empty for a mode-matrix ALLOW and for every non-ALLOW.
     granted_by: str = ""
 
@@ -4383,6 +4384,28 @@ def _decide_tool_call(
                 actions=actions,
                 reason="This project allows low-risk reads and in-project writes without a new prompt.",
                 granted_by="project_grant",
+            ), meta
+        # A turn from a paired phone or chat app, for an action the right its owner switched on for
+        # that device covers: that switch is the owner's answer, so the turn is not stopped for a
+        # prompt only the computer shows. Like the project grant, it comes after every DENY above.
+        from core.request_trust import remote_standing_grant
+
+        device_grant = remote_standing_grant(str(intent or ""), actions, context)
+        if device_grant:
+            if consume:
+                _record_approval_event(
+                    session_id=session_id,
+                    family="approval_device_grant",
+                    intent=str(intent or ""),
+                    detail=device_grant,
+                    handled=True,
+                )
+            return PermissionDecision(
+                effect=PermissionEffect.ALLOW,
+                mode=mode,
+                actions=actions,
+                reason="The owner allowed this on this device in Settings.",
+                granted_by="device_grant",
             ), meta
         meta["approval_requested"] = True
         if not consume:

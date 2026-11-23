@@ -912,7 +912,10 @@ class ManagedBot:
         if waiting:
             self._hold_for_approval(channel, waiting, result, params)
             notes.append(approval_words(waiting, locale))
-        self.send(channel, "\n\n".join(part for part in (reply, "\n".join(notes)) if part) or "Done.")
+        # A turn that came back with nothing to say is not "Done.": nothing claims work that may not
+        # have happened (the phone's empty bubble, 2026-11-23, is the same turn seen there).
+        self.send(channel, "\n\n".join(part for part in (reply, "\n".join(notes)) if part)
+                  or _catalog_text("phone.ui.no_answer_came", "No answer came back. Send it again.", locale))
         self.deliver_files(channel)
 
     def _approval_waiting(self, result):

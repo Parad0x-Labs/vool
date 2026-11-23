@@ -761,6 +761,44 @@ def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
     return "owner_local_required"
 
 
+#: What no standing phone or chat-app right covers: these always ask, on the computer (MONEY RULE,
+#: secrets, VOOL's own settings and providers, and anything whose effect is not known).
+REMOTE_COMPUTER_ONLY_ACTIONS = frozenset({
+    "access_secrets", "financial_or_paid_actions", "change_settings", "change_security_settings",
+    "change_provider_configuration", "unknown_side_effect",
+})
+
+
+def remote_standing_grant(intent: str, actions: Any, source_context: Any) -> str:
+    """The right the owner already gave this phone or chat app that covers ``intent``, or ``""``.
+
+    The owner switches a right on for a device in Settings (Phone and chat apps): "Use tools on my
+    computer" with its files, or a chat app's "Reminders, calendar, notes and contacts". That switch
+    is the owner's answer for what it covers, so a turn from that device is not asked again, action
+    by action, on a computer screen the person on the phone cannot see (the owner, 2026-11-23: "once it is
+    given for mobile or socials it should use those permissions instead of asking again on the
+    desktop"). Money, secrets, VOOL's own settings and unknown effects are never covered.
+    """
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    if not turn_is_remote(sc) or not sc.get(REMOTE_DEVICE_KEY):
+        return ""
+    names = {str(getattr(action, "value", action) or "") for action in (actions or ())}
+    if not names or names & REMOTE_COMPUTER_ONLY_ACTIONS:
+        return ""
+    clean = str(intent or "").strip()
+    if remote_turn_tool_refusal(clean, sc):
+        return ""
+    if chat_app_everyday_allowed(sc, clean):
+        return REMOTE_GRANT_EVERYDAY
+    # "Use tools on my computer" (with its files) or "Look things up online": the right that opened
+    # this tool for the device at all (remote_turn_tool_refusal above) is the one that answers it.
+    grant = _remote_intent_grant(clean)
+    if grant in REMOTE_GRANT_REFUSAL_TEXT and remote_turn_has_grant(sc, grant):
+        return grant
+    return ""
+
+
 def _outside_folder_tools(intent: str, source_context: Any) -> bool:
     """A phone limited to chosen folders may run only the file tools whose paths are checked
     against those folders (core.runtime_execution_tools.phone_folder_refusal)."""
