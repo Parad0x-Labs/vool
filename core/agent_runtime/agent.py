@@ -2564,6 +2564,9 @@ class VoolAgent(
         checkpoint_source_context = dict(
             checkpoint_bundle.get("source_context") or runtime_source_context
         )
+        # What the person typed on THIS turn ("Try again"), read before a resume or retry below
+        # replaces the interpretation with the stored request. The transcript row keeps these words.
+        typed_this_turn = str(getattr(interpreted, "raw_text", "") or user_input)
         # A checkpoint's stored source context is evidence from whenever it was WRITTEN, under
         # whatever rules applied then, and the lines below replace this turn's already-bounded
         # context with it wholesale -- so a hundred-item checkpoint recreated a hundred-item runtime
@@ -2593,6 +2596,14 @@ class VoolAgent(
                 checkpoint_source_context[_trust_key] = runtime_source_context[_trust_key]
             else:
                 checkpoint_source_context.pop(_trust_key, None)
+        # The words a stored context carries are the words of the turn that wrote it. Restored here, the
+        # retried turn's row was written with them: on the phone (2026-11-23) "Try again" turned into the
+        # first message, "Check unread emails how many i have", in the chat. This turn's row keeps its own.
+        for _typed_key in ("_typed_user_text", "_routed_user_text"):
+            if _typed_key in runtime_source_context:
+                checkpoint_source_context[_typed_key] = runtime_source_context[_typed_key]
+            else:
+                checkpoint_source_context.pop(_typed_key, None)
         # Tell the live-turn registry which durable checkpoint this worker is executing. That is what
         # lets the stale sweep tell a turn that is quiet but ALIVE from one whose process is gone --
         # without it, a long background turn that spends 15 minutes inside a single model call gets
@@ -2918,6 +2929,12 @@ class VoolAgent(
         # ("pls" -> "please", "folder (in" -> "folder(in"), and the turn's transcript row was
         # written from it, so the reloaded chat showed words nobody typed (red team R3-01,
         # 2026-11-12). Taken after the secret intake, so a redacted credential stays redacted.
+        # On a resumed or retried turn `raw_turn_text` is the stored request being run again; the row
+        # keeps what was typed now. That text is a resume cue the checkpoint step recognised, not a request.
+        # A turn the secret intake redacted keeps only its redacted text, as before.
+        if (checkpoint_state in ("resumed", "retried") and secret_intake is None and typed_this_turn.strip()
+                and isinstance(runtime_source_context, dict)):
+            runtime_source_context.setdefault("_typed_user_text", typed_this_turn)
         if isinstance(runtime_source_context, dict) and raw_turn_text.strip():
             runtime_source_context.setdefault("_typed_user_text", raw_turn_text)
 

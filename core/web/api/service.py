@@ -1867,6 +1867,7 @@ def _dispatch_get(
                         AVAILABILITY_WITHHELD,
                         get_finalization_by_content,
                         get_finalization_by_request_id,
+                        owner_view_principal,
                         payload_availability_for_text,
                     )
 
@@ -1874,8 +1875,11 @@ def _dispatch_get(
                     binding = None
                     if event_request_id:
                         try:
+                            # A turn sent from the owner's paired phone or chat app is read as that
+                            # device's own: its answer is judged by its own record, never by every
+                            # answer that shares its words (core.finalization.owner_view_principal).
                             binding = get_finalization_by_request_id(
-                                event_request_id, principal="owner_local"
+                                event_request_id, principal=owner_view_principal(event_request_id)
                             )
                         except Exception:
                             binding = None
@@ -1979,10 +1983,12 @@ def _dispatch_get(
                 runtime,
             )
         try:
+            from core.finalization import owner_view_principal
+
             proof_payload = build_turn_proof(
                 session_id=proof_session,
                 request_id=proof_request,
-                principal="owner_local",
+                principal=owner_view_principal(proof_request),
             )
         except ProofNotBound as exc:
             return apply_runtime_headers(
