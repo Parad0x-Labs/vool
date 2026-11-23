@@ -12,7 +12,7 @@ import hmac
 import secrets
 from datetime import datetime, timezone
 
-from tests.mobile.test_phone_listener_served import desktop as desktop  # noqa: F401  (fixture)
+from tests.mobile.test_phone_listener_served import desktop as desktop
 from tests.mobile.test_phone_listener_served import enable, http
 from tests.mobile.test_sealed_transport import canonical, opened, pair
 

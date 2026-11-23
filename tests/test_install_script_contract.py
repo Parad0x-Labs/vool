@@ -39,11 +39,16 @@ def test_install_script_hardens_openclaw_launcher_bootstrap() -> None:
     assert 'PROVIDER_ENV_FILE="\\${VOOL_HOME}/config/provider-env.sh"' in script
     assert "from core.install_recommendations import build_install_recommendation_truth" in script
     assert "print(build_install_recommendation_truth().primary_local_model)" in script
-    assert '") 2>/dev/null || echo "qwen3:8b"' in script
-    assert 'PRIMARY_LOCAL_MODEL=qwen3:8b' in script
+    # When VOOL's own probe cannot run, core's last-resort model is used and nothing about the machine is made up
+    # (V-033): no tier, bucket or bundle is printed or pulled as if this machine had been measured.
+    assert 'LAST_RESORT_LOCAL_MODEL="qwen3.5:4b"' in script
+    assert '") 2>/dev/null || echo "${LAST_RESORT_LOCAL_MODEL}"' in script
+    assert "\nPRIMARY_LOCAL_MODEL=\n" in script
+    assert "PRIMARY_LOCAL_MODEL=qwen3:8b" not in script and "CAPACITY_BUCKET=B" not in script
     assert "from core.install_recommendations import install_recommendation_machine_summary" in script
     assert "print(json.dumps(install_recommendation_machine_summary(), ensure_ascii=False))" in script
-    assert '\'{"selected_tier":"capacity-C","ollama_model":"qwen3:8b","recommended_bundle_models":["qwen3:8b","deepseek-r1:8b"]}\'' in script
+    assert '{"hardware_probe":"could not run","ollama_model":"%s"}' in script
+    assert '"selected_tier":"capacity-C"' not in script
     assert 'VOOL_REMOTE_API_KEY VOOL_REMOTE_BASE_URL VOOL_REMOTE_MODEL VOOL_CLOUD_API_KEY' in script
     assert 'detect_install_profile_display() {' in script
     assert script.count('cd "${PROJECT_ROOT}" && "${VENV_DIR}/bin/python" -c "') >= 3

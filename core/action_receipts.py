@@ -146,7 +146,7 @@ def receipt_for(intent: str, *, ok: bool, status: str, response_text: str, detai
 
 #: Receipts already filed, by (turn, action, effect identity). A model-loop call that runs through the
 #: runtime tool door reaches both seams with the same result; it is one action and one receipt.
-_FILED: "OrderedDict[tuple[str, str, str], None]" = OrderedDict()
+_FILED: OrderedDict[tuple[str, str, str], None] = OrderedDict()
 _FILED_LOCK = threading.Lock()
 _FILED_MAX = 4096
 
@@ -294,4 +294,4 @@ def receipts_of_events(turn_events: list[dict[str, Any]]) -> list[dict[str, Any]
     return rows
 
 
-__all__ = ["EVENT_TYPE", "HELD_OR_REFUSED_STATUSES", "MEMORY_KEEP_INTENT", "note_action", "note_memory_keep", "note_execution", "note_held_or_refused", "receipt_for", "receipts_of_events"]
+__all__ = ["EVENT_TYPE", "HELD_OR_REFUSED_STATUSES", "MEMORY_KEEP_INTENT", "note_action", "note_execution", "note_held_or_refused", "note_memory_keep", "receipt_for", "receipts_of_events"]

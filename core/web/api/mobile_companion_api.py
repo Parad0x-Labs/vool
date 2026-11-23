@@ -86,8 +86,8 @@ from typing import Any, Optional
 
 from core.device_link import identity as device_identity
 from core.device_link import protocol as device_protocol
-from core.mobile_companion.policy import PhoneHistoryRequired, scoped_chat_handle
 from core.mobile_companion import compat as _compat
+from core.mobile_companion.policy import PhoneHistoryRequired, scoped_chat_handle
 from core.request_trust import is_loopback_host
 
 logger = logging.getLogger(__name__)

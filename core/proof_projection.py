@@ -825,8 +825,8 @@ def build_turn_proof(
     if projections["claims"] and projections["claims"].get("evidence_set_id"):
         receipts.append("evidence_set:" + str(projections["claims"]["evidence_set_id"]))
 
-    from core.response_usage_details import usage_display_parts
     from core.answer_route import route_of_events
+    from core.response_usage_details import usage_display_parts
 
     # Where this answer was processed, from the turn's own dispatch receipts (core.answer_route).
     route = route_of_events(turn_events)

@@ -27,6 +27,7 @@ The receipt rides on the turn's runtime event log (`provider_dispatch`), so the 
 """
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 from typing import Any
 from urllib.parse import urlparse
@@ -244,10 +245,8 @@ def route_of_events(turn_events: list[dict[str, Any]]) -> dict[str, Any]:
             groups[key] = group
             order.append(key)
         group["calls"] += 1
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             group["bytes"] += max(0, int(row.get("bytes") or 0))
-        except (TypeError, ValueError):
-            pass
         for kind in row.get("carried") or []:
             if isinstance(kind, str) and kind not in group["carried"]:
                 group["carried"].append(kind)

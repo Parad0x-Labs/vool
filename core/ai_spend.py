@@ -13,6 +13,7 @@ call still open or whose bill is unknown, counted at its ceiling until it settle
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
@@ -89,10 +90,8 @@ def set_limits(values: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
             json.dump(current, handle, indent=2)
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
     return True, {"limits": current}
 

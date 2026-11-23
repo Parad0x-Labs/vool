@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import uuid
 
-from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home  # noqa: F401  (fixture)
+from tests.test_memory_forget_resurrection_p0 import _policy, isolated_home
 
 
 def _filed(monkeypatch) -> list[dict]:
@@ -18,7 +18,7 @@ def _filed(monkeypatch) -> list[dict]:
     return seen
 
 
-def test_a_saved_fact_is_checked_against_the_store_and_a_missing_one_is_not(isolated_home, monkeypatch):  # noqa: F811
+def test_a_saved_fact_is_checked_against_the_store_and_a_missing_one_is_not(isolated_home, monkeypatch):
     from core.action_receipts import receipts_of_events
     from core.memory import keep_receipt
     from core.memory.entries import add_memory_fact
@@ -39,7 +39,7 @@ def test_a_saved_fact_is_checked_against_the_store_and_a_missing_one_is_not(isol
     assert receipts_of_events(seen)[-1]["state"] == "mismatch"
 
 
-def test_a_refused_write_is_not_done_and_a_turn_without_a_chat_files_nothing(isolated_home, monkeypatch):  # noqa: F811
+def test_a_refused_write_is_not_done_and_a_turn_without_a_chat_files_nothing(isolated_home, monkeypatch):
     from core.action_receipts import receipts_of_events
     from core.memory import keep_receipt
     from core.memory.entries import add_memory_fact

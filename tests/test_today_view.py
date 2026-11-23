@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from core import today_view
-from tests._person_turn_rig import person_env  # noqa: F401  (fixture)
+from tests._person_turn_rig import person_env
 from tests.pa_beta_gate._json_api_service import start_json_calendar_fixture
 from tests.pa_beta_gate._pc_calendar_rig import Clock
 
@@ -29,7 +29,7 @@ def _now() -> datetime:
 
 
 @pytest.fixture
-def clock(person_env, monkeypatch):  # noqa: F811
+def clock(person_env, monkeypatch):
     from core.user_preferences import save_user_timezone
 
     assert save_user_timezone(ZONE)
