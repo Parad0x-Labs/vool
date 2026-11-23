@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "Cette action sur le plugin n'a pas pu aboutir. Rien n'a été modifié. Vérifiez le plugin dans Modules complémentaires et réessayez.",
     "addons.plugin_notice_dismiss": "Compris",
     "addons.plugin_mac_process_note": "Sur un Mac, les programmes d'un plugin peuvent voir certains réglages des autres applications que vous utilisez, comme n'importe quelle application le peut. Vos clés de plugins n'y sont jamais déposées.",
+    "addons.plugin_mac_process_network_note": "Sur un Mac, les programmes de ce plugin peuvent voir les réglages de démarrage des autres applications que vous utilisez. Ces réglages peuvent contenir des clés, et ce plugin peut envoyer ce qu'il voit aux sites indiqués sous « Accès réseau ». Vos clés de plugins n'y sont jamais déposées.",
     "addons.plugin_message_1461237e0e9b": "Cette clé provient d'un ancien réglage de VOOL et n'est utilisée que par les requêtes de VOOL lui-même. Connectez une clé pour ce plugin dans Modules complémentaires.",
     "addons.plugin_tools_switch": "Autoriser les discussions à utiliser les outils des plugins",
     "addons.plugin_tools_switch_help": "Quand c’est activé, VOOL peut utiliser les outils des plugins que vous avez activés. Quand c’est désactivé, ces outils ne sont pas utilisés. Les plugins de modèles et d’analyse fonctionnent dans les deux cas.",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "Répondre avec mes modèles cloud",
     "phone.bot_cloud_help": "Les réponses dans {app} peuvent utiliser vos modèles cloud, comme une discussion sur cet ordinateur. Les réponses payantes comptent dans vos limites de dépenses IA et s’arrêtent quand une limite est atteinte. Activé 30 jours à la fois."
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

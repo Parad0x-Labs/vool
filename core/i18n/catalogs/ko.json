@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "이 플러그인 작업을 완료할 수 없습니다. 변경된 내용은 없습니다. 애드온에서 플러그인을 검토한 뒤 다시 시도하세요.",
     "addons.plugin_notice_dismiss": "확인",
     "addons.plugin_mac_process_note": "Mac에서는 플러그인의 프로그램이 실행 중인 다른 앱의 일부 설정을 볼 수 있습니다. 어떤 앱이든 그럴 수 있는 것과 같습니다. 플러그인 키는 절대 그곳에 놓이지 않습니다.",
+    "addons.plugin_mac_process_network_note": "Mac에서는 이 플러그인의 프로그램이 실행 중인 다른 앱의 시작 설정을 볼 수 있습니다. 그 설정에는 키가 들어 있을 수 있으며, 이 플러그인은 본 내용을 ‘네트워크 액세스’에 적힌 사이트로 보낼 수 있습니다. 플러그인 키는 절대 그곳에 놓이지 않습니다.",
     "addons.plugin_message_1461237e0e9b": "이 키는 이전 VOOL 설정에서 가져온 것으로, VOOL 자체 요청에만 사용됩니다. 애드온에서 이 플러그인용 키를 연결하세요.",
     "addons.plugin_tools_switch": "채팅에서 플러그인 도구 사용 허용",
     "addons.plugin_tools_switch_help": "켜면 VOOL이 사용 설정한 플러그인의 도구를 사용할 수 있습니다. 끄면 해당 도구는 사용되지 않습니다. 모델 및 스캐너 플러그인은 어느 경우에나 작동합니다.",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "내 클라우드 모델로 답하기",
     "phone.bot_cloud_help": "{app}의 답변은 이 컴퓨터의 채팅처럼 클라우드 모델을 사용할 수 있습니다. 유료 답변은 AI 지출 한도에 포함되며 한도에 도달하면 멈춥니다. 한 번에 30일 동안 켜집니다."
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

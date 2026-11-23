@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "Šio papildinio veiksmo atlikti nepavyko. Niekas nepakeista. Peržiūrėkite papildinį skiltyje „Priedai“ ir bandykite dar kartą.",
     "addons.plugin_notice_dismiss": "Supratau",
     "addons.plugin_mac_process_note": "„Mac“ kompiuteryje papildinio programos gali matyti kai kuriuos kitų jūsų paleistų programų nustatymus, kaip ir bet kuri programa. Jūsų papildinių raktai ten niekada nededami.",
+    "addons.plugin_mac_process_network_note": "„Mac“ kompiuteryje šio papildinio programos gali matyti kitų jūsų paleistų programų paleidimo nustatymus. Juose gali būti raktų, o šis papildinys gali siųsti tai, ką mato, į svetaines, išvardytas skiltyje „Prieiga prie tinklo“. Jūsų papildinių raktai ten niekada nededami.",
     "addons.plugin_message_1461237e0e9b": "Šis raktas perkeltas iš ankstesnio VOOL nustatymo ir naudojamas tik paties VOOL užklausoms. Prijunkite šio papildinio raktą skiltyje „Priedai“.",
     "addons.plugin_tools_switch": "Leisti pokalbiams naudoti papildinių įrankius",
     "addons.plugin_tools_switch_help": "Kai tai įjungta, VOOL gali naudoti jūsų įjungtų papildinių įrankius. Kai išjungta, tie įrankiai nenaudojami. Modelių ir tikrinimo papildiniai veikia abiem atvejais.",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "Atsakyti mano debesies modeliais",
     "phone.bot_cloud_help": "Atsakymai {app} gali naudoti jūsų debesies modelius, kaip pokalbis šiame kompiuteryje. Mokami atsakymai įskaičiuojami į jūsų DI išlaidų ribas ir sustoja pasiekus ribą. Įjungiama 30 dienų."
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

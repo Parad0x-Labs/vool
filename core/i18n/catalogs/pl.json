@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "Nie udało się wykonać tej czynności na wtyczce. Nic nie zostało zmienione. Sprawdź wtyczkę w sekcji Dodatki i spróbuj ponownie.",
     "addons.plugin_notice_dismiss": "Rozumiem",
     "addons.plugin_mac_process_note": "Na Macu programy wtyczki mogą widzieć niektóre ustawienia innych uruchamianych przez Ciebie aplikacji, tak jak każda aplikacja. Twoje klucze wtyczek nigdy tam nie trafiają.",
+    "addons.plugin_mac_process_network_note": "Na Macu programy tej wtyczki mogą widzieć ustawienia startowe innych uruchamianych przez Ciebie aplikacji. Mogą się w nich znajdować klucze, a ta wtyczka może wysyłać to, co widzi, do witryn wymienionych w sekcji „Dostęp do sieci”. Twoje klucze wtyczek nigdy tam nie trafiają.",
     "addons.plugin_message_1461237e0e9b": "Ten klucz przeniesiono z wcześniejszego ustawienia VOOL i jest używany tylko w żądaniach samego VOOL. Połącz klucz dla tej wtyczki w sekcji Dodatki.",
     "addons.plugin_tools_switch": "Pozwól czatom używać narzędzi wtyczek",
     "addons.plugin_tools_switch_help": "Gdy to jest włączone, VOOL może używać narzędzi włączonych przez Ciebie wtyczek. Gdy jest wyłączone, te narzędzia nie są używane. Wtyczki modeli i skanowania działają w obu przypadkach.",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "Odpowiadaj moimi modelami w chmurze",
     "phone.bot_cloud_help": "Odpowiedzi w {app} mogą korzystać z Twoich modeli w chmurze, jak czat na tym komputerze. Płatne odpowiedzi liczą się do Twoich limitów wydatków na AI i zatrzymują się po osiągnięciu limitu. Włączone na 30 dni."
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

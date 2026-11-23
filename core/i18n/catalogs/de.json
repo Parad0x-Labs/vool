@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "Diese Plugin-Aktion konnte nicht abgeschlossen werden. Es wurde nichts geändert. Prüfen Sie das Plugin unter Add-ons und versuchen Sie es erneut.",
     "addons.plugin_notice_dismiss": "Verstanden",
     "addons.plugin_mac_process_note": "Auf einem Mac können die Programme eines Plugins einige Einstellungen anderer Apps sehen, die du laufen hast, so wie es jede App kann. Deine Plugin-Schlüssel werden niemals dort abgelegt.",
+    "addons.plugin_mac_process_network_note": "Auf einem Mac können die Programme dieses Plugins die Starteinstellungen anderer Apps sehen, die du laufen hast. Darin können Schlüssel stehen, und dieses Plugin kann das Gesehene an die unter „Netzwerkzugriff“ genannten Seiten senden. Deine Plugin-Schlüssel werden niemals dort abgelegt.",
     "addons.plugin_message_1461237e0e9b": "Dieser Schlüssel wurde aus einer früheren VOOL-Einstellung übernommen und wird nur für VOOLs eigene Anfragen verwendet. Verbinden Sie unter Add-ons einen Schlüssel für dieses Plugin.",
     "addons.plugin_tools_switch": "Chats dürfen Plugin-Werkzeuge verwenden",
     "addons.plugin_tools_switch_help": "Wenn dies an ist, kann VOOL die Werkzeuge der Plugins verwenden, die Sie aktiviert haben. Wenn es aus ist, werden diese Werkzeuge nicht verwendet. Modell- und Scanner-Plugins funktionieren in beiden Fällen.",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "Mit meinen Cloud-Modellen antworten",
     "phone.bot_cloud_help": "Antworten in {app} dürfen deine Cloud-Modelle nutzen, wie ein Chat auf diesem Computer. Bezahlte Antworten zählen zu deinen KI-Ausgabelimits und stoppen, wenn ein Limit erreicht ist. Jeweils 30 Tage lang an."
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

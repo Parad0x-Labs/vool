@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "无法完成此插件操作，未做任何更改。请在“附加组件”中检查该插件后重试。",
     "addons.plugin_notice_dismiss": "知道了",
     "addons.plugin_mac_process_note": "在 Mac 上，插件的程序可以看到您运行的其他应用的一些设置，就像任何应用都可以一样。您的插件密钥绝不会放在那里。",
+    "addons.plugin_mac_process_network_note": "在 Mac 上，此插件的程序可以看到您运行的其他应用的启动设置。这些设置中可能含有密钥，而此插件可以把看到的内容发送到“网络访问”下列出的站点。您的插件密钥绝不会放在那里。",
     "addons.plugin_message_1461237e0e9b": "此密钥沿用自 VOOL 以前的设置，仅用于 VOOL 自身的请求。请在“附加组件”中为此插件连接一个密钥。",
     "addons.plugin_tools_switch": "允许聊天使用插件工具",
     "addons.plugin_tools_switch_help": "开启后，VOOL 可以使用你已启用的插件中的工具。关闭后，这些工具不会被使用。模型插件和扫描插件在两种情况下都能使用。",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "用我的云端模型回答",
     "phone.bot_cloud_help": "{app} 中的回答可以像在这台电脑上聊天一样使用你的云端模型。付费回答计入你的 AI 支出限额，达到限额即停止。每次开启 30 天。"
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3644,6 +3644,7 @@
     "addons.plugin_message_87f58523713f": "Não foi possível concluir esta ação do plugin. Nada foi alterado. Revise o plugin em Complementos e tente novamente.",
     "addons.plugin_notice_dismiss": "Entendi",
     "addons.plugin_mac_process_note": "Num Mac, os programas de um plugin podem ver algumas definições de outras apps que executa, como qualquer app pode. As suas chaves de plugins nunca são colocadas aí.",
+    "addons.plugin_mac_process_network_note": "Num Mac, os programas deste plugin podem ver as definições de arranque de outras apps que executa. Essas definições podem conter chaves, e este plugin pode enviar o que vê para os sites indicados em «Acesso à rede». As suas chaves de plugins nunca são colocadas aí.",
     "addons.plugin_message_1461237e0e9b": "Esta chave veio de uma definição anterior do VOOL e só é usada pelos pedidos do próprio VOOL. Ligue uma chave para este plugin em Complementos.",
     "addons.plugin_tools_switch": "Permitir que os chats usem ferramentas de plugins",
     "addons.plugin_tools_switch_help": "Quando está ativado, o VOOL pode usar as ferramentas dos plugins que você ativou. Quando está desativado, essas ferramentas não são usadas. Plugins de modelos e de verificação funcionam nos dois casos.",
@@ -5373,7 +5374,7 @@
     "phone.bot_cloud": "Responder com meus modelos na nuvem",
     "phone.bot_cloud_help": "As respostas no {app} podem usar seus modelos na nuvem, como um chat neste computador. Respostas pagas contam para seus limites de gastos com IA e param quando um limite é atingido. Ligado por 30 dias de cada vez."
   },
-  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
+  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
