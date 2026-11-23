@@ -965,9 +965,14 @@ def done_claim_unjudged() -> bool:
     """Whether the last done-claim judgement was asked of a model and got no answer (a timeout, an error, an
     unreadable reply), as opposed to no judge being configured at all."""
     reason = _DONE_CLAIM_FAILURE.get("reason", "")
-    # A judge that exists but gave nothing: the call failed or timed out, its answer was unreadable, or the breaker
-    # a slow call opened skipped it. "disabled", "no_model" and "no_keep_judge_model" mean nobody was there to ask.
-    return reason == "breaker_open" or reason == "parse" or reason.startswith(("request:", "turn_judge:"))
+    # A judge that exists but could not answer in time: the call failed or timed out, or the breaker a slow call
+    # opened skipped it. A judge that answered in words of its own ("parse", "turn_judge:unreadable") was reached and
+    # read the reply; "disabled", "no_model" and "no_keep_judge_model" mean nobody was there to ask. Only the first
+    # adds the nothing-changed line: on every reply of a turn it would also break a reply that ends in an offer the
+    # next message answers ("yes, save it as a note").
+    return reason == "breaker_open" or reason.startswith("request:") or (
+        reason.startswith("turn_judge:") and reason != "turn_judge:unreadable"
+    )
 
 
 def _meaning_prompt(question: str, fact: str) -> str:

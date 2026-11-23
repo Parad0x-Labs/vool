@@ -2302,9 +2302,11 @@ def _judged_claim_kind(
         try:
             from core import intent_arbiter as _arbiter
 
-            if _arbiter.done_claim_unjudged():
-                # The judge was asked and did not answer: fail closed. The reply is kept, and says plainly that
-                # nothing was changed, so a done claim nothing backs never stands alone.
+            if _arbiter.done_claim_unjudged() and _ask_judged_for_a_tool(user_input, effective_input):
+                # The judge was asked and did not answer, on a turn whose ask the turn's judge read as an order for
+                # one of VOOL's tools: fail closed. The reply is kept, and says plainly that nothing was changed, so a
+                # done claim nothing backs never stands alone. A plain answer (a plan that ends in "want me to save
+                # it?") is left as it is: the line on it broke the "yes, save it" that answers it.
                 kind = "unjudged"
         except Exception:
             kind = ""
@@ -2338,6 +2340,20 @@ def _judged_claim_correction(user_input: str, effective_input: str | None, *, ke
     if kept:
         return turn_text(_JUDGED_KEEP_NOT_DONE_KEY, _JUDGED_KEEP_NOT_DONE_RESPONSE, locale)
     return turn_text(_JUDGED_CLAIM_NOT_DONE_KEY, _JUDGED_CLAIM_NOT_DONE_RESPONSE, locale)
+
+
+def _ask_judged_for_a_tool(user_input: str, effective_input: str | None) -> bool:
+    """Whether the turn's judge read this turn's ask as an order for one of VOOL's own tools or an added plugin's."""
+    try:
+        from core.plugin_ask import judged_plugins, judged_tool_ask
+
+        return any(
+            judged_tool_ask(text) or bool(judged_plugins(text))
+            for text in dict.fromkeys((str(user_input or ""), str(effective_input or "")))
+            if text.strip()
+        )
+    except Exception:
+        return False
 
 
 def _judged_claim_locale(user_input: str, effective_input: str | None, *also_said: str) -> str:

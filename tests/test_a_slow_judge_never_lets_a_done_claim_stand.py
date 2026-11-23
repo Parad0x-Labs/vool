@@ -60,8 +60,12 @@ def _post_with(answer: str | None, seen: list):
     return post
 
 
-def _turn(reply: str, ask: str, session: str, app_locale: str = "en") -> dict:
+def _turn(reply: str, ask: str, session: str, app_locale: str = "en", *, asked_for: tuple[str, ...] = ("reminders",)) -> dict:
+    from core import plugin_ask
     from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale
+
+    # What the turn's tool judge read the ask as (a reminder order, as on the audit box once it answered).
+    plugin_ask._record_builtins(ask, asked_for)
 
     # The person's app speaks their language, as the page binds it for a chat request.
     token = bind_turn_locale(app_locale)
@@ -137,3 +141,12 @@ def test_the_language_the_person_wrote_in_beats_an_english_app(monkeypatch) -> N
     note = catalog_for("lt").text("chat.action_unchecked_nothing_changed")
     assert note != catalog_for("en").text("chat.action_unchecked_nothing_changed")
     assert out["response"].endswith(note), out["response"]
+
+
+def test_a_plain_answer_on_a_turn_that_asked_for_no_tool_is_left_alone(monkeypatch) -> None:
+    import requests
+
+    monkeypatch.setattr(requests, "post", _post_with(None, []))
+    reply = "Gentle three-day plan:\nDay 1: a 20 minute walk.\n\nWant me to save this plan as a note?"
+    out = _turn(reply, "give me a gentle three day walking plan", "slow-plain", asked_for=())
+    assert out["response"] == reply
