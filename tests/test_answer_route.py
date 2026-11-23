@@ -28,7 +28,9 @@ def _event(row, seq):
 def test_destinations_are_read_from_the_address_and_never_default_to_this_computer():
     assert dispatch_row(_manifest(), _wire("http://127.0.0.1:11434/api/chat"), 10)["where"] == "this_computer"
     assert dispatch_row(_manifest(), _wire("http://localhost:11434/api/chat"), 10)["where"] == "this_computer"
-    assert dispatch_row(_manifest(), _wire("http://192.168.1.40:11434/api/chat"), 10)["where"] == "own_network"
+    # A home-network address: link-local and IPv6 unique-local (the push scan keeps RFC 1918 literals out of the tree).
+    assert dispatch_row(_manifest(), _wire("http://169.254.20.40:11434/api/chat"), 10)["where"] == "own_network"
+    assert dispatch_row(_manifest(), _wire("http://[fd12:3456:789a::40]:11434/api/chat"), 10)["where"] == "own_network"
     online = dispatch_row(_manifest("openrouter"), _wire("https://203.0.113.7/v1/chat", cloud=True), 10)
     assert online["where"] == "online" and online["host"] == "203.0.113.7"
     # The disclosure wire's own cloud flag wins over a loopback-looking address (a relay on loopback).
