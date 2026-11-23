@@ -2096,6 +2096,13 @@ def maybe_handle_folder_overview_request(
     # Asked last, so only a turn this lane would otherwise claim pays for the registry read.
     if _another_domain_owns_the_turn(text):
         return None
+    # An order to run or change something in the folder is not a request to see it: "start the tests in this project
+    # and list what failed" was answered with a listing and the tests never ran (routing-gaps rig, qwen3:8b,
+    # 2026-11-23, V-048). Read by the run-order shape and by the turn judge's pick, in any language.
+    from core.clean_loop.route import is_run_order
+
+    if is_run_order(text) or _judged_as_work_on_files(user_input, text):
+        return None
 
     from core.folder_overview import build_folder_overview
 

@@ -225,3 +225,21 @@ def test_a_web_pick_beside_a_memory_pick_is_dropped_without_asking(memory, monke
     monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda message, **_k: asked.append(message) or "yes")
     kept = plugin_ask._web_confirmed("prmink kokios spalvos mano paspirtukas", ("web", memory), OWNER, "m")
     assert kept == (memory,) and asked == []
+
+
+@pytest.mark.parametrize("text,keys", [
+    ("start the tests in this project and list what failed", ("run",)),
+    ("run the tests for this project and list the failures", ()),
+    ("paleisk šio projekto testus ir išvardink, kas nepavyko", ("run",)),
+])
+def test_a_run_order_naming_the_project_is_not_answered_with_a_listing(text, keys, monkeypatch, tmp_path):
+    from core.agent_runtime.fast_paths_utility import maybe_handle_folder_overview_request
+
+    (tmp_path / "calc.py").write_text("x = 1\n")
+    _judge(monkeypatch, keys)
+    if keys:
+        plugin_ask.judge_turn(text, source_context=OWNER, session_id="c4")
+    context = {**OWNER, "workspace": str(tmp_path)}
+    assert maybe_handle_folder_overview_request(
+        object(), text, session_id="c4", source_surface="openclaw", source_context=context
+    ) is None, text
