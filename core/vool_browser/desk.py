@@ -39,7 +39,7 @@ from typing import Any
 from core.runtime_paths import active_data_dir
 from core.secret_env import child_env
 
-from .engine import UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
+from .engine import QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
 
 ENGINE_START_TIMEOUT = 30.0
 STOP_TIMEOUT = 15.0
@@ -57,46 +57,6 @@ NEVER_PASSED: tuple[str, ...] = (
     "--mute-audio",
     "--hide-scrollbars",
 )
-
-#: The engine's own services that would contact a server without the person asking.
-_QUIET_FEATURES = (
-    "MediaRouter", "DialMediaRouteProvider", "OptimizationHints", "OptimizationHintsFetching",
-    "OptimizationGuideModelDownloading", "NetworkTimeServiceQuerying",
-    "InterestFeedContentSuggestions", "CertificateTransparencyComponentUpdater",
-    "AutofillServerCommunication", "Translate", "PreconnectToSearch", "ZeroSuggestPrefetching",
-    "ChromeWhatsNewUI",
-)
-
-#: An address on this machine where nothing listens. The engine's built-in account,
-#: push-message and component services are pointed here, so they cannot reach their
-#: makers' servers. Signing in to a website is ordinary browsing and is not affected.
-_NOWHERE = "http://127.0.0.1:9"
-
-#: Quiet by default: page requests the person makes are the only traffic. Measured on
-#: the real engine through a recording relay (tests/test_desk_browser.py); each line
-#: below removed a background contact that was otherwise made within seconds of start.
-QUIET_FLAGS: tuple[str, ...] = (
-    "--disable-sync",
-    "--disable-background-networking",
-    "--disable-component-update",
-    f"--component-updater=url-source={_NOWHERE}/",
-    "--disable-component-extensions-with-background-pages",
-    "--disable-default-apps",
-    "--disable-breakpad",
-    "--disable-domain-reliability",
-    "--disable-client-side-phishing-detection",
-    "--disable-field-trial-config",
-    "--no-experiments",
-    "--no-pings",
-    "--no-service-autorun",
-    "--metrics-recording-only",
-    f"--gaia-url={_NOWHERE}",
-    f"--gcm-checkin-url={_NOWHERE}",
-    f"--gcm-registration-url={_NOWHERE}",
-    "--gcm-mcs-endpoint=127.0.0.1:9",
-    "--disable-features=" + ",".join(_QUIET_FEATURES),
-)
-
 
 #: Empty in the product. The test suite puts the engine's dummy credential store here
 #: so that an unattended run can never raise a Keychain or keyring window; nothing in

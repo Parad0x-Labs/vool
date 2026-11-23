@@ -14,7 +14,7 @@ from typing import Any
 
 from core import policy_engine
 from core.remote_fetch_policy import note_remote_fetch_attempt, remote_fetch_forbidden
-from core.vool_browser.engine import CREDENTIAL_ISOLATION_FLAGS
+from core.vool_browser.engine import CREDENTIAL_ISOLATION_FLAGS, QUIET_FLAGS
 from tools.web.browser_identity import DESKTOP_ACCEPT_LANGUAGE, DESKTOP_USER_AGENT
 
 _CAPTCHA_RE = re.compile(
@@ -273,7 +273,9 @@ def _chrome_argv(
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-extensions",
-        "--disable-background-networking",
+        # The page asked for is the only thing this engine may contact: the same quiet set the
+        # everyday browser window uses (sign-in, update, push and reporting services pointed nowhere).
+        *QUIET_FLAGS,
         "--mute-audio",
         f"--accept-lang={DESKTOP_ACCEPT_LANGUAGE}",
         f"--virtual-time-budget={int(virtual_time_ms)}",

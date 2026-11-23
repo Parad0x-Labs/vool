@@ -103,6 +103,49 @@ UNATTENDED_UI_FLAGS: tuple[str, ...] = (
 )
 
 
+#: The engine's own services that would contact a server without the person asking.
+_QUIET_FEATURES = (
+    "MediaRouter", "DialMediaRouteProvider", "OptimizationHints", "OptimizationHintsFetching",
+    "OptimizationGuideModelDownloading", "NetworkTimeServiceQuerying",
+    "InterestFeedContentSuggestions", "CertificateTransparencyComponentUpdater",
+    "AutofillServerCommunication", "Translate", "PreconnectToSearch", "ZeroSuggestPrefetching",
+    "ChromeWhatsNewUI",
+)
+
+#: An address on this machine where nothing listens. The engine's built-in account,
+#: push-message and component services are pointed here, so they cannot reach their
+#: makers' servers. Signing in to a website is ordinary browsing and is not affected.
+_NOWHERE = "http://127.0.0.1:9"
+
+#: Quiet by default: page requests the person makes are the only traffic. Measured on
+#: the real engine through a recording relay (tests/test_desk_browser.py); each line
+#: below removed a background contact that was otherwise made within seconds of start.
+QUIET_FLAGS: tuple[str, ...] = (
+    "--disable-sync",
+    "--disable-background-networking",
+    "--disable-component-update",
+    f"--component-updater=url-source={_NOWHERE}/",
+    "--disable-component-extensions-with-background-pages",
+    "--disable-default-apps",
+    "--disable-breakpad",
+    "--disable-domain-reliability",
+    "--disable-client-side-phishing-detection",
+    "--disable-field-trial-config",
+    "--no-experiments",
+    "--no-pings",
+    "--no-service-autorun",
+    "--metrics-recording-only",
+    f"--gaia-url={_NOWHERE}",
+    f"--gcm-checkin-url={_NOWHERE}",
+    f"--gcm-registration-url={_NOWHERE}",
+    "--gcm-mcs-endpoint=127.0.0.1:9",
+    "--disable-features=" + ",".join(_QUIET_FEATURES),
+)
+#: Used by the everyday window and by the hidden engine that does VOOL's own web lookups: the
+#: lookup engine, measured the same way without them, asked for accounts.google.com and the
+#: engine maker's download server on every single lookup.
+
+
 def automated_launch_flags(*, profile_dir: str) -> list[str]:
     """The floor every automated Chrome launch in this product must carry.
 
@@ -121,6 +164,7 @@ def isolation_launch_flags(*, profile_dir: str) -> list[str]:
     """The launch flags every engine start carries. The guard test reads these."""
 
     profile = Path(profile_dir)
+    already = {"--disable-sync", "--disable-breakpad", "--disable-background-networking", "--no-service-autorun"}
     return [
         f"--user-data-dir={profile}",
         # Credential isolation: a page-triggered credential save or HTTP auth
@@ -135,6 +179,12 @@ def isolation_launch_flags(*, profile_dir: str) -> list[str]:
         "--mute-audio",
         "--disable-background-networking",
         "--no-service-autorun",
+        # The engine's own sign-in, push and update services are pointed nowhere. Measured
+        # without these: every session start asked for the engine maker's sign-in and
+        # push-message servers before any page was opened. The feature switch is left to the
+        # driver that starts the engine: it passes one of its own, and the engine reads only
+        # the last one it is given.
+        *(flag for flag in QUIET_FLAGS if flag not in already and not flag.startswith("--disable-features=")),
     ]
 
 
@@ -160,6 +210,7 @@ def find_engine_binary() -> str | None:
 
 
 __all__ = [
+    "QUIET_FLAGS",
     "_FORBIDDEN_PROFILE_MARKERS",
     "find_engine_binary",
     "isolation_launch_flags",
