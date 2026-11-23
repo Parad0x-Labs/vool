@@ -8665,6 +8665,12 @@ def _dispatch_post_inner(
         )
         if requested_model and requested_model not in {str(model_name or "").strip(), f"{str(model_name or '').strip()}:latest"}:
             source_context["requested_model"] = requested_model
+            if not cloud_only_default_applied:
+                # A model the person picked that Ollama has but VOOL never registered is registered now, as
+                # Settings -> Models -> Use this model would, instead of every turn refusing it as unavailable.
+                from core.runtime_provider_defaults import adopt_installed_local_pick
+
+                adopt_installed_local_pick(requested_model)
             # Advisory only, and only ever loosening: "sticky" tells the router this concrete id
             # came from Auto's per-chat stickiness, not an operator pin, so an unresolvable name
             # degrades to auto routing instead of the pinned refusal (MF-22). A forged value can

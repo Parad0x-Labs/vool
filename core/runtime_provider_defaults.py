@@ -734,6 +734,46 @@ def register_installed_local_model(
     return registry.get_manifest("ollama-local", clean)
 
 
+def adopt_installed_local_pick(
+    model_name: str,
+    *,
+    registry: ModelRegistry | None = None,
+    env: Mapping[str, str] | None = None,
+) -> ModelProviderManifest | None:
+    """A chat's explicit pick of a model Ollama has installed but VOOL never registered, registered the way Settings ->
+    Models -> Use this model does it (`register_installed_local_model`); None when there is nothing to adopt.
+
+    Mac gate on 91e898675: the person switched the chat to qwen3:4b, which `ollama list` showed installed, and every
+    turn answered "Requested model 'qwen3:4b' is not available on this runtime." Picking a model in the chat is the
+    same deliberate act as Use this model. Only an exact installed tag that generates text is adopted, never while
+    local models are disabled, and a name that already has a manifest (enabled or not) is left as it is. Never
+    raises; one inventory read, and only for a name no manifest holds.
+    """
+    try:
+        clean = str(model_name or "").strip()
+        if not clean:
+            return None
+        from core.auto_local_only_mode import is_auto_selection
+
+        if is_auto_selection(clean):
+            return None
+        registry = registry if registry is not None else ModelRegistry()
+        lowered = clean.lower()
+        for manifest in registry.list_manifests(enabled_only=False):
+            if lowered in {str(manifest.provider_id or "").lower(), str(manifest.model_name or "").lower()}:
+                return None
+        if resolve_local_model_policy().local_models_disabled:
+            return None
+        env_map = os.environ if env is None else env
+        if clean not in installed_ollama_model_names(env=env_map, base_url=ollama_base_url(env_map), timeout_seconds=2.0):
+            return None
+        if not is_text_generation_ollama_model(clean):
+            return None
+        return register_installed_local_model(registry, model_tag=clean, env=env_map)
+    except Exception:
+        return None
+
+
 def _ensure_local_ollama_provider(
     registry: ModelRegistry,
     *,
