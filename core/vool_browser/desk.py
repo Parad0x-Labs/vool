@@ -130,6 +130,26 @@ START_TAB = "about:blank#vool-start"
 _NEW_TAB = ("chrome://newtab", "chrome://new-tab-page")
 
 
+def reopens_tabs(profile: Path) -> bool:
+    """Whether the engine will reopen tabs of the person's at its start: they chose
+    "Continue where you left off" or pages of their own under "On start-up" in its settings.
+
+    The engine keeps that choice in one of two files, depending on the system; where the
+    guarded one holds it, that is the one the engine goes by.
+    """
+    for name in ("Secure Preferences", "Preferences"):
+        try:
+            kept = json.loads((profile / "Default" / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        session = kept.get("session") if isinstance(kept, dict) else None
+        choice = session.get("restore_on_startup") if isinstance(session, dict) else None
+        if choice is not None:
+            # 5 is the new tab page; every other choice reopens something.
+            return choice != 5
+    return False
+
+
 def default_preferences() -> dict[str, Any]:
     """What a new profile starts with. The person can change any of it in the browser.
 
@@ -266,6 +286,7 @@ class _Window:
         self.route = _route_flags()
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
         seed_preferences(self.profile)
+        reopens = reopens_tabs(self.profile)
         with contextlib.suppress(OSError):
             downloads_dir().mkdir(parents=True, exist_ok=True)
         # Chromium's sockets need a short path; see live.py for the Linux launch failure.
@@ -313,8 +334,19 @@ class _Window:
 
                     await home.apply(self)
             self.fresh = await self.context.new_page()
-            for page in pages:
-                if not page.is_closed() and page.url == START_TAB:
+            if reopens:
+                # The engine is bringing the person's tabs back: only the tab it was
+                # started on goes, once it shows the address that tells it apart.
+                for _ in range(50):
+                    if any(page.url == START_TAB for page in self.context.pages):
+                        break
+                    await asyncio.sleep(0.1)
+                closing = [page for page in self.context.pages if page.url == START_TAB]
+            else:
+                # Nothing of the person's is open yet: every tab the engine started with goes.
+                closing = [page for page in self.context.pages if page is not self.fresh]
+            for page in closing:
+                if not page.is_closed():
                     await page.close()
         except Exception:
             await self.stop()

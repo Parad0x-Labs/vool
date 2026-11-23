@@ -200,7 +200,9 @@ def test_the_persons_tabs_carry_no_engine_start_up_notice_on_either_way_out(brow
     monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=9))
     monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
     assert any(flag.startswith("--host-resolver-rules") for flag in desk_module.launch_flags(private=False))
-    browser.open("")
+    # An address, not the start page: under a new tab page the engine draws a strip of its
+    # own that names whose page it is, which makes that page's area shorter by itself.
+    browser.open("http://far-end-only.example/first")
     heights, expected = browser._call(page_areas())
     assert heights and all(height == expected for height in heights), (heights, expected)
 
@@ -377,6 +379,36 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
     browser.open("")
     assert open_tabs(browser) == [start_page(browser)]
     assert asked() == []
+
+
+def test_tabs_reopened_on_the_private_web_route_carry_no_start_up_notice(browser, files_site, socks, monkeypatch):
+    """With Private web on, the engine is started with the options that keep name lookups
+    on the route, and it shows a notice bar about them on the tab it starts with. That
+    tab must be VOOL's start-up tab, which is closed, and never one of the person's."""
+    from core import private_web
+
+    port, _ = files_site
+    socks_port, asked = socks
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=socks_port))
+    monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
+    browser.open(f"http://far-end-only.example:{port}/one")
+    browser.open(f"http://far-end-only.example:{port}/two")
+    choose_on_start_up(browser, 1)
+    browser.stop()
+    browser.open("")
+    assert _wait(lambda: len(open_tabs(browser)) == 2), open_tabs(browser)
+
+    async def page_areas():
+        context = browser.context_for_agent()
+        theirs = [p for p in context.pages if not p.is_closed()]
+        later = await context.new_page()
+        areas = [await p.evaluate("window.innerHeight") for p in theirs]
+        expected = await later.evaluate("window.innerHeight")
+        await later.close()
+        return areas, expected
+
+    areas, expected = browser._call(page_areas())
+    assert len(areas) == 2 and all(area == expected for area in areas), (areas, expected, open_tabs(browser))
 
 
 def test_the_window_starts_on_the_pages_the_person_chose(browser, site):
