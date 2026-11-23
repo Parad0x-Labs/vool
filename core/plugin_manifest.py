@@ -13,6 +13,11 @@ from core.plugin_paths import inside
 IDENTITY = r"^[a-z][a-z0-9_-]{0,79}$"
 SEMVER = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 ENV_NAME = r"^[A-Z][A-Z0-9_]{0,95}$"
+# A tool's name as the model reads it: the plugin's id, one dot, a short name. And the name its own
+# connection server knows the tool by. Both are written into lines VOOL builds (the tool list, the
+# line above a tool's output), so neither may hold a space, a quote, a bracket or a line break.
+INTENT = r"^[a-z][a-z0-9_-]{0,79}\.[a-z0-9_]{1,64}$"
+SERVER_TOOL = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
 MONEY = re.compile(r"(?:^|[._-])(?:wallet|payment|payments|sign|signing|approve|approval|cap|caps|budget|receipt|receipts)(?:$|[._-])", re.I)
 PAID = frozenset({"financial_or_paid_actions", "wallet_spend", "credit_spend"})
 _RESERVED_ENV = frozenset({"PATH", "HOME", "TMPDIR", "SHELL", "ENV", "BASH_ENV", "SSL_CERT_FILE",
@@ -38,8 +43,8 @@ def _object(properties, required=()):
 
 CREDENTIAL = _object({"label": _text(120), "help_url": _text(2000), "env": {**_text(96), "pattern": ENV_NAME}}, ("label", "help_url", "env"))
 SERVER = _object({"command": _text(), "args": {"type": "array", "maxItems": 64, "items": {"type": "string", "maxLength": 2000}}, "env": {"type": "object", "propertyNames": {"pattern": ENV_NAME}, "additionalProperties": _text(100)}}, ("command",))
-HANDLER = _object({"kind": {"enum": ["subprocess", "mcp"]}, "entry": _text(), "args": {"type": "array", "items": {"type": "string"}, "maxItems": 64}, "timeout_seconds": {"type": "number", "minimum": 1, "maximum": 300}, "network": {"type": "boolean"}, "env_allowlist": {"type": "array", "items": {"type": "string", "pattern": ENV_NAME}}, "server": {**_text(), "pattern": IDENTITY}, "tool": _text()}, ("kind",))
-TOOL = _object({"intent": _text(), "description": {**_text(2000), "minLength": 12}, "handler": HANDLER, "input_schema": {"type": "object"}, "side_effect_class": _text(), "approval_requirement": _text(), "permission_actions": {"type": "array", "items": _text(100)}, "claim": {"type": "object"}, "mutation": {"type": "object"}, "trust": _object({"side_effect_class": _text(), "permission_actions": {"type": "array", "items": _text(100)}}, ("side_effect_class", "permission_actions"))}, ("intent", "description", "handler", "input_schema"))
+HANDLER = _object({"kind": {"enum": ["subprocess", "mcp"]}, "entry": _text(), "args": {"type": "array", "items": {"type": "string"}, "maxItems": 64}, "timeout_seconds": {"type": "number", "minimum": 1, "maximum": 300}, "network": {"type": "boolean"}, "env_allowlist": {"type": "array", "items": {"type": "string", "pattern": ENV_NAME}}, "server": {**_text(), "pattern": IDENTITY}, "tool": {**_text(64), "pattern": SERVER_TOOL}}, ("kind",))
+TOOL = _object({"intent": {**_text(145), "pattern": INTENT}, "description": {**_text(2000), "minLength": 12}, "handler": HANDLER, "input_schema": {"type": "object"}, "side_effect_class": _text(), "approval_requirement": _text(), "permission_actions": {"type": "array", "items": _text(100)}, "claim": {"type": "object"}, "mutation": {"type": "object"}, "trust": _object({"side_effect_class": _text(), "permission_actions": {"type": "array", "items": _text(100)}}, ("side_effect_class", "permission_actions"))}, ("intent", "description", "handler", "input_schema"))
 PROVIDER = _object({"base_url": _text(2000), "auth_placement": {"enum": ["header", "path"]}, "credential_slot": {**_text(80), "pattern": IDENTITY}, "auth_path": _text(500), "model_list_path": _text(500), "pricing_source": _text(2000), "api_path": _text(500), "x402": {"type": "boolean"}}, ("base_url", "auth_placement", "credential_slot", "model_list_path", "pricing_source"))
 SCANNER = _object({"base_url": _text(2000), "credential_slot": {**_text(80), "pattern": IDENTITY}, "test_path": _text(500), "scan_path": _text(500), "input_template": {"type": "object"}, "response_schema": {"type": "object"}, "response_map": {"type": "object", "additionalProperties": _text(200)}}, ("base_url", "credential_slot", "test_path", "scan_path", "input_template", "response_schema", "response_map"))
 VOOL = _object({"id": {**_text(80), "pattern": IDENTITY}, "version": {**_text(100), "pattern": SEMVER}, "name": _text(120), "publisher": _text(120), "description": _text(2000), "homepage": _text(2000), "license": _text(100), "kind": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"enum": ["tools", "model_provider", "scanner"]}}, "tools": {"type": "array", "maxItems": 128, "items": TOOL}, "mcpServers": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": SERVER}, "network": {"type": "array", "maxItems": 32, "items": _text(253)}, "credentials": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": CREDENTIAL}, "model_provider": PROVIDER, "scanner": SCANNER, "paid_services": {"type": "array", "maxItems": 8, "items": _text(2000)}}, ("id", "version", "name", "publisher", "description", "homepage", "license", "kind", "network", "credentials"))
@@ -77,6 +82,12 @@ def validate_schema(value, schema, path="manifest"):
         for index, item in enumerate(value):
             errors.extend(validate_schema(item, schema["items"], f"{path}[{index}]"))
     return errors
+
+
+def whole_match(pattern: str, value) -> bool:
+    """Whether the whole value has the shape. The schema check searches, and a search for "$" also
+    stops before a line break at the very end; a tool name ending in one must not pass."""
+    return isinstance(value, str) and re.fullmatch(pattern[1:-1], value) is not None
 
 
 def host_name(value: str) -> str:
@@ -230,6 +241,8 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
         if tool.get("side_effect_class") in PAID:
             raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
         handler = tool["handler"]
+        if not whole_match(INTENT, tool["intent"]) or ("tool" in handler and not whole_match(SERVER_TOOL, handler["tool"])):
+            raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
         if handler["kind"] == "subprocess":
             package_command(handler.get("entry", ""), root)
             if set(handler.get("env_allowlist", [])) - set(env):

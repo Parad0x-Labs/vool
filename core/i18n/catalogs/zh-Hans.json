@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "此附加组件的来源已更改。请重新检查。",
     "addons.plugin_message_7038ceabccfe": "无法打开该检查。请重新开始检查。",
     "addons.plugin_message_fc0c95675725": "此名称属于 VOOL 制作的插件。请为您的插件换一个名称再安装。",
+    "addons.plugin_message_e7fa6cf0e27c": "此插件的名称、作者或密钥标签含有隐藏标记、形似字母、链接或符号。请用普通的字母、数字和空格书写后再安装。",
+    "addons.plugin_message_33cfd7c61b2f": "此插件的名称、作者或密钥标签使用了 VOOL 自己的名称。只有 VOOL 自己的插件才能使用它。请去掉后再安装。",
+    "addons.plugin_message_a54fe4ec00f7": "此插件的名称、作者或密钥标签用 Official 或 Verified 之类的词，或用勾号或星号，声称它经过检查或被选中。请去掉后再安装。",
     "addons.plugin_message_2d0ae0a4c670": "这个 VOOL 技能的文件与 VOOL 自带的副本不一致，因此没有添加。请更新或重新安装 VOOL 来修复。",
     "settings.row.hide_name_on_screen.label": "在屏幕上隐藏我的名字",
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "用我的云端模型回答",
     "phone.bot_cloud_help": "{app} 中的回答可以像在这台电脑上聊天一样使用你的云端模型。付费回答计入你的 AI 支出限额，达到限额即停止。每次开启 30 天。"
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

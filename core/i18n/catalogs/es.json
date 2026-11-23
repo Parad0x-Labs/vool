@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "El origen de este complemento ha cambiado. Compruébalo de nuevo.",
     "addons.plugin_message_7038ceabccfe": "Esa comprobación no se puede abrir. Inicia de nuevo la comprobación.",
     "addons.plugin_message_fc0c95675725": "Este nombre pertenece a un plugin hecho por VOOL. Ponle otro nombre a tu plugin para instalarlo.",
+    "addons.plugin_message_e7fa6cf0e27c": "El nombre, el autor o la etiqueta de clave de este plugin tiene marcas ocultas, letras parecidas a otras, enlaces o símbolos. Escríbelo con letras, números y espacios normales para instalarlo.",
+    "addons.plugin_message_33cfd7c61b2f": "El nombre, el autor o la etiqueta de clave de este plugin usa el nombre de VOOL. Solo los plugins de VOOL pueden llevarlo. Quítalo para instalarlo.",
+    "addons.plugin_message_a54fe4ec00f7": "El nombre, el autor o la etiqueta de clave de este plugin dice que fue comprobado o elegido, con una palabra como Official o Verified, o con una marca de verificación o una estrella. Quita eso para instalarlo.",
     "addons.plugin_message_2d0ae0a4c670": "El archivo de esta habilidad de VOOL no coincide con la copia que venía con VOOL, así que no se añadió. Actualiza o reinstala VOOL para repararla.",
     "settings.row.hide_name_on_screen.label": "Ocultar mi nombre en pantalla",
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "Responder con mis modelos en la nube",
     "phone.bot_cloud_help": "Las respuestas en {app} pueden usar tus modelos en la nube, como un chat en este ordenador. Las respuestas de pago cuentan para tus límites de gasto en IA y se detienen al llegar a un límite. Activo 30 días cada vez."
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

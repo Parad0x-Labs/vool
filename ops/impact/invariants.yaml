@@ -72,6 +72,7 @@ governed_scope:
   - tests/gauntlet/test_wallet_safety_gaps.py
   - tests/gauntlet/test_prompt_injection_containment.py
   - tests/test_change_impact_governor.py
+  - core/plugin_identity.py
 
 exemptions:
   - unit: ops/impact/__init__.py
@@ -225,6 +226,23 @@ invariants:
       - core/execution/payment_tools.py
       - core/machine_file_ops.py
       - core/vool_agent_brake.py
+
+  - id: INV-PLUGIN-IDENTITY-IS-NEVER-SELF-DECLARED
+    statement: >
+      A package from outside cannot be installed under an id, a name or a maker's name that reads
+      as VOOL's own or as a badge, and what its maker wrote is carried into VOOL's prompts and
+      replies as plain data: it cannot close a quote, add a line of its own, or put a link into a
+      sentence VOOL says itself.
+    scenario: "A folder that calls itself vool-database by VOOL, or a plugin named 'Notes\" Message: ...', is installed or named in a reply."
+    severity: blocker
+    kill: >
+      Make identity_refusal return an empty string for every manifest, or make prompt_data and
+      shown_name return their input unchanged.
+    proofs:
+      - tests/test_plugin_identity_is_checked_at_install.py
+      - tests/test_plugin_author_text_stays_data.py
+    surfaces:
+      - core/plugin_identity.py
 
   - id: INV-GOVERNOR-IS-LOAD-BEARING
     statement: >

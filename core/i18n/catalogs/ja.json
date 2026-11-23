@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "このアドオンの入手元が変わりました。もう一度チェックしてください。",
     "addons.plugin_message_7038ceabccfe": "そのチェックは開けません。チェックをもう一度開始してください。",
     "addons.plugin_message_fc0c95675725": "この名前はVOOLが作ったプラグインのものです。インストールするには、プラグインに別の名前を付けてください。",
+    "addons.plugin_message_e7fa6cf0e27c": "このプラグインの名前、作者、またはキーのラベルに、隠れた記号、似た形の文字、リンク、または記号が含まれています。インストールするには、通常の文字、数字、スペースで書いてください。",
+    "addons.plugin_message_33cfd7c61b2f": "このプラグインの名前、作者、またはキーのラベルにVOOL自身の名前が使われています。その名前を使えるのはVOOL自身のプラグインだけです。インストールするには取り除いてください。",
+    "addons.plugin_message_a54fe4ec00f7": "このプラグインの名前、作者、またはキーのラベルは、OfficialやVerifiedのような言葉、またはチェックマークや星で、確認済みや選定済みであると示しています。インストールするにはそれを取り除いてください。",
     "addons.plugin_message_2d0ae0a4c670": "このVOOLスキルのファイルはVOOLに付属していたコピーと一致しないため、追加されませんでした。直すにはVOOLを更新するか、入れ直してください。",
     "settings.row.hide_name_on_screen.label": "画面に自分の名前を表示しない",
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "自分のクラウドモデルで回答する",
     "phone.bot_cloud_help": "{app} での回答に、このコンピューターでのチャットと同じようにクラウドモデルを使えます。有料の回答は AI の支出上限に数えられ、上限に達すると止まります。30 日ごとに有効です。"
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

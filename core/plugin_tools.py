@@ -207,6 +207,15 @@ def contract_from_tool(spec: Any, *, plugin_id: str, version: str) -> RuntimeToo
         f"{intent!r}: a plugin's intents must be prefixed with its own name ({plugin_id}.<tool>) "
         "so two packs can never collide",
     )
+    # The intent is the tool's name as the model reads it, and it is written into lines VOOL
+    # builds. A package with the access declarations is held to the fixed shape in
+    # core.plugin_manifest; an older one may keep its dotted names, but no name of either kind
+    # carries a space, a line break, a quote or a bracket.
+    _require(
+        all(char.isalnum() or char in "._-" for char in str(spec.get("intent") or "")),
+        f"{plugin_id}: a tool's `intent` is its name ({plugin_id}.<tool>): letters, numbers, dots, "
+        "hyphens and underscores only, with no spaces, line breaks, quotes or brackets",
+    )
 
     description = str(spec.get("description") or "").strip()
     _require(
@@ -354,6 +363,14 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
     if not tools:
         # The two installed plugins are exactly this: valid, loadable, no runtime tools yet.
         return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, vool=extension)
+
+    # A plugin's tools are named <its id>.<tool>, so its id may not be a name VOOL's own tools start
+    # with ("email", "skill", "workspace" ...): the model would read those tools as VOOL's. The
+    # registry kept back a fixed handful of such names; this reads them from the tools themselves.
+    from core.plugin_identity import builtin_tool_names
+    from core.plugin_migration import RESERVED_NAME
+
+    _require(plugin_id.casefold() not in builtin_tool_names(), RESERVED_NAME)
 
     runtime = raw.get("runtime", {"contract_version": CONTRACT_VERSION} if extension else None)
     _require(

@@ -125,27 +125,126 @@ def _key(text: str) -> str:
     return " ".join(str(text or "").split()).casefold()
 
 
+#: One judge choice per switched-on package, kept by what it was built from: (the package's folder, the approval the
+#: person gave, the manifest file's change time and size) -> (the choice or None, when it was read).
+_CHOICES: dict[str, tuple[tuple[Any, ...], tuple[str, str] | None, float]] = {}
+#: A package the full check turned down is asked about again after this long, in case what stopped it has passed.
+_RECHECK_S = 60.0
+#: An author's description is cut to this before it becomes a choice (the question itself cuts each choice shorter).
+_CHOICE_CHARS = 400
+
+
+def switched_on_before(record) -> bool:
+    """Whether the person ever switched this installed package on: an "enabled" entry since it was last removed.
+
+    Read from the lifecycle record; nothing is hashed. An update keeps the answer (the person chose this plugin and
+    is owed the reason it is off now); removing it and adding it again starts over. The record keeps its last
+    entries only, so when neither entry is among them the package has a long history and the time it was last
+    enabled is the answer."""
+    from core import plugin_lifecycle
+
+    if record is None or record.stage == plugin_lifecycle.STAGE_UNINSTALLED:
+        return False
+    for row in reversed(list(record.evidence or [])):
+        event = str(row.get("event") or "") if isinstance(row, dict) else ""
+        if event == "enabled":
+            return True
+        if event == "uninstalled":
+            return False
+    return bool(record.enabled_at)
+
+
 def _installed_with_tools() -> list[tuple[str, str]]:
-    """(plugin id, its maker's description) for every installed, reviewed package that brings tools."""
+    """(plugin id, the choice the judge reads) for every package the person switched on that brings tools.
+
+    A package that can run right now: installed, reviewed, consented to and enabled, with its files still the
+    ones that were reviewed (`plugin_lifecycle.is_available`, the fact that decides whether its tools run). And a
+    package the person switched on once and then turned off themselves, its files still the reviewed ones: they
+    chose it, and when they ask for it in their own words VOOL must be able to say it is off instead of answering
+    without it. A package nobody ever switched on is never listed. Before, every installed package was, so one
+    nobody had agreed to put its maker's words into the judge's question on every turn.
+
+    The choice is built here, as data: the plugin's name as VOOL would write it, then its maker's descriptions with
+    everything taken out that could end the quote the question puts them in (`core.plugin_identity`).
+
+    The full check hashes the package's files, so it is made once for a package as approved and as its manifest file
+    now stands, not on every turn: a turn reads the lifecycle record and the file's change time. A package that is
+    switched off, or whose record or manifest file changed, is read again.
+    """
     from pathlib import Path
 
     from core import plugin_lifecycle
+    from core.plugin_identity import prompt_data, shown_name
     from core.plugin_tools import load_manifest
 
     rows: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for record in plugin_lifecycle.records():
-        if record.stage == plugin_lifecycle.STAGE_UNINSTALLED or not record.root:
+        # What the record alone says: cheap, and enough to leave out everything the person never switched on.
+        on = (record.stage == plugin_lifecycle.STAGE_ENABLED and record.enabled is True and bool(record.approval_digest)
+              and record.consented_approval == record.approval_digest)
+        turned_off = (not on and record.stage == plugin_lifecycle.STAGE_VERIFIED and bool(record.verified_digest)
+                      and switched_on_before(record))
+        if not record.root or record.revoked_at or not (on or turned_off):
             continue
+        manifest = Path(record.root) / ".codex-plugin" / "plugin.json"
         try:
-            block = load_manifest(Path(record.root) / ".codex-plugin" / "plugin.json").vool
-        except Exception:
+            stat = manifest.stat()
+        except OSError:
             continue
-        tools = [tool for tool in (block or {}).get("tools") or () if isinstance(tool, dict)]
-        if not block or not tools:
-            continue
-        said = " ".join(str(tool.get("description") or "") for tool in tools)
-        rows.append((record.plugin_id, f"{block.get('name') or record.plugin_id}: {block.get('description') or ''} {said}"))
+        seen.add(record.plugin_id)
+        key = (record.root, record.approval_digest, on, stat.st_mtime_ns, stat.st_size)
+        with _LOCK:
+            kept = _CHOICES.get(record.plugin_id)
+        if kept is not None and kept[0] == key and (kept[1] is not None or time.monotonic() - kept[2] < _RECHECK_S):
+            choice = kept[1]
+        else:
+            choice = None
+            try:
+                if plugin_lifecycle.is_available(record.plugin_id) if on else _still_as_reviewed(record):
+                    block = load_manifest(manifest).vool
+                    tools = [tool for tool in (block or {}).get("tools") or () if isinstance(tool, dict)]
+                    if block and tools:
+                        said = " ".join(str(tool.get("description") or "") for tool in tools)
+                        name = shown_name(block.get("name"), record.plugin_id) or "A plugin"
+                        choice = (record.plugin_id,
+                                  f"{name}: {prompt_data(str(block.get('description') or '') + ' ' + said, _CHOICE_CHARS)}")
+            except Exception:
+                choice = None   # unreadable: it is not put to the judge
+            with _LOCK:
+                _CHOICES[record.plugin_id] = (key, choice, time.monotonic())
+        if choice is not None:
+            rows.append(choice)
+    with _LOCK:
+        for plugin_id in [plugin_id for plugin_id in _CHOICES if plugin_id not in seen]:
+            del _CHOICES[plugin_id]
     return rows
+
+
+def _still_as_reviewed(record) -> bool:
+    """Whether a package the person turned off still holds the files that were reviewed, and was not taken back."""
+    from pathlib import Path
+
+    from core import plugin_lifecycle
+
+    if str(record.source).startswith("registry:"):
+        from core.registry.native import runtime_allowed
+
+        if not runtime_allowed(record):
+            return False
+    return plugin_lifecycle.manifest_digest(Path(record.root)) == record.verified_digest
+
+
+def _installed_ids() -> set[str]:
+    """The ids of every installed package, switched on or not, read from the lifecycle records alone. Only for
+    telling that a message names a tool by its exact id; no word a maker wrote is read here."""
+    try:
+        from core import plugin_lifecycle
+
+        return {record.plugin_id for record in plugin_lifecycle.records()
+                if record.stage != plugin_lifecycle.STAGE_UNINSTALLED and record.root}
+    except Exception:
+        return set()
 
 
 def _signature(rows: list[tuple[str, str]]) -> tuple[Any, ...]:
@@ -198,6 +297,7 @@ def forget() -> None:
     with _LOCK:
         _JUDGED.clear()
         _BUILTINS.clear()
+        _CHOICES.clear()
 
 
 def _record_builtins(text: str, keys: tuple[str, ...]) -> None:
@@ -450,11 +550,14 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
         return None
     rows = _installed_with_tools()
     signature = _signature(rows)
-    # A plugin tool named by its own id ("use vool-plugin-template.sha256 ...") is not a guess from vocabulary: the
+    # A plugin tool named by its own id ("use text-digest-example.sha256 ...") is not a guess from vocabulary: the
     # words settle which plugin is asked for, and no model is asked. Asking anyway spent a model call on every such
     # turn, and on a plugin that is turned off it was a model call on a turn that must say so before any model is
     # asked (CI on fe98e849, test_plugin_served_journey: an inference after the plugin was disabled).
-    named = _plugins_named_by_tool_id(text, {plugin_id for plugin_id, _description in rows}) if rows else ()
+    # An installed plugin that is switched off counts here too (by its id alone, from the lifecycle records): its
+    # words are no longer put to the judge, and naming its tool must still reach the lane that says it is off.
+    known = {plugin_id for plugin_id, _description in rows} | _installed_ids()
+    named = _plugins_named_by_tool_id(text, known) if known else ()
     if named:
         _record(text, named, signature)
         return named

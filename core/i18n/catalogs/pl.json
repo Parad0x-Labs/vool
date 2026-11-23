@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "Źródło tego dodatku się zmieniło. Sprawdź go jeszcze raz.",
     "addons.plugin_message_7038ceabccfe": "Tej kontroli nie można otworzyć. Uruchom kontrolę ponownie.",
     "addons.plugin_message_fc0c95675725": "Ta nazwa należy do wtyczki wykonanej przez VOOL. Nadaj swojej wtyczce inną nazwę, aby ją zainstalować.",
+    "addons.plugin_message_e7fa6cf0e27c": "Nazwa, autor lub etykieta klucza tej wtyczki zawiera ukryte znaki, podobnie wyglądające litery, linki lub symbole. Zapisz je zwykłymi literami, cyframi i spacjami, aby ją zainstalować.",
+    "addons.plugin_message_33cfd7c61b2f": "Nazwa, autor lub etykieta klucza tej wtyczki używa nazwy VOOL. Mogą ją nosić tylko wtyczki VOOL. Usuń ją, aby zainstalować wtyczkę.",
+    "addons.plugin_message_a54fe4ec00f7": "Nazwa, autor lub etykieta klucza tej wtyczki mówi, że została sprawdzona lub wybrana: słowem takim jak Official lub Verified albo znakiem zaznaczenia lub gwiazdką. Usuń to, aby zainstalować wtyczkę.",
     "addons.plugin_message_2d0ae0a4c670": "Plik tej umiejętności VOOL nie zgadza się z kopią dostarczoną z VOOL, więc nie została dodana. Zaktualizuj lub zainstaluj ponownie VOOL, aby to naprawić.",
     "settings.row.hide_name_on_screen.label": "Ukryj moje imię na ekranie",
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "Odpowiadaj moimi modelami w chmurze",
     "phone.bot_cloud_help": "Odpowiedzi w {app} mogą korzystać z Twoich modeli w chmurze, jak czat na tym komputerze. Płatne odpowiedzi liczą się do Twoich limitów wydatków na AI i zatrzymują się po osiągnięciu limitu. Włączone na 30 dni."
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

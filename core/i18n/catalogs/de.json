@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "Die Herkunft dieses Add-ons hat sich geändert. Prüfe es erneut.",
     "addons.plugin_message_7038ceabccfe": "Diese Prüfung lässt sich nicht öffnen. Starte die Prüfung erneut.",
     "addons.plugin_message_fc0c95675725": "Dieser Name gehört zu einem Plugin von VOOL. Gib deinem Plugin einen anderen Namen, um es zu installieren.",
+    "addons.plugin_message_e7fa6cf0e27c": "Der Name, der Hersteller oder die Schlüsselbezeichnung dieses Plugins enthält versteckte Zeichen, ähnlich aussehende Buchstaben, Links oder Symbole. Schreibe sie in einfachen Buchstaben, Zahlen und Leerzeichen, um es zu installieren.",
+    "addons.plugin_message_33cfd7c61b2f": "Der Name, der Hersteller oder die Schlüsselbezeichnung dieses Plugins verwendet den Namen von VOOL. Nur Plugins von VOOL dürfen ihn tragen. Entferne ihn, um es zu installieren.",
+    "addons.plugin_message_a54fe4ec00f7": "Der Name, der Hersteller oder die Schlüsselbezeichnung dieses Plugins behauptet, es sei geprüft oder ausgewählt worden, mit einem Wort wie Official oder Verified oder mit einem Häkchen oder Stern. Entferne das, um es zu installieren.",
     "addons.plugin_message_2d0ae0a4c670": "Die Datei dieser VOOL-Fertigkeit stimmt nicht mit der Kopie überein, die mit VOOL kam, deshalb wurde sie nicht hinzugefügt. Aktualisiere VOOL oder installiere es neu, um das zu beheben.",
     "settings.row.hide_name_on_screen.label": "Meinen Namen auf dem Bildschirm verbergen",
     "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "Mit meinen Cloud-Modellen antworten",
     "phone.bot_cloud_help": "Antworten in {app} dürfen deine Cloud-Modelle nutzen, wie ein Chat auf diesem Computer. Bezahlte Antworten zählen zu deinen KI-Ausgabelimits und stoppen, wenn ein Limit erreicht ist. Jeweils 30 Tage lang an."
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

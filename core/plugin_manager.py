@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 
 from core import plugin_lifecycle as lifecycle
-from core.plugin_migration import reserved_refusal
+from core.plugin_identity import identity_refusal
 from core.plugin_package import PackageError, capture_package
 from core.plugin_paths import child_of
 from core.plugin_tools import PluginManifestError, confined_plugin_id, load_manifest, parse_manifest
@@ -182,11 +182,14 @@ def prepare_local(folder: str, *, update=False, source="local", local_findings=0
     stage = pending / review_id
     try:
         captured = capture_package(Path(folder).expanduser(), destination=stage)
+        # Who the package says it is, read before anything else about it: an id, a name or a
+        # maker's name that poses as VOOL's own, or as checked by anyone, goes no further. The
+        # GitHub door ends here too, so both are held to the one rule.
+        if refusal := identity_refusal(captured.manifest, digest=captured.digest):
+            raise lifecycle.LifecycleError(refusal)
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         if not plugin.vool:
             raise lifecycle.LifecycleError("This plugin was made for an older VOOL. Ask its maker for an update.")
-        if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
-            raise lifecycle.LifecycleError(refusal)
         value = {"review_id": review_id, "digest": captured.digest, "plugin_id": plugin.plugin_id,
                  "created_at": time.time(), "update": update is True, "source": source,
                  "local_findings": int(local_findings)}
@@ -263,9 +266,10 @@ def install(review_id: str, *, accepted: bool, digest: str, findings_seen=0) -> 
         if int(saved.get("local_findings") or 0) and findings_seen != saved["local_findings"]:
             # The device check flagged files: the owner accepts only a review that showed them.
             raise lifecycle.LifecycleError("The on-device check flagged files in this package. Review them before installing.")
-        plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
-        if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
+        # Asked again on the reviewed copy: what VOOL keeps for itself may have grown since the review.
+        if refusal := identity_refusal(captured.manifest, digest=captured.digest):
             raise lifecycle.LifecycleError(refusal)
+        plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         target = _destination(plugin.plugin_id)
         previous = lifecycle.record_for(plugin.plugin_id)
         active = previous and previous.stage != lifecycle.STAGE_UNINSTALLED

@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "이 추가 기능의 출처가 바뀌었습니다. 다시 검사하세요.",
     "addons.plugin_message_7038ceabccfe": "그 검사를 열 수 없습니다. 검사를 다시 시작하세요.",
     "addons.plugin_message_fc0c95675725": "이 이름은 VOOL이 만든 플러그인의 것입니다. 설치하려면 플러그인에 다른 이름을 붙이세요.",
+    "addons.plugin_message_e7fa6cf0e27c": "이 플러그인의 이름, 제작자 또는 키 레이블에 숨은 표시, 비슷하게 생긴 글자, 링크 또는 기호가 있습니다. 설치하려면 일반 글자, 숫자, 공백으로 쓰세요.",
+    "addons.plugin_message_33cfd7c61b2f": "이 플러그인의 이름, 제작자 또는 키 레이블에 VOOL의 이름이 쓰였습니다. 그 이름은 VOOL의 플러그인만 쓸 수 있습니다. 설치하려면 빼세요.",
+    "addons.plugin_message_a54fe4ec00f7": "이 플러그인의 이름, 제작자 또는 키 레이블이 Official이나 Verified 같은 단어 또는 체크 표시나 별로 확인되었거나 선정되었다고 말합니다. 설치하려면 그 부분을 빼세요.",
     "addons.plugin_message_2d0ae0a4c670": "이 VOOL 스킬의 파일이 VOOL과 함께 제공된 사본과 일치하지 않아 추가하지 않았습니다. 고치려면 VOOL을 업데이트하거나 다시 설치하세요.",
     "settings.row.hide_name_on_screen.label": "화면에서 내 이름 숨기기",
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "내 클라우드 모델로 답하기",
     "phone.bot_cloud_help": "{app}의 답변은 이 컴퓨터의 채팅처럼 클라우드 모델을 사용할 수 있습니다. 유료 답변은 AI 지출 한도에 포함되며 한도에 도달하면 멈춥니다. 한 번에 30일 동안 켜집니다."
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -38,7 +38,7 @@ def test_template_plugin_runs_in_the_macos_sandbox_from_install_to_uninstall(pac
     info = installed(package)
     assert info["executable_runtime_available"] is True and not info["executable_runtime_refusal"]
     manager.enable(info["id"], accepted=True, approval_digest=info["approval_digest"])
-    contract = tool_registry.tool_for_intent("vool-plugin-template.sha256")
+    contract = tool_registry.tool_for_intent("text-digest-example.sha256")
     assert contract and contract.supported
 
     text = "plugin on a Mac " + secrets.token_hex(8)

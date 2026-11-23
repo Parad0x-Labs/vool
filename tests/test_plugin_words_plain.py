@@ -42,7 +42,7 @@ RAISING_MODULES = (
     "plugin_providers", "plugin_processes", "addon_security", "plugin_lifecycle",
     "plugin_container", "plugin_migration", "plugin_executor", "plugin_tools",
     "plugin_store_fragment", "addon_store_fragment", "vool_settings_page",
-    "mcp_client", "addon_discovery", "local_scan",
+    "mcp_client", "addon_discovery", "local_scan", "plugin_identity",
 )
 REPO_ROOT = CATALOGS_DIR.parent.parent.parent
 

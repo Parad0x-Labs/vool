@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "Nguồn gốc của tiện ích này đã thay đổi. Hãy kiểm tra lại.",
     "addons.plugin_message_7038ceabccfe": "Không mở được lượt kiểm tra đó. Hãy bắt đầu lại lượt kiểm tra.",
     "addons.plugin_message_fc0c95675725": "Tên này thuộc về một plugin do VOOL làm. Đặt tên khác cho plugin của bạn để cài đặt nó.",
+    "addons.plugin_message_e7fa6cf0e27c": "Tên, nhà phát triển hoặc nhãn khóa của plugin này có dấu ẩn, chữ cái trông giống nhau, liên kết hoặc ký hiệu. Hãy viết bằng chữ cái, chữ số và dấu cách thông thường để cài đặt.",
+    "addons.plugin_message_33cfd7c61b2f": "Tên, nhà phát triển hoặc nhãn khóa của plugin này dùng chính tên của VOOL. Chỉ plugin của VOOL mới được mang tên đó. Hãy bỏ nó đi để cài đặt.",
+    "addons.plugin_message_a54fe4ec00f7": "Tên, nhà phát triển hoặc nhãn khóa của plugin này nói rằng nó đã được kiểm tra hoặc được chọn, bằng một từ như Official hoặc Verified, hoặc bằng dấu tích hay ngôi sao. Hãy bỏ phần đó đi để cài đặt.",
     "addons.plugin_message_2d0ae0a4c670": "Tệp của kỹ năng VOOL này không khớp với bản đi kèm VOOL, nên kỹ năng chưa được thêm. Hãy cập nhật hoặc cài đặt lại VOOL để sửa.",
     "settings.row.hide_name_on_screen.label": "Ẩn tên tôi trên màn hình",
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "Trả lời bằng các mô hình đám mây của tôi",
     "phone.bot_cloud_help": "Câu trả lời trong {app} có thể dùng các mô hình đám mây của bạn, như một cuộc trò chuyện trên máy tính này. Câu trả lời trả phí được tính vào giới hạn chi tiêu AI của bạn và dừng khi đạt giới hạn. Bật 30 ngày mỗi lần."
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

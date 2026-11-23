@@ -3684,6 +3684,9 @@
     "addons.plugin_message_65179f7f8314": "Bu eklentinin kaynağı değişti. Yeniden kontrol edin.",
     "addons.plugin_message_7038ceabccfe": "Bu kontrol açılamıyor. Kontrolü yeniden başlatın.",
     "addons.plugin_message_fc0c95675725": "Bu ad, VOOL tarafından yapılmış bir eklentiye ait. Yüklemek için eklentinize farklı bir ad verin.",
+    "addons.plugin_message_e7fa6cf0e27c": "Bu eklentinin adında, yapımcısında veya anahtar etiketinde gizli işaretler, benzer görünen harfler, bağlantılar veya simgeler var. Yüklemek için düz harfler, rakamlar ve boşluklarla yazın.",
+    "addons.plugin_message_33cfd7c61b2f": "Bu eklentinin adı, yapımcısı veya anahtar etiketi VOOL'un kendi adını kullanıyor. Bu adı yalnızca VOOL'un kendi eklentileri taşıyabilir. Yüklemek için çıkarın.",
+    "addons.plugin_message_a54fe4ec00f7": "Bu eklentinin adı, yapımcısı veya anahtar etiketi, Official veya Verified gibi bir sözcükle ya da bir onay işareti veya yıldızla, denetlendiğini veya seçildiğini söylüyor. Yüklemek için bunu çıkarın.",
     "addons.plugin_message_2d0ae0a4c670": "Bu VOOL becerisinin dosyası VOOL ile gelen kopyayla eşleşmiyor, bu yüzden eklenmedi. Onarmak için VOOL'u güncelleyin veya yeniden yükleyin.",
     "settings.row.hide_name_on_screen.label": "Ekranda adımı gizle",
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
@@ -5374,7 +5377,7 @@
     "phone.bot_cloud": "Bulut modellerimle yanıtla",
     "phone.bot_cloud_help": "{app} içindeki yanıtlar, bu bilgisayardaki bir sohbet gibi bulut modellerinizi kullanabilir. Ücretli yanıtlar yapay zekâ harcama sınırlarınıza sayılır ve bir sınıra ulaşıldığında durur. Her seferinde 30 gün açık kalır."
   },
-  "source_catalog_sha256": "74012fe9352d027e992c1fab2121dfe30146be56383371e22b4608bb61337353",
+  "source_catalog_sha256": "0f68da70feea61cc9577d5b8cf297df1b3aacd61d624c47280c44109291785e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
