@@ -4430,6 +4430,10 @@ class ResearchToolLoopFacadeMixin:
                     # The rows the database returned ARE the grounded answer (run 16e: "COUNT(*): 1" under an
                     # "Incomplete" banner). The rejection stays on the event ledger; the turn is not a failure.
                     reject_reason = ""
+                if reject_reason and loop_stop_reason != "step_budget_exhausted":
+                    # The bare step count is the runtime talking to itself (Mac memory run12: "0 of 1 tool
+                    # steps succeeded. Last result: ..." as a chat reply): said in the person's words.
+                    final_message = unwritten_answer_in_plain_words(executed_steps, final_message)
         else:
             final_message = self._tool_loop_final_message(synthesis, executed_steps)
             final_message = _database_reply_contradicts_its_rows(final_message, effective_input, executed_steps, told=database_no_tool_corrections >= 2) or final_message
@@ -4483,7 +4487,16 @@ class ResearchToolLoopFacadeMixin:
             # contract declares; prefixing it with "not a completed audit" contradicted the task's own
             # evidence. `loop_stop_reason` still records the budget stop.
             terminal_failure = False
-        if terminal_failure:
+        if terminal_failure and reject_reason and loop_stop_reason != "step_budget_exhausted":
+            # A page the person allowed was opened, then no answer was written: say that in plain words
+            # instead of the step dump (Mac run 4, qwen3:8b at its time limit). Anything else is already in
+            # plain words above, and no audit banner goes over it (Mac memory run12: "Incomplete — model
+            # synthesis failed (ungrounded) ... this is not a completed audit" as a chat reply). A turn that
+            # ran out of rounds keeps saying it was cut short.
+            from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
+
+            rendered = browser_synthesis_failed_reply() or rendered
+        elif terminal_failure:
             if reject_reason:
                 reason_text = f"model synthesis failed ({reject_reason})"
             elif loop_stop_reason == "step_budget_exhausted":
@@ -4494,18 +4507,10 @@ class ResearchToolLoopFacadeMixin:
                 f"Incomplete — {reason_text}. The grounded work collected so far is below; "
                 f"this is not a completed audit.\n\n{rendered}"
             ).strip()
-            if reject_reason and loop_stop_reason != "step_budget_exhausted":
-                # A page the person allowed was opened, then no answer was written: say that in
-                # plain words instead of the step dump (Mac run 4, qwen3:8b at its time limit).
-                # Anything else is said in plain words too: the banner and the step count are the
-                # runtime talking to itself (Mac memory run12: "Incomplete — model synthesis failed
-                # (ungrounded) ... 0 of 1 tool steps succeeded" as a chat reply). A turn that ran out
-                # of rounds keeps saying it was cut short.
+            if reject_reason:
                 from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
 
-                rendered = browser_synthesis_failed_reply() or unwritten_answer_in_plain_words(
-                    executed_steps, final_message
-                )
+                rendered = browser_synthesis_failed_reply() or rendered
         if (reject_reason or web_pages_shown) and not renders_final:
             # No model wrote these bytes: runtime code composed them from the executed steps'
             # own results. They are minted as such, so the publication gate reads them as backed

@@ -32,7 +32,7 @@ MODEL = "qwen3-stub:2b"
 PROMPT = "Run the build script in my project with python3 and tell me what happened"
 ORIGINAL = "original line\n"
 REWRITTEN = "rewritten by the build\n"
-# The buffered reply lists the steps it ran; the streamed lane showed them live as tool events
+# The buffered reply may list the steps it ran; the streamed lane showed them live as tool events
 # and leaves them out of the text (research_tool_loop_facade, include_step_summary). Everything
 # else in the committed answer must match.
 _STEP_SUMMARY_RE = re.compile(r"\n*Real steps completed:\n(?:- [^\n]*\n?)+")
@@ -89,6 +89,10 @@ def test_a_buffered_command_turn_with_an_empty_summary_commits_like_the_streamed
 
     assert "K-08 violation" not in log
     assert _committed(buffered), "the buffered turn committed no answer"
-    assert "Real steps completed:" in _committed(buffered), "the buffered turn did not list the command it ran"
+    # The command the turn ran is named in the answer itself. A step list that opens the reply is the runtime's
+    # preamble and the reply edge takes it off (response.strip_runtime_preamble); it used to survive here only
+    # under the "Incomplete — model synthesis failed" banner, which a chat reply no longer carries.
+    assert "python3 build.py" in _committed(buffered), "the buffered turn did not name the command it ran"
+    assert "synthesis failed" not in _committed(buffered).lower()
     assert "Real steps completed:" not in _committed(streamed)
     assert _STEP_SUMMARY_RE.sub("\n", _committed(buffered)).strip() == _committed(streamed).strip()
