@@ -276,8 +276,10 @@ def _persist_pending_approvals_locked() -> None:
     pending = {
         token: {key: (list(value) if isinstance(value, tuple) else value) for key, value in entry.items()}
         for token, entry in _APPROVALS.items()
-        if entry.get("status") == "pending"
+        if entry.get("status") == "pending" and not entry.get("memory_only")
     }
+    if not pending and not path.exists():
+        return  # nothing durable to keep: a memory-only prompt must not leave even an empty file behind
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".json.tmp")
@@ -285,6 +287,24 @@ def _persist_pending_approvals_locked() -> None:
         os.replace(tmp, path)
     except Exception:
         pass  # durability is best-effort; in-memory truth remains authoritative
+
+
+def _memory_only(session_id: str) -> bool:
+    """A prompt raised in a private chat is kept in memory only, never mirrored to disk.
+
+    Private chat promises that nothing in it is saved, and a pending prompt carries the asking message
+    and the call's arguments. macOS Intel package smoke on 02c37a13b: "My cousin's boat is called Quillmere.
+    Remember that." in a private chat raised a contact-save prompt, and pending_approvals.json appeared
+    under the profile during the private turn. Unreadable privacy state counts as private (fail closed).
+    A restart drops such a prompt, which is what private chat already promises for everything else."""
+    if not str(session_id or "").strip():
+        return False
+    try:
+        from core.private_chat import is_private
+
+        return bool(is_private(session_id))
+    except Exception:
+        return True
 
 
 def _restore_persisted_approvals() -> None:
@@ -3809,6 +3829,7 @@ def register_external_approval(request: dict[str, Any]) -> str:
         "status": "pending",
         "one_time": True,
         "expires_at": float(request.get("expires_at") or (time.time() + 86400)),
+        "memory_only": _memory_only(str((request or {}).get("session_id") or "")),
     }
     with _LOCK:
         _ensure_approvals_restored()
@@ -4073,11 +4094,13 @@ def _new_approval_request(
         # browser never has to classify anything to phrase the grant it is offering.
         "planned_action_label": _planned_batch_label(planned_actions),
     }
+    memory_only = _memory_only(session_id)
     with _LOCK:
         _APPROVALS[token] = {
             **request,
             "fingerprint": fingerprint,
             "session_id": session_id,
+            "memory_only": memory_only,
             # The message that asked, so a page that reloads (or never sent the turn) can find the
             # turn to resume once the operator allows it. Served to the owner's page with the prompt.
             "request_text": _asking_request_text(source_context),
