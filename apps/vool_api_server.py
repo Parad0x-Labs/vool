@@ -755,6 +755,12 @@ def main() -> int:
         except Exception:
             logger.exception("calendar alert sync failed to start; server continues without calendar alerts")
         try:
+            from core.drop.runtime import boot as boot_drop
+
+            boot_drop()
+        except Exception:
+            logger.exception("Drop checking failed to start; server continues without it")
+        try:
             from core.lend.runtime import boot as boot_lending
 
             boot_lending()

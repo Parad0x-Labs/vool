@@ -426,10 +426,13 @@ class DropHome:
         _private_directory(crypto, create=True)
         # The running profile keeps its key in the credential store. A home named by a test
         # or the command-line laboratory has no credential store of its own and keeps a file.
-        key = (_protected_vault_key(self.home, crypto / "vault.key") if self._own_home
-               else _vault_key(crypto / "vault.key"))
-        self._sealer = _Sealer(key)
-        self.client = DropClient(crypto / "sessions", key)
+        # One opener at a time: the background check and a Settings request may both be the
+        # first to open a fresh profile, and only one of them may make its key and identity.
+        with _HOME_LOCK:
+            key = (_protected_vault_key(self.home, crypto / "vault.key") if self._own_home
+                   else _vault_key(crypto / "vault.key"))
+            self._sealer = _Sealer(key)
+            self.client = DropClient(crypto / "sessions", key)
         self.fingerprint = self.client.fingerprint
         self.db = sqlite3.connect(self.root / "drops.db", timeout=15)
         self.db.row_factory = sqlite3.Row
@@ -465,7 +468,9 @@ class DropHome:
                              ("delivered", "INTEGER NOT NULL DEFAULT 0"),
                              ("receipt_due", "INTEGER NOT NULL DEFAULT 0"), ("saved", "TEXT NOT NULL DEFAULT ''")):
             if column not in have:
-                self.db.execute(f"ALTER TABLE drops ADD COLUMN {column} {kind}")
+                # Another opener of this profile may have added it a moment ago.
+                with contextlib.suppress(sqlite3.OperationalError):
+                    self.db.execute(f"ALTER TABLE drops ADD COLUMN {column} {kind}")
         self.db.commit()
         os.chmod(self.root / "drops.db", 0o600)
         self.lock = (self.root / "actor.lock").open("a+")
