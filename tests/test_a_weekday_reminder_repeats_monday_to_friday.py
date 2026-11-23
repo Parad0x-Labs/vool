@@ -125,3 +125,32 @@ def test_the_reminder_tool_offers_the_repeat_rule() -> None:
 
     [contract] = [c for c in runtime_tool_contracts() if c.intent == "operator.schedule_reminder"]
     assert "weekdays" in str(contract.input_schema.get("repeat", ""))
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_a_repeat_whose_first_slot_passed_today_starts_at_the_next_one(seed, home) -> None:
+    """02ff11496 audit: "Erinnere mich jeden Montag um 18 Uhr ..." asked on a Monday at 20:43 was refused because
+    today's 18:00 had passed. A repeating reminder starts at its next slot; a one-off at a passed time is still refused."""
+    rng = random.Random(f"passed-slot-{seed}")
+    rule, step = rng.choice([("weekly", 7), ("daily", 1), ("Weekly", 7)])
+    earlier = (_now_in_saved_zone() - timedelta(hours=rng.randint(1, 5))).replace(second=0, microsecond=0)
+    session = f"chat-passed-slot-{seed}"
+    stored = _model_call(
+        "operator.schedule_reminder",
+        {"note": rng.choice(["die Mülltonne rausstellen", "išnešti šiukšles", "water the basil"]),
+         "due_iso": earlier.strftime("%Y-%m-%dT%H:%M"), "repeat": rule},
+        session_id=session,
+    )
+    assert stored.ok, stored.response_text
+    [row] = _pending(session)
+    wall = datetime.fromisoformat(str(row["due_wall"]))
+    assert wall.date() == (earlier + timedelta(days=step)).date(), row["due_wall"]
+    assert (wall.hour, wall.minute) == (earlier.hour, earlier.minute)
+
+    once = f"chat-passed-once-{seed}"
+    refused = _model_call(
+        "operator.schedule_reminder",
+        {"note": "call the garage", "due_iso": earlier.strftime("%Y-%m-%dT%H:%M")},
+        session_id=once,
+    )
+    assert not refused.ok and _pending(once) == []

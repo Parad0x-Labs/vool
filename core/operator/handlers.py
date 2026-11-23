@@ -1239,8 +1239,6 @@ def handle_schedule_reminder(
             response_text=when.problem,
             details={"kind": "schedule_reminder", "problem": when.problem},
         )
-    if has_passed(when):
-        return _passed_due_time_result(when, kind="schedule_reminder")
     repeat_every, repeat_problem = _reminder_repeat(intent)
     if repeat_problem:
         return OperatorActionResult(
@@ -1250,6 +1248,8 @@ def handle_schedule_reminder(
             details={"kind": "schedule_reminder", "problem": repeat_problem, "reason": "unknown_repeat_rule"},
         )
     when = _first_allowed_occurrence(when, repeat_every)
+    if has_passed(when):
+        return _passed_due_time_result(when, kind="schedule_reminder")
     record = schedule_reminder_fn(
         session_id=session_id,
         task_id=task_id,
@@ -1929,23 +1929,39 @@ def _reminder_repeat(intent: OperatorActionIntent) -> tuple[str, str]:
 
 
 def _first_allowed_occurrence(when: Any, repeat_every: str) -> Any:
-    """The due time moved to the first day its repeat rule allows (a weekday rule's first due time on a weekend
-    moves to Monday at the same wall time); unchanged for every other rule."""
+    """The due time of a repeating reminder moved to its first occurrence that is still to come, on a day its rule
+    allows: a first slot that already passed today starts at the next one (every Monday at 18:00, asked on a Monday
+    at 20:43, starts next Monday), and a weekday rule's first due time on a weekend moves to Monday, all at the same
+    wall time. A one-off is unchanged (a passed one-off is refused by the caller).
+
+    Measured on 02ff11496 (fresh audit): "Erinnere mich jeden Montag um 18 Uhr ..." asked on a Monday evening was
+    refused because today's 18:00 had passed, and the model was told to ask for "next Monday" instead."""
     import dataclasses as _dc
     from datetime import datetime as _datetime
+    from datetime import timedelta as _timedelta
     from datetime import timezone as _timezone
     from zoneinfo import ZoneInfo
 
-    from core.operator.reminders import first_repeat_day
+    from core.operator.reminders import REPEAT_EVERY_CHOICES, first_repeat_day
 
-    if repeat_every != "weekdays":
+    if repeat_every not in REPEAT_EVERY_CHOICES or not getattr(when, "ok", False):
         return when
     try:
         zone = ZoneInfo(str(when.tz_name or "UTC"))
         local = _datetime.fromisoformat(str(when.due_at_utc).replace("Z", "+00:00")).astimezone(zone)
+        read_at = _datetime.fromisoformat(str((when.details or {}).get("read_at_utc") or ""))
     except Exception:
         return when
-    moved = first_repeat_day(local, repeat_every)
+    step = 7 if repeat_every == "weekly" else 1
+    wall = local.replace(tzinfo=None)
+    moved = local
+    if read_at.tzinfo is not None and local < read_at:
+        behind = (read_at - local).days
+        wall = wall + _timedelta(days=(behind // step) * step)
+        while wall.replace(tzinfo=zone) < read_at:
+            wall = wall + _timedelta(days=step)
+        moved = wall.replace(tzinfo=zone)
+    moved = first_repeat_day(moved, repeat_every)
     if moved == local:
         return when
     return _dc.replace(

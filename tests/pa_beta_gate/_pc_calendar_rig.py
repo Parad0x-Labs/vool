@@ -40,7 +40,25 @@ def prepare_home(tmp_path, monkeypatch, *, zone: str = "Europe/Athens"):
     from core.user_preferences import save_user_timezone
 
     assert save_user_timezone(zone)
+    _clear_of_the_small_hours(zone, monkeypatch)
     return tmp_path
+
+
+def _clear_of_the_small_hours(zone: str, monkeypatch) -> None:
+    """Run VOOL's clock a few hours ahead while the rig's zone is in the small hours, where "tomorrow" is asked about
+    (core.operator.when, owner decision 2026-11-23): these tests say "tomorrow" and mean the next day, and they ran
+    red every night between midnight and 04:00 in the saved zone. The clock keeps moving; only its start moves."""
+    from zoneinfo import ZoneInfo
+
+    from core import time_authority
+    from core.operator.when import _SMALL_HOURS_END
+
+    real = time_authority.TimeAuthority.now_utc
+    local = real(time_authority.CLOCK).astimezone(ZoneInfo(zone))
+    if local.hour >= _SMALL_HOURS_END:
+        return
+    ahead = local.replace(hour=_SMALL_HOURS_END + 1, minute=0, second=0, microsecond=0) - local
+    monkeypatch.setattr(time_authority.TimeAuthority, "now_utc", lambda self: real(self) + ahead)
 
 
 def connect(provider, clock, *, base_url="", select=(), lead=(15,), sync=True, alerts=True, adapter_factory=None):
