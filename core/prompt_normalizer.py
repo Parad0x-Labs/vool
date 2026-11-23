@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -1403,6 +1403,16 @@ def _runtime_clock_text(now: datetime) -> str:
             f"({now.strftime('%Z')}, UTC offset {now.strftime('%z')}).")
 
 
+def _coming_days_text(now: datetime) -> str:
+    """The dates of the next seven days by weekday name, so a day a person names is read off, never worked out.
+
+    Mac gate on 561e3e9d0 (2026-11-23, a Monday, qwen3:8b): "remind me friday ..." in Lithuanian
+    ("penktadienį") and a move of a Friday reminder to a new time were both typed as Thursday 26 November.
+    The model had today's date and weekday, and still counted the days wrong; a listed date is copied."""
+    days = ", ".join((now + timedelta(days=offset)).strftime("%a %d %b") for offset in range(1, 8))
+    return f"Coming days: {days} (a named weekday is the first of these; a time alone keeps its day)."
+
+
 def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now: datetime | None = None) -> str:
     """Server-owned UI and scope facts the answering model must not pretend it cannot see."""
 
@@ -1440,6 +1450,7 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
         "reference clock. If the event evidence is missing or ambiguous, say so plainly; never "
         "invent a time, date, duration or amount."
     )
+    facts.append(_coming_days_text(now))
     workspace_path = str(context.get("workspace") or context.get("workspace_root") or "").strip()
     folder_name = Path(workspace_path).name if workspace_path else ""
     if folder_name:

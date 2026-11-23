@@ -187,4 +187,24 @@ def test_the_fact_block_is_one_paragraph_not_a_wall() -> None:
         {"workspace": "/Users/jdoe/x", "project_id": "p", "workspace_binding": "project"}
     )
     assert "\n" not in truth
-    assert len(truth) < 1200, f"{len(truth)} chars of runtime truth on every turn is too much"
+    # 1200 until the coming days were listed (Mac gate on 561e3e9d0: a model given only today's date and weekday
+    # typed every named weekday one day early); the list adds about 160 characters.
+    assert len(truth) < 1350, f"{len(truth)} chars of runtime truth on every turn is too much"
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_the_coming_seven_days_are_listed_by_weekday_so_a_named_day_is_read_off(seed) -> None:
+    """Mac gate on 561e3e9d0 (Monday 23 Nov 2026, qwen3:8b): "penktadienį" (Friday) and "Donnerstag" (Thursday)
+    were typed as Thursday 26 and Wednesday 25, and a time-only move of a Friday reminder landed on Thursday. The
+    model had the date and the weekday and counted wrong; the dates of the coming week are now listed."""
+    import random
+    from datetime import datetime, timedelta
+
+    rng = random.Random(f"coming-days-{seed}")
+    now = datetime(2026, 1, 1, rng.randint(0, 23), rng.randint(0, 59)) + timedelta(days=rng.randint(0, 730))
+    truth = _runtime_turn_truth({}, reference_now=now.astimezone())
+
+    for offset in range(1, 8):
+        day = now + timedelta(days=offset)
+        assert day.strftime("%a %d %b") in truth, (now, truth)
+    assert now.strftime("%a %d %b") not in truth.split("Coming days:", 1)[1], truth
