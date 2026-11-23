@@ -3204,7 +3204,8 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             intent="operator.cancel_reminder",
             description=(
                 "Cancel one of this chat's pending reminders. Give the reminder id the reminder list "
-                "shows; without one, the reminder the words name or the chat's only pending reminder. "
+                "shows, or when no id was shown, the reminder's own words as note; without either, the "
+                "chat's only pending reminder. To change only when it is due, use operator.move_reminder. "
                 "The reminder is found before anything is asked, and anything unclear is refused."
             ),
             tool_surface="operator",
@@ -3214,6 +3215,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             unsupported_reason="",
             input_schema={
                 "reminder_id": "string optional (the id the reminder list shows)",
+                "note": "string optional (the reminder's own words, when no id was shown)",
                 "text": "string optional (the request as written)",
             },
             output_schema={"reminder_id": "string", "cancelled": "boolean"},
@@ -3232,7 +3234,9 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             intent="operator.move_reminder",
             description=(
                 "Move one of this chat's pending reminders to a new due time; it stays the same reminder "
-                "with the same id. Give the reminder id the reminder list shows and the new due time."
+                "with the same id. Give the new due time and the reminder id the reminder list shows, or "
+                "when no id was shown, the reminder's own words as note; without either, the chat's only "
+                "pending reminder."
             ),
             tool_surface="operator",
             capability_id="operator.mutate",
@@ -3241,6 +3245,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             unsupported_reason="",
             input_schema={
                 "reminder_id": "string optional (the id the reminder list shows)",
+                "note": "string optional (the reminder's own words, when no id was shown)",
                 "due_iso": "string (the new time: ISO 8601 local date and time, for example 2026-11-23T15:00)",
                 "text": "string optional (the request as written)",
             },

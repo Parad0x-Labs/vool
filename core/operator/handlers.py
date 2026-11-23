@@ -1985,6 +1985,10 @@ def _select_reminder_target(
         return matches[0] if len(matches) == 1 else None
     rows = list_reminders_fn(session_id=session_id, include_delivered=False)
     pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+    typed_words = str(getattr(intent, "reminder_note", "") or "")
+    if typed_words and _reminder_words(typed_words):
+        # The reminder a tool call named in its own words: that one, or none when they name no reminder here.
+        return _reminder_named_by(typed_words, pending)
     named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), pending)
     if named is not None:
         return named
@@ -2024,7 +2028,9 @@ def _reminder_set_elsewhere(intent: OperatorActionIntent, *, session_id: str, ow
         by_id = [row for row in rows if str(row.get("reminder_id") or "").lower().startswith(named_id)]
         row = by_id[0] if len(by_id) == 1 else None
     else:
-        row = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), rows)
+        row = _reminder_named_by(
+            str(getattr(intent, "reminder_note", "") or "") or str(getattr(intent, "raw_text", "") or ""), rows
+        )
     if row is None:
         return ""
     label = str(row.get("_chat_label") or "").strip()
@@ -2032,14 +2038,23 @@ def _reminder_set_elsewhere(intent: OperatorActionIntent, *, session_id: str, ow
     return f'The reminder "{row.get("note")}" was set {where}, and only that chat can change it. Open that chat and ask there.'
 
 
+def _reminder_words(text: str) -> list[str]:
+    """The words of an order that could name a reminder: its terms besides the order's own words."""
+    try:
+        from core.chat_housekeeping import query_terms
+    except Exception:
+        return []
+    order_words = set(query_terms(_REMINDER_ORDER_WORDS))
+    return [term for term in query_terms(text) if term not in order_words and len(term) >= 3]
+
+
 def _reminder_named_by(text: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The one reminder whose note shares the most words with the order, or None when no note shares one or two tie."""
     try:
-        from core.chat_housekeeping import _doc_stems, query_terms
+        from core.chat_housekeeping import _doc_stems
     except Exception:
         return None
-    order_words = set(query_terms(_REMINDER_ORDER_WORDS))
-    asked = [term for term in query_terms(text) if term not in order_words and len(term) >= 3]
+    asked = _reminder_words(text)
     if not asked or not rows:
         return None
     scored = [(sum(1 for term in asked if term in _doc_stems(str(row.get("note") or ""))), row) for row in rows]

@@ -161,12 +161,15 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         # one pending reminder; with several pending and nothing naming one it refuses rather than guess.
         raw_text = str(arguments.get("text") or "").strip()
         id_match = _REMINDER_ID_IN_TEXT_RE.search(raw_text)
-        # A typed id that is not one stays the target, so it matches nothing and is refused: it never falls back
-        # to "the one pending reminder", which may be another one entirely.
-        typed_id = _argument(arguments, "reminder_id")
-        reminder_action_id = (
-            _typed_reminder_id(arguments) or typed_id.lower() or (id_match.group(1).lower() if id_match else "") or None
-        )
+        # Only an id-shaped value is an id. A model that was never shown the id types the reminder's own words
+        # into reminder_id ("Water the tomatoes"; Mac gate on 12efa4e5, "actually make it 7pm" after the reminder
+        # was set in the same chat): read as an id it matched nothing and the move was refused. Those words name
+        # the reminder (reminder_note), and words that name no reminder of this chat are refused just the same,
+        # never moved onto "the one pending reminder", which may be another one entirely.
+        typed_id = _typed_reminder_id(arguments)
+        typed_words = _argument(arguments, "note") or ("" if typed_id else _argument(arguments, "reminder_id"))
+        reminder_action_id = typed_id or (id_match.group(1).lower() if id_match else "") or None
+        reminder_note = " ".join(typed_words.split()) or None
         if operator_kind == "move_reminder":
             due_iso = _argument(arguments, "due_iso") or None
     elif operator_kind in _REQUEST_TEXT_KINDS:
