@@ -59,9 +59,21 @@ def browser(home, monkeypatch):
     if os.name == "posix" and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")) and os.uname().sysname != "Darwin":
         pytest.skip("a window needs a display")
     monkeypatch.setattr(live, "available", lambda: True)
+    _quiet_test_engine(monkeypatch, home)
     item = desk_module.Desk()
     yield item
     item.stop()
+
+
+def _quiet_test_engine(monkeypatch, home):
+    """Test launches use the engine's dummy credential store and a downloads folder of
+    their own. The home folder is never moved: on macOS the engine then cannot find the
+    person's keychain and the system raises a "Keychain Not Found" window."""
+    from core.vool_browser.engine import CREDENTIAL_ISOLATION_FLAGS
+
+    monkeypatch.setattr(desk_module, "extra_engine_flags", CREDENTIAL_ISOLATION_FLAGS)
+    folder = Path(home).parent / (Path(home).name + "-person") / "Downloads" / "VOOL Downloads"
+    monkeypatch.setattr(desk_module, "downloads_dir", lambda: folder)
 
 
 def _wait(check, seconds=10.0):
@@ -179,12 +191,18 @@ def test_the_window_runs_page_scripts_and_remembers_the_person_after_a_restart(b
 def test_the_engine_keeps_saved_sign_ins_out_of_plain_stores_and_opens_no_control_port(browser, site):
     base, _ = site
     browser.open(base + "/")
+    # What the product passes, before the test-only dummy credential store is added.
+    product = desk_module.launch_flags(private=False)
+    assert not set(product) & set(desk_module.NEVER_PASSED)
+    assert desk_module.extra_engine_flags and "extra_engine_flags: tuple[str, ...] = ()" in Path(desk_module.__file__).read_text()
     argv = _engine_argv(desk_module.profile_dir())
-    if not argv:
+    if not Path("/proc/self/cmdline").exists():
         pytest.skip("no process table to read on this platform")
-    assert "--password-store=basic" not in argv and "--use-mock-keychain" not in argv
-    assert "--disable-extensions" not in argv and "--enable-automation" not in argv
-    assert "--no-sandbox" not in argv
+    # The running engine was started on VOOL's own profile and no other.
+    assert argv, "no engine process is running on the VOOL profile"
+    assert [a for a in argv if a.startswith("--user-data-dir=")] == [f"--user-data-dir={desk_module.profile_dir()}"]
+    test_only = set(desk_module.extra_engine_flags)
+    assert not (set(argv) - test_only) & set(desk_module.NEVER_PASSED)
     assert not any(a.startswith("--remote-debugging-port") for a in argv)
     assert "--remote-debugging-pipe" in argv
     assert desk_module.profile_dir().resolve().is_relative_to(desk_module.active_data_dir().resolve())
@@ -256,7 +274,7 @@ def test_starting_preferences_are_written_once_and_never_over_the_persons_own(ho
 
 def test_downloads_folder_is_the_persons_own_and_outside_vool_data(home):
     folder = desk_module.downloads_dir().resolve()
-    assert folder.name == "VOOL Downloads"
+    assert folder == (Path.home() / "Downloads" / "VOOL Downloads").resolve()
     assert not folder.is_relative_to(desk_module.active_data_dir().resolve())
     assert not desk_module.active_data_dir().resolve().is_relative_to(folder)
 
@@ -288,9 +306,8 @@ def files_site():
     server.shutdown()
 
 
-def test_a_download_is_saved_under_its_own_name_in_the_downloads_folder(browser, files_site, monkeypatch, tmp_path):
+def test_a_download_is_saved_under_its_own_name_in_the_downloads_folder(browser, files_site):
     port, hits = files_site
-    monkeypatch.setenv("HOME", str(tmp_path / "person"))
     browser.open(f"http://127.0.0.1:{port}/list")
     context = browser.context_for_agent()
 
@@ -302,7 +319,6 @@ def test_a_download_is_saved_under_its_own_name_in_the_downloads_folder(browser,
     saved = desk_module.downloads_dir() / "timetable.txt"
     assert _wait(saved.is_file), sorted(p.name for p in desk_module.downloads_dir().glob("*"))
     assert saved.read_bytes() == b"06:05 early service"
-    assert desk_module.downloads_dir() == tmp_path / "person" / "Downloads" / "VOOL Downloads"
     # Nothing of the download sits inside VOOL's own data.
     assert not [p for p in desk_module.active_data_dir().rglob("timetable*")]
     assert {dnt for _, _, dnt in hits} == {"1"}
@@ -330,6 +346,104 @@ def test_a_plain_unencrypted_site_gets_nothing_until_the_person_chooses(browser,
     assert not [host for host, _, _ in hits if host.startswith(name)]
 
 
+# -- Private web carries everything, or nothing goes ------------------------------
+
+
+@pytest.fixture
+def socks():
+    """A real SOCKS5 relay on this machine that records what it was asked to reach."""
+    import select
+    import socket
+    import socketserver
+    import struct
+
+    asked: list[tuple[int, str]] = []
+
+    class Relay(socketserver.BaseRequestHandler):
+        def handle(self):
+            client = self.request
+            try:
+                _, count = client.recv(2)
+                client.recv(count)
+                client.sendall(b"\x05\x00")
+                _, _, _, kind = client.recv(4)
+                if kind == 3:
+                    host = client.recv(client.recv(1)[0]).decode()
+                elif kind == 1:
+                    host = socket.inet_ntoa(client.recv(4))
+                else:
+                    return
+                port = struct.unpack(">H", client.recv(2))[0]
+                asked.append((kind, host))
+                # The far end: every name leads to this machine's test site.
+                upstream = socket.create_connection(("127.0.0.1", port), timeout=5)
+            except (OSError, ValueError, IndexError):
+                return
+            client.sendall(b"\x05\x00\x00\x01" + bytes(6))
+            with upstream:
+                while True:
+                    ready, _, _ = select.select([client, upstream], [], [], 10)
+                    if not ready:
+                        return
+                    for sock in ready:
+                        data = sock.recv(65536)
+                        if not data:
+                            return
+                        (upstream if sock is client else client).sendall(data)
+
+    class Server(socketserver.ThreadingTCPServer):
+        allow_reuse_address = True
+        daemon_threads = True
+
+    server = Server(("127.0.0.1", 0), Relay)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield server.server_address[1], asked
+    server.shutdown()
+
+
+def test_switching_private_web_on_closes_the_direct_window_and_the_next_one_sends_only_through_the_route(
+    browser, files_site, socks, monkeypatch
+):
+    from core import private_web
+
+    port, hits = files_site
+    socks_port, asked = socks
+    browser.open(f"http://127.0.0.1:{port}/direct")
+    browser.open(f"http://127.0.0.1:{port}/quiet", private=True)
+    assert browser.status()["open"] is True and asked == []
+
+    # The person switches Private web on. Both windows were started on the direct way out.
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=socks_port))
+    monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
+    desk_module._DESKS["test"] = browser
+    try:
+        desk_module.route_changed()
+    finally:
+        desk_module._DESKS.pop("test", None)
+    state = browser.status()
+    assert state["open"] is False and state["private_windows"] == 0
+    assert list(desk_module._root().glob("private-*")) == []
+
+    # A name this machine cannot resolve by itself: only the far end of the route knows it.
+    hits.clear()
+    browser.open(f"http://far-end-only.example:{port}/routed")
+    assert _wait(lambda: (3, "far-end-only.example") in asked), asked
+    # Every request of that window went through the route, each by name, never as an address
+    # this machine looked up. Nothing reached the site around the route.
+    assert all(kind == 3 for kind, _ in asked), asked
+    assert hits == []
+    # The engine's own background services stay silent. KNOWN GAP, kept visible here: the
+    # engine still makes one contact to its built-in default search site at start.
+    assert {host for _, host in asked} <= {"far-end-only.example", "www.google.com"}, asked
+
+    # The route goes down while the window is open: the next open refuses and the window is gone.
+    monkeypatch.setattr(private_web, "route_problem", lambda state=None: "down")
+    with pytest.raises(desk_module.DeskFault, match="private_web_down"):
+        browser.open(f"http://127.0.0.1:{port}/after")
+    assert browser.status()["open"] is False
+    assert not any(path == "/after" for _, path, _ in hits)
+
+
 # -- the owner's HTTP door, with the real switch ---------------------------------
 
 from tests.first_run_pact_rig import pact_rig as pact_rig  # noqa: E402
@@ -344,6 +458,7 @@ def test_the_owner_door_opens_the_window_only_after_the_real_switch_is_on(pact_r
         pytest.skip("the engine's sandbox does not start for root")
     base, hits = site
     request.addfinalizer(desk_module.stop_all)
+    _quiet_test_engine(request.getfixturevalue("monkeypatch"), request.getfixturevalue("tmp_path"))
 
     # Fresh home: nothing was switched on, so the door refuses and nothing is sent.
     status, data = pact_rig.post("/api/browser/window", {"action": "open", "url": base + "/early"})

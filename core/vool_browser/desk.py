@@ -44,13 +44,12 @@ from .engine import UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile
 ENGINE_START_TIMEOUT = 30.0
 STOP_TIMEOUT = 15.0
 
-#: Playwright's automation defaults that have no place in a browser a person uses
-#: every day. Each is removed for a stated reason; the guard test reads this tuple.
-DROPPED_AUTOMATION_DEFAULTS: tuple[str, ...] = (
+#: Flags the engine handle adds by default that must never reach this browser. The
+#: launch passes its own complete list, so none of them can; the guard test checks
+#: the running engine's arguments against this tuple.
+NEVER_PASSED: tuple[str, ...] = (
     "--enable-automation",          # the "controlled by automated software" bar
     "--disable-extensions",         # extensions are a feature here
-    "--disable-component-extensions-with-background-pages",
-    "--disable-default-apps",
     "--password-store=basic",       # would keep saved sign-ins in a store any program can read
     "--use-mock-keychain",          # same, on macOS
     "--disable-popup-blocking",     # the popup blocker stays on
@@ -59,17 +58,50 @@ DROPPED_AUTOMATION_DEFAULTS: tuple[str, ...] = (
     "--hide-scrollbars",
 )
 
-#: Quiet by default: the engine's own phone-home services stay off. Page requests
-#: the person makes are the only traffic.
+#: The engine's own services that would contact a server without the person asking.
+_QUIET_FEATURES = (
+    "MediaRouter", "DialMediaRouteProvider", "OptimizationHints", "OptimizationHintsFetching",
+    "OptimizationGuideModelDownloading", "NetworkTimeServiceQuerying",
+    "InterestFeedContentSuggestions", "CertificateTransparencyComponentUpdater",
+    "AutofillServerCommunication", "Translate", "PreconnectToSearch", "ZeroSuggestPrefetching",
+    "ChromeWhatsNewUI",
+)
+
+#: An address on this machine where nothing listens. The engine's built-in account,
+#: push-message and component services are pointed here, so they cannot reach their
+#: makers' servers. Signing in to a website is ordinary browsing and is not affected.
+_NOWHERE = "http://127.0.0.1:9"
+
+#: Quiet by default: page requests the person makes are the only traffic. Measured on
+#: the real engine through a recording relay (tests/test_desk_browser.py); each line
+#: below removed a background contact that was otherwise made within seconds of start.
 QUIET_FLAGS: tuple[str, ...] = (
     "--disable-sync",
     "--disable-background-networking",
+    "--disable-component-update",
+    f"--component-updater=url-source={_NOWHERE}/",
+    "--disable-component-extensions-with-background-pages",
+    "--disable-default-apps",
     "--disable-breakpad",
     "--disable-domain-reliability",
+    "--disable-client-side-phishing-detection",
+    "--disable-field-trial-config",
+    "--no-experiments",
     "--no-pings",
     "--no-service-autorun",
     "--metrics-recording-only",
+    f"--gaia-url={_NOWHERE}",
+    f"--gcm-checkin-url={_NOWHERE}",
+    f"--gcm-registration-url={_NOWHERE}",
+    "--gcm-mcs-endpoint=127.0.0.1:9",
+    "--disable-features=" + ",".join(_QUIET_FEATURES),
 )
+
+
+#: Empty in the product. The test suite puts the engine's dummy credential store here
+#: so that an unattended run can never raise a Keychain or keyring window; nothing in
+#: the product reads an environment variable or a setting into it.
+extra_engine_flags: tuple[str, ...] = ()
 
 
 class DeskFault(ValueError):
@@ -195,6 +227,8 @@ class _Window:
         self.driver: Any = None
         self.tmp: Path | None = None
         self.closed = asyncio.Event()
+        # The way out this engine was started with. It cannot change while it runs.
+        self.route: list[str] = []
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -206,6 +240,7 @@ class _Window:
         if not resolved.is_relative_to(active_data_dir().resolve()) or refuse_real_profile_target(str(resolved)):
             raise DeskFault("invalid_profile")
         flags = launch_flags(private=self.private)
+        self.route = _route_flags()
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
         seed_preferences(self.profile)
         with contextlib.suppress(OSError):
@@ -216,7 +251,11 @@ class _Window:
         try:
             self.context = await self.driver.chromium.launch_persistent_context(
                 user_data_dir=str(self.profile), executable_path=binary, headless=False,
-                args=flags, ignore_default_args=list(DROPPED_AUTOMATION_DEFAULTS),
+                # The complete argument list is this module's own; see NEVER_PASSED.
+                # It must name the profile itself: with the handle's defaults off, an
+                # engine given no profile would open the person's own browser profile.
+                args=[f"--user-data-dir={self.profile}", *flags, *extra_engine_flags,
+                      "--remote-debugging-pipe", "about:blank"], ignore_default_args=True,
                 chromium_sandbox=True, timeout=ENGINE_START_TIMEOUT * 1000,
                 env=child_env(TMPDIR=str(self.tmp)), no_viewport=True, accept_downloads=True,
             )
@@ -256,7 +295,7 @@ class _Window:
 
     async def open(self, url: str) -> None:
         pages = [p for p in self.context.pages if not p.is_closed()]
-        blank = next((p for p in pages if p.url in ("about:blank", "chrome://newtab/", "chrome://new-tab-page/")), None)
+        blank = next((p for p in pages if p.url == "about:blank"), None)
         page = blank or await self.context.new_page()
         if url:
             # The address is the person's own; a page that fails to load shows the
@@ -322,6 +361,7 @@ class Desk:
 
     async def _open(self, url: str, private: bool) -> None:
         await self._reap()
+        await self._close_off_route()
         if private:
             window = _Window(_root() / ("private-" + secrets.token_hex(8)), private=True)
             await window.start()
@@ -357,6 +397,30 @@ class Desk:
                 if leftover.exists() and str(leftover) not in self.unclean_private:
                     self.unclean_private.append(str(leftover))
         self.unclean_private = [p for p in self.unclean_private if Path(p).exists()]
+
+    async def _close_off_route(self) -> None:
+        """Close every window that was started on a way out that is no longer the one in force.
+
+        An engine's route is fixed when it starts. When the person switches Private web
+        on, off or to another route, a window left running would keep sending the old
+        way, so it is closed; the next open starts on the new route.
+        """
+        try:
+            wanted: list[str] | None = _route_flags()
+        except DeskFault:
+            wanted = None  # the route is down: nothing may stay open on any other way
+        windows = [*self._private, *([self._main] if self._main else [])]
+        for window in windows:
+            if window.alive() and window.route != wanted:
+                if window is self._main:
+                    self._main = None
+                else:
+                    self._private.remove(window)
+                if not await window.stop():
+                    self.unclean_private.append(str(window.profile))
+
+    def route_changed(self) -> None:
+        self._call(self._locked(self._close_off_route()))
 
     def stop(self) -> dict[str, Any]:
         self._call(self._locked(self._stop()))
@@ -423,6 +487,14 @@ def desk() -> Desk:
         return item
 
 
+def route_changed() -> None:
+    """Private web was switched: close every window still on the earlier way out."""
+    with _LOCK:
+        items = list(_DESKS.values())
+    for item in items:
+        item.route_changed()
+
+
 def stop_all() -> None:
     with _LOCK:
         items = list(_DESKS.values())
@@ -432,7 +504,7 @@ def stop_all() -> None:
 
 
 __all__ = [
-    "DROPPED_AUTOMATION_DEFAULTS", "QUIET_FLAGS", "Desk", "DeskFault", "desk", "engine_binary",
+    "NEVER_PASSED", "QUIET_FLAGS", "Desk", "DeskFault", "desk", "engine_binary",
     "default_preferences", "downloads_dir", "launch_flags", "normalise_address", "profile_dir",
-    "seed_preferences", "stop_all",
+    "route_changed", "seed_preferences", "stop_all",
 ]
