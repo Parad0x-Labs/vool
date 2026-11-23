@@ -5472,7 +5472,12 @@
     "phone.ui.ask_allowed_later": "Allowed. The answer will be in this chat when your computer has it.",
     "phone.ui.answer_removed": "This answer was removed.",
     "phone.ui.no_answer_came": "No answer came back. Send it again.",
-    "phone.ui.ask_on_computer": "Allow or deny this in VOOL on your computer."
+    "phone.ui.ask_on_computer": "Allow or deny this in VOOL on your computer.",
+    "live.window": "Open in a browser window",
+    "live.private_window": "New private window",
+    "live.engine_missing": "VOOL has no browser engine on this computer yet.",
+    "live.private_web_down": "Private web is not connected, so nothing was opened.",
+    "live.invalid_address": "That is not a web address VOOL can open."
   },
   "html_keys": [
     "bypass.modal_limits",

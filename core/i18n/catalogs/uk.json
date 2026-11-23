@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "Дозволено. Відповідь з’явиться в цьому чаті, коли комп’ютер її отримає.",
     "phone.ui.answer_removed": "Цю відповідь видалено.",
     "phone.ui.no_answer_came": "Відповідь не надійшла. Надішліть ще раз.",
-    "phone.ui.ask_on_computer": "Дозвольте або відхиліть це у VOOL на комп’ютері."
+    "phone.ui.ask_on_computer": "Дозвольте або відхиліть це у VOOL на комп’ютері.",
+    "live.window": "Відкрити у вікні браузера",
+    "live.private_window": "Нове приватне вікно",
+    "live.engine_missing": "На цьому комп’ютері VOOL ще не має рушія браузера.",
+    "live.private_web_down": "Приватний веб не підключено, тому нічого не відкрито.",
+    "live.invalid_address": "Це не вебадреса, яку VOOL може відкрити."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

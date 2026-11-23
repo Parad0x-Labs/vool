@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "已允许。电脑得出答案后会显示在此对话中。",
     "phone.ui.answer_removed": "此回答已被删除。",
     "phone.ui.no_answer_came": "没有收到回答。请再发送一次。",
-    "phone.ui.ask_on_computer": "请在电脑上的 VOOL 中允许或拒绝此操作。"
+    "phone.ui.ask_on_computer": "请在电脑上的 VOOL 中允许或拒绝此操作。",
+    "live.window": "在浏览器窗口中打开",
+    "live.private_window": "新建隐私窗口",
+    "live.engine_missing": "这台电脑上还没有 VOOL 的浏览器引擎。",
+    "live.private_web_down": "私密网络未连接，因此没有打开任何内容。",
+    "live.invalid_address": "这不是 VOOL 可以打开的网址。"
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

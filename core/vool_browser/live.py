@@ -113,6 +113,11 @@ def set_enabled(value: bool) -> dict[str, Any]:
         temp.replace(target)
         if not value:
             _stop_each(list(_SESSIONS.items()))
+    if not value:
+        # Off means off for the everyday window too, private windows included.
+        from . import desk
+
+        desk.stop_all()
     return settings()
 
 

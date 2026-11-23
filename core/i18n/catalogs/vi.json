@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "Đã cho phép. Câu trả lời sẽ hiện trong cuộc trò chuyện này khi máy tính có kết quả.",
     "phone.ui.answer_removed": "Câu trả lời này đã bị xóa.",
     "phone.ui.no_answer_came": "Không có câu trả lời. Hãy gửi lại.",
-    "phone.ui.ask_on_computer": "Cho phép hoặc từ chối việc này trong VOOL trên máy tính."
+    "phone.ui.ask_on_computer": "Cho phép hoặc từ chối việc này trong VOOL trên máy tính.",
+    "live.window": "Mở trong cửa sổ trình duyệt",
+    "live.private_window": "Cửa sổ riêng tư mới",
+    "live.engine_missing": "VOOL chưa có bộ máy trình duyệt trên máy tính này.",
+    "live.private_web_down": "Web riêng tư chưa được kết nối nên không có gì được mở.",
+    "live.invalid_address": "Đó không phải là địa chỉ web mà VOOL có thể mở."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

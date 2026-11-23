@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "許可しました。パソコンで答えが出たら、このチャットに表示されます。",
     "phone.ui.answer_removed": "この回答は削除されました。",
     "phone.ui.no_answer_came": "回答が届きませんでした。もう一度送ってください。",
-    "phone.ui.ask_on_computer": "パソコンの VOOL で許可または拒否してください。"
+    "phone.ui.ask_on_computer": "パソコンの VOOL で許可または拒否してください。",
+    "live.window": "ブラウザーウィンドウで開く",
+    "live.private_window": "新しいプライベートウィンドウ",
+    "live.engine_missing": "このコンピューターには、VOOL のブラウザーエンジンがまだありません。",
+    "live.private_web_down": "プライベートウェブが接続されていないため、何も開かれませんでした。",
+    "live.invalid_address": "VOOL が開けるウェブアドレスではありません。"
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

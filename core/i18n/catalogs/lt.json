@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "Leista. Atsakymas atsiras šiame pokalbyje, kai kompiuteris jį turės.",
     "phone.ui.answer_removed": "Šis atsakymas pašalintas.",
     "phone.ui.no_answer_came": "Atsakymas negautas. Siųskite dar kartą.",
-    "phone.ui.ask_on_computer": "Leiskite arba atmeskite tai VOOL savo kompiuteryje."
+    "phone.ui.ask_on_computer": "Leiskite arba atmeskite tai VOOL savo kompiuteryje.",
+    "live.window": "Atidaryti naršyklės lange",
+    "live.private_window": "Naujas privatus langas",
+    "live.engine_missing": "Šiame kompiuteryje VOOL dar neturi naršyklės variklio.",
+    "live.private_web_down": "Privatus žiniatinklis neprijungtas, todėl niekas nebuvo atidaryta.",
+    "live.invalid_address": "Tai nėra žiniatinklio adresas, kurį VOOL gali atidaryti."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

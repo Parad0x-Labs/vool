@@ -24,7 +24,7 @@ _KEYS = (
     "failed", "back", "forward", "reload", "go", "asks", "check_send", "op_click", "op_type", "op_scroll",
     "seconds_left", "empty_title", "empty_body", "closed_body", "off_body", "driving", "elements",
     "no_elements", "send", "save_file", "file_ready", "more", "links", "fields", "buttons", "redirect",
-    "destination_refused",
+    "destination_refused", "window", "private_window", "engine_missing", "private_web_down", "invalid_address",
 )
 
 
@@ -188,6 +188,9 @@ main{flex:1;display:flex;min-height:0;gap:0}
       <button id="resume" type="button" role="menuitem">__I_hand__<span></span></button>
       <button id="download" type="button" role="menuitem">__I_download__<span></span></button>
       <hr>
+      <button id="fullWindow" type="button" role="menuitem">__I_globe__<span></span></button>
+      <button id="privateWindow" type="button" role="menuitem">__I_lock__<span></span></button>
+      <hr>
       <a id="settings" href="/settings#permissions" target="_top" role="menuitem">__I_settings__<span></span></a>
       <a id="wallet" href="/settings#wallet" target="_top" role="menuitem">__I_wallet__<span></span></a>
       <hr>
@@ -225,6 +228,7 @@ $('title').textContent=L.browser; document.title=L.browser;
 [['back',L.back],['forward',L.forward],['reload',L.reload],['list',L.elements],['takeover',L.takeover],['moreBtn',L.more]].forEach(([id,t])=>{$(id).title=t;$(id).setAttribute('aria-label',t);});
 $('open').textContent=L.go; $('address').placeholder=L.address; $('address').setAttribute('aria-label',L.address);
 $('resume').lastChild.textContent=L.resume; $('download').lastChild.textContent=L.download; $('settings').lastChild.textContent=L.settings;
+$('fullWindow').lastChild.textContent=L.window; $('privateWindow').lastChild.textContent=L.private_window;
 $('wallet').lastChild.textContent=L.wallet; $('stop').lastChild.textContent=L.stop; $('private').textContent=L.private;
 $('approve').textContent=L.approve; $('refuse').textContent=L.refuse; $('reviewRedirect').textContent=L.open; $('handBack').textContent=L.resume;
 $('drivingText').textContent=L.driving; $('readyText').textContent=L.file_ready; $('save').textContent=L.save_file; $('sideTitle').textContent=L.elements;
@@ -233,7 +237,7 @@ $('note').textContent=L.note; $('frame').alt=L.browser; $('chat').value=cfg.chat
 async function post(path,extra={}) {
   try {
     const r=await fetch('/api/browser/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:$('chat').value,...extra})});
-    const j=await r.json(); error=r.ok?'':(j.error==='web_off'?L.web_off:j.error==='destination_refused'?L.destination_refused:L.failed); await poll(); return j;
+    const j=await r.json(); error=r.ok?'':({web_off:L.web_off,destination_refused:L.destination_refused,engine_missing:L.engine_missing,private_web_down:L.private_web_down,invalid_address:L.invalid_address}[j.error]||L.failed); await poll(); return j;
   } catch(e) { error=L.failed; paintStatus(); }
 }
 // The pane's own steps run at once; the server still answers a form, upload or download with a review.
@@ -367,6 +371,9 @@ $('moreBtn').onclick=e=>{e.stopPropagation();const open=$('menu').hidden;$('menu
 function closeMenu(){$('menu').hidden=true;$('moreBtn').setAttribute('aria-expanded','false');}
 document.addEventListener('click',e=>{if(!$('menu').hidden&&!$('menu').contains(e.target))closeMenu();});
 $('stop').onclick=()=>{closeMenu();post('stop');};
+// The everyday browser: a real window of its own. What is typed in the address field goes with it.
+$('fullWindow').onclick=()=>{closeMenu();post('window',{action:'open',url:$('address').value.trim()});};
+$('privateWindow').onclick=()=>{closeMenu();post('window',{action:'private',url:$('address').value.trim()});};
 $('download').onclick=()=>{closeMenu();const v=$('address').value.trim();if(v)post('propose',{op:'download',args:{url:v}});};
 // Review.
 $('approve').onclick=()=>{if(pending)post('decide',{id:pending.id,approve:true});};

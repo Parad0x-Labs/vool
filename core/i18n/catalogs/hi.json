@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "अनुमति दी गई। जवाब तैयार होते ही इस चैट में आ जाएगा।",
     "phone.ui.answer_removed": "यह जवाब हटा दिया गया।",
     "phone.ui.no_answer_came": "कोई जवाब नहीं आया। इसे फिर से भेजें।",
-    "phone.ui.ask_on_computer": "इसे अपने कंप्यूटर पर VOOL में अनुमति दें या मना करें।"
+    "phone.ui.ask_on_computer": "इसे अपने कंप्यूटर पर VOOL में अनुमति दें या मना करें।",
+    "live.window": "ब्राउज़र विंडो में खोलें",
+    "live.private_window": "नई निजी विंडो",
+    "live.engine_missing": "इस कंप्यूटर पर VOOL के पास अभी ब्राउज़र इंजन नहीं है।",
+    "live.private_web_down": "निजी वेब जुड़ा नहीं है, इसलिए कुछ नहीं खोला गया।",
+    "live.invalid_address": "यह ऐसा वेब पता नहीं है जिसे VOOL खोल सके।"
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

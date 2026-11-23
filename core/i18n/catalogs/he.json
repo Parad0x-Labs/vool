@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "אושר. התשובה תופיע בצ׳אט הזה כשהמחשב שלך יקבל אותה.",
     "phone.ui.answer_removed": "התשובה הזו הוסרה.",
     "phone.ui.no_answer_came": "לא הגיעה תשובה. שלח שוב.",
-    "phone.ui.ask_on_computer": "אשר או דחה את זה ב-VOOL במחשב שלך."
+    "phone.ui.ask_on_computer": "אשר או דחה את זה ב-VOOL במחשב שלך.",
+    "live.window": "פתיחה בחלון דפדפן",
+    "live.private_window": "חלון פרטי חדש",
+    "live.engine_missing": "ל-VOOL עדיין אין מנוע דפדפן במחשב הזה.",
+    "live.private_web_down": "הרשת הפרטית אינה מחוברת, ולכן שום דבר לא נפתח.",
+    "live.invalid_address": "זו אינה כתובת אינטרנט ש-VOOL יכול לפתוח."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

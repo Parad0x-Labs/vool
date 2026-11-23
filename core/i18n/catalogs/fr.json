@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "Autorisé. La réponse apparaîtra dans cette discussion quand votre ordinateur l’aura.",
     "phone.ui.answer_removed": "Cette réponse a été supprimée.",
     "phone.ui.no_answer_came": "Aucune réponse n’est arrivée. Renvoyez-le.",
-    "phone.ui.ask_on_computer": "Autorisez ou refusez ceci dans VOOL sur votre ordinateur."
+    "phone.ui.ask_on_computer": "Autorisez ou refusez ceci dans VOOL sur votre ordinateur.",
+    "live.window": "Ouvrir dans une fenêtre de navigateur",
+    "live.private_window": "Nouvelle fenêtre privée",
+    "live.engine_missing": "VOOL n’a pas encore de moteur de navigateur sur cet ordinateur.",
+    "live.private_web_down": "Le web privé n’est pas connecté, donc rien n’a été ouvert.",
+    "live.invalid_address": "Ce n’est pas une adresse web que VOOL peut ouvrir."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

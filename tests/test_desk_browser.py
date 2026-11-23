@@ -231,3 +231,64 @@ def test_a_private_folder_left_by_a_crashed_run_is_removed_on_the_next_look(brow
     (stale / "Default" / "Cookies").write_text("left behind")
     assert browser.status()["private_cleanup_failed"] is False
     assert not stale.exists()
+
+
+# -- the owner's HTTP door, with the real switch ---------------------------------
+
+from tests.first_run_pact_rig import pact_rig as pact_rig  # noqa: E402
+
+
+def test_the_owner_door_opens_the_window_only_after_the_real_switch_is_on(pact_rig, site, request):
+    from core import policy_engine
+
+    if not desk_module.engine_binary():
+        pytest.skip("no Chromium-family engine on this machine")
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("the engine's sandbox does not start for root")
+    base, hits = site
+    request.addfinalizer(desk_module.stop_all)
+
+    # Fresh home: nothing was switched on, so the door refuses and nothing is sent.
+    status, data = pact_rig.post("/api/browser/window", {"action": "open", "url": base + "/early"})
+    assert status == 409 and data["error"] == "web_off", data
+    assert hits == []
+    status, data = pact_rig.get("/api/browser/window")
+    assert status == 200 and data["open"] is False and data["available"] is False
+
+    policy_engine.set_operator_policy_values({"system.allow_web_fallback": True})
+    status, data = pact_rig.post("/api/browser/settings", {"enabled": True})
+    assert status == 200, data
+
+    for body in ({"action": "sideways"}, {"action": "open", "url": 7}, {"action": "open", "url": "file:///etc/passwd"}):
+        status, data = pact_rig.post("/api/browser/window", body)
+        assert status == 409 and data["error"] in ("invalid_input", "invalid_address"), (body, data)
+    assert hits == []
+
+    status, data = pact_rig.post("/api/browser/window", {"action": "open", "url": base + "/wanted"})
+    assert status == 200 and data["open"] is True, data
+    assert _wait(lambda: any(path == "/wanted" for path, _ in hits))
+    status, data = pact_rig.post("/api/browser/window", {"action": "private", "url": base + "/quiet"})
+    assert status == 200 and data["private_windows"] == 1, data
+
+    # Switching the Browser off closes every window, private ones included.
+    status, data = pact_rig.post("/api/browser/settings", {"enabled": False})
+    assert status == 200, data
+    status, data = pact_rig.get("/api/browser/window")
+    assert data["open"] is False and data["private_windows"] == 0, data
+    assert list(desk_module._root().glob("private-*")) == []
+
+
+def test_the_pane_offers_both_windows_in_every_language():
+    from core.i18n import catalog_for
+    from core.i18n.locales import ui_catalog_tags
+    from core.vool_browser.live_page import render
+
+    english = {key: catalog_for("en").text("live." + key) for key in ("window", "private_window")}
+    codes = ui_catalog_tags()
+    assert len(codes) >= 17
+    for code in codes:
+        page = render("c1", code)
+        assert 'id="fullWindow"' in page and 'id="privateWindow"' in page
+        if code != "en":
+            for key, source in english.items():
+                assert catalog_for(code).text("live." + key) != source, (code, key)

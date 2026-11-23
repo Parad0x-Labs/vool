@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "İzin verildi. Yanıt bilgisayarında hazır olunca bu sohbette görünecek.",
     "phone.ui.answer_removed": "Bu yanıt kaldırıldı.",
     "phone.ui.no_answer_came": "Yanıt gelmedi. Yeniden gönder.",
-    "phone.ui.ask_on_computer": "Buna bilgisayarındaki VOOL’da izin ver ya da reddet."
+    "phone.ui.ask_on_computer": "Buna bilgisayarındaki VOOL’da izin ver ya da reddet.",
+    "live.window": "Tarayıcı penceresinde aç",
+    "live.private_window": "Yeni gizli pencere",
+    "live.engine_missing": "VOOL’un bu bilgisayarda henüz bir tarayıcı motoru yok.",
+    "live.private_web_down": "Özel web bağlı değil, bu yüzden hiçbir şey açılmadı.",
+    "live.invalid_address": "Bu, VOOL’un açabileceği bir web adresi değil."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -7,7 +7,7 @@ from core.vool_browser import live
 def get(path, query, *, locale="en", appearance=None):
     from core.web.api.service import ApiResponse, html_response, json_response
 
-    if path not in {"/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download"}:
+    if path not in {"/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download", "/api/browser/window"}:
         return json_response(404, {"ok": False, "error": "unsupported"})
     chat = (query.get("chat") or [""])[0]
     if path == "/browser":
@@ -16,6 +16,10 @@ def get(path, query, *, locale="en", appearance=None):
         return html_response(200, render(chat, locale, appearance), headers={"Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"})
     if path == "/api/browser/settings":
         return json_response(200, live.settings(), headers={"Cache-Control": "no-store"})
+    if path == "/api/browser/window":
+        from core.vool_browser import desk
+
+        return json_response(200, desk.desk().status(), headers={"Cache-Control": "no-store"})
     try:
         item = live.session(chat)
         active_chat = live.chat_active(chat) if item is None else True
@@ -48,7 +52,7 @@ def post(path, body, *, headers=None, client_host=""):
     if not isinstance(body, dict):
         return json_response(400, {"ok": False, "error": "invalid_input"})
     action = path.removeprefix("/api/browser/")
-    if action not in {"settings", "propose", "decide", "takeover", "stop"}:
+    if action not in {"settings", "propose", "decide", "takeover", "stop", "window"}:
         return json_response(404, {"ok": False, "error": "unsupported"})
     status, result = forward("browser." + action, {"body": body}, headers=headers, client_host=client_host)
     return json_response(status, result, headers={"Cache-Control": "no-store"})
@@ -60,6 +64,8 @@ def perform(path, body):
     try:
         if path == "/api/browser/settings":
             return json_response(200, live.set_enabled(body.get("enabled")))
+        if path == "/api/browser/window":
+            return json_response(200, _window(body), headers={"Cache-Control": "no-store"})
         chat = str(body.get("chat") or "")
         item = live.session(chat, create=path == "/api/browser/propose")
         if not item:
@@ -84,3 +90,18 @@ def perform(path, body):
         return json_response(200, result, headers={"Cache-Control": "no-store"})
     except (live.BrowserFault, ValueError, TypeError) as exc:
         return json_response(409, {"ok": False, "error": str(exc) if isinstance(exc, live.BrowserFault) else "invalid_input"})
+
+
+def _window(body):
+    """The everyday browser window: open an address, open a private window, or close it all."""
+    from core.vool_browser import desk
+
+    action = body.get("action")
+    if action not in ("open", "private", "stop") or not isinstance(body.get("url", ""), str):
+        raise live.BrowserFault("invalid_input")
+    try:
+        if action == "stop":
+            return desk.desk().stop()
+        return desk.desk().open(body.get("url", ""), private=action == "private")
+    except desk.DeskFault as exc:
+        raise live.BrowserFault(str(exc)) from None

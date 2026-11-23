@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "허용했습니다. 컴퓨터에서 답이 나오면 이 채팅에 표시됩니다.",
     "phone.ui.answer_removed": "이 답변은 삭제되었습니다.",
     "phone.ui.no_answer_came": "답변이 오지 않았습니다. 다시 보내세요.",
-    "phone.ui.ask_on_computer": "컴퓨터의 VOOL에서 허용하거나 거부하세요."
+    "phone.ui.ask_on_computer": "컴퓨터의 VOOL에서 허용하거나 거부하세요.",
+    "live.window": "브라우저 창에서 열기",
+    "live.private_window": "새 비공개 창",
+    "live.engine_missing": "이 컴퓨터에는 아직 VOOL의 브라우저 엔진이 없습니다.",
+    "live.private_web_down": "프라이빗 웹이 연결되지 않아 아무것도 열리지 않았습니다.",
+    "live.invalid_address": "VOOL이 열 수 있는 웹 주소가 아닙니다."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

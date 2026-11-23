@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "Zezwolono. Odpowiedź pojawi się w tym czacie, gdy komputer ją przygotuje.",
     "phone.ui.answer_removed": "Ta odpowiedź została usunięta.",
     "phone.ui.no_answer_came": "Nie przyszła żadna odpowiedź. Wyślij to jeszcze raz.",
-    "phone.ui.ask_on_computer": "Zezwól na to lub odmów w VOOL na komputerze."
+    "phone.ui.ask_on_computer": "Zezwól na to lub odmów w VOOL na komputerze.",
+    "live.window": "Otwórz w oknie przeglądarki",
+    "live.private_window": "Nowe okno prywatne",
+    "live.engine_missing": "VOOL nie ma jeszcze silnika przeglądarki na tym komputerze.",
+    "live.private_web_down": "Prywatna sieć nie jest połączona, więc nic nie zostało otwarte.",
+    "live.invalid_address": "To nie jest adres internetowy, który VOOL może otworzyć."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

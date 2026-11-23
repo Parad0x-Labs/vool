@@ -5472,9 +5472,14 @@
     "phone.ui.ask_allowed_later": "تم السماح. ستظهر الإجابة في هذه المحادثة عندما تصبح جاهزة على حاسوبك.",
     "phone.ui.answer_removed": "أُزيلت هذه الإجابة.",
     "phone.ui.no_answer_came": "لم تصل أي إجابة. أرسلها مرة أخرى.",
-    "phone.ui.ask_on_computer": "اسمح بهذا أو ارفضه في VOOL على حاسوبك."
+    "phone.ui.ask_on_computer": "اسمح بهذا أو ارفضه في VOOL على حاسوبك.",
+    "live.window": "فتح في نافذة المتصفح",
+    "live.private_window": "نافذة خاصة جديدة",
+    "live.engine_missing": "لا يملك VOOL محرك متصفح على هذا الحاسوب بعد.",
+    "live.private_web_down": "الويب الخاص غير متصل، لذلك لم يُفتح أي شيء.",
+    "live.invalid_address": "هذا ليس عنوان ويب يستطيع VOOL فتحه."
   },
-  "source_catalog_sha256": "6334a976b10bf58f769bf5631c51717edcf7642b3d3bf9323c60f132a9d06e1f",
+  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
