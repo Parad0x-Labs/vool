@@ -250,11 +250,14 @@ def _memory_kind_confirmed(
     disagree = bool(picked) and kind in {"keep", "recall", "forget"} and kind not in picked
     if not tools and ("forget" in named or disagree):
         agreed = kind == "forget" and "forget" in picked
-        # A message that tells a fact and asks not to keep it ("laikau lempą palėpėje, tik nesaugok šito") can be read
-        # a forget here (probe17). That is safe: the forget erases only held facts it names, answers "nothing saved,
-        # nothing erased, and I won't keep it" when it names none, and the keep step leaves the turn alone. Guarding
-        # it with the keep-wanted and lasting-fact questions lost real forgets on qwen3:8b (probe18, probe19).
-        if agreed or asked("forget", intent_arbiter.arbitrate_forget_order) == "yes":
+        # A forget only one reading names is not one when the message itself tells a fact: "mano suo vardu
+        # Wirbelwind, bet to neisimink" ("my dog is called ..., don't remember that") was read forget by the memory
+        # question and yes by the forget question, and erased two unrelated facts (Mac run20, 786af505). The told-as-
+        # fact question reads an order (forget, erase, delete) as no. The keep-wanted question, tried first, read
+        # English forget orders as "don't keep" (probe18); the lasting-fact one read forget orders about a thing as a
+        # fact (probe19).
+        if agreed or (asked("forget", intent_arbiter.arbitrate_forget_order) == "yes"
+                      and asked("told as fact", intent_arbiter.arbitrate_told_as_fact) != "yes"):
             decided = "forget"
     if not decided and not tools and kind == "keep" and "keep" in picked:
         decided = "keep"

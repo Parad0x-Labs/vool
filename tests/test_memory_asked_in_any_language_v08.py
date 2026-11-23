@@ -402,7 +402,8 @@ _READINGS = [
     (None, "forget", None, None, ""),
     ("Memory, recall", "keep", "yes", None, "forget"),       # 28ac44632 run16: "istrink, ka tau sakiau apie ..."
     ("Memory, recall", "keep", "no", "yes", "recall"),       # readings that disagree, and no forget: as before
-    ("Memory, keep", "recall", "yes", "yes", "forget"),
+    ("Memory, keep", "recall", "yes", "no", "forget"),
+    ("Memory, keep", "recall", "yes", "yes", "recall"),      # 786af505 run20: a message that tells a fact is no forget
     ("Memory, recall", "recall", "yes", None, "recall"),     # readings that agree are never asked the forget question
     ("Memory, keep", "keep", "yes", "yes", "keep"),
 ]
@@ -442,6 +443,7 @@ def test_the_memory_question_is_asked_beside_any_tool_pick(monkeypatch, case):
         ("Contacts", "forget", ("contacts",)),
         (None, "forget", ("memory_forget",)),
     ][case]
+    # A forget on one reading is asked the told-as-fact question too: an order tells no fact.
     plugin_ask.forget()
     monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
 
@@ -451,7 +453,7 @@ def test_the_memory_question_is_asked_beside_any_tool_pick(monkeypatch, case):
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: second)
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
-    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no" if second == "forget" else "yes")
     text = f"zinute {case}: kur laikau savo palapine?"
     plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
     assert plugin_ask.judged_builtins(text) == keys
@@ -685,7 +687,7 @@ def test_a_fact_said_in_passing_with_dont_keep_it_is_not_kept_by_the_keep_step(h
 
 
 @pytest.mark.parametrize("tool_pick", [None, "Memory, keep", "Memory, recall"])
-def test_a_forget_settled_by_one_reading_stands_without_further_questions(monkeypatch, tool_pick):
+def test_a_forget_settled_by_one_reading_stands_unless_the_message_tells_a_fact(monkeypatch, tool_pick):
     """probe18/probe19 (qwen3:8b): guarding a tie forget with the keep-wanted and lasting-fact questions lost real
     forgets ("fogret everything about my tent", "pamiršk viską apie mano lempą"). A "<fact>, don't keep it" read as a
     forget is safe: it erases only held facts it names, and says nothing was erased when it names none."""
@@ -703,9 +705,13 @@ def test_a_forget_settled_by_one_reading_stands_without_further_questions(monkey
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: asked.append("wanted") or "no")
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, **_k: asked.append("lasting") or "yes")
-    text = f"pamiršk viską apie mano lempą ({tool_pick})"
-    plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
-    assert plugin_ask.judged_memory_ask(text) == "forget"
+    # Mac run20 (786af505): "mano suo vardu Wirbelwind, bet to neisimink" was a forget on one reading and erased two
+    # unrelated facts. A message that tells a fact is not a forget on one reading.
+    for told, expected in (("no", "forget"), (None, "forget"), ("yes", "recall" if tool_pick == "Memory, recall" else "")):
+        monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, _t=told, **_k: _t)
+        text = f"pamiršk viską apie mano lempą ({tool_pick} {told})"
+        plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
+        assert plugin_ask.judged_memory_ask(text) == expected, told
     assert not asked
     plugin_ask.forget()
 
@@ -726,3 +732,18 @@ def test_a_fact_whose_lead_went_at_a_dash_loses_no_more_words(home, monkeypatch,
                                                  source_context=dict(OWNER))
     assert handled and reply == pm.KEPT_REPLY, reply
     assert f"mano valtis {colour}" in _entries(), _entries()
+
+
+def test_a_forget_erases_only_what_a_word_naming_one_thing_ties_it_to(home, monkeypatch):
+    """Mac run20 (786af505): a forget judged on "mano suo vardu Wirbelwind, bet to neisimink" erased "mano sporto šaka -
+    tinklinis" (shares "mano") and "primink, ka valgo kaimyno suo" (shares "suo"). A word most held items share, or
+    one under four letters, names no one thing."""
+    held = ["mano sporto šaka – tinklinis", "primink, ka valgo kaimyno suo", "mano lempa kaštoninė, stovi palėpėje",
+            "mano dviratis žalias"]
+    monkeypatch.setattr(pm, "_held_for_judgement", lambda **_k: list(held))
+    monkeypatch.setattr(pm, "_turn_may_read_memory", lambda *_a, **_k: True)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_forget_targets", lambda *_a, **_k: (1, 2, 3, 4))
+    assert pm._judged_forget_items("mano suo vardu Wirbelwind, bet to neisimink", session_id=CHAT,
+                                   source_context=dict(OWNER)) == []
+    assert pm._judged_forget_items("pamiršk viską apie mano lempą", session_id=CHAT,
+                                   source_context=dict(OWNER)) == [held[2]]

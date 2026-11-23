@@ -1540,7 +1540,9 @@ def _told_as_fact_prompt(sentence: str) -> str:
         'Answer {"answer": "yes"} when the sentence states a fact that already holds: how something is, where '
         "something is kept, who someone is, what suits them, or what they or others regularly do.",
         'Answer {"answer": "no"} when the sentence asks or tells the assistant to DO something (a task: change, move, '
-        'name, sort, find, make or send something), with or without "please".',
+        'name, sort, find, make or send something, or forget or erase what it was told), with or without "please".',
+        'A sentence that states a fact and then asks the assistant not to keep it still states the fact: '
+        '{"answer": "yes"}.',
         'Answer {"answer": "no"} when the sentence asks the assistant to TELL or REMIND the person of something, with '
         "or without a question mark: that is a question, not a fact.",
         'Answer {"answer": "no"} when the sentence is about something that has not happened and is not settled: '
@@ -1552,6 +1554,8 @@ def _told_as_fact_prompt(sentence: str) -> str:
         "",
         'Said: "the spare duvet lives in the top of the hall cupboard." -> {"answer": "yes"}',
         'Said: "padalink 84 is 12" -> {"answer": "no"}',
+        'Said: "pamiršk, ką sakiau apie mano dviratį" -> {"answer": "no"}',
+        'Said: "mano katė vardu Murka, bet to neįsimink" -> {"answer": "yes"}',
         'Said: "turn the scanned receipt the right way up for me." -> {"answer": "no"}',
         'Said: "our neighbour Petra feeds the cat when we are away." -> {"answer": "yes"}',
         'Said: "I\'m tempted to take up pottery in the autumn." -> {"answer": "no"}',

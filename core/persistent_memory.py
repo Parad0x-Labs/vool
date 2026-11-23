@@ -3136,8 +3136,20 @@ def _judged_forget_items(
 
     asked = _folded_words(clean)
     named = [held[number - 1] for number in picked if 1 <= number <= len(held)]
+    held_words = [_folded_words(item) for item in held]
+
+    def names_it(word: str) -> bool:
+        # A word that can name one held thing: four letters or more, and not one that more held items share than a
+        # thing told in two facts would ("mano", "my"). Mac run20 (786af505): "mano suo vardu Wirbelwind, bet to neisimink" ("my dog is called ..., don't
+        # remember that") was judged a forget, and two unrelated facts were erased for sharing "mano" and "suo".
+        if len(word) < 4:
+            return False
+        holding = sum(1 for words in held_words if any(_same_word(word, other) for other in words))
+        return holding <= max(2, len(held) // 2)
+
     return [item for item in dict.fromkeys(named)
-            if any(_same_word(word, other) for word in _folded_words(item) for other in asked)]
+            if any(_same_word(word, other) and names_it(word)
+                   for word in _folded_words(item) for other in asked)]
 
 
 def _judged_forget_order(
