@@ -1638,8 +1638,13 @@ def _web_ask_prompt(message: str) -> str:
         'Answer {"answer": "no"} when an encyclopedia, a textbook or general knowledge answers it (what something is, '
         "who wrote or made something, how something works, a capital, a definition, maths), or when it asks to write, "
         "translate or explain something.",
+        'Answer {"answer": "no"} as well when the message only TELLS the assistant something (the person\'s own news, '
+        "what happened to them or their people, how they feel) and asks nothing to be found out.",
         "",
         'Message: "search online for the opening hours of the Louvre" -> {"answer": "yes"}',
+        'Message: "big news, my brother finally sold his old car!" -> {"answer": "no"}',
+        'Message: "what is in the news about the strike today?" -> {"answer": "yes"}',
+        'Message: "puikios žinios, egzaminą išlaikiau" -> {"answer": "no"}',
         'Message: "who painted the Mona Lisa?" -> {"answer": "no"}',
         'Message: "kokie šiandien orai Klaipėdoje?" -> {"answer": "yes"}',
         'Message: "kas yra gravitacija?" -> {"answer": "no"}',

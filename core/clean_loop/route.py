@@ -350,6 +350,28 @@ def is_run_order(text: str) -> bool:
     return False
 
 
+#: The turn judge's built-in choices (core.plugin_ask.BUILTIN_CHOICES) this loop answers itself: reading the
+#: person's own files is what it is for. Every other tool choice is an order for a tool it does not hold.
+_JUDGED_CHOICES_THIS_LOOP_SERVES = frozenset({"read"})
+
+
+def _judged_tools(text: str) -> frozenset[str]:
+    """The built-in tool choices the turn's judge read in this text, in any language (core.plugin_ask, judged once
+    before any lane). Empty when nothing judged it: the words above then decide alone.
+
+    The words read an order to run something only by its English verbs ("run", "execute", "launch"): "start the
+    tests and list the failures", "spin up the dev server and tell me if it crashes" and every order in another
+    language were admitted to this read-only loop because a machine-health word ("failures", "crashes", "errors")
+    made them read as questions about the computer, and the command never ran (V-048)."""
+    try:
+        from core.plugin_ask import BUILTIN_CHOICES, judged_builtins
+
+        tools = {key for key, _description, _seats in BUILTIN_CHOICES}
+        return frozenset(key for key in judged_builtins(text) if key in tools)
+    except Exception:
+        return frozenset()
+
+
 def change_reply(text: str) -> str:
     """"yes", "no" or "undo" for a bare reply to a change card; "" for anything else."""
     value = _bare(text)
@@ -707,6 +729,18 @@ def _vool_lane_owns(text: str) -> str:
     return ""
 
 
+def _operator_order(text: str) -> bool:
+    """A reminder, calendar or notes order is the personal tools' own turn, with their own approval; this loop has only
+    file and machine reads. "remind me at six to look at the crash logs" was admitted because "crash logs" reads as a
+    question about the computer, and no reminder was ever set (V-048, the same class as a run order)."""
+    try:
+        from core.tool_demand_signals import owner_local_operator_intents
+
+        return bool(owner_local_operator_intents(str(text or "")))
+    except Exception:
+        return False
+
+
 def _asks_about_this_chat(text: str, session_id: str = "") -> bool:
     """An ask about this chat's own messages ("um what was my last question", "ok what did i ask frist here"): the
     transcript reader's, never a search of the disk. Admitted here, each ran two loop model calls, then fell through
@@ -976,10 +1010,15 @@ def decide(
         return RouteDecision(False, owned)
     if _stated_fact_was_kept(text, source_context):
         return RouteDecision(False, "stated_fact_kept")
-    if is_write(text) and not changes_enabled(env):
+    judged = _judged_tools(text)
+    if (is_write(text) or "files" in judged) and not changes_enabled(env):
         return RouteDecision(False, "write_turn")
-    if is_run_order(text):
+    if is_run_order(text) or "run" in judged:
         return RouteDecision(False, "run_turn")
+    if judged - _JUDGED_CHOICES_THIS_LOOP_SERVES:
+        # The turn's judge read an order for one of VOOL's own tools (a reminder, mail, git, the web ...) that this
+        # loop does not hold; the normal lane seats it.
+        return RouteDecision(False, "judged_tool_turn")
     if is_media_edit(text):
         return RouteDecision(False, "media_edit_turn")
     if browser_turn:
@@ -999,6 +1038,8 @@ def decide(
         # have: it answered "lacks sufficient context" to "has Tomas given everything back" and "is
         # Ines holding any books" (served run14), turns the database lane answers from real rows.
         return RouteDecision(False, "database_work")
+    if _operator_order(text):
+        return RouteDecision(False, "operator_turn")
     if skill_owns_turn(text):
         return RouteDecision(False, "skill_owns_turn")
     by_documents = False

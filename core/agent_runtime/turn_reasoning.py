@@ -2302,6 +2302,18 @@ def _asks_about_something_that_changes(
             return False
     except Exception:
         pass
+    try:
+        # The message's own reading, in any language (the one the web-off door asked this turn): a message that only
+        # tells something with a topic word ("big relief today: the news from the clinic is ...") asks nothing that
+        # changes. Served on the routing-gaps rig (qwen3:8b, 2026-11-23): its answer came back labelled "from what
+        # I already know and may be out of date" (N-011). No judgement leaves the words below to decide.
+        from core.online_asks import web_ask_verdict
+
+        ctx = source_context if isinstance(source_context, dict) else {}
+        if web_ask_verdict(str(text or ""), source_context=ctx or None, session_id=session_id or "") == "no":
+            return False
+    except Exception:
+        pass
     _live_mode = ""
     try:
         from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode

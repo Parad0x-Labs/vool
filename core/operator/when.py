@@ -399,6 +399,20 @@ def _parse_when_expression(
         day_word = day_match.group(1)
         zone_now = now.astimezone(zone)
         target_date = _date_for_day_word(day_word, zone_now)
+        if day_word.lower() == "tomorrow" and zone_now.hour < _SMALL_HOURS_END:
+            # Said in the small hours, "tomorrow" means the morning still ahead as often as the next calendar date:
+            # the person has not slept yet. Read either way, one of them sets the thing a whole day off, so the
+            # person is asked, with both dates named (owner decision 2026-11-23, tracker row 105).
+            same_day, next_day = zone_now.date(), zone_now.date() + timedelta(days=1)
+            return WhenResolution(
+                ok=False, tz_name=tz_name,
+                problem=(
+                    f"It's just after midnight, so \"tomorrow\" could mean {_spoken_date(same_day)} or "
+                    f"{_spoken_date(next_day)}. Which day do you mean? Say \"today\" for {_spoken_date(same_day)}, or "
+                    f"\"the {_ordinal(next_day.day)}\" for {_spoken_date(next_day)}."
+                ),
+                details={"ambiguous_dates": [same_day.isoformat(), next_day.isoformat()]},
+            )
         if _is_ending_midnight(time_match, part_match) and day_word.lower() in ("today", "tonight"):
             # "at 12 tonight" is the midnight that ends tonight: 00:00 tomorrow, not the
             # already-passed first minute of today.
@@ -665,6 +679,16 @@ def _read_clock(time_match: re.Match, text: str) -> tuple[int, int]:
     if bare_after_at:
         part = _part_of_day_match(text)
         hour = _bare_hour_wall(hour, part.group(1).lower() if part is not None else None)
+        return hour, minute
+    # An H:MM clock with no am/pm and no leading zero ("tonight at 11:30", "this evening 8:15") is the 12-hour clock
+    # people say: the part of the day names its side of noon, as for a bare hour. It read as the morning, so
+    # "tonight at 11:30" said in the evening was set for 11:30 that morning, already past. "07:30" and "19:30" are the
+    # 24-hour clock and stand as written; with no part word "at 9:30" stands as written too.
+    hour_text = time_match.group(4) if time_match.group(4) is not None else time_match.group(6)
+    if hour_text is not None and not hour_text.startswith("0") and 1 <= hour <= 11:
+        part = _part_of_day_match(text)
+        if part is not None and part.group(1).lower() in ("afternoon", "evening", "night", "tonight"):
+            hour += 12
     return hour, minute
 
 
@@ -773,6 +797,20 @@ def _resolve_day_of_month(
             zone, tz_name, basis=f"{candidate.day} {candidate:%B %Y} {time_basis}", now=now, kind="absolute",
         )
     return WhenResolution(ok=False, tz_name=tz_name, problem=_NO_WHEN_PROBLEM)
+
+
+#: Before this hour, a "tomorrow" is asked about (see `_parse_when_expression`).
+_SMALL_HOURS_END = 4
+
+
+def _spoken_date(day: Any) -> str:
+    """'Tuesday 24 November': the weekday and the date, as the question names them."""
+    return f"{day.strftime('%A')} {day.day} {day.strftime('%B')}"
+
+
+def _ordinal(day: int) -> str:
+    suffix = "th" if 10 <= day % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
 
 
 def _date_for_day_word(day_word: str, zone_now: datetime) -> datetime:

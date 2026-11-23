@@ -2311,7 +2311,12 @@ def _raw_fragments_uncut(value: str) -> list[tuple[str, int, int, str]]:
             # one word of its own still mints exactly as before.
             if not stripped or is_conversational_unit(stripped) or _is_filler_fragment(stripped):
                 continue
-            offset = slice_start + start + (len(body) - len(body.lstrip()))
+            # The span is where the kept words stand in the message. A fragment cut after a comma opens
+            # with it (", viešbutis Jūra"): counting only the leading spaces put the span one character
+            # early, so the unit's span ended before its last letter and the execution text sent to the
+            # write lost it (approved "... viešbutis Jūr", intl file/web thread 2026-11-22, N-012).
+            stripped = stripped.strip()
+            offset = slice_start + start + body.find(stripped)
             fragments.append((stripped, offset, offset + len(stripped), item.slice_id))
     return fragments
 

@@ -2604,6 +2604,21 @@ def handle_turn_frontdoor(
                         _ask_needs_web = False
                 except Exception:
                     pass
+            if _ask_needs_web or _ask_is_live_data:
+                # Every reading above is a word reading ("news", "price", "latest"): a message that only tells
+                # something with such a word asks nothing to be looked up ("good news, maintenance is done and
+                # I'm back in my old locker" was refused here, served long chat on 02c37a13b, N-011). The
+                # refusal stands only when the message's own reading, in any language, says it needs the
+                # internet; with no model to judge it the words decide, as before.
+                try:
+                    from core.online_asks import web_ask_verdict
+
+                    if web_ask_verdict(
+                        effective_input, source_context=source_context, session_id=str(session_id or "")
+                    ) == "no":
+                        _ask_needs_web = _ask_is_live_data = False
+                except Exception:
+                    pass
             _plain = ""
             _plain_reason = ""
             if _ask_is_live_data:

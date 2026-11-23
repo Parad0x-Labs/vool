@@ -1332,10 +1332,20 @@ def _judged_as_work_on_files(*texts: str) -> bool:
     the same thing: "Sukurk naują failą pirkiniai.txt ir įrašyk į jį ..." carries none of them and was answered
     "There is no file at `pirkiniai.txt`" (blind audit of 58f60bbf3, 2026-11-22)."""
     try:
-        from core.plugin_ask import WORKSPACE_WORK_CHOICES, judged_builtins
+        from core.plugin_ask import WORKSPACE_WORK_CHOICES, judged_builtins, judged_builtins_of_message_holding
     except Exception:
         return False
-    return any(set(judged_builtins(text)) & WORKSPACE_WORK_CHOICES for text in texts if str(text or "").strip())
+    for text in texts:
+        if not str(text or "").strip():
+            continue
+        if set(judged_builtins(text)) & WORKSPACE_WORK_CHOICES:
+            return True
+        # A clause of a judged message (the request reader asks the lanes clause by clause): the message's own
+        # judgement speaks for it, unless the message was also judged to ask for a file to be read.
+        whole = set(judged_builtins_of_message_holding(text))
+        if whole & WORKSPACE_WORK_CHOICES and "read" not in whole:
+            return True
+    return False
 
 
 def _direct_workspace_read_request(user_input: str) -> dict[str, object] | None:

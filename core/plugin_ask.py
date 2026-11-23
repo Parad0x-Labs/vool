@@ -286,6 +286,26 @@ def judged_builtins(text: str) -> tuple[str, ...]:
     return entry[1]
 
 
+def judged_builtins_of_message_holding(part: str) -> tuple[str, ...]:
+    """The built-in choices judged for the most recent judged message that holds `part` as a piece of its words (a
+    clause the request reader cut out of it); () when none does. Read only.
+
+    The judge reads the whole message; the lanes' own readers are asked about its clauses one by one
+    (core.agent_runtime.demand_ownership). A clause of "Erstelle packliste.txt mit Zelt, Schlafsack und Lampe" was never
+    judged on its own, so the read lane claimed "Erstelle packliste.txt mit Zelt" by its file name while the message
+    was judged a write, and the rest of the list ran as a second request (N-012)."""
+    key = _key(part)
+    if not key:
+        return ()
+    now = time.monotonic()
+    with _LOCK:
+        entries = list(_BUILTINS.items())
+    for message, (at, picked) in reversed(entries):
+        if now - at <= _LIFETIME_S and key in message:
+            return picked
+    return ()
+
+
 def judged_at_all(text: str) -> bool:
     """Whether the turn's judge read this text (its answer may be none). Read only."""
     key = _key(text)
@@ -406,12 +426,9 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
     of 18 fresh asks right. No answer keeps the web out: the turn is what it was before the web was a choice."""
     if "web" not in keys:
         return keys
-    from core import intent_arbiter
+    from core.online_asks import web_ask_verdict
 
-    try:
-        verdict = intent_arbiter.arbitrate_web_ask(text, chat_id=str(session_id or ""), source_context=source_context)
-    except Exception:
-        verdict = None
+    verdict = web_ask_verdict(text, source_context=source_context, session_id=str(session_id or ""))
     if verdict == "yes":
         return keys
     _log.info("tool ask: web pick not confirmed (%s)", verdict)

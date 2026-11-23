@@ -582,3 +582,84 @@ __all__ = [
     "release_notes_are_authored",
     "requirements_want_a_lookup",
 ]
+
+
+# --------------------------------------------------------------------------------------------------
+# A lookup the words point to, confirmed by the message's own reading
+# --------------------------------------------------------------------------------------------------
+
+import threading as _threading
+import time as _time
+
+_WEB_VERDICTS: dict[str, tuple[float, str | None]] = {}
+_WEB_VERDICTS_LOCK = _threading.Lock()
+_WEB_VERDICT_LIFETIME_S = 120.0
+
+
+def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id: str = "") -> str | None:
+    """Whether the message needs the internet, judged from what it says in any language: "yes", "no", or None
+    when no model judged it (`core.intent_arbiter.arbitrate_web_ask`). One verdict per message in a turn, so the
+    turn's tool judgement and the web-off door never ask twice.
+
+    The readers above (and `firing_signals`, `live_info_mode`, the demand authority) read topic words: "news",
+    "price", "online", "latest". A message that only TELLS something with such a word asks for nothing to be
+    looked up: "good news, maintenance is done and I'm back in my old locker" was refused "Web lookups are off"
+    on the served long chat (02c37a13b, N-011), and so was any statement about the person's own news. A word
+    list cannot tell those from "tell me the news" in any language; the message's reading can."""
+    flat = " ".join(str(text or "").split())
+    if not flat:
+        return None
+    try:
+        from core.intent_arbiter import _turn_key
+
+        turn = _turn_key(source_context)
+    except Exception:
+        turn = ""
+    if not turn:
+        # No turn to hold it for: asked each time.
+        try:
+            from core import intent_arbiter
+
+            verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
+        except Exception:
+            verdict = None
+        return verdict if verdict in ("yes", "no") else None
+    key = f"{turn}\x00{flat.casefold()}"
+    now = _time.monotonic()
+    with _WEB_VERDICTS_LOCK:
+        held = _WEB_VERDICTS.get(key)
+        if held is not None and now - held[0] <= _WEB_VERDICT_LIFETIME_S:
+            return held[1]
+    try:
+        from core import intent_arbiter
+
+        verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
+    except Exception:
+        verdict = None
+    if verdict not in ("yes", "no"):
+        return None   # nothing judged it: not remembered, a later reader may still get a judgement
+    with _WEB_VERDICTS_LOCK:
+        if len(_WEB_VERDICTS) > 256:
+            for stale in [k for k, (at, _v) in _WEB_VERDICTS.items() if now - at > _WEB_VERDICT_LIFETIME_S]:
+                _WEB_VERDICTS.pop(stale, None)
+        _WEB_VERDICTS[key] = (now, verdict)
+    return verdict
+
+
+def forget_web_verdicts() -> None:
+    with _WEB_VERDICTS_LOCK:
+        _WEB_VERDICTS.clear()
+
+
+def judged_to_need_no_web(text: str, source_context: dict | None) -> bool:
+    """Whether, inside a turn, the message's own reading says answering it needs no internet ("no" from
+    `web_ask_verdict`). Outside a turn, or with no model to judge it, False: the words decide as before."""
+    try:
+        from core.intent_arbiter import _turn_key
+
+        if not isinstance(source_context, dict) or not _turn_key(source_context):
+            return False
+    except Exception:
+        return False
+    return web_ask_verdict(text, source_context=source_context) == "no"
+

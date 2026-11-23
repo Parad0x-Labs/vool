@@ -647,9 +647,46 @@ def requirements_for(
             # the freeze exists to unify.
             return _refine_dated_record_requirement(source_context, record).requirements
     requirements = _compute_requirements(user_input, task_class=task_class, source_context=source_context)
+    requirements = _without_a_lookup_the_message_does_not_ask_for(text, requirements, source_context)
     if isinstance(source_context, dict):
         _record_requirements(source_context, text, requirements)
     return requirements
+
+
+def _without_a_lookup_the_message_does_not_ask_for(
+    text: str, requirements: ExecutionRequirements, source_context: dict[str, Any] | None,
+) -> ExecutionRequirements:
+    """The current-information hold, kept only when the message's own reading agrees it needs the internet.
+
+    The hold is read from topic signals ("news", "latest", a price word). A message that only tells something with
+    such a word asks nothing to be looked up: "so happy, got news this morning that my sister's visa was approved" was
+    held to a lookup, and with Web lookups off its answer was withheld as "I didn't look anything up for this ... so
+    I'm not sending it" (routing-gaps rig, qwen3:8b, 2026-11-23, N-011). Only a hold whose sole tools are the web's
+    is lifted, and only on a "no" from the turn's judge (`core.online_asks.web_ask_verdict`, any language); with no
+    judgement the hold stands, as before."""
+    if not requirements.current_information_required:
+        return requirements
+    toolsets = tuple(requirements.allowed_toolsets or ())
+    if not toolsets or not all(str(toolset).startswith("web") for toolset in toolsets):
+        return requirements
+    if requirements.user_material_supplied:
+        return requirements
+    try:
+        from core.online_asks import judged_to_need_no_web
+
+        if not judged_to_need_no_web(text, source_context):
+            return requirements
+    except Exception:
+        return requirements
+    return dataclasses.replace(
+        requirements,
+        answer_mode="DIRECT",
+        external_evidence_required=False,
+        current_information_required=False,
+        tools_required=False,
+        allowed_toolsets=(),
+        reason_codes=(*tuple(requirements.reason_codes or ()), "judged_no_web"),
+    )
 
 
 #: Where the turn's frozen requirement decision rides.  Reserved exactly like the turn

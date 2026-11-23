@@ -3383,10 +3383,30 @@ def _affected_resources_display(
             path_like.update(str(item).strip() for item in value)
         elif value not in (None, ""):
             path_like.add(str(value).strip())
+    # The working directory is shown where the command will run, read by the runner's own reader
+    # (`sandbox_working_directory`): a cwd that names the workspace itself ("myproject", "workspace",
+    # "./myproject") runs in the root. Joined as written, the run_tests card said
+    # "Affected: <root>/myproject" for a command that ran in <root> (intl file/web thread, 2026-11-22).
+    cwd_value = arguments.get("cwd")
+    cwd_shown = ""
+    if isinstance(cwd_value, str) and cwd_value.strip() and not cwd_value.strip().startswith(("/", "~")):
+        try:
+            from pathlib import Path
+
+            from core.runtime_execution_tools import sandbox_working_directory
+
+            resolved = sandbox_working_directory(cwd_value, workspace_root=Path(root))
+            parts = [part for part in resolved.replace("\\", "/").split("/") if part not in {"", "."}]
+            cwd_shown = f"{root}/{'/'.join(parts)}" if parts else root
+        except Exception:
+            cwd_shown = ""
     displayed: list[str] = []
     for item in raw:
         value = str(item).strip()
-        if value in path_like and value and not value.startswith(("/", "~")):
+        if cwd_shown and isinstance(cwd_value, str) and value == cwd_value.strip():
+            if cwd_shown not in displayed:
+                displayed.append(cwd_shown)
+        elif value in path_like and value and not value.startswith(("/", "~")):
             displayed.append(f"{root}/{value}")
         else:
             displayed.append(value)
