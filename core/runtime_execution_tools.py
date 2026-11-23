@@ -6876,7 +6876,7 @@ def _write_machine_file(
     content = str(arguments.get("content") or "")
     target.parent.mkdir(parents=True, exist_ok=True)
     already_present = target.exists()
-    expected_hash = str(arguments.get("expected_hash") or "").strip().lower()
+    expected_hash = _claimed_content_hash(arguments).lower()
     if already_present and expected_hash:
         # A claimed prior-content hash is ENFORCED at the physical mutation: the write
         # refuses when the file on disk is not the bytes the caller claimed to replace.
@@ -7586,7 +7586,7 @@ def _write_file(
     # `write_file` always wins the race silently, overwriting whatever changed in between with no
     # sign anything was lost. `expected_hash` is optional and omitted entirely by callers that never
     # read the file first (e.g. a brand-new file), so this changes nothing for the common case.
-    expected_hash = str(arguments.get("expected_hash") or "").strip()
+    expected_hash = _claimed_content_hash(arguments)
     if expected_hash and expected_hash != previous_hash:
         return RuntimeExecutionResult(
             handled=True,
@@ -7709,6 +7709,22 @@ def _write_file(
     )
 
 
+_CONTENT_HASH_RE = re.compile(r"[0-9a-fA-F]{64}")
+
+
+def _claimed_content_hash(arguments: dict[str, Any]) -> str:
+    """The prior-content hash a write claims to replace, or "" when the argument is not a hash at all.
+
+    `expected_hash` is the sha256 a read returned (core.execution.artifacts.content_sha256: 64 hex characters).
+    A local model fills an optional argument from its description: on the app from source (qwen3:8b,
+    2026-11-22) "Sukurk failą kelione.txt ir įrašyk į jį ..." proposed write_file with `expected_hash: "sha256"`,
+    the person allowed it, and the write was refused as `stale_base` against a file that did not exist. A value no
+    read can return holds no belief about the file, so it is what it says it is not: no hash. An overwrite of an
+    existing file still asks for approval at the gate, as without the argument."""
+    value = str(arguments.get("expected_hash") or "").strip()
+    return value if _CONTENT_HASH_RE.fullmatch(value) else ""
+
+
 def _replace_in_file(
     arguments: dict[str, Any],
     *,
@@ -7774,7 +7790,7 @@ def _replace_in_file(
     previous_mode = target.stat().st_mode & 0o7777
     relative_path = _relative_path(target, workspace_root=workspace_root)
     previous_hash = content_sha256(content)
-    expected_hash = str(arguments.get("expected_hash") or "").strip()
+    expected_hash = _claimed_content_hash(arguments)
     if expected_hash and expected_hash != previous_hash:
         return RuntimeExecutionResult(
             handled=True,
