@@ -27,9 +27,10 @@ def _clean_cache():
         wire._CANCELLED.clear()
 
 
-def _preview(chat: str, turn: str, *, sent: bool, version: str) -> tuple[wire.Preview, threading.Event]:
+def _preview(chat: str, turn: str, *, sent: bool, version: str,
+             url: str = "https://cloud.example.invalid/v1/chat/completions") -> tuple[wire.Preview, threading.Event]:
     turn_event = threading.Event()
-    item = wire.Preview(wire._home(), chat, turn, "ollama-local", "http://127.0.0.1:9/api/chat",
+    item = wire.Preview(wire._home(), chat, turn, "a-provider", url,
                         b'{"messages":[{"role":"user","content":"mano valtis melyna"}]}', ())
     item.cancel_event, item.sent, item.scope_version = turn_event, sent, version
     with wire._LOCK:
@@ -68,6 +69,36 @@ def test_a_poll_while_the_forget_is_still_erasing_leaves_the_turn_running(monkey
     assert wire.previews(chat_id="chat-erasing") == []
     assert not turn_event.is_set()
     assert item.preview_id not in wire._PREVIEWS and item.body == b""
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_local_models_request_is_never_stopped_by_a_forget(monkeypatch, seed):
+    """Mac run of ed76b5ec6: a local call is never marked sent, so the sent rule alone still stopped the forget's turn."""
+    rng = random.Random(f"local-{seed}")
+    item, turn_event = _preview("chat-local", "turn-local", sent=False, version="epoch-1",
+                                url=f"http://127.0.0.1:{rng.choice([11434, 8080, 1234])}/api/chat")
+    if rng.random() < 0.5:
+        _epoch_moves(monkeypatch, rng)
+    else:
+        def erasing(_chat, _project):
+            raise RuntimeError("memory erasure is incomplete")
+
+        monkeypatch.setattr(scope, "current_version", erasing)
+    assert wire.previews() == []
+    assert not turn_event.is_set()
+    assert item.preview_id not in wire._PREVIEWS
+
+
+def test_a_stopped_preview_is_stopped_once(monkeypatch, caplog):
+    import logging
+
+    _item, turn_event = _preview("chat-once", "turn-once", sent=False, version="epoch-1")
+    _epoch_moves(monkeypatch, random.Random("once"))
+    with caplog.at_level(logging.INFO, logger=wire.__name__):
+        for _ in range(5):
+            assert wire.previews(chat_id="chat-once") == []
+    assert turn_event.is_set()
+    assert sum("disclosure stop" in record.getMessage() for record in caplog.records) == 1
 
 
 def test_a_request_still_waiting_on_the_owner_is_stopped_by_a_forget(monkeypatch):

@@ -312,3 +312,64 @@ def test_a_fact_told_again_after_a_forget_is_recalled_again(home, monkeypatch):
     handled, reply = maybe_handle_memory_command(question, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
                                                  source_context=context)
     assert handled and _plain(colour) in _plain(str(reply)), reply
+
+
+# ------------------------------------------------------------ Mac run of ed76b5ec6
+# - "what colour is my kayak?" after the kayak was forgotten: the judge named three facts about a backpack.
+# - "primink, kokios spalvos mano kuprinė ..." (a recall) and "Prasau pamirsti ..." (a forget) were saved as facts by
+#   the keep step at the start of the turn.
+
+
+def _keep_line(text: str, chat: str = CHAT) -> None:
+    _judged(text, "keep")
+    handled, reply = maybe_handle_memory_command(text, session_id=chat, access_policy=_policy(chat),
+                                                 source_context={**OWNER, "chat_id": chat, "session_id": chat})
+    assert handled and str(reply).startswith("Locked in"), reply
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_forgotten_thing_is_no_record_even_when_the_judge_names_another_held_thing(home, monkeypatch, seed):
+    rng = random.Random(f"kayak-{seed}")
+    thing, other = rng.sample(["kayak", "hammock", "toolbox", "scooter"], 2)
+    _keep_line(f"Įsimink: mano {rng.choice(['kuprinė', 'palapinė'])} žalia ir guli balkone.")
+    _keep_line(f"Remember that my {other} is {rng.choice(['teal', 'navy'])} and lives in the shed.")
+    _keep_line(f"Remember that my {thing} is lilac and lives in the loft.")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_forget_targets", _stem_oracle([thing]))
+    order = f"pamiršk viską apie mano {thing}"
+    _judged(order, "forget")
+    assert maybe_handle_memory_command(order, session_id=CHAT, access_policy=_policy(CHAT),
+                                       source_context=dict(OWNER))[0]
+    # A judge that names every held fact, whatever is asked: the one measured named the backpack for the kayak.
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda _q, held, **_k: tuple(range(1, len(held) + 1)))
+    question = rng.choice([f"what colour is my {thing}?", f"where do i keep my {thing} again?", f"wheres my {thing}"])
+    _judged(question, "recall")
+    context = {**OWNER, "chat_id": OTHER_CHAT, "session_id": OTHER_CHAT}
+    handled, reply = maybe_handle_memory_command(question, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
+                                                 source_context=context)
+    assert handled and reply == pm.JUDGED_RECALL_FORGOTTEN, reply
+    # A question about a fact still held is answered from it, though "my" is in the forgotten one too.
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", _stem_oracle([other]))
+    question = f"what colour is my {other}?"
+    _judged(question, "recall")
+    handled, reply = maybe_handle_memory_command(question, session_id=OTHER_CHAT, access_policy=_policy(OTHER_CHAT),
+                                                 source_context=context)
+    assert handled and other in str(reply) and reply != pm.JUDGED_RECALL_FORGOTTEN, reply
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_the_keep_step_keeps_no_recall_or_forget_the_judge_read(home, monkeypatch, seed):
+    from core.persistent_memory import keep_stated_facts
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    rng = random.Random(f"keep-step-{seed}")
+    kind, text = rng.choice([
+        ("recall", "primink, kokios spalvos mano kuprinė ir kur ji laikoma"),
+        ("recall", "primink man kokia spalva buvo mano kuprine"),
+        ("forget", "Prasau pamirsti informacija apie kuprine."),
+        ("forget", "nebeatsimink nieko apie mano kuprinę, ištrink"),
+    ])
+    _judged(text, kind)
+    assert keep_stated_facts(text, session_id=CHAT, source_context=dict(OWNER)) == 0
+    assert "kupr" not in _plain(_entries())

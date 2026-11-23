@@ -272,6 +272,8 @@ def previews(*, chat_id: str | None = None) -> list[dict[str, Any]]:
     for item in items:
         if _current(item):
             result.append(item.public())
+        elif item.invalidated:
+            continue  # stopped or expired once already: every later poll stopped it again (810 times on the Mac)
         elif _sent_before_an_erasure(item):
             # The chat is still open and its request already left; only the chat's erasure state moved on (a forget,
             # often the turn's own). The cached copy may hold what was forgotten, so it is dropped, but the turn that
@@ -286,11 +288,21 @@ def previews(*, chat_id: str | None = None) -> list[dict[str, Any]]:
 
 
 def _sent_before_an_erasure(item: Preview) -> bool:
-    """A sent request whose chat is still open, and whose only change since is the chat's erasure state: its epoch moved
-    on, or an erasure is still running (its state reads as incomplete until it ends). Dropping the copy discloses
-    nothing either way; only a chat that closed or changed project stops the turn."""
-    if not item.sent or item.invalidated or item.scope_version is None:
+    """A sent request, or one to a model on this computer, whose chat is still open and whose only change since is the
+    chat's erasure state: its epoch moved on, or an erasure is still running (its state reads as incomplete until it
+    ends). Dropping the copy discloses nothing either way; only a chat that closed or changed project stops the turn.
+    A call to a local model is never marked sent (on the Mac every finished turn's local preview read sent=False), and
+    a model on this computer is no disclosure to stop."""
+    if item.invalidated or item.scope_version is None:
         return False
+    if not item.sent:
+        from core.auto_local_only_mode import endpoint_is_local
+
+        try:
+            if not endpoint_is_local(item.url):
+                return False
+        except Exception:
+            return False
     if item.replay is not None:
         try:
             item.replay.source()

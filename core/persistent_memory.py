@@ -3206,13 +3206,19 @@ def _judged_items_named(
 
 
 def _judged_forgotten_named(
-    question: str, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+    question: str, held: list[str], *, session_id: str | None, source_context: Mapping[str, Any] | None,
 ) -> list[str]:
     """What a completed forget (in any chat) revoked that a recall question asks about, and that nothing holds again:
     no saved entry carries it and the person did not say it again in this chat. NO RECORD = REFUSE: such a question is
     answered "no record", never handed to a model that may still say the forgotten value (Mac run of b43e6aced: after
-    a Lithuanian forget of a boat's colour, "kokios spalvos mano valtis?" was answered with that colour)."""
+    a Lithuanian forget of a boat's colour, "kokios spalvos mano valtis?" was answered with that colour).
+
+    No model reads the forgotten words: the question must share a word with what was forgotten (accents off, one form
+    of a word for another) that none of the facts VOOL still holds has, so "my" or "mano" never makes a question about
+    a held fact into one about a forgotten one. Read before the judge names held facts: asked "what colour is my
+    kayak?" after the kayak was forgotten, the judge named three facts about a backpack (Mac, ed76b5ec6)."""
     try:
+        from core.fact_extractor import _folded_words, _same_word
         from core.memory.carriers import carries
         from core.memory.revocation import revoked_tokens
 
@@ -3228,11 +3234,18 @@ def _judged_forgotten_named(
                 if not any(carries(text, token) for text in saved)
                 and not any(carries(said, token) for said in said_here if judged_memory_ask(said) != "forget"
                             and not _FORGET_RE.match(said))]
+        still_held = {word for item in held for word in _folded_words(item)}
+        asked = _folded_words(question)
+        named = []
+        for token in live:
+            own = [word for word in _folded_words(token)
+                   if len(word) >= 4 and not any(_same_word(word, other) for other in still_held)]
+            if any(_same_word(word, other) for word in own for other in asked):
+                named.append(token)
+        return named
     except Exception as exc:
         LOGGER.warning("forgotten facts unreadable for a judged recall: %s", type(exc).__name__)
         return []
-    return _judged_items_named(question, live[-_JUDGED_HELD_LIMIT:], session_id=session_id,
-                               source_context=source_context)
 
 
 def _judged_recall_reply(
@@ -3245,17 +3258,18 @@ def _judged_recall_reply(
     if not _turn_may_read_memory(source_context, session_id):
         return None
     held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
+    if forgotten_too:
+        forgotten = _judged_forgotten_named(question, held, session_id=session_id, source_context=source_context)
+        LOGGER.info("judged recall: %d forgotten item(s) asked about", len(forgotten))
+        if forgotten:
+            return JUDGED_RECALL_FORGOTTEN
     named = _judged_items_named(question, held, session_id=session_id, source_context=source_context)
     LOGGER.info("judged recall: %d held, %d named", len(held), len(named))
     if len(named) == 1:
         return f"You told me: {named[0]}"
     if named:
         return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
-    if not forgotten_too:
-        return None
-    forgotten = _judged_forgotten_named(question, session_id=session_id, source_context=source_context)
-    LOGGER.info("judged recall: %d forgotten item(s) named", len(forgotten))
-    return JUDGED_RECALL_FORGOTTEN if forgotten else None
+    return None
 
 
 def everyday_memory_turn(text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None) -> bool:
@@ -3500,10 +3514,12 @@ def keep_stated_facts(
         try:
             from core import plugin_ask
 
-            if plugin_ask.judged_tool_ask(clean):
-                # The turn's judge read the message as asking for one of VOOL's tools: an order, not something said
-                # about the person's life. On 58f60bbf3 (blind audit) "Išsaugok kontaktą: ..." ("save the contact")
-                # and other orders were written as memory rows.
+            if plugin_ask.judged_tool_ask(clean) or plugin_ask.judged_memory_ask(clean):
+                # The turn's judge read the message as asking for one of VOOL's tools, or as a recall, a forget or a
+                # keep of VOOL's memory: an order or a question, not something said about the person's life (a keep
+                # is the memory lane's to save). On 58f60bbf3 (blind audit) "Išsaugok kontaktą: ..." ("save the
+                # contact") was written as a memory row; on the Mac (ed76b5ec6) so were "primink, kokios spalvos mano
+                # kuprinė ..." ("remind me what colour my backpack is") and "Prasau pamirsti informacija apie ...".
                 unlisted = []
         except Exception:
             unlisted = []
