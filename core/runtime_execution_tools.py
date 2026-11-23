@@ -3939,6 +3939,8 @@ def _dispatch_runtime_tool(
             return _read_machine_file(arguments)
         if intent == "machine.send_to_phone":
             return _machine_send_to_phone(arguments, source_context=source_context)
+        if intent == "machine.send_with_drop":
+            return _machine_send_with_drop(arguments, source_context=source_context)
         if intent == "machine.ensure_directory":
             return _covered(lambda: _ensure_machine_directory(arguments))
         if intent == "machine.write_file":
@@ -6419,6 +6421,59 @@ def _machine_send_to_phone(arguments: dict[str, Any], *, source_context: dict[st
             "observation": _tool_observation(
                 intent="machine.send_to_phone", tool_surface="machine", ok=True, status="executed",
                 path=_home_relative_label(target), name=sent["name"], size_bytes=size, sha256=sent["sha256"],
+            ),
+        },
+    )
+
+
+def _machine_send_with_drop(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Send one file from a safe local folder to a person in the owner's Drop list.
+
+    Only the owner at this computer can: a phone or chat-app turn is refused. Every outcome
+    says in words whether anything was sent (core.drop.chat_tool)."""
+    from core.drop import chat_door, chat_tool
+    from core.request_trust import turn_is_remote
+
+    def refused(status: str, text: str) -> RuntimeExecutionResult:
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status=status, response_text=text,
+            details={"observation": _tool_observation(intent="machine.send_with_drop", tool_surface="machine", ok=False, status=status)},
+        )
+
+    if not policy_engine.get("filesystem.allow_read_workspace", True):
+        return refused("disabled", "Safe local file reads are disabled by policy.")
+    if turn_is_remote(source_context):
+        return refused("owner_only", "Drop only sends when you ask at this computer. Nothing was sent.")
+    locale = str((source_context or {}).get("ui_locale") or "")
+    state = chat_door.state_for("drop")
+    if state:
+        return refused("not_configured", chat_door.reply_text("drop", state, locale))
+    try:
+        target = _resolve_machine_directory(arguments.get("path"))
+    except ValueError:
+        requested = " ".join(str(arguments.get("path") or "").split())[:200] or "that file"
+        return refused("not_allowed", f"I can't send `{requested}`: it is outside the folders I may read. Nothing was sent.")
+    if not target.is_file():
+        return refused("not_found", f"There is no file at `{_home_relative_label(target)}`. Nothing was sent.")
+    sent = chat_tool.send(target, str(arguments.get("to") or ""), str(arguments.get("note") or ""))
+    if not sent["ok"]:
+        if sent["status"] in {"off", "unpaired"}:
+            return refused("not_configured", chat_door.reply_text("drop", sent["status"], locale))
+        return refused(sent["status"], sent["text"])
+    size = int(sent["size_bytes"])
+    shown = f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{max(1, size // 1024)} KB"
+    said = (f"Sent {sent['name']} ({shown}) to {sent['person']} ({sent['tag']}) with Drop. "
+            "It arrives when their VOOL is open; Settings shows when it was delivered.")
+    if not sent["verified"]:
+        said += f" {sent['person']} is not verified yet: compare the safety number with them once."
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text=said,
+        details={
+            "sent": {k: sent[k] for k in ("name", "size_bytes", "sha256", "person", "tag", "verified")},
+            "observation": _tool_observation(
+                intent="machine.send_with_drop", tool_surface="machine", ok=True, status="executed",
+                path=_home_relative_label(target), name=sent["name"], size_bytes=size, sha256=sent["sha256"],
+                person=sent["person"],
             ),
         },
     )

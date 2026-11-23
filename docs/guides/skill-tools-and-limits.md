@@ -148,7 +148,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-154 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+155 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -219,6 +219,7 @@ The full contract of a tool, with every field, is in Python:
 | `machine.move_path` | Move or rename a file or folder on this machine. *Refuses protected system locations and asks for a live confirmation from the operating system before moving.* | `source`, `destination` | writes files | none | asks | asks |
 | `machine.read_file` | Read a text file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `start_line?`, `max_lines?`, `verbatim?` | reads | none | runs | runs |
 | `machine.send_to_phone` | Send one file from this computer (Desktop, Downloads, Documents and the other safe folders) to the owner's paired VOOL phone app, where it shows under "From your compu... | `path` | saves VOOL data | `read_files` | runs | runs |
+| `machine.send_with_drop` | Send one file from this computer (Desktop, Downloads, Documents and the other safe folders), with an optional short note, to a person in the owner's Drop list: another... | `path`, `to`, `note?` | sends out | `read_files`, `external_messages` | asks | asks |
 | `machine.write_file` | Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `content`, `create_only?` | writes files | none | asks | runs |
 
 ### market

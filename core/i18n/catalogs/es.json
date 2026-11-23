@@ -5443,9 +5443,10 @@
     "drop.save_file": "Guardar en Descargas",
     "drop.show_file": "Mostrar en la carpeta",
     "drop.unverify": "Marcar como sin verificar",
-    "drop.mark_verified": "Número comparado: marcar como verificado"
+    "drop.mark_verified": "Número comparado: marcar como verificado",
+    "approval.action.machine.send_with_drop": "enviar un archivo con Drop"
   },
-  "source_catalog_sha256": "300bd36d11c08035ecea88e7daa85223e4970c0130f412e6185fe30616a7119e",
+  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

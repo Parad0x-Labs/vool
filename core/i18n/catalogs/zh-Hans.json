@@ -5443,9 +5443,10 @@
     "drop.save_file": "保存到下载",
     "drop.show_file": "在文件夹中显示",
     "drop.unverify": "标记为未核对",
-    "drop.mark_verified": "我们已比对号码：标记为已核对"
+    "drop.mark_verified": "我们已比对号码：标记为已核对",
+    "approval.action.machine.send_with_drop": "通过 Drop 发送一个文件"
   },
-  "source_catalog_sha256": "300bd36d11c08035ecea88e7daa85223e4970c0130f412e6185fe30616a7119e",
+  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

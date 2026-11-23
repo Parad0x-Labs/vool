@@ -5443,9 +5443,10 @@
     "drop.save_file": "ダウンロードに保存",
     "drop.show_file": "フォルダで表示",
     "drop.unverify": "未確認にする",
-    "drop.mark_verified": "番号を照合しました: 確認済みにする"
+    "drop.mark_verified": "番号を照合しました: 確認済みにする",
+    "approval.action.machine.send_with_drop": "Drop でファイルを送信する"
   },
-  "source_catalog_sha256": "300bd36d11c08035ecea88e7daa85223e4970c0130f412e6185fe30616a7119e",
+  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

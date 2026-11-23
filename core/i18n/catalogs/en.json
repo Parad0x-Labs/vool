@@ -5443,7 +5443,8 @@
     "drop.save_file": "Save to Downloads",
     "drop.show_file": "Show in folder",
     "drop.unverify": "Mark as not verified",
-    "drop.mark_verified": "We compared the number: mark as verified"
+    "drop.mark_verified": "We compared the number: mark as verified",
+    "approval.action.machine.send_with_drop": "send a file with Drop"
   },
   "html_keys": [
     "bypass.modal_limits",

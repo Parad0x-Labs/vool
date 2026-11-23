@@ -5443,9 +5443,10 @@
     "drop.save_file": "Išsaugoti į Atsisiuntimus",
     "drop.show_file": "Rodyti aplanke",
     "drop.unverify": "Pažymėti kaip nepatikrintą",
-    "drop.mark_verified": "Numerį palyginome: pažymėti kaip patikrintą"
+    "drop.mark_verified": "Numerį palyginome: pažymėti kaip patikrintą",
+    "approval.action.machine.send_with_drop": "išsiųsti failą per Drop"
   },
-  "source_catalog_sha256": "300bd36d11c08035ecea88e7daa85223e4970c0130f412e6185fe30616a7119e",
+  "source_catalog_sha256": "3dc7a04240c21feaf050a841d4943aa43db6eaf890850a31f2efbb75a76b3143",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

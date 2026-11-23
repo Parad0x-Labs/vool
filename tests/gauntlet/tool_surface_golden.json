@@ -1,5 +1,5 @@
 {
-  "intent_count": 162,
+  "intent_count": 163,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -34,6 +34,7 @@
     "machine.move_path",
     "machine.read_file",
     "machine.send_to_phone",
+    "machine.send_with_drop",
     "machine.write_file",
     "market.analyze",
     "market.collect",
@@ -164,7 +165,7 @@
     "x.feedback.list",
     "x.feedback.save"
   ],
-  "native_definition_count": 162,
+  "native_definition_count": 163,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -3670,6 +3671,109 @@
             "manual": "allow",
             "plan": "allow",
             "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "machine.send_with_drop": {
+      "arguments": [
+        "note",
+        "path",
+        "to"
+      ],
+      "description": "Send one file from this computer (Desktop, Downloads, Documents and the other safe folders), with an optional short note, to a person in the owner's Drop list: another person's VOOL, or another of the owner's own computers. Use it when the user asks to send, share, hand over or drop a file to a person or to their other computer with Drop. Find the file first with machine.find_file. Never say it was sent unless this tool answered that it was.",
+      "native_name": "machine__send_with_drop",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "description": "string",
+            "type": "string"
+          },
+          "to": {
+            "description": "string, the person's name as the user said it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "to",
+          "note"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "external_messages",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
           }
         }
       },
