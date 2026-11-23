@@ -715,6 +715,7 @@
     "chat.archive_failed": "이 채팅을 보관할 수 없습니다. 잠시 후 다시 시도하세요.",
     "chat.archive_failed_offline": "VOOL에 연결할 수 없어 채팅이 보관되지 않았습니다.",
     "chat.action_claim_not_done": "아직 하지 않았습니다. 이번 차례에는 실행된 단계가 없어서 아무것도 추가되거나 변경되지 않았습니다. 다시 요청해 주시면 알맞은 도구로 처리하겠습니다.",
+    "chat.action_unchecked_nothing_changed": "이번 단계에서는 아무것도 설정, 저장, 전송 또는 변경되지 않았습니다.",
     "chat.memory_claim_not_done": "저장하지 않았습니다. 이번 차례에는 제 기억에 아무것도 기록되지 않았습니다. 기억해 두길 원하시면 다시 말씀해 주세요.",
     "chat.ctx_aria": "현재 프로젝트와 채팅",
     "chat.delete_failed": "이 채팅을 아직 삭제하지 못했습니다. 잠시 후 다시 시도하세요.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "내 클라우드 모델로 답하기",
     "phone.bot_cloud_help": "{app}의 답변은 이 컴퓨터의 채팅처럼 클라우드 모델을 사용할 수 있습니다. 유료 답변은 AI 지출 한도에 포함되며 한도에 도달하면 멈춥니다. 한 번에 30일 동안 켜집니다."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

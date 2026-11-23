@@ -715,6 +715,7 @@
     "chat.archive_failed": "Ce chat n’a pas pu être archivé. Réessayez dans un instant.",
     "chat.archive_failed_offline": "VOOL n’a pas pu être joint, donc le chat n’a pas été archivé.",
     "chat.action_claim_not_done": "Je ne l'ai pas fait : aucune étape n'a été exécutée pour cela à ce tour, donc rien n'a été ajouté ni modifié. Redemandez-le-moi et je le ferai avec le bon outil.",
+    "chat.action_unchecked_nothing_changed": "Rien n’a été programmé, enregistré, envoyé ni modifié à cette étape.",
     "chat.memory_claim_not_done": "Je ne l'ai pas enregistré : rien n'a été écrit dans ma mémoire à ce tour. Redites-le-moi si vous voulez que je le garde.",
     "chat.ctx_aria": "Projet et chat actuels",
     "chat.delete_failed": "Ce chat n’a pas encore pu être supprimé. Réessayez dans un instant.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "Répondre avec mes modèles cloud",
     "phone.bot_cloud_help": "Les réponses dans {app} peuvent utiliser vos modèles cloud, comme une discussion sur cet ordinateur. Les réponses payantes comptent dans vos limites de dépenses IA et s’arrêtent quand une limite est atteinte. Activé 30 jours à la fois."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

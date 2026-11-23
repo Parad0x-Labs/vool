@@ -225,12 +225,21 @@ def _guard_file_claims(
                 merged.answer, _claim_evidence(merged, ctx, context, prior_evidence, text)
             ):
                 return merged
-            merged.answer = tool_listing_answer(merged.seen, ctx) or UNCHECKED_FILE_CLAIM_TEXT
+            merged.answer = _composed(tool_listing_answer(merged.seen, ctx) or UNCHECKED_FILE_CLAIM_TEXT, context)
             return merged
     # A tool ran this turn: its own listing is the answer, never a refusal. Only when nothing was listed at all
     # does the reply say it could not check.
-    loop_result.answer = tool_listing_answer(loop_result.seen, ctx) or UNCHECKED_FILE_CLAIM_TEXT
+    loop_result.answer = _composed(tool_listing_answer(loop_result.seen, ctx) or UNCHECKED_FILE_CLAIM_TEXT, context)
     return loop_result
+
+
+def _composed(answer: str, context: dict[str, Any]) -> str:
+    """Record that VOOL wrote ``answer`` itself (a folder listing, or the plain "could not check"), so the checks that
+    read a model's words, such as whether it claims work it did not do, do not take it for the model's."""
+    from core.agent_runtime.response import record_deterministic_render
+
+    record_deterministic_render(context, answer, route="clean_loop_claim_guard")
+    return answer
 
 
 def _force_ordered_answer(loop_result: Any, *, text: str, ctx: ToolContext, context: dict[str, Any]) -> Any:

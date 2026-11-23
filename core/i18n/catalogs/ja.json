@@ -715,6 +715,7 @@
     "chat.archive_failed": "このチャットをアーカイブできませんでした。しばらくしてからもう一度お試しください。",
     "chat.archive_failed_offline": "VOOLに接続できなかったため、チャットはアーカイブされませんでした。",
     "chat.action_claim_not_done": "まだ実行していません。このターンでは実行された手順がないため、何も追加・変更されていません。もう一度依頼していただければ、適切なツールで実行します。",
+    "chat.action_unchecked_nothing_changed": "このステップでは、何も設定・保存・送信・変更されていません。",
     "chat.memory_claim_not_done": "保存していません。このターンでは記憶に何も書き込まれていません。覚えておいてほしい場合は、もう一度お伝えください。",
     "chat.ctx_aria": "現在のプロジェクトとチャット",
     "chat.delete_failed": "このチャットはまだ削除できませんでした。しばらくしてからもう一度お試しください。",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "自分のクラウドモデルで回答する",
     "phone.bot_cloud_help": "{app} での回答に、このコンピューターでのチャットと同じようにクラウドモデルを使えます。有料の回答は AI の支出上限に数えられ、上限に達すると止まります。30 日ごとに有効です。"
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -715,6 +715,7 @@
     "chat.archive_failed": "Nie udało się zarchiwizować tego czatu. Spróbuj za chwilę.",
     "chat.archive_failed_offline": "Nie udało się połączyć z VOOL, więc czat nie został zarchiwizowany.",
     "chat.action_claim_not_done": "Nie zrobiłem tego: w tej turze nie wykonano żadnego kroku, więc nic nie zostało dodane ani zmienione. Poproś mnie jeszcze raz, a zrobię to odpowiednim narzędziem.",
+    "chat.action_unchecked_nothing_changed": "W tym kroku nic nie zostało ustawione, zapisane, wysłane ani zmienione.",
     "chat.memory_claim_not_done": "Nie zapisałem tego: w tej turze nic nie trafiło do mojej pamięci. Powiedz mi to jeszcze raz, jeśli chcesz, żebym to zapamiętał.",
     "chat.ctx_aria": "Bieżący projekt i czat",
     "chat.delete_failed": "Tego czatu nie udało się jeszcze usunąć. Spróbuj za chwilę.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "Odpowiadaj moimi modelami w chmurze",
     "phone.bot_cloud_help": "Odpowiedzi w {app} mogą korzystać z Twoich modeli w chmurze, jak czat na tym komputerze. Płatne odpowiedzi liczą się do Twoich limitów wydatków na AI i zatrzymują się po osiągnięciu limitu. Włączone na 30 dni."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

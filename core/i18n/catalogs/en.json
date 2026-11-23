@@ -715,6 +715,7 @@
     "chat.archive_failed": "Couldn’t archive this chat. Try again in a moment.",
     "chat.archive_failed_offline": "VOOL couldn’t be reached, so the chat wasn’t archived.",
     "chat.action_claim_not_done": "I have not done that: no step ran on this turn to do it, so nothing was added or changed. Ask me again and I will do it with the right tool.",
+    "chat.action_unchecked_nothing_changed": "Nothing was set, saved, sent or changed on this turn.",
     "chat.memory_claim_not_done": "I have not saved that: nothing was written to my memory on this turn. Tell me again if you want me to keep it.",
     "chat.ctx_aria": "Current project and chat",
     "chat.delete_failed": "Couldn’t delete this chat yet. Try again in a moment.",

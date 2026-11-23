@@ -253,6 +253,9 @@ _JUDGED_CLAIM_NOT_DONE_RESPONSE = (
     "I have not done that: no step ran on this turn to do it, so nothing was added or changed. "
     "Ask me again and I will do it with the right tool."
 )
+#: Said under a tool-less reply when the done-claim judge was asked and gave no answer (`_judged_claim_kind`).
+_UNJUDGED_NOTE_KEY = "chat.action_unchecked_nothing_changed"
+_UNJUDGED_NOTE_RESPONSE = "Nothing was set, saved, sent or changed on this turn."
 _JUDGED_KEEP_NOT_DONE_KEY = "chat.memory_claim_not_done"
 _JUDGED_KEEP_NOT_DONE_RESPONSE = (
     "I have not saved that: nothing was written to my memory on this turn. Tell me again if you want me to keep it."
@@ -2153,6 +2156,13 @@ def enforce_final_action_honesty(
         # 'Saved to memory: "I lost one stirrup leather last week".'
         return output
 
+    if claim_kind == "unjudged":
+        from core.i18n.turn_locale import turn_text
+
+        note = turn_text(_UNJUDGED_NOTE_KEY, _UNJUDGED_NOTE_RESPONSE, _judged_claim_locale(user_input, effective_input, response))
+        output["response"] = f"{response}\n\n{note}" if note not in response else response
+        output["action_honesty_validator"] = {"applied": True, "reason": "done_claim_unjudged", "claim_kind": claim_kind}
+        return output
     if claim_kind in ("judged", "judged_kept"):
         output["response"] = _judged_claim_correction(user_input, effective_input, kept=claim_kind == "judged_kept")
     else:
@@ -2253,6 +2263,13 @@ def _judged_claim_kind(
     stamp = result.get("_deterministic_render")
     if isinstance(stamp, dict) and str(stamp.get("render") or "") == str(result.get("response") or ""):
         return ""
+    try:
+        from core.agent_runtime.response import _is_recorded_deterministic_render
+
+        if _is_recorded_deterministic_render(response, source_context if isinstance(source_context, dict) else None):
+            return ""
+    except Exception:
+        pass
     execution = result.get("model_execution")
     if isinstance(execution, dict) and execution.get("used_model") is False:
         # No model wrote this reply: VOOL composed it from what it did or knows ("The ... plugin is turned off, so I
@@ -2281,7 +2298,17 @@ def _judged_claim_kind(
     except Exception:
         answer = None
     kind = ""
-    if answer == "done":
+    if answer is None:
+        try:
+            from core import intent_arbiter as _arbiter
+
+            if _arbiter.done_claim_unjudged():
+                # The judge was asked and did not answer: fail closed. The reply is kept, and says plainly that
+                # nothing was changed, so a done claim nothing backs never stands alone.
+                kind = "unjudged"
+        except Exception:
+            kind = ""
+    elif answer == "done":
         kind = "judged"
     elif answer == "kept" and not _keep_step_wrote(source_context) and not _a_saved_fact_holds_the_reply(
         response, session_id, source_context
@@ -2307,20 +2334,33 @@ def _judged_claim_correction(user_input: str, effective_input: str | None, *, ke
     of the turn, else English."""
     from core.i18n.turn_locale import turn_text
 
+    locale = _judged_claim_locale(user_input, effective_input)
+    if kept:
+        return turn_text(_JUDGED_KEEP_NOT_DONE_KEY, _JUDGED_KEEP_NOT_DONE_RESPONSE, locale)
+    return turn_text(_JUDGED_CLAIM_NOT_DONE_KEY, _JUDGED_CLAIM_NOT_DONE_RESPONSE, locale)
+
+
+def _judged_claim_locale(user_input: str, effective_input: str | None, *also_said: str) -> str:
+    """The catalog the person reads: the language their message evidences, else the one the given texts evidence.
+
+    A short ask ("avísame el sábado a las diez") can carry no exclusive evidence of its language; a line added
+    beside the model's reply then follows the reply's own language before the turn's app language.
+    """
     locale = ""
     try:
         from core.i18n.catalog import resolve_catalog_tag
         from core.response_language_policy import evidenced_input_language
 
-        said = evidenced_input_language(str(user_input or effective_input or ""))
-        tag = resolve_catalog_tag(said) if said else ""
-        # A language with no catalog of its own falls to English there; the app language of the turn is nearer.
-        locale = tag if tag and (tag != "en" or said == "en") else ""
+        for text in (str(user_input or effective_input or ""), *also_said):
+            said = evidenced_input_language(str(text or ""))
+            tag = resolve_catalog_tag(said) if said else ""
+            # A language with no catalog of its own falls to English there; the app language of the turn is nearer.
+            locale = tag if tag and (tag != "en" or said == "en") else ""
+            if locale:
+                break
     except Exception:
         locale = ""
-    if kept:
-        return turn_text(_JUDGED_KEEP_NOT_DONE_KEY, _JUDGED_KEEP_NOT_DONE_RESPONSE, locale)
-    return turn_text(_JUDGED_CLAIM_NOT_DONE_KEY, _JUDGED_CLAIM_NOT_DONE_RESPONSE, locale)
+    return locale
 
 
 def _a_saved_fact_holds_it(sentence: str, before: str, session_id: str | None, source_context: dict[str, object] | None) -> bool:

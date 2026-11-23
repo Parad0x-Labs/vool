@@ -715,6 +715,7 @@
     "chat.archive_failed": "Không thể lưu trữ cuộc trò chuyện này. Hãy thử lại sau ít lâu.",
     "chat.archive_failed_offline": "Không kết nối được VOOL nên cuộc trò chuyện chưa được lưu trữ.",
     "chat.action_claim_not_done": "Tôi chưa làm việc đó: không có bước nào được chạy trong lượt này, nên không có gì được thêm hay thay đổi. Hãy yêu cầu lại, tôi sẽ làm bằng công cụ phù hợp.",
+    "chat.action_unchecked_nothing_changed": "Ở bước này, không có gì được đặt, lưu, gửi hay thay đổi.",
     "chat.memory_claim_not_done": "Tôi chưa lưu điều đó: không có gì được ghi vào bộ nhớ của tôi trong lượt này. Hãy nói lại nếu bạn muốn tôi ghi nhớ.",
     "chat.ctx_aria": "Dự án và cuộc trò chuyện hiện tại",
     "chat.delete_failed": "Chưa thể xóa cuộc trò chuyện này. Hãy thử lại sau ít lâu.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "Trả lời bằng các mô hình đám mây của tôi",
     "phone.bot_cloud_help": "Câu trả lời trong {app} có thể dùng các mô hình đám mây của bạn, như một cuộc trò chuyện trên máy tính này. Câu trả lời trả phí được tính vào giới hạn chi tiêu AI của bạn và dừng khi đạt giới hạn. Bật 30 ngày mỗi lần."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

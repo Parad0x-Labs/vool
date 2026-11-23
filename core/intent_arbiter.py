@@ -875,8 +875,9 @@ def _done_claim_prompt(reply: str) -> str:
         "renamed, changed, cancelled or deleted something on a calendar, list, notes, reminders, alarms, contacts, "
         "files, messages, accounts)?",
         'Answer {"answer": "done"} only for such a report of the assistant\'s own finished action.',
-        'Answer {"answer": "kept"} when the only such report is that it will remember, or has noted, a fact in its own '
-        "memory.",
+        'Answer {"answer": "kept"} when the only such report is that it will remember, or has noted, a fact about the '
+        "person in its own memory. A promise to remind, ping, alert or tell the person of something at a later time "
+        'is a reminder set: {"answer": "done"}.',
         'Answer {"answer": "none"} for everything else, including: information or an answer; what a calendar, list, '
         "folder or account already holds; instructions or steps for the reader to follow; a poem, story, list or "
         "other text written out in the reply; an offer, a plan or a question; a refusal or saying it cannot or did "
@@ -892,6 +893,8 @@ def _done_claim_prompt(reply: str) -> str:
         'Reply: "Ich kann keinen Wecker stellen, aber auf dem Handy geht das unter Uhr." -> {"answer": "none"}',
         'Reply: "歯医者の予約を金曜日に変更しました。" -> {"answer": "done"}',
         'Reply: "Shall I look up a taxi number near you?" -> {"answer": "none"}',
+        'Reply: "Noted, I\'ll ping you on Friday at 4 to call the garage." -> {"answer": "done"}',
+        'Reply: "Got it, the gym one is gone." -> {"answer": "done"}',
         "",
         f'Reply: "{body}" ->',
         'Reply with ONLY the JSON object: {"answer": "done"}, {"answer": "kept"} or {"answer": "none"}',
@@ -926,23 +929,45 @@ def arbitrate_done_claim(
     58f60bbf3). Its meaning is not in a list of verbs, so it is asked of the model that judges the turn, like the
     keep ask and the answered reply (same lane, sealed site, ledger role). None decides nothing: the caller keeps
     its own reading."""
+    _DONE_CLAIM_FAILURE["reason"] = ""
     if not str(reply or "").strip():
         return None
     prompt = _done_claim_prompt(reply)
     # Asked when the reply is finished, after every routing judgement of the turn: `last_failure` keeps naming the
     # routing call's own failure (the front door reports it), not this read of the reply.
     routing_failure = _LAST_FAILURE.get("reason", "")
+    _LAST_FAILURE["reason"] = ""
     try:
         model = _keep_judge_model()
         if not model:
             return _judged_for_the_turn(prompt, source_context, _done_claim_reader)
+        # Patient, like the tool ask: without this judgement a done claim with nothing behind it reaches the person.
+        # On a slow machine the tool ask's timeout opened the breaker and this read was skipped, so "I've noted to
+        # ping you this Friday" and "the vitamins reminder is scrapped" went out with nothing set or cancelled
+        # (fresh-question audit on 02ff11496, qwen3:8b on a CPU box).
         return arbitrate_followup(
             "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
             prompt=prompt, operation="done_claim_arbitration", model=model,
             runner_role="general", call_role=_judgement_role(), parse=_done_claim_reader,
+            patient=True, timeout_s=_LOAD_TIMEOUT_S,
         )
     finally:
+        _DONE_CLAIM_FAILURE["reason"] = _LAST_FAILURE.get("reason", "")
         _LAST_FAILURE["reason"] = routing_failure
+
+
+#: Why the last done-claim judgement gave no answer ('' when it answered), kept apart from `last_failure`, which
+#: keeps naming the routing call's failure.
+_DONE_CLAIM_FAILURE: dict[str, str] = {}
+
+
+def done_claim_unjudged() -> bool:
+    """Whether the last done-claim judgement was asked of a model and got no answer (a timeout, an error, an
+    unreadable reply), as opposed to no judge being configured at all."""
+    reason = _DONE_CLAIM_FAILURE.get("reason", "")
+    # A judge that exists but gave nothing: the call failed or timed out, its answer was unreadable, or the breaker
+    # a slow call opened skipped it. "disabled", "no_model" and "no_keep_judge_model" mean nobody was there to ask.
+    return reason == "breaker_open" or reason == "parse" or reason.startswith(("request:", "turn_judge:"))
 
 
 def _meaning_prompt(question: str, fact: str) -> str:
@@ -1428,6 +1453,7 @@ def arbitrate_plugin_ask(
             "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
             prompt=prompt, operation="plugin_ask_arbitration", model=model,
             runner_role="general", call_role=_judgement_role(), parse=reader, patient=True,
+            timeout_s=_LOAD_TIMEOUT_S,
         )
     if named is None:
         return None

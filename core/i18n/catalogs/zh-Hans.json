@@ -715,6 +715,7 @@
     "chat.archive_failed": "无法归档此聊天。请稍后重试。",
     "chat.archive_failed_offline": "无法连接 VOOL，因此聊天未归档。",
     "chat.action_claim_not_done": "我还没有做这件事：这一轮没有执行任何步骤，所以没有添加或更改任何内容。请再说一次，我会用合适的工具来完成。",
+    "chat.action_unchecked_nothing_changed": "这一步没有设置、保存、发送或更改任何内容。",
     "chat.memory_claim_not_done": "我没有保存：这一轮没有向我的记忆写入任何内容。如果你希望我记住，请再说一次。",
     "chat.ctx_aria": "当前项目与对话",
     "chat.delete_failed": "暂时无法删除此聊天。请稍后重试。",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "用我的云端模型回答",
     "phone.bot_cloud_help": "{app} 中的回答可以像在这台电脑上聊天一样使用你的云端模型。付费回答计入你的 AI 支出限额，达到限额即停止。每次开启 30 天。"
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

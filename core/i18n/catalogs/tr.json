@@ -715,6 +715,7 @@
     "chat.archive_failed": "Bu sohbet arşivlenemedi. Birazdan tekrar deneyin.",
     "chat.archive_failed_offline": "VOOL’a ulaşılamadığı için sohbet arşivlenmedi.",
     "chat.action_claim_not_done": "Bunu yapmadım: bu adımda bunu yapacak hiçbir işlem çalışmadı, bu yüzden hiçbir şey eklenmedi veya değiştirilmedi. Tekrar isteyin, doğru araçla yapayım.",
+    "chat.action_unchecked_nothing_changed": "Bu adımda hiçbir şey ayarlanmadı, kaydedilmedi, gönderilmedi veya değiştirilmedi.",
     "chat.memory_claim_not_done": "Bunu kaydetmedim: bu adımda belleğime hiçbir şey yazılmadı. Saklamamı istiyorsanız tekrar söyleyin.",
     "chat.ctx_aria": "Geçerli proje ve sohbet",
     "chat.delete_failed": "Bu sohbet henüz silinemedi. Birazdan tekrar deneyin.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "Bulut modellerimle yanıtla",
     "phone.bot_cloud_help": "{app} içindeki yanıtlar, bu bilgisayardaki bir sohbet gibi bulut modellerinizi kullanabilir. Ücretli yanıtlar yapay zekâ harcama sınırlarınıza sayılır ve bir sınıra ulaşıldığında durur. Her seferinde 30 gün açık kalır."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

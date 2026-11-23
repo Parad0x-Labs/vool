@@ -715,6 +715,7 @@
     "chat.archive_failed": "Dieser Chat ließ sich nicht archivieren. Versuche es gleich noch einmal.",
     "chat.archive_failed_offline": "VOOL war nicht erreichbar, deshalb wurde der Chat nicht archiviert.",
     "chat.action_claim_not_done": "Das habe ich nicht erledigt: In diesem Schritt wurde nichts ausgeführt, also wurde nichts hinzugefügt oder geändert. Bitte mich noch einmal darum, dann erledige ich es mit dem passenden Werkzeug.",
+    "chat.action_unchecked_nothing_changed": "In diesem Schritt wurde nichts eingestellt, gespeichert, gesendet oder geändert.",
     "chat.memory_claim_not_done": "Das habe ich nicht gespeichert: In diesem Schritt wurde nichts in meinem Gedächtnis abgelegt. Sag es mir noch einmal, wenn ich es mir merken soll.",
     "chat.ctx_aria": "Aktuelles Projekt und Chat",
     "chat.delete_failed": "Dieser Chat ließ sich noch nicht löschen. Versuche es gleich noch einmal.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "Mit meinen Cloud-Modellen antworten",
     "phone.bot_cloud_help": "Antworten in {app} dürfen deine Cloud-Modelle nutzen, wie ein Chat auf diesem Computer. Bezahlte Antworten zählen zu deinen KI-Ausgabelimits und stoppen, wenn ein Limit erreicht ist. Jeweils 30 Tage lang an."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

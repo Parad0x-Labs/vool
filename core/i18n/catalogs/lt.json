@@ -715,6 +715,7 @@
     "chat.archive_failed": "Nepavyko archyvuoti šio pokalbio. Pabandykite po akimirkos.",
     "chat.archive_failed_offline": "Nepavyko pasiekti VOOL, todėl pokalbis nebuvo archyvuotas.",
     "chat.action_claim_not_done": "To nepadariau: šiame žingsnyje nebuvo atliktas joks veiksmas, todėl niekas nebuvo pridėta ar pakeista. Paprašykite dar kartą, ir atliksiu tai tinkamu įrankiu.",
+    "chat.action_unchecked_nothing_changed": "Šiame žingsnyje niekas nebuvo nustatyta, išsaugota, išsiųsta ar pakeista.",
     "chat.memory_claim_not_done": "To neišsaugojau: šiame žingsnyje į mano atmintį nieko nebuvo įrašyta. Pasakykite dar kartą, jei norite, kad tai išsaugočiau.",
     "chat.ctx_aria": "Dabartinis projektas ir pokalbis",
     "chat.delete_failed": "Šio pokalbio kol kas nepavyko ištrinti. Pabandykite po akimirkos.",
@@ -5362,7 +5363,7 @@
     "phone.bot_cloud": "Atsakyti mano debesies modeliais",
     "phone.bot_cloud_help": "Atsakymai {app} gali naudoti jūsų debesies modelius, kaip pokalbis šiame kompiuteryje. Mokami atsakymai įskaičiuojami į jūsų DI išlaidų ribas ir sustoja pasiekus ribą. Įjungiama 30 dienų."
   },
-  "source_catalog_sha256": "4bc5513a2ee7b341d02e6fd131f7075877eaef13dc3ad38f653d14ef60c40258",
+  "source_catalog_sha256": "04d6194154072eeffd4fcb4cfe24caf5eae93be2c52e23e2e84ecf4bc1b63120",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
