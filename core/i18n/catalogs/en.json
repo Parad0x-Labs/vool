@@ -5350,7 +5350,13 @@
     "phone.bot_discord_say_hi_help": "Discord opens VOOL. Press Message, send hi, then come back. This page changes to Connected by itself.",
     "phone.bot_files": "Files in chosen folders",
     "phone.bot_files_help": "VOOL can find files in these folders and send them to you in this chat. A file sent here is kept by {app}. Nothing else on this computer is reachable. On for 30 days at a time.",
-    "phone.bot_files_not_ready": "These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:"
+    "phone.bot_files_not_ready": "These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:",
+    "phone.bot_everyday": "Reminders, calendar, notes and contacts",
+    "phone.bot_everyday_help": "VOOL can read and change your reminders, calendar, notes and contacts from {app}. Deleting contacts, apps, commands, email and money stay on your computer. On for 30 days at a time.",
+    "permissions.chat_app_allowed": "Allowed. VOOL finishes it and answers in {app}.",
+    "permissions.chat_app_denied": "Denied. VOOL tells you in {app} that it did not run.",
+    "phone.bot_cloud": "Answer with my cloud models",
+    "phone.bot_cloud_help": "Answers in {app} may use your cloud models, like a chat on this computer. Paid answers count toward your AI spending limits and stop when a limit is reached. On for 30 days at a time."
   },
   "html_keys": [
     "bypass.modal_limits",

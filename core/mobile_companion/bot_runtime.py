@@ -32,7 +32,7 @@ DISCORD_USER_AGENT = "DiscordBot (https://github.com/Parad0x-Labs/vool, 0.8)"
 PLATFORMS = frozenset({"telegram", "discord"})
 # ``computer_tools`` for a chat app always comes with folders the owner chose (core.mobile_companion.policy):
 # it may find, read and send files from them, and nothing else on the computer.
-BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose", "computer_tools"})
+BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose", "computer_tools", "everyday_tools", "cloud_models"})
 #: The largest file each app takes from a bot (Telegram's Bot API: 50 MB; Discord without boosts: 10 MB).
 FILE_LIMITS = {"telegram": 50 * 1024 * 1024, "discord": 10 * 1024 * 1024}
 
@@ -72,6 +72,113 @@ def person_label(value):
     """A name the chat app sent, made safe to show: printable, one line, at most 80 characters."""
     clean = "".join(ch for ch in str(value or "") if ch.isprintable() and ch not in "\u200b\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
     return " ".join(clean.split())[:80]
+
+
+#: How long the worker waits for a turn the computer is still answering before saying where it is.
+TURN_WAIT_SECONDS = 900
+#: Turns one chat app may hold for an approval on the computer at once.
+HELD_TURNS_MAX = 8
+#: The app's own English words for where an answer ran and how an action went (core/i18n en catalog
+#: keys proof.route.* and receipt.state.*), so a chat app reads what the app shows under an answer.
+ROUTE_WORDS = {
+    "local": "On this computer",
+    "own_network": "On your own network",
+    "cloud": "Online",
+    "mixed": "This computer + online",
+    "none": "No AI model",
+}
+RECEIPT_STATE_WORDS = {
+    "checked": "Done, checked",
+    "done": "Done",
+    "sent": "Sent",
+    "waiting": "Waiting for your OK",
+    "failed": "Not done",
+    "mismatch": "Reported done, but VOOL could not find it",
+}
+
+
+def _catalog_text(key, fallback):
+    try:
+        from core.i18n.catalog import catalog_for
+
+        text = catalog_for("en").text(key)
+        return text if text and text != key else fallback
+    except Exception:
+        return fallback
+
+
+def turn_notes(platform, result):
+    """Plain lines for a chat app under a finished answer: where it ran and each action's receipt.
+
+    Read from the turn's own proof (core.proof_projection.build_turn_proof), which the app's answer
+    chip reads too. An answer with no bound record, or a route that was not recorded, says nothing.
+    """
+    session = str(result.get("canonical_chat_id") or "")
+    # The served turn is bound by the request id its committed answer names (the app's chip reads
+    # the same one); the phone-side turn id is only the fallback for an answer with no commit.
+    request = str((result.get("commit") or {}).get("request_id") or result.get("turn_id") or "")
+    if not session or not request:
+        return []
+    try:
+        from core.proof_projection import build_turn_proof
+
+        proof = build_turn_proof(session_id=session, request_id=request, principal="channel:http:bot:" + platform)
+    except Exception:
+        return []
+    compact = proof.get("compact") or {} if isinstance(proof, dict) else {}
+    lines = []
+    for receipt in compact.get("action_receipts") or []:
+        if not isinstance(receipt, dict):
+            continue
+        state = receipt.get("state") if receipt.get("state") in RECEIPT_STATE_WORDS else "done"
+        action = _catalog_text(str(receipt.get("action_key") or ""), "") or _catalog_text("receipt.action_generic", "An action")
+        bits = [action[:1].upper() + action[1:]]
+        if receipt.get("note"):
+            bits.append(str(receipt["note"]))
+        when = _receipt_time(str(receipt.get("due_utc") or ""), str(receipt.get("due_tz") or ""))
+        if when:
+            bits.append(when)
+        if receipt.get("file"):
+            bits.append(str(receipt["file"]) + (" in " + str(receipt["folder"]) if receipt.get("folder") else ""))
+        if receipt.get("to"):
+            bits.append("to " + str(receipt["to"]))
+        line = " \u00b7 ".join(bits) + " \u2014 " + _catalog_text("receipt.state." + state, RECEIPT_STATE_WORDS[state])
+        if receipt.get("reason") and state in {"failed", "waiting"}:
+            line += ": " + str(receipt["reason"])
+        lines.append(line)
+    route = compact.get("route") or {}
+    summary = str(route.get("summary") or "")
+    if summary == "local" and route.get("own_network"):
+        summary = "own_network"
+    if summary in ROUTE_WORDS:
+        key = "proof.route." + summary
+        model = str(((proof.get("expanded") or {}).get("model")) or "") if summary != "none" else ""
+        lines.append(_catalog_text(key, ROUTE_WORDS[summary]) + (" \u00b7 " + model if model else ""))
+    return lines
+
+
+def _receipt_time(due_utc, tz_name):
+    if not due_utc:
+        return ""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        moment = datetime.fromisoformat(due_utc.replace("Z", "+00:00"))
+        if tz_name:
+            moment = moment.astimezone(ZoneInfo(tz_name))
+        return moment.strftime("%a %d %b %H:%M")
+    except Exception:
+        return due_utc
+
+
+def approval_words(waiting):
+    """What a chat app reads when its turn stopped for an approval: approved on the computer only."""
+    what = str(waiting.get("action_plain") or "")
+    if not what:
+        what = _catalog_text("approval.action." + str(waiting.get("intent") or ""), "")
+    head = "This needs your OK on your computer" + (": " + what if what else "") + "."
+    return head + " Open this chat in VOOL there and allow it. I'll send the result here."
 
 
 PAIRED_WORDS = "Paired. Chat with your VOOL here. Payments and actions still need your computer."
@@ -709,30 +816,151 @@ class ManagedBot:
                 return self.refused("attachment_refused", channel)
         if not self.active() or not enabled(self.device(), "chat"):
             return
-        from core.web.api.mobile_companion_api import _action_chats_send
-        from core.web.api.runtime import default_workspace_root
-
-        status, result = _action_chats_send(
-            {"message": text[:16000], "chat_id": chat_id, "attachments": attachment_ids, "idempotency_key": identity},
-            runtime=self.runtime,
-            model_name=self.runtime.runtime_model_tag,
-            service=service(),
-            device=device,
-            client_host="bot:" + self.platform,
-            workspace_root_provider=default_workspace_root,
-        )
+        params = {"message": text[:16000], "chat_id": chat_id, "attachments": attachment_ids, "idempotency_key": identity}
+        status, result = self._run_turn(params, device)
         service().store.append_receipt(
             "bot.turn_finished" if status == 200 else "bot.turn_pending" if status == 202 else "bot.turn_refused",
             device_id=self.device_id,
             detail={"status": status, "turn_id": result.get("turn_id"), "commit": result.get("commit")},
         )
-        self.send(
-            channel,
-            result.get("reply") or "Check the ongoing turn on your computer."
-            if status in {200, 202}
-            else "Could not complete that turn. Check your computer.",
-        )
+        self._answer(channel, status, result, params=params)
+
+    def _run_turn(self, params, device, *, approval_token="", resume_turn_id=""):
+        """Run one chat turn through the real /api/chat, and wait for it while it is still running.
+
+        A turn the computer is still answering (a slow local model, or this message read again after a
+        failure) comes back as pending. The chat app has no screen to watch it on, so the worker asks
+        again with the same identity: the chat door never runs a turn twice, it waits for the first
+        run's committed answer and hands it back (core.web.api.service accept-once replay).
+        """
+        from core.web.api.mobile_companion_api import _action_chats_send
+        from core.web.api.runtime import default_workspace_root
+
+        deadline = time.monotonic() + TURN_WAIT_SECONDS
+        while True:
+            status, result = _action_chats_send(
+                params,
+                runtime=self.runtime,
+                model_name=self.runtime.runtime_model_tag,
+                service=service(),
+                device=device,
+                client_host="bot:" + self.platform,
+                workspace_root_provider=default_workspace_root,
+                approval_token=approval_token,
+                resume_turn_id=resume_turn_id,
+            )
+            if status != 202 or time.monotonic() >= deadline or not self.active():
+                return status, result
+            self.stop_event.wait(2)
+
+    def _answer(self, channel, status, result, *, params):
+        """Send a finished turn's reply, then where it ran and what its actions did, then its files.
+
+        The notes are read from the turn's own records (core.proof_projection), the same ones the app
+        shows under an answer; a turn with no record gets no note rather than a guessed one. A turn
+        that stopped for an approval says so, and is finished here once the owner answers it on the
+        computer (``_resume_approved``).
+        """
+        if status == 202:
+            self.send(channel, "Still working on that. The answer will be in VOOL on your computer.")
+            return
+        if status != 200:
+            self.send(channel, "Could not complete that turn. Check your computer.")
+            return
+        waiting = self._approval_waiting(result)
+        reply = str(result.get("reply") or "")
+        notes = turn_notes(self.platform, result)
+        if waiting:
+            self._hold_for_approval(channel, waiting, result, params)
+            notes.append(approval_words(waiting))
+        self.send(channel, "\n\n".join(part for part in (reply, "\n".join(notes)) if part) or "Done.")
         self.deliver_files(channel)
+
+    def _approval_waiting(self, result):
+        """The approval this turn is stopped on, read from the one approval store, or None."""
+        import core.mode_permission_policy as mpp
+
+        turn = str(result.get("turn_id") or "")
+        if not turn:
+            return None
+        mpp._ensure_approvals_restored()
+        now = time.time()
+        with mpp._LOCK:
+            for token, approval in mpp._APPROVALS.items():
+                if (
+                    approval.get("remote_device") == self.device_id
+                    and str(approval.get("task_id") or "") == turn
+                    and approval.get("status") == "pending"
+                    and float(approval.get("expires_at") or 0) > now
+                ):
+                    return {"approval_id": token, **{k: approval.get(k) for k in ("intent", "action_plain", "expires_at")}}
+        return None
+
+    def _hold_for_approval(self, channel, waiting, result, params):
+        with service().dispatch_lock:
+            if not self.active():
+                return
+            held = [row for row in self.device().get("bot_held_turns") or [] if isinstance(row, dict)]
+            held = [row for row in held if row.get("approval_id") != waiting["approval_id"]][-(HELD_TURNS_MAX - 1):]
+            held.append({
+                "approval_id": waiting["approval_id"],
+                "channel": channel,
+                "turn_id": str(result.get("turn_id") or ""),
+                "params": {k: params[k] for k in ("message", "chat_id", "attachments", "idempotency_key")},
+                "expires_at": float(waiting.get("expires_at") or 0),
+            })
+            service().store.mark_device(self.device_id, bot_held_turns=held)
+
+    def _resume_approved(self):
+        """Finish the turns that waited for an approval the owner has now answered on the computer.
+
+        Allowed: the same message runs again under that approval, as the app's own resume does (the
+        approval names its turn; core.web.api.service._turn_named_by_approval), and its answer is sent
+        here. Denied or expired: said plainly, and nothing runs.
+        """
+        import core.mode_permission_policy as mpp
+
+        held = [row for row in self.device().get("bot_held_turns") or [] if isinstance(row, dict)]
+        if not held:
+            return
+        mpp._ensure_approvals_restored()
+        now = time.time()
+        keep = []
+        for row in held:
+            with mpp._LOCK:
+                approval = dict(mpp._APPROVALS.get(str(row.get("approval_id") or "")) or {})
+            state = str(approval.get("status") or "")
+            if state == "pending" and float(approval.get("expires_at") or 0) > now:
+                keep.append(row)
+                continue
+            with service().dispatch_lock:
+                if not self.active():
+                    return
+                rest = [r for r in self.device().get("bot_held_turns") or [] if r.get("approval_id") != row.get("approval_id")]
+                service().store.mark_device(self.device_id, bot_held_turns=rest)
+            channel = str(row.get("channel") or "")
+            if state != "approved":
+                self.send(
+                    channel,
+                    "You said no on your computer, so that was not done."
+                    if state == "denied"
+                    else "That approval expired before it was answered, so nothing was done. Ask again if you still want it.",
+                )
+                continue
+            params = dict(row.get("params") or {})
+            # A new request for the same turn: the first one's committed answer was the question.
+            params["idempotency_key"] = hashlib.sha256(
+                (str(params.get("idempotency_key") or "") + ":approved:" + str(row["approval_id"])).encode()
+            ).hexdigest()
+            status, result = self._run_turn(
+                params, self.device(), approval_token=str(row["approval_id"]), resume_turn_id=str(row.get("turn_id") or "")
+            )
+            service().store.append_receipt(
+                "bot.turn_resumed" if status == 200 else "bot.turn_refused",
+                device_id=self.device_id,
+                detail={"status": status, "turn_id": result.get("turn_id")},
+            )
+            self._answer(channel, status, result, params=params)
 
     def _ask_owner(self, device, binding, channel, user, who):
         """Someone pressed Start without the code (the plain link BotFather shows, say): ask the owner.
@@ -839,6 +1067,9 @@ class ManagedBot:
         from core.mobile_companion.notifications import poll
 
         current = self.device()
+        if self.active() and (current.get("binding") or {}).get("state") == "bound" and enabled(current, "chat"):
+            self._resume_approved()
+            current = self.device()
         if self.active() and (current.get("binding") or {}).get("state") == "bound":
             cursor = int(current.get("bot_alert_after") or 0)
             status, feed = poll({"after": cursor}, service=service(), device=current)
@@ -931,9 +1162,12 @@ class ManagedBot:
         while self.active():
             try:
                 self.poll_once()
-            except Exception:
+            except Exception as error:
                 # Keep provider failures isolated from the daemon; never log response bodies or tokens.
-                service().store.append_receipt("bot.connection_unavailable", device_id=self.device_id)
+                # The kind of failure is kept (never its words), so a dropped answer can be traced.
+                service().store.append_receipt(
+                    "bot.connection_unavailable", device_id=self.device_id, detail={"error": type(error).__name__}
+                )
                 self.stop_event.wait(3)
             self.stop_event.wait(2)
 

@@ -405,6 +405,51 @@ CHAT_APP_FOLDERS_ONLY_TEXT = (
     "in VOOL Settings on your computer."
 )
 
+#: The owner's own organiser, which a chat app may use once the owner turns on "Reminders, calendar,
+#: notes and contacts" for it (the ``everyday_tools`` right): every reminder, calendar, note and
+#: contact tool VOOL registers, read and write. Each name is a registered tool, not a phrase. What
+#: these tools cannot reach stays shut for a chat app: files outside the chosen folders, apps,
+#: commands, accounts (email), paid lookups and money. Deleting a contact is classed as the owner's
+#: own (its contract changes settings), so it is not here.
+REMOTE_GRANT_EVERYDAY = "everyday_tools"
+CHAT_APP_EVERYDAY_TOOLS = frozenset({
+    "operator.schedule_reminder", "operator.list_reminders", "operator.cancel_reminder", "operator.move_reminder",
+    "operator.show_agenda", "operator.check_availability", "operator.list_calendars",
+    "operator.search_calendar_event", "operator.inspect_calendar_event", "operator.propose_calendar_event",
+    "operator.schedule_calendar_event", "operator.update_calendar_event",
+    "operator.save_note", "operator.show_note", "operator.find_notes", "operator.apple_note_read",
+    "operator.apple_note_list",
+    "contacts.search", "contacts.resolve", "contacts.save", "contacts.update",
+})
+CHAT_APP_EVERYDAY_TEXT = (
+    "This chat app can't use your reminders, calendar, notes or contacts yet. In VOOL Settings on your "
+    "computer, open Phone and chat apps, pick this app's tab and turn on \"Reminders, calendar, notes "
+    "and contacts\"."
+)
+#: A tool no chat-app right opens (apps, commands, accounts, machine-wide searches): said as what it
+#: is, never as a missing files switch the owner could turn on and still not get it.
+_CHAT_APP_FILE_TOOL_PREFIXES = ("workspace.", "machine.", "pdf.", "file.")
+CHAT_APP_COMPUTER_ONLY_TEXT = (
+    "I can't do that from this chat app. Apps, commands and your accounts on this computer only work in "
+    "VOOL on the computer itself."
+)
+
+
+def chat_app_everyday_allowed(source_context: Any, intent: str) -> bool:
+    """Whether this chat-app turn may run ``intent`` under the owner's ``everyday_tools`` right."""
+
+    if str(intent or "").strip() not in CHAT_APP_EVERYDAY_TOOLS:
+        return False
+    bot = remote_turn_chat_app(source_context)
+    if bot is None:
+        return False
+    try:
+        from core.mobile_companion.policy import enabled
+
+        return enabled(bot, REMOTE_GRANT_EVERYDAY)
+    except Exception:
+        return False
+
 _TRUSTED_REMOTE_DEVICE: contextvars.ContextVar[str] = contextvars.ContextVar("vool_trusted_remote_device", default="")
 
 
@@ -549,6 +594,37 @@ def turn_may_spend_owner_keys(source_context: Any) -> bool:
     return request_is_owner_local(source_context)
 
 
+#: A chat app's (Telegram, Discord) use of the owner's cloud models, which the owner switches on
+#: for that app. Every paid call it makes is reserved against the owner's AI spending limits
+#: (core.paid_call_reservation, the same caps the owner's own answers are held to) and booked to the
+#: chat app; free cloud models need no reservation. Keyed lookups and money stay off for chat apps.
+REMOTE_GRANT_CLOUD_MODELS = "cloud_models"
+
+
+def chat_app_cloud_allowed(source_context: Any) -> bool:
+    """Whether this turn is a chat app's whose owner turned on its cloud models, failing closed."""
+
+    bot = remote_turn_chat_app(source_context)
+    if bot is None:
+        return False
+    try:
+        from core.mobile_companion.policy import enabled
+
+        return enabled(bot, REMOTE_GRANT_CLOUD_MODELS)
+    except Exception:
+        return False
+
+
+def turn_may_use_owner_models(source_context: Any) -> bool:
+    """Whether this turn may send to the owner's cloud models (free, or paid within the spend caps).
+
+    The owner's own session, or a chat app the owner allowed cloud models for. A phone never: its
+    turns run on the computer's local models (``turn_may_spend_owner_keys``).
+    """
+
+    return request_is_owner_local(source_context) or chat_app_cloud_allowed(source_context)
+
+
 def remote_turn_lacks(source_context: Any, grant: str) -> bool:
     """True when this turn is remote and its phone does not hold ``grant`` (bots never do)."""
 
@@ -611,6 +687,8 @@ def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
         return REMOTE_TURN_REFUSAL_TEXT
     grant = _remote_intent_grant(intent)
     if remote_turn_chat_app(sc) is not None:
+        if str(intent or "").strip() in CHAT_APP_EVERYDAY_TOOLS:
+            return CHAT_APP_EVERYDAY_TEXT
         if grant != REMOTE_GRANT_COMPUTER:
             return REMOTE_TURN_REFUSAL_TEXT
         return remote_grant_refusal_text(sc, grant, intent=intent)
@@ -630,8 +708,14 @@ def remote_grant_refusal_text(source_context: Any, grant: str, *, intent: str = 
     """The words for a turn that lacks ``grant``: a chat app's own, or the phone's."""
 
     if remote_turn_chat_app(source_context) is not None:
-        if remote_turn_has_grant(source_context, grant) and intent and _outside_folder_tools(intent, source_context):
+        clean = str(intent or "").strip()
+        if clean in CHAT_APP_EVERYDAY_TOOLS:
+            return CHAT_APP_EVERYDAY_TEXT
+        if remote_turn_has_grant(source_context, grant) and clean and _outside_folder_tools(clean, source_context):
             return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(remote_turn_folders(source_context) or ()))
+        if grant == REMOTE_GRANT_COMPUTER and clean and not clean.startswith(_CHAT_APP_FILE_TOOL_PREFIXES):
+            # Only file tools can ever open for a chat app; the files switch would not open this one.
+            return CHAT_APP_COMPUTER_ONLY_TEXT
         return CHAT_APP_COMPUTER_TEXT if grant == REMOTE_GRANT_COMPUTER else REMOTE_TURN_REFUSAL_TEXT
     return REMOTE_GRANT_REFUSAL_TEXT[grant]
 
@@ -666,6 +750,8 @@ def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
     if not turn_is_remote(source_context):
         return ""
     if str(intent or "").strip() in REMOTE_TURN_TOOL_INTENTS:
+        return ""
+    if chat_app_everyday_allowed(source_context, intent):
         return ""
     grant = _remote_intent_grant(intent)
     if grant in REMOTE_GRANT_REFUSAL_TEXT and remote_turn_has_grant(source_context, grant):
@@ -756,6 +842,7 @@ def turn_speaks_for_owner(source_context: Any, session_id: str = "") -> bool:
 
 
 __all__ = [
+    "CHAT_APP_EVERYDAY_TOOLS",
     "HTTP_INGRESS_KEY",
     "IN_PROCESS_OWNER_PEER",
     "OWNER_LOCAL_CAPABILITIES",
@@ -765,13 +852,17 @@ __all__ = [
     "PHONE_PATH_TOOLS",
     "PHONE_SYSTEM_AREA_TEXT",
     "REMOTE_DEVICE_KEY",
+    "REMOTE_GRANT_CLOUD_MODELS",
     "REMOTE_GRANT_COMPUTER",
+    "REMOTE_GRANT_EVERYDAY",
     "REMOTE_GRANT_PAID",
     "REMOTE_TURN_REFUSAL_TEXT",
     "REMOTE_TURN_TOOL_INTENTS",
     "RESERVED_TRUST_KEYS",
     "TURN_AUTHOR_KEY",
     "capability_requires_owner_local",
+    "chat_app_cloud_allowed",
+    "chat_app_everyday_allowed",
     "execution_peer_host",
     "in_process_owner_extra",
     "in_process_owner_source_context",
@@ -794,5 +885,6 @@ __all__ = [
     "turn_is_owner_authored",
     "turn_is_remote",
     "turn_may_spend_owner_keys",
+    "turn_may_use_owner_models",
     "turn_speaks_for_owner",
 ]

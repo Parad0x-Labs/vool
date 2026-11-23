@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "Discord ouvre VOOL. Appuyez sur Message, envoyez bonjour, puis revenez. Cette page passe d’elle-même à Connecté.",
     "phone.bot_files": "Fichiers des dossiers choisis",
     "phone.bot_files_help": "VOOL peut trouver des fichiers dans ces dossiers et vous les envoyer dans cette discussion. {app} conserve les fichiers envoyés ici. Rien d’autre sur cet ordinateur n’est accessible. Activé 30 jours à la fois.",
-    "phone.bot_files_not_ready": "Ces dossiers ne sont pas encore ouverts à VOOL. Sur un Mac, autorisez VOOL dans Réglages Système, sous Confidentialité et sécurité, Fichiers et dossiers, puis appuyez de nouveau sur Enregistrer les autorisations :"
+    "phone.bot_files_not_ready": "Ces dossiers ne sont pas encore ouverts à VOOL. Sur un Mac, autorisez VOOL dans Réglages Système, sous Confidentialité et sécurité, Fichiers et dossiers, puis appuyez de nouveau sur Enregistrer les autorisations :",
+    "phone.bot_everyday": "Rappels, calendrier, notes et contacts",
+    "phone.bot_everyday_help": "VOOL peut lire et modifier vos rappels, votre calendrier, vos notes et vos contacts depuis {app}. Supprimer des contacts, les apps, les commandes, l’e-mail et l’argent restent sur votre ordinateur. Activé 30 jours à la fois.",
+    "permissions.chat_app_allowed": "Autorisé. VOOL le termine et répond dans {app}.",
+    "permissions.chat_app_denied": "Refusé. VOOL vous dit dans {app} que rien n’a été fait.",
+    "phone.bot_cloud": "Répondre avec mes modèles cloud",
+    "phone.bot_cloud_help": "Les réponses dans {app} peuvent utiliser vos modèles cloud, comme une discussion sur cet ordinateur. Les réponses payantes comptent dans vos limites de dépenses IA et s’arrêtent quand une limite est atteinte. Activé 30 jours à la fois."
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

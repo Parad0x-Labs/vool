@@ -108,7 +108,7 @@ from core.raw_output_contract import (
     raw_output_contract_guidance,
     raw_output_retry_instruction,
 )
-from core.request_trust import request_is_owner_local, turn_may_spend_owner_keys
+from core.request_trust import request_is_owner_local, turn_may_use_owner_models
 from core.response_constraints import (
     check_response_constraint,
     compress_short_coordinate_phrase,
@@ -464,8 +464,12 @@ def _gate_paid_by_cloud_escalation(
         return resolved_allow_paid, False
 
     owner_local = request_is_owner_local(source_context)
+    # A chat app the owner allowed cloud models for (core.request_trust.turn_may_use_owner_models)
+    # stands with the owner for a chosen model and the auto burst; every paid call it makes is still
+    # reserved against the owner's spend caps. The OS consent of "ask" stays the owner's own.
+    owner_models = owner_local or turn_may_use_owner_models(source_context)
     if requested_paid_cloud:
-        if owner_local:
+        if owner_models:
             # Deliberate owner-local choice of a specific paid model; honored, not an auto
             # burst against the daily cap.
             return resolved_allow_paid, False
@@ -478,7 +482,7 @@ def _gate_paid_by_cloud_escalation(
         cloud_escalation_policy.load_policy(),
         cloud_escalation_policy.used_today(),
     )
-    if decision.action == cloud_escalation_policy.ACTION_CLOUD and owner_local:
+    if decision.action == cloud_escalation_policy.ACTION_CLOUD and owner_models:
         # Auto mode authorizes a paid cloud burst against the user's own key ONLY for the owner's
         # local session, exactly like the ask branch below. A non-owner-local caller (a remote
         # channel message, an exposed 0.0.0.0 API) must never trigger an auto spend, even with
@@ -1401,7 +1405,7 @@ def _inject_free_cloud_requirements(
     # further down where a partially-built cloud request already exists.
     if turn_is_local_only(context):
         return source_context
-    if not turn_may_spend_owner_keys(context):
+    if not turn_may_use_owner_models(context):
         return source_context
     try:
         from core.cloud_provider_contract import CloudTaskRequirements, PrivacyClass
@@ -1449,7 +1453,7 @@ class MemoryFirstRouter:
         from core.cloud_routing import CloudRouteMode
         from core.cloud_tool_call_contract import build_cloud_tool_definitions
         from core.output_validator import validate_provider_output
-        from core.request_trust import turn_may_spend_owner_keys
+        from core.request_trust import turn_may_use_owner_models
 
         context = source_context or {}
         policy = cloud_escalation_policy.load_policy()
@@ -1462,7 +1466,7 @@ class MemoryFirstRouter:
         skipped = (
             "free_cloud_disabled" if not policy.free_cloud_enabled
             else "turn_local_only" if turn_is_local_only(context)
-            else "not_owner_local" if not turn_may_spend_owner_keys(context)
+            else "not_owner_local" if not turn_may_use_owner_models(context)
             else "no_cloud_task_requirements" if not isinstance(requirements, CloudTaskRequirements)
             else "invalid_privacy_grant" if (grant is not None and not isinstance(grant, CloudPrivacyGrant))
             else ""

@@ -237,7 +237,7 @@ def reserve_owner_pick_paid_call(
     caller-supplied ``authorized_paid_call`` is never read, here or by the caller.
     """
     from core.model_selection_policy import is_verified_free_cloud_manifest, provider_cost_class
-    from core.request_trust import request_is_owner_local, turn_may_spend_owner_keys
+    from core.request_trust import request_is_owner_local, turn_may_use_owner_models
 
     def _refuse(reason: str) -> None:
         if denial is not None:
@@ -248,7 +248,7 @@ def reserve_owner_pick_paid_call(
         return _refuse("no_explicit_paid_pick")
     # Only the owner's own local session, or a paired phone the owner gave "paid services" on the
     # computer, may spend the owner's key. The spend caps below apply to both.
-    if not turn_may_spend_owner_keys(source_context):
+    if not turn_may_use_owner_models(source_context):
         return _refuse("not_owner_local")
     # A free lane needs no reservation and must not consume the paid cap.
     if provider_cost_class(manifest) != "paid_cloud" or is_verified_free_cloud_manifest(manifest):
@@ -264,9 +264,10 @@ def reserve_owner_pick_paid_call(
     # computer) is checked in the same transaction as the computer's caps.
     spender, spender_monthly_usd = "", None
     if not request_is_owner_local(source_context):
-        from core.request_trust import remote_turn_device
+        from core.request_trust import remote_turn_chat_app, remote_turn_device
 
-        device = remote_turn_device(source_context)
+        # A chat app the owner allowed cloud models for: booked to that app, under the same caps.
+        device = remote_turn_device(source_context) or remote_turn_chat_app(source_context)
         if device is None:
             return _refuse("not_owner_local")
         spender = f"phone:{device['device_id']}"

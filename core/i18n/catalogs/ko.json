@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "디스코드에서 VOOL이 열립니다. 메시지를 눌러 인사를 보낸 뒤 돌아오세요. 이 페이지는 저절로 연결됨으로 바뀝니다.",
     "phone.bot_files": "선택한 폴더의 파일",
     "phone.bot_files_help": "VOOL은 이 폴더에서 파일을 찾아 이 채팅으로 보내 드릴 수 있습니다. 여기로 보낸 파일은 {app}에 보관됩니다. 이 컴퓨터의 다른 것에는 닿을 수 없습니다. 한 번에 30일 동안 켜집니다.",
-    "phone.bot_files_not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 권한 저장을 다시 누르세요:"
+    "phone.bot_files_not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 권한 저장을 다시 누르세요:",
+    "phone.bot_everyday": "미리 알림, 캘린더, 메모, 연락처",
+    "phone.bot_everyday_help": "VOOL은 {app}에서 미리 알림, 캘린더, 메모, 연락처를 읽고 변경할 수 있습니다. 연락처 삭제, 앱, 명령, 이메일, 돈은 컴퓨터에 남습니다. 한 번에 30일 동안 켜집니다.",
+    "permissions.chat_app_allowed": "허용했습니다. VOOL이 마무리하고 {app}에서 답합니다.",
+    "permissions.chat_app_denied": "거부했습니다. VOOL이 {app}에서 실행되지 않았다고 알려 줍니다.",
+    "phone.bot_cloud": "내 클라우드 모델로 답하기",
+    "phone.bot_cloud_help": "{app}의 답변은 이 컴퓨터의 채팅처럼 클라우드 모델을 사용할 수 있습니다. 유료 답변은 AI 지출 한도에 포함되며 한도에 도달하면 멈춥니다. 한 번에 30일 동안 켜집니다."
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

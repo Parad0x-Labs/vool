@@ -805,13 +805,18 @@ def pending_approvals_for_session(session_id: str) -> list[dict[str, Any]]:
                 continue
             if entry.get("status") != "pending" or float(entry.get("expires_at") or 0) <= now:
                 continue
-            rows.append(
-                {
-                    key: (list(entry[key]) if isinstance(entry[key], tuple) else entry[key])
-                    for key in _PROMPT_FIELDS
-                    if key in entry
-                }
-            )
+            row = {
+                key: (list(entry[key]) if isinstance(entry[key], tuple) else entry[key])
+                for key in _PROMPT_FIELDS
+                if key in entry
+            }
+            # A turn a chat app (Telegram, Discord) sent is finished by that app's worker once the
+            # owner answers here (core.mobile_companion.bot_runtime), and its answer goes back to the
+            # app: the page answers the prompt and does not run the turn again itself.
+            device = str(entry.get("remote_device") or "")
+            if device.startswith("bot:"):
+                row["asked_from"] = device.split(":", 1)[1]
+            rows.append(row)
     rows.sort(key=lambda row: float(row.get("expires_at") or 0))
     return rows
 

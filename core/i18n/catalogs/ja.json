@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "Discord で VOOL が開きます。メッセージを押して挨拶を送り、ここに戻ってください。このページは自動で接続済みに変わります。",
     "phone.bot_files": "選んだフォルダーのファイル",
     "phone.bot_files_help": "VOOL はこれらのフォルダーでファイルを探し、このチャットに送れます。ここに送られたファイルは {app} に保存されます。このコンピューターのそれ以外には届きません。一度に 30 日間オンになります。",
-    "phone.bot_files_not_ready": "これらのフォルダーはまだ VOOL に開かれていません。Mac では、システム設定のプライバシーとセキュリティ、ファイルとフォルダーで VOOL を許可してから、もう一度「権限を保存」を押してください:"
+    "phone.bot_files_not_ready": "これらのフォルダーはまだ VOOL に開かれていません。Mac では、システム設定のプライバシーとセキュリティ、ファイルとフォルダーで VOOL を許可してから、もう一度「権限を保存」を押してください:",
+    "phone.bot_everyday": "リマインダー、カレンダー、メモ、連絡先",
+    "phone.bot_everyday_help": "VOOL は {app} からリマインダー、カレンダー、メモ、連絡先を読み取り、変更できます。連絡先の削除、アプリ、コマンド、メール、お金はこのコンピューターに残ります。30 日ごとに有効です。",
+    "permissions.chat_app_allowed": "許可しました。VOOL が完了し、{app} で返信します。",
+    "permissions.chat_app_denied": "拒否しました。実行されなかったことを VOOL が {app} で伝えます。",
+    "phone.bot_cloud": "自分のクラウドモデルで回答する",
+    "phone.bot_cloud_help": "{app} での回答に、このコンピューターでのチャットと同じようにクラウドモデルを使えます。有料の回答は AI の支出上限に数えられ、上限に達すると止まります。30 日ごとに有効です。"
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

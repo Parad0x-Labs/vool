@@ -1294,6 +1294,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .chat-app-perms-empty {margin:6px 0;}
 .chat-app-files {margin-top:14px; padding-top:12px; border-top:1px solid var(--border);}
 .chat-app-files .phone-actions {margin-top:6px;}
+.chat-app-everyday {margin-top:14px; padding-top:12px; border-top:1px solid var(--border);}
 .chat-app-save {position:sticky; bottom:0; z-index:2; display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:18px -16px -16px; padding:12px 16px; border-top:1px solid var(--border); background:var(--panel,var(--bg)); border-radius:0 0 14px 14px;}
 .chat-app-saved {font-weight:600; color:var(--muted);}
 .chat-app-saved.ok {color:var(--ok);}
@@ -5513,7 +5514,7 @@ function widgetPhoneAccess(host) {
     }
     if (isBot && (device.binding_state!=='bound' || device.platform!==phoneBotTab)) return;
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
-      if (isBot && ['camera','photos','location','microphone','media','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
+      if (isBot && ['camera','photos','location','microphone','media','tool_approval','payment_approve','computer_tools','paid_services','everyday_tools','cloud_models'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
       /* An expired right shows as off, so saving anything else never sends it back on. */
       const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());
@@ -5543,6 +5544,17 @@ function widgetPhoneAccess(host) {
       const waiting=(phonePrepared[device.device_id] || {}).folders;
       if(waiting){const blocked=waiting.filter(f=>f.state!=='ready');if(blocked.length){more.appendChild(el('p','help',T('phone.bot_files_not_ready','These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:')));blocked.forEach(f=>more.appendChild(el('p','help',f.folder)));}}
       const syncFiles=()=>{more.hidden=!box.checked;}; box.addEventListener('change',syncFiles); syncFiles();
+      /* The owner's own organiser for a chat app: reminders, calendar, notes and contacts. Off until turned on. */
+      const everydayBox=el('div','chat-app-everyday'); holder.appendChild(everydayBox);
+      const everydayLine=el('label','phone-right'); const everyday=el('input'); everyday.type='checkbox'; everyday.dataset.right='everyday_tools';
+      const everydayUntil=(device.right_expiry || {}).everyday_tools; everyday.checked=!!(device.rules || {}).everyday_tools && !(everydayUntil && everydayUntil*1000<=Date.now());
+      boxes.everyday_tools=everyday; everydayLine.append(everyday,document.createTextNode(' '+T('phone.bot_everyday','Reminders, calendar, notes and contacts'))); everydayBox.appendChild(everydayLine);
+      everydayBox.appendChild(el('p','help',T('phone.bot_everyday_help','VOOL can read and change your reminders, calendar, notes and contacts from {app}. Deleting contacts, apps, commands, email and money stay on your computer. On for 30 days at a time.').replace('{app}',appName)));
+      /* Cloud models for a chat app: off until turned on; paid answers are held to the AI spending limits. */
+      const cloudLine=el('label','phone-right'); const cloud=el('input'); cloud.type='checkbox'; cloud.dataset.right='cloud_models';
+      const cloudUntil=(device.right_expiry || {}).cloud_models; cloud.checked=!!(device.rules || {}).cloud_models && !(cloudUntil && cloudUntil*1000<=Date.now());
+      boxes.cloud_models=cloud; cloudLine.append(cloud,document.createTextNode(' '+T('phone.bot_cloud','Answer with my cloud models'))); everydayBox.appendChild(cloudLine);
+      everydayBox.appendChild(el('p','help',T('phone.bot_cloud_help','Answers in {app} may use your cloud models, like a chat on this computer. Paid answers count toward your AI spending limits and stop when a limit is reached. On for 30 days at a time.').replace('{app}',appName)));
     }
     if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Online lookups: free web sources only — your paid models and paid search never run from the phone. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
     holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));

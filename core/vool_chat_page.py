@@ -15294,6 +15294,14 @@ async function resolvePermission(decision, scope) {
       } else toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
       return;
     }
+    if (approval.asked_from === 'telegram' || approval.asked_from === 'discord') {
+      // Asked from a chat app: VOOL finishes that turn itself and sends the answer back to the app.
+      const appName = approval.asked_from === 'discord' ? 'Discord' : 'Telegram';
+      toast(decision === 'allow'
+        ? pageTF('permissions.chat_app_allowed', 'Allowed. VOOL finishes it and answers in {app}.', { app: appName })
+        : pageTF('permissions.chat_app_denied', 'Denied. VOOL tells you in {app} that it did not run.', { app: appName }));
+      return;
+    }
     if (decision === 'allow') {
       owner.approvalResume = { token: approval.approval_id, run: asking }; owner.resumeApprovedTurn = true;
       const grantedScope = (data.approval && data.approval.scope) || 'once';

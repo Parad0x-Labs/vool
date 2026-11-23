@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "Discord 会打开 VOOL。点击“发消息”，发一句你好，然后回到这里。此页面会自动变为已连接。",
     "phone.bot_files": "所选文件夹中的文件",
     "phone.bot_files_help": "VOOL 可以在这些文件夹中查找文件，并在此聊天中发给你。发到这里的文件会由 {app} 保存。这台电脑上的其他内容都无法访问。每次开启 30 天。",
-    "phone.bot_files_not_ready": "这些文件夹还没有向 VOOL 开放。在 Mac 上，请在系统设置的“隐私与安全性”>“文件和文件夹”中允许 VOOL，然后再次点按“保存权限”："
+    "phone.bot_files_not_ready": "这些文件夹还没有向 VOOL 开放。在 Mac 上，请在系统设置的“隐私与安全性”>“文件和文件夹”中允许 VOOL，然后再次点按“保存权限”：",
+    "phone.bot_everyday": "提醒事项、日历、备忘录和联系人",
+    "phone.bot_everyday_help": "VOOL 可以从 {app} 读取和更改你的提醒事项、日历、备忘录和联系人。删除联系人、应用、命令、电子邮件和资金仍留在你的电脑上。每次开启 30 天。",
+    "permissions.chat_app_allowed": "已允许。VOOL 会完成它并在 {app} 中回复。",
+    "permissions.chat_app_denied": "已拒绝。VOOL 会在 {app} 中告诉你它没有执行。",
+    "phone.bot_cloud": "用我的云端模型回答",
+    "phone.bot_cloud_help": "{app} 中的回答可以像在这台电脑上聊天一样使用你的云端模型。付费回答计入你的 AI 支出限额，达到限额即停止。每次开启 30 天。"
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

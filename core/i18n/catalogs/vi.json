@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "Discord sẽ mở VOOL. Nhấn Nhắn tin, gửi lời chào rồi quay lại. Trang này sẽ tự chuyển sang Đã kết nối.",
     "phone.bot_files": "Tệp trong các thư mục đã chọn",
     "phone.bot_files_help": "VOOL có thể tìm tệp trong các thư mục này và gửi cho bạn trong cuộc trò chuyện này. Tệp gửi tới đây được {app} lưu giữ. Không truy cập được thứ gì khác trên máy tính này. Bật 30 ngày mỗi lần.",
-    "phone.bot_files_not_ready": "Các thư mục này chưa mở cho VOOL. Trên Mac, hãy cho phép VOOL trong Cài đặt hệ thống, mục Quyền riêng tư & Bảo mật, Tệp và thư mục, rồi bấm Lưu quyền lần nữa:"
+    "phone.bot_files_not_ready": "Các thư mục này chưa mở cho VOOL. Trên Mac, hãy cho phép VOOL trong Cài đặt hệ thống, mục Quyền riêng tư & Bảo mật, Tệp và thư mục, rồi bấm Lưu quyền lần nữa:",
+    "phone.bot_everyday": "Lời nhắc, lịch, ghi chú và danh bạ",
+    "phone.bot_everyday_help": "VOOL có thể đọc và thay đổi lời nhắc, lịch, ghi chú và danh bạ của bạn từ {app}. Xóa liên hệ, ứng dụng, lệnh, email và tiền vẫn ở trên máy tính của bạn. Bật 30 ngày mỗi lần.",
+    "permissions.chat_app_allowed": "Đã cho phép. VOOL sẽ hoàn tất và trả lời trong {app}.",
+    "permissions.chat_app_denied": "Đã từ chối. VOOL sẽ báo trong {app} rằng việc này không được thực hiện.",
+    "phone.bot_cloud": "Trả lời bằng các mô hình đám mây của tôi",
+    "phone.bot_cloud_help": "Câu trả lời trong {app} có thể dùng các mô hình đám mây của bạn, như một cuộc trò chuyện trên máy tính này. Câu trả lời trả phí được tính vào giới hạn chi tiêu AI của bạn và dừng khi đạt giới hạn. Bật 30 ngày mỗi lần."
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

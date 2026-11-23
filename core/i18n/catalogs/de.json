@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "Discord öffnet VOOL. Klicke auf Nachricht, schick Hallo und komm zurück. Diese Seite wechselt von selbst zu Verbunden.",
     "phone.bot_files": "Dateien in ausgewählten Ordnern",
     "phone.bot_files_help": "VOOL kann Dateien in diesen Ordnern finden und dir in diesem Chat schicken. Eine hier gesendete Datei wird von {app} gespeichert. Sonst ist nichts auf diesem Computer erreichbar. Jeweils 30 Tage lang an.",
-    "phone.bot_files_not_ready": "Diese Ordner sind für VOOL noch nicht freigegeben. Erlaube VOOL auf einem Mac in den Systemeinstellungen unter Datenschutz & Sicherheit, Dateien und Ordner, und drücke dann erneut auf Berechtigungen speichern:"
+    "phone.bot_files_not_ready": "Diese Ordner sind für VOOL noch nicht freigegeben. Erlaube VOOL auf einem Mac in den Systemeinstellungen unter Datenschutz & Sicherheit, Dateien und Ordner, und drücke dann erneut auf Berechtigungen speichern:",
+    "phone.bot_everyday": "Erinnerungen, Kalender, Notizen und Kontakte",
+    "phone.bot_everyday_help": "VOOL kann deine Erinnerungen, deinen Kalender, deine Notizen und Kontakte aus {app} lesen und ändern. Kontakte löschen, Apps, Befehle, E-Mail und Geld bleiben auf deinem Computer. Jeweils 30 Tage lang an.",
+    "permissions.chat_app_allowed": "Erlaubt. VOOL erledigt es und antwortet in {app}.",
+    "permissions.chat_app_denied": "Abgelehnt. VOOL sagt dir in {app}, dass es nicht ausgeführt wurde.",
+    "phone.bot_cloud": "Mit meinen Cloud-Modellen antworten",
+    "phone.bot_cloud_help": "Antworten in {app} dürfen deine Cloud-Modelle nutzen, wie ein Chat auf diesem Computer. Bezahlte Antworten zählen zu deinen KI-Ausgabelimits und stoppen, wenn ein Limit erreicht ist. Jeweils 30 Tage lang an."
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

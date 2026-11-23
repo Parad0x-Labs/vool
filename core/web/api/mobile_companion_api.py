@@ -1229,8 +1229,17 @@ def _action_chats_send(
     workspace_root_provider,
     service: MobileCompanionService,
     device: dict[str, Any],
+    approval_token: str = "",
+    resume_turn_id: str = "",
     **_kw,
 ):
+    """One phone or chat-app chat turn through the real /api/chat.
+
+    ``approval_token`` and ``resume_turn_id`` are passed only in process, by a chat app's worker
+    finishing a turn its owner approved on the computer (core.mobile_companion.bot_runtime): the
+    same message runs again as the turn that asked, under that approval, as the app's own resume
+    does. Nothing a phone sends reaches them (params is the phone's request; these are keywords).
+    """
     from core.web.api.service import dispatch_post
 
     message = str(params.get("message") or "").strip()
@@ -1268,6 +1277,9 @@ def _action_chats_send(
     }
     if idempotency_key:
         body["turn_id"] = request_id
+    if approval_token and resume_turn_id:
+        body["turn_id"] = resume_turn_id
+        body["approval_token"] = approval_token
     body["session_id"] = server_chat_id
     if device.get("kind") == "bot":
         body["platform"] = device["platform"]
@@ -1304,18 +1316,28 @@ def _action_chats_send(
         if (device.get("sealed_protocol") and device.get("kind") != "bot") or is_bound_bot
         else nullcontext()
     )
-    with phone_scope:
-        response = dispatch_post(
-            path="/api/chat",
-            body=body,
-            headers={"content-type": "application/json"},
-            runtime=runtime,
-            model_name=model_name,
-            workspace_root_provider=workspace_root_provider,
-            client_host=client_host,
-            request_id=request_id,
-            **extra,
-        )
+    def run_turn():
+        with phone_scope:
+            return dispatch_post(
+                path="/api/chat",
+                body=body,
+                headers={"content-type": "application/json"},
+                runtime=runtime,
+                model_name=model_name,
+                workspace_root_provider=workspace_root_provider,
+                client_host=client_host,
+                request_id=request_id,
+                **extra,
+            )
+
+    # One turn, one context, as an HTTP request gets on its own thread. A chat app's worker sends
+    # every message from the same thread, and a turn's per-turn state lives in context variables
+    # (core.semantic.semantic_result_seam keeps the admitted answer there): run in the worker's own
+    # context, the next message was finalized under the previous answer's identity, refused as a
+    # different answer, and the chat app was told to check the computer for an answer that never came.
+    import contextvars
+
+    response = contextvars.copy_context().run(run_turn)
     try:
         payload = json.loads(response.body or b"{}")
     except (json.JSONDecodeError, TypeError):

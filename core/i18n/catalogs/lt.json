@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "Discord atidarys VOOL. Spauskite Žinutė, parašykite labas ir grįžkite. Šis puslapis pats pasikeis į Prijungta.",
     "phone.bot_files": "Failai pasirinktuose aplankuose",
     "phone.bot_files_help": "VOOL gali rasti failus šiuose aplankuose ir atsiųsti juos jums į šį pokalbį. Čia atsiųstus failus saugo {app}. Niekas kitas šiame kompiuteryje nepasiekiama. Įjungta 30 dienų vienu kartu.",
-    "phone.bot_files_not_ready": "Šie aplankai VOOL dar neatverti. „Mac“ kompiuteryje leiskite VOOL sistemos nustatymuose, skiltyje Privatumas ir sauga, Failai ir aplankai, tada dar kartą paspauskite Išsaugoti leidimus:"
+    "phone.bot_files_not_ready": "Šie aplankai VOOL dar neatverti. „Mac“ kompiuteryje leiskite VOOL sistemos nustatymuose, skiltyje Privatumas ir sauga, Failai ir aplankai, tada dar kartą paspauskite Išsaugoti leidimus:",
+    "phone.bot_everyday": "Priminimai, kalendorius, užrašai ir kontaktai",
+    "phone.bot_everyday_help": "VOOL gali skaityti ir keisti jūsų priminimus, kalendorių, užrašus ir kontaktus iš {app}. Kontaktų trynimas, programos, komandos, el. paštas ir pinigai lieka jūsų kompiuteryje. Įjungiama 30 dienų.",
+    "permissions.chat_app_allowed": "Leista. VOOL tai užbaigs ir atsakys {app}.",
+    "permissions.chat_app_denied": "Atmesta. VOOL praneš {app}, kad tai nebuvo padaryta.",
+    "phone.bot_cloud": "Atsakyti mano debesies modeliais",
+    "phone.bot_cloud_help": "Atsakymai {app} gali naudoti jūsų debesies modelius, kaip pokalbis šiame kompiuteryje. Mokami atsakymai įskaičiuojami į jūsų DI išlaidų ribas ir sustoja pasiekus ribą. Įjungiama 30 dienų."
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

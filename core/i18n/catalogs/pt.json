@@ -5350,9 +5350,15 @@
     "phone.bot_discord_say_hi_help": "O Discord abre o VOOL. Toque em Mensagem, envie oi e volte. Esta página muda sozinha para Conectado.",
     "phone.bot_files": "Arquivos nas pastas escolhidas",
     "phone.bot_files_help": "O VOOL pode encontrar arquivos nessas pastas e enviá-los a você nesta conversa. Um arquivo enviado aqui fica guardado no {app}. Nada mais neste computador fica acessível. Ligado por 30 dias de cada vez.",
-    "phone.bot_files_not_ready": "Essas pastas ainda não estão abertas ao VOOL. No Mac, permita o VOOL em Ajustes do Sistema, em Privacidade e Segurança, Arquivos e Pastas, e depois toque de novo em Guardar permissões:"
+    "phone.bot_files_not_ready": "Essas pastas ainda não estão abertas ao VOOL. No Mac, permita o VOOL em Ajustes do Sistema, em Privacidade e Segurança, Arquivos e Pastas, e depois toque de novo em Guardar permissões:",
+    "phone.bot_everyday": "Lembretes, calendário, notas e contatos",
+    "phone.bot_everyday_help": "O VOOL pode ler e alterar seus lembretes, calendário, notas e contatos pelo {app}. Apagar contatos, apps, comandos, e-mail e dinheiro ficam no seu computador. Ligado por 30 dias de cada vez.",
+    "permissions.chat_app_allowed": "Permitido. O VOOL termina e responde no {app}.",
+    "permissions.chat_app_denied": "Negado. O VOOL avisa no {app} que não foi feito.",
+    "phone.bot_cloud": "Responder com meus modelos na nuvem",
+    "phone.bot_cloud_help": "As respostas no {app} podem usar seus modelos na nuvem, como um chat neste computador. Respostas pagas contam para seus limites de gastos com IA e param quando um limite é atingido. Ligado por 30 dias de cada vez."
   },
-  "source_catalog_sha256": "bcb8a18bf240ee5e3ca4c42c9e952dbe1272527ca00b1de6240caaf65e8771bd",
+  "source_catalog_sha256": "fbedaaaf3aac8e0feb61aef378e51ffbfc92c06cc96c7b30c47e1569dbdbf58e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
