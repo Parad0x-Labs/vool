@@ -203,17 +203,19 @@ def _record_builtins(text: str, keys: tuple[str, ...]) -> None:
 def _memory_kind_confirmed(
     text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
 ) -> tuple[str, ...]:
-    """The tool judgement's picks, with its memory pick put to the memory's own question
-    (`core.intent_arbiter.arbitrate_memory_kind`) and replaced by that answer.
+    """The tool judgement's picks with the memory's own reading (`core.intent_arbiter.arbitrate_memory_kind`) in place
+    of its memory pick. Asked of every message the built-in tools were asked about.
 
     Among a dozen tools a small model read the three memory choices loosely: on the Mac (qwen3:8b) a Lithuanian
-    "remember this: ..." was judged a forget and nothing was saved, and a Lithuanian forget was judged a recall and
-    nothing was erased. A forget cannot be undone: it stands only when the memory's own question reads one (the forget
-    then still names its targets by a judgement of its own and erases only what shares the message's words), and an
-    unreadable answer keeps a keep or a recall and drops a forget."""
-    memory = [key for key in keys if key in _MEMORY_KINDS]
-    if not memory:
-        return keys
+    "remember this: ..." was judged a forget and nothing was saved, a Lithuanian forget was judged a recall, and in the
+    probe of 7682b4155 three of six Lithuanian recalls ("kur laikau savo palapinę?") were judged Contacts or My things
+    and never reached the memory question. So the memory question is asked whatever the tools judgement picked:
+    - a recall only reads, so it is added beside any tool picked (the memory lane answers it when it names a held
+      fact, and hands the turn on to the tool when it names none);
+    - a keep or a forget stands only when no tool was picked: an order for a tool ("remind me at 9 to ...") is the
+      tool's, never a fact to keep;
+    - a forget cannot be undone: an unreadable answer keeps a picked keep or recall and drops a forget, and the forget
+      still names its targets by a judgement of its own and erases only what shares the message's words."""
     from core import intent_arbiter
 
     try:
@@ -221,15 +223,16 @@ def _memory_kind_confirmed(
     except Exception as exc:
         _log.info("memory kind: judge call failed (%s)", type(exc).__name__)
         kind = None
-    others = tuple(key for key in keys if key not in _MEMORY_KINDS)
+    memory = [key for key in keys if key in _MEMORY_KINDS]
+    tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
     if kind is None:
         confirmed = tuple(key for key in memory if key != "memory_forget")
-    elif kind == "none":
+    elif kind == "none" or (kind in {"keep", "forget"} and tools):
         confirmed = ()
     else:
         confirmed = (f"memory_{kind}",)
-    _log.info("memory kind judged: %s (tool judgement picked %s)", kind, ",".join(memory))
-    return others + confirmed
+    _log.info("memory kind judged: %s (tool judgement picked %s)", kind, ",".join(keys) or "none")
+    return tools + confirmed
 
 
 def judged_builtins(text: str) -> tuple[str, ...]:

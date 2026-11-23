@@ -1636,7 +1636,7 @@ def _memory_kind_prompt(message: str) -> str:
     """One question with four answers: does the message ask the assistant to KEEP something about the person, to TELL
     them something they told it, to FORGET something they told it, or none of these?
 
-    Its own question, asked only when the turn's tool judgement picked one of VOOL's memory choices. Among a dozen tools
+    Its own question, asked beside the turn's tool judgement (`core.plugin_ask._memory_kind_confirmed`). Among a dozen tools
     a small model read the three memory choices loosely, and widening one's wording made it eat a neighbour: on the Mac
     (qwen3:8b) "Atsimink šitą: mano palapinė yra oranžinė ..." ("remember this: ...") was judged a forget once the
     forget choice said "also when they only name what it was about", and nothing was saved. Here the three are side by
@@ -1660,6 +1660,7 @@ def _memory_kind_prompt(message: str) -> str:
         'Message: "recuerda que mi coche es gris y duerme en el garaje" -> {"answer": "keep"}',
         'Message: "¿de qué color es mi coche?" -> {"answer": "recall"}',
         'Message: "borra lo que te dije de mi coche" -> {"answer": "forget"}',
+        'Message: "olvida la información de mi bici" -> {"answer": "forget"}',
         'Message: "zapamiętaj: mój kot boi się odkurzacza" -> {"answer": "keep"}',
         'Message: "czego boi się mój kot?" -> {"answer": "recall"}',
         'Message: "nie pamiętaj już niczego o moim kocie" -> {"answer": "forget"}',

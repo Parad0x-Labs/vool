@@ -409,13 +409,28 @@ def test_the_memory_pick_is_the_memory_questions_answer(monkeypatch, seed):
     plugin_ask.forget()
 
 
-def test_no_memory_pick_asks_no_second_question(monkeypatch):
+@pytest.mark.parametrize("case", range(5))
+def test_the_memory_question_is_asked_beside_any_tool_pick(monkeypatch, case):
+    """Probe of 7682b4155 (qwen3:8b): "kur laikau savo palapinę?" was judged a Contacts ask and never reached the memory
+    question. A recall is added beside a tool; a keep or a forget never takes a tool's order."""
+    tool, second, keys = [
+        ("Contacts", "recall", ("contacts", "memory_recall")),
+        ("My things", "recall", ("things", "memory_recall")),
+        ("Reminders", "keep", ("reminders",)),
+        ("Contacts", "forget", ("contacts",)),
+        (None, "forget", ("memory_forget",)),
+    ][case]
     plugin_ask.forget()
     monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
-    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", lambda *_a, **_k: (0,))
-    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: pytest.fail("asked"))
-    plugin_ask.judge_turn("kiek bus 41 kart 7?", source_context=dict(OWNER), session_id=CHAT)
-    assert plugin_ask.judged_memory_ask("kiek bus 41 kart 7?") == ""
+
+    def arbitrate(message, choices, **_kwargs):
+        return (next(n for n, choice in enumerate(choices, 1) if choice.startswith(tool)),) if tool else (0,)
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: second)
+    text = f"zinute {case}: kur laikau savo palapine?"
+    plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
+    assert plugin_ask.judged_builtins(text) == keys
     plugin_ask.forget()
 
 
