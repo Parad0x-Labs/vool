@@ -45,7 +45,7 @@ def test_an_installed_pick_with_no_manifest_is_registered(seed, adopt) -> None:
     pick, state, registered = adopt
     rng = random.Random(f"adopt-{seed}")
     tag = rng.choice(TAGS)
-    state["installed"] = tuple(rng.sample([t for t in TAGS if t != tag], 2)) + (tag, "nomic-embed-text:latest")
+    state["installed"] = (*rng.sample([t for t in TAGS if t != tag], 2), tag, "nomic-embed-text:latest")
 
     adopted = pick(tag, registry=_Registry(n for n in TAGS if n not in state["installed"]))
 
