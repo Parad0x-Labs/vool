@@ -26,8 +26,7 @@ from tests.test_plugin_services_v1 import https_service
 
 ROOT = Path(__file__).resolve().parents[1]
 # VOOL ships no UsePod or Eyebrow plugin (owner decision, Nov 12 and 13), and the UsePod payment lane left core
-# in 0.8. Core still knows their exact old package bytes (the reserved names, the saved Eyebrow key),
-# so the journey that pins those rules installs a test-only copy. Every other journey uses neutral sample packages.
+# in 0.8. Core still knows their exact old package bytes (the reserved names), so the journey that pins those rules installs a test-only copy. Every other journey uses neutral sample packages.
 RETIRED = ROOT / "tests/fixtures/retired_first_party_plugins"
 SAMPLE_SCANNER = ROOT / "tests/fixtures/plugins/sample-scanner"
 
@@ -260,7 +259,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         daemon.stop()
 
 
-def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_service):
+def test_upgrade_notice_decline_and_no_saved_key_reaches_a_retired_package(tmp_path, https_service):
     from tests.served_browser import launch_chromium
 
     daemon = PluginDaemon(tmp_path / "upgrade", https_service, upgrade=True).start()
@@ -301,11 +300,11 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
         card.get_by_role("button", name="Disable", exact=True).click()
         card.get_by_text("Disabled", exact=True).wait_for()
         assert not daemon.routes.exists() and not https_service["log"].exists()
-        # A scanner key is an ordinary service key: enabling its plugin reuses it explicitly.
+        # Eyebrow left VOOL in 0.8 (sls, Nov 12): the old package gets no saved Eyebrow key either.
         card = install_folder(page, RETIRED / "vool-plugin-eyebrow", "vool-plugin-eyebrow")
-        assert not card.get_by_text("Key saved.", exact=True).count()
         accept_access(page, card)
-        card.get_by_text("Key saved.", exact=True).wait_for()
+        card.get_by_role("button", name="Disable", exact=True).wait_for()
+        assert not card.get_by_text("Key saved.", exact=True).count()
         assert not daemon.routes.exists() and not https_service["log"].exists()
         assert https_service["access"] not in page.locator("body").inner_text()
         assert https_service["access"] not in daemon.log.read_text(errors="replace")

@@ -1,19 +1,18 @@
-"""Retired service settings stay local; only explicit native-plugin enablement rebinds a key."""
+"""Retired service settings stay local; no saved key of a retired service is ever handed to a plugin."""
 from __future__ import annotations
-
-from urllib.parse import urlsplit
 
 SERVICES = (
     {"id": "vool-plugin-usepod", "name": "UsePod", "slot": "llm.cloud.usepod",
      "origin_slot": "llm.cloud.usepod_origin", "origin": "https://api.usepod.ai", "kind": "model_provider",
-     "rebind": False,
      # UsePod is retired (owner decision 2026-11-12): VOOL offers no UsePod plugin and says so
      # once. The saved key stays where it is and nothing uses it. Its payment lane left core in 0.8.
      "retired": True,
      "digests": frozenset({"fe7fedb6881f6ba74df98b36ae25f818feab79a34c373ccf6acba87e9c820b54"})},
     {"id": "vool-plugin-eyebrow", "name": "Eyebrow", "slot": "security.eyebrow",
-     "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner", "rebind": True,
-     "retired": True,   # owner decision 2026-11-12, as for UsePod: no Eyebrow plugin is offered
+     "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner",
+     # Owner decision 2026-11-12, as for UsePod: Eyebrow is out of core and no Eyebrow plugin is
+     # offered. Its saved key stays in its own slot and is never copied into any plugin.
+     "retired": True,
      "digests": frozenset({"2e03c9975c55d7ccc2e41cef92385b65770343f981b0acc8279b7d20791e0540"})},
 )
 
@@ -57,20 +56,12 @@ def notices() -> list[dict]:
                                "message": RETIRED_KEY.format(name=service["name"]),
                                "message_key": "plugin_migration_" + service["id"].removeprefix("vool-plugin-")})
             continue
-        if installed and record.enabled and (not service["rebind"]
-                                             or credential_is_indexed("plugin." + service["id"] + ".access")):
+        if installed and record.enabled:
             continue
-        key = "plugin_migration_" + service["id"].removeprefix("vool-plugin-")
-        if not installed:
-            message = service["name"] + " now comes as a plugin. Install it to keep using it; your saved key will be reused."
-        elif service["rebind"]:
-            message = "Your saved " + service["name"] + " key is kept. Enable the plugin to reuse it, or connect your own service key."
-            key += "_installed"
-        else:
-            # An old UsePod package left installed: its lane is gone and the saved key is never
-            # handed to it, so enabling it would not bring the old lane back.
-            message = RETIRED_KEY.format(name=service["name"])
-        result.append({"plugin_id": service["id"], "message": message, "message_key": key})
+        # An old package left installed and off: the service is gone from VOOL and its saved key is
+        # never handed to the package, so enabling it would not bring the old service back.
+        result.append({"plugin_id": service["id"], "message": RETIRED_KEY.format(name=service["name"]),
+                       "message_key": "plugin_migration_" + service["id"].removeprefix("vool-plugin-")})
     if fallback:
         result.append(fallback)
     return result
@@ -86,39 +77,6 @@ def _retired_notice_closed(plugin_id: str) -> bool:
 
     saved = policy._read_raw().get("plugin_migration", {})
     return isinstance(saved, dict) and plugin_id in (saved.get("retired_closed") or [])
-
-
-def bind_on_enable(plugin_id: str) -> bool:
-    from core.credential_store import credential_is_indexed, get_credential, store_credential, strict_reads
-    from core.plugin_services import declaration
-    from core.secret_redaction import register_exact_secret
-
-    service = next((service for service in SERVICES if service["id"] == plugin_id), None)
-    if not service or not service["rebind"]:
-        # A saved UsePod token stays in its own slot. Its lane left VOOL, and the token is
-        # never copied into any plugin.
-        return False
-    record, plugin = declaration(plugin_id, service["kind"])
-    if not is_first_party(record):
-        return False
-    spec = plugin.vool[service["kind"]]
-    own = f"plugin.{plugin_id}.{spec['credential_slot']}"
-    if credential_is_indexed(own):
-        return False
-    if plugin.vool["kind"] != [service["kind"]] or plugin.vool.get("tools") or plugin.vool.get("mcpServers"):
-        return False  # legacy service keys never reach downloaded executable code
-    with strict_reads():
-        origin = get_credential(service["origin_slot"]) if service["origin_slot"] and credential_is_indexed(service["origin_slot"]) else service["origin"]
-        if not origin or spec["base_url"].rstrip("/") != origin.rstrip("/"):
-            return False
-        if plugin.vool["network"] != [urlsplit(origin).hostname]:
-            return False
-        value = get_credential(service["slot"]) if credential_is_indexed(service["slot"]) else None
-    if not value:
-        return False
-    register_exact_secret(value)
-    store_credential(own, value, label=service["name"] + " service key")
-    return True
 
 
 def migrate_selections() -> bool:

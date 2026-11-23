@@ -352,7 +352,7 @@ function renderDetail(host,e){
  const detail=node('section',undefined,'addon-detail');host.append(detail);detailHead(detail,e);detail.append(node('p',e.description));
  const facts=node('dl',undefined,'addon-facts');[[tr('type','Type'),tr('instruction_skill','Instruction skill')],[tr('license','License'),e.license],[tr('access','Added access'),tr('none','None')]].forEach(([k,v])=>{const f=node('div');f.append(node('dt',k),node('dd',v));facts.append(f);});detail.append(facts);
  if(e.compatibility)detail.append(node('p',e.compatibility,'addon-meta'));
- if(e.scan==='risks_accepted')detail.append(node('p',tr('risk_accepted','Risks accepted by you')+' · '+tr('plugin_eyebrow_verdict','Scan verdict:')+' '+e.scan_verdict+' · '+new Date(e.acceptance.accepted_at*1000).toLocaleString(),'addon-risk-note'));
+ if(e.scan==='risks_accepted')detail.append(node('p',tr('risk_accepted','Risks accepted by you')+' · '+tr('plugin_scan_verdict','Scan verdict:')+' '+e.scan_verdict+' · '+new Date(e.acceptance.accepted_at*1000).toLocaleString(),'addon-risk-note'));
 
  detail.append(node('h3',tr('how_it_works','How it works')),node('p',tr('how_skill_works','Adds guidance your model can use for relevant tasks. It does not install programs or grant access to your files or accounts.')));
  const acts=node('div',undefined,'addon-actions');detail.append(acts);
@@ -411,13 +411,13 @@ function renderReview(host){
  acts.append(button(busy?tr('scanning','Scanning…'):tr('confirm_scan','Run one scan'),()=>action(async()=>{review=await post({action:'scan',id:e.id,approved:true});data=await read();}),'addon-primary'),button(tr('cancel','Cancel'),()=>{review=null;selected=e;refresh();}));return;}
  if(review.check==='vool_local'){renderLocalReview(detail,box);return;}
  const r=review.report||{};const findings=Array.isArray(r.findings)?r.findings:[];
- box.append(node('h3',tr('plugin_eyebrow_report','Security scan report')),node('p',tr('plugin_eyebrow_verdict','Scan verdict:')+' '+String(r.verdict||tr('unknown','Unknown')).toUpperCase()));
- if(!findings.length)box.append(node('p',tr('plugin_no_eyebrow_findings','No findings listed in this report. This is not a guarantee of safety.')));
+ box.append(node('h3',tr('plugin_scan_report','Security scan report')),node('p',tr('plugin_scan_verdict','Scan verdict:')+' '+String(r.verdict||tr('unknown','Unknown')).toUpperCase()));
+ if(!findings.length)box.append(node('p',tr('plugin_no_scan_findings','No findings listed in this report. This is not a guarantee of safety.')));
  if(findings.length){const list=node('ul',undefined,'addon-findings');findings.forEach(f=>{const li=node('li');li.append(node('strong',(r.scanner_name||r.service||tr('plugin_scanner_name','Scanner'))+' · '+(f.severity||'').toUpperCase()+' · '+f.ruleId),node('span',f.explanation||f.message||f.description||f.ruleId),node('small',[f.file,f.line?tr('line','Line')+' '+f.line:''].filter(Boolean).join(' · ')),riskExplanation(f.ruleId));list.append(li);});box.append(list);}
  const violations=Array.isArray(r.policy?.violations)?r.policy.violations:[];
  if(!findings.length&&(violations.length||String(r.verdict).toLowerCase()==='fail'))box.append(riskExplanation(''));
- if(violations.length){box.append(node('h3',tr('plugin_eyebrow_policy','Check results')));const list=node('ul');violations.forEach(v=>list.append(node('li',typeof v==='string'?v:v?.message||v?.reason||v?.ruleId||v?.kind||JSON.stringify(v))));box.append(list);}
- box.append(node('p',tr('plugin_eyebrow_engine','Checked by:')+' '+r.engine+' · '+new Date(review.checked_at*1000).toLocaleString(),'addon-meta'));
+ if(violations.length){box.append(node('h3',tr('plugin_scan_policy','Check results')));const list=node('ul');violations.forEach(v=>list.append(node('li',typeof v==='string'?v:v?.message||v?.reason||v?.ruleId||v?.kind||JSON.stringify(v))));box.append(list);}
+ box.append(node('p',tr('plugin_scan_engine','Checked by:')+' '+r.engine+' · '+new Date(review.checked_at*1000).toLocaleString(),'addon-meta'));
  // Both scanner summaries sit above the installation decision buttons, so the
  // decision is made with the local findings visible; the local check stays
  // optional and advisory, and neither scanner can hide the other.

@@ -96,17 +96,18 @@ def test_unselected_paid_key_is_never_a_migration_fallback(package, https_servic
     assert not https_service['log'].exists()
 
 
-def test_only_accepting_reference_enable_reuses_saved_scanner_key_without_online_calls(package, https_service):
+def test_a_saved_eyebrow_key_is_never_copied_into_the_old_eyebrow_package(package, https_service):
     key = https_service['access']
     store_credential('security.eyebrow', key)
     reference(package, 'eyebrow')
     info = installed(package)
     own = 'plugin.vool-plugin-eyebrow.access'
-    assert not get_credential(own)
     manager.enable(info['id'], accepted=False, approval_digest=info['approval_digest'])
     assert not get_credential(own) and get_credential('security.eyebrow') == key
     manager.enable(info['id'], accepted=True, approval_digest=info['approval_digest'])
-    assert get_credential(own) == key and get_credential('security.eyebrow') == key
+    # Eyebrow is out of core in 0.8 (sls, Nov 12): switching the old package on copies nothing.
+    # The saved key stays in its own slot and nothing uses it.
+    assert not get_credential(own) and get_credential('security.eyebrow') == key
     assert not https_service['log'].exists()
     assert not any(n['plugin_id'] == info['id'] for n in migration.notices())
 

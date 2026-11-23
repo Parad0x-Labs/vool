@@ -415,13 +415,6 @@ def enable(plugin_id: str, *, accepted: bool, approval_digest: str) -> dict:
             raise lifecycle.LifecycleError("Plugins that run their own programs are off on this computer, because it can't keep them walled off from your saved keys. Plugins that only connect a service still work.")
     lifecycle.accept_consent(plugin_id, expected_approval=approval_digest, network=bool(plugin.vool["network"]))
     lifecycle.enable(plugin_id)
-    try:
-        from core.plugin_migration import bind_on_enable
-
-        bind_on_enable(plugin_id)
-    except Exception:
-        lifecycle.disable(plugin_id)
-        raise lifecycle.LifecycleError("The saved service key could not be opened. It is kept unchanged; connect your key in Add-ons and review access again.") from None
     _refresh(plugin_id)
     return {"ok": True, "enabled": True, "plugin": inspect(plugin_id)}
 
