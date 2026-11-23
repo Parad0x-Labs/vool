@@ -106,6 +106,7 @@ def test_the_turns_judge_is_offered_memory_and_a_picked_forget_seats_no_contacts
         return (next(n for n, choice in enumerate(choices, 1) if choice.startswith("Memory, forget")),)
 
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: "forget")
     rng = random.Random("judge-offer")
     text = _vary(rng, rng.choice(["ušmiršk palapinės faktą — trink tą informaciją apie palapinę iš savo atminties",
                                   "pamiršk ką sakiau apie palapinę", "vergiss das mit meinem Zelt"]))
@@ -373,3 +374,56 @@ def test_the_keep_step_keeps_no_recall_or_forget_the_judge_read(home, monkeypatc
     _judged(text, kind)
     assert keep_stated_facts(text, session_id=CHAT, source_context=dict(OWNER)) == 0
     assert "kupr" not in _plain(_entries())
+
+
+# ------------------------------------------------------------ Mac run of 2bba40425
+# "Atsimink šitą: mano palapinė yra oranžinė, o stovi ji palėpėje." ("remember this: ...") was judged a forget by the
+# tool judgement, and nothing was saved. The memory pick is put to the memory's own question, whose answer stands.
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_the_memory_pick_is_the_memory_questions_answer(monkeypatch, seed):
+    rng = random.Random(f"kind-{seed}")
+    plugin_ask.forget()
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    tool_pick, second, expected = rng.choice([
+        ("Memory, forget", "keep", "keep"),       # the measured case: a remember read as a forget
+        ("Memory, recall", "forget", "forget"),   # run6: a Lithuanian forget read as a recall
+        ("Memory, keep", "recall", "recall"),
+        ("Memory, forget", None, ""),             # unreadable: a forget is never carried out on one reading
+        ("Memory, recall", None, "recall"),
+        ("Memory, keep", "none", ""),
+    ])
+
+    def arbitrate(message, choices, **_kwargs):
+        return (next(n for n, choice in enumerate(choices, 1) if choice.startswith(tool_pick)),)
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
+    asked: list = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda text, **_k: asked.append(text) or second)
+    text = _vary(rng, rng.choice(["Atsimink šitą: mano dviratis žalias, stovi rūsyje.", "merk dir: mein Rad ist grün",
+                                  "nebeatsimink nieko apie dviratį", "kur stovi mano dviratis?"]))
+    plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
+    assert asked == [text]
+    assert plugin_ask.judged_memory_ask(text) == expected
+    plugin_ask.forget()
+
+
+def test_no_memory_pick_asks_no_second_question(monkeypatch):
+    plugin_ask.forget()
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", lambda *_a, **_k: (0,))
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: pytest.fail("asked"))
+    plugin_ask.judge_turn("kiek bus 41 kart 7?", source_context=dict(OWNER), session_id=CHAT)
+    assert plugin_ask.judged_memory_ask("kiek bus 41 kart 7?") == ""
+    plugin_ask.forget()
+
+
+def test_the_memory_question_reads_only_its_four_answers():
+    from core.intent_arbiter import _memory_kind_prompt, _memory_kind_reader
+
+    assert _memory_kind_reader('{"answer": "forget"}') == "forget"
+    assert _memory_kind_reader('ok {"answer": "Keep"}') == "keep"
+    assert _memory_kind_reader('{"answer": "delete"}') is None and _memory_kind_reader("forget") is None
+    prompt = _memory_kind_prompt("labas")
+    assert prompt.rstrip().endswith('{"answer": "none"}') and 'Message: "labas" ->' in prompt

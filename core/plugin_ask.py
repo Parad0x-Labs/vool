@@ -100,7 +100,7 @@ MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
      "they could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it "
      "before. Asking VOOL to forget or erase it is not a recall.", ()),
     ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase, delete or no longer remember something "
-     "they told it before, also when they only name what it was about.", ()),
+     "they told it before.", ()),
 )
 #: What the memory lane does with each memory choice, in the order a turn that picked several is read.
 _MEMORY_KINDS = {"memory_forget": "forget", "memory_keep": "keep", "memory_recall": "recall"}
@@ -198,6 +198,38 @@ def _record_builtins(text: str, keys: tuple[str, ...]) -> None:
         _BUILTINS.move_to_end(key)
         while len(_BUILTINS) > _KEPT:
             _BUILTINS.popitem(last=False)
+
+
+def _memory_kind_confirmed(
+    text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
+) -> tuple[str, ...]:
+    """The tool judgement's picks, with its memory pick put to the memory's own question
+    (`core.intent_arbiter.arbitrate_memory_kind`) and replaced by that answer.
+
+    Among a dozen tools a small model read the three memory choices loosely: on the Mac (qwen3:8b) a Lithuanian
+    "remember this: ..." was judged a forget and nothing was saved, and a Lithuanian forget was judged a recall and
+    nothing was erased. A forget cannot be undone: it stands only when the memory's own question reads one (the forget
+    then still names its targets by a judgement of its own and erases only what shares the message's words), and an
+    unreadable answer keeps a keep or a recall and drops a forget."""
+    memory = [key for key in keys if key in _MEMORY_KINDS]
+    if not memory:
+        return keys
+    from core import intent_arbiter
+
+    try:
+        kind = intent_arbiter.arbitrate_memory_kind(text, chat_id=str(session_id or ""), source_context=source_context)
+    except Exception as exc:
+        _log.info("memory kind: judge call failed (%s)", type(exc).__name__)
+        kind = None
+    others = tuple(key for key in keys if key not in _MEMORY_KINDS)
+    if kind is None:
+        confirmed = tuple(key for key in memory if key != "memory_forget")
+    elif kind == "none":
+        confirmed = ()
+    else:
+        confirmed = (f"memory_{kind}",)
+    _log.info("memory kind judged: %s (tool judgement picked %s)", kind, ",".join(memory))
+    return others + confirmed
 
 
 def judged_builtins(text: str) -> tuple[str, ...]:
@@ -394,7 +426,8 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     plugins = tuple(dict.fromkeys(shown_plugins[n - 1][0] for n in numbers if n <= len(shown_plugins)))
     if builtins:
         keys = tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins))
-        _record_builtins(text, _web_confirmed(text, keys, source_context, session_id))
+        keys = _web_confirmed(text, keys, source_context, session_id)
+        _record_builtins(text, _memory_kind_confirmed(text, keys, source_context, session_id))
     if not rows:
         return None
     _record(text, plugins, signature)

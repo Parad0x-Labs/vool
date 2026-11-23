@@ -1632,6 +1632,86 @@ def arbitrate_told_as_fact(
     )
 
 
+def _memory_kind_prompt(message: str) -> str:
+    """One question with four answers: does the message ask the assistant to KEEP something about the person, to TELL
+    them something they told it, to FORGET something they told it, or none of these?
+
+    Its own question, asked only when the turn's tool judgement picked one of VOOL's memory choices. Among a dozen tools
+    a small model read the three memory choices loosely, and widening one's wording made it eat a neighbour: on the Mac
+    (qwen3:8b) "Atsimink šitą: mano palapinė yra oranžinė ..." ("remember this: ...") was judged a forget once the
+    forget choice said "also when they only name what it was about", and nothing was saved. Here the three are side by
+    side with their differences, and examples in several languages show each against the others."""
+    flat = " ".join(str(message or "").split())[:400]
+    return "\n".join([
+        "A person wrote to their assistant.",
+        "Question: what does the message ask the assistant to do with what it knows about the person's own life?",
+        'Answer {"answer": "keep"} when the person TELLS the assistant something about themselves, their people or '
+        "their things and wants it kept for later (remember it, note it, save it).",
+        'Answer {"answer": "recall"} when the person wants to be TOLD something about their own life, people or things '
+        "that they could only have told the assistant (what, where, who, when), or what they told it before.",
+        'Answer {"answer": "forget"} when the person wants the assistant to FORGET, erase or delete something they told '
+        "it, or to stop remembering it.",
+        'Answer {"answer": "none"} for anything else: a question about the world, a sum, a task, advice, chat.',
+        "Remembering and forgetting are opposites: a message that tells a fact to keep is never a forget.",
+        "",
+        'Message: "merk dir bitte: meine Schwester heißt Ilse und wohnt in Linz" -> {"answer": "keep"}',
+        'Message: "wie heißt meine Schwester nochmal?" -> {"answer": "recall"}',
+        'Message: "vergiss alles über meine Schwester" -> {"answer": "forget"}',
+        'Message: "recuerda que mi coche es gris y duerme en el garaje" -> {"answer": "keep"}',
+        'Message: "¿de qué color es mi coche?" -> {"answer": "recall"}',
+        'Message: "borra lo que te dije de mi coche" -> {"answer": "forget"}',
+        'Message: "zapamiętaj: mój kot boi się odkurzacza" -> {"answer": "keep"}',
+        'Message: "czego boi się mój kot?" -> {"answer": "recall"}',
+        'Message: "nie pamiętaj już niczego o moim kocie" -> {"answer": "forget"}',
+        'Message: "note that my dentist is Dr Ferro" -> {"answer": "keep"}',
+        'Message: "who did i say my dentist was" -> {"answer": "recall"}',
+        'Message: "dimentica quello che ti ho detto sul mio dentista" -> {"answer": "forget"}',
+        'Message: "quanto é 17 vezes 3?" -> {"answer": "none"}',
+        'Message: "what is the capital of Peru?" -> {"answer": "none"}',
+        'Message: "écris un poème sur la mer" -> {"answer": "none"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "keep"}, {"answer": "recall"}, {"answer": "forget"} or '
+        '{"answer": "none"}',
+    ])
+
+
+MEMORY_KINDS = ("keep", "recall", "forget", "none")
+
+
+def _memory_kind_reader(content: str) -> str | None:
+    """Strict: one JSON object whose ``answer`` is one of MEMORY_KINDS; anything else is None."""
+    match = re.search(r"\{[^{}]*\}", str(content or ""), re.DOTALL)
+    try:
+        raw = json.loads(match.group(0)) if match else None
+    except json.JSONDecodeError:
+        return None
+    value = str(raw.get("answer") or "").strip().casefold() if isinstance(raw, dict) else ""
+    return value if value in MEMORY_KINDS else None
+
+
+def arbitrate_memory_kind(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """What a message asks of VOOL's memory: "keep", "recall", "forget" or "none"; None when nothing judged it. Same
+    call path as the other judgements (`_memory_kind_prompt` says why it is its own question)."""
+    if not str(message or "").strip():
+        return None
+    prompt = _memory_kind_prompt(message)
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(prompt, source_context, _memory_kind_reader)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=prompt, operation="memory_kind_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(), parse=_memory_kind_reader,
+    )
+
+
 def _judgement_role() -> str:
     from core.turn_model_call_ledger import JUDGEMENT_ROLE
 
