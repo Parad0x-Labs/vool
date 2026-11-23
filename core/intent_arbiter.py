@@ -1677,6 +1677,55 @@ def _memory_kind_prompt(message: str) -> str:
     ])
 
 
+def _forget_order_prompt(message: str) -> str:
+    """A balanced yes/no: does the message ask the assistant to forget something the person told it?
+
+    Asked only when the turn's two memory readings disagree about a forget (`core.plugin_ask._memory_kind_confirmed`):
+    a forget cannot be undone, and on qwen3:8b one four-way answer read a Lithuanian forget with slips as a keep and
+    another a recall (probe of bef26afe4). One question with two answers is the easier read for a small model."""
+    flat = " ".join(str(message or "").split())[:400]
+    return "\n".join([
+        "A person wrote to their assistant.",
+        "Question: does the message ask the assistant to FORGET, erase or delete something the person told it, or to "
+        "stop remembering it?",
+        'Answer {"answer": "yes"} when it does, in any language and any words, also with spelling slips.',
+        'Answer {"answer": "no"} when it tells the assistant something, asks it something, or asks for anything else.',
+        "",
+        'Message: "vergiss bitte, was ich über meinen Bruder gesagt habe" -> {"answer": "yes"}',
+        'Message: "merk dir: mein Bruder heißt Jonas" -> {"answer": "no"}',
+        'Message: "olvida mi número de taquilla" -> {"answer": "yes"}',
+        'Message: "¿cuál es mi número de taquilla?" -> {"answer": "no"}',
+        'Message: "delete what i said about my brother" -> {"answer": "yes"}',
+        'Message: "delete the file notes.txt" -> {"answer": "no"}',
+        'Message: "napisz wiersz o morzu" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_forget_order(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message asks the assistant to forget something: ``"yes"`` / ``"no"``, or None when nothing judged
+    it. Same call path as the other judgements."""
+    if not str(message or "").strip():
+        return None
+    prompt = _forget_order_prompt(message)
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=prompt, operation="forget_order_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 MEMORY_KINDS = ("keep", "recall", "forget", "none")
 
 

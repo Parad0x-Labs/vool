@@ -203,36 +203,47 @@ def _record_builtins(text: str, keys: tuple[str, ...]) -> None:
 def _memory_kind_confirmed(
     text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
 ) -> tuple[str, ...]:
-    """The tool judgement's picks with the memory's own reading (`core.intent_arbiter.arbitrate_memory_kind`) in place
-    of its memory pick. Asked of every message the built-in tools were asked about.
+    """The tool judgement's picks with VOOL's memory decided by two readings: the tool judgement's own memory pick and
+    the memory's own question (`core.intent_arbiter.arbitrate_memory_kind`), asked beside every tool judgement.
 
-    Among a dozen tools a small model read the three memory choices loosely: on the Mac (qwen3:8b) a Lithuanian
-    "remember this: ..." was judged a forget and nothing was saved, a Lithuanian forget was judged a recall, and in the
-    probe of 7682b4155 three of six Lithuanian recalls ("kur laikau savo palapinę?") were judged Contacts or My things
-    and never reached the memory question. So the memory question is asked whatever the tools judgement picked:
-    - a recall only reads, so it is added beside any tool picked (the memory lane answers it when it names a held
-      fact, and hands the turn on to the tool when it names none);
-    - a keep or a forget stands only when no tool was picked: an order for a tool ("remind me at 9 to ...") is the
-      tool's, never a fact to keep;
-    - a forget cannot be undone: an unreadable answer keeps a picked keep or recall and drops a forget, and the forget
-      still names its targets by a judgement of its own and erases only what shares the message's words."""
+    Either reading alone was wrong too often on qwen3:8b with Lithuanian slips. Measured: the tool judgement read three
+    of six Lithuanian recalls as Contacts or My things (probe of 7682b4155); the four-way question read two recalls the
+    tool judgement had right as none, a forget as a keep and a poem request as a keep (probe of bef26afe4). So:
+    - a recall only reads: either reading names it, and it is added beside any tool picked (the memory lane answers it
+      when it names a held fact, and hands the turn on when it names none);
+    - a keep writes: it stands when both readings name it, or when one does and the keep step's own question reads the
+      message as the person telling a fact (`arbitrate_told_as_fact`);
+    - a forget cannot be undone: it stands when both readings name it, or when one does and a yes/no forget question
+      (`arbitrate_forget_order`) reads yes; it then still names its targets by a judgement of its own and erases only
+      what shares the message's words;
+    - a keep or a forget never takes a tool's order ("remind me at 9 to ..."): neither stands beside a picked tool."""
     from core import intent_arbiter
 
-    try:
-        kind = intent_arbiter.arbitrate_memory_kind(text, chat_id=str(session_id or ""), source_context=source_context)
-    except Exception as exc:
-        _log.info("memory kind: judge call failed (%s)", type(exc).__name__)
-        kind = None
-    memory = [key for key in keys if key in _MEMORY_KINDS]
+    def asked(name: str, call) -> str | None:
+        try:
+            return call(text, chat_id=str(session_id or ""), source_context=source_context)
+        except Exception as exc:
+            _log.info("memory %s: judge call failed (%s)", name, type(exc).__name__)
+            return None
+
+    kind = asked("kind", intent_arbiter.arbitrate_memory_kind)
+    picked = {_MEMORY_KINDS[key] for key in keys if key in _MEMORY_KINDS}
     tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
-    if kind is None:
-        confirmed = tuple(key for key in memory if key != "memory_forget")
-    elif kind == "none" or (kind in {"keep", "forget"} and tools):
-        confirmed = ()
-    else:
-        confirmed = (f"memory_{kind}",)
-    _log.info("memory kind judged: %s (tool judgement picked %s)", kind, ",".join(keys) or "none")
-    return tools + confirmed
+    named = picked | ({kind} if kind in {"keep", "recall", "forget"} else set())
+    decided = ""
+    if not tools and "forget" in named:
+        agreed = kind == "forget" and "forget" in picked
+        if agreed or asked("forget", intent_arbiter.arbitrate_forget_order) == "yes":
+            decided = "forget"
+    if not decided and not tools and "keep" in named:
+        agreed = kind == "keep" and "keep" in picked
+        if agreed or asked("keep", intent_arbiter.arbitrate_told_as_fact) == "yes":
+            decided = "keep"
+    if not decided and "recall" in named:
+        decided = "recall"
+    _log.info("memory kind judged: %s (tool judgement picked %s, memory question %s)", decided or "none",
+              ",".join(keys) or "none", kind)
+    return tools + ((f"memory_{decided}",) if decided else ())
 
 
 def judged_builtins(text: str) -> tuple[str, ...]:
