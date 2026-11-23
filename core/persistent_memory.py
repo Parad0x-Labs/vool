@@ -3201,7 +3201,8 @@ def _judged_memory_turn(
         # me what colour my bike is ...", no question mark) was saved as a fact and answered "Locked in" (Mac run10,
         # eb8c907cc). What is kept must be told as a fact, by the keep step's own question; a keep ask that tells
         # nothing is a recall.
-        facts = [fact for fact in facts if _told_as_fact(fact, session_id=session_id, source_context=source_context)]
+        facts = [_kept_fact_words(fact, session_id=session_id, source_context=source_context)
+                 for fact in facts if _told_as_fact(fact, session_id=session_id, source_context=source_context)]
         if not facts:
             reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
             if reply is None and not _chat_earlier_user_turns(session_id):
@@ -3241,6 +3242,33 @@ def _told_as_fact(sentence: str, *, session_id: str | None, source_context: Mapp
     except Exception as exc:
         LOGGER.warning("judged keep: told-as-fact unavailable: %s", type(exc).__name__)
         return False
+
+
+#: At most this many of a kept sentence's first words are offered to be left off (a request to keep is a few words).
+_KEPT_FACT_LEAD_WORDS = 6
+
+
+def _kept_fact_words(sentence: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> str:
+    """The fact a sentence asks to keep, without the words that only ask for it: the judge
+    (`core.intent_arbiter.arbitrate_kept_fact`) picks among the sentence's own versions with more of its first words
+    left off, so nothing is written that the person did not write. The sentence as said when nothing judged it.
+    Mac run12 (6aabca905): "prisimink, kad kaimyno šuo ėda vien obuolius" ("remember that ...") was saved whole, so a
+    recall answered with the request in it."""
+    words = str(sentence or "").split()
+    versions = [" ".join(words[start:]).lstrip(" ,;:\u2013\u2014-").strip()
+                for start in range(min(_KEPT_FACT_LEAD_WORDS, len(words) - 1))]
+    versions = [version for version in dict.fromkeys(versions) if len(version.split()) >= 2]
+    if len(versions) < 2:
+        return str(sentence or "")
+    from core.intent_arbiter import arbitrate_kept_fact
+
+    try:
+        picked = arbitrate_kept_fact(sentence, versions, chat_id=str(session_id or ""),
+                                     source_context=dict(source_context or {}))
+    except Exception as exc:
+        LOGGER.warning("kept fact words unavailable: %s", type(exc).__name__)
+        picked = None
+    return versions[picked - 1] if picked and 1 <= picked <= len(versions) else str(sentence or "")
 
 
 def _judged_items_named(
@@ -3622,7 +3650,9 @@ def keep_stated_facts(
                 unlisted = []
         except Exception:
             unlisted = []
-    facts = [*facts, *_judged_lasting_facts(unlisted, session_id=policy.chat_id, source_context=source_context)]
+    facts = [*facts, *(_kept_fact_words(fact, session_id=policy.chat_id, source_context=source_context)
+                       for fact in _judged_lasting_facts(unlisted, session_id=policy.chat_id,
+                                                         source_context=source_context))]
     added = 0
     if may_restore:
         try:

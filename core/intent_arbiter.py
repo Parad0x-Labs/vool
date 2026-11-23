@@ -1259,6 +1259,62 @@ def arbitrate_recall_facts(
     return tuple(int(number) for number in str(named).split(",") if number.strip() and int(number) > 0)
 
 
+def _kept_fact_prompt(message: str, versions: list[str]) -> str:
+    """One question over numbered versions of the message itself, each with more of its first words left off: which is
+    the fact the person asks to keep, whole, without the request? Choices only: nothing is written that the person did
+    not write. Examples in several languages: the request is said in any words ("prisimink, kad ...", "merk dir, dass
+    ...", "hang on to this for me ...")."""
+    flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
+    return "\n".join([
+        "A person asked their assistant to keep a fact about their life. Below are versions of what they wrote, each "
+        "with more of its first words left off.",
+        "Question: which version is the fact itself: every word of the fact, and none of the words that only ask the "
+        "assistant to keep it?",
+        'Answer {"answer": N} with that version\'s number.',
+        "",
+        'Versions: 1. "merk dir, dass meine Schwester in Graz wohnt" 2. "dir, dass meine Schwester in Graz wohnt" '
+        '3. "dass meine Schwester in Graz wohnt" 4. "meine Schwester in Graz wohnt" 5. "Schwester in Graz wohnt" '
+        '-> {"answer": 4}',
+        'Versions: 1. "hang on to this: the meter key is on the hook" 2. "on to this: the meter key is on the hook" '
+        '3. "to this: the meter key is on the hook" 4. "this: the meter key is on the hook" '
+        '5. "the meter key is on the hook" 6. "meter key is on the hook" -> {"answer": 5}',
+        'Versions: 1. "nie zapomnij, że mój rower stoi w piwnicy" 2. "zapomnij, że mój rower stoi w piwnicy" '
+        '3. "że mój rower stoi w piwnicy" 4. "mój rower stoi w piwnicy" 5. "rower stoi w piwnicy" -> {"answer": 4}',
+        'Versions: 1. "my locker is number 41" 2. "locker is number 41" -> {"answer": 1}',
+        "",
+        f'Message: "{flat(message, 400)}"',
+        "Versions: " + " ".join(f'{number}. "{flat(text, 300)}"' for number, text in enumerate(versions, 1)) + " ->",
+        'Reply with ONLY the JSON object: {"answer": N}',
+    ])
+
+
+def arbitrate_kept_fact(
+    message: str,
+    versions: list[str],
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> int | None:
+    """Which of ``versions`` (the message with more of its first words left off each time) is the fact a keep asks to
+    keep: its place from 1, or None when nothing judged it."""
+    if not str(message or "").strip() or len(versions) < 2:
+        return None
+    prompt = _kept_fact_prompt(message, versions)
+    reader = _numbers_reader(len(versions))
+    model = _keep_judge_model()
+    if not model:
+        picked = _judged_for_the_turn(prompt, source_context, reader)
+    else:
+        picked = arbitrate_followup(
+            "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+            prompt=prompt, operation="kept_fact_arbitration", model=model,
+            runner_role="general", call_role=_judgement_role(), parse=reader,
+        )
+    numbers = [int(number) for number in str(picked or "").split(",") if number.strip().isdigit() and int(number) > 0]
+    return numbers[0] if len(numbers) == 1 else None
+
+
 #: At most this many tools (the built-in ones asked about, then the added plugins) are put to one tool-ask judgement.
 #: Eight cut the ninth added plugin off from any language but its manifest's (outside review of 261a0389, 2026-11-22).
 PLUGIN_ASK_CHOICES = 32

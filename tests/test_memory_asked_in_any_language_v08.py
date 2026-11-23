@@ -569,3 +569,30 @@ def test_a_reply_that_says_the_fact_back_never_hides_it(home, monkeypatch):
     held = pm._held_for_judgement(session_id=OTHER_CHAT, policy=_policy(OTHER_CHAT), source_context=dict(OWNER),
                                   served=False)
     assert any("ryž" in item or "ryz" in item for item in held), held
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_judged_keep_saves_the_fact_without_the_request(home, monkeypatch, seed):
+    """Mac run12 (6aabca905): "prisimink, kad kaimyno šuo ėda vien obuolius" was saved whole, the request with it."""
+    rng = random.Random(f"kept-fact-words-{seed}")
+    lead = rng.choice(["prisimink, kad", "Įsidėmėk, kad", "nepamiršk, jog"])
+    fact = rng.choice(["kaimyno šuo ėda vien obuolius", "mano dviratis stovi rūsyje", "sesuo gyvena Kaune"])
+    text = _vary(rng, f"{lead} {fact}")
+    _judged(text, "keep")
+
+    def pick(_message, versions, **_kwargs):  # a scripted judge: the version that starts where the fact starts
+        start = _plain(fact).casefold().split()[0]
+        return next(n for n, v in enumerate(versions, 1) if _plain(v).casefold().startswith(start))
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", pick)
+    handled, reply = maybe_handle_memory_command(text, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert handled and str(reply) == pm.KEPT_REPLY, reply
+    saved = _plain(_entries()).casefold()
+    assert _plain(fact).casefold().split()[-1] in saved and _plain(lead).casefold().split()[0] not in saved, saved
+
+
+def test_the_kept_fact_question_offers_only_the_persons_own_words():
+    prompt = intent_arbiter._kept_fact_prompt("prisimink, kad šuo ėda obuolius",
+                                              ["prisimink, kad šuo ėda obuolius", "kad šuo ėda obuolius"])
+    assert '1. "prisimink, kad šuo ėda obuolius"' in prompt and '2. "kad šuo ėda obuolius"' in prompt
