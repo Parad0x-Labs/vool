@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "رؤية الصفحات التي تزورها وسجل التصفح الخاص بك",
     "addons.plugin_browser_access_bookmarks": "قراءة وتغيير إشاراتك المرجعية",
     "addons.plugin_browser_access_clipboard": "قراءة أو تغيير ما نسخته",
-    "addons.plugin_browser_access_other": "ميزات أخرى في المتصفح: {list}"
+    "addons.plugin_browser_access_other": "ميزات أخرى في المتصفح: {list}",
+    "live.route_warning": "هل تريد إيقاف ويب خاص؟ عندها سترى المواقع عنوان الإنترنت الخاص بك. سيتم إغلاق نوافذ المتصفح المفتوحة.",
+    "live.route_turn_off": "إيقاف",
+    "live.route_keep": "إبقاؤه مفعّلًا",
+    "live.route_missing": "لا يملك ويب خاص على هذا الحاسوب بعدُ مسارًا يمكنه استخدامه. أعدّ مسارًا في الإعدادات."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

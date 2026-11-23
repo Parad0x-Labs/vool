@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "Hangi sayfaları ziyaret ettiğinizi ve tarama geçmişinizi görme",
     "addons.plugin_browser_access_bookmarks": "Yer imlerinizi okuma ve değiştirme",
     "addons.plugin_browser_access_clipboard": "Kopyaladıklarınızı okuma veya değiştirme",
-    "addons.plugin_browser_access_other": "Diğer tarayıcı özellikleri: {list}"
+    "addons.plugin_browser_access_other": "Diğer tarayıcı özellikleri: {list}",
+    "live.route_warning": "Özel web kapatılsın mı? Web siteleri o zaman kendi internet adresinizi görür. Açık tarayıcı pencereleri kapatılır.",
+    "live.route_turn_off": "Kapat",
+    "live.route_keep": "Açık kalsın",
+    "live.route_missing": "Özel web'in bu bilgisayarda henüz kullanabileceği bir yolu yok. Ayarlar'da bir yol kurun."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

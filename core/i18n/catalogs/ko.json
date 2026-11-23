@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "방문하는 페이지와 방문 기록 보기",
     "addons.plugin_browser_access_bookmarks": "북마크 읽기 및 바꾸기",
     "addons.plugin_browser_access_clipboard": "복사한 내용 읽기 또는 바꾸기",
-    "addons.plugin_browser_access_other": "기타 브라우저 기능: {list}"
+    "addons.plugin_browser_access_other": "기타 브라우저 기능: {list}",
+    "live.route_warning": "비공개 웹을 끌까요? 끄면 웹사이트가 내 인터넷 주소를 보게 됩니다. 열려 있는 브라우저 창은 닫힙니다.",
+    "live.route_turn_off": "끄기",
+    "live.route_keep": "켜 두기",
+    "live.route_missing": "이 컴퓨터에는 비공개 웹이 사용할 수 있는 경로가 아직 없습니다. 설정에서 경로를 마련하세요."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

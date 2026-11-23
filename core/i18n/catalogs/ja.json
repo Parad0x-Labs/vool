@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "訪問したページと閲覧履歴を見る",
     "addons.plugin_browser_access_bookmarks": "ブックマークを読み取って変更する",
     "addons.plugin_browser_access_clipboard": "コピーした内容を読み取る、または変更する",
-    "addons.plugin_browser_access_other": "その他のブラウザー機能: {list}"
+    "addons.plugin_browser_access_other": "その他のブラウザー機能: {list}",
+    "live.route_warning": "プライベート Web をオフにしますか？オフにすると、ウェブサイトにあなた自身のインターネットアドレスが見えるようになります。開いているブラウザーウィンドウは閉じられます。",
+    "live.route_turn_off": "オフにする",
+    "live.route_keep": "オンのままにする",
+    "live.route_missing": "このコンピューターには、プライベート Web が使える経路がまだありません。設定で用意してください。"
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

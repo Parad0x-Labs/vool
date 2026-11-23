@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "查看您访问了哪些页面以及您的浏览记录",
     "addons.plugin_browser_access_bookmarks": "读取和更改您的书签",
     "addons.plugin_browser_access_clipboard": "读取或更改您复制的内容",
-    "addons.plugin_browser_access_other": "其他浏览器功能：{list}"
+    "addons.plugin_browser_access_other": "其他浏览器功能：{list}",
+    "live.route_warning": "要关闭私密网页吗？关闭后，网站将看到您自己的网络地址。已打开的浏览器窗口将被关闭。",
+    "live.route_turn_off": "关闭",
+    "live.route_keep": "保持开启",
+    "live.route_missing": "这台电脑上还没有私密网页可以使用的线路。请在设置中配置一条。"
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

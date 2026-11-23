@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "Ver quais páginas você visita e o seu histórico de navegação",
     "addons.plugin_browser_access_bookmarks": "Ler e alterar os seus favoritos",
     "addons.plugin_browser_access_clipboard": "Ler ou alterar o que você copiou",
-    "addons.plugin_browser_access_other": "Outros recursos do navegador: {list}"
+    "addons.plugin_browser_access_other": "Outros recursos do navegador: {list}",
+    "live.route_warning": "Desativar a Web privada? Os sites passarão a ver o seu próprio endereço de internet. As janelas do navegador que estiverem abertas serão fechadas.",
+    "live.route_turn_off": "Desativar",
+    "live.route_keep": "Manter ativada",
+    "live.route_missing": "A Web privada ainda não tem neste computador uma rota que possa usar. Configure uma em Configurações."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

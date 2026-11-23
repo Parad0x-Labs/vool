@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "לראות באילו דפים אתם מבקרים ואת היסטוריית הגלישה שלכם",
     "addons.plugin_browser_access_bookmarks": "לקרוא ולשנות את הסימניות שלכם",
     "addons.plugin_browser_access_clipboard": "לקרוא או לשנות את מה שהעתקתם",
-    "addons.plugin_browser_access_other": "תכונות דפדפן אחרות: {list}"
+    "addons.plugin_browser_access_other": "תכונות דפדפן אחרות: {list}",
+    "live.route_warning": "לכבות את רשת פרטית? אתרים יראו אז את כתובת האינטרנט שלכם. חלונות דפדפן פתוחים ייסגרו.",
+    "live.route_turn_off": "לכבות",
+    "live.route_keep": "להשאיר פועל",
+    "live.route_missing": "לרשת פרטית אין עדיין במחשב הזה נתיב שאפשר להשתמש בו. הגדירו נתיב בהגדרות."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

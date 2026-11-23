@@ -25,7 +25,7 @@ _KEYS = (
     "seconds_left", "empty_title", "empty_body", "closed_body", "off_body", "driving", "elements",
     "no_elements", "send", "save_file", "file_ready", "more", "links", "fields", "buttons", "redirect",
     "destination_refused", "window", "private_window", "engine_missing", "private_web_down", "invalid_address",
-    "note_window", "human_check", "show_tab",
+    "note_window", "human_check", "show_tab", "route_warning", "route_turn_off", "route_keep", "route_missing",
 )
 
 
@@ -39,6 +39,11 @@ def render(chat: str, locale: str, appearance: tuple[str, int] | None = None) ->
     labels["settings"] = cat.text("sidebar.settings")
     labels["web_off"] = cat.text("vcs.state.egress_refused")
     labels["close"] = cat.text("notif.close")
+    # Private web's own words are the ones Settings uses, so the two never say different things.
+    labels["route"] = cat.text("settings.row.private_web.label")
+    for name in ("off", "on", "starting", "down"):
+        labels["route_" + name] = cat.text("settings.private_web.state." + name)
+    labels["route_local_only"] = cat.text("settings.private_web.local_only")
     config = json.dumps({"chat": chat, "labels": labels}, ensure_ascii=False).replace("<", "\\u003c")
     return (
         _PAGE.replace("__PALETTE__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
@@ -106,6 +111,10 @@ button:disabled{opacity:.35;cursor:default}
 .chip[data-tone=bad] i{background:var(--bad)}
 @keyframes pulse{50%{opacity:.3}}
 #private{background:var(--accent-soft);color:var(--accent)}
+/* Private web: one button that shows the state and switches it */
+#route[data-state=on]{background:var(--accent-soft);color:var(--accent)}
+#route[data-state=starting]{color:var(--warn);animation:pulse 1s ease-in-out infinite}
+#route[data-state=down]{color:var(--bad)}
 .menu-wrap{position:relative}
 .menu{position:absolute;inset-inline-end:0;top:38px;min-width:230px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:5px;box-shadow:0 10px 30px var(--shadow);z-index:20}
 .menu button,.menu a{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:7px;text-align:start;color:var(--text);text-decoration:none;font-size:13px}
@@ -182,6 +191,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
   <form class="omni" id="omni" autocomplete="off"><span id="lock">__I_globe__</span><input id="address" type="text" inputmode="url" spellcheck="false" autocomplete="off"><button id="open" type="submit"></button></form>
   <span class="chip" id="private" hidden></span>
   <span class="chip" id="state"><i></i><span id="status" role="status" aria-live="polite"></span></span>
+  <button class="tb" id="route" type="button" aria-pressed="false" data-state="off" hidden>__I_shield__</button>
   <button class="tb" id="list" type="button" aria-pressed="false">__I_list__</button>
   <button class="tb" id="takeover" type="button">__I_hand__</button>
   <span class="menu-wrap"><button class="tb" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false">__I_more__</button>
@@ -205,6 +215,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
   <div class="acts"><span class="timer" id="timer"></span><button class="btn" id="refuse" type="button"></button><button class="btn primary" id="approve" type="button"></button></div>
 </section>
 <section class="notice" id="redirect" hidden><span class="grow" id="redirectUrl"></span><button class="btn" id="reviewRedirect" type="button"></button></section>
+<section class="notice" id="routeNote" hidden><span class="grow" id="routeText" role="status"></span><button class="btn" id="routeOff" type="button" hidden></button><button class="btn primary" id="routeKeep" type="button" hidden></button><a class="btn" id="routeSetup" href="/settings#permissions" target="_top" hidden></a></section>
 <section class="notice" id="humanCheck" hidden><span class="grow" id="humanCheckText"></span><button class="btn" id="showTab" type="button"></button></section>
 <section class="notice" id="driving" hidden><span class="grow" id="drivingText"></span><button class="btn" id="handBack" type="button"></button></section>
 <section class="notice" id="ready" hidden><span class="grow" id="readyText"></span><a class="btn primary" id="save" download style="display:inline-flex;align-items:center;text-decoration:none" hidden></a></section>
@@ -234,6 +245,7 @@ $('fullWindow').lastChild.textContent=L.window; $('privateWindow').lastChild.tex
 $('wallet').lastChild.textContent=L.wallet; $('stop').lastChild.textContent=L.stop; $('private').textContent=L.private;
 $('approve').textContent=L.approve; $('refuse').textContent=L.refuse; $('reviewRedirect').textContent=L.open; $('handBack').textContent=L.resume;
 $('drivingText').textContent=L.driving; $('readyText').textContent=L.file_ready; $('save').textContent=L.save_file; $('sideTitle').textContent=L.elements;
+$('routeOff').textContent=L.route_turn_off; $('routeKeep').textContent=L.route_keep; $('routeSetup').textContent=L.settings;
 $('note').textContent=L.note; $('frame').alt=L.browser; $('humanCheckText').textContent=L.human_check; $('showTab').textContent=L.show_tab; $('chat').value=cfg.chat;
 
 async function post(path,extra={}) {
@@ -381,6 +393,40 @@ $('fullWindow').onclick=()=>{closeMenu();post('window',{action:'open',url:$('add
 $('privateWindow').onclick=()=>{closeMenu();post('window',{action:'private',url:$('address').value.trim()});};
 $('showTab').onclick=()=>{post('window',{action:'show'});};
 $('download').onclick=()=>{closeMenu();const v=$('address').value.trim();if(v)post('propose',{op:'download',args:{url:v}});};
+// Private web: the button shows the route's state and switches it. Turning it on takes one
+// click. Turning it off is less private, so it says what changes and asks once.
+let route=null, routeAsk='', routeBusy=false;
+function paintRoute(){
+  const r=route; $('route').hidden=!r; if(!r) return;
+  const active=r.route!=='off', state=r.local_only?'off':r.state;
+  $('route').dataset.state=state; $('route').setAttribute('aria-pressed',String(active)); $('route').disabled=routeBusy||!!r.local_only;
+  const words=r.local_only?L.route_local_only:(L['route_'+r.state]||'')+(r.detail&&r.state!=='on'?' '+r.detail:'');
+  $('route').title=L.route+': '+words; $('route').setAttribute('aria-label',L.route+': '+words);
+  const text=routeAsk==='off'?L.route_warning:routeAsk==='missing'?L.route_missing:(active&&r.state!=='on'?L.route+': '+words:'');
+  $('routeNote').hidden=!text; $('routeText').textContent=text;
+  $('routeOff').hidden=$('routeKeep').hidden=routeAsk!=='off'; $('routeSetup').hidden=routeAsk!=='missing';
+}
+async function readRoute(){
+  try{const r=await fetch('/api/private-web',{cache:'no-store'});const j=await r.json();if(r.ok&&j.ok){route=j;if(j.route!=='off'){try{localStorage.setItem('vool.route',j.route);}catch(e){}}}}catch(e){}
+  paintRoute();
+}
+async function setRoute(kind){
+  routeBusy=true; routeAsk=''; paintRoute();
+  try{const r=await fetch('/api/private-web/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({route:kind})});const j=await r.json();if(r.ok&&j.ok)route=j;}catch(e){}
+  routeBusy=false; await readRoute(); poll();
+}
+$('route').onclick=()=>{
+  if(!route||routeBusy) return;
+  if(route.route!=='off'){routeAsk=routeAsk==='off'?'':'off';paintRoute();return;}
+  let kind='tor'; try{kind=localStorage.getItem('vool.route')||'tor';}catch(e){}
+  if(!['tor','wireguard','system_vpn'].includes(kind)) kind='tor';
+  // A route that cannot work on this computer is not switched on: that would only stop the web.
+  if((kind==='tor'&&!route.tor_available)||(kind==='wireguard'&&!(route.vpn_file&&route.vpn_helper_available))){routeAsk=routeAsk==='missing'?'':'missing';paintRoute();return;}
+  setRoute(kind);
+};
+$('routeOff').onclick=()=>setRoute('off');
+$('routeKeep').onclick=()=>{routeAsk='';paintRoute();};
+readRoute(); setInterval(()=>{if(!routeBusy&&!document.hidden)readRoute();},3000);
 // Review.
 $('approve').onclick=()=>{if(pending)post('decide',{id:pending.id,approve:true});};
 $('refuse').onclick=()=>{if(pending)post('decide',{id:pending.id,approve:false});};

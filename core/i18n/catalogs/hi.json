@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "आप कौन से पेज देखते हैं और आपका ब्राउज़िंग इतिहास देखना",
     "addons.plugin_browser_access_bookmarks": "आपके बुकमार्क पढ़ना और बदलना",
     "addons.plugin_browser_access_clipboard": "आपने जो कॉपी किया उसे पढ़ना या बदलना",
-    "addons.plugin_browser_access_other": "ब्राउज़र की अन्य सुविधाएँ: {list}"
+    "addons.plugin_browser_access_other": "ब्राउज़र की अन्य सुविधाएँ: {list}",
+    "live.route_warning": "निजी वेब बंद करें? तब वेबसाइटें आपका अपना इंटरनेट पता देखेंगी। खुली हुई ब्राउज़र विंडो बंद कर दी जाएँगी।",
+    "live.route_turn_off": "बंद करें",
+    "live.route_keep": "चालू रखें",
+    "live.route_missing": "इस कंप्यूटर पर निजी वेब के पास अभी कोई ऐसा रास्ता नहीं है जिसे वह इस्तेमाल कर सके। सेटिंग्स में एक रास्ता बनाएँ।"
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

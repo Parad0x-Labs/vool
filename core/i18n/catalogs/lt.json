@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "Matyti, kokius puslapius lankote, ir jūsų naršymo istoriją",
     "addons.plugin_browser_access_bookmarks": "Skaityti ir keisti jūsų žymes",
     "addons.plugin_browser_access_clipboard": "Skaityti arba keisti tai, ką nukopijavote",
-    "addons.plugin_browser_access_other": "Kitos naršyklės funkcijos: {list}"
+    "addons.plugin_browser_access_other": "Kitos naršyklės funkcijos: {list}",
+    "live.route_warning": "Išjungti Privatų internetą? Tada svetainės matys jūsų paties interneto adresą. Atidaryti naršyklės langai bus uždaryti.",
+    "live.route_turn_off": "Išjungti",
+    "live.route_keep": "Palikti įjungtą",
+    "live.route_missing": "Privatus internetas šiame kompiuteryje dar neturi maršruto, kuriuo galėtų naudotis. Nustatykite jį Nustatymuose."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

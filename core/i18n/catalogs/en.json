@@ -5508,7 +5508,11 @@
     "addons.plugin_browser_access_history": "See which pages you visit and your browsing history",
     "addons.plugin_browser_access_bookmarks": "Read and change your bookmarks",
     "addons.plugin_browser_access_clipboard": "Read or change what you copied",
-    "addons.plugin_browser_access_other": "Other browser features: {list}"
+    "addons.plugin_browser_access_other": "Other browser features: {list}",
+    "live.route_warning": "Turn Private web off? Websites will then see your own internet address. Browser windows that are open will be closed.",
+    "live.route_turn_off": "Turn it off",
+    "live.route_keep": "Keep it on",
+    "live.route_missing": "Private web has no route it can use on this computer yet. Set one up in Settings."
   },
   "html_keys": [
     "bypass.modal_limits",

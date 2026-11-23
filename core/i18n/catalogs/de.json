@@ -5508,9 +5508,13 @@
     "addons.plugin_browser_access_history": "Sehen, welche Seiten Sie besuchen, und Ihren Browserverlauf",
     "addons.plugin_browser_access_bookmarks": "Ihre Lesezeichen lesen und ändern",
     "addons.plugin_browser_access_clipboard": "Lesen oder ändern, was Sie kopiert haben",
-    "addons.plugin_browser_access_other": "Weitere Browserfunktionen: {list}"
+    "addons.plugin_browser_access_other": "Weitere Browserfunktionen: {list}",
+    "live.route_warning": "Privates Web ausschalten? Websites sehen dann Ihre eigene Internetadresse. Offene Browserfenster werden geschlossen.",
+    "live.route_turn_off": "Ausschalten",
+    "live.route_keep": "Eingeschaltet lassen",
+    "live.route_missing": "Privates Web hat auf diesem Computer noch keinen Weg, den es nutzen kann. Richten Sie einen in den Einstellungen ein."
   },
-  "source_catalog_sha256": "e545189ebb552479e91542db671a87edd22c2d7eb945427a446fea26def3dbec",
+  "source_catalog_sha256": "dda0e34b823d721b93f9cbd8b94e85db6139db155ef27169bd61afbbffc50605",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
