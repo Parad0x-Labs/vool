@@ -121,6 +121,15 @@ STARTING_SEARCH: dict[str, Any] = {
 }
 
 
+#: Where the window starts when no address was asked for: the engine's own new tab page.
+HOME = "chrome://newtab/"
+
+
+def _unused(url: str) -> bool:
+    """A tab the person has not gone anywhere in yet: empty, or still on the new tab page."""
+    return url == "about:blank" or url.startswith(("chrome://newtab", "chrome://new-tab-page"))
+
+
 def default_preferences() -> dict[str, Any]:
     """What a new profile starts with. The person can change any of it in the browser.
 
@@ -128,7 +137,9 @@ def default_preferences() -> dict[str, Any]:
     being visited keeps its cookies so sign-ins last, other sites' cookies are blocked,
     a plain unencrypted page warns before it opens, nothing typed in the address bar is
     sent anywhere until Enter, the engine asks no search company for anything by itself,
-    and files land in a folder of their own.
+    and files land in a folder of their own. The bookmarks bar and the home button are
+    shown, as people expect of a browser; the home button leads to the new tab page until
+    the person gives it an address.
     """
     return {
         "default_search_provider_data": {"template_url_data": dict(STARTING_SEARCH)},
@@ -152,7 +163,9 @@ def default_preferences() -> dict[str, Any]:
         "safebrowsing": {"enabled": False, "enhanced": False, "scout_reporting_enabled": False},
         "signin": {"allowed": False},
         "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
-        "browser": {"check_default_browser": False},
+        "browser": {"check_default_browser": False, "show_home_button": True},
+        "homepage_is_newtabpage": True,
+        "bookmark_bar": {"show_on_all_tabs": True},
     }
 
 
@@ -324,11 +337,17 @@ class _Window:
     async def open(self, url: str) -> None:
         # An empty tab of the person's is reused; a tab VOOL is working in never is.
         pages = [p for p in self.context.pages if not p.is_closed() and p not in self.reserved]
-        blank = next((p for p in pages if p.url == "about:blank"), None)
+        blank = next((p for p in pages if _unused(p.url)), None)
+        if blank and not url and blank.url != "about:blank":
+            # Already on the start page: nothing to load again.
+            with contextlib.suppress(Exception):
+                await blank.bring_to_front()
+            return
         page = blank or await self.context.new_page()
-        for _ in range(3 if url else 0):
+        for _ in range(3):
             try:
-                await page.goto(url, wait_until="commit")
+                # No address asked for: the window shows its start page, not an empty tab.
+                await page.goto(url or HOME, wait_until="commit")
                 break
             except Exception:
                 # The address is the person's own; a page that fails to load shows the

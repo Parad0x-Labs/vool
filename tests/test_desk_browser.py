@@ -233,6 +233,62 @@ def test_the_window_runs_page_scripts_and_remembers_the_person_after_a_restart(b
     assert base + "/first" in visited and base + "/second" in visited
 
 
+def test_the_window_starts_on_a_start_page_with_bookmarks_and_a_home_button_that_last(browser, site):
+    """What a person expects of any browser: it opens on a start page, not an empty tab;
+    the bookmarks bar and the home button are there; a bookmark and a home page of their
+    own choosing are still there after the browser was closed."""
+    base, hits = site
+    shown = ("bookmark_bar.show_on_all_tabs", "browser.show_home_button", "homepage", "homepage_is_newtabpage")
+    read = """(keys) => new Promise((done) => chrome.settingsPrivate.getAllPrefs((all) =>
+        done(Object.fromEntries(all.filter((p) => keys.includes(p.key)).map((p) => [p.key, p.value])))))"""
+
+    async def look(change: bool):
+        context = browser.context_for_agent()
+        first = [p.url for p in context.pages if not p.is_closed()]
+        page = await context.new_page()
+        try:
+            await page.goto("chrome://bookmarks/")
+            if change:
+                await page.evaluate(
+                    "(url) => new Promise((done) => chrome.bookmarks.create({parentId: '1', title: 'Timetable', url}, done))",
+                    base + "/timetable",
+                )
+            kept = await page.evaluate("() => new Promise((done) => chrome.bookmarks.search('Timetable', (found) => done(found.map((b) => b.url))))")
+            await page.goto("chrome://settings/appearance")
+            if change:
+                await page.evaluate(
+                    """(url) => new Promise((done) => chrome.settingsPrivate.setPref('homepage', url, '', () =>
+                        chrome.settingsPrivate.setPref('homepage_is_newtabpage', false, '', done)))""",
+                    base + "/home",
+                )
+            return first, kept, await page.evaluate(read, list(shown))
+        finally:
+            await page.close()
+
+    browser.open("")
+    first, kept, settings = browser._call(look(change=False))
+    # The engine's own start page, drawn from inside the engine: nothing was fetched for it.
+    assert len(first) == 1 and first[0].startswith("chrome://new-tab-page"), first
+    assert kept == [] and hits == []
+    assert settings == {
+        "bookmark_bar.show_on_all_tabs": True, "browser.show_home_button": True,
+        "homepage": "", "homepage_is_newtabpage": True,
+    }
+    # An address opened next takes the unused start tab instead of leaving it behind.
+    browser.open(base + "/first")
+    assert _wait(lambda: any(path == "/first" for path, _ in hits))
+    assert [p.url for p in browser.context_for_agent().pages] == [base + "/first"]
+
+    browser._call(look(change=True))
+    browser.stop()
+    browser.open("")
+    first, kept, settings = browser._call(look(change=False))
+    assert first[0].startswith("chrome://new-tab-page"), first
+    assert kept == [base + "/timetable"]
+    assert (settings["homepage"], settings["homepage_is_newtabpage"]) == (base + "/home", False)
+    assert settings["bookmark_bar.show_on_all_tabs"] is True and settings["browser.show_home_button"] is True
+
+
 def test_the_engine_keeps_saved_sign_ins_out_of_plain_stores_and_opens_no_control_port(browser, site):
     base, _ = site
     browser.open(base + "/")
