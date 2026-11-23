@@ -87,6 +87,18 @@ _VOUCH_WORDS = re.compile(r"\b(?:verified|official|officially|certified|endorsed
 # A name is the card's heading: there even "Featured" or the product's own name reads as VOOL speaking.
 _NAME_WORDS = re.compile(r"vool|\bv o o l\b|skill ?codex|\bparadox\b(?= ?(?:lab|team|official|$))|"
                          r"\b(?:featured|recommended|trusted|approved)\b")
+# Publisher names a card reader would take for someone else: makers of AI models, wallets and payment
+# services, and the big platforms. Their own skills can be listed by a team step once they ask; nobody
+# else gets the name, with or without an ending such as "-official" or "-team".
+_BORROWED_NAMES = ("anthropic", "claude", "openai", "chatgpt", "google", "gemini", "deepmind", "microsoft", "copilot",
+                   "apple", "amazon", "aws", "meta", "github", "mistral", "ollama", "huggingface", "nvidia",
+                   "solana", "phantom", "metamask", "ledger", "trezor", "coinbase", "binance", "kraken",
+                   "stripe", "paypal", "visa", "mastercard", "revolut", "wise")
+_NAME_ENDINGS = frozenset({"", "ai", "app", "hq", "inc", "labs", "lab", "dev", "team", "official", "support", "security",
+                           "wallet", "pay", "skills", "skill", "plugins", "plugin"})
+# Publisher names that read as a role on the Skill Codex itself.
+_ROLE_NAMES = frozenset({"admin", "administrator", "moderator", "mod", "staff", "team", "support", "security", "system",
+                         "editor", "editors", "codex", "skills", "plugins", "community", "everyone", "anonymous"})
 # Marks that read as a badge in a name. A sentence may carry one ("done ✓"); a card's heading may not.
 _BADGE_MARKS = re.compile("[\u2713\u2714\u2705\u2611\U0001f5f8\u2605\u2606\u2b50\U0001f31f\U0001f3c5"
                           "\U0001f396\U0001f3c6\U0001f947\U0001f6e1\U0001f530\U0001f4af\u2122\u00ae]")
@@ -231,6 +243,18 @@ _LOOKALIKE = str.maketrans({
     "І": "I", "Ј": "J", "Ѕ": "S", "Ү": "Y", "α": "a", "ο": "o", "ρ": "p", "ν": "v", "ι": "i", "κ": "k", "τ": "t",
     "υ": "u", "ϲ": "c", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
     "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X"})
+
+
+def borrowed_publisher(name: str) -> str | None:
+    """The well-known name or role this publisher name passes itself off as, or None. Read on folded text."""
+    for form in _card_forms(name):
+        squeezed = form.replace(" ", "")
+        if squeezed in _ROLE_NAMES:
+            return squeezed
+        for brand in _BORROWED_NAMES:
+            if squeezed.startswith(brand) and squeezed[len(brand):] in _NAME_ENDINGS:
+                return brand
+    return None
 
 
 def _card_forms(value: str) -> tuple[str, ...]:
@@ -562,6 +586,11 @@ def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[d
     info, findings = artifact["metadata"], []
     shown = set()  # what a card already answered for, so one claim is one finding
     if not official:
+        borrowed = borrowed_publisher(str(info.get("id") or "").split("/")[0])
+        if borrowed:
+            findings.append(_finding("quality", "registry.json", f"The publisher name reads as \"{borrowed}\", which is "
+                                     "someone else's name or a role on the Skill Codex. Publish under your own name.",
+                                     quote=str(info.get("id") or ""), rule="reserved-name"))
         for field in ("id", "title", "summary"):
             value = str(info.get(field) or "")
             shown.add(value)

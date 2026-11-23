@@ -169,3 +169,23 @@ def test_a_claim_in_the_instructions_is_found_behind_other_letters_spacing_or_a_
 def test_vools_own_rules_can_be_named_in_the_instructions(tmp_path):
     line = "VOOL's own rules, settings, limits and approvals always come first."
     assert found(tmp_path, package(tmp_path, BODY + "\n" + line + "\n"))[0] == []
+
+
+@pytest.mark.parametrize("publisher", [
+    "anthropic", "openai", "open-ai", "0penai", "openai-official", "claude-team", "phantom", "phantom-wallet",
+    "metamask-support", "google", "stripe-pay", "admin", "moderator", "support", "skill-s", "editors",
+])
+def test_a_publisher_name_cannot_be_someone_elses_or_a_role_on_the_skill_codex(tmp_path, publisher):
+    claims = info(id=publisher + "/notes", source={"upload_id": "1" * 32, "namespace": publisher})
+    findings, _ = found(tmp_path, package(tmp_path, metadata=claims))
+    borrowed = [item for item in findings if item.get("rule") == "reserved-name" and "Publish under your own name" in item["reason"]]
+    assert len(borrowed) == 1 and borrowed[0]["check"] == "quality"
+
+
+@pytest.mark.parametrize("publisher", [
+    "alice", "metaphor-notes", "applewood", "wisecrack", "visage", "ledgerline-studio", "claudette", "googly",
+    "team-rocket", "supportive", "phantomas",
+])
+def test_a_name_that_only_starts_like_a_well_known_one_is_the_persons_own(tmp_path, publisher):
+    claims = info(id=publisher + "/notes", source={"upload_id": "1" * 32, "namespace": publisher})
+    assert found(tmp_path, package(tmp_path, metadata=claims))[0] == []
