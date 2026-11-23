@@ -390,6 +390,12 @@ def _only_a_plan(text: str) -> bool:
     )
     return planned * 3 >= len(substantive) * 2
 
+def _lone_number_is_no_list_start(text: str) -> bool:
+    """Whether a reply that is one number ("126.", "(3)") is not the opening marker of a list: lists open on 1."""
+    digits = re.search(r"\d+", str(text or ""))
+    return digits is not None and int(digits.group(0)) != 1
+
+
 def inspect_answer_completeness(text: str, *, question: str | None = None) -> AnswerCompleteness:
     """Whether `text` has the shape of an answer that was cut off before it finished.
 
@@ -401,7 +407,13 @@ def inspect_answer_completeness(text: str, *, question: str | None = None) -> An
     if not _visible(text):
         return AnswerCompleteness(incomplete=True, reasons=(_EMPTY_ANSWER,), has_content=False)
 
-    if _BARE_NUMBER_ANSWER_RE.fullmatch(str(text or "")) and question and _COUNT_OR_ORDINAL_ASK_RE.search(str(question)):
+    if _BARE_NUMBER_ANSWER_RE.fullmatch(str(text or "")) and (
+        _lone_number_is_no_list_start(text)
+        or (question and (_COUNT_OR_ORDINAL_ASK_RE.search(str(question)) or re.search(r"\d", str(question))))
+    ):
+        # Mac gate on 91e898675: "wie viel ist 9 mal 14?" answered "126." and the person was told the answer came back
+        # cut off. A lone number is an answer in any language: a list the model started and never wrote opens on
+        # "1.", and a question that itself holds a number (sums, dates, sizes) is answered by one.
         return AnswerCompleteness(incomplete=False, reasons=(), has_content=True)
 
     lines = _lines(text)

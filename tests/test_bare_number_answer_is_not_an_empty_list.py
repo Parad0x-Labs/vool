@@ -14,10 +14,27 @@ def test_a_lone_number_answering_a_count_or_ordinal_ask_is_complete(text, questi
     assert not inspect_answer_completeness(text, question=question).incomplete
 
 
-@pytest.mark.parametrize("text", ["1.", "10.", "(3)"])
-@pytest.mark.parametrize("question", [None, "", "Why did I give up the allotment plot by the canal?", "What should I cook tonight?", "Summarise my week."])
-def test_a_lone_number_with_no_count_question_is_still_a_cut_off_list(text, question):
-    assert inspect_answer_completeness(text, question=question).incomplete
+@pytest.mark.parametrize("question", [None, "", "Why did I give up the allotment plot by the canal?", "What should I cook tonight?", "Summarise my week.",
+                                      "¿Qué debería cocinar esta noche?", "Fass meine Woche zusammen."])
+def test_a_lone_one_with_no_count_question_is_still_a_cut_off_list(question):
+    assert inspect_answer_completeness("1.", question=question).incomplete
+
+
+# Mac gate on 91e898675: "wie viel ist 9 mal 14?" -> "126." was replaced by "the answer came back cut off". A list a
+# model started opens on 1, so any other lone number is an answer, in any language; and a question holding a number
+# is answered by one, "1." included.
+@pytest.mark.parametrize("seed", range(8))
+def test_a_lone_number_answers_in_any_language(seed):
+    import random
+
+    rng = random.Random(f"lone-number-{seed}")
+    a, b = rng.randint(2, 30), rng.randint(2, 30)
+    question = rng.choice((f"wie viel ist {a} mal {b}?", f"¿cuánto es {a} por {b}?", f"kiek bus {a} kart {b}?",
+                           f"combien font {a} fois {b} ?", f"what's {a} times {b}"))
+    answer = rng.choice((f"{a * b}.", f"{a * b}", f"({a * b})")) if a * b < 1000 else f"{a * b}."
+    assert not inspect_answer_completeness(answer, question=question).incomplete
+    assert not inspect_answer_completeness(f"{rng.randint(2, 999)}.", question=rng.choice(("¿cuántas patas tiene una araña?", None))).incomplete
+    assert not inspect_answer_completeness("1.", question=f"was ist {a} minus {a - 1}?").incomplete
 
 
 def test_the_final_backstop_passes_the_users_question_through():
