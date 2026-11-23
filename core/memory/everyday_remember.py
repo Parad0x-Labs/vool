@@ -164,6 +164,16 @@ def _framed_fact(clean: str) -> str:
         return ""
     if _REQUEST_HEAD_RE.match(fact) or not _personal_fact_clause(fact):
         return ""
+    try:
+        from core.private_chat import looks_like_privacy_request
+
+        if looks_like_privacy_request(frame):
+            # "bitte nicht speichern: my cat is scared of thunder" asks NOT to keep it: a frame that asks not to save or
+            # record, in any language the privacy reader reads, is never a frame for keeping (served on 261a03892 and
+            # later: answered "Locked in. I'll remember that." and saved the fact).
+            return ""
+    except Exception:
+        return ""
     if update_shaped(f"{frame}: {fact}") or update_shaped(fact):
         # "update: my cello is kept at the music school now", "correction: my locker is 215": the frame itself, or the
         # fact, says a saved fact changes; the update reading owns it (and writes nothing when nothing is saved).
