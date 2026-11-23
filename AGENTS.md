@@ -119,7 +119,7 @@ as in the guide's Route B).
 
 ## Fast local checks
 
-Use Python 3.12.13 and the exact tool pins in `pyproject.toml` (pytest, ruff 0.17.5).
+Use Python 3.12.13 and the exact tool pins in `pyproject.toml` (pytest, ruff 0.17.6).
 
     python -m pip install -e ".[dev,browser,companion,evm]"   # same extras CI installs
     python -m ruff check .                                    # pinned ruff, whole repo
