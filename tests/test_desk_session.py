@@ -33,6 +33,12 @@ PAGE = b"""<title>Members</title>
 </script>"""
 
 
+SIGN_IN = b"""<title>Club sign-in</title><h1>Sign in to the club</h1>
+<form method="post" action="/send"><input name="user" autocomplete="username" aria-label="member name">
+<input name="pass" type="password" autocomplete="current-password" aria-label="member password">
+<button type="submit">Sign in</button></form><p id="terms">Members only.</p>"""
+
+
 @pytest.fixture
 def world(pact_rig, request, monkeypatch):
     from core import policy_engine
@@ -74,6 +80,8 @@ def world(pact_rig, request, monkeypatch):
                 return self._send(b"<title>Shop</title><h1>Open shop</h1><div class='g-recaptcha' data-sitekey='k' style='display:none'></div>")
             if path == "/opens-window":
                 return self._send(b"<h1>Opener</h1><a target='_blank' href='/popup-page'>New window link</a><script>window.open('/popup-page')</script>")
+            if path == "/club-sign-in":
+                return self._send(SIGN_IN)
             self._send(PAGE if path == "/members" else b"<h1>Other</h1>")
 
         def do_POST(self):
@@ -155,6 +163,51 @@ def test_vool_reads_a_scripted_page_signed_in_as_the_person_and_nothing_runs_bef
     result = live.tool_intent("vool-browser.inspect", {}, {"session_id": CHAT, "surface": "api", "platform": "web_companion"})
     assert "Late train: 23:58" in result["result"]["page"]["text"] or _wait(
         lambda: "Late train" in agent(rig, item, "scroll", {"direction": "down"})["result"]["page"]["text"], 5)
+
+
+def test_a_sign_in_the_person_saved_is_filled_in_by_the_browser_and_never_shown_to_vool(world):
+    rig, origin, requests = world
+    kept = "kept-by-the-browser-77"
+    status, data = rig.post("/api/browser/window", {"action": "open", "url": origin + "/other"})
+    assert status == 200 and data["open"] is True
+    main = desk_module.desk()
+
+    # The person saves a sign-in for the site in the browser's own password manager.
+    async def save():
+        page = await main.context_for_agent().new_page()
+        try:
+            await page.goto("chrome://password-manager/passwords")
+            await page.evaluate(
+                """([url, password]) => chrome.passwordsPrivate.addPassword(
+                    {url, username: 'dana', password, note: '', useAccountStore: false})""",
+                [origin + "/club-sign-in", kept],
+            )
+        finally:
+            await page.close()
+
+    main._call(save())
+    # It outlives the browser being closed, and is filled in again in any tab on that site:
+    # in VOOL's tab too, where VOOL goes to the sign-in page.
+    main.stop()
+    item = session(origin)
+    snap = agent(rig, item, "navigate", {"url": origin + "/club-sign-in"})
+    assert snap["state"] == "ready", snap
+    read = "(name) => document.querySelector('[name=' + name + ']').value"
+    assert _wait(lambda: main._call(item._page.evaluate(read, "pass")) == kept), "the browser did not fill the saved sign-in"
+    assert main._call(item._page.evaluate(read, "user")) == "dana"
+
+    # VOOL looks at the page again, then works on it: a step of its own on the page.
+    looks = [live.tool_intent("vool-browser.inspect", {}, {"session_id": CHAT, "surface": "api", "platform": "web_companion"})]
+    looks.append(agent(rig, item, "scroll", {"direction": "down"}))
+    looks.append(item.snapshot())
+    shown = repr(looks) + repr(item.model_nodes()) + repr(item.nodes)
+    # The name is on the page for VOOL to see; the password is nowhere in what VOOL is given.
+    assert "dana" in shown and "member password" in shown
+    assert kept not in shown
+    # VOOL may not open the browser's password manager either.
+    with pytest.raises(live.BrowserFault):
+        item.propose("navigate", {"url": "chrome://password-manager/passwords"})
+    assert not any(method == "POST" for method, *_ in requests)
 
 
 def test_a_form_vool_sends_is_reviewed_and_sent_once_exactly_as_shown(world):

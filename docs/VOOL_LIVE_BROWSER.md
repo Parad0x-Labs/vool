@@ -36,7 +36,11 @@ A private chat always uses the separate view. Turning the Browser switch off clo
 
 Browser plugins run in this window. A browser plugin is a VOOL plugin whose package carries a standard browser extension (version 3 of the format the major browsers share), for example an advert blocker. It is reviewed, installed, enabled and removed in the Plugins section like every other plugin, under its own "Web browser" group, and the review says in plain words what the extension can read and change. VOOL loads the enabled ones each time the window starts, from a fresh copy of the package the person approved; enabling, switching off or removing one takes effect in an open window at once. A private window never gets a plugin. A plugin is refused at review when its extension uses the older format, would fetch its own updates, or asks for saved sign-ins, the browser's connection or safety settings, other plugins, the screen or programs outside the browser, or saving files by itself. "Make a browser plugin" in the Plugins section writes a small working one into a folder for the person to change; see [Writing a plugin](guides/plugin-authoring.md).
 
-Not there yet: a browser engine VOOL fetches and updates itself, saved passwords in the system keychain, a list of browser plugins to pick from, import from other browsers, and registering as the default browser.
+Saved sign-ins are the engine's own: it offers to save a sign-in, keeps it through the system's credential store (the Keychain on macOS), and fills it in again on that site, in any tab of the lasting window. VOOL is never given a password: not one a page carries, not one the browser filled in, and it cannot open the browser's password manager. On a Linux desktop with no keyring the engine falls back to a store that other programs of the same user can read; VOOL does not yet turn saving off there.
+
+Bringing bookmarks and sign-ins over from another browser is done with the engine's own import page (Settings, then "Import bookmarks and settings"); VOOL itself never reads another browser's profile.
+
+Not there yet: a browser engine VOOL fetches and updates itself, a list of browser plugins to pick from, and registering as the default browser.
 
 ## Harmful sites
 
