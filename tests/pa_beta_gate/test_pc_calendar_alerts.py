@@ -48,7 +48,7 @@ class Clock:
         from core.time_authority import CLOCK
 
         self.now = start
-        monkeypatch.setattr(CLOCK, "now_utc", lambda: self.now)
+        monkeypatch.setitem(vars(CLOCK), "now_utc", lambda: self.now)
 
     def __call__(self) -> str:
         return self.now.isoformat()

@@ -19,7 +19,9 @@ class Clock:
         from core.time_authority import CLOCK
 
         self.now = start
-        monkeypatch.setattr(CLOCK, "now_utc", lambda: self.now)
+        # setitem on the clock's own dict, so the undo removes the stand-in; setattr on an instance would leave the
+        # bound method behind as an instance attribute, and every later class-level clock patch would be ignored.
+        monkeypatch.setitem(vars(CLOCK), "now_utc", lambda: self.now)
 
     def __call__(self) -> str:
         return self.now.isoformat()
@@ -53,12 +55,14 @@ def _clear_of_the_small_hours(zone: str, monkeypatch) -> None:
     from core import time_authority
     from core.operator.when import _SMALL_HOURS_END
 
-    real = time_authority.TimeAuthority.now_utc
-    local = real(time_authority.CLOCK).astimezone(ZoneInfo(zone))
+    clock = time_authority.CLOCK
+    real = clock.now_utc
+    local = real().astimezone(ZoneInfo(zone))
     if local.hour >= _SMALL_HOURS_END:
         return
     ahead = local.replace(hour=_SMALL_HOURS_END + 1, minute=0, second=0, microsecond=0) - local
-    monkeypatch.setattr(time_authority.TimeAuthority, "now_utc", lambda self: real(self) + ahead)
+    # On the clock VOOL reads (an instance attribute wins over its class), undone by removing it again.
+    monkeypatch.setitem(vars(clock), "now_utc", lambda: real() + ahead)
 
 
 def connect(provider, clock, *, base_url="", select=(), lead=(15,), sync=True, alerts=True, adapter_factory=None):
