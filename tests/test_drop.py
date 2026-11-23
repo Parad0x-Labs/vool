@@ -48,7 +48,11 @@ def test_private_invite_offline_file_and_real_restart(pair, tmp_path):
         assert reopened.poll() == ["received", "received"]
         shown = reopened.show(sid)
         assert shown["note"] == note and shown["status"] == "ready"
-        assert (reopened.root / sid / "selected.bin").read_bytes() == selected.read_bytes()
+        assert reopened.file_bytes(sid) == ("selected.txt", selected.read_bytes())
+        # The copy on this disk is sealed: neither the file nor the note is readable there.
+        assert selected.read_bytes() not in (reopened.root / sid / "selected.bin").read_bytes()
+        reopened.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        assert note.encode() not in (reopened.root / "drops.db").read_bytes()
         assert manifest["size"] == 193
 
 
@@ -221,7 +225,7 @@ def test_file_materialization_commit_cut_replays_real_inbox(pair, tmp_path):
     decoded = json.loads(chunk["plaintext"])
     manifest = json.loads(b._row(sid)["manifest"])
     with b.scope():
-        _write(b.root / sid / "0000.part", unb64(decoded["data"], 0, MAX_FILE))
+        _write(b.root / sid / "0000.part", b._sealer.seal(f"{sid}|part|0", unb64(decoded["data"], 0, MAX_FILE)))
         b._assemble(sid, manifest)
         # Materialized bytes survived but the application status/receipt did
         # not commit. Native inbox remains durable, with no mocked result.
@@ -232,7 +236,7 @@ def test_file_materialization_commit_cut_replays_real_inbox(pair, tmp_path):
         # copy is then recognised as already processed.
         assert restarted.poll() == ["received", "duplicate"]
         assert restarted.show(sid)["status"] == "ready"
-        assert (restarted.root / sid / "selected.bin").read_bytes() == file.read_bytes()
+        assert restarted.file_bytes(sid)[1] == file.read_bytes()
 
 
 def test_exact_ten_mib_boundary_and_one_byte_oversize(pair, tmp_path):
@@ -252,8 +256,9 @@ def test_exact_ten_mib_boundary_and_one_byte_oversize(pair, tmp_path):
     a.send_packet(sid, "10 MiB boundary", selected)
     b.poll()
     assert b.show(sid)["status"] == "ready"
-    assert (b.root / sid / "selected.bin").stat().st_size == MAX_FILE
-    assert hashlib.sha256((b.root / sid / "selected.bin").read_bytes()).digest() == hashlib.sha256(selected.read_bytes()).digest()
+    received = b.file_bytes(sid)[1]
+    assert len(received) == MAX_FILE
+    assert hashlib.sha256(received).digest() == hashlib.sha256(selected.read_bytes()).digest()
 
 
 def test_tampered_ciphertext_does_not_admit_plaintext_or_advance_session(pair, tmp_path):
@@ -271,14 +276,16 @@ def test_tampered_ciphertext_does_not_admit_plaintext_or_advance_session(pair, t
     packet["box"]["body"] = b64(encrypted)
     _write(path, json.dumps(packet, sort_keys=True, separators=(",", ":")).encode())
     # The forged packet is consumed without effect; the authentic chunk behind
-    # it is held (it needs the packet) instead of jamming the mailbox.
-    assert b.poll() == ["rejected", "deferred", "deferred"]
-    assert b.show(sid)["note"] == ""
+    # it is kept as a sealed part (it needs the packet) instead of jamming the mailbox
+    # or waiting in the shared inbox.
+    assert b.poll() == ["rejected", "received"]
+    assert b.show(sid)["note"] == "" and b.show(sid)["status"] == "connected"
     assert not path.exists()
-    assert [r["delivery"] for r in b.client.pending_receives()] != []
-    # A genuine copy of the packet arrives later; the held chunk completes.
+    assert b.client.pending_receives() == []
+    assert b"Controlled selected data." not in (b.root / sid / "0000.part").read_bytes()
+    # A genuine copy of the packet arrives later; the kept chunk completes.
     _write(path, original)
-    assert b.poll() == ["deferred", "received", "received"]
+    assert b.poll() == ["received"]
     assert b.show(sid)["note"] == "must not leak on tamper"
     assert b.show(sid)["status"] == "ready"
     assert b.client.pending_receives() == []
@@ -432,12 +439,12 @@ def test_out_of_order_folder_sync_and_junk_entries_do_not_lose_or_block_frames(p
     held = tmp_path / "held.wire"
     packet.rename(held)  # a synced folder has not delivered the packet yet
     (a.relay.root / b.fingerprint / "0-junk.wire").mkdir()  # junk another relay user left
-    assert b.poll().count("deferred") >= len(chunks)
-    assert b.show(sid)["status"] == "connected"
+    assert b.poll().count("received") >= len(chunks)
+    assert b.show(sid)["status"] == "connected" and b.client.pending_receives() == []
     held.rename(packet)
     outcomes = b.poll()
     assert "received" in outcomes and b.show(sid)["status"] == "ready"
-    assert (b.root / sid / "selected.bin").read_bytes() == selected.read_bytes()
+    assert b.file_bytes(sid)[1] == selected.read_bytes()
     assert b.client.pending_receives() == []
 
 
@@ -524,16 +531,47 @@ def test_frames_anyone_can_forge_are_consumed_and_never_stop_later_frames(tmp_pa
         assert b.show(sid)["status"] == "ready"
 
 
-def test_a_full_receive_queue_holds_frames_without_stopping_the_poll(pair):
+def test_pieces_with_no_header_never_take_the_shared_queue(pair):
     a, b, sid, relay = pair
     with a.scope():
-        for index in range(257):  # chunks with no packet: every one waits in the shared queue
+        for index in range(300):  # chunks with no packet, more than any file has
             a._send(sid, {"type": "chunk", "index": index, "data": b64(b"x")})
     outcomes = b.poll()
-    assert outcomes.count("deferred") >= 256 and "held" in outcomes
-    held = len(a.relay.messages(b.fingerprint))
-    assert held >= 1  # left in the folder, never consumed unread
-    assert b.poll().count("held") == held
+    # Each one is a sealed part in this Drop's own folder or is refused; none waits in the
+    # inbox every Drop shares, and none is left in the folder.
+    assert "held" not in outcomes and "deferred" not in outcomes
+    assert outcomes.count("received") == MAX_FILE // (40 * 1024) and outcomes.count("rejected") == 300 - 256
+    assert b.client.pending_receives() == [] and a.relay.messages(b.fingerprint) == []
+
+
+def test_one_person_cannot_fill_the_queue_other_drops_need(tmp_path, monkeypatch):
+    import secrets
+
+    from core.drop import service
+
+    monkeypatch.setenv("VOOL_DROP", "1")
+    relay = tmp_path / "relay"
+    LocalRelay(relay, create=True)
+    with DropHome(tmp_path / "a", relay) as a, DropHome(tmp_path / "b", relay) as b, \
+            DropHome(tmp_path / "c", relay) as c:
+        flood = b.join(a.invite(b.fingerprint), a.fingerprint)
+        a.poll()
+        with b.scope():
+            for _ in range(300):  # tasks before any packet: the one payload that must wait
+                b._send(flood, {"type": "task", "task_id": b64(secrets.token_bytes(16)),
+                                "operation": "sha256-selected-file", "file_sha256": "0" * 64,
+                                "permissions": ["read_files"], "description": "x"})
+        outcomes = a.poll()
+        waiting = len(a.client.pending_receives())
+        assert waiting <= service.DEFER_PER_PEER + 1 and "held" not in outcomes
+        assert outcomes.count("rejected") >= 300 - waiting
+        # Another person's Drop, opened and sent afterwards, arrives whole.
+        other = c.join(a.invite(c.fingerprint), a.fingerprint)
+        selected = tmp_path / "real.bin"
+        selected.write_bytes(os.urandom(90000))
+        c.send_packet(other, "real", selected)
+        a.poll()
+        assert a.show(other)["status"] == "ready" and a.file_bytes(other)[1] == selected.read_bytes()
 
 
 def test_a_deleted_note_does_not_linger_in_the_database_journals(pair, tmp_path):
