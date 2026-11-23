@@ -451,6 +451,17 @@ def _sentence_spans(line: str) -> list[tuple[int, int]]:
     return [(a, b) for a, b in spans if line[a:b].strip()]
 
 
+#: VOOL saying it changed one of the person's own things ("I've updated your kite's name to Zephyr"). With no tool
+#: named, the only place such a change could live is what VOOL keeps for the person, so it is held to the turn's keep
+#: receipt like any save. Mac run16 (28ac44632): "small change - my kite is called Zephyr now", with no kite saved,
+#: kept nothing and the model answered "I've updated your kite's name ...", which no check read as a claim.
+_OWN_THING_CHANGED = re.compile(
+    r"\b(?:i" + _A + r"ve|i have|i)\s+" + _ADVERBS
+    + r"(?:updated|changed|renamed|replaced|edited|corrected)\s+(?:your|the name of your)\b",
+    re.I,
+)
+
+
 def _claim_spans(content: str) -> list[tuple[int, int, int, str, str, str]]:
     """(line, start, end, original sentence, form, source) for every claim sentence."""
     raw = str(content or "")
@@ -478,6 +489,8 @@ def _claim_spans(content: str) -> list[tuple[int, int, int, str, str, str]]:
                 if not form:
                     continue
                 sources = _sources_of(sentence, form)
+                if not sources and form == "action" and _OWN_THING_CHANGED.search(sentence):
+                    sources = ["memory"]
             text = original[a:b].strip()
             if not sources:
                 if _NOUN_DONE.search(sentence):

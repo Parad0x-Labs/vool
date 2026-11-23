@@ -1546,8 +1546,12 @@ def _told_as_fact_prompt(sentence: str) -> str:
         'Answer {"answer": "no"} when the sentence is about something that has not happened and is not settled: '
         "something the person will probably, may, might or could do some time, is thinking of, would like, or has "
         "not decided.",
+        'Answer {"answer": "no"} when the sentence is a sum or a calculation: numbers with a word for adding, taking '
+        "away, multiplying or dividing between them, asked or stated, in any language and however it is spelled. "
+        "That is a task for the assistant, not a fact about their life.",
         "",
         'Said: "the spare duvet lives in the top of the hall cupboard." -> {"answer": "yes"}',
+        'Said: "padalink 84 is 12" -> {"answer": "no"}',
         'Said: "turn the scanned receipt the right way up for me." -> {"answer": "no"}',
         'Said: "our neighbour Petra feeds the cat when we are away." -> {"answer": "yes"}',
         'Said: "I\'m tempted to take up pottery in the autumn." -> {"answer": "no"}',

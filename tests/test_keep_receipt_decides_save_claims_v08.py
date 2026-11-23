@@ -430,3 +430,31 @@ def test_the_memory_reader_registry_has_every_module_and_public_function() -> No
     from core.memory.reader_registry import _audit
 
     assert _audit(Path(__file__).resolve().parents[1]) == []
+
+
+@pytest.mark.parametrize("reply", [
+    "Got it! I've updated your kite's name to Zephyr. Let me know if there's anything else.",
+    "Sure, I have now changed your bike lock code to the new one.",
+    "Okay. I updated your goldfish's name to Pebble.",
+])
+def test_a_change_to_one_of_the_persons_things_that_nothing_kept_is_cut(isolated_home, reply):
+    # Mac run16 (28ac44632): "small change - my kite is called Zephyr now" with no kite saved kept nothing, and the
+    # model answered "I've updated your kite's name ..." with no line saying nothing was saved.
+    text, record = _gate(reply, {"saved": [], "refused": [], "in_passing": False},
+                         request="small change - my kite is called Zephyr now")
+    assert record.get("memory_receipt") == "claims_without_receipt_corrected", record
+    assert "updated your" not in text and "changed your" not in text and "renamed your" not in text, text
+    assert "Nothing from this message was saved to memory" in text, text
+
+
+def test_a_change_the_keep_step_did_save_stands(isolated_home):
+    reply = "Got it! I've updated your kite's name to Zephyr."
+    text, record = _gate(reply, {"saved": ["my kite is called Zephyr"], "refused": [], "in_passing": True},
+                         request="small change - my kite is called Zephyr now")
+    assert text.startswith(reply), text
+
+
+def test_a_change_a_named_tool_made_is_not_a_memory_claim(isolated_home):
+    from core.action_claim_gate import action_claims
+
+    assert [source for _, _, source in action_claims("I've updated your calendar for Friday.")] == ["calendar"]

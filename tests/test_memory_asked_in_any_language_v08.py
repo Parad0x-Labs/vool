@@ -400,6 +400,11 @@ _READINGS = [
     ("Memory, forget", None, None, None, ""),                # a forget never stands on an unreadable second reading
     ("Memory, forget", None, "yes", None, "forget"),
     (None, "forget", None, None, ""),
+    ("Memory, recall", "keep", "yes", None, "forget"),       # 28ac44632 run16: "istrink, ka tau sakiau apie ..."
+    ("Memory, recall", "keep", "no", "yes", "recall"),       # readings that disagree, and no forget: as before
+    ("Memory, keep", "recall", "yes", "yes", "forget"),
+    ("Memory, recall", "recall", "yes", None, "recall"),     # readings that agree are never asked the forget question
+    ("Memory, keep", "keep", "yes", "yes", "keep"),
 ]
 
 

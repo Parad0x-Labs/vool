@@ -225,6 +225,7 @@ def _memory_kind_confirmed(
     - a forget cannot be undone: it stands when both readings name it, or when one does and a yes/no forget question
       (`arbitrate_forget_order`) reads yes; it then still names its targets by a judgement of its own and erases only
       what shares the message's words;
+    - two readings that name different memory kinds get the same yes/no forget question;
     - a keep or a forget never takes a tool's order ("remind me at 9 to ..."): neither stands beside a picked tool."""
     from core import intent_arbiter
 
@@ -240,7 +241,12 @@ def _memory_kind_confirmed(
     tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
     named = picked | ({kind} if kind in {"keep", "recall", "forget"} else set())
     decided = ""
-    if not tools and "forget" in named:
+    # Two readings that each name a different kind of memory ask are unsure of it: a forget typed without accents
+    # or with a slip read as a recall by one and a keep by the other ("istrink, ka tau sakiau apie ...": tool
+    # judgement recall, memory question keep, Mac run14 and run16). The yes/no forget question settles it as it
+    # settles one reading of a forget. Two readings that agree are not asked it.
+    disagree = bool(picked) and kind in {"keep", "recall", "forget"} and kind not in picked
+    if not tools and ("forget" in named or disagree):
         agreed = kind == "forget" and "forget" in picked
         if agreed or asked("forget", intent_arbiter.arbitrate_forget_order) == "yes":
             decided = "forget"

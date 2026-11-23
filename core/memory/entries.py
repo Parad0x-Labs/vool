@@ -2552,6 +2552,16 @@ def forget_structured_memory(
                 if (chat and text in erased_now and str(row.get("record_id") or "").strip() in wanted
                         and text not in saved_from.setdefault(chat, [])):
                     saved_from[chat].append(text)
+            # The chats VOOL showed an erased row in hold its words too: a recall in another chat answers "You told
+            # me: <the row's words>", and that reply stays in that chat's log, summary and capsule. Measured on the
+            # real app (Mac run16, 28ac44632): after an LT forget erased the boat row and the two chats it was told
+            # and forgotten in, the R1/R2 chats' recall replies still held the boat on disk. A chat whose log carries
+            # an erased row's words, and that could read the row, is erased like the chat that saved it.
+            for chat, text in _chats_holding_erased_rows(
+                    [row for row in rows if str(row.get("record_id") or "").strip() in wanted
+                     and " ".join(str(row.get("text") or "").split()) in erased_now]):
+                if text not in saved_from.setdefault(chat, []):
+                    saved_from[chat].append(text)
         if erased_texts:
             retained = _load_erasure_rows(memory_entries_path())
             if any(str(row.get("record_id") or "") in target_ids
@@ -2600,6 +2610,36 @@ def forget_structured_memory(
     if summary_error is not None:
         raise MemoryErasureError("session summaries could not be erased and verified") from summary_error
     return len(erased_texts)
+
+
+def _chats_holding_erased_rows(erased_rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """(chat, row words) for every chat whose conversation log carries the words of one of ``erased_rows`` and that
+    could read that row, so the row was shown there. The chat that saved a row is found from the row itself."""
+    texts = [(row, " ".join(str(row.get("text") or "").split())) for row in erased_rows]
+    texts = [(row, text) for row, text in texts if len(text.split()) >= 2]
+    if not texts:
+        return []
+    from core.memory.carriers import carries
+
+    found: list[tuple[str, str]] = []
+    policies: dict[str, ContextAccessPolicy | None] = {}
+    for logged in _load_jsonl(conversation_log_path()):
+        chat = str(logged.get("session_id") or "").strip() if isinstance(logged, dict) else ""
+        if not chat:
+            continue
+        said = [logged.get("user"), logged.get("assistant")]
+        for row, text in texts:
+            if (chat, text) in found or not carries(said, text):
+                continue
+            if chat not in policies:
+                try:
+                    policies[chat] = resolve_memory_access_policy(chat_id=chat)
+                except Exception:
+                    policies[chat] = None
+            policy = policies[chat]
+            if policy is not None and _memory_erasure_row_owned(row, policy):
+                found.append((chat, text))
+    return found
 
 
 def _with_replaced_rows(record_ids: list[str], rows: list[dict[str, Any]]) -> list[str]:

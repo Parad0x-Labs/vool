@@ -174,3 +174,33 @@ def test_copies_in_the_saving_chat_that_cannot_be_erased_are_said(isolated_home,
     reply = _forget("Forget my glazier.")
     assert reply.startswith("Forget could not be verified as fully applied: the copies in the chat that saved it"), reply
     assert "after 1 entry was removed" in reply and "Forget applied" not in reply
+
+
+def _shown_in(chat: str, question: str, answer: str) -> None:
+    from core.persistent_memory import append_conversation_event
+
+    append_conversation_event(session_id=chat, user_input=question, assistant_output=answer, persist_now=True,
+                              access_policy=_policy(chat))
+
+
+def test_a_chat_the_fact_was_shown_in_lets_go_of_it_too(isolated_home):
+    # Mac run16 (28ac44632): a recall in two other chats answered "You told me: <the fact>"; the forget erased the row
+    # and the chats it was told and forgotten in, and those two recall replies kept the fact on disk.
+    _save(GLAZIER)
+    _shown_in(THIRD, "kas mano stiklius?", f"You told me: {GLAZIER}")
+    _shown_in("a-fourth-chat", "who fixes my windows again", f"You told me:\n- {GLAZIER}\n- the shed is green")
+    _shown_in("a-fifth-chat", "what colour is the shed", "You told me: the shed is green")
+    assert _forget("Forget my glazier.").startswith("Forget applied. Removed 1 memory entry.")
+    for chat in (SAVED_IN, THIRD, "a-fourth-chat"):
+        assert "Whitlock" not in _log_of(chat), chat
+    assert "shed is green" in _log_of("a-fifth-chat")
+
+
+def test_a_chat_that_could_not_read_the_fact_is_left_alone(isolated_home):
+    # Words that only look like an erased row's, in a chat the row was never readable from, are that chat's own.
+    from core.memory.entries import add_memory_fact
+
+    assert add_memory_fact("My kiln shelf is number 6.", session_id=SAVED_IN, access_policy=_policy(SAVED_IN))
+    _shown_in(THIRD, "note", "My kiln shelf is number 6.")
+    _forget("Forget my kiln shelf.", SAVED_IN)
+    assert "kiln shelf is number 6" in _log_of(THIRD)
