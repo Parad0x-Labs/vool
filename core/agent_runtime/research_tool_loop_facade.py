@@ -638,7 +638,7 @@ def _change_call_carries_an_earlier_message(
     carried, which this message never names and this turn never read, is the earlier message's, whatever the
     language. Said once per turn: a model that sends the call again after being told is let through, so "the same
     again" still runs."""
-    if resuming_approval:
+    if resuming_approval or not _a_personal_tool(intent):
         return None
     try:
         from core.tool_registry import tool_for_intent
@@ -707,6 +707,26 @@ def _change_call_carries_an_earlier_message(
         user_safe_response_text=message,
         details={"executed": False, "reason": _EARLIER_MESSAGE_REASON, "copied": copied[:3]},
     )
+
+
+#: The turn judge's choices that are the person's own things (core.plugin_ask.BUILTIN_CHOICES), not the open folder.
+_PERSONAL_CHOICES = frozenset({"reminders", "calendar", "contacts", "mail", "notes", "phone", "drop", "things"})
+
+
+def _a_personal_tool(intent: str) -> bool:
+    """Whether a call is to one of VOOL's personal tools (reminders, calendar, contacts, notes, mail, sending a file):
+    the tools whose arguments say what the person asked for in this message. A code or file edit carries forward what
+    earlier turns wrote by its nature (a revised repair rewrites the file the first attempt wrote), so the earlier-
+    message check is not theirs: on 4c72909b7 a served repair's revision was refused for the first attempt's words
+    and the repair never completed (tests/test_code_task_served_units.py)."""
+    try:
+        from core.plugin_ask import BUILTIN_CHOICES
+
+        personal = {seat for key, _description, seats in BUILTIN_CHOICES for seat in seats
+                    if key in _PERSONAL_CHOICES}
+    except Exception:
+        return False
+    return str(intent or "") in personal
 
 
 def _earlier_user_messages(source_context: dict[str, Any] | None, question: str) -> list[str]:

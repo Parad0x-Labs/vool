@@ -61,10 +61,12 @@ def test_the_old_canvas_spinner_and_its_runtime_are_completely_removed() -> None
     for gone in ("tc-snake", "VoolCore", "CORE_SRC", "coreRender", "coreParams",
                  "corePhaseAt", "CORE_BASE", "guardCost", "run.snake"):
         assert gone not in HTML, f"the removed canvas animation left '{gone}' behind"
-    # The only canvas left on the page is the desktop pet's 48x48 Pet-tab preview; any other
-    # canvas -- a returning spinner included -- is not allowed back.
+    # The only canvases left on the page are the desktop pet's 48x48 Pet-tab preview and the 48x48
+    # pictures on the pet picker's cards (one per pet, f2855eeac); any other canvas -- a returning
+    # spinner included -- is not allowed back.
     canvases = re.findall(r"<canvas\b[^>]*>", HTML)
-    others = [tag for tag in canvases if not tag.startswith('<canvas id="vcdPreview" ')]
+    others = [tag for tag in canvases if not tag.startswith('<canvas id="vcdPreview" ')
+              and not tag.startswith('<canvas class="vcd-thumb" data-thumb=')]
     assert others == [], f"the removed canvas animation left a canvas behind: {others}"
 
 
