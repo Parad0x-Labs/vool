@@ -3427,6 +3427,14 @@ class VoolAgent(
                 untold = untold_name_part(effective_input, session_id=session_id, source_context=runtime_source_context)
                 if untold is not None:
                     cross_recall = CrossChatRecall(response=untold, found=True)
+            if cross_recall is not None and not cross_recall.found:
+                from core.agent_runtime.cross_chat_recall import CrossChatRecall
+                from core.persistent_memory import _judged_recall_before_not_found
+
+                held = _judged_recall_before_not_found(
+                    effective_input, session_id=session_id, source_context=runtime_source_context)
+                if held is not None:
+                    cross_recall = CrossChatRecall(response=held, found=True)
             if cross_recall is not None:
                 recall_result = self._fast_path_result(
                     session_id=session_id,

@@ -61,6 +61,8 @@ def home(isolated_home, monkeypatch):
     from core.memory.revocation import initialize_memory_home
 
     initialize_memory_home(isolated_home)
+    # The keep step's told-as-fact question, scripted: every kept sentence here tells a fact unless a test says not.
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
     _policy(CHAT)
     _policy(OTHER_CHAT)
     plugin_ask.forget()
@@ -536,3 +538,19 @@ def test_a_forget_never_puts_vools_receipt_on_the_forget_list(home):
     lines = pm._replies_to_own_chat_sentence(said, session_id=CHAT, source_context=dict(OWNER))
     assert pm.KEPT_REPLY not in lines, lines
     assert any(thing in line for line in lines), lines
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_question_both_readings_call_a_keep_is_never_kept(home, monkeypatch, seed):
+    """Mac run10 (eb8c907cc): "primink, kokios spalvos mano dviratis ir kur ji laikoma" ("remind me what colour my bike
+    is and where it is kept") was read a keep by both readings, saved as a fact and answered "Locked in"."""
+    rng = random.Random(f"question-not-kept-{seed}")
+    text = _vary(rng, rng.choice(["primink, kokios spalvos mano dviratis ir kur ji laikoma",
+                                  "pasakyk man kur stovi mano valtis", "erinnere mich wo mein Fahrrad steht"]))
+    _judged(text, "keep")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda *_a, **_k: ())
+    handled, reply = maybe_handle_memory_command(text, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert not _entries().strip(), _entries()
+    assert str(reply) != pm.KEPT_REPLY and (not handled or str(reply) == pm.JUDGED_RECALL_NOTHING), (handled, reply)

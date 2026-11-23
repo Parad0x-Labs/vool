@@ -3190,6 +3190,16 @@ def _judged_memory_turn(
         facts = _judged_keep_statements(text)
         if not facts:
             return None
+        # Both readings can call a question a keep: "primink, kokios spalvos mano dviratis ir kur ji laikoma" ("remind
+        # me what colour my bike is ...", no question mark) was saved as a fact and answered "Locked in" (Mac run10,
+        # eb8c907cc). What is kept must be told as a fact, by the keep step's own question; a keep ask that tells
+        # nothing is a recall.
+        facts = [fact for fact in facts if _told_as_fact(fact, session_id=session_id, source_context=source_context)]
+        if not facts:
+            reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
+            if reply is None and not _chat_earlier_user_turns(session_id):
+                reply = JUDGED_RECALL_NOTHING
+            return None if reply is None else (True, reply)
         added = 0
         try:
             for stated in facts:
@@ -3211,6 +3221,19 @@ def _judged_memory_turn(
         return True, ALREADY_KEPT_REPLY
     reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
     return None if reply is None else (True, reply)
+
+
+def _told_as_fact(sentence: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> bool:
+    """Whether the keep step's own question (`core.intent_arbiter.arbitrate_told_as_fact`) reads the sentence as telling
+    how something is; no answer keeps nothing."""
+    from core.intent_arbiter import arbitrate_told_as_fact
+
+    try:
+        return arbitrate_told_as_fact(sentence, chat_id=str(session_id or ""),
+                                      source_context=dict(source_context or {})) == "yes"
+    except Exception as exc:
+        LOGGER.warning("judged keep: told-as-fact unavailable: %s", type(exc).__name__)
+        return False
 
 
 def _judged_items_named(
@@ -3303,6 +3326,24 @@ def _judged_recall_reply(
 
 #: A judged recall in a new chat that nothing VOOL holds answers.
 JUDGED_RECALL_NOTHING = "I don't have that saved. If you tell me, I'll remember it."
+
+
+def _judged_recall_before_not_found(text: str, *, session_id: str | None,
+                                    source_context: Mapping[str, Any] | None) -> str | None:
+    """What VOOL holds that a recall the turn's judge read names, asked before the cross-chat search answers "not
+    saved": that search matches words, so "remind me what colur my bike is and where i keep it" beside a saved "mano
+    dviratis violetinė ..." was answered "I don't have that saved" (Mac run10, eb8c907cc). None when this is no judged
+    recall or the judge names nothing."""
+    try:
+        from core import plugin_ask
+
+        if plugin_ask.judged_memory_ask(text) != "recall":
+            return None
+        policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
+    except Exception:
+        return None
+    return _judged_recall_reply(text, session_id=session_id, policy=policy,
+                                source_context=dict(source_context or {}), forgotten_too=False)
 
 
 def _judged_recall_with_nothing_behind_it(text: str, *, session_id: str | None) -> str | None:
@@ -4731,6 +4772,16 @@ def _forget_arguments_by_what_they_name(
                 pairs = [(sentence, argument)]
                 if said_in_chat is not None:
                     said_in_chat.add(sentence)
+                # A sentence that was kept is saved without its lead ("Remember that my telescope is navy ..." is the
+                # row "my telescope is navy ..."), so its words do not select the row: each saved fact the sentence
+                # carries is erased by its own words too. Mac run10 (eb8c907cc): the forget answered "Forget applied"
+                # and the telescope row stayed active.
+                pairs += [(fact, argument) for fact in _saved_facts_a_sentence_carries(sentence, policy=policy)]
+            elif (clauses := _forget_clauses_by_what_they_name(target, policy=policy, session_id=session_id,
+                                                              source_context=source_context, said_in_chat=said_in_chat)):
+                # "everything about my suitcase, erase that memory completely": the order's clauses, read one by one,
+                # name the thing; the whole, with the second clause's words, names nothing (Mac run10, eb8c907cc).
+                pairs = [(erase_by, argument) for erase_by in clauses]
             elif not _target_selects_something_held(target, policy=policy, source_context=source_context):
                 # The words as typed select nothing VOOL holds, and no reader above could say what they describe:
                 # what they name is judged over everything held, as a forget in another language is. Measured on
@@ -4742,6 +4793,47 @@ def _forget_arguments_by_what_they_name(
         for erase_by, typed in pairs:
             out.setdefault(erase_by, typed)
     return list(out.items())
+
+
+def _forget_clauses_by_what_they_name(
+    target: str, *, policy: Any, session_id: str, source_context: dict[str, Any] | None, said_in_chat: set[str] | None,
+) -> list[str]:
+    """What the clauses of a forget target (split at a comma, a semicolon or a dash) name, each read as a target of
+    its own: the saved facts it names, or the person's sentence of this chat it names and the saved facts that
+    sentence carries. Empty when the target is one clause, or no clause names anything."""
+    clauses = [part.strip(" .,!?") for part in re.split(r"\s*[,;]\s*|\s+[-\u2013\u2014]\s+", target)]
+    clauses = [part for part in clauses if part]
+    if len(clauses) < 2:
+        return []
+    out: list[str] = []
+    for clause in clauses:
+        named = _saved_facts_a_forget_names(clause, policy=policy, session_id=session_id, source_context=source_context)
+        if named:
+            out.extend(named)
+            continue
+        sentence = _own_chat_sentence_a_forget_names(clause, session_id=session_id, source_context=source_context)
+        if sentence:
+            out.append(sentence)
+            if said_in_chat is not None:
+                said_in_chat.add(sentence)
+            out.extend(_saved_facts_a_sentence_carries(sentence, policy=policy))
+    return list(dict.fromkeys(out))
+
+
+def _saved_facts_a_sentence_carries(sentence: str, *, policy: Any) -> list[str]:
+    """The saved facts this chat may name whose whole words the person's sentence carries; empty when unreadable."""
+    from core.memory.carriers import carries
+
+    try:
+        saved = _whole_erase_saved_texts(policy)
+    except Exception:
+        return []
+    out = []
+    for text in saved:
+        token = " ".join(text.split()).strip(" .,!?").lower()
+        if len(token.split()) >= 2 and carries(sentence, token) and text not in out:
+            out.append(text)
+    return out
 
 
 def _target_selects_something_held(target: str, *, policy: Any, source_context: Any) -> bool:
