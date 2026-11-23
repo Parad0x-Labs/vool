@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import os
 import secrets
 import shutil
@@ -96,6 +97,58 @@ def engine_binary() -> str | None:
     return find_engine_binary()
 
 
+def downloads_dir() -> Path:
+    """Where the browser saves files: the person's own Downloads, never VOOL's data."""
+    return Path.home() / "Downloads" / "VOOL Downloads"
+
+
+def default_preferences() -> dict[str, Any]:
+    """What a new profile starts with. The person can change any of it in the browser.
+
+    The best of what other browsers offer, with the privacy they leave off: the site
+    being visited keeps its cookies so sign-ins last, other sites' cookies are blocked,
+    a plain unencrypted page warns before it opens, nothing typed in the address bar is
+    sent anywhere until Enter, and files land in a folder of their own.
+    """
+    return {
+        "https_only_mode_enabled": True,
+        "enable_do_not_track": True,
+        "profile": {
+            "cookie_controls_mode": 1,              # block other sites' cookies
+            "block_third_party_cookies": True,
+            "default_content_setting_values": {"notifications": 2, "geolocation": 3},
+        },
+        "download": {
+            "default_directory": str(downloads_dir()),
+            "prompt_for_download": False,
+            "directory_upgrade": True,
+        },
+        "savefile": {"default_directory": str(downloads_dir())},
+        "search": {"suggest_enabled": False},
+        "alternate_error_pages": {"enabled": False},
+        "net": {"network_prediction_options": 2},   # no speculative connections
+        "safebrowsing": {"enabled": False, "enhanced": False, "scout_reporting_enabled": False},
+        "signin": {"allowed": False},
+        "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
+        "browser": {"check_default_browser": False},
+    }
+
+
+def seed_preferences(profile: Path) -> bool:
+    """Write the starting preferences into a profile that has none. True when written.
+
+    Never touches a profile the person has already used: their own choices win.
+    """
+    target = profile / "Default" / "Preferences"
+    if target.exists():
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = target.with_suffix(".vool-tmp")
+    temp.write_text(json.dumps(default_preferences()), encoding="utf-8")
+    temp.replace(target)
+    return True
+
+
 def _route_flags() -> list[str]:
     """The engine's way out. Raises when Private web is on and cannot carry traffic."""
     from core import private_web
@@ -154,6 +207,9 @@ class _Window:
             raise DeskFault("invalid_profile")
         flags = launch_flags(private=self.private)
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
+        seed_preferences(self.profile)
+        with contextlib.suppress(OSError):
+            downloads_dir().mkdir(parents=True, exist_ok=True)
         # Chromium's sockets need a short path; see live.py for the Linux launch failure.
         self.tmp = Path(tempfile.mkdtemp(prefix="vool-db-"))
         self.driver = await async_playwright().start()
@@ -168,6 +224,17 @@ class _Window:
             await self.stop()
             raise DeskFault("engine_failed") from None
         self.context.on("close", lambda _ctx: self.closed.set())
+        # The engine handle would otherwise catch every download into a hidden folder
+        # under a made-up name. Downloads here belong to the person: the browser saves
+        # them itself, under their real names, in the downloads folder.
+        try:
+            pages = self.context.pages or [await self.context.new_page()]
+            session = await self.context.new_cdp_session(pages[0])
+            await session.send("Browser.setDownloadBehavior", {"behavior": "default"})
+            await session.detach()
+        except Exception:
+            await self.stop()
+            raise DeskFault("engine_failed") from None
         if self.private:
             # On macOS the engine keeps running after its last window is closed. A
             # private window with no tab left is over: it is stopped and removed then,
@@ -366,5 +433,6 @@ def stop_all() -> None:
 
 __all__ = [
     "DROPPED_AUTOMATION_DEFAULTS", "QUIET_FLAGS", "Desk", "DeskFault", "desk", "engine_binary",
-    "launch_flags", "normalise_address", "profile_dir", "stop_all",
+    "default_preferences", "downloads_dir", "launch_flags", "normalise_address", "profile_dir",
+    "seed_preferences", "stop_all",
 ]

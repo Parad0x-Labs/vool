@@ -233,6 +233,103 @@ def test_a_private_folder_left_by_a_crashed_run_is_removed_on_the_next_look(brow
     assert not stale.exists()
 
 
+# -- safe defaults ---------------------------------------------------------------
+
+
+def test_starting_preferences_are_written_once_and_never_over_the_persons_own(home):
+    import json
+
+    profile = desk_module.profile_dir()
+    assert desk_module.seed_preferences(profile) is True
+    target = profile / "Default" / "Preferences"
+    written = json.loads(target.read_text())
+    assert written["https_only_mode_enabled"] is True
+    assert written["profile"]["cookie_controls_mode"] == 1
+    assert written["safebrowsing"]["enabled"] is False and written["search"]["suggest_enabled"] is False
+    assert written["download"]["default_directory"] == str(desk_module.downloads_dir())
+    # The person switched a protection off in the browser: the next start keeps their choice.
+    written["https_only_mode_enabled"] = False
+    target.write_text(json.dumps(written))
+    assert desk_module.seed_preferences(profile) is False
+    assert json.loads(target.read_text())["https_only_mode_enabled"] is False
+
+
+def test_downloads_folder_is_the_persons_own_and_outside_vool_data(home):
+    folder = desk_module.downloads_dir().resolve()
+    assert folder.name == "VOOL Downloads"
+    assert not folder.is_relative_to(desk_module.active_data_dir().resolve())
+    assert not desk_module.active_data_dir().resolve().is_relative_to(folder)
+
+
+@pytest.fixture
+def files_site():
+    hits: list[tuple[str, str, str]] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            hits.append((self.headers.get("Host", ""), self.path, self.headers.get("DNT", "")))
+            self.send_response(200)
+            if self.path == "/file":
+                self.send_header("content-type", "application/octet-stream")
+                self.send_header("Content-Disposition", 'attachment; filename="timetable.txt"')
+                self.end_headers()
+                self.wfile.write(b"06:05 early service")
+                return
+            self.send_header("content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(b'<h1>Files</h1><a id="get" href="/file">Timetable</a>')
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield server.server_port, hits
+    server.shutdown()
+
+
+def test_a_download_is_saved_under_its_own_name_in_the_downloads_folder(browser, files_site, monkeypatch, tmp_path):
+    port, hits = files_site
+    monkeypatch.setenv("HOME", str(tmp_path / "person"))
+    browser.open(f"http://127.0.0.1:{port}/list")
+    context = browser.context_for_agent()
+
+    async def click():
+        page = next(p for p in context.pages if p.url.endswith("/list"))
+        await page.click("#get")
+
+    browser._call(click())
+    saved = desk_module.downloads_dir() / "timetable.txt"
+    assert _wait(saved.is_file), sorted(p.name for p in desk_module.downloads_dir().glob("*"))
+    assert saved.read_bytes() == b"06:05 early service"
+    assert desk_module.downloads_dir() == tmp_path / "person" / "Downloads" / "VOOL Downloads"
+    # Nothing of the download sits inside VOOL's own data.
+    assert not [p for p in desk_module.active_data_dir().rglob("timetable*")]
+    assert {dnt for _, _, dnt in hits} == {"1"}
+
+
+def test_a_plain_unencrypted_site_gets_nothing_until_the_person_chooses(browser, files_site):
+    import socket
+
+    port, hits = files_site
+    name = "plain-site.test"
+    try:
+        if socket.gethostbyname(name) != "127.0.0.1":
+            raise OSError
+    except OSError:
+        pytest.skip("needs a non-local name that resolves to this machine")
+    browser.open(f"http://127.0.0.1:{port}/start")
+    context = browser.context_for_agent()
+
+    async def go():
+        page = next(p for p in context.pages if p.url.endswith("/start"))
+        await page.evaluate(f"location.href='http://{name}:{port}/list'")
+        await page.wait_for_timeout(2500)
+
+    browser._call(go())
+    assert not [host for host, _, _ in hits if host.startswith(name)]
+
+
 # -- the owner's HTTP door, with the real switch ---------------------------------
 
 from tests.first_run_pact_rig import pact_rig as pact_rig  # noqa: E402
