@@ -21,7 +21,9 @@ description, public HTTPS homepage and licence.
 | `model_provider` | HTTPS base URL, header or path authentication, model list and pricing source. |
 | `scanner` | HTTPS base URL, test/scan paths, input template and validated response mapping. |
 
-Tool intents belong to the package namespace. Subprocess handlers use the existing JSON
+Tool intents belong to the package namespace and have one shape: `<plugin id>.<tool>`, the tool part in
+lowercase letters, digits and `_` (for example `parcel-desk.lookup`). An MCP tool's own name uses
+letters, digits, `.`, `_` and `-`. Subprocess handlers use the existing JSON
 stdio protocol. Each MCP tool names its bundled server and explicitly pins its effect class
 and permission actions; unpinned tools have no trusted execution path. Commands stay inside
 the package. Runtime fetchers such as `npx` and `uvx` are refused.
@@ -40,6 +42,14 @@ on unless set to `0`, and older packages without the `vool` block follow only th
 Model provider and scanner plugins work either way. The ids `vool-plugin-usepod` and
 `vool-plugin-eyebrow` are reserved for the retired UsePod and Eyebrow services, and VOOL
 offers no plugin for either; another package that claims one of them is refused.
+
+Other ids VOOL keeps for itself are refused the same way: the id of any pack shipped inside VOOL
+(such as `vool-database`), any id that starts with `vool` or `parad0x`, and any name VOOL's own
+tools start with (`email`, `skill`, `workspace`, `memory` and the rest). The name, the publisher and
+each key label are plain text: letters, numbers, spaces and a few marks. They may not carry VOOL's
+name, a word or mark that says the plugin was checked or chosen (Official, Verified, Tested by,
+Editor's Choice, a tick, a star), hidden characters, look-alike letters or a link. The refusal
+names which of the three it is. Put your own name in `publisher`; the template ships "Your name".
 
 Install through the Plugins section, review the entire distribution, then install disabled.
 Connect your own key in its card and accept the separate access sheet to enable it. Saving
