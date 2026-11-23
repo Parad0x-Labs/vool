@@ -3473,7 +3473,7 @@
     "live.upload": "Yükle",
     "load.unreachable": "VOOL'a şu anda ulaşılamıyor, tekrar deneniyor…",
     "live.view": "Tarayıcıyı aç",
-    "settings.row.live_browser.help": "VOOL bir şey yapmadan veya göndermeden önce sorar. Sayfalar görselleri ve stilleriyle açılır; sayfa betikleri kapalı kalır. Ödemeler için cüzdanı kullanın.",
+    "settings.row.live_browser.help": "VOOL bir şey yapmadan veya göndermeden önce sorar. Ödemeler için cüzdanı kullanın.",
     "settings.row.live_browser.label": "Tarayıcı",
     "addons.plugin_accept_enable": "Kabul et ve etkinleştir",
     "addons.plugin_access_review": "Eklenti erişimini incele",
@@ -5477,9 +5477,14 @@
     "live.private_window": "Yeni gizli pencere",
     "live.engine_missing": "VOOL’un bu bilgisayarda henüz bir tarayıcı motoru yok.",
     "live.private_web_down": "Özel web bağlı değil, bu yüzden hiçbir şey açılmadı.",
-    "live.invalid_address": "Bu, VOOL’un açabileceği bir web adresi değil."
+    "live.invalid_address": "Bu, VOOL’un açabileceği bir web adresi değil.",
+    "live.note_window": "VOOL, VOOL tarayıcı pencerenizin bir sekmesinde, oturum açtığınız sitelerle çalışır. Bir şey yapmadan önce sorar. Ödemeler cüzdanınızdan geçer.",
+    "live.human_check": "Bu site karşısında bir insan olduğunu doğrulamak istiyor. Doğrulamayı VOOL tarayıcı sekmesinde kendiniz yapın, sonra VOOL'a devam etmesini söyleyin.",
+    "live.show_tab": "Sekmeyi göster",
+    "settings.row.live_browser.in_window": "VOOL benim tarayıcı penceremde çalışsın",
+    "settings.row.live_browser.in_window_help": "VOOL, VOOL tarayıcı pencerenizin bir sekmesini oturum açtığınız sitelerle kullanır ve bir şey yapmadan önce yine sorar. Kapalıyken VOOL ayrı bir görünüm kullanır: sayfa betikleri kapalı kalır ve hiçbir şey saklanmaz."
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

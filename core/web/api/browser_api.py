@@ -99,8 +99,12 @@ def _window(body):
     from core.vool_browser import desk
 
     action = body.get("action")
-    if action not in ("open", "private", "stop") or not isinstance(body.get("url", ""), str):
+    if action not in ("open", "private", "stop", "show") or not isinstance(body.get("url", ""), str):
         raise live.BrowserFault("invalid_input")
+    if action == "show":
+        # The tab VOOL works in for this chat, brought to the front for the person.
+        item = live.session(str(body.get("chat") or ""))
+        return {"ok": True, "shown": bool(item and item.in_window and item.show())}
     try:
         if action == "stop":
             return desk.desk().stop()

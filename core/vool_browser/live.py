@@ -432,6 +432,14 @@ def _driver_process(manager: Any) -> Any:
     return None
 
 
+_OPEN_HERE = """el => {
+  const here = n => { if (n && n.getAttribute('target')) n.setAttribute('target', '_self'); };
+  here(el.closest('a,area')); here(el.form || el.closest('form'));
+  if (el.getAttribute('formtarget')) el.setAttribute('formtarget', '_self');
+  for (const base of document.querySelectorAll('base[target]')) base.setAttribute('target', '_self');
+}"""
+
+
 class LiveSession:
     #: False here: the separate view. True in the session that works in the person's window.
     in_window = False
@@ -881,6 +889,7 @@ class LiveSession:
                     "view": list(self.view),
                     "nodes": self.nodes, "frame": self.frame, "result": self.result,
                     "private": self.private, "closed": self.closed, "download_ready": self._download is not None,
+                    "in_window": self.in_window,
                     "ended": dict(self._ended)}
 
     def propose(self, op: str, args: dict[str, Any], *, actor: str = "agent") -> dict[str, Any]:
@@ -1139,6 +1148,9 @@ class LiveSession:
                 node = self._page.locator(args["selector"])
                 if await node.count() != 1 or not await node.is_visible():
                     raise BrowserFault("element_missing")
+                # A link or form made to open in another window opens here instead: the
+                # session has one page, and the page it asked for is the one to read next.
+                await node.evaluate(_OPEN_HERE)
                 if op == "upload":
                     payload = dict(args["file"])
                     payload["buffer"] = base64.b64decode(payload["buffer"])

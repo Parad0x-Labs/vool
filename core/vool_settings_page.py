@@ -404,7 +404,7 @@ def _settings_groups() -> list[dict]:
                     id="live_browser",
                     card="online",
                     hint="VOOL can open web pages. It asks before it acts.", label="Browser", kind="custom", widget="live_browser",
-                    help="VOOL asks before it acts or sends anything. Pages load with images and styles; page scripts stay off. Use the wallet for payments.",
+                    help="VOOL asks before it acts or sends anything. Use the wallet for payments.",
                     read={"url": "/api/browser/settings"}, keywords="browser live navigate forms",
                 ),
                 _row(
@@ -4971,9 +4971,17 @@ function widgetLiveBrowser(stack) {
   button.setAttribute('aria-label', T('settings.row.live_browser.label', 'Browser'));
   const note = el('div', 'subtle'); const status = el('div', 'state idle'); status.setAttribute('role', 'status');
   const link = el('a', '', T('settings.row.live_browser.open', 'Open the browser')); link.href = '/browser?chat=browser'; link.target = '_blank'; link.rel = 'noopener';
+  /* Where VOOL's own browser steps run: a tab of the person's VOOL browser window, or the separate view. */
+  const inWindowLabel = T('settings.row.live_browser.in_window', 'VOOL works in my browser window');
+  const inWindowBox = el('div', ''); const inWindow = el('button', 'sw'); inWindow.type = 'button'; inWindow.setAttribute('role', 'switch');
+  inWindow.setAttribute('aria-label', inWindowLabel);
+  inWindowBox.appendChild(el('div', '', inWindowLabel)); inWindowBox.appendChild(inWindow);
+  inWindowBox.appendChild(el('div', 'subtle', T('settings.row.live_browser.in_window_help', 'VOOL uses a tab of your VOOL browser window, with the sites you are signed in to, and still asks before it acts. When this is off, VOOL uses a separate view: page scripts stay off and nothing is kept.')));
   let current = data, busy = false;
   const paint = back => {
     current = back;
+    inWindowBox.hidden = back.enabled !== true; inWindow.disabled = busy;
+    inWindow.setAttribute('aria-checked', back.agent_in_window === true ? 'true' : 'false');
     button.setAttribute('aria-checked', back.enabled === true ? 'true' : 'false');
     button.disabled = busy || (!back.enabled && (back.local_only || !back.web_enabled));
     /* Name the one thing that keeps it off, so the person knows what to change: the browser needs Web lookups. */
@@ -4998,8 +5006,18 @@ function widgetLiveBrowser(stack) {
     } catch(e) { status.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
     busy = false; paint(current);
   };
+  inWindow.onclick = async () => {
+    busy = true; inWindow.disabled = true;
+    const want = current.agent_in_window !== true; status.textContent = T('settings.switch.saving', 'Saving…');
+    try {
+      const r = await fetch('/api/browser/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({agent_in_window:want})});
+      const back = await reread();
+      status.textContent = r.ok && back.agent_in_window === want ? T('settings.switch.saved', 'Saved') : T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
+    } catch(e) { status.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    busy = false; paint(current);
+  };
   stack.appendChild(button); stack.appendChild(note); stack.appendChild(status);
-  stack.appendChild(link);
+  stack.appendChild(link); stack.appendChild(inWindowBox);
   const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => { button.disabled = true; }); }, 1500);
 }
 function widgetPrivateWeb(stack) {

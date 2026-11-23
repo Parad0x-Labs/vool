@@ -3473,7 +3473,7 @@
     "live.upload": "上传",
     "load.unreachable": "现在无法连接 VOOL，正在重试…",
     "live.view": "打开浏览器",
-    "settings.row.live_browser.help": "VOOL 在操作或发送任何内容前都会先询问。网页会连同图片和样式一起加载，网页脚本保持关闭。付款请使用钱包。",
+    "settings.row.live_browser.help": "VOOL 在操作或发送任何内容前都会先询问。付款请使用钱包。",
     "settings.row.live_browser.label": "浏览器",
     "addons.plugin_accept_enable": "接受并启用",
     "addons.plugin_access_review": "查看插件访问权限",
@@ -5477,9 +5477,14 @@
     "live.private_window": "新建隐私窗口",
     "live.engine_missing": "这台电脑上还没有 VOOL 的浏览器引擎。",
     "live.private_web_down": "私密网络未连接，因此没有打开任何内容。",
-    "live.invalid_address": "这不是 VOOL 可以打开的网址。"
+    "live.invalid_address": "这不是 VOOL 可以打开的网址。",
+    "live.note_window": "VOOL 在你的 VOOL 浏览器窗口的一个标签页中工作，使用你已登录的网站。它在操作前会先询问。付款通过你的钱包进行。",
+    "live.human_check": "此网站想确认这里有真人。请你自己在 VOOL 浏览器标签页中完成验证，然后告诉 VOOL 继续。",
+    "live.show_tab": "显示标签页",
+    "settings.row.live_browser.in_window": "VOOL 在我的浏览器窗口中工作",
+    "settings.row.live_browser.in_window_help": "VOOL 使用你的 VOOL 浏览器窗口的一个标签页，沿用你已登录的网站，并且仍会在操作前询问。关闭后，VOOL 使用单独的视图：网页脚本保持关闭，不保留任何内容。"
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

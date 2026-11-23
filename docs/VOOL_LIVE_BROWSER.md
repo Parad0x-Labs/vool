@@ -19,3 +19,19 @@ This is supervised static-page browsing. Sites requiring page scripts, external 
 Compatibility remains for homes that have never configured this new switch: the earlier optional `vool-browser` lane retains its existing behavior. Once the switch is configured, off or corrupt state refuses the live lane rather than falling back. The older Auto-mode journey on main requires unattended execution, so replacing that legacy path needs a reviewed change to that contract. Until then, a global claim that all browser actions require per-action approval would be false.
 
 No new dependency or lockfile change is needed. The existing browser extra and an installed engine are required. The implementation uses the same cross-platform engine discovery on macOS arm64, macOS Intel and Linux; local verification on one platform does not certify the others.
+
+## The everyday window
+
+Everything above describes the separate view. VOOL also opens a real browser window of its own ("Open in a browser window" in the pane's menu). It runs the Chromium-family browser found on the computer with a profile VOOL keeps in its own data folder, never the profile of another browser. Page scripts run, sign-ins and history last between starts, and files are saved to `VOOL Downloads` inside the person's Downloads folder, outside VOOL's data. A new profile starts with HTTPS-only mode on, third-party cookies blocked and the engine's own sync, update and reporting calls pointed nowhere. "New private window" starts a second engine on a throwaway profile that is deleted when its last tab closes. When Private web is on, the window runs on that route, and it refuses to open when the route is down. Changing the route closes open windows.
+
+By default VOOL's own steps run in a tab of this window, signed in where the person is (Settings, Browser, "VOOL works in my browser window"). The proposal, review and one-use approval rules above are the same. In that tab:
+
+- addresses on this computer or the local network are refused, including when a page's own script asks for them;
+- a click cannot save a file, and a window a page opens by itself is closed; a link made to open another window opens in VOOL's tab instead;
+- a site's human check is never attempted: VOOL stops, says so, and the pane offers "Show the tab" so the person can do it;
+- VOOL reads its tab again before each look, and does not read it once the person has taken it to another site;
+- the tab keeps working while another tab is in front, and is closed after 30 minutes without a step.
+
+A private chat always uses the separate view. Turning the Browser switch off closes every window.
+
+Not there yet: a browser engine VOOL fetches and updates itself, saved passwords in the system keychain, extensions, import from other browsers, and registering as the default browser.

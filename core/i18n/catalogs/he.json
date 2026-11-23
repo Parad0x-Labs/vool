@@ -3473,7 +3473,7 @@
     "live.upload": "להעלות",
     "load.unreachable": "אי אפשר להתחבר ל־VOOL כרגע, מנסה שוב…",
     "live.view": "פתיחת הדפדפן",
-    "settings.row.live_browser.help": "VOOL שואל לפני שהוא פועל או שולח משהו. דפים נטענים עם תמונות ועיצוב, וסקריפטים בדפים נשארים כבויים. לתשלום השתמשו בארנק.",
+    "settings.row.live_browser.help": "VOOL שואל לפני שהוא פועל או שולח משהו. לתשלום השתמשו בארנק.",
     "settings.row.live_browser.label": "דפדפן",
     "addons.plugin_accept_enable": "אישור והפעלה",
     "addons.plugin_access_review": "סקירת גישת תוסף",
@@ -5477,9 +5477,14 @@
     "live.private_window": "חלון פרטי חדש",
     "live.engine_missing": "ל-VOOL עדיין אין מנוע דפדפן במחשב הזה.",
     "live.private_web_down": "הרשת הפרטית אינה מחוברת, ולכן שום דבר לא נפתח.",
-    "live.invalid_address": "זו אינה כתובת אינטרנט ש-VOOL יכול לפתוח."
+    "live.invalid_address": "זו אינה כתובת אינטרנט ש-VOOL יכול לפתוח.",
+    "live.note_window": "VOOL עובד בכרטיסייה בחלון הדפדפן של VOOL שלכם, עם האתרים שאתם מחוברים אליהם. הוא שואל לפני שהוא פועל. תשלומים עוברים דרך הארנק שלכם.",
+    "live.human_check": "האתר הזה רוצה לבדוק שיש כאן אדם. בצעו את הבדיקה בעצמכם בכרטיסייה של דפדפן VOOL, ואז אמרו ל-VOOL להמשיך.",
+    "live.show_tab": "הצגת הכרטיסייה",
+    "settings.row.live_browser.in_window": "VOOL עובד בחלון הדפדפן שלי",
+    "settings.row.live_browser.in_window_help": "VOOL משתמש בכרטיסייה בחלון הדפדפן של VOOL שלכם, עם האתרים שאתם מחוברים אליהם, ועדיין שואל לפני שהוא פועל. כשזה כבוי, VOOL משתמש בתצוגה נפרדת: סקריפטים בדפים נשארים כבויים ושום דבר לא נשמר."
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import threading
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -58,8 +59,36 @@ HUMAN_CHECK_NOTE = (
 )
 
 
+# VOOL's tab is closed when no step has used it for this long.
+IDLE_SECONDS = 1800
+
+
 class DeskSession(LiveSession):
     in_window = True
+
+    def _check_owner_lease(self) -> None:
+        # The separate view lives only while the person keeps its pane open. This tab is
+        # in the person's own window, in plain sight, and each step still waits for their
+        # answer, so a closed pane does not end it in the middle of a task. It ends when
+        # nothing has used it for a while.
+        if self.closed:
+            return
+        if time.monotonic() < max(self._owner_deadline, self.last_activity + IDLE_SECONDS):
+            self._loop.call_later(min(5.0, IDLE_SECONDS / 2), self._check_owner_lease)
+            return
+        self._lease_cleanup = threading.Thread(target=self._expire_owner_lease, daemon=True)
+        self._lease_cleanup.start()
+
+    def show(self) -> bool:
+        """Bring VOOL's tab to the front of the person's window. Only the person asks for this."""
+        page = self._page
+        if self.closed or page is None or page.is_closed():
+            return False
+        try:
+            asyncio.run_coroutine_threadsafe(page.bring_to_front(), self._loop).result(timeout=5)
+        except Exception:
+            return False
+        return True
 
     def _start_loop(self):
         # Engine objects belong to the loop that made them: the desk's.
@@ -99,6 +128,20 @@ class DeskSession(LiveSession):
         # reviewed step. The setting covers this tab only.
         session = await self._context.new_cdp_session(page)
         await session.send("Page.setDownloadBehavior", {"behavior": "deny"})
+        # The person is usually looking at another tab while VOOL works in this one, and
+        # the engine draws nothing for a tab that is not in front: a picture of it then
+        # never arrives. A capture kept open on this tab makes the engine go on drawing
+        # it, without bringing it to the front. It asks for a tiny frame, rarely; the
+        # pictures the pane shows are taken separately, at full size.
+        self._drawing = session
+        session.on("Page.screencastFrame", lambda frame: asyncio.ensure_future(self._frame_seen(session, frame)))
+        await session.send("Page.startScreencast", {"format": "jpeg", "quality": 1, "maxWidth": 32,
+                                                    "maxHeight": 32, "everyNthFrame": 60})
+
+    @staticmethod
+    async def _frame_seen(session: Any, frame: dict) -> None:
+        with contextlib.suppress(Exception):
+            await session.send("Page.screencastFrameAck", {"sessionId": frame["sessionId"]})
 
     async def _guard_request(self, route: Any) -> None:
         request = route.request

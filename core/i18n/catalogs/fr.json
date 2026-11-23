@@ -3473,7 +3473,7 @@
     "live.upload": "Importer",
     "load.unreachable": "VOOL est injoignable pour le moment, nouvelle tentative en cours…",
     "live.view": "Ouvrir le navigateur",
-    "settings.row.live_browser.help": "VOOL demande avant d'agir ou d'envoyer quoi que ce soit. Les pages se chargent avec images et styles ; les scripts des pages restent désactivés. Utilisez le portefeuille pour payer.",
+    "settings.row.live_browser.help": "VOOL demande avant d'agir ou d'envoyer quoi que ce soit. Utilisez le portefeuille pour payer.",
     "settings.row.live_browser.label": "Navigateur",
     "addons.plugin_accept_enable": "Accepter et activer",
     "addons.plugin_access_review": "Vérifier l'accès au plugin",
@@ -5477,9 +5477,14 @@
     "live.private_window": "Nouvelle fenêtre privée",
     "live.engine_missing": "VOOL n’a pas encore de moteur de navigateur sur cet ordinateur.",
     "live.private_web_down": "Le web privé n’est pas connecté, donc rien n’a été ouvert.",
-    "live.invalid_address": "Ce n’est pas une adresse web que VOOL peut ouvrir."
+    "live.invalid_address": "Ce n’est pas une adresse web que VOOL peut ouvrir.",
+    "live.note_window": "VOOL travaille dans un onglet de votre fenêtre de navigateur VOOL, avec les sites où votre session est ouverte. Il demande avant d'agir. Les paiements passent par votre portefeuille.",
+    "live.human_check": "Ce site veut vérifier qu'une personne est présente. Faites la vérification vous-même dans l'onglet du navigateur VOOL, puis dites à VOOL de continuer.",
+    "live.show_tab": "Afficher l'onglet",
+    "settings.row.live_browser.in_window": "VOOL travaille dans ma fenêtre de navigateur",
+    "settings.row.live_browser.in_window_help": "VOOL utilise un onglet de votre fenêtre de navigateur VOOL, avec les sites où votre session est ouverte, et demande toujours avant d'agir. Si cette option est désactivée, VOOL utilise une vue séparée : les scripts des pages restent désactivés et rien n'est conservé."
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

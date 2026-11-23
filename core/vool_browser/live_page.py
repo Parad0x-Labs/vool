@@ -25,6 +25,7 @@ _KEYS = (
     "seconds_left", "empty_title", "empty_body", "closed_body", "off_body", "driving", "elements",
     "no_elements", "send", "save_file", "file_ready", "more", "links", "fields", "buttons", "redirect",
     "destination_refused", "window", "private_window", "engine_missing", "private_web_down", "invalid_address",
+    "note_window", "human_check", "show_tab",
 )
 
 
@@ -204,6 +205,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
   <div class="acts"><span class="timer" id="timer"></span><button class="btn" id="refuse" type="button"></button><button class="btn primary" id="approve" type="button"></button></div>
 </section>
 <section class="notice" id="redirect" hidden><span class="grow" id="redirectUrl"></span><button class="btn" id="reviewRedirect" type="button"></button></section>
+<section class="notice" id="humanCheck" hidden><span class="grow" id="humanCheckText"></span><button class="btn" id="showTab" type="button"></button></section>
 <section class="notice" id="driving" hidden><span class="grow" id="drivingText"></span><button class="btn" id="handBack" type="button"></button></section>
 <section class="notice" id="ready" hidden><span class="grow" id="readyText"></span><a class="btn primary" id="save" download style="display:inline-flex;align-items:center;text-decoration:none" hidden></a></section>
 <main>
@@ -232,7 +234,7 @@ $('fullWindow').lastChild.textContent=L.window; $('privateWindow').lastChild.tex
 $('wallet').lastChild.textContent=L.wallet; $('stop').lastChild.textContent=L.stop; $('private').textContent=L.private;
 $('approve').textContent=L.approve; $('refuse').textContent=L.refuse; $('reviewRedirect').textContent=L.open; $('handBack').textContent=L.resume;
 $('drivingText').textContent=L.driving; $('readyText').textContent=L.file_ready; $('save').textContent=L.save_file; $('sideTitle').textContent=L.elements;
-$('note').textContent=L.note; $('frame').alt=L.browser; $('chat').value=cfg.chat;
+$('note').textContent=L.note; $('frame').alt=L.browser; $('humanCheckText').textContent=L.human_check; $('showTab').textContent=L.show_tab; $('chat').value=cfg.chat;
 
 async function post(path,extra={}) {
   try {
@@ -256,6 +258,9 @@ function paint(j){
   current=j; pending=j.pending; const s=j.state; const busy=s==='running';
   paintStatus();
   $('private').hidden=!j.private;
+  // In the person's own window the page is the real one, scripts and sign-ins included.
+  $('note').textContent=j.in_window?L.note_window:L.note;
+  $('humanCheck').hidden=!(j.in_window&&j.result&&j.result.human_check);
   // Address bar mirrors the page unless the owner is typing in it.
   if(document.activeElement!==$('address')) $('address').value=j.url||'';
   $('lock').innerHTML=''; $('lock').appendChild(icon(j.url&&j.url.startsWith('https:')?'lock':'globe'));
@@ -374,6 +379,7 @@ $('stop').onclick=()=>{closeMenu();post('stop');};
 // The everyday browser: a real window of its own. What is typed in the address field goes with it.
 $('fullWindow').onclick=()=>{closeMenu();post('window',{action:'open',url:$('address').value.trim()});};
 $('privateWindow').onclick=()=>{closeMenu();post('window',{action:'private',url:$('address').value.trim()});};
+$('showTab').onclick=()=>{post('window',{action:'show'});};
 $('download').onclick=()=>{closeMenu();const v=$('address').value.trim();if(v)post('propose',{op:'download',args:{url:v}});};
 // Review.
 $('approve').onclick=()=>{if(pending)post('decide',{id:pending.id,approve:true});};

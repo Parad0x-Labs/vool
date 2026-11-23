@@ -3473,7 +3473,7 @@
     "live.upload": "Upload",
     "load.unreachable": "Can’t reach VOOL right now, trying again…",
     "live.view": "Open browser",
-    "settings.row.live_browser.help": "VOOL asks before it acts or sends anything. Pages load with images and styles; page scripts stay off. Use the wallet for payments.",
+    "settings.row.live_browser.help": "VOOL asks before it acts or sends anything. Use the wallet for payments.",
     "settings.row.live_browser.label": "Browser",
     "addons.plugin_accept_enable": "Accept and enable",
     "addons.plugin_access_review": "Review plugin access",
@@ -5477,7 +5477,12 @@
     "live.private_window": "New private window",
     "live.engine_missing": "VOOL has no browser engine on this computer yet.",
     "live.private_web_down": "Private web is not connected, so nothing was opened.",
-    "live.invalid_address": "That is not a web address VOOL can open."
+    "live.invalid_address": "That is not a web address VOOL can open.",
+    "live.note_window": "VOOL works in a tab of your VOOL browser window, with the sites you are signed in to. It asks before it acts. Payments go through your wallet.",
+    "live.human_check": "This site wants to check that a person is there. Do the check yourself in the VOOL browser tab, then tell VOOL to carry on.",
+    "live.show_tab": "Show the tab",
+    "settings.row.live_browser.in_window": "VOOL works in my browser window",
+    "settings.row.live_browser.in_window_help": "VOOL uses a tab of your VOOL browser window, with the sites you are signed in to, and still asks before it acts. When this is off, VOOL uses a separate view: page scripts stay off and nothing is kept."
   },
   "html_keys": [
     "bypass.modal_limits",

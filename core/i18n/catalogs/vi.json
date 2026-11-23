@@ -3473,7 +3473,7 @@
     "live.upload": "Tải lên",
     "load.unreachable": "Hiện không kết nối được với VOOL, đang thử lại…",
     "live.view": "Mở trình duyệt",
-    "settings.row.live_browser.help": "VOOL hỏi trước khi làm hoặc gửi bất cứ thứ gì. Trang được tải kèm hình ảnh và kiểu dáng; tập lệnh của trang vẫn tắt. Dùng ví để thanh toán.",
+    "settings.row.live_browser.help": "VOOL hỏi trước khi làm hoặc gửi bất cứ thứ gì. Dùng ví để thanh toán.",
     "settings.row.live_browser.label": "Trình duyệt",
     "addons.plugin_accept_enable": "Chấp nhận và kích hoạt",
     "addons.plugin_access_review": "Xem xét quyền truy cập plugin",
@@ -5477,9 +5477,14 @@
     "live.private_window": "Cửa sổ riêng tư mới",
     "live.engine_missing": "VOOL chưa có bộ máy trình duyệt trên máy tính này.",
     "live.private_web_down": "Web riêng tư chưa được kết nối nên không có gì được mở.",
-    "live.invalid_address": "Đó không phải là địa chỉ web mà VOOL có thể mở."
+    "live.invalid_address": "Đó không phải là địa chỉ web mà VOOL có thể mở.",
+    "live.note_window": "VOOL làm việc trong một thẻ của cửa sổ trình duyệt VOOL của bạn, với các trang bạn đang đăng nhập. VOOL hỏi trước khi làm. Thanh toán đi qua ví của bạn.",
+    "live.human_check": "Trang này muốn kiểm tra xem có người thật ở đây không. Hãy tự làm bước kiểm tra trong thẻ trình duyệt VOOL, rồi bảo VOOL tiếp tục.",
+    "live.show_tab": "Hiện thẻ",
+    "settings.row.live_browser.in_window": "VOOL làm việc trong cửa sổ trình duyệt của tôi",
+    "settings.row.live_browser.in_window_help": "VOOL dùng một thẻ của cửa sổ trình duyệt VOOL của bạn, với các trang bạn đang đăng nhập, và vẫn hỏi trước khi làm. Khi tắt, VOOL dùng một khung xem riêng: tập lệnh của trang vẫn tắt và không có gì được giữ lại."
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

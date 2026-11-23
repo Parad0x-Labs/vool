@@ -3473,7 +3473,7 @@
     "live.upload": "업로드",
     "load.unreachable": "지금 VOOL에 연결할 수 없습니다. 다시 시도하는 중…",
     "live.view": "브라우저 열기",
-    "settings.row.live_browser.help": "VOOL은 작업하거나 무언가를 보내기 전에 묻습니다. 페이지는 이미지와 스타일과 함께 열리고, 페이지 스크립트는 계속 꺼져 있습니다. 결제에는 지갑을 사용하세요.",
+    "settings.row.live_browser.help": "VOOL은 작업하거나 무언가를 보내기 전에 묻습니다. 결제에는 지갑을 사용하세요.",
     "settings.row.live_browser.label": "브라우저",
     "addons.plugin_accept_enable": "수락 및 활성화",
     "addons.plugin_access_review": "플러그인 접근 권한 검토",
@@ -5477,9 +5477,14 @@
     "live.private_window": "새 비공개 창",
     "live.engine_missing": "이 컴퓨터에는 아직 VOOL의 브라우저 엔진이 없습니다.",
     "live.private_web_down": "프라이빗 웹이 연결되지 않아 아무것도 열리지 않았습니다.",
-    "live.invalid_address": "VOOL이 열 수 있는 웹 주소가 아닙니다."
+    "live.invalid_address": "VOOL이 열 수 있는 웹 주소가 아닙니다.",
+    "live.note_window": "VOOL은 내 VOOL 브라우저 창의 탭에서, 로그인해 둔 사이트 그대로 작업합니다. 작업하기 전에 묻습니다. 결제는 지갑을 거칩니다.",
+    "live.human_check": "이 사이트가 사람이 있는지 확인하려고 합니다. VOOL 브라우저 탭에서 직접 확인을 마친 다음, VOOL에게 계속하라고 알려 주세요.",
+    "live.show_tab": "탭 보기",
+    "settings.row.live_browser.in_window": "VOOL이 내 브라우저 창에서 작업",
+    "settings.row.live_browser.in_window_help": "VOOL은 내 VOOL 브라우저 창의 탭을 로그인해 둔 사이트 그대로 사용하며, 작업하기 전에 여전히 묻습니다. 끄면 VOOL은 별도 화면을 사용합니다. 페이지 스크립트는 계속 꺼져 있고 아무것도 보관되지 않습니다."
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

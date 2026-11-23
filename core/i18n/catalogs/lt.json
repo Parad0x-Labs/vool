@@ -3473,7 +3473,7 @@
     "live.upload": "Įkelti",
     "load.unreachable": "Dabar nepavyksta pasiekti VOOL, bandoma dar kartą…",
     "live.view": "Atidaryti naršyklę",
-    "settings.row.live_browser.help": "VOOL paklausia prieš ką nors darydamas ar siųsdamas. Puslapiai įkeliami su paveikslėliais ir stiliais, o jų scenarijai lieka išjungti. Mokėkite per piniginę.",
+    "settings.row.live_browser.help": "VOOL paklausia prieš ką nors darydamas ar siųsdamas. Mokėkite per piniginę.",
     "settings.row.live_browser.label": "Naršyklė",
     "addons.plugin_accept_enable": "Priimti ir įgalinti",
     "addons.plugin_access_review": "Peržiūrėti prieigą prie papildinio",
@@ -5477,9 +5477,14 @@
     "live.private_window": "Naujas privatus langas",
     "live.engine_missing": "Šiame kompiuteryje VOOL dar neturi naršyklės variklio.",
     "live.private_web_down": "Privatus žiniatinklis neprijungtas, todėl niekas nebuvo atidaryta.",
-    "live.invalid_address": "Tai nėra žiniatinklio adresas, kurį VOOL gali atidaryti."
+    "live.invalid_address": "Tai nėra žiniatinklio adresas, kurį VOOL gali atidaryti.",
+    "live.note_window": "VOOL dirba jūsų VOOL naršyklės lango skirtuke, su svetainėmis, prie kurių esate prisijungę. Prieš ką nors darydamas jis paklausia. Mokėjimai eina per jūsų piniginę.",
+    "live.human_check": "Ši svetainė nori patikrinti, ar čia žmogus. Patikrą atlikite patys VOOL naršyklės skirtuke, tada pasakykite VOOL tęsti.",
+    "live.show_tab": "Rodyti skirtuką",
+    "settings.row.live_browser.in_window": "VOOL dirba mano naršyklės lange",
+    "settings.row.live_browser.in_window_help": "VOOL naudoja jūsų VOOL naršyklės lango skirtuką, su svetainėmis, prie kurių esate prisijungę, ir vis tiek paklausia prieš ką nors darydamas. Kai išjungta, VOOL naudoja atskirą rodinį: puslapių scenarijai lieka išjungti ir niekas neišsaugoma."
   },
-  "source_catalog_sha256": "20dc589eebf1c19dee95c27dbc898aec16532229a4867eda4134b35cf33f4d1a",
+  "source_catalog_sha256": "de73c0c9c799b547550782bc22b50226710900c5389b74d506549ceaa3291c63",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

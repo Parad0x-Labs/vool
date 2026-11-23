@@ -187,10 +187,16 @@ def test_a_click_cannot_save_a_file_or_open_a_window_and_local_addresses_are_ref
     context = desk_module.desk().context_for_agent()
     before = len(context.pages)
     # A link made to open another window, clicked with the person's Allow: the page it
-    # asks for is requested, and no second window or tab is left behind.
-    agent(rig, item, "click", {"selector": node(snap, "New window link")["selector"]})
-    assert _wait(lambda: any(path == "/popup-page" for _, _, path, _ in requests))
-    assert _wait(lambda: len(context.pages) == before and not any(page.url.endswith("/popup-page") for page in context.pages))
+    # asks for opens in VOOL's own tab, read like any other, and no second window or
+    # tab is left behind.
+    snap = agent(rig, item, "click", {"selector": node(snap, "New window link")["selector"]})
+    assert snap["state"] == "ready" and snap["url"].endswith("/popup-page"), (snap["state"], snap["url"])
+    assert "Other" in snap["result"]["page"]["text"]
+    assert len(context.pages) == before and item._page.url.endswith("/popup-page")
+    # A page that opens a window by script, with nobody clicking: that window does not stay.
+    agent(rig, item, "navigate", {"url": origin + "/opens-window?again"})
+    time.sleep(0.5)
+    assert len(context.pages) == before
 
     for target in ("http://localhost:9/x", "http://192.168.1.1/", "http://169.254.169.254/latest/meta-data/"):
         with pytest.raises(live.BrowserFault, match="destination_refused"):
@@ -273,3 +279,84 @@ def test_vool_does_not_read_its_tab_after_the_person_took_it_to_another_site(wor
     desk_module.desk()._call(item._page.goto("about:blank"))
     seen = live.tool_intent("vool-browser.inspect", {}, context_)
     assert seen == {"ok": False, "status": "page_moved", "note": seen["note"]} and other not in repr(seen)
+
+
+def test_vool_keeps_working_in_its_tab_while_the_person_looks_at_another_tab(world):
+    rig, origin, requests = world
+    item = session(origin)
+    snap = agent(rig, item, "navigate", {"url": origin + "/members"})
+    assert snap["state"] == "ready"
+    # The person opens a page of their own: their tab is now the one in front.
+    status, data = rig.post("/api/browser/window", {"action": "open", "url": origin + "/other"})
+    assert status == 200 and data["open"] is True
+    assert _wait(lambda: any(path == "/other" for _, _, path, _ in requests))
+    time.sleep(1)
+    first_frame = snap["frame"]
+
+    snap = agent(rig, item, "type", {"selector": node(snap, "note")["selector"], "text": "Still here"})
+    assert snap["state"] == "ready", snap
+    snap = agent(rig, item, "navigate", {"url": origin + "/checked"})
+    assert snap["state"] == "ready" and snap["title"] == "Checked", snap["result"].get("observation_failure_class")
+    assert snap["frame"] and snap["frame"] != first_frame
+    result = live.tool_intent("vool-browser.inspect", {}, {"session_id": CHAT, "surface": "api", "platform": "web_companion"})
+    assert result["ok"] is True and "One moment" in result["result"]["page"]["text"]
+
+
+def test_vools_tab_outlives_a_closed_pane_and_closes_when_nothing_has_used_it(world, monkeypatch):
+    from core.vool_browser import desk_session
+
+    rig, origin, requests = world
+    item = session(origin)
+    snap = agent(rig, item, "navigate", {"url": origin + "/members"})
+    snap = agent(rig, item, "type", {"selector": node(snap, "note")["selector"], "text": "half-written"})
+    tab = item._page
+    # Nobody has the pane open. The separate view would end here; this tab is in the
+    # person's own window and stays, with what VOOL had typed still in it.
+    item._owner_deadline = 0.0
+    time.sleep(6.5)
+    assert item.state == "ready" and not tab.is_closed()
+    snap = agent(rig, item, "scroll", {"direction": "down"})
+    assert snap["state"] == "ready" and item._page is tab
+    assert desk_module.desk()._call(tab.locator("input[name=note]").input_value()) == "half-written"
+
+    # Left alone for long enough, VOOL's tab is closed; the person's window is not.
+    rig.post("/api/browser/window", {"action": "open", "url": origin + "/mine"})
+    monkeypatch.setattr(desk_session, "IDLE_SECONDS", 1)
+    assert _wait(lambda: item.closed and tab.is_closed(), 15)
+    assert desk_module.desk().status()["open"] is True
+
+
+def test_the_pane_and_settings_say_what_is_true_for_the_window_in_every_language(world):
+    from core.i18n import catalog_for
+    from core.i18n.locales import ui_catalog_tags
+    from core.vool_browser.live_page import render
+
+    rig, origin, requests = world
+    item = session(origin)
+    agent(rig, item, "navigate", {"url": origin + "/checked"})
+    status, state = rig.get("/api/browser/state", query={"chat": CHAT})
+    assert status == 200 and state["in_window"] is True and state["result"]["human_check"]["required"] is True
+    # The person asks for VOOL's tab: it is shown, through their own door only.
+    status, data = rig.post("/api/browser/window", {"action": "show", "chat": CHAT})
+    assert status == 200 and data["shown"] is True
+    status, data = rig.post("/api/browser/window", {"action": "show", "chat": "no-such-chat"})
+    assert status == 200 and data["shown"] is False
+
+    keys = ("live.note_window", "live.human_check", "live.show_tab",
+            "settings.row.live_browser.in_window", "settings.row.live_browser.in_window_help")
+    english = catalog_for("en")
+    # A page whose scripts run must not be described as one where they stay off.
+    assert "scripts stay off" not in english.text("live.note_window")
+    assert "scripts stay off" not in english.text("settings.row.live_browser.help")
+    codes = ui_catalog_tags()
+    assert len(codes) >= 17
+    for code in codes:
+        page = render(CHAT, code)
+        assert 'id="humanCheck"' in page and 'id="showTab"' in page
+        for key in keys:
+            text = catalog_for(code).text(key)
+            assert text and (code == "en" or text != english.text(key)), (code, key)
+            if key.startswith("live."):
+                assert text.replace("<", "\\u003c") in page or text in page, (code, key)
+        if code != "en":
+            assert catalog_for(code).text("settings.row.live_browser.help") != english.text("settings.row.live_browser.help")
