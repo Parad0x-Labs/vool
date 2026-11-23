@@ -14,7 +14,9 @@ import {useEdges} from "../ui/Frame.tsx";
 import {C} from "../ui/theme.ts";
 
 type Kind = "photo" | "document" | "video" | "sound";
-const KINDS: Kind[] = ["photo", "document", "video", "sound"];
+/** Document, Beauty and Enhance are made by the phone's own code after the shot; only the Android app has that code so far. */
+const PHOTO_EDITS = Platform.OS === "android";
+const KINDS: Kind[] = PHOTO_EDITS ? ["photo", "document", "video", "sound"] : ["photo", "video", "sound"];
 const kindLabel = (kind: Kind) => kind === "photo" ? tr("Photo") : kind === "document" ? tr("Document") : kind === "video" ? tr("Video") : tr("Sound");
 const DOC_STYLES: [CameraPrefs["docStyle"], () => string][] = [["color", () => tr("Colour")], ["gray", () => tr("Grey")], ["bw", () => tr("Black and white")]];
 const BEAUTY_LEVELS: [CameraPrefs["beautyLevel"], () => string][] = [[1, () => tr("Light")], [2, () => tr("Natural")], [3, () => tr("Strong")]];
@@ -29,6 +31,7 @@ const FILTER_SWATCH: Record<PhotoFilter, string> = {none: "#3a3f4a", natural: "#
 
 /** What the saver makes of a photo after the shot (the camera's own modes are separate). */
 function photoEdit(kind: Kind, prefs: CameraPrefs): PhotoEdit {
+  if (!PHOTO_EDITS) return "";
   if (kind === "document") return `doc-${prefs.docStyle}`;
   if (kind !== "photo") return "";
   return prefs.photoEdit === "beauty" ? `beauty${prefs.beautyLevel}` : prefs.photoEdit === "enhance" ? "enhance" : "";
@@ -252,7 +255,7 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
     <View style={styles.screen} onLayout={event => setArea(event.nativeEvent.layout)}>
       <StatusBar style="light" />
       {showCamera ? <PrivateCameraView ref={camera} style={StyleSheet.absoluteFill} facing={lens}
-        mode={kind === "photo" && prefs.photoEdit === "none" ? mode : "standard"} video={kind === "video"}
+        mode={kind === "photo" && (!PHOTO_EDITS || prefs.photoEdit === "none") ? mode : "standard"} video={kind === "video"}
         flash={prefs.flash} aspect={prefs.aspect} photoSize={kind === "document" ? documentSize(sizes.sizes) : lens === "back" ? prefs.photoSize : "max"}
         videoQuality={prefs.videoQuality} steady={prefs.steady} mirror={prefs.mirror} filter={kind === "photo" ? prefs.filter : "none"}
         edit={photoEdit(kind, prefs)} onPage={event => setPageSeen(event.nativeEvent.found)}
@@ -297,19 +300,19 @@ export default function CaptureScreen({waiting, sending, problem, saving, saveFa
 
       <View style={[styles.bottom, {paddingBottom: edges.bottom + 18}]}>
         {note ? <Text style={styles.note}>{note}</Text> : null}
-        {kind === "photo" && prefs.photoEdit === "beauty" ? <View style={styles.modes}>
+        {PHOTO_EDITS && kind === "photo" && prefs.photoEdit === "beauty" ? <View style={styles.modes}>
           {BEAUTY_LEVELS.map(([value, label]) => <Pressable key={value} onPress={() => change({beautyLevel: value})}
             style={[styles.level, prefs.beautyLevel === value && styles.levelOn]} accessibilityRole="radio" accessibilityState={{selected: prefs.beautyLevel === value}}>
             <Text style={[styles.filterText, prefs.beautyLevel === value && styles.modeTextOnDark]}>{label()}</Text></Pressable>)}
         </View> : null}
         {kind === "photo" ? <View style={styles.modes}>
           {(["standard", ...modes] as CameraMode[]).map(value => {
-            const on = mode === value && prefs.photoEdit === "none";
+            const on = mode === value && (!PHOTO_EDITS || prefs.photoEdit === "none");
             return <Pressable key={value} onPress={() => {setMode(value); if (prefs.photoEdit !== "none") change({photoEdit: "none"});}}
               style={[styles.mode, on && styles.modeOn]} accessibilityRole="button" accessibilityState={{selected: on}}>
               <Text style={[styles.modeText, on && styles.modeTextOn]}>{modeLabel(value)}</Text></Pressable>;
           })}
-          {(["beauty", "enhance"] as const).map(value => {
+          {(PHOTO_EDITS ? ["beauty", "enhance"] as const : []).map(value => {
             const on = prefs.photoEdit === value;
             return <Pressable key={value} onPress={() => {setMode("standard"); change({photoEdit: on ? "none" : value});}}
               style={[styles.mode, on && styles.modeOn]} accessibilityRole="button" accessibilityState={{selected: on}}>

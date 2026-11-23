@@ -80,7 +80,11 @@ enum PhotoFilters {
     switch name {
     case "warm": return [1.08, 0, 0, 0, 8, 0, 1.01, 0, 0, 2, 0, 0, 0.9, 0, 0, 0, 0, 0, 1, 0]
     case "cool": return [0.92, 0, 0, 0, 0, 0, 1.0, 0, 0, 2, 0, 0, 1.08, 0, 8, 0, 0, 0, 1, 0]
+    case "natural": return then(saturation(1.08), contrast(1.04))
     case "vivid": return then(saturation(1.35), contrast(1.08))
+    // Film: softer blacks, a warm-green cast and slightly calmer colour, like a colour negative print.
+    case "film":
+      return then(then(saturation(0.88), contrast(0.94)), [1.04, 0, 0, 0, 10, 0, 1.02, 0, 0, 8, 0, 0, 0.92, 0, 4, 0, 0, 0, 1, 0])
     case "fade":
       return then(then(saturation(0.8), contrast(0.86)), [1, 0, 0, 0, 14, 0, 1, 0, 0, 12, 0, 0, 1, 0, 10, 0, 0, 0, 1, 0])
     case "mono": return saturation(0)

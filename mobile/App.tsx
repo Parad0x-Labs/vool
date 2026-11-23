@@ -132,7 +132,7 @@ function Root() {
       setVaultAsked(false); setHomeAsked(seq => seq + 1);
     });
     // iPhone and iPad: the VOOL icon's long-press menu (Vault, Camera) brings the same links the Android icons open.
-    const shortcut = () => {const url = vaultNative?.takeShortcut?.(); if (url) {trace("shortcut"); take(url);}};
+    const shortcut = () => {const url = vaultNative?.takeShortcut?.(); if (url) take(url);};
     shortcut();
     const picked = Platform.OS === "ios" ? vaultNative?.addListener("onShortcut", shortcut) : undefined;
     return () => {sub.remove(); icon?.remove(); picked?.remove();};
