@@ -57,18 +57,18 @@ def apply(db, value: list[dict], *, now: int) -> None:
                 db.execute("UPDATE comments SET state='published' WHERE id=?", (target,))
             else:
                 db.execute("UPDATE comments SET state='removed', body='' WHERE id=?", (target,))
-        elif action in ACCOUNT | {"reporter-mute"}:
-            query = "SELECT account FROM skill_reports WHERE id=?" if action == "reporter-mute" else \
-                "SELECT id FROM accounts WHERE namespace=?"
-            row = db.execute(query, (target,)).fetchone()
-            require(row and row[0], "report not found" if action == "reporter-mute" else "account not found")
+        elif action == "reporter-mute":
+            from registry_service.reports import mute_sender
+
+            mute_sender(db, target, now=now)  # also when the sender has deleted their account since
+        elif action in ACCOUNT:
+            row = db.execute("SELECT id FROM accounts WHERE namespace=?", (target,)).fetchone()
+            require(row and row[0], "account not found")
             if action == "unmute":
                 db.execute("DELETE FROM muted_accounts WHERE account=?", (row[0],))
             else:
                 db.execute("INSERT OR IGNORE INTO muted_accounts VALUES (?,?)", (row[0], now))
                 db.execute("UPDATE comments SET state='held' WHERE account=? AND state='published'", (row[0],))
-                if action == "reporter-mute":
-                    db.execute("UPDATE skill_reports SET counted=0 WHERE account=? AND state='open'", (row[0],))
         else:
             require(db.execute("SELECT 1 FROM public_versions WHERE package_id=?", (target,)).fetchone(),
                     "package not published")
@@ -85,14 +85,20 @@ def apply(db, value: list[dict], *, now: int) -> None:
         db.execute("DELETE FROM authority_actions WHERE digest=?", (signature,))
 
 
-def pending(store) -> dict:
-    """Public-safe opaque IDs and counts; private text and reporter identities never leave the store."""
+def pending(store, *, now: int) -> dict:
+    """Public-safe opaque IDs and counts; private text and reporter identities never leave the store.
+
+    `paused` counts the skills paused at `now`; a pause from reports alone that ran out is not one of them.
+    """
+    from registry_service.reports import REPORT_PAUSE_SECONDS
+
     with store.connection() as db:
         comments = [row[0] for row in db.execute("SELECT id FROM comments WHERE state='held' ORDER BY id LIMIT 1000")]
         reports = [row[0] for row in db.execute("SELECT id FROM skill_reports WHERE state='open' ORDER BY id LIMIT 1000")]
         counts = {"comments": db.execute("SELECT count(*) FROM comments WHERE state='held'").fetchone()[0],
                   "reports": db.execute("SELECT count(*) FROM skill_reports WHERE state='open'").fetchone()[0],
-                  "paused": db.execute("SELECT count(*) FROM paused_packages").fetchone()[0]}
+                  "paused": db.execute("SELECT count(*) FROM paused_packages WHERE cause<>'reports' OR created>?",
+                                       (now - REPORT_PAUSE_SECONDS,)).fetchone()[0]}
     from registry_service.curation import load_curation, picture_approvals
 
     marks = store.marks()

@@ -5,12 +5,15 @@
     python -m registry_service.mac_authority mark|unmark|highlight|unhighlight|remove PUBLISHER/NAME --dir DIR
     python -m registry_service.mac_authority suspend|unsuspend NAME --dir DIR
     python -m registry_service.mac_authority team NAME --github-id ID [--github-id ID ...] --dir DIR
+    python -m registry_service.mac_authority team-admit PUBLISHER/NAME@CHECKSUM --dir DIR
     python -m registry_service.mac_authority targets --file FILE --dir DIR
     python -m registry_service.mac_authority status --dir DIR
 
 `run` takes uploads waiting on the server, runs every check itself on the exact bytes and signs
-only what passes. Hand actions (the "Tested by Parad0x Labs" mark, the Highlighted spot, removing
-a skill, suspending a creator, team members) each need a code from the owner's authenticator app.
+only what passes. An upload under a team's name is the exception: it waits until `team-admit` names
+its exact bytes, so the unattended run alone never signs anything as the team's. Hand actions (the
+"Tested by Parad0x Labs" mark, the Highlighted spot, removing a skill, suspending a creator, team
+members, admitting a team upload) each need a code from the owner's authenticator app.
 That code stops anyone without the owner's phone from using these commands; it cannot protect a
 Mac that someone has fully taken over, because the keys live here too.
 """
@@ -46,6 +49,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 from core.registry import checks
 from core.registry.admission import validate_policy
+from core.registry.artifact import inspect
 from core.registry.codec import HEX, IDENTITY, VERSION, RegistryError, canonical, decode, digest, require, version_key
 from core.registry.publisher import add_signature, admission, authorize_catalog
 from core.registry.trust import AUTHORIZATION_SECONDS, root_document, verify
@@ -63,6 +67,8 @@ REVIEW_ATTEMPTS = 3
 REVIEWS_PER_CREATOR = 30
 _FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120, "rule": 64}
 STEP = 30
+# Said when a queue row and the package it carries disagree. It names no upload: the GitHub signer's log is public.
+RENAMED = "the service named an upload differently than its package does"
 
 
 class RunStopped(Exception):
@@ -463,8 +469,25 @@ class Authority:
         for item in queue["submissions"]:
             raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
             require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
+            # The queue's name for these bytes is only the service's word. A row that disagrees with the
+            # package is the service's fault, never the creator's, so the batch waits like any other broken read.
+            require(self._own_name(raw) in (None, (item["package_id"], item["version"])), RENAMED)
             prepared.append((item, raw))
         return prepared
+
+    def _own_name(self, raw: bytes) -> tuple[str, str] | None:
+        """The id and version the package itself carries, or None when it can't be read (the checks then say why)."""
+        try:
+            info = inspect(raw)["metadata"]
+            return info["id"], info["version"]
+        except Exception as exc:
+            if isinstance(exc, (OSError, MemoryError)):
+                raise  # a device failure, not the package's content
+            return None
+
+    def _team_admitted(self, named: str) -> bool:
+        """Whether a team member's hand step named exactly these bytes, as publisher/name@checksum."""
+        return named in self.state.get("team_admits", [])
 
     @_exclusive
     def run_once(self, *, queue: dict | None = None, prepared: list | None = None, held: str | None = None) -> dict:
@@ -483,8 +506,17 @@ class Authority:
         for item, raw in prepared:
             if item["sha256"] in self.state.get("pending", {}):
                 continue  # the saved decision is retried by _deliver, without another check
-            publisher = item["package_id"].split("/")[0]
-            result = self.check(raw, official=publisher in self.state["marks"]["teams"])
+            # Whose skill this is comes from the package's own id, never from the queue row the service wrote.
+            own = self._own_name(raw)
+            official = own is not None and own[0].split("/")[0] in self.state["marks"]["teams"]
+            named = own[0] + "@" + hashlib.sha256(raw).hexdigest() if own else ""
+            if official and not self._team_admitted(named):
+                # Being queued proves nothing about who uploaded. A team's name is only signed after a team
+                # member's hand step named these exact bytes; until then it waits, unchecked and unpaid.
+                report.setdefault("team_step_needed", []).append(named)
+                checked.append((item, raw, {}))
+                continue
+            result = self.check(raw, official=official)
             self.review_checkpoint()  # keep review costs before attempting another upload
             checked.append((item, raw, result))
             if "admission" in result:
@@ -585,6 +617,17 @@ class Authority:
     @_exclusive
     def act(self, action: str, target: str, *, members: list[str] | None = None) -> str:
         marks = self.state["marks"]
+        if action == "team-admit":
+            # Kept on this Mac only: it lets the next run check and sign these bytes, and changes no mark.
+            name, _, sha = target.partition("@")
+            parts = name.split("/")
+            require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts) and bool(HEX.fullmatch(sha)),
+                    "name the upload as publisher/name@checksum")
+            require(parts[0] in marks["teams"], "that publisher is not a team")
+            require(target not in self.state.get("team_admits", []), "already done")
+            self.state["team_admits"] = sorted([*self.state.get("team_admits", []), target])
+            self.save()
+            return "Done. The next run checks these bytes and signs them if they pass."
         if action in {"mark", "unmark", "highlight", "unhighlight", "remove"}:
             parts = target.split("/")
             require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "name the skill as publisher/name")
@@ -678,7 +721,7 @@ def unlock_root(directory: Path, passphrase: str) -> Ed25519PrivateKey:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Skill Codex signing authority (runs on the owner's Mac)")
     parser.add_argument("command", choices=["setup", "run", "status", "targets", "mark", "unmark", "highlight",
-                                            "unhighlight", "remove", "suspend", "unsuspend", "team"])
+                                            "unhighlight", "remove", "suspend", "unsuspend", "team", "team-admit"])
     parser.add_argument("target", nargs="?", default="")
     parser.add_argument("--dir", required=True, type=Path)
     parser.add_argument("--server", default="")

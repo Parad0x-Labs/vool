@@ -89,6 +89,7 @@ REMOVED = "This skill was taken off the Skill Codex. Ask the team before you pub
 _STEP_FORMS = {"tested": "tested publisher/name version", "highlighted": "highlighted publisher/name",
                "suspended": "suspended publisher", "removed": "removed publisher/name",
                "team": "team name github-account-number [github-account-number ...]",
+               "team-admit": "team-admit publisher/name package-checksum",
                "build": "build version full-commit-id"}
 _STEP_FORMS.update({name: name + " target" for name in OPERATOR_ACTIONS})
 _STEP_FORMS.update({"picture": "picture publisher/name sha256", "official": "official publisher",
@@ -253,6 +254,12 @@ def parse_steps(text: str) -> dict:
         elif step == "suspended":
             require(len(args) == 1 and (bool(IDENTITY.fullmatch(args[0])) or _skill(args[0])), form)
             wanted["removed" if _skill(args[0]) else "suspended"].append(args[0])
+        elif step == "team-admit":
+            # One upload under a team's name, by its exact bytes; the signer signs no team upload without one.
+            require(len(args) == 2 and _skill(args[0]) and bool(HEX.fullmatch(args[1])), form)
+            admits = wanted.setdefault("team_admits", [])
+            if args[0] + "@" + args[1] not in admits:
+                admits.append(args[0] + "@" + args[1])
         elif step == "build":
             require(len(args) == 2 and bool(VERSION.fullmatch(args[0])) and bool(COMMIT.fullmatch(args[1])), form)
             if [args[0], args[1]] not in wanted["builds"]:
@@ -263,8 +270,8 @@ def parse_steps(text: str) -> dict:
             wanted["teams"][args[0]] = sorted(set(args[1:]))
     require(len(wanted["teams"]) <= 16, STEPS + ": at most 16 teams")
     require(len(wanted["builds"]) <= 8, STEPS + ": at most 8 builds")
-    require(all(len(wanted[field]) <= 4096 for field in ("tested", "highlighted", "suspended", "removed")),
-            STEPS + ": too many steps")
+    require(all(len(wanted.get(field, [])) <= 4096 for field in ("tested", "highlighted", "suspended", "removed",
+                                                                 "team_admits")), STEPS + ": too many steps")
     if "curation" in wanted:
         from registry_service.curation import validate_curation
 
@@ -332,6 +339,7 @@ class RepoAuthority(Authority):
         self._releases = releases
         self._sealed = ""
         self._removed: set[str] = set()
+        self._admits: set[str] = set()
         # Without its key every clean upload would be refused for a reason that is the team's, not the creator's.
         self._openrouter = env.get("VOOL_AUTHORITY_OPENROUTER_KEY", "")
         require(review is not None or bool(self._openrouter.strip()),
@@ -462,6 +470,9 @@ class RepoAuthority(Authority):
         self.save()
         return value
 
+    def _team_admitted(self, named: str) -> bool:
+        return named in self._admits  # this run's team-admit lines; the file is read again every run
+
     def _check(self, raw: bytes, *, official: bool) -> dict:
         try:
             package_id = inspect(raw)["metadata"]["id"]
@@ -508,6 +519,13 @@ class RepoAuthority(Authority):
                 problems.append(f"suspended {name}: a team can't be suspended")
             else:
                 suspended.append(name)
+        self._admits = set()
+        for named in wanted.get("team_admits", []):
+            publisher = named.split("/")[0]
+            if publisher in wanted["teams"]:
+                self._admits.add(named)
+            else:
+                problems.append(f"team-admit {named.partition('@')[0]}: {publisher} is not a team")
         new = {"tested": sorted(set(tested)), "highlighted": sorted(set(highlighted)), "suspended": sorted(set(suspended)),
                "teams": wanted["teams"]}
         marks = self.state["marks"]
@@ -675,6 +693,8 @@ def quiet(report: dict) -> dict:
     return {"admitted": len(report.get("admitted", [])), "refused": len(report.get("refused", [])),
             "waiting": len(report.get("waiting", [])), "errors": len(report.get("errors", [])),
             "dropped": len(report.get("dropped", [])), "list_published": "catalog" in report,
+            # Team uploads that wait for a team-admit line in the steps file.
+            "team_step_needed": len(report.get("team_step_needed", [])),
             "team_steps": report["steps"]["problems"] + ([] if report["steps"]["applied"] else ["nothing applied"]),
             **{key: "The source could not be checked; the next run tries again."
                for key in ("releases_waiting", "recheck_waiting") if key in report}}

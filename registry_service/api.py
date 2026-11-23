@@ -172,7 +172,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             if prior is None or version_key(row["version"]) > version_key(prior["version"]):
                 latest[row["id"]] = row
         rows = list(latest.values())
-        held = await run_in_threadpool(reports.paused, store)
+        held = await run_in_threadpool(reports.paused, store, now=now())
         for row in rows:
             if row["id"] in held:
                 row["downloads_paused"] = True
@@ -288,7 +288,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         return JSONResponse(await run_in_threadpool(reports.file_report, store, who, value, now=now()), status_code=201)
 
     async def downloads_allowed(package_id):
-        require(package_id not in await run_in_threadpool(reports.paused, store), reports.PAUSED)
+        require(package_id not in await run_in_threadpool(reports.paused, store, now=now()), reports.PAUSED)
 
     async def github_import(request):
         require(github is not None, "GitHub import is not configured")
@@ -328,7 +328,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             for item in await approved_rows()]})
 
     async def own_profile(who, value=None):
-        profile = await run_in_threadpool(store.profile, who, value)
+        profile = await run_in_threadpool(store.profile, who, value, now=now())
         return profile | {"providers": await run_in_threadpool(store.providers, who)}
 
     async def me(request):
@@ -438,7 +438,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     async def logout(request):
         who = account(request, mutation=True)
         if request.method == "DELETE":
-            await run_in_threadpool(store.delete_account, who)
+            await run_in_threadpool(store.delete_account, who, now=now())
         else:
             await run_in_threadpool(store.logout, request.cookies["vool_registry"])
         response = JSONResponse({"status": "deleted" if request.method == "DELETE" else "signed_out"})
@@ -496,7 +496,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         from registry_service.operations import pending
 
         await signed(request)
-        return JSONResponse(await run_in_threadpool(pending, store))
+        return JSONResponse(await run_in_threadpool(pending, store, now=now()))
 
     async def failure(request, exc):
         return JSONResponse({"error": str(exc) if isinstance(exc, RegistryError) else "invalid request"}, status_code=400)

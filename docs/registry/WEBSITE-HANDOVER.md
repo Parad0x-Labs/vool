@@ -51,14 +51,18 @@ no-referrer and restrictive CSP; approved pictures have a five-minute cache exce
 | GET `/auth/{provider}/callback` | Provider `state`, `code`, flow cookie | 303 `/codex/skills/account`, secure HttpOnly session cookie | Expired/reused state, duplicate fields or invalid provider reply: 400 `{error}`. |
 | POST `/auth/apple/callback` | Form `state`, `code`, flow cookie; ≤16,384 bytes | Same redirect/session | Other POST providers: `unsupported callback method`. |
 | GET `/me` | Optional session | `{profile,csrf}`; signed out/expired: `{profile:null,csrf:null}` | Expired cookie is cleared; keep anonymous browsing available. |
-| PUT `/profile` | JSON exactly `{namespace,bio,handles}`, session/CSRF | Profile plus `providers` | Invalid/claimed/reserved namespace, namespace change or bad handles: 400 `{error}`. |
+| PUT `/profile` | JSON exactly `{namespace,bio,handles}`, session/CSRF | Profile plus `providers` | Invalid/claimed/reserved namespace, namespace change, bad handles, or a first name chosen within 30 days of deleting an account with the same sign-in: 400 `{error}`. |
 | POST `/session` | Session/CSRF, no body needed | `{status:"signed_out"}`, clears cookie | Authentication/CSRF errors use 400. |
-| DELETE `/session` | Session/CSRF and explicit deletion gesture | `{status:"deleted"}`, clears cookie | Public licensed Git history survives deletion. |
+| DELETE `/session` | Session/CSRF and explicit deletion gesture | `{status:"deleted"}`, clears cookie | Public licensed Git history survives deletion; keyed hashes stay (below). |
 
 Profile includes private account `id`, stable namespace, bio, handles and linked provider names,
 never provider subject IDs. Namespace: lowercase letters/digits/hyphens, starts with a letter or
 digit, 1–64 characters. `vool`, `vool-team`, `parad0x-labs`, `official`, `native` are reserved. Chosen names cannot
-change through this route and remain reserved after deletion. Bio ≤500 characters. Handles:
+change through this route and remain reserved after deletion. After deletion the service keeps one keyed
+hash per sign-in and a keyed hash of the public name, no name, id or text: a mute, a suspension of the old
+name and the daily limits return with the same sign-in, and its first new name waits 30 days. Show that
+refusal as it comes: `an account with this sign-in was deleted; you can choose a public name from
+YYYY-MM-DD`. Say on the delete page that the same sign-in is recognised again for these purposes. Bio ≤500 characters. Handles:
 `github`, `x`, `mastodon`, `website` only, each ≤200 characters. GitHub/X must match
 `[A-Za-z0-9_.-]{1,64}`; the other two are HTTPS URLs without credentials. Handles are author assertions, not verification badges.
 GitHub, Google and Apple are implemented providers. Standalone email/password or email-link login
@@ -198,10 +202,15 @@ in `docs/registry/assets/` and supplied picture URLs, without constructing arbit
 
 Comments require a namespace and an authenticated website download. Reasons: `no_public_name`,
 `not_downloaded`, `muted`. Five attempts/day, refusals included; new-account comments are held.
-Three reports hold a comment. Filters are heuristic. Report eligibility reasons: `signed_out`,
+Reports from three different people, each with an account at least 14 days old and not muted, hold a
+comment. Filters are heuristic. Report eligibility reasons: `signed_out`,
 `own_skill`, `already_reported`, `daily_limit`. Read reason choices from the API; “other” needs
-a note. Never attach chat/files/diagnostics. Secret-looking notes are refused. Three counting
-safety reports pause downloads without independently revoking admission. Public pages expose no
+a note. Never attach chat/files/diagnostics. Secret-looking notes are refused. Safety reports from
+three different people (accounts at least 14 days old, not muted, one count per person even across an
+account deletion) pause downloads for 48 hours without independently revoking admission; the team's
+`skill-pause` keeps a pause for longer. A team's own skill and a version with the Tested mark are never
+paused by reports alone. `already_reported` and `daily_limit` also apply to a person who deleted their
+account and signed in again. Public pages expose no
 private report text, counts or reporter identities.
 
 ## Native handoff, operators and activation

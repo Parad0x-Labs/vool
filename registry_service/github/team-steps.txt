@@ -11,6 +11,10 @@
 #   suspended publisher/name         withdraw this skill, the same permanent version revocation as removed
 #   removed publisher/name           off the Skill Codex, and installed copies stop working
 #   team vool-team 12345 67890       a team name and its members' GitHub account numbers
+#   team-admit vool-team/name <64-hex package checksum>
+#                                    sign this one upload under the team's name; without the line it waits,
+#                                    because the signer can't know who uploaded. The checksum is the sha256
+#                                    the upload printed. A new version is other bytes and needs its own line.
 #   build 0.7.2-beta <commit id>     also sign for this VOOL build before it is released, to test it
 #
 # Routine moderation (opaque IDs/counts are in authority/state.json under moderation; no private text):

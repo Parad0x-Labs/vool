@@ -3,20 +3,23 @@
 A report holds the skill, a reason from a fixed list and an optional note the person typed, tied to
 the sender's account and time. Nothing from VOOL, chats, memory or wallets is ever attached. Reports
 are private: only operators read them, from the command line, and they see an opaque handle instead
-of the account. Three counting safety reports pause downloads of every version of that skill until an
-operator looks; the signed catalog still decides what is listed.
+of the account. Safety reports from three different people, each with an account two weeks old, pause
+downloads of every version of that skill for 48 hours; a team step keeps it paused for longer. A team's
+own skill and a version marked tested are never paused by reports alone: the reports wait for the
+operator. The signed catalog still decides what is listed.
 """
 from __future__ import annotations
 
 import hashlib
 import re
 import secrets
+import time
 import unicodedata
 
-from core.registry.codec import DOWNLOADS_PAUSED, require
+from core.registry.codec import DOWNLOADS_PAUSED, canonical, require, version_key
 from core.secret_redaction import _bip39_index, contains_secret, mnemonic_redaction_available
-from registry_service.community import NEW_ACCOUNT_SECONDS, _published
-from registry_service.store import owns
+from registry_service.community import _published, people, report_counts
+from registry_service.store import CARRIED, Store, accounts_holding, identity_keys, owns
 
 REASONS = {
     "scam": "Scam, or asks for money, passwords, keys or a recovery phrase",
@@ -28,8 +31,14 @@ REASONS = {
 }
 # Reasons about safety. Pictures already wait for a person's look, and a broken skill harms nobody.
 PAUSING = frozenset({"scam", "harmful", "stolen"})
+# Counting reports from this many different people pause a skill; one or two angry people never do.
 REPORTS_TO_PAUSE = 3
+# A pause that only reports caused ends by itself after this long unless a team step (skill-pause) confirms
+# it, so the worst a group of reporters can do to a harmless skill is two days.
+REPORT_PAUSE_SECONDS = 48 * 3600
+# Reports per person per 24 hours, so one person cannot bury the operators.
 REPORTS_PER_DAY = 10
+# Long enough to say what is wrong, short enough to read.
 MAX_NOTE = 500
 PAUSED = DOWNLOADS_PAUSED
 # Zero-width joiners and direction marks belong to emoji and to Hindi, Arabic and Hebrew text; the
@@ -44,16 +53,39 @@ def public_reasons() -> list[dict]:
     return [{"id": key, "label": label} for key, label in REASONS.items()]
 
 
+def _theirs(account: str, keys: list[str]) -> tuple[str, tuple]:
+    """SQL for "a report this person sent": by this account, or by an account they deleted (the same sign-in)."""
+    return "(" + " OR ".join(["account=?"] + ["instr(reporter,?)>0"] * len(keys)) + ")", (account, *keys)
+
+
 def _eligibility(db, account: str, package_id: str, *, now: int) -> tuple[str, str] | None:
     """Return (reason code, message) when the account may not report this skill, else None."""
     if owns(db, account, package_id):
         return "own_skill", "you cannot report your own skill"
-    if db.execute("SELECT 1 FROM skill_reports WHERE account=? AND package_id=? AND state='open'",
-                  (account, package_id)).fetchone():
+    theirs, who = _theirs(account, identity_keys(db, account))
+    if db.execute("SELECT 1 FROM skill_reports WHERE package_id=? AND state='open' AND " + theirs,
+                  (package_id, *who)).fetchone():
         return "already_reported", "you already reported this skill; a person will look at it"
-    if db.execute("SELECT count(*) FROM skill_reports WHERE account=? AND created>?",
-                  (account, now - 86400)).fetchone()[0] >= REPORTS_PER_DAY:
+    if db.execute("SELECT count(*) FROM skill_reports WHERE created>? AND " + theirs,
+                  (now - 86400, *who)).fetchone()[0] >= REPORTS_PER_DAY:
         return "daily_limit", "you have sent the most reports allowed for now; you can send more later"
+    return None
+
+
+def _counting(db, package_id: str) -> int:
+    """How many different people have an open, counting report on this skill."""
+    return people((row[0] or "").split() for row in db.execute(
+        "SELECT reporter FROM skill_reports WHERE package_id=? AND state='open' AND counted=1", (package_id,)))
+
+
+def _protected(db, package_id: str) -> str | None:
+    """Why reports alone never pause this skill: it is a team's own, or the version on show is marked tested."""
+    marks = Store._marks(db)
+    if package_id.split("/")[0] in marks["teams"]:
+        return "team"
+    versions = db.execute("SELECT version, sha256 FROM public_versions WHERE package_id=?", (package_id,)).fetchall()
+    if versions and package_id + "@" + max(versions, key=lambda row: version_key(row[0]))[1] in marks["tested"]:
+        return "tested"
     return None
 
 
@@ -105,45 +137,66 @@ def file_report(store, account: str, value: object, *, now: int) -> dict:
         package_id = _published(db, value["id"])
         refusal = _eligibility(db, account, package_id, now=now)
         require(refusal is None, refusal[1] if refusal else "")
-        created = db.execute("SELECT created FROM accounts WHERE id=?", (account,)).fetchone()[0]
-        muted = db.execute("SELECT 1 FROM muted_accounts WHERE account=?", (account,)).fetchone()
-        # An account whose earlier report on this skill was already looked at cannot pause it again.
-        repeat = db.execute("SELECT 1 FROM skill_reports WHERE account=? AND package_id=? AND state='closed'",
-                            (account, package_id)).fetchone()
-        # Brand-new, muted and repeating accounts are heard, but cannot pause a skill.
-        counted = value["reason"] in PAUSING and created <= now - NEW_ACCOUNT_SECONDS and not muted and not repeat
-        db.execute("INSERT INTO skill_reports VALUES (?,?,?,?,?,?,?,?)", (
-            secrets.token_hex(16), package_id, account, now, value["reason"], note, int(counted), "open"))
-        counting = db.execute("SELECT count(*) FROM skill_reports WHERE package_id=? AND state='open' AND counted=1",
-                              (package_id,)).fetchone()[0]
-        if counting >= REPORTS_TO_PAUSE:
+        keys = identity_keys(db, account)
+        theirs, who = _theirs(account, keys)
+        # A person whose earlier report on this skill was already looked at cannot pause it again.
+        repeat = db.execute("SELECT 1 FROM skill_reports WHERE package_id=? AND state='closed' AND " + theirs,
+                            (package_id, *who)).fetchone()
+        # New, muted and repeating senders are heard, but cannot pause a skill.
+        counted = value["reason"] in PAUSING and report_counts(db, account, package_id, now=now) and not repeat
+        db.execute("INSERT INTO skill_reports (id,package_id,account,created,reason,note,counted,state,reporter) "
+                   "VALUES (?,?,?,?,?,?,?,?,?)", (secrets.token_hex(16), package_id, account, now, value["reason"], note,
+                                                  int(counted), "open", " ".join(keys)))
+        # A pause that ended by itself keeps its row until an operator closes the reports, so the same pile of
+        # reports pauses a skill once, not every 48 hours.
+        if _counting(db, package_id) >= REPORTS_TO_PAUSE and _protected(db, package_id) is None:
             db.execute("INSERT OR IGNORE INTO paused_packages VALUES (?,?,?)", (package_id, now, "reports"))
     return {"status": "received"}
 
 
-def paused(store) -> frozenset[str]:
+def paused(store, *, now: int) -> frozenset[str]:
+    """Skills whose downloads are paused at `now`. A pause from reports alone has ended after 48 hours."""
     with store.connection() as db:
-        return frozenset(row[0] for row in db.execute("SELECT package_id FROM paused_packages"))
+        return frozenset(row[0] for row in db.execute(
+            "SELECT package_id FROM paused_packages WHERE cause<>'reports' OR created>?", (now - REPORT_PAUSE_SECONDS,)))
 
 
 # Operator-only functions. There is no HTTP route for these.
 
-def _handle(account: str) -> str:
-    """Lets an operator see that reports came from the same account without learning which account it is."""
-    return hashlib.sha256(b"vool-report-handle\0" + account.encode()).hexdigest()[:12]
+def _handle(sender: str) -> str:
+    """Lets an operator see that reports came from the same person without learning who it is."""
+    return hashlib.sha256(b"vool-report-handle\0" + sender.encode()).hexdigest()[:12]
 
 
-def open_reports(store) -> list[dict]:
-    """Every skill with open reports or a pause, so no pause is ever out of sight."""
+def open_reports(store, *, now: int | None = None) -> list[dict]:
+    """Every skill with open reports or a pause, so no pause is ever out of sight.
+
+    `paused` is the cause while downloads are paused at `now` (the clock's time when none is given). A pause
+    from reports alone shows when it ends, and stays listed as ended until an operator closes the reports.
+    `counting` is how many different people's reports count; `protected` says why that paused nothing.
+    """
+    now = int(time.time()) if now is None else now
     with store.connection() as db:
-        grouped = {row[0]: {"package_id": row[0], "paused": row[1], "reports": []}
-                   for row in db.execute("SELECT package_id, cause FROM paused_packages")}
-        for row in db.execute("""SELECT id, package_id, account, created, reason, note, counted FROM skill_reports
+        grouped = {}
+        for row in db.execute("SELECT package_id, cause, created FROM paused_packages"):
+            entry = grouped[row[0]] = {"package_id": row[0], "paused": row[1], "reports": [], "paused_since": row[2]}
+            if row[1] == "reports":
+                entry["pause_lapses"] = row[2] + REPORT_PAUSE_SECONDS
+                if entry["pause_lapses"] <= now:
+                    entry.update(paused=None, pause_lapsed=True)
+        for row in db.execute("""SELECT id, package_id, account, created, reason, note, counted, reporter FROM skill_reports
                 WHERE state='open' ORDER BY package_id, created, rowid"""):
             grouped.setdefault(row["package_id"], {"package_id": row["package_id"], "paused": None, "reports": []})
+            sender = (row["reporter"] or "").split()
             grouped[row["package_id"]]["reports"].append(
-                {"id": row["id"], "reporter": _handle(row["account"]), "created": row["created"],
-                 "reason": row["reason"], "note": row["note"], "counted": bool(row["counted"])})
+                {"id": row["id"], "reporter": _handle(sender[0] if sender else row["account"] or row["id"]),
+                 "created": row["created"], "reason": row["reason"], "note": row["note"], "counted": bool(row["counted"])} |
+                ({} if row["account"] else {"account_deleted": True}))
+        for package_id, entry in grouped.items():
+            entry["counting"] = _counting(db, package_id)
+            protected = _protected(db, package_id)
+            if protected:
+                entry["protected"] = protected
     return [grouped[package_id] for package_id in sorted(grouped)]
 
 
@@ -182,12 +235,30 @@ def resume(store, package_id: str) -> None:
         db.execute("DELETE FROM paused_packages WHERE package_id=?", (package_id,))
 
 
+def mute_sender(db, report_id: str, *, now: int) -> None:
+    """Mute the person behind one report. The caller owns the transaction (the CLI below, or a signed team step)."""
+    row = db.execute("SELECT account, reporter FROM skill_reports WHERE id=?", (report_id,)).fetchone()
+    keys = (row["reporter"] or "").split() if row else []
+    require(row is not None and (row["account"] is not None or keys), "report not found")
+    accounts = {row["account"]} if row["account"] else set()
+    if not row["account"]:
+        # The sender deleted their account. The mute waits on what the deletion left, so it returns with the
+        # same sign-in, and it lands at once on an account that sign-in already came back with.
+        for key in keys:
+            db.execute("INSERT INTO retired_identities (identity,deleted_at,muted,recent) VALUES (?,0,1,?) "
+                       "ON CONFLICT(identity) DO UPDATE SET muted=1",
+                       (key, canonical({kind: [] for kind in CARRIED})))
+        accounts = accounts_holding(db, keys)
+    for account in accounts:
+        db.execute("INSERT OR IGNORE INTO muted_accounts VALUES (?,?)", (account, now))
+        db.execute("UPDATE comments SET state='held' WHERE account=? AND state='published'", (account,))
+        db.execute("UPDATE skill_reports SET counted=0 WHERE account=? AND state='open'", (account,))
+    for key in keys:
+        db.execute("UPDATE skill_reports SET counted=0 WHERE state='open' AND instr(reporter,?)>0", (key,))
+
+
 def mute_reporter(store, report_id: str, *, now: int) -> None:
-    """Mute the account behind one report: its reports stop counting and its comments are held."""
+    """Mute the person behind one report: their reports stop counting and their comments are held."""
     with store.connection() as db:
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("SELECT account FROM skill_reports WHERE id=?", (report_id,)).fetchone()
-        require(row is not None and row[0] is not None, "report not found")
-        db.execute("INSERT OR IGNORE INTO muted_accounts VALUES (?,?)", (row[0], now))
-        db.execute("UPDATE comments SET state='held' WHERE account=? AND state='published'", (row[0],))
-        db.execute("UPDATE skill_reports SET counted=0 WHERE account=? AND state='open'", (row[0],))
+        mute_sender(db, report_id, now=now)

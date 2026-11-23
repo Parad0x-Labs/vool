@@ -99,7 +99,8 @@ def moderate(args) -> int:
                         handle.write(store.picture(sha256)[1])
             print(json.dumps(pending, indent=2))
         elif args.command == "reports-open":
-            print(json.dumps(reports.open_reports(store), indent=2))
+            # The time decides which pauses from reports alone have already ended.
+            print(json.dumps(reports.open_reports(store, now=int(time.time())), indent=2))
         elif args.command == "reports-close":
             reports.close(store, args.target)
             print("Done.")
@@ -131,6 +132,8 @@ def team_upload(args) -> int:
 
     The member must have signed in to the website once with that GitHub account, and the signing Mac's
     marks must list them in the package's team. Each package gets the same checks and quota as an upload.
+    The signer signs nothing under a team's name by itself, so each upload that now waits is followed by
+    the hand step that names its exact bytes, in both forms: the team-steps.txt line and the Mac command.
     """
     import json
 
@@ -165,6 +168,11 @@ def team_upload(args) -> int:
                 line["findings"] = result["findings"]
                 failed += 1
             print(json.dumps(line, sort_keys=True))
+            if result["state"] == "checking" and result["consent"]:
+                print("  It waits for a team member's step. On GitHub, add this line to team-steps.txt:\n"
+                      f"    team-admit {result['package_id']} {result['sha256']}\n"
+                      "  or, with the signing Mac:\n"
+                      f"    python -m registry_service.mac_authority team-admit {result['package_id']}@{result['sha256']} --dir DIR")
         except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
             failed += 1
             reason = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__

@@ -192,7 +192,8 @@ def test_new_accounts_limits_reports_mutes_and_operator_actions(tmp_path):
     assert community.post_comment(store, bob, "alice/notes", "Next day", now=NOW + DAY + 1)["state"] == "published"
     with pytest.raises(RegistryError, match="own comment"):
         community.report_comment(store, bob, first["id"], now=NOW)
-    reporters = [account(store, str(10 + index), f"reader{index}")[0] for index in range(3)]
+    # A report hides a comment only when it comes from an account at least two weeks old.
+    reporters = [account(store, str(10 + index), f"reader{index}", created=NOW - 30 * DAY)[0] for index in range(3)]
     community.report_comment(store, reporters[0], first["id"], now=NOW)  # one report per account
     for index, who in enumerate(reporters):
         community.report_comment(store, who, first["id"], now=NOW)
