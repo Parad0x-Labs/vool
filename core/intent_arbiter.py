@@ -1485,6 +1485,8 @@ def _told_as_fact_prompt(sentence: str) -> str:
         "something is kept, who someone is, what suits them, or what they or others regularly do.",
         'Answer {"answer": "no"} when the sentence asks or tells the assistant to DO something (a task: change, move, '
         'name, sort, find, make or send something), with or without "please".',
+        'Answer {"answer": "no"} when the sentence asks the assistant to TELL or REMIND the person of something, with '
+        "or without a question mark: that is a question, not a fact.",
         'Answer {"answer": "no"} when the sentence is about something that has not happened and is not settled: '
         "something the person will probably, may, might or could do some time, is thinking of, would like, or has "
         "not decided.",
@@ -1499,6 +1501,7 @@ def _told_as_fact_prompt(sentence: str) -> str:
         'Said: "we\'ll probably get the drive resurfaced at some stage." -> {"answer": "no"}',
         'Said: "the gate at the allotment sticks unless you lift it." -> {"answer": "yes"}',
         'Said: "one day I\'ll learn to sail." -> {"answer": "no"}',
+        'Said: "erinnere mich, wo der Ersatzschlüssel liegt" -> {"answer": "no"}',
         'Said: "my brother takes the dog on Thursdays." -> {"answer": "yes"}',
         'Said: "we could put bunk beds in the back room eventually." -> {"answer": "no"}',
         "",

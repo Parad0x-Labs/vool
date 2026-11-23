@@ -117,7 +117,12 @@ class _ForgetOutcomeRegistry:
         with self._lock:
             results = self._admission_results.get(identity, {})
             expected = self._admission_expected.get(identity, frozenset())
-            return (bool(expected) and expected <= results.keys()
+            # A demanded operand is answered by a result recorded under it, or under a target that holds its words:
+            # "forget everything about my scooter, erase that memory completely" is two operands to the request's
+            # reader and one target to the forget command. Waiting for the second operand by itself left the
+            # admission open after the forget was done, and every later read of the forgotten list in the home was
+            # refused (Mac, d585608b6: the ledger kept the admission pending).
+            return (bool(expected) and all(any(target == key or target in key for key in results) for target in expected)
                     and all(status in {"applied", "no_match"} for status in results.values()))
 
     def release_admission(self, *, request, session, source_context):

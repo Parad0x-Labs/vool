@@ -91,14 +91,16 @@ _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
 #: dalykus: ..." ("remember two things: ...") saved nothing. The recall choice names what such a question is about, not
 #: only "what I told you": on the Mac (ff6e9085c) "pasakyk kokia mano dviracio spalva" ("tell me my bike's colour") and
 #: "where do i keep my toolbox again?" were judged no memory ask, and a model answered them after the fact was forgotten.
+#: Said that broadly, "nebeatsimink nieko apie mano palapinę, ištrink" ("don't remember anything about my tent, erase
+#: it") was then judged a recall (Mac, d585608b6): each memory choice says what it is not.
 MEMORY_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("memory_keep", "Memory, keep: the person asks VOOL to remember or note something about themselves, their life, "
      "people or things, for later.", ()),
-    ("memory_recall", "Memory, recall: the person asks about a fact of their own life, people or things that only they "
-     "could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it before.",
-     ()),
-    ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase or stop remembering something they told "
-     "it before.", ()),
+    ("memory_recall", "Memory, recall: the person wants to be told a fact of their own life, people or things that only "
+     "they could have told VOOL (the colour or place of something of theirs, a name, a date), or what they told it "
+     "before. Asking VOOL to forget or erase it is not a recall.", ()),
+    ("memory_forget", "Memory, forget: the person asks VOOL to forget, erase, delete or no longer remember something "
+     "they told it before, also when they only name what it was about.", ()),
 )
 #: What the memory lane does with each memory choice, in the order a turn that picked several is read.
 _MEMORY_KINDS = {"memory_forget": "forget", "memory_keep": "keep", "memory_recall": "recall"}

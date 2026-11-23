@@ -3244,7 +3244,7 @@ def _judged_forgotten_named(
                 named.append(token)
         return named
     except Exception as exc:
-        LOGGER.warning("forgotten facts unreadable for a judged recall: %s", type(exc).__name__)
+        LOGGER.warning("forgotten facts unreadable for a judged recall: %s: %s", type(exc).__name__, str(exc)[:200])
         return []
 
 
