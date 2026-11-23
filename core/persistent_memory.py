@@ -3062,11 +3062,14 @@ def _held_for_judgement(
                     held.append(clean)
     # VOOL's own words are never the person's: on the Mac (d585608b6, 2bba40425, 8898ba4b4) a judged forget erased by
     # "locked in. i'll remember that.", VOOL's reply to a keep, and recorded it as a forgotten token of the chat.
-    said_by_vool = _vool_reply_sentences()
+    # A reply that says the person's words back is not VOOL's alone: on the Mac (4c72471b7) a reply that quoted the kept
+    # sentence hid that saved fact from every later recall and forget. Only what the person never said is VOOL's own.
+    said_by_vool, said_by_person = _said_sentences()
     out: list[str] = []
     for item in held:
+        plain = _plain_sentence(item)
         if (item and item not in out and not memory_entries.contains_secret(item)
-                and _plain_sentence(item) not in said_by_vool):
+                and (plain not in said_by_vool or any(plain in person for person in said_by_person))):
             out.append(item)
     return out[-_JUDGED_HELD_LIMIT:]
 
@@ -3075,22 +3078,26 @@ def _plain_sentence(text: str) -> str:
     return " ".join(str(text or "").replace("\u2019", "'").casefold().split()).strip(" .!?")
 
 
-def _vool_reply_sentences(limit: int = 2000) -> set[str]:
-    """Every sentence of VOOL's recent replies, and each reply whole, as plain text; empty when unreadable."""
+def _said_sentences(limit: int = 2000) -> tuple[set[str], list[str]]:
+    """Every sentence of VOOL's recent replies (and each reply whole), and each of the person's recent messages
+    whole, as plain text; empty when unreadable."""
     try:
         from core.memory.files import _load_jsonl, conversation_log_path
 
         rows = _load_jsonl(conversation_log_path())[-limit:]
     except Exception:
-        return set()
+        return set(), []
     said: set[str] = set()
+    person: list[str] = []
     for row in rows:
         reply = str(row.get("assistant") or "")
         if reply:
             said.add(_plain_sentence(reply))
             said.update(_plain_sentence(part) for part in _SENTENCE_SPLIT_RE.split(reply) if part.strip())
+        if str(row.get("user") or "").strip():
+            person.append(_plain_sentence(row.get("user")))
     said.discard("")
-    return said
+    return said, person
 
 
 def _judged_forget_items(

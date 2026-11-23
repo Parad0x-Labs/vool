@@ -554,3 +554,18 @@ def test_a_question_both_readings_call_a_keep_is_never_kept(home, monkeypatch, s
                                                  source_context=dict(OWNER))
     assert not _entries().strip(), _entries()
     assert str(reply) != pm.KEPT_REPLY and (not handled or str(reply) == pm.JUDGED_RECALL_NOTHING), (handled, reply)
+
+
+def test_a_reply_that_says_the_fact_back_never_hides_it(home, monkeypatch):
+    """Mac run11 (4c72471b7): the reply to "atsimink — kaimynų šuniukas mėgsta tik ryžius" said the sentence back, so the
+    saved fact was taken for VOOL's own words: a later recall held nothing and a later forget erased nothing."""
+    rng = random.Random("reply-says-it-back")
+    fact = _vary(rng, "kaimynų šuniukas mėgsta tik ryžius")
+    said = f"atsimink — {fact}"
+    _judged(said, "keep")
+    maybe_handle_memory_command(said, session_id=CHAT, access_policy=_policy(CHAT), source_context=dict(OWNER))
+    pm._write_conversation_event(session_id=CHAT, user_input=said, assistant_output=f"{fact}. Saved to memory.",
+                                 source_context=dict(OWNER))
+    held = pm._held_for_judgement(session_id=OTHER_CHAT, policy=_policy(OTHER_CHAT), source_context=dict(OWNER),
+                                  served=False)
+    assert any("ryž" in item or "ryz" in item for item in held), held
