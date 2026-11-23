@@ -243,6 +243,33 @@ def execute_authorized_runtime_tool(
     permission_decision: PermissionDecision | None = None,
     authority_token: str | None = None,
 ) -> Any:
+    """`_execute_authorized_runtime_tool`, then the action receipt of a call that stopped HERE.
+
+    A call this boundary held for approval or refused never reaches the runtime tool door, which
+    files the receipt of everything that does; so a held or refused consequential action gets its
+    waiting or failed receipt (core.action_receipts) here, from the typed refusal.
+    """
+    result = _execute_authorized_runtime_tool(
+        intent, arguments, task_id=task_id, source_context=source_context,
+        trusted_local_only=trusted_local_only, permission_decision=permission_decision,
+        authority_token=authority_token,
+    )
+    from core.action_receipts import note_held_or_refused
+
+    note_held_or_refused(source_context, str(intent or ""), result)
+    return result
+
+
+def _execute_authorized_runtime_tool(
+    intent: str,
+    arguments: dict[str, Any] | None = None,
+    *,
+    task_id: str = "",
+    source_context: dict[str, Any] | None = None,
+    trusted_local_only: bool = False,
+    permission_decision: PermissionDecision | None = None,
+    authority_token: str | None = None,
+) -> Any:
     """Decide, then execute -- or refuse typed. The one boundary both routes cross.
 
     ``permission_decision`` is a decision the caller ALREADY holds (the model loop decided at its

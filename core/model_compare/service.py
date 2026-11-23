@@ -254,7 +254,8 @@ def _run_one(job: Job, source: Any, manifest: Any) -> dict:
         if authorization is not None:
             if state == 'completed' or actual is not None:
                 settle_owner_pick_paid_call(authorization, actual_usd=actual, source_context=context,
-                                           call_role='answer_generation', invocation_id=call_id)
+                                           call_role='answer_generation', invocation_id=call_id,
+                                           cost_basis='provider_reported' if actual is not None else '')
             else:
                 release_owner_pick_paid_call(authorization, reason='call_failed' if timing and timing.dispatched is not None else 'pin_not_dispatched',
                                             source_context=context, call_role='answer_generation')

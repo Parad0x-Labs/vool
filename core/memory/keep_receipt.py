@@ -89,6 +89,10 @@ def stamp(source_context: Any, receipt: KeepReceipt) -> None:
     """Put the turn's receipt where finalization reads it: on the turn context, and by turn id for a path that
     finalizes from a copy of the context taken before the keep step ran."""
     record = receipt.as_dict()
+    # What this step wrote and refused is also filed as the turn's action receipts, checked against the store.
+    from core.action_receipts import note_memory_keep
+
+    note_memory_keep(source_context, list(record.get("saved") or []), list(record.get("refused") or []))
     turn_id = _turn_id(source_context)
     with _BY_TURN_LOCK:
         # One turn is stamped more than once (the keep step at the turn's start, the memory door later, and each

@@ -167,6 +167,7 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         # technical chip, and single-word homographs that are the correct term in
         # the locales that keep them (fr Notifications/Note/source/images, de
         # Updates, es/fr/pt local/cloud, pl/tr model, pl Alert).
+        "doctor.part.updates",
         "keys.test.refused_detail",
         "notif.images",
         "notif.pop_title",

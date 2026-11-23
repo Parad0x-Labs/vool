@@ -669,6 +669,19 @@ class ProviderInvocationPermit:
         return self._budget_reservation_id
 
     def consume(self) -> dict[str, Any]:
+        authorized = self._consume()
+        # The answer's route receipt (core.answer_route): the payload is handed to transport now,
+        # so where it goes and what it carries are facts, not a plan. Written outside the consume
+        # lock; observation only, it never raises.
+        from core.answer_route import note_dispatch
+
+        if self._disclosure_wire is not None:
+            note_dispatch(self.manifest, self._disclosure_wire, len(self._disclosure_wire.wire_body or b""))
+        else:
+            note_dispatch(self.manifest, None, len(canonical_payload_bytes(authorized)))
+        return authorized
+
+    def _consume(self) -> dict[str, Any]:
         with _CONSUME_LOCK:
             if self._used:
                 raise RuntimeError("provider invocation permit already consumed")
@@ -725,6 +738,8 @@ class ProviderInvocationPermit:
                                      cloud_destination=self._disclosure_wire.cloud_destination)
                 result.timing = self._disclosure_wire.timing
                 result.owner_paid_call = getattr(self._disclosure_wire, "owner_paid_call", "")
+                # Lets a later refusal at the byte boundary withdraw this call's route receipt.
+                result.route_call_id = str(self.manifest.manifest_id or "")
                 return result
             return copy.deepcopy(self._payload)
 

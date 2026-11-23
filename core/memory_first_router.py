@@ -705,12 +705,18 @@ def _response_cost_estimate(manifest: Any, response: Any) -> Any | None:
 
 def _response_actual_usd(manifest: Any, response: Any) -> float | None:
     """Return a priceable amount, or None so missing usage retains the budget hold."""
+    return _response_actual_cost(manifest, response)[0]
+
+
+def _response_actual_cost(manifest: Any, response: Any) -> tuple[float | None, str]:
+    """The amount and how it is known (a :mod:`core.model_pricing` basis): the provider's own bill,
+    or tokens priced by VOOL. None keeps the hold when the provider reported nothing to price."""
     from core.model_pricing import BASIS_NO_USAGE
 
     estimate = _response_cost_estimate(manifest, response)
     if estimate is None or getattr(estimate, "basis", "") == BASIS_NO_USAGE:
-        return None
-    return float(estimate.usd)
+        return None, ""
+    return float(estimate.usd), str(getattr(estimate, "basis", "") or "")
 
 
 @dataclass
@@ -4695,9 +4701,11 @@ class MemoryFirstRouter:
                 # model's published rate, plus any earlier attempt billed under the same
                 # reservation -- so the standing ceiling stops counting against the
                 # per-task/day/month caps and the real charge starts counting toward them.
+                _actual_usd, _cost_basis = _response_actual_cost(manifest, response)
                 settle_owner_pick_paid_call(
                     paid_authorization,
-                    actual_usd=_response_actual_usd(manifest, response),
+                    actual_usd=_actual_usd,
+                    cost_basis=_cost_basis,
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
                     invocation_id=response_id,

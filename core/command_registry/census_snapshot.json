@@ -1163,6 +1163,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/doctor": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/doctor",
+      "note": "VOOL Doctor feed: each part read fresh from its owner, with its repair (core/vool_doctor.py)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/email/accounts": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/email/accounts",
@@ -1618,10 +1625,24 @@
       "registry_command_id": "skills.list",
       "surface": "http"
     },
+    "http:GET:/api/spend": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/spend",
+      "note": "AI spending feed: paid model spend from the enforced ledger against its limits (core/ai_spend.py)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/tags": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/tags",
       "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/today": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/today",
+      "note": "Today in VOOL feed: reminders, calendar, to-dos and goals read fresh from their stores (core/today_view.py)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2941,6 +2962,13 @@
       "registry_command_id": "skills.set_enabled",
       "surface": "http"
     },
+    "http:POST:/api/spend/limits": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/spend/limits",
+      "note": "AI spending limits write (credential door; core/ai_spend.py feeds paid_call_reservation.spend_limits)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/task/recovery": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/task/recovery",
@@ -3644,7 +3672,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 337,
+    "EXTERNAL_TRANSPORT_ONLY": 341,
     "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

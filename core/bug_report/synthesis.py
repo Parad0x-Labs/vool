@@ -25,6 +25,9 @@ ANSWER_REASON_LABELS = {
     "wrong": "Wrong or made up",
     "outdated": "Out of date",
     "not_what_i_asked": "Didn't do what I asked",
+    "wrong_memory": "Remembered or recalled something wrong",
+    "wrong_action": "An action went wrong",
+    "poor_quality": "Poor answer",
     "unsafe": "Unsafe or rude",
     "other": "Other",
 }
@@ -160,6 +163,22 @@ def synthesize_local(material: SanitizedMaterial) -> tuple[str, str]:
         if receipt.get("fault_codes"):
             lines.append(f"- fault codes: {', '.join(receipt['fault_codes'])}")
         lines.append("")
+        route = receipt.get("route") or []
+        stages = receipt.get("stages") or []
+        results = receipt.get("results") or []
+        if route or stages or results:
+            # Content-free: where each call went and what kinds of data it carried, the stages
+            # with their times, and each action's checked result. Enough to replay the case.
+            lines.append("## Trace")
+            for call in route:
+                carried = ", ".join(call.get("carried") or []) or "nothing personal"
+                lines.append(f"- model call: {call.get('where', 'unknown')} | {call.get('provider', 'unknown')} | "
+                             f"{call.get('model', 'unknown')} | calls: {call.get('calls', 0)} | carried: {carried}")
+            for stage in stages:
+                lines.append(f"- stage: {stage.get('stage', '')} ({stage.get('ms', 0)} ms)")
+            for result in results:
+                lines.append(f"- action result: {result.get('action', '')} -> {result.get('state', '')}")
+            lines.append("")
 
     repro = payload.get("repro_steps") or []
     if repro:

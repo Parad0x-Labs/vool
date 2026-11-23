@@ -44,6 +44,9 @@ class SpendReservation:
     # True when this settlement named an invocation the ledger had already settled: nothing was
     # written, and the row is returned as it stands.
     replayed: bool = False
+    # How ``actual_usd`` is known: BILLED_BASIS is the provider's own bill; anything else is VOOL's
+    # estimate (tokens priced at a published rate or a ceiling).
+    cost_basis: str = ""
 
 
 def _finite(cap: object) -> bool:
@@ -90,6 +93,14 @@ def _init_table() -> None:
             try:
                 conn.execute("ALTER TABLE model_spend_reservations ADD COLUMN spender TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError as exc:  # another process added it first
+                if "duplicate column" not in str(exc).lower():
+                    raise
+        if "cost_basis" not in columns:
+            # How the settled amount is known: "provider_reported" is the provider's own bill; any
+            # other value (or none, on rows written before this column) is VOOL's estimate.
+            try:
+                conn.execute("ALTER TABLE model_spend_reservations ADD COLUMN cost_basis TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError as exc:
                 if "duplicate column" not in str(exc).lower():
                     raise
         conn.execute(
@@ -190,8 +201,13 @@ def settle_spend(
     billing_ambiguous: bool = False,
     invocation_id: str = "",
     add_to_ambiguous: bool = False,
+    cost_basis: str = "",
 ) -> SpendReservation:
     """Close (or keep holding) a reservation at what the call cost.
+
+    ``cost_basis`` says how ``actual_usd`` is known (:mod:`core.model_pricing` BASIS_*): only
+    ``provider_reported`` is a bill. A row settled twice on different bases keeps the weaker one,
+    so a sum that is partly estimated is never shown as billed.
 
     ``invocation_id`` names the physical provider response being settled. The ledger records it in
     the same transaction as the money, so settling that response again returns the row unchanged
@@ -232,10 +248,11 @@ def settle_spend(
         held = float(row["reserved_usd"]) if billing_ambiguous else 0.0
         status = "billing_ambiguous" if billing_ambiguous else ("cap_breached" if actual > float(row["reserved_usd"]) else "settled")
         now_iso = datetime.now(timezone.utc).isoformat()
+        basis = _combined_basis(str(_row_value(row, "cost_basis") or ""), str(cost_basis or ""))
         conn.execute(
             """UPDATE model_spend_reservations SET actual_usd = ?, reserved_usd = ?,
-            status = ?, billing_ambiguous = ?, updated_at = ? WHERE model_call_id = ?""",
-            (actual, held, status, int(billing_ambiguous), now_iso, model_call_id),
+            status = ?, billing_ambiguous = ?, updated_at = ?, cost_basis = ? WHERE model_call_id = ?""",
+            (actual, held, status, int(billing_ambiguous), now_iso, basis, model_call_id),
         )
         if invocation:
             _record_invocation(conn, model_call_id, invocation, ledger_call_id=model_call_id, usd=actual_usd, flagged=False)
@@ -243,7 +260,7 @@ def settle_spend(
         return SpendReservation(
             reservation_id=row["reservation_id"], model_call_id=model_call_id, task_id=row["task_id"],
             subtask_id=row["subtask_id"], model_id=row["model_id"], reserved_usd=held,
-            actual_usd=actual, status=status,
+            actual_usd=actual, status=status, cost_basis=basis,
         )
     except Exception:
         conn.rollback()
@@ -322,6 +339,25 @@ def record_supplemental_charge(
         raise
     finally:
         conn.close()
+
+
+BILLED_BASIS = "provider_reported"
+
+
+def _row_value(row, key: str):
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
+
+
+def _combined_basis(before: str, now: str) -> str:
+    """The basis of a row that now holds both amounts: billed only while every part was billed."""
+    if not before:
+        return now
+    if not now or now == before:
+        return before
+    return before if before != BILLED_BASIS else now
 
 
 def _replayed_row(conn, model_call_id: str, invocation_id: str) -> SpendReservation | None:
@@ -483,7 +519,63 @@ def _committed_and_reserved(conn, where: str, params: tuple[object, ...]) -> flo
     return float(row[0] or 0.0)
 
 
+def _day_and_month_start(ts: float) -> tuple[float, float]:
+    """The windows the caps are enforced over (reserve_spend): the UTC day and the UTC month."""
+    month_start = datetime.fromtimestamp(ts, timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+    return ts - (ts % 86400), month_start
+
+
+def _window_totals(conn, where: str, params: tuple[object, ...]) -> dict[str, float]:
+    row = conn.execute(
+        f"""SELECT
+            COALESCE(SUM(CASE WHEN cost_basis = ? THEN actual_usd ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN cost_basis = ? THEN 0 ELSE actual_usd END), 0),
+            COALESCE(SUM(CASE WHEN status IN ('reserved', 'billing_ambiguous') THEN reserved_usd ELSE 0 END), 0),
+            COUNT(CASE WHEN subtask_id <> ? THEN 1 END)
+        FROM model_spend_reservations WHERE {where}""",
+        (BILLED_BASIS, BILLED_BASIS, SUPPLEMENTAL_SUBTASK_ID, *params),
+    ).fetchone()
+    billed, estimated, held, calls = (float(row[0] or 0), float(row[1] or 0), float(row[2] or 0), int(row[3] or 0))
+    return {"billed_usd": round(billed, 6), "estimated_usd": round(estimated, 6), "held_usd": round(held, 6),
+            "counted_usd": round(billed + estimated + held, 6), "calls": calls}
+
+
+def spend_totals(*, now: float | None = None, session_id: str = "") -> dict[str, object]:
+    """Paid model spend, read from the ledger the caps are enforced on.
+
+    Each window has ``billed_usd`` (the provider's own bill), ``estimated_usd`` (tokens priced by
+    VOOL), ``held_usd`` (calls still open or whose bill is unknown, held at their ceiling) and
+    ``counted_usd``, the sum the next reservation is checked against. ``session`` is the same for
+    one chat, through the orchestration run each reservation belongs to.
+    """
+    _init_table()
+    ts = datetime.now(timezone.utc).timestamp() if now is None else float(now)
+    day_start, month_start = _day_and_month_start(ts)
+    conn = get_connection()
+    try:
+        out: dict[str, object] = {
+            "today": _window_totals(conn, "created_ts >= ?", (day_start,)),
+            "month": _window_totals(conn, "created_ts >= ?", (month_start,)),
+            "day_resets_at": day_start + 86400,
+            "month_started_at": month_start,
+        }
+        if session_id:
+            try:
+                out["session"] = _window_totals(
+                    conn,
+                    """EXISTS (SELECT 1 FROM model_orchestration_runs r WHERE r.task_id = model_spend_reservations.task_id
+                    AND r.subtask_id = model_spend_reservations.subtask_id AND r.session_id = ?)""",
+                    (str(session_id),),
+                )
+            except sqlite3.OperationalError:  # no paid call has ever run: the runs table is not there yet
+                out["session"] = {"billed_usd": 0.0, "estimated_usd": 0.0, "held_usd": 0.0, "counted_usd": 0.0, "calls": 0}
+        return out
+    finally:
+        conn.close()
+
+
 __all__ = [
+    "BILLED_BASIS",
     "SUPPLEMENTAL_SUBTASK_ID",
     "SpendLimits",
     "SpendReservation",
@@ -493,6 +585,7 @@ __all__ = [
     "release_spend",
     "reserve_spend",
     "settle_spend",
+    "spend_totals",
     "spender_month_total",
     "unresolved_spend_today",
     "unverified_supplemental_charges",

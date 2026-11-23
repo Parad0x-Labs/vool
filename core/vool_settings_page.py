@@ -138,7 +138,7 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="setup_progress",
-                    hint="Four quick steps to get VOOL ready.",
+                    hint="Five quick steps to get VOOL ready.",
                     label="Finish setting up VOOL",
                     kind="custom",
                     widget="setup_progress",
@@ -852,8 +852,25 @@ def _settings_groups() -> list[dict]:
             "icon": "◴",
             "title": "Usage & Budgets",
             "blurb": "How much VOOL has used, and the limits you set.",
-            "cards": [{"id": "use", "title": "Usage", "icon": "budgets"}, {"id": "limits", "title": "Limits", "icon": "settings"}],
+            "cards": [{"id": "spend", "title": "Paid models", "icon": "budgets"}, {"id": "use", "title": "Usage", "icon": "budgets"},
+                      {"id": "limits", "title": "Limits", "icon": "settings"}],
             "rows": [
+                _row(
+                    id="spend",
+                    card="spend",
+                    label="Spending on paid models",
+                    kind="custom",
+                    widget="spend",
+                    help=(
+                        "What paid online models have cost today and this month, and the limits VOOL "
+                        "keeps to. A paid answer that would go past a limit is not sent. VOOL warns you "
+                        "when a limit is nearly used."
+                    ),
+                    scope=SCOPE_GLOBAL,
+                    effect=EFFECT_NEXT_TURN,
+                    badge="Enforced",
+                    keywords="spend spending cost money budget limit cap paid dollars usd bill estimate alert warning",
+                ),
                 _row(
                     id="ram_reserve_pct",
                     card="limits",
@@ -1115,8 +1132,21 @@ def _settings_groups() -> list[dict]:
             "icon": "ⓘ",
             "title": "About & Diagnostics",
             "blurb": "Which version of VOOL you have, and what to include when you report a problem.",
-            "cards": [{"id": "updates", "title": "Updates", "icon": "retry"}, {"id": "copy", "title": "This copy of VOOL", "icon": "about"}],
+            "cards": [{"id": "doctor", "title": "VOOL Doctor", "icon": "about"}, {"id": "updates", "title": "Updates", "icon": "retry"}, {"id": "copy", "title": "This copy of VOOL", "icon": "about"}],
             "rows": [
+                _row(
+                    id="doctor",
+                    card="doctor",
+                    label="Check VOOL",
+                    kind="custom",
+                    widget="doctor",
+                    help=(
+                        "Checks the private model, the online model, your folders, your phone, storage and "
+                        "updates on this computer, and says what to do about anything that is not working. "
+                        "Nothing is sent online."
+                    ),
+                    keywords="doctor diagnose diagnostics health check broken not working fix repair problem",
+                ),
                 _row(
                     id="updates",
                     card="updates",
@@ -1366,6 +1396,30 @@ dl.kv { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 14px; ma
 dl.kv dt { color:var(--muted); white-space:nowrap; }
 dl.kv dd { margin:0; }
 .stack { display:flex; flex-direction:column; gap:10px; width:100%; }
+.doctor-list { display:flex; flex-direction:column; gap:8px; }
+.doctor-item { border:1px solid var(--border); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.doctor-item .btn { align-self:flex-start; }
+.doctor-head { display:flex; justify-content:space-between; gap:10px; }
+.doctor-state { font-size:12.5px; font-weight:600; }
+.doctor-item.ok .doctor-state { color:var(--ok); }
+.doctor-item.problem { border-color:var(--warn); }
+.doctor-item.problem .doctor-state { color:var(--warn); }
+.doctor-item.unknown .doctor-state, .doctor-item.off .doctor-state { color:var(--muted); }
+.spend-board { display:flex; flex-direction:column; gap:10px; }
+.spend-window { border:1px solid var(--border); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.spend-head { display:flex; justify-content:space-between; gap:10px; }
+.spend-of { font-size:12.5px; font-weight:600; }
+.spend-bar { height:6px; border-radius:3px; background:var(--border); overflow:hidden; }
+.spend-fill { height:100%; background:var(--ok); }
+.spend-window.spend-near { border-color:var(--warn); }
+.spend-window.spend-near .spend-fill { background:var(--warn); }
+.spend-window.spend-reached { border-color:var(--bad, var(--warn)); }
+.spend-window.spend-reached .spend-fill { background:var(--bad, var(--warn)); }
+.spend-warn { font-size:12.5px; }
+.spend-limits { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+.spend-limit > span:first-child { min-width:170px; }
+.spend-limit .inp { width:110px; }
+.spend-limits .btn { align-self:flex-start; }
 .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .row.wide { flex-direction:column; align-items:stretch; }
 .row.wide .row-ctl { align-items:stretch; width:100%; padding-top:12px; }
@@ -2194,6 +2248,8 @@ function renderWidget(row, host) {
   if (w === 'routines') return widgetAdopt(stack, 'routinesSetting');
   if (w === 'build') return widgetBuild(stack);
   if (w === 'updates') return widgetUpdates(stack);
+  if (w === 'doctor') return widgetDoctor(stack);
+  if (w === 'spend') return widgetSpend(stack);
   if (w === 'usage') return widgetUsage(stack);
   if (w === 'addon_security') { if (window.VoolAddons) return window.VoolAddons.mountSecurity(stack); return; }
   if (w === 'provider_guide') return widgetProviderGuide(stack);
@@ -2236,6 +2292,204 @@ function renderWidget(row, host) {
   if (w === 'lend') return widgetSurface(stack, 'VoolLend', T('lend.error', 'This step could not finish. Refresh and check the invitation.'));
   stack.appendChild(el('div', 'empty', T('settings.pane.empty', 'This section has nothing to show.')));
 }
+
+/* --- VOOL Doctor (core/vool_doctor.py via /api/doctor): each part, its state in words, and its repair.
+   A part that could not be checked is said so; it is never painted as working. */
+const DOCTOR_TITLES = {
+  local_model: ['doctor.part.local_model', 'Private model on this computer'],
+  cloud: ['doctor.part.cloud', 'Online model'],
+  folders: ['doctor.part.folders', 'Your folders'],
+  phone: ['doctor.part.phone', 'Phone'],
+  storage: ['doctor.part.storage', 'Storage'],
+  updates: ['doctor.part.updates', 'Updates'],
+};
+const DOCTOR_STATES = {
+  ok: ['doctor.state.ok', 'Working'],
+  problem: ['doctor.state.problem', 'Needs attention'],
+  off: ['doctor.state.off', 'Not set up'],
+  unknown: ['doctor.state.unknown', 'Could not check'],
+};
+const DOCTOR_SAID = {
+  'local.off': 'Private models are turned off in Settings.',
+  'local.not_running': 'The private model is not running, so nothing on this computer can answer. Start Ollama, or set up a model.',
+  'local.list_failed': 'The private model answered, but VOOL could not read which models it has.',
+  'local.no_models': 'The private model is running but has no model downloaded yet.',
+  'local.ok': '{count} model(s) ready, for example {model}.',
+  'cloud.none': 'No online model is set up. That is fine if you only use this computer.',
+  'cloud.ok': '{provider} answered the last time VOOL tried.',
+  'cloud.failed': '{provider} refused the last try. The key may be wrong or out of credit. {detail}',
+  'cloud.untested': 'A key for {provider} is saved but has not been tried yet. Test it in API Keys.',
+  'folders.none': 'There is no Desktop, Documents or Downloads folder to look in.',
+  'folders.private': 'This computer keeps {names} private from VOOL, so files there cannot be found or read.',
+  'folders.slow': 'This computer did not answer in time for {names}. A permission question may be waiting on screen.',
+  'folders.ok': 'VOOL can look in {names}.',
+  'phone.unreadable': 'VOOL could not read the phone settings.',
+  'phone.none': 'No phone is paired.',
+  'phone.door_off': 'A phone is paired, but phone access is turned off, so it cannot reach VOOL.',
+  'phone.not_listening': 'Phone access is on, but VOOL is not listening for the phone right now.',
+  'phone.ok': '{count} phone(s) paired and able to reach VOOL.',
+  'storage.read_only': 'VOOL cannot save to its data folder, so chats and memories will not be kept.',
+  'storage.damaged': 'The database did not pass its integrity check. Make a backup before anything else.',
+  'storage.db_slow': 'The database did not answer its check in time.',
+  'storage.low_space': 'Only {free_mb} MB of disk space is left. Saving can start to fail.',
+  'storage.ok': 'Saving works. {free_gb} GB free.',
+  'updates.not_loaded': 'The updater is not running in this copy of VOOL.',
+  'updates.unavailable': 'This copy of VOOL cannot update itself. {detail}',
+  'updates.failed': 'The last update did not finish. {detail}',
+  'updates.restart': 'Version {target} is ready. Restart VOOL to finish.',
+  'updates.available': 'Version {target} is available. You have {version}.',
+  'updates.offline': 'Update checks are off because VOOL does not go online on its own.',
+  'updates.ok': 'Up to date ({version}).',
+  'updates.not_checked': 'VOOL has not checked for updates yet.',
+  'check_failed': 'This check could not run ({fault}).',
+};
+const DOCTOR_REPAIRS = {
+  models: ['#models/local_models', 'doctor.repair.models', 'Open Models'],
+  keys: ['#keys/cloud_keys', 'doctor.repair.keys', 'Open API Keys'],
+  phone: ['#phone/phone_access', 'doctor.repair.phone', 'Open Phone settings'],
+  updates: ['#about/updates', 'doctor.repair.updates', 'Open Updates'],
+  backup: ['#backup/session_export', 'doctor.repair.backup', 'Open Backup'],
+};
+function doctorSaid(row) {
+  const values = Object.assign({}, row.values || {});
+  return tfmt('doctor.said.' + row.reason, DOCTOR_SAID[row.reason] || row.reason, values).replace(/\s+$/, '');
+}
+function widgetDoctor(stack) {
+  stack.textContent = '';
+  const status = el('div', 'subtle', T('doctor.intro', 'Checks each part on this computer. Nothing is sent online.'));
+  status.setAttribute('role', 'status'); status.dataset.testid = 'doctor-summary';
+  const run = el('button', 'btn', T('doctor.run', 'Run the check')); run.type = 'button'; run.dataset.testid = 'doctor-run';
+  const list = el('div', 'doctor-list'); list.dataset.testid = 'doctor-list';
+  stack.appendChild(status); stack.appendChild(run); stack.appendChild(list);
+  run.addEventListener('click', async () => {
+    run.disabled = true; status.textContent = T('doctor.running', 'Checking…'); list.textContent = '';
+    let got = null;
+    try { got = await getJSON('/api/doctor'); } catch (e) { console.warn('doctor read failed:', e); status.textContent = T('settings.not_responding', "VOOL isn\u2019t responding right now."); run.disabled = false; return; }
+    const checks = Array.isArray(got.checks) ? got.checks : [];
+    const problems = checks.filter(c => c.state === 'problem').length;
+    const unknown = checks.filter(c => c.state === 'unknown').length;
+    status.textContent = problems ? tfmt('doctor.summary.problem', 'Parts that need attention: {n}.', { n: problems }) + (unknown ? ' ' + tfmt('doctor.summary.unknown', 'Could not be checked: {n}.', { n: unknown }) : '')
+      : unknown ? tfmt('doctor.summary.unknown', 'Could not be checked: {n}.', { n: unknown }) + ' ' + T('doctor.summary.rest_ok', 'Everything else that was checked is working.')
+      : T('doctor.summary.ok', 'Everything that was checked is working.');
+    checks.forEach((c) => {
+      const item = el('div', 'doctor-item ' + c.state); item.dataset.check = c.id; item.dataset.state = c.state;
+      const head = el('div', 'doctor-head');
+      const title = DOCTOR_TITLES[c.id] || ['', c.id];
+      head.appendChild(el('b', null, T(title[0], title[1])));
+      const st = DOCTOR_STATES[c.state] || DOCTOR_STATES.unknown;
+      head.appendChild(el('span', 'doctor-state', T(st[0], st[1])));
+      item.appendChild(head);
+      item.appendChild(el('div', 'subtle', doctorSaid(c)));
+      if (c.state === 'problem' || c.state === 'unknown') {
+        if (c.repair === 'privacy_files') {
+          item.appendChild(el('div', 'subtle', T(ON_MAC_DOCTOR() ? 'doctor.repair.privacy_mac' : 'doctor.repair.privacy_other',
+            ON_MAC_DOCTOR() ? 'Open System Settings, then Privacy & Security, then Files and Folders, and allow VOOL.' : 'Check that your user can open these folders.')));
+        } else if (DOCTOR_REPAIRS[c.repair]) {
+          const r = DOCTOR_REPAIRS[c.repair];
+          const fix = el('button', 'btn', T(r[1], r[2])); fix.type = 'button'; fix.dataset.repair = c.repair;
+          fix.addEventListener('click', () => { location.hash = r[0]; });
+          item.appendChild(fix);
+        }
+      }
+      list.appendChild(item);
+    });
+    run.disabled = false; run.textContent = T('doctor.run_again', 'Check again');
+  });
+  run.click();
+}
+/* --- AI spending: paid model spend from the ledger the limits are enforced on (core/ai_spend.py
+   behind /api/spend), billed apart from estimated, and the limits themselves. A saved limit is read
+   back from the server before it is shown as saved. */
+function spendMoney(usd) {
+  const n = Number(usd) || 0;
+  try { return new Intl.NumberFormat(document.documentElement.lang || undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 4 : 2 }).format(n); }
+  catch (e) { return '$' + n.toFixed(2); }
+}
+function widgetSpend(stack) {
+  stack.textContent = '';
+  const status = el('div', 'subtle', T('spend.reading', 'Reading spending\u2026'));
+  status.setAttribute('role', 'status'); status.dataset.testid = 'spend-status';
+  const board = el('div', 'spend-board'); board.dataset.testid = 'spend-board';
+  const form = el('div', 'spend-limits'); form.dataset.testid = 'spend-limits';
+  stack.appendChild(status); stack.appendChild(board); stack.appendChild(form);
+  const LIMITS = [
+    ['per_call', T('spend.limit.per_call', 'Most for one answer')],
+    ['daily', T('spend.limit.daily', 'Most in one day')],
+    ['monthly', T('spend.limit.monthly', 'Most in one month')],
+  ];
+  const inputs = {};
+  const windowLine = (title, w) => {
+    const box = el('div', 'spend-window spend-' + w.state); box.dataset.window = title[0]; box.dataset.state = w.state;
+    const head = el('div', 'spend-head');
+    head.appendChild(el('b', null, title[1]));
+    head.appendChild(el('span', 'spend-of', tfmt('spend.of_limit', '{used} of {limit}', { used: spendMoney(w.counted_usd), limit: spendMoney(w.limit_usd) })));
+    box.appendChild(head);
+    const bar = el('div', 'spend-bar'); const fill = el('div', 'spend-fill');
+    fill.style.width = Math.min(100, Math.round((Number(w.share) || 0) * 100)) + '%'; bar.appendChild(fill); box.appendChild(bar);
+    const parts = [];
+    if (w.billed_usd > 0) parts.push(tfmt('spend.billed', '{amount} billed by the provider', { amount: spendMoney(w.billed_usd) }));
+    if (w.estimated_usd > 0) parts.push(tfmt('spend.estimated', '{amount} estimated by VOOL from the words sent and received', { amount: spendMoney(w.estimated_usd) }));
+    if (w.held_usd > 0) parts.push(tfmt('spend.held', '{amount} held for answers whose cost is not known yet', { amount: spendMoney(w.held_usd) }));
+    if (!parts.length) parts.push(T('spend.nothing', 'Nothing spent on paid models.'));
+    box.appendChild(el('div', 'subtle', parts.join(' \u00b7 ')));
+    if (w.state === 'near') box.appendChild(el('div', 'spend-warn', T('spend.near', 'Nearly used. VOOL will not send a paid answer that would go past this limit.')));
+    if (w.state === 'reached') box.appendChild(el('div', 'spend-warn', T('spend.reached', 'Used up. Paid answers are not sent until it starts again or you raise it.')));
+    return box;
+  };
+  const draw = (got) => {
+    board.textContent = '';
+    board.appendChild(windowLine(['today', T('spend.today', 'Today')], got.today));
+    board.appendChild(windowLine(['month', T('spend.month', 'This month')], got.month));
+    let resets = '';
+    try { resets = new Date(Number(got.day_resets_at) * 1000).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+    status.textContent = resets ? tfmt('spend.resets', 'The day\u2019s count starts again at {time}.', { time: resets }) : '';
+    LIMITS.forEach(([key]) => { if (inputs[key] && document.activeElement !== inputs[key]) inputs[key].value = Number(got.limits[key]).toFixed(2); });
+  };
+  const said = el('div', 'state idle'); said.setAttribute('role', 'status'); said.dataset.testid = 'spend-saved';
+  LIMITS.forEach(([key, label]) => {
+    const row = el('label', 'inline spend-limit');
+    row.appendChild(el('span', null, label));
+    const input = document.createElement('input'); input.type = 'number'; input.min = '0.01'; input.step = '0.01'; input.className = 'inp';
+    input.dataset.limit = key; input.setAttribute('aria-label', label); inputs[key] = input;
+    row.appendChild(el('span', 'subtle', 'USD')); row.insertBefore(input, row.lastChild);
+    form.appendChild(row);
+  });
+  const save = el('button', 'btn', T('spend.save', 'Save limits')); save.type = 'button'; save.dataset.testid = 'spend-save';
+  form.appendChild(save); form.appendChild(said);
+  const SAVE_ERRORS = {
+    out_of_range: ['spend.error.range', 'Each limit must be between $0.01 and $10,000.'],
+    answer_above_period: ['spend.error.answer', 'One answer\u2019s limit cannot be more than the day\u2019s or the month\u2019s.'],
+    day_above_month: ['spend.error.day', 'The day\u2019s limit cannot be more than the month\u2019s.'],
+  };
+  save.addEventListener('click', async () => {
+    const limits = {};
+    LIMITS.forEach(([key]) => { limits[key] = inputs[key].value === '' ? null : Number(inputs[key].value); });
+    save.disabled = true;
+    try {
+      const r = await fetch('/api/spend/limits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limits }) });
+      const got = await r.json().catch(() => ({}));
+      if (r.ok && got.ok) {
+        draw(got);
+        const kept = LIMITS.every(([key]) => limits[key] == null || Math.abs(Number(got.limits[key]) - Number(limits[key])) < 0.005);
+        said.className = 'state ' + (kept ? 'saved' : 'failed');
+        said.textContent = kept ? T('spend.saved', 'Saved. Paid answers are checked against these limits from now on.') : T('spend.not_kept', 'VOOL kept different limits from the ones you typed. They are shown above.');
+      } else {
+        const e = SAVE_ERRORS[got.error] || ['settings.not_responding', 'VOOL isn\u2019t responding right now.'];
+        said.className = 'state failed'; said.textContent = T(e[0], e[1]);
+      }
+    } catch (e) {
+      console.warn('spend limits save failed:', e);
+      said.className = 'state failed'; said.textContent = T('settings.not_responding', 'VOOL isn\u2019t responding right now.');
+    }
+    save.disabled = false;
+  });
+  (async () => {
+    try { draw(await getJSON('/api/spend')); }
+    catch (e) { console.warn('spend read failed:', e); status.textContent = T('spend.unreadable', 'Spending could not be read.'); }
+  })();
+}
+
+function ON_MAC_DOCTOR() { try { return /Mac/i.test(navigator.platform || navigator.userAgent || ''); } catch (e) { return false; } }
 
 /* --- Backup & restore: one chat as a portable, signed .voolsession bundle, through the ONE seam
    (core/session_portability/api.py) behind /api/session/bundle/*. Settings has no chat of its own,

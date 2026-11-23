@@ -31,7 +31,7 @@ from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, 
 
 COPY = {
     "title": "Set up VOOL",
-    "lead": "Four quick steps. Skip any of them — VOOL already works.",
+    "lead": "Five quick steps. Skip any of them — VOOL already works.",
     "later": "Do this later",
     "back": "Back",
     "next": "Next",
@@ -53,6 +53,7 @@ CAPTIONS = {
     "folder": "The pointer clicks “+ Project”, picks the Documents folder, and the folder appears in the list.",
     "permissions": "The pointer opens the list and picks “Ask me first”. It saves right away.",
     "name": "The pointer clicks the box, types a name, and presses Save.",
+    "tryit": "Three asks go into the chat one by one, and each gets a tick when it really ran.",
     # With no private model on this computer the example picks the choice that can work here.
     "thinking_online": "The pointer clicks “Online”. A tick appears — then you paste a key from a company you pay.",
 }
@@ -194,6 +195,10 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .mock[data-step="name"] .mk-caret { animation-name:caret; animation-timing-function:step-end; }
 .mock[data-step="name"] .mk-save { animation-name:save-hot; }
 .mock[data-step="name"] .mk-saved { animation-name:saved-in; }
+@keyframes cur-tryit { 0% { left:82%; top:86%; } 30%,100% { left:62%; top:90%; } }
+.mock[data-step="tryit"] .cursor { animation-name:cur-tryit; }
+.mock[data-step="tryit"] .cursor::after { animation-name:click; }
+.mock[data-step="tryit"] .mk-saved { animation-name:saved-in; }
 
 /* Reduced motion: the final frame, static, until the person asks for the example to play. */
 @media (prefers-reduced-motion: reduce) {
@@ -209,6 +214,11 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 /* ---- the real control ---- */
 .control { border:1px solid var(--border); border-radius:12px; background:var(--panel); padding:16px; display:flex; flex-direction:column; gap:12px; }
 .choices { display:flex; gap:10px; flex-wrap:wrap; }
+.tries { display:flex; flex-direction:column; gap:10px; }
+.try { display:flex; flex-direction:column; gap:4px; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--bg); }
+.try .btn { align-self:flex-start; margin-top:4px; }
+.try-state.done { color:var(--ok, inherit); }
+.try-state.failed { color:var(--warn, inherit); }
 .choice { flex:1 1 170px; text-align:left; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--bg); color:var(--ink); cursor:pointer; }
 .choice:hover { border-color:var(--accent); }
 .choice b { display:block; font-size:15px; margin-bottom:2px; }
@@ -466,6 +476,7 @@ function mockBody(id, onlineExample) {
   }
   if (id === 'permissions') return '<div class="mk-row"><b>' + esc(T('setup.step.permissions.title', 'What may it do alone?')) + '</b><span class="mk-select"><span class="mk-sel-a">' + esc(AUTONOMY[2].title) + '</span><span class="mk-sel-b">' + esc(AUTONOMY[0].title) + '</span></span><div class="mk-menu"><div>' + esc(AUTONOMY[2].title) + '</div><div>' + esc(AUTONOMY[1].title) + '</div><div class="pick">' + esc(AUTONOMY[0].title) + '</div></div></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
   if (id === 'name') return '<div class="mk-field"><span class="mk-input"><span class="mk-typed">' + M('name', 'Sam') + '</span><span class="mk-caret"></span></span><span class="mk-save">' + M('save', 'Save') + '</span></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
+  if (id === 'tryit') return TRIES.map((t) => '<div class="mk-row"><b>' + esc(t.title) + '</b> <span class="mk-saved">&#10003;</span></div>').join('');
   return '<div class="mk-row"><b>' + M('pick_folder', 'Pick a folder') + '</b></div>';
 }
 function renderMock(id, onlineExample) {
@@ -580,6 +591,7 @@ function renderControl(step) {
   if (step.id === 'folder') return controlFolder(host, step);
   if (step.id === 'permissions') return controlPermissions(host, step);
   if (step.id === 'name') return controlName(host, step);
+  if (step.id === 'tryit') return controlTryit(host, step);
 }
 // One error slot per step: the newest reason replaces the last one (it never stacks).
 function fail(host, msg) { setNote('failed', msg); }
@@ -815,6 +827,66 @@ function controlName(host, step) {
   host.appendChild(row);
   host.appendChild(el('p', 'hint', T('setup.name.hint', 'Kept as one remembered item you can edit or forget in Settings.')));
 }
+
+
+/* The first three tries. Each one is a real ask the person sends in the chat themselves; this page
+   only hands the words to the chat box. A tick comes from what really ran (the state feed reads the
+   ledger of executed tools and the stores they write), never from a click here. */
+const TRIES = [
+  { id: 'remember', title: T('setup.tryit.remember.title', 'Remember something about you'), example: T('setup.tryit.remember.example', 'Remember that I like short answers.') },
+  { id: 'reminder', title: T('setup.tryit.reminder.title', 'Set a reminder'), example: T('setup.tryit.reminder.example', 'Remind me tomorrow at 9 to stretch.') },
+  { id: 'find', title: T('setup.tryit.find.title', 'Find a file'), example: T('setup.tryit.find.example', 'Find a file called notes on my computer.') },
+];
+function sendToChat(text) {
+  try { localStorage.setItem('vool.setupTry', JSON.stringify({ text: text, at: Date.now() })); } catch (e) {}
+  if (framed()) {
+    try { window.parent.postMessage({ type: 'vool-setup-try', text: text }, window.location.origin); } catch (e) {}
+    return;
+  }
+  try { if (window.opener && !window.opener.closed) window.opener.focus(); } catch (e) {}
+  try {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.close_setup) { window.pywebview.api.close_setup(); return; }
+  } catch (e) {}
+  if (!window.opener) window.location.href = '/chat';
+}
+function controlTryit(host, step) {
+  const info = (view.snap && view.snap.first_tries) || {};
+  const byId = {};
+  (info.tries || []).forEach((t) => { byId[t.id] = t; });
+  const needsModel = (info.needs || []).indexOf('model') >= 0;
+  if (needsModel) {
+    const box = el('div', 'cloud-default'); box.id = 'tryNeedsModel';
+    box.appendChild(el('p', null, T('setup.tryit.needs_model', 'Nothing can answer yet. Choose where VOOL thinks first, then come back.')));
+    const back = el('button', 'btn', T('setup.step.thinking.title', 'Where should it think?')); back.type = 'button';
+    back.addEventListener('click', () => go(0, true));
+    const row = el('div', 'inline'); row.appendChild(back); box.appendChild(row);
+    host.appendChild(box);
+  }
+  const list = el('div', 'tries'); list.id = 'tries';
+  TRIES.forEach((t) => {
+    const got = byId[t.id] || {};
+    const item = el('div', 'try'); item.dataset.try = t.id;
+    item.appendChild(el('b', null, (got.done ? '✓ ' : '') + t.title));
+    let state;
+    if (got.check_failed) state = T('setup.tryit.state.unknown', 'VOOL could not read whether this ran. Try again in a moment.');
+    else if (got.done) state = T('setup.tryit.state.done', 'Done. It really ran.');
+    else if (got.last_failure) state = fmt(T('setup.tryit.state.failed', 'Last try did not work: {reason}'), { reason: got.last_failure });
+    else state = T('setup.tryit.state.not_yet', 'Not tried yet.');
+    const line = el('span', 'try-state' + (got.done ? ' done' : (got.last_failure ? ' failed' : '')), state);
+    item.appendChild(line);
+    const ex = el('span', 'hint', '“' + t.example + '”');
+    item.appendChild(ex);
+    const go2 = el('button', 'btn' + (got.done ? '' : ' primary'), T('setup.tryit.open_chat', 'Put it in the chat')); go2.type = 'button'; go2.dataset.tryOpen = t.id;
+    go2.addEventListener('click', () => sendToChat(t.example));
+    item.appendChild(go2);
+    list.appendChild(item);
+  });
+  host.appendChild(list);
+  host.appendChild(el('p', 'hint', T('setup.tryit.hint', 'You press Send yourself. Change the words if you like, in any language.')));
+}
+// Back from the chat: read again, so a try that just ran shows its tick.
+window.addEventListener('focus', () => { if (current().id === 'tryit') refresh(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && current().id === 'tryit') refresh(); });
 
 /* ------------------------------------------------------------------ navigation */
 // push=true adds a history entry, so the browser's Back button walks back through the steps.

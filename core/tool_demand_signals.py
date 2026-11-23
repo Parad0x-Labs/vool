@@ -2917,14 +2917,19 @@ def owner_live_sources(text: str) -> tuple[str, ...]:
     """Which of the owner's live sources ("notes", "calendar", "processes", "disk", "files",
     "mail") the words ask about, or () when answering needs none of them.
 
-    Pure function of the text, plus the mailbox when the turn's judge read an ask for it in any language
+    Pure function of the text, plus the mailbox or the files when the turn's judge read an ask for them in any language
     (core.plugin_ask; read, never asked). Callers own the owner-local check: these sources are this
     machine's, and a remote session's words never seat them.
     """
     worded = _owner_live_sources_in_words(text)
     if worded:
         return worded
-    return ("mail",) if "email.read" in _judged_builtin_seats(text) else ()
+    judged = _judged_builtin_seats(text)
+    # A file or folder looked for by name on this computer, read by the judge in any language ("Rask failą
+    # biudzetas"): the words' own reader knows only English shapes, so without this the find tools were
+    # never seated for it and the model answered without looking.
+    return tuple(source for source, seats in (("mail", ("email.read",)), ("files", ("machine.find_file", "machine.find_folder")))
+                 if any(seat in judged for seat in seats))
 
 
 def _owner_live_sources_in_words(text: str) -> tuple[str, ...]:

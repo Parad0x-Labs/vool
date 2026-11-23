@@ -155,6 +155,19 @@ img.chat-img:hover { border-color:var(--accent); }
 .proof-chip-head > span { white-space:nowrap; }   /* narrow windows wrap whole items, never mid-word */
 .proof-chip-head:hover { color:var(--ink); border-color:var(--accent); }
 .proof-chip .pc-state { font-weight:700; letter-spacing:.4px; }
+.proof-chip .pc-route { font-weight:600; color:var(--ink); }
+.act-receipts { display:flex; flex-direction:column; gap:4px; margin:6px 0; }
+.spend-alert { margin:6px 0; }
+.spend-alert-line { font-size:12.5px; color:var(--ink); border-left:3px solid var(--warn); padding:3px 9px; }
+.spend-alert-line.spend-reached { border-left-color:var(--bad); }
+.spend-limits-btn { font:inherit; font-size:12px; background:none; border:1px solid var(--line, var(--muted)); color:var(--ink); border-radius:6px; padding:1px 8px; margin-left:6px; cursor:pointer; }
+.act-receipt { font-size:12.5px; color:var(--ink); border-left:3px solid var(--muted); padding:3px 9px; }
+.act-receipt .act-state { font-weight:700; margin-left:4px; }
+.act-receipt.act-checked, .act-receipt.act-sent, .act-receipt.act-done { border-left-color:var(--accent); }
+.act-receipt.act-waiting { border-left-color:var(--warn); }
+.act-receipt.act-failed, .act-receipt.act-mismatch { border-left-color:var(--bad); }
+.act-receipt .act-reason { color:var(--muted); margin-top:2px; }
+.proof-chip .pc-route-unknown { color:var(--warn); }
 .proof-chip .pc-state-verified { color:var(--muted); }
 .proof-chip .pc-state-recorded { color:var(--muted); }
 .proof-chip .pc-state-incomplete { color:var(--warn); }
@@ -542,6 +555,14 @@ header a:hover { text-decoration:underline; }
 #log.has-draft .empty-starts { visibility:hidden; }
 /* Shortcut labels read left to right in every language ("Ctrl+/" never turns into "/+Ctrl"). */
 kbd { direction:ltr; unicode-bidi:isolate; }
+.today-box { text-align:left; margin:22px auto 0; max-width:440px; border:1px solid var(--line, var(--muted)); border-radius:12px; padding:10px 14px; display:flex; flex-direction:column; gap:8px; font-size:13px; }
+.today-head { font-weight:700; }
+.today-sec { display:flex; flex-direction:column; gap:3px; }
+.today-sec > b { font-size:12px; color:var(--muted); font-weight:600; }
+.today-row { color:var(--ink); }
+.today-when { color:var(--muted); font-variant-numeric:tabular-nums; }
+.today-late .today-when { color:var(--warn); }
+.today-off, .today-more { color:var(--muted); }
 .empty-hint { font-family:Georgia,'Times New Roman',serif; font-style:italic; font-size:14px; line-height:1.5; color:var(--ink); max-width:440px; margin:2px auto 0; }
 /* A size container: the control row's breakpoint has to key off the room the FOOTER actually has,
    not off the window. The sidebar and the Activity panel can take 900px of a 1280px window, so a
@@ -1349,7 +1370,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="jumpLatestWrap"><button type="button" id="jumpLatest" hidden title="Jump to the latest message" aria-label="Jump to the latest message" data-i18n="chat.jump_latest" data-i18n-title="chat.jump_latest_title" data-i18n-aria-label="chat.jump_latest_title">&darr; Latest</button></div>
 <footer>
   <div id="setupLine" class="setup-line" role="status" hidden>
-    <span class="setup-line-text setup-line-plain" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
+    <span class="setup-line-text setup-line-plain" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; five quick steps.</span>
     <button type="button" class="setup-line-open setup-line-plain" id="setupLineOpen" data-i18n="chat.setup_line_open">Finish setup</button>
     <button type="button" class="setup-line-x setup-line-plain" id="setupLineHide" aria-label="Don&rsquo;t remind me" title="Don&rsquo;t remind me &mdash; you can still finish setup from Settings rows" data-i18n-aria-label="chat.setup_line_hide_aria" data-i18n-title="chat.setup_line_hide_title">&times;</button>
     <span class="setup-line-text no-model-part" id="noModelLineText" data-i18n="chat.no_model.line_text">VOOL needs an AI model before it can answer. Setting one up takes about two minutes.</span>
@@ -2810,13 +2831,93 @@ function showEmpty() {
     ['first_run.start_plan_my_day', 'Help me plan my day'],
     ['first_run.start_explain', 'Explain something to me simply'],
   ];
+  // A new chat screen drawn again (the chat list loading, a language change) keeps the box's last read
+  // until the fresh read below replaces it, so the box does not blink out and back.
+  const lastToday = logEl.querySelector('.today-box:not([hidden])');
+  const lastTodayHtml = lastToday ? lastToday.innerHTML : '';
   logEl.innerHTML = '<div class="empty">'
     + '<div class="empty-greet">' + esc(greet) + '</div>'
     + '<div class="empty-sub">' + esc(line) + '</div>'
     + '<div class="empty-starts">' + starts.map((st) => { const t = emptyT(st[0], st[1]); return '<button type="button" class="empty-start" data-start="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>'
     + '<div class="empty-hint">“' + esc(emptyT(fact[0], fact[1])) + '”</div>'
+    + '<div class="today-box" data-testid="today"' + (lastTodayHtml ? '>' + lastTodayHtml : ' hidden>') + '</div>'
     + '</div>';
+  loadToday();
 }
+
+// ---- Today in VOOL: reminders, today's calendar, open to-dos and unfinished goals (core/today_view.py
+// behind /api/today), read fresh on every new chat and when the window comes back. A source that could
+// not be read says so; nothing here is remembered between reads. ----
+let _todayInFlight = false;
+let _todayAgain = false;
+async function loadToday() {
+  const box = logEl && logEl.querySelector('.today-box');
+  if (!box) return;
+  // One read at a time; a read asked for meanwhile runs once this one lands, so a change made while a
+  // read was out is not missed.
+  if (_todayInFlight) { _todayAgain = true; return; }
+  _todayInFlight = true;
+  let got = null;
+  try { const r = await fetch('/api/today', { cache: 'no-store' }); if (r.ok) got = await r.json(); }
+  catch (e) { /* a failed read shows nothing rather than an old list */ }
+  finally { _todayInFlight = false; }
+  const live = logEl && logEl.querySelector('.today-box');
+  if (live) {
+    const html = got && got.ok ? todayHtml(got) : '';
+    live.innerHTML = html;
+    live.hidden = !html;
+  }
+  if (_todayAgain) { _todayAgain = false; loadToday(); }
+}
+function todayTime(iso, opts) {
+  try { const d = new Date(iso); if (isNaN(d.getTime())) return ''; return d.toLocaleString(appLocale(), opts); } catch (e) { return ''; }
+}
+function todayWhen(iso) {
+  const d = new Date(iso); if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  const time = todayTime(iso, { hour: '2-digit', minute: '2-digit' });
+  if (d < now) return pageTF('today.overdue_at', 'Was due {time}', { time: d.toDateString() === now.toDateString() ? time : todayTime(iso, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) });
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  if (d.toDateString() === now.toDateString()) return time;
+  if (d.toDateString() === tomorrow.toDateString()) return pageTF('today.tomorrow_at', 'Tomorrow {time}', { time });
+  return todayTime(iso, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+}
+const TODAY_JOB_STATES = {
+  running: ['today.job.running', 'Working'], planning: ['today.job.running', 'Working'], queued: ['today.job.queued', 'Waiting to start'],
+  paused: ['today.job.paused', 'Paused'], waiting_approval: ['today.job.waiting', 'Waiting for your OK'],
+  interrupted: ['today.job.interrupted', 'Stopped part way'],
+};
+function todayHtml(got) {
+  const parts = [];
+  const section = (title, rows, src) => {
+    if (src && src.state === 'unreadable') return '<div class="today-sec"><b>' + esc(title) + '</b><div class="today-row today-off">' + esc(pageT('today.unreadable', 'Could not be read right now.')) + '</div></div>';
+    if (!rows.length) return '';
+    return '<div class="today-sec"><b>' + esc(title) + '</b>' + rows.join('') + '</div>';
+  };
+  const more = (n) => n > 0 ? ['<div class="today-row today-more">' + esc(pageTF('today.more', 'and {n} more', { n })) + '</div>'] : [];
+  const rem = got.reminders || {};
+  parts.push(section(pageT('today.reminders', 'Reminders'), (rem.items || []).map((r) =>
+    '<div class="today-row' + (r.overdue ? ' today-late' : '') + '"><span class="today-when">' + esc(todayWhen(r.due_utc)) + '</span> ' + esc(r.note || '') + '</div>').concat(more(rem.more || 0)), rem));
+  const cal = got.calendar || {};
+  let calRows = (cal.items || []).map((e) => '<div class="today-row"><span class="today-when">'
+    + esc(e.all_day ? pageT('today.all_day', 'All day') : todayTime(e.start_local, { hour: '2-digit', minute: '2-digit' }) + (e.end_local ? '\u2013' + todayTime(e.end_local, { hour: '2-digit', minute: '2-digit' }) : ''))
+    + '</span> ' + esc(e.title || '') + '</div>').concat(more(cal.more || 0));
+  if (cal.stale) calRows = ['<div class="today-row today-off">' + esc(cal.last_sync_utc
+    ? pageTF('today.calendar_stale', 'Your calendar has not been read since {time}, so today\u2019s events are not shown.', { time: todayTime(cal.last_sync_utc, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) })
+    : pageT('today.calendar_never', 'Your calendar has not been read yet.')) + '</div>'];
+  parts.push(section(pageT('today.calendar', 'Calendar'), calRows, cal));
+  const todos = got.todos || {};
+  parts.push(section(pageT('today.todos', 'To do'), (todos.items || []).map((t) => '<div class="today-row">' + esc(t.title || '') + '</div>').concat(more(todos.more || 0)), todos));
+  const jobs = got.jobs || {};
+  parts.push(section(pageT('today.jobs', 'Not finished yet'), (jobs.items || []).map((j) => {
+    const st = TODAY_JOB_STATES[j.state] || ['today.job.unfinished', 'Not finished'];
+    const steps = j.total ? ' \u00b7 ' + pageTF('today.job.steps', '{done} of {total} steps', { done: j.done, total: j.total }) : '';
+    return '<div class="today-row">' + esc(j.objective || '') + ' <span class="today-when">' + esc(pageT(st[0], st[1]) + steps) + '</span></div>';
+  }).concat(more(jobs.more || 0)), jobs));
+  const body = parts.filter(Boolean).join('');
+  return body ? '<div class="today-head">' + esc(pageT('today.title', 'Today')) + '</div>' + body : '';
+}
+window.addEventListener('focus', () => { if (logEl && logEl.querySelector('.today-box')) loadToday(); });
 
 // HH:mm in the viewer's own local timezone (Date's getHours/getMinutes already convert from the
 // UTC ISO string the server writes), never seconds. Returns '' for anything that doesn't parse --
@@ -5722,6 +5823,13 @@ async function mountProofChip(host, chatId, requestId, presentationSelection, fi
   // over an English line of tokens, tok/s, cost, sources, lookups and "Record verified").
   const costText = proofPartsText(cost.parts) || (cost.display ? String(cost.display) : cost.usd != null ? ('$' + Number(cost.usd).toFixed(4)) : (cost.tokens != null ? pageTF('proof.tokens_count', '{n} tok', { n: cost.tokens }) : pageT('proof.cost_not_recorded', 'cost not recorded')));
   const seg = (cls, text) => { const span = document.createElement('span'); span.className = cls; span.textContent = text; return span; };
+  // Where this answer was processed, read from the turn's own send receipts (core/answer_route.py).
+  // A summary the page does not know renders nothing: the chip never guesses a route.
+  const routeWord = proofRouteWord((typeof compact.route === 'object' && compact.route) || null);
+  if (routeWord) {
+    head.appendChild(seg('pc-route pc-route-' + String(compact.route.summary), routeWord));
+    head.appendChild(seg('pc-sep', '·'));
+  }
   const actionCount = compact.actions == null ? 0 : compact.actions;
   const sourceCount = compact.sources == null ? 0 : compact.sources;
   head.appendChild(seg('pc-actions', pageTF('activity.rollup.actions', actionCount === 1 ? '{n} action' : '{n} actions', { n: actionCount })));
@@ -5754,8 +5862,84 @@ async function mountProofChip(host, chatId, requestId, presentationSelection, fi
   });
   chip.appendChild(head);
   chip.appendChild(body);
+  // What each action actually did sits above the chip, always visible: a person should not have to
+  // open a record to learn when the reminder is set for or that the email did not go.
+  const receipts = Array.isArray(compact.action_receipts) ? compact.action_receipts : [];
+  host.querySelectorAll('.act-receipts').forEach((el) => el.remove());
+  if (receipts.length) {
+    const box = document.createElement('div');
+    box.className = 'act-receipts';
+    box.innerHTML = receipts.map(actionReceiptHtml).join('');
+    host.appendChild(box);
+  }
+  // A paid answer that brought today or this month near its limit says so here, before the limit
+  // refuses the next paid answer. The amounts are the ledger's, which the limits are checked on.
+  host.querySelectorAll('.spend-alert').forEach((el) => el.remove());
+  const spendAlerts = (compact.spend && Array.isArray(compact.spend.alerts)) ? compact.spend.alerts : [];
+  if (spendAlerts.length) {
+    const box = document.createElement('div');
+    box.className = 'spend-alert';
+    box.innerHTML = spendAlerts.map((a) => spendAlertHtml(a, compact.spend)).join('');
+    box.querySelectorAll('[data-open-limits]').forEach((b) => b.addEventListener('click', () => openSettings('budgets/spend')));
+    host.appendChild(box);
+  }
   host.appendChild(chip);
   return chip;
+}
+function spendMoney(usd) {
+  const n = Number(usd) || 0;
+  try { return new Intl.NumberFormat(appLocale(), { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 4 : 2 }).format(n); }
+  catch (e) { return '$' + n.toFixed(2); }
+}
+function spendAlertHtml(a, spend) {
+  const reached = a.state === 'reached';
+  const today = a.window === 'today';
+  const key = 'spend.alert.' + (today ? 'day' : 'month') + '.' + (reached ? 'reached' : 'near');
+  const fallback = today
+    ? (reached ? 'Paid models have reached today\u2019s limit of {limit}. VOOL will not send another paid answer today unless you raise it.'
+               : 'Paid models have used {used} of today\u2019s {limit} limit.')
+    : (reached ? 'Paid models have reached this month\u2019s limit of {limit}. VOOL will not send another paid answer this month unless you raise it.'
+               : 'Paid models have used {used} of this month\u2019s {limit} limit.');
+  let text = pageTF(key, fallback, { used: spendMoney(a.counted_usd), limit: spendMoney(a.limit_usd) });
+  if (today && spend && spend.day_resets_at) {
+    try {
+      const at = new Date(Number(spend.day_resets_at) * 1000).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' });
+      text += ' ' + pageTF('spend.resets', 'The day\u2019s count starts again at {time}.', { time: at });
+    } catch (e) {}
+  }
+  return '<div class="spend-alert-line spend-' + (reached ? 'reached' : 'near') + '">' + esc(text)
+    + ' <button type="button" class="spend-limits-btn" data-open-limits>' + esc(pageT('spend.alert.change', 'Change limits')) + '</button></div>';
+}
+const ACTION_STATE_WORDS = {
+  checked: ['receipt.state.checked', 'Done, checked'],
+  done: ['receipt.state.done', 'Done'],
+  sent: ['receipt.state.sent', 'Sent'],
+  waiting: ['receipt.state.waiting', 'Waiting for your OK'],
+  failed: ['receipt.state.failed', 'Not done'],
+  mismatch: ['receipt.state.mismatch', 'Reported done, but VOOL could not find it'],
+};
+// One receipt line: the action in everyday words, its facts as recorded, and its state. Every value
+// comes from the action's own result; the page only formats a time in the reader's language.
+function actionReceiptHtml(r) {
+  const state = ACTION_STATE_WORDS[r.state] ? r.state : 'done';
+  const action = pageT(String(r.action_key || ''), pageT('receipt.action_generic', 'An action'));
+  const bits = [action.charAt(0).toUpperCase() + action.slice(1)];
+  if (r.note) bits.push(String(r.note));
+  if (r.due_utc) {
+    let when = String(r.due_utc);
+    try {
+      const opts = { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
+      if (r.due_tz) opts.timeZone = String(r.due_tz);
+      when = new Date(r.due_utc).toLocaleString(appLocale(), opts);
+    } catch (e) {}
+    bits.push(when);
+  }
+  if (r.file) bits.push(pageTF('receipt.file_in', '{file} in {folder}', { file: String(r.file), folder: String(r.folder || '') }));
+  if (r.to) bits.push(pageTF('receipt.to', 'to {who}', { who: String(r.to) }));
+  const stateText = pageT(ACTION_STATE_WORDS[state][0], ACTION_STATE_WORDS[state][1]);
+  return '<div class="act-receipt act-' + esc(state) + '"><span class="act-what">' + esc(bits.join(' · ')) + '</span>'
+    + ' <span class="act-state">' + esc(stateText) + '</span>'
+    + (r.reason ? '<div class="act-reason">' + esc(String(r.reason)) + '</div>' : '') + '</div>';
 }
 
 function _proofRow(label, value) {
@@ -5793,11 +5977,57 @@ function _proofElapsed(ms) {
   return Math.round(ms / 60000) + 'm';
 }
 
+// The chip's first word: where the answer was processed. "Mixed" names both places, because a local
+// answer that also sent text online is not a local answer.
+function proofRouteWord(route) {
+  if (!route) return '';
+  const summary = String(route.summary || '');
+  if (summary === 'local') return route.own_network ? pageT('proof.route.own_network', 'On your own network') : pageT('proof.route.local', 'On this computer');
+  if (summary === 'cloud') return pageT('proof.route.cloud', 'Online');
+  if (summary === 'mixed') return pageT('proof.route.mixed', 'This computer + online');
+  if (summary === 'none') return pageT('proof.route.none', 'No AI model');
+  if (summary === 'unknown') return pageT('proof.route.unknown', 'Place not recorded');
+  return '';
+}
+const PROOF_CARRIED_WORDS = {
+  memory: ['proof.carried.memory', 'things VOOL remembers about you'],
+  history: ['proof.carried.history', 'this chat so far'],
+  tool_results: ['proof.carried.tool_results', 'results of tools VOOL used'],
+};
+// "Where this ran": one line per model and place, then one plain sentence on what left the computer.
+function proofRouteHtml(route) {
+  if (!route || typeof route !== 'object' || !Array.isArray(route.calls)) return '';
+  let html = '<div class="pc-head">' + esc(pageT('proof.head_route', 'Where this ran')) + '</div>';
+  if (!route.calls.length) return html + '<div class="pc-row pc-none">' + esc(pageT('proof.route.no_calls', 'No AI model was asked for this answer.')) + '</div>';
+  for (const call of route.calls) {
+    const place = call.where === 'this_computer' ? pageT('proof.where.this_computer', 'on this computer')
+      : call.where === 'own_network' ? pageTF('proof.where.own_network', 'on your own network ({host})', { host: String(call.host || '') })
+      : call.where === 'online' ? pageTF('proof.where.online', 'online ({host})', { host: String(call.host || '') })
+      : pageT('proof.where.unknown', 'place not recorded');
+    const bits = [String(call.model || call.provider || pageT('proof.route.a_model', 'an AI model')), place];
+    if (Number(call.calls) > 1) bits.push('×' + Number(call.calls));
+    if (call.where !== 'this_computer' && Number(call.bytes) > 0) bits.push(pageTF('proof.route.sent', '{size} sent', { size: fmtBytes(call.bytes) }));
+    const carried = (Array.isArray(call.carried) ? call.carried : []).filter((k) => PROOF_CARRIED_WORDS[k]);
+    if (call.where !== 'this_computer' && carried.length) {
+      bits.push(pageTF('proof.route.included', 'included {what}', { what: carried.map((k) => pageT(PROOF_CARRIED_WORDS[k][0], PROOF_CARRIED_WORDS[k][1])).join(', ') }));
+    }
+    html += '<div class="pc-row">' + esc(bits.join(' · ')) + '</div>';
+  }
+  const online = Number(route.online_bytes) || 0, unknown = Number(route.unknown_bytes) || 0;
+  let line;
+  if (online > 0) line = pageTF('proof.route.left_online', '{size} of text went online for this answer.', { size: fmtBytes(online) });
+  else if (unknown > 0) line = pageT('proof.route.left_unknown', 'Some text went to a place VOOL did not record. It may have left this computer.');
+  else if (route.calls.some((c) => c.where === 'own_network')) line = pageT('proof.route.stayed_network', 'Nothing you wrote went online. It stayed on your own network.');
+  else line = pageT('proof.route.stayed_local', 'Nothing you wrote left this computer.');
+  return html + '<div class="pc-row"><b>' + esc(line) + '</b></div>';
+}
 function renderProofChipBody(body, proof, presentationSelection) {
   const expanded = (proof && typeof proof.expanded === 'object' && proof.expanded) || {};
   const reasons = Array.isArray(proof.state_reasons) ? proof.state_reasons : [];
   const explanation = String(proof.verification_explanation || PROOF_VERIFICATION_EXPLANATION);
-  let html = _proofRow(pageT('proof.verification_scope', 'Verification scope'), esc(explanation === PROOF_VERIFICATION_EXPLANATION
+  // Where this answer ran comes first: it is the question the chip is opened for most.
+  let html = proofRouteHtml(expanded.route);
+  html += _proofRow(pageT('proof.verification_scope', 'Verification scope'), esc(explanation === PROOF_VERIFICATION_EXPLANATION
     ? pageT('proof.verification_explanation', PROOF_VERIFICATION_EXPLANATION) : explanation));
   // C19 presentation-selection provenance, read-only beside the proof. The
   // record travels in this message's own display_metadata — a turn without
@@ -12806,7 +13036,8 @@ function closeBugReport() { if (bugReportOverlay) bugReportOverlay.hidden = true
 // ---- Wrong-answer report: one answer, chosen by the person -------------------------
 const BR_REASONS = [
   ['wrong', 'Wrong or made up'], ['outdated', 'Out of date'], ['not_what_i_asked', "Didn't do what I asked"],
-  ['unsafe', 'Unsafe or rude'], ['other', 'Other'],
+  ['wrong_memory', 'Remembered or recalled something wrong'], ['wrong_action', 'An action went wrong'],
+  ['poor_quality', 'Poor answer'], ['unsafe', 'Unsafe or rude'], ['other', 'Other'],
 ];
 function openAnswerReport(ref) {
   if (!bugReportOverlay || !ref || !ref.requestId) return;
@@ -12827,7 +13058,7 @@ function renderAnswerReportForm() {
     '<p class="br-status"><b>Report this answer.</b> Nothing is sent yet: you will see the exact report before anything leaves your computer.</p>' +
     '<div class="br-field"><label>What will be quoted</label>' + excerptHtml + '</div>' +
     '<div class="br-field br-reasons" role="radiogroup" aria-label="What was wrong"><label>What was wrong?</label>' +
-    BR_REASONS.map((r) => '<label><input type="radio" name="brReason" value="' + r[0] + '"' + (r[0] === ref.reason ? ' checked' : '') + '> ' + esc(r[1]) + '</label>').join('') + '</div>' +
+    BR_REASONS.map((r) => '<label><input type="radio" name="brReason" value="' + r[0] + '"' + (r[0] === ref.reason ? ' checked' : '') + '> ' + esc(pageT('report.reason.' + r[0], r[1])) + '</label>').join('') + '</div>' +
     '<div class="br-field"><label>Tell us more (optional)</label><textarea id="brWrong" placeholder="The total should be 3,000, not 5,000."></textarea></div>' +
     '<div class="br-field"><label>What should it have said? (optional)</label><textarea id="brShould"></textarea></div>' +
     '<label class="set-row"><input type="checkbox" id="brIncludeQuestion"> Include my question (off by default &mdash; check it in the preview)</label>' +
@@ -13452,6 +13683,8 @@ window.addEventListener('message', async (e) => {
   const d = e.data;
   if (!d || typeof d !== 'object') return;
   if (d.type === 'vool-settings-close' || d.type === 'vool-setup-close') { closeSettingsFrame(); setupLineLoad(); return; }
+  // A first try from setup: its words go into the chat box; the person sends them.
+  if (d.type === 'vool-setup-try') { closeSettingsFrame(); takeSetupTry(); return; }
   // The framed browser closes its overlay; its session keeps running until it is stopped or idles out.
   if (d.type === 'vool-browser-close') { closeSettingsFrame(); return; }
   // The framed setup page asks its host to open a Settings section (it cannot open windows itself).
@@ -13463,6 +13696,21 @@ window.addEventListener('message', async (e) => {
     try { if (e.source) e.source.postMessage({ type: 'vool-setup-folder', path: path || '' }, window.location.origin); } catch (err) {}
   }
 });
+// Setup hands a first try's words over through this one record (its own window, a tab, or the
+// frame). They land in the chat box, never sent: pressing Send is the person's own act.
+function takeSetupTry() {
+  let got = null;
+  try { got = JSON.parse(localStorage.getItem('vool.setupTry') || 'null'); localStorage.removeItem('vool.setupTry'); } catch (e) { got = null; }
+  if (!got || typeof got.text !== 'string' || !got.text.trim() || !(Date.now() - Number(got.at || 0) < 10 * 60 * 1000)) return;
+  const box = document.getElementById('input');
+  if (!box) return;
+  box.value = got.text;
+  try { box.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+  try { window.focus(); box.focus(); box.setSelectionRange(box.value.length, box.value.length); } catch (e) {}
+}
+window.addEventListener('storage', (e) => { if (e.key === 'vool.setupTry' && e.newValue) takeSetupTry(); });
+window.addEventListener('focus', () => { takeSetupTry(); });
+setTimeout(takeSetupTry, 0);
 async function loadPrefs() {
   let p = {};
   try { const r = await fetch('/api/settings/prefs'); p = await r.json(); } catch (e) { return; }

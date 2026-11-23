@@ -18,7 +18,7 @@ SCHEMA_VERSION = 2
 READABLE_SCHEMA_VERSIONS = frozenset({1, 2})
 REPORT_KINDS = frozenset({"bug", "wrong_answer"})
 #: Why an answer was wrong -- the reasons a user picks from, in this order.
-ANSWER_REASONS = ("wrong", "outdated", "not_what_i_asked", "unsafe", "other")
+ANSWER_REASONS = ("wrong", "outdated", "not_what_i_asked", "wrong_memory", "wrong_action", "poor_quality", "unsafe", "other")
 REPORT_ID_PATTERN = r"br_[0-9a-f]{12}"
 
 
@@ -318,9 +318,19 @@ class AnswerReceipt:
     integrity_ok: str
     witness_consistent: str
     fault_codes: tuple[str, ...]
+    # The turn's trace, content-free, for a developer to replay the case: where each model call
+    # went (place, provider, model, what kinds of data it carried), the stages the turn went through
+    # with their times, and each action's checked result. Reports written before these existed load
+    # with them empty.
+    route: tuple[dict[str, Any], ...] = ()
+    stages: tuple[dict[str, Any], ...] = ()
+    results: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "route": [dict(r) for r in self.route],
+            "stages": [dict(r) for r in self.stages],
+            "results": [dict(r) for r in self.results],
             "record_state": self.record_state,
             "state_reasons": list(self.state_reasons),
             "model": self.model,
@@ -341,6 +351,7 @@ class AnswerReceipt:
             {
                 "record_state", "state_reasons", "model", "provider", "actions", "sources_count",
                 "tokens", "elapsed_ms", "integrity_ok", "witness_consistent", "fault_codes",
+                "route", "stages", "results",
             },
             where="answer receipt",
         )
@@ -356,6 +367,9 @@ class AnswerReceipt:
             integrity_ok=str(data["integrity_ok"]),
             witness_consistent=str(data["witness_consistent"]),
             fault_codes=tuple(str(x) for x in data["fault_codes"]),
+            route=tuple(dict(r) for r in data.get("route") or () if isinstance(r, dict)),
+            stages=tuple(dict(r) for r in data.get("stages") or () if isinstance(r, dict)),
+            results=tuple(dict(r) for r in data.get("results") or () if isinstance(r, dict)),
         )
 
 

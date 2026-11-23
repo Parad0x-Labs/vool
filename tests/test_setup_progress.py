@@ -52,10 +52,12 @@ def _steps(snap: dict) -> dict:
     return {s["id"]: s for s in snap["steps"]}
 
 
-def test_a_fresh_home_has_four_undone_steps_and_shows_the_entry(home):
+def test_a_fresh_home_has_five_undone_steps_and_shows_the_entry(home):
     snap = setup_progress.snapshot()
-    assert [s["id"] for s in snap["steps"]] == ["thinking", "folder", "permissions", "name"]
-    assert snap["total"] == 4 and snap["done_count"] == 0
+    assert [s["id"] for s in snap["steps"]] == ["thinking", "folder", "permissions", "name", "tryit"]
+    assert snap["total"] == 5 and snap["done_count"] == 0
+    assert [t["id"] for t in snap["first_tries"]["tries"]] == ["remember", "reminder", "find"]
+    assert all(t["done"] is False and not t["last_failure"] for t in snap["first_tries"]["tries"]), "nothing ran yet"
     assert all(s["done"] is False and s["skipped"] is False for s in snap["steps"])
     assert snap["complete"] is False and snap["dismissed"] is False
     assert snap["show_entry"] is True and snap["show_chat_line"] is True
@@ -126,7 +128,7 @@ def test_skipped_is_never_done_and_resume_passes_over_skipped_steps(home):
     assert snap["done_count"] == 0 and snap["complete"] is False
     assert snap["skipped"] == ["thinking", "folder"], "unknown ids are dropped, duplicates collapse, order is the step order"
     assert snap["first_undone"] == "permissions", "resuming does not nag about a step the user skipped"
-    assert _prefs_door({"setup_skipped_steps": "thinking,folder,permissions,name"}) == 200
+    assert _prefs_door({"setup_skipped_steps": "thinking,folder,permissions,name,tryit"}) == 200
     snap = setup_progress.snapshot()
     assert snap["complete"] is False and snap["show_entry"] is True
     assert snap["first_undone"] == "thinking", "when everything left is skipped, resume from the first undone step"
@@ -143,7 +145,12 @@ def test_everything_done_hides_the_entry_and_the_chat_line(home, tmp_path):
     change = operator_profile.remember(operator_profile.OWNER_PRINCIPAL, "preferred_name", "Sam", origin="explicit", actor="operator", replace=True)
     assert change.persisted, change.report
     snap = setup_progress.snapshot()
-    assert snap["done_count"] == 4 and snap["complete"] is True
+    assert snap["done_count"] == 4 and snap["complete"] is False, "a saved name is not a first try"
+    _ran("profile.remember", True)
+    _ran("operator.schedule_reminder", True)
+    _ran("machine.find_file", True)
+    snap = setup_progress.snapshot()
+    assert snap["done_count"] == 5 and snap["complete"] is True
     assert snap["show_entry"] is False and snap["show_chat_line"] is False
     assert snap["first_undone"] is None
 
@@ -206,7 +213,38 @@ def test_a_failing_predicate_reports_unverified_instead_of_breaking_the_page(hom
     step = _steps(snap)["folder"]
     assert step["done"] is False
     assert step["check_failed"] == "RuntimeError"
-    assert snap["total"] == 4
+    assert snap["total"] == 5
+
+
+def _ran(name: str, ok: bool, summary: str = "") -> None:
+    from core.execution_truth import record_execution
+
+    assert record_execution(session_id="openclaw:setup-test", turn_key="turn-" + name + str(ok) + summary, kind="tool",
+                            name=name, ok=ok, status="executed" if ok else "failed", detail={"summary": summary})
+
+
+def test_a_try_ticks_only_when_its_tool_really_worked_and_a_failure_says_why(home):
+    def tries() -> dict:
+        return {t["id"]: t for t in setup_progress.snapshot()["first_tries"]["tries"]}
+
+    _ran("machine.find_file", False, "Desktop is kept private by this computer.")
+    _ran("workspace.read_file", True)  # another tool working is not this try
+    got = tries()
+    assert got["find"]["done"] is False and got["find"]["last_failure"] == "Desktop is kept private by this computer."
+    assert got["remember"]["done"] is False and got["reminder"]["done"] is False
+    _ran("machine.find_folder", True)
+    got = tries()
+    assert got["find"]["done"] is True and got["find"]["last_failure"] == ""
+    assert _steps(setup_progress.snapshot())["tryit"]["done"] is False, "one try of three is not the step"
+
+
+def test_a_try_whose_store_already_holds_its_row_is_done(home):
+    from core import operator_profile
+
+    change = operator_profile.remember(operator_profile.OWNER_PRINCIPAL, "response_style", "short answers", origin="explicit", actor="operator", replace=True)
+    assert change.persisted, change.report
+    got = {t["id"]: t for t in setup_progress.snapshot()["first_tries"]["tries"]}
+    assert got["remember"]["done"] is True
 
 
 def test_the_copy_is_short_and_free_of_jargon():

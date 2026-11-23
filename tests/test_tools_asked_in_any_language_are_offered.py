@@ -43,6 +43,9 @@ ASKS = {
     # Blind audit of 58f60bbf3: a file made, tests run, the web asked for in other words and other languages.
     "files": ("Sukurk naują failą sąrašas{n}.txt ir įrašyk į jį pieną", "Leg eine Datei notizen{n}.md mit drei Zeilen an",
               "Crea un archivo tareas{n}.txt con dos líneas", "make a file called groceries{n}.txt that says eggs"),
+    # Finding a file by its name: where it is, not what it says.
+    "find": ("Kur yra mano failas kelione{n}.pdf?", "Finde die Datei urlaub{n}.jpg auf meinem Rechner",
+             "¿Dónde guardé el archivo presupuesto{n}.xlsx?", "cant find my cv{n} file anywhere, where is it"),
     "read": ("Kas parašyta faile planas{n}.txt?", "Zeig mir, was in notizen{n}.md steht", "¿Qué dice el archivo tareas{n}.txt?"),
     "run": ("Paleisk šio projekto testus ir pasakyk kiek nepraėjo", "Lass die Tests im Projekt laufen, Versuch {n}",
             "Ejecuta las pruebas del proyecto, por favor"),

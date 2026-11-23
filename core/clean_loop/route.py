@@ -534,9 +534,29 @@ def _is_follow_up(text: str, session_id: str) -> bool:
             return False
     except Exception:
         pass
+    if _judged_for_another_tool(value):
+        return False
     with _RECENT_LOCK:
         seen = _RECENT.get(session_id)
     return seen is not None and time.monotonic() - seen < _FOLLOW_UP_TTL_S
+
+
+#: The turn judge's built-in choices this loop answers itself: a file looked for or read on this computer.
+_FILE_CHOICES = frozenset({"find", "read"})
+
+
+def _judged_for_another_tool(text: str) -> bool:
+    """The turn's judge (core.plugin_ask, any language) read this message as an ask for one of VOOL's other tools.
+
+    A short message right after a files turn was taken as its follow-up by time and length alone, so "Primink man
+    už 3 dienų 8 val. palaistyti gėles" (a reminder) sent after a file search went to this loop, whose brain has no
+    reminder tool, and nothing was set. What the judge read decides; "and the other one?" picks nothing and stays."""
+    try:
+        from core.plugin_ask import judged_builtins
+
+        return bool(set(judged_builtins(text)) - _FILE_CHOICES)
+    except Exception:
+        return False
 
 
 #: A word that points back at what the chat just showed: "how big is IT?", "and THAT one?", "the OTHER one".

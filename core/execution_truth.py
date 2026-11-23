@@ -521,6 +521,17 @@ def _conn():
     return _runtime_conn()
 
 
+def clear_execution_facts() -> None:
+    """Forget every recorded fact (a test's fresh home). Nothing in the product calls this."""
+    conn = _conn()
+    try:
+        if _ensure_table(conn):
+            conn.execute("DELETE FROM execution_facts")
+            conn.commit()
+    finally:
+        conn.close()
+
+
 def _ensure_table(conn) -> bool:
     """True when the fact table is usable. Older DBs predate it; migrations create it."""
     try:

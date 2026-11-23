@@ -261,6 +261,34 @@ def execute_tool_intent(
     tool_call_id: str | None = None,
     trusted_local_only: bool = False,
 ) -> ToolIntentExecution:
+    """`_execute_tool_intent`, then the action receipt of what it did (core.action_receipts): every
+    tool family the model loop reaches is dispatched below this one entry, the operator, contacts and
+    mail handlers included, which never cross the runtime tool door."""
+    execution = _execute_tool_intent(
+        payload, task_id=task_id, session_id=session_id, source_context=source_context,
+        hive_activity_tracker=hive_activity_tracker, public_hive_bridge=public_hive_bridge,
+        checkpoint_id=checkpoint_id, step_index=step_index, tool_call_id=tool_call_id,
+        trusted_local_only=trusted_local_only,
+    )
+    from core.action_receipts import note_execution
+
+    note_execution(source_context, str(getattr(execution, "tool_name", "") or ""), execution)
+    return execution
+
+
+def _execute_tool_intent(
+    payload: Any,
+    *,
+    task_id: str,
+    session_id: str,
+    source_context: dict[str, Any] | None,
+    hive_activity_tracker: HiveActivityTracker,
+    public_hive_bridge: PublicHiveBridge | None = None,
+    checkpoint_id: str | None = None,
+    step_index: int = 0,
+    tool_call_id: str | None = None,
+    trusted_local_only: bool = False,
+) -> ToolIntentExecution:
     """Execute one tool intent. Every execution is stamped with a unique tool_call_id
     (details['tool_call_id']) so results stay bound to the call that produced them.
 

@@ -407,8 +407,21 @@ class WirePayload(dict):
         self.timing = None
         #: The model call id of the owner's own paid pick, when the router reserved this call for it.
         self.owner_paid_call = ""
+        #: The sealed call id the invocation gateway's route receipt was filed under (core.answer_route).
+        self.route_call_id = ""
 
     def consume_wire(self, url: str) -> bytes:
+        try:
+            return self._consume_wire(url)
+        except DisclosureRefused:
+            # Refused at the byte boundary: nothing was sent, so the route receipt filed when the
+            # permit was consumed is withdrawn. Observation only.
+            from core.answer_route import note_withdrawn
+
+            note_withdrawn(self.route_call_id)
+            raise
+
+    def _consume_wire(self, url: str) -> bytes:
         from core import auto_local_only_mode
         from core.cloud_transport import _operator_cloud_network_allowed
         from core.remote_fetch_policy import remote_fetch_forbidden

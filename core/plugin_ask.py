@@ -73,6 +73,9 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
      ("workspace.write_file", "workspace.replace_in_file")),
     ("read", "Read a file in the open folder: show or tell what a file already says, or answer a question from it.",
      ("workspace.read_file",)),
+    ("find", "Find a file or folder on this computer by its name and say where it is. Not for reading or changing "
+     "what a file says.",
+     ("machine.find_file", "machine.find_folder")),
     ("run", "Run in the open folder: run the project's tests, its linter or its formatter, and say what they printed.",
      ("workspace.run_tests", "workspace.run_lint", "workspace.run_formatter")),
     ("web", "Search the internet: only when the message asks to look something up online or on a web page, or asks "

@@ -104,14 +104,28 @@ def _daily_call_cap() -> int | None:
 
 
 def spend_limits() -> Any:
-    """Monetary ceilings enforced together in the spend reservation transaction."""
+    """Monetary ceilings enforced together in the spend reservation transaction.
+
+    A limit the person set in Settings (core.ai_spend) wins over the policy default; a missing or
+    damaged one falls back to the default, never to no limit. One task may always hold at least one
+    answer: a per-answer limit above the task ceiling raises the task ceiling to match, or the
+    per-answer setting could never be used.
+    """
     from core.model_spend_ledger import SpendLimits
 
+    try:
+        from core.ai_spend import person_limits
+
+        mine = person_limits()
+    except Exception:
+        mine = {}
+    per_call = float(mine.get("per_call") or _positive_policy_float("per_call_max_usd", _DEFAULT_PER_CALL_USD))
+    per_task = _positive_policy_float("per_task_max_usd", _DEFAULT_PER_TASK_USD)
     return SpendLimits(
-        per_call_usd=_positive_policy_float("per_call_max_usd", _DEFAULT_PER_CALL_USD),
-        per_task_usd=_positive_policy_float("per_task_max_usd", _DEFAULT_PER_TASK_USD),
-        daily_usd=_positive_policy_float("daily_max_usd", _DEFAULT_DAILY_USD),
-        monthly_usd=_positive_policy_float("monthly_max_usd", _DEFAULT_MONTHLY_USD),
+        per_call_usd=per_call,
+        per_task_usd=max(per_task, per_call) if "per_call" in mine else per_task,
+        daily_usd=float(mine.get("daily") or _positive_policy_float("daily_max_usd", _DEFAULT_DAILY_USD)),
+        monthly_usd=float(mine.get("monthly") or _positive_policy_float("monthly_max_usd", _DEFAULT_MONTHLY_USD)),
         daily_call_cap=_daily_call_cap(),
     )
 
@@ -505,6 +519,7 @@ def settle_owner_pick_paid_call(
     source_context: dict[str, Any] | None = None,
     call_role: str = "",
     invocation_id: str = "",
+    cost_basis: str = "",
 ) -> None:
     """Record one priced response exactly once; retain the hold for missing usage or uncertain billing.
 
@@ -529,6 +544,8 @@ def settle_owner_pick_paid_call(
         _take_correction_hold(model_call_id)
         ambiguous = before is not None and before.status == "billing_ambiguous"
         options: dict[str, Any] = {"billing_ambiguous": ambiguous}
+        if cost_basis:
+            options["cost_basis"] = str(cost_basis)
         if ambiguous or invocation:
             # The ledger re-reads the row inside its transaction: an earlier attempt that turned
             # the row ambiguous after the read above keeps its hold and its known charges.
@@ -739,6 +756,8 @@ def _emit_answer_spend_receipt(
         "daily_call_count": int(daily_count),
         "daily_call_cap": getattr(limits, "daily_call_cap", None),
         "spend_status": str(getattr(terminal, "status", "reserved") or "reserved"),
+        # "provider_reported" is the provider's own bill; any other basis is VOOL's estimate.
+        "cost_basis": str(getattr(terminal, "cost_basis", "") or ""),
         **({"reason": str(reason)} if reason else {}),
     }
     try:

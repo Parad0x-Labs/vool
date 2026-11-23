@@ -825,7 +825,41 @@ def build_turn_proof(
     if projections["claims"] and projections["claims"].get("evidence_set_id"):
         receipts.append("evidence_set:" + str(projections["claims"]["evidence_set_id"]))
 
-    from core.response_usage_details import usage_display_parts, usage_display_segments
+    from core.response_usage_details import usage_display_parts
+    from core.answer_route import route_of_events
+
+    # Where this answer was processed, from the turn's own dispatch receipts (core.answer_route).
+    route = route_of_events(turn_events)
+    from core.action_receipts import receipts_of_events
+
+    # What each consequential action did, read from its own result and checked (core.action_receipts).
+    action_receipts = receipts_of_events(turn_events)
+    from core.ai_spend import answer_spend
+
+    # What this answer's paid calls cost, from their own settlement receipts (core.ai_spend): the
+    # provider's bill, VOOL's estimate, or held while the bill is unknown. A paid answer also carries
+    # where the day and month stand when either is near or at its limit, so the warning comes before
+    # the limit refuses a call.
+    spend = answer_spend(turn_events)
+    if spend is not None:
+        try:
+            from core.ai_spend import overview
+
+            standing = overview()
+            spend["alerts"] = standing["alerts"]
+            spend["day_resets_at"] = standing["day_resets_at"]
+        except Exception:
+            spend["alerts"] = []
+    cost_parts = usage_display_parts(projections["usage_details"])
+    if spend and spend["estimated_usd"] > 0 and not spend["held_usd"]:
+        # The provider reported no price for these calls, but VOOL priced their tokens and the
+        # ledger settled at that: say the estimate, as an estimate, instead of "cost unreported".
+        amount = f"{spend['estimated_usd'] + spend['billed_usd']:.6f}".rstrip("0").rstrip(".") or "0"
+        cost_parts = [part for part in cost_parts
+                      if part.get("key") not in {"proof.usage.unreported", "proof.usage.unreported_some"}
+                      and not str(part.get("key") or "").startswith("proof.usage.charged")]
+        cost_parts.append({"key": "proof.usage.estimated", "params": {"amount": amount, "currency": "USD"},
+                           "text": f"about {amount} USD (estimate)"})
 
     proof = {
         "schema": SCHEMA,
@@ -845,14 +879,22 @@ def build_turn_proof(
             "cost": {
                 "tokens": projections["tokens"],
                 "usd": None,
-                "display": " · ".join(usage_display_segments(projections["usage_details"])),
-                "parts": usage_display_parts(projections["usage_details"]),
+                "display": " · ".join(part["text"] for part in cost_parts),
+                "parts": cost_parts,
                 "source": "provider_usage_events" if projections["tokens"] is not None else "",
             },
             "state": state,
             "state_label": "Record " + state.lower(),
             "state_key": "proof.state." + state.lower(),
             "coverage": projections["coverage"],
+            "action_receipts": _redact_tree(action_receipts),
+            "spend": spend,
+            "route": {
+                "summary": route["summary"],
+                "own_network": any(row["where"] == "own_network" for row in route["calls"]),
+                "online_bytes": route["online_bytes"],
+                "carried_online": route["carried_online"],
+            },
         },
         "expanded": {
             "turn_keys": turn_keys,
@@ -864,6 +906,7 @@ def build_turn_proof(
             "coverage": projections["coverage"],
             "claims": _redact_tree(projections["claims"]),
             "refusals": _redact_tree(refusals),
+            "route": _redact_tree(route),
             "elapsed_ms": projections["elapsed_ms"],
             "timeline": projections["timeline"],
             "receipts": _redact_tree(receipts),

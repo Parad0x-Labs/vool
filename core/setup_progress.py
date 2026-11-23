@@ -10,7 +10,9 @@ setting really exists, read fresh from its owner on every call —
                      ``VOOL_WORKSPACE_ROOT`` that exists;
 - ``permissions``  → ``autonomy_mode`` with provenance (``autonomy_chosen_at`` is stamped by every
                      door that writes autonomy; the default with no stamp is not a choice);
-- ``name``         → an active ``preferred_name`` Operator Profile item.
+- ``name``         → an active ``preferred_name`` Operator Profile item;
+- ``tryit``        → the first three real tries (remember, a reminder, find a file), each read from
+                     the execution-fact ledger of what ran, or the store the try writes.
 
 So a value configured directly in Settings ticks its step here without any sync code, and the
 flow itself persists only two things, both ordinary preferences: which steps the user skipped
@@ -27,7 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-STEP_IDS: tuple[str, ...] = ("thinking", "folder", "permissions", "name")
+STEP_IDS: tuple[str, ...] = ("thinking", "folder", "permissions", "name", "tryit")
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,12 @@ STEPS: tuple[StepSpec, ...] = (
         title="What should it call you?",
         sentence="Optional. A first name or nickname is enough, and it stays on this computer.",
         later="Settings → Memory & Personalisation, in the name field",
+    ),
+    StepSpec(
+        id="tryit",
+        title="Try three things",
+        sentence="Ask it to remember something, set a reminder and find a file. Each one really runs.",
+        later="the chat, any time",
     ),
 )
 
@@ -234,10 +242,18 @@ def snapshot(locale: str = "en") -> dict[str, Any]:
         # with no provenance is not presented as a choice)
         "autonomy_mode": autonomy_mode,
         "cloud_default": _cloud_default_snapshot(),
+        "first_tries": _first_tries_snapshot(),
         # A model choice was cleared because its service left VOOL: the chat page says that in
         # place of the plain no-model line, until the owner closes the notice.
         "retired_model_notice": _retired_model_notice(),
     }
+
+
+def _first_tries_snapshot() -> dict[str, Any]:
+    try:
+        return first_tries()
+    except Exception as exc:  # reported, never hidden, never breaking the page
+        return {"check_failed": type(exc).__name__, "tries": [], "needs": [], "done_count": 0}
 
 
 def _retired_model_notice() -> bool:
@@ -258,6 +274,125 @@ def _cloud_default_snapshot() -> dict[str, Any]:
         return cloud_only_default.snapshot()
     except Exception as exc:  # reported, never hidden, never breaking the page
         return {"check_failed": type(exc).__name__, "local_model_running": None, "candidates": []}
+
+
+# --- the first three tries: read from what really ran ----------------------------------------
+
+#: One real thing per try, named by the tools that do it. A try is done when one of its tools ran and
+#: said it worked (the execution-fact ledger every runtime tool event is recorded in), or when the
+#: store the try writes already holds a row of it.
+FIRST_TRIES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("remember", ("profile.remember",)),
+    ("reminder", ("operator.schedule_reminder",)),
+    ("find", ("machine.find_file", "machine.find_folder", "workspace.list_files", "workspace.search_text")),
+)
+
+
+def _latest_facts(names: tuple[str, ...], limit: int = 40) -> list[dict[str, Any]]:
+    from core.execution_truth import _conn, _ensure_table
+
+    conn = _conn()
+    try:
+        if not _ensure_table(conn):
+            return []
+        marks = ",".join("?" for _ in names)
+        rows = conn.execute(
+            f"SELECT name, ok, status, detail_json, created_at FROM execution_facts WHERE name IN ({marks}) "
+            "ORDER BY created_at DESC LIMIT ?",
+            (*names, int(limit)),
+        ).fetchall()
+    finally:
+        conn.close()
+    out = []
+    for row in rows:
+        try:
+            detail = json.loads(row["detail_json"] or "{}")
+        except Exception:
+            detail = {}
+        out.append({"name": str(row["name"]), "ok": bool(row["ok"]), "status": str(row["status"] or ""),
+                    "summary": str((detail or {}).get("summary") or "") if isinstance(detail, dict) else "",
+                    "at": str(row["created_at"] or "")})
+    return out
+
+
+def _remembered() -> bool:
+    """Something the person asked VOOL to keep: a saved memory (the memory lane, any language), or a profile
+    setting other than the name, which has a step of its own."""
+    from core import operator_profile
+    from core.memory.files import _load_jsonl, memory_entries_path
+    from core.memory.revocation import authorize_payload
+
+    items = operator_profile.list_items(operator_profile.OWNER_PRINCIPAL)
+    if any(i.status == "active" and i.category != "preferred_name" and str(i.value_text or "").strip() for i in items):
+        return True
+    path = memory_entries_path()
+    if not path.exists():
+        return False
+    # Memories live per chat; any chat counts. A memory the person later had forgotten does not.
+    return any(str(row.get("text") or "").strip() and authorize_payload(row, chat_id=str(row.get("chat_id") or row.get("session_id") or row.get("origin_chat_id") or "") or None)
+               for row in _load_jsonl(path))
+
+
+def _reminder_rows() -> bool:
+    from storage.db import get_connection
+
+    with get_connection() as conn:
+        try:
+            return conn.execute("SELECT 1 FROM reminder_requests LIMIT 1").fetchone() is not None
+        except Exception:
+            return False
+
+
+_STORE_CHECKS: dict[str, Callable[[], bool]] = {"remember": _remembered, "reminder": _reminder_rows}
+
+
+def first_tries() -> dict[str, Any]:
+    """Each try: ``done`` (it really ran and worked), or the reason the last attempt did not, plus
+    what the tries need that is missing right now (a model to answer). Finding a file needs no
+    project folder: it looks in the person's own home folders, and a folder the computer keeps
+    private comes back as that try's failure, in the tool's own words.
+    Read fresh; a read that fails says so instead of reading as "not tried"."""
+    tries: list[dict[str, Any]] = []
+    for try_id, names in FIRST_TRIES:
+        entry: dict[str, Any] = {"id": try_id, "done": False, "last_failure": ""}
+        try:
+            facts = _latest_facts(names)
+            entry["done"] = any(f["ok"] for f in facts)
+            if not entry["done"] and try_id in _STORE_CHECKS:
+                entry["done"] = bool(_STORE_CHECKS[try_id]())
+            if not entry["done"] and facts:
+                last = facts[0]
+                entry["last_failure"] = (last["summary"] or last["status"])[:220]
+        except Exception as exc:
+            entry["check_failed"] = type(exc).__name__
+        tries.append(entry)
+    needs: list[str] = []
+    try:
+        if not _something_answers():
+            needs.append("model")
+    except Exception:
+        needs.append("model")
+    return {"tries": tries, "needs": needs, "done_count": sum(1 for t in tries if t["done"])}
+
+
+def _something_answers() -> bool:
+    """A model can answer the tries right now: a local one runs, or the owner chose a cloud one for Auto.
+    Not the "thinking" step's tick: a running local model answers before anyone picked "On this computer"."""
+    from core.local_model_presence import local_model_running
+
+    if local_model_running():
+        return True
+    from core import cloud_only_default
+
+    state = cloud_only_default.load()
+    return str(state.get("decision") or "") == "use_cloud" and bool(state.get("model"))
+
+
+def tryit_done() -> bool:
+    return all(t["done"] for t in first_tries()["tries"])
+
+
+_PREDICATES["tryit"] = tryit_done
 
 
 def step_spec(step_id: str) -> StepSpec | None:

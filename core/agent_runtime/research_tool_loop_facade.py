@@ -2641,6 +2641,13 @@ class ResearchToolLoopFacadeMixin:
                 tool_payload = dict(pending_tool_payload)
                 pending_tool_payload = None
                 tool_name = str(tool_payload.get("intent") or "").strip()
+                # The approved call runs HERE, from its stored payload. That spends the approval's one
+                # repeat exemption: a later round of this turn that asks for the same call again is a
+                # second execution of an action the person allowed once, and the repeat guard stops it.
+                with suppress(Exception):
+                    _replayed = _semantic_payload_signature(tool_payload)
+                    seen_tool_payloads.add(_replayed)
+                    approval_resume_exemptions.add(_replayed)
                 self._emit_runtime_event(
                     loop_source_context,
                     event_type="tool_selected" if tool_name else "tool_failed",

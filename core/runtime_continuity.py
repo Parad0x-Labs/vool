@@ -155,6 +155,10 @@ def reset_runtime_continuity_state() -> None:
         ("core.agent_runtime.active_finding", "clear_active_findings"),
         ("core.agent_runtime.audit_session", "clear_audit_capsules"),
         ("core.conversation_state", "clear_all"),
+        # What ran, per turn: owned and cleared by core/execution_truth.py (it shares this database).
+        # Setup's first tries read it across chats, so one test's executed tool would tick the next
+        # test's fresh home.
+        ("core.execution_truth", "clear_execution_facts"),
     ):
         try:
             module = __import__(module_name, fromlist=[clear_name])

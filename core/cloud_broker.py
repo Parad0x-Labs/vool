@@ -23,7 +23,7 @@ from core.cloud_route_receipt import (
     record_cloud_route_receipt,
 )
 from core.cloud_routing import CloudRouteMode, CloudRoutePlan, select_cloud_route
-from core.model_spend_ledger import settle_spend
+from core.model_spend_ledger import BILLED_BASIS, settle_spend
 from core.output_budget_policy import (
     FREE_CLOUD,
     PAID_CLOUD,
@@ -564,6 +564,8 @@ class CloudModelBroker:
                             model_call_id,
                             actual_usd=actual_usd,
                             billing_ambiguous=paid_cost_unknown,
+                            # The amount is the provider's own report, so it is shown as billed.
+                            cost_basis=BILLED_BASIS if reported_cost is not None else "",
                         )
                         paid_cap_breached = str(getattr(settlement, "status", "")) == "cap_breached"
                     route_error = None

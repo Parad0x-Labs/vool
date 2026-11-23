@@ -424,6 +424,12 @@ def prepare_turn_task_bundle(
             source_context, event_type="tool_executed" if operator_step_executed(dispatch) else "tool_failed",
             message=_op_summary, tool_name=_op_tool, summary=_op_summary,
         )
+        from core.action_receipts import note_action
+
+        note_action(
+            source_context, _op_tool, ok=bool(dispatch.ok), status=str(dispatch.status or ""),
+            response_text=str(dispatch.response_text or ""), details=dict(dispatch.details or {}),
+        )
         if operator_step_executed(dispatch):
             # The run goes on the turn's ledger beside the model calls, so the reply's "Saved your note ..." is
             # read as what the lane did. Measured (CI item 177 and Mac AQ row 4b): the note for "log today's

@@ -96,6 +96,45 @@ def _fault_codes(session_id: str, turn_keys: list[str]) -> tuple[str, ...]:
     return tuple(codes[:20])
 
 
+def _route_trace(route: Any) -> tuple[dict[str, Any], ...]:
+    """Each model call's place, provider, model and the KINDS of data it carried (never the data)."""
+    rows: list[dict[str, Any]] = []
+    for call in ((route or {}).get("calls") or [])[:MAX_ACTIONS] if isinstance(route, dict) else []:
+        if not isinstance(call, dict):
+            continue
+        rows.append({
+            "where": sanitize_identifier(str(call.get("where") or "").lower(), field="route") or "unknown",
+            "provider": sanitize_identifier(str(call.get("provider") or "").lower(), field="provider") or "unknown",
+            "model": sanitize_model_identifier(str(call.get("model") or "")) or "unknown",
+            "calls": int(call.get("calls") or 0),
+            "carried": [k for k in (sanitize_identifier(str(c).lower(), field="route") for c in call.get("carried") or []) if k][:12],
+        })
+    return tuple(rows)
+
+
+def _stage_trace(timeline: Any) -> tuple[dict[str, Any], ...]:
+    rows: list[dict[str, Any]] = []
+    for stage in (timeline or [])[:MAX_ACTIONS] if isinstance(timeline, list) else []:
+        if isinstance(stage, dict) and stage.get("stage"):
+            name = sanitize_identifier(str(stage.get("stage")).lower(), field="stage")
+            if name:
+                rows.append({"stage": name, "ms": int(stage.get("ms") or 0)})
+    return tuple(rows)
+
+
+def _result_trace(receipts: Any) -> tuple[dict[str, Any], ...]:
+    """Each action's checked result (core.action_receipts): which action and its state. The note,
+    the file name and the recipient stay out: they are the person's words and places."""
+    rows: list[dict[str, Any]] = []
+    for receipt in (receipts or [])[:MAX_ACTIONS] if isinstance(receipts, list) else []:
+        if not isinstance(receipt, dict):
+            continue
+        action = sanitize_identifier(str(receipt.get("action_key") or "").lower(), field="tool") or "unknown"
+        state = sanitize_identifier(str(receipt.get("state") or "").lower(), field="state") or "unknown"
+        rows.append({"action": action, "state": state})
+    return tuple(rows)
+
+
 def build_receipt(session_id: str, request_id: str) -> AnswerReceipt | None:
     """The turn's receipt from its own records, or None when no record binds this turn."""
     try:
@@ -126,6 +165,9 @@ def build_receipt(session_id: str, request_id: str) -> AnswerReceipt | None:
     witness = expanded.get("witness") or {}
     provider = sanitize_identifier(str(expanded.get("provider") or "").lower(), field="provider")
     return AnswerReceipt(
+        route=_route_trace(expanded.get("route")),
+        stages=_stage_trace(expanded.get("timeline")),
+        results=_result_trace(compact.get("action_receipts")),
         record_state=sanitize_identifier(str(proof.get("state") or "").lower(), field="state") or "unknown",
         state_reasons=reasons[:12],
         model=sanitize_model_identifier(str(expanded.get("model") or "")) or "unknown",

@@ -1425,6 +1425,34 @@ def _dispatch_get(
 
         return apply_runtime_headers(json_response(200, screen_privacy.config()), runtime)
 
+    if normalized_path == "/api/today":
+        # Today in VOOL (core/today_view.py): reminders, today's calendar, open to-dos and unfinished
+        # goals, read fresh from the stores that own them. Owner-local: it names the person's plans.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import today_view
+
+        return apply_runtime_headers(json_response(200, today_view.today()), runtime)
+
+    if normalized_path == "/api/spend":
+        # AI spending (core/ai_spend.py): paid model spend from the ledger the caps are enforced on,
+        # against the limits that ledger enforces, for today, this month and one chat.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import ai_spend
+
+        session_q = str((query.get("session_id") or [""])[0] or "").strip()[:200]
+        return apply_runtime_headers(json_response(200, ai_spend.overview(session_id=session_q)), runtime)
+
+    if normalized_path == "/api/doctor":
+        # VOOL Doctor (core/vool_doctor.py): each part VOOL depends on, read fresh from its owner, with
+        # its repair. Nothing goes online. Owner-local: it names this computer's folders and devices.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import vool_doctor
+
+        return apply_runtime_headers(json_response(200, vool_doctor.run_checks(runtime)), runtime)
+
     if normalized_path == "/api/setup/state":
         # The derived first-run setup state (core/setup_progress.py): which steps are really done,
         # read fresh from the authorities that own each value. A plain local read -- no provider,
@@ -3572,6 +3600,18 @@ def dispatch_post(
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
 
+
+    if normalized_path == "/api/spend/limits":
+        # The person's limits for paid models. Raising one lets more money be spent, so the write is
+        # held to the same door as a credential: this app's own page, as JSON, from this computer.
+        if _credential_page_refusal(headers, client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import ai_spend
+
+        saved, payload = ai_spend.set_limits(body.get("limits") if isinstance(body.get("limits"), dict) else {})
+        if not saved:
+            return apply_runtime_headers(json_response(400, {"ok": False, **payload}), runtime)
+        return apply_runtime_headers(json_response(200, ai_spend.overview()), runtime)
 
     if normalized_path == "/api/lend":
         from core.lend.api import handle

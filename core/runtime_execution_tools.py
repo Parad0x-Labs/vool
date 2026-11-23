@@ -4319,6 +4319,31 @@ def execute_runtime_tool(
     source_context: dict[str, Any] | None = None,
     trusted_local_only: bool = False,
 ) -> RuntimeExecutionResult | None:
+    """THE runtime tool door: every effect, then its action receipt (core.action_receipts).
+
+    The receipt is read from the result this door returns and checked against the store or disk
+    the tool wrote, so what the person sees under the answer is never the model's own words.
+    """
+    result = _execute_runtime_tool(
+        intent, arguments, source_context=source_context, trusted_local_only=trusted_local_only
+    )
+    if result is not None and result.handled:
+        from core.action_receipts import note_action
+
+        note_action(
+            source_context, intent, ok=bool(result.ok), status=str(result.status or ""),
+            response_text=str(result.response_text or ""), details=dict(result.details or {}),
+        )
+    return result
+
+
+def _execute_runtime_tool(
+    intent: str,
+    arguments: dict[str, Any],
+    *,
+    source_context: dict[str, Any] | None = None,
+    trusted_local_only: bool = False,
+) -> RuntimeExecutionResult | None:
     """THE runtime tool door, with the council seat fence in front of it.
 
     This function is where every real runtime effect actually happens, and — unlike
