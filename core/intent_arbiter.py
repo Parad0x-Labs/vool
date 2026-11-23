@@ -604,7 +604,10 @@ def _judged_for_the_turn(
     unreadable answer. None is what "no local model" always was: the caller decides nothing on it."""
     judge = _TURN_JUDGES.get(_turn_key(source_context)) or getattr(_THIS_THREAD, "judge", None)
     if judge is None:
-        _LAST_FAILURE["reason"] = "no_keep_judge_model"
+        # Nothing was asked, so nothing failed: a routing call's own failure, read by the front door after every
+        # judgement of the turn, is not overwritten by a later judgement that had no judge to ask.
+        if not _LAST_FAILURE.get("reason"):
+            _LAST_FAILURE["reason"] = "no_keep_judge_model"
         return None
     try:
         content = str(judge(prompt) or "")
@@ -919,6 +922,7 @@ def arbitrate_done_claim(
     request_id: str = "",
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
+    patient: bool = False,
 ) -> str | None:
     """Whether a reply says the assistant has already done something: ``"done"``, ``"kept"`` (only a fact noted in
     its own memory), ``"none"``, or None when nothing judged it.
@@ -941,15 +945,16 @@ def arbitrate_done_claim(
         model = _keep_judge_model()
         if not model:
             return _judged_for_the_turn(prompt, source_context, _done_claim_reader)
-        # Patient, like the tool ask: without this judgement a done claim with nothing behind it reaches the person.
-        # On a slow machine the tool ask's timeout opened the breaker and this read was skipped, so "I've noted to
-        # ping you this Friday" and "the vitamins reminder is scrapped" went out with nothing set or cancelled
-        # (fresh-question audit on 02ff11496, qwen3:8b on a CPU box).
+        # Patient on a turn that asked for a tool (``patient``), like the tool ask: without this judgement a done claim with
+        # nothing behind it reaches the person. On a slow machine the tool ask's timeout opened the breaker and this
+        # read was skipped, so "I've noted to ping you this Friday" and "the vitamins reminder is scrapped" went out
+        # with nothing set or cancelled (fresh-question audit on 02ff11496, qwen3:8b on a CPU box). Every other reply
+        # keeps the usual window: a plain answer must not wait a minute more on a busy model.
         return arbitrate_followup(
             "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
             prompt=prompt, operation="done_claim_arbitration", model=model,
             runner_role="general", call_role=_judgement_role(), parse=_done_claim_reader,
-            patient=True, timeout_s=_LOAD_TIMEOUT_S,
+            **({"patient": True, "timeout_s": _LOAD_TIMEOUT_S} if patient else {}),
         )
     finally:
         _DONE_CLAIM_FAILURE["reason"] = _LAST_FAILURE.get("reason", "")
