@@ -1053,3 +1053,47 @@ def test_intel_macos_is_the_only_platform_without_torch_and_every_platform_keeps
         else:
             assert torch_specs == [">=2.13.0"], f"{source}: {torch_specs}"
         assert crypto_specs == [">=50.0.0"], f"{source}: {crypto_specs}"
+
+
+def test_installer_without_a_working_probe_says_so_and_uses_cores_last_resort_model(tmp_path: Path) -> None:
+    """V-033: the installer's own Python probe failing must not print or pull a made-up bucket.
+
+    Runs the installer's real probe functions with a venv Python that cannot start, then the
+    same lines step 6 uses to pick the model.
+    """
+    import subprocess
+
+    from core.install_recommendations import LAST_RESORT_LOCAL_MODEL
+
+    script = (REPO_ROOT / "installer" / "install_vool.sh").read_text(encoding="utf-8")
+    head = re.search(r'^LAST_RESORT_LOCAL_MODEL=.*$', script, re.M)
+    assert head is not None
+    functions = "".join(
+        re.search(rf"^{name}\(\) \{{\n.*?^\}}\n\n", script, re.M | re.S).group(0)
+        for name in ("detect_model_tag", "detect_hardware_summary", "detect_install_recommendation_exports")
+    )
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    broken = venv / "bin" / "python"
+    broken.write_text("#!/bin/sh\nexit 1\n")
+    broken.chmod(0o755)
+    probe = f"""
+set -euo pipefail
+PROJECT_ROOT={str(REPO_ROOT)!r}
+VENV_DIR={str(venv)!r}
+{head.group(0)}
+{functions}
+summary="$(detect_hardware_summary)"
+model_tag="$(detect_model_tag)"
+eval "$(detect_install_recommendation_exports /nonexistent "${{model_tag}}")"
+primary_local_model="${{PRIMARY_LOCAL_MODEL:-${{model_tag}}}}"
+printf '%s\\n%s\\n%s\\n%s\\n' "$summary" "$primary_local_model" "${{CAPACITY_BUCKET:-unknown}}" "${{RECOMMENDED_BUNDLE_MODELS:-${{primary_local_model}}}}"
+"""
+    done = subprocess.run(["bash", "-c", probe], capture_output=True, text=True,
+                          env={"PATH": "/usr/bin:/bin", "PRIMARY_LOCAL_MODEL": "stale-from-env"})
+    assert done.returncode == 0, done.stderr
+    out = done.stdout.splitlines()
+    summary, primary, bucket, bundle = out
+    assert json.loads(summary) == {"hardware_probe": "could not run", "ollama_model": LAST_RESORT_LOCAL_MODEL}
+    assert primary == LAST_RESORT_LOCAL_MODEL and bundle == LAST_RESORT_LOCAL_MODEL
+    assert bucket == "unknown"

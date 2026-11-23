@@ -15,6 +15,10 @@ if [ -z "${VOOL_HOME_DEFAULT:-}" ]; then
     VOOL_HOME_DEFAULT="$HOME/.vool_runtime"
   fi
 fi
+# Used only when VOOL's own hardware probe cannot run. It is core's last-resort default
+# (core.install_recommendations.LAST_RESORT_LOCAL_MODEL): it fits a 6 GB card whole and
+# answers on a CPU. The probe failing is said as such; no tier or bundle is made up.
+LAST_RESORT_LOCAL_MODEL="qwen3.5:4b"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=11
 AUTO_YES=0
@@ -496,7 +500,7 @@ detect_model_tag() {
   (cd "${PROJECT_ROOT}" && "${VENV_DIR}/bin/python" -c "
 from core.install_recommendations import build_install_recommendation_truth
 print(build_install_recommendation_truth().primary_local_model)
-") 2>/dev/null || echo "qwen3:8b"
+") 2>/dev/null || echo "${LAST_RESORT_LOCAL_MODEL}"
 }
 
 
@@ -505,7 +509,7 @@ detect_hardware_summary() {
 import json
 from core.install_recommendations import install_recommendation_machine_summary
 print(json.dumps(install_recommendation_machine_summary(), ensure_ascii=False))
-") 2>/dev/null || echo '{"selected_tier":"capacity-C","ollama_model":"qwen3:8b","recommended_bundle_models":["qwen3:8b","deepseek-r1:8b"]}'
+") 2>/dev/null || printf '{"hardware_probe":"could not run","ollama_model":"%s"}\n' "${LAST_RESORT_LOCAL_MODEL}"
 }
 
 
@@ -556,6 +560,9 @@ print(profile.display_summary())
 }
 
 
+# When VOOL's probe cannot run, the model, bucket and bundles are left empty, so the caller uses
+# the model detect_model_tag gave and says "unknown"; a made-up bucket or bundle would be
+# pulled and printed as if this machine had been measured.
 detect_install_recommendation_exports() {
   local runtime_home="$1"
   local model_tag="$2"
@@ -590,13 +597,13 @@ RECOMMENDED_DEFAULT_PROFILE=local-only
 RECOMMENDED_DEFAULT_PROFILE_DISPLAY='ollama-only (local-only)'
 RECOMMENDED_OPTIONAL_PROFILE=
 RECOMMENDED_OPTIONAL_PROFILE_DISPLAY=
-PRIMARY_LOCAL_MODEL=qwen3:8b
-CAPACITY_BUCKET=B
-RECOMMENDED_BUNDLE_ID=single_qwen3_8b
-RECOMMENDED_BUNDLE_KIND=single
-RECOMMENDED_BUNDLE_MODELS=qwen3:8b
-FALLBACK_BUNDLE_ID=single_gemma3_4b
-FALLBACK_BUNDLE_MODELS=gemma3:4b
+PRIMARY_LOCAL_MODEL=
+CAPACITY_BUCKET=
+RECOMMENDED_BUNDLE_ID=
+RECOMMENDED_BUNDLE_KIND=
+RECOMMENDED_BUNDLE_MODELS=
+FALLBACK_BUNDLE_ID=
+FALLBACK_BUNDLE_MODELS=
 SECONDARY_LOCAL_MODEL=qwen2.5:14b-gguf
 SECONDARY_LOCAL_SUPPORTED=0
 SECONDARY_LOCAL_BACKEND=llama.cpp

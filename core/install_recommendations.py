@@ -98,6 +98,11 @@ def local_multi_llm_fit(probe: MachineProbe | Mapping[str, Any] | None = None) -
 # the suggestion table gives CPU machines from 11 to 44 GB (core.local_model_suggestions).
 _CPU_FALLBACK_PREFERRED_MODEL = "qwen3.5:4b"
 
+# The model used when neither the bundle nor the tier names one, and the installer's own default
+# when this module cannot run at all (installer/install_vool.sh LAST_RESORT_LOCAL_MODEL): it fits
+# a 6 GB card whole and answers on a CPU.
+LAST_RESORT_LOCAL_MODEL = "qwen3.5:4b"
+
 
 def cpu_fallback_model(probe: MachineProbe | None = None) -> str:
     """Return a smaller, CPU-responsive model tag for use when GPU verification fails.
@@ -192,7 +197,7 @@ def build_install_recommendation_truth(
     fallback_bundle = bundle_recommendation.fallback_bundle
     # Last-resort default, only if bundle primary AND tier tag both resolve empty: qwen3.5:4b fits a
     # 6 GB card whole and answers on a CPU; never a model that part-offloads on 6-10GB VRAM.
-    primary_local_model = recommended_bundle.primary_model or str(active_tier.ollama_tag or "").strip() or "qwen3.5:4b"
+    primary_local_model = recommended_bundle.primary_model or str(active_tier.ollama_tag or "").strip() or LAST_RESORT_LOCAL_MODEL
 
     reasons = [
         (
