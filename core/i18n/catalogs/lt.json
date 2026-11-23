@@ -5519,9 +5519,13 @@
     "live.guard_back": "Grįžti",
     "live.guard_open": "Vis tiek atidaryti",
     "live.guard_open_note": "Atidarykite tik tada, jei esate tikri, kad svetainė saugi. Ji liks jums atvira, kol uždarysite naršyklę.",
-    "live.harmful_site": "Ši svetainė yra kenksmingų svetainių sąraše, todėl VOOL jos neatidaro. Galite ją atidaryti patys naršyklės lange."
+    "live.harmful_site": "Ši svetainė yra kenksmingų svetainių sąraše, todėl VOOL jos neatidaro. Galite ją atidaryti patys naršyklės lange.",
+    "live.home_name": "VOOL pradžios puslapis",
+    "live.home_title": "Naujas skirtukas",
+    "live.home_search": "Ieškokite žiniatinklyje arba įveskite adresą",
+    "live.home_visited": "Dažniausiai lankomi"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

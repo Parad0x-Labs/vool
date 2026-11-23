@@ -5519,9 +5519,13 @@
     "live.guard_back": "返回",
     "live.guard_open": "仍然打开",
     "live.guard_open_note": "只有在确定网站安全时才打开。之后在关闭浏览器之前，它会一直对你开放。",
-    "live.harmful_site": "此网站在有害网站列表中，因此 VOOL 不会打开它。你可以自己在浏览器窗口中打开。"
+    "live.harmful_site": "此网站在有害网站列表中，因此 VOOL 不会打开它。你可以自己在浏览器窗口中打开。",
+    "live.home_name": "VOOL 起始页",
+    "live.home_title": "新标签页",
+    "live.home_search": "搜索网页或输入网址",
+    "live.home_visited": "常访问的网站"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5519,9 +5519,13 @@
     "live.guard_back": "Retour",
     "live.guard_open": "Ouvrir quand même",
     "live.guard_open_note": "Ne l'ouvrez que si vous êtes sûr que le site est sans danger. Il vous reste alors ouvert jusqu'à la fermeture du navigateur.",
-    "live.harmful_site": "Ce site figure sur une liste de sites nuisibles, VOOL ne l'ouvre donc pas. Vous pouvez l'ouvrir vous-même dans la fenêtre du navigateur."
+    "live.harmful_site": "Ce site figure sur une liste de sites nuisibles, VOOL ne l'ouvre donc pas. Vous pouvez l'ouvrir vous-même dans la fenêtre du navigateur.",
+    "live.home_name": "Page de démarrage VOOL",
+    "live.home_title": "Nouvel onglet",
+    "live.home_search": "Rechercher sur le Web ou saisir une adresse",
+    "live.home_visited": "Les plus visités"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5519,7 +5519,11 @@
     "live.guard_back": "Go back",
     "live.guard_open": "Open it anyway",
     "live.guard_open_note": "Open it only if you are sure the site is safe. It then stays open to you until you close the browser.",
-    "live.harmful_site": "This site is on a list of harmful sites, so VOOL does not open it. You can open it yourself in the browser window."
+    "live.harmful_site": "This site is on a list of harmful sites, so VOOL does not open it. You can open it yourself in the browser window.",
+    "live.home_name": "VOOL start page",
+    "live.home_title": "New tab",
+    "live.home_search": "Search the web or type an address",
+    "live.home_visited": "Most visited"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -5519,9 +5519,13 @@
     "live.guard_back": "뒤로",
     "live.guard_open": "그래도 열기",
     "live.guard_open_note": "사이트가 안전하다고 확신할 때만 여세요. 그 뒤에는 브라우저를 닫을 때까지 열 수 있습니다.",
-    "live.harmful_site": "이 사이트는 해로운 사이트 목록에 있어 VOOL이 열지 않습니다. 브라우저 창에서 직접 열 수 있습니다."
+    "live.harmful_site": "이 사이트는 해로운 사이트 목록에 있어 VOOL이 열지 않습니다. 브라우저 창에서 직접 열 수 있습니다.",
+    "live.home_name": "VOOL 시작 페이지",
+    "live.home_title": "새 탭",
+    "live.home_search": "웹 검색 또는 주소 입력",
+    "live.home_visited": "자주 방문한 사이트"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

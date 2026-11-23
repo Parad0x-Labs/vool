@@ -5519,9 +5519,13 @@
     "live.guard_back": "Wróć",
     "live.guard_open": "Otwórz mimo to",
     "live.guard_open_note": "Otwórz ją tylko wtedy, gdy masz pewność, że witryna jest bezpieczna. Pozostanie dla ciebie otwarta do zamknięcia przeglądarki.",
-    "live.harmful_site": "Ta witryna jest na liście szkodliwych witryn, więc VOOL jej nie otwiera. Możesz otworzyć ją samodzielnie w oknie przeglądarki."
+    "live.harmful_site": "Ta witryna jest na liście szkodliwych witryn, więc VOOL jej nie otwiera. Możesz otworzyć ją samodzielnie w oknie przeglądarki.",
+    "live.home_name": "Strona startowa VOOL",
+    "live.home_title": "Nowa karta",
+    "live.home_search": "Szukaj w internecie lub wpisz adres",
+    "live.home_visited": "Najczęściej odwiedzane"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5519,9 +5519,13 @@
     "live.guard_back": "Volver",
     "live.guard_open": "Abrir de todos modos",
     "live.guard_open_note": "Ábrelo solo si tienes la certeza de que el sitio es seguro. Seguirá abierto para ti hasta que cierres el navegador.",
-    "live.harmful_site": "Este sitio está en una lista de sitios dañinos, así que VOOL no lo abre. Puedes abrirlo tú en la ventana del navegador."
+    "live.harmful_site": "Este sitio está en una lista de sitios dañinos, así que VOOL no lo abre. Puedes abrirlo tú en la ventana del navegador.",
+    "live.home_name": "Página de inicio de VOOL",
+    "live.home_title": "Nueva pestaña",
+    "live.home_search": "Busca en la web o escribe una dirección",
+    "live.home_visited": "Más visitados"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

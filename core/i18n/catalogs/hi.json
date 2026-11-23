@@ -5519,9 +5519,13 @@
     "live.guard_back": "वापस जाएँ",
     "live.guard_open": "फिर भी खोलें",
     "live.guard_open_note": "इसे तभी खोलें जब आपको पक्का हो कि साइट सुरक्षित है। फिर ब्राउज़र बंद करने तक यह आपके लिए खुली रहती है।",
-    "live.harmful_site": "यह साइट हानिकारक साइटों की सूची में है, इसलिए VOOL इसे नहीं खोलता। आप इसे ब्राउज़र विंडो में खुद खोल सकते हैं।"
+    "live.harmful_site": "यह साइट हानिकारक साइटों की सूची में है, इसलिए VOOL इसे नहीं खोलता। आप इसे ब्राउज़र विंडो में खुद खोल सकते हैं।",
+    "live.home_name": "VOOL आरंभ पृष्ठ",
+    "live.home_title": "नया टैब",
+    "live.home_search": "वेब पर खोजें या पता लिखें",
+    "live.home_visited": "सबसे ज़्यादा देखे गए"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

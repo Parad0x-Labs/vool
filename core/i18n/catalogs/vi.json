@@ -5519,9 +5519,13 @@
     "live.guard_back": "Quay lại",
     "live.guard_open": "Vẫn mở",
     "live.guard_open_note": "Chỉ mở khi bạn chắc chắn trang web này an toàn. Sau đó trang sẽ mở được cho bạn đến khi bạn đóng trình duyệt.",
-    "live.harmful_site": "Trang web này nằm trong danh sách trang độc hại nên VOOL không mở. Bạn có thể tự mở nó trong cửa sổ trình duyệt."
+    "live.harmful_site": "Trang web này nằm trong danh sách trang độc hại nên VOOL không mở. Bạn có thể tự mở nó trong cửa sổ trình duyệt.",
+    "live.home_name": "Trang bắt đầu VOOL",
+    "live.home_title": "Thẻ mới",
+    "live.home_search": "Tìm trên web hoặc nhập địa chỉ",
+    "live.home_visited": "Truy cập nhiều nhất"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

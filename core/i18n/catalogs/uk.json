@@ -5519,9 +5519,13 @@
     "live.guard_back": "Назад",
     "live.guard_open": "Усе одно відкрити",
     "live.guard_open_note": "Відкривайте його, лише якщо впевнені, що сайт безпечний. Він залишиться відкритим для вас, доки ви не закриєте браузер.",
-    "live.harmful_site": "Цей сайт є у списку шкідливих сайтів, тому VOOL його не відкриває. Ви можете відкрити його самі у вікні браузера."
+    "live.harmful_site": "Цей сайт є у списку шкідливих сайтів, тому VOOL його не відкриває. Ви можете відкрити його самі у вікні браузера.",
+    "live.home_name": "Стартова сторінка VOOL",
+    "live.home_title": "Нова вкладка",
+    "live.home_search": "Шукайте в інтернеті або введіть адресу",
+    "live.home_visited": "Найчастіше відвідувані"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

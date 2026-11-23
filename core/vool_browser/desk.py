@@ -121,7 +121,8 @@ STARTING_SEARCH: dict[str, Any] = {
 }
 
 
-#: Where the window starts when no address was asked for: the engine's own new tab page.
+#: Where the window starts when no address was asked for: the new tab page, which is
+#: VOOL's start page in the lasting window and the engine's own page in a private one.
 HOME = "chrome://newtab/"
 #: The address the engine is started on. Its tab carries the engine's start-up notices and
 #: is closed at once; the marker tells it from an empty tab the engine reopened for the person.
@@ -247,6 +248,8 @@ class _Window:
         self.guard_id = ""
         self.guard_folder = ""
         self.guard_sites = 0
+        # VOOL's start page as loaded into this engine: the engine's id for it.
+        self.home_id = ""
         # The empty tab VOOL made at this start, until the person or an address uses it.
         self.fresh: Any = None
 
@@ -303,6 +306,12 @@ class _Window:
                 from . import guard
 
                 await guard.apply(self)
+            if not self.private:
+                # VOOL's own start page takes the place of the engine's new tab page.
+                with contextlib.suppress(Exception):
+                    from . import home
+
+                    await home.apply(self)
             self.fresh = await self.context.new_page()
             for page in pages:
                 if not page.is_closed() and page.url == START_TAB:
@@ -316,8 +325,8 @@ class _Window:
                 from . import extensions
 
                 await extensions.apply(self)
-            with contextlib.suppress(Exception):
-                await self._settle_reopened_tabs()
+        with contextlib.suppress(Exception):
+            await self._settle_reopened_tabs()
         if self.private:
             # On macOS the engine keeps running after its last window is closed. A
             # private window with no tab left is over: it is stopped and removed then,
@@ -343,7 +352,7 @@ class _Window:
 
         theirs = []
         for page in [p for p in self.context.pages if not p.is_closed() and p is not self.fresh]:
-            if page.url.startswith(_NEW_TAB) and self.fresh is not None and not self.fresh.is_closed():
+            if self._new_tab(page) and self.fresh is not None and not self.fresh.is_closed():
                 await page.close()
             else:
                 theirs.append(page)
@@ -362,9 +371,15 @@ class _Window:
         for page in self.context.pages:
             if page.is_closed() or page in self.reserved:
                 continue
-            if (page is self.fresh and page.url == "about:blank") or page.url.startswith(_NEW_TAB):
+            if (page is self.fresh and page.url == "about:blank") or self._new_tab(page):
                 return page
         return None
+
+    def _new_tab(self, page: Any) -> bool:
+        """Still on the new tab page: the engine's own, or VOOL's start page."""
+        from . import home
+
+        return page.url.startswith(_NEW_TAB) or page.url == (home.address(self) or None)
 
     def _last_tab_closed(self) -> None:
         context = self.context

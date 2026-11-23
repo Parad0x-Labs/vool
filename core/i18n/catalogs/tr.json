@@ -5519,9 +5519,13 @@
     "live.guard_back": "Geri dön",
     "live.guard_open": "Yine de aç",
     "live.guard_open_note": "Yalnızca sitenin güvenli olduğundan eminseniz açın. Tarayıcıyı kapatana kadar sizin için açık kalır.",
-    "live.harmful_site": "Bu site zararlı siteler listesinde, bu yüzden VOOL onu açmaz. Tarayıcı penceresinde kendiniz açabilirsiniz."
+    "live.harmful_site": "Bu site zararlı siteler listesinde, bu yüzden VOOL onu açmaz. Tarayıcı penceresinde kendiniz açabilirsiniz.",
+    "live.home_name": "VOOL başlangıç sayfası",
+    "live.home_title": "Yeni sekme",
+    "live.home_search": "Web'de arayın veya adres yazın",
+    "live.home_visited": "En çok ziyaret edilenler"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

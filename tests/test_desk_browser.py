@@ -76,6 +76,15 @@ def _quiet_test_engine(monkeypatch, home):
     monkeypatch.setattr(desk_module, "downloads_dir", lambda: folder)
 
 
+def start_page(browser) -> str:
+    """The address of VOOL's start page in the lasting window."""
+    from core.vool_browser import home as start
+
+    address = start.address(browser._main)
+    assert address.startswith("chrome-extension://") and address.endswith("/home.html"), address
+    return address
+
+
 def _wait(check, seconds=10.0):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -267,8 +276,8 @@ def test_the_window_starts_on_a_start_page_with_bookmarks_and_a_home_button_that
 
     browser.open("")
     first, kept, settings = browser._call(look(change=False))
-    # The engine's own start page, drawn from inside the engine: nothing was fetched for it.
-    assert len(first) == 1 and first[0].startswith("chrome://new-tab-page"), first
+    # VOOL's own start page, which lives on this computer: nothing was fetched for it.
+    assert first == [start_page(browser)], first
     assert kept == [] and hits == []
     assert settings == {
         "bookmark_bar.show_on_all_tabs": True, "browser.show_home_button": True,
@@ -283,7 +292,7 @@ def test_the_window_starts_on_a_start_page_with_bookmarks_and_a_home_button_that
     browser.stop()
     browser.open("")
     first, kept, settings = browser._call(look(change=False))
-    assert first[0].startswith("chrome://new-tab-page"), first
+    assert first == [start_page(browser)], first
     assert kept == [base + "/timetable"]
     assert (settings["homepage"], settings["homepage_is_newtabpage"]) == (base + "/home", False)
     assert settings["bookmark_bar.show_on_all_tabs"] is True and settings["browser.show_home_button"] is True
@@ -325,7 +334,7 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
     browser.stop()
     hits.clear()
     browser.open("")
-    assert len(open_tabs(browser)) == 1 and open_tabs(browser)[0].startswith("chrome://new-tab-page")
+    assert open_tabs(browser) == [start_page(browser)]
     assert asked() == []
 
     # The person chooses "Continue where you left off", opens two pages, and VOOL works in a tab.
@@ -366,7 +375,7 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
     browser.stop()
     hits.clear()
     browser.open("")
-    assert len(open_tabs(browser)) == 1 and open_tabs(browser)[0].startswith("chrome://new-tab-page")
+    assert open_tabs(browser) == [start_page(browser)]
     assert asked() == []
 
 
@@ -669,9 +678,8 @@ def test_the_engine_asks_no_search_company_for_anything_at_start_or_for_a_new_ta
         return page.url
 
     opened = browser._call(new_tab())
-    # The engine's own answer to "whose new tab is this": the page it keeps for a search
-    # that is not one of its built-in ones, drawn from inside the engine.
-    assert opened.startswith("chrome://new-tab-page-third-party"), opened
+    # A new tab is VOOL's own start page, which lives on this computer.
+    assert opened == start_page(browser), opened
     assert not _wait(others, seconds=12), asked
 
     # A private window starts from a profile of its own: the same holds there.

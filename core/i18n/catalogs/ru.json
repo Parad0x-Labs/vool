@@ -5519,9 +5519,13 @@
     "live.guard_back": "Назад",
     "live.guard_open": "Всё равно открыть",
     "live.guard_open_note": "Открывайте его, только если уверены, что сайт безопасен. Он останется открытым для вас, пока вы не закроете браузер.",
-    "live.harmful_site": "Этот сайт есть в списке вредоносных сайтов, поэтому VOOL его не открывает. Вы можете открыть его сами в окне браузера."
+    "live.harmful_site": "Этот сайт есть в списке вредоносных сайтов, поэтому VOOL его не открывает. Вы можете открыть его сами в окне браузера.",
+    "live.home_name": "Стартовая страница VOOL",
+    "live.home_title": "Новая вкладка",
+    "live.home_search": "Поиск в интернете или ввод адреса",
+    "live.home_visited": "Часто посещаемые"
   },
-  "source_catalog_sha256": "f3ba8026bf8a85a5c91a72ceb71b775b19fc42cfe6ff24606af994e94fe0fb49",
+  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
