@@ -86,13 +86,9 @@ def starter_finding(path: str) -> dict:
 
 #: Frontmatter keys VOOL reads (core.plugin_skills.parse_skill_content), plus `license` and
 #: `metadata`, which the publishing tools read. Any other key is ignored by VOOL.
-KNOWN_FRONTMATTER_KEYS = frozenset({
-    "name", "description", "summary", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
-    "permissions", "effects", "inputs", "outputs", "stop-conditions", "stop_conditions", "recovery",
-    "cumulative-test-law", "cumulative_test_law", "license", "metadata",
-})
-#: Keys an author writes hoping the skill runs on its own. A skill never does.
-SCHEDULE_KEYS = frozenset({"schedule", "interval", "cron", "every", "timer", "repeat", "run-every", "run_every"})
+# One list, kept beside the loader that reads the header.
+from core.skill_tools import READ_HEADER_KEYS as KNOWN_FRONTMATTER_KEYS
+from core.skill_tools import SCHEDULE_HEADER_KEYS as SCHEDULE_KEYS
 
 
 def frontmatter_warnings(text: str) -> list[str]:
@@ -454,7 +450,10 @@ def main(argv=None) -> int:
         print(canonical(report).decode())
         return 0
     except (RegistryError, PackageError, OSError, ValueError) as exc:
-        print(canonical({"status": "refused", "reason": str(exc)}).decode())
+        refused = {"status": "refused", "reason": str(exc)}
+        if getattr(exc, "fix", ""):
+            refused["fix"] = exc.fix  # what to write instead, where the rule knows it
+        print(canonical(refused).decode())
         return 1
 
 

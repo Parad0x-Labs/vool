@@ -1082,6 +1082,12 @@ def _import_preview(markdown: str, sha256: str) -> str:
     others = [f"{key}: {_setting_words(value)}" for key, value in header.items() if str(key) not in _SHOWN_KEYS]
     if others:
         lines.append("**Other settings in the file:** " + _shown_plainly("; ".join(others)))
+    # Said before the person turns it on: what in the file will do nothing, and why.
+    from core.skill_tools import not_used
+
+    unused = not_used(header, tools_only_narrow=True)
+    if unused:
+        lines.append("**What I will not use:** " + " ".join(unused))
     # The check code comes before the instructions, so the first one on screen is the real one.
     lines.append(f"**Check code:** {_check_code(sha256)}. {CHECK_CODE_NOTE}")
     lines.append("**What it tells me to do:**")

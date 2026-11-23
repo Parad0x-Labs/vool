@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "Le plugin a demandé un dossier contenant des données privées d'application ou des données personnelles.",
     "addons.plugin_message_87f58523713f": "Cette action sur le plugin n'a pas pu aboutir. Rien n'a été modifié. Vérifiez le plugin dans Modules complémentaires et réessayez.",
     "addons.plugin_notice_dismiss": "Compris",
+    "addons.plugin_maker_note": "Pour l'auteur du plugin",
     "addons.plugin_mac_process_note": "Sur un Mac, les programmes d'un plugin peuvent voir certains réglages des autres applications que vous utilisez, comme n'importe quelle application le peut. Vos clés de plugins n'y sont jamais déposées.",
     "addons.plugin_mac_process_network_note": "Sur un Mac, les programmes de ce plugin peuvent voir les réglages de démarrage des autres applications que vous utilisez. Ces réglages peuvent contenir des clés, et ce plugin peut envoyer ce qu'il voit aux sites indiqués sous « Accès réseau ». Vos clés de plugins n'y sont jamais déposées.",
     "addons.plugin_message_1461237e0e9b": "Cette clé provient d'un ancien réglage de VOOL et n'est utilisée que par les requêtes de VOOL lui-même. Connectez une clé pour ce plugin dans Modules complémentaires.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Numéro comparé : marquer comme vérifié",
     "approval.action.machine.send_with_drop": "envoyer un fichier avec Drop"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

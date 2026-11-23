@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "Eklenti, özel uygulama veya ev verilerini içeren bir klasör istedi.",
     "addons.plugin_message_87f58523713f": "Bu eklenti işlemi tamamlanamadı. Hiçbir şey değiştirilmedi. Eklentiyi Eklentiler bölümünde gözden geçirip yeniden deneyin.",
     "addons.plugin_notice_dismiss": "Anladım",
+    "addons.plugin_maker_note": "Eklentinin yapımcısı için",
     "addons.plugin_mac_process_note": "Mac'te bir eklentinin programları, çalışan diğer uygulamalarınızın bazı ayarlarını, her uygulamanın görebileceği gibi görebilir. Eklenti anahtarlarınız oraya asla konmaz.",
     "addons.plugin_mac_process_network_note": "Mac'te bu eklentinin programları, çalışan diğer uygulamalarınızın başlangıç ayarlarını görebilir. Bu ayarlarda anahtarlar bulunabilir ve bu eklenti gördüklerini “Ağ erişimi” altında listelenen sitelere gönderebilir. Eklenti anahtarlarınız oraya asla konmaz.",
     "addons.plugin_message_1461237e0e9b": "Bu anahtar önceki bir VOOL ayarından aktarıldı ve yalnızca VOOL'un kendi istekleri için kullanılır. Eklentiler bölümünde bu eklenti için bir anahtar bağlayın.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Numarayı karşılaştırdık: doğrulandı olarak işaretle",
     "approval.action.machine.send_with_drop": "Drop ile bir dosya göndermek"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

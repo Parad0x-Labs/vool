@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "플러그인이 개인 애플리케이션 또는 홈 데이터가 포함된 폴더를 요청했습니다.",
     "addons.plugin_message_87f58523713f": "이 플러그인 작업을 완료할 수 없습니다. 변경된 내용은 없습니다. 애드온에서 플러그인을 검토한 뒤 다시 시도하세요.",
     "addons.plugin_notice_dismiss": "확인",
+    "addons.plugin_maker_note": "플러그인 제작자용",
     "addons.plugin_mac_process_note": "Mac에서는 플러그인의 프로그램이 실행 중인 다른 앱의 일부 설정을 볼 수 있습니다. 어떤 앱이든 그럴 수 있는 것과 같습니다. 플러그인 키는 절대 그곳에 놓이지 않습니다.",
     "addons.plugin_mac_process_network_note": "Mac에서는 이 플러그인의 프로그램이 실행 중인 다른 앱의 시작 설정을 볼 수 있습니다. 그 설정에는 키가 들어 있을 수 있으며, 이 플러그인은 본 내용을 ‘네트워크 액세스’에 적힌 사이트로 보낼 수 있습니다. 플러그인 키는 절대 그곳에 놓이지 않습니다.",
     "addons.plugin_message_1461237e0e9b": "이 키는 이전 VOOL 설정에서 가져온 것으로, VOOL 자체 요청에만 사용됩니다. 애드온에서 이 플러그인용 키를 연결하세요.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "번호를 비교했습니다: 확인됨으로 표시",
     "approval.action.machine.send_with_drop": "Drop으로 파일을 보내려고 합니다"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -99,7 +99,14 @@ _PLUGIN_ROOTS: dict[str, Path] = {}
 
 
 class PluginManifestError(ValueError):
-    """A manifest could not be loaded. The message is written for the plugin's author."""
+    """A manifest could not be loaded. The message is written for the plugin's author.
+
+    ``where`` and ``fix`` name the manifest field at fault and what to write instead, when the rule
+    that refused it knows (``core.plugin_manifest.ManifestRefusal``); both are "" otherwise.
+    """
+
+    where = ""
+    fix = ""
 
 
 def confined_plugin_id(plugin_id: str) -> str:
@@ -357,7 +364,9 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
     try:
         extension = validate_manifest(raw, root=root)
     except (ValueError, TypeError, KeyError) as exc:
-        raise PluginManifestError(str(exc)) from None
+        refusal = PluginManifestError(str(exc))
+        refusal.where, refusal.fix = str(getattr(exc, "where", "") or ""), str(getattr(exc, "fix", "") or "")
+        raise refusal from None
 
     tools = extension.get("tools", raw.get("tools"))
     if not tools:

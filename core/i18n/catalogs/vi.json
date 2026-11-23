@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "Plugin đã yêu cầu một thư mục chứa dữ liệu ứng dụng hoặc dữ liệu cá nhân riêng tư.",
     "addons.plugin_message_87f58523713f": "Không thể hoàn tất thao tác plugin này. Không có gì bị thay đổi. Hãy xem lại plugin trong Tiện ích bổ sung và thử lại.",
     "addons.plugin_notice_dismiss": "Đã hiểu",
+    "addons.plugin_maker_note": "Dành cho người làm plugin",
     "addons.plugin_mac_process_note": "Trên máy Mac, các chương trình của plugin có thể thấy một số thiết lập của những ứng dụng khác bạn đang chạy, như bất kỳ ứng dụng nào cũng có thể thấy. Khóa plugin của bạn không bao giờ được đặt ở đó.",
     "addons.plugin_mac_process_network_note": "Trên máy Mac, các chương trình của plugin này có thể thấy thiết lập khởi động của những ứng dụng khác bạn đang chạy. Các thiết lập đó có thể chứa khóa, và plugin này có thể gửi những gì nó thấy đến các trang web nêu trong mục “Truy cập mạng”. Khóa plugin của bạn không bao giờ được đặt ở đó.",
     "addons.plugin_message_1461237e0e9b": "Khóa này được chuyển từ một thiết lập VOOL trước đây và chỉ dùng cho các yêu cầu của chính VOOL. Hãy kết nối một khóa cho plugin này trong Tiện ích bổ sung.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Chúng tôi đã so số: đánh dấu là đã xác minh",
     "approval.action.machine.send_with_drop": "gửi một tệp bằng Drop"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

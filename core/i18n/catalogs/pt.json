@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "O plugin solicitou uma pasta contendo dados privados de aplicativos ou arquivos pessoais.",
     "addons.plugin_message_87f58523713f": "Não foi possível concluir esta ação do plugin. Nada foi alterado. Revise o plugin em Complementos e tente novamente.",
     "addons.plugin_notice_dismiss": "Entendi",
+    "addons.plugin_maker_note": "Para o autor do plugin",
     "addons.plugin_mac_process_note": "Num Mac, os programas de um plugin podem ver algumas definições de outras apps que executa, como qualquer app pode. As suas chaves de plugins nunca são colocadas aí.",
     "addons.plugin_mac_process_network_note": "Num Mac, os programas deste plugin podem ver as definições de arranque de outras apps que executa. Essas definições podem conter chaves, e este plugin pode enviar o que vê para os sites indicados em «Acesso à rede». As suas chaves de plugins nunca são colocadas aí.",
     "addons.plugin_message_1461237e0e9b": "Esta chave veio de uma definição anterior do VOOL e só é usada pelos pedidos do próprio VOOL. Ligue uma chave para este plugin em Complementos.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Comparamos o número: marcar como verificado",
     "approval.action.machine.send_with_drop": "enviar um arquivo com o Drop"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

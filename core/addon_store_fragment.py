@@ -56,7 +56,7 @@ def render_addon_store_fragment() -> str:
 'use strict';
 const tr=(key,fallback)=>{const k='addons.'+key;const v=window.VOOLT?window.VOOLT(k):k;return v===k?fallback:v;};
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
-let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',generation=0,localCheck=null;
+let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',errorNote=null,generation=0,localCheck=null;
 let registryData=null,registryReview=null,recallState=null;
 // A failed read (throw, non-OK answer, or a body that is not the catalogue) is the calm error
 // row with Try again, never an empty or blank grid; the empty state belongs to a real OK answer
@@ -71,7 +71,7 @@ const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,''
 const slugKey=s=>String(s||'').replace(/-/g,'_');
 const catLabel=e=>tr('registry_category_'+slugKey(e.category),e.category)+' · '+tr('registry_subcategory_'+slugKey(e.subcategory),e.subcategory);
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
-async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(pluginMessage||tr('request_failed','The request could not finish.')));err.code=j.error;throw err;}return j;}
+async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(pluginMessage||tr('request_failed','The request could not finish.')));err.code=j.error;if(j.maker_note&&j.maker_note.fix)err.maker=j.maker_note;throw err;}return j;}
 // The catalogue reads fail with their own words -- the browser's own error text never reaches the person.
 const catalogFailed=()=>new Error(tr('catalog_failed','Could not read the add-on catalogue.'));
 const readJson=endpoint=>fetch(endpoint).then(r=>r.ok?r.json():Promise.reject()).catch(()=>{throw catalogFailed();});
@@ -118,13 +118,15 @@ function security(host){
  card.append(button(tr('plugin_manage_scanners','Manage scanner plugins'),()=>{tab='installed';_pluginMode='plugins';refresh();}));
  card.append(node('p',tr('plugin_scan_limits','A scan is not a guarantee of safety. Tools still use their normal permissions. Remote scans may use your service allowance.'),'addon-meta'));
 }
-async function action(work){if(busy)return;busy=true;error='';refresh();try{await work();}catch(e){error=e.message;}finally{busy=false;refresh();}}
+async function action(work){if(busy)return;busy=true;error='';errorNote=null;refresh();try{await work();}catch(e){error=e.message;errorNote=e.maker?{of:e.message,where:e.maker.where||'',fix:e.maker.fix}:null;}finally{busy=false;refresh();}}
 function pending(host){
  if(!(data.reviews||[]).length)return;
  const group=node('details',undefined,'addon-saved-scans');group.append(node('summary',tr('saved_scans','Saved scans to review')+' ('+data.reviews.length+')'));group.style.marginBottom='18px';host.append(group);host=group;
  (data.reviews||[]).forEach(r=>{const row=node('div',undefined,'addon-pending');const label=node('div',r.entry.name);label.append(node('small',r.can_install?tr('ready_review','Scan ready · awaiting your decision'):tr('needs_review','Scan saved · needs review')));row.append(label,button(tr('resume_review','Review scan'),()=>action(async()=>{review=await post({action:'review',review_id:r.review_id});selected=null;}),'addon-linkbtn'));host.append(row);});
 }
 function renderError(host){if(!error)return;const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.prepend(p);
+ // For the plugin's maker: which field of the setup file, and what to write instead. Plain text, VOOL's own words.
+ if(errorNote&&errorNote.of===error){const note=node('p',undefined,'addon-meta plugin-maker-note');note.append(node('strong',tr('plugin_maker_note','For the plugin’s maker')+': '),document.createTextNode((errorNote.where?errorNote.where+': ':'')+errorNote.fix));p.after(note);}
  // A refusal is drawn at the top; someone working further down the page must still see it.
  requestAnimationFrame(()=>{if(p.isConnected)p.scrollIntoView({block:'nearest'});});}
 function render(query){

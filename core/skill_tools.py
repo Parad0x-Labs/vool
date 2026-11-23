@@ -1026,6 +1026,48 @@ def _skill_locations(slug: str, keys: dict[str, str] | None = None) -> list[Path
     return locations
 
 
+#: Header settings VOOL reads from a SKILL.md (core.plugin_skills.parse_skill_content). `license` and
+#: `metadata` are read by the publishing tools. Any other setting changes nothing.
+READ_HEADER_KEYS = frozenset({
+    "name", "description", "summary", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
+    "permissions", "effects", "inputs", "outputs", "stop-conditions", "stop_conditions", "recovery",
+    "cumulative-test-law", "cumulative_test_law", "license", "metadata",
+})
+#: Settings an author writes hoping the skill runs on its own. A skill never does.
+SCHEDULE_HEADER_KEYS = frozenset({"schedule", "interval", "cron", "every", "timer", "repeat", "run-every", "run_every"})
+
+
+def not_used(header: dict | None, *, tools_only_narrow: bool = False, unavailable_tools=()) -> list[str]:
+    """What in this skill VOOL will not use, and why, as plain sentences. Empty when it uses everything.
+
+    A skill with a setting VOOL does not read, a timer, or a tool list that adds nothing still loads and
+    looks fine, and its author learns of it only when the skill does not do what they wrote. So every way
+    a skill is checked or previewed says it up front. `tools_only_narrow` is for a skill that was not
+    written here in VOOL (an import, a file, a download): its tool list never adds a tool.
+    """
+    header = header if isinstance(header, dict) else {}
+    keys = sorted(str(key) for key in header)
+    said: list[str] = []
+    timers = [key for key in keys if key.lower() in SCHEDULE_HEADER_KEYS]
+    unread = [key for key in keys if key not in READ_HEADER_KEYS and key.lower() not in SCHEDULE_HEADER_KEYS]
+    name = lambda key: '"' + "".join(char for char in key if char.isalnum() or char in "-_ ")[:40] + '"'  # noqa: E731
+    if timers:
+        said.append(", ".join(name(key) for key in timers) + (" does" if len(timers) == 1 else " do") +
+                    " nothing: a skill never runs by itself. It is used only when a message asks for it.")
+    if unread:
+        said.append(", ".join(name(key) for key in unread[:8]) + (" is a setting" if len(unread) == 1 else " are settings") +
+                    " VOOL does not read, so " + ("it changes" if len(unread) == 1 else "they change") + " nothing.")
+    if tools_only_narrow and (header.get("allowed-tools") or header.get("allowed_tools")):
+        said.append("The tools it lists are not added: it was not written here in VOOL, so the list only narrows "
+                    "which tools are offered while the skill is in use. Each tool still asks where it would ask anyway.")
+    missing = [str(tool)[:60] for tool in unavailable_tools]
+    if missing:
+        said.append(", ".join(missing[:8]) + (" is" if len(missing) == 1 else " are") +
+                    " not available on this computer right now, so the skill works without " +
+                    ("it." if len(missing) == 1 else "them."))
+    return said
+
+
 def validate_skill(
     path: str,
     keys: dict[str, str] | None = None,
@@ -1187,6 +1229,8 @@ def validate_skill(
         "preview_markdown": preview_markdown,
         # Every header key, so a preview can name each one (core.agent_runtime.fast_paths_skill).
         "frontmatter_keys": sorted(str(key) for key in header),
+        # What loads but does nothing, in plain words (see not_used).
+        "not_used": not_used(header, unavailable_tools=unavailable_tools),
         "problems": problems,
     }
 

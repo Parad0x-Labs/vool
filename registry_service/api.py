@@ -499,7 +499,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         return JSONResponse(await run_in_threadpool(pending, store, now=now()))
 
     async def failure(request, exc):
-        return JSONResponse({"error": str(exc) if isinstance(exc, RegistryError) else "invalid request"}, status_code=400)
+        answer = {"error": str(exc) if isinstance(exc, RegistryError) else "invalid request"}
+        if isinstance(exc, RegistryError) and exc.fix:
+            answer["fix"] = exc.fix  # for the author: what to write instead
+        return JSONResponse(answer, status_code=400)
 
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),

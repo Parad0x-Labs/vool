@@ -123,6 +123,19 @@ def message_key(message: str) -> str:
 GENERIC_FAILURE = "This plugin action could not be completed. Nothing was changed. Review the plugin in Add-ons and try again."
 
 
+def maker_note(exc, written: str = "") -> dict:
+    """The note for a plugin's maker that a refusal carries: {"where": field, "fix": what to change}, or {}.
+
+    VOOL's own words about the manifest (`core.plugin_manifest.ManifestRefusal`), bounded and flat. It is
+    shown as plain text beside the translated sentence, and printed by `python -m tools.plugin_check`.
+    """
+    where, fix = str(getattr(exc, "where", "") or ""), str(getattr(exc, "fix", "") or written or "")
+    if not fix:
+        return {}
+    flat = lambda text, limit: " ".join(text.split())[:limit]  # noqa: E731
+    return {"where": flat(where, 160), "fix": flat(fix, 900)}
+
+
 def user_message(message: str) -> dict:
     """Only reviewed, catalogued sentences reach the page; internal detail never does."""
     from core.i18n.catalog import catalog_for
@@ -542,9 +555,14 @@ def handle(action: str, body: dict) -> dict:
     except ServiceRefused as exc:
         raise lifecycle.LifecycleError(str(exc)) from None
     except (PackageError, PluginManifestError) as exc:
-        reason = str(exc)
+        reason = written = str(exc)
         if isinstance(exc, PackageError) and "links" in reason:
             reason = "Linked files and embedded projects can't be added."
         if user_message(reason)["message"] != reason:
             reason = "The plugin's setup file is invalid or missing. Review it before installing."
-        raise lifecycle.LifecycleError(reason) from None
+        refusal = lifecycle.LifecycleError(reason)
+        # The person installing reads the sentence. Its maker, often the same person trying their own
+        # folder, also gets the field at fault and what to write instead. A rule that has no such note
+        # wrote its message for the maker to begin with; that message is the note.
+        refusal.maker_note = maker_note(exc) or (maker_note(None, written) if written != reason else {})
+        raise refusal from None

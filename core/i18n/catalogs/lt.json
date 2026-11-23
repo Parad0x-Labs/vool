@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "Papildinys užklausė aplanko, kuriame yra privačios programos arba namų duomenys.",
     "addons.plugin_message_87f58523713f": "Šio papildinio veiksmo atlikti nepavyko. Niekas nepakeista. Peržiūrėkite papildinį skiltyje „Priedai“ ir bandykite dar kartą.",
     "addons.plugin_notice_dismiss": "Supratau",
+    "addons.plugin_maker_note": "Papildinio kūrėjui",
     "addons.plugin_mac_process_note": "„Mac“ kompiuteryje papildinio programos gali matyti kai kuriuos kitų jūsų paleistų programų nustatymus, kaip ir bet kuri programa. Jūsų papildinių raktai ten niekada nededami.",
     "addons.plugin_mac_process_network_note": "„Mac“ kompiuteryje šio papildinio programos gali matyti kitų jūsų paleistų programų paleidimo nustatymus. Juose gali būti raktų, o šis papildinys gali siųsti tai, ką mato, į svetaines, išvardytas skiltyje „Prieiga prie tinklo“. Jūsų papildinių raktai ten niekada nededami.",
     "addons.plugin_message_1461237e0e9b": "Šis raktas perkeltas iš ankstesnio VOOL nustatymo ir naudojamas tik paties VOOL užklausoms. Prijunkite šio papildinio raktą skiltyje „Priedai“.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Numerį palyginome: pažymėti kaip patikrintą",
     "approval.action.machine.send_with_drop": "išsiųsti failą per Drop"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

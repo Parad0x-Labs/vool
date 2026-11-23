@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "プラグインが、プライベートなアプリケーションデータまたはホームデータを含むフォルダを要求しました。",
     "addons.plugin_message_87f58523713f": "このプラグイン操作を完了できませんでした。何も変更されていません。アドオンでプラグインを確認して、もう一度お試しください。",
     "addons.plugin_notice_dismiss": "了解",
+    "addons.plugin_maker_note": "プラグインの作者向け",
     "addons.plugin_mac_process_note": "Macでは、プラグインのプログラムは、実行している他のアプリの一部の設定を見ることができます。どのアプリでもできるのと同じことです。プラグインのキーがそこに置かれることは決してありません。",
     "addons.plugin_mac_process_network_note": "Macでは、このプラグインのプログラムは、実行している他のアプリの起動時の設定を見ることができます。そこにはキーが含まれていることがあり、このプラグインは見た内容を「ネットワークアクセス」に記載されたサイトへ送信できます。プラグインのキーがそこに置かれることは決してありません。",
     "addons.plugin_message_1461237e0e9b": "このキーは以前の VOOL の設定から引き継がれたもので、VOOL 自身のリクエストにだけ使われます。アドオンでこのプラグイン用のキーを接続してください。",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "番号を照合しました: 確認済みにする",
     "approval.action.machine.send_with_drop": "Drop でファイルを送信する"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

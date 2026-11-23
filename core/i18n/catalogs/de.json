@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "Das Plugin hat einen Ordner mit privaten Anwendungs- oder Heimnetzwerkdaten angefordert.",
     "addons.plugin_message_87f58523713f": "Diese Plugin-Aktion konnte nicht abgeschlossen werden. Es wurde nichts geändert. Prüfen Sie das Plugin unter Add-ons und versuchen Sie es erneut.",
     "addons.plugin_notice_dismiss": "Verstanden",
+    "addons.plugin_maker_note": "Für den Hersteller des Plugins",
     "addons.plugin_mac_process_note": "Auf einem Mac können die Programme eines Plugins einige Einstellungen anderer Apps sehen, die du laufen hast, so wie es jede App kann. Deine Plugin-Schlüssel werden niemals dort abgelegt.",
     "addons.plugin_mac_process_network_note": "Auf einem Mac können die Programme dieses Plugins die Starteinstellungen anderer Apps sehen, die du laufen hast. Darin können Schlüssel stehen, und dieses Plugin kann das Gesehene an die unter „Netzwerkzugriff“ genannten Seiten senden. Deine Plugin-Schlüssel werden niemals dort abgelegt.",
     "addons.plugin_message_1461237e0e9b": "Dieser Schlüssel wurde aus einer früheren VOOL-Einstellung übernommen und wird nur für VOOLs eigene Anfragen verwendet. Verbinden Sie unter Add-ons einen Schlüssel für dieses Plugin.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Nummer verglichen: als geprüft markieren",
     "approval.action.machine.send_with_drop": "eine Datei mit Drop senden"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

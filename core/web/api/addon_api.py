@@ -64,7 +64,11 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             try:
                 result = plugin_manager.handle(action, body)
             except LifecycleError as exc:
-                return 400, {"ok": False, "error": "plugin_refused", **plugin_manager.user_message(str(exc))}
+                refused = {"ok": False, "error": "plugin_refused", **plugin_manager.user_message(str(exc))}
+                note = getattr(exc, "maker_note", None)
+                if note:
+                    refused["maker_note"] = note  # for the plugin's maker: the field at fault and what to change
+                return 400, refused
         elif action == "skill_publish":
             # A check on this device and a website link; nothing is sent from here.
             if not isinstance(body.get("name"), str):

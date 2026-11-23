@@ -3643,6 +3643,7 @@
     "addons.plugin_message_8696e7687080": "El complemento solicitó una carpeta que contuviera datos privados de la aplicación o del directorio personal.",
     "addons.plugin_message_87f58523713f": "No se pudo completar esta acción del plugin. No se cambió nada. Revisa el plugin en Complementos e inténtalo de nuevo.",
     "addons.plugin_notice_dismiss": "Entendido",
+    "addons.plugin_maker_note": "Para quien hizo el plugin",
     "addons.plugin_mac_process_note": "En un Mac, los programas de un plugin pueden ver algunos ajustes de otras apps que ejecutas, como puede hacerlo cualquier app. Tus claves de plugins nunca se guardan ahí.",
     "addons.plugin_mac_process_network_note": "En un Mac, los programas de este plugin pueden ver los ajustes de inicio de otras apps que ejecutas. Esos ajustes pueden contener claves, y este plugin puede enviar lo que ve a los sitios indicados en «Acceso a la red». Tus claves de plugins nunca se guardan ahí.",
     "addons.plugin_message_1461237e0e9b": "Esta clave se trajo de un ajuste anterior de VOOL y solo la usan las solicitudes del propio VOOL. Conecta una clave para este plugin en Complementos.",
@@ -5455,7 +5456,7 @@
     "drop.mark_verified": "Número comparado: marcar como verificado",
     "approval.action.machine.send_with_drop": "enviar un archivo con Drop"
   },
-  "source_catalog_sha256": "ac371aaad92096b8fa1507a292965edb95f38e43e4196614a2c327b58384f785",
+  "source_catalog_sha256": "ad39cb5fdd90e247a72dc2bfa4f2215013d69fb8d184a449f57b03f80bdf308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
