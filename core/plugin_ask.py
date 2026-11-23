@@ -256,8 +256,13 @@ def _memory_kind_confirmed(
         # fact question reads an order (forget, erase, delete) as no. The keep-wanted question, tried first, read
         # English forget orders as "don't keep" (probe18); the lasting-fact one read forget orders about a thing as a
         # fact (probe19).
+        # A recall reading beside a forget reading says both read the message as about something told before; a message
+        # that tells something new is read keep or none, never recall. With a recall reading the told-as-fact question
+        # is not asked: it read plain forget orders ("ištrink iš atminties viską apie ...") as telling a fact and they
+        # were answered as recalls (Mac run21, probe21, 91e89867).
+        about_told = {"recall", "forget"} <= named
         if agreed or (asked("forget", intent_arbiter.arbitrate_forget_order) == "yes"
-                      and asked("told as fact", intent_arbiter.arbitrate_told_as_fact) != "yes"):
+                      and (about_told or asked("told as fact", intent_arbiter.arbitrate_told_as_fact) != "yes")):
             decided = "forget"
     if not decided and not tools and kind == "keep" and "keep" in picked:
         decided = "keep"

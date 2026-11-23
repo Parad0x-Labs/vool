@@ -707,7 +707,9 @@ def test_a_forget_settled_by_one_reading_stands_unless_the_message_tells_a_fact(
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, **_k: asked.append("lasting") or "yes")
     # Mac run20 (786af505): "mano suo vardu Wirbelwind, bet to neisimink" was a forget on one reading and erased two
     # unrelated facts. A message that tells a fact is not a forget on one reading.
-    for told, expected in (("no", "forget"), (None, "forget"), ("yes", "recall" if tool_pick == "Memory, recall" else "")):
+    # Beside a recall reading (both read it as about something told before) the told-as-fact question is not asked:
+    # it read plain forget orders as telling a fact (Mac run21, 91e89867).
+    for told, expected in (("no", "forget"), (None, "forget"), ("yes", "forget" if tool_pick == "Memory, recall" else "")):
         monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, _t=told, **_k: _t)
         text = f"pamiršk viską apie mano lempą ({tool_pick} {told})"
         plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
