@@ -44,6 +44,12 @@ class OperatorActionIntent:
     # the words' reading is English-only, the typed fields are the same in every language.
     reminder_note: str | None = None
     due_iso: str | None = None
+    # The repeat rule a tool call typed ("daily", "weekdays", "weekly"): the same in every language, where the words'
+    # reading knows only English "every day" / "every week".
+    repeat_every: str | None = None
+    # The weekday the person named, as a tool call typed it in English ("friday"): the handler works out its date,
+    # which a small model counts wrong.
+    due_weekday: str | None = None
 
 
 @dataclass

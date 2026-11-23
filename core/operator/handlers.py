@@ -1176,14 +1176,28 @@ def _reminder_when(text: str, parse_when_fn: Any) -> tuple[Any, str]:
     return parse_when_fn(when_text), ""
 
 
+def _owner_today() -> Any:
+    """Today's date on the owner's own clock (their saved zone), as the when-reader reads it."""
+    from core.time_authority import CLOCK
+    from core.user_preferences import load_user_timezone
+
+    try:
+        return CLOCK.now_for_timezone(load_user_timezone() or "UTC").date()
+    except Exception:
+        return CLOCK.now_utc().date()
+
+
 def _typed_reminder_when(intent: OperatorActionIntent, parse_when_fn: Any) -> tuple[Any, str] | None:
     """The due time a tool call typed (`due_iso`), read through the same when-reader as words; None when none was
     typed. A typed time the reader cannot take is that reader's own question, never a fall back to the words."""
     typed = str(getattr(intent, "due_iso", "") or "").strip()
     if not typed:
         return None
-    from core.operator.when import WhenResolution, when_text_from_iso
+    from core.operator.when import WhenResolution, align_to_weekday, typed_weekday, when_text_from_iso
 
+    weekday = typed_weekday(str(getattr(intent, "due_weekday", "") or ""))
+    if weekday is not None:
+        typed = align_to_weekday(typed, weekday, _owner_today())
     words = when_text_from_iso(typed)
     if not words:
         return WhenResolution(
@@ -1227,7 +1241,15 @@ def handle_schedule_reminder(
         )
     if has_passed(when):
         return _passed_due_time_result(when, kind="schedule_reminder")
-    repeat_every = _reminder_repeat_from_text(intent.raw_text)
+    repeat_every, repeat_problem = _reminder_repeat(intent)
+    if repeat_problem:
+        return OperatorActionResult(
+            ok=False,
+            status="invalid_request",
+            response_text=repeat_problem,
+            details={"kind": "schedule_reminder", "problem": repeat_problem, "reason": "unknown_repeat_rule"},
+        )
+    when = _first_allowed_occurrence(when, repeat_every)
     record = schedule_reminder_fn(
         session_id=session_id,
         task_id=task_id,
@@ -1246,6 +1268,10 @@ def handle_schedule_reminder(
     wall = format_due_time(when.due_at_utc, when.tz_name, when.due_wall)
     repeat_line = {
         "daily": " It repeats every day at the same local time; each occurrence is its own reminder you can cancel.",
+        "weekdays": (
+            " It repeats every weekday, Monday to Friday, at the same local time; each occurrence is its own "
+            "reminder you can cancel."
+        ),
         "weekly": " It repeats every week at the same local time; each occurrence is its own reminder you can cancel.",
     }.get(repeat_every, "")
     return OperatorActionResult(
@@ -1878,13 +1904,66 @@ def _reminder_when_text(text: str, note: str) -> tuple[str, str]:
     return rest, ""
 
 
+_NO_REPEAT_WORDS = frozenset({"", "none", "once", "no", "never", "false", "off"})
+
+
+def _reminder_repeat(intent: OperatorActionIntent) -> tuple[str, str]:
+    """The repeat rule of a reminder order and the problem that keeps it from being set, if any.
+
+    A typed rule (the tool call's ``repeat``) wins: it is the same in every language. A rule VOOL cannot keep is
+    refused rather than stored as a one-off the reply would call repeating. Without a typed rule the request's own
+    words are read (English only)."""
+    from core.operator.reminders import REPEAT_EVERY_CHOICES
+
+    typed = " ".join(str(getattr(intent, "repeat_every", "") or "").casefold().split())
+    if typed and typed not in _NO_REPEAT_WORDS:
+        if typed in REPEAT_EVERY_CHOICES:
+            return typed, ""
+        return "", (
+            f"A reminder can repeat daily, on weekdays (Monday to Friday) or weekly, not {typed!r}. "
+            "Nothing was set; ask again with one of those, or set it once."
+        )
+    if typed:
+        return "", ""
+    return _reminder_repeat_from_text(intent.raw_text), ""
+
+
+def _first_allowed_occurrence(when: Any, repeat_every: str) -> Any:
+    """The due time moved to the first day its repeat rule allows (a weekday rule's first due time on a weekend
+    moves to Monday at the same wall time); unchanged for every other rule."""
+    import dataclasses as _dc
+    from datetime import datetime as _datetime
+    from datetime import timezone as _timezone
+    from zoneinfo import ZoneInfo
+
+    from core.operator.reminders import first_repeat_day
+
+    if repeat_every != "weekdays":
+        return when
+    try:
+        zone = ZoneInfo(str(when.tz_name or "UTC"))
+        local = _datetime.fromisoformat(str(when.due_at_utc).replace("Z", "+00:00")).astimezone(zone)
+    except Exception:
+        return when
+    moved = first_repeat_day(local, repeat_every)
+    if moved == local:
+        return when
+    return _dc.replace(
+        when,
+        due_at_utc=moved.astimezone(_timezone.utc).isoformat(),
+        due_wall=moved.strftime("%Y-%m-%d %H:%M"),
+    )
+
+
 def _reminder_repeat_from_text(text: str) -> str:
-    """The basic repeat rule a request names, or ''. Only the two supported shapes claim a word."""
+    """The basic repeat rule a request names in English, or ''. Only the supported shapes claim a word."""
     import re as _re
 
     lowered = str(text or "").lower()
     if _re.search(r"\bevery day\b|\bdaily\b|\beach day\b", lowered):
         return "daily"
+    if _re.search(r"\bevery (?:week|work) ?days?\b|\bon weekdays\b|\bweekdays\b|\bmonday to friday\b", lowered):
+        return "weekdays"
     if _re.search(r"\bevery week\b|\bweekly\b|\beach week\b", lowered):
         return "weekly"
     return ""

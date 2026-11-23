@@ -41,7 +41,18 @@ SOURCE_KINDS = ("reminder", "calendar_alert")
 
 #: The basic repeat rules a standalone reminder may carry (row 20). The next occurrence keeps
 #: the SAME local wall time in the reminder's zone, so DST transitions move the UTC instant.
-REPEAT_EVERY_CHOICES = ("daily", "weekly")
+#: "weekdays" is Monday to Friday: "every weekday at 7:45" was stored once, with no repeat at all
+#: (fresh-question audit on 02ff11496).
+REPEAT_EVERY_CHOICES = ("daily", "weekdays", "weekly")
+
+
+def first_repeat_day(local: datetime, repeat_every: str) -> datetime:
+    """The first occurrence a repeat rule allows on or after ``local``: a weekday rule never fires on a weekend,
+    so a first due time on a Saturday or Sunday moves to the Monday after, at the same wall time."""
+    if repeat_every == "weekdays":
+        while local.weekday() >= 5:
+            local = local + timedelta(days=1)
+    return local
 
 
 def _utcnow() -> str:
@@ -415,7 +426,7 @@ def next_repeat_occurrence(row: Mapping[str, Any], *, now_fn: Callable[[], str] 
             local = datetime.fromisoformat(str(row.get("due_at_utc") or "").replace("Z", "+00:00")).astimezone(zone)
         except ValueError:
             return None
-    step = timedelta(days=1 if repeat == "daily" else 7)
+    step = timedelta(days=7 if repeat == "weekly" else 1)
     now_local = datetime.fromisoformat(now_fn().replace("Z", "+00:00")).astimezone(zone)
     floor = now_local.astimezone(timezone.utc)
     if after_utc is not None:
@@ -425,7 +436,7 @@ def next_repeat_occurrence(row: Mapping[str, Any], *, now_fn: Callable[[], str] 
     candidate = local
     # Step from the stored wall time until the occurrence is in the future; this also repairs a
     # stored occurrence that is somehow still in the past without firing a burst of catch-ups.
-    while candidate.astimezone(timezone.utc) <= floor:
+    while candidate.astimezone(timezone.utc) <= floor or first_repeat_day(candidate, repeat) != candidate:
         candidate = candidate + step
     return {"due_at_utc": candidate.astimezone(timezone.utc).isoformat(),
             "tz_name": tz_name,

@@ -144,6 +144,8 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
     reminder_action_id: str | None = None
     reminder_note: str | None = None
     due_iso: str | None = None
+    repeat_every: str | None = None
+    due_weekday: str | None = None
     raw_text = ""
     if operator_kind == "move_path":
         source = str(arguments.get("source_path") or target_path or "").strip()
@@ -153,6 +155,14 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
     elif operator_kind == "schedule_calendar_event":
         title = str(arguments.get("title") or "VOOL Meeting").strip()
         start_iso = str(arguments.get("start_iso") or "").strip()
+        named_day = _argument(arguments, "day")
+        if start_iso and named_day:
+            from core.operator.handlers import _owner_today
+            from core.operator.when import align_to_weekday, typed_weekday
+
+            weekday = typed_weekday(named_day)
+            if weekday is not None:
+                start_iso = align_to_weekday(start_iso, weekday, _owner_today())
         duration_minutes = max(15, int(arguments.get("duration_minutes") or 30))
         raw_text = f'schedule a meeting "{title}" on {start_iso} for {duration_minutes}m'.strip()
     elif operator_kind in {"cancel_reminder", "move_reminder"}:
@@ -172,6 +182,7 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         reminder_note = " ".join(typed_words.split()) or None
         if operator_kind == "move_reminder":
             due_iso = _argument(arguments, "due_iso") or None
+            due_weekday = _argument(arguments, "day") or None
     elif operator_kind in _REQUEST_TEXT_KINDS:
         # These contracts take the request as written (``text``) and their handlers read it the
         # way they read a chat request. Approval is never read from it: approval_requested stays
@@ -180,6 +191,8 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         if operator_kind == "schedule_reminder":
             reminder_note = _argument(arguments, "note") or None
             due_iso = _argument(arguments, "due_iso") or None
+            repeat_every = _argument(arguments, "repeat").casefold() or None
+            due_weekday = _argument(arguments, "day") or None
     elif operator_kind in {"find_notes", "show_note"}:
         # A notes search reads its query, and a note read its title, from the label the chat
         # parser sets (core.operator.notes.find_notes_query, handle_show_note).
@@ -207,4 +220,6 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         target_label=target_label,
         reminder_note=reminder_note,
         due_iso=due_iso,
+        repeat_every=repeat_every,
+        due_weekday=due_weekday,
     )

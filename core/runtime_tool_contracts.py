@@ -3185,6 +3185,15 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             input_schema={
                 "note": "string (what to remind the person of, in their own words and language)",
                 "due_iso": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
+                "day": (
+                    "string optional (when the person names a day of the week, in any language: that day in "
+                    "English, monday to sunday; VOOL works out its date)"
+                ),
+                "repeat": (
+                    "string optional (daily, weekdays or weekly when the person asks for a reminder that comes "
+                    "back, in any language: every day, every workday Monday to Friday, every week; leave it out "
+                    "for once)"
+                ),
                 "text": "string optional (the request as written)",
             },
             output_schema={"reminder_id": "string", "due_at_utc": "string"},
@@ -3247,6 +3256,10 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "reminder_id": "string optional (the id the reminder list shows)",
                 "note": "string optional (the reminder's own words, when no id was shown)",
                 "due_iso": "string (the new time: ISO 8601 local date and time, for example 2026-11-23T15:00)",
+                "day": (
+                    "string optional (when the person names a day of the week, in any language: that day in "
+                    "English, monday to sunday; VOOL works out its date)"
+                ),
                 "text": "string optional (the request as written)",
             },
             output_schema={"reminder_id": "string", "due_at_utc": "string"},
@@ -3306,7 +3319,15 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="delete, move or schedule on this machine when explicitly authorised",
             supported=True,
             unsupported_reason="",
-            input_schema={"title": "string", "start_iso": "string", "duration_minutes": "integer optional"},
+            input_schema={
+                "title": "string",
+                "start_iso": "string",
+                "day": (
+                    "string optional (when the person names a day of the week, in any language: that day in "
+                    "English, monday to sunday; VOOL works out its date)"
+                ),
+                "duration_minutes": "integer optional",
+            },
             output_schema={"event_id": "string", "created": "boolean"},
             side_effect_class="workspace_write",
             approval_requirement="explicit_user_opt_in",

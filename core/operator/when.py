@@ -19,7 +19,7 @@ import re
 from calendar import monthrange
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
@@ -204,7 +204,7 @@ def when_text_from_iso(value: str) -> str:
     `parse_when_expression` reads, so a typed due time crosses the same zone, daylight-saving and range checks as a
     spoken one. An offset is kept as "UTC+HH:MM"; no offset is the owner's own wall clock. "" when the value is not
     an ISO date-time with a clock (a bare date names no time to be reminded at)."""
-    raw = str(value or "").strip()
+    raw = _iso_zone_words_as_offset(str(value or "").strip())
     try:
         moment = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
     except ValueError:
@@ -219,6 +219,59 @@ def when_text_from_iso(value: str) -> str:
     sign = "-" if minutes < 0 else "+"
     hours, rest = divmod(abs(minutes), 60)
     return f"{wall} UTC{sign}{hours:02d}:{rest:02d}"
+
+
+_ISO_ZONE_WORD_RE = re.compile(r"\s*\b(?:UTC|GMT)\s*([+-]\d{1,2}(?::?\d{2})?)?\s*$", re.IGNORECASE)
+
+
+def _iso_zone_words_as_offset(raw: str) -> str:
+    """A typed time that names its zone in words ("2026-11-27T16:00 UTC", "2026-11-27 16:00 GMT+2"), as VOOL's own
+    reminder list shows times, read as the offset it names. Audit on 02ff11496: a move typed "...16:00 UTC" was
+    refused with the raw reader error, which reached the person."""
+    match = _ISO_ZONE_WORD_RE.search(raw)
+    if not match or not re.search(r"\d[T ]\d{1,2}:\d{2}", raw):
+        return raw
+    offset = match.group(1) or "+00:00"
+    sign, digits = offset[0], offset[1:].replace(":", "")
+    hours, minutes = (digits[:-2], digits[-2:]) if len(digits) > 2 else (digits, "00")
+    return raw[: match.start()].rstrip() + f"{sign}{int(hours):02d}:{minutes}"
+
+
+#: English weekday names (and their three-letter forms) a tool call types for the day the person named.
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def typed_weekday(value: str) -> int | None:
+    """The weekday (0 = Monday) a tool call typed ("friday", "Fri"), or None for anything else."""
+    word = str(value or "").strip().casefold().rstrip(".")
+    if len(word) < 3:
+        return None
+    for index, name in enumerate(_WEEKDAYS):
+        if name.startswith(word) or word == name:
+            return index
+    return None
+
+
+def align_to_weekday(iso: str, weekday: int, today: date) -> str:
+    """``iso`` moved to the weekday the person named, when its date falls on another day; the clock is kept.
+
+    A small model counts days wrong even with the coming dates listed beside the clock (Mac gate on f3771b6b7 and the
+    audit on 02ff11496, a Monday: "this Friday 4pm" was typed as Thursday 26 Nov, "Saturday" as Friday 27). Naming the
+    day is easy for it in any language; the date is worked out here. A typed date already on that weekday stands (it
+    may be a week later on purpose, "next Friday"); otherwise the first such day after today is taken."""
+    raw = _iso_zone_words_as_offset(str(iso or "").strip())
+    match = re.match(r"(\d{4})-(\d{2})-(\d{2})", raw)
+    if not match:
+        return iso
+    try:
+        typed_day = date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    except ValueError:
+        return iso
+    if typed_day.weekday() == weekday:
+        return iso
+    ahead = (weekday - today.weekday()) % 7 or 7
+    meant = today + timedelta(days=ahead)
+    return meant.isoformat() + raw[match.end():]
 
 
 def has_passed(resolution: WhenResolution) -> bool:
