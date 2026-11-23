@@ -81,6 +81,14 @@ def _normalize(text: str) -> str:
     return _SQUEEZE_RE.sub(" ", _PUNCT_RE.sub(" ", str(text or "").casefold())).strip()
 
 
+_LONE_EXCLAMATION_RE = re.compile(r"(?:^|(?<=[\s,.;:!?]))[¡]?[^\W\d_]+[!¡]+(?=\s|$)", re.UNICODE)
+
+
+def _without_lone_exclamations(text: str) -> str:
+    """``text`` with every single word that stands alone before "!" taken out (by shape, any script)."""
+    return _LONE_EXCLAMATION_RE.sub(" ", text).strip(" ,.;:")
+
+
 def is_filler_fragment(text: str) -> bool:
     """Whether `text` is filler and nothing else, so it must never become a request.
 
@@ -93,6 +101,12 @@ def is_filler_fragment(text: str) -> bool:
     normalized = _normalize(text)
     if not normalized:
         return False
+    exclaimed = _without_lone_exclamations(str(text or ""))
+    if exclaimed != str(text or ""):
+        # A one-word exclamation ("morning!", "labas!", "¡hola!") is a greeting or an interjection in any language,
+        # never a request: the fresh-question audit on 02ff11496 listed "morning! quick one" under "Could not be
+        # answered" beside a fully answered question. What is left after it is read on its own.
+        return not _normalize(exclaimed) or is_filler_fragment(exclaimed)
     if normalized in FILLER_PHRASES:
         return True
     for prefix in FILLER_PREFIXES:
