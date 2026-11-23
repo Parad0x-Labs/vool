@@ -8,6 +8,9 @@ from typing import Any
 
 from core import audit_logger, policy_engine
 from core.agent_runtime.orchestrator import (
+    _step_succeeded as step_succeeded,
+)
+from core.agent_runtime.orchestrator import (
     database_claims_unsupported,
     database_holding_answer,
     database_plain_answer,
@@ -1375,6 +1378,32 @@ def _bound_material_turn(source_context: Any) -> bool:
         return False
 
 
+_STEP_COUNT_RE = re.compile(r"\d+ of \d+ tool steps succeeded\.")
+
+
+def unwritten_answer_in_plain_words(executed_steps: list[dict[str, Any]], composed: str) -> str:
+    """The reply for a tool-loop turn whose model answer was refused, in the person's words.
+
+    `composed` is what runtime code made of the steps (a mailbox listing, a command's output, a
+    database sentence): that is the answer as it stands. Only the bare step count is replaced, by
+    what the last step that worked returned or, when none worked, by why the last one failed.
+    """
+    text = str(composed or "").strip()
+    if text and not _STEP_COUNT_RE.match(text):
+        return text
+
+    def said(step: dict[str, Any]) -> str:
+        return str(step.get("summary") or step.get("response_text") or "").strip()
+
+    worked = [step for step in executed_steps if step_succeeded(step) and said(step)]
+    if worked:
+        return f"I could not finish writing an answer to that, so here is what I found:\n\n{said(worked[-1])}"
+    reason = next((said(step) for step in reversed(executed_steps) if said(step)), "")
+    if reason:
+        return f"I could not answer that this time. {reason} Ask again, or say it another way."
+    return "I could not answer that this time. Ask again, or say it another way."
+
+
 def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
     """Everything the model was shown from this turn's tools, for judging whether its answer used it.
 
@@ -1383,9 +1412,17 @@ def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> li
     verification"), judging by the label alone refused the correct answer -- "4 words and 19
     characters" shares no word with it -- and the person was shown the label instead. The step's
     full `response_text` is what the model actually read, so it is part of the evidence.
+
+    Only a step that worked returned anything to use. Mac memory run12 (2026-11-23, qwen3:8b): asked what the
+    neighbour's dog eats, with that fact saved, the model searched the folders for the food's name, the search
+    failed ("None of the searchable local folders are readable right now."), and the model's answer from what it
+    was given was refused for sharing no word with that failure; the person got the failure banner. A failure
+    holds nothing an answer could have used, so it is no evidence an answer ignored.
     """
     observations: list[str] = []
     for step in executed_steps:
+        if not step_succeeded(step):
+            continue
         for key in ("summary", "response_text"):
             text = str(step.get(key) or "").strip()
             if text and text not in observations:
@@ -4457,12 +4494,18 @@ class ResearchToolLoopFacadeMixin:
                 f"Incomplete — {reason_text}. The grounded work collected so far is below; "
                 f"this is not a completed audit.\n\n{rendered}"
             ).strip()
-            if reject_reason:
+            if reject_reason and loop_stop_reason != "step_budget_exhausted":
                 # A page the person allowed was opened, then no answer was written: say that in
                 # plain words instead of the step dump (Mac run 4, qwen3:8b at its time limit).
+                # Anything else is said in plain words too: the banner and the step count are the
+                # runtime talking to itself (Mac memory run12: "Incomplete — model synthesis failed
+                # (ungrounded) ... 0 of 1 tool steps succeeded" as a chat reply). A turn that ran out
+                # of rounds keeps saying it was cut short.
                 from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
 
-                rendered = browser_synthesis_failed_reply() or rendered
+                rendered = browser_synthesis_failed_reply() or unwritten_answer_in_plain_words(
+                    executed_steps, final_message
+                )
         if (reject_reason or web_pages_shown) and not renders_final:
             # No model wrote these bytes: runtime code composed them from the executed steps'
             # own results. They are minted as such, so the publication gate reads them as backed
