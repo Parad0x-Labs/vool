@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "Instalar e ativar",
     "addons.registry_refresh": "Explorar o códice de habilidades",
     "addons.registry_network": "Este botão consulta o registro público. Contas, conversas, arquivos locais e chaves de provedores não são enviados.",
+    "addons.recall_switch": "Verificar uma vez por dia se complementos foram removidos",
+    "addons.recall_help": "Com esta opção ativada, o VOOL lê uma vez por dia a lista pública do códice de habilidades, para que um complemento removido lá deixe de ser usado aqui. Nada sobre você, suas conversas ou seus complementos é enviado.",
+    "addons.recall_last": "Última verificação",
+    "addons.recall_none": "Começa quando você tiver um complemento do códice de habilidades.",
+    "addons.recall_failed": "A última verificação não pôde ser concluída. O VOOL tentará de novo dentro de uma hora.",
     "addons.registry_empty": "Nenhuma versão publicada corresponde a esta compilação exata do VOOL e à sua busca.",
     "addons.registry_inspect": "Baixar para inspecionar",
     "private.banner": "Chat privado: nada é guardado",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "Responder com meus modelos na nuvem",
     "phone.bot_cloud_help": "As respostas no {app} podem usar seus modelos na nuvem, como um chat neste computador. Respostas pagas contam para seus limites de gastos com IA e param quando um limite é atingido. Ligado por 30 dias de cada vez."
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

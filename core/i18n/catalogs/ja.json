@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "インストールして有効化",
     "addons.registry_refresh": "スキルコーデックスを見る",
     "addons.registry_network": "このボタンは公開レジストリに問い合わせます。アカウント、チャット、ローカルファイル、プロバイダーのキーは送信されません。",
+    "addons.recall_switch": "削除されたアドオンを1日1回確認する",
+    "addons.recall_help": "オンにすると、VOOL は1日1回スキルコーデックスの公開リストを読み込み、そこで削除されたアドオンはここでも使われなくなります。あなた自身、チャット、アドオンに関する情報は送信されません。",
+    "addons.recall_last": "最終確認",
+    "addons.recall_none": "スキルコーデックスのアドオンを入れると始まります。",
+    "addons.recall_failed": "前回の確認を完了できませんでした。VOOL は1時間以内にもう一度試します。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード",
     "private.banner": "プライベートチャット：何も保存されません",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "自分のクラウドモデルで回答する",
     "phone.bot_cloud_help": "{app} での回答に、このコンピューターでのチャットと同じようにクラウドモデルを使えます。有料の回答は AI の支出上限に数えられ、上限に達すると止まります。30 日ごとに有効です。"
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "安装并启用",
     "addons.registry_refresh": "浏览技能宝典",
     "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
+    "addons.recall_switch": "每天检查一次是否有附加组件被移除",
+    "addons.recall_help": "开启后，VOOL 每天读取一次技能宝典的公开列表，在那里被移除的附加组件在这里也会停止使用。不会发送任何关于你、你的聊天或附加组件的信息。",
+    "addons.recall_last": "上次检查",
+    "addons.recall_none": "当你拥有来自技能宝典的附加组件后开始运行。",
+    "addons.recall_failed": "上次检查未能完成。VOOL 会在一小时内重试。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查",
     "private.banner": "私密聊天：不保存任何内容",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "用我的云端模型回答",
     "phone.bot_cloud_help": "{app} 中的回答可以像在这台电脑上聊天一样使用你的云端模型。付费回答计入你的 AI 支出限额，达到限额即停止。每次开启 30 天。"
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

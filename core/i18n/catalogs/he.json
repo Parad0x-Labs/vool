@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "התקנה והפעלה",
     "addons.registry_refresh": "עיון בקודקס המיומנויות",
     "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
+    "addons.recall_switch": "לבדוק פעם ביום אם הוסרו תוספים",
+    "addons.recall_help": "כשהאפשרות פועלת, VOOL קורא פעם ביום את הרשימה הציבורית של קודקס המיומנויות, כך שתוסף שהוסר שם מפסיק לשמש כאן. לא נשלח שום דבר עליך, על הצ׳אטים שלך או על התוספים שלך.",
+    "addons.recall_last": "נבדק לאחרונה",
+    "addons.recall_none": "מתחיל כשיש לך תוסף מקודקס המיומנויות.",
+    "addons.recall_failed": "הבדיקה האחרונה לא הושלמה. VOOL ינסה שוב בתוך שעה.",
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
     "addons.registry_inspect": "הורדה לבדיקה",
     "private.banner": "צ'אט פרטי: שום דבר לא נשמר",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "לענות עם מודלי הענן שלי",
     "phone.bot_cloud_help": "תשובות ב־{app} יכולות להשתמש במודלי הענן שלך, כמו צ׳אט במחשב הזה. תשובות בתשלום נספרות במגבלות ההוצאה שלך על בינה מלאכותית ונעצרות כשמגיעים למגבלה. פעיל ל־30 יום בכל פעם."
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

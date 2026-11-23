@@ -255,6 +255,16 @@ def local_report_saved(identifier: str) -> dict:
     return {"ok": True, "state": "current", "local_check": {"checked_at": record["checked_at"], **saved}}
 
 
+def _recall_status() -> dict | None:
+    """The owner's saved daily-check choice for the Add-ons page; None when it cannot be read, and the switch stays locked."""
+    try:
+        from core.registry import recall
+
+        return recall.status()
+    except Exception:
+        return None
+
+
 def catalog() -> dict:
     from core.plugin_catalog import _disabled_ids
     from core.plugin_lifecycle import record_for
@@ -305,7 +315,7 @@ def catalog() -> dict:
     from core.plugin_tools import plugin_tools_on
 
     return {"entries": rows, "reviews": pending, "plugins": inventory(), "plugin_notices": notices(),
-            "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(),
+            "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(), "registry_recall": _recall_status(),
             "supported": "Skills and explicitly reviewed plugins."}
 
 

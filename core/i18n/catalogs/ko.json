@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "설치하고 활성화",
     "addons.registry_refresh": "스킬 코덱스 탐색",
     "addons.registry_network": "이 버튼은 공개 레지스트리를 요청합니다. 계정, 채팅, 로컬 파일이나 공급자 키는 전송하지 않습니다.",
+    "addons.recall_switch": "삭제된 추가 기능을 하루에 한 번 확인",
+    "addons.recall_help": "이 기능을 켜면 VOOL이 하루에 한 번 스킬 코덱스의 공개 목록을 읽어, 그곳에서 삭제된 추가 기능이 여기에서도 더 이상 사용되지 않습니다. 사용자, 채팅, 추가 기능에 관한 정보는 전송되지 않습니다.",
+    "addons.recall_last": "마지막 확인",
+    "addons.recall_none": "스킬 코덱스의 추가 기능이 있으면 시작됩니다.",
+    "addons.recall_failed": "마지막 확인을 마치지 못했습니다. VOOL이 한 시간 안에 다시 시도합니다.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드",
     "private.banner": "비공개 채팅: 아무것도 저장되지 않습니다",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "내 클라우드 모델로 답하기",
     "phone.bot_cloud_help": "{app}의 답변은 이 컴퓨터의 채팅처럼 클라우드 모델을 사용할 수 있습니다. 유료 답변은 AI 지출 한도에 포함되며 한도에 도달하면 멈춥니다. 한 번에 30일 동안 켜집니다."
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

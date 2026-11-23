@@ -57,7 +57,7 @@ def render_addon_store_fragment() -> str:
 const tr=(key,fallback)=>{const k='addons.'+key;const v=window.VOOLT?window.VOOLT(k):k;return v===k?fallback:v;};
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',generation=0,localCheck=null;
-let registryData=null,registryReview=null;
+let registryData=null,registryReview=null,recallState=null;
 // A failed read (throw, non-OK answer, or a body that is not the catalogue) is the calm error
 // row with Try again, never an empty or blank grid; the empty state belongs to a real OK answer
 // alone. The growing-delay retry heals the store by itself across a restart; one pending timer,
@@ -231,6 +231,14 @@ function renderRegistry(host,query){
  }
  host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});stoppedSkills.clear();loadPictures(registryData.entries);_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
  host.append(node('p',tr('registry_network','This button requests the public registry. No account, chats, local files or provider keys are sent.'),'addon-meta'));
+ // The owner's daily check for add-ons the Skill Codex removed: a saved choice, off until they tick it.
+ // Its state comes with the page's own catalogue read; nothing is posted until the person ticks the box.
+ if(!recallState&&data?.registry_recall)recallState=data.registry_recall;
+ {const box=node('section',undefined,'registry-recall');const label=node('label');const toggle=node('input');toggle.type='checkbox';toggle.checked=recallState?.enabled===true;toggle.disabled=busy||!recallState;
+  toggle.onchange=()=>action(async()=>{recallState=await post({action:'registry_recall',enabled:toggle.checked});});
+  label.append(toggle,document.createTextNode(' '+tr('recall_switch','Check once a day for removed add-ons')));box.append(label,node('p',tr('recall_help','When this is on, VOOL reads the public Skill Codex list once a day, so an add-on that was removed there stops being used here. Nothing about you, your chats or your add-ons is sent.'),'addon-meta'));
+  if(recallState?.enabled){const line=recallState.installs===0?tr('recall_none','It starts once you have an add-on from the Skill Codex.'):recallState.last_failed?tr('recall_failed','The last check could not finish. VOOL will try again within the hour.'):recallState.last_checked?tr('recall_last','Last checked')+': '+new Date(recallState.last_checked*1000).toLocaleString():'';if(line)box.append(node('p',line,'addon-meta'));}
+  host.append(box);}
  if(!registryData)return;
  const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory,catLabel(e)].join(' ')).includes(key(query)));
  if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));

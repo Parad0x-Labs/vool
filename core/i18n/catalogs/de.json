@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "Installieren und aktivieren",
     "addons.registry_refresh": "Fertigkeiten-Codex durchsuchen",
     "addons.registry_network": "Diese Schaltfläche ruft das öffentliche Verzeichnis ab. Konten, Chats, lokale Dateien und Anbieter-Schlüssel werden nicht gesendet.",
+    "addons.recall_switch": "Einmal täglich nach entfernten Add-ons suchen",
+    "addons.recall_help": "Wenn dies eingeschaltet ist, liest VOOL einmal täglich die öffentliche Liste des Fertigkeiten-Codex. Ein dort entferntes Add-on wird dann hier nicht mehr verwendet. Es wird nichts über dich, deine Chats oder deine Add-ons gesendet.",
+    "addons.recall_last": "Zuletzt geprüft",
+    "addons.recall_none": "Beginnt, sobald du ein Add-on aus dem Fertigkeiten-Codex hast.",
+    "addons.recall_failed": "Die letzte Prüfung konnte nicht abgeschlossen werden. VOOL versucht es innerhalb einer Stunde erneut.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen",
     "private.banner": "Privater Chat: nichts wird gespeichert",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "Mit meinen Cloud-Modellen antworten",
     "phone.bot_cloud_help": "Antworten in {app} dürfen deine Cloud-Modelle nutzen, wie ein Chat auf diesem Computer. Bezahlte Antworten zählen zu deinen KI-Ausgabelimits und stoppen, wenn ein Limit erreicht ist. Jeweils 30 Tage lang an."
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -562,6 +562,17 @@ def _start_background_prewarm(runtime: RuntimeServices) -> None:
     threading.Thread(target=_worker, name="vool-provider-prewarm", daemon=True).start()
 
 
+def _start_registry_recall() -> None:
+    """The owner's daily check for add-ons the Skill Codex removed. Off unless they turned it on; it
+    waits until the app is up, and a failure here never stops the app."""
+    try:
+        from core.registry import recall
+
+        recall.start()
+    except Exception as exc:
+        logger.warning("Removed add-on check did not start: %s", type(exc).__name__)
+
+
 def _start_parent_death_watch(server: Any) -> None:
     """Orphan defense for app-owned runtimes: when the native window host that spawned us dies,
     this daemon must not outlive it as a headless listener on 11435. macOS has no PR_SET_PDEATHSIG,
@@ -761,6 +772,7 @@ def main() -> int:
         except Exception:
             logger.exception("lending delivery failed to start; server continues without it")
         _start_background_prewarm(runtime)
+        _start_registry_recall()
         # Crypto Pilot: the transfer observer reads the chain for transfers whose outcome is not settled yet and
         # recovers claims whose request died. One daemon thread; it never transmits. Fail-soft: boot never depends on it.
         try:

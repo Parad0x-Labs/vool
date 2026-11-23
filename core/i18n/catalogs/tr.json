@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "Yükle ve etkinleştir",
     "addons.registry_refresh": "Beceri Kodeksine göz at",
     "addons.registry_network": "Bu düğme herkese açık kaydı sorgular. Hesaplar, sohbetler, yerel dosyalar veya sağlayıcı anahtarları gönderilmez.",
+    "addons.recall_switch": "Kaldırılan eklentileri günde bir kez denetle",
+    "addons.recall_help": "Bu açıkken VOOL, Beceri Kodeksinin herkese açık listesini günde bir kez okur; böylece orada kaldırılan bir eklenti burada da kullanılmaz. Sizinle, sohbetlerinizle veya eklentilerinizle ilgili hiçbir şey gönderilmez.",
+    "addons.recall_last": "Son denetim",
+    "addons.recall_none": "Beceri Kodeksinden bir eklentiniz olduğunda başlar.",
+    "addons.recall_failed": "Son denetim tamamlanamadı. VOOL bir saat içinde yeniden deneyecek.",
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
     "addons.registry_inspect": "İncelemek için indir",
     "private.banner": "Özel sohbet: hiçbir şey kaydedilmez",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "Bulut modellerimle yanıtla",
     "phone.bot_cloud_help": "{app} içindeki yanıtlar, bu bilgisayardaki bir sohbet gibi bulut modellerinizi kullanabilir. Ücretli yanıtlar yapay zekâ harcama sınırlarınıza sayılır ve bir sınıra ulaşıldığında durur. Her seferinde 30 gün açık kalır."
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

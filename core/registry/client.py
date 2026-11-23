@@ -177,6 +177,16 @@ class Client:
         return {"status": "ok", "entries": rows, "expires": value["expires"], "target": self.target,
                 "requirements": public_requirements(), "report_page": self.origin + "/codex/skills/report"}
 
+    def recall(self, *, now: int) -> dict:
+        """Read the signed list only to learn what was removed. Shows nothing and installs nothing.
+
+        The request is the one Browse makes. Its consent is the owner's saved daily-check choice, which
+        core.registry.recall reads before it calls this.
+        """
+        snapshot = decode(self.request(self.origin + PREFIX + "/snapshot", limit=4 * 1024 * 1024), 4 * 1024 * 1024)
+        value = self.catalog.accept(snapshot, now=now)
+        return {"status": "ok", "removed_listed": len(value["revoked"])}
+
     def picture(self, package_id: str, sha256: str, *, approved: bool, now: int) -> dict:
         """A listed skill's approved icon, checked against the signed listing from this run's Browse."""
         require(approved is True, "explicit registry network consent required")
@@ -287,6 +297,14 @@ def configured_client() -> Client:
 
 
 def handle(action: str, body: dict) -> dict:
+    if action == "registry_recall":
+        # The owner's daily-check switch: read it, or save a clear yes or no. No request is made here.
+        from core.registry import recall
+
+        if "enabled" in body:
+            require(type(body["enabled"]) is bool, "the daily check is either on or off")
+            return recall.set_enabled(body["enabled"])
+        return recall.status()
     client = configured_client()
     try:
         now = int(time.time())

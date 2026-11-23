@@ -2381,6 +2381,11 @@
     "addons.registry_enable": "Zainstaluj i włącz",
     "addons.registry_refresh": "Przeglądaj kodeks umiejętności",
     "addons.registry_network": "Ten przycisk odpytuje publiczny rejestr. Konta, rozmowy, pliki lokalne i klucze dostawców nie są wysyłane.",
+    "addons.recall_switch": "Raz dziennie sprawdzaj, czy usunięto dodatki",
+    "addons.recall_help": "Gdy ta opcja jest włączona, VOOL raz dziennie odczytuje publiczną listę kodeksu umiejętności, więc usunięty tam dodatek przestaje być tutaj używany. Nie są wysyłane żadne informacje o Tobie, Twoich czatach ani dodatkach.",
+    "addons.recall_last": "Ostatnie sprawdzenie",
+    "addons.recall_none": "Zaczyna działać, gdy masz dodatek z kodeksu umiejętności.",
+    "addons.recall_failed": "Ostatniego sprawdzenia nie udało się dokończyć. VOOL spróbuje ponownie w ciągu godziny.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
     "addons.registry_inspect": "Pobierz do sprawdzenia",
     "private.banner": "Prywatny czat: nic nie jest zapisywane",
@@ -5368,7 +5373,7 @@
     "phone.bot_cloud": "Odpowiadaj moimi modelami w chmurze",
     "phone.bot_cloud_help": "Odpowiedzi w {app} mogą korzystać z Twoich modeli w chmurze, jak czat na tym komputerze. Płatne odpowiedzi liczą się do Twoich limitów wydatków na AI i zatrzymują się po osiągnięciu limitu. Włączone na 30 dni."
   },
-  "source_catalog_sha256": "b45e8484f61141407cdc607b7221dfdb9ff7236566a4e3994c11e98c8309904d",
+  "source_catalog_sha256": "4f2728f1757c09bc8f68442196794039de9ae195a7e71b215e6e5bcd3a66f205",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
