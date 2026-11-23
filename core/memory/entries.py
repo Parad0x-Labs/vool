@@ -2613,7 +2613,7 @@ def forget_structured_memory(
 
 
 def _chats_holding_erased_rows(erased_rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
-    """(chat, row words) for every chat whose conversation log carries the words of one of ``erased_rows`` and that
+    """(chat, row words) for every chat whose conversation log or summary carries the words of one of ``erased_rows`` and that
     could read that row, so the row was shown there. The chat that saved a row is found from the row itself."""
     texts = [(row, " ".join(str(row.get("text") or "").split())) for row in erased_rows]
     texts = [(row, text) for row, text in texts if len(text.split()) >= 2]
@@ -2623,11 +2623,16 @@ def _chats_holding_erased_rows(erased_rows: list[dict[str, Any]]) -> list[tuple[
 
     found: list[tuple[str, str]] = []
     policies: dict[str, ContextAccessPolicy | None] = {}
-    for logged in _load_jsonl(conversation_log_path()):
-        chat = str(logged.get("session_id") or "").strip() if isinstance(logged, dict) else ""
+    # A chat's summary holds the saved rows read into its turns ("Relevant durable memory: ...") even where its log
+    # does not: Mac run17 (1bf694c5), the R1 chat's recall went to another lane and its summary alone kept the fact.
+    logged_rows: list[tuple[dict[str, Any], Any]] = [
+        (row, [row.get("user"), row.get("assistant")]) for row in _load_jsonl(conversation_log_path())
+        if isinstance(row, dict)]
+    logged_rows += [(row, row) for row in _load_jsonl(session_summaries_path()) if isinstance(row, dict)]
+    for logged, said in logged_rows:
+        chat = str(logged.get("session_id") or "").strip()
         if not chat:
             continue
-        said = [logged.get("user"), logged.get("assistant")]
         for row, text in texts:
             if (chat, text) in found or not carries(said, text):
                 continue

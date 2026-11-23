@@ -662,3 +662,46 @@ def test_a_kept_fact_with_no_marked_lead_is_kept_whole(monkeypatch):
     led = "prisimink, kad kaimyno šuo ėda vien morkas"
     assert pm._kept_fact_words(led, session_id=CHAT, source_context={}) == "kaimyno šuo ėda vien morkas"
     assert all(len(version.split()) >= len(led.split()) - 2 for version in asked[0]), asked
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_fact_said_in_passing_with_dont_keep_it_is_not_kept_by_the_keep_step(home, monkeypatch, seed):
+    """Mac run17 (1bf694c5): "mein Hamster heißt Wirbelwind, aber speicher das nicht" was read none by both readings,
+    the keep step wrote it, and the reply ended 'Saved to memory: ...'."""
+    rng = random.Random(f"keep-step-not-wanted-{seed}")
+    name = rng.choice(["Wirbelwind", "Krümel", "Pfeffer"])
+    text = _vary(rng, rng.choice([f"mein Hamster heißt {name}, aber speicher das nicht",
+                                  f"mano žiurkėnas vardu {name}, tik nesaugok šito"]))
+    _judged_none(text)
+    for judge in ("arbitrate_lasting_fact", "arbitrate_standing_state", "arbitrate_told_as_fact"):
+        monkeypatch.setattr(intent_arbiter, judge, lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", lambda *_a, **_k: None)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: "no")
+    assert pm.keep_stated_facts(text, session_id=CHAT, access_policy=_policy(CHAT), source_context=dict(OWNER)) == 0
+    assert name.casefold() not in _entries().casefold()
+    monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: "yes")
+    plain = f"my hamster is called {name}"
+    assert pm.keep_stated_facts(plain, session_id=CHAT, access_policy=_policy(CHAT), source_context=dict(OWNER)) == 1
+
+
+@pytest.mark.parametrize("tool_pick", [None, "Memory, keep"])
+def test_a_forget_settled_by_one_reading_is_none_when_the_person_asks_not_to_keep(monkeypatch, tool_pick):
+    """probe17 on 1bf694c5 (qwen3:8b): six Lithuanian "<fact>, tik nesaugok šito" read forget by the memory question and
+    yes by the forget question."""
+    plugin_ask.forget()
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+
+    def arbitrate(message, choices, **_kwargs):
+        if tool_pick is None:
+            return (0,)
+        return (next(n for n, choice in enumerate(choices, 1) if choice.startswith(tool_pick)),)
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: "forget")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
+    for wanted, expected in (("no", ""), ("yes", "forget"), (None, "forget")):
+        monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, _w=wanted, **_k: _w)
+        text = f"laikau lempą palėpėje, tik nesaugok šito ({tool_pick} {wanted})"
+        plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
+        assert plugin_ask.judged_memory_ask(text) == expected, wanted
+    plugin_ask.forget()

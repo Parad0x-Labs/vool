@@ -248,7 +248,11 @@ def _memory_kind_confirmed(
     disagree = bool(picked) and kind in {"keep", "recall", "forget"} and kind not in picked
     if not tools and ("forget" in named or disagree):
         agreed = kind == "forget" and "forget" in picked
-        if agreed or asked("forget", intent_arbiter.arbitrate_forget_order) == "yes":
+        # A forget one reading names and the yes/no settles is not one when the person says something now and asks
+        # not to keep it: on qwen3:8b all six Lithuanian "<fact>, tik nesaugok šito" ("... just don't save this") of
+        # probe17 (1bf694c5) were read forget by the memory question and yes by the forget question.
+        if agreed or (asked("forget", intent_arbiter.arbitrate_forget_order) == "yes"
+                      and asked("keep wanted", intent_arbiter.arbitrate_keep_wanted) != "no"):
             decided = "forget"
     if not decided and not tools and kind == "keep" and "keep" in picked:
         decided = "keep"

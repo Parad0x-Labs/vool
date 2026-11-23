@@ -3720,6 +3720,11 @@ def keep_stated_facts(
     facts = [*facts, *(_kept_fact_words(fact, session_id=policy.chat_id, source_context=source_context)
                        for fact in _judged_lasting_facts(unlisted, session_id=policy.chat_id,
                                                          source_context=source_context))]
+    if facts and _keep_not_wanted(clean, session_id=policy.chat_id, source_context=source_context):
+        # The person said it and asked VOOL not to keep it: nothing of it is written. Mac run17 (1bf694c5): "mein Hamster
+        # heißt Wirbelwind, aber speicher das nicht" was read none by both readings, so the memory lane's own
+        # keep-not-wanted question was never asked; the keep step wrote the fact and the reply ended "Saved to memory".
+        facts = []
     added = 0
     if may_restore:
         try:

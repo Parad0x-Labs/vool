@@ -52,3 +52,20 @@ def test_an_update_about_a_saved_subject_still_replaces_it(home):
 ])
 def test_a_forget_word_stands_where_a_word_stands(text, needle, carried):
     assert forget_needle_in(text, needle) is carried
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_no_piece_of_a_forgotten_sentence_is_kept_as_its_salvage(seed):
+    """Mac run17 (1bf694c5): after "forget everything about my sledge", the learned line "Remember that my sledge is
+    lilac" stayed: the forget of the whole sentence kept its first clause as what survives of the line."""
+    from core.vool_memory import _forget_salvage_content
+
+    rng = random.Random(f"salvage-{seed}")
+    thing, colour, place = rng.choice(["sledge", "easel", "kayak"]), rng.choice(["lilac", "navy"]), rng.choice(
+        ["garage", "loft"])
+    said = rng.choice([f"Remember that my {thing} is {colour} and lives in the {place}",
+                       f"Note: my {thing} is {colour}, it's kept in the {place}"])
+    assert _forget_salvage_content(said, said.lower()) == ""
+    # A value forgotten out of a longer line still leaves the line's other facts.
+    assert _forget_salvage_content(f"The gate code is 4411 and my {thing} is {colour}.", "4411") == (
+        f"my {thing} is {colour}.")

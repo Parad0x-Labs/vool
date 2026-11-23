@@ -3124,9 +3124,12 @@ def _forget_salvage_content(
     def _carries(chunk: str) -> bool:
         if text_carries_forget_token(chunk, needle):
             return True
-        return any(
-            text_carries_forget_token(chunk, part) for part in needle_parts
-        )
+        if any(text_carries_forget_token(chunk, part) for part in needle_parts):
+            return True
+        # A clause that is itself a piece of the forgotten words is forgotten with them. Mac run17 (1bf694c5): the
+        # forget of "Remember that my sledge is lilac and lives in the garage" left the learned line "Remember that my
+        # sledge is lilac": its first clause, which carried no whole needle, was kept as the salvage.
+        return len(chunk.split()) >= 2 and text_carries_forget_token(str(needle or ""), chunk)
 
     sentences = re.split(r"(?<=[.!?;])\s+", text)
     kept: list[str] = []

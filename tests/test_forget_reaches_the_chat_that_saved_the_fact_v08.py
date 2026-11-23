@@ -204,3 +204,17 @@ def test_a_chat_that_could_not_read_the_fact_is_left_alone(isolated_home):
     _shown_in(THIRD, "note", "My kiln shelf is number 6.")
     _forget("Forget my kiln shelf.", SAVED_IN)
     assert "kiln shelf is number 6" in _log_of(THIRD)
+
+
+def test_a_chat_whose_summary_alone_holds_the_fact_lets_go_of_it(isolated_home):
+    # Mac run17 (1bf694c5): the R1 chat's recall went to another lane, so its log never held the fact, and its summary
+    # ("Relevant durable memory: <the fact>") kept it after the forget.
+    from core.memory.files import append_jsonl, session_summaries_path
+
+    _save(GLAZIER)
+    _policy(THIRD)
+    _shown_in(THIRD, "who fixes the windows", "Web lookups are off.")
+    append_jsonl(session_summaries_path(), {"session_id": THIRD, "summary": f"Relevant durable memory: {GLAZIER}."})
+    assert _forget("Forget my glazier.").startswith("Forget applied. Removed 1 memory entry.")
+    summaries = " ".join(str(row) for row in load_jsonl(session_summaries_path()))
+    assert "Whitlock" not in summaries, summaries
